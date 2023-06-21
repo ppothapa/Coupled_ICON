@@ -242,6 +242,7 @@ MODULE mo_icon2dace
                             prefix_out        ! feedback output file prefix
   use mo_tovs,        only: read_tovs_nml,   &! read TOVS_* namelists
                             use_reff,        &! use ICON effective radii in RTTOV
+                            prep_H_btcs,     &! prepare t_vector
                             thin_superob_tovs !
   use mo_rad,         only: rad_set,         &! Options for radiance datasets
                             n_set
@@ -249,7 +250,8 @@ MODULE mo_icon2dace
   ! feedback file interface
   !------------------------
   use mo_fdbk_tables, only: init_fdbk_tables,&! initialise tables
-                            OT_RAD            ! obstype RAD       
+                            OT_RAD,          &! obstype RAD
+                            OF_BT_CLEAR_SKY   ! operator-flag for clear-sky TBs
   use mo_fdbk_3dvar,  only: t_fdbk_3dv,      &! 3dvar feedback file derived type
                             destruct,        &! t_fdbk_3dv destructor routine
                             write_fdbk_3dv    ! write (NetCDF) feedback file
@@ -2339,6 +2341,8 @@ contains
     CALL finish ("finish_dace","DACE coupling requested but not compiled in")
 #else
     character(22) :: comment
+    type(t_vector) ::  H_btcs              !clear-sky Tbs
+    integer, allocatable :: op_flag(:)  ! operator flag for each fdbk file category
 
     call dace_open_output ()
 
@@ -2368,6 +2372,16 @@ contains
     call message ("","")
     call message ("icon2dace","writing feedback files")
     call add_veri (H_det, obs, atm(mec_slotn), ensm=ens_mem)
+    !--------------------------------------------------
+    ! clear-sky model equivalent brightness temperatures
+    !--------------------------------------------------
+    call construct (H_btcs, obs% oi,'H_btcs' )  !clear-sky TB
+    allocate(op_flag(n_source))
+    call prep_H_btcs(H_btcs, obs,op_flag)
+    if (any(op_flag == OF_BT_CLEAR_SKY)) then
+      call add_veri (H_btcs,obs, atm(mec_slotn), op_flag=op_flag)
+    end if
+    call destruct(H_btcs)
     !-------------------------------
     ! clean up observation operators
     !-------------------------------
