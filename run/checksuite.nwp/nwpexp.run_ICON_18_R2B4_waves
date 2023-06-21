@@ -123,6 +123,7 @@ cat > ${wave_namelist} << EOF
 /
 &parallel_nml
  nproma                  = ${nproma}             ! loop chunk length
+ nproma_sub              = ${nproma_sub}         ! loop chunk length for radiation
  p_test_run              = .false.               ! .TRUE. means verification run for MPI parallelization
  l_test_openmp           = .false.
  l_log_checks            = .false.

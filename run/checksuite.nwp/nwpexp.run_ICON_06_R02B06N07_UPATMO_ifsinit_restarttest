@@ -236,6 +236,7 @@ cat > NAMELIST_NWP << EOF
 ! parallel_nml: MPI parallelization -------------------------------------------
 &parallel_nml
  nproma                      =                  ${nproma}         ! loop chunk length
+ nproma_sub                  =              ${nproma_sub}         ! loop chunk length for radiation
  p_test_run                  =                     .FALSE.        ! .TRUE. means verification run for MPI parallelization
  num_io_procs                =            ${num_io_procs}         ! number of I/O processors
  num_restart_procs           =       ${num_restart_procs}         ! number of restart processors

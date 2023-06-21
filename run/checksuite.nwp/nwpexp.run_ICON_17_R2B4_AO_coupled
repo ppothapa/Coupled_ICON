@@ -609,6 +609,7 @@ cat > ${atm_namelist} << EOF
 !
 &parallel_nml
  nproma                  = ${nproma_atm}
+ nproma_sub              = ${nproma_sub} ! loop chunk length for radiation
  p_test_run              = .false.
  l_test_openmp           = .false.
  l_log_checks            = .true.
@@ -618,7 +619,7 @@ cat > ${atm_namelist} << EOF
  num_io_procs_radar      = ${num_io_procs_radar}
  itype_comm              = 1
  iorder_sendrecv         = 3
- proc0_shift             = 1
+ proc0_shift             = ${proc0_shift}
  use_omp_input           = .true.
 /
 &grid_nml
@@ -888,6 +889,8 @@ rbf_scale_mode_ll        = 2
  ecrad_llw_cloud_scat    = .true.
  ecRad_data_path         = '${ecRad_data_path}' 
  isolrad                 = 1
+ ecrad_isolver           = ${radiation_ecrad_isolver}
+ ! Solver version. 2: McICA with OpenACC, 0: McICA
 /
 &meteogram_output_nml
   lmeteogram_enabled     = .false., .false.

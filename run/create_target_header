@@ -36,10 +36,9 @@ add_free_var()
 set_default()
 {
     # Set variable with name $1 to $2 if it is not set or empty.
-    if [[ "x$(eval echo \$$1)" == "x" ]]
-    then
-        eval "$1=$2"
-    fi
+    eval : "\${$1:=$2}"
+    # ":" is a shell build in that has no effect. It is used to make the variable expansion a valid statement.
+    # ":="" assigns the default $2 value in place if parameter $1 was unset or null.
 }
 
 start_header()
@@ -56,6 +55,10 @@ start_header()
         echo "[ERROR] $output_script does not exist!"
         exit 1
     fi
+
+    set_default use_ecrad_isolver 0 # Default: McICA (not for OpenACC)
+    set_default use_proc0_shift 0 # VH offloading mode: off
+
     cat >> $output_script << EOF
 #=============================================================================
 set +x
@@ -96,6 +99,11 @@ mpi_procs_pernode=$use_mpi_procs_pernode
 nproma=$use_nproma
 nproma_sub=$use_nproma_sub
 nblocks_c=$use_nblocks_c
+proc0_shift=$use_proc0_shift
+#
+# Ecrad solver (0 for CPU/vector, 2 for GPU)
+# ------------------------------------------
+radiation_ecrad_isolver=${use_ecrad_isolver}
 #
 #=============================================================================
 
@@ -177,7 +185,7 @@ cdo_diff="${cdo} ${cdo_diff}"
 
 # define script functions used in the experiment run script
 # ---------------------------------------------------------
-. ${base_folder}/run/add_run_routines
+. \${basedir}/run/add_run_routines
 
 #=============================================================================
 
@@ -585,12 +593,14 @@ set_run_target_rcl()
     #fi
     
     set_default use_nproma 752
+    set_default use_nproma_sub $use_nproma
     set_default use_nblocks_c 0
     set_default use_nodes 1
     set_default use_mpi_procs_pernode 1
     set_default use_openmp_threads 1
     set_default use_venum_lhost 2
     set_default use_cpunum_job 6
+    set_default use_proc0_shift 1 # VH offloading mode: on with 1 proc
     # $use_memory can be used to set memsz_job. e.G. "24gb"
 
     
@@ -780,11 +790,47 @@ EOF
 }
 
 #=============================================================================
+set_run_target_gpnl()
+{
+  # gpnl*.dwd.de GPU Node with Linux (login node)
+    icon_data_rootFolder=${icon_data_rootFolder:="/hpc/rwork0/routfor/test/icon"}
+
+    # Use same nproma for GPU and CPU for development purposes
+    set_default use_nproma 40000
+    set_default use_nproma_sub 8000
+    set_default use_nblocks_c 0
+    set_default use_ecrad_isolver 2 # McICA for OpenACC
+    use_nodes=1
+
+    if [[ "$use_mpi" == "yes" ]]
+    then
+        set_default use_mpi_procs_pernode 4
+        set_default use_num_io_procs 3
+    fi
+
+    # no OpenMP Threads
+    set_default use_openmp_threads 1
+
+
+    start_header
+    cat >>$output_script <<EOF
+#=============================================================================
+set +x
+ulimit -Sv unlimited
+
+export ECCODES_DEFINITION_PATH="/hpc/sw/eccodes/definitions/release/2.23.0-5/definitions.edzw:/hpc/sw/eccodes/definitions/release/2.23.0-5/definitions"
+EOF
+    if [[ "$use_gpu" == "yes" ]]
+    then
+        echo "export ENABLE_NVIDIA_SMI_LOGGER=yes" >> $output_script
+    fi
+}
+#=============================================================================
 set_run_target_oflws()
 {
   # *.dwd.de with Linux (workstations)
     icon_data_rootFolder=${icon_data_rootFolder:=""}
-    
+
     set_default use_nproma 64
     set_default use_nproma_sub 64
     set_default use_nblocks_c 0
@@ -792,11 +838,11 @@ set_run_target_oflws()
 
     if [[ "$use_mpi" == "yes" ]]
     then
-	set_default use_mpi_procs_pernode 4
+    set_default use_mpi_procs_pernode 4
     fi
     if [[ "$use_openmp" == "yes" ]]
     then
-	set_default use_openmp_threads 2
+    set_default use_openmp_threads 2
     fi
 
     start_header

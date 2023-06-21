@@ -134,6 +134,7 @@ num_io_procs_radar=0
 cat > ${atmo_namelist} << EOF
 &parallel_nml
  nproma                  =  ${nproma}
+ nproma_sub              =  ${nproma_sub} ! loop chunk length for radiation
  p_test_run              = .false.
  l_test_openmp           = .true.
  l_log_checks            = .true.
@@ -144,7 +145,7 @@ cat > ${atmo_namelist} << EOF
  itype_comm              = 1
  iorder_sendrecv         = 3
  !!! num_dist_array_replicas = 4
- proc0_shift             = 1
+ proc0_shift             = ${proc0_shift}
  use_omp_input           = .true.
 /
 &grid_nml
@@ -320,6 +321,8 @@ cat > ${atmo_namelist} << EOF
   direct_albedo_water = 3
   albedo_whitecap = 1
   isolrad     = 1
+  ecrad_isolver = ${radiation_ecrad_isolver}
+ ! Solver version. 2: McICA with OpenACC, 0: McICA
 /
 &nonhydrostatic_nml
   damp_height     = 12250.

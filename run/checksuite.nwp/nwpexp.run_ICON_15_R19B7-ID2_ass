@@ -193,6 +193,7 @@ num_io_procs_radar=$NPIORADAR
 cat > ${atmo_namelist} << EOF
 &parallel_nml
  nproma                       =  ${nproma}
+ nproma_sub                   =  ${nproma_sub} ! loop chunk length for radiation
  p_test_run                   = .false.
  l_test_openmp                = .true.
  l_log_checks                 = .true.
@@ -202,7 +203,7 @@ cat > ${atmo_namelist} << EOF
  num_io_procs_radar           = ${num_io_procs_radar}
  itype_comm                   = 1
  iorder_sendrecv              = 3
- proc0_shift                  = 1
+ proc0_shift                  = ${proc0_shift}
  use_omp_input                = .true.
 /
 &grid_nml

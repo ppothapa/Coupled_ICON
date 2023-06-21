@@ -166,6 +166,7 @@ num_io_procs_radar=0
 cat > NAMELIST_${EXPID} << EOF
         &parallel_nml
           nproma                       =  ${nproma}
+          nproma_sub                   = ${nproma_sub} ! loop chunk length for radiation
           p_test_run                   = .FALSE.
           l_test_openmp                = .FALSE.
           l_log_checks                 = .FALSE.
@@ -175,7 +176,7 @@ cat > NAMELIST_${EXPID} << EOF
           num_io_procs_radar           = ${num_io_procs_radar}
           itype_comm                   = 1
           iorder_sendrecv              = 1
-          proc0_shift                  = 1
+          proc0_shift                  = ${proc0_shift}
           use_omp_input                = .TRUE.
         /
         &grid_nml
@@ -333,6 +334,8 @@ cat > NAMELIST_${EXPID} << EOF
           irad_aero   = 18
           izenith     = 4           ! 4: NWP default, 3: no annual cycle
           albedo_type = 2           ! Modis albedo
+          ecrad_isolver = ${radiation_ecrad_isolver}
+ ! Solver version. 2: McICA with OpenACC, 0: McICA
         /
         &nonhydrostatic_nml	
           iadv_rhotheta       = 2
