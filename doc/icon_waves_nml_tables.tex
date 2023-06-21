@@ -10,7 +10,7 @@
 
 \section{Ocean waves specific namelist parameters}
 
-\subsection{waves\_nml (used if configurated with --enable\_waves and model\_type=98 in master\_model\_nml)}
+\subsection{waves\_nml (used if configurated with --enable-waves and model\_type=98 in master\_model\_nml)}
 
 \begin{longtab}
 %Parameter &Type& Default   & Unit& Description&                                                      Scope
@@ -55,9 +55,10 @@ iforc\_waves& I  & 1        &     & 1: test case & \tabularnewline
  lgrid\_refr     &L& .TRUE. &     & .TRUE.: calculate grid refraction & \tabularnewline
  forc\_file\_prefix &C&     &     & common prefix of forcing files & \tabularnewline
                     & &     &     & if not empty, the names of forcing files will be consctructed as: & \tabularnewline
-                    & &     &     & forc\_file\_prefix + \_wind - for 10m wind & coupled\_mode= .FALSE. in coupling\_mode\_nml \tabularnewline
-                    & &     &     & forc\_file\_prefix + \_ice - for sea ice concentration & coupled\_mode= .FALSE. in coupling\_mode\_nml \tabularnewline
-                    & &     &     & forc\_file\_prefix + \_slh - for sea level height & \tabularnewline
-                    & &     &     & forc\_file\_prefix + \_osc - for ocean surface currents & \tabularnewline
+                    & &     &     & forc\_file\_prefix+\_wind.nc - for 10m wind & coupled\_mode= .FALSE. in coupling\_mode\_nml \tabularnewline
+                    & &     &     & forc\_file\_prefix+\_ice.nc - for sea ice concentration & coupled\_mode= .FALSE. in coupling\_mode\_nml \tabularnewline
+                    & &     &     & forc\_file\_prefix+\_slh.nc - for sea level height & \tabularnewline
+                    & &     &     & forc\_file\_prefix+\_osc.nc - for ocean surface currents & \tabularnewline
+                    & &     &     & Data for all time steps in the current simulation should be prepared in a single file. Variables should be named \texttt{u\_10m}, \texttt{v\_10m}, \texttt{fr\_seaice}, ??? & \tabularnewline
 \end{longtab}
 

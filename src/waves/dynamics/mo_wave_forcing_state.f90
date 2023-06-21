@@ -27,7 +27,7 @@ MODULE mo_wave_forcing_state
   USE mo_grib2,                ONLY: t_grib2_var, grib2_var
   USE mo_parallel_config,      ONLY: nproma
   USE mo_cdi,                  ONLY: DATATYPE_FLT32, DATATYPE_FLT64, DATATYPE_PACK16, &
-       &                             GRID_UNSTRUCTURED
+       &                             GRID_UNSTRUCTURED, DATATYPE_INT
   USE mo_io_config,            ONLY: lnetcdf_flt64_output
   USE mo_var_groups,           ONLY: groups
   USE mo_cdi_constants,        ONLY: GRID_UNSTRUCTURED_CELL, GRID_CELL, &
@@ -143,6 +143,12 @@ CONTAINS
     CALL add_var( p_forcing_list, 'sea_ice_e', p_forcing%sea_ice_e,              &
          &        GRID_UNSTRUCTURED_EDGE, ZA_SURFACE, cf_desc, grib2_desc,       &
          &        ldims=shape2d_e, in_group=groups("wave_forcing") )
+
+    cf_desc    = t_cf_var('ice_free_mask_c', '-', 'ice-free mask at cells', datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( p_forcing_list, 'ice_free_mask_c', p_forcing%ice_free_mask_c,  &
+         & GRID_UNSTRUCTURED_CELL,  ZA_SURFACE, cf_desc, grib2_desc,       &
+         & ldims=shape2d_c, in_group=groups("wave_forcing") )
 
     !sea level
     cf_desc    = t_cf_var('sea_level_c', 'm','sea level height at cells', datatype_flt)

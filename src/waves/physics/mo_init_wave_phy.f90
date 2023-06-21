@@ -77,9 +77,6 @@ CONTAINS
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
       &  routine = modname//':init_wave_phy'
 
-    INTEGER :: i_rlstart, i_rlend, i_startblk, i_endblk
-    INTEGER :: i_startidx, i_endidx
-
     ! save some paperwork
     wc => wave_config
 
@@ -143,11 +140,8 @@ CONTAINS
          p_diag%gvn_e)  !INOUT
 
     ! initialisation of the nonlinear transfer
-    CALL init_wave_nonlinear(p_patch  = p_patch,                    & !IN
-         &                wave_config = wave_config,                & !IN
-         &                wave_num_c  = p_diag%wave_num_c,          & !IN
-         &                depth       = wave_ext_data%bathymetry_c, & !IN
-         &                p_diag      = p_diag) !INOUT
+    CALL init_wave_nonlinear(wave_config = wave_config,                & !IN
+         &                   p_diag      = p_diag) !INOUT
 
 
 
@@ -393,20 +387,17 @@ CONTAINS
   !! @par Revision History
   !! Initial revision by Mikhail Dobrynin, DWD (2019-11-05)
   !!
-  SUBROUTINE init_wave_nonlinear(p_patch, wave_config, wave_num_c, depth, p_diag)!, ext_data)
+  SUBROUTINE init_wave_nonlinear(wave_config, p_diag)!, ext_data)
 
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
          &  routine = modname//':init_wave_nonlinear'
 
-    TYPE(t_patch),               INTENT(IN)    :: p_patch
     TYPE(t_wave_config), TARGET, INTENT(IN)    :: wave_config
-    REAL(wp),                    INTENT(IN)    :: wave_num_c(:,:,:)  !< wave number (1/m)
-    REAL(wp),                    INTENT(IN)    :: depth(:,:)
     TYPE(t_wave_diag),           INTENT(INOUT) :: p_diag
 
     TYPE(t_wave_config), POINTER :: wc => NULL()
 
-    INTEGER :: jc,jb,jf,jd
+    INTEGER :: jf,jd
     INTEGER :: error
 
     INTEGER :: nfreqs, ndirs
@@ -414,13 +405,12 @@ CONTAINS
     INTEGER :: m, ikn, i, ie
     INTEGER :: mc,im,im1,ip,ip1,mm,mm1,mp,mp1
 
-    REAL(wp) :: alamd, con, delphi1, delphi2, fr
+    REAL(wp) :: alamd, con, delphi1, delphi2
     REAL(wp) :: deltha, cl1, cl2, al11, al12, ch, cl1h, cl2h
     REAL(wp) :: f1p1, frg, flp, flm, fkp, fkm
 
     REAL(WP), ALLOCATABLE, DIMENSION(:) :: frlon
 
-    REAL(wp) :: wave_num(nproma)
 
     wc => wave_config
     nfreqs = wc%nfreqs
@@ -604,6 +594,8 @@ CONTAINS
 
 
     ! 3. compute tail frequency ratios
+    wc%frh(:) = 0._wp ! initialisation
+
     ie = MIN(30,nfreqs+3)
     DO i = 1,ie
        m = nfreqs+i-1

@@ -44,11 +44,16 @@ MODULE mo_wave_forcing_types
       & sea_level_c(:,:), & ! sea level height at centers (nproma,nblks_c) ( m )
       & sea_level_e(:,:), & ! sea level height at edges (nproma,nblks_e)   ( m )
       & usoce_c(:,:),     & ! zonal ocean surface current at centers    (nproma,nblks_c) ( m/s )
-      & vsoce_c(:,:),     & ! medional ocean surface current at centers (nproma,nblks_c) ( m/s )
+      & vsoce_c(:,:),     & ! meridional ocean surface current at centers (nproma,nblks_c) ( m/s )
       & usoce_e(:,:),     & ! zonal ocean surface current at edges (nproma,nblks_e)    ( m/s )
-      & vsoce_e(:,:)      & ! medional ocean surface current at edges (nproma,nblks_e) ( m/s )
+      & vsoce_e(:,:)      & ! meridional ocean surface current at edges (nproma,nblks_e) ( m/s )
       & => NULL()
 
+    INTEGER, POINTER, CONTIGUOUS :: &
+      & ice_free_mask_c(:,:) & ! ice-free mask (nproma,nblks_c) 1 - no ice, 0 - ice
+      & => NULL()
+
+    
   END TYPE t_wave_forcing
 
 END MODULE mo_wave_forcing_types

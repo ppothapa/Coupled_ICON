@@ -59,7 +59,8 @@ $addexp "checksuite.les/exp.ac3_les_20210211.run" --builders "levante_intel_hybr
 
 
 # DWD wave model test on levante
-$addexp "checksuite.nwp/nwpexp.run_ICON_18_R2B4_waves"   --builders "levante_intel_hybrid"  --list $listname
+$addexp "checksuite.nwp/nwpexp.run_ICON_18_R2B4_waves"             --builders "levante_intel_hybrid levante_nag"  --list $listname
+$addexp "checksuite.nwp/nwpexp.run_ICON_21_R2B4_waves_standalone"  --builders "levante_intel_hybrid levante_nag"  --list $listname
 
 # add bubble est 
 #off#$addexp "checksuite.icon-dev/check.atm_2mom_bubble_rceTorus"               --list $listname
@@ -261,8 +262,8 @@ $addexp checksuite.nwp/nwpexp.run_ICON_11_R3B08_lam_initmode7_restarttest --buil
 $addexp checksuite.nwp/nwpexp.run_ICON_14_R2B6N7_oper_IAU_and_restarttest --builders DWD_nec_hybrid --list $listname
 $addexp checksuite.nwp/nwpexp.run_ICON_19_R2B4_cmip_forcing               --builders DWD_nec_hybrid --list $listname
 
-$addexp checksuite.nwp/nwpexp.run_ICON_18_R2B4_waves   --builders DWD_nec_hybrid        --list $listname
-
+$addexp "checksuite.nwp/nwpexp.run_ICON_18_R2B4_waves"             --builders "DWD_nec_hybrid"   --list $listname
+$addexp "checksuite.nwp/nwpexp.run_ICON_21_R2B4_waves_standalone"  --builders "DWD_nec_hybrid"   --list $listname
 
 #lets see the list
 ./lslist $listname

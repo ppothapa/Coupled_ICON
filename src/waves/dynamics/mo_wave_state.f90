@@ -302,7 +302,7 @@ CONTAINS
     INTEGER :: jg, jt, jf
     INTEGER :: shape2d_c(2), shape2d_e(2)
     INTEGER :: shape3d_freq_c(3), shape3d_freq_e(3)
-    INTEGER :: shape3d_freq_c_p4(3), shape4d_c_2(4)
+    INTEGER :: shape4d_c_2(4)
     INTEGER :: shape3d_tr_c(3), shape3d_tr_e(3)
     INTEGER :: shape1d_freq_p4(1), shape1d_dir_2(2)
     INTEGER :: shape4d_freq_p4_2_dir_18(4)
@@ -329,7 +329,6 @@ CONTAINS
     shape2d_c         = (/nproma, nblks_c/)
     shape2d_e         = (/nproma, nblks_e/)
     shape3d_freq_c    = (/nproma, nblks_c, nfreqs/)
-    shape3d_freq_c_p4 = (/nproma, nblks_c, nfreqs+4/)
     shape3d_freq_e    = (/nproma, nblks_e, nfreqs/)
     shape3d_tr_c      = (/nproma, nblks_c, ntracer/)
     shape3d_tr_e      = (/nproma, nblks_e, ntracer/)

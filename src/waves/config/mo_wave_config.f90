@@ -19,13 +19,15 @@ MODULE mo_wave_config
 
   USE mo_kind,                 ONLY: wp
   USE mo_exception,            ONLY: finish, message, message_text
-  USE mo_impl_constants,       ONLY: max_dom, SUCCESS
+  USE mo_impl_constants,       ONLY: max_dom, SUCCESS, MAX_CHAR_LENGTH
   USE mo_math_constants,       ONLY: pi2, rad2deg, dbl_eps
   USE mo_physical_constants,   ONLY: grav, rhoh2o
   USE mo_wave_constants,       ONLY: EX_TAIL
   USE mo_fortran_tools,        ONLY: DO_DEALLOCATE
   USE mo_idx_list,             ONLY: t_idx_list1D
   USE mo_io_units,             ONLY: filename_max
+  USE mo_util_string,          ONLY: t_keyword_list, associate_keyword, with_keywords, &
+    &                                int2string
 
   IMPLICIT NONE
 
@@ -41,6 +43,7 @@ MODULE mo_wave_config
 
   ! subroutines
   PUBLIC :: configure_wave
+  PUBLIC :: generate_filename
 
   TYPE t_wave_config
     INTEGER  :: ndirs    ! number of directions.
@@ -136,6 +139,8 @@ MODULE mo_wave_config
       &  freq_ind(:),      & ! index of frequency (1:ntracer=ndirs*nfreq)
       &  dir_ind(:),       & ! index of direction (1:ntracer=ndirs*nfreq)
       &  dir_neig_ind(:,:)   ! index of direction neighbor (2,1:ndirs)
+
+    LOGICAL :: lread_forcing ! set to .TRUE. if a forcing file prefix has been specified (forc_file_prefix)
 
   CONTAINS
     !
@@ -260,6 +265,15 @@ CONTAINS
 
       ! convenience pointer
       wc => wave_config(jg)
+
+
+      ! reading of external forcing data yes/no
+      ! set to .TRUE. if a forcing file prefix has been specified
+      IF (TRIM(wave_config(jg)%forc_file_prefix) /= '') THEN
+        wc%lread_forcing = .TRUE.
+      ELSE
+        wc%lread_forcing = .FALSE.
+      ENDIF
 
       ALLOCATE(wc%dirs         (wc%ndirs),  &
         &      wc%freqs        (wc%nfreqs), &
@@ -421,5 +435,25 @@ CONTAINS
     END DO
 
   END SUBROUTINE configure_wave
+
+
+  FUNCTION generate_filename(input_filename, model_base_dir, &
+    &                        nroot, jlev, idom)  RESULT(result_str)
+    CHARACTER(len=*), INTENT(IN)   :: input_filename, &
+      &                               model_base_dir
+    INTEGER,          INTENT(IN)   :: nroot, jlev, idom
+    CHARACTER(len=MAX_CHAR_LENGTH) :: result_str
+    TYPE (t_keyword_list), POINTER :: keywords => NULL()
+
+    CALL associate_keyword("<path>",   TRIM(model_base_dir),             keywords)
+    CALL associate_keyword("<nroot>",  TRIM(int2string(nroot,"(i0)")),   keywords)
+    CALL associate_keyword("<nroot0>", TRIM(int2string(nroot,"(i2.2)")), keywords)
+    CALL associate_keyword("<jlev>",   TRIM(int2string(jlev, "(i2.2)")), keywords)
+    CALL associate_keyword("<idom>",   TRIM(int2string(idom, "(i2.2)")), keywords)
+    ! replace keywords in "input_filename", which is by default
+    ! ifs2icon_filename = "<path>ifs2icon_R<nroot>B<jlev>_DOM<idom>.nc"
+    result_str = TRIM(with_keywords(keywords, TRIM(input_filename)))
+
+  END FUNCTION generate_filename
 
 END MODULE mo_wave_config

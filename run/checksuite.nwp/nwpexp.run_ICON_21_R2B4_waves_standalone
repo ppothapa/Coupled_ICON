@@ -31,11 +31,12 @@ DATAROOT="${icon_data_poolFolder}/Checksuite_data"
 # directory with input grids:
 GRIDDIR=${DATAROOT}/ICON-waves
 
-# directory with input data from IFS:
-#IFSDATADIR=${DATAROOT}/Inidata_R2B6N7_IFStest
-
 # directory with external parameter data:
 EXTPARDIR=${DATAROOT}/ICON-waves
+
+# directory with forcing data:
+FORCINGDIR=${DATAROOT}/ICON-waves/exp_standalone
+
 
 # ----------------------------------------------------------------------------
 # copy input data: grids, external parameters, model
@@ -45,12 +46,14 @@ EXTPARDIR=${DATAROOT}/ICON-waves
 #rm -rf *restart_*
 
 # grid files
-ln -sf ${GRIDDIR}/ocean_icon_waves_grid_0010_R02B04_G_DOM01.nc ocean_icon_waves_grid_0010_R02B04_G_DOM01.nc
-#ln -sf ${GRIDDIR}/iconR2B06_DOM01.nc iconR2B06_DOM01.nc
-#ln -sf ${GRIDDIR}/iconR2B07_DOM02.nc iconR2B07_DOM02.nc
+ln -sf ${GRIDDIR}/ocean_icon_waves_grid_0010_R02B04_G_DOM01.nc ocean_icon_waves_grid_0021_R02B04_G_DOM01.nc
 
 # external parameter (from ExtPar tool)
-ln -sf ${EXTPARDIR}/extpar_ocean_icon_waves_grid_0010_R02B04_G_DOM01.nc extpar_ocean_icon_waves_grid_0010_R02B04_G_DOM01.nc
+ln -sf ${EXTPARDIR}/extpar_ocean_icon_waves_grid_0010_R02B04_G_DOM01.nc extpar_ocean_icon_waves_grid_0021_R02B04_G_DOM01.nc
+
+# forcing files
+ln -sf ${FORCINGDIR}/ocean_waves_R2B4_19790101T000000_wind.nc ocean_waves_R2B4_19790101T000000_wind.nc
+ln -sf ${FORCINGDIR}/ocean_waves_R2B4_19790101T000000_ice.nc ocean_waves_R2B4_19790101T000000_ice.nc
 
 # copy binary
 cp -p $MODEL icon
@@ -59,8 +62,8 @@ cp -p $MODEL icon
 # ----------------------------------------------------------------------------
 # grid namelist settings
 # ----------------------------------------------------------------------------
-wave_grid=ocean_icon_waves_grid_0010_R02B04_G_DOM01.nc
-wave_extpar=extpar_ocean_icon_waves_grid_0010_R02B04_G_DOM01.nc
+wave_grid=ocean_icon_waves_grid_0021_R02B04_G_DOM01.nc
+wave_extpar=extpar_ocean_icon_waves_grid_0021_R02B04_G_DOM01.nc
 
 dynamics_grid_filename=""
 for gridfile in ${wave_grid}; do
@@ -115,7 +118,7 @@ cat > ${wave_namelist} << EOF
  ltimer               = .true.
  timers_level         = 10
  msg_level            = 15
- ltestcase            = .TRUE.       ! run testcase
+ ltestcase            = .FALSE.       ! run testcase
  ldynamics            = .TRUE.
  ltransport           = .TRUE.
  ntracer              = $((${nd}*${nf}))
@@ -123,7 +126,6 @@ cat > ${wave_namelist} << EOF
 /
 &parallel_nml
  nproma                  = ${nproma}             ! loop chunk length
- nproma_sub              = ${nproma_sub}         ! loop chunk length for radiation
  p_test_run              = .false.               ! .TRUE. means verification run for MPI parallelization
  l_test_openmp           = .false.
  l_log_checks            = .false.
@@ -146,7 +148,7 @@ cat > ${wave_namelist} << EOF
 &wave_nml
  ndirs       = ${nd}   ! number of directions
  nfreqs      = ${nf}   ! number of frequencies
- forc_file_prefix = '' ! prefix of forcing file name
+ forc_file_prefix = 'ocean_waves_R2B4_19790101T000000' ! prefix of forcing file name
 /
 &output_nml
  filetype                =                          4         ! output format: 2=GRIB2, 4=NETCDFv2

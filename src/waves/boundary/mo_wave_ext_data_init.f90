@@ -27,8 +27,6 @@ MODULE mo_wave_ext_data_init
   USE mo_exception,           ONLY: message, finish
   USE mo_model_domain,        ONLY: t_patch
   USE mo_grid_config,         ONLY: n_dom, nroot
-  USE mo_parallel_config,     ONLY: nproma
-  USE mo_sync,                ONLY: sync_patch_array, SYNC_C
   USE mo_var_list,            ONLY: t_var_list_ptr
   USE mo_extpar_config,       ONLY: extpar_filename, generate_filename
   USE mo_read_interface,      ONLY: openInputFile, closeFile, t_stream_id, on_cells, read_2D
@@ -36,7 +34,6 @@ MODULE mo_wave_ext_data_init
   USE mo_intp,                ONLY: cells2edges_scalar
   USE mo_intp_data_strc,      ONLY: t_int_state
   USE mo_fortran_tools,       ONLY: copy, init
-  USE mo_math_laplace,        ONLY: nabla2_scalar
   USE mo_loopindices,         ONLY: get_indices_c, get_indices_e
   USE mo_process_topo,        ONLY: compute_smooth_topo
 
