@@ -22,11 +22,14 @@
 
 MODULE mo_nwp_rad_interface
 
-  USE mo_exception,            ONLY: finish, message, message_text
+  USE mo_exception,            ONLY: finish, message_text
+#ifdef _OPENACC
+  USE mo_exception,            ONLY: message
+#endif
   USE mo_atm_phy_nwp_config,   ONLY: atm_phy_nwp_config
   USE mo_ext_data_types,       ONLY: t_external_data
   USE mo_parallel_config,      ONLY: nproma
-  USE mo_impl_constants,       ONLY: MODIS, min_rlcell_int, SUCCESS
+  USE mo_impl_constants,       ONLY: MODIS
   USE mo_kind,                 ONLY: wp
   USE mo_nwp_lnd_types,        ONLY: t_lnd_prog, t_wtr_prog, t_lnd_diag
   USE mo_model_domain,         ONLY: t_patch
@@ -37,8 +40,7 @@ MODULE mo_nwp_rad_interface
     &                                tsi_radt, ssi_radt, isolrad, cosmu0_dark
   USE mo_radiation,            ONLY: pre_radiation_nwp_steps
   USE mo_nwp_rrtm_interface,   ONLY: nwp_rrtm_radiation,             &
-    &                                nwp_rrtm_radiation_reduced,     &
-    &                                nwp_aerosol
+    &                                nwp_rrtm_radiation_reduced
 #ifdef __ECRAD
   USE mo_nwp_ecrad_interface,  ONLY: nwp_ecrad_radiation,            &
     &                                nwp_ecrad_radiation_reduced
@@ -48,12 +50,12 @@ MODULE mo_nwp_rad_interface
   USE mtime,                   ONLY: datetime, timedelta, max_timedelta_str_len,                  &
     &                                operator(+), operator(-), newTimedelta, deallocateTimedelta, &
     &                                getPTStringFromSeconds, newDatetime, deallocateDatetime
-  USE mo_impl_constants_grf,   ONLY: grf_bdywidth_c
-  USE mo_loopindices,          ONLY: get_indices_c
-  USE mo_nwp_gpu_util,         ONLY: gpu_d2h_nh_nwp, gpu_h2d_nh_nwp
+  USE mo_timer,                ONLY: timer_start, timer_stop, timers_level, timer_preradiaton
+  USE mo_nwp_gpu_util,         ONLY: gpu_d2h_nh_nwp
   USE mo_bc_greenhouse_gases,  ONLY: bc_greenhouse_gases_time_interpolation
-#if defined( _OPENACC )
+#ifdef _OPENACC
   USE mo_mpi,                  ONLY: i_am_accel_node, my_process_is_work
+  USE mo_nwp_gpu_util,         ONLY: gpu_h2d_nh_nwp
 #endif
   USE mo_bc_solar_irradiance,  ONLY: read_bc_solar_irradiance, ssi_time_interpolation
   USE mo_bcs_time_interpolation,ONLY: t_time_interpolation_weights,   &
@@ -128,7 +130,6 @@ MODULE mo_nwp_rad_interface
 
     CHARACTER(len=max_timedelta_str_len) :: dstring
     INTEGER :: jg
-    INTEGER :: istat
     INTEGER :: nbands_lw, nbands_sw    !< Number of short and long wave bands
     REAL(wp), POINTER :: wavenum1_sw(:), wavenum2_sw(:)
     LOGICAL :: lzacc
@@ -142,6 +143,8 @@ MODULE mo_nwp_rad_interface
     wavenum2_sw => NULL()
     ! patch ID
     jg = pt_patch%id
+
+    IF (timers_level > 6) CALL timer_start(timer_preradiaton)
 
     CALL set_acc_host_or_device(lzacc, lacc)
 
@@ -176,12 +179,10 @@ MODULE mo_nwp_rad_interface
     END SELECT
 #endif
 
-    !$ACC DATA CREATE(zaeq1, zaeq2, zaeq3, zaeq4, zaeq5) IF(lzacc)
-    CALL nwp_aerosol ( mtime_datetime, pt_patch, ext_data, &
-      & pt_diag, prm_diag, zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, lacc=lzacc )
-
     ! Aerosol
-    CALL nwp_aerosol_interface(mtime_datetime, pt_patch, zf(:,:,:), zh(:,:,:), dz(:,:,:), &
+    !$ACC DATA CREATE(zaeq1, zaeq2, zaeq3, zaeq4, zaeq5) IF(lzacc)
+    CALL nwp_aerosol_interface(mtime_datetime, pt_patch, ext_data, pt_diag, prm_diag,     &
+      &                        zf(:,:,:), zh(:,:,:), dz(:,:,:),                           &
       &                        atm_phy_nwp_config(jg)%dt_rad,                             &
       &                        atm_phy_nwp_config(jg)%inwp_radiation,                     &
       &                        nbands_lw, nbands_sw, wavenum1_sw, wavenum2_sw,            &
@@ -256,6 +257,7 @@ MODULE mo_nwp_rad_interface
       CALL sfc_albedo(pt_patch, ext_data, lnd_prog, wtr_prog, lnd_diag, prm_diag)
     ENDIF
 
+    IF (timers_level > 6) CALL timer_stop(timer_preradiaton)
     
     !-------------------------------------------------------------------------
     !> Radiation
