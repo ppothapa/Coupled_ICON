@@ -20,6 +20,7 @@ MODULE mo_run_nml
                          & config_lart            => lart,            &
                          & config_ldass_lhn       => ldass_lhn,       &
                          & config_luse_radarfwo   => luse_radarfwo,   &
+                         & config_radarnmlfile    => radarnmlfile,    &
                          & config_lvert_nest      => lvert_nest,      &
                          & config_nlev            => nlev,            &
                          & config_num_lev         => num_lev,         &
@@ -41,6 +42,9 @@ MODULE mo_run_nml
                          & config_profiling_output => profiling_output, &
                          & config_check_uuid_gracefully => check_uuid_gracefully, &
                          & cfg_modelTimeStep => modelTimeStep
+#ifdef HAVE_RADARFWO
+  USE radar_data_namelist, ONLY: radar_config_radarnmlfile => radarnmlfile
+#endif
   USE mo_kind,           ONLY: wp
   USE mo_exception,      ONLY: finish,  &
     &                      config_msg_timestamp   => msg_timestamp
@@ -96,6 +100,7 @@ CONTAINS
     LOGICAL :: ldass_lhn
 
     LOGICAL :: luse_radarfwo(max_dom)  !< switch for radar forward operator EMVORADO
+    CHARACTER(LEN=255) :: radarnmlfile !< name of the file containing the radar namelist
     LOGICAL :: lvert_nest         ! if .TRUE., switch on vertical nesting
     INTEGER :: num_lev(max_dom)   ! number of full levels for each domain
     INTEGER :: nshift (max_dom)   ! half level of parent domain which coincides 
@@ -134,7 +139,8 @@ CONTAINS
     CHARACTER(len=MAX_CHAR_LENGTH) :: restart_filename
 
     NAMELIST /run_nml/ ltestcase, ldynamics, iforcing, ltransport,     &
-      &                ntracer, lart, ldass_lhn, luse_radarfwo, ltimer,&
+      &                ntracer, lart, ldass_lhn, luse_radarfwo,        &
+      &                radarnmlfile, ltimer,                           &
       &                lvert_nest, num_lev, nshift, nsteps, dtime,     &
       &                timers_level, activate_sync_timers, logmaxrss,  &
       &                logmaxrss_all, msg_level, test_mode, output,    &
@@ -154,12 +160,14 @@ CONTAINS
     ltransport      = .FALSE.
     ntracer         = 0
     lart            = .FALSE.
-    ldass_lhn         = .FALSE.
+    ldass_lhn       = .FALSE.
 
     luse_radarfwo(:) = .FALSE.
 
+    radarnmlfile = ''
+
     lvert_nest = .FALSE. ! no vertical nesting
-    num_lev(:) = 31    ! number of full levels for each domain
+    num_lev(:) = 31      ! number of full levels for each domain
     nshift(:)  = 0       ! please do not change the default.
                          ! otherwise the initialization of 
                          ! p_patch(jg)%nshift in "import patches" 
@@ -257,9 +265,13 @@ CONTAINS
     config_ltransport      = ltransport 
     config_ntracer         = ntracer 
     config_lart            = lart
-    config_ldass_lhn         = ldass_lhn
+    config_ldass_lhn       = ldass_lhn
 
-    config_luse_radarfwo(:)   = luse_radarfwo(:)
+    config_luse_radarfwo(:) = luse_radarfwo(:)
+    config_radarnmlfile    = radarnmlfile
+#ifdef HAVE_RADARFWO
+    IF(LEN_TRIM(config_radarnmlfile)>0) radar_config_radarnmlfile = config_radarnmlfile
+#endif
 
     config_lvert_nest      = lvert_nest
     config_nlev            = num_lev(1)

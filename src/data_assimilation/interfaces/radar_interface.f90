@@ -88,11 +88,13 @@ MODULE radar_interface
        &                              timer_radar_ongeom   , &
        &                              timer_radar_comppolar, &
        &                              timer_radar_out      , & 
-       &                              timer_radar_barrier
+       &                              timer_radar_barrier  , &
+       &                              timer_radar_acc_data_copies
 
   USE mo_opt_nwp_reflectivity,  ONLY: compute_field_dbz_1mom, compute_field_dbz_2mom
   USE gscp_data,                ONLY: cloud_num
   USE mo_emvorado_warmbubbles_type,  ONLY: autobubs_list
+  USE mo_emvorado_gpu_util,          ONLY: radar_d2h_hydrometeors, radar_d2h_model_variables
 
 !!$ There are other parameters available for the 1mom-scheme, but these are
 !!$  not yet coupled explicitly to the EMVORADO 1mom reflectivity routines (at the moment
@@ -675,7 +677,13 @@ CONTAINS
     IF (ASSOCIATED(qnc_s)) NULLIFY(qnc_s)
     
     IF (ALLOCATED(p_nh_state)) THEN  
-      
+
+#ifdef _OPENACC
+      CALL timer_start(timer_radar_acc_data_copies)
+      CALL radar_d2h_hydrometeors(ntlev, idom, .TRUE.)
+      CALL timer_stop(timer_radar_acc_data_copies)
+#endif
+
       qv  => p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqv)
       qc  => p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqc)
       qr  => p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqr)
@@ -1225,6 +1233,13 @@ CONTAINS
           ntlev_qx_lastcall  = ntlev_qx
         END IF
       END IF
+
+
+#ifdef _OPENACC
+      CALL timer_start(timer_radar_acc_data_copies)
+      CALL radar_d2h_model_variables(ntlev_dyn, idom, .TRUE.)
+      CALL timer_stop(timer_radar_acc_data_copies)
+#endif
 
       ! Link the ICON model prognostic variables and other fields:
       hhl  => p_nh_state(idom)%metrics%z_ifc(:,:,:)

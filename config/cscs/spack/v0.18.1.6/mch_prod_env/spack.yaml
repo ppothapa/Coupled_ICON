@@ -1,11 +1,11 @@
 spack:
   specs:
   - cosmo-eccodes-definitions@2.25.0.1
-  - icon @develop %nvhpc +eccodes-definitions +ecrad gpu=80 ~jsbach ~loop-exchange +mixed-precision ~ocean +pgi-inlib +rte-rrtmgp ~async-io-rma
+  - icon @develop %nvhpc +eccodes-definitions +ecrad gpu=80 ~jsbach ~loop-exchange +mixed-precision ~ocean +pgi-inlib +rte-rrtmgp ~async-io-rma +emvorado
   view: true
   concretizer:
     unify: true
   develop:
     icon:
       path: ../../../../..
-      spec: icon @develop %nvhpc +eccodes-definitions +ecrad gpu=80 ~jsbach ~loop-exchange +mixed-precision ~ocean +pgi-inlib +rte-rrtmgp ~async-io-rma
+      spec: icon @develop %nvhpc +eccodes-definitions +ecrad gpu=80 ~jsbach ~loop-exchange +mixed-precision ~ocean +pgi-inlib +rte-rrtmgp ~async-io-rma +emvorado

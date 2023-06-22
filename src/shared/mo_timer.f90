@@ -243,7 +243,8 @@ MODULE mo_timer
        &    timer_radar_ongeom   , &
        &    timer_radar_comppolar, &
        &    timer_radar_out      , & 
-       &    timer_radar_barrier
+       &    timer_radar_barrier  , &
+       &    timer_radar_acc_data_copies
 
   ! Timers for optional diagnostics
   ! Model atmosphere
@@ -463,7 +464,8 @@ MODULE mo_timer
        &     timer_radar_ongeom   , &
        &     timer_radar_comppolar, &
        &     timer_radar_out      , & 
-       &     timer_radar_barrier
+       &     timer_radar_barrier  , &
+       &     timer_radar_acc_data_copies
 
   ! Timers for optional diagnostics
   ! Model atmosphere
@@ -924,6 +926,7 @@ CONTAINS
       timer_radar_comppolar = new_timer("EMVORADO_comp_polargrid")
       timer_radar_out       = new_timer("EMVORADO_output")
       timer_radar_barrier   = new_timer("EMVORADO_barrier_waiting")
+      timer_radar_acc_data_copies = new_timer("EMVORADO_acc_data_copies")
     END IF
 
     ! Timers for optional diagnostics

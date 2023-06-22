@@ -72,7 +72,7 @@ add_tolerance_exp () {
 add_tolerance_exp mch_ch_lowres "balfrin_cpu_nvidia DAINT_CPU_nvidia"
 add_tolerance_exp mch_opr_r04b07 "balfrin_cpu_nvidia DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
 add_tolerance_exp mch_opr_r04b07_lhn_00 "balfrin_cpu_nvidia DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
-add_tolerance_exp mch_opr_r04b07_lhn_12 "balfrin_cpu_nvidia DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
+add_tolerance_exp mch_opr_r04b07_lhn_12_emvorado "balfrin_cpu_nvidia"
 add_tolerance_exp mch_opr_r04b07_nest "balfrin_cpu_nvidia DAINT_CPU_nvidia"
 add_tolerance_exp mch_ch_r04b09_dace "DAINT_CPU_nvidia"
 add_tolerance_exp mch_ch_r04b09_dace_synsat "DAINT_CPU_nvidia"

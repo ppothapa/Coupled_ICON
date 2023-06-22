@@ -64,6 +64,16 @@ steps_per_file=7
 # namelist files
 atmo_namelist=NAMELIST_${EXPNAME}_atm
 
+# settings for EMVORADO
+luse_radarfwo=.TRUE.
+ydir_mielookup=./MIETABLES/
+### unused:
+radarinputdir=''
+### do not change:
+radaroutputdir=./radar_dom1/
+
+ADDITIONAL_SUBDIRS=($radaroutputdir $ydir_mielookup)
+
 # ========================
 # Get required files together
 # ========================
@@ -125,6 +135,8 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  num_lev                     =                         80        ! number of full levels (atm.) for each domain
  lvert_nest                  =                     .FALSE.        ! no vertical nesting
  dtime                       =                         10.        ! timestep in seconds
+ luse_radarfwo               =            ${luse_radarfwo}        ! EMVORADO
+ radarnmlfile                =           "${atmo_namelist}"       ! EMVORADO namelist filename
  ldynamics                   =                      .TRUE.        ! compute adiabatic dynamic tendencies
  ltransport                  =                      .TRUE.        ! compute large-scale tracer transport
  ntracer                     =                          5         ! number of advected tracers
@@ -133,7 +145,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  msg_level                   =                         12         ! detailed report during integration
  ltimer                      =                      .TRUE.        ! timer for monitoring the runtime of specific routines
  timers_level                =                         10         ! performance timer granularity
- check_uuid_gracefully       =                     .FALSE.        ! give only warnings for non-matching uuids
+ check_uuid_gracefully       =                      .FALSE.       ! give only warnings for non-matching uuids
  output                      =             "nml", "totint"        ! main switch for enabling/disabling components of the model output
 /
 
@@ -189,7 +201,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  ana_varnames_map_file        = "map_file.ana"        ! Dictionary for initial data file
  ltile_coldstart              = .TRUE.  ! coldstart for surface tiles
  ltile_init                   = .FALSE.  ! gdm origin .F. set it to .TRUE. if FG data originate from run without tiles
- pinit_seed                  =                          0        ! seed for perturbation of initial model state. no perturbation by default
+ pinit_seed                  =                          0         ! seed for perturbation of initial model state. no perturbation by default
  pinit_amplitude             =                          0.        ! amplitude of perturbation
 /
 
@@ -277,6 +289,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  divdamp_order               =                         24         ! order of divergence damping 
  divdamp_type                =                         32         ! gdm default: 3 type of divergence damping
  divdamp_fac                 =                          0.004     ! scaling factor for divergence damping
+ l_open_ubc                  =                     .FALSE.        ! .TRUE.=use open upper boundary condition
  igradp_method               =                          3         ! discretization of horizontal pressure gradient
  l_zdiffu_t                  =                      .TRUE.        ! specifies computation of Smagorinsky temperature diffusion
  thslp_zdiffu                =                          0.02      ! slope threshold (temperature diffusion)
@@ -450,7 +463,6 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
 
 ! radiation_nml: radiation scheme ---------------------------------------------
 &radiation_nml
- ecrad_isolver               =                          2
  irad_o3                     =                          79        ! gdm orig. 7 ozone climatology
  irad_aero                   =                          6         ! aerosols
  albedo_type                 =                          2         ! type of surface albedo
@@ -465,6 +477,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  ecrad_llw_cloud_scat        =                     .TRUE.         ! Longwave cloud scattering
  ecrad_iliquid_scat          =                          0         ! Optical properties used for liquid cloud scattering (0 = SOCRATES)
  ecrad_iice_scat             =                          0         ! Optical properties used for ice cloud scattering (0 = Fu)
+ ecrad_isolver               =                          2         ! ISolverMcICAACC
 /
 
 ! sleve_nml: vertical level specification -------------------------------------
@@ -534,4 +547,217 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  ser_debug                   =                        .FALSE.      ! serialize the debug statements from mo_ser_debug
 /
 
+! ----------------------------------------------------------------------
+! EMVORADO namelist
+! here:
+!    no real data input
+!    simulated data for one radar + cdfin data output
+! be aware: settings are for a german radar in Switzerland
+! ----------------------------------------------------------------------
+
+&RADARSIM_PARAMS
+!
+dom =  1
+!
+!========================================================
+!========================================================
+! .. Namelist for the German Weather Radars
+!========================================================
+!========================================================
+!
+!========================================================
+!
+! Number of radar stations to honor from the below list:
+!   For each station from ista=1, nradsta_namelist, you can override
+!   some meta data in the structures rs_meta(ista) and dbz_meta(ista),
+!   which otherwise are taken from the obs files found
+!   in the ${radarinputdir} directory resp. the
+!   background list. The number of simulated radar stations
+!   is determined automatically from the number of files
+!   found in the abovementioned ${radarinputdir} directory.
+! In this case, nradsta_namelist is NOT the number of radar stations
+!   found in the ${radarinputdir} directory
+!   but rather the number of stations where you want
+!   to change some of the meta data!
+!   If you define more change-blocks (see below) than nradsta_namelist, only the
+!   first nradsta_namelist blocks will be honored.
+! Important: for a correct match of the below change-blocks
+!   with the obs radar stations,
+!   give the correct station_id for each block below.
+!
+nradsta_namelist = 1,
+!
+!========================================================
+! Country flag for the observational radar data:
+!
+!  1 = DWD German radar network       (default)
+!  2 = MeteoSwiss Swiss radar network
+!
+icountry = 1,
+!
+!
+!========================================================
+! GLOBAL SETTINGS, I.E., THE SAME FOR ALL RADAR STATIONS:
+!========================================================
+!
+ldebug_radsim = .true.,
+lout_geom = .true.,
+loutradwind = .true.,
+  lfill_vr_backgroundwind = .true.,
+loutdbz = .true.,
+  lextdbz = .true.,
+  ! Global switch to choose itype_refl for all radars.
+  !  This is then the background value for all radars, which can
+  !  later be overwritten for the single stations via namelist.
+  !  If no value or -99 for itype_refl_glob is given, the default
+  !  value from dbz_namlst_d (3) will win.
+  !  You can override it for each station by individual settings
+  !  in the "dbz_meta"- structure below.
+  dbz_meta_glob%itype_refl = 1,
+  dbz_meta_glob%itype_Dref_fmelt = 1,
+  ! Global switch to enable the use of Mie-lookup tables for all radars.
+  !  This is then the background value for all radars, which can
+  !  later be overwritten for the single stations via namelist.
+  dbz_meta_glob%llookup_mie=.true.,
+    itype_mpipar_lookupgen = 2,
+    pe_start_lookupgen = 1,
+    ydir_mielookup_read = '${ydir_mielookup}'
+    ydir_mielookup_write = '${ydir_mielookup}'
+lweightdbz = .true.,
+lfall = .true.,
+lonline = .false.,
+  lsode =.true.,
+  lcomm_nonblocking_online = .true.,
+lsmooth = .false.,
+  ! Similar to itype_refl_glob, one can define background
+  !  values for the number of smoothing points. If -99 or
+  !  no values are given, the default
+  !  value 1 will win.
+  ngpsm_h_glob = 1,
+  ngpsm_v_glob = 9,
+! Take into account the effects of the minimum detectable signal
+!   for reflectivity and/or radial velocity:
+!   (There are 2 components of the rs_meta-structure for each radar station which hold
+!    the reference MDS, rs_meta%mds_Z0 [dBZ], at a certain reference range, rs_meta%mds_r0 [m].
+!    These can be set in the rs_meta-section below. The default is -20 dBZ at 10 km range.)
+lmds_z  = .true.,
+lmds_vr = .true.,
+!
+lcomm_nonblocking_output = .TRUE.
+!
+lvoldata_output = .true.,
+  voldata_ostream(1)%format = 'cdfin'  ! 'ascii', 'ascii-gzip', 'f90-binary', 'cdfin', 'cdfin-mulmom', 'grib2', 'grib2-mulmom'
+  voldata_ostream(1)%file_pattern = 'cdfin_<stationid>_<varname>_<tvvzstart>-<tvvzend>_<scantype>.nc',
+  voldata_ostream(1)%content_dt = 0.0,
+  voldata_ostream(1)%content_tref = 0.0,
+  voldata_ostream(1)%output_list = 'zrsim', 'vrsim', 'zrobs', 'vrobs',
+
+  voldata_ostream(2)%format = 'cdfin'  ! 'ascii', 'ascii-gzip', 'f90-binary', 'cdfin', 'cdfin-mulmom', 'grib2', 'grib2-mulmom'
+  voldata_ostream(2)%file_pattern = 'cdfin_<stationid>_<varname>_<tvvzstart>_<scantype>.nc',
+  voldata_ostream(2)%content_dt = 0.0,
+  voldata_ostream(2)%content_tref = 0.0,
+  voldata_ostream(2)%output_list = 'losim', 'lasim', 'hrsim'
+
+ldo_composite=.false.,
+  nel_composite = 1,
+  eleindlist_for_composite_glob = 1, 3, 5, ! depends on nel_composite: the first nel_composite entries are used
+  ! separate EMVORADO output of composites in dbzcmp_sim* and dbzcmp_obs* files:
+  !  (depends on sample files sample_dbzcmp_obs.grb2 and sample_dbzcmp_sim.grb2 in the model start directory)
+  lcomposite_output = .TRUE.,
+
+ldo_bubbles = .false.
+  eleind_for_composite_bub_glob = 1,
+
+lfdbk_output  = .false.,
+
+! Output directory of all radar files:
+ydirradarout = '${radaroutputdir}'
+
+! if lreadmeta_from_netcdf = .true., run in assimilation mode,
+!   i.e., radar obs files (NetCDF) are provided and
+!   the radar meta data from the files are overtaken.
+!   The below listing of meta data does not have any effect!
+lreadmeta_from_netcdf = .false.,
+  ! Checking and matching of the obs file records
+  !   to the obs times individually for each data type file (vr, qv, z, qz)
+  !   instead of only taking one of these files for that purpose.
+  !   Does not vecorize and takes a long time!
+  ! NORMALLY SET TO .FALSE.!!!
+  !   Might however help if some records are missing in a
+  !   certain file (e.g., for qv) and are present in another file (e.g., vr).
+  lcheck_inputrecords = .true.,
+  lequal_azi_alldatasets = .true.,
+  labort_if_problems_obsfiles = .true.,
+  ! Input directory of radar NetCDF files:
+  ydirradarin = '${radarinputdir}'
+  ! option for superobing for data assimilation: 0: no superobing; 1: averaging;  2: median
+  !  (the superobbed fields are stored in the NetCDF feedback files)
+  itype_supobing = 1,
+    supob_nrb = 3, ! threshold for number of radar bins used for superobbing
+    ! resolution of the cartesian grid for superobing [m]: (default: 20000.0)
+    supob_cart_resolution = 20000.0,
+    ! width of averaging area for superobing [m]: (default: sqrt(2)*20000.0 = 28284.3)
+    supob_ave_width = 28284.3,
+    ! min. ranges of superobing points for vr and z [m]: (default: 0.75*sqrt(2)*20000.0 = 21213.2)
+    supob_minrange_vr = 21213.2,
+    supob_minrange_z = 21213.2,
+    ! maximal azimut sector (symetrical to its center) for v_r superobing [deg]:
+    supob_azi_maxsector_vr = 40.0,
+    supob_vrw = 10.0, !(m/s) threshold for stddev of radial wind values within a superobed bi
+!      supob_rfl = 1e15, !(mm^6/m^3) threshold for stddev of reflectivity values within a superobed bin
+    ! flag for qc control of obs data
+    lqc_flag = .false.,
+    ! flag for dealiasing of obs radial wind data
+    ldealiase_vr_obs = .true.,
+    ! lower threshold for valid Ze values, to which smaller valid values are
+    !   set before average_superobing. Two thresholds, one for obs and one for sim.
+    !   Both should normally be equal and same as corresponding threshold in LETKF software:
+    supob_lowthresh_z_obs = 5.0,
+    supob_lowthresh_z_sim = 5.0,
+  itype_obserr_vr=2
+    ramp_lowdbz_obserr_vr=-10.0,
+    ramp_highdbz_obserr_vr=10.0,
+    maxval_obserr_vr=10.0,
+    baseval_obserr_vr=1.0,
+  ! if no superobing: step width of data thinning in azimut and range directions for feedback files:
+  !  (has no effect in case of superobing!)
+  thin_step_azi = 1,
+  thin_step_range = 1,
+  thin_step_ele = 1,
+!
+!
+!========================================================
+!========================================================
+! WE HAVE lreadmeta_from_netcdf = .TRUE., THEREFORE
+! THE FOLLOWING SETTINGS FOR SINGLE STATIONS ARE ONLY
+! TO CHANGE/OVERRIDE META DATA WHICH OTHERWISE COME FROM
+! THE OBS DATA FILES OR FROM THE BACKGROUND LIST IN THE
+! CODE. IN THE BELOW EXAMPLE, WE WANT TO CHANGE
+! SOME METADATA FROM 3 STATIONS.
+!
+! THIS IS DONE IN BLOCKS: ONE STATION ISTA CORRESPONDS TO
+! ONE INDEX OF RS_META(ISTA) AND DBZ_META(ISTA).
+! IMPORTANT: ALWAYS SPECIFY THE STATION-ID TO MATCH
+! THE CORRECT STATION!
+!========================================================
+!========================================================
+!
+!======= List of all radar sites, from which the first nradsta_namelist (s.o.) stations will be changed
+!
+!
+! STATION 1: rs_meta(1) and dbzparams(1): imaginary station
+!
+  rs_meta(1)%station_name        = 'ZRH'
+  rs_meta(1)%station_id          = 99999
+  rs_meta(1)%lambda = 0.055
+  rs_meta(1)%lat = 47.45033
+  rs_meta(1)%lon = 8.56720
+  rs_meta(1)%dt_obs = 10
+  rs_meta(1)%nobs_times = 7
+  dbz_meta(1)%station_id          = 99999  ! (dummy)
+!
+
+/
+
 EOF
+

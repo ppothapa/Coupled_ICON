@@ -8,7 +8,7 @@ probtest_file_ids+=',*atm_3d_pl*.nc'
 probtest_file_ids+=',*atm_2d_ll*.nc'
 probtest_file_ids+=',Meteogram*.nc'
 probtest_file_ids+=',*total_integrals*.dat'
-probtest_exp=mch_opr_r04b07_lhn_12
+probtest_exp=mch_opr_r04b07_lhn_12_emvorado
 
 . ./add_refgen_routines
 

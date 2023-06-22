@@ -67,6 +67,7 @@ $addexp "checksuite.icon-dev/check.dwd_run_ICON_09_R2B4N5_EPS"            --buil
 $addexp "checksuite.icon-dev/check.mch_bench_r19b07_dev"                  --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
 $addexp "checksuite.icon-dev/check.mch_bench_r19b07_dev_sppt"             --builders "DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed" --list $listname
 ./rmexp checksuite.icon-dev/check.mch_opr_r04b07_nest                     --builders "DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed"  --list $listname
+./rmexp checksuite.icon-dev/check.mch_opr_r04b07_lhn_12_emvorado          --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
 
 # GPU builders explicitly turned off due to unresolved bug
 $addexp "checksuite.icon-dev/check.mch_opr_r19b07_midnight"               --builders "balfrin_cpu_nvidia DAINT_CPU_nvidia" --list $listname

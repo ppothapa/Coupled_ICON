@@ -34,6 +34,7 @@ MODULE mo_run_config
   PUBLIC :: lart
   PUBLIC :: ldass_lhn
   PUBLIC :: luse_radarfwo
+  PUBLIC :: radarnmlfile
   PUBLIC :: lvert_nest, num_lev, nshift, nsteps, dtime
   PUBLIC :: ltimer, timers_level, activate_sync_timers, msg_level
   PUBLIC :: iqv, iqc, iqi, iqs, iqr, iqtvar, nqtendphy, iqt, ico2, ich4, in2o, io3
@@ -66,6 +67,7 @@ MODULE mo_run_config
     LOGICAL :: ldass_lhn         !< switch for assimilation of radar data using latent heat nudging
 
     LOGICAL :: luse_radarfwo(MAX_DOM)  !< switch for radar forward operator EMVORADO
+    CHARACTER(len=255) :: radarnmlfile !< name of the file containing the radar namelist
 
     LOGICAL :: lvert_nest         !< switch for vertical nesting
     INTEGER :: num_lev  (MAX_DOM) !< number of full levels for each domain

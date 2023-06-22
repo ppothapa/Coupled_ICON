@@ -7634,6 +7634,13 @@ submodule \verb+./externals/emvorado/DOC/TEX/emvorado_userguide.pdf+.
 & iequations=3,  iforcing=3, \\ICON configure'd with \verb+--enable-emvorado+
 \tabularnewline
 
+\hline
+radarnmlfile&
+C & & &
+The name of the file containing the EMVORADO namelist. If this is empty or not set, the Default from radar\_data\_namelist.f90 is used. Only used if luse\_radarfwo is .TRUE. .
+& 
+\tabularnewline
+
 \end{longtab}
 
 Defined and used in: \verb+src/namelists/mo_run_nml.f90+
