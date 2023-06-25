@@ -179,6 +179,7 @@ CONTAINS
       ELSE
         rbf_vec_scale_c(jg) = 0.5_wp/(1._wp+1.8_wp*LOG(2.5_wp/resol)**3.75)
       ENDIF
+      IF (resol <= 0.125_wp) rbf_vec_scale_c(jg) = rbf_vec_scale_c(jg)*(resol/0.125_wp)**0.9_wp
 
     ENDDO
 
@@ -196,6 +197,7 @@ CONTAINS
       ELSE
         rbf_vec_scale_v(jg) = 0.5_wp/(1._wp+1.8_wp*LOG(2._wp/resol)**3)
       ENDIF
+      IF (resol <= 0.125_wp) rbf_vec_scale_v(jg) = rbf_vec_scale_v(jg)*(resol/0.125_wp)**0.96_wp
 
     ENDDO
 
@@ -215,6 +217,7 @@ CONTAINS
       ELSE
         rbf_vec_scale_e(jg) = 0.5_wp/(1._wp+0.4_wp*LOG(2._wp/resol)**2)
       ENDIF
+      IF (resol <= 0.125_wp) rbf_vec_scale_e(jg) = rbf_vec_scale_e(jg)*(resol/0.125_wp)**0.325_wp
 
     ENDDO
 

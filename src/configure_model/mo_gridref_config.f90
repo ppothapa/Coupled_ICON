@@ -106,6 +106,7 @@ CONTAINS
       ELSE
         rbf_scale_grf_e(jg) = 0.5_wp/(1._wp+3.25_wp*LOG(1._wp/resol)**2.75)
       ENDIF
+      IF (resol <= 0.125_wp) rbf_scale_grf_e(jg) = rbf_scale_grf_e(jg)*(resol/0.125_wp)**0.34_wp
 
     ENDDO
 
