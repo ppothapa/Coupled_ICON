@@ -74,6 +74,8 @@ $addexp checksuite.nwp/nwpexp.run_ICON_19_R2B4_cmip_forcing               --buil
 # wave tests
 $addexp checksuite.nwp/nwpexp.run_ICON_18_R2B4_waves                      --builders DWD_nec_hybrid --list $listname
 $addexp checksuite.nwp/nwpexp.run_ICON_21_R2B4_waves_standalone           --builders DWD_nec_hybrid --list $listname
+# clm tests
+$addexp checksuite.clm/clmexp.ICON_CLM                                    --builders DWD_nec_hybrid --list $listname
 
 #lets see the list
 ./lslist $listname

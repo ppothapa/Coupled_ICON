@@ -143,7 +143,7 @@ $addexp  checksuite.infrastructure/checkExternals/exp.check_externals_DWD.run --
 $addexp  checksuite.infrastructure/checkExternals/exp.check_externals_LEVANTE.run --machines levante --list ${listname}
 
 # icon-clm tests
-$addexp checksuite.clm/exp.ICON_CLM.run --builders levante_intel_hybrid --list ${listname}
+$addexp checksuite.clm/clmexp.ICON_CLM --builders levante_intel_hybrid --list ${listname} --runflags="ntasks=32 queue=shared"
 
 # remove tests for NAG which are buggy or take too long
 for experiment in exp.esm_bb_ruby0 exp.test_nwp_R02B04N06multi exp.test_nwp_R02B04_R02B05_nest
