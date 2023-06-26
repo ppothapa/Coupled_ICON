@@ -46,6 +46,7 @@ MODULE mo_nwp_tuning_nml
     &                               config_tune_rdepths     => tune_rdepths,     &
     &                               config_tune_capdcfac_et => tune_capdcfac_et, &
     &                               config_tune_capdcfac_tr => tune_capdcfac_tr, &
+    &                               config_tune_capethresh  => tune_capethresh,  &
     &                               config_tune_rhebc_land  => tune_rhebc_land,  &  
     &                               config_tune_rhebc_ocean => tune_rhebc_ocean, &  
     &                               config_tune_rcucov      => tune_rcucov,      &  
@@ -138,6 +139,9 @@ MODULE mo_nwp_tuning_nml
 
   REAL(wp) :: &                    !< Fraction of CAPE diurnal cycle correction applied in the tropics
     &  tune_capdcfac_tr            ! (relevant only if icapdcycl = 3)
+
+  REAL(wp) :: &                    !< CAPE threshold above which the convective adjustment time scale and entrainment
+    &  tune_capethresh             !< are reduced for numerical stability [J/kg]
 
   REAL(wp) :: &                    !< RH threshold for onset of evaporation below cloud base over land
     &  tune_rhebc_land
@@ -255,7 +259,8 @@ MODULE mo_nwp_tuning_nml
     &                      tune_box_liq_sfc_fac, allow_overcast, tune_minsso,     &
     &                      tune_blockred, itune_gust_diag, tune_rcapqadv,         &
     &                      tune_gustsso_lim, tune_eiscrit, itune_o3,              &
-    &                      tune_sc_eis, tune_sc_invmin, tune_sc_invmax
+    &                      tune_sc_eis, tune_sc_invmin, tune_sc_invmax,           &
+    &                      tune_capethresh
 
 CONTAINS
 
@@ -339,6 +344,10 @@ CONTAINS
 
     !> fraction of CAPE diurnal cycle correction applied in the tropics
     tune_capdcfac_tr = 0.5_wp
+
+    !> CAPE threshold above which the convective adjustment time scale and entrainment
+    !  are reduced for numerical stability [J/kg]
+    tune_capethresh  = 7000._wp
 
     !> RH threshold for onset of evaporation below cloud base over land (original IFS value 0.7)
     tune_rhebc_land  = 0.75_wp
@@ -490,7 +499,7 @@ CONTAINS
     config_tune_blockred         = tune_blockred
     config_tune_gfluxlaun        = tune_gfluxlaun
     config_tune_gcstar           = tune_gcstar
-    config_tune_zceff_min        = tune_zceff_min 
+    config_tune_zceff_min        = tune_zceff_min
     config_tune_v0snow           = tune_v0snow
     config_tune_zvz0i            = tune_zvz0i
     config_tune_icesedi_exp      = tune_icesedi_exp
@@ -499,6 +508,7 @@ CONTAINS
     config_tune_rdepths          = tune_rdepths
     config_tune_capdcfac_et      = tune_capdcfac_et
     config_tune_capdcfac_tr      = tune_capdcfac_tr
+    config_tune_capethresh       = tune_capethresh
     config_tune_rhebc_land       = tune_rhebc_land
     config_tune_rhebc_ocean      = tune_rhebc_ocean
     config_tune_rcucov           = tune_rcucov
@@ -527,10 +537,10 @@ CONTAINS
     config_max_calibfac_clcl     = max_calibfac_clcl
     config_max_freshsnow_inc     = max_freshsnow_inc
     config_tune_eiscrit          = tune_eiscrit
-    config_tune_sc_eis           = tune_sc_eis    
+    config_tune_sc_eis           = tune_sc_eis
     config_tune_sc_invmin        = tune_sc_invmin
     config_tune_sc_invmax        = tune_sc_invmax
-    
+
     !$ACC UPDATE DEVICE(config_tune_gust_factor, config_itune_gust_diag, config_tune_gustsso_lim)
 
     !-----------------------------------------------------

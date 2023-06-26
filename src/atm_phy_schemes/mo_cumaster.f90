@@ -91,7 +91,8 @@ MODULE mo_cumaster
   USE mo_cucalclpi,   ONLY: cucalclpi, cucalcmlpi
   USE mo_cucalclfd,   ONLY: cucalclfd
   USE mo_nwp_parameters,  ONLY: t_phy_params
-  USE mo_nwp_tuning_config, ONLY: tune_capdcfac_et, tune_capdcfac_tr, tune_lowcapefac, limit_negpblcape, tune_rcapqadv
+  USE mo_nwp_tuning_config, ONLY: tune_capdcfac_et, tune_capdcfac_tr, tune_lowcapefac, &
+    &                             limit_negpblcape, tune_rcapqadv, tune_capethresh
   USE mo_fortran_tools,   ONLY: t_ptr_tracer
   USE mo_exception,   ONLY: finish
   USE mo_stoch_sde,            ONLY: shallow_stoch_sde, shallow_stoch_sde_passive
@@ -530,9 +531,6 @@ REAL(KIND=jprb), DIMENSION(:,:)  , ALLOCATABLE :: ztent, ztenq
 REAL(KIND=jprb), DIMENSION(:,:)  , ALLOCATABLE :: zsumc         ! kg m-2 s-1
 REAL(KIND=jprb), DIMENSION(:,:,:), ALLOCATABLE :: ztenrhoc      ! kg m-3 s-1
 
-! CAPE threshold for applying ad-hoc fixes for numerical stability
-REAL(KIND=jprb), PARAMETER :: zcapethresh = 7000._jprb
-
 REAL(KIND=jprb) :: deprof(klon,klev)
 
 REAL(KIND=jprb), DIMENSION(klon) :: dummy_mfp,dummy_mfa,dummy_clnum_p,dummy_clnum_a
@@ -949,7 +947,7 @@ CALL cuascn &
   & ptu,      pqu,      plu,     zlrain,        &
   & pmfu,     zmfub,    zlglac,&
   & zmfus,    zmfuq,    zmful,    plude,    zdmfup,&
-  & zdmfen,   pcape,    zcapethresh, &
+  & zdmfen,   pcape,    tune_capethresh, &
   & kcbot,    kctop,    ictop0,   idpl,     pmfude_rate,   zkineu,   pwmean,    lacc )
 
 !*         (C) CHECK CLOUD DEPTH AND CHANGE ENTRAINMENT RATE ACCORDINGLY
@@ -984,7 +982,7 @@ DO jl=kidia,kfdia
        IF(ktype(jl) == 2.AND.zpbmpt >= phy_params%rdepths) ktype(jl)=1
     ENDIF
     ! Reset to deep convection for extreme CAPE values
-    IF(pcape(jl) > zcapethresh) ktype(jl) = 1
+    IF(pcape(jl) > tune_capethresh) ktype(jl) = 1
     ictop0(jl)=kctop(jl)
   ENDIF
   zrfl(jl)=zdmfup(jl,1)
@@ -1137,7 +1135,7 @@ DO jl = kidia, kfdia
     IF (phy_params%lgrayzone_deepconv) zcapdcycl(jl) = MAX(zcapdcycl(jl),                     &
       MAX(0._jprb,mtnmask(jl)-0.2_jprb)*MERGE(10._jprb,0.1_jprb,llo1)*ztau(jl)*phy_params%tau0)
     ! Reduce adjustment time scale for extreme CAPE values
-    IF (pcape(jl) > zcapethresh) ztau(jl) = ztau(jl)*phy_params%tau0
+    IF (pcape(jl) > tune_capethresh) ztau(jl) = ztau(jl)*phy_params%tau0
     ! dynamic contribution to cape correction
     zdqcv(jl)=zdqcv(jl)*rlvtt/pgeoh(jl,ik)*ztau(jl)*phy_params%tau0*tune_rcapqadv
     zsatfr(jl)=zsatfr(jl)/(paph(jl,klev+1)-paph(jl,ik)) 
@@ -1585,7 +1583,7 @@ IF(lmfit) THEN
     & ptu,      pqu,      plu,      zlrain,        &
     & pmfu,     zmfub,    zlglac,&
     & zmfus,    zmfuq,    zmful,    plude,    zdmfup,&
-    & zdmfen,   pcape,    zcapethresh, &
+    & zdmfen,   pcape,    tune_capethresh, &
     & kcbot,    kctop,    ictop0,   idpl,     pmfude_rate,    zkineu,   pwmean, lacc )
 
   !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
@@ -1603,7 +1601,7 @@ IF(lmfit) THEN
          IF(ktype(jl) == 2.AND.zpbmpt >= phy_params%rdepths) ktype(jl)=1
       ENDIF
       ! Reset to deep convection for extreme CAPE values
-      IF(pcape(jl) > zcapethresh) ktype(jl) = 1
+      IF(pcape(jl) > tune_capethresh) ktype(jl) = 1
     ENDIF
   ENDDO
   !$ACC END PARALLEL

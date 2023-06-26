@@ -43,6 +43,7 @@ MODULE mo_nwp_tuning_config
   PUBLIC :: tune_rdepths
   PUBLIC :: tune_capdcfac_et
   PUBLIC :: tune_capdcfac_tr
+  PUBLIC :: tune_capethresh
   PUBLIC :: tune_lowcapefac
   PUBLIC :: limit_negpblcape
   PUBLIC :: tune_rhebc_land
@@ -134,6 +135,9 @@ MODULE mo_nwp_tuning_config
 
   REAL(wp) :: &                    !< Fraction of CAPE diurnal cycle correction applied in the tropics
     &  tune_capdcfac_tr            ! (relevant only if icapdcycl = 3)
+
+  REAL(wp) :: &                    !< CAPE threshold above which the convective adjustment time scale and entrainment
+    &  tune_capethresh             !< are reduced for numerical stability [J/kg]
 
   REAL(wp) :: &                    !< Tuning factor for reducing the diurnal cycle correction in low-cape situations
     &  tune_lowcapefac = 1._wp     ! (relevant only if icapdcycl = 3; not a namelist variable)
