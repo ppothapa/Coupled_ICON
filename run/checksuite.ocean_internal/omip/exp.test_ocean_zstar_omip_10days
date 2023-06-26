@@ -406,7 +406,8 @@ if [[ "x${builder}" != "x" ]]; then
 . ${thisdir}/postFunx.sh
   dataPath="${basedir}/experiments/${EXPNAME}/"
   cd ${dataPath}
-  refDir=${builbot_ocean_reference_path}/${builder}/${EXPNAME}/experiments/${EXPNAME}
+  #  refDir=${builbot_ocean_reference_path}/${builder}/${EXPNAME}/experiments/${EXPNAME}
+  refDir=${builbot_ocean_reference_path}/${builder}/experiments/${EXPNAME}
 
   directoryDiff ${refDir} .
   check_final_status $? "DIFFCHECK for exp: ${EXPNAME}"
