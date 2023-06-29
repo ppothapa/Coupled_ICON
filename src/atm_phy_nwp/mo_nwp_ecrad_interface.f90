@@ -227,6 +227,10 @@ CONTAINS
     CALL ecrad_single_level%allocate(nproma_sub, 2, 1, .true.) !< use_sw_albedo_direct, 2 bands
     ecrad_single_level%solar_irradiance = 1._wp            !< Obtain normalized fluxes which corresponds to the
                                                            !< transmissivity needed in the following
+
+    ! Compiler bug workaround: Set to the default value explicitely
+    ecrad_single_level%spectral_solar_cycle_multiplier = 0.0_wp
+
     !$ACC UPDATE DEVICE(ecrad_single_level%solar_irradiance) ASYNC(1)
 
     IF (ecrad_conf%use_spectral_solar_scaling) THEN
@@ -951,6 +955,10 @@ CONTAINS
     CALL ecrad_single_level%allocate(nproma_sub, 2, 1, .true.) !< use_sw_albedo_direct, 2 bands
     ecrad_single_level%solar_irradiance = 1._wp            !< Obtain normalized fluxes which corresponds to the
                                                            !< transmissivity needed in the following
+
+    ! Compiler bug workaround: Set to the default value explicitely
+    ecrad_single_level%spectral_solar_cycle_multiplier = 0.0_wp
+
     !$ACC UPDATE DEVICE(ecrad_single_level%solar_irradiance) ASYNC(1)
 
     IF (ecrad_conf%use_spectral_solar_scaling) THEN
