@@ -1920,6 +1920,15 @@ create_target_header()
                     ;;
             esac
             ;;
+	*exclaim_ape*)
+            use_nodes=1
+            case $use_target in
+                daint_cpu*)
+                    use_mpi_procs_pernode=12
+                    use_nproma=16
+                ;;
+            esac
+            ;;
         *dwd_run_ICON_09_R2B4N5_EPS*)
             # This experiment needs at least 3 procs to pass probtest 
             # Therefore we use use_prefetch_procs to force 2 procs on 2 nodes on GPU

@@ -69,6 +69,12 @@ case $EXPERIMENT in
         --file-id NetCDF "*atm_3d*.nc"
         )
         ;;
+    *exclaim_ape*)
+        probtest_file_id=(
+        --file-id NetCDF "*atm_2d*.nc"
+        --file-id NetCDF "*atm_3d_pl*.nc"
+        )
+        ;;
     *mch_opr_r04b07_lhn_12*)
         probtest_file_id=(
         --file-id NetCDF "*atm_3d_ml*.nc"
