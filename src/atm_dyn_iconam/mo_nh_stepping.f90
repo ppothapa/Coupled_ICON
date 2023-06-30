@@ -758,6 +758,7 @@ MODULE mo_nh_stepping
   TYPE(event), POINTER                 :: restartEvent      => NULL()
   TYPE(event), POINTER                 :: lpi_max_Event     => NULL()
   TYPE(event), POINTER                 :: celltracks_Event  => NULL()
+  TYPE(event), POINTER                 :: hail_max_Event    => NULL()
   TYPE(event), POINTER                 :: dbz_Event         => NULL()
 
   INTEGER                              :: checkpointEvents
@@ -903,7 +904,7 @@ MODULE mo_nh_stepping
   CALL printEventGroup(checkpointEvents)
 
   ! Create mtime events for optional NWP diagnostics
-  CALL setup_nwp_diag_events(lpi_max_Event, celltracks_Event, dbz_Event)
+  CALL setup_nwp_diag_events(lpi_max_Event, celltracks_Event, dbz_Event,hail_max_Event)
 
   ! set time loop properties
   model_time_step => time_config%tc_dt_model
@@ -1283,7 +1284,7 @@ MODULE mo_nh_stepping
       CALL nwp_opt_diagnostics(p_patch(1:), p_patch_local_parent, p_int_state_local_parent, &
                                p_nh_state, p_int_state(1:), prm_diag, &
                                l_nml_output_dom, nnow, nnow_rcf, lpi_max_Event, celltracks_Event,  &
-                               dbz_Event, mtime_current, time_config%tc_dt_model, lacc=.TRUE.)
+                               dbz_Event, hail_max_Event, mtime_current, time_config%tc_dt_model, lacc=.TRUE.)
 
       DO jg = 1, n_dom
 #ifndef __NO_ICON_LES__

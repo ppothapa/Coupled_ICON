@@ -35,7 +35,7 @@ MODULE mo_opt_nwp_diagnostics
   USE gscp_data,                ONLY: cloud_num
   USE mo_nh_diagnose_pres_temp, ONLY: calc_qsum
   USE mo_opt_nwp_reflectivity,  ONLY: compute_field_dbz_1mom, compute_field_dbz_2mom
-  USE mo_exception,             ONLY: finish, message
+  USE mo_exception,             ONLY: finish, message, warning
   USE mo_fortran_tools,         ONLY: assign_if_present, set_acc_host_or_device, assert_acc_host_only, &
     &                                 assert_acc_device_only, init
   USE mo_impl_constants,        ONLY: min_rlcell_int, min_rledge_int, &
@@ -46,11 +46,12 @@ MODULE mo_opt_nwp_diagnostics
   USE mo_nonhydro_types,        ONLY: t_nh_prog, t_nh_diag, t_nh_metrics
   USE mo_nwp_phy_types,         ONLY: t_nwp_phy_diag
   USE mo_run_config,            ONLY: iqv, iqc, iqi, iqr, iqs, iqg, iqni, &
-       &                              iqh, iqnc, iqnr, iqns, iqng, iqnh, iqgl, iqhl, msg_level
+       &                              iqh, iqnc, iqnr, iqns, iqng, iqnh, iqgl, iqhl, msg_level, dtime
   USE mo_loopindices,           ONLY: get_indices_c, get_indices_e
   USE mo_atm_phy_nwp_config,    ONLY: atm_phy_nwp_config
   USE mo_nonhydrostatic_config, ONLY: kstart_moist
-  USE mo_io_config,             ONLY: echotop_meta
+  USE mo_io_config,             ONLY: echotop_meta, &
+       &                              wdur_min_hailcast
   USE mo_lnd_nwp_config,        ONLY: nlev_soil, dzsoil
   USE mo_nwp_lnd_types,         ONLY: t_lnd_diag
   USE mo_ext_data_types,        ONLY: t_external_data
@@ -67,6 +68,8 @@ MODULE mo_opt_nwp_diagnostics
   USE mo_communication,         ONLY: exchange_data
   USE mo_grid_config,           ONLY: l_limited_area
   USE mo_mpi,                   ONLY: my_process_is_mpi_workroot, get_my_mpi_work_id
+  USE mo_timer,                 ONLY: timer_start, timer_stop, timers_level
+  USE mo_diag_hailcast,         ONLY: hailstone_driver
   USE mo_util_phys,             ONLY: inversion_height_index  
 #ifdef HAVE_RADARFWO
   USE radar_data_mie,             ONLY: ldebug_dbz
@@ -120,6 +123,8 @@ MODULE mo_opt_nwp_diagnostics
   PUBLIC :: compute_field_srh
   PUBLIC :: compute_field_visibility
   PUBLIC :: compute_field_inversion_height
+  PUBLIC :: compute_updraft_duration
+  PUBLIC :: compute_hail_statistics
   
   !> module name
   CHARACTER(LEN=*), PARAMETER :: modname = 'mo_opt_nwp_diagnostics'
@@ -5094,7 +5099,172 @@ CONTAINS
 !$OMP END PARALLEL
   END SUBROUTINE compute_field_dursun
 
+  SUBROUTINE compute_updraft_duration(ptr_patch, w, wdur, wup_mask)
+    TYPE(t_patch),      INTENT(IN)    :: ptr_patch              !< patch on which computation is performed
+    REAL(wp), INTENT(IN) :: w(:,:,:)
+    REAL(wp), INTENT(INOUT) :: wdur(:,:)
+    INTEGER, INTENT(INOUT) :: wup_mask(:,:)
+    REAL(wp), DIMENSION(nproma,ptr_patch%nblks_c) :: wdur_prev
+    INTEGER, DIMENSION(nproma,ptr_patch%nblks_c) :: wup_mask_prev
+
+    ! Vertex blocks of current cell
+    INTEGER :: my_neighbor_blk ( 3 )
+
+    ! Vertex indices of current cell
+    INTEGER :: my_neighbor_idx ( 3 )
+
+    INTEGER :: i,k,jb,jc,i_rlstart,i_rlend,i_startblk,i_endblk,i_startidx,i_endidx,dt
+
+    !$ACC DATA CREATE(wdur_prev, wup_mask_prev, my_neighbor_idx, my_neighbor_blk)
+
+    CALL init(wup_mask_prev)
+    CALL init(wdur_prev)
+
+    dt = dtime
+    !------------------------------------------------------------------------------ 
+
+    ! without halo or boundary points: 
+    i_rlstart = grf_bdywidth_c + 1 
+    i_rlend   = min_rlcell_int 
+    i_startblk = ptr_patch%cells%start_block( i_rlstart )
+    i_endblk   = ptr_patch%cells%end_block  ( i_rlend   )
+
+    DO jb = i_startblk, i_endblk
+
+      CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,           &
+                          i_startidx, i_endidx, i_rlstart, i_rlend)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR
+      DO jc = i_startidx, i_endidx
+        wdur_prev(jc,jb) = wdur(jc,jb)
+        wup_mask_prev(jc,jb) = wup_mask(jc,jb)
+        wup_mask(jc,jb) = 0
+        wdur(jc,jb) = 0.0_wp
+        DO k = 1, ptr_patch%nlev
+          IF ( w(jc,k,jb) >= 10.0_wp) THEN
+            wup_mask(jc,jb) = 1
+          END IF
+        END DO
+      END DO
+      !$ACC END PARALLEL
+    END DO
+
+    CALL sync_patch_array(SYNC_C,ptr_patch, wdur_prev)
+    CALL sync_patch_array(SYNC_C,ptr_patch, wup_mask_prev)
+
+    DO jb = i_startblk, i_endblk
+
+      CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,           &
+                          i_startidx, i_endidx, i_rlstart, i_rlend)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR PRIVATE(my_neighbor_idx, my_neighbor_blk)
+      DO jc = i_startidx, i_endidx
+
+        ! ------------------------------------- Find neighbors ------------------------------------
+
+        DO i = 1,3
+            my_neighbor_idx(i) = ptr_patch%cells%neighbor_idx(jc, jb, i)
+            my_neighbor_blk(i) = ptr_patch%cells%neighbor_blk(jc, jb, i)
+        END DO
+
+        ! ------------------------------------------------------------------------
+        IF ( wup_mask(jc,jb) == 1                                        .OR. &
+             wup_mask_prev(jc,jb) == 1                                   .OR. &
+             wup_mask_prev(my_neighbor_idx(1), my_neighbor_blk(1)) == 1  .OR. &
+             wup_mask_prev(my_neighbor_idx(2), my_neighbor_blk(2)) == 1  .OR. &
+             wup_mask_prev(my_neighbor_idx(3), my_neighbor_blk(3)) == 1 ) THEN
+          wdur(jc,jb) = MAX(                                    &
+             wdur_prev(jc,jb),                                  &
+             wdur_prev(my_neighbor_idx(1), my_neighbor_blk(1)), &
+             wdur_prev(my_neighbor_idx(2), my_neighbor_blk(2)), &
+             wdur_prev(my_neighbor_idx(3), my_neighbor_blk(3)) ) + REAL(dt,kind=wp)
+
+        END IF
+      END DO
+      !$ACC END PARALLEL
+    END DO
+    !$ACC WAIT
+    !$ACC END DATA
+
+  END SUBROUTINE compute_updraft_duration
+
   !>
+  !! Calculate dhail
+  !!
+  SUBROUTINE compute_field_dhail(ptr_patch, p_metrics, p_prog, p_prog_rcf, p_diag,nwp_p_diag, topography_c, dhail)
+
+    TYPE(t_patch),      INTENT(IN)    :: ptr_patch              !< patch on which computation is performed
+    TYPE(t_nh_prog),    INTENT(IN)    :: p_prog                 !< prognostic variables
+    TYPE(t_nh_prog),    INTENT(IN)    :: p_prog_rcf             !< prognostic variables (reduced calling frequency)
+    TYPE(t_nh_diag),    INTENT(IN)    :: p_diag                 !< diagnostic variables
+    TYPE(t_nwp_phy_diag),  INTENT(IN) :: nwp_p_diag             !< diagnostic variables
+    TYPE(t_nh_metrics), INTENT(IN)    :: p_metrics              !< metric variables
+    REAL(wp),           INTENT(IN)    :: topography_c(:,:)      !< height of ground surface above sea level
+
+    REAL(wp), INTENT(INOUT) :: dhail(:,:,:) !< expected hail diameter
+
+#ifdef _OPENMP
+    CALL warning('compute_field_dhail','No OpenMP pragmas implemented for hailcast!')
+#endif
+
+    CALL hailstone_driver(ptr_patch, p_metrics, p_prog, p_prog_rcf, p_diag,nwp_p_diag%wdur, topography_c, wdur_min_hailcast , dhail)
+
+  END SUBROUTINE compute_field_dhail
+
+  SUBROUTINE compute_hail_statistics(ptr_patch, p_metrics, p_prog, p_prog_rcf, p_diag,nwp_p_diag, topography_c)
+    TYPE(t_patch),      INTENT(IN)    :: ptr_patch              !< patch on which computation is performed
+    TYPE(t_nh_prog),    INTENT(IN)    :: p_prog                 !< prognostic variables
+    TYPE(t_nh_prog),    INTENT(IN)    :: p_prog_rcf             !< prognostic variables (reduced calling frequency)
+    TYPE(t_nh_diag),    INTENT(IN) :: p_diag                 !< diagnostic variables
+    TYPE(t_nwp_phy_diag),    INTENT(INOUT) :: nwp_p_diag                 !< diagnostic variables
+    TYPE(t_nh_metrics), INTENT(IN)    :: p_metrics              !< metric variables
+    REAL(wp),           INTENT(IN)    :: topography_c(:,:)      !< height of ground surface above sea level
+
+    ! Helper variable for computation of standard deviation
+    REAL(wp) :: sum_sd
+
+    INTEGER :: k,jb,jc,i_rlstart,i_rlend,i_startblk,i_endblk,i_startidx,i_endidx
+
+
+    ! without halo or boundary points: 
+    i_rlstart = grf_bdywidth_c + 1 
+    i_rlend   = min_rlcell_int 
+    i_startblk = ptr_patch%cells%start_block( i_rlstart )
+    i_endblk   = ptr_patch%cells%end_block  ( i_rlend   )
+
+    CALL compute_field_dhail ( ptr_patch, p_metrics, p_prog, &
+                               p_prog_rcf, p_diag, nwp_p_diag, topography_c, nwp_p_diag%dhail )
+
+
+    DO jb = i_startblk, i_endblk
+
+      CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,           &
+                          i_startidx, i_endidx, i_rlstart, i_rlend)
+
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR PRIVATE(sum_sd)
+      DO jc = i_startidx, i_endidx
+
+
+        ! maximize hail size
+        nwp_p_diag%dhail_mx(jc,jb) = MAX(nwp_p_diag%dhail(jc,1,jb),nwp_p_diag%dhail(jc,2,jb),nwp_p_diag%dhail(jc,3,jb),nwp_p_diag%dhail(jc,4,jb),nwp_p_diag%dhail(jc,5,jb))
+
+        ! Compute average hail size
+        nwp_p_diag%dhail_av(jc,jb) = SUM(nwp_p_diag%dhail(jc,:,jb)) / REAL(SIZE(nwp_p_diag%dhail,2),wp)
+
+        sum_sd = 0.0_wp
+        DO k = 1, SIZE(nwp_p_diag%dhail,2)
+            sum_sd = sum_sd + ( nwp_p_diag%dhail(jc,k,jb) - nwp_p_diag%dhail_av(jc,jb) )**2
+        END DO
+        nwp_p_diag%dhail_sd(jc,jb) = SQRT( sum_sd / REAL(SIZE(nwp_p_diag%dhail, 2)-1,wp) ) 
+
+      END DO
+      !$ACC END PARALLEL
+
+    END DO
+
+  END SUBROUTINE compute_hail_statistics
+
   !! Compute vertical wind shear of either u or v component as the difference between a height AGL and the lowest model level.
   !! This is done for a number of heights and is stored in a pseudo 3D field.
   !!

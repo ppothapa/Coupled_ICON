@@ -101,7 +101,7 @@ USE mo_cf_convention,       ONLY: t_cf_var
 USE mo_grib2,               ONLY: t_grib2_var, grib2_var, t_grib2_int_key, OPERATOR(+)
 USE mo_cdi,                 ONLY: TSTEP_MIN, TSTEP_MAX, TSTEP_INSTANT, TSTEP_CONSTANT, &
     &                             TSTEP_AVG, TSTEP_ACCUM, DATATYPE_PACK16,             &
-    &                             DATATYPE_FLT32, DATATYPE_FLT64, GRID_UNSTRUCTURED, GRID_LONLAT
+    &                             DATATYPE_FLT32, DATATYPE_FLT64, GRID_UNSTRUCTURED, GRID_LONLAT, DATATYPE_INT32
 USE mo_zaxis_type,          ONLY: ZA_REFERENCE, ZA_REFERENCE_HALF,          &
   &                               ZA_SURFACE, ZA_HEIGHT_2M, ZA_HEIGHT_10M,       &
   &                               ZA_HEIGHT_2M_LAYER, ZA_TOA, ZA_DEPTH_BELOW_LAND,   &
@@ -320,7 +320,7 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
 
     INTEGER :: shape2d(2), shape3d(3), shape3dsubs(3), &
       &        shape3dsubsw(3), shape3d_synsat(3),     &
-      &        shape2d_synsat(2), shape3d_aero(3), shape3dechotop(3), shape3dwshear(3)
+      &        shape2d_synsat(2), shape3d_aero(3), shape3dechotop(3), shape3dwshear(3),shape3d_hail(3)
     INTEGER :: shape3dkp1(3), shape3dflux(3), shape3d_uh_max(3), shape3dturb(3), shape3dsrh(3)
     INTEGER :: ibits,  kcloud
     INTEGER :: jsfc, ist
@@ -373,6 +373,7 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
     shape3d_uh_max = (/nproma, kblks,        uh_max_nlayer    /)
     shape3dwshear  = (/nproma, n_wshear,     kblks/)
     shape3dsrh     = (/nproma, n_srh,        kblks/)
+    shape3d_hail   = (/nproma, 5,            kblks/)
 
     !------------------------------
     ! Ensure that all pointers have a defined association status
@@ -407,6 +408,10 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
       &     diag%dbzlmx_low, &
       &     diag%dbz_cmax, &
       &     diag%dbz_ctmax, &
+      &     diag%dhail, &
+      &     diag%dhail_av, &
+      &     diag%dhail_mx, &
+      &     diag%dhail_sd, &
       &     diag%dursun, &
       &     diag%dursun_m, &
       &     diag%dursun_r, &
@@ -463,6 +468,8 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
       &     diag%uh_max_3d, &
       &     diag%vapfl_turb, &
       &     diag%vorw_ctmax, &
+      &     diag%wdur, &
+      &     diag%wup_mask, &
       &     diag%w_ctmax, &
       &     diag%wshear_u, &
       &     diag%wshear_v, &
@@ -4105,6 +4112,114 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
                     & l_pp_scheduler_task=TASK_COMPUTE_SDI2, lrestart=.FALSE., lopenacc=.TRUE.)
        __acc_attach(diag%sdi2)
     END IF
+
+    IF (var_in_output%dhail_mx .OR. var_in_output%dhail_av .OR. var_in_output%dhail_sd ) THEN
+
+      celltracks_int(:) = ' '
+      CALL getPTStringFromMS(NINT(1000*celltracks_interval(k_jg), i8), celltracks_int)
+
+      ! Expected hailstone diameter of each sample size. Each sample is the maximum 
+      ! over the time periode.
+      ! This variable is used for hailcast computation
+      ! grib2: no grib definition, not for nwp operational output
+      cf_desc    = t_cf_var('dhail', 'mm', 'expected hailsize since end of previous full '//&
+                             TRIM(celltracks_int(3:))//' since model start', datatype_flt)
+      grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( diag_list,                                                     &
+                    & "dhail", diag%dhail,                                         &
+                    & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                          &
+                    & cf_desc, grib2_desc,                                         &
+                    & ldims=shape3d_hail,                                          &
+                    & lrestart=.FALSE., loutput=.FALSE., isteptype=TSTEP_MAX,      &
+                    & resetval=0.0_wp, initval=0.0_wp,                             &
+                    & action_list=actions( new_action( ACTION_RESET, celltracks_int ) ), &
+                    & lopenacc = .TRUE. )
+      __acc_attach(diag%dhail)
+
+      ! Average expected hailstone diameter over all samples size. Each sample is the maximum over 
+      ! the time periode.
+      ! GRIB2: no grib definition, not for nwp operational output
+      cf_desc    = t_cf_var('dhail_av', 'mm', 'average expected hailsize since end of previous full '//&
+                             TRIM(celltracks_int(3:))//' since model start', datatype_flt)
+      grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( diag_list,                                                     &
+                    & "dhail_av", diag%dhail_av,                                   &
+                    & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                          &
+                    & cf_desc, grib2_desc,                                         &
+                    & ldims=shape2d,                                               &
+                    & lrestart=.FALSE., loutput=.TRUE., isteptype=TSTEP_MAX,       &
+                    & resetval=0.0_wp, initval=0.0_wp,                             &
+                    & action_list=actions( new_action( ACTION_RESET, celltracks_int ) ), &
+                    & lopenacc = .TRUE. )
+      __acc_attach(diag%dhail_av)
+
+      ! Maximum expected hailstone diameter over all samples size. Each sample is  
+      ! the maximum over the time periode
+      cf_desc    = t_cf_var('dhail_mx', 'mm', 'maximum expected hailsize since end of previous full ' //&
+                             TRIM(celltracks_int(3:))//' since model start', datatype_flt)
+      grib2_desc = grib2_var(0, 1, 238, ibits, GRID_UNSTRUCTURED, GRID_CELL)       &
+                    + t_grib2_int_key("typeOfStatisticalProcessing", 2)
+      CALL add_var( diag_list,                                                     &
+                    & "dhail_mx", diag%dhail_mx,                                   &
+                    & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                          &
+                    & cf_desc, grib2_desc,                                         &
+                    & ldims=shape2d,                                               &
+                    & lrestart=.FALSE., loutput=.TRUE., isteptype=TSTEP_MAX,       &
+                    & resetval=0.0_wp, initval=0.0_wp,                             &
+                    & action_list=actions( new_action( ACTION_RESET, celltracks_int ) ), &
+                    & lopenacc = .TRUE. )
+      __acc_attach(diag%dhail_mx)
+
+      ! Standard deviation of the expected hailstone diameter over all samples size. 
+      ! Each sample is the maximum over the time periode
+      ! GRIB2: no grib definition, not for nwp operational output
+      cf_desc    = t_cf_var('dhail_sd', 'mm', 'standard deviation of expected hailsize since end of previous full '//&
+                          TRIM(celltracks_int(3:))//' since model start', datatype_flt)
+      grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( diag_list,                                                     &
+                    & "dhail_sd", diag%dhail_sd,                                   &
+                    & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                          &
+                    & cf_desc, grib2_desc,                                         &
+                    & ldims=shape2d,                                               &
+                    & lrestart=.FALSE., loutput=.TRUE., isteptype=TSTEP_MAX,       &
+                    & resetval=0.0_wp, initval=0.0_wp,                             &
+                    & action_list=actions( new_action( ACTION_RESET, celltracks_int ) ), &
+                    & lopenacc = .TRUE. )
+      __acc_attach(diag%dhail_sd)
+
+
+
+    ! updraft duration diag%wdur(nproma,nblks_c)
+    ! 
+      cf_desc    = t_cf_var('wdur', 's', 'updraft duration', datatype_flt)
+      grib2_desc = grib2_var(0, 2, 210, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( diag_list,                                                   &
+                    & "wdur", diag%wdur,                                         &
+                    & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                        &
+                    & cf_desc, grib2_desc,                                       &
+                    & ldims=shape2d,                                             &
+                    & lrestart=.TRUE.,                                           &
+                    & loutput=.TRUE.,                                            &
+                    & lopenacc = .TRUE. )
+      __acc_attach(diag%wdur)
+
+
+    ! mask of maximum updraft velocity diag%wup_mask(nproma,nblks_c)
+    ! 
+      cf_desc    = t_cf_var('wup_mask', '', 'updraft mask', DATATYPE_INT32)
+      grib2_desc = grib2_var(0, 2, 211, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( diag_list,                                                     &
+                    & "wup_mask", diag%wup_mask,                                   &
+                    & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                          &
+                    & cf_desc, grib2_desc,                                         &
+                    & ldims=shape2d,                                               &
+                    & lrestart=.TRUE.,                                             &
+                    & loutput=.TRUE.,                                              &
+                    & lopenacc = .TRUE. )
+      __acc_attach(diag%wup_mask)
+
+    END IF
+
 
     IF (var_in_output%lpi) THEN
       cf_desc    = t_cf_var('lpi', 'J kg-1', 'lightning potential index (LPI)', datatype_flt)

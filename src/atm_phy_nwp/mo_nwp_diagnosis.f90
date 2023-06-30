@@ -68,7 +68,7 @@ MODULE mo_nwp_diagnosis
                                    compute_field_uh_max, compute_field_vorw_ctmax, compute_field_w_ctmax, &
                                    compute_field_dbz3d_lin, maximize_field_dbzctmax,                      &
                                    compute_field_echotop, compute_field_echotopinm, compute_field_dursun, &
-                                   compute_field_twater
+                                   compute_field_twater, compute_hail_statistics, compute_updraft_duration
   USE mo_nwp_ww,             ONLY: ww_diagnostics, ww_datetime
   USE mtime,                 ONLY: datetime, timeDelta, getTimeDeltaFromDateTime,  &
     &                              deallocateTimedelta, newTimeDelta, event
@@ -76,6 +76,7 @@ MODULE mo_nwp_diagnosis
   USE mo_exception,          ONLY: finish
   USE mo_math_constants,     ONLY: pi
   USE mo_statistics,         ONLY: time_avg, levels_horizontal_mean
+  USE mo_ext_data_state,     ONLY: ext_data
   USE mo_ext_data_types,     ONLY: t_external_data
   USE mo_nwp_parameters,     ONLY: t_phy_params
   USE mo_time_config,        ONLY: time_config
@@ -1754,7 +1755,7 @@ CONTAINS
   !!
   SUBROUTINE nwp_opt_diagnostics(p_patch, p_patch_lp, p_int_lp, p_nh, p_int, prm_diag, &
      l_output, nnow, nnow_rcf, &
-     lpi_max_Event, celltracks_Event, dbz_Event, mtime_current,  plus_slack, lacc)
+     lpi_max_Event, celltracks_Event, dbz_Event, hail_max_Event, mtime_current,  plus_slack, lacc)
 
     TYPE(t_patch)       ,INTENT(IN)   :: p_patch(:), p_patch_lp(:)  ! patches and their local parents
     TYPE(t_int_state)   ,INTENT(IN)   :: p_int_lp(:)                ! interpolation state for local parents
@@ -1762,7 +1763,7 @@ CONTAINS
     TYPE(t_int_state)   ,INTENT(IN)   :: p_int(:)                   ! interpolation state
     TYPE(t_nwp_phy_diag),INTENT(INOUT):: prm_diag(:)                ! physics diagnostics
 
-    TYPE(event),     POINTER, INTENT(INOUT) :: lpi_max_Event, celltracks_Event, dbz_Event
+    TYPE(event),     POINTER, INTENT(INOUT) :: lpi_max_Event, celltracks_Event, dbz_Event, hail_max_Event
     TYPE(datetime),  POINTER, INTENT(IN   ) :: mtime_current  !< current_datetime
     TYPE(timedelta), POINTER, INTENT(IN   ) :: plus_slack
 
@@ -1770,14 +1771,15 @@ CONTAINS
     INTEGER, INTENT(IN) :: nnow(:), nnow_rcf(:)
     LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
-    LOGICAL :: l_active(3), l_lpimax_event_active, l_celltracks_event_active, l_dbz_event_active, &
-               l_need_dbz3d, l_need_temp, l_need_pres
+    LOGICAL :: l_active(4), l_lpimax_event_active, l_celltracks_event_active, l_dbz_event_active, l_hail_event_active, &
+               l_need_dbz3d, l_need_temp, l_need_pres, l_need_wup 
     INTEGER :: jg, k
 
     CALL assert_acc_device_only("nwp_opt_diagnostics", lacc)
     l_active(1) = is_event_active(lpi_max_Event,    mtime_current, proc0_offloading, plus_slack, opt_lasync=.TRUE.)
     l_active(2) = is_event_active(celltracks_Event, mtime_current, proc0_offloading, plus_slack, opt_lasync=.TRUE.)
     l_active(3) = is_event_active(dbz_Event,        mtime_current, proc0_offloading, plus_slack, opt_lasync=.TRUE.)
+    l_active(4) = is_event_active(hail_max_Event,   mtime_current, proc0_offloading, plus_slack, opt_lasync=.TRUE.)
 
     ! In NEC hybrid mode, mtime is called on p_io only, so result needs to be broadcasted
     IF (proc0_offloading)  CALL p_bcast(l_active, p_io, p_comm_work)
@@ -1785,6 +1787,7 @@ CONTAINS
     l_lpimax_event_active     = l_active(1)
     l_celltracks_event_active = l_active(2)
     l_dbz_event_active        = l_active(3)
+    l_hail_event_active       = l_active(4)
 
     IF (ltimer) CALL timer_start(timer_nh_diagnostics)
 
@@ -1814,11 +1817,19 @@ CONTAINS
                     l_need_dbz3d .AND. .NOT. l_output(jg)
       l_need_pres = l_need_dbz3d .AND. .NOT. l_output(jg)
 
+      l_need_wup = (var_in_output(jg)%dhail_av .OR. & 
+                   var_in_output(jg)%dhail_mx .OR. & 
+                   var_in_output(jg)%dhail_sd)
+
       IF (l_need_temp .OR. l_need_pres) THEN
         CALL diagnose_pres_temp(p_nh(jg)%metrics, p_nh(jg)%prog(nnow(jg)), p_nh(jg)%prog(nnow_rcf(jg)),         &
                                 p_nh(jg)%diag, p_patch(jg), opt_calc_temp=l_need_temp, opt_calc_pres=l_need_pres)
       ENDIF
 
+      IF (l_need_wup) THEN
+        CALL  compute_updraft_duration( p_patch(jg), p_nh(jg)%prog(nnow(jg))%w, &
+               &                   prm_diag(jg)%wdur,prm_diag(jg)%wup_mask)
+      ENDIF
 
       ! maximization of LPI_MAX (LPI max. during the time interval "celltracks_interval") if required
       IF ( var_in_output(jg)%lpi_max .AND. (l_output(jg) .OR. l_lpimax_event_active ) ) THEN
@@ -1903,6 +1914,14 @@ CONTAINS
       IF ( var_in_output(jg)%echotopinm .AND. (l_output(jg) .OR. l_dbz_event_active ) ) THEN
         CALL compute_field_echotopinm ( p_patch(jg), jg, p_nh(jg)%metrics, &
                                         prm_diag(jg)%dbz3d_lin, prm_diag(jg)%echotopinm, lacc=.TRUE. )
+      END IF
+
+      ! output of dhail (maximum expected hail diameter at the ground) 
+      ! during a time interval (namelist param. dt_hail) is required:
+      IF ( (var_in_output(jg)%dhail_mx .OR. var_in_output(jg)%dhail_av .OR. var_in_output(jg)%dhail_sd) .AND. &
+           ( l_output(jg) .OR. l_hail_event_active) ) THEN
+        CALL compute_hail_statistics( p_patch(jg), p_nh(jg)%metrics, p_nh(jg)%prog(nnow(jg)), &
+                                   p_nh(jg)%prog(nnow_rcf(jg)), p_nh(jg)%diag, prm_diag(jg), ext_data(jg)%atm%topography_c )
       END IF
     END DO
 

@@ -427,7 +427,8 @@ MODULE mo_nwp_phy_types
       &  k700    (:,:),     & !< level index that corresponds to the height 
                               !< of the standard atmosphere 700hPa level above ground
       &  ktop_envel(:,:),   & !< level index of upper boundary of SSO envelope layer
-      &  iww     (:,:)        !< significant weather
+      &  iww     (:,:),     & !< significant weather
+      &  wup_mask(:,:)        ! mask for tracking of strong updrafts
 
     REAL(wp), POINTER :: tropics_mask(:,:)      !< mask field that is 1 in the tropics and 0 in the extratropics
     REAL(wp), POINTER :: innertropics_mask(:,:) !< mask field that is 1 in the inner tropics and 0 elsewhere
@@ -444,6 +445,11 @@ MODULE mo_nwp_phy_types
       rh(:,:,:),           & !> relative humidity
       pv(:,:,:),           & !> potential vorticity
       sdi2(:,:),           & !> supercell detection index (SDI2)
+      dhail(:,:,:),        & ! expected hail diameter at the ground
+      dhail_mx(:,:),       & ! maximum expected hail diameter at the ground
+      dhail_av(:,:),       & ! average expected hail diameter at the ground
+      dhail_sd(:,:),       & ! standard deviation of hail diameter at the ground
+      wdur(:,:),           & ! duration of strong updraft in a grid column
       lpi(:,:),            & !> lightning potential index (LPI)
       lpi_max(:,:),        & !> lightning potential index, maximum (LPI_MAX)
       koi(:,:),            & !> KOI (stability measure - equivalent potential temperature difference
