@@ -402,8 +402,6 @@ call cvmix_coeffs_tke( &
                  KappaH_out   = new_KappaH,               & ! out
                  Ssqr         = Vmix_vars%Ssqr_iface,                             &
                  Nsqr         = Vmix_vars%Nsqr_iface,                             &
-                 old_KappaM   = Vmix_vars%KappaM_iface,                           &
-                 old_KappaH   = Vmix_vars%KappaH_iface,                           &
                  ! FIXME: nils: better calc IDEMIX Ri directly in ! CVMIX/IDEMIX
                  alpha_c      = Vmix_vars%alpha_c,                                &
                  E_iw         = Vmix_vars%E_iw,                                   &
@@ -492,8 +490,6 @@ subroutine integrate_tke( &
                          E_iw,                 &
                          dtime,                &
                          bottom_fric,          &
-                         old_KappaM,           &
-                         old_KappaH,           &
                          iw_diss,              & ! FIXME: nils: rename?
                          forc_rho_surf,        &
                          !Kappa_GM,             & ! FIXME: nils: today: delete?
@@ -517,8 +513,6 @@ subroutine integrate_tke( &
   real(cvmix_r8), dimension(max_nlev+1), intent(in)                :: & 
     tke_old                                                      ,& !
     !old_tke_diss                                                 ,& !
-    old_KappaM                                                   ,& !
-    old_KappaH                                                   ,& !
     dzt                                                             !
   real(cvmix_r8), dimension(max_nlev+1), intent(in)             :: & 
     Ssqr                                                         ,& !
