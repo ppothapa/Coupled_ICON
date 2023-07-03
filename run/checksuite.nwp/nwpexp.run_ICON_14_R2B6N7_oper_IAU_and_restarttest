@@ -87,6 +87,9 @@ ln -sf $EXTPDIR/icon_extpar_0028_R02B07_N02_20180625_tiles.nc extpar_iconR2B07_D
 # files needed for radiation
 ln -sf ${ICONDIR}/externals/ecrad/data ecrad_data
 
+# files needed for RTTOV
+ln -sf ${ICONDIR}/data/rttov/const/rt13coeffs_rttov7pred54L/* .
+
 
 
 # ----------------------------------------------------------------------
@@ -331,7 +334,7 @@ cat > ${atmo_namelist} << EOF
  end_time			= 0., 432000.   ! ** bewirkt, dass das Nest nur bis vv=120h laueft **
 /
 &synsat_nml
- lsynsat			= .FALSE.,.FALSE.
+ lsynsat			= .TRUE.,.TRUE.
 /
 &initicon_nml
  init_mode			= 5           ! operation mode
@@ -349,6 +352,12 @@ cat > ${atmo_namelist} << EOF
  lp2cintp_incr			= .true.
  lp2cintp_sfcana		= .true.
  use_lakeiceana                 = .true.
+ icpl_da_sfcevap                = 4
+ icpl_da_skinc                  = 2
+ adjust_tso_tsnow               = .TRUE.
+ icpl_da_snowalb                = 2
+ icpl_da_sfcfric                = 1
+ icpl_da_tkhmin                 = 1
 /
 &io_nml
  itype_pres_msl                 = 5              ! New extrapolation method to circumvent Ninjo problem with surface inversions
@@ -383,13 +392,11 @@ cat > ${atmo_namelist} << EOF
  inwp_gwd			= 1
  inwp_surface			= 1
  icapdcycl			= 3 ! apply CAPE modification to improve diurnalcycle over tropical land (optimizes NWP scores)
- latm_above_top			= .FALSE.,.TRUE.
+ latm_above_top			= .TRUE.,.TRUE.
  efdt_min_raylfric		= 7200.
  itype_z0			= 2   ! 1: default, 2: turn off SSO part of z0
  icpl_aero_conv			= 1
  icpl_aero_gscp			= 1
- lrtm_filename                  = 'rrtmg_lw.nc'
- cldopt_filename                = 'rrtm_cldopt.nc'
  dt_rad				= 2160.
  dt_conv			= 720.,360.
  dt_sso				= 1440.,720.
@@ -565,7 +572,7 @@ cat > ${atmo_namelist} << EOF
  steps_per_file               =  10
  include_last                 = .TRUE.
  output_filename              = "${EXP}${iter}_winds"           ! file name base
- ml_varlist                   = 'vn','w','t_g','w_so','t_so','tot_prec'
+ ml_varlist                   = 'vn','w','t_g','w_so','t_so','tot_prec','SYNMSG_BT_CL_IR10.8'
  output_grid                  = .TRUE.
 /
 
@@ -579,7 +586,7 @@ cat > ${atmo_namelist} << EOF
  steps_per_file               =  1
  include_last                 = .TRUE.
  output_filename              = "${EXP}${iter}_ll"           ! file name base
- ml_varlist                   = 'u','v','temp'
+ ml_varlist                   = 'u','v','temp','tot_prec'
  output_grid                  = .false.
  remap                        = 1
  reg_lon_def                  = 0.,0.5,359.501

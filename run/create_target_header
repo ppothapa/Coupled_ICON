@@ -1995,8 +1995,8 @@ create_target_header()
                     use_nodes=20
                     ;;
                 rcl)
-                    use_nodes=4
-                    use_venum_lhost=4
+                    use_nodes=3
+                    use_venum_lhost=3
                     use_cpunum_job=5
                     ;;
             esac

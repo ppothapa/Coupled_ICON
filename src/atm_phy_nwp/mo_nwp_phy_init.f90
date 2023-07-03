@@ -429,7 +429,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
     ELSE
       prm_diag%rlamh_fac_t(:,jb,:) = 1._wp
     ENDIF
-    IF (icpl_da_snowalb >= 1) THEN
+    IF (icpl_da_snowalb >= 1 .AND. .NOT. isRestart()) THEN
       ! Tuning factor for snow albedo
       DO jc = i_startidx,i_endidx
         IF (ANY(p_diag_lnd%h_snow_t(jc,jb,1:ntiles_total) > 0._wp)) THEN
