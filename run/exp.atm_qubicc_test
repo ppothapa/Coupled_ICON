@@ -207,7 +207,6 @@ cat >> ${atmo_namelist} << EOF
  damp_height        = 50000.      ! [m]
  rayleigh_coeff     = 1.0
  vwind_offctr       = 0.2
- lhdiff_rcf         = .TRUE.
  !divdamp_order      = 24         ! 24 is not allowed for checkpoint_interval < 2.5h (why?)
  divdamp_type       = 3
  divdamp_fac        = 0.004

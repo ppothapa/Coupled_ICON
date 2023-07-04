@@ -1273,7 +1273,7 @@ I& 5 & &
 Order of $\nabla$ operator for diffusion:\\
 -1: no diffusion\\
 2: $\nabla^{2}$ diffusion\\
-3: Smagorinsky $\nabla^{2}$ diffusion (requires lhdiff\_rcf = .TRUE.) \\
+3: Smagorinsky $\nabla^{2}$ diffusion \\
 4: $\nabla^{4}$ diffusion \\
 5: Smagorinsky $\nabla^{2}$ diffusion combined with $\nabla^{4}$
 background diffusion as specified via hdiff\_efdt\_ratio  &
@@ -4647,13 +4647,6 @@ Threshold for vertical advection CFL number at which the adaptive time step redu
 \tabularnewline
 
 %\hline
-lhdiff\_rcf&
-L& .TRUE. & &
-.TRUE.: Compute diffusion only at advection time steps (in this case,
-divergence damping is applied in the dynamical core) &
-\tabularnewline
-
-%\hline
 lextra\_diffu&
 L& .TRUE. & &
 .TRUE.: Apply additional momentum diffusion at grid points close to the stability limit for vertical advection (becomes effective
@@ -4665,56 +4658,48 @@ extremely rarely in practice; this is mostly an emergency fix for pathological c
 divdamp\_fac&
 R& 0.0025& &
 Scaling factor for divergence damping at height \(divdamp\_z\) and below. \(divdamp\_fac \geq 0\).&
-lhdiff\_rcf = .TRUE.
 \tabularnewline
 
 %\hline
 divdamp\_fac2&
 R& 0.004& &
 Scaling factor for divergence damping at height \(divdamp\_z2\). \(divdamp\_fac2 \geq 0\). Between \(divdamp\_z\) and \(divdamp\_z2\) the scaling factor changes linearly from \(divdamp\_fac\) to \(divdamp\_fac2\).  &
-lhdiff\_rcf = .TRUE.
 \tabularnewline
 
 %\hline
 divdamp\_fac3&
 R& 0.004& &
 Scaling factor for divergence damping at height \(divdamp\_z3\). \(divdamp\_fac3 \geq 0\). The three points \((divdamp\_z2, divdamp\_fac2)\), \((divdamp\_z3, divdamp\_fac3)\),  and  \((divdamp\_z4, divdamp\_fac4)\) determine the quadratic function for the scaling factor between \(divdamp\_z2\) and \(divdamp\_z4\). &
-lhdiff\_rcf = .TRUE.
 \tabularnewline
 
 %\hline
 divdamp\_fac4&
 R& 0.004& &
 Scaling factor for divergence damping at height \(divdamp\_z4\) and higher. \(divdamp\_fac4 \geq 0\).&
-lhdiff\_rcf = .TRUE.
 \tabularnewline
 
 %\hline
 divdamp\_z&
 R& 32500.& m&
 Height up to which \(divdamp\_fac\) is used, and where the linear profile up to height \(divdamp\_z2\) starts.&
-lhdiff\_rcf = .TRUE.
 \tabularnewline
 
 %\hline
 divdamp\_z2&
 R& 40000.& m&
 Height with scaling factor \(divdamp\_fac2\) where the linear profile starting at \(divdamp\_z\) ends, and where the quadratic profile up to \(divdamp\_z4\) starts. \(divdamp\_z < divdamp\_z2 < divdamp\_z4\).&
-lhdiff\_rcf = .TRUE.
 \tabularnewline
 
 %\hline
 divdamp\_z3&
 R& 60000.& m&
 Height with scaling factor \(divdamp\_fac3\). Needed to determine the quadratic function between \(divdamp\_z2\) and \(divdamp\_z4\). \(divdamp\_z3 \neq divdamp\_z2 \land divdamp\_z3 \neq divdamp\_z4\).&
-lhdiff\_rcf = .TRUE.
 \tabularnewline
 
 %\hline
 divdamp\_z4&
 R& 80000.& m&
 Height from which \(divdamp\_fac4\) is used.  \(divdamp\_z4 > divdamp\_z2\).&
-lhdiff\_rcf = .TRUE.
 \tabularnewline
 
 %\hline
@@ -4724,7 +4709,6 @@ Order of divergence damping: \\
 2 = second-order divergence damping \\
 4 = fourth-order divergence damping \\
 24 = combined second-order and fourth-order divergence damping and enhanced vertical wind off-centering during the initial spinup phase (does not allow checkpointing/restarting earlier than 2.5 hours of integration) &
-lhdiff\_rcf = .TRUE.
 \tabularnewline
 
 %\hline
@@ -4734,7 +4718,6 @@ Type of divergence damping: \\
 2 = divergence damping acting on 2D divergence \\
 3 = divergence damping acting on 3D divergence \\
 32 = combination of 3D div. damping in the troposphere with transition to 2D div. damping in the stratosphere &
-lhdiff\_rcf = .TRUE.
 \tabularnewline
 
 divdamp\_trans\_start&

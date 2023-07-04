@@ -120,7 +120,6 @@ cat > ${atmo_namelist} << EOF
  igradp_method  = 3  !new default
  ivctype        = 1  ! Gal-Chen hybrid
  vwind_offctr   = 0.05  ! default: 0.15
- lhdiff_rcf     =.TRUE.
 /
 &diffusion_nml
  hdiff_order          = 3

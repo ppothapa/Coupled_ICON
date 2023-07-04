@@ -42,8 +42,7 @@ MODULE mo_nml_crosscheck
     &                                    msg_level, luse_radarfwo
   USE mo_dynamics_config,          ONLY: iequations, ldeepatmo
   USE mo_nonhydrostatic_config,    ONLY: itime_scheme_nh => itime_scheme,                  &
-    &                                    lhdiff_rcf, rayleigh_type,                        &
-    &                                    ivctype
+    &                                    rayleigh_type, ivctype
   USE mo_diffusion_config,         ONLY: diffusion_config
   USE mo_atm_phy_nwp_config,       ONLY: atm_phy_nwp_config, icpl_aero_conv, iprog_aero
   USE mo_lnd_nwp_config,           ONLY: ntiles_lnd, lsnowtile, sstice_mode
@@ -263,13 +262,11 @@ CONTAINS
     !--------------------------------------------------------------------
     ! Nonhydrostatic atm
     !--------------------------------------------------------------------
-    IF (lhdiff_rcf .AND. (itype_comm == 3)) CALL finish(routine, &
-      'lhdiff_rcf is available only for idiv_method=1 and itype_comm<=2')
-
     IF (grf_intmethod_e >= 5 .AND. iequations /= INH_ATMOSPHERE .AND. n_dom > 1) THEN
       grf_intmethod_e = 4
       CALL message( routine, 'grf_intmethod_e has been reset to 4')
     ENDIF
+
 
     !--------------------------------------------------------------------
     ! Atmospheric physics, general

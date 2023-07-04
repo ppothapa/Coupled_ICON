@@ -34,7 +34,7 @@ MODULE mo_nh_stepping
   USE mo_kind,                     ONLY: wp, vp
   USE mo_io_units,                 ONLY: filename_max
   USE mo_nonhydro_state,           ONLY: p_nh_state, p_nh_state_lists
-  USE mo_nonhydrostatic_config,    ONLY: lhdiff_rcf, itime_scheme, divdamp_order,                     &
+  USE mo_nonhydrostatic_config,    ONLY: itime_scheme, divdamp_order,                                 &
     &                                    divdamp_fac, divdamp_fac_o2, ih_clch, ih_clcm, kstart_moist, &
     &                                    ndyn_substeps, ndyn_substeps_var, ndyn_substeps_max, vcfl_threshold
   USE mo_diffusion_config,         ONLY: diffusion_config
@@ -1934,7 +1934,7 @@ MODULE mo_nh_stepping
 
             ! diffusion at physics time steps
             !
-            IF (diffusion_config(jg)%lhdiff_vn .AND. lhdiff_rcf) THEN
+            IF (diffusion_config(jg)%lhdiff_vn) THEN
               !$ser verbatim CALL serialize_all(nproma, jg, "diffusion", .TRUE., opt_lupdate_cpu=.TRUE., opt_dt=datetime_local(jg)%ptr, opt_id=iau_iter)
               CALL diffusion(p_nh_state(jg)%prog(nnew(jg)), p_nh_state(jg)%diag,     &
                 &            p_nh_state(jg)%metrics, p_patch(jg), p_int_state(jg),   &
@@ -2740,15 +2740,6 @@ MODULE mo_nh_stepping
       ! now reset linit_dyn to .FALSE.
       linit_dyn(jg) = .FALSE.
 
-      ! compute diffusion at every dynamics substep (.NOT. lhdiff_rcf)
-      IF (diffusion_config(jg)%lhdiff_vn .AND. .NOT. lhdiff_rcf) THEN
-
-        ! Use here the dynamics substep time step dt_dyn, for which the diffusion is computed here.
-        CALL diffusion(p_nh_state%prog(nnew(jg)), p_nh_state%diag, &
-          &            p_nh_state%metrics, p_patch, p_int_state,   &
-          &            dt_dyn, .FALSE.)
-
-      ENDIF
 
       IF (advection_config(jg)%lfull_comp) &
 

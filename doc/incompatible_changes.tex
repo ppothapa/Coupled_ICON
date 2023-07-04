@@ -496,16 +496,22 @@ from ...mpi\_phy... to ...echam\_phy... because programmers felt that the acrony
   \end{itemize}
 \end{changeitem}
 
-\begin{changeitem}{nonhydrostatic\_nml}{2023-05-22}{icon-nwp:master xxx}
+\begin{changeitem}{nonhydrostatic\_nml}{2023-05-22}{icon-nwp:master 1fff9207}
   \begin{itemize}
    \item Removed Namelist switch \texttt{l\_open\_ubc}. The upper boundary condition for vertical velocity $w$ is unconditionally set to $w=0$ (with the exception of vertically nested domains).
   \end{itemize}
 \end{changeitem}
 
-\begin{changeitem}{Optional output diagnostics, see table~\ref{tab:optionaldiagnostics} on page~\pageref{tab:optionaldiagnostics}}{2023-06-13}{icon-nwp:master xxx}
+\begin{changeitem}{Optional output diagnostics, see table~\ref{tab:optionaldiagnostics} on page~\pageref{tab:optionaldiagnostics}}{2023-06-13}{icon-nwp:master 0d921fd4}
   \begin{itemize}
    \item Removed optional output diagnostics \texttt{vor\_u} (\emph{zonal component of relative vorticity}) and \texttt{vor\_v} (\emph{meridional component of relative vorticity}). 
    Reason for removal: the two diagnostics have proven an unfavorable cost-benefit ratio.
+  \end{itemize}
+\end{changeitem}
+
+\begin{changeitem}{nonhydrostatic\_nml}{2023-07-04}{icon-nwp:master xxx}
+  \begin{itemize}
+   \item Removed Namelist switch \texttt{lhdiff\_rcf}. Option to compute diffusion at dynamics time steps has been removed. It is only computed at advection time steps (in combination with divergence damping in the dynamical core).
   \end{itemize}
 \end{changeitem}
 % --------------------------------------------------------------------------------------------

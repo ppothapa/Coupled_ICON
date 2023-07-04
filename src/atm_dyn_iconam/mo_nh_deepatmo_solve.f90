@@ -24,7 +24,7 @@ MODULE mo_nh_deepatmo_solve
 
   USE mo_kind,                   ONLY: wp, vp
   USE mo_nonhydrostatic_config,  ONLY: itime_scheme,iadv_rhotheta, igradp_method,             &
-    &                                  kstart_moist, lhdiff_rcf, divdamp_order,               &
+    &                                  kstart_moist, divdamp_order,                           &
     &                                  divdamp_fac, divdamp_fac2, divdamp_fac3, divdamp_fac4, &
     &                                  divdamp_z, divdamp_z2, divdamp_z3, divdamp_z4,         &
     &                                  divdamp_type, rayleigh_type, rhotheta_offctr,          &
@@ -835,7 +835,7 @@ MODULE mo_nh_deepatmo_solve
         ENDDO
 !$OMP END DO
 
-      ELSE IF (istep == 2 .AND. lhdiff_rcf .AND. divdamp_type >= 3) THEN ! apply div damping on 3D divergence
+      ELSE IF (istep == 2 .AND. divdamp_type >= 3) THEN ! apply div damping on 3D divergence
 
         ! add dw/dz contribution to divergence damping term
 
@@ -1176,32 +1176,34 @@ MODULE mo_nh_deepatmo_solve
           ENDDO
         ENDIF
 
-        IF (lhdiff_rcf .AND. istep == 2 .AND. (divdamp_order == 4 .OR. divdamp_order == 24)) THEN ! fourth-order divergence damping
-        ! Compute gradient of divergence of gradient of divergence for fourth-order divergence damping
+
+        IF (istep == 2) THEN
+
+          IF (divdamp_order == 4 .OR. divdamp_order == 24) THEN ! fourth-order divergence damping
+          ! Compute gradient of divergence of gradient of divergence for fourth-order divergence damping
 #ifdef __LOOP_EXCHANGE
-          DO je = i_startidx, i_endidx
-!DIR$ IVDEP
-            DO jk = 1, nlev
-              z_graddiv2_vn(je,jk) = p_int%geofac_grdiv(je,1,jb)*z_graddiv_vn(jk,je,jb)      &
-                + p_int%geofac_grdiv(je,2,jb)*z_graddiv_vn(jk,iqidx(je,jb,1),iqblk(je,jb,1)) &
-                + p_int%geofac_grdiv(je,3,jb)*z_graddiv_vn(jk,iqidx(je,jb,2),iqblk(je,jb,2)) &
-                + p_int%geofac_grdiv(je,4,jb)*z_graddiv_vn(jk,iqidx(je,jb,3),iqblk(je,jb,3)) &
-                + p_int%geofac_grdiv(je,5,jb)*z_graddiv_vn(jk,iqidx(je,jb,4),iqblk(je,jb,4))
-#else
-          DO jk = 1, nlev
             DO je = i_startidx, i_endidx
-              z_graddiv2_vn(je,jk) = p_int%geofac_grdiv(je,1,jb)*z_graddiv_vn(je,jk,jb)      &
-                + p_int%geofac_grdiv(je,2,jb)*z_graddiv_vn(iqidx(je,jb,1),jk,iqblk(je,jb,1)) &
-                + p_int%geofac_grdiv(je,3,jb)*z_graddiv_vn(iqidx(je,jb,2),jk,iqblk(je,jb,2)) &
-                + p_int%geofac_grdiv(je,4,jb)*z_graddiv_vn(iqidx(je,jb,3),jk,iqblk(je,jb,3)) &
-                + p_int%geofac_grdiv(je,5,jb)*z_graddiv_vn(iqidx(je,jb,4),jk,iqblk(je,jb,4))
+!DIR$ IVDEP
+              DO jk = 1, nlev
+                z_graddiv2_vn(je,jk) = p_int%geofac_grdiv(je,1,jb)*z_graddiv_vn(jk,je,jb)      &
+                  + p_int%geofac_grdiv(je,2,jb)*z_graddiv_vn(jk,iqidx(je,jb,1),iqblk(je,jb,1)) &
+                  + p_int%geofac_grdiv(je,3,jb)*z_graddiv_vn(jk,iqidx(je,jb,2),iqblk(je,jb,2)) &
+                  + p_int%geofac_grdiv(je,4,jb)*z_graddiv_vn(jk,iqidx(je,jb,3),iqblk(je,jb,3)) &
+                  + p_int%geofac_grdiv(je,5,jb)*z_graddiv_vn(jk,iqidx(je,jb,4),iqblk(je,jb,4))
+#else
+            DO jk = 1, nlev
+              DO je = i_startidx, i_endidx
+                z_graddiv2_vn(je,jk) = p_int%geofac_grdiv(je,1,jb)*z_graddiv_vn(je,jk,jb)      &
+                  + p_int%geofac_grdiv(je,2,jb)*z_graddiv_vn(iqidx(je,jb,1),jk,iqblk(je,jb,1)) &
+                  + p_int%geofac_grdiv(je,3,jb)*z_graddiv_vn(iqidx(je,jb,2),jk,iqblk(je,jb,2)) &
+                  + p_int%geofac_grdiv(je,4,jb)*z_graddiv_vn(iqidx(je,jb,3),jk,iqblk(je,jb,3)) &
+                  + p_int%geofac_grdiv(je,5,jb)*z_graddiv_vn(iqidx(je,jb,4),jk,iqblk(je,jb,4))
 #endif
 
+              ENDDO
             ENDDO
-          ENDDO
-        ENDIF
+          ENDIF
 
-        IF (lhdiff_rcf .AND. istep == 2) THEN
           ! apply divergence damping if diffusion is not called every sound-wave time step
           IF (divdamp_order == 2 .OR. (divdamp_order == 24 .AND. scal_divdamp_o2 > 1.e-6_wp) ) THEN ! 2nd-order divergence damping
 
@@ -2144,7 +2146,7 @@ MODULE mo_nh_deepatmo_solve
         ENDIF
 
         ! compute dw/dz for divergence damping term
-        IF (lhdiff_rcf .AND. istep == 1 .AND. divdamp_type >= 3) THEN
+        IF (istep == 1 .AND. divdamp_type >= 3) THEN
 
           DO jk = kstart_dd3d(jg), nlev
 !DIR$ IVDEP
@@ -2297,7 +2299,7 @@ MODULE mo_nh_deepatmo_solve
           ENDIF
 
           ! compute dw/dz for divergence damping term
-          IF (lhdiff_rcf .AND. istep == 1 .AND. divdamp_type >= 3) THEN
+          IF (istep == 1 .AND. divdamp_type >= 3) THEN
 
             DO jk = kstart_dd3d(jg), nlev
 !DIR$ IVDEP
@@ -2348,7 +2350,7 @@ MODULE mo_nh_deepatmo_solve
       ENDIF
 
       IF (use_icon_comm) THEN
-        IF (istep == 1 .AND. lhdiff_rcf .AND. divdamp_type >= 3) THEN
+        IF (istep == 1 .AND. divdamp_type >= 3) THEN
 #ifdef __MIXED_PRECISION
           CALL sync_patch_array_mult_mp(SYNC_C,p_patch,1,1,p_nh%prog(nnew)%w,f3din1_sp=z_dwdz_dd)
 #else
@@ -2365,7 +2367,7 @@ MODULE mo_nh_deepatmo_solve
         ENDIF
       ELSE IF (itype_comm == 1) THEN
         IF (istep == 1) THEN
-          IF (lhdiff_rcf .AND. divdamp_type >= 3) THEN
+          IF (divdamp_type >= 3) THEN
             ! Synchronize w and vertical contribution to divergence damping
 #ifdef __MIXED_PRECISION
             CALL sync_patch_array_mult_mp(SYNC_C,p_patch,1,1,p_nh%prog(nnew)%w,f3din1_sp=z_dwdz_dd)

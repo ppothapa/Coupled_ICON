@@ -268,7 +268,6 @@ rbf_vec_scale_e   = 0.15,  0.05, 0.0125
  vwind_offctr     =  0.25
  damp_height      =  15000.
  rayleigh_coeff   =  0.25
- lhdiff_rcf       = .true.
  divdamp_fac      =  0.004
  divdamp_order    =  4
  igradp_method    =  3

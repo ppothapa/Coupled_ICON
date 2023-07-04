@@ -40,7 +40,7 @@ MODULE mo_nh_diffusion
   USE mo_intp_rbf,            ONLY: rbf_vec_interpol_vertex, rbf_vec_interpol_cell
   USE mo_interpol_config,     ONLY: nudge_max_coeff
   USE mo_intp,                ONLY: edges2cells_vector, cells2verts_scalar
-  USE mo_nonhydrostatic_config, ONLY: l_zdiffu_t, ndyn_substeps, lhdiff_rcf
+  USE mo_nonhydrostatic_config, ONLY: l_zdiffu_t, ndyn_substeps
   USE mo_diffusion_config,    ONLY: diffusion_config
   USE mo_turbdiff_config,     ONLY: turbdiff_config
   USE mo_parallel_config,     ONLY: nproma, cpu_min_nproma
@@ -160,7 +160,7 @@ MODULE mo_nh_diffusion
 
     ! Variables for tendency diagnostics
     REAL(wp) :: z_d_vn_hdf
-    REAL(wp) :: r_dtimensubsteps
+    REAL(wp) :: r_dtime
 
     !--------------------------------------------------------------------------
 
@@ -168,11 +168,7 @@ MODULE mo_nh_diffusion
     jg = p_patch%id
 
     ! prepare for tendency diagnostics
-    IF (lhdiff_rcf) THEN
-       r_dtimensubsteps = 1._wp/dtime                          ! without substepping, no averaging is necessary
-    ELSE
-       r_dtimensubsteps = 1._wp/(dtime*REAL(ndyn_substeps,wp)) ! with substepping the tendency is averaged over the substeps
-    END IF
+    r_dtime = 1._wp/dtime
 
     start_bdydiff_e = 5 ! refin_ctrl level at which boundary diffusion starts
 
@@ -183,11 +179,7 @@ MODULE mo_nh_diffusion
     nshift = p_patch%nshift_total
 
     ! Normalized diffusion coefficient for boundary diffusion
-    IF (lhdiff_rcf) THEN
-      fac_bdydiff_v = SQRT(REAL(ndyn_substeps,wp))/denom_diffu_v
-    ELSE
-      fac_bdydiff_v = 1._wp/denom_diffu_v
-    ENDIF
+    fac_bdydiff_v = SQRT(REAL(ndyn_substeps,wp))/denom_diffu_v
 
     ! scaling factor for enhanced diffusion in nudging zone (if present, i.e. for
     ! limited-area runs and one-way nesting)
@@ -224,7 +216,7 @@ MODULE mo_nh_diffusion
       smag_offset        =  0.0_vp
       diffu_type = 5 ! always combine nabla4 background diffusion with Smagorinsky diffusion for initial filtering call
       smag_limit(:) = 0.125_wp-4._wp*diff_multfac_vn(:)
-    ELSE IF (lhdiff_rcf) THEN ! combination with divergence damping inside the dynamical core
+    ELSE ! combination with divergence damping inside the dynamical core
       IF (diffu_type == 4) THEN
         diff_multfac_vn(:) = MIN(1._wp/128._wp,diffusion_config(jg)%k4*REAL(ndyn_substeps,wp)/ &
                                  3._wp*p_nh_metrics%enhfac_diffu(:))
@@ -239,17 +231,6 @@ MODULE mo_nh_diffusion
         smag_offset   = 0.25_wp*diffusion_config(jg)%k4*REAL(ndyn_substeps,wp)
         smag_limit(:) = 0.125_wp-4._wp*diff_multfac_vn(:)
       ENDIF
-    ELSE           ! enhanced diffusion near model top only
-      IF (diffu_type == 4) THEN
-        diff_multfac_vn(:) = diffusion_config(jg)%k4/3._wp*p_nh_metrics%enhfac_diffu(:)
-      ELSE ! For Smagorinsky diffusion, the Smagorinsky coefficient rather than the background
-           ! diffusion coefficient is enhanced near the model top (see below)
-        diff_multfac_vn(:) = diffusion_config(jg)%k4/3._wp
-      ENDIF
-      smag_offset        = 0.25_wp*diffusion_config(jg)%k4
-      smag_limit(:)      = 0.125_wp-4._wp*diff_multfac_vn(:)
-      ! pure Smagorinsky diffusion does not work without divergence damping
-      IF (diffusion_config(jg)%hdiff_order == 3) diffu_type = 5
     ENDIF
 
     ! Multiplication factor for nabla4 diffusion on vertical wind speed
@@ -972,11 +953,11 @@ MODULE mo_nh_diffusion
               !
 #ifdef __ENABLE_DDT_VN_XYZ__
               IF (p_nh_diag%ddt_vn_hdf_is_associated) THEN
-                p_nh_diag%ddt_vn_hdf(je,jk,jb)  =  p_nh_diag%ddt_vn_hdf(je,jk,jb) + z_d_vn_hdf * r_dtimensubsteps
+                p_nh_diag%ddt_vn_hdf(je,jk,jb)  =  p_nh_diag%ddt_vn_hdf(je,jk,jb) + z_d_vn_hdf * r_dtime
               END IF
               !
               IF (p_nh_diag%ddt_vn_dyn_is_associated) THEN
-                p_nh_diag%ddt_vn_dyn(je,jk,jb)  =  p_nh_diag%ddt_vn_dyn(je,jk,jb) + z_d_vn_hdf * r_dtimensubsteps
+                p_nh_diag%ddt_vn_dyn(je,jk,jb)  =  p_nh_diag%ddt_vn_dyn(je,jk,jb) + z_d_vn_hdf * r_dtime
               END IF
 #endif
               !
@@ -1001,11 +982,11 @@ MODULE mo_nh_diffusion
               !
 #ifdef __ENABLE_DDT_VN_XYZ__
               IF (p_nh_diag%ddt_vn_hdf_is_associated) THEN
-                p_nh_diag%ddt_vn_hdf(je,jk,jb)  =  p_nh_diag%ddt_vn_hdf(je,jk,jb) + z_d_vn_hdf * r_dtimensubsteps
+                p_nh_diag%ddt_vn_hdf(je,jk,jb)  =  p_nh_diag%ddt_vn_hdf(je,jk,jb) + z_d_vn_hdf * r_dtime
               END IF
               !
               IF (p_nh_diag%ddt_vn_dyn_is_associated) THEN
-                p_nh_diag%ddt_vn_dyn(je,jk,jb)  =  p_nh_diag%ddt_vn_dyn(je,jk,jb) + z_d_vn_hdf * r_dtimensubsteps
+                p_nh_diag%ddt_vn_dyn(je,jk,jb)  =  p_nh_diag%ddt_vn_dyn(je,jk,jb) + z_d_vn_hdf * r_dtime
               END IF
 #endif
               !
@@ -1030,11 +1011,11 @@ MODULE mo_nh_diffusion
               !
 #ifdef __ENABLE_DDT_VN_XYZ__
               IF (p_nh_diag%ddt_vn_hdf_is_associated) THEN
-                p_nh_diag%ddt_vn_hdf(je,jk,jb)  =  p_nh_diag%ddt_vn_hdf(je,jk,jb) + z_d_vn_hdf * r_dtimensubsteps
+                p_nh_diag%ddt_vn_hdf(je,jk,jb)  =  p_nh_diag%ddt_vn_hdf(je,jk,jb) + z_d_vn_hdf * r_dtime
               END IF
               !
               IF (p_nh_diag%ddt_vn_dyn_is_associated) THEN
-                p_nh_diag%ddt_vn_dyn(je,jk,jb)  =  p_nh_diag%ddt_vn_dyn(je,jk,jb) + z_d_vn_hdf * r_dtimensubsteps
+                p_nh_diag%ddt_vn_dyn(je,jk,jb)  =  p_nh_diag%ddt_vn_dyn(je,jk,jb) + z_d_vn_hdf * r_dtime
               END IF
 #endif
               !
@@ -1082,11 +1063,11 @@ MODULE mo_nh_diffusion
               !
 #ifdef __ENABLE_DDT_VN_XYZ__
               IF (p_nh_diag%ddt_vn_hdf_is_associated) THEN
-                p_nh_diag%ddt_vn_hdf(je,jk,jb)  =  p_nh_diag%ddt_vn_hdf(je,jk,jb) + z_d_vn_hdf * r_dtimensubsteps
+                p_nh_diag%ddt_vn_hdf(je,jk,jb)  =  p_nh_diag%ddt_vn_hdf(je,jk,jb) + z_d_vn_hdf * r_dtime
               END IF
               !
               IF (p_nh_diag%ddt_vn_dyn_is_associated) THEN
-                p_nh_diag%ddt_vn_dyn(je,jk,jb)  =  p_nh_diag%ddt_vn_dyn(je,jk,jb) + z_d_vn_hdf * r_dtimensubsteps
+                p_nh_diag%ddt_vn_dyn(je,jk,jb)  =  p_nh_diag%ddt_vn_dyn(je,jk,jb) + z_d_vn_hdf * r_dtime
               END IF
 #endif
               !
@@ -1115,11 +1096,11 @@ MODULE mo_nh_diffusion
               !
 #ifdef __ENABLE_DDT_VN_XYZ__
               IF (p_nh_diag%ddt_vn_hdf_is_associated) THEN
-                p_nh_diag%ddt_vn_hdf(je,jk,jb)  =  p_nh_diag%ddt_vn_hdf(je,jk,jb) + z_d_vn_hdf * r_dtimensubsteps
+                p_nh_diag%ddt_vn_hdf(je,jk,jb)  =  p_nh_diag%ddt_vn_hdf(je,jk,jb) + z_d_vn_hdf * r_dtime
               END IF
               !
               IF (p_nh_diag%ddt_vn_dyn_is_associated) THEN
-                p_nh_diag%ddt_vn_dyn(je,jk,jb)  =  p_nh_diag%ddt_vn_dyn(je,jk,jb) + z_d_vn_hdf * r_dtimensubsteps
+                p_nh_diag%ddt_vn_dyn(je,jk,jb)  =  p_nh_diag%ddt_vn_dyn(je,jk,jb) + z_d_vn_hdf * r_dtime
               END IF
 #endif
               !
@@ -1151,11 +1132,11 @@ MODULE mo_nh_diffusion
             !
 #ifdef __ENABLE_DDT_VN_XYZ__
             IF (p_nh_diag%ddt_vn_hdf_is_associated) THEN
-              p_nh_diag%ddt_vn_hdf(je,jk,jb)  =  p_nh_diag%ddt_vn_hdf(je,jk,jb) + z_d_vn_hdf * r_dtimensubsteps
+              p_nh_diag%ddt_vn_hdf(je,jk,jb)  =  p_nh_diag%ddt_vn_hdf(je,jk,jb) + z_d_vn_hdf * r_dtime
             END IF
             !
             IF (p_nh_diag%ddt_vn_dyn_is_associated) THEN
-              p_nh_diag%ddt_vn_dyn(je,jk,jb)  =  p_nh_diag%ddt_vn_dyn(je,jk,jb) + z_d_vn_hdf * r_dtimensubsteps
+              p_nh_diag%ddt_vn_dyn(je,jk,jb)  =  p_nh_diag%ddt_vn_dyn(je,jk,jb) + z_d_vn_hdf * r_dtime
             END IF
 #endif
             !
@@ -1190,11 +1171,11 @@ MODULE mo_nh_diffusion
             !
 #ifdef __ENABLE_DDT_VN_XYZ__
             IF (p_nh_diag%ddt_vn_hdf_is_associated) THEN
-              p_nh_diag%ddt_vn_hdf(je,jk,jb)  =  p_nh_diag%ddt_vn_hdf(je,jk,jb) + z_d_vn_hdf * r_dtimensubsteps
+              p_nh_diag%ddt_vn_hdf(je,jk,jb)  =  p_nh_diag%ddt_vn_hdf(je,jk,jb) + z_d_vn_hdf * r_dtime
             END IF
             !
             IF (p_nh_diag%ddt_vn_dyn_is_associated) THEN
-              p_nh_diag%ddt_vn_dyn(je,jk,jb)  =  p_nh_diag%ddt_vn_dyn(je,jk,jb) + z_d_vn_hdf * r_dtimensubsteps
+              p_nh_diag%ddt_vn_dyn(je,jk,jb)  =  p_nh_diag%ddt_vn_dyn(je,jk,jb) + z_d_vn_hdf * r_dtime
             END IF
 #endif
             !
@@ -1206,7 +1187,8 @@ MODULE mo_nh_diffusion
 
     ENDIF ! vn boundary diffusion
 
-    IF (lhdiff_rcf .AND. diffusion_config(jg)%lhdiff_w) THEN ! add diffusion on vertical wind speed
+
+    IF (diffusion_config(jg)%lhdiff_w) THEN ! add diffusion on vertical wind speed
                      ! remark: the surface level (nlevp1) is excluded because w is diagnostic there
 
       IF (l_limited_area .AND. jg == 1) THEN
@@ -1655,14 +1637,15 @@ MODULE mo_nh_diffusion
 !$OMP END PARALLEL
 
       ! This could be further optimized, but applications without physics are quite rare;
-      IF ( .NOT. lhdiff_rcf .OR. linit .OR. (iforcing /= inwp .AND. iforcing /= iaes) ) THEN
+      IF ( linit .OR. (iforcing /= inwp .AND. iforcing /= iaes) ) THEN
         CALL sync_patch_array_mult(SYNC_C,p_patch,2,p_nh_prog%theta_v,p_nh_prog%exner,  &
                                    opt_varname="diffusion: theta and exner")
       ENDIF
 
     ENDIF ! temperature diffusion
 
-    IF ( .NOT. lhdiff_rcf .OR. linit .OR. (iforcing /= inwp .AND. iforcing /= iaes) ) THEN
+
+    IF ( linit .OR. (iforcing /= inwp .AND. iforcing /= iaes) ) THEN
       IF (diffusion_config(jg)%lhdiff_w) THEN
         CALL sync_patch_array(SYNC_C,p_patch,p_nh_prog%w,"diffusion: w")
       END IF

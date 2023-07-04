@@ -276,7 +276,6 @@ cat > NAMELIST_nwptest << EOF
  vwind_offctr                 = 0.2
  damp_height                  = 44000.
  rayleigh_coeff               = 2.5
- lhdiff_rcf                   = .true.
  divdamp_fac                  = 0.004
  divdamp_order                = 24
  divdamp_type                 = 32

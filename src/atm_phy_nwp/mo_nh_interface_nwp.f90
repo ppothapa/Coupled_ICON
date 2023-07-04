@@ -58,8 +58,7 @@ MODULE mo_nh_interface_nwp
   USE mo_model_domain,            ONLY: t_patch
   USE mo_intp_data_strc,          ONLY: t_int_state
   USE mo_nonhydro_types,          ONLY: t_nh_prog, t_nh_diag, t_nh_metrics
-  USE mo_nonhydrostatic_config,   ONLY: kstart_moist, lhdiff_rcf, ih_clch, ih_clcm, &
-    &                                   lcalc_dpsdt
+  USE mo_nonhydrostatic_config,   ONLY: kstart_moist, ih_clch, ih_clcm, lcalc_dpsdt
   USE mo_nwp_lnd_types,           ONLY: t_lnd_prog, t_wtr_prog, t_lnd_diag
   USE mo_ext_data_types,          ONLY: t_external_data
   USE mo_nwp_phy_types,           ONLY: t_nwp_phy_diag, t_nwp_phy_tend, t_nwp_phy_stochconv
@@ -734,9 +733,9 @@ CONTAINS
       CASE(ismag,iprog)
 
         !----------------------------------------------------------------------------------
-        !>  Additional syns required for 3D turbulence.
+        !>  Additional syncs required for 3D turbulence.
         !----------------------------------------------------------------------------------
-        IF(diffusion_config(jg)%lhdiff_w .AND. lhdiff_rcf) THEN
+        IF(diffusion_config(jg)%lhdiff_w) THEN
           CALL sync_patch_array(SYNC_C, pt_patch, pt_prog%w)
         ENDIF
 
@@ -2182,7 +2181,7 @@ CONTAINS
     !--------------------------------------------------------
 
     ! Synchronize tracers if any of the updating (fast-physics) processes was active.
-    ! In addition, tempv needs to be synchronized, and in case of lhdiff_rcf, also exner_pr
+    ! In addition, tempv and exner_pr needs to be synchronized.
     IF (advection_config(jg)%iadv_tke == 1) THEN
       ! TKE does not need to be synchronized if it is advected only vertically
       ntracer_sync = ntracer-1
@@ -2194,19 +2193,16 @@ CONTAINS
 
       IF (timers_level > 10) CALL timer_start(timer_phys_sync_tracers)
 
-      IF (lhdiff_rcf .AND. diffusion_config(jg)%lhdiff_w .AND. iprog_aero >= 1) THEN
+      IF (diffusion_config(jg)%lhdiff_w .AND. iprog_aero >= 1) THEN
         CALL sync_patch_array_mult(SYNC_C, pt_patch, ntracer_sync+4, pt_diag%tempv, pt_prog%w, &
                                    pt_diag%exner_pr, prm_diag%aerosol,                         &
                                    f4din=pt_prog_rcf%tracer(:,:,:,1:ntracer_sync))
-      ELSE IF (lhdiff_rcf .AND. diffusion_config(jg)%lhdiff_w) THEN
+      ELSE IF (diffusion_config(jg)%lhdiff_w) THEN
         CALL sync_patch_array_mult(SYNC_C, pt_patch, ntracer_sync+3, pt_diag%tempv, pt_prog%w, &
                                    pt_diag%exner_pr, f4din=pt_prog_rcf%tracer(:,:,:,1:ntracer_sync))
-      ELSE IF (lhdiff_rcf) THEN
+      ELSE
         CALL sync_patch_array_mult(SYNC_C, pt_patch, ntracer_sync+2, pt_diag%tempv, &
                                    pt_diag%exner_pr, f4din=pt_prog_rcf%tracer(:,:,:,1:ntracer_sync))
-      ELSE
-        CALL sync_patch_array_mult(SYNC_C, pt_patch, ntracer_sync+1, pt_diag%tempv, &
-                                   f4din=pt_prog_rcf%tracer(:,:,:,1:ntracer_sync))
       ENDIF
 
       IF (timers_level > 10) THEN
@@ -2265,54 +2261,29 @@ CONTAINS
         i_endblk   = pt_patch%cells%end_block(rl_end)
 
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jk,jc,i_startidx, i_endidx) ICON_OMP_DEFAULT_SCHEDULE
-
+!$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
         DO jb = i_startblk, i_endblk
           CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
             & i_startidx, i_endidx, rl_start, rl_end )
 
-          IF (lhdiff_rcf) THEN
-            !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
-            !$ACC LOOP GANG VECTOR COLLAPSE(2)
-            DO jk = 1, nlev
+          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC LOOP GANG VECTOR COLLAPSE(2)
+          DO jk = 1, nlev
 !DIR$ IVDEP
-              DO jc =  i_startidx, i_endidx
+            DO jc =  i_startidx, i_endidx
 
-                IF (p_metrics%mask_prog_halo_c(jc,jb)) THEN
-                  pt_prog%exner(jc,jk,jb) = EXP(rd_o_cpd*LOG(rd_o_p0ref                   &
-                    &                     * pt_prog%rho(jc,jk,jb)*pt_diag%tempv(jc,jk,jb)))
+              IF (p_metrics%mask_prog_halo_c(jc,jb)) THEN
+                pt_prog%exner(jc,jk,jb) = EXP(rd_o_cpd*LOG(rd_o_p0ref                   &
+                  &                     * pt_prog%rho(jc,jk,jb)*pt_diag%tempv(jc,jk,jb)))
 
-                  pt_prog%theta_v(jc,jk,  jb) = pt_diag%tempv(jc,jk,jb) &
-&                                             / pt_prog%exner(jc,jk,jb)
+                pt_prog%theta_v(jc,jk,jb) = pt_diag%tempv(jc,jk,jb) &
+                  &                       / pt_prog%exner(jc,jk,jb)
 
-                ENDIF
+              ENDIF
 
-              ENDDO
             ENDDO
-            !$ACC END PARALLEL
-          ELSE
-            !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
-            !$ACC LOOP GANG VECTOR COLLAPSE(2)
-            DO jk = 1, nlev
-!DIR$ IVDEP
-              DO jc =  i_startidx, i_endidx
-
-                IF (p_metrics%mask_prog_halo_c(jc,jb)) THEN
-                  pt_prog%exner(jc,jk,jb) = EXP(rd_o_cpd*LOG(rd_o_p0ref                   &
-                    &                     * pt_prog%rho(jc,jk,jb)*pt_diag%tempv(jc,jk,jb)))
-
-                  pt_diag%exner_pr(jc,jk,jb) = pt_diag%exner_pr(jc,jk,jb) + &
-                    pt_prog%exner(jc,jk,jb) - z_exner_sv(jc,jk,jb)
-
-                  pt_prog%theta_v(jc,jk,  jb) = pt_diag%tempv(jc,jk,jb) &
-&                                             / pt_prog%exner(jc,jk,jb)
-
-                ENDIF
-
-              ENDDO
-            ENDDO
-            !$ACC END PARALLEL
-          ENDIF
+          ENDDO
+          !$ACC END PARALLEL
         ENDDO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL

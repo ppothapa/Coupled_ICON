@@ -467,7 +467,6 @@ cat > ${atmo_namelist} << EOF
  vwind_offctr			= 0.2
  damp_height			= 44000.
  rayleigh_coeff			= 0.5
- lhdiff_rcf			= .TRUE.
  divdamp_order			= 24
  divdamp_type			= 32 
  divdamp_fac			= 0.004
