@@ -77,7 +77,8 @@ MODULE mo_nwp_tuning_nml
     &                               config_tune_eiscrit      => tune_eiscrit,    &
     &                               config_tune_sc_eis       => tune_sc_eis,     &
     &                               config_tune_sc_invmin    => tune_sc_invmin,  &
-    &                               config_tune_sc_invmax    => tune_sc_invmax
+    &                               config_tune_sc_invmax    => tune_sc_invmax,  &
+    &                               config_tune_dursun_scaling => tune_dursun_scaling
   
   IMPLICIT NONE
   PRIVATE
@@ -242,7 +243,10 @@ MODULE mo_nwp_tuning_nml
        &  tune_sc_invmin           !< enhanced stratocumulus cloud cover
 
   REAL(wp) :: &                    !< maximum inversion height (m) used to define region with
-       &  tune_sc_invmax           !< enhanced stratocumulus cloud cover 
+       &  tune_sc_invmax           !< enhanced stratocumulus cloud cover
+
+  REAL(wp) :: &                    !< scaling of direct solar rediation to tune sunshine duration
+       &  tune_dursun_scaling      !< in corresponding diagnostic
   
   NAMELIST/nwp_tuning_nml/ tune_gkwake, tune_gkdrag, tune_gfluxlaun, tune_gcstar, &
     &                      tune_zceff_min, tune_v0snow, tune_zvz0i,               &
@@ -260,7 +264,7 @@ MODULE mo_nwp_tuning_nml
     &                      tune_blockred, itune_gust_diag, tune_rcapqadv,         &
     &                      tune_gustsso_lim, tune_eiscrit, itune_o3,              &
     &                      tune_sc_eis, tune_sc_invmin, tune_sc_invmax,           &
-    &                      tune_capethresh
+    &                      tune_capethresh, tune_dursun_scaling
 
 CONTAINS
 
@@ -420,6 +424,9 @@ CONTAINS
     tune_sc_invmin   = 200._wp
     tune_sc_invmax   = 1500._wp
 
+    !> scaling of direct solar radiation in sunshine duration diagnostic
+    tune_dursun_scaling = 1._wp
+
     IF (my_process_is_stdio()) THEN
       iunit = temp_defaults()
       WRITE(iunit, nwp_tuning_nml)   ! write defaults to temporary text file
@@ -540,6 +547,7 @@ CONTAINS
     config_tune_sc_eis           = tune_sc_eis
     config_tune_sc_invmin        = tune_sc_invmin
     config_tune_sc_invmax        = tune_sc_invmax
+    config_tune_dursun_scaling   = tune_dursun_scaling
 
     !$ACC UPDATE DEVICE(config_tune_gust_factor, config_itune_gust_diag, config_tune_gustsso_lim)
 

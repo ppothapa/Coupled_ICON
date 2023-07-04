@@ -71,6 +71,7 @@ MODULE mo_opt_nwp_diagnostics
   USE mo_timer,                 ONLY: timer_start, timer_stop, timers_level
   USE mo_diag_hailcast,         ONLY: hailstone_driver
   USE mo_util_phys,             ONLY: inversion_height_index  
+  USE mo_nwp_tuning_config,     ONLY: tune_dursun_scaling
 #ifdef HAVE_RADARFWO
   USE radar_data_mie,             ONLY: ldebug_dbz
   USE radar_interface,            ONLY: initialize_tmax_atomic_1mom, &
@@ -4954,16 +4955,20 @@ CONTAINS
   !>
   !! Calculate sunshine duration
   !!
-  !!  According to WMO (2003),2 sunshine duration during a given period is defined as
-  !!  the sum of that sub-period for which the perpendicular direct solar irradiance exceeds 120 W m-2
-  !!  WMO-No. 8 Guide to Meteorological Instruments and Methods of Observation
+  !! According to WMO (2003),2 sunshine duration during a given period is defined as
+  !! the sum of that sub-period for which the perpendicular direct solar irradiance exceeds 120 W m-2
+  !! WMO-No. 8 Guide to Meteorological Instruments and Methods of Observation
   !!
   !! The direct solar irradiance at the surface is calculated from the shortwave net flux at surface, 
   !! the shortwave upward flux and the shortwave diffuse downward radiative flux. It is divided
   !! by the cosine of solar zenith angle to get the perpendicular solar irradiance.
   !! If the direct solar irradiance exeeds 120 Wm-2 the sunshine duration is extended by the fast physics timestep
   !!
-  !! settings for sunshine duration
+  !! The direct solar irradiance at the surface can be scaled by the namelist parameter tune_dursun_scaling
+  !! (default is 1) to reduce the sunshine duration bias. This might be needed to account for the delta-Eddington 
+  !! scaling in ecRad and other biases (e.g. ice water path)
+  !!
+  !! settings for sunshine duration: 
   !!
   !! dursun_thresh is the threshold for solar direct irradiance in W/m2
   !!       above which the sunshine duration is increased (default 120 W/m2)
@@ -5044,7 +5049,9 @@ CONTAINS
         IF(cosmu0(jc,jb)>cosmu0_dark) THEN
 
           ! compute sunshine duration
-          xval = (swflxsfc(jc,jb) + swflx_up_sfc(jc,jb) - swflx_dn_sfc_diff(jc,jb))/cosmu0(jc,jb)
+          ! direct solar irradiance is scaled by the tuning factor tune_dursun_scaling (default is 1) to reduce 
+          ! a possible bias
+          xval = (swflxsfc(jc,jb) + swflx_up_sfc(jc,jb) - swflx_dn_sfc_diff(jc,jb))*tune_dursun_scaling/cosmu0(jc,jb)
           xval = (xval - dursun_thresh)/(dursun_thresh_width/pi)
           IF (xval > 0.5_wp*pi) THEN
             dursun(jc,jb) = dursun(jc,jb) + dt_phy

@@ -77,6 +77,7 @@ MODULE mo_nwp_tuning_config
   PUBLIC :: tune_sc_eis  
   PUBLIC :: tune_sc_invmin
   PUBLIC :: tune_sc_invmax
+  PUBLIC :: tune_dursun_scaling
   
   !!--------------------------------------------------------------------------
   !! Basic configuration setup for physics tuning
@@ -246,8 +247,10 @@ MODULE mo_nwp_tuning_config
        &  tune_sc_invmin           !< enhanced stratocumulus cloud cover
 
   REAL(wp) :: &                    !< maximum inversion height (m) used to define region with
-       &  tune_sc_invmax           !< enhanced stratocumulus cloud cover 
+       &  tune_sc_invmax           !< enhanced stratocumulus cloud cover
 
+  REAL(wp) :: &                    !< scaling of direct solar rediation to tune sunshine duration
+       &  tune_dursun_scaling      !< in corresponding diagnostic
   
 !  END TYPE t_nwp_tuning_config
 
