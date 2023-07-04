@@ -41,6 +41,7 @@ MODULE mo_nml_crosscheck
     &                                    activate_sync_timers, timers_level, lart,         &
     &                                    msg_level, luse_radarfwo
   USE mo_dynamics_config,          ONLY: iequations, ldeepatmo
+  USE mo_advection_config,         ONLY: advection_config
   USE mo_nonhydrostatic_config,    ONLY: itime_scheme_nh => itime_scheme,                  &
     &                                    rayleigh_type, ivctype
   USE mo_diffusion_config,         ONLY: diffusion_config
@@ -524,6 +525,20 @@ CONTAINS
     END SELECT
 
 
+#ifdef _OPENACC
+    IF (ltransport) THEN
+      DO jg =1,n_dom
+        IF ( .not. advection_config(jg)%llsq_svd ) THEN
+          ! The .FALSE. version is not supported by OpenACC. However,
+          ! both versions do the same. The .TRUE. version is faster
+          ! during runtime on most platforms but involves a more
+          ! expensive calculation of coefficients.
+          CALL message(routine, 'WARNING: llsq_svd has been set to .true. for this OpenACC GPU run.')
+          advection_config(jg)%llsq_svd = .TRUE.
+        END IF
+      ENDDO
+    ENDIF
+#endif
     !--------------------------------------------------------------------
     ! Horizontal diffusion
     !--------------------------------------------------------------------
