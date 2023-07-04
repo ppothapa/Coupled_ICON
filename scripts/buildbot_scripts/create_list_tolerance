@@ -13,5 +13,6 @@ listname=tolerance
 ./set_builder_flags Inactive --builders 'DAINT_GPU_nvidia' --list $listname
 ./set_builder_flags Inactive --builders 'DAINT_GPU_nvidia_mixed' --list $listname
 ./set_builder_flags Inactive --builders 'balfrin_gpu_nvidia' --list $listname
+./set_builder_flags Inactive --builders 'balfrin_gpu_nvidia_mixed' --list $listname
 
 ./lslist $listname

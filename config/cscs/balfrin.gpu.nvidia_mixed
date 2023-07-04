@@ -1,0 +1,5 @@
+#!/bin/bash
+
+SCRIPT_DIR=$(cd "$(dirname "$0")"; pwd)
+
+$SCRIPT_DIR/spack_install v0.18.1.6 mch_gpu_mixed
