@@ -407,8 +407,7 @@ AC_ARG_ENABLE([nccl],
 
 AC_ARG_ENABLE([cuda-graphs],
   [AS_HELP_STRING([--enable-cuda-graphs],
-     [enable CUDA graphs. Warning! This is an experimental feature and it
-requires Nvidia HPC SDK >= 23.3 @<:@default=no@:>@])],
+     [enable CUDA graphs @<:@default=no@:>@])],
   [AS_IF([test x"$enableval" != xno], [enable_cuda_graphs=yes])],
   [enable_cuda_graphs=no])
 
@@ -856,7 +855,16 @@ AS_VAR_IF([enable_nccl], [yes],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}USE_NCCL"])])
 
 AS_VAR_IF([enable_cuda_graphs], [yes],
-  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}ICON_USE_CUDA_GRAPH"])])
+  [icon_warn=yes
+   AS_CASE(["$FC_VENDOR,$FC_VERSION"],
+     [portland,nv:*],
+     [ACX_COMPARE_VERSION([$FC_VERSION" | cut -d: -f2"], [ge], [23.3],
+        [icon_warn=no])])
+   AS_VAR_IF([icon_warn], [yes],
+     [AC_MSG_WARN([Fortran compiler is not recognized as NVIDIA HPC Fortran dnl
+23.3 or newer: it is strongly recommended to disable CUDA graphs dnl
+(--disable-cuda-graphs)])])
+   AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}ICON_USE_CUDA_GRAPH"])])
 
 ######################### C COMPILER COMMAND AND FLAGS #########################
 AC_LANG([C])
