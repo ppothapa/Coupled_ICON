@@ -631,9 +631,7 @@ ICON_YAXT_CFLAGS
 ICON_YAXT_FCFLAGS
 ICON_SCT_CFLAGS
 ICON_SCT_FCFLAGS
-ICON_ECRAD_CFLAGS
 ICON_ECRAD_FCFLAGS
-ICON_RTE_RRTMGP_CFLAGS
 ICON_RTE_RRTMGP_FCFLAGS
 BUNDLED_LIBFILES
 DEPGEN_FCFLAGS
@@ -641,6 +639,9 @@ HIPFLAGS
 HIPCXX
 CUDAFLAGS
 CUDACXX
+ICON_BUNDLED_CXXFLAGS
+CXXFLAGS
+CXX
 ICON_BUNDLED_CFLAGS
 ICON_CFLAGS
 ac_ct_CC
@@ -793,14 +794,15 @@ CFLAGS
 CPPFLAGS
 ICON_CFLAGS
 ICON_BUNDLED_CFLAGS
+CXX
+CXXFLAGS
+ICON_BUNDLED_CXXFLAGS
 CUDACXX
 CUDAFLAGS
 HIPCXX
 HIPFLAGS
 ICON_RTE_RRTMGP_FCFLAGS
-ICON_RTE_RRTMGP_CFLAGS
 ICON_ECRAD_FCFLAGS
-ICON_ECRAD_CFLAGS
 ICON_SCT_FCFLAGS
 ICON_SCT_CFLAGS
 ICON_YAXT_FCFLAGS
@@ -1639,6 +1641,11 @@ Some influential environment variables:
   ICON_BUNDLED_CFLAGS
               C compiler flags to be appended to CFLAGS when configuring the
               bundled libraries [default=$ICON_CFLAGS]
+  CXX         C++ compiler command
+  CXXFLAGS    C++ compiler flags
+  ICON_BUNDLED_CXXFLAGS
+              C++ compiler flags to be appended to CXXFLAGS when configuring
+              the bundled libraries
   CUDACXX     CUDA Compiler command
   CUDAFLAGS   CUDA Compiler flags
   HIPCXX      HIP Compiler command
@@ -1647,17 +1654,10 @@ Some influential environment variables:
               Fortran compiler flags to be appended to FCFLAGS when
               configuring the bundled version of RTE+RRTMGP library
               [default=$ICON_BUNDLED_FCFLAGS]
-  ICON_RTE_RRTMGP_CFLAGS
-              C compiler flags to be appended to CFLAGS when configuring the
-              bundled version of RTE+RRTMGP library
-              [default=$ICON_BUNDLED_CFLAGS]
   ICON_ECRAD_FCFLAGS
               Fortran compiler flags to be appended to FCFLAGS when
               configuring the bundled version of ECRAD library
               [default=$ICON_BUNDLED_FCFLAGS]
-  ICON_ECRAD_CFLAGS
-              C compiler flags to be appended to CFLAGS when configuring the
-              bundled version of ECRAD library [default=$ICON_BUNDLED_CFLAGS]
   ICON_SCT_FCFLAGS
               Fortran compiler flags to be appended to FCFLAGS when
               configuring the bundled version of SCT library
@@ -5257,6 +5257,7 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 CFLAGS=${CFLAGS-}
 subdir_CFLAGS=$CFLAGS
+subdir_CPPFLAGS=$CPPFLAGS
 
 test -n "${ICON_CFLAGS}" && as_fn_append CFLAGS " ${ICON_CFLAGS}"
 
@@ -6123,6 +6124,13 @@ fi
 
 done
 
+
+
+
+######################## C++ COMPILER COMMAND AND FLAGS ########################
+
+CXXFLAGS=${CXXFLAGS-}
+subdir_CXXFLAGS=$CXXFLAGS
 
 
 
@@ -8049,7 +8057,6 @@ else
   as_fn_error $? "unable to find sources of the RTE+RRTMGP library ($icon_subdir_unique_file) in '$icon_subdir_srcdir': either disable usage of the RTE+RRTMGP toolbox for radiation calculations (--disable-rte-rrtmgp) or provide an external version of RTE+RRTMGP library (--with-external-rte-rrtmgp) by setting FCFLAGS, LDFLAGS and LIBS accordingly" "$LINENO" 5
 fi
             ICON_RTE_RRTMGP_FCFLAGS=${ICON_RTE_RRTMGP_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
-            ICON_RTE_RRTMGP_CFLAGS=${ICON_RTE_RRTMGP_CFLAGS-$ICON_BUNDLED_CFLAGS}
                            acx_subdir_srcdirs_fn "externals/rte-rrtmgp"
    acx_subdir_run_cmd_externals_rte_rrtmgp="'$ac_srcdir/configure'"
    acx_subdir_run_dir_externals_rte_rrtmgp="externals/rte-rrtmgp"
@@ -8103,7 +8110,7 @@ esac
 esac
      shift
    done
-      set dummy CFLAGS="$subdir_CFLAGS $ICON_RTE_RRTMGP_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_RTE_RRTMGP_FCFLAGS" NETCDF_FCFLAGS= NETCDF_FCLIBS= --enable-gpu="$icon_gpu_primary" --enable-silent-rules="$enable_silent_rules"; shift
+      set dummy FCFLAGS="$subdir_FCFLAGS $ICON_RTE_RRTMGP_FCFLAGS" NETCDF_FCFLAGS= NETCDF_FCLIBS= --enable-gpu="$icon_gpu_primary" --enable-silent-rules="$enable_silent_rules"; shift
    for acx_tmp; do
      case $acx_tmp in #(
   *\'*) :
@@ -8159,7 +8166,6 @@ else
   as_fn_error $? "unable to find sources of the the ECRAD library ($icon_subdir_unique_file) in '$icon_subdir_srcdir': either disable usage of the ECMWF radiation scheme (--disable-ecrad) or provide an external version of ECRAD library (--with-external-ecrad) by setting FCFLAGS, LDFLAGS and LIBS accordingly" "$LINENO" 5
 fi
             ICON_ECRAD_FCFLAGS=${ICON_ECRAD_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
-            ICON_ECRAD_CFLAGS=${ICON_ECRAD_CFLAGS-$ICON_BUNDLED_CFLAGS}
                            acx_subdir_srcdirs_fn "externals/ecrad"
    acx_subdir_run_cmd_externals_ecrad="'$ac_srcdir/configure'"
    acx_subdir_run_dir_externals_ecrad="externals/ecrad"
@@ -8215,7 +8221,7 @@ esac
 esac
      shift
    done
-      set dummy CFLAGS="$subdir_CFLAGS $ICON_ECRAD_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_ECRAD_FCFLAGS" NETCDF_FCFLAGS= NETCDF_FCLIBS= --enable-silent-rules="$enable_silent_rules" --enable-pgi-inlib="$enable_pgi_inlib"; shift
+      set dummy FCFLAGS="$subdir_FCFLAGS $ICON_ECRAD_FCFLAGS" NETCDF_FCFLAGS= NETCDF_FCLIBS= --enable-silent-rules="$enable_silent_rules" --enable-pgi-inlib="$enable_pgi_inlib"; shift
    for acx_tmp; do
      case $acx_tmp in #(
   *\'*) :

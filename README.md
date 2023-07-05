@@ -391,11 +391,18 @@ overridden by setting the variable to an empty value: `ICON_BUNDLED_CFLAGS=`);
 appended to `CFLAGS` when configuring the respective bundled libraries
 (defaults to `ICON_BUNDLED_CFLAGS`, which can be overridden by setting the
 variablies to empty values: `ICON_CDI_CFLAGS=`, `ICON_MTIME_CFLAGS=`, etc.);
+- `CXXFLAGS` &mdash; C++ compiler flags to be passed to the configure scripts of
+the bundled libraries (in contrast to standard
+[Autoconf](https://www.gnu.org/software/autoconf/)-based scripts, the
+[configure](./configure) script of ICON does not set `CXXFLAGS` to `-g -O2` by
+default);
+- `ICON_BUNDLED_CXXFLAGS` &mdash; C++ compiler flags to be appended to
+`CXXFLAGS` when configuring the bundled libraries;
 - `CUDAFLAGS` &mdash; CUDA Compiler flags to be used when configuring and
 compiling ICON;
 - `HIPFLAGS` &mdash; HIP Compiler flags to be used when configuring and
 compiling ICON;
-- `LDFLAGS` &mdash; common Fortran and C compiler flags to be used when
+- `LDFLAGS` &mdash; common Fortran, C and C++ compiler flags to be used when
 configuring and linking ICON, as well as passed to the configure scripts of the
 bundled libraries;
 - `ICON_LDFLAGS` &mdash; Fortran compiler flags to be appended to `LDFLAGS` when

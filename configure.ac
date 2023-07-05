@@ -864,6 +864,7 @@ dnl Override the default flags set by AC_PROG_CC:
 CFLAGS=${CFLAGS-}
 dnl Save the flags to pass them later to the bundled libraries:
 subdir_CFLAGS=$CFLAGS
+subdir_CPPFLAGS=$CPPFLAGS
 
 dnl Make sure the configure checks are run with ICON_CFLAGS:
 test -n "${ICON_CFLAGS}" && AS_VAR_APPEND([CFLAGS], [" ${ICON_CFLAGS}"])
@@ -921,6 +922,24 @@ dnl support/util_timer.c: sys/systemcfg.h asm/msr.h
 
 dnl Header files that are included from non-mandatory files
 dnl support/util_signal.c: features.h strings.h fenv.h fptrap.h
+
+######################## C++ COMPILER COMMAND AND FLAGS ########################
+
+dnl Override the default flags set by AC_PROG_CXX:
+CXXFLAGS=${CXXFLAGS-}
+dnl Save the flags to pass them later to the bundled libraries:
+subdir_CXXFLAGS=$CXXFLAGS
+
+dnl We do not expand AC_PROG_CXX because ICON itself does not need a C++
+dnl compiler yet. However, some of the bundled libraries might need it.
+dnl Therefore we simply declare the following variables to document them in the
+dnl help message:
+AC_ARG_VAR([CXX], [C++ compiler command])dnl
+AC_ARG_VAR([CXXFLAGS], [C++ compiler flags])dnl
+
+AC_ARG_VAR([ICON_BUNDLED_CXXFLAGS],
+  [C++ compiler flags to be appended to CXXFLAGS when configuring the bundled
+libraries])dnl
 
 ###################### SECONDARY GPU COMPILERS AND FLAGS #######################
 
@@ -1340,10 +1359,6 @@ accordingly])])
         [Fortran compiler flags to be appended to FCFLAGS when configuring the
 bundled version of RTE+RRTMGP library @<:@default=$ICON_BUNDLED_FCFLAGS@:>@])dnl
       ICON_RTE_RRTMGP_FCFLAGS=${ICON_RTE_RRTMGP_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
-      AC_ARG_VAR([ICON_RTE_RRTMGP_CFLAGS],
-        [C compiler flags to be appended to CFLAGS when configuring the bundled
-version of RTE+RRTMGP library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
-      ICON_RTE_RRTMGP_CFLAGS=${ICON_RTE_RRTMGP_CFLAGS-$ICON_BUNDLED_CFLAGS}
       ACX_SUBDIR_INIT_CONFIG([externals/rte-rrtmgp], [no-run])
       ACX_SUBDIR_REMOVE_ARGS([externals/rte-rrtmgp],
         [BUILD_ENV=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*],
@@ -1351,7 +1366,6 @@ version of RTE+RRTMGP library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
         [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([silent-rules])],
         [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([gpu])])
       ACX_SUBDIR_APPEND_ARGS([externals/rte-rrtmgp],
-        [CFLAGS="$subdir_CFLAGS $ICON_RTE_RRTMGP_CFLAGS"],
         [FCFLAGS="$subdir_FCFLAGS $ICON_RTE_RRTMGP_FCFLAGS"],
         [NETCDF_FCFLAGS=], [NETCDF_FCLIBS=],
         [--enable-gpu="$icon_gpu_primary"],
@@ -1391,10 +1405,6 @@ LIBS accordingly])])
         [Fortran compiler flags to be appended to FCFLAGS when configuring the
 bundled version of ECRAD library @<:@default=$ICON_BUNDLED_FCFLAGS@:>@])dnl
       ICON_ECRAD_FCFLAGS=${ICON_ECRAD_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
-      AC_ARG_VAR([ICON_ECRAD_CFLAGS],
-        [C compiler flags to be appended to CFLAGS when configuring the bundled
-version of ECRAD library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
-      ICON_ECRAD_CFLAGS=${ICON_ECRAD_CFLAGS-$ICON_BUNDLED_CFLAGS}
       ACX_SUBDIR_INIT_CONFIG([externals/ecrad], [no-run])
       ACX_SUBDIR_REMOVE_ARGS([externals/ecrad],
         [BUILD_ENV=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*],
@@ -1403,7 +1413,6 @@ version of ECRAD library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
         [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([single-precision])],
         [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([pgi-inlib])])
       ACX_SUBDIR_APPEND_ARGS([externals/ecrad],
-        [CFLAGS="$subdir_CFLAGS $ICON_ECRAD_CFLAGS"],
         [FCFLAGS="$subdir_FCFLAGS $ICON_ECRAD_FCFLAGS"],
         [NETCDF_FCFLAGS=], [NETCDF_FCLIBS=],
         [--enable-silent-rules="$enable_silent_rules"],
