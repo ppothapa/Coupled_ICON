@@ -3271,7 +3271,7 @@ else
 fi
 
 
-# Check whether --enable-cuda_graphs was given.
+# Check whether --enable-cuda-graphs was given.
 if test "${enable_cuda_graphs+set}" = set; then :
   enableval=$enable_cuda_graphs; if test x"$enableval" != xno; then :
   enable_cuda_graphs=yes

@@ -369,7 +369,7 @@ mostlyclean: $(bundled_subdirs)
 # also translate 'clean' into 'distclean' for the bundled libraries when the
 # delayed configuration is enabled but that would be counterproductive,
 # therefore, we do not do that):
-clean_files= srclist version.c
+clean_files= srclist version.c $(pp_files)
 
 # With all components and all preprocessing steps enabled, the list above
 # contains ~3k filenames, which might result into the following error if we

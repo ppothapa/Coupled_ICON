@@ -405,9 +405,10 @@ AC_ARG_ENABLE([nccl],
   [AS_IF([test x"$enableval" != xno], [enable_nccl=yes])],
   [enable_nccl=no])
 
-AC_ARG_ENABLE([cuda_graphs],
+AC_ARG_ENABLE([cuda-graphs],
   [AS_HELP_STRING([--enable-cuda-graphs],
-     [enable CUDA graphs. Warning! This is an experimental feature and it requires Nvidia HPC SDK >= 23.3 @<:@default=no@:>@])],
+     [enable CUDA graphs. Warning! This is an experimental feature and it
+requires Nvidia HPC SDK >= 23.3 @<:@default=no@:>@])],
   [AS_IF([test x"$enableval" != xno], [enable_cuda_graphs=yes])],
   [enable_cuda_graphs=no])
 
@@ -488,8 +489,8 @@ sed 's:[[^\.]]*$:%:'`
     AS_CASE(["$icon_fcgroup_all_entries:"],
       [*":$icon_fcgroup_pattern:"*],
       [AC_MSG_WARN([entry '$icon_fcgroup_entry' of the Fortran compile group dnl
-'$icon_fcgroup' is ignored: an entry with the same relative path (modulo file dnl
-extension) has already been registered])
+'$icon_fcgroup' is ignored: an entry with the same relative path (modulo dnl
+file extension) has already been registered])
        continue],
       [AS_VAR_APPEND([icon_fcgroup_all_entries], [":$icon_fcgroup_pattern"])])
     AS_IF([test -n "$ICON_FCGROUP_ASSIGNMENTS"],
