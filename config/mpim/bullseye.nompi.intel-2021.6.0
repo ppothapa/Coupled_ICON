@@ -36,6 +36,10 @@ CC='icc'
 CFLAGS='-g -march=native -pc64 -ftz -fma -ip -qno-opt-dynamic-align'
 ICON_CFLAGS='-O3'
 ICON_BUNDLED_CFLAGS='-O2'
+
+CXX='icpc'
+CXXFLAGS='-g -march=native -pc64 -ftz -fma -ip -qno-opt-dynamic-align -O2'
+
 CPPFLAGS="-I${sw_root}/include -I${sw_root}/include/libxml2"
 
 FC='ifort'
@@ -63,6 +67,8 @@ BUILD_ENV="${BUILD_ENV}" \
 CC="${CC}" \
 CFLAGS="${CFLAGS}" \
 CPPFLAGS="${CPPFLAGS}" \
+CXX="${CXX}" \
+CXXFLAGS="${CXXFLAGS}" \
 FC="${FC}" \
 FCFLAGS="${FCFLAGS}" \
 ICON_BUNDLED_CFLAGS="${ICON_BUNDLED_CFLAGS}" \
