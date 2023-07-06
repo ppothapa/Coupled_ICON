@@ -212,6 +212,13 @@ for builder in MPIMAC_gcc breeze_gcc breeze_nag breeze_intel; do
 done
 
 
+# art/ecrad testing
+$addexp checksuite.art/exp.art_levante_test.run --builders "levante_intel" --list $listname
+$addexp checksuite.art/exp.art_levante_test.run --builders "levante_intel_hybrid" --list $listname
+$addexp checksuite.art/exp.art_levante_test.run --builders "levante_intel_hybrid_mixed" --list $listname
+$addexp checksuite.art/exp.art_levante_test_short.run --builders "levante_gcc" --list $listname
+
+
 # levante nvhpc based builders - still special
 ./set_builder_flags Active --builders 'levante_gpu_nvhpc levante_cpu_nvhpc' --list $listname
 $addexp exp.atm_tracer_Hadley --builders 'levante_gpu_nvhpc' --list ${listname} --runflags "mpi_procs_pernode=5"
@@ -220,6 +227,7 @@ $addexp "checksuite.icon-dev/check.atm_bubble_test" --builders 'levante_gpu_nvhp
 $addexp "checksuite.icon-dev/check.atm_bubble_test" --builders 'levante_cpu_nvhpc' --list $listname --runflags "queue=shared ntasks=16 memory=32G"
 $addexp "checksuite.icon-dev/check.atm_bubble_land_test" --builders 'levante_gpu_nvhpc' --list $listname --runflags "mpi_procs_pernode=3"
 $addexp "checksuite.icon-dev/check.atm_bubble_land_test" --builders 'levante_cpu_nvhpc' --list $listname --runflags "queue=shared ntasks=16 memory=32G"
+
 
 # add tests for checking yaxt and yac stand-alone; this needs yaxt/yac to be enabled
 # Three YAXT tests (test_idxvec_run, test_idxstripes_run, test_perf_stripes_run) fail wih nfort-3.5.1
