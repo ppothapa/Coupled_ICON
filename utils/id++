@@ -14,7 +14,7 @@ use POSIX;
 use File::Basename;
 
 my $stamp = POSIX::strftime("%Y-%m-%d %H:%M:%SZ", gmtime());
-my $user = getpwuid($<);
+my $user = $ENV{LOGNAME} || $ENV{USER} || getpwuid($<);
 
 while(<>) {
     my $file = basename($ARGV);

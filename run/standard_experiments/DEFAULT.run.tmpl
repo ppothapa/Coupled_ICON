@@ -4,7 +4,7 @@
 #
 # %{mkexp_input}
 #
-# $Id: DEFAULT.run.tmpl 12 2022-07-07 16:11:08Z k203123 $
+# $Id: DEFAULT.run.tmpl 14 2023-05-09 09:54:35Z k203123 $
 #
 # %{VERSIONS_|join('\n# ')}
 #
@@ -24,7 +24,7 @@
 # the following is needed to work around a bug that otherwise leads to
 # a too low number of ranks when using compute,compute2 as queue
 #SBATCH --mem=0
-#SBATCH --output=%{SCRIPT_DIR}/%{EXP_ID}.run.%8j.log
+#SBATCH --output=%{LOG_DIR}/%{EXP_ID}.run.%8j.log
 #SBATCH --exclusive
 #SBATCH --time=%{JOB.time_limit}
 #%include 'standard_environments/'+ENVIRONMENT+'.tmpl' ignore missing
@@ -46,6 +46,9 @@ trap "cd $PWD && rm -f $pipe" EXIT
 awk '{print strftime("%FT%T:"), $0; fflush()}' $pipe &
 exec > $pipe 2>&1
 
+# Convenience link to log file
+ln -snvf %{LOG_DIR}/%{EXP_ID}.run.$(printf %08d ${%{JOB.id_environ}}).log %{EXP_ID}.run.log
+
 #% do VARIABLES_.add('MODEL_DIR')
 #% do VARIABLES_.add('SCRIPT_DIR')
 #% do VARIABLES_.add('BUILD_DIR')
@@ -55,9 +58,13 @@ exec > $pipe 2>&1
 #%   endif
 #% endfor
 #%#
-# Make sure that 'add_run_routines' picks up the right base directory
-cd $BUILD_DIR/run
-. ./add_run_routines
+
+# Load traditional error handling
+. $BUILD_DIR/run/add_run_routines
+# Reset files and file names for check_error and check_final_status
+final_status_file=${SCRIPT_DIR}/${job_name}.final_status
+current_status_file=${SCRIPT_DIR}/${job_name}.status
+rm -f ${final_status_file} ${current_status_file}
 
 #=============================================================================
 #
@@ -82,18 +89,9 @@ then
   . ../setting
 fi
 
-# environment variables for the experiment and the target system
-# --------------------------------------------------------------
+# environment variables for the experiment
+# ----------------------------------------
 export EXPNAME=%{EXP_ID}
-
-#%  for var in JOB.env:
-#%    set val = JOB.env[var]
-#%    if val:
-export %{var}=%{'"'+val+'"' if ' ' in val else val}
-#%    else:
-unset %{var}
-#%    endif
-#%  endfor
 
 # how to start the icon model
 # ---------------------------
@@ -144,7 +142,7 @@ ulimit -c 0
 # (0) Basic model configuration
 # -----------------------------
 
-#%  if JOB.share_nodes|d():
+#%  if JOB.share_nodes is set:
 oce_per_node=%{JOB.ocean_tasks_per_node}
 atm_per_node=$((mpi_procs_pernode - oce_per_node))
 oce_procs=$((no_of_nodes * oce_per_node))
@@ -247,6 +245,9 @@ yN=${end_date%%-*}
 # Mark current run as started in log
 echo $(date -u +'%Y-%m-%dT%H:%M:%SZ') ${start_date%:*} ${end_date%:*} ${%{JOB.id_environ}} start >> $exp_log_file
 
+# Show current start date in job configuration
+%{JOB.progress_command} $start_date
+
 #------------------------------------------------------------------------------
 
 # (5) Define the model configuration
@@ -277,12 +278,25 @@ fi
 
 # I.1 Split the number of total procs and assign to each component
 # ----------------------------------------------------------------
+#%  if JOB.share_nodes is set and JOB.use_hostfile is not set:
+oce_min_rank=$atm_per_node
+oce_max_rank=$((mpi_total_procs - 1))
+oce_group_size=$oce_per_node
+oce_inc_rank=$((atm_per_node + 1))
+atm_min_rank=0
+atm_max_rank=$((mpi_total_procs - 1))
+atm_group_size=$atm_per_node
+atm_inc_rank=$((oce_per_node + 1))
+#%  else
 oce_min_rank=`expr ${mpi_total_procs} - ${mpi_oce_procs}`
 oce_max_rank=`expr ${oce_min_rank} + ${mpi_oce_procs} - 1`
+oce_group_size=1
 oce_inc_rank=1
 atm_min_rank=0
 atm_max_rank=`expr ${oce_min_rank} - 1`
+atm_group_size=1
 atm_inc_rank=1
+#%  endif
 
 #
 # create ICON master, coupling and model namelists
@@ -360,10 +374,6 @@ fi
 # This section of the run script prepares and starts the model integration. 
 #
 #-----------------------------------------------------------------------------
-# Reset files and file names for check_error and check_final_status
-final_status_file=${SCRIPT_DIR}/${job_name}.final_status
-current_status_file=${SCRIPT_DIR}/${job_name}.status
-rm -f ${final_status_file} ${current_status_file}
 
 #-----------------------------------------------------------------------------
 # Provide input files
@@ -435,7 +445,7 @@ fill_hostfile $atm_procs $mpi_atm_io_procs 0 > $SLURM_HOSTFILE
 fill_hostfile $oce_procs $mpi_oce_io_procs 1 >> $SLURM_HOSTFILE
 
 #%  endif
-cp ${MODEL} .
+cp -p ${MODEL} ./icon
 export MODEL=./icon
 
 rm -f finish.status

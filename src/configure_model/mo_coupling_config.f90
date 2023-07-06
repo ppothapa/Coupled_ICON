@@ -19,6 +19,8 @@ MODULE mo_coupling_config
 !!
 
   LOGICAL :: config_coupled_mode
+  LOGICAL :: config_use_sens_heat_flux_hack
+  LOGICAL :: config_suppress_sens_heat_flux_hack_over_ice
 
 CONTAINS
 
