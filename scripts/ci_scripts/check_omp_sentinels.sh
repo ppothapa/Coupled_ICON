@@ -9,7 +9,7 @@
 # directories.
 
 # The known patterns are (space-separated list of single-quoted patterns):
-known_patterns="'*f90' '*.F90' '*.inc' '*.incf'"
+known_patterns="'*.f90' '*.F90' '*.inc' '*.incf'"
 
 # ICON source directories (space-separated list of single-quoted paths relative
 # to the root repo directory):
@@ -51,7 +51,7 @@ fi
 
 exitcode=0
 
-list_files yes "$@" | xargs -P ${job_num} -I{} -- ${SHELL} -c 'grep --color="auto" -HnP "^\s*!\\\$\s" {} >&2; test $? -eq 1' || {
+list_files yes "$@" | xargs -P ${job_num} -I{} -- ${SHELL-$BASH} -c 'grep --color="auto" -HnP "^\s*!\\\$\s" {} >&2; test $? -eq 1' || {
   {
     echo "ERROR: input files contain OpenMP conditional compilation sentinels (see above)"
     echo "       replace the sentinels with the macro '#ifdef _OPENMP/#endif' directives"

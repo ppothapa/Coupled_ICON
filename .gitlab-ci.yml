@@ -1,39 +1,57 @@
-variables:
-  BEAUTIFIER_REVISION: "v0.3.0"
-  BEAUTIFIER_REPO: "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.dkrz.de/dwd-sw/icon-openacc-beautifier.git"
-
 stages:
   - lint
 
 Check OpenACC Style:
+  variables:
+    BEAUTIFIER_TAG: "v0.3.0"
+    BEAUTIFIER_REPO: "https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.dkrz.de/dwd-sw/icon-openacc-beautifier.git"
+    GIT_SUBMODULE_STRATEGY: none
+
   stage: lint
+
   before_script:
-    - git clone $BEAUTIFIER_REPO
-    # pin code version of beautifier
-    - cd icon-openacc-beautifier && git reset --hard $BEAUTIFIER_REVISION && cd ..
+    - git clone --branch "${BEAUTIFIER_TAG}" --depth 1 "${BEAUTIFIER_REPO}"
+
   script:
-    # apply beautifier
+    # Apply beautifier:
     - python3 icon-openacc-beautifier/main.py src/
-    # build git patch
+    # Build git patch:
     - git diff --patch-with-raw > acc_style.patch
-    # test if patching is necessary
+    # Test if patching is necessary:
     - test ! -s acc_style.patch || ( echo "There are ACC style errors. Please check
       your code. You might want to run the ACC beautifier or \`git apply acc_style.patch\`
-      (see artifacts)." && false )    
+      (see artifacts)." && false )
+
   tags:
-    # choose python capable runner
+    # Choose python capable runner:
     - sphinx
 
-  # Run only for branches that are part of a merge request
+  # Run only for branches that are part of a merge request:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_PIPELINE_SOURCE == "push"
-      when: never
-  
+
   artifacts:
     paths:
       - acc_style.patch
     expire_in: 1 week
     expose_as: 'OpenACC Style Git Patch'
     when: on_failure
+
+Check Fortran Style:
+  variables:
+    GIT_SUBMODULE_STRATEGY: normal
+
+  stage: lint
+
+  script:
+    - "${CI_PROJECT_DIR}/scripts/ci_scripts/check_encoding.sh"
+    - "${CI_PROJECT_DIR}/scripts/ci_scripts/check_src_noexec.sh"
+    - "${CI_PROJECT_DIR}/scripts/ci_scripts/check_omp_sentinels.sh"
+
+  tags:
+    # Choose a runner with GNU find, GNU grep and bash:
+    - conda
+
+  # Run only for branches that are part of a merge request:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"

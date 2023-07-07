@@ -1,13 +1,11 @@
 #/bin/bash
 
-# Checks that the input files do not contain:
-#   1) byte sequences that are not valid UTF-8;
-#   2) all UTF-8 characters are also ASCII characters.
-# The command line arguments can be paths either to regular files or to
-# directories. In the latter case, the directories are searched recursively and
-# all files with names that match known patterns are considered as input files
-# for checking. If no arguments are provided, the script runs the standard
-# Buildbot test, i.e. checks files in ICON source directories.
+# Checks that the input files do not have the executable mode bits set. The
+# command line arguments can be paths either to regular files or to directories.
+# In the latter case, the directories are searched recursively and all files
+# with names that match known patterns are considered as input files for
+# checking. If no arguments are provided, the script runs the standard Buildbot
+# test, i.e. checks files in ICON source directories.
 
 # The known patterns are (space-separated list of single-quoted patterns):
 known_patterns="'*f90' '*.F90' '*.inc' '*.incf' '*.h' '*.c' '*.cu'"
@@ -52,13 +50,8 @@ fi
 
 exitcode=0
 
-list_files yes "$@" | xargs -P ${job_num} -I{} -- ${SHELL} -c 'LC_CTYPE=en_US.UTF-8 grep --color="auto" -Hnaxv ".*" {} >&2; test $? -eq 1' || {
-  echo "ERROR: input files contain invalid UTF-8 byte sequences (see above)" >&2
-  exitcode=1
-}
-
-list_files no "$@" | xargs -P ${job_num} -I{} -- ${SHELL} -c 'grep --color="auto" -HnP "[^\x00-\x7F]" {} >&2; test $? -eq 1' || {
-  echo "ERROR: input files contain non-ASCII characters (see above)" >&2
+list_files yes "$@" | xargs -P ${job_num} -I{} -- ${SHELL-$BASH} -c 'test ! -x {} || { echo "{}"; exit 1; }' || {
+  echo "ERROR: input files have the executable mode bits set (see above)" >&2
   exitcode=1
 }
 

@@ -7,11 +7,6 @@ ICON_DIR=$(cd "${MY_DIR}/../.."; pwd)
 
 if [ ! -z "${BB_NAME-}" ]; then
   set -x
-
-  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_encoding.sh"
-  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_src_noexec.sh"
-  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_omp_sentinels.sh"
-
 fi
 
 # Make sure we run serially:
