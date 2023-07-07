@@ -37,16 +37,24 @@ Check OpenACC Style:
     expose_as: 'OpenACC Style Git Patch'
     when: on_failure
 
-Check Fortran Style:
+Check Style:
   variables:
     GIT_SUBMODULE_STRATEGY: normal
 
   stage: lint
 
   script:
-    - "${CI_PROJECT_DIR}/scripts/ci_scripts/check_encoding.sh"
-    - "${CI_PROJECT_DIR}/scripts/ci_scripts/check_src_noexec.sh"
-    - "${CI_PROJECT_DIR}/scripts/ci_scripts/check_omp_sentinels.sh"
+    # TODO: we should check all ICON source files, as well as all source files
+    # of the bundled libraries that are built as part of ICON:
+    #   - externals/art
+    #   - externals/dace_icon
+    #   - externals/emvorado
+    #   - externals/jsbach
+    # However, we cannot currently do that because they will fail the tests.
+    # Therefore, we check as many of them as possible:
+    - ./scripts/ci_scripts/check_encoding.sh 'src' 'support'
+    - ./scripts/ci_scripts/check_src_noexec.sh 'src' 'support'
+    - ./scripts/ci_scripts/check_omp_sentinels.sh 'src' 'support' 'externals/jsbach' 'externals/emvorado' 'externals/art'
 
   tags:
     # Choose a runner with GNU find, GNU grep and bash:

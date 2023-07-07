@@ -20,6 +20,16 @@ job_num=8
 set -eu
 set -o pipefail
 
+check_exist()
+{
+  for input in "$@"; do
+    if test ! -e "${input}"; then
+      echo "ERROR: '${input}' does not exist" >&2
+      exit 2
+    fi
+  done
+}
+
 list_files()
 {
   issue_warn=$1; shift
@@ -40,13 +50,15 @@ list_files()
 }
 
 if test $# -eq 0; then
-  icon_dir=$(unset CDPATH; cd "$(dirname "$0")/../../.."; pwd)
+  icon_dir=$(unset CDPATH; cd "$(dirname "$0")/../.."; pwd)
   eval "set dummy $(
     eval "set dummy ${icon_directories}; shift"
     for dir in "$@"; do
       echo -n "'${icon_dir}/${dir}' "
     done); shift"
 fi
+
+check_exist "$@"
 
 exitcode=0
 
