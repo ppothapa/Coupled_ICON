@@ -28,16 +28,16 @@ listname=${1:-icon-dev}
 # the number for ntasks is the current default set in create_targe_header for
 # levante setting queue=shared,compute can lead to only 2 cpus available for
 # the job. so for consistency of the environment ntasks is set here
-$addexp "checksuite.icon-dev/check.atm_qubicc"            --machines "levante" --list $listname --runflags="ntasks=16 queue=shared,compute memory=32G"
-$addexp "checksuite.icon-dev/check.atm_qubicc_nofor"      --machines "levante" --list $listname --runflags="ntasks=16 queue=shared,compute memory=32G"
-$addexp "checksuite.icon-dev/check.atm_qubicc_onlyfor"    --machines "levante" --list $listname --runflags="ntasks=16 queue=shared,compute memory=32G"
+$addexp "checksuite.icon-dev/check.atm_qubicc"            --machines "levante" --list $listname --runflags "ntasks=16 queue=shared,compute memory=32G"
+$addexp "checksuite.icon-dev/check.atm_qubicc_nofor"      --machines "levante" --list $listname --runflags "ntasks=16 queue=shared,compute memory=32G"
+$addexp "checksuite.icon-dev/check.atm_qubicc_onlyfor"    --machines "levante" --list $listname --runflags "ntasks=16 queue=shared,compute memory=32G"
 $addexp "checksuite.icon-dev/check.atm_heldsuarez"        --machines "levante" --list $listname --runflags "ntasks=16 queue=shared,compute"
 $addexp "checksuite.icon-dev/check.atm_ape"               --machines "levante" --list $listname --runflags "queue=compute"
 $addexp "checksuite.icon-dev/check.atm_sma"               --machines "levante" --list $listname --runflags "queue=compute"
 $addexp "checksuite.icon-dev/check.atm_bubble_test"       --machines "levante" --list $listname --runflags "queue=shared"
 $addexp "checksuite.icon-dev/check.atm_bubble_land_test"  --machines "levante" --list $listname --runflags "queue=shared"
 # add qubicc update test on Levante (netcdf) only
-$addexp "checksuite.icon-dev/check.atm_qubicc_nc_update"  --machines "levante" --list $listname --runflags="ntasks=16 queue=shared,compute memory=32G"
+$addexp "checksuite.icon-dev/check.atm_qubicc_nc_update"  --machines "levante" --list $listname --runflags "ntasks=16 queue=compute memory=32G"
 
 # add qubicc test with tolerances on netcdf to daint
 $addexp "checksuite.icon-dev/check.atm_qubicc_nc"         --machines "daint" --list $listname --runflags "cpu_time=00:30:00"
@@ -216,6 +216,16 @@ $addexp "checksuite.icon-dev/check.atm_bubble_test" --builders 'levante_gpu_nvhp
 $addexp "checksuite.icon-dev/check.atm_bubble_test" --builders 'levante_cpu_nvhpc' --list $listname --runflags "queue=shared ntasks=16 memory=32G"
 $addexp "checksuite.icon-dev/check.atm_bubble_land_test" --builders 'levante_gpu_nvhpc' --list $listname --runflags "mpi_procs_pernode=3"
 $addexp "checksuite.icon-dev/check.atm_bubble_land_test" --builders 'levante_cpu_nvhpc' --list $listname --runflags "queue=shared ntasks=16 memory=32G"
+
+# add qubicc tests without tolerances on netcdf to levante nvhpc
+$addexp "checksuite.icon-dev/check.atm_qubicc_nc"         --builders 'levante_gpu_nvhpc' --list $listname --runflags "mpi_procs_pernode=3"
+$addexp "checksuite.icon-dev/check.atm_qubicc_nc"         --builders 'levante_cpu_nvhpc' --list $listname --runflags "queue=shared ntasks=16 memory=32G"
+$addexp "checksuite.icon-dev/check.atm_qubicc_nc_update"  --builders 'levante_gpu_nvhpc' --list $listname --runflags "mpi_procs_pernode=3"
+$addexp "checksuite.icon-dev/check.atm_qubicc_nc_update"  --builders 'levante_cpu_nvhpc' --list $listname --runflags "queue=shared ntasks=16 memory=32G"
+$addexp "checksuite.icon-dev/check.atm_qubicc_nc_nofor"   --builders 'levante_gpu_nvhpc' --list $listname --runflags "mpi_procs_pernode=3"
+$addexp "checksuite.icon-dev/check.atm_qubicc_nc_nofor"   --builders 'levante_cpu_nvhpc' --list $listname --runflags "queue=shared ntasks=16 memory=32G"
+$addexp "checksuite.icon-dev/check.atm_qubicc_nc_onlyfor" --builders 'levante_gpu_nvhpc' --list $listname --runflags "mpi_procs_pernode=3"
+$addexp "checksuite.icon-dev/check.atm_qubicc_nc_onlyfor" --builders 'levante_cpu_nvhpc' --list $listname --runflags "queue=shared ntasks=16 memory=32G"
 
 # add tests for checking yaxt and yac stand-alone; this needs yaxt/yac to be enabled
 # Three YAXT tests (test_idxvec_run, test_idxstripes_run, test_perf_stripes_run) fail wih nfort-3.5.1
