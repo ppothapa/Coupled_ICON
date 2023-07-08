@@ -566,12 +566,6 @@ AC_ARG_WITH([external-tixi],
   [AS_IF([test x"$withval" != xno], [with_external_tixi=yes])],
   [with_external_tixi=no])
 
-AC_ARG_WITH([external-cub],
-  [AS_HELP_STRING([--with-external-cub],
-     [use external CUB library @<:@default=no@:>@])],
-  [AS_IF([test x"$withval" != xno], [with_external_cub=yes])],
-  [with_external_cub=no])
-
 ############################# CODEBASE EXTENSIONS ##############################
 
 AS_VAR_IF([enable_jsbach], [yes],
@@ -2219,25 +2213,14 @@ $BUNDLED_LIBFILES"])])
 
 AS_CASE([$icon_gpu_secondary],
   [cuda],
-  [AS_VAR_IF([with_external_cub], [yes],
-     [ACX_LANG_PUSH_CUDA
-      AC_CHECK_HEADER([cub/device/device_select.cuh], [],
-        [AC_MSG_FAILURE([unable to find header files of CUB library: either dnl
+  [ACX_LANG_PUSH_CUDA
+   AC_CHECK_HEADER([cub/device/device_select.cuh], [],
+     [AC_MSG_FAILURE([unable to find header files of CUB library: either dnl
 switch the secondary GPU compiler (e.g. dnl
---enable-gpu=${icon_gpu_primary}+hip) or disable GPU support dnl
-(--disable-gpu), or use the bundled version of CUB library dnl
-(--without-external-cub), or set CUDAFLAGS accordingly])],
-        [[// override default includes]])
-      ACX_LANG_POP_CUDA],
-     [icon_subdir_srcdir="$srcdir/externals/cub"
-      icon_subdir_unique_file="cub/device/device_select.cuh"
-      AS_IF([test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"],
-        [AC_MSG_ERROR([unable to find sources of the bundled version of CUB dnl
-library ($icon_subdir_unique_file) in '$icon_subdir_srcdir': either switch dnl
-the secondary GPU compiler (e.g. --enable-gpu=${icon_gpu_primary}+hip), or dnl
-disable GPU support (--disable-gpu) or provide an external version of CUB dnl
-library (--with-external-cub) by setting CUDAFLAGS accordingly])])
-      AS_VAR_APPEND([CUDAFLAGS], [" -I${srcdir}/externals/cub"])])],
+--enable-gpu=${icon_gpu_primary}+hip) or disable GPU support
+(--disable-gpu), or set CUDAFLAGS accordingly])],
+     [[// override default includes]])
+   ACX_LANG_POP_CUDA],
   [hip],
   [ACX_LANG_PUSH_HIP
    AC_CHECK_HEADER([hipcub/device/device_select.hpp], [],
@@ -2245,7 +2228,7 @@ library (--with-external-cub) by setting CUDAFLAGS accordingly])])
 switch the secondary GPU compiler (e.g. dnl
 --enable-gpu=${icon_gpu_primary}+cuda) or disable GPU support dnl
 (--disable-gpu), or set HIPFLAGS accordingly])],
-        [[// override default includes]])
+     [[// override default includes]])
    ACX_LANG_POP_HIP])
 
 dnl Prepend the include search flags to FCFLAGS:

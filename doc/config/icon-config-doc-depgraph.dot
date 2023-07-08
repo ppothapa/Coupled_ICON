@@ -16,7 +16,7 @@ digraph ICON {
 
 		"CUDA";
 
-		"CUB" [shape=box];
+		"CUB";
 		"CUB" -> {"CUDA"; "STDC++"};
 
 		"MPI";

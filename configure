@@ -776,7 +776,6 @@ with_external_cdi
 with_external_mtime
 with_external_yac
 with_external_tixi
-with_external_cub
 '
       ac_precious_vars='build_alias
 host_alias
@@ -1603,7 +1602,6 @@ Optional Packages:
   --with-external-mtime   use external MTIME library [default=no]
   --with-external-yac     use external YAC library [default=no]
   --with-external-tixi    use external TIXI library [default=no]
-  --with-external-cub     use external CUB library [default=no]
 
 Some influential environment variables:
   BUILD_ENV   initialization code to set up the building environment (must be
@@ -3496,17 +3494,6 @@ if test "${with_external_tixi+set}" = set; then :
 fi
 else
   with_external_tixi=no
-fi
-
-
-
-# Check whether --with-external-cub was given.
-if test "${with_external_cub+set}" = set; then :
-  withval=$with_external_cub; if test x"$withval" != xno; then :
-  with_external_cub=yes
-fi
-else
-  with_external_cub=no
 fi
 
 
@@ -9650,38 +9637,30 @@ fi
 
 case $icon_gpu_secondary in #(
   cuda) :
-    if test "x$with_external_cub" = xyes; then :
-  ac_ext=cu
+    ac_ext=cu
 ac_compile='$CUDACXX -c $CUDAFLAGS conftest.$ac_ext >&5'
 ac_link='$CUDACXX -o conftest$ac_exeext $CUDAFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
 ac_compiler_gnu=$acx_cv_cuda_compiler_gnu
 
-      ac_fn_cuda_check_header_compile "$LINENO" "cub/device/device_select.cuh" "ac_cv_header_cub_device_device_select_cuh" "// override default includes
+   ac_fn_cuda_check_header_compile "$LINENO" "cub/device/device_select.cuh" "ac_cv_header_cub_device_device_select_cuh" "// override default includes
 "
 if test "x$ac_cv_header_cub_device_device_select_cuh" = xyes; then :
 
 else
   { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
 $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
-as_fn_error $? "unable to find header files of CUB library: either switch the secondary GPU compiler (e.g. --enable-gpu=${icon_gpu_primary}+hip) or disable GPU support (--disable-gpu), or use the bundled version of CUB library (--without-external-cub), or set CUDAFLAGS accordingly
+as_fn_error $? "unable to find header files of CUB library: either switch the secondary GPU compiler (e.g. --enable-gpu=${icon_gpu_primary}+hip) or disable GPU support
+(--disable-gpu), or set CUDAFLAGS accordingly
 See \`config.log' for more details
 ${icon_usr_note}" "$LINENO" 5; }
 fi
 
 
-      ac_ext=${ac_fc_srcext-f}
+   ac_ext=${ac_fc_srcext-f}
 ac_compile='$FC -c $FCFLAGS $ICON_FCFLAGS $ac_fcflags_srcext conftest.$ac_ext >&5'
 ac_link='$FC -o conftest$ac_exeext $FCFLAGS $ICON_FCFLAGS $LDFLAGS $ac_fcflags_srcext conftest.$ac_ext $LIBS >&5'
 ac_compiler_gnu=$ac_cv_fc_compiler_gnu
-
-else
-  icon_subdir_srcdir="$srcdir/externals/cub"
-      icon_subdir_unique_file="cub/device/device_select.cuh"
-      if test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"; then :
-  as_fn_error $? "unable to find sources of the bundled version of CUB library ($icon_subdir_unique_file) in '$icon_subdir_srcdir': either switch the secondary GPU compiler (e.g. --enable-gpu=${icon_gpu_primary}+hip), or disable GPU support (--disable-gpu) or provide an external version of CUB library (--with-external-cub) by setting CUDAFLAGS accordingly" "$LINENO" 5
-fi
-      as_fn_append CUDAFLAGS " -I${srcdir}/externals/cub"
-fi ;; #(
+ ;; #(
   hip) :
     ac_ext=cc
 ac_compile='$HIPCXX -c $HIPFLAGS conftest.$ac_ext >&5'
