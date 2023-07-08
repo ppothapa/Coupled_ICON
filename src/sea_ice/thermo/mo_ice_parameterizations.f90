@@ -88,12 +88,10 @@ CONTAINS
       lacc = .FALSE.
     END IF
 
-    !$ACC DATA PRESENT(Tsurf, hi, hs, albvisdir, albvisdif, albnirdir, albnirdif) IF(lacc)
-
     SELECT CASE (i_ice_albedo)
     CASE (1)
       ! This is Uwe's albedo expression from the old budget function
-      !$ACC PARALLEL IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
       !$ACC LOOP SEQ
       DO k=1,kice
         !$ACC LOOP GANG VECTOR PRIVATE(albflag)
@@ -116,7 +114,7 @@ CONTAINS
       !$ACC END PARALLEL
 
       ! all albedos are the same
-      !$ACC PARALLEL IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
       !$ACC LOOP SEQ
       DO k=1,kice
         !$ACC LOOP GANG VECTOR
@@ -130,7 +128,7 @@ CONTAINS
 
     CASE (2)
       ! This is the CCSM 3 albedo scheme
-      !$ACC PARALLEL IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
       !$ACC LOOP SEQ
 !PREVENT_INCONSISTENT_IFORT_FMA
       DO k=1,kice
@@ -151,7 +149,7 @@ CONTAINS
       !$ACC END PARALLEL
 
       ! diffuse and direct albedos are the same
-      !$ACC PARALLEL IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
       !$ACC LOOP SEQ
       DO k=1,kice
         !$ACC LOOP GANG VECTOR
@@ -163,8 +161,6 @@ CONTAINS
       !$ACC END PARALLEL
 
     END SELECT
-
-   !$ACC END DATA
 
   END SUBROUTINE set_ice_albedo
 
@@ -180,18 +176,26 @@ CONTAINS
   !
   ! Positive flux upwards.
 
-SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice)
+SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice, use_acc)
     TYPE(t_patch), INTENT(IN), TARGET       :: p_patch
     TYPE(t_hydro_ocean_state), INTENT(IN)   :: p_os
     TYPE(t_sea_ice),           INTENT(INOUT):: ice
+    LOGICAL, INTENT(IN), OPTIONAL           :: use_acc
 
     ! Local
     INTEGER :: jb, jc, i_startidx_c, i_endidx_c, k
     TYPE(t_subset_range), POINTER :: all_cells
     REAL(wp) :: u_star
     REAL(wp), POINTER  :: sst(:,:), u_diag(:,:), v_diag(:,:)
+    LOGICAL :: lacc
 
     CHARACTER(LEN=max_char_length), PARAMETER :: routine = 'mo_ice_parameterizations:oce_ice_heatflx'
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
     
     all_cells   => p_patch%cells%all
     sst         => p_os%p_prog(nold(1))%tracer(:,1,:,1)
@@ -207,32 +211,33 @@ SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice)
 !    CALL dbg_print('O-I-HeatFlx: Tfw'       ,ice%Tfw       ,str_module,4, in_subset=p_patch%cells%owned)
     !---------------------------------------------------------------------
 
-
     IF (i_ice_therm == 3) RETURN ! if analytical atmospheric fluxes, NO heatflux from the "ocean" is applied
 
     SELECT CASE ( i_Qio_type )
 
     CASE (0)
-
 !ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc) SCHEDULE(dynamic)
       DO jb = 1,p_patch%nblks_c
         CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO jc = i_startidx_c,i_endidx_c
           ice%zHeatOceI(jc,:,jb) = 0.0_wp
         ENDDO
+        !$ACC END PARALLEL LOOP
       ENDDO
 
     CASE (1)
-
 !ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc) SCHEDULE(dynamic)
       DO jb = 1,p_patch%nblks_c
         CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO jc = i_startidx_c,i_endidx_c
           IF (ice%hi(jc,1,jb) > 0._wp) THEN
             ! energy of warm water below ice covered part of grid area only is used for melting
             ice%zHeatOceI(jc,:,jb) = ( sst(jc,jb) - ice%Tfw(jc,jb) ) * ice%zUnderIce(jc,jb) * clw*rho_ref/dtime
           ENDIF
         ENDDO
+        !$ACC END PARALLEL LOOP
       END DO
 !ICON_OMP_END_PARALLEL_DO
 
@@ -240,6 +245,7 @@ SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice)
 !ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc) SCHEDULE(dynamic)
     DO jb = 1,p_patch%nblks_c
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jc = i_startidx_c,i_endidx_c
         IF (ice%hi(jc,1,jb) > 0._wp) THEN
             ! melting energy depends on velocity difference between water and ice, bulk formulation
@@ -248,6 +254,7 @@ SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice)
             ice%zHeatOceI(jc,:,jb) = ( sst(jc,jb) - ice%Tfw(jc,jb) ) *rho_ref*clw*Ch_io*u_star
         ENDIF
       ENDDO
+      !$ACC END PARALLEL LOOP
     END DO
 !ICON_OMP_END_PARALLEL_DO
 
@@ -255,6 +262,7 @@ SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice)
 !ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc, k) SCHEDULE(dynamic)
       DO jb = 1,p_patch%nblks_c
         CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO jc = i_startidx_c,i_endidx_c
           DO k=1,ice%kice
           IF (ice%hi(jc,k,jb) > 0._wp) THEN
@@ -268,6 +276,7 @@ SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice)
           ENDIF
           ENDDO
         ENDDO
+        !$ACC END PARALLEL LOOP
       END DO
 !ICON_OMP_END_PARALLEL_DO
     
@@ -275,7 +284,7 @@ SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice)
       CALL finish(TRIM(routine), 'Invalid i_Qio_type')
 
     END SELECT
-    
+
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     CALL dbg_print('O-I-HeatFlx: zHeatOceI ' ,ice%zHeatOceI , str_module, 4, in_subset=p_patch%cells%owned)
     CALL dbg_print('O-I-HeatFlx: conc      ' ,ice%conc      , str_module, 4, in_subset=p_patch%cells%owned)
@@ -296,22 +305,31 @@ SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice)
   !! @par Revision History
   !! Initial release by Vladimir Lapin, MPI-M (2016-11)
   !!
-  SUBROUTINE ice_draft_and_flooding (p_patch, ice)
+  SUBROUTINE ice_draft_and_flooding (p_patch, ice, use_acc)
 
     TYPE(t_patch),      INTENT(IN), TARGET  :: p_patch
     TYPE (t_sea_ice),   INTENT(INOUT)       :: ice
+    LOGICAL, INTENT(IN), OPTIONAL           :: use_acc
 
     ! Local
     TYPE(t_subset_range), POINTER :: all_cells
     INTEGER                       :: jb, k, jc, i_startidx_c, i_endidx_c
     REAL(wp)                      :: hi_from_flood ! Increase in ice thickness due to flooding      [m]
+    LOGICAL                       :: lacc
     !-----------------------------------------------------------------------
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     all_cells            => p_patch%cells%all
 
 !ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, k, jc, hi_from_flood) SCHEDULE(dynamic)
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
       DO k=1,ice%kice
         DO jc = i_startidx_c,i_endidx_c
 
@@ -328,10 +346,22 @@ SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice)
 
         END DO
       END DO
+      !$ACC END PARALLEL LOOP
     END DO
 !ICON_OMP_END_PARALLEL_DO
 
-    ice%draftave    (:,:) = sum(ice%draft(:,:,:) * ice%conc(:,:,:),2)
+!ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc) SCHEDULE(dynamic)
+    DO jb = all_cells%start_block, all_cells%end_block
+      CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      DO jc = i_startidx_c,i_endidx_c
+        ice%draftave(jc,jb) = sum(ice%draft(jc,:,jb) * ice%conc(jc,:,jb))
+      END DO
+      !$ACC END PARALLEL LOOP
+    END DO
+!ICON_OMP_END_PARALLEL_DO
+
+
     ! do not update here
 !    ice%zUnderIce   (:,:) = v_base%del_zlev_m(1) + p_os%p_prog(nold(1))%h(:,:) - ice%draftave(:,:)
 
@@ -353,26 +383,39 @@ SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice)
   !! @par Revision History
   !! Initial release by Vladimir Lapin, MPI-M (2016-11)
   !!
-  SUBROUTINE ice_cut_off (p_patch, p_ice)
+  SUBROUTINE ice_cut_off (p_patch, p_ice, use_acc)
 
     TYPE(t_patch),TARGET,   INTENT(IN)    :: p_patch
     TYPE(t_sea_ice),        INTENT(INOUT) :: p_ice
+    LOGICAL, INTENT(IN), OPTIONAL         :: use_acc
+
+    INTEGER :: i, j, size1, size2
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
 !ICON_OMP_PARALLEL
 
 !ICON_OMP_WORKSHARE
       ! Fix overshoots in concentration that can appear due to ice convergence in areas with conc ~ 1
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       WHERE ( p_ice%conc(:,1,:) > 1._wp )
         p_ice%conc(:,1,:) = 1._wp
         ! New ice and snow thickness
         p_ice%hi   (:,1,:) = p_ice%vol (:,1,:)/( p_ice%conc(:,1,:)*p_patch%cells%area(:,:) )
         p_ice%hs   (:,1,:) = p_ice%vols(:,1,:)/( p_ice%conc(:,1,:)*p_patch%cells%area(:,:) )
       ENDWHERE
+      !$ACC END KERNELS
 !ICON_OMP_END_WORKSHARE
 
       ! Fix undershoots - ONLY for the one-ice-class case
       ! Quick fix, should be reformulated to occur at the advection stage
 !ICON_OMP_WORKSHARE
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       WHERE ( ( p_ice%conc(:,1,:) < TINY(1._wp) ) .OR. ( p_ice%hi(:,1,:) < TINY(1._wp) ) )
         p_ice%conc  (:,1,:) = 0._wp
         p_ice%hi    (:,1,:) = 0._wp
@@ -380,6 +423,7 @@ SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice)
         p_ice%vol   (:,1,:) = 0._wp
         p_ice%vols  (:,1,:) = 0._wp
       ENDWHERE
+      !$ACC END KERNELS
 
 !fixme !ICON_OMP_END_WORKSHARE
 !fixme      
@@ -393,7 +437,9 @@ SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice)
 
 !ICON_OMP_END_PARALLEL
 
-      p_ice%concSum = SUM(p_ice%conc, 2)
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      p_ice%concSum(:,:) = SUM(p_ice%conc, 2)
+      !$ACC END KERNELS
 
   END SUBROUTINE ice_cut_off
 

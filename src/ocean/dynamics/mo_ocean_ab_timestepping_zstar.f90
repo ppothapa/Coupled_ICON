@@ -470,17 +470,20 @@ CONTAINS
   !!
   !! Adapted to zstar
   !!
-  SUBROUTINE calc_normal_velocity_ab_zstar(patch_3d,ocean_state, op_coeffs, eta)
+  SUBROUTINE calc_normal_velocity_ab_zstar(patch_3d,ocean_state, op_coeffs, eta, use_acc)
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET    :: ocean_state
     TYPE(t_operator_coeff),INTENT(in)    :: op_coeffs
     REAL(wp), INTENT(in)                 :: eta(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
+    LOGICAL, INTENT(in), OPTIONAL        :: use_acc
     !  local variables
     INTEGER  :: start_edge_index, end_edge_index, je, jk, blockNo
     REAL(wp) :: gdt_x_ab_beta, one_minus_ab_gam
     REAL(wp) :: z_grad_h(nproma,patch_3d%p_patch_2d(1)%nblks_e), z_grad_h_block(nproma)
+    LOGICAL :: lacc
     TYPE(t_subset_range), POINTER :: edges_in_domain, owned_edges
     TYPE(t_patch), POINTER :: patch
+    REAL(wp), POINTER :: vn_old(:,:,:), vn_new(:,:,:), vn_time_weighted(:,:,:), vn_pred(:,:,:), grad_coeff(:,:,:)
     !----------------------------------------------------------------------
     !CALL message (TRIM(routine), 'start')
     !-----------------------------------------------------------------------
@@ -490,30 +493,57 @@ CONTAINS
     one_minus_ab_gam = 1.0_wp - ab_gam
     gdt_x_ab_beta =  grav * dtime * ab_beta
 
+    vn_old => ocean_state%p_prog(nold(1))%vn
+    vn_new => ocean_state%p_prog(nnew(1))%vn
+    vn_time_weighted => ocean_state%p_diag%vn_time_weighted
+    vn_pred => ocean_state%p_diag%vn_pred
+    grad_coeff => op_coeffs%grad_coeff
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    !$ACC DATA PRESENT(patch_3d%p_patch_2d(1)%alloc_cell_blocks, patch_3d%p_patch_2d(1)%nblks_e) &
+    !$ACC   COPYIN(eta, nold, nnew, patch%edges%cell_idx, patch%edges%cell_blk, grad_coeff) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_e, vn_old, vn_pred) &
+    !$ACC   CREATE(z_grad_h_block) &
+    !$ACC   COPY(vn_new, vn_time_weighted) IF(lacc)
+
 !ICON_OMP_PARALLEL_DO PRIVATE(blockNo,start_edge_index,end_edge_index, je, jk, z_grad_h_block) ICON_OMP_DEFAULT_SCHEDULE
     DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
       CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
+
       ! Step 1) Compute normal derivative of new surface height
-      CALL grad_fd_norm_oce_2d_onBlock(eta, patch, op_coeffs%grad_coeff(:,1, blockNo), &
-        & z_grad_h_block(:), start_edge_index, end_edge_index, blockNo)
+      CALL grad_fd_norm_oce_2d_onBlock(eta, patch, grad_coeff(:,1, blockNo), &
+        & z_grad_h_block(:), start_edge_index, end_edge_index, blockNo, use_acc=lacc)
+
       ! Step 2) Calculate the new velocity from the predicted one and the new surface height
+
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO je = start_edge_index, end_edge_index
         DO jk = 1, patch_3d%p_patch_1d(1)%dolic_e(je,blockNo)
-           ocean_state%p_prog(nnew(1))%vn(je,jk,blockNo) = (ocean_state%p_diag%vn_pred(je,jk,blockNo) &
+           vn_new(je,jk,blockNo) = (vn_pred(je,jk,blockNo) &
              & - gdt_x_ab_beta * z_grad_h_block(je))
         END DO          
       END DO
+      !$ACC END PARALLEL LOOP
+
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO je = start_edge_index, end_edge_index
         DO jk = 1, patch_3d%p_patch_1d(1)%dolic_e(je,blockNo)
-          ocean_state%p_diag%vn_time_weighted(je,jk,blockNo) = ab_gam * ocean_state%p_prog(nnew(1))%vn(je,jk,blockNo) &
-            & + one_minus_ab_gam * ocean_state%p_prog(nold(1))%vn(je,jk,blockNo)
+          vn_time_weighted(je,jk,blockNo) = ab_gam * vn_new(je,jk,blockNo) &
+            & + one_minus_ab_gam * vn_old(je,jk,blockNo)
         END DO
       END DO
+      !$ACC END PARALLEL LOOP
     END DO ! blockNo
 !ICON_OMP_END_PARALLEL_DO
 
-    CALL sync_patch_array_mult(sync_e, patch, 2, ocean_state%p_prog(nnew(1))%vn, ocean_state%p_diag%vn_time_weighted)
-  
+    CALL sync_patch_array_mult(sync_e, patch, 2, vn_new, vn_time_weighted)
+
+    !$ACC END DATA
   END SUBROUTINE calc_normal_velocity_ab_zstar
   !-------------------------------------------------------------------------
  

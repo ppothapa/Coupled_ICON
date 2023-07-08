@@ -85,68 +85,94 @@ CONTAINS
   !! Dirk Notz, following MPI-OM. Code transfered to ICON.
   !! Einar Olason, renamed and added support for changing concentration
   !!
-  SUBROUTINE ice_conc_change(p_patch,ice, p_os)
+  SUBROUTINE ice_conc_change(p_patch, ice, p_os, use_acc)
 
-    TYPE(t_patch),             INTENT(IN)    :: p_patch
-    TYPE (t_sea_ice),          INTENT(INOUT) :: ice
-    TYPE(t_hydro_ocean_state), INTENT(IN)    :: p_os
+    TYPE(t_patch),             INTENT(IN), TARGET :: p_patch
+    TYPE (t_sea_ice),          INTENT(INOUT)      :: ice
+    TYPE(t_hydro_ocean_state), INTENT(IN)         :: p_os
+    LOGICAL, INTENT(IN), OPTIONAL                 :: use_acc
 
-    INTEGER  :: k
+    TYPE(t_subset_range), POINTER :: all_cells
+    INTEGER                       :: k, jb, jc, i_startidx_c, i_endidx_c
  !  REAL(wp) :: sst(nproma,p_patch%alloc_cell_blocks)
  !  REAL(wp) :: sss(nproma,p_patch%alloc_cell_blocks)
     REAL(wp) :: Tfw(nproma,p_patch%alloc_cell_blocks) ! Ocean freezing temperature [C]
+    LOGICAL  :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    all_cells            => p_patch%cells%all
 
  !  REAL(wp) :: leadclose_2n
 
     CALL dbg_print('IceConcCh: IceConc beg' ,ice%conc, str_module, 4, in_subset=p_patch%cells%owned)
 
+    !$ACC DATA CREATE(Tfw) IF(lacc)
+
     ! Calculate the sea surface freezing temperature                        [C]
     IF ( no_tracer < 2 .OR. use_constant_tfreez ) THEN
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       Tfw(:,:) = Tf
+      !$ACC END KERNELS
     ELSE
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       Tfw(:,:) = -mu * p_os%p_prog(nold(1))%tracer(:,1,:,2)
+      !$ACC END KERNELS
     ENDIF
 
     ! This should not be needed
     ! TODO ram - remove all instances of p_patch%cells%area(:,:) and test
     ! See also dynamics_fem/mo_ice_fem_interface.f90
     DO k=1,ice%kice
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       ice%vol (:,k,:) = ice%hi(:,k,:)*ice%conc(:,k,:)*p_patch%cells%area(:,:)
       ice%vols(:,k,:) = ice%hs(:,k,:)*ice%conc(:,k,:)*p_patch%cells%area(:,:)
+      !$ACC END KERNELS
     ENDDO
 
     CALL dbg_print('IceConcCh: vol  at beg' ,ice%vol , str_module, 4, in_subset=p_patch%cells%owned)
     CALL dbg_print('IceConcCh: vols at beg' ,ice%vols, str_module, 4, in_subset=p_patch%cells%owned)
 
 !ICON_OMP_PARALLEL
-!ICON_OMP_WORKSHARE 
+!ICON_OMP_DO PRIVATE(i_startidx_c, i_endidx_c, jc) ICON_OMP_DEFAULT_SCHEDULE 
     ! Concentration change due to new ice formation
-    WHERE ( ice%newice(:,:) > 0._wp .AND. v_base%lsm_c(:,1,:) <= sea_boundary )
-      ! New volume - we just preserve volume:
-      ! #slo# 2014-12-11: newice is grown over open ocean but already averaged over whole grid area
-      !                   newice must not be multiplied by 1-conc
-      ice%vol  (:,1,:) = ice%vol(:,1,:) + ice%newice(:,:)*p_patch%cells%area(:,:)
+    DO jb = all_cells%start_block, all_cells%end_block
+      CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      DO jc = i_startidx_c,i_endidx_c
+        IF (ice%newice(jc,jb) > 0._wp .AND. v_base%lsm_c(jc,1,jb) <= sea_boundary) THEN
+          ! New volume - we just preserve volume:
+          ! #slo# 2014-12-11: newice is grown over open ocean but already averaged over whole grid area
+          !                   newice must not be multiplied by 1-conc
+          ice%vol  (jc,1,jb) = ice%vol(jc,1,jb) + ice%newice(jc,jb)*p_patch%cells%area(jc,jb)
 
-      ! Hibler's way to change the concentration 
-      !  - the formulation here uses the default values of leadclose parameters 2 and 3 in MPIOM:
-      !    1 and 0 respectively, which recovers the Hibler model: conc=conc+newice/hnull
-      ! Fixed 2. April (2014) - we don't need to multiply with 1-A here, like Hibler does, because it's
-      ! already included in newice (we use volume, but Hibler growth rate)
-      !ice%conc (:,1,:) = min( 1._wp, ice%conc(:,1,:) + ice%newice(:,:)/hnull )
+          ! Hibler's way to change the concentration 
+          !  - the formulation here uses the default values of leadclose parameters 2 and 3 in MPIOM:
+          !    1 and 0 respectively, which recovers the Hibler model: conc=conc+newice/hnull
+          ! Fixed 2. April (2014) - we don't need to multiply with 1-A here, like Hibler does, because it's
+          ! already included in newice (we use volume, but Hibler growth rate)
+          !ice%conc (:,1,:) = min( 1._wp, ice%conc(:,1,:) + ice%newice(:,:)/hnull )
 
-      ! New formulation of leadclose parameter leadclose_2n includes parameters 2 and 3 of MPIOM:
-      ! leadclose_2n (=mpiom_leadclose(3)/mpiom_leadclose(2)
-      ! standard value of mpiom is: mpiom_leadclose(3)=2. mpiom_leadclose(2)=mpiom_leadclose(3)+1.
-      ! i.e. leadclose_2n=2./3. according to mpiom default
-      ice%conc(:,1,:) = min( 1._wp, ice%conc(:,1,:) + &
-        &                           ice%newice(:,:)/(hnull+leadclose_2n*(ice%hi(:,1,:)-hnull)) )
+          ! New formulation of leadclose parameter leadclose_2n includes parameters 2 and 3 of MPIOM:
+          ! leadclose_2n (=mpiom_leadclose(3)/mpiom_leadclose(2)
+          ! standard value of mpiom is: mpiom_leadclose(3)=2. mpiom_leadclose(2)=mpiom_leadclose(3)+1.
+          ! i.e. leadclose_2n=2./3. according to mpiom default
+          ice%conc(jc,1,jb) = min( 1._wp, ice%conc(jc,1,jb) + &
+            &                           ice%newice(jc,jb)/(hnull+leadclose_2n*(ice%hi(jc,1,jb)-hnull)) )
 
-      ! New ice and snow thickness
-      ice%hi   (:,1,:) = ice%vol (:,1,:)/( ice%conc(:,1,:)*p_patch%cells%area(:,:) )
-      ice%hs   (:,1,:) = ice%vols(:,1,:)/( ice%conc(:,1,:)*p_patch%cells%area(:,:) )
-      !TODO: Re-calculate temperatures to conserve energy when we change the ice thickness
-    ENDWHERE
-!ICON_OMP_END_WORKSHARE
+          ! New ice and snow thickness
+          ice%hi   (jc,1,jb) = ice%vol (jc,1,jb)/( ice%conc(jc,1,jb)*p_patch%cells%area(jc,jb) )
+          ice%hs   (jc,1,jb) = ice%vols(jc,1,jb)/( ice%conc(jc,1,jb)*p_patch%cells%area(jc,jb) )
+          !TODO: Re-calculate temperatures to conserve energy when we change the ice thickness
+        END IF
+      END DO
+      !$ACC END PARALLEL LOOP
+    END DO
+!ICON_OMP_END_DO
 
 #ifndef _OPENMP
     CALL dbg_print('IceConcCh: conc leadcl' ,ice%conc, str_module, 4, in_subset=p_patch%cells%owned)
@@ -157,6 +183,7 @@ CONTAINS
 !ICON_OMP_WORKSHARE
     ! This is where concentration, and thickness change due to ice melt (we must conserve volume)
     ! A.k.a. lateral melt
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     WHERE ( ice%hiold(:,1,:) > ice%hi(:,1,:) .AND. ice%hi(:,1,:) > 0._wp )
       ! Hibler's way to change the concentration due to lateral melting (leadclose parameter 1)
       ice%conc(:,1,:) = MAX( 0._wp, ice%conc(:,1,:) &
@@ -167,6 +194,7 @@ CONTAINS
       ice%hs  (:,1,:) = ice%vols(:,1,:)/( ice%conc(:,1,:)*p_patch%cells%area(:,:) )
       !TODO: Re-calculate temperatures to conserve energy when we change the ice thickness
     ENDWHERE
+    !$ACC END KERNELS
 !ICON_OMP_END_WORKSHARE
 
 #ifndef _OPENMP
@@ -178,14 +206,17 @@ CONTAINS
     ! Ice cannot grow thinner than hmin
     ! Changed 27. March
 !ICON_OMP_WORKSHARE
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     WHERE ( ice%hi(:,1,:) < hmin .AND. ice%hi(:,1,:) > 0._wp )
       ice%hi  (:,1,:) = hmin
       ice%conc(:,1,:) = ice%vol(:,1,:) / ( ice%hi(:,1,:)*p_patch%cells%area(:,:) )
       ice%hs  (:,1,:) = ice%vols(:,1,:)/( ice%conc(:,1,:)*p_patch%cells%area(:,:) )
     ENDWHERE
+    !$ACC END KERNELS
 !ICON_OMP_END_WORKSHARE
 
 !ICON_OMP_WORKSHARE
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     WHERE (ice%hi(:,1,:) <= 0._wp)
       ice%Tsurf(:,1,:) = Tfw(:,:)
       ice%T1   (:,1,:) = Tfw(:,:)
@@ -197,16 +228,21 @@ CONTAINS
       ice%E2   (:,1,:) = 0.0_wp
       ice%vol  (:,1,:) = 0.0_wp
     ENDWHERE
+    !$ACC END KERNELS
 !ICON_OMP_END_WORKSHARE
 !ICON_OMP_END_PARALLEL
 
-    ice%concSum(:,:)  = SUM(ice%conc(:,:,:),2)
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    ice%concSum(:,:)  = SUM(ice%conc(:,:,:), 2)
+    !$ACC END KERNELS
 
     CALL dbg_print('IceConcCh: IceConc end' ,ice%conc, str_module, 3, in_subset=p_patch%cells%owned)
     CALL dbg_print('IceConcCh: hi   at end' ,ice%hi  , str_module, 4, in_subset=p_patch%cells%owned)
     CALL dbg_print('IceConcCh: hs   at end' ,ice%hs  , str_module, 4, in_subset=p_patch%cells%owned)
     CALL dbg_print('IceConcCh: vol  at end' ,ice%vol , str_module, 4, in_subset=p_patch%cells%owned)
     CALL dbg_print('IceConcCh: vols at end' ,ice%vols, str_module, 4, in_subset=p_patch%cells%owned)
+
+    !$ACC END DATA
 
   END SUBROUTINE ice_conc_change
 
