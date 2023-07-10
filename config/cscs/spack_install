@@ -22,3 +22,8 @@ fi
 # and is set by the spack activate command
 spack env activate -p $ICON_DIR/config/cscs/spack/$SPACK_VERSION/$VARIANT
 spack install -v
+
+# reload spack env to get ECCODES_DEFINITIONECCODES_DEFINITION_PATH
+spack env activate -p $ICON_DIR/config/cscs/spack/$SPACK_VERSION/$VARIANT
+# store ECCODES_DEFINITION_PATH in setting, should be later replaced with spack env activate --sh
+echo "export ECCODES_DEFINITION_PATH=${ECCODES_DEFINITION_PATH}" >> $ICON_DIR/setting

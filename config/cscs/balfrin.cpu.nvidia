@@ -1,5 +1,6 @@
 #!/bin/bash
 
 SCRIPT_DIR=$(cd "$(dirname "$0")"; pwd)
+SPACK_VERSION=$(cat $SCRIPT_DIR/SPACK_TAG_BALFRIN)
 
-$SCRIPT_DIR/spack_install v0.18.1.6 mch_cpu_double
+$SCRIPT_DIR/spack_install $SPACK_VERSION mch_cpu_double
