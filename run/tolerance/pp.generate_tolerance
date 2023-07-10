@@ -6,35 +6,36 @@ set -euo pipefail
 # This file will be copied on the fly by list_part_tolerance before adding it with addexp.
 
 # set basic name
-probtest_exp=${EXPNAME#refgen_}
+probtest_exp=${EXPNAME#generate_tolerance_}
 
-echo "DEBUG: add_refgen_routines probtest_exp: '$probtest_exp'"
 echo "Generate new tolerance data for '$probtest_exp' (using job $EXPNAME)"
 
-# source add_refgen_routines to get the variables that are defined there and used in generate_probtest_tolerance
-source ./add_refgen_routines
+base_exp="${base_exp:-${probtest_exp}}"
+
+builder=$(echo "${BB_NAME}" | tr '[:upper:]' '[:lower:]')
+model_output_dir="${basedir}/experiments/${base_exp}"
+
+# make sure the resulting data and directories are global readable
+umask 0022
 
 # path to probtest script
 PROBTEST="${basedir}/externals/probtest/probtest.py"
 
 stats_file_name="stats_${probtest_exp}_{member_id}.csv"
 default_reference_stats_file_name="stats_${probtest_exp}_ref.csv"
-reference_file_name="${reference_dir}/reference/${probtest_exp}.csv"
+reference_file_name="${model_output_dir}/${probtest_exp}_reference.csv"
 
 if [[ -z "$probtest_exp" ]]; then
     echo "ERROR: \$probtest_exp not set"
-    echo "probtest_exp is required for generate_probtest_tolerance"
+    echo "probtest_exp is required for pp.generate_tolerance"
     exit 1
 fi
-source checksuite.icon-dev/set_probtest_file_id "$probtest_exp"
+source tolerance/set_probtest_file_id "$probtest_exp"
 if (( ${#probtest_file_id[@]} < 3 )) ; then
     echo "ERROR: \$probtest_file_id has not been set or has less then 3 entries. Current value:"
     echo "    ${probtest_file_id[*]}"
     exit 2
 fi
-
-# create the reference directory if it doesn't exist
-mkdir -p "${reference_dir}/reference"
 
 # set up probtest config file
 export PROBTEST_CONFIG="${probtest_exp}-config.json"
@@ -50,7 +51,7 @@ fi
     "${probtest_file_id[@]}" \
     --experiment-name "${base_exp}" \
     --config "${PROBTEST_CONFIG}" \
-    --reference "${reference_dir}" \
+    --reference "${model_output_dir}" \
     --member_ids "${member_ids}"
 
 # create stats file for each seed (layer-wise max/min/mean)

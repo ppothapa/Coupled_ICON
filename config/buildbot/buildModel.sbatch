@@ -35,8 +35,14 @@ echo "experimentLogfile: |${experimentLogfile}|"
 # plan: simplify the buildbot server config and take all decisions within the
 # icon repo in a transparent way
 
+# In case an experiment is given and the list is `tolerance`, let's generate new tolerance data for that experiment! {{{
+if [[ -n "${BB_EXPERIMENT-}" ]] && [[ "${experimentList}" = "tolerance" ]]; then
+  cd "${ICON_DIR}/scripts/buildbot_scripts";
+  ./create_list_tolerance "${BB_EXPERIMENT}"
+
+# }}}
 # In case only an experiment is given {{{
-if [ "x${BB_EXPERIMENT}" != "x" ]; then
+elif [ -n "${BB_EXPERIMENT}" ]; then
 
   # first check if the given expriment file/template exists
   fullExperimentPath="${ICON_DIR}/run/${BB_EXPERIMENT}"

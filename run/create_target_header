@@ -160,11 +160,10 @@ EOF
 # directories with absolute paths
 # -------------------------------
 thisdir=\$(pwd)
-basedir="${use_builddir}"
+export basedir="${use_builddir}"
 # experiments_dir can be predefined in a machine specific run_target_* header
 experiments_dir="\${experiments_dir:=\${basedir}/experiments}"
-export basedir
-icon_data_rootFolder="${icon_data_rootFolder}"
+export icon_data_rootFolder="${icon_data_rootFolder}"
 
 # how to start the icon model
 # ---------------------------
@@ -2209,7 +2208,7 @@ create_target_header()
     esac
 
     # set more default values
-    set_default use_shell "/bin/ksh"
+    set_default use_shell "/bin/bash"
     set_default use_memory_model "default"
     set_default use_omp_stacksize 32M
       

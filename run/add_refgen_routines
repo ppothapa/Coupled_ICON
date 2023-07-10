@@ -1,24 +1,12 @@
-# sourced from checksuite.icon-dev/pp.refgen (and others)
-
-# get current commit
-git_commit=$(git rev-parse HEAD)
-
-# get date string
-date_str=$(date '+%Y-%m-%d')
-
-# get repository
-origin="$(git config --get remote.origin.url)"
-origin=${origin##*/} # cut off all except icon-xyz.git
-origin=${origin%%.*} # cut off .git
+# sourced from ...
 
 # for check-scripts, the experiment name might be altered
 # this special name is only used to find output, data is 
 # always stored according to the real experiment name `probtest_exp`
 base_exp="${base_exp:-${probtest_exp}}"
 
-builder=$(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]')
+builder=$(echo "${BB_NAME}" | tr '[:upper:]' '[:lower:]')
 model_output_dir="${basedir}/experiments/${base_exp}"
-reference_dir="${icon_data_rootFolder}/buildbot_data/ref/${date_str}.${origin}.${git_commit:0:12}/${builder}"
 
 # make sure the resulting data and directories are global readable
 umask 0022
@@ -26,23 +14,36 @@ umask 0022
 store_model_output()
 {
     # update test needs have the regular ICON output structure
+
+    # get current commit
+    git_commit=$(git rev-parse HEAD)
+
+    # get date string
+    date_str=$(date '+%Y-%m-%d')
+
+    # get repository
+    origin="$(git config --get remote.origin.url)"
+    origin=${origin##*/} # cut off all except icon-xyz.git
+    origin=${origin%%.*} # cut off .git
+
+    reference_dir="${icon_data_rootFolder}/buildbot_data/ref/${date_str}.${origin}.${git_commit:0:12}/${builder}"
     # experiments carry over the "_base" extension if available
     fake_output_dir="${reference_dir}/${probtest_exp}/experiments/${base_exp}"
-    mkdir -p ${fake_output_dir}
+    mkdir -p "${fake_output_dir}"
 
     status=0
     # copy data for update test (replace "," with " " in file_ids)
     if [ -z "${update_file_ids}" ]; then
         # without given files tags copy everything
-        rsync --safe-links ${model_output_dir}/*nc ${fake_output_dir}/ || status=1
+        rsync --safe-links "${model_output_dir}"/*nc "${fake_output_dir}"/ || status=1
     else
         for fid in ${update_file_ids//,/ }; do
-            cp ${model_output_dir}/*$fid*.nc $fake_output_dir || status=1
+            cp "${model_output_dir}"/*"$fid"*.nc "$fake_output_dir" || status=1
         done
     fi
 
     # on some machines, the model output has only user rwx access
-    chmod 755 $fake_output_dir/* || status=1
+    chmod 755 "$fake_output_dir"/* || status=1
 
     echo "Stored model output at $fake_output_dir"
 

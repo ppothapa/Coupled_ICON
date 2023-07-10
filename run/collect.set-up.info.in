@@ -247,6 +247,7 @@ case "$use_site" in
 
   local.net)
     use_target='default'
+    test "$use_host" = buildmac1.mpimet.mpg.de && use_shell='/bin/ksh'
   ;;
 
   pa.cluster)

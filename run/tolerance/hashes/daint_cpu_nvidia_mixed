@@ -1,0 +1,11 @@
+--- # ICON probtest tolerance data
+# Data is stored in <icon_data_rootFolder>/buildbot_data/ref/<experiment_hash>
+icon_data_rootFolder: /users/icontest/pool/data/ICON
+builder: daint_cpu_nvidia_mixed
+# The list below maps each experiment to its current experiment_hash
+"atm_qubicc_nc_test": 8973b22f5d656dff81061b583b8a85ba54337813
+"mch_bench_r19b07_dev_sppt": 66fcba91639c6a3901220c4b837944a9752c38bf
+"mch_opr_r04b07": fa1bfafe5dfa75989ac64bbece5fc244a892f63d
+"mch_opr_r04b07_lhn_00": 8036baa8db422a486e07f34ea17041f93d7b6df2
+"mch_opr_r19b07_lpi": ae9c2c964e1f9b71edc324acec57f6d12f1e124f
+"mch_opr_r19b07_midnight": 003674526ac8163b34321e7ee8cd6aed35edf822
