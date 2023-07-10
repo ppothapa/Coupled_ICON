@@ -18,14 +18,14 @@ MODULE mo_util_vgrid
   USE ISO_C_BINDING,                        ONLY: C_DOUBLE
   USE mo_cdi,                               ONLY: streamDefTimestep, streamOpenWrite, gridCreate, institutInq, vlistCreate, &
                                                 & vlistInqVarZaxis, vlistInqVarGrid, streamInqVlist, streamOpenRead, &
-                                                & ZAXIS_REFERENCE, zaxisCreate, TSTEP_CONSTANT, vlistDefVar, FILETYPE_NC2, &
+                                                & ZAXIS_REFERENCE, zaxisCreate, TIME_CONSTANT, vlistDefVar, FILETYPE_NC2, &
                                                 & DATATYPE_INT32, DATATYPE_FLT64, CDI_UNDEFID, CDI_GLOBAL, cdiDefAttInt, &
                                                 & cdiInqAttInt, zaxisDestroy, gridDestroy, vlistDestroy, streamClose, &
-                                                & streamWriteVarSlice, streamWriteVar, streamDefVlist, &
+                                                & streamWriteVarSlice, streamWriteVar, streamDefVlist, vlistDefVarTsteptype, &
                                                 & vlistDefVarDatatype, vlistDefVarName, zaxisDefNumber, zaxisDefUUID, &
                                                 & gridDefPosition, gridInqUUID, gridDefNumber, gridDefUUID, zaxisDefLevels, &
                                                 & gridDefNvertex, vlistDefInstitut, zaxisInqUUID, streamReadVar, &
-                                                & GRID_UNSTRUCTURED
+                                                & GRID_UNSTRUCTURED, TSTEP_CONSTANT
   USE mo_kind,                              ONLY: wp, dp
   USE mo_exception,                         ONLY: finish, message, message_text, warning
   !
@@ -303,15 +303,18 @@ CONTAINS
       CALL zaxisDefNumber(cdiZaxisID, ivctype)
 
       !--- add variables
-      cdiVarID_vct_a    = vlistDefVar(cdiVlistID, cdiColumnGridID, cdiZaxisID, TSTEP_CONSTANT)
+      cdiVarID_vct_a    = vlistDefVar(cdiVlistID, cdiColumnGridID, cdiZaxisID, TIME_CONSTANT)
       CALL vlistDefVarName(cdiVlistID, cdiVarID_vct_a, "vct_a")
       CALL vlistDefVarDatatype(cdiVlistID, cdiVarID_vct_a, DATATYPE_FLT64)
-      cdiVarID_vct_b    = vlistDefVar(cdiVlistID, cdiColumnGridID, cdiZaxisID, TSTEP_CONSTANT)
+      CALL vlistDefVarTsteptype(cdiVlistID, cdiVarID_vct_a, TSTEP_CONSTANT)
+      cdiVarID_vct_b    = vlistDefVar(cdiVlistID, cdiColumnGridID, cdiZaxisID, TIME_CONSTANT)
       CALL vlistDefVarName(cdiVlistID, cdiVarID_vct_b, "vct_b")
       CALL vlistDefVarDatatype(cdiVlistID, cdiVarID_vct_b, DATATYPE_FLT64)
-      cdiVarID_c        = vlistDefVar(cdiVlistID, cdiCellGridID,   cdiZaxisID, TSTEP_CONSTANT)
+      CALL vlistDefVarTsteptype(cdiVlistID, cdiVarID_vct_b, TSTEP_CONSTANT)
+      cdiVarID_c        = vlistDefVar(cdiVlistID, cdiCellGridID,   cdiZaxisID, TIME_CONSTANT)
       CALL vlistDefVarName(cdiVlistID, cdiVarID_c, "z_ifc")
       CALL vlistDefVarDatatype(cdiVlistID, cdiVarID_c, DATATYPE_FLT64)
+      CALL vlistDefVarTsteptype(cdiVlistID, cdiVarID_c, TSTEP_CONSTANT)
       !--- add "nflat"
       oneInt(1) = nflat
       iret = cdiDefAttInt(cdiVlistID, CDI_GLOBAL, "nflat", DATATYPE_INT32,  1, oneInt)

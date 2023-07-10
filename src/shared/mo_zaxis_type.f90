@@ -30,7 +30,8 @@ MODULE mo_zaxis_type
     &               ZAXIS_HYBRID, ZAXIS_HYBRID_HALF, ZAXIS_ISENTROPIC, ZAXIS_ISOTHERM_ZERO,     &
     &               ZAXIS_LAKE_BOTTOM, ZAXIS_MEANSEA, ZAXIS_MIX_LAYER, ZAXIS_PRESSURE,          &
     &               ZAXIS_REFERENCE, ZAXIS_SEDIMENT_BOTTOM_TW, ZAXIS_SURFACE, ZAXIS_TOA,        &
-    &               CDI_UNDEFID, zaxisCreate, zaxisDefLtype
+    &               CDI_UNDEFID, zaxisCreate, CDI_GLOBAL, CDI_KEY_TYPEOFFIRSTFIXEDSURFACE,      &
+    &               cdiDefKeyInt
 
 
 
@@ -154,10 +155,12 @@ CONTAINS
   FUNCTION new_zaxisTypeList()  RESULT(za_list)
     TYPE(t_zaxisTypeList) :: za_list
 
+    INTEGER :: res
+
     IF (l_add_addition_zaxis_types) THEN
       ZAXIS_TROPOPAUSE = zaxisCreate(ZAXIS_GENERIC, 1)
       ! WMO GRIB2 code table 4.5: level type TOPOPAUSE = 7
-      CALL zaxisDefLtype(ZAXIS_TROPOPAUSE, 7) 
+      res = cdiDefKeyInt(ZAXIS_TROPOPAUSE, CDI_GLOBAL, CDI_KEY_TYPEOFFIRSTFIXEDSURFACE, 7)
       l_add_addition_zaxis_types = .FALSE.
     ENDIF
 
