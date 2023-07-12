@@ -19,25 +19,30 @@
 !!
 MODULE mo_advection_config
 
-  USE mo_kind,                  ONLY: wp, dp
-  USE mo_impl_constants,        ONLY: MAX_NTRACER, MAX_CHAR_LENGTH, max_dom,   &
-    &                                 MIURA, MIURA3, FFSL, FFSL_HYB, MCYCL,    &
-    &                                 MIURA_MCYCL, MIURA3_MCYCL, FFSL_MCYCL,   &
-    &                                 FFSL_HYB_MCYCL, ippm_v, ipsm_v,          &
-    &                                 ino_flx, iparent_flx, inwp,              &
-    &                                 iaes, TRACER_ONLY, SUCCESS, VNAME_LEN,   &
-    &                                 NO_HADV, NO_VADV, UP
-  USE mo_exception,             ONLY: message, message_text, finish
-  USE mo_mpi,                   ONLY: my_process_is_stdio
-  USE mo_run_config,            ONLY: msg_level
-  USE mo_expression,            ONLY: expression, parse_expression_string
-  USE mo_var_list,              ONLY: t_var_list_ptr, find_list_element
-  USE mo_var, ONLY: t_var
-  USE mo_var_metadata_types,    ONLY: t_var_metadata
-  USE mo_var_metadata,          ONLY: get_timelevel_string
-  USE mo_tracer_metadata_types, ONLY: t_tracer_meta, t_hydro_meta
-  USE mo_util_table,            ONLY: t_table, initialize_table, add_table_column, &
-    &                                 set_table_entry, print_table, finalize_table
+  USE mo_kind,                      ONLY: wp, dp
+  USE mo_impl_constants,            ONLY: MAX_NTRACER, MAX_CHAR_LENGTH, max_dom,   &
+    &                                     MIURA, MIURA3, FFSL, FFSL_HYB, MCYCL,    &
+    &                                     MIURA_MCYCL, MIURA3_MCYCL, FFSL_MCYCL,   &
+    &                                     FFSL_HYB_MCYCL, ippm_v, ipsm_v,          &
+    &                                     ino_flx, iparent_flx, inwp,              &
+    &                                     iaes, TRACER_ONLY, SUCCESS, VNAME_LEN,   &
+    &                                     NO_HADV, NO_VADV, UP, vlname_len
+  USE mo_exception,                 ONLY: message, message_text, finish
+  USE mo_mpi,                       ONLY: my_process_is_stdio
+  USE mo_grid_config,               ONLY: n_dom
+  USE mo_run_config,                ONLY: msg_level
+  USE mo_expression,                ONLY: expression, parse_expression_string
+  USE mo_var_list,                  ONLY: t_var_list_ptr, find_list_element
+  USE mo_var_list_register,         ONLY: vlr_add
+  USE mo_var_list_register_utils,   ONLY: vlr_add_vref
+  USE mo_var,                       ONLY: t_var
+  USE mo_var_metadata_types,        ONLY: t_var_metadata, t_var_metadata_dynamic
+  USE mo_var_groups,                ONLY: groups
+  USE mo_nonhydro_types,            ONLY: t_nh_state_lists
+  USE mo_var_metadata,              ONLY: get_timelevel_string
+  USE mo_tracer_metadata_types,     ONLY: t_tracer_meta, t_hydro_meta
+  USE mo_util_table,                ONLY: t_table, initialize_table, add_table_column, &
+    &                                     set_table_entry, print_table, finalize_table
 
   IMPLICIT NONE
 
@@ -288,10 +293,11 @@ CONTAINS
   !! Initial revision by Daniel Reinert, DWD (2011-04-20)
   !!
   SUBROUTINE configure_advection( jg, nlev, nlev_1, iforcing, iqc, iqt,                &
-    &                            kstart_moist, kend_qvsubstep, lvert_nest,             &
-    &                            ntracer, idiv_method, itime_scheme, tracer_list,      &
-    &                            kstart_tracer)
-  !
+    &                             kstart_moist, kend_qvsubstep, lvert_nest,            &
+    &                             ntracer, idiv_method, itime_scheme,                  &
+    &                             p_nh_state_list, lextract_tracer_list,               &
+    &                             kstart_tracer )
+    !
     INTEGER, INTENT(IN) :: jg           !< patch
     INTEGER, INTENT(IN) :: nlev         !< number of vertical levels
     INTEGER, INTENT(IN) :: nlev_1       !< vertical levels of global patch
@@ -303,7 +309,8 @@ CONTAINS
     INTEGER, INTENT(IN) :: idiv_method
     INTEGER, INTENT(IN) :: itime_scheme
     LOGICAL, INTENT(IN) :: lvert_nest
-    TYPE(t_var_list_ptr), OPTIONAL, INTENT(IN) :: tracer_list(:) ! tracer var_list
+    TYPE(t_nh_state_lists), INTENT(INOUT) :: p_nh_state_list
+    LOGICAL, INTENT(IN) :: lextract_tracer_list
     INTEGER,          OPTIONAL, INTENT(IN) :: kstart_tracer(MAX_NTRACER) !< start index for (art-)tracer related processes
 
     !
@@ -314,9 +321,27 @@ CONTAINS
     INTEGER :: ist
     INTEGER :: ivadv_tracer(MAX_NTRACER)
     INTEGER :: ihadv_tracer(MAX_NTRACER)
+    INTEGER, PARAMETER :: n_timelevels = 2
     INTEGER, PARAMETER :: itime = 1    !< tracer_list time level
                                        !< here it does not matter if we use 1 or 2
-    INTEGER  :: z_go_tri(11)  ! for crosscheck
+    INTEGER :: z_go_tri(11)  ! for crosscheck
+    CHARACTER(len=vlname_len) :: listname
+
+    ! Build tracer list from the prognostic state for time levels `now` and `new`
+    !
+    DO jt = 1, n_timelevels
+      WRITE(listname,'(a,i2.2,a,i2.2)') 'nh_state_prog_of_domain_',jg, &
+        &                               '_and_timelev_',jt
+
+      ! Build prog state tracer list
+      ! no memory allocation (only references to prog list)
+      !
+      WRITE(listname,'(a,i2.2,a,i2.2)') 'nh_state_tracer_of_domain_',jg, &
+        &                               '_and_timelev_',jt
+      CALL new_nh_state_tracer_list(jg, p_nh_state_list%prog_list(jt), &
+        &  p_nh_state_list%tracer_list(jt), listname )
+    ENDDO ! jt
+
 
     !--------------------------------------------------------------------
     ! Consistency checks
@@ -670,11 +695,11 @@ CONTAINS
     ! Tracer-Sublist extraction
     !******************************************
 
-    IF ( PRESENT(tracer_list) ) THEN
+    IF ( lextract_tracer_list ) THEN
 
       ! create list of tracers which are to be advected
       !
-      advection_config(jg)%trAdvect = subListExtract(from_list       = tracer_list(itime), &
+      advection_config(jg)%trAdvect = subListExtract(from_list       = p_nh_state_list%tracer_list(itime), &
         &                                            extraction_rule = extraction_rule_advect)
       !
       IF (.NOT. ALLOCATED(advection_config(jg)%trAdvect%list)) THEN
@@ -685,7 +710,7 @@ CONTAINS
       ! create list of tracers which are not advected
       ! list is allowed to have zero size.
       !
-      advection_config(jg)%trNotAdvect = subListExtract(from_list       = tracer_list(itime),         &
+      advection_config(jg)%trNotAdvect = subListExtract(from_list       = p_nh_state_list%tracer_list(itime),         &
         &                                               extraction_rule = extraction_rule_notAdvect)
       !
       IF (.NOT. ALLOCATED(advection_config(jg)%trNotAdvect%list)) THEN
@@ -700,7 +725,7 @@ CONTAINS
       IF ( iforcing == inwp .OR. iforcing == iaes ) THEN
         ! in these cases it is assured that the hydroMass group is not empty.
 
-        advection_config(jg)%trHydroMass = subListExtract(from_list       = tracer_list(itime),         &
+        advection_config(jg)%trHydroMass = subListExtract(from_list       = p_nh_state_list%tracer_list(itime),         &
           &                                               extraction_rule = extraction_rule_hydroMass)
         !
         IF (.NOT. ALLOCATED(advection_config(jg)%trHydroMass%list) &
@@ -714,7 +739,7 @@ CONTAINS
       ! create list of tracers for which child-to-parent feedback is applied
       ! list is allowed to have zero size.
       !
-      advection_config(jg)%trFeedback = subListExtract(from_list       = tracer_list(itime),         &
+      advection_config(jg)%trFeedback = subListExtract(from_list       = p_nh_state_list%tracer_list(itime),         &
         &                                              extraction_rule = extraction_rule_feedback)
 
       !
@@ -726,13 +751,13 @@ CONTAINS
       ! initialize passive tracers, if required
       !
       IF (advection_config(jg)%npassive_tracer > 0) THEN
-        CALL init_passive_tracer (tracer_list, advection_config(jg), ntl=1)
+        CALL init_passive_tracer (p_nh_state_list%tracer_list, advection_config(jg), ntl=1)
       ENDIF
 
       ! print setup
       IF (msg_level >= 10) THEN
         IF(my_process_is_stdio()) THEN
-          CALL advection_config(jg)%print_setup(tracer_list(itime),nlev)
+          CALL advection_config(jg)%print_setup(p_nh_state_list%tracer_list(itime),nlev)
         ENDIF
       ENDIF
 
@@ -1108,5 +1133,38 @@ CONTAINS
 
     WRITE (0,*) " " ! newline
   END SUBROUTINE advection_print_setup
+
+
+  !-------------------------------------------------------------------------
+  !> Creates tracer var list.
+  !!
+  !! Creates tracer var list containing references to all prognostic tracer
+  !! fields.
+  !!
+  !! @par Revision History
+  !! Initial release by Daniel Reinert, DWD (2012-02-02)
+  !!
+  SUBROUTINE new_nh_state_tracer_list (patch_id, from_var_list, p_tracer_list, listname)
+    INTEGER, INTENT(IN) :: patch_id ! current patch ID
+    TYPE(t_var_list_ptr), INTENT(IN) :: from_var_list ! source list to be referenced
+    TYPE(t_var_list_ptr), INTENT(INOUT) :: p_tracer_list ! new tracer list (containing all tracers)
+    CHARACTER(*), INTENT(IN) :: listname
+    TYPE (t_var_metadata), POINTER :: from_info
+    TYPE (t_var_metadata_dynamic), POINTER :: from_info_dyn
+    INTEGER :: iv
+
+    ! Register a field list and apply default settings
+    CALL vlr_add(p_tracer_list, TRIM(listname), patch_id=patch_id, &
+      &          lrestart=.FALSE., loutput =.FALSE.)
+    ! add references to all tracer fields of the source list (prognostic state)
+    DO iv = 1, from_var_list%p%nvars
+      ! retrieve information from actual linked list element
+      from_info => from_var_list%p%vl(iv)%p%info
+      from_info_dyn => from_var_list%p%vl(iv)%p%info_dyn
+      ! Only add tracer fields to the tracer list
+      IF (from_info_dyn%tracer%lis_tracer .AND. .NOT.from_info%lcontainer) &
+        & CALL vlr_add_vref(p_tracer_list, from_info%name, from_var_list, in_group=groups())
+    END DO
+  END SUBROUTINE new_nh_state_tracer_list
 
 END MODULE mo_advection_config

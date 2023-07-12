@@ -76,10 +76,8 @@ MODULE mo_nonhydro_state
   USE mo_nudging_config,       ONLY: nudging_config, indg_type
   USE mo_var_list,             ONLY: add_var, find_list_element, add_ref, t_var_list_ptr
   USE mo_var_list_register, ONLY: vlr_add, vlr_del
-  USE mo_var_list_register_utils, ONLY: vlr_add_vref
   USE mo_var,                  ONLY: t_var
   USE mo_var_groups,           ONLY: MAX_GROUPS, groups
-  USE mo_var_metadata_types,   ONLY: t_var_metadata, t_var_metadata_dynamic
   USE mo_var_metadata,         ONLY: create_vert_interp_metadata,            &
     &                                create_hor_interp_metadata,             &
     &                                vintp_types, get_timelevel_string
@@ -204,7 +202,9 @@ MODULE mo_nonhydro_state
       IF (ist/=SUCCESS) CALL finish(routine,                                   &
         'allocation of prognostic state list array failed')
 
-      ! create tracer list (no extra timelevels)
+      ! Create tracer list (no extra timelevels).
+      ! The list will be filled in `configure_advection`, once the total number
+      ! of tracers is known.
       ALLOCATE(p_nh_state_lists(jg)%tracer_list(1:n_timelevels), STAT=ist)
       IF (ist/=SUCCESS) CALL finish(routine,                                   &
         'allocation of prognostic tracer list array failed')
@@ -231,17 +231,6 @@ MODULE mo_nonhydro_state
           &  p_nh_state_lists(jg)%prog_list(jt), listname, TRIM(varname_prefix), &
           &  l_extra_timelev, jt)
 
-        !
-        ! Build prog state tracer list
-        ! no memory allocation (only references to prog list)
-        !
-        IF (.NOT. l_extra_timelev) THEN ! not needed for extra timelevel
-          WRITE(listname,'(a,i2.2,a,i2.2)') 'nh_state_tracer_of_domain_',jg, &
-            &                               '_and_timelev_',jt
-          varname_prefix = ''
-          CALL new_nh_state_tracer_list(p_patch(jg), p_nh_state_lists(jg)%prog_list(jt), &
-            &  p_nh_state_lists(jg)%tracer_list(jt), listname )
-        ENDIF
       ENDDO ! jt
 
       !
@@ -1468,43 +1457,6 @@ MODULE mo_nonhydro_state
 
 
   END SUBROUTINE new_nh_state_prog_list
-
-
-
-  !-------------------------------------------------------------------------
-  !
-  !
-  !>
-  !! Creates tracer var list.
-  !!
-  !! Creates tracer var list containing references to all prognostic tracer 
-  !! fields.
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Reinert, DWD (2012-02-02)
-  !!
-  SUBROUTINE new_nh_state_tracer_list (p_patch, from_var_list, p_tracer_list, listname)
-    TYPE(t_patch), INTENT(IN) :: p_patch ! current patch
-    TYPE(t_var_list_ptr), INTENT(IN) :: from_var_list ! source list to be referenced
-    TYPE(t_var_list_ptr), INTENT(INOUT) :: p_tracer_list ! new tracer list (containing all tracers)
-    CHARACTER(*), INTENT(IN) :: listname
-    TYPE (t_var_metadata), POINTER :: from_info
-    TYPE (t_var_metadata_dynamic), POINTER :: from_info_dyn
-    INTEGER :: iv
-
-    ! Register a field list and apply default settings
-    CALL vlr_add(p_tracer_list, TRIM(listname), patch_id=p_patch%id, &
-      &          lrestart=.FALSE., loutput =.FALSE.)
-    ! add references to all tracer fields of the source list (prognostic state)
-    DO iv = 1, from_var_list%p%nvars
-      ! retrieve information from actual linked list element
-      from_info => from_var_list%p%vl(iv)%p%info
-      from_info_dyn => from_var_list%p%vl(iv)%p%info_dyn
-      ! Only add tracer fields to the tracer list
-      IF (from_info_dyn%tracer%lis_tracer .AND. .NOT.from_info%lcontainer) &
-        & CALL vlr_add_vref(p_tracer_list, from_info%name, from_var_list, in_group=groups())
-    END DO
-  END SUBROUTINE new_nh_state_tracer_list
 
 
   !-------------------------------------------------------------------------

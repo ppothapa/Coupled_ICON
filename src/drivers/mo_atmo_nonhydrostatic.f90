@@ -406,13 +406,13 @@ CONTAINS
     ! Unfortunately this conflicts with our trying to call the config-routines
     ! as early as possible.
     DO jg =1,n_dom
-      CALL configure_advection( jg, p_patch(jg)%nlev, p_patch(1)%nlev,   &
-        &                       iforcing, iqc, iqt,                      &
-        &                       kstart_moist(jg), kend_qvsubstep(jg),    &
-        &                       lvert_nest, ntracer,                     &
-        &                       idiv_method, itime_scheme,               &
-        &                       p_nh_state_lists(jg)%tracer_list(:),     &
-        &                       kstart_tracer(jg,:) )
+       CALL configure_advection( jg, p_patch(jg)%nlev,                   &
+        &                        p_patch(1)%nlev, iforcing, iqc, iqt,    &
+        &                        kstart_moist(jg), kend_qvsubstep(jg),   &
+        &                        lvert_nest, ntracer,                    &
+        &                        idiv_method, itime_scheme,              &
+        &                        p_nh_state_lists(jg),                   &
+        &                        .TRUE., kstart_tracer(jg,:) )
     ENDDO
 
     IF (ldass_lhn) THEN
