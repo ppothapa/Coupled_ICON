@@ -242,6 +242,7 @@ oce_output_interval_mon=$oce_output_interval
 
 # sea ice, snow, SST and some deeper levels ocean output
 output_oce_ice=yes
+output_oce_grib=yes     #  test GRIB output for ocean
 
 # standard debug-flux arrays at surface
 output_atm_dbg=yes
@@ -1177,6 +1178,26 @@ if [[ "$output_oce_ice" == "yes" ]]; then
 EOF
 fi
 
+if [[ "$output_oce_grib" == "yes" ]]; then
+   #
+   cat >> ${oce_namelist} << EOF
+&output_nml
+  filetype                   = 2
+  output_filename            = "${EXPNAME}_oce_grb"
+  filename_format            = "<output_filename>_<datetime2>"
+  output_start               = "${start_date}"                  ! start in ISO-format
+  output_end                 = "${end_date}"                    ! end in ISO-format
+  output_interval            = "${oce_output_interval_def}"     ! interval in ISO-format
+  file_interval              = "${oce_file_interval}"
+  mode                       = 1                                ! 1: forecast mode (relative t-axis)
+                                                                ! 2: climate mode (absolute t-axis)
+  include_last               = .FALSE.
+  output_grid                = .TRUE.
+  ml_varlist                 = 'zos','to','so','u','v','hi','hs','conc','column_thick_c','rho','rhopot','delhi','ice_u','ice_v'
+/
+EOF
+fi
+
 if [[ "$output_oce_mon" == "yes" ]]; then
    cat >> ${oce_namelist} << EOF
 !--------------------------------------------------------------------------------
@@ -1879,6 +1900,38 @@ fi
 #-----------------------------------------------------------------------------
 
 # cd $RUNSCRIPTDIR
+
+#-----------------------------------------------------------------------------
+
+#-----------------------------------------------------------------------------
+# check if grib file have been written correctly
+#-----------------------------------------------------------------------------
+diff <(grib_ls -w level=0/108,stepRange=0 -p discipline,parameterCategory,parameterNumber coupleR2B4_R2B6_020_oce_grb_19790101T000000Z.grb | sed -r 's/( +)/ /g' ) <(echo "coupleR2B4_R2B6_020_oce_grb_19790101T000000Z.grb
+discipline parameterCategory parameterNumber 
+10 3 1 
+10 4 18 
+10 4 21 
+10 4 23 
+10 4 24 
+10 2 1 
+10 2 192 
+10 2 0 
+10 4 7 
+10 4 16 
+10 4 19 
+10 2 6 
+10 2 4 
+10 2 5 
+14 of 789 messages in coupleR2B4_R2B6_020_oce_grb_19790101T000000Z.grb
+
+14 of 789 total messages in 1 files")
+diffrc=$?
+if [ $diffrc -ne 0 ] ; then
+  echo "GRIB triplets not written as expected"
+  finish_status="FAILED"
+else
+  echo "GRIB file OK"
+fi
 
 #-----------------------------------------------------------------------------
 

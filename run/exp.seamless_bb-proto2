@@ -138,6 +138,7 @@ output_oce_mon=yes
 # ocean output switches
 output_oce_moc=yes      #  calc_moc is called every timestep - switch off for high resolutions
 output_oce_ice=yes      #  sea-ice, SST and some deeper levels
+output_oce_grib=yes     #  test GRIB output for ocean
 
 # atmos output switches
 output_atm_icon=yes     #  time mean (debug) output on native grid
@@ -1241,6 +1242,26 @@ if [[ "$output_oce_def" == "yes" ]]; then
   output_grid                = .TRUE.
   operation                  = "mean"
   ml_varlist                 = 'group:oce_default', 'group:oce_essentials'
+/
+EOF
+fi
+
+if [[ "$output_oce_grib" == "yes" ]]; then
+   #
+   cat >> ${oce_namelist} << EOF
+&output_nml
+  filetype                   = 2
+  output_filename            = "${EXPNAME}_oce_grb"
+  filename_format            = "<output_filename>_<datetime2>"
+  output_start               = "${start_date}"                  ! start in ISO-format
+  output_end                 = "${end_date}"                    ! end in ISO-format
+  output_interval            = "${oce_output_interval_def}"     ! interval in ISO-format
+  file_interval              = "${oce_file_interval}"
+  mode                       = 1                                ! 1: forecast mode (relative t-axis)
+                                                                ! 2: climate mode (absolute t-axis)
+  include_last               = .FALSE.
+  output_grid                = .TRUE.
+  ml_varlist                 = 'zos','to','so','u','v','hi','hs','conc','column_thick_c','rho','rhopot','delhi','ice_u','ice_v'
 /
 EOF
 fi
