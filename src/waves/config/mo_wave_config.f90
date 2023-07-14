@@ -58,7 +58,6 @@ MODULE mo_wave_config
     REAL(wp) :: gamma_wave ! overshoot factor
     REAL(wp) :: sigma_a    ! left peak width
     REAL(wp) :: sigma_b    ! right peak width
-    REAL(wp) :: thetaq     ! wave direction (deg) (not used if iopti = 1)
     REAL(wp) :: fetch      ! fetch in metres (if zero then 0.5 of the latitude increment is used.).
 
     REAL(wp) :: roair   ! air density
@@ -80,12 +79,6 @@ MODULE mo_wave_config
 
     INTEGER  :: jtot_tauhf ! dimension of wtauhf, must be odd
     REAL(wp) :: x0tauhf    ! lowest limit for integration in tau_phi_hf: x0 *(g/ustar)
-
-    LOGICAL :: coldstart ! if .TRUE. start from initialisation without restart file
-
-    INTEGER :: iforc_waves ! 1 - test case
-                           ! 2 - forcing from coupled atmosphere
-                           ! 3 - forcing from data reader
 
     CHARACTER(LEN=filename_max) :: forc_file_prefix ! prefix of forcing file name
                                            ! the real file name will be constructed as:
