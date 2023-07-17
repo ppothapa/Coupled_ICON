@@ -2123,7 +2123,7 @@ Note: vertical nesting requires option 2 to run numerically stable over longer t
 %\hline
 start\_time &
 R(n\_dom) & 0.   & s &
-Time when a nested domain starts to be active. Relative time w.r.t.\ experiment start date (\texttt{ini\_datetime\_string} / \texttt{experimentStratDate}).\\
+Time when a nested domain starts to be active. Relative time w.r.t.\ experiment start date (\texttt{ini\_datetime\_string} / \texttt{experimentStartDate}).\\
 (namelist entry is ignored for the global domain)
 & n\_dom$>$1
 \tabularnewline
@@ -2131,7 +2131,7 @@ Time when a nested domain starts to be active. Relative time w.r.t.\ experiment 
 %\hline
 end\_time &
 R(n\_dom) & 1.E30  & s &
-Time when a nested domain terminates. Relative time w.r.t.\ experiment start date (\texttt{ini\_datetime\_string} / \texttt{experimentStratDate}).\\ 
+Time when a nested domain terminates. Relative time w.r.t.\ experiment start date (\texttt{ini\_datetime\_string} / \texttt{experimentStartDate}).\\ 
 (namelist entry is ignored for the global domain)
 & n\_dom$>$1
 \tabularnewline
