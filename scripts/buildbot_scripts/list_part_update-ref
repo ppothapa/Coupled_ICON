@@ -15,6 +15,7 @@ list=sys.argv[1]
 
 testHandler  = {
   "exp.atm_qubicc_nc_test_update_base" : "checksuite.icon-dev/pp.refgen_atm_qubicc_nc_test_update-ref",
+  "exp.aes_bubble_test_update_base" : "checksuite.icon-dev/pp.refgen_aes_bubble_test_update-ref",
 }
 
 for test, refgen in testHandler.items():
