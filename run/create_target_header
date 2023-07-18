@@ -342,7 +342,6 @@ $(if [[ "x$BB_SYSTEM" != 'x' ]]
  then
   printf '#SBATCH --qos=buildbot
 #SBATCH --deadline=now+2hours
-#SBATCH --export=BB_SYSTEM=${BB_SYSTEM}
 ';fi)
 #SBATCH --job-name=$job_name
 #SBATCH --partition=$queue
