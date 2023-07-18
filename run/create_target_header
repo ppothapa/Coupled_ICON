@@ -342,6 +342,7 @@ $(if [[ "x$BB_SYSTEM" != 'x' ]]
  then
   printf '#SBATCH --qos=buildbot
 #SBATCH --deadline=now+2hours
+#SBATCH --export=BB_SYSTEM=${BB_SYSTEM}
 ';fi)
 #SBATCH --job-name=$job_name
 #SBATCH --partition=$queue
@@ -402,7 +403,10 @@ set_run_target_bullx_gpu()
     then
 	set_default use_mpi_procs_pernode 3
 	set_default use_num_io_procs 1
-        use_mpi_startrun="srun -l --kill-on-bad-exit=1 --nodes=\${SLURM_JOB_NUM_NODES:-1} --ntasks=\$((no_of_nodes * mpi_procs_pernode)) \${basedir}/run/run_wrapper_levante.sh -n \${mpi_total_procs} -o \${num_io_procs} -e "
+        srun_cmd="srun -l --kill-on-bad-exit=1 --nodes=\${SLURM_JOB_NUM_NODES:-1} --gpus-per-node=4"
+        srun_cmd="${srun_cmd} --ntasks=\$((no_of_nodes * mpi_procs_pernode))"
+        srun_cmd="${srun_cmd} \${basedir}/run/run_wrapper_levante.sh -n \${mpi_total_procs} -o \${num_io_procs} -e"
+        use_mpi_startrun="${srun_cmd}"
     else
 	start="srun --cpu-freq=HighM1 -n 1"
 	is_serial_run="yes"
@@ -467,6 +471,7 @@ $(if [[ "x$BB_SYSTEM" != 'x' ]]
 $(if [[ "x${BB_SYSTEM}" = 'x' ]]
   then
   printf '#SBATCH --constraint=a100_80
+#SBATCH --export=BB_SYSTEM=${BB_SYSTEM}
 ';fi)
 $(if [[ "$use_mpi_root" == *intel*mpi* ]]
  then
