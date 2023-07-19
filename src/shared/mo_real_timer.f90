@@ -56,7 +56,7 @@ MODULE mo_real_timer
     &                           get_mpi_comm_world_ranks, p_pe, p_pe_work, &
     &                           p_min, p_max,  &
     &                           p_sum, p_allgather, mpi_land, &
-    &                           p_allreduce, my_process_is_stdio, p_io, &
+    &                           my_process_is_stdio, p_io, &
     &                           p_comm_work, p_comm_work_test, p_gather, p_mpi_comm_null
   USE mo_master_control,  ONLY: get_my_process_name
   USE mo_run_config,      ONLY: profiling_output
@@ -72,7 +72,7 @@ MODULE mo_real_timer
   INTEGER, PARAMETER :: report_tag = 12345
 #else
   INTEGER, PARAMETER :: p_n_work = 1
-  INTEGER, PARAMETER :: num_work_procs = 1 
+  INTEGER, PARAMETER :: num_work_procs = 1
 #endif
 
   ! raw timers
@@ -122,8 +122,11 @@ MODULE mo_real_timer
     CHARACTER(len=80) :: text           ! description of timer
   END TYPE t_srt
 
-  ! thread-private part of timer
-  TYPE, BIND(c) :: t_rt
+  !> thread-private part of timer
+  !!
+  !! Conditions: when `call_n == 0`, then `active_under = -1, min = HUGE(1._dp), max = 0, tot = 0,
+  !! stat = rt_undef_stat`.
+  TYPE :: t_rt
 #ifdef __xlC__
     INTEGER  :: mark1(4)
 #else
@@ -135,7 +138,7 @@ MODULE mo_real_timer
     REAL(dp) :: last                    ! last measurement
     INTEGER  :: call_n                  ! number of calls
     INTEGER  :: stat                    ! activity status (undefined/on/off)
-    INTEGER  :: active_under            ! ID of superordinate timer; -1: "undefined", 0: "none", >0: id
+    INTEGER  :: active_under            ! ID of superordinate timer; -1: unused timer, 0: "none", >0: id
   END TYPE t_rt
 
   TYPE t_timer_reductions
@@ -143,7 +146,8 @@ MODULE mo_real_timer
          val_tot_min(:), val_tot_max(:), val_call_n(:)
     INTEGER, ALLOCATABLE :: tot_rank_min(:), tot_rank_max(:), &
          rank_min(:), rank_max(:)
-    LOGICAL :: inconsistent_timers
+    INTEGER, ALLOCATABLE :: active_under(:) !< ID of parent timer (-1 for unused timers, 0 for root).
+    INTEGER, ALLOCATABLE :: num_workers(:) !< Number of workers where timer was used.
   END TYPE t_timer_reductions
 
   TYPE(t_srt), SAVE      :: srt(timer_max)
@@ -553,7 +557,7 @@ CONTAINS
   ! Generalized and more flexible version of timer_report_short():
   ! It can be called among certain MPI communicators, not only on the workers, and
   !  it can be called either for single timer IDs or all timer IDs.
-  
+
   SUBROUTINE timer_report_short_gen(addtext, itimer, icomm, num_pe, my_id, output_pe)
 
     CHARACTER(len=*), INTENT(in) :: addtext  ! short descriptive text printed in the headerline of the printout
@@ -561,7 +565,7 @@ CONTAINS
                                         !    itimer(1) <= 0 indicates to print all timers
                                         !    itimer(:) > 0 prints the timers in the list itimer(:)
          &                 icomm,     & ! MPI communicator for which to sum up the times. timer_report_short_single()
-                                        !  has to be called on all PEs of this comm! 
+                                        !  has to be called on all PEs of this comm!
          &                 num_pe,    & ! Number of PEs in icomm
          &                 my_id,     & ! PE-ID of the calling PE within comm
          &                 output_pe    ! PE-ID within icomm on which to do the timing output
@@ -607,7 +611,7 @@ CONTAINS
 #ifndef NOMPI
       CALL MPI_GATHER(sbuf, SIZE(sbuf), p_real_dp, &
            rbuf, SIZE(sbuf), p_real_dp, &
-           output_pe, icomm, p_error)      
+           output_pe, icomm, p_error)
 #else
       rbuf(:,:,1) = sbuf(:,:)
 #endif
@@ -899,6 +903,8 @@ CONTAINS
          CALL real_timer_abort(0,'timer_report called in parallel region')
 #endif
 
+    CALL get_timer_reductions(tmr)
+
     !-- start the table output
 
     IF (p_pe_work_only == 0) THEN
@@ -911,7 +917,7 @@ CONTAINS
       ELSE
         WRITE (message_text,'(a)') 'Timer report'
       END IF
-    
+
       CALL message ('',message_text,all_print=.TRUE.)
 
 #ifdef _OPENMP
@@ -927,22 +933,15 @@ CONTAINS
       !-- initialize print-out table
       CALL initialize_table(table)
       irow = 1
-    END IF
 
-    CALL get_timer_reductions(tmr)
+      !-- collect the timer data lines
+      DO it = 1, timer_top
+        IF (tmr%active_under(it) == 0) THEN
+          CALL print_report_hierch_agg(table, irow, it, 0,tmr)
+        ENDIF
+      ENDDO
 
-    !-- collect the timer data lines
-    DO it = 1, timer_top
-      IF (rt(it)%stat /= rt_undef_stat .AND. rt(it)%active_under == 0) THEN
-        CALL print_report_hierch_agg(table, irow, it, 0,tmr)
-      ENDIF
-    ENDDO
-
-    IF (p_pe_work_only == 0) THEN
       !-- print the table
-      IF (tmr%inconsistent_timers) &
-           CALL message('', 'timer hierarchy inconsistencies detected, &
-           &timing report truncated')
       CALL print_table(table, opt_delimiter='   ', opt_hline=.TRUE.)
       CALL message ('','',all_print=.TRUE.)
       !-- clean up
@@ -954,22 +953,37 @@ CONTAINS
   SUBROUTINE get_timer_reductions(tmr)
     TYPE(t_timer_reductions), INTENT(out) :: tmr
 
+    INTEGER :: ntasks
+    INTEGER, ALLOCATABLE :: parent_timer(:,:)
+    INTEGER :: i, k
+
     ALLOCATE(tmr%val_min(timer_top), tmr%val_max(timer_top), &
          tmr%val_tot(timer_top), tmr%val_tot_min(timer_top), &
          tmr%val_tot_max(timer_top), tmr%val_call_n(timer_top), &
          tmr%tot_rank_min(timer_top), tmr%tot_rank_max(timer_top), &
-         tmr%rank_min(timer_top), tmr%rank_max(timer_top))
+         tmr%rank_min(timer_top), tmr%rank_max(timer_top), &
+         tmr%active_under(timer_top), tmr%num_workers(timer_top))
+
+#ifndef NOMPI
+    ntasks = p_comm_size(p_comm_work_only)
+#else
+    ntasks = 1
+#endif
+
+    ALLOCATE(parent_timer(timer_top, ntasks))
+
 !$omp parallel
 !$omp master
     tmr%val_min    = rt(1:timer_top)%min
     tmr%val_max    = rt(1:timer_top)%max
     tmr%val_tot    = rt(1:timer_top)%tot
-    tmr%val_call_n = REAL(MAX(1,rt(1:timer_top)%call_n), dp)
+    tmr%val_call_n = REAL(rt(1:timer_top)%call_n, dp)
+    tmr%active_under = rt(1:timer_top)%active_under
 !$omp end master
 !$omp barrier
 !$omp sections
 !$omp section
-    tmr%val_tot_min = tmr%val_tot
+    tmr%val_tot_min = MERGE(tmr%val_tot, HUGE(1._dp), rt(1:timer_top)%call_n > 0)
 !$omp section
     tmr%val_tot_max = tmr%val_tot
 !$omp section
@@ -994,7 +1008,25 @@ CONTAINS
     tmr%val_tot = p_sum(tmr%val_tot, comm=p_comm_work_only, root=0)
     tmr%val_call_n = p_sum(tmr%val_call_n, comm=p_comm_work_only, root=0)
 
-    tmr%inconsistent_timers = .FALSE.
+    CALL p_allgather(tmr%active_under, parent_timer, comm=p_comm_work_only)
+
+    ! Build a global timer hierarchy.
+    tmr%active_under(:) = -1
+    tmr%num_workers(:) = 0
+    DO k = 1, ntasks
+      DO i = 1, timer_top
+        IF (parent_timer(i, k) >= 0) THEN
+          tmr%num_workers(i) = tmr%num_workers(i) + 1
+
+          IF (tmr%active_under(i) == -1) THEN
+            tmr%active_under(i) = parent_timer(i, k)
+          ELSE IF (tmr%active_under(i) > 0 .AND. tmr%active_under(i) /= parent_timer(i, k)) THEN
+            ! Parents of timer differ between PEs, move to global scope.
+            tmr%active_under(i) = 0
+          END IF
+        END IF
+      END DO
+    END DO
   END SUBROUTINE get_timer_reductions
 
   !
@@ -1005,64 +1037,21 @@ CONTAINS
   RECURSIVE SUBROUTINE print_report_hierch_agg(table, irow, it, nd,tmr)
     TYPE (t_table),   INTENT(INOUT)       :: table       !< print-out table
     INTEGER,          INTENT(INOUT)       :: irow        !< table row index
-    INTEGER,          INTENT(IN)          :: it
+    INTEGER,          INTENT(IN)          :: it          !< timer ID.
     INTEGER,          INTENT(IN)          :: nd          !<  nesting depth
     TYPE(t_timer_reductions), INTENT(inout) :: tmr
     ! local variables
-    INTEGER :: i, n, &                                   ! number of sub-timers
-      &        subtimer_list(timer_top), &               ! valid entries: 1..n
-      &        k, ntasks
-    INTEGER, ALLOCATABLE :: tcounts(:), tmrlists(:, :)
-    LOGICAL :: consistent_sub_timer_counts, consistent_timer_lists
+    INTEGER :: k
 
     CALL print_report_aggregated(table, irow, it, nd, tmr)
     irow = irow + 1
 
     ! How many sub-timers has <it>, and which?
-    n = 0
-    DO k=1,timer_top
-      IF (rt(k)%active_under == it) THEN
-        n = n+1
-        subtimer_list(n) = k
+    DO k = 1, timer_top
+      IF (tmr%active_under(k) == it) THEN
+        CALL print_report_hierch_agg(table, irow, k, nd+1, tmr)
       ENDIF
     END DO
-
-#ifndef NOMPI
-    ntasks = p_comm_size(p_comm_work_only)
-#else
-    ntasks = 1
-#endif
-    ALLOCATE(tcounts(0:ntasks-1))
-    CALL p_allgather(n, tcounts, comm=p_comm_work_only)
-    consistent_sub_timer_counts = ALL(tcounts(1:) == tcounts(0))
-    consistent_timer_lists = .FALSE.
-    consistent_sub_timer_counts &
-         = p_allreduce(consistent_sub_timer_counts, mpi_land, p_comm_work_only)
-    IF (consistent_sub_timer_counts) THEN
-      ALLOCATE(tmrlists(n, 0:ntasks-1))
-      CALL p_allgather(subtimer_list(1:n), tmrlists, comm=p_comm_work_only)
-      consistent_timer_lists = .TRUE.
-      DO i = 1, n
-        consistent_timer_lists = consistent_timer_lists .AND. &
-             ALL(tmrlists(i, 0:ntasks-1) == tmrlists(i, 0))
-      END DO
-    END IF
-    IF (consistent_sub_timer_counts .AND. consistent_timer_lists) THEN
-      ! print subtimers
-      DO k=1,n
-        CALL print_report_hierch_agg(table, irow, subtimer_list(k), nd+1,tmr)
-      ENDDO
-    ELSE
-      IF (my_process_is_stdio()) THEN
-        WRITE (0, '(2a,3(", ",i0))') 'problem: sub-timers inconsistent! ', TRIM(srt(it)%text), it, irow - 1, n
-        IF(consistent_sub_timer_counts) THEN
-            WRITE(0,*) "cause: inconsistent timer lists"
-        ELSE
-            WRITE(0,*) "cause: inconsistent subtimer counts: ", tcounts
-        END IF
-      END IF
-      tmr%inconsistent_timers = .TRUE.
-    END IF
   END SUBROUTINE print_report_hierch_agg
 
 
@@ -1081,43 +1070,69 @@ CONTAINS
     CHARACTER(len=12)   :: min_str, avg_str, max_str, tot_min_str, tot_max_str, tot_avg_str
 
     ! OpenMP: We take the values of the master thread
-    IF ((p_pe_work_only == 0) .AND. ( tmr%val_call_n(it) > 1.e-6_dp )) THEN
-      val_avg = tmr%val_tot(it)/tmr%val_call_n(it)
-      min_str = time_str(tmr%val_min(it))
-      avg_str = time_str(val_avg)
-      max_str = time_str(tmr%val_max(it))
-
-      WRITE (tot_min_str, '(f12.3)') tmr%val_tot_min(it)
-      WRITE (tot_max_str, '(f12.3)') tmr%val_tot_max(it)
-      WRITE (tot_avg_str, '(f12.3)') tmr%val_tot(it) / REAL(num_work_procs,dp)
-
+    IF ((p_pe_work_only == 0)) THEN
       CALL set_table_entry(table, irow, "name",     &
         &                  REPEAT('   ',MAX(nd-1,0))//REPEAT(' L ',MIN(nd,1))//srt(it)%text)
 
-      ! avoid integer overflow; very large call counts are useless
-      ! anyway ...
-      IF (tmr%val_call_n(it) <= REAL(HUGE(INT(1)),dp)) THEN
-        CALL set_table_entry(table, irow, "# calls",  TRIM(int2string(INT(tmr%val_call_n(it)))))
-      ELSE
-        CALL set_table_entry(table, irow, "# calls",  TRIM(real2string(tmr%val_call_n(it),'(ES10.1)')))
-      END IF
-      CALL set_table_entry(table, irow, "t_min",         TRIM(min_str))
-      IF (p_n_work > 1) &
-        CALL set_table_entry(table, irow, "min rank", "["//TRIM(int2string(tmr%rank_min(it)))//"]")
-      CALL set_table_entry(table, irow, "t_avg",         TRIM(avg_str))
-      CALL set_table_entry(table, irow, "t_max",         TRIM(max_str))
-      IF (p_n_work > 1) &
-        CALL set_table_entry(table, irow, "max rank", "["//TRIM(int2string(tmr%rank_max(it)))//"]")
-      CALL set_table_entry(table, irow, "total min (s)",           TRIM(tot_min_str))
-      IF (p_n_work > 1) &
-        CALL set_table_entry(table, irow, "total min rank", "["//TRIM(int2string(tmr%tot_rank_min(it)))//"]")
-      CALL set_table_entry(table, irow, "total max (s)",           TRIM(tot_max_str))
-      IF (p_n_work > 1) &
-        CALL set_table_entry(table, irow, "total max rank", "["//TRIM(int2string(tmr%tot_rank_max(it)))//"]")
-     
-      CALL set_table_entry(table, irow, "total avg (s)",           TRIM(tot_avg_str))
+      IF (tmr%val_call_n(it) > 1.e-6_dp) THEN
+        val_avg = tmr%val_tot(it)/tmr%val_call_n(it)
+        min_str = time_str(tmr%val_min(it))
+        avg_str = time_str(val_avg)
+        max_str = time_str(tmr%val_max(it))
 
-        
+        WRITE (tot_min_str, '(f12.3)') tmr%val_tot_min(it)
+        WRITE (tot_max_str, '(f12.3)') tmr%val_tot_max(it)
+        WRITE (tot_avg_str, '(f12.3)') tmr%val_tot(it) / REAL(tmr%num_workers(it),dp)
+
+        ! avoid integer overflow; very large call counts are useless
+        ! anyway ...
+        IF (tmr%val_call_n(it) <= REAL(HUGE(INT(1)),dp)) THEN
+          CALL set_table_entry(table, irow, "# calls",  TRIM(int2string(INT(tmr%val_call_n(it)))))
+        ELSE
+          CALL set_table_entry(table, irow, "# calls",  TRIM(real2string(tmr%val_call_n(it),'(ES10.1)')))
+        END IF
+        CALL set_table_entry(table, irow, "t_min",         TRIM(min_str))
+        IF (p_n_work > 1) &
+          CALL set_table_entry(table, irow, "min rank", "["//TRIM(int2string(tmr%rank_min(it)))//"]")
+        CALL set_table_entry(table, irow, "t_avg",         TRIM(avg_str))
+        CALL set_table_entry(table, irow, "t_max",         TRIM(max_str))
+        IF (p_n_work > 1) &
+          CALL set_table_entry(table, irow, "max rank", "["//TRIM(int2string(tmr%rank_max(it)))//"]")
+        CALL set_table_entry(table, irow, "total min (s)",           TRIM(tot_min_str))
+        IF (p_n_work > 1) &
+          CALL set_table_entry(table, irow, "total min rank", "["//TRIM(int2string(tmr%tot_rank_min(it)))//"]")
+        CALL set_table_entry(table, irow, "total max (s)",           TRIM(tot_max_str))
+        IF (p_n_work > 1) &
+          CALL set_table_entry(table, irow, "total max rank", "["//TRIM(int2string(tmr%tot_rank_max(it)))//"]")
+
+        CALL set_table_entry(table, irow, "total avg (s)",           TRIM(tot_avg_str))
+        IF (p_n_work > 1) &
+          CALL set_table_entry(table, irow, "# PEs", TRIM(int2string(tmr%num_workers(it))))
+
+      ELSE
+
+        ! Timer in hierarchy but call count is zero. This means that timer was started once but not stopped.
+        ! We need to put entries into all cells because this might be the first row, defining the columns.
+        CALL set_table_entry(table, irow, "# calls", '<err>')
+        CALL set_table_entry(table, irow, "t_min", '<still active>')
+        IF (p_n_work > 1) &
+          CALL set_table_entry(table, irow, "min rank", "")
+        CALL set_table_entry(table, irow, "t_avg", "")
+        CALL set_table_entry(table, irow, "t_max", "")
+        IF (p_n_work > 1) &
+          CALL set_table_entry(table, irow, "max rank", "")
+        CALL set_table_entry(table, irow, "total min (s)", "")
+        IF (p_n_work > 1) &
+          CALL set_table_entry(table, irow, "total min rank", "")
+        CALL set_table_entry(table, irow, "total max (s)", "")
+        IF (p_n_work > 1) &
+          CALL set_table_entry(table, irow, "total max rank", "")
+
+        CALL set_table_entry(table, irow, "total avg (s)", "")
+        IF (p_n_work > 1) &
+          CALL set_table_entry(table, irow, "# PEs", "")
+
+      END IF
     ENDIF
 
   END SUBROUTINE print_report_aggregated
