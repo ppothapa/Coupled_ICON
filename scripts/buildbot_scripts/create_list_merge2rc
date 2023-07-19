@@ -246,6 +246,7 @@ $addexp checksuite.nwp/nwpexp.run_ICON_14_R2B6N7_oper_IAU_and_restarttest      -
 $addexp checksuite.nwp/nwpexp.run_ICON_15_R19B7-ID2_ass                        --builders DWD_nec --list $listname
 $addexp checksuite.nwp/nwpexp.run_ICON_16_R19B7-ID2_ass                        --builders DWD_nec --list $listname
 $addexp checksuite.nwp/nwpexp.run_ICON_19_R2B4_cmip_forcing                    --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_22_R3B08_lam_SBM_initmode4              --builders DWD_nec --list $listname
 
 # DWD_nec_yac2
 $addexp checksuite.nwp/nwpexp.run_ICON_17_R2B4_AO_coupled                      --builders DWD_nec_yac2 --list $listname

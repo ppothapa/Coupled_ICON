@@ -98,7 +98,8 @@ MODULE mo_2mom_mcrph_config_default
        &            1.25e-3_wp, & ! D_rainfrz_gh
        &            0.10_wp,  &   ! Collision efficiency for graupel autoconversion (dry graupel) 
        &            0.40_wp,  &   ! Collision efficiency for graupel autoconversion (wet graupel)
-       &            270.16_wp &   ! Temperature threshold for switching to wet graupel autoconversion
+       &            270.16_wp, &  ! Temperature threshold for switching to wet graupel autoconversion
+       &            1 &           ! iicephase: (0) warm-phase 2M (1) mixed-phase 2M
        &            )
 
 END MODULE mo_2mom_mcrph_config_default

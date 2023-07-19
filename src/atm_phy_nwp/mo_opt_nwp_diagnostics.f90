@@ -4018,7 +4018,7 @@ CONTAINS
              z_radar   = dbz3d_lin(:,:,:),                 &
              lacc      = lzacc                             )
 
-      CASE ( 4, 5, 6 )
+      CASE ( 4, 5, 6, 8 )
 #ifdef _OPENACC
         CALL finish(routine, 'compute_field_dbz_2mom is supported by OpenACC, but never tested.')
 #endif
@@ -4267,7 +4267,7 @@ CONTAINS
         DEALLOCATE (Tmax_i, Tmax_s, Tmax_g)
         IF (ALLOCATED(dummy0)) DEALLOCATE(dummy0)
 
-      CASE ( 4, 5, 6, 7 )
+      CASE ( 4, 5, 6, 7, 8)
 
         t   => p_diag%temp(:,:,:)
         rho_tot => p_prog%rho(:,:,:)

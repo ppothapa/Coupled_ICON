@@ -2261,7 +2261,7 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, lacc)
       z_aux3dp1_p(jc,67,jb) = prm_diag(jg)%td_2m_land(jc,jb)
       z_aux3dp1_p(jc,68,jb) = prm_diag(jg)%rh_2m_land(jc,jb)
 
-      IF (ANY((/1,2,4,5,6,7/) == atm_phy_nwp_config(jg)%inwp_gscp)) THEN
+      IF (ANY((/1,2,4,5,6,7,8/) == atm_phy_nwp_config(jg)%inwp_gscp)) THEN
         z_aux3dp1_p(jc,69,jb) = prm_diag(jg)%ice_gsp(jc,jb)
         z_aux3dp1_p(jc,70,jb) = prm_diag(jg)%ice_gsp_rate(jc,jb)
       ELSE
@@ -2531,7 +2531,7 @@ SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, lacc)
       prm_diag(jgc)%td_2m_land(jc,jb)     = z_aux3dp1_c(jc,67,jb)
       prm_diag(jgc)%rh_2m_land(jc,jb)     = z_aux3dp1_c(jc,68,jb)
 
-      IF (ANY((/1,2,4,5,6,7/) == atm_phy_nwp_config(jgc)%inwp_gscp)) THEN
+      IF (ANY((/1,2,4,5,6,7,8/) == atm_phy_nwp_config(jgc)%inwp_gscp)) THEN
         prm_diag(jgc)%ice_gsp(jc,jb)       = MAX(z_aux3dp1_c(jc,69,jb),prm_diag(jgc)%ice_gsp(jc,jb))
         prm_diag(jgc)%ice_gsp_rate(jc,jb)  = z_aux3dp1_c(jc,70,jb)
       ENDIF

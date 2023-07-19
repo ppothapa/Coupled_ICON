@@ -34,7 +34,8 @@ MODULE mo_util_phys
   USE mo_nonhydro_types,        ONLY: t_nh_prog, t_nh_diag, t_nh_metrics
   USE mo_nwp_phy_types,         ONLY: t_nwp_phy_diag, t_nwp_phy_tend
   USE mo_run_config,            ONLY: iqv, iqc, iqi, iqr, iqs, iqni, ininact, &
-       &                              iqm_max, nqtendphy, lart, iqnc, iqnr, iqns
+       &                              iqm_max, nqtendphy, lart, iqnc, iqnr, iqns, &
+       &                              iqb_i, iqb_e
 #ifndef __NO_ICON_LES__
   USE mo_ls_forcing_nml,        ONLY: is_ls_forcing, is_nudging_tq, &
        &                              nudge_start_height, nudge_full_height, dt_relax
@@ -559,7 +560,6 @@ CONTAINS
   END FUNCTION vap_pres
 
 
-
   !
   ! Add slow-physics tendencies to tracer fields
   !
@@ -784,7 +784,17 @@ CONTAINS
       !$ACC END PARALLEL
     END IF
 
-
+    ! clipping for mass-bins
+    IF(atm_phy_nwp_config(jg)%lsbm)THEN
+      CALL assert_acc_host_only("tracer_add_phytend lsbm", lacc)
+      DO jt = iqb_i, iqb_e
+        DO jk = kstart_moist(jg), kend
+          DO jc = i_startidx, i_endidx
+            pt_prog_rcf%tracer(jc,jk,jb,jt) = MAX(0._wp, pt_prog_rcf%tracer(jc,jk,jb,jt))
+          ENDDO
+        ENDDO
+      ENDDO
+    END IF
 
     ! Diagnose convective precipitation amount
     IF (atm_phy_nwp_config(jg)%lcalc_acc_avg) THEN

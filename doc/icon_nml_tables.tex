@@ -5264,6 +5264,13 @@ part of diagnosed cloud water&
 inwp\_cldcover = 1
 \tabularnewline
 
+%\hline
+lsbm\_warm\_full&
+L (max\_ dom) & .TRUE. &  & TRUE: warm-phase Spectral Bin Microphysics (SBM). False: 2-moment scheme
+is applied (as for inwp\_gscp = 4) and SBM is running in a "Piggy Backing" mode for diagnostic purposes&
+inwp\_gscp = 8
+\tabularnewline
+
 
 %\hline
 \textbf{inwp\_radiation}&
@@ -5646,6 +5653,16 @@ R&
 0.33&
 &
 Exponent for density correction of cloud ice sedimentation&
+run\_nml:iforcing = inwp
+\tabularnewline
+
+\hline
+tune\_sbmccn&
+R&
+1.0&
+&
+Scaling factor (0,1] for initial aerosol concentration profile, used for comparison\\
+between simulations with two-moment and warm SBM microphysics&
 run\_nml:iforcing = inwp
 \tabularnewline
 
@@ -6043,6 +6060,14 @@ Choice of the aerosol scenario for cloud nucleation (CCN):\\
 9: ``very high CCN'' (``polluted'')\\
 If applied together with the ART aerosol physics \textbf{inwp\_gscp=6}, this parameter has no effect.
 &
+iforcing=3, inwp\_gscp=4,5,6,7
+\tabularnewline
+
+iicephase &
+I& 1 & &
+Turning on/off mixed phase processes in the two-moment scheme:\\
+0: warm phase processes only\\
+1: mixed phase processes&
 iforcing=3, inwp\_gscp=4,5,6,7
 \tabularnewline
 

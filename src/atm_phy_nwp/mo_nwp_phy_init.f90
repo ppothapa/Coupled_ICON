@@ -44,7 +44,7 @@ MODULE mo_nwp_phy_init
   USE mo_loopindices,         ONLY: get_indices_c
   USE mo_parallel_config,     ONLY: nproma
   USE mo_fortran_tools,       ONLY: copy
-  USE mo_run_config,          ONLY: ltestcase, iqv, iqc, inccn, ininpot, msg_level
+  USE mo_run_config,          ONLY: ltestcase, iqv, iqc, inccn, ininpot, msg_level 
   USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config, lrtm_filename,               &
     &                               cldopt_filename, icpl_aero_conv, iprog_aero
   USE mo_extpar_config,       ONLY: itype_vegetation_cycle
@@ -72,6 +72,8 @@ MODULE mo_nwp_phy_init
   ! microphysics
   USE gscp_data,              ONLY: gscp_set_coefficients
   USE mo_2mom_mcrph_driver,   ONLY: two_moment_mcrph_init
+  USE mo_sbm_util,            ONLY: sbm_init 
+
 #ifdef __ICON_ART
   USE mo_art_clouds_interface,ONLY: art_clouds_interface_2mom_init
 #endif
@@ -900,6 +902,11 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
          &                                  cfg_2mom=atm_phy_nwp_config(jg)%cfg_2mom)
 
     ! Init of number concentrations moved to mo_initicon_io.f90 !!!
+
+  CASE (8) !sbm micrphysics
+    IF (msg_level >= 12)  CALL message('mo_nwp_phy_init:', 'init microphysics: sbm')
+
+    IF (jg == 1) CALL sbm_init(p_patch, p_prog_now, ext_data%atm%fr_land, p_metrics%ddqz_z_full)
 
   CASE (5) !two moment microphysics
     IF (msg_level >= 12)  CALL message(modname, 'init microphysics: two-moment')

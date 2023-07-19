@@ -72,7 +72,6 @@ MODULE mo_nh_interface_nwp
   USE mo_physical_constants,      ONLY: rd, rd_o_cpd, vtmpc1, p0ref, rcvd, cvd, cvv, tmelt, grav
 
   USE mo_nh_diagnose_pres_temp,   ONLY: diagnose_pres_temp, diag_pres, diag_temp, calc_qsum
-
   USE mo_atm_phy_nwp_config,      ONLY: atm_phy_nwp_config, iprog_aero
   USE mo_iau,                     ONLY: iau_update_tracer
   USE mo_util_phys,               ONLY: tracer_add_phytend, inversion_height_index
@@ -128,7 +127,7 @@ MODULE mo_nh_interface_nwp
 #ifndef __NO_ICON_UPATMO__
   USE mo_nwp_upatmo_interface,    ONLY: nwp_upatmo_interface, nwp_upatmo_update
 #endif
-  USE mo_fortran_tools,           ONLY: set_acc_host_or_device
+  USE mo_fortran_tools,           ONLY: set_acc_host_or_device, copy
 #ifdef HAVE_RADARFWO
   USE mo_emvorado_warmbubbles_type, ONLY: autobubs_list
   USE mo_run_config,                ONLY: luse_radarfwo
@@ -140,7 +139,9 @@ MODULE mo_nh_interface_nwp
   USE mo_sppt_config,             ONLY: sppt_config
   USE mo_sppt_util,               ONLY: construct_rn
   USE mo_sppt_core,               ONLY: calc_tend, pert_tend, apply_tend, save_state
+
   USE mo_nwp_tuning_config,       ONLY: tune_sc_eis
+  USE mo_sbm_storage,             ONLY: t_sbm_storage, get_sbm_storage
 
   !$ser verbatim USE mo_ser_all,              ONLY: serialize_all
 
@@ -241,6 +242,9 @@ CONTAINS
 
     REAL(wp) :: z_exner_sv(nproma,pt_patch%nlev,pt_patch%nblks_c), z_tempv, sqrt_ri(nproma), n2, dvdz2, &
       zddt_u_raylfric(nproma,pt_patch%nlev), zddt_v_raylfric(nproma,pt_patch%nlev), convfac, wfac
+
+    !< SBM microphysics:
+    TYPE(t_sbm_storage), POINTER:: ptr_sbm_storage =>NULL()   ! pointer to SBM storage object
 
     !< vertical interfaces
 
@@ -410,6 +414,7 @@ CONTAINS
 
     ENDIF
 
+
     !-------------------------------------------------------------------------
     !>  Update the slow-physics tendencies on the tracer fields,
     !!  afterwards perform saturation adjustment
@@ -544,6 +549,17 @@ CONTAINS
       !!-------------------------------------------------------------------------
       !> Initial saturation adjustment (a second one follows at the end of the microphysics)
       !!-------------------------------------------------------------------------
+
+      ! SBM microphysics
+      ! store snapshots of qv and temp just before saturation adjustment
+      IF (atm_phy_nwp_config(jg)%inwp_gscp == 8) THEN
+        ptr_sbm_storage => get_sbm_storage(patch_id = jg)
+!$OMP PARALLEL
+        CALL copy(pt_prog_rcf%tracer(:,:,:,iqv), ptr_sbm_storage%qv_before_satad   )
+        CALL copy(pt_diag%temp(:,:,:),           ptr_sbm_storage%temp_before_satad )
+!$OMP END PARALLEL
+      ENDIF
+
 
       IF (lcall_phy_jg(itsatad)) THEN
 
@@ -2484,6 +2500,17 @@ CONTAINS
         &                            dt_phy_jg, p_sim_time)
     ENDIF !lart
 #endif
+
+    ! SBM microphysics
+    ! store temperature snapshot at the end of a timestep
+    IF (atm_phy_nwp_config(jg)%inwp_gscp == 8) THEN
+      ptr_sbm_storage => get_sbm_storage(patch_id = jg)
+!$OMP PARALLEL
+      CALL copy(pt_prog_rcf%tracer(:,:,:,iqv), ptr_sbm_storage%qv_old )
+      CALL copy(pt_diag%temp(:,:,:), ptr_sbm_storage%temp_old         )
+!$OMP END PARALLEL
+    ENDIF
+
 
     IF (ltimer) CALL timer_stop(timer_physics)
 

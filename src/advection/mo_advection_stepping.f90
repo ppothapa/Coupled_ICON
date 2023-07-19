@@ -707,7 +707,7 @@ CONTAINS
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
-      IF ( iforcing /= inwp ) THEN
+      IF (iforcing /= inwp) THEN 
         CALL sync_patch_array_mult(SYNC_C, p_patch, ntracer,  f4din=opt_ddt_tracer_adv, &
                &                   opt_varname='ntracer and opt_ddt_tracer_adv' )
       ENDIF

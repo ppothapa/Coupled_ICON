@@ -1194,7 +1194,7 @@ CONTAINS
       ! Calculation of grid scale (gsp) and total (gsp+con) instantaneous precipitation rates:
       !
       SELECT CASE (atm_phy_nwp_config(jg)%inwp_gscp)
-      CASE(4,5,6,7)
+      CASE(4,5,6,7,8)
         !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO jc =  i_startidx, i_endidx
           prm_diag%prec_gsp_rate(jc,jb) = prm_diag%rain_gsp_rate(jc,jb)  &
@@ -2320,7 +2320,8 @@ CONTAINS
             qsmin(jb) = MIN(qsmin(jb),ptr_tracer(jc,jk,jb,iqs))
             
             IF(atm_phy_nwp_config(jg)%inwp_gscp==4 &
-                 & .OR.atm_phy_nwp_config(jg)%inwp_gscp==5 .OR. atm_phy_nwp_config(jg)%inwp_gscp==7)THEN
+                 & .OR.atm_phy_nwp_config(jg)%inwp_gscp==5 .OR. atm_phy_nwp_config(jg)%inwp_gscp==7 &
+                 & .OR. atm_phy_nwp_config(jg)%inwp_gscp==8)THEN
                qgmax(jb) = MAX(qgmax(jb),ptr_tracer(jc,jk,jb,iqg))
                qgmin(jb) = MIN(qgmin(jb),ptr_tracer(jc,jk,jb,iqg))
                qhmax(jb) = MAX(qhmax(jb),ptr_tracer(jc,jk,jb,iqh))
@@ -2361,7 +2362,8 @@ CONTAINS
     qsmaxi = MAXVAL(qsmax(i_startblk:i_endblk))
     qsmini = MINVAL(qsmin(i_startblk:i_endblk))
     IF(atm_phy_nwp_config(jg)%inwp_gscp==4 &
-         & .OR.atm_phy_nwp_config(jg)%inwp_gscp==5 .OR.atm_phy_nwp_config(jg)%inwp_gscp==7)THEN
+         & .OR.atm_phy_nwp_config(jg)%inwp_gscp==5 .OR.atm_phy_nwp_config(jg)%inwp_gscp==7 &
+         & .OR.atm_phy_nwp_config(jg)%inwp_gscp==8)THEN
        qgmaxi = MAXVAL(qgmax(i_startblk:i_endblk))
        qgmini = MINVAL(qgmin(i_startblk:i_endblk))
        qhmaxi = MAXVAL(qhmax(i_startblk:i_endblk))
@@ -2396,7 +2398,8 @@ CONTAINS
     qsmaxi = global_max(qsmaxi)
     qsmini = global_min(qsmini)
     IF(atm_phy_nwp_config(jg)%inwp_gscp==4 &
-         & .OR.atm_phy_nwp_config(jg)%inwp_gscp==5 .OR. atm_phy_nwp_config(jg)%inwp_gscp==7)THEN
+         & .OR.atm_phy_nwp_config(jg)%inwp_gscp==5 .OR. atm_phy_nwp_config(jg)%inwp_gscp==7 &
+         & .OR. atm_phy_nwp_config(jg)%inwp_gscp==8)THEN
        qgmaxi = global_max(qgmaxi)
        qgmini = global_min(qgmini)
        qhmaxi = global_max(qhmaxi)
@@ -2424,7 +2427,7 @@ CONTAINS
        CALL message("",TRIM(message_text))
        WRITE(message_text,'(A10,8E11.3)') '  min: ', wmini,qvmini,qcmini,qrmini,qimini,qsmini
        CALL message("",TRIM(message_text))
-    CASE(4)
+    CASE(4,8)
        WRITE(message_text,'(A10,9A11)')   '  var: ', 'w','qv','qc','qr','qi','qs','qg','qh','temp'
        CALL message("",TRIM(message_text))
        WRITE(message_text,'(A10,9E11.3)') '  max: ', wmaxi,qvmaxi,qcmaxi,qrmaxi,qimaxi,qsmaxi,qgmaxi,qhmaxi,tmaxi

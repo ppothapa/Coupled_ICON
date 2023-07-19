@@ -293,7 +293,7 @@ MODULE mo_nwp_reff_interface
       END IF
 
       ! 2 Moment Scheme
-    CASE ( 4,5,6,7) 
+    CASE ( 4,5,6,7,8) 
 
       ! Grid cloud water from 2 moment scheme
       nreff_calc = nreff_calc + 1

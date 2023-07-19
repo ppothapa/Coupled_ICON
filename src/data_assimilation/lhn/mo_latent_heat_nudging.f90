@@ -486,7 +486,7 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
           pr_mod(jc,jb) = prm_diag%rain_gsp_rate(jc,jb) + prm_diag%snow_gsp_rate(jc,jb) + prm_diag%graupel_gsp_rate(jc,jb)
         END DO
 
-      CASE(4, 5) ! 2-mom schemes
+      CASE(4, 5, 8) ! 2-mom schemes or SBM
 
         !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
         DO jc = i_startidx, i_endidx

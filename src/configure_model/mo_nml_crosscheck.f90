@@ -293,10 +293,10 @@ CONTAINS
 
       DO jg =1,n_dom
 
-        IF (atm_phy_nwp_config(1)%inwp_turb /= iedmf) THEN
+        IF ((atm_phy_nwp_config(1)%inwp_turb /= iedmf) .AND. (atm_phy_nwp_config(jg)%inwp_gscp /= 8)) THEN
           IF( atm_phy_nwp_config(jg)%inwp_satad == 0       .AND. &
           & ((atm_phy_nwp_config(jg)%inwp_convection >0 ) .OR. &
-          &  (atm_phy_nwp_config(jg)%inwp_gscp > 0      )    ) ) &
+          &  (atm_phy_nwp_config(jg)%inwp_gscp > 0 )   ) ) &
           &  CALL finish( routine,'satad has to be switched on')
         ENDIF
 

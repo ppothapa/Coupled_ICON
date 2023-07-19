@@ -72,7 +72,8 @@ MODULE mo_atmo_model
     &                                   iqc, iqt, iqv, iqi, iqs, iqr, iqtvar, ltimer,         &
     &                                   iqni, iqg, iqm_max, iqtke, iqh, iqnr, iqns, iqng,     &
     &                                   iqnh, iqnc, iqgl, iqhl, inccn, ininact, ininpot,      &
-    &                                   lart, nqtendphy, ntracer
+    &                                   lart, nqtendphy, ntracer,                             &
+    &                                   iqbin, iqb_i, iqb_e, iqb_s
   USE mo_gribout_config,          ONLY: configure_gribout
   USE mo_atm_phy_nwp_config,      ONLY: atm_phy_nwp_config
 #ifndef __NO_JSBACH__
@@ -655,7 +656,8 @@ CONTAINS
       &                       iqh, iqnr, iqns, iqng, iqnh, iqnc,           &
       &                       iqgl, iqhl, inccn, iqtvar, ininact, ininpot, &
       &                       iqtke, iqm_max, ntracer, nqtendphy,          &
-      &                       atm_phy_nwp_config(:)%nclass_gscp)
+      &                       atm_phy_nwp_config(:)%nclass_gscp,           &
+      &                       iqbin, iqb_i, iqb_e, iqb_s)
 
 #ifdef __ICON_ART
     !------------------------------------------------------------------

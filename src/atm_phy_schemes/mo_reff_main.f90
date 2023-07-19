@@ -222,6 +222,15 @@ MODULE mo_reff_main
         RETURN
       END IF
 
+    CASE (8)      ! sbm scheme
+      CALL  two_mom_reff_coefficients( reff_calc,return_fct )
+      IF (.NOT. return_fct) THEN
+        WRITE (message_text,*) 'Error in init reff: the SBM-2M Piggybacking scheme could not initiate coefficients. Check options'
+        CALL message('',message_text)
+        return_fct = .false.
+        RETURN
+      END IF
+
     CASE (101)             ! RRTM Param.
       SELECT CASE ( hydrometeor ) 
       CASE(0)  ! Cloud water
@@ -276,7 +285,7 @@ MODULE mo_reff_main
           CASE (2,3,4)
             reff_calc%ncn_param_incloud = 0  ! Grid scale values for graupel, snow, rain      
           END SELECT
-        CASE (4,5,6,7,9)  ! 2 Moment microphysics
+        CASE (4,5,6,7,8,9)  ! 2 Moment/SBM microphysics
           reff_calc%ncn_param_incloud = 0  ! Grid scale values for all param.        
 
         CASE DEFAULT
@@ -531,7 +540,7 @@ MODULE mo_reff_main
 
     SELECT CASE ( reff_calc%microph_param ) ! Choose which microphys param
 
-    CASE (0,1,2,3,4,5,6,7,9,100)      ! Currently all cases except for RRTM follow same scheme as function of mean mass
+    CASE (0,1,2,3,4,5,6,7,8,9,100)      ! Currently all cases except for RRTM follow same scheme as function of mean mass
       x_max = reff_calc%x_max
       x_min = reff_calc%x_min
       
@@ -713,7 +722,7 @@ MODULE mo_reff_main
       END IF
 
 
-    CASE (4,5,6,7,9,101) ! Use acdnc or other field (from radiation)
+    CASE (4,5,6,7,8,9,101) ! Use acdnc or other field (from radiation)
       well_posed = ASSOCIATED(reff_calc%p_ncn3D)
       IF (.NOT. well_posed) THEN
         WRITE (message_text,*) 'Reff: A 3D clound number field (cdnc/qn) needs to be provided '

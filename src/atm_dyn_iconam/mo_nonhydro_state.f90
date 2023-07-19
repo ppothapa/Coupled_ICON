@@ -64,7 +64,8 @@ MODULE mo_nonhydro_state
     &                                iqni, iqg, iqh, iqnr, iqns,                & 
     &                                iqng, iqnh, iqnc, inccn, ininpot, ininact, &
     &                                iqgl, iqhl,                                &
-    &                                iqtke, ltestcase, lart
+    &                                iqtke, ltestcase, lart,                    &
+    &                                iqbin, iqb_i, iqb_e, iqb_s            
   USE mo_coupling_config,      ONLY: is_coupled_run
   USE mo_io_config,            ONLY: inextra_2d, inextra_3d, lnetcdf_flt64_output, &
     &                                t_var_in_output
@@ -462,6 +463,7 @@ MODULE mo_nonhydro_state
     TYPE(t_var), POINTER :: target_element
     INTEGER              :: tracer_idx
 
+    INTEGER                       :: iqb
     LOGICAL :: ingroup(MAX_GROUPS)
     !**
     !--------------------------------------------------------------
@@ -939,6 +941,68 @@ MODULE mo_nonhydro_state
           __acc_attach(p_prog%tracer_ptr(iqhl)%p_3d)
         END IF
 
+        !33 drop mass bins
+        DO iqb = iqb_i, iqb_s
+          IF ( iqbin(iqb) /= 0 ) THEN
+              tracer_name = TRIM(vname_prefix)//TRIM(advconf%tracer_names(iqbin(iqb)))
+              CALL add_ref( p_prog_list, tracer_container_name,                      &
+                    & TRIM(tracer_name)//suffix, p_prog%tracer_ptr(iqbin(iqb))%p_3d, &
+                    & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
+                    & t_cf_var(TRIM(tracer_name),                                    &
+                    &  'kgkg-1 ','drop mass bins', datatype_flt),                    &
+                    & grib2_var(0, 1, 71, ibits, GRID_UNSTRUCTURED, GRID_CELL),      &
+                    & ref_idx=iqbin(iqb),                                            &
+                    & ldims=shape3d_c,                                               &
+                    & tlev_source=TLEV_NNOW_RCF,                                     & ! output from nnow_rcf slice
+                    & tracer_info=create_tracer_metadata_hydro(lis_tracer=.TRUE.,    &
+                    &             name        = TRIM(tracer_name)//suffix,           &
+                    &             ihadv_tracer=advconf%ihadv_tracer(iqbin(iqb)),     &
+                    &             ivadv_tracer=advconf%ivadv_tracer(iqbin(iqb))),    &
+                    & vert_interp=create_vert_interp_metadata(                       &
+                    &             vert_intp_type=vintp_types("P","Z","I"),           &
+                    &             vert_intp_method=VINTP_METHOD_LIN,                 &
+                    &             l_loglin=.FALSE.,                                  &
+                    &             l_extrapol=.FALSE., l_pd_limit=.FALSE.,            &
+                    &             lower_limit=0._wp  ),                              &
+                    & in_group=groups("atmo_ml_vars","atmo_pl_vars","atmo_zl_vars",  &
+                    &                 "dwd_fg_atm_vars","mode_dwd_fg_in",            &
+                    &                 "mode_iau_ana_in","mode_iau_anaatm_in",        &
+                    &                 "mode_iau_fg_in",                              &
+                    &                 "LATBC_PREFETCH_VARS")  )
+          END IF
+        END DO
+
+        !33 ccn number bins
+        DO iqb = iqb_s+1, iqb_e
+          IF ( iqbin(iqb) /= 0 ) THEN
+            tracer_name = TRIM(vname_prefix)//TRIM(advconf%tracer_names(iqbin(iqb)))
+            CALL add_ref( p_prog_list, tracer_container_name,                        &
+                    & TRIM(tracer_name)//suffix, p_prog%tracer_ptr(iqbin(iqb))%p_3d, &
+                    & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
+                    & t_cf_var(TRIM(tracer_name),                                    &
+                    &  ' kg-1 ','ccn number bins', datatype_flt),                    &
+                    & grib2_var(0, 6, 28, ibits, GRID_UNSTRUCTURED, GRID_CELL),      &
+                    & ref_idx=iqbin(iqb),                                            &
+                    & ldims=shape3d_c,                                               &
+                    & tlev_source=TLEV_NNOW_RCF,                                     & ! output from nnow_rcf slice
+                    & tracer_info=create_tracer_metadata(lis_tracer=.TRUE.,          &
+                    &             name        = TRIM(tracer_name)//suffix,           &
+                    &             ihadv_tracer=advconf%ihadv_tracer(iqbin(iqb)),     &
+                    &             ivadv_tracer=advconf%ivadv_tracer(iqbin(iqb))),    &
+                    & vert_interp=create_vert_interp_metadata(                       &
+                    &             vert_intp_type=vintp_types("P","Z","I"),           &
+                    &             vert_intp_method=VINTP_METHOD_LIN,                 &
+                    &             l_loglin=.FALSE.,                                  &
+                    &             l_extrapol=.FALSE., l_pd_limit=.FALSE.,            &
+                    &             lower_limit=0._wp  ),                              &
+                    & in_group=groups("atmo_ml_vars","atmo_pl_vars","atmo_zl_vars",  &
+                    &                 "dwd_fg_atm_vars","mode_dwd_fg_in",            &
+                    &                 "mode_iau_ana_in","mode_iau_anaatm_in",        &
+                    &                 "mode_iau_fg_in",                              &
+                    &                 "LATBC_PREFETCH_VARS")  )
+          END IF
+        END DO
+
         !O3
         IF ( iqt <= io3 .AND. io3 <= ntracer) THEN
           tlen = LEN_TRIM(advconf%tracer_names(io3))
@@ -1250,7 +1314,7 @@ MODULE mo_nonhydro_state
                     &             lower_limit=0._wp  ),                              &
                     & in_group=groups("atmo_ml_vars", "atmo_pl_vars", "atmo_zl_vars")  )
           __acc_attach(p_prog%tracer_ptr(ininact)%p_3d)
-        END IF ! inwp_gscp==4, inwp_gscp==5 .or. inwp_gscp==6 .or. inwp_gscp==7
+        END IF ! inwp_gscp==4,5,6,7,8
 
         ! concentration of cloud condensation nuclei
         IF ( inccn /= 0 ) THEN

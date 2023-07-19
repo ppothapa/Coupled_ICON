@@ -130,6 +130,7 @@ USE mo_io_config,            ONLY: lflux_avg, lnetcdf_flt64_output, gust_interva
 USE mtime,                   ONLY: max_timedelta_str_len, getPTStringFromMS
 USE mo_name_list_output_config, ONLY: is_variable_in_output
 USE mo_util_string,          ONLY: real2string
+USE mo_sbm_storage,          ONLY: construct_sbm_storage, destruct_sbm_storage
 
 #include "add_var_acc_macro.inc"
 
@@ -233,12 +234,18 @@ SUBROUTINE construct_nwp_phy_state( p_patch, var_in_output )
      WRITE(listname,'(a,i2.2)') 'prm_stch_of_domain_',jg
      CALL new_nwp_phy_stochconv_list ( jg, nblks_c, listname, &
        &                          prm_nwp_stochconv_list(jg), prm_nwp_stochconv(jg))
+
+     ! create additional SBM-specific storage, if SBM microphysics is selected
+     IF (atm_phy_nwp_config(jg)%inwp_gscp == 8) THEN
+       CALL construct_sbm_storage (p_patch)
+     ENDIF
   ENDDO
 
   ! Allocate variable of type t_phy_params containing domain-dependent parameters
   ALLOCATE(phy_params(n_dom), STAT=ist)
   !$ACC ENTER DATA CREATE(phy_params)
   IF(ist/=success) CALL finish(routine, 'allocation of phy_params array failed')
+
 
   CALL message(routine, 'construction of state vector finished')
 
@@ -264,7 +271,7 @@ SUBROUTINE destruct_nwp_phy_state()
       !$ACC EXIT DATA DELETE(prm_diag(jg)%qrs_flux)
       DEALLOCATE(prm_diag(jg)%qrs_flux)
     ENDIF
-    
+
   END DO
 
   !$ACC EXIT DATA DELETE(prm_diag, prm_nwp_tend)
@@ -291,6 +298,11 @@ SUBROUTINE destruct_nwp_phy_state()
   DEALLOCATE(phy_params, STAT=ist)
   IF(ist/=success)THEN
     CALL finish (routine, 'deallocation of phy_params array failed')
+  ENDIF
+
+  ! destruct SBM-specific storage
+  IF (atm_phy_nwp_config(jg)%inwp_gscp == 8) THEN
+    CALL destruct_sbm_storage ()
   ENDIF
 
   CALL message(routine, 'destruction of 3D state vector finished')
@@ -553,7 +565,7 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
     ENDIF
 
     SELECT CASE (atm_phy_nwp_config(k_jg)%inwp_gscp)
-    CASE (1,2,3,4,5,6,7)
+    CASE (1,2,3,4,5,6,7,8)
 
        ! &      diag%ice_gsp_rate(nproma,nblks_c)
       cf_desc    = t_cf_var('ice_gsp_rate', 'kg m-2 s-1', 'gridscale ice rate', &
@@ -571,7 +583,7 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
 
     !For two moment microphysics
     SELECT CASE (atm_phy_nwp_config(k_jg)%inwp_gscp)
-    CASE (4,5,6,7)
+    CASE (4,5,6,7,8)
 
        ! &      diag%hail_gsp_rate(nproma,nblks_c)
       cf_desc    = t_cf_var('hail_gsp_rate', 'kg m-2 s-1', 'gridscale hail rate', &
@@ -729,7 +741,7 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
     ENDIF
 
     SELECT CASE (atm_phy_nwp_config(k_jg)%inwp_gscp)
-    CASE (1,2,3,4,5,6,7)
+    CASE (1,2,3,4,5,6,7,8)
 
        ! &      diag%ice_gsp(nproma,nblks_c)
       cf_desc    = t_cf_var('ice_gsp', 'kg m-2', 'gridscale ice', datatype_flt)
@@ -750,7 +762,7 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
     END SELECT
 
     SELECT CASE (atm_phy_nwp_config(k_jg)%inwp_gscp)
-    CASE (4,5,6,7)
+    CASE (4,5,6,7,8)
 
        ! &      diag%hail_gsp(nproma,nblks_c)
       cf_desc    = t_cf_var('hail_gsp', 'kg m-2', 'gridscale hail', datatype_flt)

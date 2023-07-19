@@ -39,7 +39,7 @@ MODULE mo_run_config
   PUBLIC :: ltimer, timers_level, activate_sync_timers, msg_level
   PUBLIC :: iqv, iqc, iqi, iqs, iqr, iqtvar, nqtendphy, iqt, ico2, ich4, in2o, io3
   PUBLIC :: iqni, iqg, iqm_max
-  PUBLIC :: iqh, iqnh, iqnr, iqns, iqng, iqnc, inccn, ininpot, ininact, iqgl, iqhl
+  PUBLIC :: iqh, iqnh, iqnr, iqns, iqng, iqnc, inccn, ininpot, ininact, iqgl, iqhl, iqbin, iqb_i, iqb_e, iqb_s
   PUBLIC :: iqtke
   PUBLIC :: grid_generatingCenter     ! non-namelist variables
   PUBLIC :: grid_generatingSubcenter  ! non-namelist variables
@@ -134,6 +134,12 @@ MODULE mo_run_config
     INTEGER :: iqgl      = 0  !<liquid on graupel
     INTEGER :: iqhl      = 0  !<liquid on hail
 
+    !For SBM microphysics
+    INTEGER :: iqb_s     = 33
+    INTEGER :: iqb_i     = 1
+    INTEGER :: iqb_e     = 66
+    INTEGER :: iqbin(1:66)= 0  ! water mass of bins
+
     ! For TKE advection
     INTEGER :: iqtke     = 0  !< turbulent kinetic energy
 
@@ -205,6 +211,7 @@ CONTAINS
     ! activate memory logging if needed
     IF (logmaxrss .OR. logmaxrss_all) CALL memory_log_initialize(logmaxrss_all)
 
+    !$ACC ENTER DATA COPYIN(iqbin)
   END SUBROUTINE configure_run
   !-------------------------------------------------------------
 

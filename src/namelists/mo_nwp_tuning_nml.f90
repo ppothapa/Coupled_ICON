@@ -78,7 +78,8 @@ MODULE mo_nwp_tuning_nml
     &                               config_tune_sc_eis       => tune_sc_eis,     &
     &                               config_tune_sc_invmin    => tune_sc_invmin,  &
     &                               config_tune_sc_invmax    => tune_sc_invmax,  &
-    &                               config_tune_dursun_scaling => tune_dursun_scaling
+    &                               config_tune_dursun_scaling => tune_dursun_scaling, &
+    &                               config_tune_sbmccn => tune_sbmccn
   
   IMPLICIT NONE
   PRIVATE
@@ -125,6 +126,9 @@ MODULE mo_nwp_tuning_nml
 
   REAL(wp) :: &                    !< Exponent for density correction of cloud ice sedimentation
     &  tune_icesedi_exp
+
+  REAL(wp) :: &                    !< sbm ccn factor
+    &  tune_sbmccn
 
   REAL(wp) :: &                    !< Entrainment parameter for deep convection valid at dx=20 km 
     &  tune_entrorg
@@ -264,7 +268,8 @@ MODULE mo_nwp_tuning_nml
     &                      tune_blockred, itune_gust_diag, tune_rcapqadv,         &
     &                      tune_gustsso_lim, tune_eiscrit, itune_o3,              &
     &                      tune_sc_eis, tune_sc_invmin, tune_sc_invmax,           &
-    &                      tune_capethresh, tune_dursun_scaling
+    &                      tune_capethresh, tune_dursun_scaling,                  &
+    &                      tune_sbmccn
 
 CONTAINS
 
@@ -330,6 +335,8 @@ CONTAINS
     tune_v0snow      = -1.0_wp      ! defaults are set in data_gscp depending on igscp
     tune_zvz0i       = 1.25_wp      ! original value of Heymsfield+Donner 1990: 3.29
     tune_icesedi_exp = 0.30_wp      ! exponent for density correction of cloud ice sedimentation
+    tune_sbmccn      = 1.0_wp       ! [0-1] scaling factor to reduce the ccn concentration initial profile with respect to the polluted case
+
     !
     ! convection
     !
@@ -548,6 +555,7 @@ CONTAINS
     config_tune_sc_invmin        = tune_sc_invmin
     config_tune_sc_invmax        = tune_sc_invmax
     config_tune_dursun_scaling   = tune_dursun_scaling
+    config_tune_sbmccn           = tune_sbmccn
 
     !$ACC UPDATE DEVICE(config_tune_gust_factor, config_itune_gust_diag, config_tune_gustsso_lim)
 

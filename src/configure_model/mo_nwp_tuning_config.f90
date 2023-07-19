@@ -78,6 +78,7 @@ MODULE mo_nwp_tuning_config
   PUBLIC :: tune_sc_invmin
   PUBLIC :: tune_sc_invmax
   PUBLIC :: tune_dursun_scaling
+  PUBLIC :: tune_sbmccn
   
   !!--------------------------------------------------------------------------
   !! Basic configuration setup for physics tuning
@@ -121,6 +122,9 @@ MODULE mo_nwp_tuning_config
 
   REAL(wp) :: &                    !< Exponent for density correction of cloud ice sedimentation
     &  tune_icesedi_exp
+
+  REAL(wp) :: &                    !< [0-1] scaling factor to reduce the ccn concentration initial profile with respect to the polluted case
+    &  tune_sbmccn
 
   REAL(wp) :: &                    !< Entrainment parameter for deep convection valid at dx=20 km 
     &  tune_entrorg

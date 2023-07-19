@@ -80,7 +80,7 @@ MODULE mo_iau
   USE mo_initicon_config,         ONLY: type_iau_wgt, is_iau_active, iau_wgt_dyn, iau_wgt_adv, &
     &                                   qcana_mode, qiana_mode, qrsgana_mode
   USE mo_run_config,              ONLY: iqv, iqc, iqi, iqr, iqs, iqg, iqh, &
-    &                                   iqm_max, iqni, iqnc, iqnr, iqns, iqng, iqnh, &
+    &                                   iqm_max, iqni, iqnc, iqnr, iqns, iqng, iqnh, iqbin, iqb_i, iqb_e, &
     &                                   ldass_lhn
   USE mo_dynamics_config,         ONLY: nnow, nnew, nnow_rcf, nnew_rcf
   USE mo_advection_config,        ONLY: advection_config
@@ -515,6 +515,7 @@ CONTAINS
 
     ! Local variables
     INTEGER  :: jk,jc
+    INTEGER  :: iqb
     REAL(wp) :: zqin
     REAL(wp) :: zrhw(nproma, kend) ! relative humidity w.r.t. water
 
@@ -600,8 +601,8 @@ CONTAINS
       ENDIF
 
       IF (atm_phy_nwp_config(jg)%l2moment) THEN
-          !$ACC LOOP GANG(STATIC: 1) VECTOR
-          DO jc = i_startidx, i_endidx
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = i_startidx, i_endidx
           IF (qcana_mode > 0) THEN
             pt_prog_rcf%tracer(jc,jk,jb,iqnc) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqnc) + &
                  iau_wgt_adv * pt_diag%rhonc_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb))
@@ -623,6 +624,19 @@ CONTAINS
                  iau_wgt_adv * pt_diag%rhonh_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb))
           END IF
         ENDDO
+      ENDIF
+
+      IF (atm_phy_nwp_config(jg)%lsbm) THEN
+        IF (qrsgana_mode > 0) THEN
+          !$ACC LOOP SEQ
+          DO iqb = iqb_i, iqb_e
+            !$ACC LOOP GANG(STATIC: 1) VECTOR
+            DO jc = i_startidx, i_endidx
+              pt_prog_rcf%tracer(jc,jk,jb,iqbin(iqb)) = MAX(0._wp,pt_prog_rcf%tracer(jc,jk,jb,iqbin(iqb)) + &
+                   iau_wgt_adv * pt_diag%rhonh_incr(jc,jk,jb)/pt_prog%rho(jc,jk,jb))
+            END DO
+          ENDDO
+        ENDIF
       ENDIF
 
     ENDDO

@@ -265,7 +265,8 @@ CONTAINS
     &                             iqv, iqc, iqi, iqr, iqs, iqt, iqg, iqni,     &
     &                             iqh, iqnr, iqns, iqng, iqnh, iqnc,           &
     &                             iqgl, iqhl, inccn, iqtvar, ininact, ininpot, &
-    &                             iqtke, iqm_max, ntracer, nqtendphy, nclass_gscp)
+    &                             iqtke, iqm_max, ntracer, nqtendphy, nclass_gscp, &
+    &                             iqbin, iqb_i, iqb_e, iqb_s)
     INTEGER,                  INTENT(IN)    :: iforcing, n_dom
     LOGICAL,                  INTENT(IN)    :: ltransport
     INTEGER,                  INTENT(IN)    :: inwp_turb(:)
@@ -277,7 +278,9 @@ CONTAINS
     INTEGER,                  INTENT(INOUT) :: iqv, iqc, iqi, iqr, iqs, iqt, iqg, &
       &                                        iqni, iqh, iqnr, iqns, iqng, iqnh, &
       &                                        iqnc, iqgl, iqhl, inccn, iqtvar,   &
-      &                                        ininact, ininpot, iqtke
+      &                                        ininact, ininpot, iqtke,           &
+      &                                        iqb_i, iqb_e, iqb_s
+    INTEGER, DIMENSION(:),    INTENT(INOUT) :: iqbin
     INTEGER,                  INTENT(INOUT) :: iqm_max
     INTEGER,                  INTENT(INOUT) :: ntracer
     INTEGER,                  INTENT(INOUT) :: nqtendphy
@@ -286,6 +289,23 @@ CONTAINS
     CHARACTER(len=*), PARAMETER :: routine =  modname//'::init_tracer_settings'
     INTEGER  :: jg, name_len, itracer
     CHARACTER(len=MAX_CHAR_LENGTH) :: src_name_str
+
+    INTEGER  :: iqb
+    CHARACTER(len=7) :: qbinname(SIZE(iqbin))
+    qbinname=['qbin001','qbin002','qbin003','qbin004','qbin005',&
+           &  'qbin006','qbin007','qbin008','qbin009','qbin010',&
+           &  'qbin011','qbin012','qbin013','qbin014','qbin015',&
+           &  'qbin016','qbin017','qbin018','qbin019','qbin020',&
+           &  'qbin021','qbin022','qbin023','qbin024','qbin025',&
+           &  'qbin026','qbin027','qbin028','qbin029','qbin030',&
+           &  'qbin031','qbin032','qbin033',                    &
+           &  'qbin034','qbin035','qbin036','qbin037','qbin038',&
+           &  'qbin039','qbin040','qbin041','qbin042','qbin043',&
+           &  'qbin044','qbin045','qbin046','qbin047','qbin048',&
+           &  'qbin049','qbin050','qbin051','qbin052','qbin053',&
+           &  'qbin054','qbin055','qbin056','qbin057','qbin058',&
+           &  'qbin059','qbin060','qbin061','qbin062','qbin063',&
+           &  'qbin064','qbin065','qbin066']
 
     ! Check settings of ntracer
     !
@@ -471,6 +491,41 @@ CONTAINS
                           !! at all to moisture
 
         ntracer = 14
+
+      CASE(8)
+
+        iqg     = 6  ; advection_config(:)%tracer_names(iqg)     = 'qg'
+        iqh     = 7  ; advection_config(:)%tracer_names(iqh)     = 'qh'
+
+
+        DO iqb = iqb_i, iqb_e
+          iqbin(iqb) = 7+iqb
+          DO jg=1,SIZE(advection_config)
+            advection_config(jg)%tracer_names(iqbin(iqb)) = qbinname(iqb)
+          ENDDO
+        END DO
+        !$ACC UPDATE DEVICE(iqbin)
+
+        iqni    = 7+iqb_e+1 ; advection_config(:)%tracer_names(iqni)    = 'qni'
+        iqnr    = 7+iqb_e+2 ; advection_config(:)%tracer_names(iqnr)    = 'qnr'
+        iqns    = 7+iqb_e+3 ; advection_config(:)%tracer_names(iqns)    = 'qns'
+        iqng    = 7+iqb_e+4 ; advection_config(:)%tracer_names(iqng)    = 'qng'
+        iqnh    = 7+iqb_e+5 ; advection_config(:)%tracer_names(iqnh)    = 'qnh'
+        iqnc    = 7+iqb_e+6 ; advection_config(:)%tracer_names(iqnc)    = 'qnc'
+        ininact = 7+iqb_e+7 ; advection_config(:)%tracer_names(ininact) = 'ninact'
+
+        nqtendphy = 3     !! number of water species for which
+                          !! convective and turbulent tendencies are
+                          !! stored
+        iqm_max = 7+iqb_s    !! stands for qv,qc,qr,qi,qs and defined before
+        iqt     = 7+iqb_e+8  !! start index of other tracers not related
+                             !! at all to moisture
+
+        ntracer = 7+iqb_e+7  !! total number of tracers. Theis order is the following:
+                             !! qv, qc, qi, qr, qs, qg, qh, 
+                             !! 33 mass bins for cloud droplets, 
+                             !! 33 mass bins for aerosols,
+                             !! qni, qnr, qns, qng, qnh, qnc, ninact
 
       END SELECT ! microphysics schemes
 
