@@ -49,11 +49,11 @@ ICON_YAC_CFLAGS="${ICON_BUNDLED_CFLAGS} -fp-model precise"
 FC='mpif90'
 FCFLAGS="-I${sw_root}/include ${RTTOV_FCFLAGS-} -g -march=native -pc64 -fp-model source"
 
-common_ICON_FCFLAGS='-ftz -qoverride-limits -assume realloc_lhs -align array64byte -fma -D__SWAPDIM -DOCE_SOLVE_OMP'
+common_ICON_FCFLAGS='-ftz -qoverride-limits -assume realloc_lhs -align array64byte -fma'
 
 ICON_FCFLAGS="-O3 ${common_ICON_FCFLAGS}"
 
-ICON_OCEAN_FCFLAGS='-O3 -assume norealloc_lhs -reentrancy threaded'
+ICON_OCEAN_FCFLAGS='-O3 -assume norealloc_lhs -reentrancy threaded -DOCE_SOLVE_OMP'
 ICON_OCEAN_PATH='src/hamocc:src/ocean:src/sea_ice'
 
 # The compiler has significant problems when processing some of the EMVORADO

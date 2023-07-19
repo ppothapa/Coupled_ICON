@@ -45,9 +45,9 @@ CPPFLAGS="-I${sw_root}/include -I${sw_root}/include/libxml2"
 FC='ifort'
 FCFLAGS="-I${sw_root}/include ${RTTOV_FCFLAGS-} -g -march=native -pc64 -fp-model source"
 
-ICON_FCFLAGS='-O3 -ftz -qoverride-limits -assume realloc_lhs -align array64byte -fma -ip -D__SWAPDIM -DOCE_SOLVE_OMP'
+ICON_FCFLAGS='-O3 -ftz -qoverride-limits -assume realloc_lhs -align array64byte -fma -ip'
 
-ICON_OCEAN_FCFLAGS='-O3 -assume norealloc_lhs -reentrancy threaded -qopt-report-file=stdout -qopt-report=0 -qopt-report-phase=vec'
+ICON_OCEAN_FCFLAGS='-O3 -assume norealloc_lhs -reentrancy threaded -qopt-report-file=stdout -qopt-report=0 -qopt-report-phase=vec -DOCE_SOLVE_OMP'
 ICON_OCEAN_PATH='src/hamocc:src/ocean:src/sea_ice'
 
 ICON_ECRAD_FCFLAGS='-qno-opt-dynamic-align -no-fma -fpe0'  # no optimization?

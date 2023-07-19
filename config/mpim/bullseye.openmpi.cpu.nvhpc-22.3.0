@@ -6,8 +6,7 @@ unset CDPATH
 script_dir=$(cd "$(dirname "$0")"; pwd)
 icon_dir=$(cd "${script_dir}/../.."; pwd)
 
-modules='intel/2021.6.0'
-sw_root='/sw/bullseye-x64/views/icon/openmpi/intel-2021.6.0'
+sw_root='/sw/bullseye-x64/views/icon/openmpi/nvhpc-22.3'
 
 if test -r "${sw_root}/lib/librttov_main.a"; then
   RTTOV_LIBS='-lrttov_other -lrttov_emis_atlas -lrttov_brdf_atlas -lrttov_parallel -lrttov_coef_io -lrttov_hdf -lrttov_main'
@@ -30,40 +29,50 @@ fi
 
 ################################################################################
 
-BUILD_ENV=". \"${ENV}\";. \"${script_dir}/module_switcher\"; switch_for_module ${modules}; export PATH=\"${sw_root}/bin:\${PATH-}\"; export LD_LIBRARY_PATH=\"${sw_root}/lib:\${LD_LIBRARY_PATH-}\"; export PYTHONPATH=\"${sw_root}/python/pp_ser:\${PYTHONPATH-}\";"
+BUILD_ENV="export PATH=\"${sw_root}/bin:\${PATH-}\"; export LD_LIBRARY_PATH=\"${sw_root}/lib:\${LD_LIBRARY_PATH-}\"; export PYTHONPATH=\"${sw_root}/python/pp_ser:\${PYTHONPATH-}\";"
 
 CC='mpicc'
-CFLAGS='-g -march=native -pc64 -ftz -fma -ip -qno-opt-dynamic-align'
-ICON_CFLAGS='-O3'
-ICON_BUNDLED_CFLAGS='-O2'
+CFLAGS='-g -O2'
 
 CXX=$(eval "${BUILD_ENV}" >/dev/null; mpicxx -show | sed 's: .*$::')
-CXXFLAGS='-g -march=native -pc64 -ftz -fma -ip -qno-opt-dynamic-align -O2'
+CXXFLAGS='-g -O2'
 
 CPPFLAGS="-I${sw_root}/include -I${sw_root}/include/libxml2"
 
 FC='mpif90'
-FCFLAGS="-I${sw_root}/include ${RTTOV_FCFLAGS-} -g -march=native -pc64 -fp-model source"
+FCFLAGS="-I${sw_root}/include ${RTTOV_FCFLAGS-} -g -Mrecursive -Mallocatable=03 -Mstack_arrays -Minfo=inline"
 
-ICON_FCFLAGS='-O3 -ftz -qoverride-limits -assume realloc_lhs -align array64byte -fma -ip'
+ICON_FCFLAGS='-O2'
 
-ICON_OCEAN_FCFLAGS='-O3 -assume norealloc_lhs -reentrancy threaded -qopt-report-file=stdout -qopt-report=0 -qopt-report-phase=vec -DOCE_SOLVE_OMP'
-ICON_OCEAN_PATH='src/hamocc:src/ocean:src/sea_ice'
+# The compiler fails to process some of the EMVORADO and DACE source files with
+# the default optimization level:
+ICON_WORKAROUND1_FCFLAGS='-O1'
+ICON_WORKAROUND1_PATH='externals/dace_icon/src_for_icon/mo_rad.f90:src/data_assimilation/interfaces/radar_interface.f90'
 
-ICON_ECRAD_FCFLAGS='-qno-opt-dynamic-align -no-fma -fpe0'  # no optimization?
+LDFLAGS="-L${sw_root}/lib ${RTTOV_LDFLAGS-}"
+# The configure scripts of some of the bundled libraries (e.g. SCT) are
+# generated using original (non-patched) Libtool macros, which are not aware of
+# NVidia HPC compilers. As a result, their libtool scripts do not keep the
+# '-Wl,' prefix and pass the linker flags to the compiler without it. The
+# compiler can handle some of them (e.g. '--as-needed') but chokes with some
+# other (e.g. '--disable-new-dtags'). For consistency, we pass all flags that
+# are meant for the linker only via ICON_LDFLAGS so that they are not passed to
+# any libtool script:
+ICON_LDFLAGS='-Wl,--disable-new-dtags -Wl,--as-needed'
+LIBS="-lxml2 -lSerialboxFortran -leccodes_f90 -leccodes ${RTTOV_LIBS-} -llapack -lblas -lnetcdff -lnetcdf -lhdf5_hl_fortran -lhdf5_fortran -lhdf5 -lz"
 
-LDFLAGS="-L${sw_root}/lib ${RTTOV_LDFLAGS-} -Wl,--disable-new-dtags"
-LIBS="-Wl,--as-needed -lxml2 -lSerialboxFortran -leccodes_f90 -leccodes ${RTTOV_LIBS-} -llapack -lblas -lnetcdff -lnetcdf -lhdf5_hl_fortran -lhdf5_fortran -lhdf5 -lz"
-
-AR='xiar'
 MPI_LAUNCH='mpiexec --oversubscribe'
 
-EXTRA_CONFIG_ARGS='--enable-grib2 --enable-fcgroup-OCEAN'
+EXTRA_CONFIG_ARGS='--enable-loop-exchange --enable-grib2 --enable-fcgroup-WORKAROUND1'
+
+# Enabling YAXT magically cures the building. Otherwise, the compiler crashes
+# when processing 'src/shared/mo_var_list_register.f90'. Note that this does not
+# happen with MPICH 3.4.3.
+EXTRA_CONFIG_ARGS="${EXTRA_CONFIG_ARGS} --enable-yaxt"
 
 ################################################################################
 
 "${icon_dir}/configure" \
-AR="${AR}" \
 BUILD_ENV="${BUILD_ENV}" \
 CC="${CC}" \
 CFLAGS="${CFLAGS}" \
@@ -72,12 +81,10 @@ CXX="${CXX}" \
 CXXFLAGS="${CXXFLAGS}" \
 FC="${FC}" \
 FCFLAGS="${FCFLAGS}" \
-ICON_BUNDLED_CFLAGS="${ICON_BUNDLED_CFLAGS}" \
-ICON_CFLAGS="${ICON_CFLAGS}" \
-ICON_ECRAD_FCFLAGS="${ICON_ECRAD_FCFLAGS}" \
 ICON_FCFLAGS="${ICON_FCFLAGS}" \
-ICON_OCEAN_FCFLAGS="${ICON_OCEAN_FCFLAGS}" \
-ICON_OCEAN_PATH="${ICON_OCEAN_PATH}" \
+ICON_LDFLAGS="${ICON_LDFLAGS}" \
+ICON_WORKAROUND1_FCFLAGS="${ICON_WORKAROUND1_FCFLAGS}" \
+ICON_WORKAROUND1_PATH="${ICON_WORKAROUND1_PATH}" \
 LDFLAGS="${LDFLAGS}" \
 LIBS="${LIBS}" \
 MPI_LAUNCH="${MPI_LAUNCH}" \
