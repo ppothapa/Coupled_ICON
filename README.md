@@ -206,7 +206,7 @@ recommended (topologically sorted) order for the `LIBS` argument is presented in
 | 24 | [AEC](https://gitlab.dkrz.de/k202009/libaec) or [SZIP](https://support.hdfgroup.org/doc_resource/SZIP/) | static linking | `LDFLAGS='-L/path/to/aec/lib' LIBS='-laec'` (or `LIBS='-lsz'`) |
 | 25 | [MPI](https://www.mpi-forum.org/) (Fortran interface) | `--enable-mpi`<sup><a name="f11-back" href="#f11">11</a></sup> or `--enable-yaxt` or `--enable-cdi-pio --without-external-cdi --without-external-yaxt` or `--enable-coupling --without-external-yac` | `FC='/path/to/mpi/bin/mpif90'` or `FCFLAGS='-I/path/to/mpi/include' LDFLAGS='-L/path/to/mpi/lib' LIBS='-lmpifort -lmpi'` (depends on the implementation) |
 | 26 | [MPI](https://www.mpi-forum.org/) (C interface) | `--enable-coupling`<sup><a name="f12-back" href="#f12">12</a></sup> or `--enable-yaxt --without-external-yaxt` or `--enable-mpi --enable-sct --without-external-sct` or `--enable-cdi-pio --without-external-cdi` | `CC=/path/to/mpi/bin/mpicc` or `CPPFLAGS=-I/path/to/mpi/include LDFLAGS='-L/path/to/mpi/lib' LIBS='-lmpi'` (depends on the implementation) |
-| 27 | [CUB](https://nvlabs.github.io/cub/) | `--enable-gpu --with-external-cub` | `NVCFLAGS=-I/path/to/cub`<sup><a name="f13-back" href="#f13">13</a></sup> |
+| 27 | [CUB](https://nvlabs.github.io/cub/) | `--enable-gpu` | `CUDAFLAGS=-I/path/to/cub/include`<sup><a name="f13-back" href="#f13">13</a></sup> |
 | 28 | [CUDA](https://developer.nvidia.com/cuda-zone) | `--enable-gpu` | `LDFLAGS=-L/path/to/cuda/lib LIBS=-lcudart`<sup><a name="f14-back" href="#f14">14</a></sup> |
 | 29 | [STDC++](https://gcc.gnu.org/onlinedocs/libstdc++/) | `--enable-gpu` | `LDFLAGS=-L/path/to/gcc/used/by/nvcc/lib LIBS=-lstdc++` |
 
@@ -262,7 +262,9 @@ MPI (C interface) library implicitly, therefore, the latter needs to be linked
 explicitly, regardless of whether an external or the bundled version of YAC is
 used. [↩](#f12-back)
 13. <a name="f13"/> CUB is a header-only library and does not require additional
-linker flags. [↩](#f13-back)
+linker flags. It is also
+[added to the CUDA Toolkit starting versions 11.0](https://github.com/NVIDIA/cub/blob/main/CHANGELOG.md#summary-12)
+and, therefore, might not need any extra flags at all. [↩](#f13-back)
 14. <a name="f14"/> Currently, the only Fortran compiler that supports all
 features required to build the GPU version of ICON is PGI, which specifies
 linker flags enabling CUDA automatically. [↩](#f14-back)
@@ -391,10 +393,18 @@ overridden by setting the variable to an empty value: `ICON_BUNDLED_CFLAGS=`);
 appended to `CFLAGS` when configuring the respective bundled libraries
 (defaults to `ICON_BUNDLED_CFLAGS`, which can be overridden by setting the
 variablies to empty values: `ICON_CDI_CFLAGS=`, `ICON_MTIME_CFLAGS=`, etc.);
-- `NVCFLAGS` &mdash;
-[NVIDIA CUDA Compiler](https://developer.nvidia.com/cuda-llvm-compiler) flags to
-be used when configuring and compiling ICON;
-- `LDFLAGS` &mdash; common Fortran and C compiler flags to be used when
+- `CXXFLAGS` &mdash; C++ compiler flags to be passed to the configure scripts of
+the bundled libraries (in contrast to standard
+[Autoconf](https://www.gnu.org/software/autoconf/)-based scripts, the
+[configure](./configure) script of ICON does not set `CXXFLAGS` to `-g -O2` by
+default);
+- `ICON_BUNDLED_CXXFLAGS` &mdash; C++ compiler flags to be appended to
+`CXXFLAGS` when configuring the bundled libraries;
+- `CUDAFLAGS` &mdash; CUDA Compiler flags to be used when configuring and
+compiling ICON;
+- `HIPFLAGS` &mdash; HIP Compiler flags to be used when configuring and
+compiling ICON;
+- `LDFLAGS` &mdash; common Fortran, C and C++ compiler flags to be used when
 configuring and linking ICON, as well as passed to the configure scripts of the
 bundled libraries;
 - `ICON_LDFLAGS` &mdash; Fortran compiler flags to be appended to `LDFLAGS` when

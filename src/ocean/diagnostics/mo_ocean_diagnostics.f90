@@ -502,7 +502,7 @@ CONTAINS
     TYPE(t_ocean_surface), INTENT(IN)           :: p_oce_sfc
     TYPE(t_sea_ice),          INTENT(inout)     :: ice
 
-    REAL(wp) :: w(nproma, n_zlev + 1, patch_3d%p_patch_2d(1)%alloc_cell_blocks) 
+    REAL(wp) :: w(nproma, n_zlev + 1, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
 
     !Local variables
     INTEGER :: start_cell_index, end_cell_index,i
@@ -538,7 +538,7 @@ CONTAINS
       IF (isRegistered('total_salt')) THEN
         IF (vert_cor_type .EQ. 0) THEN
           call calc_total_salt_content(tracers(:,:,:,2), patch_2d, &
-          sea_surface_height(:,:),&     
+          sea_surface_height(:,:),&
           patch_3D%p_patch_1d(1)%prism_thick_flat_sfc_c(:,:,:),&
                ice, 0 , total_salt, total_saltinseaice, &
                                   total_saltinliquidwater )
@@ -571,7 +571,7 @@ CONTAINS
         WRITE(0,*) ' -- monitor%ssh_global:', monitor%ssh_global
       ENDIF
 
-      
+
       ! sea surface temperature
       sst_global = 0.0_wp
       IF (isRegistered('sst_global')) THEN
@@ -644,7 +644,7 @@ CONTAINS
       END IF
       monitor%FrshFlux_SnowFall = atmos_snowfall_flux
 
-      ! VolumeIce   
+      ! VolumeIce
       VolumeIce_flux = 0.0_wp
       IF (isRegistered('FrshFlux_VolumeIce_Global')) THEN
       call levels_horizontal_mean( p_oce_sfc%FrshFlux_VolumeIce, &
@@ -654,7 +654,7 @@ CONTAINS
       END IF
       monitor%FrshFlux_VolumeIce = VolumeIce_flux
 
-      ! TotalOcean   
+      ! TotalOcean
       TotalOcean_flux = 0.0_wp
       IF (isRegistered('FrshFlux_TotalOcean_Global')) THEN
       call levels_horizontal_mean( p_oce_sfc%FrshFlux_TotalOcean, &
@@ -664,7 +664,7 @@ CONTAINS
       END IF
       monitor%FrshFlux_TotalOcean = TotalOcean_flux
 
-      ! TotalIce   
+      ! TotalIce
       TotalIce_flux = 0.0_wp
       IF (isRegistered('FrshFlux_TotalIce_Global')) THEN
       call levels_horizontal_mean( p_oce_sfc%FrshFlux_TotalIce, &
@@ -674,7 +674,7 @@ CONTAINS
       END IF
       monitor%FrshFlux_TotalIce = TotalIce_flux
 
-      ! VolumeTotal   
+      ! VolumeTotal
       VolumeTotal_flux = 0.0_wp
       IF (isRegistered('FrshFlux_VolumeTotal_Global')) THEN
       call levels_horizontal_mean( p_oce_sfc%FrshFlux_VolumeTotal, &
@@ -684,7 +684,7 @@ CONTAINS
       END IF
       monitor%FrshFlux_VolumeTotal = VolumeTotal_flux
 
-      ! totalsnowfall   
+      ! totalsnowfall
       totalsnowfall_flux = 0.0_wp
       IF (isRegistered('totalsnowfall_Global')) THEN
       call levels_horizontal_mean( ice%totalsnowfall, &
@@ -732,7 +732,7 @@ CONTAINS
       global_mean_potEnergy = 0.0_wp
       IF (isRegistered('pot_energy_global')) THEN
         IF (vert_cor_type .EQ. 0) THEN
-          global_mean_potEnergy = potential_energy(& 
+          global_mean_potEnergy = potential_energy(&
               & w, &
   !TODO       & p_prog(nold(1))%h,&
               & sea_surface_height , & ! this is h_new, the old implementation used h_old
@@ -741,7 +741,7 @@ CONTAINS
               & patch_3D%p_patch_1d(1)%prism_volume, &
               & owned_cells)
         ELSEIF (vert_cor_type .EQ. 1) THEN
-          global_mean_potEnergy = potential_energy_zstar(& 
+          global_mean_potEnergy = potential_energy_zstar(&
               & w, &
               & sea_surface_height , & ! this is h_new, the old implementation used h_old
               & p_diag%rho, &
@@ -832,7 +832,7 @@ CONTAINS
              & p_diag%pacific_wfl, &
              & p_diag%global_hfbasin, &
              & p_diag%atlantic_hfbasin, &
-             & p_diag%pacific_hfbasin, & 
+             & p_diag%pacific_hfbasin, &
              & p_diag%global_sltbasin, &
              & p_diag%atlantic_sltbasin, &
              & p_diag%pacific_sltbasin, &
@@ -855,7 +855,7 @@ CONTAINS
              p_diag%heat_content_total)
 
         ELSEIF (vert_cor_type .EQ. 1) THEN
- 
+
           CALL calc_heat_content(patch_3d, prism_thickness, ice, tracers, &
              p_diag%heat_content_liquid_water, &
              p_diag%heat_content_seaice, &
@@ -906,7 +906,7 @@ CONTAINS
                ,p_diag%hflR, p_diag%fwR, p_diag%tauxU, p_diag%tauyV &
                ,p_oce_sfc%topbc_windstress_u, p_oce_sfc%topbc_windstress_v &
                ,p_oce_sfc%heatflux_total, p_oce_sfc%frshflux_volumetotal )
-               
+
       ENDIF
 
       IF (isRegistered('mld')) THEN
@@ -948,7 +948,7 @@ CONTAINS
 
 
       CALL dbg_print('Diag: mld',p_diag%mld,str_module,4,in_subset=owned_cells)
-      
+
       ! square of ssh
       p_diag%zos_square = merge(sea_surface_height*sea_surface_height,0.0_wp,isRegistered('zos_square'))
 
@@ -982,7 +982,7 @@ CONTAINS
       monitor%ice_framStrait = merge(section_ice_flux(oce_sections(7), ice%hi*ice%conc, ice%vn_e), &
           &                      0.0_wp, &
           &                      isRegistered('ice_framStrait'))
-     
+
       IF (isRegistered('verticallyTotal_mass_flux_e')) THEN
         CALL verticallyIntegrated_field(ocean_state%p_diag%verticallyTotal_mass_flux_e, &
           & ocean_state%p_diag%mass_flx_e, owned_edges)
@@ -990,7 +990,7 @@ CONTAINS
            str_module, 1, in_subset=owned_edges)
 
       ENDIF
-      
+
 !TODO       CASE (10)
 !TODO         monitor%agulhas                = sflux*OceanReferenceDensity
 !TODO       CASE (11)
@@ -1148,7 +1148,7 @@ CONTAINS
     potential_energy = totalSum / totalWeight
   END FUNCTION potential_energy
 
-  
+
   FUNCTION potential_energy_zstar(w,h,rho,del_zlev_i, stretch, weights,in_subset)
     REAL(wp), INTENT(IN) :: w(:,:,:)
     REAL(wp), INTENT(IN) :: h(:,:)
@@ -1210,20 +1210,20 @@ CONTAINS
             DO level = start_vertical, MIN(end_vertical, in_subset%vertical_levels(idx,block)) - 1
               z_w = (w(idx,level,block)*del_zlev_i(level) &
                 &  + w(idx,level+1,block)*del_zlev_i(level+1)) &
-                & /(del_zlev_i(level)+del_zlev_i(level+1)) 
-  
+                & /(del_zlev_i(level)+del_zlev_i(level+1))
+
               sum_value(level, myThreadNo)  = sum_value(level, myThreadNo) + &
                 & grav*z_w*rho(idx, level, block) * weights(idx, level, block)*stretch(idx, block)
-  
+
               sum_weight(level, myThreadNo)  = sum_weight(level, myThreadNo) + weights(idx, level, block)
-  
+
             ENDDO
           ENDDO
         ENDDO
   !ICON_OMP_END_DO
-  
+
       ELSE ! no in_subset%vertical_levels
-  
+
   !ICON_OMP_DO PRIVATE(block, start_index, end_index)
         DO block = in_subset%start_block, in_subset%end_block
           CALL get_index_range(in_subset, block, start_index, end_index)
@@ -1233,8 +1233,8 @@ CONTAINS
             DO level = start_vertical, end_vertical - 1
               z_w = (w(idx,level,block)*del_zlev_i(level) &
                 &  + w(idx,level+1,block)*del_zlev_i(level+1)) &
-                & /(del_zlev_i(level)+del_zlev_i(level+1)) 
-  
+                & /(del_zlev_i(level)+del_zlev_i(level+1))
+
               sum_value(level, myThreadNo)  = sum_value(level, myThreadNo) + &
                 & grav*z_w*rho(idx, level, block) * weights(idx,level,block)*stretch(idx, block)
               sum_weight(level, myThreadNo)  = sum_weight(start_vertical, myThreadNo) + weights(idx, level, block)
@@ -1630,7 +1630,7 @@ CONTAINS
     END DO
 
     !find atlantic moc at 26n , depth=1000m
-    factor_to_sv=1.0_wp/OceanReferenceDensity*1e-6_wp  
+    factor_to_sv=1.0_wp/OceanReferenceDensity*1e-6_wp
     amoc26n(1)=atlant_moc(get_level_index_by_depth(patch_3d, 1000.0_wp),116)*factor_to_sv
 
 
@@ -1662,7 +1662,7 @@ CONTAINS
   ! TODO: implement variable output dimension (1 deg resolution) and smoothing extent
   !!
 !<Optimize:inUse>
-  SUBROUTINE calc_psi (patch_3D, u, prism_thickness, u_vint, this_datetime)
+  SUBROUTINE calc_psi (patch_3D, u, prism_thickness, u_vint, this_datetime, use_acc)
 
     TYPE(t_patch_3d ),TARGET, INTENT(inout)  :: patch_3D
     REAL(wp), INTENT(in)               :: u(:,:,:)     ! zonal velocity at cell centers
@@ -1686,13 +1686,15 @@ CONTAINS
     INTEGER :: jlat, jlon, jlt, jln, jltx, jlnx, jsmth2
     INTEGER(i8)        :: idate, iextra(4)
 
-
     REAL(wp) :: z_lat_deg, z_lon_deg, z_lat_dist, delta_z, rsmth
     REAL(wp), ALLOCATABLE :: z_uint_reg(:,:)                     ! vertical integral on regular grid
     REAL(wp), ALLOCATABLE :: psi_reg(:,:)                        ! horizontal stream function
 
     TYPE(t_patch), POINTER  :: patch_2d
     TYPE(t_subset_range), POINTER :: all_cells, dom_cells
+
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
+    LOGICAL :: lacc
 
     !CHARACTER(len=*), PARAMETER :: routine = 'mo_ocean_diagnostics:calc_psi'
 
@@ -1706,12 +1708,22 @@ CONTAINS
     all_cells => patch_2d%cells%ALL
     dom_cells => patch_2d%cells%in_domain
 
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
     ! (1) barotropic system:
     !     vertical integration of zonal velocity times vertical layer thickness [m/s*m]
+
 !ICON_OMP_PARALLEL_DO PRIVATE(jc, jk, start_index, end_index) SCHEDULE(dynamic)
     DO blockNo = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, blockNo, start_index, end_index)
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       u_vint(:,blockNo)     = 0.0_wp
+      !$ACC END KERNELS
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jc = start_index, end_index
 
         DO jk = 1, patch_3d%p_patch_1d(1)%dolic_c(jc,blockNo)
@@ -1720,6 +1732,7 @@ CONTAINS
 
         END DO
       END DO
+      !$ACC END PARALLEL LOOP
     END DO
 !ICON_OMP_END_PARALLEL_DO
 
@@ -2003,7 +2016,7 @@ CONTAINS
 
 
   SUBROUTINE diag_heat_salt_tendency(patch_3d, n, ice, thetao, so, delta_ice, delta_snow, &
-       delta_thetao, delta_so, stretch_c)
+       delta_thetao, delta_so, stretch_c, use_acc)
 
     TYPE(t_patch_3d ),TARGET, INTENT(in)     :: patch_3D
 
@@ -2018,9 +2031,18 @@ CONTAINS
     REAL(wp), INTENT(INOUT)  :: delta_thetao(:,:,:)
     REAL(wp), INTENT(INOUT)  :: delta_so(:,:,:)
 
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+
     INTEGER  :: n, blk, cell, cellStart,cellEnd, level, dz
     REAL(wp) :: dti, rhoicwa, rhosnic, rhosnwa, tfreeze, tmelt,           &
                 tref, entmel,  sithk, snthk
+    LOGICAL  :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     rhoicwa = rhoi / rho_ref
     rhosnwa = rhos / rho_ref
@@ -2031,24 +2053,26 @@ CONTAINS
     tref = 273.15
     entmel = rhoi * alf
 
+    subset => patch_3d%p_patch_2d(1)%cells%owned
 
     IF ( n .EQ. 1) THEN
 
-      subset => patch_3d%p_patch_2d(1)%cells%owned
       DO blk = subset%start_block, subset%end_block
         CALL get_index_range(subset, blk, cellStart, cellEnd)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO cell = cellStart, cellEnd
 
           delta_ice(cell,blk) = SUM(ice%hi(cell,:,blk)*ice%conc(cell,:,blk))
           delta_snow(cell,blk) = SUM(ice%hi(cell,:,blk)*ice%hs(cell,:,blk))
 
+          !$ACC LOOP SEQ
           DO level = 1,subset%vertical_levels(cell,blk)
             delta_thetao(cell,level,blk) = thetao(cell,level,blk)
             delta_so(cell,level,blk) = so(cell,level,blk)
-
           END DO ! level
 
         END DO ! cell
+        !$ACC END PARALLEL LOOP
       END DO ! blk
 
     ENDIF
@@ -2057,9 +2081,9 @@ CONTAINS
 
       dti = 1.0_wp / dtime
 
-      subset => patch_3d%p_patch_2d(1)%cells%owned
       DO blk = subset%start_block, subset%end_block
         CALL get_index_range(subset, blk, cellStart, cellEnd)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO cell = cellStart, cellEnd
 
           ! tendency of equivalent thickness of sea ice
@@ -2068,7 +2092,7 @@ CONTAINS
           ! converted to heat content
           delta_ice(cell,blk) = (( rhoicwa * clw * OceanReferenceDensity * sithk           &
                * ( tfreeze + tmelt - tref )  )                                            &
-               - ( sithk * entmel )) * dti 
+               - ( sithk * entmel )) * dti
 
           ! tendency of equivalent thickness of snow
           snthk = SUM(ice%hi(cell,:,blk)*ice%hs(cell,:,blk)) - delta_snow(cell,blk)
@@ -2078,6 +2102,7 @@ CONTAINS
                * ( tmelt - tref )  )                                                      &
                - ( rhosnic * snthk * entmel )) * dti
 
+          !$ACC LOOP SEQ
           DO level = 1,subset%vertical_levels(cell,blk)
 
             IF (vert_cor_type .EQ. 1) THEN
@@ -2095,12 +2120,13 @@ CONTAINS
 
           END DO ! level
 
-      END DO ! cell
-    END DO ! blk
+        END DO ! cell
+        !$ACC END PARALLEL LOOP
+      END DO ! blk
 
-  ENDIF
+    ENDIF
 
-END SUBROUTINE diag_heat_salt_tendency
+  END SUBROUTINE diag_heat_salt_tendency
 
   SUBROUTINE calc_heat_content(patch_3d, thickness, ice, tracers, &
        heat_content_liquid_water, heat_content_seaice,            &
@@ -2182,12 +2208,12 @@ END SUBROUTINE diag_heat_salt_tendency
     END DO !block
   END SUBROUTINE calc_heat_content
 
-  
+
   SUBROUTINE calc_eddydiag(patch_3d,u,v,w,w_prismcenter,T,S,R &
                ,uT, uS, uR, uu    &
                ,vT, vS, vR, vv    &
                ,wT, wS, wR, ww, uv, uw, vw, rr, ss, tt, sigma0   &
-               ,hflr, fwr, tauxu, tauyv & 
+               ,hflr, fwr, tauxu, tauyv &
                , topbc_windstress_u, topbc_windstress_v &
                ,heatflux_total, frshflux_volumetotal)
 
@@ -2201,8 +2227,8 @@ END SUBROUTINE diag_heat_salt_tendency
     REAL(wp), INTENT(IN)   :: S(:,:,:) !< salinity
     REAL(wp), INTENT(IN)   :: R(:,:,:) !< density
     REAL(wp), INTENT(in)  :: heatflux_total(:,:)   !< net heatflux
-    REAL(wp), INTENT(in)  :: frshflux_volumetotal(:,:)   !< net fresh water flux 
-    REAL(wp), INTENT(in)  :: topbc_windstress_u(:,:)  !< windstress x 
+    REAL(wp), INTENT(in)  :: frshflux_volumetotal(:,:)   !< net fresh water flux
+    REAL(wp), INTENT(in)  :: topbc_windstress_u(:,:)  !< windstress x
     REAL(wp), INTENT(in)  :: topbc_windstress_v(:,:)  !< windstress y
 
 
@@ -2211,7 +2237,7 @@ END SUBROUTINE diag_heat_salt_tendency
     REAL(wp), INTENT(INOUT)  :: hflR(:,:) !< product of netheatflux and density
     REAL(wp), INTENT(INOUT)  :: fwR(:,:) !< product of fw flux and density
     REAL(wp), INTENT(INOUT)  :: tauxU(:,:) !< product of x-windstress and u-velocity
-    REAL(wp), INTENT(INOUT)  :: tauyV(:,:) !< product of y-windstress and v-velocity 
+    REAL(wp), INTENT(INOUT)  :: tauyV(:,:) !< product of y-windstress and v-velocity
     REAL(wp), INTENT(INOUT)  :: uT(:,:,:) !< product of temperature and u-velocity
     REAL(wp), INTENT(INOUT)  :: uS(:,:,:) !< product of salinity and u-velocity
     REAL(wp), INTENT(INOUT)  :: uR(:,:,:) !< product of density and u-velocity
@@ -2222,15 +2248,15 @@ END SUBROUTINE diag_heat_salt_tendency
     REAL(wp), INTENT(INOUT)  :: TT(:,:,:) !< square of temperature
     REAL(wp), INTENT(INOUT)  :: vT(:,:,:) !< product of temperature and v-velocity
     REAL(wp), INTENT(INOUT)  :: vS(:,:,:) !< product of salinity and v-velocity
-    REAL(wp), INTENT(INOUT)  :: vR(:,:,:) !< product of density and v-velocity  
+    REAL(wp), INTENT(INOUT)  :: vR(:,:,:) !< product of density and v-velocity
     REAL(wp), INTENT(INOUT)  :: vv(:,:,:) !< square of  v-velocity
 
     REAL(wp), INTENT(INOUT)  :: wT(:,:,:) !< product of temperature and w-velocity
     REAL(wp), INTENT(INOUT)  :: wS(:,:,:) !< product of salinity and w-velocity
     REAL(wp), INTENT(INOUT)  :: wR(:,:,:) !< product of density and w-velocity
-    REAL(wp), INTENT(INOUT)  :: ww(:,:,:) !< square of w-velocity 
+    REAL(wp), INTENT(INOUT)  :: ww(:,:,:) !< square of w-velocity
 
-    REAL(wp), INTENT(INOUT)  :: uv(:,:,:) !< product of u-velocity and w-velocity 
+    REAL(wp), INTENT(INOUT)  :: uv(:,:,:) !< product of u-velocity and w-velocity
     REAL(wp), INTENT(INOUT)  :: uw(:,:,:) !< product of v-velocity and w-velocity
     REAL(wp), INTENT(INOUT)  :: vw(:,:,:) !< product of u-velocity and v-velocity
 
@@ -2368,7 +2394,7 @@ END SUBROUTINE diag_heat_salt_tendency
     TYPE(t_patch_3d), TARGET, INTENT(in)     :: patch_3d
     REAL(wp), TARGET, Intent(inout)          :: mld(:,:)
     REAL(wp), TARGET, Intent(in)             :: zgrad_rho(:,:,:)
-    REAL(wp)                                 :: sigcrit 
+    REAL(wp)                                 :: sigcrit
 
     TYPE(t_patch), POINTER                   :: patch_2d
     TYPE(t_subset_range), POINTER            :: owned_cells

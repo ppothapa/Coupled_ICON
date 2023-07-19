@@ -10,7 +10,7 @@
 # Buildbot test, i.e. checks files in ICON source directories.
 
 # The known patterns are (space-separated list of single-quoted patterns):
-known_patterns="'*f90' '*.F90' '*.inc' '*.incf' '*.h' '*.c' '*.cu'"
+known_patterns="'*.f90' '*.F90' '*.inc' '*.incf' '*.h' '*.c' '*.cu'"
 
 # ICON source directories (space-separated list of single-quoted paths relative
 # to the root repo directory):
@@ -21,6 +21,16 @@ job_num=8
 
 set -eu
 set -o pipefail
+
+check_exist()
+{
+  for input in "$@"; do
+    if test ! -e "${input}"; then
+      echo "ERROR: '${input}' does not exist" >&2
+      exit 2
+    fi
+  done
+}
 
 list_files()
 {
@@ -42,7 +52,7 @@ list_files()
 }
 
 if test $# -eq 0; then
-  icon_dir=$(unset CDPATH; cd "$(dirname "$0")/../../.."; pwd)
+  icon_dir=$(unset CDPATH; cd "$(dirname "$0")/../.."; pwd)
   eval "set dummy $(
     eval "set dummy ${icon_directories}; shift"
     for dir in "$@"; do
@@ -50,14 +60,16 @@ if test $# -eq 0; then
     done); shift"
 fi
 
+check_exist "$@"
+
 exitcode=0
 
-list_files yes "$@" | xargs -P ${job_num} -I{} -- ${SHELL} -c 'LC_CTYPE=en_US.UTF-8 grep --color="auto" -Hnaxv ".*" {} >&2; test $? -eq 1' || {
+list_files yes "$@" | xargs -P ${job_num} -I{} -- ${SHELL-$BASH} -c 'LC_CTYPE=en_US.UTF-8 grep --color="auto" -Hnaxv ".*" {} >&2; test $? -eq 1' || {
   echo "ERROR: input files contain invalid UTF-8 byte sequences (see above)" >&2
   exitcode=1
 }
 
-list_files no "$@" | xargs -P ${job_num} -I{} -- ${SHELL} -c 'grep --color="auto" -HnP "[^\x00-\x7F]" {} >&2; test $? -eq 1' || {
+list_files no "$@" | xargs -P ${job_num} -I{} -- ${SHELL-$BASH} -c 'grep --color="auto" -HnP "[^\x00-\x7F]" {} >&2; test $? -eq 1' || {
   echo "ERROR: input files contain non-ASCII characters (see above)" >&2
   exitcode=1
 }

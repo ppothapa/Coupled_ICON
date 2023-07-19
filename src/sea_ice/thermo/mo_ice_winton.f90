@@ -124,11 +124,9 @@ CONTAINS
     muS = mu*Sice
     
    !-------------------------------------------------------------------------------
-    !$ACC DATA PRESENT(Tsurf, T1, T2, hi, hs, Qtop, Qbot, SWnet, nonsolar) &
-    !$ACC   PRESENT(dnonsolardT, Tfw) IF(lacc)
 
     ! initialization
-    !$ACC PARALLEL IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
     !$ACC LOOP SEQ
     DO k = 1,kice
       !$ACC LOOP GANG VECTOR
@@ -140,7 +138,7 @@ CONTAINS
     !$ACC END PARALLEL
     idt2   =  1.0_wp / (2.0_wp*pdtime)
     
-    !$ACC PARALLEL IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
     !$ACC LOOP SEQ
     DO k=1,kice
       !$ACC LOOP GANG VECTOR PRIVATE(B, A, K1, K2, D, iK1B, Tsurfm, A1a, A1) &
@@ -211,8 +209,6 @@ CONTAINS
     END DO
     !$ACC END PARALLEL
 
-    !$ACC END DATA
-
   END SUBROUTINE set_ice_temp_winton
 
   !-------------------------------------------------------------------------------
@@ -235,9 +231,10 @@ CONTAINS
   !! Dirk Notz, following MPI-OM. Code transfered to ICON.
   !!
 
-  SUBROUTINE ice_growth_winton(p_patch, ice)!, lat)
+  SUBROUTINE ice_growth_winton(p_patch, ice, use_acc)!, lat)
     TYPE(t_patch)            , INTENT(IN), TARGET    :: p_patch
     TYPE(t_sea_ice)          , INTENT(INOUT)         :: ice
+    LOGICAL, INTENT(IN), OPTIONAL                    :: use_acc
     !REAL(wp),                  INTENT(IN)    :: lat(:,:,:) 
                                    !! lat. heat flux  [W/m^2] DIMENSION (ie,je,kice)
 
@@ -269,10 +266,22 @@ CONTAINS
     INTEGER :: k, jb, jc, i_startidx_c, i_endidx_c     ! loop indices
     REAL(wp) :: muS
 
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
     muS = mu*Sice
 
+    !$ACC DATA CREATE(Q_surplus) IF(lacc)
+
     ! Necessary initialisation
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     Q_surplus(:,:,:) = 0.0_wp
+    !$ACC END KERNELS
     surfmelti1       = 0.0_wp
     surfmelti2       = 0.0_wp
     !
@@ -281,6 +290,7 @@ CONTAINS
     !-------------------------------------------------------------------------------
     DO jb = 1,p_patch%nblks_c
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c) 
+      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
       DO k=1,ice%kice
         DO jc = i_startidx_c,i_endidx_c
           ! Do the following wherever there is ice
@@ -482,7 +492,10 @@ CONTAINS
           END IF  ! hi > 0
         END DO
       END DO
+      !$ACC END PARALLEL LOOP
     END DO
+
+    !$ACC END DATA
 
 !---------DEBUG DIAGNOSTICS-------------------------------------------
   CALL dbg_print('GrowWinton: ice%hi'   , ice%hi   , 'ice_growth_winton',3, in_subset=p_patch%cells%owned)

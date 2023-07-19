@@ -16,9 +16,6 @@
 [submodule "externals/rte-rrtmgp"]
 	path = externals/rte-rrtmgp
 	url = https://github.com/earth-system-radiation/rte-rrtmgp.git
-[submodule "externals/cub"]
-	path = externals/cub
-	url = https://github.com/NVlabs/cub.git
 [submodule "externals/cdi"]
 	path = externals/cdi
 	url = ../../mpim-sw/libcdi.git

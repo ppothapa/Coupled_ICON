@@ -907,12 +907,12 @@ CONTAINS
       CALL update_PP_scheme(patch_3d, ocean_state, fu10, concsum, params_oce,op_coeffs)
     CASE(vmix_tke)
       !write(*,*) 'Do calc_tke...'
-      CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10)
+      CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10, concsum)
     CASE(vmix_idemix_tke)
       !write(*,*) 'Do calc_idemix...'
       CALL calc_idemix(patch_3d, ocean_state, params_oce, op_coeffs, atmos_fluxes)
       !CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes)
-      CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10)
+      CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10, concsum)
     CASE(3) ! by_ogut 
       CALL calc_kpp(patch_3d, ocean_state, params_oce, atmos_fluxes, p_oce_sfc, concsum)
     CASE default
@@ -994,11 +994,11 @@ CONTAINS
     CASE(vmix_tke)
       !write(*,*) 'Do calc_tke...'
       ! tke does not need a special routine for zstar
-      CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10)
+      CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10, concsum)
     CASE(vmix_idemix_tke)
       !write(*,*) 'Do calc_idemix...'
       CALL calc_idemix(patch_3d, ocean_state, params_oce, op_coeffs, atmos_fluxes)
-      CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10)
+      CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10, concsum)
     CASE(3) ! by_ogut 
       CALL calc_kpp(patch_3d, ocean_state, params_oce, atmos_fluxes, p_oce_sfc, concsum)
     CASE default

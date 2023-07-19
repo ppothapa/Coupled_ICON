@@ -34,6 +34,10 @@ BUILD_ENV=". \"${ENV}\";. \"${script_dir}/module_switcher\"; switch_for_module $
 
 CC='nvc'
 CFLAGS='-g -O2'
+
+CXX='nvc++'
+CXXFLAGS='-g -O2'
+
 CPPFLAGS="-I${sw_root}/include -I${sw_root}/include/libxml2"
 
 FC='nvfortran'
@@ -64,6 +68,8 @@ BUILD_ENV="${BUILD_ENV}" \
 CC="${CC}" \
 CFLAGS="${CFLAGS}" \
 CPPFLAGS="${CPPFLAGS}" \
+CXX="${CXX}" \
+CXXFLAGS="${CXXFLAGS}" \
 FC="${FC}" \
 FCFLAGS="${FCFLAGS}" \
 ICON_FCFLAGS="${ICON_FCFLAGS}" \

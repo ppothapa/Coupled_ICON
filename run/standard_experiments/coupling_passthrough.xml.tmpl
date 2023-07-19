@@ -73,9 +73,9 @@
       <grid alias_name="icon_ocean_grid" id="2"/>
    </grids>
    <dates>
-      <start_date>+1800-01-01T00:00:00.000</start_date>
-      <end_date>+2100-01-01T00:00:00.000</end_date>
-      <calendar>proleptic-gregorian</calendar>
+      <start_date>$start_date</start_date>
+      <end_date>$next_date</end_date>
+      <calendar>%{calendar}</calendar>
    </dates>
    <timestep_unit>ISO_format</timestep_unit>
    <couples>
@@ -288,8 +288,7 @@
             </timestep>
             <mapping_on_source>true</mapping_on_source>
             <interpolation_requirements>
-               <interpolation method="bernstein_bezier"/>
-               <interpolation method="n-nearest_neighbor" n="4" weighted="ARITHMETIC_AVERAGE"/>
+               <interpolation method="n-nearest_neighbor" n="1" weighted="ARITHMETIC_AVERAGE"/>
                <interpolation method="fixed_value" user_value="-999.9"/>
             </interpolation_requirements>
             <enforce_write_weight_file filename="">false</enforce_write_weight_file>
@@ -306,7 +305,7 @@
             </timestep>
             <mapping_on_source>true</mapping_on_source>
             <interpolation_requirements>
-               <interpolation enforced_conservation="false" method="conservative" normalisation="FRACAREA" order="1" partial_coverage="true"/>
+               <interpolation method="n-nearest_neighbor" n="1" weighted="ARITHMETIC_AVERAGE"/>
                <interpolation method="fixed_value" user_value="-999.9"/>
             </interpolation_requirements>
             <enforce_write_weight_file filename="">false</enforce_write_weight_file>

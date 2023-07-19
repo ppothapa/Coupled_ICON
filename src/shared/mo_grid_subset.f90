@@ -166,6 +166,7 @@ CONTAINS
     TYPE(t_subset_range), INTENT(in) :: subset_range
     INTEGER, INTENT(in) :: current_block
     INTEGER, INTENT(out) :: start_index, end_index
+    !$ACC ROUTINE SEQ
 
     start_index = 1
     end_index = subset_range%block_size
@@ -191,7 +192,7 @@ CONTAINS
 
   END SUBROUTINE compare_subsets_range
   !-------------------------------------------------------------------------
-  
+
   !-------------------------------------------------------------------------
   ! The following functions are for conversion of 1D to 2D indices and vice versa
   !
@@ -325,4 +326,3 @@ CONTAINS
   END SUBROUTINE write_subset
 
 END MODULE mo_grid_subset
-

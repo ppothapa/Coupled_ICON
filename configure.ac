@@ -405,9 +405,9 @@ AC_ARG_ENABLE([nccl],
   [AS_IF([test x"$enableval" != xno], [enable_nccl=yes])],
   [enable_nccl=no])
 
-AC_ARG_ENABLE([cuda_graphs],
+AC_ARG_ENABLE([cuda-graphs],
   [AS_HELP_STRING([--enable-cuda-graphs],
-     [enable CUDA graphs. Warning! This is an experimental feature and it requires Nvidia HPC SDK >= 23.3 @<:@default=no@:>@])],
+     [enable CUDA graphs @<:@default=no@:>@])],
   [AS_IF([test x"$enableval" != xno], [enable_cuda_graphs=yes])],
   [enable_cuda_graphs=no])
 
@@ -488,8 +488,8 @@ sed 's:[[^\.]]*$:%:'`
     AS_CASE(["$icon_fcgroup_all_entries:"],
       [*":$icon_fcgroup_pattern:"*],
       [AC_MSG_WARN([entry '$icon_fcgroup_entry' of the Fortran compile group dnl
-'$icon_fcgroup' is ignored: an entry with the same relative path (modulo file dnl
-extension) has already been registered])
+'$icon_fcgroup' is ignored: an entry with the same relative path (modulo dnl
+file extension) has already been registered])
        continue],
       [AS_VAR_APPEND([icon_fcgroup_all_entries], [":$icon_fcgroup_pattern"])])
     AS_IF([test -n "$ICON_FCGROUP_ASSIGNMENTS"],
@@ -565,12 +565,6 @@ AC_ARG_WITH([external-tixi],
      [use external TIXI library @<:@default=no@:>@])],
   [AS_IF([test x"$withval" != xno], [with_external_tixi=yes])],
   [with_external_tixi=no])
-
-AC_ARG_WITH([external-cub],
-  [AS_HELP_STRING([--with-external-cub],
-     [use external CUB library @<:@default=no@:>@])],
-  [AS_IF([test x"$withval" != xno], [with_external_cub=yes])],
-  [with_external_cub=no])
 
 ############################# CODEBASE EXTENSIONS ##############################
 
@@ -855,7 +849,16 @@ AS_VAR_IF([enable_nccl], [yes],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}USE_NCCL"])])
 
 AS_VAR_IF([enable_cuda_graphs], [yes],
-  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}ICON_USE_CUDA_GRAPH"])])
+  [icon_warn=yes
+   AS_CASE(["$FC_VENDOR,$FC_VERSION"],
+     [portland,nv:*],
+     [ACX_COMPARE_VERSION([$FC_VERSION" | cut -d: -f2"], [ge], [23.3],
+        [icon_warn=no])])
+   AS_VAR_IF([icon_warn], [yes],
+     [AC_MSG_WARN([Fortran compiler is not recognized as NVIDIA HPC Fortran dnl
+23.3 or newer: it is strongly recommended to disable CUDA graphs dnl
+(--disable-cuda-graphs)])])
+   AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}ICON_USE_CUDA_GRAPH"])])
 
 ######################### C COMPILER COMMAND AND FLAGS #########################
 AC_LANG([C])
@@ -863,6 +866,7 @@ dnl Override the default flags set by AC_PROG_CC:
 CFLAGS=${CFLAGS-}
 dnl Save the flags to pass them later to the bundled libraries:
 subdir_CFLAGS=$CFLAGS
+subdir_CPPFLAGS=$CPPFLAGS
 
 dnl Make sure the configure checks are run with ICON_CFLAGS:
 test -n "${ICON_CFLAGS}" && AS_VAR_APPEND([CFLAGS], [" ${ICON_CFLAGS}"])
@@ -920,6 +924,24 @@ dnl support/util_timer.c: sys/systemcfg.h asm/msr.h
 
 dnl Header files that are included from non-mandatory files
 dnl support/util_signal.c: features.h strings.h fenv.h fptrap.h
+
+######################## C++ COMPILER COMMAND AND FLAGS ########################
+
+dnl Override the default flags set by AC_PROG_CXX:
+CXXFLAGS=${CXXFLAGS-}
+dnl Save the flags to pass them later to the bundled libraries:
+subdir_CXXFLAGS=$CXXFLAGS
+
+dnl We do not expand AC_PROG_CXX because ICON itself does not need a C++
+dnl compiler yet. However, some of the bundled libraries might need it.
+dnl Therefore we simply declare the following variables to document them in the
+dnl help message:
+AC_ARG_VAR([CXX], [C++ compiler command])dnl
+AC_ARG_VAR([CXXFLAGS], [C++ compiler flags])dnl
+
+AC_ARG_VAR([ICON_BUNDLED_CXXFLAGS],
+  [C++ compiler flags to be appended to CXXFLAGS when configuring the bundled
+libraries])dnl
 
 ###################### SECONDARY GPU COMPILERS AND FLAGS #######################
 
@@ -1339,10 +1361,6 @@ accordingly])])
         [Fortran compiler flags to be appended to FCFLAGS when configuring the
 bundled version of RTE+RRTMGP library @<:@default=$ICON_BUNDLED_FCFLAGS@:>@])dnl
       ICON_RTE_RRTMGP_FCFLAGS=${ICON_RTE_RRTMGP_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
-      AC_ARG_VAR([ICON_RTE_RRTMGP_CFLAGS],
-        [C compiler flags to be appended to CFLAGS when configuring the bundled
-version of RTE+RRTMGP library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
-      ICON_RTE_RRTMGP_CFLAGS=${ICON_RTE_RRTMGP_CFLAGS-$ICON_BUNDLED_CFLAGS}
       ACX_SUBDIR_INIT_CONFIG([externals/rte-rrtmgp], [no-run])
       ACX_SUBDIR_REMOVE_ARGS([externals/rte-rrtmgp],
         [BUILD_ENV=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*],
@@ -1350,7 +1368,6 @@ version of RTE+RRTMGP library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
         [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([silent-rules])],
         [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([gpu])])
       ACX_SUBDIR_APPEND_ARGS([externals/rte-rrtmgp],
-        [CFLAGS="$subdir_CFLAGS $ICON_RTE_RRTMGP_CFLAGS"],
         [FCFLAGS="$subdir_FCFLAGS $ICON_RTE_RRTMGP_FCFLAGS"],
         [NETCDF_FCFLAGS=], [NETCDF_FCLIBS=],
         [--enable-gpu="$icon_gpu_primary"],
@@ -1390,10 +1407,6 @@ LIBS accordingly])])
         [Fortran compiler flags to be appended to FCFLAGS when configuring the
 bundled version of ECRAD library @<:@default=$ICON_BUNDLED_FCFLAGS@:>@])dnl
       ICON_ECRAD_FCFLAGS=${ICON_ECRAD_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
-      AC_ARG_VAR([ICON_ECRAD_CFLAGS],
-        [C compiler flags to be appended to CFLAGS when configuring the bundled
-version of ECRAD library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
-      ICON_ECRAD_CFLAGS=${ICON_ECRAD_CFLAGS-$ICON_BUNDLED_CFLAGS}
       ACX_SUBDIR_INIT_CONFIG([externals/ecrad], [no-run])
       ACX_SUBDIR_REMOVE_ARGS([externals/ecrad],
         [BUILD_ENV=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*],
@@ -1402,7 +1415,6 @@ version of ECRAD library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
         [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([single-precision])],
         [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([pgi-inlib])])
       ACX_SUBDIR_APPEND_ARGS([externals/ecrad],
-        [CFLAGS="$subdir_CFLAGS $ICON_ECRAD_CFLAGS"],
         [FCFLAGS="$subdir_FCFLAGS $ICON_ECRAD_FCFLAGS"],
         [NETCDF_FCFLAGS=], [NETCDF_FCLIBS=],
         [--enable-silent-rules="$enable_silent_rules"],
@@ -2201,25 +2213,14 @@ $BUNDLED_LIBFILES"])])
 
 AS_CASE([$icon_gpu_secondary],
   [cuda],
-  [AS_VAR_IF([with_external_cub], [yes],
-     [ACX_LANG_PUSH_CUDA
-      AC_CHECK_HEADER([cub/device/device_select.cuh], [],
-        [AC_MSG_FAILURE([unable to find header files of CUB library: either dnl
+  [ACX_LANG_PUSH_CUDA
+   AC_CHECK_HEADER([cub/device/device_select.cuh], [],
+     [AC_MSG_FAILURE([unable to find header files of CUB library: either dnl
 switch the secondary GPU compiler (e.g. dnl
---enable-gpu=${icon_gpu_primary}+hip) or disable GPU support dnl
-(--disable-gpu), or use the bundled version of CUB library dnl
-(--without-external-cub), or set CUDAFLAGS accordingly])],
-        [[// override default includes]])
-      ACX_LANG_POP_CUDA],
-     [icon_subdir_srcdir="$srcdir/externals/cub"
-      icon_subdir_unique_file="cub/device/device_select.cuh"
-      AS_IF([test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"],
-        [AC_MSG_ERROR([unable to find sources of the bundled version of CUB dnl
-library ($icon_subdir_unique_file) in '$icon_subdir_srcdir': either switch dnl
-the secondary GPU compiler (e.g. --enable-gpu=${icon_gpu_primary}+hip), or dnl
-disable GPU support (--disable-gpu) or provide an external version of CUB dnl
-library (--with-external-cub) by setting CUDAFLAGS accordingly])])
-      AS_VAR_APPEND([CUDAFLAGS], [" -I${srcdir}/externals/cub"])])],
+--enable-gpu=${icon_gpu_primary}+hip) or disable GPU support
+(--disable-gpu), or set CUDAFLAGS accordingly])],
+     [[// override default includes]])
+   ACX_LANG_POP_CUDA],
   [hip],
   [ACX_LANG_PUSH_HIP
    AC_CHECK_HEADER([hipcub/device/device_select.hpp], [],
@@ -2227,7 +2228,7 @@ library (--with-external-cub) by setting CUDAFLAGS accordingly])])
 switch the secondary GPU compiler (e.g. dnl
 --enable-gpu=${icon_gpu_primary}+cuda) or disable GPU support dnl
 (--disable-gpu), or set HIPFLAGS accordingly])],
-        [[// override default includes]])
+     [[// override default includes]])
    ACX_LANG_POP_HIP])
 
 dnl Prepend the include search flags to FCFLAGS:

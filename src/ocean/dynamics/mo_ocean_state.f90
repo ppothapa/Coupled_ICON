@@ -3069,18 +3069,17 @@ CONTAINS
     LOGICAL,                   INTENT(IN) :: host_to_device   !   .TRUE. : h2d   .FALSE. : d2h
 
     !$ACC ENTER DATA COPYIN(patch_3d, patch_3d%p_patch_1d, patch_3d%p_patch_2d) &
-    !$ACC   COPYIN(patch_3D%p_patch_1D(1)%dolic_c, patch_3D%p_patch_1d(1)%prism_thick_c) &
+    !$ACC   COPYIN(patch_3D%p_patch_1D(1)%dolic_c) &
     !$ACC   COPYIN(patch_3D%p_patch_1d(1)%prism_thick_flat_sfc_c) &
     !$ACC   COPYIN(patch_3d%p_patch_1D(1)%prism_thick_flat_sfc_c, patch_3d%p_patch_1d(1)%del_zlev_m) &
     !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_c, patch_3d%p_patch_1d(1)%dolic_e) &
     !$ACC   COPYIN(patch_3d%p_patch_2d(1)%alloc_cell_blocks, patch_3d%p_patch_2D(1)%nblks_e) &
+    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%cells, patch_3d%p_patch_2d(1)%edges) &
     !$ACC   COPYIN(patch_3d%p_patch_2d(1)%cells%edge_idx, patch_3d%p_patch_2d(1)%cells%edge_blk) &
     !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%cell_idx, patch_3d%p_patch_2d(1)%edges%cell_blk) &
     !$ACC   COPYIN(patch_3d%p_patch_2d(1)%cells%neighbor_idx, patch_3d%p_patch_2d(1)%cells%neighbor_blk) &
     !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%cell_idx, patch_3d%p_patch_2d(1)%edges%cell_blk) &
-    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%inv_dual_edge_length) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%prism_thick_c, patch_3d%p_patch_1d(1)%inv_prism_thick_c) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%inv_prism_center_dist_c)
+    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%inv_dual_edge_length)
 
   END SUBROUTINE transfer_ocean_state
 

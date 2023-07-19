@@ -103,12 +103,13 @@ CONTAINS
   !! Initial release (mo_oce_bulk)          by Stephan Lorenz, MPI-M (2010-07)
   !! Restructuring (mo_ocean_surface)       by Stephan Lorenz, MPI-M (2015-04)
   !
-  SUBROUTINE apply_surface_fluxes_slo(p_patch_3D, p_os, p_ice, p_oce_sfc)
+  SUBROUTINE apply_surface_fluxes_slo(p_patch_3D, p_os, p_ice, p_oce_sfc, use_acc)
 
     TYPE(t_patch_3D ),TARGET, INTENT(IN)        :: p_patch_3D
     TYPE(t_hydro_ocean_state)                   :: p_os
     TYPE(t_sea_ice)                             :: p_ice
     TYPE(t_ocean_surface)                       :: p_oce_sfc
+    LOGICAL, INTENT(IN), OPTIONAL               :: use_acc
     !
     ! local variables
     CHARACTER(LEN=max_char_length), PARAMETER :: routine = 'mo_ocean_surface_refactor:apply_surface_fluxes_slo'
@@ -121,24 +122,37 @@ CONTAINS
 
     REAL(wp)  :: heatflux_surface_layer ! heatflux into the surface layer
     REAL(wp)  :: zunderice_ini
-
+    LOGICAL   :: lacc
 
     TYPE(t_patch), POINTER:: p_patch
     TYPE(t_subset_range), POINTER :: all_cells
 
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
     
     !-----------------------------------------------------------------------
     p_patch         => p_patch_3D%p_patch_2D(1)
     all_cells       => p_patch%cells%all
     !-----------------------------------------------------------------------
+    
+    !$ACC DATA CREATE(sss_inter, zUnderIceOld, zUnderIceIni, zUnderIceArt) IF(lacc)
+
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     sss_inter(:,:)  = p_oce_sfc%sss(:,:)
+
     zUnderIceOld(:,:) = 0.0_wp
+
     zUnderIceArt(:,:) = 0.0_wp
+
     ! freeboard before sea ice model (used for thermal boundary condition (Eq.1))
     ! by construction, is stored in p_oce_sfc%cellThicknessUnderIce
     zUnderIceIni(:,:) = p_oce_sfc%cellThicknessUnderIce (:,:)
+    !$ACC END KERNELS
 
-
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     !!  Provide total ocean forcing:
     !    - total heat fluxes are aggregated for ice/ocean in ice thermodynamics
     !    - total internal salt flux p_oce_sfc%FrshFlux_TotalIce is calculated in sea ice model
@@ -150,6 +164,7 @@ CONTAINS
     p_oce_sfc%FrshFlux_TotalSalt(:,:)   = p_oce_sfc%FrshFlux_Runoff    (:,:) &
       &                                 + p_oce_sfc%FrshFlux_TotalIce  (:,:) &
       &                                 + p_oce_sfc%FrshFlux_TotalOcean(:,:)
+    !$ACC END KERNELS
 
     !  ******  (Thermodynamic Eq. 1)  ******
     ! Apply net surface heat flux to ocean surface (new p_oce_flx%SST)
@@ -158,6 +173,7 @@ CONTAINS
       ! sst-change in surface module after sea-ice thermodynamics using HeatFlux_Total and old freeboard zUnderIceIni
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO jc = i_startidx_c, i_endidx_c
           IF (p_patch_3D%lsm_c(jc,1,jb) <= sea_boundary) THEN
          
@@ -174,6 +190,7 @@ CONTAINS
 
           ENDIF
         ENDDO
+        !$ACC END PARALLEL LOOP
       ENDDO
       ENDIF
     END IF
@@ -185,7 +202,7 @@ CONTAINS
     !    i.e. for salinity relaxation only, no volume flux is applied
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jc = i_startidx_c, i_endidx_c
         IF (p_patch_3D%p_patch_1D(1)%dolic_c(jc,jb) > 0) THEN
 
@@ -231,10 +248,15 @@ CONTAINS
           p_oce_sfc%top_dilution_coeff(jc,jb) = zUnderIce_ini / p_ice%zUnderIce(jc,jb)
         ENDIF  !  dolic>0
       END DO
+      !$ACC END PARALLEL LOOP
     END DO
 
     !! set correct cell thickness under ice
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     p_oce_sfc%cellThicknessUnderIce   (:,:) = p_ice%zUnderIce(:,:)
+    !$ACC END KERNELS
+
+    !$ACC END DATA
 
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     CALL dbg_print('UpdSfc: oce_sfc%HFTot ', p_oce_sfc%HeatFlux_Total,       str_module, 2, in_subset=p_patch%cells%owned)
@@ -326,7 +348,8 @@ CONTAINS
   !  Adapted for zstar
   !
   SUBROUTINE update_ocean_surface_refactor(p_patch_3D, p_os, p_as, p_ice, &
-      & atmos_fluxes, p_oce_sfc, this_datetime, p_op_coeff, eta_c, stretch_c)
+      & atmos_fluxes, p_oce_sfc, this_datetime, p_op_coeff, eta_c, stretch_c, &
+      & use_acc)
 
     TYPE(t_patch_3D ),TARGET, INTENT(IN)        :: p_patch_3D
     TYPE(t_hydro_ocean_state)                   :: p_os
@@ -338,19 +361,29 @@ CONTAINS
     TYPE(t_operator_coeff),   INTENT(IN)        :: p_op_coeff
     REAL(wp), INTENT(INOUT),OPTIONAL :: eta_c(nproma, p_patch_3d%p_patch_2d(1)%alloc_cell_blocks) !! sfc ht 
     REAL(wp), INTENT(IN   ),OPTIONAL :: stretch_c(nproma, p_patch_3d%p_patch_2d(1)%alloc_cell_blocks) 
+    LOGICAL,  INTENT(IN   ),OPTIONAL :: use_acc
     !
     ! local variables
     TYPE(t_patch), POINTER                      :: p_patch
     INTEGER                                     :: trac_no
     REAL(wp)                                    :: dsec
+    LOGICAL                                     :: lacc
 
     CHARACTER(LEN=max_char_length), PARAMETER :: routine = 'mo_ocean_surface_refactor:update_ocean_surface'
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     !-----------------------------------------------------------------------
     p_patch         => p_patch_3D%p_patch_2D(1)
     !-----------------------------------------------------------------------
-    
+
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     p_oce_sfc%top_dilution_coeff(:,:) = 1.0_wp ! Initilize dilution factor to one
+    !$ACC END KERNELS
 
     IF (no_tracer>=1) p_oce_sfc%sst => p_os%p_prog(nold(1))%tracer(:,1,:,1)
     IF (no_tracer>=2) p_oce_sfc%sss => p_os%p_prog(nold(1))%tracer(:,1,:,2)
@@ -366,13 +399,14 @@ CONTAINS
            isRegistered('global_hfbasin') .OR. isRegistered('atlant_hfbasin') .OR. &
            isRegistered('pacind_hfbasin') ) THEN
 
-      CALL diag_heat_salt_tendency(p_patch_3d, 1, p_ice,            &
+      CALL diag_heat_salt_tendency(p_patch_3d, 1, p_ice,     &
          p_os%p_prog(nold(1))%tracer(:,:,:,1),               &
          p_os%p_prog(nold(1))%tracer(:,:,:,2),               &
          p_os%p_diag%delta_ice,                              &
-         p_os%p_diag%delta_snow, p_os%p_diag%delta_thetao, p_os%p_diag%delta_so)
+         p_os%p_diag%delta_snow, p_os%p_diag%delta_thetao,   &
+         p_os%p_diag%delta_so, use_acc=lacc)
 
-     END IF
+    END IF
 
     !---------------------------------------------------------------------
     ! (1) Apply relaxation to surface temperature and salinity
@@ -381,13 +415,13 @@ CONTAINS
       trac_no = 1   !  tracer no 1: temperature
 
       IF (vert_cor_type .EQ. 0 ) THEN
-        CALL update_surface_relaxation(p_patch_3D, p_os, p_ice, p_oce_sfc, trac_no)
+        CALL update_surface_relaxation(p_patch_3D, p_os, p_ice, p_oce_sfc, trac_no, use_acc=lacc)
       ELSE
-        CALL update_surface_relaxation(p_patch_3D, p_os, p_ice, p_oce_sfc, trac_no, stretch_c)
+        CALL update_surface_relaxation(p_patch_3D, p_os, p_ice, p_oce_sfc, trac_no, stretch_c, use_acc=lacc)
       ENDIF
  
       !  apply restoring to surface temperature directly
-      CALL apply_surface_relaxation(p_patch_3D, p_os, p_oce_sfc, trac_no)
+      CALL apply_surface_relaxation(p_patch_3D, p_os, p_oce_sfc, trac_no, use_acc=lacc)
 
     END IF
 
@@ -395,49 +429,53 @@ CONTAINS
       trac_no = 2   !  tracer no 2: salinity
 
       IF (vert_cor_type .EQ. 0) THEN 
-        CALL update_surface_relaxation(p_patch_3D, p_os, p_ice, p_oce_sfc, trac_no)
+        CALL update_surface_relaxation(p_patch_3D, p_os, p_ice, p_oce_sfc, trac_no, use_acc=lacc)
       ELSE
-        CALL update_surface_relaxation(p_patch_3D, p_os, p_ice, p_oce_sfc, trac_no, stretch_c)
+        CALL update_surface_relaxation(p_patch_3D, p_os, p_ice, p_oce_sfc, trac_no, stretch_c, use_acc=lacc)
       ENDIF
  
       !  apply restoring to surface salinity directly
-      CALL apply_surface_relaxation(p_patch_3D, p_os, p_oce_sfc, trac_no)
+      CALL apply_surface_relaxation(p_patch_3D, p_os, p_oce_sfc, trac_no, use_acc=lacc)
 
     ENDIF
 
     !---------------------------------------------------------------------
     ! (2) Receive/calculate surface fluxes and wind stress
     !---------------------------------------------------------------------
-    CALL update_atmos_fluxes(p_patch_3D, p_as, atmos_fluxes, p_oce_sfc, p_os, p_ice, this_datetime)
+    CALL update_atmos_fluxes(p_patch_3D, p_as, atmos_fluxes, p_oce_sfc, p_os, p_ice, this_datetime, use_acc=lacc)
 
-    ! copy atmospheric wind speed from p_as%fu10 into new forcing variable for output purpose - not accumulated yet
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    ! copy atmospheric variables into new forcing variables for diagnostics
     p_oce_sfc%Wind_Speed_10m(:,:) = p_as%fu10(:,:)
 
     !---------------------------------------------------------------------
     ! (3) Sea ice thermodynamics & dynamics (at ocean time-step)
     !---------------------------------------------------------------------
     p_oce_sfc%cellThicknessUnderIce(:,:) = p_ice%zUnderIce(:,:) ! neccessary, because is not yet in restart
-   
+
     p_ice%draftave_old(:,:) = p_ice%draftave(:,:)
+    !$ACC END KERNELS
 
     IF ( i_sea_ice > 0 ) THEN ! sea ice is on
 
         !  (3a) Fast sea ice thermodynamics (Analytical or OMIP cases only. Otherwise, done in the atmosphere)
         IF (iforc_oce == Analytical_Forcing .OR. iforc_oce == OMIP_FluxFromFile)  THEN
-            CALL ice_fast_interface(p_patch, p_ice, atmos_fluxes, this_datetime)
+            CALL ice_fast_interface(p_patch, p_ice, atmos_fluxes, this_datetime, use_acc=lacc)
         ENDIF
 
-        CALL ice_dynamics(p_patch_3D, p_ice, p_oce_sfc, atmos_fluxes, p_os, p_as, p_op_coeff)
+        CALL ice_dynamics(p_patch_3D, p_ice, p_oce_sfc, atmos_fluxes, p_os, p_as, p_op_coeff, use_acc=lacc)
 
-        CALL ice_thermodynamics(p_patch_3D, p_ice, p_oce_sfc, atmos_fluxes, p_os, p_as, p_op_coeff)
+        CALL ice_thermodynamics(p_patch_3D, p_ice, p_oce_sfc, atmos_fluxes, p_os, p_as, p_op_coeff, use_acc=lacc)
 
     ELSE !  sea ice is off
 
       ! for the setup without sea ice the SST is set to freezing temperature Tf
       ! should not be done here! Move to apply_surface_fluxes
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       WHERE (p_oce_sfc%SST(:,:) .LT. Tf)
         p_oce_sfc%SST(:,:) = Tf
       ENDWHERE
+      !$ACC END KERNELS
 
     ENDIF
 
@@ -446,7 +484,8 @@ CONTAINS
     !---------------------------------------------------------------------
     ! atm-ocean stress is either from file, bulk formula, or coupling
     ! if ice dynamics is off, ocean-ice stress is set to zero (no friction with ice)
-    CALL update_ocean_surface_stress(p_patch_3D, p_ice, p_os, atmos_fluxes, p_oce_sfc)
+
+    CALL update_ocean_surface_stress(p_patch_3D, p_ice, p_os, atmos_fluxes, p_oce_sfc, use_acc=lacc)
 
     !---------------------------------------------------------------------
     ! (5) Apply thermal and haline fluxes to the ocean surface layer
@@ -455,34 +494,36 @@ CONTAINS
 
 !   include hamoccs chlorophylls effect sw absorption 
 !   FIXME zstar: Haven't checked for zstar requirements in hamocc 
-    IF ( lhamocc .AND. lfb_bgc_oce ) CALL dynamic_swr_absorption(p_patch_3d, p_os)
+    IF ( lhamocc .AND. lfb_bgc_oce ) CALL dynamic_swr_absorption(p_patch_3d, p_os, use_acc=lacc)
 
 
     IF ( lswr_jerlov ) THEN
-     p_os%p_diag%heatabs(:,:)=(p_os%p_diag%swsum(:,:)  &
-             *p_oce_sfc%HeatFlux_ShortWave(:,:)*(1.0_wp-p_ice%concsum(:,:)))
-
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      p_os%p_diag%heatabs(:,:)=(p_os%p_diag%swsum(:,:)  &
+              *p_oce_sfc%HeatFlux_ShortWave(:,:)*(1.0_wp-p_ice%concsum(:,:)))
+      !$ACC END KERNELS
     ELSE
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       p_os%p_diag%heatabs(:,:)=0.0_wp
+      !$ACC END KERNELS
     ENDIF
 
     IF (vert_cor_type .EQ. 0 ) THEN
-       CALL apply_surface_fluxes_slo(p_patch_3D, p_os, p_ice, p_oce_sfc)
+       CALL apply_surface_fluxes_slo(p_patch_3D, p_os, p_ice, p_oce_sfc, use_acc=lacc)
     ELSE
-       CALL apply_surface_fluxes_zstar_v13(p_patch_3D, p_os, p_ice, p_oce_sfc, eta_c, stretch_c)
+       CALL apply_surface_fluxes_zstar_v13(p_patch_3D, p_os, p_ice, p_oce_sfc, eta_c, stretch_c, use_acc=lacc)
     ENDIF
 
 !   apply subsurface heating
     IF ( lswr_jerlov ) THEN
 
       IF (vert_cor_type .EQ. 0) THEN
-        CALL subsurface_swr_absorption(p_patch_3d, p_os)
+        CALL subsurface_swr_absorption(p_patch_3d, p_os, use_acc=lacc)
       ELSE
-        CALL subsurface_swr_absorption_zstar(p_patch_3d, p_os, stretch_c)
+        CALL subsurface_swr_absorption_zstar(p_patch_3d, p_os, stretch_c, use_acc=lacc)
       ENDIF
 
     ENDIF
-
 
     !---------------------------------------------------------------------
     ! (6) Apply volume flux correction
@@ -497,11 +538,11 @@ CONTAINS
     IF (limit_elevation) THEN
 
       IF (vert_cor_type .EQ. 0) THEN 
-        CALL balance_elevation(p_patch_3D, p_os%p_prog(nold(1))%h,p_oce_sfc,p_ice)
+        CALL balance_elevation(p_patch_3D, p_os%p_prog(nold(1))%h, p_oce_sfc, p_ice, use_acc=lacc)
       !---------DEBUG DIAGNOSTICS-------------------------------------------
         CALL dbg_print('UpdSfc: h-old+BalElev',p_os%p_prog(nold(1))%h  ,str_module, 3, in_subset=p_patch%cells%owned)
       ELSE
-        CALL balance_elevation_zstar(p_patch_3D, eta_c, p_oce_sfc, stretch_c)
+        CALL balance_elevation_zstar(p_patch_3D, eta_c, p_oce_sfc, stretch_c, use_acc=lacc)
       !---------DEBUG DIAGNOSTICS-------------------------------------------
         CALL dbg_print('UpdSfc: h-old+BalElev', eta_c, routine, 2, in_subset=p_patch%cells%owned)
       !---------------------------------------------------------------------
@@ -517,7 +558,7 @@ CONTAINS
   !!
   !! Adapted for zstar
   !
-  SUBROUTINE apply_surface_fluxes_zstar_v13(p_patch_3D, p_os, p_ice, p_oce_sfc, eta_c, stretch_c)
+  SUBROUTINE apply_surface_fluxes_zstar_v13(p_patch_3D, p_os, p_ice, p_oce_sfc, eta_c, stretch_c, use_acc)
 
     TYPE(t_patch_3D ),TARGET, INTENT(IN)        :: p_patch_3D
     TYPE(t_hydro_ocean_state)                   :: p_os
@@ -525,7 +566,8 @@ CONTAINS
     TYPE(t_ocean_surface)                       :: p_oce_sfc
     !
     REAL(wp), INTENT(INOUT) :: eta_c(nproma, p_patch_3d%p_patch_2d(1)%alloc_cell_blocks) !! sfc ht 
-    REAL(wp), INTENT(IN   ) :: stretch_c(nproma, p_patch_3d%p_patch_2d(1)%alloc_cell_blocks) 
+    REAL(wp), INTENT(IN   ) :: stretch_c(nproma, p_patch_3d%p_patch_2d(1)%alloc_cell_blocks)
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
  
     ! local variables
     INTEGER               :: jc, jb, jt
@@ -536,6 +578,7 @@ CONTAINS
     REAL(wp)              :: zUnderIceIni(nproma,p_patch_3D%p_patch_2D(1)%alloc_cell_blocks)
     REAL(wp)              :: dz_old(n_zlev), dz_new(n_zlev), z_change(n_zlev)
     REAL(wp)              :: tdc_i
+    LOGICAL               :: lacc
 
     REAL(wp) :: h_old_test, h_new_test
     
@@ -555,18 +598,33 @@ CONTAINS
     TYPE(t_subset_range), POINTER :: all_cells
     
     CHARACTER(LEN=max_char_length), PARAMETER :: str_module = 'apply_surface_fluxes_zstar_v13'
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+#ifdef _OPENACC
+    IF (lacc) CALL finish(str_module, 'OpenACC version currently not tested/validated')
+#endif
+
+    !$ACC DATA CREATE(sss_inter, sst_inter, zUnderIceIni, dz_old, dz_new, z_change, temp_stretch) IF(lacc)
     
     !-----------------------------------------------------------------------
     p_patch         => p_patch_3D%p_patch_2D(1)
     all_cells       => p_patch%cells%all
     !-----------------------------------------------------------------------
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     sst_inter(:,:)    = p_oce_sfc%sst(:,:)
     sss_inter(:,:)    = p_oce_sfc%sss(:,:)
     zUnderIceIni(:,:) = p_oce_sfc%cellThicknessUnderIce (:,:)
+    !$ACC END KERNELS
 
     CALL dbg_print('UpdSfcSTART: oce_sfc%SST ',p_oce_sfc%SST, str_module, 2, in_subset=p_patch%cells%owned)
     CALL dbg_print('UpdSfcSTART: oce_sfc%SSS ',p_oce_sfc%SSS, str_module, 2, in_subset=p_patch%cells%owned)
 
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     !!  Provide total ocean forcing:
     !    - total heat fluxes are aggregated for ice/ocean in ice thermodynamics
     !    - total internal salt flux p_oce_sfc%FrshFlux_TotalIce is calculated in sea ice model
@@ -578,12 +636,13 @@ CONTAINS
     p_oce_sfc%FrshFlux_TotalSalt(:,:)   = p_oce_sfc%FrshFlux_Runoff    (:,:) &
       &                                 + p_oce_sfc%FrshFlux_TotalIce  (:,:) &
       &                                 + p_oce_sfc%FrshFlux_TotalOcean(:,:)
-
+    !$ACC END KERNELS
     
     IF (no_tracer > 0) THEN
       IF ( heatflux_forcing_on_sst ) THEN
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO jc = i_startidx_c, i_endidx_c
           IF (p_patch_3D%lsm_c(jc,1,jb) <= sea_boundary) THEN
 
@@ -601,6 +660,7 @@ CONTAINS
 
           ENDIF
         ENDDO
+        !$ACC END PARALLEL LOOP
       ENDDO
     ENDIF
     
@@ -612,7 +672,7 @@ CONTAINS
     ! apply volume flux to surface elevation
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-
+      !$ACC PARALLEL LOOP GANG VECTOR PRIVATE(dz_old, dz_new, z_change) DEFAULT(PRESENT) IF(lacc)
       DO jc = i_startidx_c, i_endidx_c
         IF (p_patch_3D%p_patch_1D(1)%dolic_c(jc,jb) > 0) THEN
 
@@ -708,12 +768,17 @@ CONTAINS
 
         ENDIF  !  dolic>0
       END DO
+      !$ACC END PARALLEL LOOP
     END DO
 
     ENDIF
 
     !! set correct cell thickness under ice
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     p_oce_sfc%cellThicknessUnderIce   (:,:) = p_ice%zUnderIce(:,:)
+    !$ACC END KERNELS
+
+    !$ACC END DATA
 
     CALL dbg_print('UpdSfcEND: oce_sfc%SST ',p_oce_sfc%SST, str_module, 2, in_subset=p_patch%cells%owned)
     CALL dbg_print('UpdSfcEND: oce_sfc%SSS ',p_oce_sfc%SSS, str_module, 2, in_subset=p_patch%cells%owned)
@@ -737,7 +802,7 @@ CONTAINS
   !! Initial release by Vladimir Lapin, MPI-M (2016-11)
   !
 !<Optimize_Used>
-  SUBROUTINE update_atmos_fluxes(p_patch_3D, p_as, atmos_fluxes, p_oce_sfc, p_os, p_ice, this_datetime)
+  SUBROUTINE update_atmos_fluxes(p_patch_3D, p_as, atmos_fluxes, p_oce_sfc, p_os, p_ice, this_datetime, use_acc)
 
     TYPE(t_patch_3D ),TARGET,  INTENT(IN)       :: p_patch_3D
     TYPE(t_atmos_for_ocean)                     :: p_as
@@ -746,11 +811,21 @@ CONTAINS
     TYPE (t_hydro_ocean_state),INTENT(IN)       :: p_os
     TYPE (t_sea_ice),          INTENT(IN)       :: p_ice
     TYPE(datetime), POINTER                     :: this_datetime
+    LOGICAL, INTENT(IN), OPTIONAL               :: use_acc
 
     ! local variables
     CHARACTER(LEN=max_char_length), PARAMETER :: routine = 'mo_ocean_surface_refactor:update_atmos_fluxes'
     TYPE(t_patch), POINTER:: p_patch
     TYPE(t_subset_range), POINTER :: all_cells
+    LOGICAL                       :: lacc
+    INTEGER                       :: i, j
+    REAL(wp)                      :: ftdew_in(SIZE(p_as%ftdew,1), SIZE(p_as%ftdew,2))
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     !-----------------------------------------------------------------------
     p_patch         => p_patch_3D%p_patch_2D(1)
@@ -761,22 +836,27 @@ CONTAINS
 
     CASE (Analytical_Forcing)        !  11      !  Driving the ocean with analytical fluxes
 
-      CALL update_atmos_fluxes_analytical(p_patch_3D, p_os, p_ice, atmos_fluxes,p_oce_sfc)
+      CALL update_atmos_fluxes_analytical(p_patch_3D, p_os, p_ice, atmos_fluxes, p_oce_sfc, use_acc=lacc)
 
     CASE (OMIP_FluxFromFile)         !  12      !  Driving the ocean with OMIP fluxes
 
       !   a) read OMIP data into p_as
-      CALL update_flux_fromFile(p_patch_3D, p_as, this_datetime)
+      CALL update_flux_fromFile(p_patch_3D, p_as, this_datetime, use_acc=lacc)
 
       !   b) calculate heat fluxes from p_as
-      CALL calc_omip_budgets_oce(p_patch_3d, p_as, p_os, p_ice, atmos_fluxes)
+      CALL calc_omip_budgets_oce(p_patch_3d, p_as, p_os, p_ice, atmos_fluxes, use_acc=lacc)
 
       IF (i_sea_ice >= 1) THEN ! sea ice is on
 
+          !$ACC DATA CREATE(ftdew_in) IF(lacc)
+
+          !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+          ftdew_in(:,:) = p_as%ftdew(:,:)-tmelt
+          !$ACC END KERNELS
+
           CALL calc_omip_budgets_ice(                            &
             &                        p_patch_3d,                                     &  !  input parameter
-            &                        p_patch%cells%center(:,:)%lat,                  &  !  input parameter
-            &                        p_as%tafo(:,:), p_as%ftdew(:,:)-tmelt,          &  !  input parameter
+            &                        p_as%tafo(:,:), ftdew_in(:,:),                  &  !  input parameter
             &                        p_as%fu10(:,:), p_as%fclou(:,:), p_as%pao(:,:), &  !  input parameter
             &                        p_as%fswr(:,:), p_ice%kice, p_ice%Tsurf(:,:,:), &  !  input parameter
             &                        p_ice%hi(:,:,:),                                &  !  input parameter
@@ -790,26 +870,39 @@ CONTAINS
             &                        atmos_fluxes%lat      (:,:,:),                  &  !  output parameter
             &                        atmos_fluxes%dLWdT    (:,:,:),                  &  !  output parameter
             &                        atmos_fluxes%dsensdT  (:,:,:),                  &  !  output parameter
-            &                        atmos_fluxes%dlatdT   (:,:,:) )                    !  output parameter
+            &                        atmos_fluxes%dlatdT   (:,:,:),                  &  !  output parameter
+            &                        use_acc=lacc)
+
+          !$ACC END DATA
 
       ELSE   !  no sea ice
 
-      ! apply net surface heat flux in W/m2 for OMIP case, since these fluxes are calculated in calc_omip_budgets_oce
-        WHERE (p_patch_3D%lsm_c(:,1,:) <= sea_boundary)
-          p_oce_sfc%HeatFlux_ShortWave(:,:) = atmos_fluxes%SWnetw(:,:) ! net SW radiation flux over water
-          p_oce_sfc%HeatFlux_LongWave (:,:) = atmos_fluxes%LWnetw(:,:) ! net LW radiation flux over water
-          p_oce_sfc%HeatFlux_Sensible (:,:) = atmos_fluxes%sensw (:,:) ! Sensible heat flux over water
-          p_oce_sfc%HeatFlux_Latent   (:,:) = atmos_fluxes%latw  (:,:) ! Latent heat flux over water
-          ! sum of ocean heat fluxes for ocean boundary condition without ice, generally aggregated in ice thermodynamics
-          p_oce_sfc%HeatFlux_Total(:,:) = atmos_fluxes%SWnetw(:,:) + atmos_fluxes%LWnetw(:,:) &
-            &                              + atmos_fluxes%sensw(:,:)  + atmos_fluxes%latw(:,:)
-        ELSEWHERE
-          p_oce_sfc%HeatFlux_ShortWave(:,:) = 0.0_wp
-          p_oce_sfc%HeatFlux_LongWave (:,:) = 0.0_wp
-          p_oce_sfc%HeatFlux_Sensible (:,:) = 0.0_wp
-          p_oce_sfc%HeatFlux_Latent   (:,:) = 0.0_wp
-          p_oce_sfc%HeatFlux_Total    (:,:) = 0.0_wp
-        ENDWHERE
+#ifdef _OPENACC
+        IF (lacc) CALL finish(routine, 'OpenACC version currently not tested/validated')
+#endif
+
+        ! apply net surface heat flux in W/m2 for OMIP case, since these fluxes are calculated in calc_omip_budgets_oce
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) COLLAPSE(2) IF(lacc)
+        DO j = 1,SIZE(p_patch_3D%lsm_c,3)
+          DO i = 1,SIZE(p_patch_3D%lsm_c,1)
+            IF (p_patch_3D%lsm_c(i,1,j) <= sea_boundary) THEN
+              p_oce_sfc%HeatFlux_ShortWave(i,j) = atmos_fluxes%SWnetw(i,j) ! net SW radiation flux over water
+              p_oce_sfc%HeatFlux_LongWave (i,j) = atmos_fluxes%LWnetw(i,j) ! net LW radiation flux over water
+              p_oce_sfc%HeatFlux_Sensible (i,j) = atmos_fluxes%sensw (i,j) ! Sensible heat flux over water
+              p_oce_sfc%HeatFlux_Latent   (i,j) = atmos_fluxes%latw  (i,j) ! Latent heat flux over water
+              ! sum of ocean heat fluxes for ocean boundary condition without ice, generally aggregated in ice thermodynamics
+              p_oce_sfc%HeatFlux_Total(i,j) = atmos_fluxes%SWnetw(i,j) + atmos_fluxes%LWnetw(i,j) &
+                &                              + atmos_fluxes%sensw(i,j)  + atmos_fluxes%latw(i,j)
+            ELSE
+              p_oce_sfc%HeatFlux_ShortWave(i,j) = 0.0_wp
+              p_oce_sfc%HeatFlux_LongWave (i,j) = 0.0_wp
+              p_oce_sfc%HeatFlux_Sensible (i,j) = 0.0_wp
+              p_oce_sfc%HeatFlux_Latent   (i,j) = 0.0_wp
+              p_oce_sfc%HeatFlux_Total    (i,j) = 0.0_wp
+            ENDIF
+          END DO
+        END DO
+        !$ACC END PARALLEL LOOP
 
       ENDIF
 
@@ -818,17 +911,20 @@ CONTAINS
 
       !   d) freshwater fluxes from p_as
 
+          !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
           ! provide evaporation from latent heat flux for OMIP case
           ! under sea ice evaporation is neglected, atmos_fluxes%latw is flux in the absence of sea ice
           p_oce_sfc%FrshFlux_Evaporation(:,:) = atmos_fluxes%latw(:,:) / (alv*rho_ref)
 
           !  copy variables into atmos_fluxes
-          p_oce_sfc%FrshFlux_Runoff(:,:)        = p_as%FrshFlux_Runoff(:,:)
+          p_oce_sfc%FrshFlux_Runoff(:,:)      = p_as%FrshFlux_Runoff(:,:)
           p_oce_sfc%FrshFlux_Precipitation(:,:) = p_as%FrshFlux_Precipitation(:,:)
+          !$ACC END KERNELS
 
           ! Precipitation on ice is snow when tsurf is below the freezing point
           !  - no snowfall from OMIP data
           !  - rprecw, rpreci are water equivalent over whole grid-area
+          !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
           WHERE ( ALL( p_ice%Tsurf(:,:,:) < 0._wp, 2 ) )  !  Tsurf is -1.8 over open water, incorrect specification
             atmos_fluxes%rpreci(:,:) = p_as%FrshFlux_Precipitation(:,:)
             atmos_fluxes%rprecw(:,:) = 0._wp
@@ -837,12 +933,19 @@ CONTAINS
             atmos_fluxes%rpreci(:,:) = 0._wp
             atmos_fluxes%rprecw(:,:) = p_as%FrshFlux_Precipitation(:,:)
           ENDWHERE
+          !$ACC END KERNELS
 
           ! evaporation and runoff not used in sea ice but in VolumeTotal, evaporation used for TotalOcean only
+          !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
           p_oce_sfc%FrshFlux_TotalOcean(:,:) = p_patch_3d%wet_c(:,1,:)*( 1.0_wp-p_ice%concSum(:,:) ) * &
             &  (p_as%FrshFlux_Precipitation(:,:) + p_oce_sfc%FrshFlux_Evaporation(:,:))
+          !$ACC END KERNELS
 
     CASE (Coupled_FluxFromAtmo)
+
+#ifdef _OPENACC
+      IF (lacc) CALL finish(routine, 'OpenACC version currently not tested/validated')
+#endif
 
       !  Driving the ocean in a coupled mode:
       !  nothing to be done, atmospheric fluxes are provided at the end of time stepping
@@ -851,16 +954,21 @@ CONTAINS
 
        ! HAMOCC uses p_as to get SW radiation and wind, so we need to copy
        ! the SW radiation onto it in the coupled case
+       !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
        if(lhamocc) p_as%fswr(:,:) = p_oce_sfc%HeatFlux_ShortWave(:,:)
+       !$ACC END KERNELS
 
 ! heatflux_total(:,:) is provided by coupling interface
 
       ! these 4 fluxes over open ocean are used in sea ice thermodynamics
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       atmos_fluxes%SWnetw (:,:)   = p_oce_sfc%HeatFlux_ShortWave(:,:)
       atmos_fluxes%LWnetw (:,:)   = p_oce_sfc%HeatFlux_LongWave (:,:)
       atmos_fluxes%sensw  (:,:)   = p_oce_sfc%HeatFlux_Sensible (:,:)
       atmos_fluxes%latw   (:,:)   = p_oce_sfc%HeatFlux_Latent   (:,:)
+      !$ACC END KERNELS
 
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       WHERE ( p_ice%concSum(:,:) > 0._wp) !  corresponding to (1-concSum)*Precip in TotalOcean
    !  WHERE ( ALL( p_ice%hi   (:,:,:) > 0._wp, 2 ) )  !  corresponding to hi>0 in ice_growth_zero
    !  WHERE ( ALL( p_ice%Tsurf(:,:,:) < 0._wp, 2 ) )  !  Tsurf is -1.8 over open water, incorrect specification
@@ -872,6 +980,7 @@ CONTAINS
         atmos_fluxes%rpreci(:,:) = 0._wp
         atmos_fluxes%rprecw(:,:) = p_oce_sfc%FrshFlux_Precipitation(:,:)
       ENDWHERE
+      !$ACC END KERNELS
 
       ! copy flux for use in TotalOcean, since analytical/omip use p_as:
       !p_as%FrshFlux_Precipitation      = p_oce_sfc%FrshFlux_Precipitation
@@ -880,8 +989,10 @@ CONTAINS
       !  - whole evaporation over grid-box enters open ocean, this includes evaporation over sea ice covered part
       !  - snowfall is included as (melted) water equivalent
       !  - runoff is added to VolumeTotal below
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       p_oce_sfc%FrshFlux_TotalOcean(:,:) = p_patch_3d%wet_c(:,1,:)* &
         &  (( 1.0_wp-p_ice%concSum(:,:) ) * p_oce_sfc%FrshFlux_Precipitation(:,:) + p_oce_sfc%FrshFlux_Evaporation(:,:))
+      !$ACC END KERNELS
 
     CASE DEFAULT
 
@@ -892,7 +1003,11 @@ CONTAINS
 
 
     IF (zero_freshwater_flux) THEN
+#ifdef _OPENACC
+      IF (lacc) CALL finish(routine, 'OpenACC version currently not tested/validated')
+#endif
       ! since latw<>0. we must set evap and TotalOcean again to zero:
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       p_oce_sfc%FrshFlux_Evaporation  (:,:) = 0.0_wp
       p_oce_sfc%FrshFlux_TotalOcean   (:,:) = 0.0_wp
       p_oce_sfc%FrshFlux_Precipitation(:,:) = 0.0_wp
@@ -902,6 +1017,7 @@ CONTAINS
       p_oce_sfc%FrshFlux_TotalOcean   (:,:) = 0.0_wp
       atmos_fluxes%rpreci(:,:)              = 0.0_wp
       atmos_fluxes%rprecw(:,:)              = 0.0_wp
+      !$ACC END KERNELS
     ENDIF
 
     !---------DEBUG DIAGNOSTICS-------------------------------------------
@@ -940,13 +1056,14 @@ CONTAINS
   !! Initial release by Stephan Lorenz, MPI-M (2010-07)
   !
 !<Optimize_Used>
-  SUBROUTINE update_atmos_fluxes_analytical(p_patch_3D, p_os, p_ice, atmos_fluxes, p_oce_sfc)
+  SUBROUTINE update_atmos_fluxes_analytical(p_patch_3D, p_os, p_ice, atmos_fluxes, p_oce_sfc, use_acc)
 
     TYPE(t_patch_3D ),TARGET, INTENT(IN)    :: p_patch_3D
     TYPE(t_hydro_ocean_state), INTENT(IN)   :: p_os
     TYPE(t_sea_ice), INTENT(IN)             :: p_ice
     TYPE(t_atmos_fluxes)                    :: atmos_fluxes
     TYPE(t_ocean_surface)                   :: p_oce_sfc
+    LOGICAL, INTENT(IN), OPTIONAL           :: use_acc
     !
     ! local variables
     INTEGER :: jc, jb
@@ -962,6 +1079,7 @@ CONTAINS
     REAL(wp) :: z_temp_max, z_temp_min, z_temp_incr
     REAL(wp) :: center, length, zonal_waveno,amplitude
     REAL(wp) :: no_flux_length, south_bound, max_flux_y
+    LOGICAL  :: lacc
 
     CHARACTER(LEN=max_char_length), PARAMETER :: routine = 'mo_ocean_bulk_forcing:update_atmos_fluxes_analytical'
     !-------------------------------------------------------------------------
@@ -971,7 +1089,17 @@ CONTAINS
     p_patch         => p_patch_3D%p_patch_2D(1)
     !-------------------------------------------------------------------------
     all_cells => p_patch%cells%all
+    
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
+#ifdef _OPENACC
+    IF (lacc) CALL finish(routine, 'OpenACC version currently not tested/validated')
+#endif
+    
     ! atmosphere fluxes for analytical testcased similar to mo_ocean_initial_conditions:
     SELECT CASE (atmos_flux_analytical_type)
 
@@ -979,6 +1107,7 @@ CONTAINS
       CONTINUE
 
     CASE(101,102,103)  !  constant fluxes for test of sea-ice processes
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       ! set LW/SW/sensible/latent heat fluxes over ice to constant
       atmos_fluxes%SWnet(:,1,:) = atmos_SWnet_const
       atmos_fluxes%LWnet(:,1,:) = atmos_LWnet_const
@@ -991,6 +1120,7 @@ CONTAINS
       atmos_fluxes%latw(:,:)    = atmos_lat_const
       ! set water fluxes over water to constant
       p_oce_sfc%FrshFlux_Precipitation(:,:) = atmos_precip_const
+      !$ACC END KERNELS
 
       CASE(200)
 
@@ -1003,6 +1133,7 @@ CONTAINS
 
           DO jb = all_cells%start_block, all_cells%end_block
             CALL get_index_range(all_cells, jb, start_cell_index, end_cell_index)
+            !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
             DO jc = start_cell_index, end_cell_index
 
               IF(p_patch_3D%lsm_c(jc,1,jb)<=sea_boundary)THEN
@@ -1021,6 +1152,7 @@ CONTAINS
                 !& -10.0_wp!amplitude * (COS(zonal_waveno*pi*(z_lat-center)/length))
               ENDIF
             END DO
+            !$ACC END PARALLEL LOOP
           END DO
         ENDIF
 
@@ -1037,6 +1169,7 @@ CONTAINS
 
           DO jb = all_cells%start_block, all_cells%end_block
             CALL get_index_range(all_cells, jb, start_cell_index, end_cell_index)
+            !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
             DO jc = start_cell_index, end_cell_index
               p_oce_sfc%data_surfRelax_Temp(jc,jb)     = 0.0_wp
               p_oce_sfc%TopBC_Temp_vdiff(jc,jb) = 0.0_wp
@@ -1051,6 +1184,7 @@ CONTAINS
 
               ENDIF
             END DO
+            !$ACC END PARALLEL LOOP
           END DO
         ENDIF
 
@@ -1069,6 +1203,7 @@ CONTAINS
        !y_length = basin_height_deg * deg2rad
        DO jb = all_cells%start_block, all_cells%end_block
          CALL get_index_range(all_cells, jb, start_cell_index, end_cell_index)
+         !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
          DO jc = start_cell_index, end_cell_index
 
            IF(p_patch_3D%lsm_c(jc,1,jb)<=sea_boundary)THEN
@@ -1114,8 +1249,9 @@ CONTAINS
 !            atmos_fluxes%topBoundCond_windStress_u(jc,jb)       = 0.0_wp
 !            atmos_fluxes%topBoundCond_windStress_v(jc,jb)       = 0.0_wp
            ENDIF
+         END DO
+         !$ACC END PARALLEL LOOP
        END DO
-      END DO
 
     ENDIF
 
@@ -1123,8 +1259,10 @@ CONTAINS
       IF(type_surfRelax_Temp>=1)THEN
         z_relax = para_surfRelax_Temp/(30.0_wp*24.0_wp*3600.0_wp)
 
+        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
         p_oce_sfc%TopBC_Temp_vdiff(:,:) = z_relax*( p_oce_sfc%data_surfRelax_Temp(:,:) &
           &                                               -p_os%p_prog(nold(1))%tracer(:,1,:,1) )
+        !$ACC END KERNELS
 
       END IF
 
@@ -1138,12 +1276,13 @@ CONTAINS
         z_temp_min  = 0.5_wp
         z_temp_incr = (z_temp_max-z_temp_min)/(n_zlev-1.0_wp)
 
-      !Add horizontal variation
-      DO jb = all_cells%start_block, all_cells%end_block
-        CALL get_index_range(all_cells, jb, start_cell_index, end_cell_index)
-        DO jc = start_cell_index, end_cell_index
-          z_lat = p_patch%cells%center(jc,jb)%lat
-          z_lat_deg = z_lat*rad2deg
+        !Add horizontal variation
+        DO jb = all_cells%start_block, all_cells%end_block
+          CALL get_index_range(all_cells, jb, start_cell_index, end_cell_index)
+          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+          DO jc = start_cell_index, end_cell_index
+            z_lat = p_patch%cells%center(jc,jb)%lat
+            z_lat_deg = z_lat*rad2deg
 
             IF ( p_patch_3D%lsm_c(jc,1,jb) <= sea_boundary ) THEN
 
@@ -1155,12 +1294,16 @@ CONTAINS
             ELSE
               z_T_init(jc,jb)=0.0_wp
             ENDIF
+          END DO
+          !$ACC END PARALLEL LOOP
         END DO
-      END DO
-      p_oce_sfc%data_surfRelax_Temp(:,:)=z_T_init(:,:)
 
-      p_oce_sfc%TopBC_Temp_vdiff(:,:) = z_relax*( p_oce_sfc%data_surfRelax_Temp(:,:) &
-        &                                               -p_os%p_prog(nold(1))%tracer(:,1,:,1) )
+        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+        p_oce_sfc%data_surfRelax_Temp(:,:)=z_T_init(:,:)
+
+        p_oce_sfc%TopBC_Temp_vdiff(:,:) = z_relax*( p_oce_sfc%data_surfRelax_Temp(:,:) &
+          &                                               -p_os%p_prog(nold(1))%tracer(:,1,:,1) )
+        !$ACC END KERNELS
 
       END IF
 
@@ -1170,13 +1313,19 @@ CONTAINS
     !   varios ad-hoc fixes
     !-----------------------------
     !  needed for old heat flux BC
-    p_oce_sfc%HeatFlux_Total=p_oce_sfc%TopBC_Temp_vdiff
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    p_oce_sfc%HeatFlux_Total(:,:)=p_oce_sfc%TopBC_Temp_vdiff(:,:)
+    !$ACC END KERNELS
 
     ! provide dLWdt for ice_fast as for OMIP
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     atmos_fluxes%dLWdT (:,:,:)  = -4._wp*zemiss_def*stbo*(p_ice%tsurf(:,:,:)+tmelt)**3
+    !$ACC END KERNELS
 
     ! provide evaporation from latent heat flux
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     p_oce_sfc%FrshFlux_Evaporation(:,:) = atmos_fluxes%latw(:,:) / (alv*rho_ref)
+    !$ACC END KERNELS
 
   END SUBROUTINE update_atmos_fluxes_analytical
 

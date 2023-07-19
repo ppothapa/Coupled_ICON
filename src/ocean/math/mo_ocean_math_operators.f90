@@ -101,37 +101,50 @@ CONTAINS
   !-------------------------------------------------------------------------
   !>
 !<Optimize:inUse>
-  SUBROUTINE map_edges2vert_3D(patch_2D, vn, edge2vert_coeff_cc, vn_dual)
+  SUBROUTINE map_edges2vert_3D(patch_2D, vn, edge2vert_coeff_cc, vn_dual, use_acc)
     
     TYPE(t_patch), TARGET, INTENT(in)       :: patch_2D
     REAL(wp), INTENT(in)                    :: vn(:,:,:)
     TYPE(t_cartesian_coordinates),INTENT(in):: edge2vert_coeff_cc(:,:,:,:)
     TYPE(t_cartesian_coordinates)           :: vn_dual(nproma,n_zlev,patch_2D%nblks_v)
+    LOGICAL, INTENT(IN), OPTIONAL           :: use_acc
     
     INTEGER :: start_level, end_level
     INTEGER :: vertexIndex, level, blockNo,vertexConnect
     INTEGER :: edgeOfVertex_index, edgeOfVertex_block
     INTEGER :: start_index_v, end_index_v
     TYPE(t_subset_range), POINTER :: verts_in_domain
+    LOGICAL :: lacc
+    INTEGER :: max_num_edges
     !-----------------------------------------------------------------------
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
     verts_in_domain => patch_2D%verts%in_domain
     
     !i_v_ctr(:,:,:) = 0
     start_level         = 1
     end_level         = n_zlev
-    
+
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index_v,end_index_v, vertexIndex, vertexConnect, &
 !ICON_OMP edgeOfVertex_index, edgeOfVertex_block, level) ICON_OMP_DEFAULT_SCHEDULE
     DO blockNo = verts_in_domain%start_block, verts_in_domain%end_block
       CALL get_index_range(verts_in_domain, blockNo, start_index_v, end_index_v)
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       vn_dual(:,:,blockNo)%x(1) = 0.0_wp
       vn_dual(:,:,blockNo)%x(2) = 0.0_wp
       vn_dual(:,:,blockNo)%x(3) = 0.0_wp
-#ifdef __LVECTOR__
-      DO vertexConnect = 1, MAXVAL(patch_2D%verts%num_edges(start_index_v:end_index_v,blockNo))
+      !$ACC END KERNELS
+#if defined (__LVECTOR__)
+      max_num_edges = MAXVAL(patch_2D%verts%num_edges(start_index_v:end_index_v,blockNo))
+      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(3) DEFAULT(PRESENT) IF(lacc)
+      DO vertexConnect = 1, max_num_edges
         DO level = start_level, end_level
           DO vertexIndex = start_index_v, end_index_v
-            IF ( patch_2D%verts%num_edges(vertexIndex,blockNo) > vertexConnect ) CYCLE
+            IF ( patch_2D%verts%num_edges(vertexIndex,blockNo) < vertexConnect ) CYCLE
 
             edgeOfVertex_index = patch_2D%verts%edge_idx(vertexIndex,blockNo,vertexConnect)
             edgeOfVertex_block = patch_2D%verts%edge_blk(vertexIndex,blockNo,vertexConnect)
@@ -144,15 +157,18 @@ CONTAINS
           END DO
         END DO
       END DO
+      !$ACC END PARALLEL LOOP
 #else
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO vertexIndex = start_index_v, end_index_v
-          
+        !$ACC LOOP SEQ
         DO vertexConnect = 1, patch_2D%verts%num_edges(vertexIndex,blockNo)
 
           edgeOfVertex_index = patch_2D%verts%edge_idx(vertexIndex,blockNo,vertexConnect)
           edgeOfVertex_block = patch_2D%verts%edge_blk(vertexIndex,blockNo,vertexConnect)
 
           IF (edgeOfVertex_index > 0) THEN
+            !$ACC LOOP SEQ
             DO level = start_level, end_level
               vn_dual(vertexIndex,level,blockNo)%x = vn_dual(vertexIndex,level,blockNo)%x   &
                 & + edge2vert_coeff_cc(vertexIndex,level,blockNo,vertexConnect)%x           &
@@ -162,10 +178,11 @@ CONTAINS
 
         END DO ! vertexIndex = start_index_v, end_index_v
       END DO ! level = start_level, end_level
+      !$ACC END PARALLEL LOOP
 #endif
     END DO ! blockNo = verts_in_domain%start_block, verts_in_domain%end_block
 !ICON_OMP_END_PARALLEL_DO    
-    
+
   END SUBROUTINE map_edges2vert_3D
   !-------------------------------------------------------------------------------------
   
@@ -798,25 +815,19 @@ CONTAINS
 
     IF (patch_2d%cells%max_connectivity == 3) THEN
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index,end_index) ICON_OMP_DEFAULT_SCHEDULE
-      !$ACC DATA COPYIN(blk, div_coeff, idx, vec_e) &
-      !$ACC   COPY(div_vec_c) IF(lacc)
       DO blockNo = start_block, end_block
         CALL get_index_range(all_cells, blockNo, start_index, end_index)
         CALL div_oce_2D_onTriangles_onBlock( vec_e, patch_2D, div_coeff, div_vec_c(:,blockNo),  &
           & level, blockNo, start_index, end_index, use_acc=lacc)
       END DO
-      !$ACC END DATA
 !ICON_OMP_END_PARALLEL_DO
     ELSE
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index,end_index) ICON_OMP_DEFAULT_SCHEDULE
-      !$ACC DATA COPYIN(blk, div_coeff, idx, vec_e) &
-      !$ACC   COPY(div_vec_c) IF(lacc)
       DO blockNo = start_block, end_block
         CALL get_index_range(all_cells, blockNo, start_index, end_index)
         CALL div_oce_2D_general_onBlock( vec_e, patch_2D, div_coeff, div_vec_c(:,blockNo),  &
           & level, blockNo, start_index, end_index, use_acc=lacc)
       END DO
-      !$ACC END DATA
 !ICON_OMP_END_PARALLEL_DO
     ENDIF
 
@@ -873,8 +884,6 @@ CONTAINS
     idx => patch_2D%cells%edge_idx
     blk => patch_2D%cells%edge_blk
 
-    !$ACC DATA PRESENT(blk, div_coeff, div_vec_c, idx, vec_e) IF(lacc)
-
     !$ACC PARALLEL LOOP DEFAULT(PRESENT) IF(lacc)
     DO jc = start_index, end_index
 
@@ -884,7 +893,7 @@ CONTAINS
         & vec_e(idx(jc,blockNo,3),blk(jc,blockNo,3)) * div_coeff(jc,level,blockNo,3)
     END DO
     !$ACC END PARALLEL LOOP
-    !$ACC END DATA
+
   END SUBROUTINE div_oce_2D_onTriangles_onBlock
   !-------------------------------------------------------------------------
 
@@ -927,8 +936,6 @@ CONTAINS
       lacc = .FALSE.
     END IF
 
-    !$ACC DATA PRESENT(blk, div_coeff, div_vec_c, idx, vec_e) IF(lacc)
-    
     !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     div_vec_c(:) = 0.0_wp
     !$ACC END KERNELS
@@ -949,7 +956,7 @@ CONTAINS
       div_vec_c(jc) = temp_div_vec
     END DO
     !$ACC END PARALLEL LOOP
-    !$ACC END DATA
+
   END SUBROUTINE div_oce_2D_general_onBlock
   !-------------------------------------------------------------------------
 
@@ -1067,15 +1074,17 @@ CONTAINS
   
   !-------------------------------------------------------------------------
 !<Optimize:inUse>
-  SUBROUTINE grad_fd_norm_oce_2D_3D( psi_c, patch_2D, grad_coeff, grad_norm_psi_e, subset_range)
+  SUBROUTINE grad_fd_norm_oce_2D_3D( psi_c, patch_2D, grad_coeff, grad_norm_psi_e, subset_range, use_acc)
     TYPE(t_patch), TARGET, INTENT(in) :: patch_2D
     REAL(wp), INTENT(in)    :: psi_c(:,:)             ! dim: (nproma,alloc_cell_blocks)
     REAL(wp), INTENT(in)    :: grad_coeff(:,:)
     REAL(wp), INTENT(inout) ::  grad_norm_psi_e(:,:)  ! dim: (nproma,nblks_e)
     TYPE(t_subset_range), TARGET, OPTIONAL :: subset_range
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
 
     INTEGER :: blockNo
     INTEGER :: start_edge_index, end_edge_index
+    LOGICAL :: lacc
     TYPE(t_subset_range), POINTER :: edges_in_domain
 
    !-----------------------------------------------------------------------
@@ -1083,19 +1092,28 @@ CONTAINS
       edges_in_domain => subset_range
     ELSE
       edges_in_domain => patch_2D%edges%in_domain
-    ENDIF    
+    ENDIF
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
     !-----------------------------------------------------------------------
-    
+
 !ICON_OMP_PARALLEL_DO PRIVATE(blockNo,start_edge_index,end_edge_index) ICON_OMP_DEFAULT_SCHEDULE
+    !$ACC DATA COPYIN(psi_c, patch_2D%edges%cell_idx, patch_2D%edges%cell_blk, grad_coeff) &
+    !$ACC   COPY(grad_norm_psi_e) IF(lacc)
     DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
       CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
       
       CALL grad_fd_norm_oce_2D_onBlock(psi_c,  patch_2D, grad_coeff(:,blockNo), grad_norm_psi_e(:,blockNo), &
-        & start_edge_index, end_edge_index, blockNo)
+        & start_edge_index, end_edge_index, blockNo, use_acc=lacc)
       
     END DO
+    !$ACC END DATA
 !ICON_OMP_END_PARALLEL_DO
-    
+
   END SUBROUTINE grad_fd_norm_oce_2D_3D
   !-------------------------------------------------------------------------
   
@@ -1121,21 +1139,34 @@ CONTAINS
   !!  mpi note: the result is not synced. Should be done in the calling method if required
   !!
 !<Optimize:inUse>
-  SUBROUTINE grad_fd_norm_oce_2D_onBlock(psi_c,  patch_2D, grad_coeff, grad_norm_psi_e, start_index, end_index, blockNo)
+  SUBROUTINE grad_fd_norm_oce_2D_onBlock(psi_c,  patch_2D, grad_coeff, grad_norm_psi_e, &
+    & start_index, end_index, blockNo, use_acc)
     !
     TYPE(t_patch), TARGET, INTENT(in) :: patch_2D
     REAL(wp), INTENT(in)    ::  psi_c(:,:)               ! dim: (nproma,alloc_cell_blocks)
     REAL(wp), INTENT(in)    ::  grad_coeff(:)
     REAL(wp), INTENT(inout) ::  grad_norm_psi_e(:)   ! dim: (nproma)
     INTEGER, INTENT(in)     :: start_index, end_index, blockNo
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
     
     INTEGER :: je
+    LOGICAL :: lacc
     INTEGER,  DIMENSION(:,:,:),   POINTER :: idx, blk
     !-----------------------------------------------------------------------
     
     idx => patch_2D%edges%cell_idx
     blk => patch_2D%edges%cell_blk
-    
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    !$ACC DATA COPYIN(psi_c, idx, blk, grad_coeff) &
+    !$ACC   COPY(grad_norm_psi_e) IF(lacc)
+
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
     DO je = start_index, end_index
       ! compute the normal derivative
       ! by the finite difference approximation
@@ -1154,7 +1185,8 @@ CONTAINS
         & * grad_coeff(je)
       
     END DO
-    
+    !$ACC END PARALLEL LOOP
+    !$ACC END DATA
   END SUBROUTINE grad_fd_norm_oce_2D_onBlock
   !-------------------------------------------------------------------------
   
@@ -1895,16 +1927,26 @@ CONTAINS
   !---------------------------------------------------------------------------------
   !>
 !<Optimize:inUse>
-  SUBROUTINE update_height_depdendent_variables( patch_3D, ocean_state, p_ext_data, operators_coefficients, solvercoeff_sp)
+  SUBROUTINE update_height_depdendent_variables( patch_3D, ocean_state, p_ext_data, &
+                                                 operators_coefficients, solvercoeff_sp, use_acc)
     TYPE(t_patch_3D ),TARGET   :: patch_3D
     TYPE(t_hydro_ocean_state), TARGET :: ocean_state
     TYPE(t_external_data), TARGET, INTENT(in) :: p_ext_data
     TYPE(t_operator_coeff), INTENT(inout)      :: operators_coefficients
     TYPE(t_solvercoeff_singleprecision), INTENT(inout) :: solvercoeff_sp
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL :: lacc
     
-    CALL calculate_thickness( patch_3D, ocean_state, p_ext_data, operators_coefficients, solvercoeff_sp)
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    CALL calculate_thickness( patch_3D, ocean_state, p_ext_data, &
+                              operators_coefficients, solvercoeff_sp, use_acc = lacc)
     CALL update_thickness_dependent_operator_coeff( patch_3D, ocean_state, &
-      & operators_coefficients, solvercoeff_sp )
+      & operators_coefficients, solvercoeff_sp, use_acc = lacc )
     
   END SUBROUTINE update_height_depdendent_variables
   !---------------------------------------------------------------------------------
@@ -2137,19 +2179,22 @@ CONTAINS
   !! Developed  by  Peter Korn, MPI-M (2010).
   !!
 !<Optimize:inUse>
-  SUBROUTINE calculate_thickness( patch_3D, ocean_state, p_ext_data, operators_coefficients, solvercoeff_sp, inTopCellThickness)
+  SUBROUTINE calculate_thickness( patch_3D, ocean_state, p_ext_data, operators_coefficients, &
+                                  solvercoeff_sp, inTopCellThickness, use_acc )
     TYPE(t_patch_3D ),TARGET   :: patch_3D
     TYPE(t_hydro_ocean_state), TARGET :: ocean_state
     TYPE(t_external_data), TARGET, INTENT(in) :: p_ext_data
     TYPE(t_operator_coeff), INTENT(in) :: operators_coefficients
     TYPE(t_solvercoeff_singleprecision), INTENT(in) :: solvercoeff_sp
     REAL(wp), OPTIONAL :: inTopCellThickness(:,:)
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
     
     !  local variables
     INTEGER :: cell_StartIndex, cell_EndIndex
     INTEGER :: edge_StartIndex, edge_EndIndex
     INTEGER :: jc, blockNo, je, level
     INTEGER :: thislevel, levelabove, levelbelow, level2below, cell_levels
+    LOGICAL :: lacc
     
     INTEGER :: il_c1, ib_c1, il_c2, ib_c2
     REAL(wp)           :: z_dist_e_c1, z_dist_e_c2
@@ -2168,6 +2213,12 @@ CONTAINS
     REAL(wp), POINTER :: inv_prisms_center_distance(:,:,:), inv_edgefaces_middle_distance(:,:,:)
     REAL(wp)  :: cell_thickness_1, cell_thickness_2
     !-------------------------------------------------------------------------------
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
     !CALL message (TRIM(routine), 'start')
     patch_2D            => patch_3D%p_patch_2D(1)
     all_cells           => patch_2D%cells%ALL
@@ -2183,7 +2234,6 @@ CONTAINS
     !Step 1: calculate cell-located variables for 2D and 3D case
     !For 3D and for SWE thick_c contains thickness of fluid column
 
-
     !Update prism thickness. The prism-thickness below the surface is
     !not updated it is initialized in construct_hydro_ocean_diag
     !with z-coordinate-thickness.
@@ -2193,11 +2243,13 @@ CONTAINS
 !ICON_OMP_DO PRIVATE(cell_StartIndex, cell_EndIndex, jc) ICON_OMP_DEFAULT_SCHEDULE
       DO blockNo = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, blockNo, cell_StartIndex, cell_EndIndex)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO jc = cell_StartIndex, cell_EndIndex
           IF ( patch_3D%p_patch_1d(1)%dolic_c(jc,blockNo) > 0 ) THEN
             cell_thickness(jc,1,blockNo) = inTopCellThickness(jc,blockNo)
           ENDIF
         END DO
+        !$ACC END PARALLEL LOOP
       END DO
 !ICON_OMP_END_DO
 
@@ -2205,6 +2257,7 @@ CONTAINS
 !ICON_OMP_DO PRIVATE(cell_StartIndex, cell_EndIndex, jc) ICON_OMP_DEFAULT_SCHEDULE
       DO blockNo = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, blockNo, cell_StartIndex, cell_EndIndex)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO jc = cell_StartIndex, cell_EndIndex
           IF ( patch_3D%p_patch_1d(1)%dolic_c(jc,blockNo) > 0 ) THEN
             cell_thickness(jc,1,blockNo) = &
@@ -2212,14 +2265,16 @@ CONTAINS
               & ocean_state%p_prog(nold(1))%h(jc,blockNo)
           ENDIF
         END DO
+        !$ACC END PARALLEL LOOP
       END DO
 !ICON_OMP_END_DO
     ENDIF
-    
+
     IF ( iswm_oce /= 1 ) THEN  !  3D case      
 !ICON_OMP_DO PRIVATE(cell_StartIndex, cell_EndIndex, jc, level) ICON_OMP_DEFAULT_SCHEDULE
       DO blockNo = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, blockNo, cell_StartIndex, cell_EndIndex)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO jc = cell_StartIndex, cell_EndIndex
           IF ( patch_3D%p_patch_1d(1)%dolic_c(jc,blockNo) > 0 ) THEN
 
@@ -2243,11 +2298,17 @@ CONTAINS
 #ifdef __LVECTOR__
           ENDIF
         END DO
+        !$ACC END PARALLEL LOOP
+
+        !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+        !$ACC LOOP SEQ
         DO level=2, MAXVAL(patch_3D%p_patch_1d(1)%dolic_c(cell_StartIndex:cell_EndIndex,blockNo))
+          !$ACC LOOP GANG VECTOR
           DO jc = cell_StartIndex, cell_EndIndex
             IF ( patch_3D%p_patch_1d(1)%dolic_c(jc,blockNo) > level) CYCLE
             IF ( patch_3D%p_patch_1d(1)%dolic_c(jc,blockNo) > 0 ) THEN
 #else
+            !$ACC LOOP SEQ
             DO level=2, patch_3D%p_patch_1d(1)%dolic_c(jc,blockNo)
 #endif
               patch_3D%p_patch_1d(1)%depth_cellmiddle(jc,level,blockNo) = &
@@ -2257,16 +2318,19 @@ CONTAINS
 #ifdef __LVECTOR__
             ENDIF
           ENDDO     ! jc
+        END DO      ! jc or level
+        !$ACC END PARALLEL
 #else
             ENDDO   ! level
           ENDIF
-#endif
-        
         END DO      ! jc or level
+        !$ACC END PARALLEL LOOP
+#endif
+
       END DO        ! blockNo
 !ICON_OMP_END_DO
     ENDIF
-    
+
     !----------------------------------------------------------------------------------------
     IF ( iswm_oce == 1 ) THEN  !  SWM
 !ICON_OMP_DO PRIVATE(cell_StartIndex, cell_EndIndex, jc) ICON_OMP_DEFAULT_SCHEDULE
@@ -2274,6 +2338,7 @@ CONTAINS
         CALL get_index_range(all_cells, blockNo, cell_StartIndex, cell_EndIndex)
         !calculate for each fluid colum the total depth, i.e.
         !from bottom boundary to surface height, i.e. using individual bathymetry for SWM
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO jc = cell_StartIndex, cell_EndIndex
           IF(patch_3D%lsm_c(jc,1,blockNo) <= sea_boundary)THEN
             
@@ -2285,6 +2350,7 @@ CONTAINS
             ocean_state%p_diag%thick_c(jc,blockNo) = 0.0_wp
           ENDIF
         END DO
+        !$ACC END PARALLEL LOOP
       END DO!write(*,*)'bathymetry',maxval(p_ext_data%oce%bathymetry_c),minval(p_ext_data%oce%bathymetry_c)
 !ICON_OMP_END_DO
       !write(*,*)'bathymetry cell',&
@@ -2300,6 +2366,7 @@ CONTAINS
 !ICON_OMP z_dist_e_c1, z_dist_e_c2) ICON_OMP_DEFAULT_SCHEDULE
       DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
         CALL get_index_range(edges_in_domain, blockNo, edge_StartIndex, edge_EndIndex)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO je = edge_StartIndex, edge_EndIndex
           
           il_c1 = patch_2D%edges%cell_idx(je,blockNo,1)
@@ -2325,6 +2392,7 @@ CONTAINS
             ocean_state%p_diag%h_e(je,blockNo) = 0.0_wp
           ENDIF
         END DO
+        !$ACC END PARALLEL LOOP
       END DO
 !ICON_OMP_END_DO
       !write(*,*)'bathymetry edge',&
@@ -2341,6 +2409,7 @@ CONTAINS
 !ICON_OMP_DO PRIVATE(edge_StartIndex, edge_EndIndex, je) ICON_OMP_DEFAULT_SCHEDULE
       DO blockNo = all_edges%start_block, all_edges%end_block
         CALL get_index_range(all_edges, blockNo, edge_StartIndex, edge_EndIndex)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO je = edge_StartIndex, edge_EndIndex
           IF ( patch_3D%p_patch_1d(1)%dolic_e(je,blockNo) > 0 ) THEN
             
@@ -2355,6 +2424,7 @@ CONTAINS
             
           ENDIF
         END DO
+        !$ACC END PARALLEL LOOP
       END DO
 !ICON_OMP_END_DO
       
@@ -2368,6 +2438,7 @@ CONTAINS
 !ICON_OMP z_dist_e_c1, z_dist_e_c2) ICON_OMP_DEFAULT_SCHEDULE
       DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
         CALL get_index_range(edges_in_domain, blockNo, edge_StartIndex, edge_EndIndex)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO je = edge_StartIndex, edge_EndIndex
           
           il_c1 = patch_2D%edges%cell_idx(je,blockNo,1)
@@ -2389,6 +2460,7 @@ CONTAINS
             
           ENDIF
         END DO
+        !$ACC END PARALLEL LOOP
       END DO
 !ICON_OMP_END_DO
 
@@ -2401,6 +2473,7 @@ CONTAINS
 !ICON_OMP_DO PRIVATE(edge_StartIndex, edge_EndIndex, je) ICON_OMP_DEFAULT_SCHEDULE
       DO blockNo = all_edges%start_block, all_edges%end_block
         CALL get_index_range(all_edges, blockNo, edge_StartIndex, edge_EndIndex)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO je = edge_StartIndex, edge_EndIndex
           IF ( patch_3D%p_patch_1d(1)%dolic_e(je,blockNo) > 0 ) THEN
             
@@ -2417,12 +2490,13 @@ CONTAINS
             
           ENDIF
         END DO
+        !$ACC END PARALLEL LOOP
       END DO
 !ICON_OMP_END_DO
       !---------------------------------------------------------------------
     ENDIF  ! shallow water model/3D model
 !ICON_OMP_END_PARALLEL
-    
+
 !     !---------------------------------------------------------------------
 !     ! update the coefficients for the edge2edge_viacell_1D fast operator
 !     top_coeffs        => operators_coefficients%edge2edge_viacell_coeff_top
@@ -2611,19 +2685,21 @@ CONTAINS
   !!
 !<Optimize:inUse>
   SUBROUTINE update_thickness_dependent_operator_coeff( patch_3D, ocean_state, &
-    & operators_coefficients, solvercoeff_sp, inTopCellThickness)
+    & operators_coefficients, solvercoeff_sp, inTopCellThickness, use_acc)
 
     TYPE(t_patch_3D ),TARGET, INTENT(in)   :: patch_3D
     TYPE(t_hydro_ocean_state), TARGET :: ocean_state
     TYPE(t_operator_coeff), INTENT(inout) :: operators_coefficients
     TYPE(t_solvercoeff_singleprecision), INTENT(inout) :: solvercoeff_sp
     REAL(wp), OPTIONAL :: inTopCellThickness(:,:)
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
     
     !  local variables
     INTEGER :: cell_StartIndex, cell_EndIndex
     INTEGER :: edge_StartIndex, edge_EndIndex
     INTEGER :: jc, blockNo, je, level
     INTEGER :: thislevel, levelabove, levelbelow, level2below, cell_levels
+    LOGICAL :: lacc
     
     INTEGER :: il_c1, ib_c1, il_c2, ib_c2
     REAL(wp)           :: z_dist_e_c1, z_dist_e_c2
@@ -2644,6 +2720,13 @@ CONTAINS
     ! pointers for the ppm vertical transport
     TYPE(t_verticaladvection_ppm_coefficients), POINTER :: vertadvppm
     !-------------------------------------------------------------------------------
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
     !CALL message (TRIM(routine), 'start')
     patch_2D            => patch_3D%p_patch_2D(1)
     all_cells           => patch_2D%cells%ALL
@@ -2661,7 +2744,6 @@ CONTAINS
     integrated_coeffs => operators_coefficients%edge2edge_viacell_coeff_integrated
     sum_to_2D_coeffs  => operators_coefficients%edge2edge_viacell_coeff_all
 
-
     IF ( patch_2d%cells%max_connectivity == 3 ) THEN
     ! This only works on triangles  
 !ICON_OMP_DO PRIVATE(edge_StartIndex, edge_EndIndex, je, cell_1_index, cell_1_block,  &
@@ -2670,6 +2752,7 @@ CONTAINS
 !ICON_OMP edge_1_3_block, edge_2_1_block, edge_2_2_block, edge_2_3_block) ICON_OMP_DEFAULT_SCHEDULE
       DO blockNo = all_edges%start_block, all_edges%end_block
         CALL get_index_range(all_edges, blockNo, edge_StartIndex, edge_EndIndex)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO je = edge_StartIndex, edge_EndIndex
 
           IF ( patch_3D%p_patch_1d(1)%dolic_e(je,blockNo) > 0 ) THEN
@@ -2732,14 +2815,17 @@ CONTAINS
           ENDIF
 
         END DO
+        !$ACC END PARALLEL LOOP
       END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
 !ICON_OMP_END_DO
     ENDIF 
     
     IF (select_solver == select_gmres_mp_r) THEN
 !ICON_OMP WORKSHARE
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       solvercoeff_sp%edge_thickness(:,:)  = REAL(ocean_state%p_diag%thick_e(:,:), sp)
       solvercoeff_sp%cell_thickness(:,:)  = REAL(ocean_state%p_diag%thick_c(:,:), sp)
+      !$ACC END KERNELS
 !ICON_OMP_END_WORKSHARE      
     ENDIF
     !-------------------------------------------------------------------------
@@ -2751,6 +2837,7 @@ CONTAINS
     DO blockNo = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, blockNo, cell_StartIndex, cell_EndIndex)
       vertadvppm => operators_coefficients%verticaladvectionppmcoeffs(blockNo)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jc = cell_StartIndex, cell_EndIndex
         
         cell_levels = patch_3D%p_patch_1d(1)%dolic_c(jc,blockNo)
@@ -2810,6 +2897,7 @@ CONTAINS
         ENDIF
         
       END DO
+      !$ACC END PARALLEL LOOP
     END DO
 !ICON_OMP_END_DO
 !ICON_OMP_END_PARALLEL    
@@ -2819,7 +2907,7 @@ CONTAINS
 #ifdef __LVECTOR__
       CALL update_lhs_matrix_coeff_lvector( patch_3D, operators_coefficients)
 #else
-      CALL update_lhs_matrix_coeff( patch_3D, operators_coefficients)
+      CALL update_lhs_matrix_coeff( patch_3D, operators_coefficients, use_acc = lacc)
 #endif
 
     !---------Debug Diagnostics-------------------------------------------
@@ -3048,10 +3136,11 @@ CONTAINS
   !-------------------------------------------------------------------------
 #else  
   !-------------------------------------------------------------------------
-  SUBROUTINE update_lhs_matrix_coeff( patch_3D, operators_coefficients)
+  SUBROUTINE update_lhs_matrix_coeff( patch_3D, operators_coefficients, use_acc )
 
     TYPE(t_patch_3D ), TARGET :: patch_3D
     TYPE(t_operator_coeff), INTENT(inout) :: operators_coefficients
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
 
     TYPE(t_patch), POINTER                  :: patch_2D
     TYPE(t_subset_range), POINTER :: cells_in_domain
@@ -3070,6 +3159,7 @@ CONTAINS
     REAL(wp) :: gs(9,0:9)  ! gs(i,j) = grad_coeff(i) * sign of cell j in the grad of the i edge
     REAL(wp) :: ap(3,9) !  ap(i,j) coefficients for mapping edges to edges (all_coeffs) from j to i edge
     REAL(wp) :: dc(3)
+    LOGICAL  :: lacc
 
  
     REAL(wp) :: gdt2_inv, gam_times_beta, grad_sign
@@ -3079,6 +3169,12 @@ CONTAINS
     REAL(wp), POINTER :: sum_to_2D_coeffs(:,:,:)
 
 !     write(0,*) "Calculating lhs_matrix_coeff..."
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     patch_2D            => patch_3D%p_patch_2D(1)
     cells_in_domain  => patch_2D%cells%in_domain
@@ -3090,9 +3186,17 @@ CONTAINS
     gdt2_inv       = 1.0_wp / (grav*(dtime)**2)
     gam_times_beta = ab_gam * ab_beta
 
+    !$ACC DATA CREATE(cell_idx, cell_blk, map_to_edgeStencil, gs, ap, dc) IF(lacc)
+
     DO blockNo = cells_in_domain%start_block, cells_in_domain%end_block
       CALL get_index_range(cells_in_domain, blockNo, cell_StartIndex, cell_EndIndex)
+
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       lhs_coeffs(:, :, blockNo) = 0._wp
+      !$ACC END KERNELS
+
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) &
+      !$ACC   PRIVATE(cell_idx, cell_blk, map_to_edgeStencil, gs, ap, dc) IF(lacc)
       DO jc = cell_StartIndex, cell_EndIndex
 
         IF (patch_3D%surface_cell_sea_land_mask(jc,blockNo) >= 0) CYCLE
@@ -3101,6 +3205,7 @@ CONTAINS
         cell_idx(0) = jc
 
         ! get the cell stencil mapping and the stencil grad coefficients
+        !$ACC LOOP SEQ
         DO edge_connect = 1, 3
           edge_idx_1 = patch_2d%cells%edge_idx(jc, blockNo, edge_connect)
           edge_blk_1 = patch_2d%cells%edge_blk(jc, blockNo, edge_connect)
@@ -3123,6 +3228,7 @@ CONTAINS
 
           ! get the next level of edges and gs
           next_stencil = edge_stencil_index * 2 + 2
+          !$ACC LOOP SEQ
           DO edge_connect_2 = 1, 3
             edge_idx_2 = patch_2d%cells%edge_idx(cell_idx(edge_connect), cell_blk(edge_connect), edge_connect_2)
             edge_blk_2 = patch_2d%cells%edge_blk(cell_idx(edge_connect), cell_blk(edge_connect), edge_connect_2)
@@ -3152,6 +3258,7 @@ CONTAINS
  
         ! compute the PtP coefficients for the three edges of this cell
         ap = 0.0_wp
+        !$ACC LOOP SEQ
         DO edge_connect = 1, 3
           edge_stencil_index = edge_connect
           edge_idx_1 = patch_2d%cells%edge_idx(jc, blockNo, edge_connect)
@@ -3200,6 +3307,7 @@ CONTAINS
             ENDDO
           ENDIF
         
+          !$ACC LOOP SEQ
           DO edge_connect_2 = 1, 6
             ap(edge_connect, map_to_edgeStencil(edge_connect_2)) =   &
               ap(edge_connect, map_to_edgeStencil(edge_connect_2)) + &
@@ -3215,6 +3323,7 @@ CONTAINS
         dc(3) = operators_coefficients%div_coeff(jc, 1, blockNo, 3)
 
         ! fill the stencil connectivity
+        !$ACC LOOP SEQ
         DO cell_connect = 1, 9
           operators_coefficients%lhs_CellToCell_index(cell_connect,jc,blockNo) = cell_idx(cell_connect)
           operators_coefficients%lhs_CellToCell_block(cell_connect,jc,blockNo) = cell_blk(cell_connect)
@@ -3240,7 +3349,10 @@ CONTAINS
         lhs_coeffs(8, jc, blockNo) = -gam_times_beta * dc(3) * gs(8,8) * ap(3,8) 
         lhs_coeffs(9, jc, blockNo) = -gam_times_beta * dc(3) * gs(9,9) * ap(3,9)
       ENDDO
+      !$ACC END PARALLEL LOOP
     ENDDO
+
+    !$ACC END DATA
 
   END SUBROUTINE update_lhs_matrix_coeff
   !-------------------------------------------------------------------------

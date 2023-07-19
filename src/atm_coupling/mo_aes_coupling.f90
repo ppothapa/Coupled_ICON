@@ -42,6 +42,7 @@ MODULE mo_aes_coupling
   USE mo_parallel_config     ,ONLY: nproma
 
   USE mo_coupling_config     ,ONLY: is_coupled_run
+  USE mo_coupling_config     ,ONLY: config_use_sens_heat_flux_hack
   USE mo_atmo_coupling_frame ,ONLY: lyac_very_1st_get, nbr_inner_cells,     &
     &                               mask_checksum, field_id
   USE mo_exception           ,ONLY: warning, finish, message
@@ -53,6 +54,7 @@ MODULE mo_aes_coupling
   USE mo_util_dbg_prnt       ,ONLY: dbg_print
   USE mo_dbg_nml             ,ONLY: idbg_mxmn, idbg_val
   USE mo_physical_constants  ,ONLY: amd, amco2
+  USE mo_physical_constants  ,ONLY: cvd, cpd
 
   IMPLICIT NONE
 
@@ -394,23 +396,47 @@ CONTAINS
     !  Send total heat flux bundle
     !   field_id(4) represents "total heat flux" bundle - short wave, long wave, sensible, latent heat flux
 
+    IF (config_use_sens_heat_flux_hack) THEN
+
 !ICON_OMP_PARALLEL_DO PRIVATE(i_blk, n, nn, nlen) ICON_OMP_RUNTIME_SCHEDULE
-    DO i_blk = 1, p_patch%nblks_c
-      nn = (i_blk-1)*nproma
-      IF (i_blk /= p_patch%nblks_c) THEN
-        nlen = nproma
-      ELSE
-        nlen = p_patch%npromz_c
-      END IF
-      !$ACC PARALLEL LOOP DEFAULT(PRESENT) COPYOUT(buffer(nn+1:nn+nlen, 1:4))
-      DO n = 1, nlen
-        buffer(nn+n,1) = prm_field(jg)%swflxsfc_tile(n,i_blk,iwtr)
-        buffer(nn+n,2) = prm_field(jg)%lwflxsfc_tile(n,i_blk,iwtr)
-        buffer(nn+n,3) = prm_field(jg)%shflx_tile   (n,i_blk,iwtr)
-        buffer(nn+n,4) = prm_field(jg)%lhflx_tile   (n,i_blk,iwtr)
+      DO i_blk = 1, p_patch%nblks_c
+        nn = (i_blk-1)*nproma
+        IF (i_blk /= p_patch%nblks_c) THEN
+          nlen = nproma
+        ELSE
+          nlen = p_patch%npromz_c
+        END IF
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) COPYOUT(buffer(nn+1:nn+nlen, 1:4))
+        DO n = 1, nlen
+          buffer(nn+n,1) = prm_field(jg)%swflxsfc_tile(n,i_blk,iwtr)
+          buffer(nn+n,2) = prm_field(jg)%lwflxsfc_tile(n,i_blk,iwtr)
+          buffer(nn+n,3) = (cvd/cpd)*prm_field(jg)%shflx_tile(n,i_blk,iwtr)
+          buffer(nn+n,4) = prm_field(jg)%lhflx_tile   (n,i_blk,iwtr)
+        ENDDO
       ENDDO
-    ENDDO
 !ICON_OMP_END_PARALLEL_DO
+
+    ELSE ! .NOT. config_use_sens_heat_flux_hack
+
+!ICON_OMP_PARALLEL_DO PRIVATE(i_blk, n, nn, nlen) ICON_OMP_RUNTIME_SCHEDULE
+      DO i_blk = 1, p_patch%nblks_c
+        nn = (i_blk-1)*nproma
+        IF (i_blk /= p_patch%nblks_c) THEN
+          nlen = nproma
+        ELSE
+          nlen = p_patch%npromz_c
+        END IF
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) COPYOUT(buffer(nn+1:nn+nlen, 1:4))
+        DO n = 1, nlen
+          buffer(nn+n,1) = prm_field(jg)%swflxsfc_tile(n,i_blk,iwtr)
+          buffer(nn+n,2) = prm_field(jg)%lwflxsfc_tile(n,i_blk,iwtr)
+          buffer(nn+n,3) = prm_field(jg)%shflx_tile   (n,i_blk,iwtr)
+          buffer(nn+n,4) = prm_field(jg)%lhflx_tile   (n,i_blk,iwtr)
+        ENDDO
+      ENDDO
+!ICON_OMP_END_PARALLEL_DO
+
+    ENDIF ! config_use_sens_heat_flux_hack
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
 
