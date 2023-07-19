@@ -42,7 +42,6 @@ MODULE mo_read_namelists
   USE mo_advection_nml       ,ONLY: read_transport_namelist
 
   USE mo_aes_phy_nml         ,ONLY: process_aes_phy_nml
-  USE mo_cloud_mig_nml       ,ONLY: process_cloud_mig_nml
   USE mo_aes_cov_nml         ,ONLY: process_aes_cov_nml
   USE mo_aes_cop_nml         ,ONLY: process_aes_cop_nml
   USE mo_aes_wmo_nml         ,ONLY: process_aes_wmo_nml
@@ -177,7 +176,6 @@ CONTAINS
        CALL process_aes_phy_nml          (atm_namelist_filename(1:tlen))
        !
        ! ... and the employed parameterizations
-       CALL process_cloud_mig_nml        (atm_namelist_filename(1:tlen))
        CALL process_aes_cov_nml          (atm_namelist_filename(1:tlen))
        CALL process_aes_cop_nml          (atm_namelist_filename(1:tlen))
        CALL process_aes_wmo_nml          (atm_namelist_filename(1:tlen))

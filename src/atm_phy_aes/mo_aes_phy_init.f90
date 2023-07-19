@@ -76,10 +76,6 @@ MODULE mo_aes_phy_init
   ! cloud optical properties
   USE mo_aes_cop_config,       ONLY: print_aes_cop_config, aes_cop_config
 
-  ! "graupel" cloud microphysics
-  USE gscp_data,              ONLY: gscp_set_coefficients
-  USE mo_cloud_mig_config,    ONLY: cloud_mig_config, print_cloud_mig_config
-
   ! two-moment bulk microphysics
   USE mo_2mom_mcrph_driver,    ONLY: two_moment_mcrph_init
 
@@ -261,37 +257,10 @@ CONTAINS
     !
     CALL print_ccycle_config
 
-    ! cloud microphysics (graupel)
+    ! cloud microphysics (mig - graupel)
     !
-    lany=.FALSE.
-    DO jg = 1,ng
-       lany = lany .OR. (aes_phy_tc(jg)%dt_mig > dt_zero)
-    END DO
-    IF (lany) THEN
-      CALL print_cloud_mig_config(ng)
-      !
-      ! For making the "graupel" setup specific for the grid, the following setup needs
-      ! to be executed in the time loop immediately before calling "graupel", or the
-      ! gscp_data module needs to be extended with a grid dimension. For the time being
-      ! the scheme is initialized with configuration parameters for grid 1.
-      !
-      IF (ng > 1) THEN
-         CALL message('','!! ATTENTION: The current implementation of the "graupel" scheme !!')
-         CALL message('','!! ---------  uses the configuration for grid 1 on all grids     !!')
-         CALL message('','')
-      END IF
-      !
-      jg=1
-      CALL gscp_set_coefficients(idbg                = msg_level                            ,&
-         &                       tune_zceff_min      = cloud_mig_config(jg)% zceff_min      ,&
-         &                       tune_v0snow         = cloud_mig_config(jg)% v0snow         ,&
-         &                       tune_zvz0i          = cloud_mig_config(jg)% zvz0i          ,&
-         &                       tune_icesedi_exp    = cloud_mig_config(jg)% icesedi_exp    ,&
-         &                       tune_mu_rain        = cloud_mig_config(jg)% mu_rain        ,&
-         &                       tune_rain_n0_factor = cloud_mig_config(jg)% rain_n0_factor ,&
-         &                       igscp               = 2 )
-    END IF
-
+    ! No setting of parameters necessary - nothing to do
+    !
     ! cloud microphysics (two moment bulk microphysics)
     !
     lany=.FALSE.
