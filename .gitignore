@@ -26,6 +26,10 @@
 /run/SETUP.config
 /run/collect.set-up.info
 /run/set-up.info
+/config/cscs/**/.spack-env/**
+/config/cscs/**/spack.lock
+spack-build-*
+spack-configure-args.txt
 
 # Build stage files:
 *.a

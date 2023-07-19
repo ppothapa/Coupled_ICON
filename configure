@@ -760,6 +760,7 @@ enable_testbed
 enable_memory_tracing
 enable_loop_exchange
 enable_dim_swap
+enable_realloc_buf
 enable_vectorized_lrtm
 enable_mixed_precision
 enable_intel_consistency
@@ -1557,6 +1558,8 @@ Infrastructural Features:
 Optimization Features:
   --enable-loop-exchange  enable loop exchange [default=auto]
   --enable-dim-swap       enable dimension swap [default=auto]
+  --enable-realloc-buf    enable reallocatable buffer in the communication
+                          [default=no]
   --enable-vectorized-lrtm
                           enable the parallelization-invariant version of LRTM
                           [default=no]
@@ -3220,6 +3223,16 @@ else
   enable_dim_swap=no
 fi
 fi
+
+# Check whether --enable-realloc-buf was given.
+if test "${enable_realloc_buf+set}" = set; then :
+  enableval=$enable_realloc_buf; if test x"$enableval" != xno ; then :
+  enable_realloc_buf=yes
+fi
+else
+  enable_realloc_buf=no
+fi
+
 
 # Check whether --enable-vectorized-lrtm was given.
 if test "${enable_vectorized_lrtm+set}" = set; then :
@@ -5226,6 +5239,10 @@ fi
 
 if test "x$enable_dim_swap" = xyes; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}__SWAPDIM"
+fi
+
+if test "x$enable_realloc_buf" = xyes; then :
+  as_fn_append FCFLAGS " ${FC_PP_DEF}__REALLOC_BUF"
 fi
 
 if test "x$enable_vectorized_lrtm" = xyes; then :
