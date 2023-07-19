@@ -2083,7 +2083,7 @@ CONTAINS
 
       DO blk = subset%start_block, subset%end_block
         CALL get_index_range(subset, blk, cellStart, cellEnd)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(sithk, snthk, dz) IF(lacc)
         DO cell = cellStart, cellEnd
 
           ! tendency of equivalent thickness of sea ice
@@ -2190,8 +2190,14 @@ CONTAINS
 
         DO level=2,subset%vertical_levels(cell,blk)
 
-          dz=MERGE(thickness(cell,level,blk)*stretch_c(cell,blk) &
-            ,thickness(cell,level,blk),vert_cor_type .EQ. 1)  !check for vert_cor_type
+          ! 2023-07 dzo-DKRZ: The following MERGE command does not work as intended with NVIDIA compiler
+          !dz=MERGE(thickness(cell,level,blk)*stretch_c(cell,blk) &
+          !  ,thickness(cell,level,blk),vert_cor_type .EQ. 1)  !check for vert_cor_type
+          IF (vert_cor_type .EQ. 1) THEN
+             dz=thickness(cell,level,blk)*stretch_c(cell,blk)
+          ELSE
+             dz=thickness(cell,level,blk)
+          END IF
 
           heat_content_liquid_water(cell,level,blk) = (tmelt - tref &
                + tracers(cell,level,blk,1) ) * rocp                 &

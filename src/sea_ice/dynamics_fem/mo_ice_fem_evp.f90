@@ -24,6 +24,9 @@ module mo_ice_fem_evp
   use mo_ice_fem_types
 
   USE mo_kind,    ONLY: wp
+#ifdef _OPENACC
+    USE openacc, ONLY : acc_is_present
+#endif
 
   IMPLICIT NONE
 
@@ -274,10 +277,13 @@ implicit none
       lacc = .FALSE.
     END IF
 
+    !$ACC DATA CREATE(elnodes, dx, dy) IF(lacc)
+
 ! !ICON_OMP_DO        PRIVATE(i,elem,elnodes,dx,dy,vsum,usum,eps11,eps22,eps12,delta,msum,asum,pressure, &
 ! !ICON_OMP                   delta_inv,zeta,r1,r2,r3,si1,si2)  SCHEDULE(static,4)
 !NEC$ ivdep
-    !$ACC PARALLEL LOOP GANG VECTOR PRIVATE(dx, dy, elnodes) DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(elem, usum, vsum, eps11, eps12, eps22) &
+    !$ACC   PRIVATE(delta, msum, asum, pressure, delta_inv, zeta, r1, r2, r3, si1, si2) IF(lacc)
     DO i=1,si_elem2D
      elem = si_idx_elem(i)
 
@@ -352,6 +358,7 @@ implicit none
     !$ACC END PARALLEL LOOP
 ! !ICON_OMP_END_DO
 
+    !$ACC END DATA
 end subroutine stress_tensor
 !===================================================================
 subroutine stress2rhs(si_nod2D, si_idx_nodes, use_acc)
@@ -375,9 +382,11 @@ LOGICAL  :: lacc
     lacc = .FALSE.
   END IF
 
+  !$ACC DATA CREATE(nodels, dx, dy) IF(lacc)
+
 ! !ICON_OMP_DO        PRIVATE(i,k,row,elem,nodels,dx,dy) ICON_OMP_DEFAULT_SCHEDULE
 !NEC$ ivdep
-  !$ACC PARALLEL LOOP GANG VECTOR PRIVATE(dx, dy, nodels) DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL LOOP GANG VECTOR PRIVATE(row, elem) DEFAULT(PRESENT) IF(lacc)
   DO i=1,si_nod2D
 
      row = si_idx_nodes(i)
@@ -412,6 +421,7 @@ LOGICAL  :: lacc
   !$ACC END PARALLEL LOOP
 ! !ICON_OMP_END_DO
 
+  !$ACC END DATA
 end subroutine stress2rhs
 !===================================================================
 
@@ -438,7 +448,7 @@ logical     :: lacc
 
  !$ACC DATA COPY(elem2D_nodes, bafux, bafuy, metrics_elem2D) &
  !$ACC   COPY(sigma11, sigma12, sigma22) &
- !$ACC   COPY(v_ice, u_ice, m_ice, a_ice, m_snow) &
+ !$ACC   COPY(u_ice, v_ice, m_ice, a_ice, m_snow) &
  !$ACC   COPY(elevation, u_w, v_w, stress_atmice_x, stress_atmice_y) &
  !$ACC   COPY(myList_nod2D) &
  !$ACC   COPY(rhs_u, rhs_v, rhs_mis, rhs_a, rhs_m) &
@@ -461,7 +471,7 @@ logical     :: lacc
  DO shortstep=1, evp_rheol_steps
 
      ! ===== Boundary conditions
-     !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+     !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(i) IF(lacc)
      do j=1, myDim_nod2D+eDim_nod2D
         i=myList_nod2D(j)
         if(index_nod2D(i)==1) then
@@ -478,7 +488,7 @@ logical     :: lacc
 !ICON_OMP_PARALLEL
 !ICON_OMP_DO        PRIVATE(j,i,inv_mass,umod,drag,rhsu,rhsv,det) ICON_OMP_DEFAULT_SCHEDULE
 !NEC$ ivdep
-     !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+     !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(i, inv_mass, umod, drag, rhsu, rhsv, det) IF(lacc)
      DO j=1,si_nod2D
        i=si_idx_nodes(j)
        if (index_nod2D(i)>0) CYCLE          ! Skip boundary nodes

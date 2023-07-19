@@ -468,7 +468,10 @@ CONTAINS
       lacc = .FALSE.
     END IF
 
-    !$ACC DATA CREATE(div_adv_flux_horz, div_adv_flux_vert, div_diff_flux_horz, top_bc) IF(lacc)
+    !$ACC DATA COPYIN(dolic_c, transport_state_h_old, transport_state_h_new, old_tracer_top_bc) &
+    !$ACC   COPYIN(prism_thick_flat_sfc_c, old_tracer_concentration, prism_thick_c) &
+    !$ACC   COPY(new_tracer_concentration) &
+    !$ACC   CREATE(div_adv_flux_horz, div_adv_flux_vert, div_diff_flux_horz, top_bc) IF(lacc)
 
     !---------------------------------------------------------------------
 #ifndef _OPENACC
@@ -588,6 +591,8 @@ CONTAINS
       IF (vert_mix_type .EQ. vmix_kpp .and. typeOfTracers == "ocean") THEN
         !by_Oliver: account for nonlocal transport term for heat and scalar
         !(salinity) if KPP scheme is used
+
+        !$ACC DATA COPYIN(old_transport_tendencies) IF(lacc)
 #ifdef __LVECTOR__
         !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
         DO level = 2, max_dolic_c
@@ -608,7 +613,7 @@ CONTAINS
           END DO
         END DO
         !$ACC END PARALLEL LOOP
-
+        !$ACC END DATA
       ELSE
 
 #ifdef __LVECTOR__

@@ -775,9 +775,7 @@ CONTAINS
     END IF
     !-> end by_ogut
 
-    ! 2022-09 dzo-DKRZ: Providing nl_trans_tend_heat and nl_trans_tend_salt not only for
-    !                   vert_mix_type == vmix_kpp but also for vmix_pp (initially used with hamocc_omip_10days)
-    IF ((vert_mix_type .eq. vmix_kpp) .OR. (vert_mix_type .eq. vmix_pp)) THEN
+    IF (vert_mix_type .eq. vmix_kpp) THEN
    CALL add_var(ocean_params_list,'nl_trans_tend_heat',params_oce%cvmix_params%nl_trans_tend_heat,&
        & grid_unstructured_cell, za_depth_below_sea_half, &
        & t_cf_var('nl_trans_tend_heat', '', 'non-local heat transport tendency',datatype_flt),&

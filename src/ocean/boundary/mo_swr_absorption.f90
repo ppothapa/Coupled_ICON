@@ -264,10 +264,6 @@ CONTAINS
       lacc = .FALSE.
     END IF
 
-#ifdef _OPENACC
-    IF (lacc) CALL finish(str_module, 'OpenACC version currently not tested/validated')
-#endif
-
     patch_2d => patch_3D%p_patch_2d(1)
     all_cells => patch_2d%cells%all
 

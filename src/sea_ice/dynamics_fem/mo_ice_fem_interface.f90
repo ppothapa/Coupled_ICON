@@ -51,6 +51,9 @@ MODULE mo_ice_fem_interface
                                       gvec2cvec_c_2d, cvec2gvec_c_2d,                   &
                                       rotate_cvec_v, gvec2cvec_v_fem, cvec2gvec_v_fem,  &
                                       cells2verts_scalar_seaice
+#ifdef _OPENACC
+  USE openacc, ONLY: acc_is_present 
+#endif
 
   IMPLICIT NONE
 
@@ -119,21 +122,15 @@ CONTAINS
     p_patch   => p_patch_3D%p_patch_2D(1)
     all_cells => p_patch_3d%p_patch_2d(1)%cells%all
 
+    !$ACC UPDATE SELF(p_ice%draftave) IF(lacc .AND. acc_is_present(p_ice%draftave))
     ALLOCATE(ssh(SIZE(p_ice%draftave(:,:),1),SIZE(p_ice%draftave(:,:),2)))
 
-    !$ACC DATA CREATE(ssh) &
-    !$ACC   COPY(rot_mat_3D) &
-    !$ACC   COPYIN(coord_nod2D) &
-    !$ACC   COPY(c2v_wgt) &
-    !$ACC   COPY(u_w, v_w, stress_atmice_x, stress_atmice_y) &
-    !$ACC   COPY(elevation) &
-    !$ACC   COPY(u_ice, v_ice) &
-    !$ACC   IF(lacc)
+    !$ACC DATA COPYIN(coord_nod2D, rot_mat_3D, c2v_wgt) &
+    !$ACC   COPY(ssh) IF(lacc)
 
-    !$ACC DATA &
-    !$ACC   COPY(m_ice, a_ice, m_snow) &
-    !$ACC   IF(lacc)
-
+    !$ACC DATA COPYIN(u_ice, v_ice) &
+    !$ACC   COPY(m_ice, m_snow, a_ice, elevation, u_w, v_w, stress_atmice_x, stress_atmice_y) IF(lacc)
+ 
     IF (ssh_in_icedyn_type == 1) THEN  ! Fully including ssh
       IF (vert_cor_type == 1) THEN
         !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
@@ -192,13 +189,16 @@ CONTAINS
 
     IF (ltimer) CALL timer_stop(timer_ice_interp)
 
-    !$ACC END DATA
-
 !--------------------------------------------------------------------------------------------------
 ! Call FEM EVP solver
 !--------------------------------------------------------------------------------------------------
 
+    !$ACC END DATA
+
     CALL EVPdynamics(use_acc=lacc)
+
+    !$ACC DATA COPYIN(u_ice, v_ice) &
+    !$ACC   COPY(u_w, v_w, stress_atmice_x, stress_atmice_y, elevation) IF(lacc)
 
 !--------------------------------------------------------------------------------------------------
 ! FCT advection on FEM grid. Advection on ICON grid is done in ice_slow_interface
@@ -232,6 +232,7 @@ CONTAINS
 
     IF (ltimer) CALL timer_stop(timer_ice_momentum)
 
+    !$ACC END DATA
     !$ACC END DATA
     DEALLOCATE(ssh)
     IF (atm_pressure_included_in_icedyn) THEN
@@ -375,8 +376,7 @@ CONTAINS
 !--------------------------------------------------------------------------------------------------
     p_patch => p_patch_3D%p_patch_2D(1)
 
-    !$ACC DATA CREATE(p_tau_n_c, tau_n, p_tau_n_dual, p_tau_n_dual_fem, p_vn_dual_fem, p_vn_dual_2D) &
-    !$ACC   IF(lacc)
+    !$ACC DATA CREATE(p_tau_n_c, tau_n, p_tau_n_dual, p_tau_n_dual_fem, p_vn_dual_fem, p_vn_dual_2D) IF(lacc)
 
     !**************************************************************
     ! (1) Convert lat-lon wind stress to cartesian coordinates

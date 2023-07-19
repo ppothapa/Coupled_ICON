@@ -1115,6 +1115,8 @@ CONTAINS
     INTEGER, DIMENSION(:,:,:), POINTER ::  cellOfEdge_idx, cellOfEdge_blk
     INTEGER, DIMENSION(:,:,:), POINTER :: neighbor_cell_idx, neighbor_cell_blk
     INTEGER, DIMENSION(:,:,:), POINTER :: edge_of_cell_idx, edge_of_cell_blk
+    INTEGER, DIMENSION(:,:,:), POINTER :: edges_SeaBoundaryLevel
+    REAL(wp), DIMENSION(:,:,:,:), POINTER :: div_coeff
     INTEGER :: start_level !, end_level            
     INTEGER :: start_index, end_index, nidx, nblk, max_dolic_c, max_dolic_e
     INTEGER :: edge_index, level, blockNo, jc,  cell_connect, sum_lsm_quad_edge, ctr
@@ -1137,6 +1139,8 @@ CONTAINS
     edge_of_cell_blk  => patch_2d%cells%edge_blk
     neighbor_cell_idx => patch_2d%cells%neighbor_idx
     neighbor_cell_blk => patch_2d%cells%neighbor_blk
+    div_coeff => operators_coefficients%div_coeff
+    edges_SeaBoundaryLevel => operators_coefficients%edges_SeaBoundaryLevel
 
     IF (PRESENT(use_acc)) THEN
       lacc = use_acc
@@ -1145,15 +1149,15 @@ CONTAINS
     END IF
 
     !$ACC DATA PRESENT(patch_3d%p_patch_2d(1)%nblks_e, patch_3d%p_patch_2d(1)%alloc_cell_blocks) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_e, patch_3d%p_patch_1d(1)%dolic_c) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%prism_thick_flat_sfc_c, patch_3d%p_patch_1d(1)%inv_prism_thick_c) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%del_zlev_m, div_coeff) &
+    !$ACC   COPYIN(cellOfEdge_idx, cellOfEdge_blk, edge_of_cell_idx, edge_of_cell_blk) &
+    !$ACC   COPYIN(neighbor_cell_idx, neighbor_cell_blk, edges_SeaBoundaryLevel) &
+    !$ACC   COPYIN(tracer, flx_tracer_low, flx_tracer_high, div_adv_flux_vert, h_old, h_new) &
     !$ACC   CREATE(z_mflx_anti1, z_mflx_anti2, z_mflx_anti3, z_fluxdiv_c, z_anti) &
     !$ACC   CREATE(z_tracer_new_low, z_tracer_max, z_tracer_min, r_p, r_m, z_tracer_update_horz) &
     !$ACC   CREATE(z_min, z_max, p_p, p_m, inv_prism_thick_new, delta_z_new, delta_z) &
-    !$ACC   COPYIN(edges_in_domain%start_block, edges_in_domain%end_block, cells_in_domain%start_block) &
-    !$ACC   COPYIN(cells_in_domain%end_block, patch_3d%p_patch_1d(1)%dolic_e, patch_3d%p_patch_1d(1)%dolic_c) &
-    !$ACC   COPYIN(patch_3d%p_patch_1D(1)%prism_thick_flat_sfc_c, patch_3d%p_patch_1d(1)%inv_prism_thick_c) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%del_zlev_m, operators_coefficients%div_coeff) &
-    !$ACC   COPYIN(operators_coefficients%edges_SeaBoundaryLevel) &
-    !$ACC   COPYIN(tracer, flx_tracer_low, flx_tracer_high, div_adv_flux_vert, h_old, h_new) &
     !$ACC   COPY(flx_tracer_final) IF(lacc)
 
 #ifdef NAGFOR
@@ -1218,11 +1222,11 @@ CONTAINS
         !  compute divergence of low order fluxes
         z_fluxdiv_c(jc) = &
             & flx_tracer_low(edge_of_cell_idx(jc,blockNo,1),level,edge_of_cell_blk(jc,blockNo,1)) * &
-            & operators_coefficients%div_coeff(jc,level,blockNo,1) + & 
+            & div_coeff(jc,level,blockNo,1) + & 
             & flx_tracer_low(edge_of_cell_idx(jc,blockNo,2),level,edge_of_cell_blk(jc,blockNo,2)) * &
-            & operators_coefficients%div_coeff(jc,level,blockNo,2) + & 
+            & div_coeff(jc,level,blockNo,2) + & 
             & flx_tracer_low(edge_of_cell_idx(jc,blockNo,3),level,edge_of_cell_blk(jc,blockNo,3)) * &
-            & operators_coefficients%div_coeff(jc,level,blockNo,3) 
+            & div_coeff(jc,level,blockNo,3) 
             
        
         delta_z(jc) = patch_3d%p_patch_1D(1)%prism_thick_flat_sfc_c(jc,level,blockNo)&
@@ -1268,11 +1272,11 @@ CONTAINS
           !  compute divergence of low order fluxes
           z_fluxdiv_c(jc) = &
             & flx_tracer_low(edge_of_cell_idx(jc,blockNo,1),level,edge_of_cell_blk(jc,blockNo,1)) * &
-            & operators_coefficients%div_coeff(jc,level,blockNo,1) + & 
+            & div_coeff(jc,level,blockNo,1) + & 
             & flx_tracer_low(edge_of_cell_idx(jc,blockNo,2),level,edge_of_cell_blk(jc,blockNo,2)) * &
-            & operators_coefficients%div_coeff(jc,level,blockNo,2) + & 
+            & div_coeff(jc,level,blockNo,2) + & 
             & flx_tracer_low(edge_of_cell_idx(jc,blockNo,3),level,edge_of_cell_blk(jc,blockNo,3)) * &
-            & operators_coefficients%div_coeff(jc,level,blockNo,3) 
+            & div_coeff(jc,level,blockNo,3) 
          
           delta_z(jc)     = patch_3d%p_patch_1D(1)%prism_thick_flat_sfc_c(jc,level,blockNo)
           delta_z_new(jc) = patch_3d%p_patch_1D(1)%prism_thick_flat_sfc_c(jc,level,blockNo)
@@ -1341,13 +1345,13 @@ CONTAINS
           !    this sign convention is related to the definition of the divergence operator.
                     
           z_mflx_anti1(jc) =                                                        &
-            & dtime * operators_coefficients%div_coeff(jc,level,blockNo,1) * inv_prism_thick_new(jc, level)  &
+            & dtime * div_coeff(jc,level,blockNo,1) * inv_prism_thick_new(jc, level)  &
             & * z_anti(edge_of_cell_idx(jc,blockNo,1),level,edge_of_cell_blk(jc,blockNo,1))
           z_mflx_anti2(jc) =                                                        &
-            & dtime * operators_coefficients%div_coeff(jc,level,blockNo,2) * inv_prism_thick_new(jc, level)  &
+            & dtime * div_coeff(jc,level,blockNo,2) * inv_prism_thick_new(jc, level)  &
             & * z_anti(edge_of_cell_idx(jc,blockNo,2),level,edge_of_cell_blk(jc,blockNo,2))
           z_mflx_anti3(jc) =                                                        &
-            & dtime * operators_coefficients%div_coeff(jc,level,blockNo,3) * inv_prism_thick_new(jc, level)  &
+            & dtime * div_coeff(jc,level,blockNo,3) * inv_prism_thick_new(jc, level)  &
             & * z_anti(edge_of_cell_idx(jc,blockNo,3),level,edge_of_cell_blk(jc,blockNo,3))
                   
           z_max(jc) = z_tracer_max(jc,level,blockNo)
@@ -1445,7 +1449,7 @@ CONTAINS
         DO edge_index = start_index, end_index
           IF (patch_3d%p_patch_1d(1)%dolic_e(edge_index,blockNo) < level) CYCLE
  
-          IF( operators_coefficients%edges_SeaBoundaryLevel(edge_index,level,blockNo) > -2)THEN! edge < 2nd order boundary
+          IF( edges_SeaBoundaryLevel(edge_index,level,blockNo) > -2)THEN! edge < 2nd order boundary
           
             flx_tracer_final(edge_index,level,blockNo) = flx_tracer_low(edge_index,level,blockNo)
             

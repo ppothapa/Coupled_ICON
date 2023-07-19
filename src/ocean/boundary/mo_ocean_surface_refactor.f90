@@ -173,7 +173,7 @@ CONTAINS
       ! sst-change in surface module after sea-ice thermodynamics using HeatFlux_Total and old freeboard zUnderIceIni
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(heatflux_surface_layer) IF(lacc)
         DO jc = i_startidx_c, i_endidx_c
           IF (p_patch_3D%lsm_c(jc,1,jb) <= sea_boundary) THEN
          
@@ -202,7 +202,7 @@ CONTAINS
     !    i.e. for salinity relaxation only, no volume flux is applied
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(zUnderIce_ini) IF(lacc)
       DO jc = i_startidx_c, i_endidx_c
         IF (p_patch_3D%p_patch_1D(1)%dolic_c(jc,jb) > 0) THEN
 
@@ -596,6 +596,7 @@ CONTAINS
     
     TYPE(t_patch), POINTER:: p_patch
     TYPE(t_subset_range), POINTER :: all_cells
+    REAL(wp), DIMENSION(:,:,:,:), POINTER :: tracer
     
     CHARACTER(LEN=max_char_length), PARAMETER :: str_module = 'apply_surface_fluxes_zstar_v13'
 
@@ -605,15 +606,12 @@ CONTAINS
       lacc = .FALSE.
     END IF
 
-#ifdef _OPENACC
-    IF (lacc) CALL finish(str_module, 'OpenACC version currently not tested/validated')
-#endif
-
     !$ACC DATA CREATE(sss_inter, sst_inter, zUnderIceIni, dz_old, dz_new, z_change, temp_stretch) IF(lacc)
     
     !-----------------------------------------------------------------------
     p_patch         => p_patch_3D%p_patch_2D(1)
     all_cells       => p_patch%cells%all
+    tracer          => p_os%p_prog(nold(1))%tracer
     !-----------------------------------------------------------------------
     !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     sst_inter(:,:)    = p_oce_sfc%sst(:,:)
@@ -642,7 +640,7 @@ CONTAINS
       IF ( heatflux_forcing_on_sst ) THEN
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(heatflux_surface_layer) IF(lacc)
         DO jc = i_startidx_c, i_endidx_c
           IF (p_patch_3D%lsm_c(jc,1,jb) <= sea_boundary) THEN
 
@@ -672,7 +670,9 @@ CONTAINS
     ! apply volume flux to surface elevation
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-      !$ACC PARALLEL LOOP GANG VECTOR PRIVATE(dz_old, dz_new, z_change) DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) PRIVATE(d_c, zunderice_old, temp_eta, min_h) &
+      !$ACC   PRIVATE(dz_old, dz_new, z_change) IF(lacc)
+      !$ACC LOOP SEQ
       DO jc = i_startidx_c, i_endidx_c
         IF (p_patch_3D%p_patch_1D(1)%dolic_c(jc,jb) > 0) THEN
 
@@ -714,48 +714,52 @@ CONTAINS
           dz_new(:) = p_patch_3D%p_patch_1D(1)%prism_thick_flat_sfc_c(jc, :, jb) * temp_stretch(jc, jb) 
 
           z_change(bt_lev) = dz_new(bt_lev) - dz_old(bt_lev)
+          !$ACC LOOP SEQ
           DO jk = bt_lev-1,1,-1
              z_change(jk) = z_change(jk+1) + dz_new(jk) - dz_old(jk)
           ENDDO
 
           !! Loop through T and S
+          !$ACC LOOP SEQ
           DO jt = 1,2
 
             IF (p_oce_sfc%top_dilution_coeff(jc,jb) > 1.0_wp) THEN
               ! add surface fwflux with temperature of sst, dilute sss
               IF ( jt .EQ. 1) THEN
                 IF (.NOT. lfwflux_enters_with_sst ) THEN
-                  p_os%p_prog(nold(1))%tracer(jc, 1, jb, jt) = p_os%p_prog(nold(1))%tracer(jc, 1, jb, jt) * &
+                  tracer(jc, 1, jb, jt) = tracer(jc, 1, jb, jt) * &
                        &  dz_old(1) / (dz_old(1) + z_change(1))
                 ENDIF
               ELSE
-                p_os%p_prog(nold(1))%tracer(jc, 1, jb, jt) = p_os%p_prog(nold(1))%tracer(jc, 1, jb, jt) * &
+                tracer(jc, 1, jb, jt) = tracer(jc, 1, jb, jt) * &
                      &  dz_old(1) / (dz_old(1) + z_change(1))
               ENDIF
 
               ! If tdc > 1 then bottom layer conc is unaffected (levels have
               ! become thinner)
+              !$ACC LOOP SEQ
               DO jk = 1,bt_lev-1
-                p_os%p_prog(nold(1))%tracer(jc, jk, jb, jt) = ( p_os%p_prog(nold(1))%tracer(jc, jk, jb, jt) &
+                tracer(jc, jk, jb, jt) = ( tracer(jc, jk, jb, jt) &
                      &   * (dz_new(jk) + z_change(jk+1)) &
-                     &   - z_change(jk+1) * p_os%p_prog(nold(1))%tracer(jc, jk+1, jb, jt))  &
+                     &   - z_change(jk+1) * tracer(jc, jk+1, jb, jt))  &
                      &   / dz_new(jk) 
               ENDDO
             ELSEIF (p_oce_sfc%top_dilution_coeff(jc,jb) < 1.0_wp) THEN
+              !$ACC LOOP SEQ
               DO jk = bt_lev,2,-1
-                 p_os%p_prog(nold(1))%tracer(jc, jk, jb, jt) = ( p_os%p_prog(nold(1))%tracer(jc, jk, jb, jt) &
+                 tracer(jc, jk, jb, jt) = ( tracer(jc, jk, jb, jt) &
                      &   * (dz_new(jk) - z_change(jk)) &
-                     &   + z_change(jk) * p_os%p_prog(nold(1))%tracer(jc, jk-1, jb, jt))  &
+                     &   + z_change(jk) * tracer(jc, jk-1, jb, jt))  &
                      &   / dz_new(jk) 
               ENDDO
 
               IF ( jt .EQ. 1) THEN
                 IF (.NOT. lfwflux_enters_with_sst ) THEN
-                  p_os%p_prog(nold(1))%tracer(jc, 1, jb, jt) = p_os%p_prog(nold(1))%tracer(jc, 1, jb, jt) * &
+                  tracer(jc, 1, jb, jt) = tracer(jc, 1, jb, jt) * &
                        &  (dz_new(1) - z_change(1)) / dz_new(1)
                 ENDIF
               ELSE
-                  p_os%p_prog(nold(1))%tracer(jc, 1, jb, jt) = p_os%p_prog(nold(1))%tracer(jc, 1, jb, jt) * &
+                  tracer(jc, 1, jb, jt) = tracer(jc, 1, jb, jt) * &
                        &  (dz_new(1) - z_change(1)) / dz_new(1)
               ENDIF
 
@@ -768,7 +772,7 @@ CONTAINS
 
         ENDIF  !  dolic>0
       END DO
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
     END DO
 
     ENDIF

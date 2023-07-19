@@ -360,7 +360,7 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_v, i_endidx_v, jv, jev, ile, ibe) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = verts_in_domain%start_block, verts_in_domain%end_block
       CALL get_index_range(verts_in_domain, jb, i_startidx_v, i_endidx_v)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(ile, ibe) IF(lacc)
         DO jv = i_startidx_v, i_endidx_v
 
           p_vn_dual(jv,jb)%x = 0.0_wp
@@ -586,7 +586,7 @@ ELSE IF (ptr_patch%geometry_info%cell_type == 3) THEN
       DO jk = slev, elev
 #else
 !CDIR UNROLL=6
-    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) PRIVATE(cell_index, cell_block) IF(lacc)
     DO jk = slev, elev
       DO jv = i_startidx, i_endidx
 #endif

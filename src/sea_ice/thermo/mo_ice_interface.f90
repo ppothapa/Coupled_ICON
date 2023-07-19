@@ -169,7 +169,10 @@ CONTAINS
       CALL ice_cut_off( p_patch, p_ice, use_acc=lacc )
 
       IF (i_ice_dyn == 2) THEN
+        !$ACC DATA CREATE(cvec_ice_velocity, boundary_cell_marker, boundary_edge_marker, ice_x, ice_y, ice_z) IF(lacc)
+
         ! kartesischer Vektor auf Kantenmitte
+        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
         cvec_ice_velocity(:,:)%x(1)=0.0_wp
         cvec_ice_velocity(:,:)%x(2)=0.0_wp
         cvec_ice_velocity(:,:)%x(3)=0.0_wp
@@ -179,12 +182,14 @@ CONTAINS
         ice_x(:,:)=0.0_wp
         ice_y(:,:)=0.0_wp
         ice_z(:,:)=0.0_wp
+        !$ACC END KERNELS
 
         CALL interface_boundary_cell_marker(boundary_cell_marker, p_patch_3D, p_ice)
         CALL interface_boundary_edge_marker(boundary_edge_marker,boundary_cell_marker, p_patch_3D, p_ice)
 
         DO edge_block_i = all_edges%start_block, all_edges%end_block
           CALL get_index_range(all_edges, edge_block_i, start_index, end_index)
+          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(nix, tix, niy, tiy, niz, tiz) IF(lacc)
           DO edge_index_i =  start_index, end_index
             nix=p_patch%edges%primal_cart_normal(edge_index_i,edge_block_i)%x(1)
             tix=p_patch%edges%dual_cart_normal(edge_index_i,edge_block_i)%x(1)
@@ -203,12 +208,15 @@ CONTAINS
                       &(niz*p_ice%vn_e(edge_index_i,edge_block_i)+tiz*p_ice%vt_e(edge_index_i,edge_block_i))
 
           ENDDO
+          !$ACC END PARALLEL LOOP
         ENDDO
 
 ! Mittlung auf Zellmitte
 
         DO cell_block = owned_cells%start_block, owned_cells%end_block
           CALL get_index_range(owned_cells, cell_block, start_index, end_index)
+          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(edge_index_1, edge_block_1) &
+          !$ACC   PRIVATE(edge_index_2, edge_block_2, edge_index_3, edge_block_3) IF(lacc)
           DO cell_index = start_index, end_index
 
             edge_index_1 = p_patch%cells%edge_idx(cell_index, cell_block, 1)
@@ -227,10 +235,12 @@ CONTAINS
             cvec_ice_velocity(cell_index,cell_block)%x(3)=1.0_wp/3.0_wp*(ice_z(edge_index_1,edge_block_1)+&
                           &ice_z(edge_index_2,edge_block_2)+ice_z(edge_index_3,edge_block_3))
           ENDDO
+          !$ACC END PARALLEL LOOP
         ENDDO
 
         CALL cvec2gvec_c_2d(p_patch_3D, cvec_ice_velocity(:,:), p_ice%u, p_ice%v)
 
+        !$ACC END DATA
       ENDIF
 
       IF (timers_level > 1) CALL timer_stop(timer_extra40)
