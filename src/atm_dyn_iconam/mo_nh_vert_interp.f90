@@ -40,7 +40,7 @@ MODULE mo_nh_vert_interp
   USE mo_initicon_config,     ONLY: zpbl1, zpbl2, l_coarse2fine_mode, init_mode, lread_vn, lvert_remap_fg
   USE mo_initicon_types,      ONLY: t_init_state, t_initicon_state
   USE mo_fortran_tools,       ONLY: init, set_acc_host_or_device, assert_acc_device_only, &
-    &                               assert_acc_host_only, minval_1d
+    &                               assert_acc_host_only, minval_1d, minval_2d
   USE mo_vertical_coord_table,ONLY: vct_a
   USE mo_nh_init_utils,       ONLY: interp_uv_2_vn, adjust_w, convert_thdvars
   USE mo_util_phys,           ONLY: virtual_temp, vap_pres
@@ -1092,13 +1092,8 @@ CONTAINS
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
-    ! If the input data is corrupted, no kpbl1 or kpbl2 is found, i.e. still equal -1
-    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-    kpbl1_min = MINVAL(kpbl1(:,1:nblks))
-    !$ACC END KERNELS
-    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-    kpbl2_min = MINVAL(kpbl2(:,1:nblks))
-    !$ACC END KERNELS
+    kpbl1_min = minval_2d(kpbl1(:,1:nblks), lzacc)
+    kpbl2_min = minval_2d(kpbl2(:,1:nblks), lzacc)
 
     !$ACC WAIT
     !$ACC END DATA

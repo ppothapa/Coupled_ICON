@@ -55,6 +55,8 @@ spack-configure-args.txt
 /run/*.final_status
 /run/*.log
 /run/*.run
+/run/*_member_id_mixed_*
+/run/*_member_id_double_*
 !/run/exp.nwptest_R02B06N07.run
 /run/*.status
 /run/checksuite.nwp/*.run
@@ -64,6 +66,7 @@ spack-configure-args.txt
 
 # Buildbot-generated files:
 /scripts/buildbot_scripts/experiment_lists
+/scripts/buildbot_scripts/probtest.*
 
 # Intermediate documentation files:
 /doc/Namelist_overview.aux

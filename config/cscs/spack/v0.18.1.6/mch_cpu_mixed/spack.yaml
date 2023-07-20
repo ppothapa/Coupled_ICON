@@ -1,11 +1,11 @@
 spack:
   specs:
   - cosmo-eccodes-definitions@2.25.0.1
-  - icon @develop %nvhpc +eccodes-definitions +ecrad ~jsbach ~loop-exchange +mixed-precision ~ocean +rte-rrtmgp ~async-io-rma +emvorado
+  - icon @develop %nvhpc +eccodes-definitions +ecrad ~jsbach ~loop-exchange +mixed-precision ~ocean +rte-rrtmgp ~async-io-rma +dace fcgroup=DACE;externals/dace_icon;-O1 +rttov +emvorado
   view: true
   concretizer:
     unify: true
   develop:
     icon:
       path: ../../../../..
-      spec: icon @develop %nvhpc +eccodes-definitions +ecrad ~jsbach ~loop-exchange +mixed-precision ~ocean +rte-rrtmgp ~async-io-rma +emvorado
+      spec: icon @develop %nvhpc +eccodes-definitions +ecrad ~jsbach ~loop-exchange +mixed-precision ~ocean +rte-rrtmgp ~async-io-rma +dace fcgroup=DACE;externals/dace_icon;-O1 +rttov +emvorado
