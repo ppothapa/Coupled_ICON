@@ -2383,10 +2383,6 @@ AS_VAR_IF([enable_jsbach], [yes],
   [AC_SUBST([JSBACH_ENABLED], [''])],
   [AC_SUBST([JSBACH_ENABLED], ['#'])])
 
-AS_VAR_IF([enable_rte_rrtmgp], [yes],
-  [AC_SUBST([RTE_RRTMGP_ENABLED], [''])],
-  [AC_SUBST([RTE_RRTMGP_ENABLED], ['#'])])
-
 AS_VAR_IF([icon_dace_enabled_or_needed], [yes],
   [AC_SUBST([DACE_ENABLED_OR_NEEDED], [''])],
   [AC_SUBST([DACE_ENABLED_OR_NEEDED], ['#'])])
