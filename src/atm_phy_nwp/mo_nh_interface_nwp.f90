@@ -570,8 +570,6 @@ CONTAINS
           !$ACC END KERNELS
         ENDIF
 
-        
-
         IF ( atm_phy_nwp_config(jg)%inwp_turb == iedmf ) THEN   ! EDMF DUALM: no satad in PBL
             CALL satad_v_3D( &
                   & maxiter  = 10                             ,& !> IN
@@ -822,8 +820,7 @@ CONTAINS
 #ifdef __ICON_ART
     IF (lart) THEN
 
-      CALL calc_o3_gems(pt_patch,mtime_datetime,pt_diag,prm_diag,ext_data%atm%o3)
-
+      CALL calc_o3_gems(pt_patch,mtime_datetime,pt_diag,prm_diag,ext_data%atm%o3,use_acc=lzacc)
 
       IF (.NOT. linit) THEN
         CALL art_reaction_interface(jg,                    & !> in
@@ -847,14 +844,16 @@ CONTAINS
                 &                   p_metrics,             & !> in
                 &                   pt_diag,               & !> inout
                 &                   pt_prog_rcf%tracer,    & !>
-                &                   prm_diag = prm_diag)     !> optional
-                
+                &                   prm_diag = prm_diag,   & !> optional
+                &                   lacc=lzacc)
+
         CALL art_washout_interface(pt_prog,pt_diag,        & !>in
                 &            dt_phy_jg(itfastphy),         & !>in
                 &            pt_patch,                     & !>in
                 &            prm_diag,                     & !>in
                 &            p_metrics,                    & !>in
-                &            pt_prog_rcf%tracer)             !>inout
+                &            pt_prog_rcf%tracer,           & !>inout
+                &            lacc=lzacc)
       END IF
     ENDIF !lart
 #endif
@@ -1161,7 +1160,6 @@ CONTAINS
                           & lnd_diag,                         & !>inout
                           & lacc=lzacc                         ) !>in
       !$ser verbatim IF (.not. linit) CALL serialize_all(nproma, jg, "turbtrans", .FALSE., opt_lupdate_cpu=.TRUE., opt_dt=mtime_datetime)
-
 
       IF (timers_level > 1) CALL timer_stop(timer_nwp_turbulence)
  
@@ -2466,7 +2464,7 @@ CONTAINS
 #endif
       CALL nwp_diag_output_2(pt_patch, pt_prog_rcf, prm_nwp_tend)
     ENDIF
-    
+
     CALL nwp_opt_diagnostics_2(pt_patch,             & !in
       &                        p_metrics,            & !in
       &                        pt_prog, pt_prog_rcf, & !in
@@ -2491,13 +2489,16 @@ CONTAINS
 
 #ifdef __ICON_ART
     IF (lart) THEN
+
       ! Call the ART diagnostics
       CALL art_diagnostics_interface(pt_prog%rho,            &
         &                            pt_diag%pres,           &
         &                            pt_prog_now_rcf%tracer, &
         &                            p_metrics%ddqz_z_full,  &
         &                            p_metrics%z_mc, jg,     &
-        &                            dt_phy_jg, p_sim_time)
+        &                            dt_phy_jg, p_sim_time,  &
+        &                            lacc=lzacc              )
+
     ENDIF !lart
 #endif
 

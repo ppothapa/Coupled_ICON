@@ -5893,6 +5893,7 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
      ktracer=nqtendphy
     ENDIF
     ALLOCATE( phy_tend%tracer_turb_ptr(ktracer) )
+    !$ACC ENTER DATA CREATE(phy_tend%tracer_turb_ptr)
 
     !qv
     CALL add_ref( phy_tend_list, 'ddt_tracer_turb',                               &
@@ -5960,6 +5961,7 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
     IF (atm_phy_nwp_config(k_jg)%ldetrain_conv_prec) ktracer = ktracer+2
 
     ALLOCATE( phy_tend%tracer_conv_ptr(ktracer) )
+    !$ACC ENTER DATA CREATE(phy_tend%tracer_conv_ptr)
 
     !qv
     CALL add_ref( phy_tend_list, 'ddt_tracer_pconv',                                &

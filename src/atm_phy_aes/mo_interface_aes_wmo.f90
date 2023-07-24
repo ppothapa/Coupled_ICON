@@ -56,7 +56,8 @@ CONTAINS
                        & jcs, jce, nproma, nlev,   &! in
                        & field% ta(:,:,jb),        &! in
                        & field% pfull(:,:,jb),     &! in
-                       & field% ptp(:,jb)          )! inout for diagnostics
+                       & field% ptp(:,jb),         &! inout for diagnostics
+                       & lacc = .TRUE.)
     !
 
     IF (ltimer) call timer_stop(timer_wmo)

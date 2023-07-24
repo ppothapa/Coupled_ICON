@@ -67,8 +67,8 @@ MODULE mo_nwp_turbdiff_interface
   USE mo_scm_nml,                ONLY: scm_sfc_mom, scm_sfc_temp ,scm_sfc_qv
   USE mo_nh_torus_exp,           ONLY: set_scm_bnd
   USE mo_timer
-  USE mo_run_config,           ONLY: timers_level
-  USE mo_fortran_tools,         ONLY: assert_acc_device_only
+  USE mo_run_config,             ONLY: timers_level
+  USE mo_fortran_tools,          ONLY: assert_acc_device_only
   IMPLICIT NONE
 
   PRIVATE
@@ -373,7 +373,6 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
         ENDIF ! ltwomoment
       ENDIF ! turbdiff_config(jg)%ldiff_qs
 
-      !$ACC WAIT
 #ifdef __ICON_ART
       IF ( lart .AND. art_config(jg)%nturb_tracer > 0 ) THEN
          CALL art_turbdiff_interface( 'setup_ptr', p_patch, p_prog_rcf, prm_nwp_tend,  &
@@ -382,7 +381,8 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
            &                          p_rho=p_prog%rho(:,:,:),                         &
            &                          p_metrics=p_metrics,                             &
            &                          p_diag=p_diag, prm_diag=prm_diag,                &
-           &                          jb=jb, idx_nturb_tracer=idx_nturb_tracer )
+           &                          jb=jb, idx_nturb_tracer=idx_nturb_tracer,        &
+           &                          lacc=lacc )
       ENDIF
 #endif
   
@@ -551,7 +551,6 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
 !          vmfl_s: missing                                          !inout
         )
 
-
        ! re-diagnose turbulent deposition fluxes for qc and qi (positive downward)
        ! So far these fluxes only serve diagnostic purposes. I.e. they 
        ! must be taken into account when checking the atmospheric water mass balance.
@@ -606,13 +605,13 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
         !$ACC END KERNELS
       END IF
 
-      !$ACC WAIT
 #ifdef __ICON_ART
       IF ( lart .AND. art_config(jg)%nturb_tracer > 0 ) THEN
          CALL art_turbdiff_interface( 'update_ptr', p_patch, p_prog_rcf, prm_nwp_tend,  &
            &                          ncloud_offset=ncloud_offset,                      &
            &                          ptr=ptr(:), dt=tcall_turb_jg,                     &
-           &                          i_st=i_startidx, i_en=i_endidx )
+           &                          i_st=i_startidx, i_en=i_endidx,                   &
+           &                          lacc=lacc )
       ENDIF
 #endif
 

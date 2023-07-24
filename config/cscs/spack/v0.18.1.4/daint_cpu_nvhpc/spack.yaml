@@ -5,8 +5,7 @@
 spack:
   # add package specs to the `specs` list
   specs:
-  - icon@develop%nvhpc +ecrad +rte-rrtmgp +dace fcgroup=DACE;externals/dace_icon;-O1
-    +rttov
+  - icon@develop%nvhpc +ecrad +rte-rrtmgp +art +dace fcgroup=DACE;externals/dace_icon;-O1 +rttov
   - rttov@13.1%nvhpc
   - hdf5@1.12.2%nvhpc
   - eccodes@2.19.0%nvhpc
@@ -16,6 +15,5 @@ spack:
     unify: true
   develop:
     icon:
-      spec: icon@develop%nvhpc +ecrad +rte-rrtmgp +dace fcgroup=DACE;externals/dace_icon;-O1
-        +rttov
+      spec: icon@develop%nvhpc +ecrad +rte-rrtmgp +art +dace fcgroup=DACE;externals/dace_icon;-O1 +rttov
       path: ../../../../../

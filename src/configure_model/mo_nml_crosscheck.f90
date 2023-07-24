@@ -915,6 +915,24 @@ CONTAINS
       ENDIF
     ENDDO
 
+#ifdef _OPENACC
+    DO jg = 1, n_dom
+      IF (    art_config(jg)%iart_aci_cold  >  0  .OR.  &
+          &   art_config(jg)%iart_aci_warm  >  0  .OR.  &
+          &   art_config(jg)%iart_ari       >  0  .OR.  &      
+          &   art_config(jg)%iart_dust      >  0  .OR.  &
+          &   art_config(jg)%iart_init_aero >  0  .OR.  &
+          &   art_config(jg)%iart_radioact  >  0  .OR.  &
+          &   art_config(jg)%iart_seasalt   >  0  .OR.  &
+          &   art_config(jg)%iart_volcano   >  0  .OR.  &
+          &   art_config(jg)%lart_chem            .OR.  &
+          &   art_config(jg)%lart_chemtracer            ) THEN
+        CALL finish(routine,  &
+          &  'mo_nml_crosscheck: art_crosscheck: some activated art switches are currently not supported on GPU.')
+      END IF
+    ENDDO
+#endif
+
 #endif
   END SUBROUTINE art_crosscheck
   !---------------------------------------------------------------------------------------

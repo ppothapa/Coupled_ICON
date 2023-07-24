@@ -112,6 +112,7 @@ else
   add_tolerance_exp mch_opr_r19b07_turb "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed DAINT_CPU_nvidia"
   add_tolerance_exp mch_opr_r19b07_midnight "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
   add_tolerance_exp mch_bench_r19b07_dev_sppt "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
+  add_tolerance_exp mch_pollen_test "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed"
   add_tolerance_exp atm_qubicc_nc_test "DAINT_CPU_nvidia DAINT_CPU_cce DAINT_CPU_nvidia_mixed"
   #add_tolerance_exp atm_ape_test "DAINT_CPU_nvidia DAINT_CPU_cce DAINT_CPU_nvidia_mixed"
   add_tolerance_exp exclaim_ape_R02B04 "DAINT_CPU_nvidia"

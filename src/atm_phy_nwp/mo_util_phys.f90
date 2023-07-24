@@ -742,9 +742,10 @@ CONTAINS
     END IF
 
     IF(lart .AND. art_config(jg)%lart_conv) THEN
-      CALL assert_acc_host_only("tracer_add_phytend lart_conv", lacc)
       ! add convective tendency and fix to positive values
       DO jt=1,art_config(jg)%nconv_tracer  ! ASH
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, kend
 !DIR$ IVDEP
           DO jc = i_startidx, i_endidx
@@ -752,6 +753,7 @@ CONTAINS
                +pdtime*prm_nwp_tend%conv_tracer_tend(jb,jt)%ptr(jc,jk)/p_rho_now(jc,jk))
           ENDDO
         ENDDO
+        !$ACC END PARALLEL
       ENDDO
     ENDIF !lart
 

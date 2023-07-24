@@ -106,6 +106,9 @@ MODULE mo_nh_stepping
   USE mo_nwp_lnd_state,            ONLY: p_lnd_state
   USE mo_opt_nwp_diagnostics,      ONLY: compute_field_dbz3d_lin
   USE mo_nwp_gpu_util,             ONLY: gpu_d2h_nh_nwp, gpu_h2d_nh_nwp, devcpy_nwp, hostcpy_nwp, gpu_d2h_dace
+#ifdef __ICON_ART
+  USE mo_nwp_gpu_util,             ONLY: gpu_d2h_art, gpu_h2d_art
+#endif
 #ifndef __NO_NWP__
   USE mo_nh_interface_nwp,         ONLY: nwp_nh_interface
   USE mo_phy_events,               ONLY: mtime_ctrl_physics
@@ -142,7 +145,7 @@ MODULE mo_nh_stepping
                                      &   art_init_atmo_tracers_aes,     &
                                      &   art_init_radiation_properties, &
                                      &   art_update_atmo_phy
-  USE mo_art_config,               ONLY: art_config
+  USE mo_art_data,                 ONLY: p_art_data
 #endif
 
   USE mo_reader_sst_sic,           ONLY: t_sst_sic_reader
@@ -449,6 +452,11 @@ MODULE mo_nh_stepping
         DO jg=1, n_dom
           CALL gpu_h2d_nh_nwp(jg, ext_data=ext_data(jg), &
             phy_params=phy_params(jg), atm_phy_nwp_config=atm_phy_nwp_config(jg), lacc=.TRUE.)
+#ifdef __ICON_ART
+          IF(ALLOCATED(p_art_data)) THEN
+              CALL gpu_h2d_art(p_art_data(jg), lacc=.TRUE.)
+          END IF
+#endif
         ENDDO
         CALL devcpy_nwp(lacc=.TRUE.)
       ENDIF
@@ -693,7 +701,12 @@ MODULE mo_nh_stepping
     ENDIF
     IF ( iforcing == inwp ) THEN
       DO jg=1, n_dom
-         CALL gpu_d2h_nh_nwp(jg, ext_data=ext_data(jg), lacc=.TRUE.)
+        CALL gpu_d2h_nh_nwp(jg, ext_data=ext_data(jg), lacc=.TRUE.)
+#ifdef __ICON_ART
+        IF(ALLOCATED(p_art_data)) THEN
+            CALL gpu_d2h_art(p_art_data(jg), lacc=.TRUE.)
+        END IF
+#endif
       ENDDO
       CALL hostcpy_nwp(lacc=.TRUE.)
     ENDIF
@@ -1260,7 +1273,9 @@ MODULE mo_nh_stepping
                  &                         p_nh_state(jg)%diag%pres,                 &
                  &                         p_nh_state(jg)%prog(nnow_rcf(jg))%tracer, &
                  &                         p_nh_state(jg)%metrics%ddqz_z_full,       &
-                 &                         p_nh_state(jg)%metrics%z_mc, jg)
+                 &                         p_nh_state(jg)%metrics%z_mc, jg,          &
+                 &                         lacc=.TRUE.)
+
             ! Call the ART unit conversion 
             CALL art_tools_interface('unit_conversion',                            & !< in
                  &                   p_nh_state_lists(jg)%prog_list(nnow_rcf(jg)), & !< in
@@ -1984,7 +1999,8 @@ MODULE mo_nh_stepping
               &      dt_loc,                                   &!in
               &      p_lnd_state(jg)%diag_lnd,                 &!in
               &      datetime_local(jg)%ptr,                   &!in
-              &      p_nh_state(jg)%prog(n_now_rcf)%tracer)     !inout
+              &      p_nh_state(jg)%prog(n_now_rcf)%tracer,    &!inout
+              &      lacc=.TRUE.                               )
           ENDIF
 #endif
 
@@ -2047,7 +2063,8 @@ MODULE mo_nh_stepping
                &      p_nh_state(jg)%metrics,                 &!in
                &      p_nh_state(jg)%diag,                    &!in
                &      p_nh_state(jg)%prog(n_new_rcf)%tracer,  &!inout
-               &      .TRUE.)                                  !print CFL number
+               &      .TRUE.,                                 &!print CFL number
+               &      lacc=.TRUE.                             )
           ENDIF ! lart
 #endif
         ENDIF !ltransport
@@ -2518,7 +2535,6 @@ MODULE mo_nh_stepping
 
             ! Activate cold-start mode in TERRA-init routine irrespective of what has been used for the global domain
             init_mode_soil = 1
-
             IF (iforcing == inwp) THEN
 #ifndef __NO_NWP__
               CALL init_nwp_phy(                           &
@@ -2539,9 +2555,6 @@ MODULE mo_nh_stepping
 
 #ifdef __ICON_ART
               IF (lart) THEN
-#ifdef _OPENACC
-                CALL finish (routine, 'ART art_init_atmo_tracers_nwp: OpenACC version currently not implemeted.')
-#endif
                 CALL art_init_atmo_tracers_nwp(                          &
                      &  jgc,                                             &
                      &  datetime_local(jgc)%ptr,                         &
