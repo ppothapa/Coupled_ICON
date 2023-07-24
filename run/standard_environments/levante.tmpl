@@ -14,7 +14,7 @@
 #SBATCH --%{var}
 #%    elif ' ' in val:
 #SBATCH --%{var}='%{val}'
-#%    else:
+#%    elif val:
 #SBATCH --%{var}=%{val}
 #%    endif
 #%  endfor

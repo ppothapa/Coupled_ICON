@@ -4,7 +4,7 @@
 #
 # %{mkexp_input}
 #
-# $Id: DEFAULT.run.tmpl 14 2023-05-09 09:54:35Z k203123 $
+# $Id: run/standard_experiments/DEFAULT.run.tmpl 15 2023-07-20 10:02:10Z m221078 $
 #
 # %{VERSIONS_|join('\n# ')}
 #
@@ -46,9 +46,6 @@ trap "cd $PWD && rm -f $pipe" EXIT
 awk '{print strftime("%FT%T:"), $0; fflush()}' $pipe &
 exec > $pipe 2>&1
 
-# Convenience link to log file
-ln -snvf %{LOG_DIR}/%{EXP_ID}.run.$(printf %08d ${%{JOB.id_environ}}).log %{EXP_ID}.run.log
-
 #% do VARIABLES_.add('MODEL_DIR')
 #% do VARIABLES_.add('SCRIPT_DIR')
 #% do VARIABLES_.add('BUILD_DIR')
@@ -58,6 +55,9 @@ ln -snvf %{LOG_DIR}/%{EXP_ID}.run.$(printf %08d ${%{JOB.id_environ}}).log %{EXP_
 #%   endif
 #% endfor
 #%#
+
+# Convenience link to log file
+ln -snvf %{LOG_DIR}/%{EXP_ID}.run.$(printf %08d ${%{JOB.id_environ}}).log $SCRIPT_DIR/%{EXP_ID}.run.log
 
 # Load traditional error handling
 . $BUILD_DIR/run/add_run_routines
@@ -70,14 +70,19 @@ rm -f ${final_status_file} ${current_status_file}
 #
 # OpenMP environment variables
 # ----------------------------
-export OMP_NUM_THREADS=%{JOB.threads_per_task|d(1)}
+#%  set threads_per_task = JOB.threads_per_task|d(1)|int
+export OMP_NUM_THREADS=%{threads_per_task}
 export ICON_THREADS=$OMP_NUM_THREADS
 #
 # MPI variables
 # -------------
 no_of_nodes=${SLURM_JOB_NUM_NODES:=%{JOB.nodes|d(1)}}
-mpi_procs_pernode=$((${SLURM_JOB_CPUS_PER_NODE%%\(*}%{'' if JOB.hardware_threads|d() else '/ 2'} / OMP_NUM_THREADS))
-((mpi_total_procs=no_of_nodes * mpi_procs_pernode))
+cpus_per_task=%{threads_per_task if JOB.hardware_threads|d() else 2*threads_per_task}
+cpus_per_node=${SLURM_JOB_CPUS_PER_NODE%%\(*}
+mpi_procs_pernode=$((cpus_per_node/cpus_per_task))
+mpi_total_procs=$((no_of_nodes * mpi_procs_pernode))
+ntasks=$mpi_total_procs
+
 #
 #=============================================================================
 
@@ -118,7 +123,7 @@ export EXPNAME=%{EXP_ID}
 #%    set mpi_command = mpi_command + ' --distribution=arbitrary'
 #%  endif
 
-export START="%{mpi_command} --nodes=$no_of_nodes --ntasks=$((no_of_nodes * mpi_procs_pernode)) --ntasks-per-node=${mpi_procs_pernode} --cpus-per-task=$((2 * OMP_NUM_THREADS))"
+export START="%{mpi_command} --ntasks=$ntasks --cpus-per-task=$cpus_per_task"
 export MODEL="%{BIN_DIR}/%{MODEL_EXE}"
 
 # how to submit the next job
@@ -150,7 +155,7 @@ mpi_oce_procs=$oce_procs
 atm_procs=$((no_of_nodes * atm_per_node))
 #%  else:
 mpi_oce_nodes=%{JOB.ocean_nodes}
-((mpi_oce_procs=mpi_oce_nodes * mpi_procs_pernode))
+mpi_oce_procs=$((mpi_oce_nodes * mpi_procs_pernode))
 #%  endif
 #
 #--------------------------------------------------------------------------------------------------
