@@ -1431,7 +1431,7 @@ CONTAINS
 
       CALL set_reff( prm_diag, pt_patch, pt_prog, pt_diag, ext_data )
 
-      IF (  atm_phy_nwp_config(jg)%icpl_rad_reff > 0 .AND. atm_phy_nwp_config(jg)%icalc_reff /= 101 ) THEN
+      IF (  atm_phy_nwp_config(jg)%icpl_rad_reff == 1 .AND. atm_phy_nwp_config(jg)%icalc_reff /= 101 ) THEN
 
         ! .. Copy clc to clc_rad, combine reff's and enforce clc_rad = 1.0 at points where qs, qg, qr are present:
         CALL combine_phases_radiation_reff( prm_diag, pt_patch, pt_prog )

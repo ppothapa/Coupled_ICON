@@ -361,7 +361,7 @@ CONTAINS
       atm_phy_nwp_config(jg)%lhydrom_read_from_ana(:) = .FALSE.
 
       IF (atm_phy_nwp_config(jg)%icalc_reff > 0 .AND. &
-             atm_phy_nwp_config(jg)%icpl_rad_reff > 0 .AND. &
+             atm_phy_nwp_config(jg)%icpl_rad_reff == 1 .AND. &
              atm_phy_nwp_config(jg)%icalc_reff /= 101 ) THEN
         atm_phy_nwp_config(jg)%luse_clc_rad = .TRUE.
       ELSE

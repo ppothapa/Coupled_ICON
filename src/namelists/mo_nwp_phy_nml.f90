@@ -265,7 +265,8 @@ CONTAINS
                        ! 12     = RRTM parameterization
 
     icpl_rad_reff(:)=  icpl_rad_reff_def ! 0    = no coupling (using old RRTM Parameterization)
-                       ! 1      = coupling RRTM/ECRAD with the effective radius parameterization 
+                       ! 1      = coupling RRTM/ECRAD with the effective radius parameterization (through two phases ice and frozen)
+                       ! 2      = coupling ECRAD with the effective radius parameterization (each phase alone)
 
     ithermo_water(:)=  ithermo_water_def ! 0   = Latent heats (LH) constant in microphysics
                                          ! 1   = LH as function of temperature in microphysics
@@ -399,11 +400,11 @@ CONTAINS
         CALL finish( TRIM(routine), 'Incorrect setting for icalc_reff. Must be 0,1,2,4,5, 6,7,8, 100 or 101.')
       END IF
 
-      IF ( ALL((/0,1/) /= icpl_rad_reff(jg)) ) THEN
-        CALL finish( TRIM(routine), 'Incorrect setting for icpl_rad_reff. Must be 0,1')
+      IF ( ALL((/0,1,2/) /= icpl_rad_reff(jg)) ) THEN
+        CALL finish( TRIM(routine), 'Incorrect setting for icpl_rad_reff. Must be 0,1,2')
       END IF
       
-      IF ( (icpl_rad_reff(jg) == 1) .AND. (icalc_reff(jg) == 0) ) THEN
+      IF ( (icpl_rad_reff(jg) > 0) .AND. (icalc_reff(jg) == 0) ) THEN
         CALL finish( TRIM(routine), 'Incorrect setting for icpl_rad_reff. It must be 0 if no reff is defined (icalc_reff =0)')
       END IF
 

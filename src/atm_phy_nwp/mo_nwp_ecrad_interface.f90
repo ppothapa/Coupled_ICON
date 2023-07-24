@@ -68,7 +68,10 @@ MODULE mo_nwp_ecrad_interface
                                    &   t_ecrad_single_level_type,                &
                                    &   t_ecrad_thermodynamics_type,              &
                                    &   t_ecrad_gas_type, t_ecrad_flux_type,      &
-                                   &   t_ecrad_cloud_type, t_opt_ptrs
+                                   &   t_ecrad_cloud_type, t_opt_ptrs,           &
+                                   &   ecrad_hyd_list,                           &   
+                                   &   ecrad_iqr, ecrad_iqs, ecrad_iqg          
+
   USE mo_nwp_ecrad_prep_aerosol, ONLY: nwp_ecrad_prep_aerosol
   USE mo_nwp_ecrad_utilities,    ONLY: ecrad_set_single_level,                   &
                                    &   ecrad_set_thermodynamics,                 &
@@ -243,7 +246,11 @@ CONTAINS
 
     CALL ecrad_gas%allocate(nproma_sub, nlev)
 
-    CALL ecrad_cloud%allocate(nproma_sub, nlev)
+    IF (ecrad_conf%use_general_cloud_optics) THEN
+      CALL ecrad_cloud%allocate(nproma_sub, nlev, ntype = ecrad_conf%n_cloud_types)
+    ELSE
+      CALL ecrad_cloud%allocate(nproma_sub, nlev)
+    END IF
     ! Currently hardcoded values for FSD
     !$ACC WAIT
     CALL ecrad_cloud%create_fractional_std(nproma_sub, nlev, 1._wp)
@@ -353,7 +360,9 @@ CONTAINS
           &                   ptr_qr, ptr_qs, ptr_qg, ptr_reff_qc, ptr_reff_qi,                                    &
           &                   ptr_reff_qr, ptr_reff_qs, ptr_reff_qg,                                               &
           &                   atm_phy_nwp_config(jg)%icpl_rad_reff,                                                &
-          &                   fact_reffc, ecrad_conf%cloud_fraction_threshold, nlev, i_startidx_rad, i_endidx_rad, &
+          &                   fact_reffc, ecrad_conf%cloud_fraction_threshold,                                     &
+          &                   ecrad_conf%use_general_cloud_optics,                                                 & 
+          &                   nlev, i_startidx_rad, i_endidx_rad, &
           &                   lacc=.TRUE.)
         ! $ACC WAIT
 
@@ -820,15 +829,19 @@ CONTAINS
       CALL input_extra_2D%assign(ext_data%atm%fr_land, irg_fr_land)
       CALL input_extra_2D%assign(ext_data%atm%fr_glac, irg_fr_glac)
     CASE (2) ! Option to use all hydrometeors reff individually
-      ! Set extra hydrometeors
-      CALL input_extra_flds%assign(pt_prog%tracer(:,:,:,iqr), irg_qr)
-      CALL input_extra_flds%assign(pt_prog%tracer(:,:,:,iqs), irg_qs)
-      IF (iqg >0) CALL input_extra_flds%assign(pt_prog%tracer(:,:,:,iqg), irg_qg)
-
-      ! Set extra effective radius (in different array due to different interpolation)
-      CALL input_extra_reff%assign(prm_diag%reff_qr(:,:,:), irg_reff_qr, assoc_hyd = irg_qr )
-      CALL input_extra_reff%assign(prm_diag%reff_qs(:,:,:), irg_reff_qs, assoc_hyd = irg_qs )
-      IF (iqg >0) CALL input_extra_reff%assign(prm_diag%reff_qg(:,:,:), irg_reff_qg, assoc_hyd = irg_qg )
+      ! Set extra hydrometeors and extra effective radius (in different array due to different interpolation)
+      IF (ANY(ecrad_iqr == ecrad_hyd_list) ) THEN
+        CALL input_extra_flds%assign(pt_prog%tracer(:,:,:,iqr), irg_qr)
+        CALL input_extra_reff%assign(prm_diag%reff_qr(:,:,:), irg_reff_qr, assoc_hyd = irg_qr )
+      ENDIF
+      IF (ANY(ecrad_iqs == ecrad_hyd_list) ) THEN
+        CALL input_extra_flds%assign(pt_prog%tracer(:,:,:,iqs), irg_qs)
+        CALL input_extra_reff%assign(prm_diag%reff_qs(:,:,:), irg_reff_qs, assoc_hyd = irg_qs )
+      ENDIF
+      IF ( iqg >0 .AND. ANY(ecrad_iqg == ecrad_hyd_list) ) THEN
+        CALL input_extra_flds%assign(pt_prog%tracer(:,:,:,iqg), irg_qg)
+        CALL input_extra_reff%assign(prm_diag%reff_qg(:,:,:), irg_reff_qg, assoc_hyd = irg_qg )
+      ENDIF
     END SELECT
 
     IF (ANY( irad_aero == (/iRadAeroConstKinne,iRadAeroKinne,iRadAeroVolc,iRadAeroART,  &
@@ -971,7 +984,12 @@ CONTAINS
 
     CALL ecrad_gas%allocate(nproma_sub, nlev_rg)
 
-    CALL ecrad_cloud%allocate(nproma_sub, nlev_rg)
+    IF (ecrad_conf%use_general_cloud_optics) THEN
+      CALL ecrad_cloud%allocate(nproma_sub, nlev_rg, ntype = ecrad_conf%n_cloud_types)
+    ELSE
+      CALL ecrad_cloud%allocate(nproma_sub, nlev_rg)
+    END IF
+
     ! Currently hardcoded values for FSD
     !$ACC WAIT
     CALL ecrad_cloud%create_fractional_std(nproma_sub, nlev_rg, 1._wp)
@@ -1086,8 +1104,9 @@ CONTAINS
           &                   ptr_qr, ptr_qs, ptr_qg, ptr_reff_qc, ptr_reff_qi,                 &
           &                   ptr_reff_qr, ptr_reff_qs, ptr_reff_qg,                            &
           &                   atm_phy_nwp_config(jg)%icpl_rad_reff,                             &
-          &                   fact_reffc, ecrad_conf%cloud_fraction_threshold, nlev_rg,         &
-          &                   i_startidx_rad, i_endidx_rad, lacc=.TRUE.)
+          &                   fact_reffc, ecrad_conf%cloud_fraction_threshold,                  &
+          &                   ecrad_conf%use_general_cloud_optics,                              &
+          &                   nlev_rg, i_startidx_rad, i_endidx_rad, lacc=.TRUE.)
 
 !Set inverse cloud effective size for SPARTACUS
         IF (ecrad_conf%i_solver_lw == ISolverSpartacus .OR. ecrad_conf%i_solver_sw == ISolverSpartacus ) THEN

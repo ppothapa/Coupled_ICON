@@ -57,7 +57,10 @@ MODULE mo_nwp_ecrad_utilities
                                    &   weight_nir_ecrad, nweight_vis_ecrad,      &
                                    &   iband_vis_ecrad, weight_vis_ecrad,        &
                                    &   nweight_par_ecrad, iband_par_ecrad,       &
-                                   &   weight_par_ecrad
+                                   &   weight_par_ecrad,                         &
+                                   &   ecrad_hyd_list,                           &   
+                                   &   ecrad_iqc, ecrad_iqi, ecrad_iqr,          &
+                                   &   ecrad_iqs, ecrad_iqg
 #endif
 
   USE mo_exception,              ONLY: message
@@ -258,17 +261,19 @@ CONTAINS
   !! @par Revision History
   !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-05-10)
   !!
-  SUBROUTINE ecrad_set_clouds(ecrad_cloud, ecrad_thermodynamics, qc, qi, clc, temp, pres, acdnc, fr_glac, fr_land, &
-    &                         qr,qs,qg,reff_liq, reff_frz, reff_rain, reff_snow, reff_graupel,                     & 
-    &                         icpl_reff, fact_reffc, clc_min, nlev, i_startidx, i_endidx, lacc)
+  SUBROUTINE ecrad_set_clouds(ecrad_cloud, ecrad_thermodynamics, qc, qi, clc, temp, pres, acdnc,                  &
+    &                         fr_glac, fr_land, qr,qs,qg,reff_liq, reff_frz, reff_rain, reff_snow, reff_graupel,  &
+    &                         icpl_reff, fact_reffc, clc_min, use_general_cloud_optics,                           &
+    &                         nlev, i_startidx, i_endidx, lacc)
 
     TYPE(t_ecrad_cloud_type), INTENT(inout) :: &
       &  ecrad_cloud              !< ecRad cloud information
     TYPE(t_ecrad_thermodynamics_type), INTENT(inout) :: &
       &  ecrad_thermodynamics     !< ecRad thermodynamics information
-    REAL(wp), INTENT(in)     :: &
+    REAL(wp), TARGET, INTENT(in) :: &
       &  qc(:,:),               & !< Total cloud water (gridscale + subgridscale)
-      &  qi(:,:),               & !< Total cloud ice   (gridscale + subgridscale)
+      &  qi(:,:)                  !< Total cloud ice   (gridscale + subgridscale)
+    REAL(wp), INTENT(in)     :: &
       &  clc(:,:),              & !< Cloud cover
       &  temp(:,:),             & !< Full level temperature field
       &  pres(:,:),             & !< Full level pressure field
@@ -286,20 +291,32 @@ CONTAINS
       &  reff_rain(:,:),        & !< effective radius of the rain phase (external)
       &  reff_snow(:,:),        & !< effective radius of the snow phase (external)
       &  reff_graupel(:,:)        !< effective radius of the graupel phase (external)
-
     INTEGER, INTENT(in)      :: &
       &  icpl_reff,             & !< Option for effective radius
       &  nlev,                  & !< Number of vertical full levels
       &  i_startidx, i_endidx     !< Start and end index of nproma loop in current block
-
+    LOGICAL, INTENT(in)      :: &
+      &  use_general_cloud_optics !< Use general cloud optics
     LOGICAL, OPTIONAL, INTENT(IN) :: lacc
-    
 ! Local variables
+    REAL(wp), POINTER, CONTIGUOUS :: &
+      &  ptr_qx(:,:),           & !< Generic pointer to mass concentratio
+      &  ptr_reff_x(:,:)          !< Generic pointer to effective radius
     REAL(wp)                 :: &
       &  lwc, iwc,              & !< Cloud liquid and ice water content
-      &  liwcfac                  !< Factor to calculate cloud liquid and ice water content
+      &  liwcfac,               & !< Factor to calculate cloud liquid and ice water content
+      &  reff_min, reff_max       !< Limits for reff needed by ecrad (hardcoded)
+    REAL (wp), PARAMETER     :: &
+      &  qcrit_rad = 5E-5_wp      !< Limit for when to consider large hydrometeors for radiation
     INTEGER                  :: &
-      &  jc, jk                   !< loop indices
+      &  ntypes_cloud_opt,      & !< Number of hydrometeors in generalized cloud optics
+      &  jc, jk, iqx              !< loop indices
+    INTEGER                  :: &
+      &  iqc_loc, iqi_loc         !< indices for water and ice in ecrad_hyd_list
+    LOGICAL                  :: &
+      &  l_large_hyd              !< large hydrometeors change cloud fraction / small have max/min limits 
+
+    NULLIFY(ptr_qx,ptr_reff_x)
 
     CALL assert_acc_device_only("ecrad_set_clouds", lacc)
 
@@ -309,46 +326,159 @@ CONTAINS
     !$ACC DATA PRESENT(ecrad_cloud, qc, qi, clc, temp, pres, acdnc, fr_land, fr_glac, reff_frz, reff_liq)
     !$ACC DATA PRESENT(ecrad_cloud%q_liq, ecrad_cloud%q_ice, ecrad_cloud%re_liq, ecrad_cloud%re_ice)
 
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(liwcfac, lwc, iwc)
-    DO jk = 1, nlev
-      DO jc = i_startidx, i_endidx
-        ecrad_cloud%q_liq(jc,jk)    = qc(jc,jk)
-        ecrad_cloud%q_ice(jc,jk)    = qi(jc,jk)
-        IF ( clc(jc,jk) > clc_min ) THEN
-          liwcfac = 1000.0_wp / clc(jc,jk) * pres(jc,jk) / temp(jc,jk) / rd
-          ecrad_cloud%fraction(jc,jk) = clc(jc,jk)
-        ELSE
-          liwcfac = 0._wp
-          ecrad_cloud%fraction(jc,jk) = 0._wp
-        ENDIF
-        IF ( icpl_reff == 0 ) THEN ! No external calculationcof reff.
-          lwc                         = qc(jc,jk) * liwcfac
-          iwc                         = qi(jc,jk) * liwcfac
-          ! Careful with acdnc input: A division is performed and it is not checked for 0 as the function used
-          ! to create acdnc returns always positive values
-          ecrad_cloud%re_liq(jc,jk)   = reff_droplet(lwc, acdnc(jc,jk), fr_land(jc), fr_glac(jc), fact_reffc)
-          ecrad_cloud%re_ice(jc,jk)   = reff_crystal(iwc)
-        END IF
-      ENDDO
-    ENDDO
-    !$ACC END PARALLEL
+    ! Generalized Hydrometeors
+    IF ( use_general_cloud_optics ) THEN
 
-    IF ( icpl_reff > 0 ) THEN
-      IF (.NOT. ASSOCIATED(reff_liq) .OR. .NOT. ASSOCIATED(reff_frz)) THEN
-        CALL finish('ecrad_set_clouds','effective radius fields not associated')
-      ENDIF
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      ntypes_cloud_opt = SIZE(ecrad_hyd_list)
+
+      ! Set cloud fraction
       DO jk = 1, nlev
         DO jc = i_startidx, i_endidx
-          ecrad_cloud%re_liq(jc,jk) = MAX(MIN(reff_liq(jc,jk),32.0e-6_wp),2.0e-6_wp)  
-          ecrad_cloud%re_ice(jc,jk) = MAX(MIN(reff_frz(jc,jk),99.0e-6_wp),5.0e-6_wp) 
+          IF ( clc(jc,jk) > clc_min ) THEN
+            ecrad_cloud%fraction(jc,jk) = clc(jc,jk)
+          ELSE
+            ecrad_cloud%fraction(jc,jk) = 0._wp
+          ENDIF
+        END DO
+      END DO
+
+      ! Use effective radius from the reff module
+      IF ( icpl_reff > 0 ) THEN
+        ! Set up hydrometeors
+        DO iqx = 1,ntypes_cloud_opt
+
+          SELECT CASE( ecrad_hyd_list(iqx) )
+            CASE( ecrad_iqc )
+              ptr_qx => qc
+              ptr_reff_x => reff_liq
+              reff_min = 2.0e-6_wp
+              reff_max = 32.0e-6_wp
+              l_large_hyd = .false.
+
+            CASE( ecrad_iqi )
+              ptr_qx => qi
+              ptr_reff_x => reff_frz
+              reff_min = 5.0e-6_wp
+              reff_max = 99.0e-6_wp
+              l_large_hyd = .false.
+
+            CASE( ecrad_iqr )
+              ptr_qx => qr
+              ptr_reff_x => reff_rain
+              l_large_hyd = .true.
+
+            CASE( ecrad_iqs )
+              ptr_qx => qs
+              ptr_reff_x => reff_snow
+              l_large_hyd = .true.
+
+            CASE( ecrad_iqg )
+              ptr_qx => qg
+              ptr_reff_x => reff_graupel
+              l_large_hyd = .true.           
+          END SELECT
+          
+          IF ( l_large_hyd) THEN ! Large hydrometeors update
+            DO jk = 1, nlev
+              DO jc = i_startidx, i_endidx
+                IF ( ptr_qx(jc,jk) > qcrit_rad ) THEN
+                  ecrad_cloud%mixing_ratio(jc,jk,iqx) = ptr_qx(jc,jk)
+                  ecrad_cloud%fraction(jc,jk) = 1.0    ! Set cloud cover to one if large hydrometors are present
+                ELSE
+                  ecrad_cloud%mixing_ratio(jc,jk,iqx) = 0.0_wp
+                ENDIF
+                ecrad_cloud%effective_radius(jc,jk,iqx) = ptr_reff_x(jc,jk) 
+              END DO
+            END DO
+          ELSE ! Small hydrometeors update
+            DO jk = 1, nlev
+              DO jc = i_startidx, i_endidx
+                ecrad_cloud%mixing_ratio(jc,jk,iqx) = ptr_qx(jc,jk)
+                ecrad_cloud%effective_radius(jc,jk,iqx) = MAX(MIN(ptr_reff_x(jc,jk),reff_max),reff_min)
+              END DO
+            END DO
+          END IF
+
+        END DO
+
+      ELSE ! Caclulation of effective radius for water and ice when it is not coupled to the parameterization.
+        ! Find indices for water and ice
+        iqc_loc = 0
+        iqi_loc = 0
+        DO iqx = 1,ntypes_cloud_opt
+          SELECT CASE( ecrad_hyd_list(iqx) )
+            CASE( ecrad_iqc )
+              iqc_loc = iqx
+            CASE( ecrad_iqi )
+              iqi_loc = iqx
+          END SELECT
+        END DO
+
+ 
+        DO jk = 1, nlev
+          DO jc = i_startidx, i_endidx
+            IF (clc(jc,jk) > clc_min ) THEN
+              liwcfac = 1000.0_wp / clc(jc,jk) * pres(jc,jk) / temp(jc,jk) / rd
+            ELSE
+              liwcfac = 0._wp
+            END IF
+
+            ! Careful with acdnc input: A division is performed and it is not checked for 0 as the function used
+            ! to create acdnc returns always positive values
+            IF ( iqc_loc >  0 ) THEN
+              ecrad_cloud%mixing_ratio(jc,jk,iqc_loc) = qc(jc,jk)
+              lwc                         = qc(jc,jk) * liwcfac
+              ecrad_cloud%effective_radius(jc,jk,iqc_loc)   = reff_droplet(lwc, acdnc(jc,jk), fr_land(jc), fr_glac(jc), fact_reffc)
+            END IF
+            IF ( iqi_loc >  0 ) THEN
+              ecrad_cloud%mixing_ratio(jc,jk,iqi_loc) = qi(jc,jk)
+              iwc                         = qi(jc,jk) * liwcfac
+              ecrad_cloud%effective_radius(jc,jk,iqi_loc)   = reff_crystal(iwc)
+            END IF
+
+          END DO
+        END DO
+      END IF
+
+    ELSE ! No generalized hydrometeors
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(liwcfac, lwc, iwc)
+      DO jk = 1, nlev
+        DO jc = i_startidx, i_endidx
+          ecrad_cloud%q_liq(jc,jk) = qc(jc,jk)
+          ecrad_cloud%q_ice(jc,jk) = qi(jc,jk)
+          IF ( clc(jc,jk) > clc_min ) THEN
+            liwcfac = 1000.0_wp / clc(jc,jk) * pres(jc,jk) / temp(jc,jk) / rd
+            ecrad_cloud%fraction(jc,jk) = clc(jc,jk)
+          ELSE
+            liwcfac = 0._wp
+            ecrad_cloud%fraction(jc,jk) = 0._wp
+          ENDIF
+          IF ( icpl_reff == 0 ) THEN ! No external calculationcof reff.
+            lwc                         = qc(jc,jk) * liwcfac
+            iwc                         = qi(jc,jk) * liwcfac
+            ! Careful with acdnc input: A division is performed and it is not checked for 0 as the function used
+            ! to create acdnc returns always positive values
+            ecrad_cloud%re_liq(jc,jk)   = reff_droplet(lwc, acdnc(jc,jk), fr_land(jc), fr_glac(jc), fact_reffc)
+            ecrad_cloud%re_ice(jc,jk)   = reff_crystal(iwc)
+          END IF
         ENDDO
       ENDDO
-    !$ACC END PARALLEL
-    ENDIF
-
+      !$ACC END PARALLEL
+      IF ( icpl_reff > 0 ) THEN
+        IF (.NOT. ASSOCIATED(reff_liq) .OR. .NOT. ASSOCIATED(reff_frz)) &
+          & CALL finish('ecrad_set_clouds','effective radius fields not associated')
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
+        DO jk = 1, nlev
+          DO jc = i_startidx, i_endidx
+            ecrad_cloud%re_liq(jc,jk) = MAX(MIN(reff_liq(jc,jk),32.0e-6_wp),2.0e-6_wp)  
+            ecrad_cloud%re_ice(jc,jk) = MAX(MIN(reff_frz(jc,jk),99.0e-6_wp),5.0e-6_wp) 
+          ENDDO
+        ENDDO
+        !$ACC END PARALLEL
+      ENDIF
+    END IF
     !$ACC WAIT
     !$ACC END DATA
     !$ACC END DATA

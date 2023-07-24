@@ -56,7 +56,10 @@ MODULE mo_nml_crosscheck
     &                                    irad_n2o, irad_o2, irad_cfc11, irad_cfc12,        &
     &                                    icld_overlap, ecrad_llw_cloud_scat, isolrad,      &
     &                                    ecrad_iliquid_scat, ecrad_iice_scat,              &
-    &                                    ecrad_isolver, ecrad_igas_model
+    &                                    ecrad_isnow_scat, ecrad_irain_scat,               &
+    &                                    ecrad_igraupel_scat,                              & 
+    &                                    ecrad_isolver, ecrad_igas_model,                  &
+    &                                    ecrad_use_general_cloud_optics
   USE mo_turbdiff_config,          ONLY: turbdiff_config
   USE mo_initicon_config,          ONLY: init_mode, dt_iau, ltile_coldstart, timeshift,    &
     &                                    itype_vert_expol
@@ -326,6 +329,14 @@ CONTAINS
           CALL finish( routine,'Real-data applications require using a surface scheme!')
         ENDIF
 
+        IF ( (atm_phy_nwp_config(jg)%icpl_rad_reff == 2)  .AND.  & 
+             ( (atm_phy_nwp_config(jg)%inwp_radiation/= 4)  .OR.  &  
+             (ecrad_igas_model /=1) ) ) THEN
+          CALL finish( routine, 'Wrong value for: icpl_rad_reff. Coupling effective radius for all '//  &  
+                                 'hydrometeors only works with ECRAD and ECCKD gas model!')
+        ENDIF
+
+
         ! check radiation scheme in relation to chosen ozone and irad_aero=iRadAeroTegen to itopo
 
         IF ( (atm_phy_nwp_config(jg)%inwp_radiation > 0) )  THEN
@@ -396,10 +407,32 @@ CONTAINS
             ENDIF
             IF (.NOT. ANY( icld_overlap == (/1,2,5/)       ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, icld_overlap has to be 1, 2 or 5')
-            IF (.NOT. ANY( ecrad_iliquid_scat == (/0,1/)   ) ) &
-              &  CALL finish(routine,'For inwp_radiation = 4, ecrad_iliquid_scat has to be 0 or 1')
-            IF (.NOT. ANY( ecrad_iice_scat    == (/0,1,2/) ) ) &
-              &  CALL finish(routine,'For inwp_radiation = 4, ecrad_iice_scat has to be 0, 1 or 2')
+            IF ( ecrad_igas_model   == 1  .AND. .NOT. ecrad_use_general_cloud_optics) THEN
+              ecrad_use_general_cloud_optics = .TRUE.
+              CALL message(routine,'Warning: Reset ecrad_use_general_cloud_optics = T. &
+                                    &It is the only valid option for ECCKD')
+            ENDIF
+            IF ( ecrad_use_general_cloud_optics )THEN
+              IF (.NOT. ANY( ecrad_iliquid_scat == (/0/)   ) ) &
+                &  CALL finish(routine,'For inwp_radiation = 4 ecrad_use_general_cloud_optics = T, &
+                                       &ecrad_iliquid_scat has to be 0')
+              IF (.NOT. ANY( ecrad_iice_scat    == (/0,10,11/) ) ) &
+                &  CALL finish(routine,'For inwp_radiation = 4 ecrad_use_general_cloud_optics = T, &
+                                       &ecrad_iice_scat has to be 0, 10 or 11')
+            ELSE
+              IF (.NOT. ANY( ecrad_iliquid_scat == (/0,1/)   ) ) &
+                &  CALL finish(routine,'For inwp_radiation = 4 ecrad_use_general_cloud_optics = F, &
+                                       &ecrad_iliquid_scat has to be 0 or 1')
+              IF (.NOT. ANY( ecrad_iice_scat    == (/0,1,2/) ) ) &
+                &  CALL finish(routine,'For inwp_radiation = 4 ecrad_use_general_cloud_optics = F, & 
+                                       &ecrad_iice_scat has to be 0, 1 or 2')
+            ENDIF
+            IF (.NOT. ANY( ecrad_isnow_scat    == (/-1,0,10/) ) ) &
+              &  CALL finish(routine,'For inwp_radiation = 4, ecrad_isnow_scat has to be -1, 0 or 10')
+            IF (.NOT. ANY( ecrad_irain_scat    == (/-1,0/) ) ) &
+              &  CALL finish(routine,'For inwp_radiation = 4, ecrad_isnow_scat has to be -1 or 0')
+            IF (.NOT. ANY( ecrad_igraupel_scat    == (/-1,0,10/) ) ) &
+              &  CALL finish(routine,'For inwp_radiation = 4, ecrad_igraupel_scat has to be -1, 0 or 10')
             IF (.NOT. ANY( ecrad_isolver  == (/0,1,2,3/)       ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, ecrad_isolver has to be 0, 1, 2 or 3')
             IF (.NOT. ANY( ecrad_igas_model   == (/0,1/)   ) ) &
@@ -412,6 +445,17 @@ CONTAINS
             ENDIF
             IF (.NOT. ANY( isolrad      == (/0,1,2/)       ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, isolrad has to be 0, 1 or 2')
+            IF ( .NOT. ecrad_use_general_cloud_optics .AND. &
+              & (ecrad_isnow_scat > -1 .OR. ecrad_igraupel_scat > -1 .OR. ecrad_irain_scat > -1 )) &
+              &  CALL finish(routine,'Ecrad with qr/qs/qg can only be used with ecrad_use_general_cloud_optics = T')
+            IF ( ecrad_use_general_cloud_optics .AND. & 
+              & (ecrad_isnow_scat > -1 .OR. ecrad_igraupel_scat > -1 .OR. ecrad_irain_scat > -1 ) .AND. &
+              &  atm_phy_nwp_config(jg)%icpl_rad_reff /= 2 ) &
+              &  CALL finish(routine,'Ecrad with qr/qs/qg can only be used with icpl_rad_reff= 2')
+            IF ( ecrad_igraupel_scat > -1 .AND. ANY(atm_phy_nwp_config(jg)%inwp_gscp == (/1,3/) ) ) THEN
+              ecrad_igraupel_scat = -1
+              CALL message(routine,'Warning: Reset ecrad_igraupel_scat = -1 because of no graupel in microphysics')
+            ENDIF
           ELSE
             IF ( ecrad_llw_cloud_scat ) &
               &  CALL message(routine,'Warning: ecrad_llw_cloud_scat is set to .true., but ecRad is not used')
@@ -423,6 +467,8 @@ CONTAINS
               &  CALL message(routine,'Warning: ecrad_isolver is explicitly set, but ecRad is not used')
             IF ( ecrad_igas_model /= 0 ) &
               &  CALL message(routine,'Warning: ecrad_igas_model is explicitly set, but ecRad is not used')
+            IF ( ecrad_use_general_cloud_optics ) &
+              &  CALL message(routine,'Warning: ecrad_use_general_cloud_optics is explicitly set, but ecRad is not used')
           ENDIF
 
         ELSE
