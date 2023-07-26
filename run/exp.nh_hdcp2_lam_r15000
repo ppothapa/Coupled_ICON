@@ -168,7 +168,6 @@ rbf_vec_scale_e = 0.5
  l_zdiffu_t    = .true.
  thslp_zdiffu   = 0.05
  thhgtd_zdiffu  = 125.
- lhdiff_rcf    = .true.
  divdamp_fac   = 0.004
 /
 &sleve_nml                   ! vertical grid standard output for message level >= 15

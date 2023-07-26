@@ -22,7 +22,8 @@ MODULE mo_name_list_output_zaxes_types
   USE mo_cdi,                               ONLY: CDI_UNDEFID, zaxisCreate, zaxisDefNumber, zaxisDefUUID,        &
     &                                             zaxisDefLevels, zaxisDefLbounds, zaxisDefUbounds, zaxisDefVct, &
     &                                             zaxisDefUnits, zaxisDefNlevRef, zaxisDefName, zaxisDestroy,    &
-    &                                             zaxisDefLongname, zaxisDefLtype
+    &                                             zaxisDefLongname, cdiDefKeyInt, CDI_KEY_TYPEOFFIRSTFIXEDSURFACE, &
+    &                                             CDI_GLOBAL
   USE mo_zaxis_type,                        ONLY: t_zaxisType
   USE mo_kind,                              ONLY: wp, dp
   USE mo_exception,                         ONLY: finish
@@ -150,6 +151,7 @@ CONTAINS
   SUBROUTINE t_verticalAxis_cdiZaxisCreate(axis) 
     CLASS(t_verticalAxis), INTENT(INOUT) :: axis
     INTEGER :: cdiID
+    INTEGER :: res
     CHARACTER(LEN=*), PARAMETER :: routine = modname//'::t_verticalAxis_cdiZaxisCreate'
 
     cdiID = zaxisCreate(axis%zaxisType%cdi_zaxis_type, axis%zaxisNlev)
@@ -179,7 +181,7 @@ CONTAINS
     IF (ALLOCATED(axis%zaxisVct))      &
       CALL zaxisDefVct(cdiID, SIZE(axis%zaxisVct), axis%zaxisVct)
     IF (ALLOCATED(axis%zaxisDefLtype)) &
-      CALL zaxisDefLtype(cdiID, axis%zaxisDefLtype)
+      res = cdiDefKeyInt(cdiID, CDI_GLOBAL, CDI_KEY_TYPEOFFIRSTFIXEDSURFACE, axis%zaxisDefLtype)
 
   END SUBROUTINE t_verticalAxis_cdiZaxisCreate
 

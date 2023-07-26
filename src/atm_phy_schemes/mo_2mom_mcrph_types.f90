@@ -3,7 +3,7 @@
 ! Two-moment bulk microphysics by Axel Seifert, Klaus Beheng and Uli Blahak
 !
 ! Description:
-! Provides various modules and subroutines for two-moment bulk microphysics
+! Provides various derived types for two-moment bulk microphysics
 !
 ! Current Code Owner: Axel Seifert, DWD
 !                     axel.seifert@dwd.de
@@ -30,6 +30,10 @@ MODULE mo_2mom_mcrph_types
   IMPLICIT NONE
 
   PUBLIC
+  
+  !==================================================================================
+  ! Type declarations:
+  !==================================================================================
 
   ! Derived type for atmospheric variables
   TYPE ATMOSPHERE
@@ -169,28 +173,74 @@ MODULE mo_2mom_mcrph_types
                 alf_imm, bet_imm, nin_imm
   END TYPE dep_imm_coeffs
 
+  ! Type declaration for a general 1D equidistant lookup table:
+  TYPE lookupt_1D
+    LOGICAL :: is_initialized = .FALSE.
+    INTEGER :: iflag = -HUGE(1) ! general-purpose flag
+    CHARACTER(len=40) :: name   ! general-purpose name
+    INTEGER :: n1  ! number of grid points in x1-direction
+    REAL(wp), DIMENSION(:), POINTER :: x1 => NULL()   ! grid vector in x1-direction
+    REAL(wp)                        :: dx1   ! dx1   (grid distance w.r.t. x1)
+    REAL(wp)                        :: odx1  ! one over dx1
+    REAL(wp), DIMENSION(:), POINTER :: ltable => NULL()
+  END TYPE lookupt_1D
+
+  ! Type declaration for a general 2D equidistant lookup table:
+  TYPE lookupt_2D
+    LOGICAL :: is_initialized = .FALSE.
+    INTEGER :: iflag = -HUGE(1) ! general-purpose flag
+    CHARACTER(len=40) :: name   ! general-purpose name
+    INTEGER :: n1  ! number of grid points in x1-direction
+    INTEGER :: n2  ! number of grid points in x2-direction
+    REAL(wp), DIMENSION(:), POINTER :: x1 => NULL()   ! grid vector in x1-direction
+    REAL(wp), DIMENSION(:), POINTER :: x2 => NULL()   ! grid vector in x1-direction
+    REAL(wp)                        :: dx1   ! dx1   (grid distance w.r.t. x1)
+    REAL(wp)                        :: dx2   ! dx2   (grid distance w.r.t. x2)
+    REAL(wp)                        :: odx1  ! one over dx1
+    REAL(wp)                        :: odx2  ! one over dx2
+    REAL(wp), DIMENSION(:,:), POINTER :: ltable => NULL()
+  END TYPE lookupt_2D
+
   ! Type declaration for a general 4D equidistant lookup table:
   TYPE lookupt_4D
+    LOGICAL :: is_initialized = .FALSE.
+    INTEGER :: iflag = -HUGE(1) ! general-purpose flag
+    CHARACTER(len=40) :: name   ! general-purpose name
     INTEGER :: n1  ! number of grid points in x1-direction
     INTEGER :: n2  ! number of grid points in x2-direction
     INTEGER :: n3  ! number of grid points in x3-direction
     INTEGER :: n4  ! number of grid points in x4-direction
-    DOUBLE PRECISION, DIMENSION(:), POINTER :: x1  ! grid vector in x1-direction
-    DOUBLE PRECISION, DIMENSION(:), POINTER :: x2  ! grid vector in x1-direction
-    DOUBLE PRECISION, DIMENSION(:), POINTER :: x3  ! grid vector in x1-direction
-    DOUBLE PRECISION, DIMENSION(:), POINTER :: x4  ! grid vector in x1-direction
-    DOUBLE PRECISION                     :: dx1          ! dx1   (grid distance w.r.t. x1)
-    DOUBLE PRECISION                     :: dx2          ! dx2   (grid distance w.r.t. x2)
-    DOUBLE PRECISION                     :: dx3          ! dx3   (grid distance w.r.t. x3)
-    DOUBLE PRECISION                     :: dx4          ! dx4   (grid distance w.r.t. x4)
-    DOUBLE PRECISION                     :: odx1         ! one over dx 1
-    DOUBLE PRECISION                     :: odx2         ! one over dx 2
-    DOUBLE PRECISION                     :: odx3         ! one over dx 3
-    DOUBLE PRECISION                     :: odx4         ! one over dx 4
-    DOUBLE PRECISION, DIMENSION(:,:,:,:), POINTER :: ltable
+    REAL(wp), DIMENSION(:), POINTER :: x1 => NULL()  ! grid vector in x1-direction
+    REAL(wp), DIMENSION(:), POINTER :: x2 => NULL()  ! grid vector in x1-direction
+    REAL(wp), DIMENSION(:), POINTER :: x3 => NULL()  ! grid vector in x1-direction
+    REAL(wp), DIMENSION(:), POINTER :: x4 => NULL()  ! grid vector in x1-direction
+    REAL(wp)                     :: dx1          ! dx1   (grid distance w.r.t. x1)
+    REAL(wp)                     :: dx2          ! dx2   (grid distance w.r.t. x2)
+    REAL(wp)                     :: dx3          ! dx3   (grid distance w.r.t. x3)
+    REAL(wp)                     :: dx4          ! dx4   (grid distance w.r.t. x4)
+    REAL(wp)                     :: odx1         ! one over dx1
+    REAL(wp)                     :: odx2         ! one over dx2
+    REAL(wp)                     :: odx3         ! one over dx3
+    REAL(wp)                     :: odx4         ! one over dx4
+    REAL(wp), DIMENSION(:,:,:,:), POINTER :: ltable => NULL()
   END TYPE lookupt_4D
 
   CHARACTER(len=*), PARAMETER :: routine = 'mo_2mom_mcrph_types'
+
+  !==================================================================================
+  ! Actual instances of types:
+  !==================================================================================
+  
+  ! Types to hold the equidistant lookup table for graupel wetgrowth diameter:
+  TYPE(lookupt_4d), TARGET :: ltabdminwgg
+
+  ! Types to hold the equidistant lookup table for sticking efficiencies:
+  TYPE(lookupt_1d), TARGET :: ltab_estick_ice
+  TYPE(lookupt_1d), TARGET :: ltab_estick_snow
+  TYPE(lookupt_1d), TARGET :: ltab_estick_parti
+
+  !==================================================================================
+  !==================================================================================
 
   PRIVATE :: routine
 

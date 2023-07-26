@@ -586,8 +586,6 @@ MODULE mo_impl_constants
   INTEGER, PARAMETER, PUBLIC :: TASK_COMPUTE_Q_SEDIM   = 23 !< task: compute specific content of precipitation particles
   INTEGER, PARAMETER, PUBLIC :: TASK_COMPUTE_DBZCMAX   = 24 !< task: compute radar reflectivity column maximum
   INTEGER, PARAMETER, PUBLIC :: TASK_COMPUTE_DBZ850    = 25 !< task: compute radar reflectivity in approx. 850 hPa
-  INTEGER, PARAMETER, PUBLIC :: TASK_COMPUTE_VOR_U     = 26 !< task: compute zonal component of relative vorticity
-  INTEGER, PARAMETER, PUBLIC :: TASK_COMPUTE_VOR_V     = 27 !< task: compute meridional component of relative vorticity
   INTEGER, PARAMETER, PUBLIC :: TASK_COMPUTE_WSHEAR_U  = 30 !< task: compute vertical U-wind shear component
   INTEGER, PARAMETER, PUBLIC :: TASK_COMPUTE_WSHEAR_V  = 31 !< task: compute vertical V-wind shear component
   INTEGER, PARAMETER, PUBLIC :: TASK_COMPUTE_LAPSERATE = 32 !< task: compute T(500hPa) - T(850hPa)

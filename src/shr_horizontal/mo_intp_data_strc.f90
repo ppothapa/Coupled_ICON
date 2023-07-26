@@ -265,10 +265,7 @@ MODULE mo_intp_data_strc
     REAL(wp), ALLOCATABLE :: v_1o2_e(:,:,:)   ! coefficient for interpolation
                                               ! from vertices onto edges by 1/2
                                               ! weighting (nproma,2,nblks_e),
-  
-    REAL(wp), ALLOCATABLE :: cells_plwa_verts(:,:,:)! coefficient for interpolation
-                                              ! from cells to verts by pseudo-Laplacian
-                                              ! weighted averaging (PLWA)
+
     REAL(wp), ALLOCATABLE :: gradc_bmat(:,:,:,:) ! Bmatrix for cell centered shape function based
                                               ! gradient (nproma,2,3,nblks_c)
   
@@ -365,7 +362,6 @@ MODULE mo_intp_data_strc
     ! d) precomputed geometrical factors for mathematical operators (for efficiency)
     !------------------------------------------------------------------------------
     REAL(wp), ALLOCATABLE :: geofac_div(:,:,:)    ! factor for divergence (nproma,cell_type,nblks_c)
-    REAL(wp), ALLOCATABLE :: geofac_qdiv(:,:,:)   ! factor for quad-cell divergence (nproma,4,nblks_e)
     REAL(wp), ALLOCATABLE :: geofac_grdiv(:,:,:)  ! factor for gradient of divergence (nproma,5,nblks_e)
     REAL(wp), ALLOCATABLE :: geofac_rot(:,:,:)    ! factor for divergence (nproma,9-cell_type,nblks_v)
     REAL(wp), ALLOCATABLE :: geofac_n2s(:,:,:)    ! factor for nabla2-scalar (nproma,cell_type+1,nblks_c)

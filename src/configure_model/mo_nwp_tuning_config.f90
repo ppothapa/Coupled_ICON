@@ -43,6 +43,7 @@ MODULE mo_nwp_tuning_config
   PUBLIC :: tune_rdepths
   PUBLIC :: tune_capdcfac_et
   PUBLIC :: tune_capdcfac_tr
+  PUBLIC :: tune_capethresh
   PUBLIC :: tune_lowcapefac
   PUBLIC :: limit_negpblcape
   PUBLIC :: tune_rhebc_land
@@ -76,6 +77,8 @@ MODULE mo_nwp_tuning_config
   PUBLIC :: tune_sc_eis  
   PUBLIC :: tune_sc_invmin
   PUBLIC :: tune_sc_invmax
+  PUBLIC :: tune_dursun_scaling
+  PUBLIC :: tune_sbmccn
   
   !!--------------------------------------------------------------------------
   !! Basic configuration setup for physics tuning
@@ -120,6 +123,9 @@ MODULE mo_nwp_tuning_config
   REAL(wp) :: &                    !< Exponent for density correction of cloud ice sedimentation
     &  tune_icesedi_exp
 
+  REAL(wp) :: &                    !< [0-1] scaling factor to reduce the ccn concentration initial profile with respect to the polluted case
+    &  tune_sbmccn
+
   REAL(wp) :: &                    !< Entrainment parameter for deep convection valid at dx=20 km 
     &  tune_entrorg
 
@@ -134,6 +140,9 @@ MODULE mo_nwp_tuning_config
 
   REAL(wp) :: &                    !< Fraction of CAPE diurnal cycle correction applied in the tropics
     &  tune_capdcfac_tr            ! (relevant only if icapdcycl = 3)
+
+  REAL(wp) :: &                    !< CAPE threshold above which the convective adjustment time scale and entrainment
+    &  tune_capethresh             !< are reduced for numerical stability [J/kg]
 
   REAL(wp) :: &                    !< Tuning factor for reducing the diurnal cycle correction in low-cape situations
     &  tune_lowcapefac = 1._wp     ! (relevant only if icapdcycl = 3; not a namelist variable)
@@ -242,8 +251,10 @@ MODULE mo_nwp_tuning_config
        &  tune_sc_invmin           !< enhanced stratocumulus cloud cover
 
   REAL(wp) :: &                    !< maximum inversion height (m) used to define region with
-       &  tune_sc_invmax           !< enhanced stratocumulus cloud cover 
+       &  tune_sc_invmax           !< enhanced stratocumulus cloud cover
 
+  REAL(wp) :: &                    !< scaling of direct solar rediation to tune sunshine duration
+       &  tune_dursun_scaling      !< in corresponding diagnostic
   
 !  END TYPE t_nwp_tuning_config
 

@@ -88,16 +88,19 @@ USE mo_2mom_mcrph_processes,  ONLY:                                &
      &                         sedi_vel_rain, sedi_vel_sphere,     &
      &                         sedi_icon_rain, sedi_icon_sphere, sedi_icon_sphere_lwf, &
      &                         particle_meanmass, sedi_vel_lwf,&
-     &                         q_crit, cfg_2mom_default, cfg_params
+     &                         q_crit, cfg_params
+
+USE mo_2mom_mcrph_config_default, ONLY: cfg_2mom_default
 
 USE mo_2mom_mcrph_util, ONLY:                            &
      &                       gfct,                       &  ! Gamma function (becomes intrinsic in Fortran2008)
-     &                       ltabdminwgg,                &
      &                       init_dmin_wg_gr_ltab_equi,  &
      &                       dmin_wetgrowth_fit_check, luse_dmin_wetgrowth_table, lprintout_comp_table_fit
 
-USE mo_2mom_prepare, ONLY: prepare_twomoment, post_twomoment
+USE mo_2mom_mcrph_types, ONLY: ltabdminwgg
 
+USE mo_2mom_prepare, ONLY: prepare_twomoment, post_twomoment
+USE mo_nwp_tuning_config,  ONLY: tune_sbmccn
 !==============================================================================
 
   IMPLICIT NONE
@@ -120,7 +123,7 @@ USE mo_2mom_prepare, ONLY: prepare_twomoment, post_twomoment
 !! Now in namelist phy_ctl!  INTEGER, PARAMETER :: i2mom_solver = 1  ! (0) explicit (1) semi-implicit solve
 !!$  ! now this comes from cfg_params !  INTEGER, PARAMETER :: i2mom_solver = 1  ! (0) explicit (1) semi-implicit solve
   
-  INTEGER, PARAMETER :: cloud_type_default_gscp4 = 2603, ccn_type_gscp4 = 7 
+  INTEGER, PARAMETER :: cloud_type_default_gscp4 = 2603, ccn_type_gscp4 = 7
   INTEGER, PARAMETER :: cloud_type_default_gscp5 = 2603, ccn_type_gscp5 = 8
 
   ! AS: For gscp=4 use 2103 with ccn_type = 1 (HDCP2 IN and CCN schemes)
@@ -209,7 +212,9 @@ CONTAINS
     REAL(wp), OPTIONAL, INTENT (INOUT)  :: dtemp(:,:)
 
     INTEGER,  INTENT (IN)             :: msg_level
+
     LOGICAL,  OPTIONAL,  INTENT (IN)  :: l_cv
+
     INTEGER,  OPTIONAL,  INTENT (IN)  :: ithermo_water
 
     ! ... Variables which are global in module_2mom_mcrph_main
@@ -654,7 +659,7 @@ CONTAINS
 
         ! .. this subroutine calculates all the microphysical sources and sinks
         CALL clouds_twomoment(ik_slice, dt, lprogin, atmo, cloud, rain, &
-             ice, snow, graupel, hail, ninact, nccn, ninpot)
+             ice, snow, graupel, hail, ninact, nccn, ninpot) 
 
         DO kk=kts,kte
           DO ii = its, ite
@@ -1212,7 +1217,7 @@ CONTAINS
     END IF
 
     ! .. set the particle types, and calculate some coefficients
-    IF (igscp.eq.7) THEN
+    IF (igscp == 7) THEN
        CALL init_2mom_scheme_once(cloud,rain,ice,snow,graupel_lwf,hail_lwf,cloud_type)
     ELSE
        CALL init_2mom_scheme_once(cloud,rain,ice,snow,graupel,hail,cloud_type)
@@ -1223,7 +1228,7 @@ CONTAINS
       IF (msg_level>5) CALL message (TRIM(routine), " Looking for dmin_wetgrowth table file for "//TRIM(graupel%name))
       unitnr = 11
       CALL init_dmin_wg_gr_ltab_equi('dmin_wetgrowth_lookup', graupel, &
-           unitnr, 61, ltabdminwgg)
+           unitnr, 61, ltabdminwgg, msg_level)
     END IF
     IF (.NOT. luse_dmin_wetgrowth_table) THEN
       ! check whether 4d-fit is consistent with graupel parameters
@@ -1235,12 +1240,12 @@ CONTAINS
              & 'but graupel parameters inconsistent with 4d-fit')
       END IF
     END IF
-
+    
     IF (msg_level>dbg_level) CALL message (TRIM(routine), " finished init_dmin_wetgrowth for "//TRIM(graupel%name))
     !..parameters for CCN and IN are set here. The 3D fields for prognostic CCN are then
     !  initialized in mo_nwp_phy_init.
     IF (timers_level > 10) CALL timer_stop(timer_phys_2mom_dmin_init)
-   
+
     !..parameters for exponential decrease of N_ccn with height
     !  z0:  up to this height (m) constant unchanged value
     !  z1e: height interval at which N_ccn decreases by factor 1/e above z0_nccn
@@ -1250,6 +1255,7 @@ CONTAINS
 
     ! characteristics of different kinds of CN
     ! (copied from COSMO 5.0 Segal & Khain nucleation subroutine)
+
     SELECT CASE(ccn_type)
     CASE(6)
       !... maritime case
@@ -1266,12 +1272,21 @@ CONTAINS
       ccn_coeffs%R2    = 0.03d0       ! in mum
       ccn_coeffs%etas  = 0.8          ! soluble fraction
     CASE(8)
+    IF (tune_sbmccn < 1.0_wp) THEN
+      !... maritime case
+      ccn_coeffs%Ncn0 = 100.0d06   ! CN concentration at ground
+      ccn_coeffs%Nmin =  35.0d06
+      ccn_coeffs%lsigs = 0.4d0      ! log(sigma_s)
+      ccn_coeffs%R2    = 0.03d0     ! in mum
+      ccn_coeffs%etas  = 0.9        ! soluble fraction
+    ELSE
       !... continental case
       ccn_coeffs%Ncn0 = 1700.0d06
       ccn_coeffs%Nmin =   35.0d06
       ccn_coeffs%lsigs = 0.2d0
       ccn_coeffs%R2    = 0.03d0       ! in mum
       ccn_coeffs%etas  = 0.7          ! soluble fraction
+    END IF
     CASE(9)
       !... "polluted" continental
       ccn_coeffs%Ncn0 = 3200.0d06
@@ -1319,6 +1334,8 @@ CONTAINS
      
     IF (msg_level>5) CALL message (TRIM(routine), " finished two_moment_mcrph_init successfully")
     !$ACC ENTER DATA COPYIN(ccn_coeffs, in_coeffs, cfg_params)
+    !$ACC ENTER DATA COPYIN(ltabdminwgg)
+    !$ACC ENTER DATA COPYIN(ltabdminwgg%ltable, ltabdminwgg%x1, ltabdminwgg%x2, ltabdminwgg%x3, ltabdminwgg%x4)
 
   END SUBROUTINE two_moment_mcrph_init
 

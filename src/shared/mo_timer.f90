@@ -243,12 +243,12 @@ MODULE mo_timer
        &    timer_radar_ongeom   , &
        &    timer_radar_comppolar, &
        &    timer_radar_out      , & 
-       &    timer_radar_barrier
+       &    timer_radar_barrier  , &
+       &    timer_radar_acc_data_copies
 
   ! Timers for optional diagnostics
   ! Model atmosphere
-  PUBLIC :: timer_opt_diag_atmo,     &
-    &       timer_opt_diag_atmo_vor
+  PUBLIC :: timer_opt_diag_atmo
 
   ! low level timing routine
   PUBLIC :: tic, toc
@@ -464,12 +464,12 @@ MODULE mo_timer
        &     timer_radar_ongeom   , &
        &     timer_radar_comppolar, &
        &     timer_radar_out      , & 
-       &     timer_radar_barrier
+       &     timer_radar_barrier  , &
+       &     timer_radar_acc_data_copies
 
   ! Timers for optional diagnostics
   ! Model atmosphere
-  INTEGER :: timer_opt_diag_atmo,     &
-    &        timer_opt_diag_atmo_vor
+  INTEGER :: timer_opt_diag_atmo
 
 
 CONTAINS
@@ -926,12 +926,12 @@ CONTAINS
       timer_radar_comppolar = new_timer("EMVORADO_comp_polargrid")
       timer_radar_out       = new_timer("EMVORADO_output")
       timer_radar_barrier   = new_timer("EMVORADO_barrier_waiting")
+      timer_radar_acc_data_copies = new_timer("EMVORADO_acc_data_copies")
     END IF
 
     ! Timers for optional diagnostics
     ! Model atmosphere
     timer_opt_diag_atmo             = new_timer("optional_diagnostics_atmosphere")
-    timer_opt_diag_atmo_vor         = new_timer("opt_diag_atmo_vorticity")
 
   END SUBROUTINE init_timer
 

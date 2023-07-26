@@ -1,5 +1,16 @@
-#!/bin/ksh
+#!/bin/bash
 set +x
+
+# assume this script is started in run/checksuite.icon-dev
+cd ..
+
+# get paths standardized by pwd
+SCRIPT_DIR=`pwd`
+cd ..
+MODEL_DIR=`pwd`
+cd $SCRIPT_DIR
+
+
 #################### functions ##########################################
 function one_or_more_are_files
 {
@@ -414,163 +425,14 @@ function tolerance_check
     MODEL_DIR1=$1
     EXP_BASE=$2
     EXPERIMENT=$3
-    PROBTEST=externals/probtest/probtest.py
 
-    # status variable that is evaluated after the function call
-    TOL_STATUS=0
     cd $MODEL_DIR
-
-    # always use CPU reference
-    builder="${BB_SYSTEM}_${BB_SLAVE}" # old buildbot
-    [[ ! -z $BB_NAME ]] && builder=$(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]') # new buildbot
-    CPU_REFERENCE=${REFERENCE}/${builder/_gpu_/_cpu_}
-
-    # find relevant config
-    case $EXPERIMENT in
-        *atm*qubicc*)
-            probtest_file_ids="*atm2d_ml*.nc"
-            probtest_file_ids+=",*cli_ml*.nc"
-            probtest_file_ids+=",*clw_ml*.nc"
-            probtest_file_ids+=",*ddt_ua_adv_ml*.nc"
-            probtest_file_ids+=",*ddt_ua_cor_ml*.nc"
-            probtest_file_ids+=",*ddt_ua_dmp_ml*.nc"
-            probtest_file_ids+=",*ddt_ua_dyn_ml*.nc"
-            probtest_file_ids+=",*ddt_ua_hdf_ml*.nc"
-            probtest_file_ids+=",*ddt_ua_pgr_ml*.nc"
-            probtest_file_ids+=",*ddt_va_adv_ml*.nc"
-            probtest_file_ids+=",*ddt_va_cor_ml*.nc"
-            probtest_file_ids+=",*ddt_va_dmp_ml*.nc"
-            probtest_file_ids+=",*ddt_va_dyn_ml*.nc"
-            probtest_file_ids+=",*ddt_va_hdf_ml*.nc"
-            probtest_file_ids+=",*ddt_va_pgr_ml*.nc"
-            probtest_file_ids+=",*flx2d_ml*.nc"
-            probtest_file_ids+=",*hus_ml*.nc"
-            probtest_file_ids+=",*pfull_ml*.nc"
-            probtest_file_ids+=",*qg_ml*.nc"
-            probtest_file_ids+=",*qr_ml*.nc"
-            probtest_file_ids+=",*qs_ml*.nc"
-            probtest_file_ids+=",*rho_ml*.nc"
-            probtest_file_ids+=",*ta_ml*.nc"
-            probtest_file_ids+=",*tend_qcli_mig_ml*.nc"
-            probtest_file_ids+=",*tend_qcli_vdf_ml*.nc"
-            probtest_file_ids+=",*tend_qclw_mig_ml*.nc"
-            probtest_file_ids+=",*tend_qclw_vdf_ml*.nc"
-            probtest_file_ids+=",*tend_qhus_mig_ml*.nc"
-            probtest_file_ids+=",*tend_qhus_vdf_ml*.nc"
-            probtest_file_ids+=",*tend_ta_mig_ml*.nc"
-            probtest_file_ids+=",*tend_ta_rlw_ml*.nc"
-            probtest_file_ids+=",*tend_ta_rsw_ml*.nc"
-            probtest_file_ids+=",*tend_ta_vdf_ml*.nc"
-            probtest_file_ids+=",*tend_ua_vdf_ml*.nc"
-            probtest_file_ids+=",*tend_va_vdf_ml*.nc"
-            probtest_file_ids+=",*ua_ml*.nc"
-            probtest_file_ids+=",*va_ml*.nc"
-            probtest_file_ids+=",*wa_ml*.nc"
-            ;;
-        *atm*ape*)
-            probtest_file_ids="*atm_3d*.nc"
-            ;;
-        *mch_opr_r04b07_lhn_12*)
-            probtest_file_ids="*atm_3d_ml*.nc"
-            probtest_file_ids+=",*atm_3d_il*.nc"
-            probtest_file_ids+=",*atm_3d_hl*.nc"
-            probtest_file_ids+=",*atm_3d_pl*.nc"
-            probtest_file_ids+=",*atm_2d_ll*.nc"
-            probtest_file_ids+=",Meteogram*.nc"
-            probtest_file_ids+=",*total_integrals.dat"
-            ;;
-        *mch_*nest*)
-            probtest_file_ids="*atm_3d_DOM01_ml*.nc"
-            probtest_file_ids+=",*atm_3d_DOM02_ml*.nc"
-            probtest_file_ids+=",*atm_3d_DOM01_hl*.nc"
-            probtest_file_ids+=",*atm_3d_DOM02_hl*.nc"
-            probtest_file_ids+=",*atm_3d_DOM01_pl*.nc"
-            probtest_file_ids+=",*atm_3d_DOM02_pl*.nc"
-            probtest_file_ids+=",*atm_3d_ll_DOM01_ml*.nc"
-            probtest_file_ids+=",*atm_3d_ll_DOM02_ml"
-            ;;
-        *mch_*dace_synsat*)
-            probtest_file_ids="*atm_3d*.nc"
-            ;;
-        *mch_*dace*)
-            probtest_file_ids="*fofAIREP*.nc"
-            ;;
-        *mch_*)
-            probtest_file_ids="*atm_3d*.nc"
-            ;;
-        *dwd_run_ICON_*)
-            probtest_file_ids="*atm_3d_DOM01_ml*.nc"
-            probtest_file_ids+=",*atm_3d_DOM02_ml*.nc"
-            probtest_file_ids+=",*atm_3d_DOM02_hl*.nc"
-            probtest_file_ids+=",*atm_3d_DOM02_pl*.nc"
-            probtest_file_ids+=",*atm_3d_ll_DOM01_ml*.nc"
-            probtest_file_ids+=",*atm_3d_ll_DOM02_ml*.nc"
-            probtest_file_ids+=",Meteogram*.nc"
-            ;;
-        *)
-            echo "no file ids specified for '${EXPERIMENT}'"
-            echo "you most likely did not change the entries in"
-            echo "icon-dev.checksuite. The checksuite cannot find"
-            echo "the model output"
-            TOL_STATUS=1
-            return TOL_STATUS
-            ;;
-    esac
-
-    echo "Running tolerance check with compiler-specific reference at ${CPU_REFERENCE}"
-
-    export PROBTEST_CONFIG=${EXP_BASE}.json
-    # initialize configuration file
-        python ${PROBTEST} --log-file stats-${EXPERIMENT}.log init \
-        --codebase-install "${MODEL_DIR1}" \
-        --reference "not-used" \
-        --experiment-name "${EXP_BASE}" \
-        --file-ids "${probtest_file_ids}" \
-        --config "${PROBTEST_CONFIG}"
-    if [[ $? != 0 ]] ; then
-        cat check-${EXPERIMENT}.log
-        echo "probtest did not initialized successfully"
-        TOL_STATUS=1
-        return TOL_STATUS
-    fi
-
-    # generate the aggregated "single-column" stats file
-    ${PROBTEST} --log-file stats-${EXPERIMENT}.log stats \
-        --stats-file-name ${EXPERIMENT}.csv \
-        --no-ensemble
-    if [[ $? != 0 ]] ; then
-        cat check-${EXPERIMENT}.log
-        echo "probtest did not generate stats successfully"
-        TOL_STATUS=1
-        return TOL_STATUS
-    fi
-
-    # validate the generated stats against the reference
-    ${PROBTEST} --log-file check-${EXPERIMENT}.log check \
-        --input-file-cur ${EXPERIMENT}.csv \
-        --input-file-ref ${CPU_REFERENCE}/reference/${EXPERIMENT}.csv \
-        --tolerance-file-name ${CPU_REFERENCE}/tolerance/${EXPERIMENT}.csv \
-        --factor 5
-    if [[ $? != 0 ]] ; then
-        cat check-${EXPERIMENT}.log
-        echo "probtest tolerance test did not complete successfully"
-        TOL_STATUS=1
-        return TOL_STATUS
-    fi
-
-    # get the relevant success check
-    fail=$(grep RESULT check-${EXPERIMENT}.log | grep 'FAIL' | wc -l)
-    crash=$(grep RESULT check-${EXPERIMENT}.log | grep 'CRASH' | wc -l)
-    finished=$(grep RESULT check-${EXPERIMENT}.log | wc -l)
-    if [[ $(($fail+$crash)) -gt 0 || $((finished)) -lt 1 ]] ; then
-        cat check-${EXPERIMENT}.log
-        echo "testsuite did not complete successfully"
-        TOL_STATUS=1
-    fi
-
-    return $TOL_STATUS
+    builder=$(echo "${BB_NAME}" | tr '[:upper:]' '[:lower:]')
+    run/tolerance/check_tolerance "$EXPERIMENT" "${builder/_gpu_/_cpu_}" "$MODEL_DIR1" "$EXP_BASE"
+    return $?
 }
 
+#------------------------------------------------------------------------
 function performance_check
 {
     typeset MODEL_DIR1 EXPERIMENT
@@ -591,7 +453,7 @@ function performance_check
     echo "Running performance check with reference at ${PERFORMANCE_REFERENCE}"
 
     # generate performance data from the LOG file
-    $PROBTEST --log-file check-${EXPERIMENT}.log performance \
+    $PROBTEST --log-file "check-${EXPERIMENT}.log" performance \
         --timing-regex ${LOG_FILE} \
         --timing-database ${EXPERIMENT}_${BB_NAME} \
         --append-time False
@@ -599,7 +461,7 @@ function performance_check
 
     # compare the generated performance against the reference
     # Assumption: The first table is the correct one
-    $PROBTEST --log-file check-${EXPERIMENT}.log performance-check \
+    $PROBTEST --log-file "check-${EXPERIMENT}.log" performance-check \
         --timing-current ${EXPERIMENT}_${BB_NAME} \
         --timing-reference run/performance_reference/${EXPERIMENT}_${BB_NAME} \
         --i-table 0 \
@@ -609,15 +471,15 @@ function performance_check
     TOL_STATUS=$?
 
     # get the relevant success check
-    fail=$(grep RESULT check-${EXPERIMENT}.log | grep 'FAIL' | wc -l)
-    crash=$(grep RESULT check-${EXPERIMENT}.log | grep 'CRASH' | wc -l)
-    finished=$(grep RESULT check-${EXPERIMENT}.log | wc -l)
+    fail=$(grep -c "RESULT.*FAIL" "check-${EXPERIMENT}.log" || true)
+    crash=$(grep -c "RESULT.*CRASH" "check-${EXPERIMENT}.log" || true)
+    finished=$(grep -c RESULT "check-${EXPERIMENT}.log" || true)
     if [[ $(($fail+$crash)) -gt 0 || $((finished)) -lt 1 ]] ; then
         TOL_STATUS=1
     fi
 
     if [[ $TOL_STATUS -gt 0 ]] ; then
-        cat check-${EXPERIMENT}.log
+        cat "check-${EXPERIMENT}.log"
         echo "testsuite did not complete successfully"
     fi
 
@@ -645,15 +507,6 @@ make_sure_cdo_exists_and_runs() {
 #################### main script ########################################
 
 date
-
-# assume this script is started in run/checksuite.icon-dev
-cd ..
-
-# get paths standardized by pwd
-SCRIPT_DIR=`pwd`
-cd ..
-MODEL_DIR=`pwd`
-cd $SCRIPT_DIR
 
 # possible test modes
 MODES="b u r n m o t p ur un um uo rn rm ro nm no mo mp tp urn urm uro unm uno umo rnm rno rmo nmo tmp urnm urno urmo unmo rnmo urnmo rnmot"
@@ -1314,7 +1167,7 @@ if string_in_list $MD $CMODES; then
 
     # compare base run with reference
     tolerance_check $MODEL_DIR $EXP_BASE $EXPERIMENT
-    if [ "$TOL_STATUS" == 0 ]; then
+    if [ "$?" == 0 ]; then
         PASSED_TESTS="$PASSED_TESTS $TEST"
         EXIT_STATUS=$(($EXIT_STATUS + 0))
     else
@@ -1333,7 +1186,7 @@ if string_in_list $MD $CMODES; then
     # compare base run with reference
     performance_check $MODEL_DIR $EXPERIMENT
 
-    if [ "$TOL_STATUS" == 0 ]; then
+    if [ "$?" == 0 ]; then
         PASSED_TESTS="$PASSED_TESTS $TEST"
         EXIT_STATUS=$(($EXIT_STATUS + 0))
     else

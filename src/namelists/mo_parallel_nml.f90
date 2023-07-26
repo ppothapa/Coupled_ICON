@@ -17,13 +17,14 @@
 MODULE mo_parallel_nml
 
   USE mo_io_units,            ONLY: nnml, nnml_output
+  USE mo_exception,           ONLY: finish
   USE mo_namelist,            ONLY: position_nml, POSITIONED, open_nml, close_nml
   USE mo_master_control,      ONLY: use_restart_namelists
   USE mo_mpi,                 ONLY: my_process_is_stdio
   USE mo_restart_nml_and_att, ONLY: open_tmpfile, store_and_close_namelist, open_and_restore_namelist, close_tmpfile
-  USE mo_io_units,           ONLY: filename_max
-  USE mo_impl_constants,     ONLY: max_dom
-  USE mo_nml_annotate,       ONLY: temp_defaults, temp_settings
+  USE mo_io_units,            ONLY: filename_max
+  USE mo_impl_constants,      ONLY: max_dom
+  USE mo_nml_annotate,        ONLY: temp_defaults, temp_settings
 
   USE mo_parallel_config,     ONLY: &
     & config_n_ghost_rows        => n_ghost_rows,        &
@@ -162,7 +163,6 @@ MODULE mo_parallel_nml
 
     ! Type of (halo) communication:
     ! 1 = synchronous communication with local memory for exchange buffers
-    ! 2 = synchronous communication with global memory for exchange buffers
     ! 3 = asynchronous communication within dynamical core with global memory
     !     for exchange buffers (not yet implemented)
     INTEGER :: itype_comm
@@ -228,8 +228,8 @@ MODULE mo_parallel_nml
     INTEGER :: istat
     INTEGER :: funit
     INTEGER :: iunit
-    !0!CHARACTER(len=*), PARAMETER ::   &
-    !0!        &  method_name = 'mo_parallel_nml:read_parallel_namelist'
+    CHARACTER(len=*), PARAMETER ::   &
+            &  routine = 'mo_parallel_nml:read_parallel_nml'
 
     !--------------------------------------------
     ! set default values
@@ -296,7 +296,6 @@ MODULE mo_parallel_nml
 
     ! Type of (halo) communication:
     ! 1 = synchronous communication with local memory for exchange buffers
-    ! 2 = synchronous communication with global memory for exchange buffers
     ! 3 = asynchronous communication within dynamical core with global memory
     !     for exchange buffers (not yet implemented)
     itype_comm = 1
@@ -357,6 +356,12 @@ MODULE mo_parallel_nml
       END IF
     END SELECT
     CALL close_nml
+
+    !----------------------------------------------------
+    ! Sanity check
+    !----------------------------------------------------
+    IF (itype_comm > 1) CALL finish(routine, &
+      'itype_comm > 1 is deprecated, please use itype_comm=1')
 
     !-----------------------------------------------------
     ! Store the namelist for restart

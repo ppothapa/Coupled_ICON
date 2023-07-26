@@ -127,13 +127,14 @@ cat > NAMELIST_NWP << EOF
 ! parallel_nml: MPI parallelization -------------------------------------------
 &parallel_nml
  nproma                      =                  ${nproma}         ! loop chunk length
+ nproma_sub                  =              ${nproma_sub}         ! loop chunk length for radiation
  p_test_run                  =                     .FALSE.        ! .TRUE. means verification run for MPI parallelization
  num_io_procs                =            ${num_io_procs}         ! number of I/O processors
  num_restart_procs           =       ${num_restart_procs}         ! number of restart processors
  num_prefetch_proc           =       ${num_prefetch_proc}         ! number of processors for LBC prefetching
  num_io_procs_radar          =      ${num_io_procs_radar}         ! number of EMVORADO I/O processors
  iorder_sendrecv             =                          3         ! sequence of MPI send/receive calls
- proc0_shift                 =                          1         ! VH offloading mode
+ proc0_shift                 =             ${proc0_shift}         ! VH offloading mode
  use_omp_input               =                     .true.         ! task-parallelized input
 /
 
@@ -349,6 +350,8 @@ cat > NAMELIST_NWP << EOF
  ecrad_iliquid_scat          =                          0         ! Optical properties used for liquid cloud scattering (0 = SOCRATES)
  ecrad_iice_scat             =                          0         ! Optical properties used for ice cloud scattering (0 = Fu)
  isolrad                     =                          1         ! Coddington et al. (2016) scaling
+ ecrad_isolver               = ${radiation_ecrad_isolver}
+      ! Solver version. 2: McICA with OpenACC, 0: McICA
 /
 
 ! sleve_nml: vertical level specification -------------------------------------

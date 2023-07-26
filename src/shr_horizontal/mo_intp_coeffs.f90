@@ -1398,45 +1398,8 @@ CONTAINS
     END DO !block loop
 !$OMP END DO
 
-    ! d) Geometrical factor for quad-cell divergence (triangles only)
 
-    IF (ptr_patch%geometry_info%cell_type == 3) THEN
-
-      rl_start = 2
-      rl_end = min_rledge
-
-      ! values for the blocking
-      i_startblk = ptr_patch%edges%start_blk(rl_start,1)
-      i_endblk   = ptr_patch%edges%end_blk(rl_end,i_nchdom)
-
-!$OMP DO PRIVATE(jb,je,je1,i_startidx,i_endidx,ile,ibe) ICON_OMP_DEFAULT_SCHEDULE
-      DO jb = i_startblk, i_endblk
-
-        CALL get_indices_e(ptr_patch, jb, i_startblk, i_endblk, &
-          & i_startidx, i_endidx, rl_start, rl_end)
-
-        DO je1 = 1, 4
-          DO je = i_startidx, i_endidx
-
-            IF(.NOT. ptr_patch%edges%decomp_info%owner_mask(je,jb)) CYCLE
-
-            ile = ptr_patch%edges%quad_idx(je,jb,je1)
-            ibe = ptr_patch%edges%quad_blk(je,jb,je1)
-
-            ptr_int%geofac_qdiv(je,je1,jb) = &
-              & ptr_patch%edges%primal_edge_length(ile,ibe) * &
-              & ptr_patch%edges%quad_orientation(je,jb,je1)  / &
-              & ptr_patch%edges%quad_area(je,jb)
-
-          ENDDO !edge loop
-        ENDDO
-
-      END DO !block loop
-!$OMP END DO
-
-    ENDIF
-
-    ! e) Geometrical factor for gradient of divergence (triangles only)
+    ! d) Geometrical factor for gradient of divergence (triangles only)
 
     ! sync does not work on patch 0 for some unknown reason. But we don't need this
     ! field on the radiation grid anyway, so let's just skip it
@@ -1574,7 +1537,7 @@ CONTAINS
     ENDIF
 
 
-    ! f) Geometrical factor for Green-Gauss gradient
+    ! e) Geometrical factor for Green-Gauss gradient
     rl_start = 2
     rl_end = min_rlcell
 
@@ -1657,7 +1620,6 @@ CONTAINS
     CALL sync_patch_array(sync_c,ptr_patch,ptr_int%geofac_n2s)
 
     IF (ptr_patch%geometry_info%cell_type == 3) THEN
-      CALL sync_patch_array(sync_e,ptr_patch,ptr_int%geofac_qdiv)
       IF (ptr_patch%id >= 1) CALL sync_patch_array(sync_e,ptr_patch,ptr_int%geofac_grdiv)
     ENDIF
 
@@ -1670,11 +1632,29 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !>
-  !! Computes the local orientation of the edge primal normal and dual normal
-  !! at the location of the cell centers and vertices.
-  !! Moreover, the Cartesian orientation vectors of the edge primal normals
-  !! are stored for use in the RBF initialization routines, and inverse
-  !! primal and dual edge lengths are computed
+  !! Completes the computation of geometric information for a given patch, such as
+  !! - the control volume associated to an edge
+  !! - the local orientation of the edge primal normal and dual normal at the
+  !!   location of the cell centers and vertices.
+  !! - the inverse primal and dual edge lengths
+  !!
+  !! edges% area_edge
+  !!        inv_primal_edge_length
+  !!        inv_dual_edge_length
+  !!        vertex_idx/blk
+  !!        inv_vert_vert_length
+  !!        primal_normal_cell
+  !!        dual_normal_cell
+  !!        primal_normal_vert
+  !!        dual_normal_vert
+  !!
+  !! Moreover, the local orientation of the edge primal normal at the location
+  !! of the cell centers in a cell-based data structure is computed and stored
+  !! in the interpolation state together with some distance fields.
+  !!
+  !! ptr_int% primal_normal_ec
+  !!          edge_cell_length
+  !!          cell_vert_dist
   !!
   !! @par Revision History
   !!  developed by Guenther Zaengl, 2009-03-31
@@ -1684,19 +1664,17 @@ CONTAINS
   !!  for geometry based info
   SUBROUTINE complete_patchinfo( ptr_patch, ptr_int )
     !
-
-    !
     !  patch on which computation is performed
     !
-    TYPE(t_patch), TARGET, INTENT(inout) :: ptr_patch
+    TYPE(t_patch),     INTENT(inout) :: ptr_patch
 
     ! Interpolation state
-    TYPE(t_int_state),     INTENT(inout) :: ptr_int
+    TYPE(t_int_state), INTENT(inout) :: ptr_int
     !
 
     INTEGER :: jb, je, jc
     INTEGER :: rl_start, rl_end
-    INTEGER :: i_startblk, i_endblk, i_startidx, i_endidx, i_nchdom
+    INTEGER :: i_startblk, i_endblk, i_startidx, i_endidx
 
     INTEGER :: ilc1, ibc1, ilv1, ibv1, ilc2, ibc2, ilv2, ibv2, &
       & ilv3, ibv3, ilv4, ibv4, ile1, ibe1
@@ -1710,15 +1688,14 @@ CONTAINS
 
     !-----------------------------------------------------------------------
 
-    i_nchdom   = MAX(1,ptr_patch%n_childdom)
 
 !$OMP PARALLEL  PRIVATE(rl_start,rl_end,i_startblk,i_endblk)
     rl_start = 1
     rl_end = min_rledge
 
     ! values for the blocking
-    i_startblk = ptr_patch%edges%start_blk(rl_start,1)
-    i_endblk   = ptr_patch%edges%end_blk(rl_end,i_nchdom)
+    i_startblk = ptr_patch%edges%start_block(rl_start)
+    i_endblk   = ptr_patch%edges%end_block(rl_end)
     !
     ! The fields for the inverse primal and dual edge lengths are
     ! initialized here.
@@ -1733,9 +1710,15 @@ CONTAINS
 
         IF(.NOT.ptr_patch%edges%decomp_info%owner_mask(je,jb)) CYCLE
 
+        ! compute the control volume associated to each edge.
+        ! It is defined as the quadrilateral whose edges are the primal edge
+        ! and the associated dual edge
+        ptr_patch%edges%area_edge(je,jb) =  &
+          &    ptr_patch%edges%primal_edge_length(je,jb)  &
+          &  * ptr_patch%edges%dual_edge_length(je,jb)
+
         ! compute inverse primal edge length
         ! (dual follows below in the rl_start=2 section)
-
         ptr_patch%edges%inv_primal_edge_length(je,jb) = &
           & 1._wp/ptr_patch%edges%primal_edge_length(je,jb)
 
@@ -1748,8 +1731,8 @@ CONTAINS
     rl_end = min_rledge
 
     ! Second step: computed projected orientation vectors and related information
-    i_startblk = ptr_patch%edges%start_blk(rl_start,1)
-    ! i_endblk   = ptr_patch%edges%end_blk(rl_end,i_nchdom)
+    i_startblk = ptr_patch%edges%start_block(rl_start)
+    ! i_endblk   = ptr_patch%edges%end_block(rl_end)
     i_endblk   = ptr_patch%nblks_e
 
     ! Initialization of lateral boundary points
@@ -2032,6 +2015,9 @@ CONTAINS
 
 !$OMP END PARALLEL
 
+
+    CALL sync_patch_array(SYNC_E,ptr_patch,ptr_patch%edges%area_edge)
+
     ! primal_normal_cell must be sync'd before next loop,
     ! so do a sync for all above calculated quantities
 
@@ -2081,8 +2067,8 @@ CONTAINS
 
     ! Final step: store primal_normal_cell also with respect to cell points
     ! in order to reduce indirect addressing during runtime
-    i_startblk = ptr_patch%cells%start_blk(rl_start,1)
-    i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
+    i_startblk = ptr_patch%cells%start_block(rl_start)
+    i_endblk   = ptr_patch%cells%end_block(rl_end)
     !
     ! loop through all patch cells
     !
@@ -2135,8 +2121,8 @@ CONTAINS
     rl_end = min_rlcell
 
     ! Compute cell-vertex distances for gradient limiter
-    i_startblk = ptr_patch%cells%start_blk(rl_start,1)
-    i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
+    i_startblk = ptr_patch%cells%start_block(rl_start)
+    i_endblk   = ptr_patch%cells%end_block(rl_end)
     !
 !$OMP DO PRIVATE(jb,i_startidx,i_endidx,jc,cc_cell,cc_v1,cc_v2,cc_v3,cc_dis1,cc_dis2,cc_dis3, &
 !$OMP            z_lon,z_lat,z_nx1,z_nx2,z_norm,ilv1,ibv1,ilv2,ibv2,ilv3,ibv3) ICON_OMP_DEFAULT_SCHEDULE

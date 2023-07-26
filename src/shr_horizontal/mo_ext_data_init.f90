@@ -2980,6 +2980,7 @@ CONTAINS
         ELSE IF ( ext_data%atm%lsm_ctr_c(jc,jb) > (1._wp-eps) ) THEN
 
           IF (( ext_data%atm%fr_land(jc,jb) + ext_data%atm%fr_lake(jc,jb)) < 1._wp ) THEN
+            ! eps necessary because lsm_ctr_c has input values of 0.999999 instead of 1.0)
 
             ! switch land lakes from ocean to flake (Caspian and Dead Seas)
 
@@ -3019,8 +3020,7 @@ CONTAINS
         ! ICON-O is fractional ocean (coast)
         ! attention: fr_lake is not allowed on the coast
 
-        ELSE IF ( (ext_data%atm%lsm_ctr_c(jc,jb) > 0._wp) .AND. (ext_data%atm%lsm_ctr_c(jc,jb) < (10_wp-eps)) ) THEN
-                                     ! eps necessary because lsm_ctr_c has input values of 0.999999 instead of 1.0)
+        ELSE IF ( ext_data%atm%lsm_ctr_c(jc,jb) > 0._wp ) THEN
 
           ! ICON-A is pure land: reduce land & delete lake accordingly
           IF (( ext_data%atm%fr_land  (jc,jb) + ext_data%atm%fr_lake  (jc,jb)) == 1._wp ) THEN

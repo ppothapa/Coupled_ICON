@@ -236,6 +236,7 @@ cat > NAMELIST_NWP << EOF
 ! parallel_nml: MPI parallelization -------------------------------------------
 &parallel_nml
  nproma                      =                  ${nproma}         ! loop chunk length
+ nproma_sub                  =              ${nproma_sub}         ! loop chunk length for radiation
  p_test_run                  =                     .FALSE.        ! .TRUE. means verification run for MPI parallelization
  num_io_procs                =            ${num_io_procs}         ! number of I/O processors
  num_restart_procs           =       ${num_restart_procs}         ! number of restart processors
@@ -333,7 +334,6 @@ cat > NAMELIST_NWP << EOF
  damp_height                 =            120000.0, 80000.0       ! height at which Rayleigh damping of vertical wind starts
  rayleigh_coeff              =                   10.0, 10.0       ! Rayleigh damping coefficient
  ndyn_substeps               =                          5         ! number of dynamical core substeps
- lhdiff_rcf                  =                      .TRUE.        ! .TRUE.=compute diffusion only at advection time steps
  divdamp_order               =                         24         ! order of divergence damping
  divdamp_fac                 =                          0.004     ! scaling factor for divergence damping 
  igradp_method               =                          3         ! discretization of horizontal pressure gradient

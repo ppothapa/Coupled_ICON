@@ -124,6 +124,7 @@ num_io_procs_radar=0
 cat > ${atmo_namelist} << EOF
 &parallel_nml
  nproma          =  $nproma
+ nproma_sub      =  ${nproma_sub} ! loop chunk length for radiation
  p_test_run      = .false.
  l_test_openmp   = .true.
  l_log_checks    = .true.
@@ -131,9 +132,10 @@ cat > ${atmo_namelist} << EOF
  num_restart_procs = $num_restart_procs
  num_prefetch_proc = $num_prefetch_proc
  num_io_procs_radar = $num_io_procs_radar
+ num_dist_array_replicas = 4
  itype_comm      =  1
  iorder_sendrecv =  3
- proc0_shift     = 1
+ proc0_shift     = ${proc0_shift}
  use_omp_input   = .true.
 /
 &grid_nml
@@ -175,7 +177,7 @@ cat > ${atmo_namelist} << EOF
 &output_nml
  filetype                     =  4                        ! output format: 2=GRIB2, 4=NETCDFv2
  dom                          =  1                       ! write all domains
- output_bounds                =  0., 10000000., 10800.    ! start, end, increment
+ output_bounds                =  0., 10000000., 1800.    ! start, end, increment
  steps_per_file               =  1
  mode                         =  1                        ! 1: forecast mode (relative t-axis), 2: climate mode (absolute t-axis)
  include_last                 = .FALSE.
@@ -184,11 +186,12 @@ cat > ${atmo_namelist} << EOF
 'group:precip_vars', 'group:additional_precip_vars', 'group:land_vars', 'group:land_tile_vars', 'freshsnow', 'albdif'
  output_grid                  =  .TRUE.
  stream_partitions_ml = 2
+ ready_file           = './ILAM_ready_<ddhhmmss>'
 /
 &run_nml
  num_lev        = 60
  lvert_nest     = .false.
- nsteps         = 360 ! 8640
+ nsteps         = 240 ! 8640
  dtime          = 30.     ! timestep in seconds
  ldynamics      = .TRUE.       ! dynamics
  ltransport     = .true.
@@ -305,8 +308,8 @@ itune_albedo = 1
  beta_fct       = 1.005
 /
 &diffusion_nml
- hdiff_order      = 5
- itype_vn_diffu   = 1
+ hdiff_order      = 4
+ itype_vn_diffu   = 2
  itype_t_diffu    = 2
  hdiff_efdt_ratio = 24 ! 24.0  for R2B6; recommendation for R3B7: 30.0
  hdiff_smag_fac   = 0.025   ! 0.025 for R2B6; recommendation for R3B7: 0.02

@@ -82,23 +82,58 @@ CONTAINS
     REAL(wp) :: D_rainfrz_ig ! rain --> ice oder graupel
     REAL(wp) :: D_rainfrz_gh ! rain --> graupel oder hail
     LOGICAL  :: luse_mu_Dm_rain ! Use mu-Dm-Relation of Seifert (2008). If false use the constant in rain type
+    REAL(wp) :: nu_r         ! nu for rain, N(x) = N0 * D^nu * exp(-lambda*x^mu)
     REAL(wp) :: rain_cmu0    ! asymptotic mue-value for small D_m in the mu-Dm-Relation of Seifert (2008)
     REAL(wp) :: rain_cmu1    ! asymptotic mue-value for large D_m in the mu-Dm-Relation of Seifert (2008)
     REAL(wp) :: rain_cmu3    ! D_br: equilibrium diameter for breakup and selfcollection
-    REAL(wp) :: melt_h_tune_fak ! Factor to increase/decrease hail melting rate
+    REAL(wp) :: rain_cmu4    ! mue-value at D_br in the mu-Dm-Relation of Seifert (2008) 
+    REAL(wp) :: melt_h_tune_fak ! Factor to increase/decrease hail melting rate of hail
     REAL(wp) :: Tmax_gr_rime    ! Allow formation of graupel by riming ice/snow only at T < this threshold [K]
-    LOGICAL  :: lturb_enhc   ! Enhancement of collisons by turbulence (only warm microphysics)
+    LOGICAL  :: lturb_enhc   ! Enhancesment of collisons by turbulence (only warm microphysics)
+    REAL(wp) :: ecoll_gg        ! Collision efficiency for graupel autoconversion (dry graupel)
+    REAL(wp) :: ecoll_gg_wet    ! Collision efficiency for graupel autoconversion (wet graupel)
+    REAL(wp) :: Tcoll_gg_wet ! Temperature threshold for switching to wet graupel autoconversion
+    REAL(wp) :: melt_g_tune_fak     ! Factor multiplying melting of graupel
+    INTEGER  :: iice_stick     ! Formulation for sticking efficiency of cloud ice
+    INTEGER  :: isnow_stick     ! Formulation for sticking efficiency of snow/graupel
+    INTEGER  :: iparti_stick     ! Formulation for sticking efficiency of frozen inter-categorical collisions
+    REAL(wp) :: nu_h      ! nu for hail, N(x) = N0 * D^nu * exp(-lambda*x^mu)
+    REAL(wp) :: mu_h      ! mu for hail, N(x) = N0 * D^nu * exp(-lambda*x^mu)
+    REAL(wp) :: ageo_h    ! ageo for hail, D = ageo*x^bgeo
+    REAL(wp) :: bgeo_h    ! bgeo for hail, D = ageo*x^bgeo
+    REAL(wp) :: avel_h    ! avel for hail, v = avel*x^bvel
+    REAL(wp) :: bvel_h    ! bvel for hail, v = avel*x^bvel
+    REAL(wp) :: cap_snow  ! capacitance for snow deposition/sublimation
+    REAL(wp) :: vsedi_max_s ! max fallspeed limit for snow
+    REAL(wp) :: nu_g      ! nu for graupel, N(x) = N0 * D^nu * exp(-lambda*x^mu)
+    REAL(wp) :: mu_g      ! mu for graupel, N(x) = N0 * D^nu * exp(-lambda*x^mu)
+    REAL(wp) :: ageo_g    ! ageo for graupel, D = ageo*x^bgeo
+    REAL(wp) :: bgeo_g    ! bgeo for graupel, D = ageo*x^bgeo
+    REAL(wp) :: avel_g    ! avel for graupel, v = avel*x^bvel
+    REAL(wp) :: bvel_g    ! bvel for graupel, v = avel*x^bvel
+    INTEGER  :: iicephase    ! (0) warm-phase 2M, (1) mixed-phase 2M
 
-    NAMELIST /twomom_mcrph_nml/ i2mom_solver, ccn_type, alpha_spacefilling, &
-         &                      D_conv_ii, D_rainfrz_ig, D_rainfrz_gh,      &
-         &                      luse_mu_Dm_rain, rain_cmu0, rain_cmu1, rain_cmu3, &
-         &                      melt_h_tune_fak, Tmax_gr_rime, lturb_enhc
+    NAMELIST /twomom_mcrph_nml/ i2mom_solver, ccn_type, alpha_spacefilling,             &
+         &                      D_conv_ii, D_rainfrz_ig, D_rainfrz_gh,                  &
+         &                      luse_mu_Dm_rain, nu_r, rain_cmu0, rain_cmu1, rain_cmu3, &
+         &                      rain_cmu4, melt_h_tune_fak, Tmax_gr_rime, lturb_enhc,   &
+         &                      ecoll_gg, ecoll_gg_wet, Tcoll_gg_wet,                   &
+         &                      melt_g_tune_fak, isnow_stick, iice_stick, iparti_stick, &
+         &                      nu_h, mu_h, ageo_h, bgeo_h, avel_h, bvel_h, cap_snow,   &
+         &                      vsedi_max_s,                &
+         &                      nu_g, mu_g, ageo_g, bgeo_g, avel_g, bvel_g,             &
+         &                      iicephase 
 
     !----------------------------------------------------------
     ! 1. default settings from module mo_2mom_mcrph_processes:
     !----------------------------------------------------------
 
-    ! .. Initialize the namelist parameters which are later put into the container:
+    ! .. Initialize the container with the defaults from mo_2mom_mcrph_config_default:
+    DO jg=1,max_dom
+      atm_phy_nwp_config(jg) % cfg_2mom = cfg_2mom_default
+    END DO
+
+    ! .. Initialize the namelist parameters which are later put back into the container:
     i2mom_solver       = cfg_2mom_default % i2mom_solver
     ccn_type           = cfg_2mom_default % ccn_type
     alpha_spacefilling = cfg_2mom_default % alpha_spacefilling
@@ -106,12 +141,36 @@ CONTAINS
     D_rainfrz_ig       = cfg_2mom_default % D_rainfrz_ig
     D_rainfrz_gh       = cfg_2mom_default % D_rainfrz_gh
     luse_mu_Dm_rain    = cfg_2mom_default % luse_mu_Dm_rain
+    nu_r               = cfg_2mom_default % nu_r
     rain_cmu0          = cfg_2mom_default % rain_cmu0     
     rain_cmu1          = cfg_2mom_default % rain_cmu1
     rain_cmu3          = cfg_2mom_default % rain_cmu3
+    rain_cmu4          = cfg_2mom_default % rain_cmu4
+    melt_g_tune_fak    = cfg_2mom_default % melt_g_tune_fak     
     melt_h_tune_fak    = cfg_2mom_default % melt_h_tune_fak     
     Tmax_gr_rime       = cfg_2mom_default % Tmax_gr_rime        
     lturb_enhc         = cfg_2mom_default % lturb_enhc
+    ecoll_gg           = cfg_2mom_default % ecoll_gg
+    ecoll_gg_wet       = cfg_2mom_default % ecoll_gg_wet
+    Tcoll_gg_wet       = cfg_2mom_default % Tcoll_gg_wet
+    iice_stick         = cfg_2mom_default % iice_stick 
+    isnow_stick        = cfg_2mom_default % isnow_stick 
+    iparti_stick       = cfg_2mom_default % iparti_stick 
+    nu_h               = cfg_2mom_default % nu_h
+    mu_h               = cfg_2mom_default % mu_h
+    ageo_h             = cfg_2mom_default % ageo_h
+    bgeo_h             = cfg_2mom_default % bgeo_h
+    avel_h             = cfg_2mom_default % avel_h
+    bvel_h             = cfg_2mom_default % bvel_h
+    cap_snow           = cfg_2mom_default % cap_snow
+    vsedi_max_s        = cfg_2mom_default % vsedi_max_s
+    nu_g               = cfg_2mom_default % nu_g
+    mu_g               = cfg_2mom_default % mu_g
+    ageo_g             = cfg_2mom_default % ageo_g
+    bgeo_g             = cfg_2mom_default % bgeo_g
+    avel_g             = cfg_2mom_default % avel_g
+    bvel_g             = cfg_2mom_default % bvel_g
+    iicephase          = cfg_2mom_default % iicephase
 
     IF (my_process_is_stdio()) THEN
       iunit = temp_defaults()
@@ -175,6 +234,10 @@ CONTAINS
       CALL finish( TRIM(routine), 'Incorrect setting for cfg_2mom%ccn_type. Must be -1, 6, 7, 8, or 9.')
     END IF
 
+    IF (ALL(iicephase /= (/0, 1/)) ) THEN
+      CALL finish( TRIM(routine), 'Incorrect setting for cfg_2mom%iicephase. Must be 0, or 1.')
+    END IF
+
     !----------------------------------------------------
     ! 5. Fill the configuration state
     !----------------------------------------------------
@@ -188,13 +251,37 @@ CONTAINS
       atm_phy_nwp_config(jg) % cfg_2mom % D_rainfrz_ig        = D_rainfrz_ig
       atm_phy_nwp_config(jg) % cfg_2mom % D_rainfrz_gh        = D_rainfrz_gh
       atm_phy_nwp_config(jg) % cfg_2mom % luse_mu_Dm_rain     = luse_mu_Dm_rain
+      atm_phy_nwp_config(jg) % cfg_2mom % nu_r                = nu_r
       atm_phy_nwp_config(jg) % cfg_2mom % rain_cmu0           = rain_cmu0
       atm_phy_nwp_config(jg) % cfg_2mom % rain_cmu1           = rain_cmu1
       atm_phy_nwp_config(jg) % cfg_2mom % rain_cmu3           = rain_cmu3
+      atm_phy_nwp_config(jg) % cfg_2mom % rain_cmu4           = rain_cmu4
       atm_phy_nwp_config(jg) % cfg_2mom % melt_h_tune_fak     = melt_h_tune_fak     
       atm_phy_nwp_config(jg) % cfg_2mom % Tmax_gr_rime        = Tmax_gr_rime        
       atm_phy_nwp_config(jg) % cfg_2mom % lturb_enhc          = lturb_enhc
-      
+      atm_phy_nwp_config(jg) % cfg_2mom % ecoll_gg            = ecoll_gg
+      atm_phy_nwp_config(jg) % cfg_2mom % ecoll_gg_wet        = ecoll_gg_wet
+      atm_phy_nwp_config(jg) % cfg_2mom % Tcoll_gg_wet        = Tcoll_gg_wet
+      atm_phy_nwp_config(jg) % cfg_2mom % melt_g_tune_fak     = melt_g_tune_fak
+      atm_phy_nwp_config(jg) % cfg_2mom % iice_stick          = iice_stick    
+      atm_phy_nwp_config(jg) % cfg_2mom % isnow_stick         = isnow_stick    
+      atm_phy_nwp_config(jg) % cfg_2mom % iparti_stick        = iparti_stick    
+      atm_phy_nwp_config(jg) % cfg_2mom % nu_h                = nu_h
+      atm_phy_nwp_config(jg) % cfg_2mom % mu_h                = mu_h
+      atm_phy_nwp_config(jg) % cfg_2mom % ageo_h              = ageo_h
+      atm_phy_nwp_config(jg) % cfg_2mom % bgeo_h              = bgeo_h
+      atm_phy_nwp_config(jg) % cfg_2mom % avel_h              = avel_h
+      atm_phy_nwp_config(jg) % cfg_2mom % bvel_h              = bvel_h
+      atm_phy_nwp_config(jg) % cfg_2mom % cap_snow            = cap_snow
+      atm_phy_nwp_config(jg) % cfg_2mom % vsedi_max_s         = vsedi_max_s
+      atm_phy_nwp_config(jg) % cfg_2mom % nu_g                = nu_g
+      atm_phy_nwp_config(jg) % cfg_2mom % mu_g                = mu_g
+      atm_phy_nwp_config(jg) % cfg_2mom % ageo_g              = ageo_g
+      atm_phy_nwp_config(jg) % cfg_2mom % bgeo_g              = bgeo_g
+      atm_phy_nwp_config(jg) % cfg_2mom % avel_g              = avel_g
+      atm_phy_nwp_config(jg) % cfg_2mom % bvel_g              = bvel_g
+      atm_phy_nwp_config(jg) % cfg_2mom % iicephase           = iicephase
+
     ENDDO
 
     !-----------------------------------------------------

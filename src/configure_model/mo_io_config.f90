@@ -60,6 +60,8 @@ MODULE mo_io_config
   REAL(wp):: dt_celltracks              ! calling frequency [seconds] of celltrack diagnosis for hourly maximum calculation
                                         ! this pertains to the following variables: tcond_max/tcond10_max, uh_max, vorw_ctmax, w_ctmax
   REAL(wp):: dt_radar_dbz               ! calling frequency [seconds] of radar reflectivity diagnosis for hourly maximum calculation
+  REAL(wp):: dt_hailcast                ! calling frequency [seconds] of hailcast for dhail_* diagnostics
+  REAL(wp):: wdur_min_hailcast          ! minimal updraft persistence [seconds] for hailcast to be activated
 
   REAL(wp):: dt_checkpoint              ! timestep [seconds] for triggering new restart file
 
@@ -150,13 +152,14 @@ MODULE mo_io_config
     LOGICAL :: uh_max       = .FALSE. !< Flag. TRUE if computation of updraft helicity (2000 - 8000 m) desired
     LOGICAL :: vorw_ctmax   = .FALSE. !< Flag. TRUE if computation of maximum rotation amplitude desired
     LOGICAL :: w_ctmax      = .FALSE. !< Flag. TRUE if computation of maximum updraft track desired
-    LOGICAL :: vor_u        = .FALSE. !< Flag. TRUE if computation of zonal component of relative vorticity desired
-    LOGICAL :: vor_v        = .FALSE. !< Flag. TRUE if computation of meridional component of relative vorticity desired
     LOGICAL :: dursun       = .FALSE. !< Flag. TRUE if computation of sunshine duration is required
     LOGICAL :: dursun_m     = .FALSE. !< Flag. TRUE if computation of maximum sunshine duration is required
     LOGICAL :: dursun_r     = .FALSE. !< Flag. TRUE if computation of relative sunshine duration is required
     LOGICAL :: res_soilwatb = .FALSE. !< Flag. TRUE if computation of residuum of soil water is desired
     LOGICAL :: snow_melt    = .FALSE. !< Flag. TRUE if computation of snow melt desired
+    LOGICAL :: dhail_mx     = .FALSE. !< Flag. TRUE if computation of maximum expected hail diameter desired
+    LOGICAL :: dhail_av     = .FALSE. !< Flag. TRUE if computation of average expected hail diameter desired
+    LOGICAL :: dhail_sd     = .FALSE. !< Flag. TRUE if computation of standard deviation of hail diameter desired
     LOGICAL :: wshear_u     = .FALSE. !< Flag. TRUE if computation of vertical U wind shear components is desired
     LOGICAL :: wshear_v     = .FALSE. !< Flag. TRUE if computation of vertical V wind shear components is desired
     LOGICAL :: lapserate    = .FALSE. !< Flag. TRUE if computation of T(500hPa) - T(850hPa) is desired
@@ -289,8 +292,6 @@ CONTAINS
         &                          is_variable_in_output(var_name="psl_m")
       var_in_output(jg)%omega    = is_variable_in_output(var_name="omega")    .OR. &
         &                          is_variable_in_output(var_name="wap_m")
-      var_in_output(jg)%vor_u    = is_variable_in_output_dom(var_name="vor_u", jg=jg)
-      var_in_output(jg)%vor_v    = is_variable_in_output_dom(var_name="vor_v", jg=jg)
       var_in_output(jg)%res_soilwatb = is_variable_in_output_dom(var_name="resid_wso", jg=jg)
     END DO
 
@@ -335,6 +336,9 @@ CONTAINS
         var_in_output(jg)%dursun_m    = is_variable_in_output_dom(var_name="dursun_m", jg=jg)
         var_in_output(jg)%dursun_r    = is_variable_in_output_dom(var_name="dursun_r", jg=jg)
         var_in_output(jg)%snow_melt   = is_variable_in_output_dom(var_name="snow_melt", jg=jg)
+        var_in_output(jg)%dhail_mx    = is_variable_in_output_dom(var_name="dhail_mx", jg=jg)
+        var_in_output(jg)%dhail_av    = is_variable_in_output_dom(var_name="dhail_av", jg=jg)
+        var_in_output(jg)%dhail_sd    = is_variable_in_output_dom(var_name="dhail_sd", jg=jg)
         var_in_output(jg)%wshear_u    = is_variable_in_output_dom(var_name="wshear_u", jg=jg)
         var_in_output(jg)%wshear_v    = is_variable_in_output_dom(var_name="wshear_v", jg=jg)
         var_in_output(jg)%lapserate   = is_variable_in_output_dom(var_name="lapse_rate", jg=jg)

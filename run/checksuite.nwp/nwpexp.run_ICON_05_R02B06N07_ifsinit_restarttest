@@ -87,16 +87,18 @@ for iter in 1 2 ; do
 if [ $iter -eq 1 ] ; then
 
 restart="       .FALSE.  "
-nsteps="           140   "
+nsteps="           180   "
 checkpoint="     43200.0 "
 nrest_procs="        1   "
+ofile_prfx="NWP-REF"
 
 else
 
 restart="        .TRUE.  "
-nsteps="            80   "
+nsteps="            60   "
 checkpoint="    864000.0 "
 nrest_procs="        1   "
+ofile_prfx="NWP-RST"
 
 fi
 
@@ -146,13 +148,14 @@ cat > NAMELIST_NWP << EOF
 ! parallel_nml: MPI parallelization -------------------------------------------
 &parallel_nml
  nproma                      =                  ${nproma}         ! loop chunk length
+ nproma_sub                  =              ${nproma_sub}         ! loop chunk length for radiation
  p_test_run                  =                     .FALSE.        ! .TRUE. means verification run for MPI parallelization
  num_io_procs                =            ${num_io_procs}         ! number of I/O processors
  num_restart_procs           =             ${nrest_procs}         ! number of restart processors
  num_prefetch_proc           =       ${num_prefetch_proc}         ! number of processors for LBC prefetching
  num_io_procs_radar          =      ${num_io_procs_radar}         ! number of EMVORADO I/O processors
  iorder_sendrecv             =                          3         ! sequence of MPI send/receive calls
- proc0_shift                 =                          1         ! VH offloading mode
+ proc0_shift                 =             ${proc0_shift}         ! VH offloading mode
  use_omp_input               =                     .true.         ! task-parallelized input
 /
 
@@ -241,7 +244,6 @@ cat > NAMELIST_NWP << EOF
  damp_height                 =                      50000.0       ! height at which Rayleigh damping of vertical wind starts
  rayleigh_coeff              =                          0.10      ! Rayleigh damping coefficient
  ndyn_substeps               =                          5         ! number of dynamical core substeps
- lhdiff_rcf                  =                      .TRUE.        ! .TRUE.=compute diffusion only at advection time steps
  divdamp_order               =                          4         ! order of divergence damping
  igradp_method               =                          3         ! discretization of horizontal pressure gradient
  l_zdiffu_t                  =                      .TRUE.        ! specifies computation of Smagorinsky temperature diffusion
@@ -253,13 +255,13 @@ cat > NAMELIST_NWP << EOF
 
 ! nwp_phy_nml: switches for the physics schemes ------------------------------
 &nwp_phy_nml
- inwp_gscp                   =                          1         ! cloud microphysics and precipitation
+ inwp_gscp                   =                          3         ! cloud microphysics and precipitation
  inwp_convection             =                          1         ! convection
  inwp_radiation              =                          1         ! radiation
- inwp_cldcover               =                          1         ! cloud cover scheme for radiation
+ inwp_cldcover               =                          3         ! cloud cover scheme for radiation
  inwp_turb                   =                          1         ! vertical diffusion and transfer
  inwp_satad                  =                          1         ! saturation adjustment
- inwp_sso                    =                          1         ! subgrid scale orographic drag
+ inwp_sso                    =                          2         ! subgrid scale orographic drag
  inwp_gwd                    =                          1         ! non-orographic gravity wave drag
  inwp_surface                =                          1         ! surface scheme
  latm_above_top              =              .FALSE.,.TRUE.        ! take into account atmosphere above model top for radiation computation
@@ -272,10 +274,10 @@ cat > NAMELIST_NWP << EOF
  filetype                    =                          4         ! output format: 2=GRIB2, 4=NETCDFv2
  dom                         =                         -1         ! write all domains
  output_bounds               =       0., 10000000., 10800.        ! output: start, end, increment
- steps_per_file              =                          2         ! number of output steps in one output file
+ steps_per_file              =                          1         ! number of output steps in one output file
  mode                        =                          1         ! 1: forecast mode (relative t-axis), 2: climate mode (absolute t-axis)
  include_last                =                      .TRUE.        ! flag whether to include the last time step
- output_filename             =                       'NWP'        ! file name base
+ output_filename             =             "${ofile_prfx}"        ! file name base
  output_grid                 =                      .TRUE.        ! flag whether grid information is added to output.
  !
  ml_varlist                  =  'u', 'v', 'w', 'temp', 'pres','topography_c', 'pres_msl', 
@@ -283,7 +285,7 @@ cat > NAMELIST_NWP << EOF
                                 'tkvm', 'tkvh', 'group:pbl_vars',                         
                                 'group:precip_vars',  'group:additional_precip_vars',     
                                 'group:land_vars', 'group:land_tile_vars',                
-                                'group:multisnow_vars'
+                                '-tkr'
 /
 
 ! meteogram_output_nml: meteogram output for specified locations --------------
@@ -326,7 +328,7 @@ cat > NAMELIST_NWP << EOF
 &transport_nml
  ivadv_tracer                =              3, 3, 3, 3, 3         ! tracer specific method to compute vertical advection
  itype_hlimit                =           3, 4, 4, 4, 4, 0         ! type of limiter for horizontal transport
- ihadv_tracer                =          52, 2, 2, 2, 2, 0         ! tracer specific method to compute horizontal advection
+ ihadv_tracer                =          42,22,32, 2, 2, 0         ! tracer specific method to compute horizontal advection
  llsq_svd                    =                      .false.        ! use SV decomposition for least squares design matrix
  beta_fct                    =                          1.005     ! factor of allowed over-/undershooting in monotonous limiter
  nadv_substeps               =                       3, 2         ! number of integration steps per fast physics time step
@@ -363,16 +365,51 @@ EOF
 # ----------------------------------------------------------------------------
 
 $START_MODEL
-EXIT_STATUS=$?
 
-if [ "$EXIT_STATUS" -ne "0" ]; then
-  echo "EXIT_STATUS: $EXIT_STATUS"
-  exit $EXIT_STATUS
-fi
 
 # ----------------------------------------------------------------------------
 done # iterations for restart testing
 # ----------------------------------------------------------------------------
 
-echo "EXIT_STATUS: $EXIT_STATUS"
-exit $EXIT_STATUS
+
+# ----------------------------------------------------------------------------
+# check model output
+# ----------------------------------------------------------------------------
+
+SCRIPT_STATUS=0
+TEST_STATUS=0
+
+# output filenames
+FILE_REF="NWP-REF_DOM01_ML_0006.nc"
+FILE_RST="NWP-RST_DOM01_ML_0006.nc"
+
+if [ ! -f ${FILE_REF} ] || [ ! -f ${FILE_RST} ]; then
+  echo " Both or either of the files ${FILE_RFF} and ${FILE_RST} do not exist"
+  SCRIPT_STATUS=$(($SCRIPT_STATUS + 1))
+  exit $SCRIPT_STATUS
+fi
+
+echo "##############################################################"
+echo "###       Restart test: check match of output files        ###"
+echo "##############################################################"
+
+# compare_output_files is defined in ./add_run_routines
+compare_output_files "${FILE_REF}" "${FILE_RST}"
+TEST_STATUS=$((TEST_STATUS + $?))
+
+if [ $TEST_STATUS == 0 ]; then
+  echo " "
+  echo "NWP test SUCCESSFUL"
+  echo " "
+else
+  echo " "
+  echo "NWP test FAILED:"
+  echo " "
+fi
+
+EXIT_STATUS=$((TEST_STATUS + $?))
+
+if [ "$EXIT_STATUS" -ne "0" ]; then
+  echo "EXIT_STATUS: $EXIT_STATUS"
+  exit $EXIT_STATUS
+fi

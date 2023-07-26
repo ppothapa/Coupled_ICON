@@ -138,6 +138,7 @@ num_io_procs_radar=0
 cat > ${atmo_namelist} << EOF
 &parallel_nml
  nproma                  =  ${nproma}
+ nproma_sub              =  ${nproma_sub} ! loop chunk length for radiation
  p_test_run              = .false.
  l_test_openmp           = .true.
  l_log_checks            = .true.
@@ -147,7 +148,7 @@ cat > ${atmo_namelist} << EOF
  num_io_procs_radar      = ${num_io_procs_radar}
  itype_comm              =  1
  iorder_sendrecv         =  3
- proc0_shift             = 1
+ proc0_shift             = ${proc0_shift}
  use_omp_input           = .true.
 /
 &grid_nml
@@ -286,6 +287,8 @@ a_hshr       = 2.0
  vmr_cfc12  = 532.e-12
  ecrad_data_path = './ecrad_data'
  isolrad    = 1
+ ecrad_isolver = ${radiation_ecrad_isolver}
+ ! Solver version. 2: McICA with OpenACC, 0: McICA
 /
 &nonhydrostatic_nml
  itime_scheme    = 4

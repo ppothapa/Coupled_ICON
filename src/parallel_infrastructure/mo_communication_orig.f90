@@ -503,7 +503,7 @@ CONTAINS
     !$ACC   COPYIN(p_pat%send_src_idx, p_pat%send_src_blk) &
     !$ACC   COPYIN(p_pat%recv_dst_idx, p_pat%recv_dst_blk)
 
-#ifdef __ENABLE_REALLOC
+#ifdef __REALLOC_BUF
     CALL realloc_global_buffer_dp(send_buffer_dp, 7*p_pat%n_send)
     CALL realloc_global_buffer_dp(recv_buffer_dp, 7*p_pat%n_recv)
 #ifdef __MIXED_PRECISION
@@ -980,7 +980,7 @@ CONTAINS
     REAL(dp), INTENT(IN), OPTIONAL, TARGET    :: add (:,:,:)
 
     CHARACTER(len=*), PARAMETER :: routine = modname//"::exchange_data_r3d"
-#ifdef __ENABLE_REALLOC
+#ifdef __REALLOC_BUF
     REAL(dp), POINTER :: send_buf(:,:), recv_buf(:,:)
 #else
     REAL(dp) :: send_buf(SIZE(recv,2),p_pat%n_send), &
@@ -1021,7 +1021,7 @@ CONTAINS
     ndim2 = SIZE(recv,2)
 
     !recv may or may not already be on the gpu
-#ifdef __ENABLE_REALLOC
+#ifdef __REALLOC_BUF
     CALL realloc_global_buffer_dp(send_buffer_dp, ndim2*p_pat%n_send)
     CALL realloc_global_buffer_dp(recv_buffer_dp, ndim2*p_pat%n_recv)
     send_buf(1:ndim2, 1:p_pat%n_send) => send_buffer_dp(1:ndim2*p_pat%n_send)
@@ -1243,7 +1243,7 @@ CONTAINS
     REAL(sp), INTENT(IN), OPTIONAL, TARGET    :: add (:,:,:)
 
     CHARACTER(len=*), PARAMETER :: routine = modname//"::exchange_data_r3d"
-#ifdef __ENABLE_REALLOC
+#ifdef __REALLOC_BUF
     REAL(sp), POINTER :: send_buf(:,:), recv_buf(:,:)
 #else
     REAL(sp) :: send_buf(SIZE(recv,2),p_pat%n_send), &
@@ -1284,7 +1284,7 @@ CONTAINS
     ndim2 = SIZE(recv,2)
 
     !recv may or may not already be on the gpu
-#ifdef __ENABLE_REALLOC
+#ifdef __REALLOC_BUF
     CALL realloc_global_buffer_sp(send_buffer_sp, ndim2*p_pat%n_send)
     CALL realloc_global_buffer_sp(recv_buffer_sp, ndim2*p_pat%n_recv)
     send_buf(1:ndim2, 1:p_pat%n_send) => send_buffer_sp(1:ndim2*p_pat%n_send)
@@ -2246,7 +2246,7 @@ CONTAINS
     TYPE(t_ptr_3d), OPTIONAL, PTR_INTENT(in) :: send(:)
     INTEGER        :: ndim2(SIZE(recv)), noffset(SIZE(recv))
 
-#ifdef __ENABLE_REALLOC
+#ifdef __REALLOC_BUF
     REAL(dp), POINTER :: send_buf(:,:), recv_buf(:,:)
 #else
     REAL(dp) :: send_buf(ndim2tot,p_pat%n_send),recv_buf(ndim2tot,p_pat%n_recv)
@@ -2296,7 +2296,7 @@ CONTAINS
       RETURN
     END IF
 
-#ifdef __ENABLE_REALLOC
+#ifdef __REALLOC_BUF
     CALL realloc_global_buffer_dp(send_buffer_dp, ndim2tot*p_pat%n_send)
     CALL realloc_global_buffer_dp(recv_buffer_dp, ndim2tot*p_pat%n_recv)
     send_buf(1:ndim2tot, 1:p_pat%n_send) => send_buffer_dp(1:ndim2tot*p_pat%n_send)
@@ -2529,7 +2529,7 @@ CONTAINS
     INTEGER             :: ndim2_dp(nfields_dp), noffset_dp(nfields_dp), &
                            ndim2_sp(nfields_sp), noffset_sp(nfields_sp)
 
-#ifdef __ENABLE_REALLOC
+#ifdef __REALLOC_BUF
     REAL(dp), POINTER :: send_buf_dp(:,:), recv_buf_dp(:,:)
     REAL(sp), POINTER :: send_buf_sp(:,:), recv_buf_sp(:,:)
 #else
@@ -2607,7 +2607,7 @@ CONTAINS
       RETURN
     ENDIF
 
-#ifdef __ENABLE_REALLOC
+#ifdef __REALLOC_BUF
     CALL realloc_global_buffer_dp(send_buffer_dp, ndim2tot_dp*p_pat%n_send)
     CALL realloc_global_buffer_dp(recv_buffer_dp, ndim2tot_dp*p_pat%n_recv)
     CALL realloc_global_buffer_sp(send_buffer_sp, ndim2tot_sp*p_pat%n_send)
@@ -2920,7 +2920,7 @@ CONTAINS
 
     INTEGER :: ndim2, koffset
 
-#ifdef __ENABLE_REALLOC
+#ifdef __REALLOC_BUF
     REAL(dp), POINTER :: send_buf(:,:), recv_buf(:,:)
 #else
     REAL(dp) :: send_buf(ndim2tot,p_pat%n_send),recv_buf(ndim2tot,p_pat%n_recv)
@@ -2972,7 +2972,7 @@ CONTAINS
 
     ndim2 = SIZE(recv,3)
 
-#ifdef __ENABLE_REALLOC
+#ifdef __REALLOC_BUF
     CALL realloc_global_buffer_dp(send_buffer_dp, ndim2tot*p_pat%n_send)
     CALL realloc_global_buffer_dp(recv_buffer_dp, ndim2tot*p_pat%n_recv)
     send_buf(1:ndim2tot, 1:p_pat%n_send) => send_buffer_dp(1:ndim2tot*p_pat%n_send)

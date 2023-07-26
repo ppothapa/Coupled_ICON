@@ -47,7 +47,6 @@ MODULE mo_o3_util
   USE mo_physical_constants,   ONLY: amd,amo3,rd,grav
   USE mo_atm_phy_nwp_config,   ONLY: atm_phy_nwp_config, icpl_o3_tp
   USE mo_time_config,          ONLY: time_config
-  USE mo_timer,                ONLY: timer_start, timer_stop, timers_level, timer_preradiaton
   USE mo_impl_constants,       ONLY: io3_art
   USE mtime,                   ONLY: datetime, newDatetime, timedelta, newTimedelta, &
        &                             getPTStringFromMS, OPERATOR(+),                 &
@@ -104,8 +103,6 @@ CONTAINS
       &  i_startidx, i_endidx, &
       &  istat
     LOGICAL :: lzacc
-
-    IF (timers_level > 6) CALL timer_start(timer_preradiaton)
 
     CALL set_acc_host_or_device(lzacc, lacc)
 
@@ -232,8 +229,6 @@ CONTAINS
 
     !$ACC WAIT
     !$ACC END DATA
-
-    IF (timers_level > 6) CALL timer_stop(timer_preradiaton)
 
   END SUBROUTINE o3_interface
 
@@ -1512,7 +1507,7 @@ CONTAINS
     i_endblk   = pt_patch%cells%end_blk(rl_end,i_nchdom)
 
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jc,jk,jkk,jk1,i_startidx,i_endidx,zjl,jk_start,l_found,lfound_all,idx0,zo3,zozovi,z1,z2,zgrad,&
+!$OMP DO PRIVATE(jb,jc,jk,jkk,jkkk,jk1,i_startidx,i_endidx,zjl,jk_start,l_found,lfound_all,idx0,zo3,zozovi,z1,z2,zgrad,&
 !$OMP zint,zviozo,zadd_o3,deltaz,dtdz,dzsum,dtdzavg,ktp,tpshp,wfac,wfac2,k375,k100,o3_clim,lk100_less_than_0) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
 

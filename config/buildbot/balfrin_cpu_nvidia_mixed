@@ -1,0 +1,3 @@
+#!/bin/bash
+
+./config/cscs/balfrin.cpu.nvidia_mixed

@@ -338,11 +338,15 @@ CONTAINS
         !$ACC END PARALLEL
 
         IF ( lart .AND. art_config(jg)%nconv_tracer > 0 ) THEN
-#ifdef _OPENACC
-          CALL finish('nwp_convection','ART and prm_nwp_tend%conv_tracer_tend not ported to GPU')
-#endif
           DO jt=1,art_config(jg)%nconv_tracer
-            prm_nwp_tend%conv_tracer_tend(jb,jt)%ptr(:,:) = 0._wp
+            !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+            !$ACC LOOP GANG VECTOR COLLAPSE(2)
+            DO jk = 1, nlev
+              DO jc = 1, nproma
+                prm_nwp_tend%conv_tracer_tend(jb,jt)%ptr(jc,jk) = 0._wp
+              END DO
+            END DO
+            !$ACC END PARALLEL
           ENDDO
           ptr_conv_tracer_tend => prm_nwp_tend%conv_tracer_tend(jb,1:art_config(jg)%nconv_tracer)
           ptr_conv_tracer      => p_prog_rcf%conv_tracer(jb,1:art_config(jg)%nconv_tracer) 

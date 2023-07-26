@@ -139,11 +139,10 @@ MODULE mo_intp
   PUBLIC :: verts2edges_scalar
   PUBLIC :: cells2edges_scalar
   PUBLIC :: edges2verts_scalar
-  PUBLIC :: edges2cells_scalar 
+  PUBLIC :: edges2cells_scalar
   PUBLIC :: edges2cells_vector
   PUBLIC :: cells2verts_scalar
   PUBLIC :: verts2cells_scalar
   PUBLIC :: cell_avg
-  PUBLIC :: edges2edges_scalar
 
 END MODULE mo_intp

@@ -55,6 +55,7 @@ $addexp checksuite.nwp/nwpexp.run_ICON_14_R2B6N7_oper_IAU_and_restarttest      -
 $addexp checksuite.nwp/nwpexp.run_ICON_15_R19B7-ID2_ass                        --builders DWD_nec --list $listname
 $addexp checksuite.nwp/nwpexp.run_ICON_16_R19B7-ID2_ass                        --builders DWD_nec --list $listname
 $addexp checksuite.nwp/nwpexp.run_ICON_19_R2B4_cmip_forcing                    --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_22_R3B08_lam_SBM_initmode4              --builders DWD_nec --list $listname
 
 # DWD_nec_yac2
 $addexp checksuite.nwp/nwpexp.run_ICON_17_R2B4_AO_coupled                      --builders DWD_nec_yac2 --list $listname
@@ -73,6 +74,9 @@ $addexp checksuite.nwp/nwpexp.run_ICON_14_R2B6N7_oper_IAU_and_restarttest --buil
 $addexp checksuite.nwp/nwpexp.run_ICON_19_R2B4_cmip_forcing               --builders DWD_nec_hybrid --list $listname
 # wave tests
 $addexp checksuite.nwp/nwpexp.run_ICON_18_R2B4_waves                      --builders DWD_nec_hybrid --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_21_R2B4_waves_standalone           --builders DWD_nec_hybrid --list $listname
+# clm tests
+$addexp checksuite.clm/clmexp.ICON_CLM                                    --builders DWD_nec_hybrid --list $listname
 
 #lets see the list
 ./lslist $listname

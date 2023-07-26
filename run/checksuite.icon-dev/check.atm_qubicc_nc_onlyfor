@@ -61,7 +61,6 @@ export MD='rnmo'
 rundir=`pwd`
 cd checksuite.icon-dev
 
-### load python packages
 ##case $HOST in
 ##    *daint*)
 ##        export MD='rnmot' # <-- PROVISIONAL, do not add tolerance test, references are missing

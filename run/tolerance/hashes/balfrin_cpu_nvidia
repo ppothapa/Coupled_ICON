@@ -1,0 +1,18 @@
+--- # ICON probtest tolerance data
+# Data is stored in <icon_data_rootFolder>/buildbot_data/ref/<experiment_hash>
+icon_data_rootFolder: /scratch/e1000/meteoswiss/scratch/jenkins/icon/pool/data/ICON
+builder: balfrin_cpu_nvidia
+# The list below maps each experiment to its current experiment_hash
+"mch_bench_r19b07_dev_sppt": c142ed748f2f04b842eccd32a81d2bd7d7f2a4bc
+"mch_ch_lowres": 53ec2be1a33da90c51f67180f7b9a16b9f4c4e26
+"mch_opr_r04b07": 170035f940e80db08b3c4522ce78be9c8c7aac0d
+"mch_opr_r04b07_lhn_00": 9698bc8c4556a68e4c0014212979389165244df1
+"mch_opr_r04b07_lhn_12_emvorado": 7063f5239d13054e9a2364cf9aca8744df3cb802
+"mch_opr_r04b07_nest": f71c9aa216b516efbf2dbb4ca8544fad009f3130
+"mch_opr_r19b07_2m": 98acafdef22242442863c60d29fca7c1075f5dd3
+"mch_opr_r19b07_2m_gscp5": c1ec89f1ae18240ba64c36ee71322abe4f99e6c6
+"mch_opr_r19b07_lpi": 61bf1df0f3a3174e0f5f368489256ad3b19e40a5
+"mch_opr_r19b07_midnight": d91c6bf4c3e3cabd45c04e05a6c191aabceb6382
+"mch_opr_r19b07_turb": 90cd5cc867e6ef9fc688053818ed556dc3df5979
+"mch_pollen_test": 76299826239ec2460fe3bdc4fbbb7e3433bdfcfe
+"mch_ch_r04b09_dace": 1204fd179fce0a17815220b8555ae439946444b2

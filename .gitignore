@@ -26,6 +26,10 @@
 /run/SETUP.config
 /run/collect.set-up.info
 /run/set-up.info
+/config/cscs/**/.spack-env/**
+/config/cscs/**/spack.lock
+spack-build-*
+spack-configure-args.txt
 
 # Build stage files:
 *.a
@@ -51,6 +55,8 @@
 /run/*.final_status
 /run/*.log
 /run/*.run
+/run/*_member_id_mixed_*
+/run/*_member_id_double_*
 !/run/exp.nwptest_R02B06N07.run
 /run/*.status
 /run/checksuite.nwp/*.run
@@ -60,6 +66,7 @@
 
 # Buildbot-generated files:
 /scripts/buildbot_scripts/experiment_lists
+/scripts/buildbot_scripts/probtest.*
 
 # Intermediate documentation files:
 /doc/Namelist_overview.aux
@@ -104,3 +111,9 @@ __pychache__
 .idea
 .project
 .fortls
+
+# tolerance reference generation files:
+/run/exp.*member_id*[0-9]
+/run/exp.*member_id*[0-9][0-9]
+scripts/buildbot_scripts/probtest.json
+scripts/buildbot_scripts/probtest.log

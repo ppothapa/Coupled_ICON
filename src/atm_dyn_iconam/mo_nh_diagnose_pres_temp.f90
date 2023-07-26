@@ -418,7 +418,7 @@ MODULE mo_nh_diagnose_pres_temp
     !$ACC DATA PRESENT(pt_prog_rcf, pt_diag, pt_prog) &
     !$ACC   CREATE(z_qsum) &
     !$ACC   IF(i_am_accel_node)
-    
+
     CALL calc_qsum (pt_prog_rcf%tracer, z_qsum, condensate_list, jb, i_startidx, i_endidx, slev, slev_moist, nlev)
 
     !$ACC PARALLEL DEFAULT(PRESENT) ATTACH(pt_prog_rcf%tracer) ASYNC(1) IF(i_am_accel_node)

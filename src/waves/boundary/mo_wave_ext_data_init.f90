@@ -21,14 +21,12 @@
 MODULE mo_wave_ext_data_init
 
   USE mo_kind,                ONLY: wp
-  USE mo_impl_constants,      ONLY: min_rlcell, min_rledge
+  USE mo_impl_constants,      ONLY: min_rlcell, min_rledge, SUCCESS
   USE mo_io_units,            ONLY: filename_max
   USE mo_io_config,           ONLY: default_read_method
-  USE mo_exception,           ONLY: message
+  USE mo_exception,           ONLY: message, finish
   USE mo_model_domain,        ONLY: t_patch
   USE mo_grid_config,         ONLY: n_dom, nroot
-  USE mo_wave_ext_data_types, ONLY: t_external_wave
-  USE mo_wave_ext_data_state, ONLY: construct_wave_ext_data_state
   USE mo_var_list,            ONLY: t_var_list_ptr
   USE mo_extpar_config,       ONLY: extpar_filename, generate_filename
   USE mo_read_interface,      ONLY: openInputFile, closeFile, t_stream_id, on_cells, read_2D
@@ -37,7 +35,13 @@ MODULE mo_wave_ext_data_init
   USE mo_intp_data_strc,      ONLY: t_int_state
   USE mo_fortran_tools,       ONLY: copy, init
   USE mo_loopindices,         ONLY: get_indices_c, get_indices_e
+  USE mo_process_topo,        ONLY: compute_smooth_topo
+
+  USE mo_wave_ext_data_types, ONLY: t_external_wave
+  USE mo_wave_ext_data_state, ONLY: construct_wave_ext_data_state
   USE mo_wave_config,         ONLY: wave_config
+
+
 
 
   IMPLICIT NONE
@@ -62,15 +66,19 @@ CONTAINS
   !!
   SUBROUTINE init_wave_ext_data (p_patch, p_int_state, wave_ext_data, wave_ext_data_list)
 
-    TYPE(t_patch),                      INTENT(IN)    :: p_patch(:)
+    CHARACTER(len=*), PARAMETER :: routine = modname//':init_wave_ext_data'
+
+    TYPE(t_patch),                      INTENT(INOUT) :: p_patch(:)
     TYPE(t_int_state),                  INTENT(IN)    :: p_int_state(:)
     TYPE(t_external_wave), ALLOCATABLE, INTENT(INOUT) :: wave_ext_data(:)
     TYPE(t_var_list_ptr),  ALLOCATABLE, INTENT(INOUT) :: wave_ext_data_list(:)
 
-    ! local
     INTEGER :: jg
-    CHARACTER(len=*), PARAMETER :: routine = modname//':init_wave_ext_data'
+    INTEGER :: ist
+
     CHARACTER(len=20) :: depth_str
+
+    REAL(wp), ALLOCATABLE :: topo_smt_c(:,:)
 
     CALL construct_wave_ext_data_state(p_patch, wave_ext_data, wave_ext_data_list)
 
@@ -83,6 +91,32 @@ CONTAINS
         write(depth_str,'(f9.2)') wave_config(jg)%depth
         CALL message('###  Run with constant depth of',TRIM(depth_str)//', m')
         wave_ext_data(jg)%bathymetry_c(:,:) = wave_config(jg)%depth
+      ELSE
+
+        IF (wave_config(jg)%niter_smooth > 0) THEN
+          ! smooth bathymetry
+          
+          ALLOCATE(topo_smt_c(&
+               SIZE(wave_ext_data(jg)%bathymetry_c,1), &
+               SIZE(wave_ext_data(jg)%bathymetry_c,2)),&
+               stat=ist)
+          IF (ist/=SUCCESS) CALL finish(routine, &
+               'allocation of topo_smt_c array failed')
+
+          CALL compute_smooth_topo(p_patch(jg), p_int_state(jg), &
+               wave_ext_data(jg)%bathymetry_c, &
+               wave_config(jg)%niter_smooth, &
+               topo_smt_c)
+
+!$OMP PARALLEL
+          CALL copy(src=topo_smt_c,dest=wave_ext_data(jg)%bathymetry_c)
+!$OMP END PARALLEL
+
+          DEALLOCATE(topo_smt_c,stat=ist)
+          IF (ist/=SUCCESS) CALL finish(routine, &
+               'deallocation of topo_smt_c array failed')
+          
+        END IF
       END IF
     END DO
 
@@ -92,7 +126,7 @@ CONTAINS
         &                         p_int_state  = p_int_state(jg),                &
         &                         bathymetry_c = wave_ext_data(jg)%bathymetry_c, &
         &                         bathymetry_e = wave_ext_data(jg)%bathymetry_e)
-    ENDDO
+    END DO
 
     CALL message(TRIM(routine),'finished.')
 

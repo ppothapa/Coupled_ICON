@@ -1273,7 +1273,7 @@ I& 5 & &
 Order of $\nabla$ operator for diffusion:\\
 -1: no diffusion\\
 2: $\nabla^{2}$ diffusion\\
-3: Smagorinsky $\nabla^{2}$ diffusion (requires lhdiff\_rcf = .TRUE.) \\
+3: Smagorinsky $\nabla^{2}$ diffusion \\
 4: $\nabla^{4}$ diffusion \\
 5: Smagorinsky $\nabla^{2}$ diffusion combined with $\nabla^{4}$
 background diffusion as specified via hdiff\_efdt\_ratio  &
@@ -2123,7 +2123,7 @@ Note: vertical nesting requires option 2 to run numerically stable over longer t
 %\hline
 start\_time &
 R(n\_dom) & 0.   & s &
-Time when a nested domain starts to be active. Relative time w.r.t.\ experiment start date (\texttt{ini\_datetime\_string} / \texttt{experimentStratDate}).\\
+Time when a nested domain starts to be active. Relative time w.r.t.\ experiment start date (\texttt{ini\_datetime\_string} / \texttt{experimentStartDate}).\\
 (namelist entry is ignored for the global domain)
 & n\_dom$>$1
 \tabularnewline
@@ -2131,7 +2131,7 @@ Time when a nested domain starts to be active. Relative time w.r.t.\ experiment 
 %\hline
 end\_time &
 R(n\_dom) & 1.E30  & s &
-Time when a nested domain terminates. Relative time w.r.t.\ experiment start date (\texttt{ini\_datetime\_string} / \texttt{experimentStratDate}).\\ 
+Time when a nested domain terminates. Relative time w.r.t.\ experiment start date (\texttt{ini\_datetime\_string} / \texttt{experimentStartDate}).\\ 
 (namelist entry is ignored for the global domain)
 & n\_dom$>$1
 \tabularnewline
@@ -2981,6 +2981,20 @@ iforcing=3
 \tabularnewline
 
 %\hline
+dt\_hailcast&
+R(n\_dom)& 180. & s&
+Interval at which hailcast is called for determining dhail\_mx, dhail\_sd, dhail\_av &
+iforcing=3
+\tabularnewline
+
+%\hline
+wdur\_min\_hailcast&
+R(n\_dom)& 900. & s&
+Minimal updraft persistence per column for hailcast to be activated &
+iforcing=3
+\tabularnewline
+
+%\hline
 dt\_radar\_dbz&
 R(n\_dom)& 120. & s&
 Interval at which radar reflectivity is calculated for determining dbz\_ctmax &
@@ -3366,16 +3380,8 @@ omega & vertical (pressure) velocity & Pa s-1 & - & 3d & - & [2]
 \tabularnewline
 %
 
-vor\_u & zonal component of relative vorticity & s-1 & - & 3d & - & [4]
-\tabularnewline
-%
-
-vor\_v & meridional component of relative vorticity & s-1 & - & 3d & - & [4]
-\tabularnewline
-%
-
 tot\_prec\_d &  total accumulated precipitation during a different time interval compared to tot\_prec &
-kg m-2 & iforcing = inwp & 2d & totprec\_d\_interval & [1], [5], [6]
+kg m-2 & iforcing = inwp & 2d & totprec\_d\_interval & [1], [4], [5]
 \tabularnewline
 %
 
@@ -3419,6 +3425,19 @@ J kg-1 & iforcing = inwp & 2d & - & [2]
 \item[**] The keys, {[1]}, {[2]}, etc., are itemized under the following point.
 \end{itemize}
 %
+%MARK_01_START
+%We inform the user about the removal of two optional diagnostics right here, on site.
+%Doing so for six months, starting June 2023, should be sufficient.
+%Afterwards everything between MARK_01_START and MARK_01_END (including themselves) should be removed.
+  \ifthenelse{\year=2023 \AND \(\month>5 \AND \month<13\)}
+  {\textcolor{red}{\emph{Current information:} optional diagnostics \texttt{vor\_u} and \texttt{vor\_v} have been removed, please see section~\ref{sec:changes}, \emph{Change 2023-06-13} for more information.}}
+  {
+    \ifthenelse{\year=2024 \AND \(\month>0 \AND \month<4\)}
+    {\textcolor{red}{\underline{\emph{Please edit} \texttt{icon/doc/icon\_nml\_tables.txt}}: remove text between \texttt{\%MARK\_01\_START} and \texttt{\%MARK\_01\_END}. Thank you!}}
+    {}
+  }\\
+%MARK_01_END
+%
 
 $\blacksquare$ \emph{Where can I find more about the computation of the diagnostics in the source code?} \\
 
@@ -3458,9 +3477,8 @@ is found in the column ``Place of computation in source code'' of table \ref{tab
 \item[{[1]}] \texttt{/src/atm\_phy\_nwp/mo\_util\_phys}
 \item[{[2]}] \texttt{/src/atm\_phy\_nwp/mo\_opt\_nwp\_diagnostics}
 \item[{[3]}] \texttt{/src/atm\_phy\_nwp/mo\_nh\_diagnose\_pmsl} 
-\item[{[4]}] \texttt{/src/diagnostics/atmosphere/mo\_diag\_atmo\_air\_flow} 
-\item[{[5]}] \texttt{/src/atm\_phy\_nwp/mo\_nwp\_gscp\_interface}
-\item[{[6]}] \texttt{/src/atm\_phy\_nwp/mo\_nwp\_diagnosis}
+\item[{[4]}] \texttt{/src/atm\_phy\_nwp/mo\_nwp\_gscp\_interface}
+\item[{[5]}] \texttt{/src/atm\_phy\_nwp/mo\_nwp\_diagnosis}
 \end{itemize}
 %
 
@@ -4629,13 +4647,6 @@ Threshold for vertical advection CFL number at which the adaptive time step redu
 \tabularnewline
 
 %\hline
-lhdiff\_rcf&
-L& .TRUE. & &
-.TRUE.: Compute diffusion only at advection time steps (in this case,
-divergence damping is applied in the dynamical core) &
-\tabularnewline
-
-%\hline
 lextra\_diffu&
 L& .TRUE. & &
 .TRUE.: Apply additional momentum diffusion at grid points close to the stability limit for vertical advection (becomes effective
@@ -4647,56 +4658,48 @@ extremely rarely in practice; this is mostly an emergency fix for pathological c
 divdamp\_fac&
 R& 0.0025& &
 Scaling factor for divergence damping at height \(divdamp\_z\) and below. \(divdamp\_fac \geq 0\).&
-lhdiff\_rcf = .TRUE.
 \tabularnewline
 
 %\hline
 divdamp\_fac2&
 R& 0.004& &
 Scaling factor for divergence damping at height \(divdamp\_z2\). \(divdamp\_fac2 \geq 0\). Between \(divdamp\_z\) and \(divdamp\_z2\) the scaling factor changes linearly from \(divdamp\_fac\) to \(divdamp\_fac2\).  &
-lhdiff\_rcf = .TRUE.
 \tabularnewline
 
 %\hline
 divdamp\_fac3&
 R& 0.004& &
 Scaling factor for divergence damping at height \(divdamp\_z3\). \(divdamp\_fac3 \geq 0\). The three points \((divdamp\_z2, divdamp\_fac2)\), \((divdamp\_z3, divdamp\_fac3)\),  and  \((divdamp\_z4, divdamp\_fac4)\) determine the quadratic function for the scaling factor between \(divdamp\_z2\) and \(divdamp\_z4\). &
-lhdiff\_rcf = .TRUE.
 \tabularnewline
 
 %\hline
 divdamp\_fac4&
 R& 0.004& &
 Scaling factor for divergence damping at height \(divdamp\_z4\) and higher. \(divdamp\_fac4 \geq 0\).&
-lhdiff\_rcf = .TRUE.
 \tabularnewline
 
 %\hline
 divdamp\_z&
 R& 32500.& m&
 Height up to which \(divdamp\_fac\) is used, and where the linear profile up to height \(divdamp\_z2\) starts.&
-lhdiff\_rcf = .TRUE.
 \tabularnewline
 
 %\hline
 divdamp\_z2&
 R& 40000.& m&
 Height with scaling factor \(divdamp\_fac2\) where the linear profile starting at \(divdamp\_z\) ends, and where the quadratic profile up to \(divdamp\_z4\) starts. \(divdamp\_z < divdamp\_z2 < divdamp\_z4\).&
-lhdiff\_rcf = .TRUE.
 \tabularnewline
 
 %\hline
 divdamp\_z3&
 R& 60000.& m&
 Height with scaling factor \(divdamp\_fac3\). Needed to determine the quadratic function between \(divdamp\_z2\) and \(divdamp\_z4\). \(divdamp\_z3 \neq divdamp\_z2 \land divdamp\_z3 \neq divdamp\_z4\).&
-lhdiff\_rcf = .TRUE.
 \tabularnewline
 
 %\hline
 divdamp\_z4&
 R& 80000.& m&
 Height from which \(divdamp\_fac4\) is used.  \(divdamp\_z4 > divdamp\_z2\).&
-lhdiff\_rcf = .TRUE.
 \tabularnewline
 
 %\hline
@@ -4706,7 +4709,6 @@ Order of divergence damping: \\
 2 = second-order divergence damping \\
 4 = fourth-order divergence damping \\
 24 = combined second-order and fourth-order divergence damping and enhanced vertical wind off-centering during the initial spinup phase (does not allow checkpointing/restarting earlier than 2.5 hours of integration) &
-lhdiff\_rcf = .TRUE.
 \tabularnewline
 
 %\hline
@@ -4716,7 +4718,6 @@ Type of divergence damping: \\
 2 = divergence damping acting on 2D divergence \\
 3 = divergence damping acting on 3D divergence \\
 32 = combination of 3D div. damping in the troposphere with transition to 2D div. damping in the stratosphere &
-lhdiff\_rcf = .TRUE.
 \tabularnewline
 
 divdamp\_trans\_start&
@@ -5263,6 +5264,13 @@ part of diagnosed cloud water&
 inwp\_cldcover = 1
 \tabularnewline
 
+%\hline
+lsbm\_warm\_full&
+L (max\_ dom) & .TRUE. &  & TRUE: warm-phase Spectral Bin Microphysics (SBM). False: 2-moment scheme
+is applied (as for inwp\_gscp = 4) and SBM is running in a "Piggy Backing" mode for diagnostic purposes&
+inwp\_gscp = 8
+\tabularnewline
+
 
 %\hline
 \textbf{inwp\_radiation}&
@@ -5458,7 +5466,8 @@ I (max\_ dom) &
 &
 Coupling of the effective radius with radiation: \\
 0 \,\,\,  = No coupling. The calculation of the effective radius happens at the radiation interface. \\
-1 \,\,\, = Radiation uses the effective radius defined by icalc\_reff. All hydrometeors are combined in a frozen and a liquid phase.
+1 \,\,\, = Radiation uses the effective radius defined by icalc\_reff. All hydrometeors are combined in a frozen and a liquid phase. \\
+2 \,\,\, = Radiation uses the effective radius defined by icalc\_reff for  all hydrometeors independently (given by ecrad\_iset\_genhyd).
 &run\_nml:iforcing = inwp \\
 inwp\_radiation = 1 or 4  \\
 icalc\_reff > 0
@@ -5649,6 +5658,16 @@ run\_nml:iforcing = inwp
 \tabularnewline
 
 \hline
+tune\_sbmccn&
+R&
+1.0&
+&
+Scaling factor (0,1] for initial aerosol concentration profile, used for comparison\\
+between simulations with two-moment and warm SBM microphysics&
+run\_nml:iforcing = inwp
+\tabularnewline
+
+\hline
 \hline
 \multicolumn{6}{|l|}{\textbf{Convection scheme}} 
 \tabularnewline
@@ -5688,6 +5707,15 @@ R&
 &
 Fraction of CAPE diurnal cycle correction applied in the extratropics&
 icapdcycl = 3
+\tabularnewline
+
+\hline
+tune\_capethresh&
+R&
+7000.0&
+J/kg&
+CAPE threshold above which the convective adjustment time scale and entrainment rate are reduced for numerical stability&
+run\_nml:iforcing = inwp
 \tabularnewline
 
 \hline
@@ -5847,6 +5875,42 @@ Maximum allowed calibration factor for low clouds (CLCL) &
 run\_nml:iforcing = inwp
 \tabularnewline
 
+\hline
+tune\_eiscrit&
+R&
+1000.0&
+K&
+Critical estimated inversion strength above which to switch off shallow convection (recommendation to activate: 7K) &
+run\_nml:iforcing = inwp; inwp\_convection = 1
+\tabularnewline
+
+\hline
+tune\_sc\_eis&
+R&
+1000.0&
+K&
+Critical estimated inversion strength above which to use modified SGS cloud diagnostic for stratocumulus (recommendation to activate: 7K) &
+run\_nml:iforcing = inwp; inwp\_clcover = 1
+\tabularnewline
+
+\hline
+tune\_sc\_invmin&
+R&
+200.0&
+m&
+Minimum inversion height above which to apply modified SGS cloud diagnostic for stratocumulus &
+run\_nml:iforcing = inwp; inwp\_clcover = 1
+\tabularnewline
+
+\hline
+tune\_sc\_invmax&
+R&
+1500.0&
+m&
+Maximum inversion height below which to apply modified SGS cloud diagnostic for stratocumulus &
+run\_nml:iforcing = inwp; inwp\_clcover = 1
+\tabularnewline
+
 
 \hline
 \hline
@@ -5936,6 +6000,16 @@ lnd\_nml:idiag\_snowfrac = 20/30/40
 
 
 \hline
+tune\_dursun\_scaling&
+R&
+1.0&
+&
+Tuning factor for direct solar irradiance in sunshine duration diagnostic to account for the 
+delta-Eddington scaling in ecRad and other possible biases (e.g. liquid/ice water path) &
+\tabularnewline
+
+
+\hline
 \hline
 \multicolumn{6}{|l|}{\textbf{IAU}} 
 \tabularnewline
@@ -5990,6 +6064,14 @@ If applied together with the ART aerosol physics \textbf{inwp\_gscp=6}, this par
 iforcing=3, inwp\_gscp=4,5,6,7
 \tabularnewline
 
+iicephase &
+I& 1 & &
+Turning on/off mixed phase processes in the two-moment scheme:\\
+0: warm phase processes only\\
+1: mixed phase processes&
+iforcing=3, inwp\_gscp=4,5,6,7
+\tabularnewline
+
 alpha\_spacefilling &
 R& 0.01 & &
 Parameter in conversion of snow or cloud ice to graupel by riming: degree of void filling by frozen supercooled droples within the ice particle skeleton, above which the particle is converted to the graupel class. Smaller values lead to faster conversion. 0.01 means very fast conversion to graupel. A value of 0.68 is the theoretical limit for densest sphere packing and leads to rather slow conversion.  &
@@ -6022,28 +6104,138 @@ iforcing=2,3 inwp\_gscp=4,5,6,7
 
 rain\_cmu0 &
 R&  6.0 & &
-Parameter of the $\mu$-$D$-relation in the rain size distribution for evaporation and sedimentation:\\
+Parameter of the $\mu$-$D$-relation in the rain size distribution for evaporation and sedimentation below cloud base:\\
 asymptotic $\mu$-value for spectra with small mean diameter.  &
 iforcing=2,3 inwp\_gscp=4,5,6,7
 \tabularnewline
 
 rain\_cmu1 &
 R& 30.0 & &
-Parameter of the $\mu$-$D$-relation in the rain size distribution for evaporation and sedimentation:\\
+Parameter of the $\mu$-$D$-relation in the rain size distribution for evaporation and sedimentation below cloud base:\\
 asymptotic $\mu$-value for spectra with large mean diameter.  &
 iforcing=2,3 inwp\_gscp=4,5,6,7
 \tabularnewline
 
 rain\_cmu3 &
 R& 1.1e-3 & m &
-Parameter of the $\mu$-$D$-relation in the rain size distribution for evaporation and sedimentation:\\
+Parameter of the $\mu$-$D$-relation in the rain size distribution for evaporation and sedimentation below cloud base:\\
 equilibrium mean spectral diameter for breakup and selfcollection.  &
 iforcing=2,3 inwp\_gscp=4,5,6,7
 \tabularnewline
 
+rain\_cmu4 &
+R& 1.0 & &
+Parameter of the $\mu$-$D$-relation in the rain size distribution for evaporation and sedimentation below cloud base:\\
+base value.  &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+nu\_r &
+R& -999.99 & &
+Shape parameter $\nu$ of the rain mass distribution inside clouds. Refers to the generalized gamma distribution with respect to mass $x$:\\
+$f(x)=N_{0}x^{\nu}\exp(-\lambda x^{\mu})$\\
+A value < -900 indicates that the background value $\nu=0.0$ from mo\_2mom\_mcrph\_main.f90 is used. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+nu\_g &
+R& -999.99 & &
+Shape parameter $\nu$ for graupel in the PSD\\
+$f(x)=N_{0}x^{\nu}\exp(-\lambda x^{\mu})$\\
+A value of < -900  indicates that the background value $\nu=1.0$ from mo\_2mom\_mcrph\_main.f90 is used. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+mu\_g &
+R& -999.99 & &
+Shape parameter $\mu$ for graupel in the PSD\\
+$f(x)=N_{0}x^{\nu}\exp(-\lambda x^{\mu})$\\
+A value of < -900  indicates that the background value $\nu=1/3$ from mo\_2mom\_mcrph\_main.f90 is used. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+ageo\_g &
+R& -999.99 & &
+Prefactor of the assumed size-mass-relation for graupel $D=a_{geo}x^{b_{geo}}$ for $x$ in kg and $D$ in m.\\
+A value of < -900  indicates that the background value $a_{geo}=0.124$ from mo\_2mom\_mcrph\_main.f90 is used. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+bgeo\_g &
+R& -999.99 & &
+Exponent of the assumed size-mass-relation for graupel $D=a_{geo}x^{b_{geo}}$ for $x$ in kg and $D$ in m.\\
+A value of < -900  indicates that the background value $b_{geo}=0.314$ from mo\_2mom\_mcrph\_main.f90 is used. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+avel\_g &
+R& -999.99 & &
+Prefactor of the assumed fallspeed-mass-relation for graupel $v=a_{vel}x^{b_{vel}}$ for $x$ in kg and $v$ in m/s.\\
+A value of < -900  indicates that the background value $a_{vel}=100.0$ from mo\_2mom\_mcrph\_main.f90 is used. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+bvel\_g &
+R& -999.99 & &
+Exponent of the assumed fallspeed-mass-relation for graupel $v=a_{vel}x^{b_{vel}}$ for $x$ in kg and $v$ in m/s.\\
+A value of < -900  indicates that the background value $b_{vel}=0.34$ from mo\_2mom\_mcrph\_main.f90 is used. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+nu\_h &
+R& -999.99 & &
+Shape parameter $\nu$ for hail in the PSD\\
+$f(x)=N_{0}x^{\nu}\exp(-\lambda x^{\mu})$\\
+A value of < -900  indicates that the background value $\nu=1.0$ from mo\_2mom\_mcrph\_main.f90 is used. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+mu\_h &
+R& -999.99 & &
+Shape parameter $\mu$ for hail in the PSD\\
+$f(x)=N_{0}x^{\nu}\exp(-\lambda x^{\mu})$\\
+A value of < -900  indicates that the background value $\nu=1/3$ from mo\_2mom\_mcrph\_main.f90 is used. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+ageo\_h &
+R& -999.99 & &
+Prefactor of the assumed size-mass-relation for hail $D=a_{geo}x^{b_{geo}}$ for $x$ in kg and $D$ in m.\\
+A value of < -900  indicates that the background value $a_{geo}=0.1366$ from mo\_2mom\_mcrph\_main.f90 is used. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+bgeo\_h &
+R& -999.99 & &
+Exponent of the assumed size-mass-relation for hail $D=a_{geo}x^{b_{geo}}$ for $x$ in kg and $D$ in m.\\
+A value of < -900  indicates that the background value $b_{geo}=1/3$ from mo\_2mom\_mcrph\_main.f90 is used. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+avel\_h &
+R& -999.99 & &
+Prefactor of the assumed fallspeed-mass-relation for hail $v=a_{vel}x^{b_{vel}}$ for $x$ in kg and $v$ in m/s.\\
+A value of < -900  indicates that the background value $a_{vel}=39.3$ from mo\_2mom\_mcrph\_main.f90 is used. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+bvel\_h &
+R& -999.99 & &
+Exponent of the assumed fallspeed-mass-relation for hail $v=a_{vel}x^{b_{vel}}$ for $x$ in kg and $v$ in m/s.\\
+A value of < -900  indicates that the background value $b_{vel}=1/6$ from mo\_2mom\_mcrph\_main.f90 is used. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+
 melt\_h\_tune\_fac &
 R& 1.0 & &
 Tuning factor for the hail melting rate. Values larger than 1.0 enhance the hail melting, smaller values slow down the melting. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+melt\_g\_tune\_fac &
+R& 1.0 & &
+Tuning factor for the graupel melting rate. Values larger than 1.0 enhance the graupel melting, smaller values slow down the melting. &
 iforcing=2,3 inwp\_gscp=4,5,6,7
 \tabularnewline
 
@@ -6058,6 +6250,76 @@ L& .TRUE. &  &
 To switch on the turbulent enhancement of collision processes involving water droplets (autoconversion, accretion, rain selfcollection). &
 iforcing=2,3 inwp\_gscp=4,5,6,7
 \tabularnewline
+
+lturb\_len &
+R& 300 & m &
+Turbulent length scale used for lturb\_enhc=.TRUE. &
+iforcing=2,3 inwp\_gscp=4,5,6,7 lturb\_enhc=.TRUE.
+\tabularnewline
+
+iice\_stick &
+I& 10 &  &
+Optional choice of the sticking efficiency parameterization for ice-ice-collisions as function of temperature:\\
+1: $e = \min(\exp(0.09 (T-T_3)),1.0)$ from Lin et al. (1983)\\
+2: $e = \min(\exp(0.025 (T-T_3)),1.0)$, even larger as option 1\\
+3: same as 2, but $e=0.01$ for $T<-40^{\circ}$C\\
+4: piecewise constant sticking efficiency with maxima at $-7.5^{\circ}$C and $-15^{\circ}$C and much smaller values at warm temperatures compared to 1, 2 and 3\\
+5: piecewise linear sticking efficiency with maximum at $-15^{\circ}$C and smaller values elswhere compared to 5\\
+6: option 5 times factor 0.5\\
+7: constant $e = 0.1$\\
+8: piecewise linear, a mix of 4 and 5\\
+9: option 5 times factor 0.75\\
+10: $e = \min(10^{(0.035(T-T_3)-0.7)},0.2)$ from Cotton et al. (1986)\\
+with $T_3=273.16$\,K
+&
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+isnow\_stick &
+I& 5 &  &
+Optional choice of the sticking efficiency parameterization for snow-snow collisions as function of temperature.\\
+Same choices as for \texttt{iice\_stick}. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+iparti\_stick &
+I& 5 &  &
+Optional choice of the sticking. efficiency parameterization for other frozen category collisions as function of temperature.\\
+Same choices as for \texttt{iice\_stick}.\\
+Does not apply for graupel selfcollection. There, the below \texttt{ecoll\_gg}, \texttt{ecoll\_gg\_wet} and \texttt{Tcoll\_gg\_wet} apply. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+ecoll\_gg &
+R& 0.1 &  &
+Collision efficiency for graupel autoconversion (dry graupel). Value between 0 and 1. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+ecoll\_gg\_wet &
+R& 0.4 &  &
+Collision efficiency for graupel autoconversion (wet graupel). Value between 0 and 1. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+Tcoll\_gg\_wet &
+R& 270.16 & K &
+Temperature limit above which graupel autoconversion is considered to be for wet surfaces. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+cap\_snow &
+R& -999.99 &  &
+Capacitance for snow depositional growth. A value < -900 indicates the usage of the code-internal backgroud value 3.0. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
+vsedi\_max\_s &
+R& -999.99 & m/s &
+Maximum allowed spectral mean sedimentation velocity of snow at sea level. A value < -900 indicates the usage of the code-internal backgroud value 1.2\,m/s. &
+iforcing=2,3 inwp\_gscp=4,5,6,7
+\tabularnewline
+
 
 
 \end{longtab}
@@ -7190,13 +7452,25 @@ Long-wave cloud scattering.
 \tabularnewline
 
 %\hline
+ecrad\_use\_general\_cloud\_optics &
+L&
+.FALSE.&
+&
+General cloud optics in ecrad. \\
+It allows for different optical properties of ice and liquid.
+& inwp\_radiation=4 (ecRad) 
+\tabularnewline
+
+
+%\hline
 ecrad\_iliquid\_scat &
 I&
 0&
 &
 Optical properties for liquid cloud scattering. \\
-0: SOCRATES \\
-1: Slingo (1989)
+Different options depending on ecrad\_use\_general\_cloud\_optics (eugco) \\
+0: SOCRATES (eugco = .FALSE.) \textbackslash  Mie-droplet (eugco = .TRUE.)\\
+1: Slingo (1989) (eugco = .FALSE.) 
 & inwp\_radiation=4 (ecRad)
 \tabularnewline
 
@@ -7206,10 +7480,55 @@ I&
 0&
 &
 Optical properties for ice cloud scattering. \\
-0: Fu et al. (1996) \\
-1: Baran et al. (2016)
-& inwp\_radiation=4 (ecRad)
+Different options depending on ecrad\_use\_general\_cloud\_optics (eugco) \\
+0: Fu et al. (1996) (both) \\
+1: Baran et al. (2016) (eugco=.FALSE.) \\
+2: Yi (2013) (eugco=.FALSE.) \\
+10: Rough Fu (eugco=.TRUE.) \\
+11: Baum (eugco=.TRUE.)
+& inwp\_radiation=4 (ecRad) 
 \tabularnewline
+
+%\hline
+ecrad\_isnow\_scat &
+I&
+-1&
+&
+Optical properties for snow scattering. \\
+-1: No explicit snow in radiation. \\
+0: Fu et al. (1996) \\
+10: Rough Fu 
+& inwp\_radiation=4 (ecRad) \\
+ecrad\_use\_general\_cloud\_optics = .TRUE.
+\tabularnewline
+
+%\hline
+ecrad\_irain\_scat &
+I&
+-1&
+&
+Optical properties for rain  scattering. \\
+-1: No explicit rain in radiation. \\
+0: Mie-rain 
+& inwp\_radiation=4 (ecRad) \\
+ecrad\_use\_general\_cloud\_optics = .TRUE.
+\tabularnewline
+
+
+%\hline
+ecrad\_igraupel\_scat &
+I&
+-1&
+&
+Optical properties for graupel scattering. \\
+-1: No explicit graupel in radiation. \\
+0: Fu et al. (1996) \\
+10: Rough Fu 
+& inwp\_radiation=4 (ecRad) \\
+ecrad\_use\_general\_cloud\_optics = .TRUE.
+\tabularnewline
+
+
 
 %\hline
 \end{longtab}
@@ -7412,6 +7731,13 @@ namelist input file \verb+RADARSIM_PARAMS+. More details can be found in the \te
 the COSMO web page (\mbox{www.cosmo-model.org} $\rightarrow$ Documentation $\rightarrow$ EMVORADO) or from the
 submodule \verb+./externals/emvorado/DOC/TEX/emvorado_userguide.pdf+.
 & iequations=3,  iforcing=3, \\ICON configure'd with \verb+--enable-emvorado+
+\tabularnewline
+
+\hline
+radarnmlfile&
+C & & &
+The name of the file containing the EMVORADO namelist. If this is empty or not set, the Default from radar\_data\_namelist.f90 is used. Only used if luse\_radarfwo is .TRUE. .
+& 
 \tabularnewline
 
 \end{longtab}

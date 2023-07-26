@@ -18,14 +18,14 @@ MODULE mo_util_vgrid
   USE ISO_C_BINDING,                        ONLY: C_DOUBLE
   USE mo_cdi,                               ONLY: streamDefTimestep, streamOpenWrite, gridCreate, institutInq, vlistCreate, &
                                                 & vlistInqVarZaxis, vlistInqVarGrid, streamInqVlist, streamOpenRead, &
-                                                & ZAXIS_REFERENCE, zaxisCreate, TSTEP_CONSTANT, vlistDefVar, FILETYPE_NC2, &
+                                                & ZAXIS_REFERENCE, zaxisCreate, TIME_CONSTANT, vlistDefVar, FILETYPE_NC2, &
                                                 & DATATYPE_INT32, DATATYPE_FLT64, CDI_UNDEFID, CDI_GLOBAL, cdiDefAttInt, &
                                                 & cdiInqAttInt, zaxisDestroy, gridDestroy, vlistDestroy, streamClose, &
-                                                & streamWriteVarSlice, streamWriteVar, streamDefVlist, &
+                                                & streamWriteVarSlice, streamWriteVar, streamDefVlist, vlistDefVarTsteptype, &
                                                 & vlistDefVarDatatype, vlistDefVarName, zaxisDefNumber, zaxisDefUUID, &
                                                 & gridDefPosition, gridInqUUID, gridDefNumber, gridDefUUID, zaxisDefLevels, &
                                                 & gridDefNvertex, vlistDefInstitut, zaxisInqUUID, streamReadVar, &
-                                                & GRID_UNSTRUCTURED
+                                                & GRID_UNSTRUCTURED, TSTEP_CONSTANT
   USE mo_kind,                              ONLY: wp, dp
   USE mo_exception,                         ONLY: finish, message, message_text, warning
   !
@@ -43,7 +43,7 @@ MODULE mo_util_vgrid
   USE mo_nh_testcases_nml,                  ONLY: layer_thickness, n_flat_level
   USE mo_init_vgrid,                        ONLY: init_hybrid_coord, init_sleve_coord,                  &
     &                                             prepare_vcoord, init_vert_coord
-  USE mo_nh_init_utils,                     ONLY: compute_smooth_topo
+  USE mo_process_topo,                      ONLY: compute_smooth_topo
   USE mo_nh_init_nest_utils,                ONLY: topo_blending_and_fbk
   USE mo_communication,                     ONLY: exchange_data, idx_no, blk_no
   USE mo_util_string,                       ONLY: int2string
@@ -156,8 +156,11 @@ CONTAINS
 
         ! Compute smooth topography when SLEVE coordinate is used
         IF ( ivctype == 2 .AND. .NOT. lread_smt ) THEN
-          CALL compute_smooth_topo(p_patch(jg), p_int_state(jg), ext_data(jg)%atm%topography_c, & ! in, in, in,
-            &                      topography_smt)                                                ! out
+          CALL compute_smooth_topo(p_patch    = p_patch(jg),                   & !in
+            &                      p_int      = p_int_state(jg),               & !in
+            &                      topo_c     = ext_data(jg)%atm%topography_c, & !in
+            &                      niter      = 25,                            & !in
+            &                      topo_smt_c = topography_smt)                  !out
         ENDIF
 
         ! total shift of model top with respect to global domain
@@ -300,15 +303,18 @@ CONTAINS
       CALL zaxisDefNumber(cdiZaxisID, ivctype)
 
       !--- add variables
-      cdiVarID_vct_a    = vlistDefVar(cdiVlistID, cdiColumnGridID, cdiZaxisID, TSTEP_CONSTANT)
+      cdiVarID_vct_a    = vlistDefVar(cdiVlistID, cdiColumnGridID, cdiZaxisID, TIME_CONSTANT)
       CALL vlistDefVarName(cdiVlistID, cdiVarID_vct_a, "vct_a")
       CALL vlistDefVarDatatype(cdiVlistID, cdiVarID_vct_a, DATATYPE_FLT64)
-      cdiVarID_vct_b    = vlistDefVar(cdiVlistID, cdiColumnGridID, cdiZaxisID, TSTEP_CONSTANT)
+      CALL vlistDefVarTsteptype(cdiVlistID, cdiVarID_vct_a, TSTEP_CONSTANT)
+      cdiVarID_vct_b    = vlistDefVar(cdiVlistID, cdiColumnGridID, cdiZaxisID, TIME_CONSTANT)
       CALL vlistDefVarName(cdiVlistID, cdiVarID_vct_b, "vct_b")
       CALL vlistDefVarDatatype(cdiVlistID, cdiVarID_vct_b, DATATYPE_FLT64)
-      cdiVarID_c        = vlistDefVar(cdiVlistID, cdiCellGridID,   cdiZaxisID, TSTEP_CONSTANT)
+      CALL vlistDefVarTsteptype(cdiVlistID, cdiVarID_vct_b, TSTEP_CONSTANT)
+      cdiVarID_c        = vlistDefVar(cdiVlistID, cdiCellGridID,   cdiZaxisID, TIME_CONSTANT)
       CALL vlistDefVarName(cdiVlistID, cdiVarID_c, "z_ifc")
       CALL vlistDefVarDatatype(cdiVlistID, cdiVarID_c, DATATYPE_FLT64)
+      CALL vlistDefVarTsteptype(cdiVlistID, cdiVarID_c, TSTEP_CONSTANT)
       !--- add "nflat"
       oneInt(1) = nflat
       iret = cdiDefAttInt(cdiVlistID, CDI_GLOBAL, "nflat", DATATYPE_INT32,  1, oneInt)

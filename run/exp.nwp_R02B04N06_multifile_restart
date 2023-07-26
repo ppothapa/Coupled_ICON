@@ -206,7 +206,6 @@ cat > ${atmo_namelist} << EOF
  damp_height                 =                      50000.0       ! height at which Rayleigh damping of vertical wind starts
  rayleigh_coeff              =                          0.10      ! Rayleigh damping coefficient
  ndyn_substeps               =                          5         ! number of dynamical core substeps
- lhdiff_rcf                  =                      .TRUE.        ! .TRUE.=compute diffusion only at advection time steps
  divdamp_order               =                          4         ! order of divergence damping
  igradp_method               =                          3         ! discretization of horizontal pressure gradient
  l_zdiffu_t                  =                      .TRUE.        ! specifies computation of Smagorinsky temperature diffusion

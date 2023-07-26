@@ -29,13 +29,13 @@ ICONDIR="${basedir}" # basedir can be set with create_target_header
 DATAROOT="${icon_data_poolFolder}/Checksuite_data"
 
 # directory with input grids:
-GRIDDIR=${DATAROOT}/ICON-waves/exp18
+GRIDDIR=${DATAROOT}/ICON-waves
 
 # directory with input data from IFS:
 #IFSDATADIR=${DATAROOT}/Inidata_R2B6N7_IFStest
 
 # directory with external parameter data:
-EXTPARDIR=${DATAROOT}/ICON-waves/exp18
+EXTPARDIR=${DATAROOT}/ICON-waves
 
 # ----------------------------------------------------------------------------
 # copy input data: grids, external parameters, model
@@ -123,6 +123,7 @@ cat > ${wave_namelist} << EOF
 /
 &parallel_nml
  nproma                  = ${nproma}             ! loop chunk length
+ nproma_sub              = ${nproma_sub}         ! loop chunk length for radiation
  p_test_run              = .false.               ! .TRUE. means verification run for MPI parallelization
  l_test_openmp           = .false.
  l_log_checks            = .false.

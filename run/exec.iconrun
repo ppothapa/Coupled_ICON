@@ -24,6 +24,10 @@ fi
 
 make_and_change_to_experiment_dir
 
+for dir in ${ADDITIONAL_SUBDIRS[@]}; do
+  mkdir -p $dir
+done
+
 #-----------------------------------------------------------------------------
 final_status_file=${RUNSCRIPTDIR}/${job_name}.final_status
 rm -f ${final_status_file}

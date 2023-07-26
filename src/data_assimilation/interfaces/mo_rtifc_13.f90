@@ -890,7 +890,8 @@ contains
     !    channels were loaded
     match = match .and. (coefs%coef%fmv_ori_nchn == coefs%coef%fmv_chn)
     do i = 1, size(chans)
-      if (all(chans(i) /= coefs%coef%ff_ori_chn(1:coefs%coef%fmv_ori_nchn))) then
+      !if (all(chans(i) /= coefs%coef%ff_ori_chn(1:coefs%coef%fmv_ori_nchn))) then
+      if (all(chans(i) /= coefs%coef%ff_ori_chn(:))) then
         match = .false.
         return
       end if
@@ -1055,7 +1056,7 @@ FTRACE_BEGIN('rtifc_init')
              id_sat      == coefs(ic)%coef%id_sat      .and. &
              id_inst     == coefs(ic)%coef%id_inst     ) then
           ! Can we use these coeffs for the new options?
-          call match_opts_coefs(rto%opts, channels(1:nchans_inst(instr),instr), coefs(ic), match)
+          call match_opts_coefs(rto%opts, channels(1:nchans_inst(i),i), coefs(ic), match)
           if (.not.match) cycle
           call rttov_user_options_checkinput(stat, rto%opts, coefs(ic))
           if (stat /= 0) call finish(proc, 'bad options or existing coeffs are incompatible')
@@ -2041,6 +2042,10 @@ FTRACE_BEGIN('rtifc_fill_input_rad')
     ! in RTTOV if the do_checkinput option (apply_reg_lims option in var3d/mec) is not set.
     ! Thus, we check here for invalid skin temp. in order to get a useful error message.
     if (any(profiles(1:nprof)% skin% t < tmin_ifc)) then
+      do iprof = 1, nprof
+        if (profiles(iprof)%skin%t < tmin_ifc) &
+             write(0,*) 'invalid skin%t',iprof,profiles(iprof)%skin%t
+      end do
       status = ERR_INVALID_TSKIN
       return
     end if
@@ -3164,7 +3169,7 @@ FTRACE_BEGIN('rtifc_direct')
              radovercast(:,1:nchans,iprof) = dble(radiance% overcast(:,sind:eind))
 #if defined(_DACE_) && !defined(__ICON__)
         if (present(height))    height   (1:nchans,iprof)=height_aux(sind:eind)
-#endif        
+#endif
         if (l_transm) &
              transm(:,1:nchans,iprof) = dble(transmission%tau_levels(1+nlevs_top:,sind:eind))
         if (l_transmcld) &

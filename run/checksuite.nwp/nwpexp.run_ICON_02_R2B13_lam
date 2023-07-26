@@ -99,6 +99,7 @@ num_io_procs_radar=0
 cat > ${atmo_namelist} << EOF
 &parallel_nml
  nproma                  =  ${nproma}
+ nproma_sub              =  ${nproma_sub} ! loop chunk length for radiation
  p_test_run              = .false.
  l_test_openmp           = .true.
  l_log_checks            = .true.
@@ -106,7 +107,7 @@ cat > ${atmo_namelist} << EOF
  num_restart_procs       = ${num_restart_procs}
  num_prefetch_proc       = ${num_prefetch_proc}
  num_io_procs_radar      = ${num_io_procs_radar}
- proc0_shift             = 1
+ proc0_shift             = ${proc0_shift}
 /
 &grid_nml
  dynamics_grid_filename  = ${dynamics_grid_filename}
@@ -180,7 +181,7 @@ lfreeslip=.true.
 &nonhydrostatic_nml
  iadv_rhotheta = 1
  ivctype       = 2
- itime_scheme   = 5
+ itime_scheme   = 6
  ndyn_substeps = 6
  damp_height  = 27500.
  rayleigh_coeff = 0.75
@@ -190,7 +191,6 @@ lfreeslip=.true.
  l_zdiffu_t    = .true.
  thslp_zdiffu   = 0.05
  thhgtd_zdiffu  = 125.
- lhdiff_rcf    = .true.
  divdamp_fac   = 0.004
  divdamp_order = 4
 /
@@ -223,8 +223,9 @@ lfreeslip=.true.
  hdiff_smag_fac   = 0.025
  lhdiff_vn        = .TRUE.
  lhdiff_temp      = .TRUE.
- itype_t_diffu    = 2
+ itype_t_diffu    = 1
  lsmag_3d         = .TRUE.
+ lhdiff_smag_w    = .TRUE.
 /
 &interpol_nml
  nudge_zone_width  = 8

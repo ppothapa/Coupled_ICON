@@ -21,6 +21,9 @@
 !!                  incorporating prognostic aerosol as CCN and IN from the
 !!                  ART extension
 !!
+!! inwp_gscp == 8 : SBM warm phase scheme
+!!
+!!
 !! inwp_gscp == 9 : a simple Kessler-type warm rain scheme
 !!
 !! @author Kristina Froehlich, DWD, Offenbach (2010-01-25)
@@ -44,7 +47,7 @@
 MODULE mo_nwp_gscp_interface
 
   USE mo_kind,                 ONLY: wp
-  USE mo_exception,            ONLY: message
+  USE mo_exception,            ONLY: message, finish
   USE mo_parallel_config,      ONLY: nproma
 
   USE mo_model_domain,         ONLY: t_patch
@@ -59,15 +62,18 @@ MODULE mo_nwp_gscp_interface
   USE mo_run_config,           ONLY: msg_level, iqv, iqc, iqi, iqr, iqs,       &
                                      iqni, iqg, iqh, iqnr, iqns,               &
                                      iqng, iqnh, iqnc, inccn, ininpot, ininact,&
-                                     iqtvar, iqgl, iqhl
+                                     iqtvar, iqgl, iqhl,                       &
+                                     iqb_i, iqb_e
   USE mo_atm_phy_nwp_config,   ONLY: atm_phy_nwp_config, iprog_aero
   USE gscp_kessler,            ONLY: kessler
   USE gscp_cloudice,           ONLY: cloudice
   USE gscp_ice,                ONLY: cloudice2mom
   USE gscp_graupel,            ONLY: graupel
-  USE mo_exception,            ONLY: finish
   USE mo_2mom_mcrph_driver,    ONLY: two_moment_mcrph
-  USE mo_2mom_mcrph_util,      ONLY: set_qnc,set_qnr,set_qni,set_qns,set_qng,set_qnh
+  USE mo_2mom_mcrph_util,      ONLY: set_qnc,set_qnr,set_qni,set_qns,set_qng,&
+                                     set_qnh_expPSD_N0const
+  USE mo_sbm_driver,           ONLY: sbm
+  USE mo_sbm_storage,          ONLY: t_sbm_storage, get_sbm_storage
 #ifdef __ICON_ART
   USE mo_art_clouds_interface, ONLY: art_clouds_interface_2mom
 #endif
@@ -81,7 +87,7 @@ MODULE mo_nwp_gscp_interface
   USE mo_timer,                ONLY: timers_level, timer_start, timer_stop,    &
       &                              timer_phys_micro_specific,                &
       &                              timer_phys_micro_satad
-  USE mo_fortran_tools,       ONLY: assert_acc_device_only
+  USE mo_fortran_tools,        ONLY: assert_acc_device_only
 
   IMPLICIT NONE
 
@@ -118,8 +124,7 @@ CONTAINS
     TYPE(t_nwp_phy_diag)   , INTENT(inout):: prm_diag        !<the atm phys vars
     TYPE(t_nwp_phy_tend)   , TARGET, INTENT(inout):: prm_nwp_tend    !< atm tend vars
     TYPE(t_external_data)  , INTENT(in)   :: ext_data
-
-    REAL(wp)               , INTENT(in)   :: tcall_gscp_jg   !< time interval for 
+    REAL(wp)               , INTENT(in)   :: tcall_gscp_jg   !< time interval for
                                                              !< microphysics
     LOGICAL                , INTENT(in)   :: lsatad          !< satad on/off
 
@@ -149,6 +154,8 @@ CONTAINS
 
     REAL(wp), CONTIGUOUS, POINTER :: ptr_tke_loc(:,:)
 
+    TYPE(t_sbm_storage), POINTER :: ptr_sbm_storage => NULL()
+
     CALL assert_acc_device_only("nwp_microphysics", lacc)
 
     ! number of vertical levels
@@ -176,6 +183,11 @@ CONTAINS
       lavail_tke = .false.
     ENDIF
 
+    ! get pointer to SBM specific storage
+    IF ( atm_phy_nwp_config(jg)%inwp_gscp == 8 ) THEN
+      ptr_sbm_storage => get_sbm_storage( patch_id=jg )
+    ENDIF
+
     ! boundary conditions for number densities
     IF (jg > 1) THEN
        IF (atm_phy_nwp_config(jg)%inwp_gscp .ne. atm_phy_nwp_config(jg-1)%inwp_gscp) THEN
@@ -191,7 +203,8 @@ CONTAINS
     !$ACC   CREATE(zncn, qnc, qnc_s)
 
     SELECT CASE (atm_phy_nwp_config(jg)%inwp_gscp)
-    CASE(4,5,6,7)
+    CASE(4,5,6,7,8)
+
 
        ! Update lateral boundaries of nested domains
        IF ( (l_limited_area.AND.jg==1) .OR. l_nest_other_micro) THEN
@@ -221,7 +234,7 @@ CONTAINS
                    ptr_tracer(jc,jk,jb,iqni) = set_qni(ptr_tracer(jc,jk,jb,iqi)*rholoc)*rhoinv
                    ptr_tracer(jc,jk,jb,iqns) = set_qns(ptr_tracer(jc,jk,jb,iqs)*rholoc)*rhoinv
                    ptr_tracer(jc,jk,jb,iqng) = set_qng(ptr_tracer(jc,jk,jb,iqg)*rholoc)*rhoinv
-                   ptr_tracer(jc,jk,jb,iqnh) = set_qnh(ptr_tracer(jc,jk,jb,iqh)*rholoc)*rhoinv
+                   ptr_tracer(jc,jk,jb,iqnh) = set_qnh_expPSD_N0const(ptr_tracer(jc,jk,jb,iqh)*rholoc,750.0_wp,1.0e6_wp)*rhoinv
                 ENDDO
              ENDDO
              !$ACC END PARALLEL
@@ -609,6 +622,58 @@ CONTAINS
                        & l_cv=.TRUE.                        ,    &
                        & ithermo_water=atm_phy_nwp_config(jg)%ithermo_water )!< in: latent heat choice
 
+        CASE(8)  ! SBM scheme
+
+!WRITE(*,*)'max p_prog_nsave%theta_v(:,:,jb)=',jb,MAXVAL(p_prog_nsave%theta_v(:,:,jb))
+!WRITE(*,*)'min p_prog_nsave%theta_v(:,:,jb)=',jb,MINVAL(p_prog_nsave%theta_v(:,:,jb))
+
+          CALL sbm(                        &
+                       isize  = nproma,                &!in: array size
+                       ke     = nlev,                  &!in: end level/array size
+                       is     = i_startidx,            &!in: start index
+                       ie     = i_endidx,              &!in: end index
+                       ks     = kstart_moist(jg),      &!in: start level ! needed for 2M
+                       dt     = tcall_gscp_jg ,        &!in: time step
+                       dz     = p_metrics%ddqz_z_full(:,:,jb),  &!in: vertical layer thickness
+                       hhl    = p_metrics%z_ifc(:,:,jb),        &!in: height of half levels
+                       rho    = p_prog%rho(:,:,jb  )       ,    &!in:  density
+                       pres   = p_diag%pres(:,:,jb  )      ,    &!in:  pressure
+                       tke    = ptr_tke_loc                ,    &!in:  turbulent kinetic energy (on half levels, size nlev+1)
+                       qv     = ptr_tracer (:,:,jb,iqv), &!inout:sp humidity
+                       qc     = ptr_tracer (:,:,jb,iqc), &!inout:cloud water
+                       qnc    = ptr_tracer (:,:,jb,iqnc),&!inout: cloud droplet number
+                       qr     = ptr_tracer (:,:,jb,iqr), &!inout:rain
+                       qnr    = ptr_tracer (:,:,jb,iqnr),&!inout:rain droplet number
+                       qi     = ptr_tracer (:,:,jb,iqi), &!inout: ice
+                       qni    = ptr_tracer (:,:,jb,iqni),&!inout: cloud ice number
+                       qs     = ptr_tracer (:,:,jb,iqs), &!inout: snow
+                       qns    = ptr_tracer (:,:,jb,iqns),&!inout: snow number
+                       qg     = ptr_tracer (:,:,jb,iqg), &!inout: graupel
+                       qng    = ptr_tracer (:,:,jb,iqng),&!inout: graupel number
+                       qh     = ptr_tracer (:,:,jb,iqh), &!inout: hail
+                       qnh    = ptr_tracer (:,:,jb,iqnh),&!inout: hail number
+                       ninact = ptr_tracer (:,:,jb,ininact), &!inout: IN number
+                       tk     = p_diag%temp(:,:,jb),            &!inout: temp
+                       w      = p_prog%w(:,:,jb),               &!inout: w
+                       prec_r = prm_diag%rain_gsp_rate (:,jb),  &!inout precp rate rain
+                       prec_i = prm_diag%ice_gsp_rate (:,jb),   &!inout precp rate ice
+                       prec_s = prm_diag%snow_gsp_rate (:,jb),  &!inout precp rate snow
+                       prec_g = prm_diag%graupel_gsp_rate (:,jb),&!inout precp rate graupel
+                       prec_h = prm_diag%hail_gsp_rate (:,jb),  &!inout precp rate hail
+                       qrsflux= prm_diag%qrs_flux(:,:,jb),      & !inout: 3D precipitation flux for LHN
+                       msg_level = msg_level,                   &
+                       ithermo_water=atm_phy_nwp_config(jg)%ithermo_water, & !< in: latent heat choice
+                       qbin   = ptr_tracer (:,:,jb,7+iqb_i:7+iqb_e),&
+                       qv_before_satad=ptr_sbm_storage%qv_before_satad  (:,:,jb), &
+                       tk_before_satad=ptr_sbm_storage%temp_before_satad(:,:,jb), &
+                       qv_old         =ptr_sbm_storage%qv_old           (:,:,jb), &
+                       temp_old       =ptr_sbm_storage%temp_old         (:,:,jb), &
+!                      u      = p_diag%u(:,:,jb),               &
+!                      v      = p_diag%v(:,:,jb),               &
+                       exner  = p_prog%exner(:,:,jb),           &
+!                      fr_land= ext_data%atm%fr_land(:,jb),     &
+                       lsbm_warm_full =atm_phy_nwp_config(jg)%lsbm_warm_full )
+
         CASE(9)  ! Kessler scheme (warm rain scheme)
 
           CALL kessler (                                     &
@@ -684,7 +749,8 @@ CONTAINS
       
         IF (atm_phy_nwp_config(jg)%lcalc_acc_avg) THEN
           SELECT CASE (atm_phy_nwp_config(jg)%inwp_gscp)
-          CASE(4,5,6,7)
+          CASE(4,5,6,7,8)
+
 
 
 !DIR$ IVDEP

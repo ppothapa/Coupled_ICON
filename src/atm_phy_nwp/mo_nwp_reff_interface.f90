@@ -293,7 +293,7 @@ MODULE mo_nwp_reff_interface
       END IF
 
       ! 2 Moment Scheme
-    CASE ( 4,5,6,7) 
+    CASE ( 4,5,6,7,8) 
 
       ! Grid cloud water from 2 moment scheme
       nreff_calc = nreff_calc + 1
@@ -592,7 +592,7 @@ MODULE mo_nwp_reff_interface
 !      REAL(wp), PARAMETER   :: reff_max_qi = 120.0e-6       ! Maximum reff ice in tables from RRTM
 
       ! Local scalars:
-      INTEGER               :: jb,jg, ireff                 !<block indices
+      INTEGER               :: jc,jk,jb,jg, ireff           !<block indices
       INTEGER               :: i_startblk, i_endblk         !< blocks
       INTEGER               :: is, ie                       !< slices
       INTEGER               :: i_rlstart, i_rlend           ! blocks limits
@@ -618,32 +618,42 @@ MODULE mo_nwp_reff_interface
       i_endblk   = p_patch%cells%end_block(i_rlend)
 
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,is,ie) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP DO PRIVATE(jb,jk,jc,is,ie) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
-       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
+      CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
            &                is, ie, i_rlstart, i_rlend)
 
-
-! Combine rain into the liquid phase
+      ! .. Branch clc_rad from the normal clc and modify it for input to the radiation scheme:
+      
+      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      DO jk = kstart_moist(jg), nlev
+        DO jc = is, ie
+          prm_diag%clc_rad(jc,jk,jb) = prm_diag%clc(jc,jk,jb)
+        END DO
+      END DO
+      !$ACC END PARALLEL
+      
+! Combine rain into the liquid phase and modify clc_rad accordingly:
       IF ( ASSOCIATED( prm_diag%reff_qr ) ) THEN
         CALL combine_reff( prm_diag%tot_cld(:,:,jb,iqc), prm_diag%reff_qc(:,:,jb), &
           &                p_prog%tracer(:,:,jb,iqr), prm_diag%reff_qr(:,:,jb),    &
-          &                prm_diag%clc(:,:,jb), k_start=kstart_moist(jg),         &
+          &                prm_diag%clc_rad(:,:,jb), k_start=kstart_moist(jg),     &
           &                k_end=nlev, is=is, ie=ie                                )
       END IF
 
-! Combine snow into the ice phase
+! Combine snow into the ice phase and modify clc_rad accordingly:
       IF ( ASSOCIATED( prm_diag%reff_qs ) ) THEN
         CALL combine_reff( prm_diag%tot_cld(:,:,jb,iqi), prm_diag%reff_qi(:,:,jb), &
           &                p_prog%tracer(:,:,jb,iqs), prm_diag%reff_qs(:,:,jb),    &
-          &                prm_diag%clc(:,:,jb), k_start=kstart_moist(jg),         &
+          &                prm_diag%clc_rad(:,:,jb), k_start=kstart_moist(jg),     &
           &                k_end=nlev, is=is, ie=ie                                )
       END IF
-! Combine graupel into the ice phase
+! Combine graupel into the ice phase and modify clc_rad accordingly:
       IF ( (iqg > 0 ) .AND. ASSOCIATED( prm_diag%reff_qg ) ) THEN
         CALL combine_reff( prm_diag%tot_cld(:,:,jb,iqi), prm_diag%reff_qi(:,:,jb), &
           &                p_prog%tracer(:,:,jb,iqg), prm_diag%reff_qg(:,:,jb),    &
-          &                prm_diag%clc(:,:,jb), k_start=kstart_moist(jg),         &
+          &                prm_diag%clc_rad(:,:,jb), k_start=kstart_moist(jg),     &
           &                k_end=nlev, is=is, ie=ie                                )
       END IF
 ! Set maximum radius in the liquid phase keeping the ratio q/r constant

@@ -68,11 +68,16 @@ MODULE mo_atmo_model
     &                                   msg_level,                                            &
     &                                   grid_generatingCenter,                                & ! grid generating center
     &                                   grid_generatingSubcenter,                             & ! grid generating subcenter
-    &                                   iforcing, luse_radarfwo
+    &                                   iforcing, luse_radarfwo,                              &
+    &                                   iqc, iqt, iqv, iqi, iqs, iqr, iqtvar, ltimer,         &
+    &                                   iqni, iqg, iqm_max, iqtke, iqh, iqnr, iqns, iqng,     &
+    &                                   iqnh, iqnc, iqgl, iqhl, inccn, ininact, ininpot,      &
+    &                                   lart, nqtendphy, ntracer,                             &
+    &                                   iqbin, iqb_i, iqb_e, iqb_s
   USE mo_gribout_config,          ONLY: configure_gribout
+  USE mo_atm_phy_nwp_config,      ONLY: atm_phy_nwp_config
 #ifndef __NO_JSBACH__
   USE mo_aes_phy_config,          ONLY: aes_phy_config
-  USE mo_atm_phy_nwp_config,      ONLY: atm_phy_nwp_config
   USE mo_master_control,          ONLY: master_namelist_filename
   USE mo_jsb_base,                ONLY: jsbach_setup => jsbach_setup_models, jsbach_setup_tiles
   USE mo_jsb_model_init,          ONLY: jsbach_setup_grid
@@ -86,6 +91,10 @@ MODULE mo_atmo_model
   USE mo_nh_testcases,            ONLY: init_nh_testtopo
 
   USE mo_alloc_patches,           ONLY: destruct_patches, destruct_comm_patterns
+
+  ! advection
+  USE mo_advection_config,        ONLY: advection_config
+  USE mo_advection_utils,         ONLY: init_tracer_settings
 
   ! horizontal grid, domain decomposition, memory
   USE mo_grid_config,             ONLY: n_dom, n_dom_start,                                   &
@@ -135,8 +144,11 @@ MODULE mo_atmo_model
 #endif
   USE mo_async_latbc_types,       ONLY: t_latbc_data
   ! ART
+  USE mo_art_config,              ONLY: ctracer_art
 #ifdef __ICON_ART
-  USE mo_art_init_interface,      ONLY: art_init_interface
+  USE mo_art_config,              ONLY: art_config
+  USE mo_art_init_interface,      ONLY: art_init_interface, &
+    &                                   art_calc_ntracer_and_names
 #endif
   USE mo_sync,                    ONLY: global_max
 
@@ -252,7 +264,7 @@ CONTAINS
     CHARACTER(*), PARAMETER :: routine = "mo_atmo_model:construct_atmo_model"
     INTEGER                 :: jg, jgp, error_status, dedicatedRestartProcs
     CHARACTER(len=1000)     :: message_text = ''
-    INTEGER                 :: icomm_cart, my_cart_id, nproma_max
+    INTEGER                 :: icomm_cart, my_cart_id, nproma_max, iart_ntracer
 
     ! initialize global registry of lon-lat grids
     CALL lonlat_grids%init()
@@ -625,12 +637,34 @@ CONTAINS
     CALL messy_new_tracer
 #endif
 
+    iart_ntracer = 0
+#ifdef __ICON_ART
+    IF (lart) THEN
+      ! determine number of ART-tracers (by reading given XML-Files)
+      ! * art_config(1)%iart_ntracer
+      CALL art_calc_ntracer_and_names()
+      iart_ntracer = art_config(1)%iart_ntracer
+    END IF
+#endif
+
+    CALL init_tracer_settings(iforcing, n_dom, ltransport,                 &
+      &                       atm_phy_nwp_config(:)%inwp_turb,             &
+      &                       atm_phy_nwp_config(:)%inwp_gscp,             &
+      &                       lart, iart_ntracer, ctracer_art,             &
+      &                       advection_config,                            &
+      &                       iqv, iqc, iqi, iqr, iqs, iqt, iqg, iqni,     &
+      &                       iqh, iqnr, iqns, iqng, iqnh, iqnc,           &
+      &                       iqgl, iqhl, inccn, iqtvar, ininact, ininpot, &
+      &                       iqtke, iqm_max, ntracer, nqtendphy,          &
+      &                       atm_phy_nwp_config(:)%nclass_gscp,           &
+      &                       iqbin, iqb_i, iqb_e, iqb_s)
+
 #ifdef __ICON_ART
     !------------------------------------------------------------------
     ! 11. Create ART data fields
     !------------------------------------------------------------------
 
-    CALL art_init_interface(n_dom,'construct')
+    CALL art_init_interface(n_dom,'construct',ntracer,advection_config(1)%npassive_tracer)
 #endif
 
     !------------------------------------------------------------------
@@ -710,7 +744,7 @@ CONTAINS
 
 #ifdef __ICON_ART
     ! Destruct ART data fields
-    CALL art_init_interface(n_dom,'destruct')
+    CALL art_init_interface(n_dom,'destruct',ntracer,advection_config(1)%npassive_tracer)
 #endif
 
 #ifndef __NO_JSBACH__

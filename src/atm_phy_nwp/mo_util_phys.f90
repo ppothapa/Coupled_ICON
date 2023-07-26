@@ -34,7 +34,8 @@ MODULE mo_util_phys
   USE mo_nonhydro_types,        ONLY: t_nh_prog, t_nh_diag, t_nh_metrics
   USE mo_nwp_phy_types,         ONLY: t_nwp_phy_diag, t_nwp_phy_tend
   USE mo_run_config,            ONLY: iqv, iqc, iqi, iqr, iqs, iqni, ininact, &
-       &                              iqm_max, nqtendphy, lart, iqnc, iqnr, iqns
+       &                              iqm_max, nqtendphy, lart, iqnc, iqnr, iqns, &
+       &                              iqb_i, iqb_e
 #ifndef __NO_ICON_LES__
   USE mo_ls_forcing_nml,        ONLY: is_ls_forcing, is_nudging_tq, &
        &                              nudge_start_height, nudge_full_height, dt_relax
@@ -559,7 +560,6 @@ CONTAINS
   END FUNCTION vap_pres
 
 
-
   !
   ! Add slow-physics tendencies to tracer fields
   !
@@ -742,9 +742,10 @@ CONTAINS
     END IF
 
     IF(lart .AND. art_config(jg)%lart_conv) THEN
-      CALL assert_acc_host_only("tracer_add_phytend lart_conv", lacc)
       ! add convective tendency and fix to positive values
       DO jt=1,art_config(jg)%nconv_tracer  ! ASH
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, kend
 !DIR$ IVDEP
           DO jc = i_startidx, i_endidx
@@ -752,6 +753,7 @@ CONTAINS
                +pdtime*prm_nwp_tend%conv_tracer_tend(jb,jt)%ptr(jc,jk)/p_rho_now(jc,jk))
           ENDDO
         ENDDO
+        !$ACC END PARALLEL
       ENDDO
     ENDIF !lart
 
@@ -784,7 +786,17 @@ CONTAINS
       !$ACC END PARALLEL
     END IF
 
-
+    ! clipping for mass-bins
+    IF(atm_phy_nwp_config(jg)%lsbm)THEN
+      CALL assert_acc_host_only("tracer_add_phytend lsbm", lacc)
+      DO jt = iqb_i, iqb_e
+        DO jk = kstart_moist(jg), kend
+          DO jc = i_startidx, i_endidx
+            pt_prog_rcf%tracer(jc,jk,jb,jt) = MAX(0._wp, pt_prog_rcf%tracer(jc,jk,jb,jt))
+          ENDDO
+        ENDDO
+      ENDDO
+    END IF
 
     ! Diagnose convective precipitation amount
     IF (atm_phy_nwp_config(jg)%lcalc_acc_avg) THEN

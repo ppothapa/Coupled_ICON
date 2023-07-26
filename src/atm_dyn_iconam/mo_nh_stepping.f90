@@ -34,7 +34,7 @@ MODULE mo_nh_stepping
   USE mo_kind,                     ONLY: wp, vp
   USE mo_io_units,                 ONLY: filename_max
   USE mo_nonhydro_state,           ONLY: p_nh_state, p_nh_state_lists
-  USE mo_nonhydrostatic_config,    ONLY: lhdiff_rcf, itime_scheme, divdamp_order,                     &
+  USE mo_nonhydrostatic_config,    ONLY: itime_scheme, divdamp_order,                                 &
     &                                    divdamp_fac, divdamp_fac_o2, ih_clch, ih_clcm, kstart_moist, &
     &                                    ndyn_substeps, ndyn_substeps_var, ndyn_substeps_max, vcfl_threshold
   USE mo_diffusion_config,         ONLY: diffusion_config
@@ -106,6 +106,9 @@ MODULE mo_nh_stepping
   USE mo_nwp_lnd_state,            ONLY: p_lnd_state
   USE mo_opt_nwp_diagnostics,      ONLY: compute_field_dbz3d_lin
   USE mo_nwp_gpu_util,             ONLY: gpu_d2h_nh_nwp, gpu_h2d_nh_nwp, devcpy_nwp, hostcpy_nwp, gpu_d2h_dace
+#ifdef __ICON_ART
+  USE mo_nwp_gpu_util,             ONLY: gpu_d2h_art, gpu_h2d_art
+#endif
 #ifndef __NO_NWP__
   USE mo_nh_interface_nwp,         ONLY: nwp_nh_interface
   USE mo_phy_events,               ONLY: mtime_ctrl_physics
@@ -142,7 +145,7 @@ MODULE mo_nh_stepping
                                      &   art_init_atmo_tracers_aes,     &
                                      &   art_init_radiation_properties, &
                                      &   art_update_atmo_phy
-  USE mo_art_config,               ONLY: art_config
+  USE mo_art_data,                 ONLY: p_art_data
 #endif
 
   USE mo_reader_sst_sic,           ONLY: t_sst_sic_reader
@@ -329,6 +332,7 @@ MODULE mo_nh_stepping
 
   ENDDO
 
+  
   IF (iforcing == inwp) THEN
 #ifndef __NO_NWP__
     IF (ANY((/SSTICE_CLIM,SSTICE_AVG_MONTHLY,SSTICE_AVG_DAILY/) == sstice_mode)) THEN
@@ -448,6 +452,11 @@ MODULE mo_nh_stepping
         DO jg=1, n_dom
           CALL gpu_h2d_nh_nwp(jg, ext_data=ext_data(jg), &
             phy_params=phy_params(jg), atm_phy_nwp_config=atm_phy_nwp_config(jg), lacc=.TRUE.)
+#ifdef __ICON_ART
+          IF(ALLOCATED(p_art_data)) THEN
+              CALL gpu_h2d_art(p_art_data(jg), lacc=.TRUE.)
+          END IF
+#endif
         ENDDO
         CALL devcpy_nwp(lacc=.TRUE.)
       ENDIF
@@ -624,7 +633,7 @@ MODULE mo_nh_stepping
     IF (assimilation_config(1)% dace_coupling) THEN
        IF (.NOT. ASSOCIATED (mec_Event)) &
             CALL finish ("perform_nh_stepping","MEC not configured")
-       IF (timeshift%dt_shift == 0._wp .and. &
+       IF (timeshift%dt_shift == 0._wp .AND. &
             is_event_active(mec_Event, mtime_current, proc0_offloading)) THEN
 #ifndef __NO_NWP__
           IF (iforcing == inwp) &
@@ -639,7 +648,7 @@ MODULE mo_nh_stepping
 #ifdef _OPENACC
           CALL message('mo_nh_stepping', 'Copy init values for DACE to CPU')
           DO jg=1, n_dom
-            CALL gpu_d2h_dace(jg)
+            CALL gpu_d2h_dace(jg, atm_phy_nwp_config(jg))
           ENDDO
           i_am_accel_node = .FALSE.
 #endif
@@ -692,7 +701,12 @@ MODULE mo_nh_stepping
     ENDIF
     IF ( iforcing == inwp ) THEN
       DO jg=1, n_dom
-         CALL gpu_d2h_nh_nwp(jg, ext_data=ext_data(jg), lacc=.TRUE.)
+        CALL gpu_d2h_nh_nwp(jg, ext_data=ext_data(jg), lacc=.TRUE.)
+#ifdef __ICON_ART
+        IF(ALLOCATED(p_art_data)) THEN
+            CALL gpu_d2h_art(p_art_data(jg), lacc=.TRUE.)
+        END IF
+#endif
       ENDDO
       CALL hostcpy_nwp(lacc=.TRUE.)
     ENDIF
@@ -757,6 +771,7 @@ MODULE mo_nh_stepping
   TYPE(event), POINTER                 :: restartEvent      => NULL()
   TYPE(event), POINTER                 :: lpi_max_Event     => NULL()
   TYPE(event), POINTER                 :: celltracks_Event  => NULL()
+  TYPE(event), POINTER                 :: hail_max_Event    => NULL()
   TYPE(event), POINTER                 :: dbz_Event         => NULL()
 
   INTEGER                              :: checkpointEvents
@@ -902,7 +917,7 @@ MODULE mo_nh_stepping
   CALL printEventGroup(checkpointEvents)
 
   ! Create mtime events for optional NWP diagnostics
-  CALL setup_nwp_diag_events(lpi_max_Event, celltracks_Event, dbz_Event)
+  CALL setup_nwp_diag_events(lpi_max_Event, celltracks_Event, dbz_Event,hail_max_Event)
 
   ! set time loop properties
   model_time_step => time_config%tc_dt_model
@@ -1145,7 +1160,6 @@ MODULE mo_nh_stepping
     l_compute_diagnostic_quants = jstep >= 0 .AND. l_compute_diagnostic_quants .AND. &
       &                           .NOT. output_mode%l_none
 
-
     ! Calculations for enhanced sound-wave and gravity-wave damping during the spinup phase
     ! if mixed second-order/fourth-order divergence damping (divdamp_order=24) is chosen.
     ! Includes increased vertical wind off-centering during the first 2 hours of integration.
@@ -1223,47 +1237,6 @@ MODULE mo_nh_stepping
                  &                      lacc=.TRUE.                             ) !in
 
 
-#ifndef __NO_ICON_LES__
-            IF(ANY( (/ismag,iprog/)==atm_phy_nwp_config(jg)%inwp_turb).AND.les_config(jg)%ldiag_les_out)THEN
-#ifdef _OPENACC
-              IF (i_am_accel_node) THEN
-                CALL finish ('perform_nh_timeloop', &
-                  &  'LES cloud diagnostics: OpenACC version currently not implemented')
-              ENDIF
-#endif
-            !LES specific diagnostics only for output
-            CALL les_cloud_diag    ( kstart_moist(jg),                       & !in
-              &                      ih_clch(jg), ih_clcm(jg),               & !in
-              &                      phy_params(jg),                         & !in
-              &                      p_patch(jg),                            & !in
-              &                      p_nh_state(jg)%metrics,                 & !in
-              &                      p_nh_state(jg)%prog(nnow(jg)),          & !in  !nnow or nnew?
-              &                      p_nh_state(jg)%prog(nnow_rcf(jg)),      & !in  !nnow or nnew?
-              &                      p_nh_state(jg)%diag,                    & !in
-              &                      prm_diag(jg)                            ) !inout
-
-              sim_time = getElapsedSimTimeInSeconds(mtime_current)
-              IF(MOD(sim_time,les_config(jg)%sampl_freq_sec)==0)THEN
-                 CALL calculate_turbulent_diagnostics(                        &
-                                    & p_patch(jg),                            & !in
-                                    & p_nh_state(jg)%prog(nnow(jg)),          & !in
-                                    & p_nh_state(jg)%prog(nnow_rcf(jg)),      & !in
-                                    & p_nh_state(jg)%diag,                    & !in
-                                    & p_lnd_state(jg)%prog_lnd(nnow_rcf(jg)), & !in
-                                    & p_lnd_state(jg)%diag_lnd,               & !in
-                                    & prm_nwp_tend(jg),                       & !in
-                                    & prm_diag(jg)               )              !inout
-  
-                 CALL write_time_series(prm_diag(jg)%turb_diag_0dvar, mtime_current)
-              END IF
-
-              IF(MOD(sim_time,les_config(jg)%avg_interval_sec)==0)THEN
-                 CALL write_vertical_profiles(prm_diag(jg)%turb_diag_1dvar, mtime_current)
-                prm_diag(jg)%turb_diag_1dvar = 0._wp
-              END IF
-
-            END IF
-#endif
         ENDDO!jg
 
         CALL fill_nestlatbc_phys(lacc=.TRUE.)
@@ -1300,7 +1273,9 @@ MODULE mo_nh_stepping
                  &                         p_nh_state(jg)%diag%pres,                 &
                  &                         p_nh_state(jg)%prog(nnow_rcf(jg))%tracer, &
                  &                         p_nh_state(jg)%metrics%ddqz_z_full,       &
-                 &                         p_nh_state(jg)%metrics%z_mc, jg)
+                 &                         p_nh_state(jg)%metrics%z_mc, jg,          &
+                 &                         lacc=.TRUE.)
+
             ! Call the ART unit conversion 
             CALL art_tools_interface('unit_conversion',                            & !< in
                  &                   p_nh_state_lists(jg)%prog_list(nnow_rcf(jg)), & !< in
@@ -1324,7 +1299,51 @@ MODULE mo_nh_stepping
       CALL nwp_opt_diagnostics(p_patch(1:), p_patch_local_parent, p_int_state_local_parent, &
                                p_nh_state, p_int_state(1:), prm_diag, &
                                l_nml_output_dom, nnow, nnow_rcf, lpi_max_Event, celltracks_Event,  &
-                               dbz_Event, mtime_current, time_config%tc_dt_model, lacc=.TRUE.)
+                               dbz_Event, hail_max_Event, mtime_current, time_config%tc_dt_model, lacc=.TRUE.)
+
+      DO jg = 1, n_dom
+#ifndef __NO_ICON_LES__
+        IF(ANY( (/ismag,iprog/)==atm_phy_nwp_config(jg)%inwp_turb).AND.les_config(jg)%ldiag_les_out)THEN
+#ifdef _OPENACC
+              IF (i_am_accel_node) THEN
+                CALL finish ('perform_nh_timeloop', &
+                  &  'LES cloud diagnostics: OpenACC version currently not implemented')
+              ENDIF
+#endif
+            !LES specific diagnostics only for output
+            CALL les_cloud_diag    ( kstart_moist(jg),                       & !in
+              &                      ih_clch(jg), ih_clcm(jg),               & !in
+              &                      phy_params(jg),                         & !in
+              &                      p_patch(jg),                            & !in
+              &                      p_nh_state(jg)%metrics,                 & !in
+              &                      p_nh_state(jg)%prog(nnow(jg)),          & !in  !nnow or nnew?
+              &                      p_nh_state(jg)%prog(nnow_rcf(jg)),      & !in  !nnow or nnew?
+              &                      p_nh_state(jg)%diag,                    & !in
+              &                      prm_diag(jg)                            ) !inout
+
+              IF(MOD(jstep,NINT(les_config(jg)%sampl_freq_sec/dtime))==0)THEN
+                 CALL calculate_turbulent_diagnostics(                        &
+                                    & p_patch(jg),                            & !in
+                                    & p_nh_state(jg)%prog(nnow(jg)),          & !in
+                                    & p_nh_state(jg)%prog(nnow_rcf(jg)),      & !in
+                                    & p_nh_state(jg)%diag,                    & !in
+                                    & p_lnd_state(jg)%prog_lnd(nnow_rcf(jg)), & !in
+                                    & p_lnd_state(jg)%diag_lnd,               & !in
+                                    & prm_nwp_tend(jg),                       & !in
+                                    & prm_diag(jg)               )              !inout
+  
+                 CALL write_time_series(prm_diag(jg)%turb_diag_0dvar, mtime_current)
+              END IF
+
+              IF(MOD(jstep,NINT(les_config(jg)%avg_interval_sec/dtime))==0)THEN
+                 CALL write_vertical_profiles(prm_diag(jg)%turb_diag_1dvar, mtime_current)
+                prm_diag(jg)%turb_diag_1dvar = 0._wp
+              END IF
+
+        END IF
+#endif
+      END DO
+
 #endif
     ENDIF
 
@@ -1483,7 +1502,7 @@ MODULE mo_nh_stepping
 #ifdef _OPENACC
             CALL message('mo_nh_stepping', 'Copy values for DACE to CPU')
             DO jg=1, n_dom
-              CALL gpu_d2h_dace(jg)
+              CALL gpu_d2h_dace(jg, atm_phy_nwp_config(jg))
             ENDDO
             i_am_accel_node = .FALSE.
 #endif
@@ -1930,7 +1949,7 @@ MODULE mo_nh_stepping
 
             ! diffusion at physics time steps
             !
-            IF (diffusion_config(jg)%lhdiff_vn .AND. lhdiff_rcf) THEN
+            IF (diffusion_config(jg)%lhdiff_vn) THEN
               !$ser verbatim CALL serialize_all(nproma, jg, "diffusion", .TRUE., opt_lupdate_cpu=.TRUE., opt_dt=datetime_local(jg)%ptr, opt_id=iau_iter)
               CALL diffusion(p_nh_state(jg)%prog(nnew(jg)), p_nh_state(jg)%diag,     &
                 &            p_nh_state(jg)%metrics, p_patch(jg), p_int_state(jg),   &
@@ -1980,7 +1999,8 @@ MODULE mo_nh_stepping
               &      dt_loc,                                   &!in
               &      p_lnd_state(jg)%diag_lnd,                 &!in
               &      datetime_local(jg)%ptr,                   &!in
-              &      p_nh_state(jg)%prog(n_now_rcf)%tracer)     !inout
+              &      p_nh_state(jg)%prog(n_now_rcf)%tracer,    &!inout
+              &      lacc=.TRUE.                               )
           ENDIF
 #endif
 
@@ -2043,7 +2063,8 @@ MODULE mo_nh_stepping
                &      p_nh_state(jg)%metrics,                 &!in
                &      p_nh_state(jg)%diag,                    &!in
                &      p_nh_state(jg)%prog(n_new_rcf)%tracer,  &!inout
-               &      .TRUE.)                                  !print CFL number
+               &      .TRUE.,                                 &!print CFL number
+               &      lacc=.TRUE.                             )
           ENDIF ! lart
 #endif
         ENDIF !ltransport
@@ -2514,7 +2535,6 @@ MODULE mo_nh_stepping
 
             ! Activate cold-start mode in TERRA-init routine irrespective of what has been used for the global domain
             init_mode_soil = 1
-
             IF (iforcing == inwp) THEN
 #ifndef __NO_NWP__
               CALL init_nwp_phy(                           &
@@ -2535,9 +2555,6 @@ MODULE mo_nh_stepping
 
 #ifdef __ICON_ART
               IF (lart) THEN
-#ifdef _OPENACC
-                CALL finish (routine, 'ART art_init_atmo_tracers_nwp: OpenACC version currently not implemeted.')
-#endif
                 CALL art_init_atmo_tracers_nwp(                          &
                      &  jgc,                                             &
                      &  datetime_local(jgc)%ptr,                         &
@@ -2736,15 +2753,6 @@ MODULE mo_nh_stepping
       ! now reset linit_dyn to .FALSE.
       linit_dyn(jg) = .FALSE.
 
-      ! compute diffusion at every dynamics substep (.NOT. lhdiff_rcf)
-      IF (diffusion_config(jg)%lhdiff_vn .AND. .NOT. lhdiff_rcf) THEN
-
-        ! Use here the dynamics substep time step dt_dyn, for which the diffusion is computed here.
-        CALL diffusion(p_nh_state%prog(nnew(jg)), p_nh_state%diag, &
-          &            p_nh_state%metrics, p_patch, p_int_state,   &
-          &            dt_dyn, .FALSE.)
-
-      ENDIF
 
       IF (advection_config(jg)%lfull_comp) &
 

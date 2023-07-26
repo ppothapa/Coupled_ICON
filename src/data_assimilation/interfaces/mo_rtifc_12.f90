@@ -900,7 +900,7 @@ FTRACE_BEGIN('rtifc_init')
              id_sat      == coefs(ic)%coef%id_sat      .and. &
              id_inst     == coefs(ic)%coef%id_inst     ) then
           ! Can we use these coeffs for the new options?
-          call match_opts_coefs(rto%opts, channels(1:nchans_inst(instr),instr), coefs(ic), match)
+          call match_opts_coefs(rto%opts, channels(1:nchans_inst(i),i), coefs(ic), match)
           if (.not.match) cycle
           call rttov_user_options_checkinput(stat, rto%opts, coefs(ic))
           if (stat /= 0) call finish(proc, 'bad options or existing coeffs are incompatible')

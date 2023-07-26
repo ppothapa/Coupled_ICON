@@ -136,7 +136,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  nblocks_c                   =                ${nblocks_c}        ! number of blocks
  nblocks_sub                 =                          2         ! number of radiation blocks
  p_test_run                  =                     .FALSE.        ! .TRUE. means verification run for MPI parallelization
- num_io_procs                =                          0         ! number of I/O processors
+ num_io_procs                =                          1         ! number of I/O processors
  num_restart_procs           =                          0         ! number of restart processors
  num_prefetch_proc           =                          1         ! number of processors for LBC prefetching
  iorder_sendrecv             =                          3         ! sequence of MPI send/receive calls
@@ -245,7 +245,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  lnetcdf_flt64_output        =                      .TRUE.        ! double precision output
  itype_pres_msl              =                          5         ! method for computation of mean sea level pressure
  itype_rh                    =                          1         ! method for computation of relative humidity
- lmask_boundary              =                      .FALSE.       ! mask out interpolation zone in output
+ lmask_boundary              =                      .TRUE.        ! mask out interpolation zone in output
  itype_dursun                =                          1         ! 0 or 1 only with new MR ldursun_mch for output of dursun_m/_r
 /
 

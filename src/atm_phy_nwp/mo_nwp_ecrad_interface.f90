@@ -68,7 +68,10 @@ MODULE mo_nwp_ecrad_interface
                                    &   t_ecrad_single_level_type,                &
                                    &   t_ecrad_thermodynamics_type,              &
                                    &   t_ecrad_gas_type, t_ecrad_flux_type,      &
-                                   &   t_ecrad_cloud_type, t_opt_ptrs
+                                   &   t_ecrad_cloud_type, t_opt_ptrs,           &
+                                   &   ecrad_hyd_list,                           &   
+                                   &   ecrad_iqr, ecrad_iqs, ecrad_iqg          
+
   USE mo_nwp_ecrad_prep_aerosol, ONLY: nwp_ecrad_prep_aerosol
   USE mo_nwp_ecrad_utilities,    ONLY: ecrad_set_single_level,                   &
                                    &   ecrad_set_thermodynamics,                 &
@@ -181,6 +184,7 @@ CONTAINS
       &  zswflx_up_clr(:,:),    & !< shortave upward clear-sky flux
       &  zswflx_dn_clr(:,:)       !< shortave downward clear-sky flux
     REAL(wp), DIMENSION(:,:),  POINTER :: &
+      &  ptr_clc => NULL(),                                                   &
       &  ptr_acdnc => NULL(),                                                 &
       &  ptr_qr => NULL(),      ptr_qs => NULL(),      ptr_qg => NULL(),      &
       &  ptr_reff_qc => NULL(), ptr_reff_qi => NULL(), ptr_reff_qr => NULL(), &
@@ -226,6 +230,10 @@ CONTAINS
     CALL ecrad_single_level%allocate(nproma_sub, 2, 1, .true.) !< use_sw_albedo_direct, 2 bands
     ecrad_single_level%solar_irradiance = 1._wp            !< Obtain normalized fluxes which corresponds to the
                                                            !< transmissivity needed in the following
+
+    ! Compiler bug workaround: Set to the default value explicitely
+    ecrad_single_level%spectral_solar_cycle_multiplier = 0.0_wp
+
     !$ACC UPDATE DEVICE(ecrad_single_level%solar_irradiance) ASYNC(1)
 
     IF (ecrad_conf%use_spectral_solar_scaling) THEN
@@ -238,7 +246,11 @@ CONTAINS
 
     CALL ecrad_gas%allocate(nproma_sub, nlev)
 
-    CALL ecrad_cloud%allocate(nproma_sub, nlev)
+    IF (ecrad_conf%use_general_cloud_optics) THEN
+      CALL ecrad_cloud%allocate(nproma_sub, nlev, ntype = ecrad_conf%n_cloud_types)
+    ELSE
+      CALL ecrad_cloud%allocate(nproma_sub, nlev)
+    END IF
     ! Currently hardcoded values for FSD
     !$ACC WAIT
     CALL ecrad_cloud%create_fractional_std(nproma_sub, nlev, 1._wp)
@@ -253,7 +265,7 @@ CONTAINS
 !$OMP DO PRIVATE(jb, jc, i_startidx, i_endidx,                   &
 !$OMP            jb_rad, jcs, jce, i_startidx_sub, i_endidx_sub, &
 !$OMP            i_startidx_rad, i_endidx_rad,                   &
-!$OMP            ptr_acdnc, ptr_fr_land, ptr_fr_glac,            &
+!$OMP            ptr_clc, ptr_acdnc, ptr_fr_land, ptr_fr_glac,   &
 !$OMP            ptr_reff_qc, ptr_reff_qi, ptr_qr, ptr_reff_qr,  &
 !$OMP            ptr_qs, ptr_reff_qs, ptr_qg, ptr_reff_qg),      &
 !$OMP ICON_OMP_GUIDED_SCHEDULE
@@ -271,9 +283,15 @@ CONTAINS
 
         IF (i_startidx_rad > i_endidx_rad) CYCLE
 
-        NULLIFY(ptr_acdnc,ptr_fr_land,ptr_fr_glac,ptr_reff_qc,ptr_reff_qi,    &
+        NULLIFY(ptr_clc, ptr_acdnc,ptr_fr_land,ptr_fr_glac,ptr_reff_qc,ptr_reff_qi,    &
                 ptr_qr, ptr_reff_qr, ptr_qs, ptr_reff_qs,ptr_qg, ptr_reff_qg)
 
+        ! Decide which field for cloud cover has to be used:
+        IF (atm_phy_nwp_config(jg)%luse_clc_rad) THEN
+          ptr_clc => prm_diag%clc_rad(jcs:jce,:,jb)
+        ELSE
+          ptr_clc => prm_diag%clc(jcs:jce,:,jb)
+        END IF
         IF (atm_phy_nwp_config(jg)%icpl_rad_reff == 0) THEN  ! Own calculation of reff inside ecrad_set_clouds()
           ptr_acdnc   => prm_diag%acdnc(jcs:jce,:,jb)
           ptr_fr_land => ext_data%atm%fr_land(jcs:jce,jb)
@@ -336,13 +354,15 @@ CONTAINS
 
 ! Fill clouds configuration type
         CALL ecrad_set_clouds(ecrad_cloud, ecrad_thermodynamics, prm_diag%tot_cld(jcs:jce,:,jb,iqc),               &
-          &                   prm_diag%tot_cld(jcs:jce,:,jb,iqi), prm_diag%clc(jcs:jce,:,jb),                      &
+          &                   prm_diag%tot_cld(jcs:jce,:,jb,iqi), ptr_clc,                  &
           &                   pt_diag%temp(jcs:jce,:,jb), pt_diag%pres(jcs:jce,:,jb),                              &
           &                   ptr_acdnc, ptr_fr_glac, ptr_fr_land,                                                 &
           &                   ptr_qr, ptr_qs, ptr_qg, ptr_reff_qc, ptr_reff_qi,                                    &
           &                   ptr_reff_qr, ptr_reff_qs, ptr_reff_qg,                                               &
           &                   atm_phy_nwp_config(jg)%icpl_rad_reff,                                                &
-          &                   fact_reffc, ecrad_conf%cloud_fraction_threshold, nlev, i_startidx_rad, i_endidx_rad, &
+          &                   fact_reffc, ecrad_conf%cloud_fraction_threshold,                                     &
+          &                   ecrad_conf%use_general_cloud_optics,                                                 & 
+          &                   nlev, i_startidx_rad, i_endidx_rad, &
           &                   lacc=.TRUE.)
         ! $ACC WAIT
 
@@ -447,7 +467,7 @@ CONTAINS
 
         ! Add 3D contribution to diffuse radiation
         !$ACC WAIT
-        CALL add_3D_diffuse_rad(ecrad_flux, prm_diag%clc(jcs:jce,:,jb), pt_diag%pres(jcs:jce,:,jb),              &
+        CALL add_3D_diffuse_rad(ecrad_flux, ptr_clc, pt_diag%pres(jcs:jce,:,jb),                                 &
           &                     pt_diag%temp(jcs:jce,:,jb), prm_diag%cosmu0(jcs:jce,jb),                         &
           &                     prm_diag%fr_nir_sfc_diff(jcs:jce,jb), prm_diag%fr_vis_sfc_diff(jcs:jce,jb),      &
           &                     prm_diag%fr_par_sfc_diff(jcs:jce,jb), prm_diag%trsol_dn_sfc_diff(jcs:jce,jb),    &
@@ -626,8 +646,11 @@ CONTAINS
       &  zrg_extra_2D(:,:,:),        & !< Extra 2D fields for the upscaling routine (indices by irg_)
       &  zrg_extra_reff(:,:,:,:)       !< Extra effective radius (indices by irg_)
 
+    ! Pointer to the acutally used variant of clc:
+    REAL(wp), DIMENSION(:,:,:), POINTER ::  ptr_clc => NULL()
+
     ! Indices and pointers of extra (optional) fields that are needed by radiation
-    ! and therefore have be aggregated to the radiation grid
+    ! and therefore have to be aggregated to the radiation grid
     INTEGER :: irg_acdnc, irg_fr_glac, irg_fr_land,  irg_qr, irg_qs, irg_qg,  &
       &        irg_reff_qr, irg_reff_qs, irg_reff_qg
     INTEGER, DIMENSION (ecrad_conf%n_bands_lw) :: irg_od_lw
@@ -676,6 +699,13 @@ CONTAINS
       nblks_par_c =  ptr_pp%nblks_c
       nblks_lp_c  =  ptr_pp%nblks_c
     ENDIF
+
+    ! Decide which field for cloud cover has to be used:
+    IF (atm_phy_nwp_config(jg)%luse_clc_rad) THEN
+      ptr_clc => prm_diag%clc_rad
+    ELSE
+      ptr_clc => prm_diag%clc
+    END IF
 
     ! Add extra layer for atmosphere above model top if requested
     IF (atm_phy_nwp_config(jg)%latm_above_top) THEN
@@ -799,15 +829,19 @@ CONTAINS
       CALL input_extra_2D%assign(ext_data%atm%fr_land, irg_fr_land)
       CALL input_extra_2D%assign(ext_data%atm%fr_glac, irg_fr_glac)
     CASE (2) ! Option to use all hydrometeors reff individually
-      ! Set extra hydrometeors
-      CALL input_extra_flds%assign(pt_prog%tracer(:,:,:,iqr), irg_qr)
-      CALL input_extra_flds%assign(pt_prog%tracer(:,:,:,iqs), irg_qs)
-      IF (iqg >0) CALL input_extra_flds%assign(pt_prog%tracer(:,:,:,iqg), irg_qg)
-
-      ! Set extra effective radius (in different array due to different interpolation)
-      CALL input_extra_reff%assign(prm_diag%reff_qr(:,:,:), irg_reff_qr, assoc_hyd = irg_qr )
-      CALL input_extra_reff%assign(prm_diag%reff_qs(:,:,:), irg_reff_qs, assoc_hyd = irg_qs )
-      IF (iqg >0) CALL input_extra_reff%assign(prm_diag%reff_qg(:,:,:), irg_reff_qg, assoc_hyd = irg_qg )
+      ! Set extra hydrometeors and extra effective radius (in different array due to different interpolation)
+      IF (ANY(ecrad_iqr == ecrad_hyd_list) ) THEN
+        CALL input_extra_flds%assign(pt_prog%tracer(:,:,:,iqr), irg_qr)
+        CALL input_extra_reff%assign(prm_diag%reff_qr(:,:,:), irg_reff_qr, assoc_hyd = irg_qr )
+      ENDIF
+      IF (ANY(ecrad_iqs == ecrad_hyd_list) ) THEN
+        CALL input_extra_flds%assign(pt_prog%tracer(:,:,:,iqs), irg_qs)
+        CALL input_extra_reff%assign(prm_diag%reff_qs(:,:,:), irg_reff_qs, assoc_hyd = irg_qs )
+      ENDIF
+      IF ( iqg >0 .AND. ANY(ecrad_iqg == ecrad_hyd_list) ) THEN
+        CALL input_extra_flds%assign(pt_prog%tracer(:,:,:,iqg), irg_qg)
+        CALL input_extra_reff%assign(prm_diag%reff_qg(:,:,:), irg_reff_qg, assoc_hyd = irg_qg )
+      ENDIF
     END SELECT
 
     IF (ANY( irad_aero == (/iRadAeroConstKinne,iRadAeroKinne,iRadAeroVolc,iRadAeroART,  &
@@ -901,7 +935,7 @@ CONTAINS
       &                    prm_diag%albvisdir, prm_diag%albnirdir, prm_diag%albvisdif,   &
       &                    prm_diag%albnirdif, prm_diag%albdif, prm_diag%tsfctrad,       &
       &                    prm_diag%ktype, pt_diag%pres_ifc, pt_diag%pres,               &
-      &                    pt_diag%temp, prm_diag%tot_cld, prm_diag%clc,                 &
+      &                    pt_diag%temp, prm_diag%tot_cld, ptr_clc,                      &
       &                    ext_data%atm%o3, zaeq1, zaeq2, zaeq3, zaeq4, zaeq5,           &
       &                    zrg_emis_rad,                                                 &
       &                    zrg_cosmu0, zrg_albvisdir, zrg_albnirdir, zrg_albvisdif,      &
@@ -934,6 +968,10 @@ CONTAINS
     CALL ecrad_single_level%allocate(nproma_sub, 2, 1, .true.) !< use_sw_albedo_direct, 2 bands
     ecrad_single_level%solar_irradiance = 1._wp            !< Obtain normalized fluxes which corresponds to the
                                                            !< transmissivity needed in the following
+
+    ! Compiler bug workaround: Set to the default value explicitely
+    ecrad_single_level%spectral_solar_cycle_multiplier = 0.0_wp
+
     !$ACC UPDATE DEVICE(ecrad_single_level%solar_irradiance) ASYNC(1)
 
     IF (ecrad_conf%use_spectral_solar_scaling) THEN
@@ -946,7 +984,12 @@ CONTAINS
 
     CALL ecrad_gas%allocate(nproma_sub, nlev_rg)
 
-    CALL ecrad_cloud%allocate(nproma_sub, nlev_rg)
+    IF (ecrad_conf%use_general_cloud_optics) THEN
+      CALL ecrad_cloud%allocate(nproma_sub, nlev_rg, ntype = ecrad_conf%n_cloud_types)
+    ELSE
+      CALL ecrad_cloud%allocate(nproma_sub, nlev_rg)
+    END IF
+
     ! Currently hardcoded values for FSD
     !$ACC WAIT
     CALL ecrad_cloud%create_fractional_std(nproma_sub, nlev_rg, 1._wp)
@@ -1061,8 +1104,9 @@ CONTAINS
           &                   ptr_qr, ptr_qs, ptr_qg, ptr_reff_qc, ptr_reff_qi,                 &
           &                   ptr_reff_qr, ptr_reff_qs, ptr_reff_qg,                            &
           &                   atm_phy_nwp_config(jg)%icpl_rad_reff,                             &
-          &                   fact_reffc, ecrad_conf%cloud_fraction_threshold, nlev_rg,         &
-          &                   i_startidx_rad, i_endidx_rad, lacc=.TRUE.)
+          &                   fact_reffc, ecrad_conf%cloud_fraction_threshold,                  &
+          &                   ecrad_conf%use_general_cloud_optics,                              &
+          &                   nlev_rg, i_startidx_rad, i_endidx_rad, lacc=.TRUE.)
 
 !Set inverse cloud effective size for SPARTACUS
         IF (ecrad_conf%i_solver_lw == ISolverSpartacus .OR. ecrad_conf%i_solver_sw == ISolverSpartacus ) THEN

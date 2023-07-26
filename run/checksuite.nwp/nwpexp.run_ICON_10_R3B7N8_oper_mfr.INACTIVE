@@ -165,6 +165,7 @@ num_io_procs_radar=0
 cat > ${atmo_namelist} << EOF
 &parallel_nml
  nproma                  =  ${nproma}
+ nproma_sub              =  ${nproma_sub} ! loop chunk length for radiation
  p_test_run              = .false.
  l_test_openmp           = .true.
  l_log_checks            = .true.
@@ -174,7 +175,7 @@ cat > ${atmo_namelist} << EOF
  num_io_procs_radar      = ${num_io_procs_radar}
  itype_comm              = 1
  iorder_sendrecv         = 3
- proc0_shift             = 1
+ proc0_shift             = ${proc0_shift}
  use_omp_input           = .true.
 /
 &grid_nml
@@ -309,7 +310,6 @@ cat > ${atmo_namelist} << EOF
   vwind_offctr    = 0.2
   damp_height     = 44000.
   rayleigh_coeff  = 1
-  lhdiff_rcf      = .true.
   divdamp_order   = 24 ! 2 ass, 24 fc
   divdamp_type    = 32  ! optional: 2 assimilation cycle, 32 forecast
   divdamp_fac     = 0.004   ! 0.004 for R2B6; recommendation for R3B7: 0.003

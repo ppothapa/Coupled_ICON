@@ -23,18 +23,15 @@
 #endif
 MODULE mo_nwp_rrtm_interface
 
-  USE mo_exception,            ONLY: finish
-  USE mo_atm_phy_nwp_config,   ONLY: atm_phy_nwp_config, iprog_aero, icpl_aero_conv
+  USE mo_atm_phy_nwp_config,   ONLY: atm_phy_nwp_config
   USE mo_nwp_tuning_config,    ONLY: tune_dust_abs
   USE mo_grid_config,          ONLY: l_limited_area, nexlevs_rrg_vnest
   USE mo_exception,            ONLY: message, message_text
   USE mo_ext_data_types,       ONLY: t_external_data
   USE mo_parallel_config,      ONLY: nproma, p_test_run
   USE mo_run_config,           ONLY: msg_level, iqv, iqc, iqi
-  USE mo_impl_constants,       ONLY: min_rlcell_int, &
-                                     iss, iorg, ibc, iso4, idu
+  USE mo_impl_constants,       ONLY: min_rlcell_int
   USE mo_impl_constants_grf,   ONLY: grf_bdywidth_c, grf_ovlparea_start_c, grf_fbk_start_c
-  USE mo_physical_constants,   ONLY: rd, grav, cpd
   USE mo_kind,                 ONLY: wp
   USE mo_loopindices,          ONLY: get_indices_c
   USE mo_nwp_lnd_types,        ONLY: t_lnd_prog
@@ -43,16 +40,12 @@ MODULE mo_nwp_rrtm_interface
   USE mo_nonhydro_types,       ONLY: t_nh_diag
   USE mo_nwp_phy_types,        ONLY: t_nwp_phy_diag
   USE mo_radiation,            ONLY: radiation_nwp
-  USE mo_radiation_config,     ONLY: irad_aero, iRadAeroTegen, iRadAeroART
-  USE mo_aerosol_util,         ONLY: tune_dust, aerdis
+  USE mo_aerosol_util,         ONLY: tune_dust
   USE mo_lrtm_par,             ONLY: nbndlw
   USE mo_sync,                 ONLY: global_max, global_min
+  USE mtime,                   ONLY: datetime
+  USE mo_fortran_tools,        ONLY: assert_acc_host_only
 
-  USE mo_timer,                ONLY: timer_start, timer_stop, timers_level, timer_preradiaton
-  USE mtime,                     ONLY: datetime, newDatetime, deallocateDatetime
-  USE mo_bcs_time_interpolation, ONLY: t_time_interpolation_weights,         &
-    &                                  calculate_time_interpolation_weights
-  USE mo_fortran_tools,          ONLY: set_acc_host_or_device, assert_acc_host_only
   IMPLICIT NONE
 
   PRIVATE
@@ -61,315 +54,11 @@ MODULE mo_nwp_rrtm_interface
   CHARACTER(LEN=*), PARAMETER :: modname = 'mo_nwp_rrtm_interface'
 
 
-  PUBLIC :: nwp_aerosol
   PUBLIC :: nwp_rrtm_radiation
   PUBLIC :: nwp_rrtm_radiation_reduced
 
 
-  REAL(wp), PARAMETER::  &
-    & zaeops = 0.05_wp,   &
-    & zaeopl = 0.2_wp,    &
-    & zaeopu = 0.1_wp,    &
-    & zaeopd = 1.9_wp,    &
-    & ztrpt  = 30.0_wp,   &
-    & ztrbga = 0.03_wp  / (101325.0_wp - 19330.0_wp), &
-    & zvobga = 0.007_wp /  19330.0_wp , &
-    & zstbga = 0.015_wp  / 19330.0_wp  ! original value of 0.045 is much higher than recently published climatologies
-
 CONTAINS
-
-
-  !---------------------------------------------------------------------------------------
-  !>
-  !! @par Revision History
-  !! Initial release by Thorsten Reinhardt, AGeoBw, Offenbach (2011-01-13)
-  !!
-  SUBROUTINE nwp_aerosol ( mtime_datetime, pt_patch, ext_data, &
-    & pt_diag,prm_diag,zaeq1,zaeq2,zaeq3,zaeq4,zaeq5,lacc )
-
-!    CHARACTER(len=*), PARAMETER::  &
-!      &  routine = 'mo_nwp_rad_interface:'
-
-    TYPE(datetime), POINTER, INTENT(in)    :: mtime_datetime
-    TYPE(t_patch), TARGET,   INTENT(in)    :: pt_patch     !<grid/patch info.
-    TYPE(t_external_data),   INTENT(inout) :: ext_data
-    TYPE(t_nh_diag), TARGET, INTENT(in)    :: pt_diag     !<the diagnostic variables
-    TYPE(t_nwp_phy_diag),    INTENT(inout) :: prm_diag
-
-    REAL(wp), INTENT(out) :: &
-      & zaeq1(nproma,pt_patch%nlev,pt_patch%nblks_c), &
-      & zaeq2(nproma,pt_patch%nlev,pt_patch%nblks_c), &
-      & zaeq3(nproma,pt_patch%nlev,pt_patch%nblks_c), &
-      & zaeq4(nproma,pt_patch%nlev,pt_patch%nblks_c), &
-      & zaeq5(nproma,pt_patch%nlev,pt_patch%nblks_c)
-
-    LOGICAL, INTENT(in), OPTIONAL :: lacc ! If true, use openacc
-
-    ! for aerosols:
-    REAL(wp):: &
-      & zsign(nproma,pt_patch%nlevp1), &
-      & zvdaes(nproma,pt_patch%nlevp1), &
-      & zvdael(nproma,pt_patch%nlevp1), &
-      & zvdaeu(nproma,pt_patch%nlevp1), &
-      & zvdaed(nproma,pt_patch%nlevp1), &
-      & zaeqdo   (nproma), zaeqdn,                 &
-      & zaequo   (nproma), zaequn,                 &
-      & zaeqlo   (nproma), zaeqln,                 &
-      & zaeqsuo  (nproma), zaeqsun,                &
-      & zaeqso   (nproma), zaeqsn, zw, &
-      & zptrop(nproma), zdtdz(nproma), zlatfac(nproma), zstrfac, zpblfac, zslatq
-
-    ! Local scalars:
-    INTEGER:: jc,jk,jb
-    INTEGER:: jg                !domain id
-    INTEGER:: nlev, nlevp1      !< number of full and half levels
-
-    INTEGER:: rl_start, rl_end
-    INTEGER:: i_startblk, i_endblk    !> blocks
-    INTEGER:: i_startidx, i_endidx    !< slices
-
-    INTEGER:: imo1,imo2 !for Tegen aerosol time interpolation
-
-    REAL(wp) :: wfac, ncn_bg
-    
-    TYPE(datetime), POINTER :: current_time_hours
-    TYPE(t_time_interpolation_weights) :: current_time_interpolation_weights
-    
-
-    LOGICAL :: lzacc ! non-optional version of lacc
-
-
-    jg        = pt_patch%id
-
-    ! number of vertical levels
-    nlev   = pt_patch%nlev
-    nlevp1 = pt_patch%nlevp1
-
-    IF (timers_level > 6) CALL timer_start(timer_preradiaton)
-
-    CALL set_acc_host_or_device(lzacc, lacc)
-
-    !$ACC DATA PRESENT(zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, pt_diag, prm_diag, ext_data) &
-    !$ACC   PRESENT(pt_patch) &
-    !$ACC   CREATE(zsign, zvdaes, zvdael, zvdaeu, zvdaed) &
-    !$ACC   CREATE(zaeqdo, zaequo, zaeqlo, zaeqsuo, zaeqso, zptrop) &
-    !$ACC   CREATE(zdtdz, zlatfac) IF(lzacc)
-
-    !-------------------------------------------------------------------------
-    !> Radiation setup
-    !-------------------------------------------------------------------------
-
-    IF ( irad_aero == iRadAeroTegen  .OR. irad_aero == iRadAeroART) THEN
-      current_time_hours => newDatetime(mtime_datetime)
-      current_time_hours%time%minute = 0
-      current_time_hours%time%second = 0
-      current_time_hours%time%ms = 0      
-      current_time_interpolation_weights = calculate_time_interpolation_weights(current_time_hours)
-      imo1 = current_time_interpolation_weights%month1
-      imo2 = current_time_interpolation_weights%month2
-      zw = current_time_interpolation_weights%weight2
-      CALL deallocateDatetime(current_time_hours)
-    ENDIF
-
-    rl_start = 1
-    rl_end   = min_rlcell_int
-
-    i_startblk = pt_patch%cells%start_block(rl_start)
-    i_endblk   = pt_patch%cells%end_block(rl_end)
-
-!$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jc,jk,i_endidx,zsign,zvdaes, zvdael, zvdaeu, zvdaed, &
-!$OMP            zaeqsn, zaeqln, zaeqsun, zaequn, zaeqdn, &
-!$OMP            zaeqso, zaeqlo, zaeqsuo, zaequo, zaeqdo, & 
-!$OMP            wfac,ncn_bg,zptrop,zdtdz,zlatfac,zstrfac,zpblfac,zslatq)  ICON_OMP_DEFAULT_SCHEDULE
-    DO jb = i_startblk, i_endblk
-
-      CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
-        &                        i_startidx, i_endidx, rl_start, rl_end)
-
-
-      IF ((irad_aero == iRadAeroTegen) .OR. (irad_aero == iRadAeroART)) THEN ! Tegen aerosol climatology
-
-        IF (iprog_aero == 0) THEN ! purely climatological aerosol
-!DIR$ IVDEP
-          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-          !$ACC LOOP GANG VECTOR
-          DO jc = 1,i_endidx
-            prm_diag%aerosol(jc,iss,jb) = ext_data%atm_td%aer_ss(jc,jb,imo1) + &
-              & ( ext_data%atm_td%aer_ss(jc,jb,imo2)   - ext_data%atm_td%aer_ss(jc,jb,imo1)   ) * zw
-            prm_diag%aerosol(jc,iorg,jb) = ext_data%atm_td%aer_org(jc,jb,imo1) + &
-              & ( ext_data%atm_td%aer_org(jc,jb,imo2)  - ext_data%atm_td%aer_org(jc,jb,imo1)  ) * zw
-            prm_diag%aerosol(jc,ibc,jb) = ext_data%atm_td%aer_bc(jc,jb,imo1) + &
-              & ( ext_data%atm_td%aer_bc(jc,jb,imo2)   - ext_data%atm_td%aer_bc(jc,jb,imo1)   ) * zw
-            prm_diag%aerosol(jc,iso4,jb) = ext_data%atm_td%aer_so4(jc,jb,imo1) + &
-              & ( ext_data%atm_td%aer_so4(jc,jb,imo2)  - ext_data%atm_td%aer_so4(jc,jb,imo1)  ) * zw
-            prm_diag%aerosol(jc,idu,jb) = ext_data%atm_td%aer_dust(jc,jb,imo1) + &
-              & ( ext_data%atm_td%aer_dust(jc,jb,imo2) - ext_data%atm_td%aer_dust(jc,jb,imo1) ) * zw
-          ENDDO
-          !$ACC END PARALLEL
-        ELSE IF (iprog_aero == 1) THEN ! simple prognostic scheme for dust, climatology for other aerosol types
-!DIR$ IVDEP
-          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-          !$ACC LOOP GANG VECTOR
-          DO jc = 1,i_endidx
-            prm_diag%aerosol(jc,iss,jb) = ext_data%atm_td%aer_ss(jc,jb,imo1) + &
-              & ( ext_data%atm_td%aer_ss(jc,jb,imo2)   - ext_data%atm_td%aer_ss(jc,jb,imo1)   ) * zw
-            prm_diag%aerosol(jc,iorg,jb) = ext_data%atm_td%aer_org(jc,jb,imo1) + &
-              & ( ext_data%atm_td%aer_org(jc,jb,imo2)  - ext_data%atm_td%aer_org(jc,jb,imo1)  ) * zw
-            prm_diag%aerosol(jc,ibc,jb) = ext_data%atm_td%aer_bc(jc,jb,imo1) + &
-              & ( ext_data%atm_td%aer_bc(jc,jb,imo2)   - ext_data%atm_td%aer_bc(jc,jb,imo1)   ) * zw
-            prm_diag%aerosol(jc,iso4,jb) = ext_data%atm_td%aer_so4(jc,jb,imo1) + &
-              & ( ext_data%atm_td%aer_so4(jc,jb,imo2)  - ext_data%atm_td%aer_so4(jc,jb,imo1)  ) * zw
-            ! fill extra field for climatology field for dust
-            prm_diag%aercl_du(jc,jb) = ext_data%atm_td%aer_dust(jc,jb,imo1) + &
-              & ( ext_data%atm_td%aer_dust(jc,jb,imo2) - ext_data%atm_td%aer_dust(jc,jb,imo1) ) * zw
-          ENDDO
-          !$ACC END PARALLEL
-        ELSE ! simple prognostic scheme for all aerosol types; fill extra variables for climatology needed for relaxation equation
-!DIR$ IVDEP
-          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-          !$ACC LOOP GANG VECTOR
-          DO jc = 1,i_endidx
-            prm_diag%aercl_ss(jc,jb) = ext_data%atm_td%aer_ss(jc,jb,imo1) + &
-              & ( ext_data%atm_td%aer_ss(jc,jb,imo2)   - ext_data%atm_td%aer_ss(jc,jb,imo1)   ) * zw
-            prm_diag%aercl_or(jc,jb) = ext_data%atm_td%aer_org(jc,jb,imo1) + &
-              & ( ext_data%atm_td%aer_org(jc,jb,imo2)  - ext_data%atm_td%aer_org(jc,jb,imo1)  ) * zw
-            prm_diag%aercl_bc(jc,jb) = ext_data%atm_td%aer_bc(jc,jb,imo1) + &
-              & ( ext_data%atm_td%aer_bc(jc,jb,imo2)   - ext_data%atm_td%aer_bc(jc,jb,imo1)   ) * zw
-            prm_diag%aercl_su(jc,jb) = ext_data%atm_td%aer_so4(jc,jb,imo1) + &
-              & ( ext_data%atm_td%aer_so4(jc,jb,imo2)  - ext_data%atm_td%aer_so4(jc,jb,imo1)  ) * zw
-            prm_diag%aercl_du(jc,jb) = ext_data%atm_td%aer_dust(jc,jb,imo1) + &
-              & ( ext_data%atm_td%aer_dust(jc,jb,imo2) - ext_data%atm_td%aer_dust(jc,jb,imo1) ) * zw
-          ENDDO
-          !$ACC END PARALLEL
-        ENDIF
-
-        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-        !$ACC LOOP GANG VECTOR COLLAPSE(2)
-        DO jk = 2, nlevp1
-          DO jc = 1,i_endidx
-            zsign(jc,jk) = pt_diag%pres_ifc(jc,jk,jb) / &
-              MAX(prm_diag%pref_aerdis(jc,jb),0.95_wp*pt_diag%pres_ifc(jc,nlevp1,jb))
-          ENDDO
-        ENDDO
-        !$ACC END PARALLEL
-
-        ! The routine aerdis is called to receive some parameters for the vertical
-        ! distribution of background aerosol.
-        CALL aerdis ( &
-          & kbdim  = nproma,      & !in
-          & jcs    = 1,           & !in
-          & jce    = i_endidx,    & !in
-          & klevp1 = nlevp1,      & !in
-          & petah  = zsign(1,1),  & !in
-          & pvdaes = zvdaes(1,1), & !out
-          & pvdael = zvdael(1,1), & !out
-          & pvdaeu = zvdaeu(1,1), & !out
-          & pvdaed = zvdaed(1,1), & !out
-          & lacc = lzacc)
-
-        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-        !$ACC LOOP GANG VECTOR PRIVATE(jk, zslatq)
-        DO jc = 1,i_endidx
-          ! top level
-          zaeqso(jc) = zvdaes(jc,1) * prm_diag%aerosol(jc,iss,jb)
-          zaeqlo(jc) = zvdael(jc,1) * prm_diag%aerosol(jc,iorg,jb)
-          zaeqsuo(jc) = zvdael(jc,1)* prm_diag%aerosol(jc,iso4,jb)
-          zaequo(jc) = zvdaeu(jc,1) * prm_diag%aerosol(jc,ibc,jb) 
-          zaeqdo(jc) = zvdaed(jc,1) * prm_diag%aerosol(jc,idu,jb)
-
-          ! tropopause pressure and PBL stability
-          jk          = prm_diag%k850(jc,jb)
-          zslatq      = SIN(pt_patch%cells%center(jc,jb)%lat)**2
-          zptrop(jc)  = 1.e4_wp + 2.e4_wp*zslatq ! 100 hPa at the equator, 300 hPa at the poles
-          zdtdz(jc)   = (pt_diag%temp(jc,jk,jb)-pt_diag%temp(jc,nlev-1,jb))/(-rd/grav*                              &
-           (pt_diag%temp(jc,jk,jb)+pt_diag%temp(jc,nlev-1,jb))*(pt_diag%pres(jc,jk,jb)-pt_diag%pres(jc,nlev-1,jb))/ &
-           (pt_diag%pres(jc,jk,jb)+pt_diag%pres(jc,nlev-1,jb)))
-          ! latitude-dependence of tropospheric background
-          zlatfac(jc) = MAX(0.1_wp, 1._wp-MERGE(zslatq**3, zslatq, pt_patch%cells%center(jc,jb)%lat > 0._wp))
-        ENDDO
-        !$ACC END PARALLEL
-
-        ! loop over layers
-        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-        !$ACC LOOP SEQ
-        DO jk = 1,nlev
-          !$ACC LOOP GANG VECTOR PRIVATE(zaeqsn, zaeqln, zaeqsun, zaequn, zaeqdn, zstrfac, zpblfac)
-          DO jc = 1,i_endidx
-            zaeqsn  = zvdaes(jc,jk+1) * prm_diag%aerosol(jc,iss,jb)
-            zaeqln  = zvdael(jc,jk+1) * prm_diag%aerosol(jc,iorg,jb)
-            zaeqsun = zvdael(jc,jk+1) * prm_diag%aerosol(jc,iso4,jb)
-            zaequn  = zvdaeu(jc,jk+1) * prm_diag%aerosol(jc,ibc,jb)
-            zaeqdn  = zvdaed(jc,jk+1) * prm_diag%aerosol(jc,idu,jb)
-
-            ! stratosphere factor: 1 in stratosphere, 0 in troposphere, width of transition zone 0.1*p_TP
-            zstrfac = MIN(1._wp,MAX(0._wp,10._wp*(zptrop(jc)-pt_diag%pres(jc,jk,jb))/zptrop(jc)))
-            ! PBL stability factor; enhance organic, sulfate and black carbon aerosol for stable stratification
-            zpblfac = 1._wp + MIN(1.5_wp,1.e2_wp*MAX(0._wp, zdtdz(jc) + grav/cpd))
-
-            zaeq1(jc,jk,jb) = (1._wp-zstrfac)*MAX(zpblfac*(zaeqln-zaeqlo(jc)), &
-                              ztrbga*zlatfac(jc)*pt_diag%dpres_mc(jc,jk,jb))
-            zaeq2(jc,jk,jb) = (1._wp-zstrfac)*(zaeqsn-zaeqso(jc))
-            zaeq3(jc,jk,jb) = (1._wp-zstrfac)*(zaeqdn-zaeqdo(jc))
-            zaeq4(jc,jk,jb) = (1._wp-zstrfac)*zpblfac*(zaequn-zaequo(jc))
-            zaeq5(jc,jk,jb) = (1._wp-zstrfac)*zpblfac*(zaeqsun-zaeqsuo(jc)) + zstrfac*zstbga*pt_diag%dpres_mc(jc,jk,jb)
-
-            zaeqso(jc)  = zaeqsn
-            zaeqlo(jc)  = zaeqln
-            zaeqsuo(jc) = zaeqsun
-            zaequo(jc)  = zaequn
-            zaeqdo(jc)  = zaeqdn
-
-          ENDDO
-        ENDDO
-        !$ACC END PARALLEL
-
-      ELSE !no aerosols
-
-        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-        !$ACC LOOP GANG VECTOR COLLAPSE(2)
-        DO jk = 1,nlev
-          DO jc = 1,i_endidx
-            zaeq1(jc,jk,jb) = 0.0_wp
-            zaeq2(jc,jk,jb) = 0.0_wp
-            zaeq3(jc,jk,jb) = 0.0_wp
-            zaeq4(jc,jk,jb) = 0.0_wp
-            zaeq5(jc,jk,jb) = 0.0_wp
-          END DO
-        END DO
-        !$ACC END PARALLEL
-
-      ENDIF ! irad_aero
-
-      ! Compute cloud number concentration depending on aerosol climatology if 
-      ! aerosol-microphysics or aerosol-convection coupling is turned on
-      IF (atm_phy_nwp_config(jg)%icpl_aero_gscp == 1 .OR. icpl_aero_conv == 1) THEN
-
-        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-        !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(wfac, ncn_bg)
-        DO jk = 1,nlev
-!DIR$ IVDEP
-          DO jc = 1, i_endidx
-            wfac = MAX(1._wp,MIN(8._wp,0.8_wp*pt_diag%pres_sfc(jc,jb)/pt_diag%pres(jc,jk,jb)))**2
-            ncn_bg = MIN(prm_diag%cloud_num(jc,jb),50.e6_wp)
-            prm_diag%acdnc(jc,jk,jb) = (ncn_bg+(prm_diag%cloud_num(jc,jb)-ncn_bg)*(EXP(1._wp-wfac)))
-          END DO
-        END DO
-        !$ACC END PARALLEL
-
-      ENDIF
-
-    ENDDO !jb
-!$OMP END DO NOWAIT
-!$OMP END PARALLEL
-
-    !$ACC WAIT
-    !$ACC END DATA
-
-    IF (timers_level > 6) CALL timer_stop(timer_preradiaton)
-
-  END SUBROUTINE nwp_aerosol
-  !---------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------
   !>
@@ -402,6 +91,7 @@ CONTAINS
 
     REAL(wp):: aclcov(nproma,pt_patch%nblks_c), dust_tunefac(nproma,nbndlw)
 
+    REAL(wp), DIMENSION(:,:), POINTER :: ptr_clc => NULL ()
     REAL(wp), DIMENSION(:,:), POINTER :: ptr_acdnc => NULL (),    &
             & ptr_reff_qc => NULL(), ptr_reff_qi => NULL()
     REAL(wp), DIMENSION(:),    POINTER :: &
@@ -472,7 +162,7 @@ CONTAINS
     END IF
 
 !$OMP PARALLEL PRIVATE(jb,i_startidx,i_endidx,dust_tunefac,                   &
-!$OMP                   ptr_acdnc,ptr_fr_land,ptr_fr_glac,ptr_reff_qc,ptr_reff_qi) 
+!$OMP                  ptr_clc,ptr_acdnc,ptr_fr_land,ptr_fr_glac,ptr_reff_qc,ptr_reff_qi) 
 !$OMP DO ICON_OMP_GUIDED_SCHEDULE
     DO jb = i_startblk, i_endblk
 
@@ -490,8 +180,14 @@ CONTAINS
         dust_tunefac(:,:) = 1._wp
       ENDIF
 
-      NULLIFY(ptr_acdnc,ptr_fr_land,ptr_fr_glac,ptr_reff_qc,ptr_reff_qi)
+      NULLIFY(ptr_clc,ptr_acdnc,ptr_fr_land,ptr_fr_glac,ptr_reff_qc,ptr_reff_qi)
 
+      IF (atm_phy_nwp_config(jg)%luse_clc_rad) THEN  ! clc_rad has to be used instead of clc
+        ptr_clc => prm_diag%clc_rad(:,:,jb)
+      ELSE
+        ptr_clc => prm_diag%clc(:,:,jb)
+      END IF
+      
       IF (atm_phy_nwp_config(jg)%icpl_rad_reff == 0) THEN ! Internal parameterization of reff
         ptr_acdnc  =>  prm_diag%acdnc(:,:,jb)
         ptr_fr_land=>  ext_data%atm%fr_land(:,jb)  !< in     land fraction
@@ -542,7 +238,7 @@ CONTAINS
         & cdnc       =ptr_acdnc                      ,&!< in  cloud droplet numb conc. [1/m**3]
         & reff_liq   =ptr_reff_qc                    ,&!< in effective radius liquid phase 
         & reff_frz   =ptr_reff_qi                    ,&!< in effective radius frozen phase 
-        & cld_frc    =prm_diag%clc      (:,:,jb)     ,&!< in  cloud fraction [m2/m2]
+        & cld_frc    =ptr_clc                        ,&!< in  cloud fraction [m2/m2]
         & zaeq1      = zaeq1(:,:,jb)                 ,&!< in aerosol continental
         & zaeq2      = zaeq2(:,:,jb)                 ,&!< in aerosol maritime
         & zaeq3      = zaeq3(:,:,jb)                 ,&!< in aerosol urban
@@ -677,7 +373,7 @@ CONTAINS
     REAL(wp), ALLOCATABLE, TARGET:: zrg_swflx_up_clr(:,:,:)    !< shortwave 3D upward   flux clear-sky
     REAL(wp), ALLOCATABLE, TARGET:: zrg_swflx_dn_clr(:,:,:)    !< shortwave 3D downward flux clear-sky
 
-    ! Pointer to parent patach or local parent patch for reduced grid
+    ! Pointer to parent patch or local parent patch for reduced grid
     TYPE(t_patch), POINTER       :: ptr_pp
 
     REAL(wp), DIMENSION(:,:), POINTER :: ptr_reff_qc => NULL(), ptr_reff_qi => NULL()
@@ -685,6 +381,9 @@ CONTAINS
     TYPE(t_upscale_fields)   :: input_extra_flds, input_extra_2D   !< pointer array for input in upscale routine
 
     INTEGER   ::   irg_acdnc, irg_fr_land, irg_fr_glac      ! indices of extra fields
+
+    ! Pointer to the acutally used variant of clc:
+    REAL(wp), DIMENSION(:,:,:), POINTER ::  ptr_clc => NULL()
 
     ! Pointers to extra fields
     REAL(wp), DIMENSION(:,:), POINTER ::  ptr_acdnc => NULL()
@@ -749,6 +448,13 @@ CONTAINS
     ! Flag for using microph. effective radius
     l_coupled_reff = atm_phy_nwp_config(jg)%icpl_rad_reff > 0
 
+
+    ! Decide which field for cloud cover has to be used:
+    IF (atm_phy_nwp_config(jg)%luse_clc_rad) THEN
+      ptr_clc => prm_diag%clc_rad
+    ELSE
+      ptr_clc => prm_diag%clc
+    END IF
 
     !-------------------------------------------------------------------------
     !> Radiation
@@ -919,7 +625,7 @@ CONTAINS
         & prm_diag%albnirdif, prm_diag%albdif, prm_diag%tsfctrad,       &
         & prm_diag%ktype, pt_diag%pres_ifc, pt_diag%pres,               &
         & pt_diag%temp,                                                 &
-        & prm_diag%tot_cld, prm_diag%clc,                               &
+        & prm_diag%tot_cld, ptr_clc,                                    &
         & ext_data%atm%o3, zaeq1, zaeq2, zaeq3, zaeq4, zaeq5,           &
         & zrg_emis_rad,                                                 &
         & zrg_cosmu0, zrg_albvisdir, zrg_albnirdir, zrg_albvisdif,      &
