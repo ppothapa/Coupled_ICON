@@ -36,7 +36,7 @@ MODULE mo_nwp_ecrad_utilities
                                    &   irad_h2o, irad_o3, irad_co2,              &
                                    &   irad_n2o, irad_ch4,                       &
                                    &   irad_o2, irad_cfc11, irad_cfc12,          &
-                                   &   vpp_ch4, vpp_n2o
+                                   &   vpp_ch4, vpp_n2o, decorr_pole, decorr_equator
   USE mo_nwp_tuning_config,      ONLY: tune_difrad_3dcont
   USE mtime,                     ONLY: datetime
   USE mo_bc_greenhouse_gases,    ONLY: ghg_co2mmr, ghg_ch4mmr, ghg_n2ommr, ghg_cfcmmr
@@ -263,13 +263,15 @@ CONTAINS
   !!
   SUBROUTINE ecrad_set_clouds(ecrad_cloud, ecrad_thermodynamics, qc, qi, clc, temp, pres, acdnc,                  &
     &                         fr_glac, fr_land, qr,qs,qg,reff_liq, reff_frz, reff_rain, reff_snow, reff_graupel,  &
-    &                         icpl_reff, fact_reffc, clc_min, use_general_cloud_optics,                           &
+    &                         icpl_reff, fact_reffc, clc_min, use_general_cloud_optics, cell_center,              &
     &                         nlev, i_startidx, i_endidx, lacc)
 
     TYPE(t_ecrad_cloud_type), INTENT(inout) :: &
       &  ecrad_cloud              !< ecRad cloud information
     TYPE(t_ecrad_thermodynamics_type), INTENT(inout) :: &
       &  ecrad_thermodynamics     !< ecRad thermodynamics information
+    TYPE(t_geographical_coordinates), INTENT(in), TARGET :: &
+      &  cell_center(:)           !< lon/lat information of cell centers 
     REAL(wp), TARGET, INTENT(in) :: &
       &  qc(:,:),               & !< Total cloud water (gridscale + subgridscale)
       &  qi(:,:)                  !< Total cloud ice   (gridscale + subgridscale)
@@ -305,6 +307,8 @@ CONTAINS
     REAL(wp)                 :: &
       &  lwc, iwc,              & !< Cloud liquid and ice water content
       &  liwcfac,               & !< Factor to calculate cloud liquid and ice water content
+      &  zcos_lat,              & !< latitude factor cos(lat)
+      &  zdecorr(i_startidx:i_endidx), &!< decorrelation length scale
       &  reff_min, reff_max       !< Limits for reff needed by ecrad (hardcoded)
     REAL (wp), PARAMETER     :: &
       &  qcrit_rad = 5E-5_wp      !< Limit for when to consider large hydrometeors for radiation
@@ -316,12 +320,46 @@ CONTAINS
     LOGICAL                  :: &
       &  l_large_hyd              !< large hydrometeors change cloud fraction / small have max/min limits 
 
+    TYPE(t_geographical_coordinates), TARGET, ALLOCATABLE :: scm_center(:)
+    TYPE(t_geographical_coordinates), POINTER             :: ptr_center(:)
+
     NULLIFY(ptr_qx,ptr_reff_x)
+
+    ! SCM: read lat for latitude-dependent decorrelation length scale, in radians
+    IF ( l_scm_mode ) THEN
+      ALLOCATE(scm_center(SIZE(cell_center)))
+      DO jc = i_startidx, i_endidx
+        scm_center(jc)%lat = lat_scm * pi/180.
+        scm_center(jc)%lon = lon_scm * pi/180.
+      ENDDO
+      ptr_center => scm_center
+    ELSE
+      ptr_center => cell_center
+    ENDIF
+
+    ! Calculate latitude-dependent decorrelation length scale based on
+    ! Shonk et al. 2010, but using COS function to be smoother over equator
+    ! as is implemented in IFS
+    !$ACC DATA CREATE(zdecorr, ptr_center)
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+    !$ACC LOOP GANG VECTOR
+    DO jc = i_startidx, i_endidx
+      ! Shonk et al. (2010) but smoothed over the equator
+      zcos_lat     = COS(ptr_center(jc)%lat)
+      zdecorr(jc)  = decorr_pole + (decorr_equator-decorr_pole) * zcos_lat*zcos_lat
+    ENDDO 
+    !$ACC END PARALLEL
 
     CALL assert_acc_device_only("ecrad_set_clouds", lacc)
 
-    ! Currently hardcoded values decorrelation length need adaption
-    CALL ecrad_cloud%set_overlap_param(ecrad_thermodynamics, 2000._wp, istartcol=i_startidx, iendcol=i_endidx)
+    IF (decorr_pole .eq. decorr_equator) THEN
+      ! Use globally constant decorrelation length-scale value - does run on GPU
+      CALL ecrad_cloud%set_overlap_param(ecrad_thermodynamics, decorr_pole, istartcol=i_startidx, iendcol=i_endidx)
+    ELSE
+      ! Use latitude-dependent array of decorrelation length-scale values - does not run on GPU
+      CALL ecrad_cloud%set_overlap_param(ecrad_thermodynamics, zdecorr, istartcol=i_startidx, iendcol=i_endidx)
+    ENDIF
+        
 
     !$ACC DATA PRESENT(ecrad_cloud, qc, qi, clc, temp, pres, acdnc, fr_land, fr_glac, reff_frz, reff_liq)
     !$ACC DATA PRESENT(ecrad_cloud%q_liq, ecrad_cloud%q_ice, ecrad_cloud%re_liq, ecrad_cloud%re_ice)
@@ -480,6 +518,7 @@ CONTAINS
       ENDIF
     END IF
     !$ACC WAIT
+    !$ACC END DATA
     !$ACC END DATA
     !$ACC END DATA
   END SUBROUTINE ecrad_set_clouds

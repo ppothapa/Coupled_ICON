@@ -119,6 +119,13 @@ MODULE mo_radiation_config
     INTEGER  :: izenith           ! circular orbit, no seasonal cycle but with diurnal cycle 
     REAL(wp) :: cos_zenith_fixed  ! fixed cosine of zenith angle for izenith=6
     !
+    ! --- Set minimum (pole) and maximum (equator) overlap
+    !     decorrelation length scale in m for latitude-dependen function.
+    REAL(wp) :: decorr_pole
+    REAL(wp) :: decorr_equator
+    !$ACC DECLARE CREATE(decorr_pole, decorr_equator)
+
+    !
     ! ecRad specific configuration
     LOGICAL  :: ecrad_llw_cloud_scat    !< Do long wave cloud scattering?
 

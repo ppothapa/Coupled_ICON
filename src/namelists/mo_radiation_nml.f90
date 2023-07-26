@@ -51,6 +51,8 @@ MODULE mo_radiation_nml
                                  & config_vmr_cfc12  => vmr_cfc12,                      &
                                  & config_izenith    => izenith,                        &
                                  & config_cos_zenith_fixed => cos_zenith_fixed,         &
+                                 & config_decorr_pole => decorr_pole,                   &
+                                 & config_decorr_equator => decorr_equator,             &
                                  & config_mmr_co2    => mmr_co2,                        &
                                  & config_mmr_ch4    => mmr_ch4,                        &
                                  & config_mmr_n2o    => mmr_n2o,                        &
@@ -173,6 +175,11 @@ MODULE mo_radiation_nml
   INTEGER  :: izenith
   REAL(wp) :: cos_zenith_fixed
   !
+  ! --- Set minimum (pole) and maximum (equator) overlap
+  !     decorrelation length scale in m for latitude-dependen function.
+  REAL(wp) :: decorr_pole
+  REAL(wp) :: decorr_equator
+  !
   ! ecRad specific configuration
   LOGICAL  :: ecrad_llw_cloud_scat
   INTEGER  :: ecrad_iliquid_scat
@@ -205,6 +212,8 @@ MODULE mo_radiation_nml
     &                      ghg_filename,          &
     &                      izenith, icld_overlap, &
     &                      cos_zenith_fixed,      &
+    &                      decorr_pole,           &
+    &                      decorr_equator,        &
     &                      islope_rad,            &
     &                      ecrad_llw_cloud_scat,  &
     &                      ecrad_iliquid_scat,    &
@@ -278,6 +287,9 @@ CONTAINS
 
     izenith          = 4       ! Default: seasonal orbit and diurnal cycle
     cos_zenith_fixed = 0.5_wp  ! fixed cosine of zenith angle for izenith=6
+
+    decorr_pole    = 2000._wp  ! Default: globally uniform decorrelation length scale
+    decorr_equator = 2000._wp  ! of 2km. 
 
     ecrad_llw_cloud_scat = .FALSE.
     ecrad_iliquid_scat   = 0
@@ -360,6 +372,9 @@ CONTAINS
     config_izenith    = izenith
     config_cos_zenith_fixed = cos_zenith_fixed
 
+    config_decorr_pole    = decorr_pole
+    config_decorr_equator = decorr_equator
+
     config_ecrad_llw_cloud_scat = ecrad_llw_cloud_scat
     config_ecrad_iliquid_scat   = ecrad_iliquid_scat
     config_ecrad_iice_scat      = ecrad_iice_scat
@@ -377,6 +392,8 @@ CONTAINS
       csalb => csalb1
     ENDIF
     __acc_attach(csalb)
+
+    !$ACC UPDATE DEVICE(config_decorr_pole, config_decorr_equator)
 
     !-----------------------------------------------------
     ! 5. Store the namelist for restart

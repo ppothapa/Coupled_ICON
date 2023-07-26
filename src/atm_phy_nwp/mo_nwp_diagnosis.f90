@@ -84,6 +84,7 @@ MODULE mo_nwp_diagnosis
   USE mo_upatmo_impl_const,  ONLY: idamtr
   USE mo_mpi,                ONLY: p_io, p_comm_work, p_bcast
   USE mo_fortran_tools,      ONLY: assert_acc_host_only, set_acc_host_or_device, assert_acc_device_only
+  USE mo_radiation_config,   ONLY: decorr_pole, decorr_equator
 
   IMPLICIT NONE
 
@@ -740,15 +741,16 @@ CONTAINS
     INTEGER :: jt               ! tracer loop index
 
     REAL(wp):: clearsky(nproma)
-    REAL(wp):: ccmax, ccran, alpha(nproma,pt_patch%nlev), clcl_mod, clcm_mod, clct_fac
+    REAL(wp):: ccmax, ccran, alpha(nproma,pt_patch%nlev), clcl_mod, clcm_mod, clct_fac, zlat,zcos_lat
     LOGICAL :: lland
     LOGICAL :: lzacc ! non-optional version of lacc
 
     REAL(wp), PARAMETER :: eps_clc = 1.e-7_wp
 
     INTEGER,  PARAMETER :: i_overlap = 2       ! 1: maximum-random overlap
-                                               ! 2: generalized overlap (Hogan, Illingworth, 2000) 
-    REAL(wp) :: zdecorr(pt_patch%nlev)         ! decorrelation length scale del(z0) 
+                                               ! 2: generalized overlap (Hogan, Illingworth, 2000)
+    REAL(wp) :: zprof(pt_patch%nlev)           ! decorrelation length scale profile del(z0)
+    REAL(wp) :: zdecorr(nproma)                ! decorrelation length scale, lat-dependent 
 
   !-----------------------------------------------------------------
 
@@ -767,27 +769,29 @@ CONTAINS
     i_endblk   = pt_patch%cells%end_block(rl_end)
 
     ! set height-dependent decorrelation length scale
-    !$ACC DATA CREATE(zdecorr, rhodz) IF(lzacc)
+    !$ACC DATA CREATE(zprof, rhodz, zdecorr) IF(lzacc)
     !$ACC KERNELS IF(lzacc)
-    zdecorr(:) = 2000._wp
+    zprof(:) = 1._wp
     !$ACC END KERNELS
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
-    !$ACC LOOP PRIVATE(jk1, z_help)
-    DO jk = nlev, 1, -1
-      jk1 = jk + pt_patch%nshift_total
-      z_help = 0.5_wp*(vct_a(jk1)+vct_a(jk1+1))
-      IF (z_help < 3000._wp) THEN
-        zdecorr(jk) = 800._wp + 0.4_wp*z_help
-      ELSE
-        EXIT
-      ENDIF
-    ENDDO
-    !$ACC END PARALLEL
+    IF (lcalib_clcov) THEN
+      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC LOOP PRIVATE(jk1, z_help)
+      DO jk = nlev, 1, -1
+        jk1 = jk + pt_patch%nshift_total
+        z_help = 0.5_wp*(vct_a(jk1)+vct_a(jk1+1))
+        IF (z_help < 3000._wp) THEN
+          zprof(jk) = (800._wp + 0.4_wp*z_help)*0.0005_wp
+        ELSE
+          EXIT
+        ENDIF
+      ENDDO
+      !$ACC END PARALLEL
+    ENDIF
 
 !$OMP PARALLEL
     IF ( atm_phy_nwp_config(jg)%lenabled(itccov) ) THEN
 
-!$OMP DO PRIVATE(jc,jk,jb,z_help,i_startidx,i_endidx,clearsky,ccmax,ccran,alpha,clcl_mod,clcm_mod,clct_fac,lland)
+!$OMP DO PRIVATE(jc,jk,jb,z_help,i_startidx,i_endidx,clearsky,ccmax,ccran,alpha,clcl_mod,clcm_mod,clct_fac,lland,zdecorr,zlat,zcos_lat)
       DO jb = i_startblk, i_endblk
         !
         CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
@@ -934,11 +938,18 @@ CONTAINS
           !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
+
+            ! Calculate latitude-dependent decorrelation length scale based on
+            ! Shonk et al. 2010, but using COS function to be smoother over equator
+            ! as is implemented in IFS
+            ! Shonk et al. (2010) but smoothed over the equator
+            zcos_lat       = COS(pt_patch%cells%center(jc,jb)%lat)
+            zdecorr(jc)    = decorr_pole + (decorr_equator-decorr_pole) * zcos_lat*zcos_lat
             prm_diag%clct(jc,jb) = prm_diag%clc(jc,kstart_moist,jb)
             prm_diag%clch(jc,jb) = prm_diag%clc(jc,kstart_moist,jb)
             prm_diag%clcm(jc,jb) = 0.0_wp 
             prm_diag%clcl(jc,jb) = 0.0_wp 
-          ENDDO
+         ENDDO
 
 !PREVENT_INCONSISTENT_IFORT_FMA
           !$ACC LOOP SEQ
@@ -949,7 +960,7 @@ CONTAINS
               ccmax = MAX( prm_diag%clc(jc,jk,jb),  prm_diag%clct(jc,jb) )
               ccran =      prm_diag%clc(jc,jk,jb) + prm_diag%clct(jc,jb) - &
                        & ( prm_diag%clc(jc,jk,jb) * prm_diag%clct(jc,jb) )
-              alpha(jc,jk) = MIN( EXP( - (p_metrics%z_mc(jc,jk-1,jb)-p_metrics%z_mc(jc,jk,jb)) / zdecorr(jk) ), &
+              alpha(jc,jk) = MIN( EXP( - (p_metrics%z_mc(jc,jk-1,jb)-p_metrics%z_mc(jc,jk,jb)) / (zdecorr(jc)*zprof(jk)) ), &
                              prm_diag%clc(jc,jk-1,jb)/MAX(eps_clc,prm_diag%clc(jc,jk,jb)) )
               prm_diag%clct(jc,jb) = alpha(jc,jk) * ccmax + (1._wp-alpha(jc,jk)) * ccran
             ENDDO

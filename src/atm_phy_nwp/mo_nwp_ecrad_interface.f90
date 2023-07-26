@@ -362,6 +362,7 @@ CONTAINS
           &                   atm_phy_nwp_config(jg)%icpl_rad_reff,                                                &
           &                   fact_reffc, ecrad_conf%cloud_fraction_threshold,                                     &
           &                   ecrad_conf%use_general_cloud_optics,                                                 & 
+          &                   pt_patch%cells%center(jcs:jce,jb),                                                   &
           &                   nlev, i_startidx_rad, i_endidx_rad, &
           &                   lacc=.TRUE.)
         ! $ACC WAIT
@@ -1106,6 +1107,7 @@ CONTAINS
           &                   atm_phy_nwp_config(jg)%icpl_rad_reff,                             &
           &                   fact_reffc, ecrad_conf%cloud_fraction_threshold,                  &
           &                   ecrad_conf%use_general_cloud_optics,                              &
+          &                   ptr_pp%cells%center(jcs:jce,jb),                                  &
           &                   nlev_rg, i_startidx_rad, i_endidx_rad, lacc=.TRUE.)
 
 !Set inverse cloud effective size for SPARTACUS
