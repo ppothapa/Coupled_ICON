@@ -88,8 +88,10 @@ ln -sf ${INDATADIR}/CI_${NEXT_YYYY}_${NEXT_MM}_iconR2B04_DOM01.nc CI_${NEXT_YYYY
 # link aerosols
 ln -sf ${INDATADIR}/R2B4_aeropt_kinne_sw_b14_coa.nc bc_aeropt_kinne_sw_b14_coa.nc
 ln -sf ${INDATADIR}/R2B4_aeropt_kinne_lw_b16_coa.nc bc_aeropt_kinne_lw_b16_coa.nc
-ln -sf ${INDATADIR}/R2B4_aeropt_kinne_sw_b14_fin_${YYYY}.nc bc_aeropt_kinne_sw_b14_fin_${YYYY}.nc
-ln -sf ${INDATADIR}/R2B4_aeropt_kinne_sw_b14_fin_${NEXT_YYYY}.nc bc_aeropt_kinne_sw_b14_fin_${NEXT_YYYY}.nc
+
+# The data from 1850 should be linked here, not 1979. But 1979 is used just for test:
+ln -sf ${INDATADIR}/R2B4_aeropt_kinne_sw_b14_fin_1979.nc bc_aeropt_kinne_sw_b14_fin.nc
+
 ln -sf ${INDATADIR}/bc_aeropt_cmip6_volc_lw_b16_sw_b14_${YYYY}.nc bc_aeropt_cmip6_volc_lw_b16_sw_b14_${YYYY}.nc
 ln -sf ${INDATADIR}/bc_aeropt_cmip6_volc_lw_b16_sw_b14_${NEXT_YYYY}.nc bc_aeropt_cmip6_volc_lw_b16_sw_b14_${NEXT_YYYY}.nc
 ln -sf ${ICONDIR}/data/MACv2.0-SP_v1.nc .

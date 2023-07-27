@@ -226,6 +226,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   LOGICAL :: ltkeinp_loc, lgz0inp_loc  !< turbtran switches
   LOGICAL :: linit_mode, lturb_init, lreset_mode
   LOGICAL :: lupatmo_phy
+  LOGICAL :: l_filename_year
 
   INTEGER :: jb,ic,jc,jt,jg,ist,nzprv
   INTEGER :: nlev, nlevp1, nlevcm    !< number of full, half and canopy levels
@@ -1050,12 +1051,15 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
         ENDIF ! .NOT.lreset_mode .AND. jg==1
         !
         ! Domain-specific aerosol setups
-        IF (irad_aero == iRadAeroConstKinne) THEN
-          CALL read_bc_aeropt_kinne(ini_date, p_patch, .FALSE., ecrad_conf%n_bands_lw, ecrad_conf%n_bands_sw)
+        IF (ANY( irad_aero == (/iRadAeroConstKinne, iRadAeroKinneVolcSP, iRadAeroKinneSP/) )) THEN
+          ! Only the background aerosol (pre-industry) is read in:
+          l_filename_year = .FALSE.
+          CALL read_bc_aeropt_kinne(ini_date, p_patch, l_filename_year, ecrad_conf%n_bands_lw, ecrad_conf%n_bands_sw)
         ENDIF
-        IF (ANY( irad_aero == (/iRadAeroKinne,iRadAeroKinneVolc,iRadAeroKinneVolcSP,iRadAeroKinneSP/) )) THEN
-          ! Kinne climatology
-          CALL read_bc_aeropt_kinne(ini_date, p_patch, .TRUE., ecrad_conf%n_bands_lw, ecrad_conf%n_bands_sw)
+        IF (ANY( irad_aero == (/iRadAeroKinne,iRadAeroKinneVolc/) )) THEN
+          ! Transient Kinne aerosol:
+          l_filename_year = .TRUE.
+          CALL read_bc_aeropt_kinne(ini_date, p_patch, l_filename_year, ecrad_conf%n_bands_lw, ecrad_conf%n_bands_sw)
         ENDIF
         IF (ANY( irad_aero == (/iRadAeroVolc,iRadAeroKinneVolc,iRadAeroKinneVolcSP/) )) THEN
           ! Volcanic aerosol from CMIP6
