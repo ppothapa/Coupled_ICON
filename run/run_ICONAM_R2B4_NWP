@@ -213,7 +213,6 @@ cat > ${EXPDIR}/${atmo_namelist} << EOF
  l_test_openmp  = .true.
  l_log_checks   = .false.
  num_io_procs   = 0         ! 0: synch output (slow), 1+: asynchron output (fast)
- itype_comm     = 1
  iorder_sendrecv= 1
 /
 &grid_nml

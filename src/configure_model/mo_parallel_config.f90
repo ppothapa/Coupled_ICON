@@ -32,7 +32,7 @@ MODULE mo_parallel_config
        &  div_geometric, division_method, division_file_name,       &
        &  l_log_checks, l_fast_sum,   &
        &  ldiv_phys_dom, p_test_run, num_test_pe, l_test_openmp,    &
-       &  pio_type, itype_comm, iorder_sendrecv, num_io_procs,      &
+       &  pio_type, iorder_sendrecv, num_io_procs,                  &
        &  num_restart_procs, num_prefetch_proc, num_io_procs_radar, &
        &  use_icon_comm, icon_comm_debug, max_send_recv_buffer_size,&
        &  use_dycore_barrier, itype_exch_barrier, use_dp_mpi2io,    &
@@ -147,13 +147,6 @@ MODULE mo_parallel_config
   ! Use OpenMP-parallelized input for atmospheric input data (in initicon), 
   ! i.e. overlapping of reading data, communicating data and computing statistics
   LOGICAL :: use_omp_input = .FALSE.
-
-  ! Type of (halo) communication:
-  ! 1 = synchronous communication with local memory for exchange buffers
-  ! 2 = synchronous communication with global memory for exchange buffers
-  ! 3 = asynchronous communication within dynamical core with global memory
-  !     for exchange buffers (not yet implemented)
-  INTEGER :: itype_comm = 1
 
   ! Order of send/receive sequence in exchange routines
   ! 1 = irecv, send

@@ -4733,13 +4733,6 @@ divdamp\_type = 32
 \tabularnewline
 
 %\hline
-nest\_substeps&
-I& 2& &
-Number of dynamics substeps for the child patches.\\
-\textcolor{red}{DO NOT CHANGE!!! The code will not work correctly with other values}&
-\tabularnewline
-
-%\hline
 l\_masscorr\_nest&
 L& .FALSE.& &
 .TRUE.: Apply mass conservation correction also in nested domain & ifeedback\_type=1
@@ -7014,13 +7007,6 @@ Default implementation of mo\_communication to be used: \\
  1 = original \\
  2 = YAXT
 &
-\tabularnewline
-
-%\hline
-itype\_comm &
-I & 1& &
-1: use local memory for exchange buffers \\
-3: asynchronous halo communication for dynamical core (currently deactivated)&
 \tabularnewline
 
 %\hline

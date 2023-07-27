@@ -32,7 +32,7 @@ MODULE mo_nml_crosscheck
     &                                    wshear_uv_heights, n_wshear, srh_heights, n_srh
   USE mo_parallel_config,          ONLY: check_parallel_configuration,                     &
     &                                    ignore_nproma_use_nblocks_c,                      &
-    &                                    num_io_procs, itype_comm,                         &
+    &                                    num_io_procs,                                     &
     &                                    num_prefetch_proc, use_dp_mpi2io, num_io_procs_radar
   USE mo_limarea_config,           ONLY: latbc_config, LATBC_TYPE_CONST, LATBC_TYPE_EXT
   USE mo_master_config,            ONLY: isRestart
@@ -609,13 +609,6 @@ CONTAINS
       IF ( diffusion_config(jg)%hdiff_efdt_ratio<=0._wp) THEN
         CALL message(routine,'No horizontal background diffusion is used')
       ENDIF
-
-      IF (itype_comm == 3 .AND. diffusion_config(jg)%hdiff_order /= 5)  &
-        CALL finish(routine, 'itype_comm=3 requires hdiff_order = 5')
-
-      IF (itype_comm == 3 .AND. (diffusion_config(jg)%itype_vn_diffu > 1 .OR. &
-        diffusion_config(jg)%itype_t_diffu > 1) )                             &
-        CALL finish(routine, 'itype_comm=3 requires itype_t/vn_diffu = 1')
 
     ENDDO
 

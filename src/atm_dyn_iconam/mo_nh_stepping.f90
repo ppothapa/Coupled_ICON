@@ -41,7 +41,7 @@ MODULE mo_nh_stepping
   USE mo_dynamics_config,          ONLY: nnow,nnew, nnow_rcf, nnew_rcf, nsav1, nsav2, idiv_method, &
     &                                    ldeepatmo
   USE mo_io_config,                ONLY: is_totint_time, n_diag, var_in_output, checkpoint_on_demand
-  USE mo_parallel_config,          ONLY: nproma, itype_comm, num_prefetch_proc, proc0_offloading
+  USE mo_parallel_config,          ONLY: nproma, num_prefetch_proc, proc0_offloading
   USE mo_run_config,               ONLY: ltestcase, dtime, nsteps, ldynamics, ltransport,   &
     &                                    ntracer, iforcing, msg_level, test_mode,           &
     &                                    output_mode, lart, luse_radarfwo, ldass_lhn
@@ -1936,34 +1936,31 @@ MODULE mo_nh_stepping
 
         ENDIF
 
-        IF (itype_comm == 1) THEN
 
-          IF (ldynamics) THEN    
 
-            !$ser verbatim CALL serialize_all(nproma, jg, "dynamics", .TRUE., opt_lupdate_cpu=.TRUE., opt_dt=datetime_local(jg)%ptr, opt_id=iau_iter)
-            ! dynamics integration with substepping
-            !
-            CALL perform_dyn_substepping (time_config, p_patch(jg), p_nh_state(jg), p_int_state(jg), &
-              &                           prep_adv(jg), jstep, iau_iter, dt_loc, datetime_local(jg)%ptr)
-            !$ser verbatim CALL serialize_all(nproma, jg, "dynamics", .FALSE., opt_lupdate_cpu=.TRUE., opt_dt=datetime_local(jg)%ptr, opt_id=iau_iter)
+        IF (ldynamics) THEN
 
-            ! diffusion at physics time steps
-            !
-            IF (diffusion_config(jg)%lhdiff_vn) THEN
-              !$ser verbatim CALL serialize_all(nproma, jg, "diffusion", .TRUE., opt_lupdate_cpu=.TRUE., opt_dt=datetime_local(jg)%ptr, opt_id=iau_iter)
-              CALL diffusion(p_nh_state(jg)%prog(nnew(jg)), p_nh_state(jg)%diag,     &
-                &            p_nh_state(jg)%metrics, p_patch(jg), p_int_state(jg),   &
-                &            dt_loc, .FALSE.)
-              !$ser verbatim CALL serialize_all(nproma, jg, "diffusion", .FALSE., opt_lupdate_cpu=.TRUE., opt_dt=datetime_local(jg)%ptr, opt_id=iau_iter)
-            ENDIF
+          !$ser verbatim CALL serialize_all(nproma, jg, "dynamics", .TRUE., opt_lupdate_cpu=.TRUE., opt_dt=datetime_local(jg)%ptr, opt_id=iau_iter)
+          ! dynamics integration with substepping
+          !
+          CALL perform_dyn_substepping (time_config, p_patch(jg), p_nh_state(jg), p_int_state(jg), &
+            &                           prep_adv(jg), jstep, iau_iter, dt_loc, datetime_local(jg)%ptr)
+          !$ser verbatim CALL serialize_all(nproma, jg, "dynamics", .FALSE., opt_lupdate_cpu=.TRUE., opt_dt=datetime_local(jg)%ptr, opt_id=iau_iter)
 
-          ELSE IF (iforcing == inwp) THEN
-            ! dynamics for ldynamics off, option of coriolis force, typically used for SCM and similar test cases
-            CALL add_slowphys_scm(p_nh_state(jg), p_patch(jg), p_int_state(jg), &
-              &                   nnow(jg), nnew(jg), dt_loc)
+          ! diffusion at physics time steps
+          !
+          IF (diffusion_config(jg)%lhdiff_vn) THEN
+            !$ser verbatim CALL serialize_all(nproma, jg, "diffusion", .TRUE., opt_lupdate_cpu=.TRUE., opt_dt=datetime_local(jg)%ptr, opt_id=iau_iter)
+            CALL diffusion(p_nh_state(jg)%prog(nnew(jg)), p_nh_state(jg)%diag,     &
+              &            p_nh_state(jg)%metrics, p_patch(jg), p_int_state(jg),   &
+              &            dt_loc, .FALSE.)
+            !$ser verbatim CALL serialize_all(nproma, jg, "diffusion", .FALSE., opt_lupdate_cpu=.TRUE., opt_dt=datetime_local(jg)%ptr, opt_id=iau_iter)
           ENDIF
-        ELSE
-          CALL finish (routine, 'itype_comm /= 1 currently not implemented')
+
+        ELSE IF (iforcing == inwp) THEN
+          ! dynamics for ldynamics off, option of coriolis force, typically used for SCM and similar test cases
+          CALL add_slowphys_scm(p_nh_state(jg), p_patch(jg), p_int_state(jg), &
+            &                   nnow(jg), nnew(jg), dt_loc)
         ENDIF
 
 

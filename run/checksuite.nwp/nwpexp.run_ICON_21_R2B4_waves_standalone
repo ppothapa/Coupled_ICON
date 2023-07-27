@@ -135,7 +135,6 @@ cat > ${wave_namelist} << EOF
  num_io_procs_radar      = ${num_io_procs_radar} ! number of EMVORADO I/O processors
  proc0_shift             = 0
  num_dist_array_replicas = 4
- itype_comm              = 1
  iorder_sendrecv         = 1
 /
 &grid_nml

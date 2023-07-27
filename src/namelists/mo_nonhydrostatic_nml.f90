@@ -61,8 +61,7 @@ MODULE mo_nonhydrostatic_nml
                                     & config_l_masscorr_nest  => l_masscorr_nest  , &
                                     & config_l_zdiffu_t       => l_zdiffu_t       , &
                                     & config_thslp_zdiffu     => thslp_zdiffu     , &
-                                    & config_thhgtd_zdiffu    => thhgtd_zdiffu    , &
-                                    & config_nest_substeps    => nest_substeps
+                                    & config_thhgtd_zdiffu    => thhgtd_zdiffu
 
 
   IMPLICIT NONE
@@ -148,7 +147,6 @@ CONTAINS
     ! horizontal pressure gradient
     LOGICAL :: l_open_ubc              ! .true.: open upper boundary condition (w=0 otherwise)
 
-    INTEGER :: nest_substeps           ! the number of dynamics substeps for the child patches
     LOGICAL :: l_masscorr_nest         ! Apply mass conservation correction also to nested domain
 
     LOGICAL :: l_zdiffu_t              ! .true.: apply truly horizontal temperature diffusion
@@ -164,7 +162,7 @@ CONTAINS
          & divdamp_fac, divdamp_fac2, divdamp_fac3, divdamp_fac4,    &
          & divdamp_z, divdamp_z2, divdamp_z3, divdamp_z4,            &
          & igradp_method, exner_expol, l_open_ubc,                   &
-         & nest_substeps, l_masscorr_nest, l_zdiffu_t,               &
+         & l_masscorr_nest, l_zdiffu_t,                              &
          & thslp_zdiffu, thhgtd_zdiffu, divdamp_order, divdamp_type, &
          & rhotheta_offctr, lextra_diffu, veladv_offctr,             &
          & divdamp_trans_start, divdamp_trans_end, htop_aero_proc,   &
@@ -258,8 +256,6 @@ CONTAINS
 #endif
     ! TRUE: use the open upper boundary condition
     l_open_ubc        = .FALSE.
-    ! 2 child dynamics substeps (DO NOT CHANGE!!! The code will not work correctly with other values)
-    nest_substeps     = 2
     ! TRUE: apply mass conservation correction computed for feedback in the nested domain, too
     l_masscorr_nest   = .FALSE.
 
@@ -375,6 +371,7 @@ CONTAINS
       &  'Namelist switch lhdiff_rcf is obsolete and will soon be removed!'
     CALL message("WARNING",message_text)
 
+
     !----------------------------------------------------
     ! 4. Fill the configuration state
     !----------------------------------------------------
@@ -406,7 +403,6 @@ CONTAINS
        config_divdamp_trans_end   = divdamp_trans_end
        config_itime_scheme      = itime_scheme
        config_ivctype           = ivctype
-       config_nest_substeps     = nest_substeps
        config_l_zdiffu_t        = l_zdiffu_t
        config_thslp_zdiffu      = thslp_zdiffu
        config_thhgtd_zdiffu     = thhgtd_zdiffu

@@ -165,7 +165,6 @@ cat > ${atmo_namelist} << EOF
  num_io_procs      = $num_io_procs
  num_restart_procs = $num_restart_procs
  num_prefetch_proc = $num_prefetch_proc
- itype_comm        = 1
  iorder_sendrecv   = 3
  num_dist_array_replicas = 4
  proc0_shift             = ${proc0_shift}

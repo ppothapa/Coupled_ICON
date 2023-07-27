@@ -97,7 +97,6 @@ cat > ${atmo_namelist} << EOF
  l_test_openmp  = .false.
  l_log_checks   = .false.
  num_io_procs   = 1
- itype_comm     = 1
  iorder_sendrecv = 1
 /
 &grid_nml

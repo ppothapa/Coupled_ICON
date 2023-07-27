@@ -52,7 +52,7 @@ MODULE mo_nh_diffusion
   USE mo_math_constants,      ONLY: dbl_eps
   USE mo_vertical_coord_table,ONLY: vct_a
   USE mo_gridref_config,      ONLY: denom_diffu_v
-  USE mo_parallel_config,     ONLY: p_test_run, itype_comm
+  USE mo_parallel_config,     ONLY: p_test_run
   USE mo_sync,                ONLY: SYNC_E, SYNC_C, SYNC_V, sync_patch_array, &
                                     sync_patch_array_mult, sync_patch_array_mult_mp
   USE mo_physical_constants,  ONLY: cvd_o_rd, grav
@@ -354,15 +354,13 @@ MODULE mo_nh_diffusion
       rl_start = start_bdydiff_e
       rl_end   = min_rledge_int - 2
 
-      IF (itype_comm == 1 .OR. itype_comm == 3) THEN
 #ifdef __MIXED_PRECISION
-        CALL sync_patch_array_mult_mp(SYNC_V,p_patch,0,2,f3din1_sp=u_vert,f3din2_sp=v_vert, &
-                                      opt_varname="diffusion: u_vert and v_vert")
+      CALL sync_patch_array_mult_mp(SYNC_V,p_patch,0,2,f3din1_sp=u_vert,f3din2_sp=v_vert, &
+                                    opt_varname="diffusion: u_vert and v_vert")
 #else
-        CALL sync_patch_array_mult(SYNC_V,p_patch,2,u_vert,v_vert,                          &
-                                   opt_varname="diffusion: u_vert and v_vert")
+      CALL sync_patch_array_mult(SYNC_V,p_patch,2,u_vert,v_vert,                          &
+                                 opt_varname="diffusion: u_vert and v_vert")
 #endif
-      ENDIF
 
 !$OMP PARALLEL PRIVATE(i_startblk,i_endblk)
 
@@ -481,15 +479,14 @@ MODULE mo_nh_diffusion
       rl_start = start_bdydiff_e
       rl_end   = min_rledge_int - 2
 
-      IF (itype_comm == 1 .OR. itype_comm == 3) THEN
 #ifdef __MIXED_PRECISION
-        CALL sync_patch_array_mult_mp(SYNC_V,p_patch,0,2,f3din1_sp=u_vert,f3din2_sp=v_vert, &
-                                      opt_varname="diffusion: u_vert and v_vert 2")
+      CALL sync_patch_array_mult_mp(SYNC_V,p_patch,0,2,f3din1_sp=u_vert,f3din2_sp=v_vert, &
+                                    opt_varname="diffusion: u_vert and v_vert 2")
 #else
-        CALL sync_patch_array_mult(SYNC_V,p_patch,2,u_vert,v_vert,                          &
-                                   opt_varname="diffusion: u_vert and v_vert 2")
+      CALL sync_patch_array_mult(SYNC_V,p_patch,2,u_vert,v_vert,                          &
+                                 opt_varname="diffusion: u_vert and v_vert 2")
 #endif
-      ENDIF
+
       CALL cells2verts_scalar(p_nh_prog%w, p_patch, p_int%cells_aw_verts, z_w_v, opt_rlend=min_rlvert_int)
       CALL sync_patch_array(SYNC_V,p_patch,z_w_v,opt_varname="diffusion: z_w_v")
       CALL sync_patch_array(SYNC_C,p_patch,p_nh_diag%theta_v_ic,opt_varname="diffusion: theta_v_ic")
@@ -871,15 +868,13 @@ MODULE mo_nh_diffusion
       rl_start = grf_bdywidth_e+1
       rl_end   = min_rledge_int
 
-      IF (itype_comm == 1 .OR. itype_comm == 3) THEN
 #ifdef __MIXED_PRECISION
-        CALL sync_patch_array_mult_mp(SYNC_V,p_patch,0,2,f3din1_sp=u_vert,f3din2_sp=v_vert, &
-                                      opt_varname="diffusion: u_vert and v_vert 3")
+      CALL sync_patch_array_mult_mp(SYNC_V,p_patch,0,2,f3din1_sp=u_vert,f3din2_sp=v_vert, &
+                                    opt_varname="diffusion: u_vert and v_vert 3")
 #else
-        CALL sync_patch_array_mult(SYNC_V,p_patch,2,u_vert,v_vert,                          &
-                                   opt_varname="diffusion: u_vert and v_vert 3")
+      CALL sync_patch_array_mult(SYNC_V,p_patch,2,u_vert,v_vert,                          &
+                                 opt_varname="diffusion: u_vert and v_vert 3")
 #endif
-      ENDIF
 
 !$OMP PARALLEL PRIVATE(i_startblk,i_endblk)
 
@@ -1326,9 +1321,7 @@ MODULE mo_nh_diffusion
 
 !$OMP END PARALLEL
 
-    IF (itype_comm == 1 .OR. itype_comm == 3) THEN
-      CALL sync_patch_array(SYNC_E, p_patch, p_nh_prog%vn,opt_varname="diffusion: vn sync")
-    ENDIF
+    CALL sync_patch_array(SYNC_E, p_patch, p_nh_prog%vn,opt_varname="diffusion: vn sync")
 
     IF (ltemp_diffu) THEN ! Smagorinsky temperature diffusion
 
