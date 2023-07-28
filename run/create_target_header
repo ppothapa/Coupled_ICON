@@ -2022,32 +2022,20 @@ create_target_header()
                     use_nodes=12
                     ;;
                 rcl)
-                    use_nodes=8
-                    use_venum_lhost=8
+                    use_nodes=6
+                    use_venum_lhost=2
                     use_cpunum_job=6
                     ;;
             esac
             ;;
-        *run_ICON_04_R02B06N08_ifsinit_restarttest*)
-            case $use_target in
-                daint*)
-                    use_nodes=10
-                    ;;
-                rcl)
-                    use_nodes=6
-                    use_venum_lhost=3
-                    use_cpunum_job=3
-                    ;;
-            esac
-            ;;
-        *run_ICON_05_R02B06N07_ifsinit_restarttest*)
+        *run_ICON_05_R02B06N08_ifsinit_restarttest*)
             case $use_target in
                 daint*)
                     use_nodes=20
                     ;;
                 rcl)
-                    use_nodes=3
-                    use_venum_lhost=3
+                    use_nodes=4
+                    use_venum_lhost=2
                     use_cpunum_job=5
                     ;;
             esac
@@ -2058,8 +2046,8 @@ create_target_header()
                     use_nodes=8
                     ;;
                 rcl)
-                    use_nodes=8
-                    use_venum_lhost=4
+                    use_nodes=6
+                    use_venum_lhost=2
                     use_cpunum_job=2
                     add_free_var VE_FORT_NML_REPEAT_FORM NO
                     ;;
@@ -2128,9 +2116,9 @@ create_target_header()
                     use_nodes=6
                     ;;
                 rcl)
-                    use_nodes=2
-                    use_venum_lhost=2
-                    use_cpunum_job=6
+                    use_nodes=1
+                    use_venum_lhost=1
+                    use_cpunum_job=4
                     use_omp_stacksize=3G
                     ;;
             esac
@@ -2144,9 +2132,9 @@ create_target_header()
                     use_nodes=8
                     ;;
                 rcl)
-                    use_nodes=2
-                    use_venum_lhost=2
-                    use_cpunum_job=6
+                    use_nodes=1
+                    use_venum_lhost=1
+                    use_cpunum_job=4
                     ;;
             esac
             ;;
@@ -2249,8 +2237,8 @@ create_target_header()
                     use_nodes=14
                     ;;
                 rcl)
-                    use_nodes=5
-                    use_venum_lhost=5
+                    use_nodes=2
+                    use_venum_lhost=2
                     use_cpunum_job=6
 #                    elapstim_req=43300 # this variable does not exist yet
                     ;;

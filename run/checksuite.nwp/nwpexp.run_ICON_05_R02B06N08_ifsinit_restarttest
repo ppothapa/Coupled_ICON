@@ -89,16 +89,18 @@ for iter in 1 2 ; do
 if [ $iter -eq 1 ] ; then
 
 restart="       .FALSE.  "
-nsteps="            80   "
-checkpoint="     21600.0 "
+nsteps="           180   "
+checkpoint="     43200.0 "
 nrest_procs="        1   "
+ofile_prfx="NWP-REF"
 
 else
 
 restart="        .TRUE.  "
-nsteps="           140   "
+nsteps="            60   "
 checkpoint="    864000.0 "
 nrest_procs="        1   "
+ofile_prfx="NWP-RST"
 
 fi
 
@@ -217,8 +219,8 @@ cat > NAMELIST_NWP << EOF
  lredgrid_phys               =               .TRUE.,.TRUE.        ! .true.=radiation is calculated on a reduced grid
  lfeedback                   =       .TRUE.,.TRUE.,.FALSE.        ! specifies if feedback to parent grid is performed
  ifeedback_type              =                          2         ! feedback type (incremental/relaxation-based)
- start_time                  =                0.,0.,7200.         ! R2B8 nest starts after 2h
- end_time                    =          0.,172800.,57600.         ! ... and ends after 18h
+ start_time                  =                0.,0.,21600.        ! R2B8 nest starts after 6h
+ end_time                    =           0.,864000.,36000.        ! ... and ends after 10h
 /
 
 ! gridref_nml: grid refinement and nesting -----------------------------------
@@ -234,10 +236,6 @@ cat > NAMELIST_NWP << EOF
  dt_diag                     =                      21600.0       ! diagnostic integral output interval
  dt_checkpoint               =               ${checkpoint}        ! time interval for writing restart files.
  itype_pres_msl              =                          2         ! method for computation of mean sea level pressure
-/
-
-&interpol_nml
-support_baryctr_intp         =                      .false.        ! use barycentric interpolation
 /
 
 ! nonhydrostatic_nml: nonhydrostatic model -----------------------------------
@@ -261,13 +259,13 @@ support_baryctr_intp         =                      .false.        ! use barycen
 
 ! nwp_phy_nml: switches for the physics schemes ------------------------------
 &nwp_phy_nml
- inwp_gscp                   =                          1         ! cloud microphysics and precipitation
+ inwp_gscp                   =                          3         ! cloud microphysics and precipitation
  inwp_convection             =                          1         ! convection
  inwp_radiation              =                          1         ! radiation
- inwp_cldcover               =                          1         ! cloud cover scheme for radiation
+ inwp_cldcover               =                          3         ! cloud cover scheme for radiation
  inwp_turb                   =                          1         ! vertical diffusion and transfer
  inwp_satad                  =                          1         ! saturation adjustment
- inwp_sso                    =                          1         ! subgrid scale orographic drag
+ inwp_sso                    =                          2         ! subgrid scale orographic drag
  inwp_gwd                    =                          1         ! non-orographic gravity wave drag
  inwp_surface                =                          1         ! surface scheme
  latm_above_top              =              .FALSE.,.TRUE.        ! take into account atmosphere above model top for radiation computation
@@ -280,10 +278,10 @@ support_baryctr_intp         =                      .false.        ! use barycen
  filetype                    =                          4         ! output format: 2=GRIB2, 4=NETCDFv2
  dom                         =                         -1         ! write all domains
  output_bounds               =       0., 10000000., 10800.        ! output: start, end, increment
- steps_per_file              =                          2         ! number of output steps in one output file
+ steps_per_file              =                          1         ! number of output steps in one output file
  mode                        =                          1         ! 1: forecast mode (relative t-axis), 2: climate mode (absolute t-axis)
  include_last                =                      .TRUE.        ! flag whether to include the last time step
- output_filename             =                       'NWP'        ! file name base
+ output_filename             =             "${ofile_prfx}"        ! file name base
  output_grid                 =                      .TRUE.        ! flag whether grid information is added to output.
  !
  ml_varlist                  =  'u', 'v', 'w', 'temp', 'pres','topography_c', 'pres_msl', 
@@ -291,24 +289,7 @@ support_baryctr_intp         =                      .false.        ! use barycen
                                 'tkvm', 'tkvh', 'group:pbl_vars',                         
                                 'group:precip_vars',  'group:additional_precip_vars',     
                                 'group:land_vars', 'group:land_tile_vars',                
-                                'group:multisnow_vars'
-/
-! output_nml: specifies an output stream --------------------------------------
-&output_nml
- filetype                    =                          2         ! output format: 2=GRIB2, 4=NETCDFv2
- dom                         =                         -1         ! write all domains
- output_bounds               =       0., 10000000., 10800.        ! output: start, end, increment
- steps_per_file              =                          2         ! number of output steps in one output file
- mode                        =                          1         ! 1: forecast mode (relative t-axis), 2: climate mode (absolute t-axis)
- include_last                =                      .TRUE.        ! flag whether to include the last time step
- output_filename             =                    'NWP_ll'        ! file name base
- output_grid                 =                      .TRUE.        ! flag whether grid information is added to output.
- !
- ml_varlist                  =  'u', 'v', 'temp', 'pres','topography_c', 'pres_msl', 
- remap                = 1
- reg_lon_def          = 0.,0.5,359.501
- reg_lat_def          = -90.,0.5,90.
- output_grid          = .false.
+                                '-tkr'
 /
 
 ! meteogram_output_nml: meteogram output for specified locations --------------
@@ -351,10 +332,10 @@ support_baryctr_intp         =                      .false.        ! use barycen
 &transport_nml
  ivadv_tracer                =              3, 3, 3, 3, 3         ! tracer specific method to compute vertical advection
  itype_hlimit                =           3, 4, 4, 4, 4, 0         ! type of limiter for horizontal transport
- ihadv_tracer                =          52, 2, 2, 2, 2, 0         ! tracer specific method to compute horizontal advection
- llsq_svd                    =                     .false.        ! use SV decomposition for least squares design matrix
+ ihadv_tracer                =          42,22,32, 2, 2, 0         ! tracer specific method to compute horizontal advection
+ llsq_svd                    =                      .false.        ! use SV decomposition for least squares design matrix
  beta_fct                    =                          1.005     ! factor of allowed over-/undershooting in monotonous limiter
- nadv_substeps               =                    3, 2, 2         ! number of integration steps per fast physics time step
+ nadv_substeps               =                       3, 2         ! number of integration steps per fast physics time step
 /
 
 ! turbdiff_nml: turbulent diffusion -------------------------------------------
@@ -387,19 +368,52 @@ EOF
 # run the model!
 # ----------------------------------------------------------------------------
 
-# run IO on second vector host
-VH_DISTRIBUTION=0,:
 $START_MODEL
-EXIT_STATUS=$?
 
-if [ "$EXIT_STATUS" -ne "0" ]; then
-  echo "EXIT_STATUS: $EXIT_STATUS"
-  exit $EXIT_STATUS
-fi
 
 # ----------------------------------------------------------------------------
 done # iterations for restart testing
 # ----------------------------------------------------------------------------
 
-echo "EXIT_STATUS: $EXIT_STATUS"
-exit $EXIT_STATUS
+
+# ----------------------------------------------------------------------------
+# check model output
+# ----------------------------------------------------------------------------
+
+SCRIPT_STATUS=0
+TEST_STATUS=0
+
+# output filenames
+FILE_REF="NWP-REF_DOM01_ML_0006.nc"
+FILE_RST="NWP-RST_DOM01_ML_0006.nc"
+
+if [ ! -f ${FILE_REF} ] || [ ! -f ${FILE_RST} ]; then
+  echo " Both or either of the files ${FILE_RFF} and ${FILE_RST} do not exist"
+  SCRIPT_STATUS=$(($SCRIPT_STATUS + 1))
+  exit $SCRIPT_STATUS
+fi
+
+echo "##############################################################"
+echo "###       Restart test: check match of output files        ###"
+echo "##############################################################"
+
+# compare_output_files is defined in ./add_run_routines
+compare_output_files "${FILE_REF}" "${FILE_RST}"
+TEST_STATUS=$((TEST_STATUS + $?))
+
+if [ $TEST_STATUS == 0 ]; then
+  echo " "
+  echo "NWP test SUCCESSFUL"
+  echo " "
+else
+  echo " "
+  echo "NWP test FAILED:"
+  echo " "
+fi
+
+EXIT_STATUS=$((TEST_STATUS + $?))
+
+if [ "$EXIT_STATUS" -ne "0" ]; then
+  echo "EXIT_STATUS: $EXIT_STATUS"
+  exit $EXIT_STATUS
+fi

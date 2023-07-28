@@ -113,7 +113,7 @@ cat > icon_master.namelist << EOF
 ! time_nml: specification of date and time------------------------------------
 &time_nml
  ini_datetime_string         =      "2017-01-12T00:00:00Z"        ! initial date and time of the simulation
- end_datetime_string         =      "2017-01-12T02:00:00Z"        ! end date and time of the simulation
+ end_datetime_string         =      "2017-01-12T01:00:00Z"        ! end date and time of the simulation
                                                                   ! example date: 2001-01-01T01:00:00Z
 /
 EOF

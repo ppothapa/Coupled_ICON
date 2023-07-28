@@ -225,7 +225,7 @@ radiation_grid_filename = ${radiation_grid_filename}
 /
 &run_nml
  num_lev               = 60           ! 60
- nsteps                = 900             ! 50 ! 1200 ! 7200 !
+ nsteps                = 360             ! 50 ! 1200 ! 7200 !
  lvert_nest            = .false.
  dtime                 = 60              ! timestep in seconds
  ldynamics             = .true.               ! dynamics
