@@ -60,6 +60,7 @@ spack-configure-args.txt
 !/run/exp.nwptest_R02B06N07.run
 /run/*.status
 /run/checksuite.nwp/*.run
+/run/performance/pp.store_performance_*
 
 # Common user-generated files:
 /build*/

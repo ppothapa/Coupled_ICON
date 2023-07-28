@@ -192,6 +192,29 @@ EOF
 
 }
 
+# Limits the time for slurm jobs started with BB
+limit_time_bb()
+{
+    if [[ "x$use_cpu_time" = "x" ]] # time is not set
+    then
+        use_cpu_time=$limit
+        return 0
+    fi
+    if [[ ${#use_cpu_time} != ${#limit} ]] # hard to cover all cases
+    then
+        echo "Requested time ${use_cpu_time} and the limit ${limit} do not have the same format. Using ${limit}."
+        use_cpu_time=$limit
+        return 0
+    else
+        if [[ ${use_cpu_time} > ${limit} ]] # string comparison
+        then
+            echo "Requested time ${use_cpu_time} is bigger than the limit ${limit}. Using ${limit}."
+            use_cpu_time=$limit
+            return 0
+        fi
+    fi
+}
+
 #=============================================================================
 set_run_target_default()
 {
@@ -974,8 +997,10 @@ set_run_target_tsa_cpu()
     fi
     if [[ "x$BB_SYSTEM" != "x" ]]
     then
-	# this is buldbot, do not run more than 15 minutes on Tsa (SLURM delays)
-	s_cpu_time="SBATCH --time=00:15:00"
+        # this is buldbot, do not run more than 15 minutes on Tsa (SLURM delays)
+        limit="00:15:00"
+        limit_time_bb # sets use_cpu_time
+        s_cpu_time="SBATCH --time=$use_cpu_time"
     fi
     # ------------------------------------
 
@@ -1074,8 +1099,10 @@ set_run_target_tsa_gpu()
     fi
     if [[ "x$BB_SYSTEM" != "x" ]]
     then
-	# this is buldbot, do not run more than 45 minutes
-	s_cpu_time="SBATCH --time=00:45:00"
+        # this is buldbot, do not run more than 45 minutes
+        limit="00:45:00"
+        limit_time_bb # sets use_cpu_time
+        s_cpu_time="SBATCH --time=$use_cpu_time"
     fi
 
     # ------------------------------------
@@ -1192,8 +1219,10 @@ set_run_target_daint_cpu()
     fi
     if [[ "x$BB_SYSTEM" != "x" ]]
     then
-	# this is buldbot, do not run more than 30 minutes on Daint (SLURM delays)
-	s_cpu_time="SBATCH --time=00:30:00"
+        # this is buldbot, do not run more than 30 minutes on Daint (SLURM delays)
+        limit="00:30:00"
+        limit_time_bb # sets use_cpu_time
+        s_cpu_time="SBATCH --time=$use_cpu_time"
     fi
     # ------------------------------------
 
@@ -1296,8 +1325,10 @@ set_run_target_daint_gpu()
     fi
     if [[ "x$BB_SYSTEM" != "x" ]]
     then
-	# this is buldbot, do not run more than 45 minutes
-	s_cpu_time="SBATCH --time=00:45:00"
+        # this is buldbot, do not run more than 45 minutes
+        limit="00:45:00"
+        limit_time_bb # sets use_cpu_time
+        s_cpu_time="SBATCH --time=$use_cpu_time"
     fi
 
     # ------------------------------------
@@ -1378,8 +1409,10 @@ set_run_target_balfrin_gpu()
     fi
     if [[ "x$BB_SYSTEM" != "x" ]]
     then
-        # this is buldbot, do not run more than 45 minutes
-        s_cpu_time="SBATCH --time=00:45:00"
+        # this is buldbot, do not run more than 80 minutes
+        limit="01:20:00"
+        limit_time_bb # sets use_cpu_time
+        s_cpu_time="SBATCH --time=$use_cpu_time"
     fi
 
     # ------------------------------------
@@ -1458,7 +1491,9 @@ set_run_target_balfrin_cpu()
     if [[ "x$BB_SYSTEM" != "x" ]]
     then
         # this is buldbot, do not run more than 15 minutes on Daint (SLURM delays)
-        s_cpu_time="SBATCH --time=00:15:00"
+        limit="00:15:00"
+        limit_time_bb # sets use_cpu_time
+        s_cpu_time="SBATCH --time=$use_cpu_time"
     fi
     # ------------------------------------
 
@@ -1544,8 +1579,10 @@ set_run_target_dom_gpu()
     fi
     if [[ "x$BB_SYSTEM" != "x" ]]
     then
-	# this is buldbot, do not run more than 45 minutes
-	s_cpu_time="SBATCH --time=00:45:00"
+        # this is buldbot, do not run more than 45 minutes
+        limit="00:45:00"
+        limit_time_bb # sets use_cpu_time
+        s_cpu_time="SBATCH --time=$use_cpu_time"
     fi
 
     # ------------------------------------
@@ -1635,8 +1672,10 @@ set_run_target_tave_knl()
     fi
     if [[ "x$BB_SYSTEM" != "x" ]]
     then
-	# this is buldbot, do not run more than 45 minutes
-	s_cpu_time="SBATCH --time=00:45:00"
+	    # this is buldbot, do not run more than 45 minutes
+        limit="00:45:00"
+        limit_time_bb # sets use_cpu_time
+        s_cpu_time="SBATCH --time=$use_cpu_time"
     fi
     # ------------------------------------
 

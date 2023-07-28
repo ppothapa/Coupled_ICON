@@ -1,0 +1,27 @@
+#!/bin/bash
+set -euo pipefail
+
+# data should be stored here: /scratch/e1000/meteoswiss/scratch/jenkins/icon/pool/data/ICON/buildbot_data/performance
+# which is ${icon_data_rootFolder}/buildbot_data/performance
+performance_root="${icon_data_rootFolder}/buildbot_data/performance"
+
+# If you want to test locally, use this instead:
+# performance_root="${basedir}/performance_test"
+
+date=$(date '+%Y-%m-%d_%H-%M-%S')
+git_commit=$( (git rev-parse HEAD) | cut -c 1-12 )
+
+folder_name="${date}.${git_commit}"
+
+# EXPNAME=store_performance_exp
+exp=$( echo ${EXPNAME} | cut -c 19- )
+
+# make sure created files are readable
+umask 0022
+mkdir -p "${performance_root}/${folder_name}" || exit 1
+echo "Storing LOG file and performance data in ${performance_root}/${folder_name}"
+cp -f "${basedir}/run/LOG.check.${exp}.run."* "${performance_root}/${folder_name}" || exit 1
+mv -f "${basedir}/${exp}_balfrin_gpu_nvidia_mixed_"* "${performance_root}/${folder_name}" || exit 1
+
+# exit 0 on success (and don't execute any appended scripts)
+exit 0
