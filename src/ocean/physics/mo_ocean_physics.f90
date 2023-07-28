@@ -903,16 +903,6 @@ CONTAINS
       lacc = .FALSE.
     END IF
 
-    !$ACC DATA COPYIN(patch_3d, patch_3d%p_patch_1d, patch_3d%p_patch_1d(1)%dolic_c) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%depth_CellInterface) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%inv_prism_center_dist_c) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%prism_center_dist_c) &
-    !$ACC   COPYIN(nold) &
-    !$ACC   COPY(ocean_state, ocean_state%p_diag, ocean_state%p_diag%Richardson_Number) &
-    !$ACC   COPY(ocean_state%p_diag%zgrad_rho, ocean_state%p_diag%p_vn) &
-    !$ACC   COPY(ocean_state%p_prog, ocean_state%p_prog(nold(1))%tracer) &
-    !$ACC   IF(lacc)
-
     start_timer(timer_upd_phys,1)
 
 !    CALL calc_characteristic_physical_numbers(patch_3d, ocean_state)
@@ -921,14 +911,16 @@ CONTAINS
 !   and the Richardson Number ; shall be used in PP and possibly TKE
     CALL calc_vertical_stability(patch_3d, ocean_state, use_acc=lacc)
 
-    !$ACC END DATA
-
     SELECT CASE(vert_mix_type)
     CASE(vmix_pp)
       CALL update_PP_scheme(patch_3d, ocean_state, fu10, concsum, params_oce,op_coeffs)
     CASE(vmix_tke)
       !write(*,*) 'Do calc_tke...'
+#ifdef _OPENACC
+      CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10, concsum, use_acc=lacc)
+#else
       CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10, concsum)
+#endif
     CASE(vmix_idemix_tke)
       !write(*,*) 'Do calc_idemix...'
       CALL calc_idemix(patch_3d, ocean_state, params_oce, op_coeffs, atmos_fluxes)
@@ -939,7 +931,6 @@ CONTAINS
     CASE default
       write(*,*) "Unknown vert_mix_type!"
     END SELECT
-
 
     IF (LeithClosure_order == 1 .or.  LeithClosure_order == 21) THEN
       IF (LeithClosure_form == 1) THEN

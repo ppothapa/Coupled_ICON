@@ -487,7 +487,7 @@ CONTAINS
 
 !<Optimize:inUse>
   SUBROUTINE calc_fast_oce_diagnostics(patch_2d, patch_3d, ocean_state, dolic, prism_thickness, depths, &
-          &  p_diag, sea_surface_height, normal_veloc, tracers, p_atm_f, p_oce_sfc, ice)
+          &  p_diag, sea_surface_height, normal_veloc, tracers, p_atm_f, p_oce_sfc, ice, use_acc)
     TYPE(t_patch ),TARGET :: patch_2d
     TYPE(t_patch_3d ),TARGET, INTENT(inout)     :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET, INTENT(inout)    :: ocean_state
@@ -501,8 +501,10 @@ CONTAINS
      TYPE(t_atmos_fluxes ),    INTENT(IN)        :: p_atm_f
     TYPE(t_ocean_surface), INTENT(IN)           :: p_oce_sfc
     TYPE(t_sea_ice),          INTENT(inout)     :: ice
+    LOGICAL, INTENT(IN), OPTIONAL                     :: use_acc
 
     REAL(wp) :: w(nproma, n_zlev + 1, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
+    LOGICAL :: lacc
 
     !Local variables
     INTEGER :: start_cell_index, end_cell_index,i
@@ -515,6 +517,7 @@ CONTAINS
       &        VolumeIce_flux, TotalOcean_flux, TotalIce_flux, VolumeTotal_flux, totalsnowfall_flux
 !   REAL(wp) :: sflux
       REAL(wp) ::total_salt, total_saltinseaice, total_saltinliquidwater
+    CHARACTER(LEN=*), PARAMETER :: method_name='mo_ocean_diagnostics:calc_fast_oce_diagnostics'
 
     TYPE(t_subset_range), POINTER :: owned_cells, owned_edges
     TYPE(t_ocean_monitor),  POINTER :: monitor
@@ -522,6 +525,12 @@ CONTAINS
     owned_cells    => patch_2d%cells%owned
     owned_edges    => patch_2d%edges%owned
     monitor        => p_diag%monitor
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     !cell loop to calculate cell based monitored fields volume, kinetic energy and tracer content
     SELECT CASE (iswm_oce)
@@ -538,10 +547,10 @@ CONTAINS
       IF (isRegistered('total_salt')) THEN
         IF (vert_cor_type .EQ. 0) THEN
           call calc_total_salt_content(tracers(:,:,:,2), patch_2d, &
-          sea_surface_height(:,:),&
-          patch_3D%p_patch_1d(1)%prism_thick_flat_sfc_c(:,:,:),&
-               ice, 0 , total_salt, total_saltinseaice, &
-                                  total_saltinliquidwater )
+            & sea_surface_height(:,:),&
+            & patch_3D%p_patch_1d(1)%prism_thick_flat_sfc_c(:,:,:),&
+            & ice, 0 , total_salt, total_saltinseaice, &
+            & total_saltinliquidwater, use_acc=lacc )
         ELSE IF (vert_cor_type .EQ. 1) THEN
           call calc_total_salt_content_zstar(tracers(:,:,:,2), patch_2d, &
             & ocean_state%p_prog(nnew(1))%stretch_c(:, :), &
@@ -550,13 +559,14 @@ CONTAINS
             & total_saltinliquidwater )
         END IF
 
-      monitor%total_salt = total_salt
-      monitor%total_saltinseaice = total_saltinseaice
-      monitor%total_saltinliquidwater = total_saltinliquidwater
+        monitor%total_salt = total_salt
+        monitor%total_saltinseaice = total_saltinseaice
+        monitor%total_saltinliquidwater = total_saltinliquidwater
 
         !write(0,*)'total_salt_content =' , monitor%total_salt
 
       END IF
+
       ! {{{ compute global mean values of:
       ! sea surface height
       ssh_global_mean = 0.0_wp
@@ -564,7 +574,7 @@ CONTAINS
         CALL levels_horizontal_mean( sea_surface_height, &
             & patch_2d%cells%area(:,:), &
             & owned_cells, &
-            & ssh_global_mean)
+            & ssh_global_mean, lopenacc=lacc)
       END IF
       monitor%ssh_global = ssh_global_mean
       IF (my_process_is_stdio() .and. check_total_volume) THEN
@@ -579,7 +589,7 @@ CONTAINS
         CALL levels_horizontal_mean( tracers(:,1,:,1), &
             & patch_2d%cells%area(:,:), &
             & owned_cells, &
-            & sst_global)
+            & sst_global, lopenacc=lacc)
       END IF
       monitor%sst_global = sst_global
 
@@ -590,7 +600,7 @@ CONTAINS
         CALL levels_horizontal_mean( tracers(:,1,:,2), &
             & patch_2d%cells%area(:,:), &
             & owned_cells, &
-            & sss_global)
+            & sss_global, lopenacc=lacc)
       END IF
       monitor%sss_global = sss_global
 
@@ -600,7 +610,7 @@ CONTAINS
         CALL levels_horizontal_mean( p_oce_sfc%HeatFlux_Total, &
             & patch_2d%cells%area(:,:), &
             & owned_cells, &
-            & total_heat_flux)
+            & total_heat_flux, lopenacc=lacc)
       END IF
       monitor%HeatFlux_Total = total_heat_flux
 
@@ -610,7 +620,7 @@ CONTAINS
       call levels_horizontal_mean( p_oce_sfc%FrshFlux_Precipitation, &
           & patch_2d%cells%area(:,:), &
           & owned_cells, &
-            & total_precipitation_flux)
+            & total_precipitation_flux, lopenacc=lacc)
       END IF
       monitor%FrshFlux_Precipitation = total_precipitation_flux
 
@@ -620,7 +630,7 @@ CONTAINS
       call levels_horizontal_mean( p_oce_sfc%FrshFlux_Evaporation, &
           & patch_2d%cells%area(:,:), &
           & owned_cells, &
-          & total_evaporation_flux)
+          & total_evaporation_flux, lopenacc=lacc)
       END IF
       monitor%FrshFlux_Evaporation = total_evaporation_flux
 
@@ -630,7 +640,7 @@ CONTAINS
       call levels_horizontal_mean( p_oce_sfc%FrshFlux_Runoff, &
           & patch_2d%cells%area(:,:), &
           & owned_cells, &
-          & total_runoff_flux)
+          & total_runoff_flux, lopenacc=lacc)
       END IF
       monitor%FrshFlux_Runoff = total_runoff_flux
 
@@ -640,7 +650,7 @@ CONTAINS
       call levels_horizontal_mean( p_oce_sfc%FrshFlux_Snowfall, &
           & patch_2d%cells%area(:,:), &
           & owned_cells, &
-          & atmos_snowfall_flux)
+          & atmos_snowfall_flux, lopenacc=lacc)
       END IF
       monitor%FrshFlux_SnowFall = atmos_snowfall_flux
 
@@ -650,7 +660,7 @@ CONTAINS
       call levels_horizontal_mean( p_oce_sfc%FrshFlux_VolumeIce, &
           & patch_2d%cells%area(:,:), &
           & owned_cells, &
-          & VolumeIce_flux)
+          & VolumeIce_flux, lopenacc=lacc)
       END IF
       monitor%FrshFlux_VolumeIce = VolumeIce_flux
 
@@ -660,7 +670,7 @@ CONTAINS
       call levels_horizontal_mean( p_oce_sfc%FrshFlux_TotalOcean, &
           & patch_2d%cells%area(:,:), &
           & owned_cells, &
-          & TotalOcean_flux)
+          & TotalOcean_flux, lopenacc=lacc)
       END IF
       monitor%FrshFlux_TotalOcean = TotalOcean_flux
 
@@ -670,7 +680,7 @@ CONTAINS
       call levels_horizontal_mean( p_oce_sfc%FrshFlux_TotalIce, &
           & patch_2d%cells%area(:,:), &
           & owned_cells, &
-          & TotalIce_flux)
+          & TotalIce_flux, lopenacc=lacc)
       END IF
       monitor%FrshFlux_TotalIce = TotalIce_flux
 
@@ -680,7 +690,7 @@ CONTAINS
       call levels_horizontal_mean( p_oce_sfc%FrshFlux_VolumeTotal, &
           & patch_2d%cells%area(:,:), &
           & owned_cells, &
-          & VolumeTotal_flux)
+          & VolumeTotal_flux, lopenacc=lacc)
       END IF
       monitor%FrshFlux_VolumeTotal = VolumeTotal_flux
 
@@ -690,7 +700,7 @@ CONTAINS
       call levels_horizontal_mean( ice%totalsnowfall, &
           & patch_2d%cells%area(:,:), &
           & owned_cells, &
-          & totalsnowfall_flux)
+          & totalsnowfall_flux, lopenacc=lacc)
       END IF
       monitor%totalsnowfall = totalsnowfall_flux
 
@@ -698,28 +708,28 @@ CONTAINS
       ice_volume_nh = 0.0_wp
       IF (isRegistered('ice_volume_nh')) THEN
       ice_volume_nh = subset_sum( ice%vol(:,1,:)*p_diag%northernHemisphere(:,:), &
-          & owned_cells )
+          & owned_cells, lopenacc=lacc)
       END IF
       monitor%ice_volume_nh = ice_volume_nh/1.0e9_wp !scaling to km^3
 
       ice_volume_sh = 0.0_wp
       IF (isRegistered('ice_volume_sh')) THEN
       ice_volume_sh = subset_sum( ice%vol(:,1,:)*p_diag%southernHemisphere(:,:), &
-          & owned_cells)
+          & owned_cells, lopenacc=lacc)
       END IF
       monitor%ice_volume_sh = ice_volume_sh/1.0e9_wp !scaling to km^3
 
       ice_extent_nh = 0.0_wp
       IF (isRegistered('ice_extent_nh')) THEN
       ice_extent_nh = subset_sum( ice%concsum*p_diag%northernHemisphere*patch_2d%cells%area, &
-          & owned_cells)
+          & owned_cells, lopenacc=lacc)
       END IF
       monitor%ice_extent_nh = ice_extent_nh/1.0e6_wp !scaling to km^2
 
       ice_extent_sh = 0.0_wp
       IF (isRegistered('ice_extent_sh')) THEN
       ice_extent_sh = subset_sum( ice%concsum*p_diag%southernHemisphere*patch_2d%cells%area, &
-          & owned_cells)
+          & owned_cells, lopenacc=lacc)
       END IF
       monitor%ice_extent_sh = ice_extent_sh/1.0e6_wp !scaling to km^2
 
@@ -727,6 +737,8 @@ CONTAINS
       IF ( ( vert_cor_type == 1 ) ) THEN
         w = p_diag%w_deriv
       ENDIF
+
+      !$ACC DATA COPY(w) IF(lacc)
 
       ! energy/enstrophy
       global_mean_potEnergy = 0.0_wp
@@ -739,7 +751,7 @@ CONTAINS
               & p_diag%rho, &
               & patch_3D%p_patch_1d(1)%del_zlev_i, &
               & patch_3D%p_patch_1d(1)%prism_volume, &
-              & owned_cells)
+              & owned_cells, use_acc=lacc)
         ELSEIF (vert_cor_type .EQ. 1) THEN
           global_mean_potEnergy = potential_energy_zstar(&
               & w, &
@@ -758,7 +770,7 @@ CONTAINS
       IF (isRegistered('kin_energy_global')) THEN
          global_mean_kinEnergy = total_mean( p_diag%kin, &
           & patch_3d%p_patch_1d(1)%prism_volume, &
-          & owned_cells )
+          & owned_cells, lopenacc=lacc )
       END IF
       monitor%kin_energy = global_mean_kinEnergy
 
@@ -791,7 +803,7 @@ CONTAINS
              p_diag%delta_ice,                                      &
              p_diag%delta_snow,                                     &
              p_diag%delta_thetao,                                   &
-             p_diag%delta_so)
+             p_diag%delta_so, use_acc=.false.)
 
         ELSEIF (vert_cor_type .EQ. 1) THEN
 
@@ -842,6 +854,8 @@ CONTAINS
         CALL timer_stop(timer_calc_moc)
       ENDIF
 
+      !$ACC END DATA
+
       IF ( isRegistered('heat_content_liquid_water') .OR. isRegistered('heat_content_seaice') &
            .OR. isRegistered('heat_content_snow')   .OR. isRegistered('heat_content_total') &
            .OR. isRegistered('global_heat_content') .OR. isRegistered('global_heat_content_solid') ) THEN
@@ -852,7 +866,7 @@ CONTAINS
              p_diag%heat_content_liquid_water, &
              p_diag%heat_content_seaice, &
              p_diag%heat_content_snow,&
-             p_diag%heat_content_total)
+             p_diag%heat_content_total, use_acc=lacc )
 
         ELSEIF (vert_cor_type .EQ. 1) THEN
 
@@ -1010,16 +1024,16 @@ CONTAINS
   !TODO     & patch_3D%p_patch_1d(1)%prism_volume, &
   !TODO     & owned_cells)
   !-------------------------------------------------------------------------
-  FUNCTION potential_energy(w,h,rho,del_zlev_i,weights,in_subset)
+  FUNCTION potential_energy(w,h,rho,del_zlev_i,weights,in_subset,use_acc)
     REAL(wp), INTENT(IN) :: w(:,:,:)
     REAL(wp), INTENT(IN) :: h(:,:)
     REAL(wp), INTENT(IN) :: rho(:,:,:)
     REAL(wp), INTENT(IN) :: del_zlev_i(:)
     REAL(wp), INTENT(IN) :: weights(:,:,:)
     TYPE(t_subset_range), INTENT(IN) :: in_subset
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
 
     REAL(wp) :: potential_energy
-
 #define VerticalDim_Position 2
 
     REAL(wp), ALLOCATABLE :: sum_value(:,:), sum_weight(:,:), total_weight(:), total_sum(:)
@@ -1028,7 +1042,13 @@ CONTAINS
     REAL(wp) :: z_w, totalSum, totalWeight
 
     CHARACTER(LEN=*), PARAMETER :: method_name=module_name//':potential_energy'
+    LOGICAL :: lacc
 
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     IF (in_subset%no_of_holes > 0) CALL warning(method_name, "there are holes in the subset")
 
@@ -1051,6 +1071,9 @@ CONTAINS
     IF ( allocated_levels < end_vertical) &
       & CALL finish(method_name, "allocated_levels < end_vertical")
 
+    !$ACC DATA PRESENT(w, h, rho, del_zlev_i, weights, in_subset%vertical_levels) &
+    !$ACC   CREATE(sum_value, sum_weight, total_sum, total_weight) IF(lacc)
+
 !ICON_OMP_PARALLEL PRIVATE(myThreadNo)
 #ifdef _OPENMP
     myThreadNo = omp_get_thread_num()
@@ -1060,13 +1083,17 @@ CONTAINS
     no_of_threads = OMP_GET_NUM_THREADS()
 #endif
 !ICON_OMP_END_SINGLE NOWAIT
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     sum_value(:,  myThreadNo) = 0.0_wp
     sum_weight(:,  myThreadNo) = 0.0_wp
+    !$ACC END KERNELS
     IF (ASSOCIATED(in_subset%vertical_levels)) THEN
 !ICON_OMP_DO PRIVATE(block, start_index, end_index, idx)
       DO block = in_subset%start_block, in_subset%end_block
         CALL get_index_range(in_subset, block, start_index, end_index)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO idx = start_index, end_index
+          !$ACC LOOP SEQ
           DO level = start_vertical, MIN(end_vertical, in_subset%vertical_levels(idx,block)) - 1
             z_w = MERGE( &
               & (w(idx,level,block)*h(idx,block) &
@@ -1086,6 +1113,7 @@ CONTAINS
 
           ENDDO
         ENDDO
+        !$ACC END PARALLEL LOOP
       ENDDO
 !ICON_OMP_END_DO
 
@@ -1094,9 +1122,11 @@ CONTAINS
 !ICON_OMP_DO PRIVATE(block, start_index, end_index)
       DO block = in_subset%start_block, in_subset%end_block
         CALL get_index_range(in_subset, block, start_index, end_index)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO idx = start_index, end_index
           ! since we have the same numbder of vertical layers, the weight is the same
           ! for all levels. Compute it only for the first level, and then copy it
+          !$ACC LOOP SEQ
           DO level = start_vertical, end_vertical - 1
             z_w = MERGE( &
               & (w(idx,level,block)*h(idx,block) &
@@ -1114,6 +1144,7 @@ CONTAINS
             sum_weight(level, myThreadNo)  = sum_weight(start_vertical, myThreadNo) + weights(idx, level, block)
           ENDDO
         ENDDO
+        !$ACC END PARALLEL LOOP
       ENDDO
 !ICON_OMP_END_DO
 
@@ -1121,27 +1152,36 @@ CONTAINS
 !ICON_OMP_END_PARALLEL
 
     ! gather the total level sum of this process in total_sum(level)
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     total_sum(:)     = 0.0_wp
     total_weight(:) = 0.0_wp
+    !$ACC END KERNELS
     DO myThreadNo=0, no_of_threads-1
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO level = start_vertical, end_vertical - 1
         ! write(0,*) myThreadNo, level, " sum=", sum_value(level, myThreadNo), sum_weight(level, myThreadNo)
         total_sum(level)    = total_sum(level)    + sum_value(level, myThreadNo)
         total_weight(level) = total_weight(level) + sum_weight(level, myThreadNo)
       ENDDO
+      !$ACC END PARALLEL LOOP
     ENDDO
-    DEALLOCATE(sum_value, sum_weight)
 
     ! Collect the value and weight sums (at all procs)
-    CALL gather_sums(total_sum, total_weight)
+    CALL gather_sums(total_sum, total_weight, lopenacc=lacc)
 
 
     totalSum = 0.0_wp
     totalWeight = 0.0_wp
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     DO level = start_vertical, end_vertical
       totalSum    = totalSum    + total_sum(level)
       totalWeight = totalWeight + total_weight(level)
     ENDDO
+    !$ACC END PARALLEL LOOP
+
+    !$ACC END DATA
+
+    DEALLOCATE(sum_value, sum_weight)
     DEALLOCATE(total_weight)
     DEALLOCATE(total_sum)
 
@@ -1149,7 +1189,7 @@ CONTAINS
   END FUNCTION potential_energy
 
 
-  FUNCTION potential_energy_zstar(w,h,rho,del_zlev_i, stretch, weights,in_subset)
+  FUNCTION potential_energy_zstar(w,h,rho,del_zlev_i, stretch, weights,in_subset,use_acc)
     REAL(wp), INTENT(IN) :: w(:,:,:)
     REAL(wp), INTENT(IN) :: h(:,:)
     REAL(wp), INTENT(IN) :: rho(:,:,:)
@@ -1157,9 +1197,9 @@ CONTAINS
     REAL(wp), INTENT(IN) :: stretch(:, :)
     REAL(wp), INTENT(IN) :: weights(:,:,:)
     TYPE(t_subset_range), INTENT(IN) :: in_subset
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
 
     REAL(wp) :: potential_energy_zstar
-
 #define VerticalDim_Position 2
 
     REAL(wp), ALLOCATABLE :: sum_value(:,:), sum_weight(:,:), total_weight(:), total_sum(:)
@@ -1168,7 +1208,13 @@ CONTAINS
     REAL(wp) :: z_w, totalSum, totalWeight
 
     CHARACTER(LEN=*), PARAMETER :: method_name=module_name//':potential_energy'
+    LOGICAL :: lacc
 
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     IF (in_subset%no_of_holes > 0) CALL warning(method_name, "there are holes in the subset")
 
@@ -1191,6 +1237,9 @@ CONTAINS
     IF ( allocated_levels < end_vertical) &
       & CALL finish(method_name, "allocated_levels < end_vertical")
 
+    !$ACC DATA PRESENT(w, h, rho, del_zlev_i, stretch, weights, in_subset) &
+    !$ACC   CREATE(sum_value, sum_weight, total_sum, total_weight) IF(lacc)
+
     !ICON_OMP_PARALLEL PRIVATE(myThreadNo)
 #ifdef _OPENMP
     myThreadNo = omp_get_thread_num()
@@ -1200,74 +1249,91 @@ CONTAINS
     no_of_threads = OMP_GET_NUM_THREADS()
 #endif
     !ICON_OMP_END_SINGLE NOWAIT
-      sum_value(:,  myThreadNo) = 0.0_wp
-      sum_weight(:,  myThreadNo) = 0.0_wp
-      IF (ASSOCIATED(in_subset%vertical_levels)) THEN
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    sum_value(:,  myThreadNo) = 0.0_wp
+    sum_weight(:,  myThreadNo) = 0.0_wp
+    !$ACC END KERNELS
+    IF (ASSOCIATED(in_subset%vertical_levels)) THEN
     !ICON_OMP_DO PRIVATE(block, start_index, end_index, idx)
-        DO block = in_subset%start_block, in_subset%end_block
-          CALL get_index_range(in_subset, block, start_index, end_index)
-          DO idx = start_index, end_index
-            DO level = start_vertical, MIN(end_vertical, in_subset%vertical_levels(idx,block)) - 1
-              z_w = (w(idx,level,block)*del_zlev_i(level) &
-                &  + w(idx,level+1,block)*del_zlev_i(level+1)) &
-                & /(del_zlev_i(level)+del_zlev_i(level+1))
+      DO block = in_subset%start_block, in_subset%end_block
+        CALL get_index_range(in_subset, block, start_index, end_index)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        DO idx = start_index, end_index
+          !$ACC LOOP SEQ
+          DO level = start_vertical, MIN(end_vertical, in_subset%vertical_levels(idx,block)) - 1
+            z_w = (w(idx,level,block)*del_zlev_i(level) &
+              &  + w(idx,level+1,block)*del_zlev_i(level+1)) &
+              & /(del_zlev_i(level)+del_zlev_i(level+1))
 
-              sum_value(level, myThreadNo)  = sum_value(level, myThreadNo) + &
-                & grav*z_w*rho(idx, level, block) * weights(idx, level, block)*stretch(idx, block)
+            sum_value(level, myThreadNo)  = sum_value(level, myThreadNo) + &
+              & grav*z_w*rho(idx, level, block) * weights(idx, level, block)*stretch(idx, block)
 
-              sum_weight(level, myThreadNo)  = sum_weight(level, myThreadNo) + weights(idx, level, block)
+            sum_weight(level, myThreadNo)  = sum_weight(level, myThreadNo) + weights(idx, level, block)
 
-            ENDDO
           ENDDO
         ENDDO
+        !$ACC END PARALLEL LOOP
+      ENDDO
   !ICON_OMP_END_DO
 
-      ELSE ! no in_subset%vertical_levels
+    ELSE ! no in_subset%vertical_levels
 
   !ICON_OMP_DO PRIVATE(block, start_index, end_index)
-        DO block = in_subset%start_block, in_subset%end_block
-          CALL get_index_range(in_subset, block, start_index, end_index)
-          DO idx = start_index, end_index
-            ! since we have the same numbder of vertical layers, the weight is the same
-            ! for all levels. Compute it only for the first level, and then copy it
-            DO level = start_vertical, end_vertical - 1
-              z_w = (w(idx,level,block)*del_zlev_i(level) &
-                &  + w(idx,level+1,block)*del_zlev_i(level+1)) &
-                & /(del_zlev_i(level)+del_zlev_i(level+1))
+      DO block = in_subset%start_block, in_subset%end_block
+        CALL get_index_range(in_subset, block, start_index, end_index)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        DO idx = start_index, end_index
+          ! since we have the same numbder of vertical layers, the weight is the same
+          ! for all levels. Compute it only for the first level, and then copy it
+          !$ACC LOOP SEQ
+          DO level = start_vertical, end_vertical - 1
+            z_w = (w(idx,level,block)*del_zlev_i(level) &
+              &  + w(idx,level+1,block)*del_zlev_i(level+1)) &
+              & /(del_zlev_i(level)+del_zlev_i(level+1))
 
-              sum_value(level, myThreadNo)  = sum_value(level, myThreadNo) + &
-                & grav*z_w*rho(idx, level, block) * weights(idx,level,block)*stretch(idx, block)
-              sum_weight(level, myThreadNo)  = sum_weight(start_vertical, myThreadNo) + weights(idx, level, block)
-            ENDDO
+            sum_value(level, myThreadNo)  = sum_value(level, myThreadNo) + &
+              & grav*z_w*rho(idx, level, block) * weights(idx,level,block)*stretch(idx, block)
+            sum_weight(level, myThreadNo)  = sum_weight(start_vertical, myThreadNo) + weights(idx, level, block)
           ENDDO
         ENDDO
+        !$ACC END PARALLEL LOOP
+      ENDDO
   !ICON_OMP_END_DO
 
-      ENDIF
+    ENDIF
   !ICON_OMP_END_PARALLEL
 
     ! gather the total level sum of this process in total_sum(level)
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     total_sum(:)     = 0.0_wp
     total_weight(:) = 0.0_wp
+    !$ACC END KERNELS
     DO myThreadNo=0, no_of_threads-1
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO level = start_vertical, end_vertical - 1
         ! write(0,*) myThreadNo, level, " sum=", sum_value(level, myThreadNo), sum_weight(level, myThreadNo)
         total_sum(level)    = total_sum(level)    + sum_value(level, myThreadNo)
         total_weight(level) = total_weight(level) + sum_weight(level, myThreadNo)
       ENDDO
+      !$ACC END PARALLEL LOOP
     ENDDO
-    DEALLOCATE(sum_value, sum_weight)
 
     ! Collect the value and weight sums (at all procs)
-    CALL gather_sums(total_sum, total_weight)
+    CALL gather_sums(total_sum, total_weight, lopenacc=lacc)
 
 
     totalSum = 0.0_wp
     totalWeight = 0.0_wp
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
     DO level = start_vertical, end_vertical
       totalSum    = totalSum    + total_sum(level)
       totalWeight = totalWeight + total_weight(level)
     ENDDO
+    !$ACC END PARALLEL LOOP
+
+    !$ACC END DATA
+
+    DEALLOCATE(sum_value, sum_weight)
     DEALLOCATE(total_weight)
     DEALLOCATE(total_sum)
 
@@ -2130,7 +2196,7 @@ CONTAINS
 
   SUBROUTINE calc_heat_content(patch_3d, thickness, ice, tracers, &
        heat_content_liquid_water, heat_content_seaice,            &
-       heat_content_snow, heat_content_total, stretch_c)
+       heat_content_snow, heat_content_total, stretch_c, use_acc)
 
     TYPE(t_patch_3d), TARGET, INTENT(in)  :: patch_3d
 
@@ -2145,10 +2211,18 @@ CONTAINS
     TYPE(t_sea_ice), INTENT(IN)              :: ice
     TYPE(t_subset_range), POINTER            :: subset
 
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+
     INTEGER  :: blk, cell, cellStart,cellEnd, level
     REAL(wp) :: rhoicwa, rhosnic, rhosnwa, tfreeze, tmelt, &
          tref, entmel, rocp, sithk, snthk, dz
+    LOGICAL  :: lacc
 
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     rhoicwa = rhoi / rho_ref
     rhosnwa = rhos / rho_ref
@@ -2162,6 +2236,7 @@ CONTAINS
     subset => patch_3d%p_patch_2d(1)%cells%owned
     DO blk = subset%start_block, subset%end_block
       CALL get_index_range(subset, blk, cellStart, cellEnd)
+      !$ACC PARALLEL LOOP GANG DEFAULT(PRESENT) PRIVATE(sithk, snthk, dz) IF(lacc) ! 2023-07 psam-DKRZ: Use of GANG VECTOR introduces error here
       DO cell = cellStart, cellEnd
         ! surface:
         ! heat of ice : heat of water equivalent at tfreeze - latent heat of fusion
@@ -2188,6 +2263,7 @@ CONTAINS
              * ice%zUnderIce(cell,blk)
 
 
+        !$ACC LOOP SEQ
         DO level=2,subset%vertical_levels(cell,blk)
 
           ! 2023-07 dzo-DKRZ: The following MERGE command does not work as intended with NVIDIA compiler
@@ -2211,7 +2287,12 @@ CONTAINS
 
         ! rest of the underwater world
       END DO ! cell
+        !$ACC END PARALLEL LOOP
     END DO !block
+    ! 2023-07 psam-DKRZ: The following UPDATE SELF directive is necessary as the updated arrays are required elsewhere
+    ! for CPU-operations. This should not be necessary, I guess, when all subroutines are ported to GPU
+    !$ACC UPDATE SELF(heat_content_liquid_water, heat_content_seaice, heat_content_snow, heat_content_total) IF(lacc)
+
   END SUBROUTINE calc_heat_content
 
 

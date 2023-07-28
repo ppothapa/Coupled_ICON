@@ -346,13 +346,14 @@ CONTAINS
   !! code without this option, but optimization suggests a bit of code doubling.
   !<Optimize:inUse>
   SUBROUTINE nonlinear_coriolis_3d_fast(patch_3d, vn, p_vn_dual, vort_v, &
-    & operators_coefficients, vort_flux)
+    & operators_coefficients, vort_flux, use_acc)
     TYPE(t_patch_3d ), POINTER, INTENT(in) :: patch_3d
     REAL(wp), INTENT(inout)                    :: vn(nproma,n_zlev,patch_3d%p_patch_2d(1)%nblks_e)
     TYPE(t_cartesian_coordinates), INTENT(inout):: p_vn_dual(nproma,n_zlev,patch_3d%p_patch_2d(1)%nblks_v)
     REAL(wp), INTENT(inout)                    :: vort_v   (nproma,n_zlev,patch_3d%p_patch_2d(1)%nblks_v)
     TYPE(t_operator_coeff),INTENT(in), TARGET :: operators_coefficients
     REAL(wp), INTENT(inout)                    :: vort_flux(nproma,n_zlev,patch_3d%p_patch_2d(1)%nblks_e)
+    LOGICAL, INTENT(IN), OPTIONAL              :: use_acc
 
     !Local variables
     !TYPE(t_patch), POINTER         :: patch_2D
@@ -362,6 +363,7 @@ CONTAINS
     INTEGER :: ictr, vertex_edge
     INTEGER :: vertex1_idx, vertex1_blk, vertex2_idx, vertex2_blk
     INTEGER ::  edgeOfVertex_index, edgeOfVertex_block
+    LOGICAL :: lacc
     REAL(wp):: this_vort_flux(n_zlev, 2) ! for each of the two vertices
     REAL(wp):: thick_edge(n_zlev,2), thick_vert(n_zlev,2)
     REAL(wp):: numOfEdges(n_zlev,2)
@@ -377,7 +379,13 @@ CONTAINS
     startLevel    = 1
     ! endLevel    = n_zlev
 
-    CALL rot_vertex_ocean_3d( patch_3d, vn, p_vn_dual, operators_coefficients, vort_v)
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    CALL rot_vertex_ocean_3d( patch_3d, vn, p_vn_dual, operators_coefficients, vort_v, use_acc=lacc)
     ! sync not needed here, but used for example for the Leith
     CALL sync_patch_array(SYNC_V, patch_2D, vort_v)
 
@@ -391,6 +399,7 @@ CONTAINS
 
       ! vort_flux(:,:,blockNo) = 0.0_wp
 
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(numOfEdges, this_vort_flux) IF(lacc)
       DO je =  start_edge_index, end_edge_index
 
         this_vort_flux(:,:) = 0.0_wp
@@ -409,6 +418,7 @@ CONTAINS
         numOfEdges(1:n_zlev,1)=0.0_wp
         numOfEdges(1:n_zlev,2)=0.0_wp
 
+        !$ACC LOOP SEQ
         DO vertex_edge=1, patch_2d%verts%num_edges(vertex1_idx,vertex1_blk)
 
           ictr =ictr+1
@@ -438,6 +448,7 @@ CONTAINS
 
         ! vertex 2
         ictr = no_dual_edges
+        !$ACC LOOP SEQ
         DO vertex_edge=1, patch_2d%verts%num_edges(vertex2_idx,vertex2_blk)!no_dual_cell_edges
 
           ictr =ictr+1
@@ -480,6 +491,7 @@ CONTAINS
         ENDDO
 
       END DO
+      !$ACC END PARALLEL LOOP
 
     END DO ! blockNo = edges_inDomain%start_block, edges_inDomain%end_block
 !ICON_OMP_END_PARALLEL_DO
@@ -498,6 +510,7 @@ CONTAINS
 
       ! vort_flux(:,:,blockNo) = 0.0_wp
 
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(numOfEdges, this_vort_flux, thick_edge, thick_vert) IF(lacc)
       DO je =  start_edge_index, end_edge_index
 
         this_vort_flux(:,:) = 0.0_wp
@@ -515,6 +528,7 @@ CONTAINS
         numOfEdges(1:n_zlev,1)=0.0_wp
         numOfEdges(1:n_zlev,2)=0.0_wp
 
+        !$ACC LOOP SEQ
         DO vertex_edge=1, patch_2d%verts%num_edges(vertex1_idx,vertex1_blk)
 
           ictr =ictr+1
@@ -542,6 +556,7 @@ CONTAINS
 
         ! vertex 2
         ictr = no_dual_edges
+        !$ACC LOOP SEQ
         DO vertex_edge=1, patch_2d%verts%num_edges(vertex2_idx,vertex2_blk)!no_dual_cell_edges
 
           ictr =ictr+1
@@ -598,6 +613,7 @@ CONTAINS
         ENDDO
 
       END DO
+      !$ACC END PARALLEL LOOP
 
     END DO ! blockNo = edges_inDomain%start_block, edges_inDomain%end_block
 !ICON_OMP_END_PARALLEL_DO
@@ -615,13 +631,14 @@ CONTAINS
   !! vort_flux id calculated on edges in_domain
 !<Optimize:inUse>
   SUBROUTINE nonlinear_coriolis_3d(patch_3d, vn, p_vn_dual, vort_v, &
-    & operators_coefficients, vort_flux)
+    & operators_coefficients, vort_flux, use_acc)
     TYPE(t_patch_3d ),POINTER,INTENT(in) :: patch_3d
     REAL(wp), INTENT(inout)                    :: vn(nproma,n_zlev,patch_3d%p_patch_2d(1)%nblks_e)
     TYPE(t_cartesian_coordinates), INTENT(inout)  :: p_vn_dual(nproma,n_zlev,patch_3d%p_patch_2d(1)%nblks_v)
     REAL(wp), INTENT(inout)                    :: vort_v   (nproma,n_zlev,patch_3d%p_patch_2d(1)%nblks_v)
     TYPE(t_operator_coeff),TARGET,INTENT(in)   :: operators_coefficients
     REAL(wp), INTENT(inout)                    :: vort_flux(nproma,n_zlev,patch_3d%p_patch_2d(1)%nblks_e)
+    LOGICAL, INTENT(IN), OPTIONAL              :: use_acc
 
     !Local variables
     !TYPE(t_patch), POINTER         :: patch_2D
@@ -631,18 +648,30 @@ CONTAINS
     INTEGER :: start_edge_index, end_edge_index
     INTEGER :: ictr, neighbor, vertex_edge
     INTEGER :: il_v, ib_v
+    LOGICAL :: lacc
     REAL(wp) :: vort_global, thick_edge, thick_vert
     REAL(wp) :: vort_flux_budget_perlevel(n_zlev), volume(n_zlev)
     REAL(wp) :: vort_flux_budget_perlevel_pos(n_zlev),vort_flux_budget_perlevel_neg(n_zlev)
     TYPE(t_subset_range), POINTER :: edges_in_domain
     TYPE(t_patch), POINTER :: patch_2d
+    CHARACTER(len=*), PARAMETER :: routine = modname//':nonlinear_coriolis_3d'
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     !-----------------------------------------------------------------------
       IF (fast_performance_level > 10) THEN
         CALL nonlinear_coriolis_3d_fast(patch_3d, vn, p_vn_dual, vort_v, &
-                  & operators_coefficients, vort_flux)
+                  & operators_coefficients, vort_flux, use_acc=lacc)
         RETURN
       ENDIF
+
+#ifdef _OPENACC
+    CALL finish(routine, 'OpenACC version for fast_performance_level <= 10 currently not tested/validated')
+#endif
 
     !-----------------------------------------------------------------------
     patch_2d   => patch_3d%p_patch_2d(1)
@@ -664,6 +693,7 @@ CONTAINS
     DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
       CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
 
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       level_loop: DO level = startLevel, endLevel
 
         edge_idx_loop: DO je =  start_edge_index, end_edge_index
@@ -672,6 +702,7 @@ CONTAINS
 
             vort_flux(je,level,blockNo) = 0.0_wp
 
+            !$ACC LOOP SEQ
             DO neighbor=1,2
               IF(neighbor==1) ictr = 0
               IF(neighbor==2) ictr = no_dual_edges
@@ -680,6 +711,7 @@ CONTAINS
               ib_v = patch_2d%edges%vertex_blk(je,blockNo,neighbor)
 
               vort_global = (vort_v(il_v,level,ib_v) + patch_2d%verts%f_v(il_v,ib_v))
+              !$ACC LOOP SEQ
               DO vertex_edge=1, patch_2d%verts%num_edges(il_v,ib_v)
 
                 ictr =ictr+1
@@ -697,6 +729,7 @@ CONTAINS
           ENDIF
         END DO edge_idx_loop
       END DO level_loop
+      !$ACC END PARALLEL LOOP
     END DO ! blockNo = edges_inDomain%start_blockold, edges_inDomain%end_block
     ! !$OMP END DO NOWAIT
     ! !$OMP END PARALLEL
@@ -2725,7 +2758,7 @@ CONTAINS
   !!  developed by Peter Korn, MPI-M (2010-11)
   !<Optimize:inUse>
   SUBROUTINE map_cell2edges_3d_mlevels( patch_3d, p_vn_c, ptp_vn, operators_coefficients,&
-    & opt_startLevel, opt_endLevel, subset_range )
+    & opt_startLevel, opt_endLevel, subset_range, use_acc )
 
     TYPE(t_patch_3d ),TARGET, INTENT(in)   :: patch_3d
     TYPE(t_cartesian_coordinates), INTENT(in)  :: p_vn_c(:,:,:)    ! input vector (nproma,n_zlev,alloc_cell_blocks)
@@ -2734,12 +2767,14 @@ CONTAINS
     INTEGER, INTENT(in), OPTIONAL :: opt_startLevel        ! optional vertical start level
     INTEGER, INTENT(in), OPTIONAL :: opt_endLevel        ! optional vertical end level
     TYPE(t_subset_range), TARGET, INTENT(in), OPTIONAL :: subset_range
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
 
     !Local variables
     INTEGER :: startLevel, endLevel
     INTEGER :: start_edge_index, end_edge_index
     INTEGER :: je, blockNo, level
     INTEGER :: cell_1_index,cell_1_block, cell_2_index,cell_2_block
+    LOGICAL :: lacc
     TYPE(t_subset_range), POINTER :: edges_in_domain
     TYPE(t_patch), POINTER :: patch_2d
     !-----------------------------------------------------------------------
@@ -2760,14 +2795,23 @@ CONTAINS
       endLevel = n_zlev
     END IF
 
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
     ! calculation of transposed P^TPv from Pv (incart coord)
 !ICON_OMP_PARALLEL_DO PRIVATE(start_edge_index,end_edge_index,je, level,  &
 !ICON_OMP cell_1_index, cell_1_block, cell_2_index, cell_2_block) ICON_OMP_DEFAULT_SCHEDULE
     DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
       CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
 
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       ptp_vn(:,:,blockNo) = 0.0_wp
+      !$ACC END KERNELS
 
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO je = start_edge_index, end_edge_index
         !Get indices of two adjacent triangles
         cell_1_index = patch_2d%edges%cell_idx(je,blockNo,1)
@@ -2784,6 +2828,7 @@ CONTAINS
 
         END DO
       END DO
+      !$ACC END PARALLEL LOOP
 
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
 !ICON_OMP_END_PARALLEL_DO
@@ -2880,15 +2925,17 @@ CONTAINS
   !! Developed  by  Peter Korn, MPI-M (2014).
   !!
   SUBROUTINE map_vec_prismtop2center_on_block(patch_3d, vec_top, vec_center, &
-    & blockNo, start_cell_index, end_cell_index)
+    & blockNo, start_cell_index, end_cell_index, use_acc)
     TYPE(t_patch_3d ),TARGET, INTENT(in)            :: patch_3d
     TYPE(t_cartesian_coordinates), INTENT(in)       :: vec_top(:,:) ! (nproma, n_zlev+1)
     TYPE(t_cartesian_coordinates), INTENT(inout)    :: vec_center(:,:) ! (nproma, n_zlev) ! out
     INTEGER, INTENT(in)                             :: blockNo, start_cell_index, end_cell_index
+    LOGICAL, INTENT(IN), OPTIONAL                   :: use_acc
 
     !Local variables
     INTEGER :: level, jc!,jb
     INTEGER :: start_level, end_level
+    LOGICAL :: lacc
     REAL(wp), POINTER :: prism_center_distance(:,:), prism_thick(:,:)
     !-------------------------------------------------------------------------------
     start_level = 1
@@ -2896,13 +2943,22 @@ CONTAINS
 !     vec_center(1:nproma,1:n_zlev,blockNo)%x(2)=0.0_wp
 !     vec_center(1:nproma,1:n_zlev,blockNo)%x(3)=0.0_wp
    !-------------------------------------------------------------------------------
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
     ! these do not include the height
     prism_center_distance => patch_3D%p_patch_1D(1)%constantPrismCenters_Zdistance  (:,:,blockNo)
     prism_thick           => patch_3D%p_patch_1D(1)%prism_thick_flat_sfc_c(:,:,blockNo)
 
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
     DO jc = start_cell_index, end_cell_index
       end_level  = patch_3D%p_patch_1d(1)%dolic_c(jc,blockNo)
 !       IF ( end_level >=min_dolic ) THEN
+        !$ACC LOOP SEQ
         DO level = start_level, end_level
           vec_center(jc,level)%x &
           & = (prism_center_distance(jc,level)   * vec_top(jc,level)%x    &
@@ -2912,6 +2968,7 @@ CONTAINS
         END DO
 
     END DO
+    !$ACC END PARALLEL LOOP
 !     CALL sync_patch_array(sync_c, patch_3D%p_patch_2D(1), vec_center(:,:,:)%x(1))
 !     CALL sync_patch_array(sync_c, patch_3D%p_patch_2D(1), vec_center(:,:,:)%x(2))
 !     CALL sync_patch_array(sync_c, patch_3D%p_patch_2D(1), vec_center(:,:,:)%x(3))

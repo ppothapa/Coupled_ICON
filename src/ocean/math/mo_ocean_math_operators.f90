@@ -241,15 +241,17 @@ CONTAINS
   !!  mpi note: the result is on edges_in_domain.
 !<Optimize:inUse>
   SUBROUTINE grad_fd_norm_oce_3D_onblock( psi_c, patch_3D, grad_coeff, grad_norm_psi_e, &
-    & start_edge_index, end_edge_index, blockNo)
+    & start_edge_index, end_edge_index, blockNo, use_acc)
 
     TYPE(t_patch_3D ),TARGET, INTENT(in)   :: patch_3D
     REAL(wp), INTENT(in)                   :: grad_coeff(:,:)!(nproma,n_zlev)
     REAL(wp), INTENT(in)                   :: psi_c          (nproma,n_zlev,patch_3D%p_patch_2D(1)%alloc_cell_blocks)
     REAL(wp), INTENT(inout)                :: grad_norm_psi_e(nproma,n_zlev)
     INTEGER, INTENT(in)                    :: start_edge_index, end_edge_index, blockNo
+    LOGICAL, INTENT(IN), OPTIONAL          :: use_acc
 
     INTEGER :: je, level
+    LOGICAL :: lacc
     INTEGER,  DIMENSION(:,:,:), POINTER :: idx, blk
     !-----------------------------------------------------------------------
 
@@ -257,6 +259,13 @@ CONTAINS
     blk => patch_3D%p_patch_2D(1)%edges%cell_blk
 !     grad_norm_psi_e(:,:) = 0.0_wp
 
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
     DO je = start_edge_index, end_edge_index
       DO level = 1, patch_3D%p_patch_1d(1)%dolic_e(je,blockNo)
         grad_norm_psi_e(je,level) =                                        &
@@ -265,7 +274,7 @@ CONTAINS
           & psi_c(idx(je,blockNo,1),level,blk(je,blockNo,1)) )
       ENDDO
     END DO
-
+    !$ACC END PARALLEL LOOP
   END SUBROUTINE grad_fd_norm_oce_3D_onblock
   !-------------------------------------------------------------------------
 
@@ -1254,7 +1263,7 @@ CONTAINS
   !! mpi note: the results is not synced. should be done by the calling method if necessary
   !!     vn, vn_dual must have been synced on level 2 (in_domain + 1)
 !<Optimize:inUse>
-  SUBROUTINE rot_vertex_ocean_3D( patch_3D, vn, vn_dual, p_op_coeff, rot_vec_v)
+  SUBROUTINE rot_vertex_ocean_3D( patch_3D, vn, vn_dual, p_op_coeff, rot_vec_v, use_acc)
     !>
     !!
     TYPE(t_patch_3D ),TARGET, INTENT(in)      :: patch_3D
@@ -1262,6 +1271,7 @@ CONTAINS
     TYPE(t_cartesian_coordinates), INTENT(in) :: vn_dual(nproma,n_zlev,patch_3D%p_patch_2D(1)%nblks_v)
     TYPE(t_operator_coeff),TARGET, INTENT(in) :: p_op_coeff
     REAL(wp), INTENT(inout)                   :: rot_vec_v(nproma,n_zlev,patch_3D%p_patch_2D(1)%nblks_v)
+    LOGICAL, INTENT(IN), OPTIONAL             :: use_acc
 
     !Local variables
     !
@@ -1273,6 +1283,7 @@ CONTAINS
     INTEGER :: edge_index, edge_block, boundaryEdge_index, boundaryEdge_block, boundaryEdge_inVertex
     INTEGER :: il_v1, il_v2,ib_v1, ib_v2
     INTEGER :: start_index_v, end_index_v
+    LOGICAL :: lacc
 
     INTEGER, POINTER :: vertex_boundaryEdgeIndex(:,:,:,:), vertex_boundaryEdgeBlock(:,:,:,:), coeffs_VertexEdgeIndex(:,:,:,:)
     !REAL(wp), POINTER :: z_orientation(:,:,:,:)
@@ -1289,13 +1300,24 @@ CONTAINS
     coeffs_VertexEdgeIndex      => p_op_coeff%boundaryEdge_Coefficient_Index
     !z_orientation    => p_op_coeff%orientation
 
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
     !In this loop vorticity at vertices is calculated
 !ICON_OMP_PARALLEL_DO PRIVATE(blockNo,start_index_v,end_index_v,vertexIndex,end_level,vertexConnect,edge_index,edge_block,    &
 !ICON_OMP z_vort_internal, level, z_vort_boundary, z_vt, boundaryEdge_inVertex, boundaryEdge_index, boundaryEdge_block, &
 !ICON_OMP  il_v1,ib_v1,il_v2,ib_v2) ICON_OMP_DEFAULT_SCHEDULE
     DO blockNo = verts_in_domain%start_block, verts_in_domain%end_block
       CALL get_index_range(verts_in_domain, blockNo, start_index_v, end_index_v)
+
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       rot_vec_v(:,:,blockNo) = 0.0_wp
+      !$ACC END KERNELS
+  
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(z_vort_internal, z_vort_boundary, z_vt) IF(lacc)
       DO vertexIndex = start_index_v, end_index_v
         end_level = patch_3D%p_patch_1d(1)%vertex_bottomLevel(vertexIndex, blockNo)
         z_vort_internal(:) = 0.0_wp
@@ -1369,6 +1391,7 @@ CONTAINS
           END DO ! levels
         ENDIF
       END DO ! vertexIndex
+      !$ACC END PARALLEL LOOP
     END DO ! vertexBlock
 !ICON_OMP_END_PARALLEL_DO
 
@@ -1376,7 +1399,7 @@ CONTAINS
   !-------------------------------------------------------------------------
 
 #else
-  SUBROUTINE rot_vertex_ocean_3D( patch_3D, vn, vn_dual, p_op_coeff, rot_vec_v)
+  SUBROUTINE rot_vertex_ocean_3D( patch_3D, vn, vn_dual, p_op_coeff, rot_vec_v, use_acc)
     !>
     !!
     TYPE(t_patch_3D ),TARGET, INTENT(in)      :: patch_3D
@@ -1384,6 +1407,7 @@ CONTAINS
     TYPE(t_cartesian_coordinates), INTENT(in) :: vn_dual(nproma,n_zlev,patch_3D%p_patch_2D(1)%nblks_v)
     TYPE(t_operator_coeff),TARGET, INTENT(in) :: p_op_coeff
     REAL(wp), INTENT(inout)                   :: rot_vec_v(nproma,n_zlev,patch_3D%p_patch_2D(1)%nblks_v)
+    LOGICAL, INTENT(IN), OPTIONAL             :: use_acc
 
     !Local variables
     !
@@ -1395,6 +1419,7 @@ CONTAINS
     INTEGER :: edge_index, edge_block, boundaryEdge_index, boundaryEdge_block, boundaryEdge_inVertex
     INTEGER :: il_v1, il_v2,ib_v1, ib_v2
     INTEGER :: start_index_v, end_index_v
+    LOGICAL :: lacc
 
     INTEGER, POINTER :: vertex_boundaryEdgeIndex(:,:,:,:), vertex_boundaryEdgeBlock(:,:,:,:), coeffs_VertexEdgeIndex(:,:,:,:)
 
@@ -1409,15 +1434,27 @@ CONTAINS
     vertex_boundaryEdgeBlock    => p_op_coeff%vertex_bnd_edge_blk
     coeffs_VertexEdgeIndex      => p_op_coeff%boundaryEdge_Coefficient_Index
 
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    !$ACC DATA CREATE(z_vort_internal, z_vort_boundary) IF(lacc)
+
     !In this loop vorticity at vertices is calculated
 !ICON_OMP_PARALLEL_DO PRIVATE(blockNo,start_index_v,end_index_v,vertexIndex,end_level,vertexConnect,edge_index,edge_block,    &
 !ICON_OMP z_vort_internal, level, z_vort_boundary, z_vt, boundaryEdge_inVertex, boundaryEdge_index, boundaryEdge_block, &
 !ICON_OMP  il_v1,ib_v1,il_v2,ib_v2) ICON_OMP_DEFAULT_SCHEDULE
     DO blockNo = verts_in_domain%start_block, verts_in_domain%end_block
       CALL get_index_range(verts_in_domain, blockNo, start_index_v, end_index_v)
+
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       rot_vec_v(:,:,blockNo) = 0.0_wp
       z_vort_internal = 0.0_wp
+      !$ACC END KERNELS
 
+      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(3) DEFAULT(PRESENT) IF(lacc)
       DO vertexConnect = 1, MAXVAL(patch_2D%verts%num_edges(start_index_v:end_index_v,blockNo))
         DO level = start_level, MAXVAL(patch_3D%p_patch_1d(1)%vertex_bottomLevel(start_index_v:end_index_v, blockNo))
           DO vertexIndex = start_index_v, end_index_v
@@ -1439,10 +1476,15 @@ CONTAINS
           END DO ! vertexIndex
         END DO ! level
       ENDDO ! verts%num_edges
+      !$ACC END PARALLEL LOOP
 
         !Finalize vorticity calculation by closing the dual loop along boundary edges
       IF(i_bc_veloc_lateral/=i_bc_veloc_lateral_noslip)THEN
+        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
         z_vort_boundary = 0.0_wp
+        !$ACC END KERNELS
+
+        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(3) DEFAULT(PRESENT) PRIVATE(z_vt) IF(lacc)
         DO level = start_level, MAXVAL(patch_3D%p_patch_1d(1)%vertex_bottomLevel(start_index_v:end_index_v, blockNo))
           DO boundaryEdge_inVertex = 1, MAXVAL(p_op_coeff%bnd_edges_per_vertex(start_index_v:end_index_v,level,blockNo))
 !NEC$ ivdep
@@ -1478,7 +1520,9 @@ CONTAINS
             rot_vec_v(vertexIndex,level,blockNo) = z_vort_internal(vertexIndex,level) + z_vort_boundary(vertexIndex,level)
           END DO ! vertexIndex
         END DO ! levels
+        !$ACC END PARALLEL LOOP
       ELSEIF(i_bc_veloc_lateral==i_bc_veloc_lateral_noslip)THEN
+        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) PRIVATE(z_vt) IF(lacc)
         DO level = start_level, MAXVAL(patch_3D%p_patch_1d(1)%vertex_bottomLevel(start_index_v:end_index_v, blockNo))
           DO vertexIndex = start_index_v, end_index_v
             IF ( level > patch_3D%p_patch_1d(1)%vertex_bottomLevel(vertexIndex, blockNo) ) CYCLE
@@ -1488,10 +1532,12 @@ CONTAINS
             rot_vec_v(vertexIndex,level,blockNo) = z_vort_internal(vertexIndex,level)
           END DO ! vertexIndex
         END DO ! levels
+        !$ACC END PARALLEL LOOP
       ENDIF
     END DO ! vertexBlock
 !ICON_OMP_END_PARALLEL_DO
 
+    !$ACC END DATA
   END SUBROUTINE rot_vertex_ocean_3D
   !-------------------------------------------------------------------------
 #endif
@@ -1509,20 +1555,30 @@ CONTAINS
   !!
 !<Optimize:inUse>
   SUBROUTINE verticalDeriv_vec_midlevel_on_block(patch_3d, vec_in, vertDeriv_vec,start_level, &
-    & blockNo, start_index, end_index)
+    & blockNo, start_index, end_index, use_acc)
     TYPE(t_patch_3d ),TARGET, INTENT(in)             :: patch_3d
     TYPE(t_cartesian_coordinates), INTENT(in)        :: vec_in(nproma, n_zlev)
     INTEGER, INTENT(in)                              :: start_level
     INTEGER, INTENT(in)                              :: blockNo, start_index, end_index
     TYPE(t_cartesian_coordinates), INTENT(inout)     :: vertDeriv_vec(:,:) ! (nproma, n_zlev+1)    ! out
+    LOGICAL, INTENT(IN), OPTIONAL                    :: use_acc
 
     !Local variables
     INTEGER :: jk, jc!,jb
+    LOGICAL :: lacc
     REAL(wp), POINTER ::  inv_prism_center_distance(:,:)
 !     INTEGER :: end_level
     !-------------------------------------------------------------------------------
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
     inv_prism_center_distance => patch_3D%p_patch_1D(1)%constantPrismCenters_invZdistance(:,:,blockNo)
 
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
     DO jc = start_index, end_index
 !         vertDeriv_vec(jc,1)%x = 0.0_wp
         DO jk = start_level,patch_3D%p_patch_1d(1)%dolic_c(jc,blockNo)
@@ -1537,6 +1593,7 @@ CONTAINS
         END DO
         ! vertDeriv_vec(jc,end_level)%x = 0.0_wp ! this is not needed
     END DO
+    !$ACC END PARALLEL LOOP
 
   END SUBROUTINE verticalDeriv_vec_midlevel_on_block
   !-------------------------------------------------------------------------
@@ -1822,7 +1879,7 @@ CONTAINS
   !-------------------------------------------------------------------------
   !<Optimize:inUse>
   SUBROUTINE smooth_onCells_2D( patch_3D, in_value, out_value, smooth_weights, &
-    & has_missValue, missValue)
+    & has_missValue, missValue, use_acc)
 
     TYPE(t_patch_3D ),TARGET, PTR_INTENT(in)   :: patch_3D
     REAL(wp), INTENT(in)          :: in_value(:,:)  ! dim: (nproma,n_zlev,alloc_cell_blocks)
@@ -1830,12 +1887,33 @@ CONTAINS
     REAL(wp), INTENT(in)          :: smooth_weights(1:2) ! 1st=weight for this cell, 2nd=weight for the some of the neigbors
     LOGICAL,  INTENT(in)          :: has_missValue
     REAL(wp), INTENT(in)          :: missValue
-
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
 
     INTEGER :: max_connectivity, blockNo, start_index,end_index, jc, level, neigbor, neigbor_index,neigbor_block
     REAL(wp) :: numberOfNeigbors, neigbors_weight !, minValue, maxValue
     TYPE(t_subset_range), POINTER :: cells_inDomain
+    LOGICAL :: lacc
+    CHARACTER(len=*), PARAMETER :: routine = 'smooth_onCells_2D'
     !-----------------------------------------------------------------------
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+#ifdef _OPENACC
+    CALL finish(routine, 'OpenACC version currently not tested/validated')
+#endif
+
+    !$ACC DATA COPYIN(patch_3D%p_patch_2D(1)%cells%neighbor_idx) &
+    !$ACC   COPYIN(patch_3D%p_patch_2D(1)%cells%neighbor_blk) &
+    !$ACC   COPYIN(patch_3D%p_patch_1d(1)%dolic_c) &
+    !$ACC   COPYIN(in_value) &
+    !$ACC   COPYIN(smooth_weights) &
+    !$ACC   COPY(out_value) &
+    !$ACC   IF(lacc)
+
     cells_inDomain => patch_3D%p_patch_2D(1)%cells%owned
     max_connectivity = patch_3D%p_patch_2D(1)%cells%max_connectivity
 
@@ -1844,9 +1922,14 @@ CONTAINS
 !ICON_OMP numberOfNeigbors, neigbors_weight) ICON_OMP_DEFAULT_SCHEDULE
       DO blockNo = cells_inDomain%start_block, cells_inDomain%end_block
         CALL get_index_range(cells_inDomain, blockNo, start_index, end_index)
+        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
         out_value(:,blockNo) = 0.0_wp
+        !$ACC END KERNELS
 
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO jc = start_index, end_index
+
+          !$ACC LOOP SEQ
           DO level = 1, MIN(patch_3D%p_patch_1d(1)%dolic_c(jc, blockNo), 1)
 
             ! calculate how many sea neigbors we have
@@ -1886,6 +1969,7 @@ CONTAINS
           END DO
 
         END DO
+        !$ACC END PARALLEL LOOP
       END DO
 !ICON_OMP_END_PARALLEL_DO
 
@@ -1895,9 +1979,14 @@ CONTAINS
 !ICON_OMP numberOfNeigbors, neigbors_weight) ICON_OMP_DEFAULT_SCHEDULE
       DO blockNo = cells_inDomain%start_block, cells_inDomain%end_block
         CALL get_index_range(cells_inDomain, blockNo, start_index, end_index)
+        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
         out_value(:,blockNo) = 0.0_wp
+        !$ACC END KERNELS
 
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO jc = start_index, end_index
+
+          !$ACC LOOP SEQ
           DO level = 1, MIN(patch_3D%p_patch_1d(1)%dolic_c(jc, blockNo), 1)
 
             ! calculate how many sea neigbors we have
@@ -1927,13 +2016,17 @@ CONTAINS
             ENDIF
 
           END DO
+
         END DO
+        !$ACC END PARALLEL LOOP
       END DO
 !ICON_OMP_END_PARALLEL_DO
 
     ENDIF
 
     CALL sync_patch_array(sync_c, patch_3d%p_patch_2d(1), out_value)
+
+    !$ACC END DATA
 
   END SUBROUTINE smooth_onCells_2D
   !-------------------------------------------------------------------------

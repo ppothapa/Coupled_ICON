@@ -523,6 +523,21 @@ CONTAINS
         !$ACC   COPY(p_atm_f%LWnet, p_atm_f%SWnet, p_atm_f%sens) &
         !$ACC   COPY(p_atm_f%lat, p_atm_f%dLWdT, p_atm_f%dsensdT) &
         !$ACC   COPY(p_atm_f%dlatdT, p_atm_f%rpreci, p_atm_f%rprecw) &
+        !$ACC   COPY(patch_3D%p_patch_1d(1)%zlev_i) &
+        !$ACC   COPY(ocean_state(jg)%p_diag%Richardson_Number) &
+        !$ACC   COPY(ocean_state(jg)%p_diag%zgrad_rho) &
+        !$ACC   COPY(p_phys_param, p_phys_param%cvmix_params, p_phys_param%cvmix_params%tke_plc) &
+        !$ACC   COPY(p_phys_param%cvmix_params%iwe_Tdis, p_phys_param%cvmix_params%tke) &
+        !$ACC   COPY(p_phys_param%cvmix_params%u_stokes, p_phys_param%cvmix_params%hlc) &
+        !$ACC   COPY(p_phys_param%cvmix_params%wlc) &
+        !$ACC   COPY(p_phys_param%a_veloc_v, p_phys_param%a_tracer_v) &
+        !$ACC   COPY(p_phys_param%cvmix_params%tke_Tbpr, p_phys_param%cvmix_params%tke_Tspr) &
+        !$ACC   COPY(p_phys_param%cvmix_params%tke_Tdif, p_phys_param%cvmix_params%tke_Tdis) &
+        !$ACC   COPY(p_phys_param%cvmix_params%tke_Twin, p_phys_param%cvmix_params%tke_Tiwf) &
+        !$ACC   COPY(p_phys_param%cvmix_params%tke_Tbck, p_phys_param%cvmix_params%tke_Ttot) &
+        !$ACC   COPY(p_phys_param%cvmix_params%tke_Lmix, p_phys_param%cvmix_params%tke_Pr) &
+        !$ACC   COPY(p_phys_param%cvmix_params%cvmix_dummy_1, p_phys_param%cvmix_params%cvmix_dummy_2) &
+        !$ACC   COPY(p_phys_param%cvmix_params%cvmix_dummy_3) &
         !$ACC   IF(lacc)
 
         DO blockNo = patch_3D%p_patch_2D(1)%cells%ALL%start_block, patch_3D%p_patch_2D(1)%cells%ALL%end_block
@@ -581,25 +596,6 @@ CONTAINS
         CALL create_pressure_bc_conditions(patch_3d,ocean_state(jg), p_as, sea_ice, current_time, use_acc=lacc)
         !------------------------------------------------------------------------
 
-        DO blockNo = patch_3D%p_patch_2D(1)%cells%ALL%start_block, patch_3D%p_patch_2D(1)%cells%ALL%end_block
-          !$ACC EXIT DATA COPYOUT(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_this_tobelow) &
-          !$ACC   COPYOUT(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_this_tothisbelow) &
-          !$ACC   COPYOUT(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheight_2xbelow_x_ratiothis_tothisbelow) &
-          !$ACC   COPYOUT(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_this_tothisabovebelow) &
-          !$ACC   COPYOUT(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_2xaboveplusthis_tothisbelow) &
-          !$ACC   COPYOUT(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_2xbelowplusthis_tothisabove) &
-          !$ACC   COPYOUT(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_thisabove_to2xthisplusbelow) &
-          !$ACC   COPYOUT(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_thisbelow_to2xthisplusabove) &
-          !$ACC   COPYOUT(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheight_inv_thisabovebelow2below) IF(lacc)
-        END DO
-
-        !$ACC END DATA
-
-#ifdef _OPENACC
-        lacc = .FALSE.
-        i_am_accel_node = .FALSE.    ! Deactivate GPUs
-#endif
-
   !       IF (timers_level > 2) CALL timer_start(timer_scalar_prod_veloc)
   !       CALL calc_scalar_product_veloc_3d( patch_3d,  &
   !         & ocean_state(jg)%p_prog(nold(1))%vn,         &
@@ -626,6 +622,25 @@ CONTAINS
         !by_ogut: added p_oce_sfc
         CALL update_ho_params(patch_3d, ocean_state(jg), p_as%fu10, sea_ice%concsum, p_phys_param, operators_coefficients, &
                               p_atm_f, p_oce_sfc, use_acc=lacc)
+
+        DO blockNo = patch_3D%p_patch_2D(1)%cells%ALL%start_block, patch_3D%p_patch_2D(1)%cells%ALL%end_block
+          !$ACC EXIT DATA COPYOUT(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_this_tobelow) &
+          !$ACC   COPYOUT(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_this_tothisbelow) &
+          !$ACC   COPYOUT(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheight_2xbelow_x_ratiothis_tothisbelow) &
+          !$ACC   COPYOUT(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_this_tothisabovebelow) &
+          !$ACC   COPYOUT(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_2xaboveplusthis_tothisbelow) &
+          !$ACC   COPYOUT(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_2xbelowplusthis_tothisabove) &
+          !$ACC   COPYOUT(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_thisabove_to2xthisplusbelow) &
+          !$ACC   COPYOUT(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_thisbelow_to2xthisplusabove) &
+          !$ACC   COPYOUT(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheight_inv_thisabovebelow2below) IF(lacc)
+        END DO
+
+        !$ACC END DATA
+
+#ifdef _OPENACC
+        lacc = .FALSE.
+        i_am_accel_node = .FALSE.    ! Deactivate GPUs
+#endif
 
         !------------------------------------------------------------------------
         IF (debug_check_level > 5) THEN
@@ -745,16 +760,81 @@ CONTAINS
 !          ocean_state(jg)%p_prog(nnew(1))%h(:,:), patch_3D%p_patch_1d(1)%prism_thick_flat_sfc_c(:,:,:),&
 !          sea_ice,0)
         !------------------------------------------------------------------------
-! #ifdef _OPENACC
-!         i_am_accel_node = my_process_is_work()    ! Activate GPUs
-!         lacc = .TRUE.
-! #endif
+#ifdef _OPENACC
+        IF (GMRedi_configuration == Cartesian_Mixing ) THEN
+          i_am_accel_node = my_process_is_work()    ! Activate GPUs
+          lacc = .TRUE.
+        END IF
+#endif
+
+        !$ACC DATA COPYIN(patch_3d%p_patch_1d(1)%depth_CellInterface, patch_3d%p_patch_1d(1)%prism_thick_e) &
+        !$ACC   COPYIN(patch_3d%p_patch_1d(1)%prism_thick_c, patch_3d%p_patch_1d(1)%inv_prism_thick_c) &
+        !$ACC   COPYIN(patch_3d%p_patch_1d(1)%inv_prism_center_dist_c, nold, nnew) &
+        !$ACC   COPYIN(operators_coefficients, operators_coefficients%verticalAdvectionPPMcoeffs) &
+        !$ACC   COPYIN(operators_coefficients%edge2edge_viacell_coeff, operators_coefficients%div_coeff) &
+        !$ACC   COPYIN(operators_coefficients%edges_SeaBoundaryLevel) &
+        !$ACC   COPYIN(ext_data, ext_data(1)%bgc, ext_data(1)%bgc%dust, ext_data(1)%bgc%nitro) &
+        !$ACC   COPYIN(ocean_state, p_oce_sfc, p_oce_sfc%top_dilution_coeff, ocean_state(jg)%p_prog, ocean_state(jg)%p_prog(nold(1))%h) &
+        !$ACC   COPYIN(ocean_state(jg)%p_prog(nnew(1))%h) &
+        !$ACC   COPYIN(sea_ice, sea_ice%concSum, sea_ice%draftave, ocean_state(jg)%p_prog(nold(1))%tracer, ocean_state(jg)%p_prog(nold(1))%tracer_collection) &
+        !$ACC   COPYIN(ocean_state(jg)%p_prog(nnew(1))%tracer_collection, ocean_state(jg)%p_prog(nold(1))%tracer_collection%tracer) &
+        !$ACC   COPYIN(ocean_state(jg)%p_prog(nnew(1))%tracer_collection%tracer) &
+        !$ACC   COPYIN(ocean_state(jg)%p_diag, ocean_state(jg)%p_diag%press_hyd, p_phys_param, p_phys_param%TracerDiffusion_coeff) &
+        !$ACC   COPYIN(p_phys_param%a_tracer_v, p_as, p_as%fswr, p_as%fu10, p_as%co2) &
+        !$ACC   COPYIN(ocean_state(jg)%transport_state, ocean_state(jg)%transport_state%h_old, ocean_state(jg)%transport_state%h_new) &
+        !$ACC   COPYIN(ocean_state(jg)%p_diag, ocean_state(jg)%p_diag%w) &
+        !$ACC   COPYIN(ocean_state(jg)%p_diag%mass_flx_e, ocean_state(jg)%p_diag%vn_time_weighted) &
+        !$ACC   COPYIN(p_phys_param%cvmix_params, p_phys_param%cvmix_params%nl_trans_tend_heat) &
+        !$ACC   COPYIN(p_phys_param%cvmix_params%nl_trans_tend_salt, p_oce_sfc%TopBC_Temp_vdiff, p_oce_sfc%TopBC_Salt_vdiff) IF(lacc)
+
+        DO i = patch_3D%p_patch_2D(1)%cells%ALL%start_block, patch_3D%p_patch_2D(1)%cells%ALL%end_block
+          !$ACC ENTER DATA COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_This_toBelow) &
+          !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_This_toThisBelow) &
+          !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeight_2xBelow_x_RatioThis_toThisBelow) &
+          !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_This_toThisAboveBelow) &
+          !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_2xAboveplusThis_toThisBelow) &
+          !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_2xBelowplusThis_toThisAbove) &
+          !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_ThisAbove_to2xThisplusBelow) &
+          !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_ThisBelow_to2xThisplusAbove) &
+          !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeight_inv_ThisAboveBelow2Below) IF(lacc)
+        END DO
+
+        ! fill diffusion coefficients
+        DO i = 1, ocean_state(jg)%p_prog(nold(1))%tracer_collection%no_of_tracers
+          ocean_state(jg)%p_prog(nold(1))%tracer_collection%tracer(i)%hor_diffusion_coeff => p_phys_param%TracerDiffusion_coeff(:,:,:,i)
+          ocean_state(jg)%p_prog(nold(1))%tracer_collection%tracer(i)%ver_diffusion_coeff => p_phys_param%a_tracer_v(:,:,:,i)
+          !$ACC ENTER DATA COPYIN(ocean_state(jg)%p_prog(nold(1))%tracer_collection%tracer(i)%concentration) IF(lacc)
+          !$ACC ENTER DATA COPYIN(ocean_state(jg)%p_prog(nnew(1))%tracer_collection%tracer(i)%concentration) IF(lacc)
+        END DO
+
         CALL tracer_transport(patch_3d, ocean_state(jg), p_as, sea_ice, p_oce_sfc, &
           & p_phys_param, operators_coefficients, current_time, use_acc=lacc)
-! #ifdef _OPENACC
-!         lacc = .FALSE.
-!         i_am_accel_node = .FALSE.                 ! Deactivate GPUs
-! #endif
+
+        DO i = 1, ocean_state(jg)%p_prog(nold(1))%tracer_collection%no_of_tracers
+          !$ACC EXIT DATA COPYOUT(ocean_state(jg)%p_prog(nold(1))%tracer_collection%tracer(i)%concentration) IF(lacc)
+          !$ACC EXIT DATA COPYOUT(ocean_state(jg)%p_prog(nnew(1))%tracer_collection%tracer(i)%concentration) IF(lacc)
+        END DO
+
+        DO i = patch_3D%p_patch_2D(1)%cells%ALL%start_block, patch_3D%p_patch_2D(1)%cells%ALL%end_block
+          !$ACC EXIT DATA COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_This_toBelow) &
+          !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_This_toThisBelow) &
+          !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeight_2xBelow_x_RatioThis_toThisBelow) &
+          !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_This_toThisAboveBelow) &
+          !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_2xAboveplusThis_toThisBelow) &
+          !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_2xBelowplusThis_toThisAbove) &
+          !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_ThisAbove_to2xThisplusBelow) &
+          !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_ThisBelow_to2xThisplusAbove) &
+          !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeight_inv_ThisAboveBelow2Below) IF(lacc)
+        END DO
+
+        !$ACC END DATA
+
+#ifdef _OPENACC
+        IF (GMRedi_configuration == Cartesian_Mixing ) THEN
+          lacc = .FALSE.
+          i_am_accel_node = .FALSE.                 ! Deactivate GPUs
+        END IF
+#endif
 
         IF (lcheck_salt_content) CALL check_total_salt_content(140,ocean_state(jg)%p_prog(nnew(1))%tracer(:,:,:,2), patch_2d, &
           ocean_state(jg)%p_prog(nnew(1))%h(:,:), patch_3D%p_patch_1d(1)%prism_thick_flat_sfc_c(:,:,:),&
@@ -781,16 +861,39 @@ CONTAINS
         !------------------------------------------------------------------------
         ! perform accumulation for special variables
         start_detail_timer(timer_extra20,5)
-        IF (no_tracer>=1) THEN
+        !$ACC DATA &
+        !$ACC   COPY(ocean_state, ocean_state(jg)%p_diag%u) &
+        !$ACC   COPY(ocean_state(jg)%p_diag%u_vint) &
+        !$ACC   COPY(patch_3d%p_patch_1d(1)%prism_thick_c) &
+        !$ACC   COPY(patch_3d%p_patch_1d(1)%dolic_c) &
+        !$ACC   COPY(patch_3d%p_patch_2d(1)%cells%ALL) &
+        !$ACC   COPY(patch_3d%p_patch_1d(1)%prism_thick_flat_sfc_c) &
+        !$ACC   COPY(patch_3d%p_patch_1d(1)%zlev_m) &
+        !$ACC   COPY(patch_3d%p_patch_1d(1)%del_zlev_i) &
+        !$ACC   COPY(patch_3d%p_patch_1d(1)%prism_volume) &
+        !$ACC   COPY(patch_3d%p_patch_2d(1)%cells%owned) &
+        !$ACC   COPY(patch_3d%p_patch_2d(1)%cells%owned%vertical_levels) &
+        !$ACC   COPY(ocean_state(jg)%p_diag, ocean_state(jg)%p_diag%monitor, ocean_state(jg)%p_diag%kin) &
+        !$ACC   COPY(ocean_state(jg)%p_diag%rhopot, ocean_state(jg)%p_diag%northernHemisphere) &
+        !$ACC   COPY(ocean_state(jg)%p_diag%southernHemisphere, ocean_state(jg)%p_diag%rho) &
+        !$ACC   COPY(ocean_state(jg)%p_diag%delta_ice, ocean_state(jg)%p_diag%delta_snow) &
+        !$ACC   COPY(ocean_state(jg)%p_diag%delta_thetao, ocean_state(jg)%p_diag%delta_so) &
+        !$ACC   COPY(ocean_state(jg)%p_diag%heat_content_liquid_water, ocean_state(jg)%p_diag%heat_content_seaice) &
+        !$ACC   COPY(ocean_state(jg)%p_diag%heat_content_snow, ocean_state(jg)%p_diag%heat_content_total) &
+        !$ACC   COPY(ocean_state(jg)%p_prog(nold(1))%tracer) &
+        !$ACC   COPY(ocean_state(jg)%p_prog(nnew(1))%h) &
+        !$ACC   COPY(ocean_state(jg)%p_prog(nnew(1))%vn) &
+        !$ACC   COPY(ocean_state(jg)%p_prog(nnew(1))%tracer) &
+        !$ACC   COPY(patch_2d%cells%owned, patch_2d%cells%owned%vertical_levels, patch_2d%cells%area) &
+        !$ACC   COPY(p_oce_sfc, p_oce_sfc%HeatFlux_Total) &
+        !$ACC   COPY(p_oce_sfc%FrshFlux_Precipitation, p_oce_sfc%FrshFlux_Evaporation) &
+        !$ACC   COPY(p_oce_sfc%FrshFlux_Runoff, p_oce_sfc%FrshFlux_Snowfall) &
+        !$ACC   COPY(p_oce_sfc%FrshFlux_VolumeIce, p_oce_sfc%FrshFlux_TotalOcean) &
+        !$ACC   COPY(p_oce_sfc%FrshFlux_TotalIce, p_oce_sfc%FrshFlux_VolumeTotal) &
+        !$ACC   COPY(sea_ice, sea_ice%totalsnowfall, sea_ice%vol, sea_ice%concsum) &
+        !$ACC   COPY(sea_ice%hi, sea_ice%conc, sea_ice%hs, sea_ice%zunderice, sea_ice%draftave_old) IF(lacc)
 
-          !$ACC DATA &
-          !$ACC   COPY(ocean_state, ocean_state(jg)%p_diag%u) &
-          !$ACC   COPY(ocean_state(jg)%p_diag%u_vint) &
-          !$ACC   COPY(patch_3d%p_patch_1d(1)%prism_thick_c) &
-          !$ACC   COPY(patch_3d%p_patch_1d(1)%dolic_c) &
-          !$ACC   COPY(patch_3d%p_patch_2d(1)%cells%ALL) &
-          !$ACC   COPY(ocean_state(jg)%p_diag%rhopot) &
-          !$ACC   COPY(ocean_state(jg)%p_prog(nold(1))%tracer) IF(lacc)
+        IF (no_tracer>=1) THEN
 
           CALL calc_potential_density( patch_3d,                            &
             & ocean_state(jg)%p_prog(nold(1))%tracer,                       &
@@ -801,12 +904,6 @@ CONTAINS
             & patch_3D%p_patch_1d(1)%prism_thick_c(:,:,:),                  &
             & ocean_state(jg)%p_diag%u_vint, current_time, use_acc=lacc)
 
-          !$ACC END DATA
-
-#ifdef _OPENACC
-        lacc = .FALSE.
-        i_am_accel_node = .FALSE.                 ! Deactivate GPUs
-#endif
 
           CALL dbg_print('calc_psi: u_vint' ,ocean_state(jg)%p_diag%u_vint, str_module, 3, in_subset=patch_2d%cells%owned)
 
@@ -834,7 +931,15 @@ CONTAINS
             & ocean_state(jg)%p_prog(nnew(1))%tracer, &
             & p_atm_f, &
             & p_oce_sfc, &
-            & sea_ice)
+            & sea_ice, use_acc=lacc)
+
+        !$ACC END DATA
+
+#ifdef _OPENACC
+          lacc = .FALSE.
+          i_am_accel_node = .FALSE.                 ! Deactivate GPUs
+#endif
+
 
         stop_detail_timer(timer_extra20,5)
 
@@ -956,6 +1061,7 @@ CONTAINS
 
     !-------------------------------------------------------------------------
     SUBROUTINE ocean_time_step_zstar()
+        INTEGER  :: blockNo, i
         LOGICAL  :: lacc
 
         lacc = .FALSE.
@@ -1176,18 +1282,94 @@ CONTAINS
         END IF
 
         !------------------------------------------------------------------------
-! #ifdef _OPENACC
-!         i_am_accel_node = my_process_is_work()    ! Activate GPUs
-!         lacc = .TRUE.
-! #endif
+#ifdef _OPENACC
+        IF (GMRedi_configuration == Cartesian_Mixing ) THEN
+          i_am_accel_node = my_process_is_work()    ! Activate GPUs
+          lacc = .TRUE.
+        END IF
+#endif
+
+        !$ACC DATA COPYIN(patch_3d%p_patch_1d(1)%depth_CellInterface, patch_3d%p_patch_1d(1)%prism_thick_e) &
+        !$ACC   COPYIN(patch_3d%p_patch_1d(1)%prism_thick_c, patch_3d%p_patch_1d(1)%inv_prism_thick_c) &
+        !$ACC   COPYIN(patch_3d%p_patch_1d(1)%inv_prism_center_dist_c) &
+        !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_e, patch_3d%p_patch_1d(1)%dolic_c) &
+        !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%in_domain%start_block, patch_3d%p_patch_2d(1)%edges%in_domain%end_block) &
+        !$ACC   COPYIN(patch_3d%p_patch_2d(1)%cells%in_domain%start_block, patch_3d%p_patch_2d(1)%cells%in_domain%end_block) &
+        !$ACC   COPYIN(patch_3d%p_patch_2d(1)%cells%num_edges, patch_3d%p_patch_2d(1)%cells%max_connectivity) &
+        !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%cell_idx, patch_3d%p_patch_2d(1)%edges%cell_blk) &
+        !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%inv_dual_edge_length) &
+        !$ACC   COPYIN(patch_3d%p_patch_2d(1)%cells%edge_blk, patch_3d%p_patch_2d(1)%cells%edge_idx) &
+        !$ACC   COPYIN(patch_3d%p_patch_2d(1)%cells%neighbor_idx, patch_3d%p_patch_2d(1)%cells%neighbor_blk) &
+        !$ACC   COPYIN(patch_3d%p_patch_2d(1)%alloc_cell_blocks, patch_3d%p_patch_2d(1)%nblks_e) &
+        !$ACC   COPYIN(nold, nnew, operators_coefficients, operators_coefficients%verticalAdvectionPPMcoeffs) &
+        !$ACC   COPYIN(operators_coefficients%edge2edge_viacell_coeff, operators_coefficients%div_coeff) &
+        !$ACC   COPYIN(operators_coefficients%edges_SeaBoundaryLevel) &
+        !$ACC   COPYIN(ext_data, ext_data(1)%bgc, ext_data(1)%bgc%dust, ext_data(1)%bgc%nitro) &
+        !$ACC   COPYIN(ocean_state, p_oce_sfc, p_oce_sfc%top_dilution_coeff, ocean_state(jg)%p_prog, ocean_state(jg)%p_prog(nold(1))%h) &
+        !$ACC   COPYIN(ocean_state(jg)%p_prog(nnew(1))%h) &
+        !$ACC   COPYIN(ocean_state(jg)%p_prog(nold(1))%stretch_c, ocean_state(jg)%p_prog(nnew(1))%stretch_c, stretch_e) &
+        !$ACC   COPYIN(sea_ice, sea_ice%concSum, sea_ice%draftave, ocean_state(jg)%p_prog(nold(1))%tracer, ocean_state(jg)%p_prog(nold(1))%tracer_collection) &
+        !$ACC   COPYIN(ocean_state(jg)%p_prog(nnew(1))%tracer_collection, ocean_state(jg)%p_prog(nold(1))%tracer_collection%tracer) &
+        !$ACC   COPYIN(ocean_state(jg)%p_prog(nnew(1))%tracer_collection%tracer) &
+        !$ACC   COPYIN(ocean_state(jg)%p_diag, ocean_state(jg)%p_diag%press_hyd, p_phys_param, p_phys_param%TracerDiffusion_coeff) &
+        !$ACC   COPYIN(p_phys_param%a_tracer_v, p_as, p_as%fswr, p_as%fu10, p_as%co2) &
+        !$ACC   COPYIN(ocean_state(jg)%transport_state, ocean_state(jg)%transport_state%h_old, ocean_state(jg)%transport_state%h_new) &
+        !$ACC   COPYIN(ocean_state(jg)%transport_state%mass_flux_e, ocean_state(jg)%transport_state%w, ocean_state(jg)%transport_state%vn) &
+        !$ACC   COPYIN(ocean_state(jg)%p_diag, ocean_state(jg)%p_diag%w) &
+        !$ACC   COPYIN(ocean_state(jg)%p_diag%mass_flx_e, ocean_state(jg)%p_diag%vn_time_weighted) &
+        !$ACC   COPYIN(p_phys_param%cvmix_params, p_phys_param%cvmix_params%nl_trans_tend_heat) &
+        !$ACC   COPYIN(p_phys_param%cvmix_params%nl_trans_tend_salt, p_oce_sfc%TopBC_Temp_vdiff, p_oce_sfc%TopBC_Salt_vdiff) IF(lacc)
+
+        DO i = patch_3D%p_patch_2D(1)%cells%ALL%start_block, patch_3D%p_patch_2D(1)%cells%ALL%end_block
+          !$ACC ENTER DATA COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_This_toBelow) &
+          !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_This_toThisBelow) &
+          !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeight_2xBelow_x_RatioThis_toThisBelow) &
+          !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_This_toThisAboveBelow) &
+          !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_2xAboveplusThis_toThisBelow) &
+          !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_2xBelowplusThis_toThisAbove) &
+          !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_ThisAbove_to2xThisplusBelow) &
+          !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_ThisBelow_to2xThisplusAbove) &
+          !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeight_inv_ThisAboveBelow2Below) IF(lacc)
+        END DO
+
+        ! fill diffusion coefficients
+        DO i = 1, ocean_state(jg)%p_prog(nold(1))%tracer_collection%no_of_tracers
+          ocean_state(jg)%p_prog(nold(1))%tracer_collection%tracer(i)%hor_diffusion_coeff => p_phys_param%TracerDiffusion_coeff(:,:,:,i)
+          ocean_state(jg)%p_prog(nold(1))%tracer_collection%tracer(i)%ver_diffusion_coeff => p_phys_param%a_tracer_v(:,:,:,i)
+          !$ACC ENTER DATA COPYIN(ocean_state(jg)%p_prog(nold(1))%tracer_collection%tracer(i)%concentration) IF(lacc)
+          !$ACC ENTER DATA COPYIN(ocean_state(jg)%p_prog(nnew(1))%tracer_collection%tracer(i)%concentration) IF(lacc)
+        END DO
+
         CALL tracer_transport_zstar(patch_3d, ocean_state(jg), p_as, sea_ice, &
           & p_oce_sfc, p_phys_param, operators_coefficients, current_time, &
           & ocean_state(jg)%p_prog(nold(1))%stretch_c, stretch_e, ocean_state(jg)%p_prog(nnew(1))%stretch_c, &
           & use_acc=lacc)
-! #ifdef _OPENACC
-!         lacc = .FALSE.
-!         i_am_accel_node = .FALSE.                 ! Deactivate GPUs
-! #endif
+
+        DO i = 1, ocean_state(jg)%p_prog(nold(1))%tracer_collection%no_of_tracers
+          !$ACC EXIT DATA COPYOUT(ocean_state(jg)%p_prog(nold(1))%tracer_collection%tracer(i)%concentration) IF(lacc)
+          !$ACC EXIT DATA COPYOUT(ocean_state(jg)%p_prog(nnew(1))%tracer_collection%tracer(i)%concentration) IF(lacc)
+        END DO
+
+        DO i = patch_3D%p_patch_2D(1)%cells%ALL%start_block, patch_3D%p_patch_2D(1)%cells%ALL%end_block
+          !$ACC EXIT DATA COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_This_toBelow) &
+          !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_This_toThisBelow) &
+          !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeight_2xBelow_x_RatioThis_toThisBelow) &
+          !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_This_toThisAboveBelow) &
+          !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_2xAboveplusThis_toThisBelow) &
+          !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_2xBelowplusThis_toThisAbove) &
+          !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_ThisAbove_to2xThisplusBelow) &
+          !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_ThisBelow_to2xThisplusAbove) &
+          !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeight_inv_ThisAboveBelow2Below) IF(lacc)
+        END DO
+
+        !$ACC END DATA
+
+#ifdef _OPENACC
+        IF (GMRedi_configuration == Cartesian_Mixing ) THEN
+          lacc = .FALSE.
+          i_am_accel_node = .FALSE.                 ! Deactivate GPUs
+        END IF
+#endif
         !------------------------------------------------------------------------
 
 !        IF (lcheck_salt_content) CALL check_total_salt_content_zstar(130, &
@@ -1470,6 +1652,7 @@ CONTAINS
 !           & operators_coefficients)
 !       ENDIF
 !     ENDIF
+
     !------------------------------------------------------------------------
     IF (no_tracer>=1) THEN
 
@@ -1480,11 +1663,15 @@ CONTAINS
       transport_state%vn          => ocean_state%p_diag%vn_time_weighted
 
       IF (use_draftave_for_transport_h) THEN
+        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
         transport_state%h_old     = ocean_state%p_prog(nold(1))%h - sea_ice%draftave
         transport_state%h_new     = ocean_state%p_prog(nnew(1))%h - sea_ice%draftave
+        !$ACC END KERNELS
       ELSE
+        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
         transport_state%h_old     = ocean_state%p_prog(nold(1))%h
         transport_state%h_new     = ocean_state%p_prog(nnew(1))%h
+        !$ACC END KERNELS
       ENDIF
 
       IF (vert_mix_type .EQ. vmix_kpp ) THEN
@@ -1497,55 +1684,6 @@ CONTAINS
       old_tracer_collection%tracer(1)%top_bc => p_oce_sfc%TopBC_Temp_vdiff
       IF (no_tracer > 1) &
         old_tracer_collection%tracer(2)%top_bc => p_oce_sfc%TopBC_Salt_vdiff
-
-#ifdef _OPENACC
-      IF (GMRedi_configuration == Cartesian_Mixing ) THEN
-        i_am_accel_node = my_process_is_work()    ! Activate GPUs
-        lacc = .TRUE.
-      END IF
-#endif
-
-      !$ACC DATA COPYIN(patch_3d%p_patch_1d(1)%depth_CellInterface, patch_3d%p_patch_1d(1)%prism_thick_e) &
-      !$ACC   COPYIN(patch_3d%p_patch_1d(1)%prism_thick_c, patch_3d%p_patch_1d(1)%inv_prism_thick_c) &
-      !$ACC   COPYIN(patch_3d%p_patch_1d(1)%inv_prism_center_dist_c) &
-      !$ACC   COPYIN(operators_coefficients, operators_coefficients%verticalAdvectionPPMcoeffs) &
-      !$ACC   COPYIN(operators_coefficients%edge2edge_viacell_coeff, operators_coefficients%div_coeff) &
-      !$ACC   COPYIN(operators_coefficients%edges_SeaBoundaryLevel) &
-      !$ACC   COPYIN(ext_data, ext_data(1)%bgc, ext_data(1)%bgc%dust, ext_data(1)%bgc%nitro) &
-      !$ACC   COPYIN(ocean_state, p_oce_sfc, p_oce_sfc%top_dilution_coeff, ocean_state%p_prog, ocean_state%p_prog(nold(1))%h) &
-      !$ACC   COPYIN(sea_ice, sea_ice%concSum, ocean_state%p_prog(nold(1))%tracer, ocean_state%p_prog(nold(1))%tracer_collection) &
-      !$ACC   COPYIN(ocean_state%p_prog(nnew(1))%tracer_collection, ocean_state%p_prog(nold(1))%tracer_collection%tracer) &
-      !$ACC   COPYIN(ocean_state%p_prog(nnew(1))%tracer_collection%tracer) &
-      !$ACC   COPYIN(ocean_state%p_diag, ocean_state%p_diag%press_hyd, p_phys_param, p_phys_param%TracerDiffusion_coeff) &
-      !$ACC   COPYIN(p_phys_param%a_tracer_v, p_as, p_as%fswr, p_as%fu10, p_as%co2) &
-      !$ACC   COPYIN(transport_state) &
-      !$ACC   COPYIN(transport_state%h_old, transport_state%h_new) &
-      !$ACC   COPYIN(transport_state%mass_flux_e, transport_state%w, transport_state%vn) &
-      !$ACC   COPYIN(old_tracer_collection, old_tracer_collection%tracer) &
-      !$ACC   COPYIN(new_tracer_collection, new_tracer_collection%tracer) &
-      !$ACC   COPYIN(p_phys_param%cvmix_params, p_phys_param%cvmix_params%nl_trans_tend_heat) &
-      !$ACC   COPYIN(p_phys_param%cvmix_params%nl_trans_tend_salt, p_oce_sfc%TopBC_Temp_vdiff, p_oce_sfc%TopBC_Salt_vdiff) IF(lacc)
-
-      DO i = all_cells%start_block, all_cells%end_block
-        !$ACC ENTER DATA COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_This_toBelow) &
-        !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_This_toThisBelow) &
-        !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeight_2xBelow_x_RatioThis_toThisBelow) &
-        !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_This_toThisAboveBelow) &
-        !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_2xAboveplusThis_toThisBelow) &
-        !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_2xBelowplusThis_toThisAbove) &
-        !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_ThisAbove_to2xThisplusBelow) &
-        !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_ThisBelow_to2xThisplusAbove) &
-        !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeight_inv_ThisAboveBelow2Below) IF(lacc)
-      END DO
-
-      ! fill diffusion coefficients
-      DO i = 1, old_tracer_collection%no_of_tracers
-        old_tracer_collection%tracer(i)%hor_diffusion_coeff => p_phys_param%TracerDiffusion_coeff(:,:,:,i)
-        old_tracer_collection%tracer(i)%ver_diffusion_coeff => p_phys_param%a_tracer_v(:,:,:,i)
-        !$ACC ENTER DATA COPYIN(old_tracer_collection%tracer(i)%concentration) IF(lacc)
-        !$ACC ENTER DATA COPYIN(new_tracer_collection%tracer(i)%concentration) IF(lacc)
-      ENDDO
-
     !------------------------------------------------------------------------
 
     !------------------------------------------------------------------------
@@ -1566,32 +1704,6 @@ CONTAINS
       ! Call the biogeochemistry after transporting for GMRedi
       CALL ocean_to_hamocc_interface(ocean_state, transport_state, &
         & p_oce_sfc, p_as, sea_ice, p_phys_param, operators_coefficients, current_time)
-
-      DO i = 1, old_tracer_collection%no_of_tracers
-        !$ACC EXIT DATA COPYOUT(old_tracer_collection%tracer(i)%concentration) IF(lacc)
-        !$ACC EXIT DATA COPYOUT(new_tracer_collection%tracer(i)%concentration) IF(lacc)
-      ENDDO
-
-      DO i = all_cells%start_block, all_cells%end_block
-        !$ACC EXIT DATA COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_This_toBelow) &
-        !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_This_toThisBelow) &
-        !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeight_2xBelow_x_RatioThis_toThisBelow) &
-        !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_This_toThisAboveBelow) &
-        !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_2xAboveplusThis_toThisBelow) &
-        !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_2xBelowplusThis_toThisAbove) &
-        !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_ThisAbove_to2xThisplusBelow) &
-        !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_ThisBelow_to2xThisplusAbove) &
-        !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeight_inv_ThisAboveBelow2Below) IF(lacc)
-      END DO
-
-      !$ACC END DATA
-
-#ifdef _OPENACC
-      IF (GMRedi_configuration == Cartesian_Mixing ) THEN
-        lacc = .FALSE.
-        i_am_accel_node = .FALSE.                 ! Deactivate GPUs
-      END IF
-#endif
 
     END IF
 
@@ -1665,68 +1777,6 @@ CONTAINS
       old_tracer_collection%tracer(1)%top_bc => p_oce_sfc%TopBC_Temp_vdiff
       IF (no_tracer > 1) &
         old_tracer_collection%tracer(2)%top_bc => p_oce_sfc%TopBC_Salt_vdiff
-
-#ifdef _OPENACC
-      IF (GMRedi_configuration == Cartesian_Mixing ) THEN
-        i_am_accel_node = my_process_is_work()    ! Activate GPUs
-        lacc = .TRUE.
-      END IF
-#endif
-
-      !$ACC DATA COPYIN(ext_data, ext_data(1)%bgc, ext_data(1)%bgc%dust, ext_data(1)%bgc%nitro) &
-      !$ACC   COPYIN(sea_ice, sea_ice%concSum, ocean_state, ocean_state%p_prog, ocean_state%p_prog(nold(1))%h) &
-      !$ACC   COPYIN(ocean_state%p_prog(nold(1))%tracer, ocean_state%p_prog(nold(1))%tracer_collection) &
-      !$ACC   COPYIN(ocean_state%p_prog(nnew(1))%tracer_collection, ocean_state%p_prog(nold(1))%tracer_collection%tracer) &
-      !$ACC   COPYIN(ocean_state%p_prog(nnew(1))%tracer_collection%tracer) &
-      !$ACC   COPYIN(ocean_state%p_diag, ocean_state%p_diag%press_hyd) &
-      !$ACC   COPYIN(p_as, p_as%fswr, p_as%fu10, p_as%co2) &
-      !$ACC   COPYIN(p_oce_sfc, p_oce_sfc%top_dilution_coeff, p_oce_sfc%TopBC_Temp_vdiff, p_oce_sfc%TopBC_Salt_vdiff) &
-      !$ACC   COPYIN(transport_state) &
-      !$ACC   COPYIN(transport_state%h_old, transport_state%h_new) &
-      !$ACC   COPYIN(transport_state%mass_flux_e, transport_state%w, transport_state%vn) &
-      !$ACC   COPYIN(p_phys_param, p_phys_param%a_tracer_v, p_phys_param%TracerDiffusion_coeff) &
-      !$ACC   COPYIN(p_phys_param%cvmix_params, p_phys_param%cvmix_params%nl_trans_tend_heat) &
-      !$ACC   COPYIN(p_phys_param%cvmix_params%nl_trans_tend_salt) &
-      !$ACC   COPYIN(patch_3d%p_patch_2d(1), patch_3d%p_patch_2d(1)%edges%in_domain) &
-      !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%in_domain%start_block, patch_3d%p_patch_2d(1)%edges%in_domain%end_block) &
-      !$ACC   COPYIN(patch_3d%p_patch_2d(1)%cells%in_domain%start_block, patch_3d%p_patch_2d(1)%cells%in_domain%end_block) &
-      !$ACC   COPYIN(patch_3d%p_patch_2d(1)%cells%num_edges, patch_3d%p_patch_2d(1)%cells%max_connectivity) &
-      !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%cell_idx, patch_3d%p_patch_2d(1)%edges%cell_blk) &
-      !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%inv_dual_edge_length) &
-      !$ACC   COPYIN(patch_3d%p_patch_2d(1)%cells%edge_blk, patch_3d%p_patch_2d(1)%cells%edge_idx) &
-      !$ACC   COPYIN(patch_3d%p_patch_2d(1)%cells%neighbor_idx, patch_3d%p_patch_2d(1)%cells%neighbor_blk) &
-      !$ACC   COPYIN(patch_3d%p_patch_2d(1)%alloc_cell_blocks, patch_3d%p_patch_2d(1)%nblks_e) &
-      !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_e, patch_3d%p_patch_1d(1)%dolic_c) &
-      !$ACC   COPYIN(patch_3d%p_patch_1d(1)%prism_thick_c, patch_3d%p_patch_1d(1)%inv_prism_thick_c) &
-      !$ACC   COPYIN(patch_3d%p_patch_1d(1)%inv_prism_center_dist_c) &
-      !$ACC   COPYIN(patch_3d%p_patch_1d(1)%prism_thick_e, patch_3d%p_patch_1d(1)%depth_CellInterface) &
-      !$ACC   COPYIN(stretch_e, stretch_c, stretch_c_new) &
-      !$ACC   COPYIN(old_tracer_collection, old_tracer_collection%tracer) &
-      !$ACC   COPYIN(new_tracer_collection, new_tracer_collection%tracer) &
-      !$ACC   COPYIN(transport_state%vn, transport_state%w, transport_state%mass_flux_e) &
-      !$ACC   COPYIN(operators_coefficients, operators_coefficients%verticalAdvectionPPMcoeffs) &
-      !$ACC   COPYIN(operators_coefficients%edge2edge_viacell_coeff, operators_coefficients%edges_SeaBoundaryLevel) &
-      !$ACC   COPYIN(operators_coefficients%div_coeff) IF(lacc)
-
-      DO i = all_cells%start_block, all_cells%end_block
-        !$ACC ENTER DATA COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_This_toBelow) &
-        !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_This_toThisBelow) &
-        !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeight_2xBelow_x_RatioThis_toThisBelow) &
-        !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_This_toThisAboveBelow) &
-        !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_2xAboveplusThis_toThisBelow) &
-        !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_2xBelowplusThis_toThisAbove) &
-        !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_ThisAbove_to2xThisplusBelow) &
-        !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_ThisBelow_to2xThisplusAbove) &
-        !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeight_inv_ThisAboveBelow2Below) IF(lacc)
-      END DO
-
-      ! fill diffusion coefficients
-      DO i = 1, old_tracer_collection%no_of_tracers
-          old_tracer_collection%tracer(i)%hor_diffusion_coeff => p_phys_param%TracerDiffusion_coeff(:,:,:,i)
-          old_tracer_collection%tracer(i)%ver_diffusion_coeff => p_phys_param%a_tracer_v(:,:,:,i)
-          !$ACC ENTER DATA COPYIN(old_tracer_collection%tracer(i)) IF(lacc)
-          !$ACC ENTER DATA COPYIN(new_tracer_collection%tracer(i)) IF(lacc)
-      ENDDO
       !------------------------------------------------------------------------
 
       !------------------------------------------------------------------------
@@ -1746,41 +1796,12 @@ CONTAINS
 
       stop_timer(timer_tracer_ab,1)
       !------------------------------------------------------------------------
-
-      !! FIXME zstar: hamocc interface not adapted for zstar
-      CALL ocean_to_hamocc_interface(ocean_state, transport_state, &
-        & p_oce_sfc, p_as, sea_ice, p_phys_param, operators_coefficients, current_time, stretch_e)
-
-      DO i = 1, old_tracer_collection%no_of_tracers
-        !$ACC EXIT DATA COPYOUT(new_tracer_collection%tracer(i)) IF(lacc)
-        !$ACC EXIT DATA DELETE(old_tracer_collection%tracer(i)) IF(lacc)
-      ENDDO
-
-      DO i = all_cells%start_block, all_cells%end_block
-        !$ACC EXIT DATA COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_This_toBelow) &
-        !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_This_toThisBelow) &
-        !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeight_2xBelow_x_RatioThis_toThisBelow) &
-        !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_This_toThisAboveBelow) &
-        !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_2xAboveplusThis_toThisBelow) &
-        !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_2xBelowplusThis_toThisAbove) &
-        !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_ThisAbove_to2xThisplusBelow) &
-        !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_ThisBelow_to2xThisplusAbove) &
-        !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeight_inv_ThisAboveBelow2Below) IF(lacc)
-      END DO
-
-      !$ACC END DATA
-
-#ifdef _OPENACC
-      IF (GMRedi_configuration == Cartesian_Mixing ) THEN
-        lacc = .FALSE.
-        i_am_accel_node = .FALSE.                 ! Deactivate GPUs
-      END IF
-#endif
-
-    ELSE
-      CALL ocean_to_hamocc_interface(ocean_state, transport_state, &
-        & p_oce_sfc, p_as, sea_ice, p_phys_param, operators_coefficients, current_time, stretch_e)
     END IF
+    
+    !! FIXME zstar: hamocc interface not adapted for zstar
+    CALL ocean_to_hamocc_interface(ocean_state, transport_state, &
+      & p_oce_sfc, p_as, sea_ice, p_phys_param, operators_coefficients, current_time, stretch_e)
+
   END SUBROUTINE tracer_transport_zstar
   !-------------------------------------------------------------------------
 

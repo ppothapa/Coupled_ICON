@@ -40,6 +40,9 @@ MODULE mo_ocean_thermodyn
   USE mo_grid_subset,         ONLY: t_subset_range, get_index_range
   USE mo_parallel_config,     ONLY: nproma
   USE mo_util_dbg_prnt,       ONLY: dbg_print
+#ifdef _OPENACC
+  USE mo_mpi, ONLY: i_am_accel_node, my_process_is_work
+#endif
   IMPLICIT NONE
 
   PRIVATE
@@ -205,7 +208,7 @@ CONTAINS
     !! Initial version by Peter Korn, MPI-M (2014)
     !!
   !<Optimize:inUse>
-  SUBROUTINE calc_internal_press_grad(patch_3d, rho, pressure_hyd, bc_total_top_potential, grad_coeff, press_grad)
+  SUBROUTINE calc_internal_press_grad(patch_3d, rho, pressure_hyd, bc_total_top_potential, grad_coeff, press_grad, use_acc)
     !
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
     REAL(wp), INTENT(in)                 :: rho          (nproma,n_zlev, patch_3d%p_patch_2d(1)%alloc_cell_blocks)  !< density
@@ -214,6 +217,7 @@ CONTAINS
     !REAL(wp), INTENT(in), TARGET        :: prism_thick_e(1:nproma,1:n_zlev, patch_3d%p_patch_2d(1)%nblks_e)
     REAL(wp), INTENT(in)                 :: grad_coeff(:,:,:)
     REAL(wp), INTENT(inout)              :: press_grad    (nproma,n_zlev, patch_3d%p_patch_2d(1)%nblks_e)  !< hydrostatic pressure gradient
+    LOGICAL, INTENT(in), OPTIONAL        :: use_acc
 
     ! local variables:
     !CHARACTER(len=max_char_length), PARAMETER :: &
@@ -232,7 +236,29 @@ CONTAINS
     REAL(wp) :: press_L, press_R
     REAL(wp) :: thick1, thick2
 
-     !-----------------------------------------------------------------------
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+#ifdef _OPENACC
+    i_am_accel_node = my_process_is_work()       ! Activate GPUs
+    lacc = .TRUE.
+#endif
+
+    !$ACC DATA COPYIN(patch_3d%p_patch_2d(1)%alloc_cell_blocks) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%constantPrismCenters_Zdistance) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_c) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_e) &
+    !$ACC   COPYIN(rho, bc_total_top_potential, grad_coeff) &
+    !$ACC   COPY(pressure_hyd) &
+    !$ACC   COPY(press_grad) &
+    !$ACC   IF(lacc)
+
+    !-----------------------------------------------------------------------
     z_grav_rho_inv = OceanReferenceDensity_inv * grav
     patch_2D        => patch_3d%p_patch_2d(1)
     edges_in_domain => patch_2D%edges%in_domain
@@ -241,7 +267,10 @@ CONTAINS
 
     iidx => patch_3D%p_patch_2D(1)%edges%cell_idx
     iblk => patch_3D%p_patch_2D(1)%edges%cell_blk
+
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     pressure_hyd (1:nproma,1:n_zlev, 1:patch_3d%p_patch_2d(1)%alloc_cell_blocks)=0.0_wp
+    !$ACC END KERNELS
     !-------------------------------------------------------------------------
 
 !ICON_OMP_PARALLEL
@@ -249,11 +278,13 @@ CONTAINS
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, start_index, end_index)
 
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jc = start_index, end_index
 
        pressure_hyd(jc,1,jb) = rho(jc,1,jb)*z_grav_rho_inv*patch_3D%p_patch_1d(1)%constantPrismCenters_Zdistance(jc,1,jb) &
          & + bc_total_top_potential(jc,jb)
 
+       !$ACC LOOP SEQ
        DO jk = 2, patch_3d%p_patch_1d(1)%dolic_c(jc,jb)
 
          pressure_hyd(jc,jk,jb) = pressure_hyd(jc,jk-1,jb) + 0.5_wp*(rho(jc,jk,jb)+rho(jc,jk-1,jb))&
@@ -261,6 +292,7 @@ CONTAINS
 
         END DO
       END DO
+      !$ACC END PARALLEL LOOP
     END DO
 !ICON_OMP_END_DO
 
@@ -269,6 +301,7 @@ CONTAINS
     DO jb = edges_in_domain%start_block, edges_in_domain%end_block
       CALL get_index_range(edges_in_domain, jb, start_index, end_index)
 
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO je = start_index, end_index
 
         ic1=patch_2D%edges%cell_idx(je,jb,1)
@@ -276,6 +309,7 @@ CONTAINS
         ic2=patch_2D%edges%cell_idx(je,jb,2)
         ib2=patch_2D%edges%cell_blk(je,jb,2)
 
+        !$ACC LOOP SEQ
         DO jk = 1, patch_3d%p_patch_1d(1)%dolic_e(je,jb)
           !! For each edge, we can determine for the bottom layer only
           !! what the shallower cell is by comparing
@@ -310,9 +344,17 @@ CONTAINS
           END IF
         END DO
       END DO
+      !$ACC END PARALLEL LOOP
     END DO
 !ICON_OMP_END_DO NOWAIT
 !ICON_OMP_END_PARALLEL
+
+    !$ACC END DATA
+
+#ifdef _OPENACC
+    lacc = .FALSE.
+    i_am_accel_node = .FALSE.                    ! Deactivate GPUs
+#endif
 
     END SUBROUTINE calc_internal_press_grad
     !-------------------------------------------------------------------------

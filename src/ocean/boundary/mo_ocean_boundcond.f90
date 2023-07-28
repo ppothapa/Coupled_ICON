@@ -45,7 +45,9 @@ MODULE mo_ocean_boundcond
   USE mo_grid_subset,        ONLY: t_subset_range, get_index_range
   USE mo_sync,               ONLY: SYNC_E, sync_patch_array
   USE mo_master_config,      ONLY: isRestart
-
+#ifdef _OPENACC
+  USE mo_mpi, ONLY: i_am_accel_node, my_process_is_work
+#endif
   IMPLICIT NONE
   
   PRIVATE
@@ -61,27 +63,63 @@ MODULE mo_ocean_boundcond
   PUBLIC :: bot_bound_cond_tracer
 
   INTEGER, PARAMETER :: top=1
+  CHARACTER(LEN=*), PARAMETER :: modname = 'mo_scalar_product'
   CHARACTER(len=12)  :: str_module = 'oceBoundCond'  ! Output of module for 1 line debug
   INTEGER            :: idt_src    = 1               ! Level of detail for 1 line debug
   INTEGER            :: current_step = 0
 
 CONTAINS
   
-  SUBROUTINE top_bound_cond_horz_veloc( patch_3D, ocean_state, p_op_coeff, p_oce_sfc)
+  SUBROUTINE top_bound_cond_horz_veloc( patch_3D, ocean_state, p_op_coeff, p_oce_sfc, use_acc)
     !
     TYPE(t_patch_3D ),TARGET, INTENT(IN):: patch_3D
     TYPE(t_hydro_ocean_state), INTENT(inout)   :: ocean_state            ! ocean state variable
     TYPE(t_operator_coeff), INTENT(IN)         :: p_op_coeff
     TYPE(t_ocean_surface)                      :: p_oce_sfc       ! external data
+    LOGICAL, INTENT(in), OPTIONAL              :: use_acc
+
+    LOGICAL :: lacc
+    CHARACTER(len=*), PARAMETER :: routine = modname//':top_bound_cond_horz_veloc'
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+#ifdef _OPENACC
+    i_am_accel_node = my_process_is_work()       ! Activate GPUs
+    lacc = .TRUE.
+#endif
+
+    !$ACC DATA COPYIN(patch_3d%p_patch_2d(1)%edges%cell_idx, patch_3d%p_patch_2d(1)%edges%cell_idx) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_c, patch_3d%p_patch_1d(1)%dolic_e) &
+    !$ACC   COPYIN(patch_3d%lsm_c) &
+    !$ACC   COPYIN(ocean_state, ocean_state%p_aux, ocean_state%p_diag, ocean_state%p_diag%thick_c) &
+    !$ACC   COPYIN(p_oce_sfc, p_oce_sfc%TopBC_WindStress_cc) &
+    !$ACC   COPYIN(p_oce_sfc%TopBC_WindStress_u, p_oce_sfc%TopBC_WindStress_v) &
+    !$ACC   COPYIN(p_op_coeff, p_op_coeff%edge2cell_coeff_cc_t) &
+    !$ACC   COPY(ocean_state%p_aux%bc_top_u, ocean_state%p_aux%bc_top_v) &
+    !$ACC   COPY(ocean_state%p_aux%bc_top_veloc_cc, ocean_state%p_aux%bc_top_vn) IF(lacc)
 
     IF (forcing_windstress_u_type > 100 .OR. forcing_windstress_u_type == 0) THEN
+#ifdef _OPENACC
+      CALL finish(routine, 'OpenACC version not implemented')
+#endif
+
       ! analytic wind
       CALL top_bound_cond_horz_veloc_onEdges( patch_3D, ocean_state, p_op_coeff)
     ELSE
       ! OMIP wind
-      CALL top_bound_cond_horz_veloc_fromCells( patch_3D, ocean_state, p_op_coeff, p_oce_sfc)
+      CALL top_bound_cond_horz_veloc_fromCells( patch_3D, ocean_state, p_op_coeff, p_oce_sfc, use_acc=lacc)
     ENDIF
 
+    !$ACC END DATA
+
+#ifdef _OPENACC
+    lacc = .FALSE.
+    i_am_accel_node = .FALSE.                    ! Deactivate GPUs
+#endif
   END SUBROUTINE top_bound_cond_horz_veloc
   !-------------------------------------------------------------------------
     
@@ -188,7 +226,7 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !<Optimize:inUse>
-  SUBROUTINE top_bound_cond_horz_veloc_fromCells( patch_3D, ocean_state, p_op_coeff, p_oce_sfc)  !  , &
+  SUBROUTINE top_bound_cond_horz_veloc_fromCells( patch_3D, ocean_state, p_op_coeff, p_oce_sfc, use_acc)  !  , &
  !  & top_bc_u_c, top_bc_v_c, top_bc_u_cc )
     !
     TYPE(t_patch_3D ),TARGET, INTENT(IN)       :: patch_3D
@@ -198,12 +236,14 @@ CONTAINS
  !  REAL(wp)                                   :: top_bc_u_c(:,:) ! Top boundary condition
  !  REAL(wp)                                   :: top_bc_v_c(:,:) ! dim: (nproma,alloc_cell_blocks)
  !  TYPE(t_cartesian_coordinates), INTENT(inout) :: top_bc_u_cc(:,:)
+    LOGICAL, INTENT(in), OPTIONAL              :: use_acc
 
     !Local variables
     INTEGER :: jc, jb
     INTEGER :: start_index, end_index
     REAL(wp):: z_scale(nproma,patch_3D%p_patch_2D(1)%alloc_cell_blocks)
     REAL(wp) :: smooth_coeff, u_diff, v_diff, stress_coeff
+    LOGICAL :: lacc
     TYPE(t_subset_range), POINTER :: all_cells
     TYPE(t_patch), POINTER        :: patch_2D
     !CHARACTER(len=max_char_length), PARAMETER :: &
@@ -212,6 +252,15 @@ CONTAINS
     patch_2D   => patch_3D%p_patch_2D(1)
     all_cells => patch_2D%cells%all
     !-----------------------------------------------------------------------
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    !$ACC DATA CREATE(z_scale) IF(lacc)
+
     IF (isRestart()) THEN
       smooth_coeff = 1.0_wp
     ELSE
@@ -225,15 +274,19 @@ CONTAINS
       !z_scale(:,:) = v_base%del_zlev_m(1)*OceanReferenceDensity
       !z_scale(:,:) = OceanReferenceDensity*patch_3D%p_patch_1D(1)%prism_thick_flat_sfc_c(:,1,:)
 !ICON_OMP_DO ICON_OMP_DEFAULT_SCHEDULE
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jb = all_cells%start_block, all_cells%end_block
         z_scale(:,jb) = 1.0_wp / (OceanReferenceDensity*ocean_state%p_diag%thick_c(:,jb))
       ENDDO
+      !$ACC END PARALLEL LOOP
 !ICON_OMP_END_DO
     ELSEIF(iswm_oce /= 1)THEN
 !ICON_OMP_DO ICON_OMP_DEFAULT_SCHEDULE
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jb = all_cells%start_block, all_cells%end_block
         z_scale(:,jb) = 1.0_wp / OceanReferenceDensity
       ENDDO
+      !$ACC END PARALLEL LOOP
 !ICON_OMP_END_DO
     ENDIF
 
@@ -251,14 +304,20 @@ CONTAINS
    !  ! CALL message (TRIM(routine),'ZERO top velocity boundary conditions chosen')
 !ICON_OMP_DO PRIVATE(start_index, end_index, jc) ICON_OMP_DEFAULT_SCHEDULE
      DO jb = all_cells%start_block, all_cells%end_block
+
+       !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
        ocean_state%p_aux%bc_top_u(:,jb)          =0.0_wp
        ocean_state%p_aux%bc_top_v(:,jb)          =0.0_wp
+       !$ACC END KERNELS
+
        CALL get_index_range(all_cells, jb, start_index, end_index)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
        DO jc = start_index, end_index
 !          ocean_state%p_aux%bc_top_u(jc,jb)          =0.0_wp
 !          ocean_state%p_aux%bc_top_v(jc,jb)          =0.0_wp
           ocean_state%p_aux%bc_top_veloc_cc(jc,jb)%x =0.0_wp
        END DO
+       !$ACC END PARALLEL LOOP
      END DO
 !ICON_OMP_END_DO
 
@@ -268,6 +327,7 @@ CONTAINS
 !ICON_OMP_DO PRIVATE(start_index, end_index, jc, stress_coeff) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, start_index, end_index)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO jc = start_index, end_index
           IF (patch_3d%p_patch_1d(1)%dolic_c(jc, jb) > 0) THEN
             stress_coeff = z_scale(jc,jb)
@@ -276,6 +336,7 @@ CONTAINS
             ocean_state%p_aux%bc_top_veloc_cc(jc,jb)%x = p_oce_sfc%TopBC_WindStress_cc(jc,jb)%x * stress_coeff
           ENDIF
         END DO
+        !$ACC END PARALLEL LOOP
       END DO
 !ICON_OMP_END_DO
 
@@ -336,6 +397,7 @@ CONTAINS
 !ICON_OMP_DO PRIVATE(start_index, end_index, jc, stress_coeff) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, start_index, end_index)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO jc = start_index, end_index
           IF(patch_3D%lsm_c(jc,1,jb) <= sea_boundary)THEN
 
@@ -347,6 +409,7 @@ CONTAINS
 
          ENDIF
        END DO
+       !$ACC END PARALLEL LOOP
      END DO
 !ICON_OMP_END_DO
 
@@ -356,7 +419,8 @@ CONTAINS
     END SELECT
 !ICON_OMP_END_PARALLEL
 
-    CALL map_cell2edges_3D( patch_3D, ocean_state%p_aux%bc_top_veloc_cc,ocean_state%p_aux%bc_top_vn,p_op_coeff,level=1)
+    CALL map_cell2edges_3D( patch_3D, ocean_state%p_aux%bc_top_veloc_cc,ocean_state%p_aux%bc_top_vn, &
+      p_op_coeff,level=1,use_acc=lacc)
     ! CALL sync_patch_array(SYNC_E, patch_3D%p_patch_2D(1), ocean_state%p_aux%bc_top_vn)
 
     !---------Debug Diagnostics-------------------------------------------
@@ -367,6 +431,7 @@ CONTAINS
     CALL dbg_print('top bound.cond. vn',ocean_state%p_aux%bc_top_vn,str_module,idt_src, in_subset=patch_2D%edges%owned)
     !---------------------------------------------------------------------
 
+    !$ACC END DATA
   END SUBROUTINE top_bound_cond_horz_veloc_fromCells
   !-------------------------------------------------------------------------
 
@@ -374,28 +439,42 @@ CONTAINS
   SUBROUTINE VelocityBottomBoundaryCondition_onBlock(patch_3d, &
     & blockNo, start_edge_index, end_edge_index, &
     & vn_old, vn_pred, &
-    & bc_bot_vn)
+    & bc_bot_vn, use_acc)
       
     TYPE(t_patch_3D ),TARGET, INTENT(IN)     :: patch_3D
     INTEGER, INTENT(in)                      :: blockNo, start_edge_index, end_edge_index
     REAL(wp)                                 :: vn_old(:,:), vn_pred(:,:)
     REAL(wp)                                 :: bc_bot_vn(:)
+    LOGICAL, INTENT(in), OPTIONAL            :: use_acc
     ! Local variables
     INTEGER :: bottom_level, je
     REAL(wp) :: norm, vn_max, vn
+    LOGICAL :: lacc
     CHARACTER(LEN=max_char_length), PARAMETER :: &
       & routine = ('mo_ocean_boundcond:VelocityBottomBoundaryCondition_onBlock')
     !-----------------------------------------------------------------------
 
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    !$ACC DATA COPYIN(v_params) IF(lacc)
+
     SELECT CASE (i_bc_veloc_bot)
 
     CASE(0)
+
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO je = start_edge_index, end_edge_index
         bc_bot_vn(je) = 0.0_wp
       END DO
+      !$ACC END PARALLEL LOOP
 
     CASE(1)!Bottom friction
 
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO je = start_edge_index, end_edge_index
         bottom_level =  patch_3D%p_patch_1D(1)%dolic_e(je,blockNo)
         IF ( bottom_level > 0 ) THEN  ! wet points only
@@ -406,18 +485,22 @@ CONTAINS
             & norm * vn_pred(je,bottom_level)
         ENDIF
       END DO
+      !$ACC END PARALLEL LOOP
 
     CASE(2)
+
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO je = start_edge_index, end_edge_index
         bottom_level =  patch_3D%p_patch_1D(1)%dolic_e(je,blockNo)
         IF ( bottom_level > 0 ) THEN  ! wet points only	
           !vn    = vn_pred(je,bottom_level)!
-		  vn    = vn_old(je,bottom_level)
+          vn    = vn_old(je,bottom_level)
           norm  = SQRT(vn * vn)
           bc_bot_vn(je) = v_params%bottom_drag_coeff * &
             & norm * vn_old(je,bottom_level)
-      ENDIF
-    END DO
+        END IF
+      END DO
+      !$ACC END PARALLEL LOOP
 
     CASE(3) !Bottom friction and topographic slope
       CALL message (TRIM(routine), &
@@ -426,6 +509,9 @@ CONTAINS
     CASE default
       CALL message (TRIM(routine),'choosen wrong bottom velocity boundary conditions')
     END SELECT
+
+    !$ACC END DATA
+
   END SUBROUTINE VelocityBottomBoundaryCondition_onBlock
   !-------------------------------------------------------------------------
   

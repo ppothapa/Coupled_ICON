@@ -80,6 +80,9 @@ MODULE mo_ocean_ab_timestepping_mimetic
    & solve_trans_scatter, solve_trans_compact, solve_cell, solve_edge, solve_invalid
   USE mo_primal_flip_flop_lhs, ONLY: t_primal_flip_flop_lhs
   USE mo_surface_height_lhs, ONLY: t_surface_height_lhs
+#ifdef _OPENACC
+  USE mo_mpi, ONLY: i_am_accel_node, my_process_is_work
+#endif
 
   IMPLICIT NONE
   PRIVATE
@@ -221,11 +224,16 @@ CONTAINS
     TYPE(t_subset_range), POINTER :: owned_cells, owned_edges
     TYPE(t_patch), POINTER :: patch_2D
     CHARACTER(len=*), PARAMETER :: method_name='mo_ocean_ab_timestepping_mimetic:solve_free_sfc_ab_mimetic'
+    INTEGER :: jc, blockNo
+    INTEGER :: StartIndex, EndIndex
+    LOGICAL :: lacc
+    TYPE(t_subset_range), POINTER :: all_cells
 
     l_is_compare_step = .false.
     patch_2D => patch_3d%p_patch_2d(1)
     owned_cells => patch_2D%cells%owned
     owned_edges => patch_2D%edges%owned
+    all_cells   => patch_2D%cells%ALL
 ! init sfc solver related objects, if necessary
     IF (.NOT.free_sfc_solver%is_init) &
       & CALL init_free_sfc_ab_mimetic(patch_3d, ocean_state, op_coeffs, solverCoeff_sp)
@@ -249,19 +257,45 @@ CONTAINS
       stop_detail_timer(timer_ab_rhs4sfc,5)
       ! Solve surface equation with solver
 ! decide on guess to use in solver
+#ifdef _OPENACC
+    i_am_accel_node = my_process_is_work()       ! Activate GPUs
+    lacc = .TRUE.
+#endif
       SELECT CASE (solver_FirstGuess)
       CASE (1)
         CALL smooth_onCells(patch_3d, ocean_state%p_prog(nold(1))%h, free_sfc_solver%x_loc_wp, &
-          & (/ 0.5_wp, 0.5_wp /), .false., -999999.0_wp)
+          & (/ 0.5_wp, 0.5_wp /), .false., -999999.0_wp, use_acc=lacc)
       CASE (2)
-        !!ICON_OMP PARALLEL WORKSHARE
-        free_sfc_solver%x_loc_wp(:,:) = ocean_state%p_prog(nold(1))%h(:,:)
-        !!ICON_OMP END PARALLEL WORKSHARE
+        !$ACC DATA COPY(nold, free_sfc_solver, free_sfc_solver%x_loc_wp, ocean_state, ocean_state%p_prog) &
+        !$ACC   COPY(ocean_state%p_prog(nold(1))%h) &
+        !$ACC   IF(lacc)
+        DO blockNo = all_cells%start_block, all_cells%end_block
+          CALL get_index_range(all_cells, blockNo, StartIndex, EndIndex)
+          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+          DO jc = StartIndex, EndIndex
+            free_sfc_solver%x_loc_wp(jc,blockNo) = ocean_state%p_prog(nold(1))%h(jc,blockNo)
+          END DO
+          !$ACC END PARALLEL LOOP
+        END DO
+        !$ACC END DATA
       CASE default
-        !!ICON_OMP PARALLEL WORKSHARE
-        free_sfc_solver%x_loc_wp(:,:) = 0.0_wp
-        !!ICON_OMP END PARALLEL WORKSHARE
+        !$ACC DATA COPY(nold, free_sfc_solver, free_sfc_solver%x_loc_wp) &
+        !$ACC   IF(lacc)
+        DO blockNo = all_cells%start_block, all_cells%end_block
+          CALL get_index_range(all_cells, blockNo, StartIndex, EndIndex)
+          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+          DO jc = StartIndex, EndIndex
+            free_sfc_solver%x_loc_wp(jc,blockNo) = 0.0_wp
+          END DO
+          !$ACC END PARALLEL LOOP
+        END DO
+        !$ACC END DATA
       END SELECT
+#ifdef _OPENACC
+    lacc = .FALSE.
+    i_am_accel_node = .FALSE.                    ! Deactivate GPUs
+#endif
+
       free_sfc_solver%b_loc_wp => ocean_state%p_aux%p_rhs_sfc_eq
       IF (l_solver_compare) THEN
         IF (istep .EQ. 0) l_is_compare_step = .true.
@@ -496,48 +530,106 @@ CONTAINS
 
   !-------------------------------------------------------------------------
 !<Optimize:inUse>
-  SUBROUTINE explicit_vn_pred( patch_3d, ocean_state, op_coeffs, p_phys_param, is_first_timestep)
+  SUBROUTINE explicit_vn_pred( patch_3d, ocean_state, op_coeffs, p_phys_param, is_first_timestep, use_acc)
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET :: ocean_state
     TYPE(t_operator_coeff), INTENT(IN) :: op_coeffs
     TYPE (t_ho_params) :: p_phys_param
     LOGICAL, INTENT(in) :: is_first_timestep
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
+
     REAL(wp) :: z_gradh_e(nproma)
     TYPE(t_subset_range), POINTER :: edges_in_domain
     INTEGER :: start_edge_index, end_edge_index, blockNo
     TYPE(t_patch), POINTER :: patch_2D
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     patch_2D        => patch_3d%p_patch_2d(n_dom)
     edges_in_domain => patch_3d%p_patch_2d(n_dom)%edges%in_domain
+
+#ifdef _OPENACC
+    i_am_accel_node = my_process_is_work()    ! Activate GPUs
+    lacc = .TRUE.
+#endif
+
+    !$ACC DATA COPY(nold, ocean_state, ocean_state%p_prog, ocean_state%p_prog(nold(1))%h) &
+    !$ACC   COPYIN(op_coeffs, op_coeffs%grad_coeff) &
+    !$ACC   COPY(z_gradh_e) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_e) &
+    !$ACC   COPY(ocean_state, ocean_state%p_aux, ocean_state%p_aux%g_n) &
+    !$ACC   COPY(ocean_state%p_aux%g_nimd, ocean_state%p_aux%g_nm1) &
+    !$ACC   COPY(ocean_state%p_diag, ocean_state%p_diag%press_grad) &
+    !$ACC   COPY(ocean_state%p_diag%grad) &
+    !$ACC   COPY(ocean_state%p_diag%veloc_adv_horz, ocean_state%p_diag%veloc_adv_vert) &
+    !$ACC   COPY(ocean_state%p_diag%laplacian_horz) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_e, nold) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%prism_thick_e) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%prism_thick_flat_sfc_e) &
+    !$ACC   COPY(z_gradh_e, ocean_state, ocean_state%p_diag, ocean_state%p_diag%vn_pred) &
+    !$ACC   COPY(ocean_state%p_prog, ocean_state%p_prog(nold(1))%vn) &
+    !$ACC   COPY(ocean_state%p_aux, ocean_state%p_aux%g_nimd) &
+    !$ACC   COPY(ocean_state%p_aux%bc_bot_vn, ocean_state%p_aux%bc_top_vn) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%inv_prism_thick_e) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%inv_prism_center_dist_e) &
+    !$ACC   COPY(p_phys_param, p_phys_param%a_veloc_v) &
+    !$ACC   IF(lacc)
+
     ! STEP 4: calculate weighted gradient of surface height at previous timestep
 !ICON_OMP_PARALLEL_DO PRIVATE(start_edge_index,end_edge_index, z_gradh_e) ICON_OMP_DEFAULT_SCHEDULE
     DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
       CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
+
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       z_gradh_e(:)  = 0.0_wp
+      !$ACC END KERNELS
+
       CALL grad_fd_norm_oce_2d_onBlock( ocean_state%p_prog(nold(1))%h, patch_2D, &
-        & op_coeffs%grad_coeff(:,1,blockNo), z_gradh_e(:), start_edge_index, end_edge_index, blockNo)
+        & op_coeffs%grad_coeff(:,1,blockNo), z_gradh_e(:), start_edge_index, end_edge_index, blockNo, &
+        & use_acc=lacc )
+
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       z_gradh_e(start_edge_index:end_edge_index) = &
          & (1.0_wp-ab_beta) * grav * z_gradh_e(start_edge_index:end_edge_index)
+      !$ACC END KERNELS
+
       ! STEP 5:
       CALL calculate_explicit_term_g_n_onBlock( patch_3d, ocean_state, is_first_timestep, &
-        & start_edge_index, end_edge_index, blockNo)
+        & start_edge_index, end_edge_index, blockNo, use_acc=lacc)
+
       IF ( iswm_oce /= 1) THEN
         CALL calculate_explicit_vn_pred_3D_onBlock( patch_3d, ocean_state, z_gradh_e(:),    &
-        & start_edge_index, end_edge_index, blockNo)
+        & start_edge_index, end_edge_index, blockNo, use_acc=lacc )
+
         ! calculate vertical friction, ie p_phys_param%a_veloc_v
         IF (vert_mix_type == vmix_pp .AND. PPscheme_type == PPscheme_ICON_Edge_vnPredict_type) &
           CALL ICON_PP_Edge_vnPredict_scheme(patch_3d, blockNo, start_edge_index, end_edge_index, &
-            & ocean_state, ocean_state%p_diag%vn_pred(:,:,blockNo))
+            & ocean_state, ocean_state%p_diag%vn_pred(:,:,blockNo), use_acc=lacc)
+
         !In 3D case implicit vertical velocity diffusion is chosen
         CALL velocity_diffusion_vertical_implicit_onBlock(patch_3d, &
           & ocean_state%p_diag%vn_pred(:,:,blockNo), p_phys_param%a_veloc_v(:,:,blockNo), op_coeffs, &
-          & start_edge_index, end_edge_index, blockNo)
+          & start_edge_index, end_edge_index, blockNo, use_acc=lacc)
       ELSE !( iswm_oce == 1) THEN
         CALL calculate_explicit_vn_pred_2D_onBlock( patch_3d, ocean_state, z_gradh_e(:), &
-        & start_edge_index, end_edge_index, blockNo)
+        & start_edge_index, end_edge_index, blockNo, use_acc=lacc )
       END IF
+
     END DO
 !ICON_OMP_END_PARALLEL_DO
+
+    !$ACC END DATA
+
+#ifdef _OPENACC
+    lacc = .FALSE.
+    i_am_accel_node = .FALSE.                 ! Deactivate GPUs
+#endif
+
   END SUBROUTINE explicit_vn_pred
 
   !-------------------------------------------------------------------------
@@ -608,14 +700,26 @@ CONTAINS
   !-------------------------------------------------------------------------
 !<Optimize:inUse>
   SUBROUTINE calculate_explicit_vn_pred_3D_onBlock( patch_3d, ocean_state, z_gradh_e, &
-    & start_edge_index, end_edge_index, blockNo)
+    & start_edge_index, end_edge_index, blockNo, use_acc)
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET    :: ocean_state
     REAL(wp) :: z_gradh_e(nproma)
     INTEGER, INTENT(in) :: start_edge_index, end_edge_index, blockNo
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
+
     INTEGER :: je, jk, bottom_level
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
     !-----------------------------------------------------------------------
+
     IF(.NOT.l_rigid_lid)THEN
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO je = start_edge_index, end_edge_index
           DO jk = 1, patch_3d%p_patch_1d(1)%dolic_e(je,blockNo)
             ocean_state%p_diag%vn_pred(je,jk,blockNo) = ocean_state%p_prog(nold(1))%vn(je,jk,blockNo)  &
@@ -623,24 +727,28 @@ CONTAINS
               & - z_gradh_e(je))
           END DO
         END DO
+        !$ACC END PARALLEL LOOP
     ELSE ! IF(l_rigid_lid)THEN
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO je = start_edge_index, end_edge_index
           DO jk = 1, patch_3d%p_patch_1d(1)%dolic_e(je,blockNo)
             ocean_state%p_diag%vn_pred(je,jk,blockNo) = ocean_state%p_prog(nold(1))%vn(je,jk,blockNo)&
               & + dtime*ocean_state%p_aux%g_nimd(je,jk,blockNo)
         END DO
       END DO
+      !$ACC END PARALLEL LOOP
     ENDIF!Rigid lid
     CALL VelocityBottomBoundaryCondition_onBlock(patch_3d, &
       & blockNo,start_edge_index, end_edge_index, &
       & ocean_state%p_prog(nold(1))%vn(:,:,blockNo), &
       & ocean_state%p_diag%vn_pred(:,:,blockNo),     &
-      & ocean_state%p_aux%bc_bot_vn(:,blockNo))
+      & ocean_state%p_aux%bc_bot_vn(:,blockNo), use_acc=lacc)
     !IF surface forcing applied as topLevel boundary condition to vertical diffusion
     !The surface forcing is applied as volume forcing at rhs,
     !i.e. if it part of explicit term in momentum and tracer eqs.
     !in this case, topLevel boundary ondition of vertical Laplacians are homogeneous.
     !Below is the code that adds surface forcing to explicit term of momentum eq.
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
     DO je = start_edge_index, end_edge_index
       IF(patch_3d%p_patch_1d(1)%dolic_e(je,blockNo)>=min_dolic) THEN
 
@@ -661,17 +769,33 @@ CONTAINS
           & /patch_3d%p_patch_1d(1)%prism_thick_flat_sfc_e(je,bottom_level,blockNo)
       ENDIF
     END DO
+    !$ACC END PARALLEL LOOP
+
   END SUBROUTINE calculate_explicit_vn_pred_3D_onBlock
 
   !-------------------------------------------------------------------------
   SUBROUTINE calculate_explicit_vn_pred_2D_onBlock( patch_3d, ocean_state, z_gradh_e, &
-    &  start_edge_index, end_edge_index, blockNo)
+    &  start_edge_index, end_edge_index, blockNo, use_acc)
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET    :: ocean_state
     REAL(wp),INTENT(in)                  :: z_gradh_e(nproma)
     INTEGER, INTENT(in)                  :: start_edge_index, end_edge_index, blockNo
+    LOGICAL, INTENT(in), OPTIONAL        :: use_acc
     INTEGER :: je, jk
+    LOGICAL :: lacc
+    CHARACTER(LEN=*), PARAMETER :: routine='calculate_explicit_vn_pred_2D_onBlock'
     !-----------------------------------------------------------------------
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+#ifdef _OPENACC
+    IF (lacc) CALL finish(routine, "OpenACC version currently not tested/validated")
+#endif
+
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
     DO je = start_edge_index, end_edge_index
       DO jk = 1, patch_3d%p_patch_1d(1)%dolic_e(je,blockNo)
         ocean_state%p_diag%vn_pred(je,jk,blockNo) = (ocean_state%p_prog(nold(1))%vn(je,jk,blockNo)        &
@@ -679,8 +803,11 @@ CONTAINS
           & - z_gradh_e(je)))
       END DO
     END DO
+    !$ACC END PARALLEL LOOP
+
     !In case of Shallow-water with forcing and or damping
     IF ( iforc_oce /= No_Forcing) THEN
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO je = start_edge_index, end_edge_index
         DO jk = 1, patch_3d%p_patch_1d(1)%dolic_e(je,blockNo)
           ocean_state%p_diag%vn_pred(je,jk,blockNo) = (ocean_state%p_diag%vn_pred(je,jk,blockNo) &
@@ -688,21 +815,34 @@ CONTAINS
             & - ocean_state%p_aux%bc_bot_vn(je,blockNo))
         END DO
       END DO
-    ENDIF
+      !$ACC END PARALLEL LOOP
+    END IF
   END SUBROUTINE calculate_explicit_vn_pred_2D_onBlock
 
   !-------------------------------------------------------------------------
 !<Optimize:inUse>
   SUBROUTINE calculate_explicit_term_g_n_onBlock( patch_3d, ocean_state, is_first_timestep, &
-    & start_edge_index, end_edge_index, blockNo)
+    & start_edge_index, end_edge_index, blockNo, use_acc )
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET    :: ocean_state
     LOGICAL,INTENT(in)                   :: is_first_timestep
     INTEGER,INTENT(in)                   :: start_edge_index, end_edge_index, blockNo
+    LOGICAL, INTENT(in), OPTIONAL        :: use_acc
     INTEGER :: je, jk
+    LOGICAL :: lacc
+
     !-----------------------------------------------------------------------
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
     IF(MASS_MATRIX_INVERSION_TYPE/=MASS_MATRIX_INVERSION_ADVECTION)THEN
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO je = start_edge_index, end_edge_index
+        !$ACC LOOP SEQ
         DO jk = 1, patch_3d%p_patch_1d(1)%dolic_e(je,blockNo)
           ocean_state%p_aux%g_n(je, jk, blockNo) = &
             & - ocean_state%p_diag%press_grad    (je, jk, blockNo)  &
@@ -713,8 +853,11 @@ CONTAINS
             !& + ocean_state%p_diag%laplacian_vert(je, jk, blockNo) !<- is done later implicitely
         END DO
       END DO
+      !$ACC END PARALLEL LOOP
     ELSEIF(MASS_MATRIX_INVERSION_TYPE==MASS_MATRIX_INVERSION_ADVECTION)THEN
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO je = start_edge_index, end_edge_index
+        !$ACC LOOP SEQ
         DO jk = 1, patch_3d%p_patch_1d(1)%dolic_e(je,blockNo)
           ocean_state%p_aux%g_n(je, jk, blockNo) = &
             & - ocean_state%p_diag%press_grad    (je, jk, blockNo)  &
@@ -725,11 +868,15 @@ CONTAINS
             !& + ocean_state%p_diag%laplacian_vert(je, jk, blockNo) !<- is done later implicitely
         END DO
       END DO
+      !$ACC END PARALLEL LOOP
     ENDIF
     IF(is_first_timestep)THEN
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       ocean_state%p_aux%g_nimd(1:nproma,1:n_zlev, blockNo) = &
         & ocean_state%p_aux%g_n(1:nproma,1:n_zlev,blockNo)
+      !$ACC END KERNELS
     ELSE
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO je = start_edge_index, end_edge_index
         DO jk = 1, patch_3d%p_patch_1d(1)%dolic_e(je,blockNo)
           ocean_state%p_aux%g_nimd(je, jk,blockNo)                          &
@@ -737,7 +884,9 @@ CONTAINS
             & - (0.5_wp+ab_const) * ocean_state%p_aux%g_nm1(je, jk,blockNo)
         END DO
       END DO
+      !$ACC END PARALLEL LOOP
     ENDIF
+
   END SUBROUTINE calculate_explicit_term_g_n_onBlock
 
   !-------------------------------------------------------------------------
@@ -749,11 +898,13 @@ CONTAINS
   !! Developed  by  Peter Korn, MPI-M (2010).
   !!
 !<Optimize:inUse>
-  SUBROUTINE fill_rhs4surface_eq_ab( patch_3d, ocean_state, op_coeffs)
+  SUBROUTINE fill_rhs4surface_eq_ab( patch_3d, ocean_state, op_coeffs, use_acc)
     ! Patch on which computation is performed
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET    :: ocean_state
-    TYPE(t_operator_coeff), INTENT(IN) :: op_coeffs
+    TYPE(t_operator_coeff), INTENT(IN)   :: op_coeffs
+    LOGICAL, INTENT(IN), OPTIONAL        :: use_acc
+
     INTEGER :: start_cell_index, end_cell_index
     INTEGER :: start_edge_index, end_edge_index
     INTEGER :: jc, blockNo, jk, je, cells_start_block, cells_end_block
@@ -772,6 +923,8 @@ CONTAINS
     REAL(wp), DIMENSION(:,:), POINTER :: p_rhs_sfc_eq, h_old
     CHARACTER(len=*), PARAMETER :: routine = modname//':fill_rhs4surface_eq_ab'
 
+    LOGICAL :: lacc
+
     idx => patch_3D%p_patch_2D(1)%cells%edge_idx
     blk => patch_3D%p_patch_2D(1)%cells%edge_blk
     dolic_c => patch_3d%p_patch_1d(1)%dolic_c
@@ -787,18 +940,42 @@ CONTAINS
     cells_end_block = cells_in_domain%end_block
 
     inv_gdt2 = 1.0_wp / (grav*dtime*dtime)
+
+#ifdef _OPENACC
+    i_am_accel_node = my_process_is_work()       ! Activate GPUs
+    lacc = .TRUE.
+#endif
+
+    !$ACC DATA CREATE(z_vn_ab, z_e, div_z_depth_int_c, div_z_c) &
+    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%in_domain) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_e, nold) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%prism_thick_e) &
+    !$ACC   COPYIN(op_coeffs, op_coeffs%edge2edge_viacell_coeff, op_coeffs%div_coeff) &
+    !$ACC   COPY(ocean_state, ocean_state%p_diag, ocean_state%p_diag%vn_pred) &
+    !$ACC   COPY(ocean_state%p_diag%thick_e) &
+    !$ACC   COPY(ocean_state%p_prog, ocean_state%p_prog(nold(1))%vn) &
+    !$ACC   COPY(ocean_state%p_prog(nold(1))%h) &
+    !$ACC   COPY(ocean_state%p_aux, ocean_state%p_aux%p_rhs_sfc_eq) &
+    !$ACC   IF(lacc)
+
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     z_vn_ab(:,:,:edges_in_domain%start_block-1) = 0._wp
+    !$ACC END KERNELS
     IF(iswm_oce == 1)THEN
 !ICON_OMP_PARALLEL_DO PRIVATE(start_edge_index,end_edge_index, je, jk) ICON_OMP_DEFAULT_SCHEDULE
       DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
         CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
+        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
         z_vn_ab(:,:,blockNo)  = 0.0_wp
+        !$ACC END KERNELS
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO je = start_edge_index, end_edge_index
           DO jk = 1, patch_3d%p_patch_1d(1)%dolic_e(je,blockNo)
             z_vn_ab(je,jk,blockNo)=ab_gam*ocean_state%p_diag%vn_pred(je,jk,blockNo)&
               & + (1.0_wp -ab_gam)* ocean_state%p_prog(nold(1))%vn(je,jk,blockNo)
           END DO
         ENDDO
+        !$ACC END PARALLEL LOOP
       END DO
 !ICON_OMP_END_PARALLEL_DO
     ELSE! IF(iswm_oce /= 1)THEN
@@ -806,17 +983,24 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(start_edge_index,end_edge_index, je, jk) ICON_OMP_DEFAULT_SCHEDULE
         DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
           CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
+          !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
           z_vn_ab(:,:,blockNo)  = 0.0_wp
+          !$ACC END KERNELS
+          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
           DO je = start_edge_index, end_edge_index
             DO jk = 1, patch_3d%p_patch_1d(1)%dolic_e(je,blockNo)
               z_vn_ab(je,jk,blockNo)=ab_gam * ocean_state%p_diag%vn_pred(je,jk,blockNo) &
                 & + (1.0_wp -ab_gam) * ocean_state%p_prog(nold(1))%vn(je,jk,blockNo)
             END DO
-          ENDDO
+          END DO
+          !$ACC END PARALLEL LOOP
         END DO
 !ICON_OMP_END_PARALLEL_DO
      ENDIF
+     !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
      z_vn_ab(:,:,edges_in_domain%end_block+1:) = 0._wp
+     !$ACC END KERNELS
+
     !
     ! calculate depth-integrated velocity z_e
     !  - edge-based and cell-based
@@ -824,24 +1008,30 @@ CONTAINS
     !-------------------------------------------------------------------------------
     IF (l_edge_based) THEN
       !-------------------------------------------------------------------------------
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       z_e(1:nproma,1:n_zlev,1:patch_2D%nblks_e) = 0.0_wp
+      !$ACC END KERNELS
       IF( iswm_oce /= 1 ) THEN !the 3D case
         DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
           CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
+          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
           DO je = start_edge_index, end_edge_index
             DO jk=1,patch_3d%p_patch_1d(1)%dolic_e(je,blockNo)
               z_e(je,jk,blockNo)=  z_vn_ab(je,jk,blockNo) * patch_3d%p_patch_1d(1)%prism_thick_e(je,jk,blockNo)
             END DO
           ENDDO
+          !$ACC END PARALLEL LOOP
         END DO
       ELSEIF( iswm_oce == 1 ) THEN
         DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
           CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
+          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
           DO je = start_edge_index, end_edge_index
             DO jk=1,patch_3d%p_patch_1d(1)%dolic_e(je,blockNo)
               z_e(je,jk,blockNo)= z_vn_ab(je,jk,blockNo)*ocean_state%p_diag%thick_e(je,blockNo)
             END DO
           ENDDO
+          !$ACC END PARALLEL LOOP
         END DO
       ENDIF
       ! !-------------------------------------------------------------------------------
@@ -849,30 +1039,39 @@ CONTAINS
       ! !-------------------------------------------------------------------------------
       CALL sync_patch_array(sync_e, patch_2D, z_vn_ab)
       IF( iswm_oce /= 1 ) THEN !the 3D case
-        CALL map_edges2edges_viacell_3d_const_z( patch_3d, z_vn_ab, op_coeffs, z_e )
+        CALL map_edges2edges_viacell_3d_const_z( patch_3d, z_vn_ab, op_coeffs, z_e, use_acc=lacc )
       ELSE ! IF( iswm_oce == 1 ) THEN
-        CALL map_edges2edges_viacell_3d_const_z( patch_3d, z_vn_ab(:,1,:), op_coeffs, z_e(:,1,:) )
+        CALL map_edges2edges_viacell_3d_const_z( patch_3d, z_vn_ab(:,1,:), op_coeffs, z_e(:,1,:), use_acc=lacc )
       ENDIF!( iswm_oce == 1 )
     ENDIF!EDGE-BASED
+
     IF( patch_2d%cells%max_connectivity == 3 )THEN
 !ICON_OMP_PARALLEL_DO PRIVATE(start_cell_index,end_cell_index, jc, jk, div_z_depth_int_c, div_z_c) ICON_OMP_DEFAULT_SCHEDULE
       DO blockNo = cells_start_block, cells_end_block
         CALL get_index_range(cells_in_domain, blockNo, start_cell_index, end_cell_index)
         CALL div_oce_3D_onTriangles_onBlock( z_e, patch_3D, div_coeff, div_z_c, &
           & blockNo=blockNo, start_index=start_cell_index, end_index=end_cell_index,      &
-          & start_level=1, end_level=n_zlev)
+          & start_level=1, end_level=n_zlev, use_acc=lacc)
         ! integrate div on columns
+        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
         div_z_depth_int_c(:) = 0.0_wp
+        !$ACC END KERNELS
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO jc = start_cell_index, end_cell_index
           div_z_depth_int_c(jc) = SUM(div_z_c(jc, 1:dolic_c(jc,blockNo)))
         END DO
+        !$ACC END PARALLEL LOOP
+        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
         p_rhs_sfc_eq(:,blockNo) = 0.0_wp
+        !$ACC END KERNELS
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO jc = start_cell_index, end_cell_index
           IF (dolic_c(jc,blockNo) > 0) THEN
             p_rhs_sfc_eq(jc,blockNo) = ((h_old(jc,blockNo) &
               & - dtime * div_z_depth_int_c(jc)) * inv_gdt2)
           ENDIF
         END DO
+        !$ACC END PARALLEL LOOP
       END DO
 !ICON_OMP_END_PARALLEL_DO
     ELSE
@@ -881,22 +1080,38 @@ CONTAINS
         CALL get_index_range(cells_in_domain, blockNo, start_cell_index, end_cell_index)
         CALL div_oce_3D_general_onBlock( z_e, patch_3D, op_coeffs%div_coeff, div_z_c, &
           & blockNo=blockNo, start_index=start_cell_index, end_index=end_cell_index,      &
-          & start_level=1, end_level=n_zlev)
+          & start_level=1, end_level=n_zlev, use_acc=lacc)
         ! integrate div on columns
+        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
         div_z_depth_int_c(:) = 0.0_wp
+        !$ACC END KERNELS
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO jc = start_cell_index, end_cell_index
             div_z_depth_int_c(jc) = SUM(div_z_c(jc, 1:patch_3d%p_patch_1d(1)%dolic_c(jc,blockNo)))
+        END DO
+        !$ACC END PARALLEL LOOP
+        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+        ocean_state%p_aux%p_rhs_sfc_eq(:,blockNo) = 0.0_wp
+        !$ACC END KERNELS
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        DO jc = start_cell_index, end_cell_index
+          IF (patch_3d%p_patch_1d(1)%dolic_c(jc,blockNo) > 0) THEN
+            ocean_state%p_aux%p_rhs_sfc_eq(jc,blockNo) = ((ocean_state%p_prog(nold(1))%h(jc,blockNo) &
+            & - dtime * div_z_depth_int_c(jc)) * inv_gdt2)
+          ENDIF
+        END DO
+        !$ACC END PARALLEL LOOP
       END DO
-      ocean_state%p_aux%p_rhs_sfc_eq(:,blockNo) = 0.0_wp
-      DO jc = start_cell_index, end_cell_index
-        IF (patch_3d%p_patch_1d(1)%dolic_c(jc,blockNo) > 0) THEN
-          ocean_state%p_aux%p_rhs_sfc_eq(jc,blockNo) = ((ocean_state%p_prog(nold(1))%h(jc,blockNo) &
-          & - dtime * div_z_depth_int_c(jc)) * inv_gdt2)
-        ENDIF
-      END DO
-    END DO
 !ICON_OMP_END_PARALLEL_DO
-  ENDIF!patch_2d%cells%max_connectivity
+    ENDIF!patch_2d%cells%max_connectivity
+
+  !$ACC END DATA
+
+#ifdef _OPENACC
+    i_am_accel_node = .FALSE.
+    lacc = .FALSE.
+#endif
+
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     idt_src=3  ! output print level (1-5, fix)
     CALL dbg_print('RHS thick_e'               ,patch_3d%p_patch_1d(1)%prism_thick_e, str_module,idt_src, &
