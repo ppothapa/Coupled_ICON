@@ -136,11 +136,7 @@ MODULE mo_nonhydro_types
     !
     ! e) optional diagnostics
     &  pres_msl(:,:),       & ! diagnosed mean sea level pressure (nproma,nblks_c)  [Pa]
-    &  omega(:,:,:),        & ! vertical velocity ( omega=dp/dt )           [Pa/s]
-    &  vor_u(:,:,:),        & ! zonal component of relative vorticity
-                              ! (nproma,nlev,nblks_c)            [s-1]
-    &  vor_v(:,:,:)         & ! meridional component of relative vorticity
-                              ! (nproma,nlev,nblks_c)            [s-1]
+    &  omega(:,:,:)         & ! vertical velocity ( omega=dp/dt )           [Pa/s]
     &  => NULL()
 
     ! d) variables that are in single precision when "__MIXED_PRECISION" is defined

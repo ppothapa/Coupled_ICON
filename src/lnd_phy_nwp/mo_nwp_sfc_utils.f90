@@ -1251,6 +1251,7 @@ CONTAINS
 !$OMP END DO
 !$OMP END PARALLEL
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
   END SUBROUTINE aggregate_tg_qvs

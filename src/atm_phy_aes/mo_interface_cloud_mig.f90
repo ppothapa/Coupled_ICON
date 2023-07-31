@@ -168,7 +168,7 @@ CONTAINS
           !
           IF (ltimer) CALL timer_stop(timer_cld_mig)
 
-          !$ACC PARALLEL DEFAULT(PRESENT)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
           !$ACC LOOP GANG VECTOR
           DO jc = jcs,jce
              field% rsfl(jc,jb) = pr_rain(jc)          ! = liquid precip rate
@@ -214,7 +214,7 @@ CONTAINS
        CASE(0)
           ! diagnostic, do not use tendency
        CASE(1)
-          !$ACC PARALLEL DEFAULT(PRESENT)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jk = jks,jke
             DO jc = jcs,jce
@@ -236,7 +236,7 @@ CONTAINS
        CASE(0)
           ! diagnostic, do not use tendency
        CASE(1)
-          !$ACC PARALLEL DEFAULT(PRESENT)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jk = jks,jke
             DO jc = jcs,jce
@@ -250,7 +250,7 @@ CONTAINS
             END DO
           END DO
           !$ACC END PARALLEL
-         END SELECT
+       END SELECT
        !
     ELSE       ! is_in_sd_ed_interval
        !
@@ -271,6 +271,7 @@ CONTAINS
        !
     END IF     ! is_in_sd_ed_interval
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     ! disassociate pointers

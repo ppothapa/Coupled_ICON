@@ -46,6 +46,7 @@ MODULE mo_nwp_tuning_nml
     &                               config_tune_rdepths     => tune_rdepths,     &
     &                               config_tune_capdcfac_et => tune_capdcfac_et, &
     &                               config_tune_capdcfac_tr => tune_capdcfac_tr, &
+    &                               config_tune_capethresh  => tune_capethresh,  &
     &                               config_tune_rhebc_land  => tune_rhebc_land,  &  
     &                               config_tune_rhebc_ocean => tune_rhebc_ocean, &  
     &                               config_tune_rcucov      => tune_rcucov,      &  
@@ -76,7 +77,9 @@ MODULE mo_nwp_tuning_nml
     &                               config_tune_eiscrit      => tune_eiscrit,    &
     &                               config_tune_sc_eis       => tune_sc_eis,     &
     &                               config_tune_sc_invmin    => tune_sc_invmin,  &
-    &                               config_tune_sc_invmax    => tune_sc_invmax
+    &                               config_tune_sc_invmax    => tune_sc_invmax,  &
+    &                               config_tune_dursun_scaling => tune_dursun_scaling, &
+    &                               config_tune_sbmccn => tune_sbmccn
   
   IMPLICIT NONE
   PRIVATE
@@ -124,6 +127,9 @@ MODULE mo_nwp_tuning_nml
   REAL(wp) :: &                    !< Exponent for density correction of cloud ice sedimentation
     &  tune_icesedi_exp
 
+  REAL(wp) :: &                    !< sbm ccn factor
+    &  tune_sbmccn
+
   REAL(wp) :: &                    !< Entrainment parameter for deep convection valid at dx=20 km 
     &  tune_entrorg
 
@@ -138,6 +144,9 @@ MODULE mo_nwp_tuning_nml
 
   REAL(wp) :: &                    !< Fraction of CAPE diurnal cycle correction applied in the tropics
     &  tune_capdcfac_tr            ! (relevant only if icapdcycl = 3)
+
+  REAL(wp) :: &                    !< CAPE threshold above which the convective adjustment time scale and entrainment
+    &  tune_capethresh             !< are reduced for numerical stability [J/kg]
 
   REAL(wp) :: &                    !< RH threshold for onset of evaporation below cloud base over land
     &  tune_rhebc_land
@@ -238,7 +247,10 @@ MODULE mo_nwp_tuning_nml
        &  tune_sc_invmin           !< enhanced stratocumulus cloud cover
 
   REAL(wp) :: &                    !< maximum inversion height (m) used to define region with
-       &  tune_sc_invmax           !< enhanced stratocumulus cloud cover 
+       &  tune_sc_invmax           !< enhanced stratocumulus cloud cover
+
+  REAL(wp) :: &                    !< scaling of direct solar rediation to tune sunshine duration
+       &  tune_dursun_scaling      !< in corresponding diagnostic
   
   NAMELIST/nwp_tuning_nml/ tune_gkwake, tune_gkdrag, tune_gfluxlaun, tune_gcstar, &
     &                      tune_zceff_min, tune_v0snow, tune_zvz0i,               &
@@ -255,7 +267,9 @@ MODULE mo_nwp_tuning_nml
     &                      tune_box_liq_sfc_fac, allow_overcast, tune_minsso,     &
     &                      tune_blockred, itune_gust_diag, tune_rcapqadv,         &
     &                      tune_gustsso_lim, tune_eiscrit, itune_o3,              &
-    &                      tune_sc_eis, tune_sc_invmin, tune_sc_invmax
+    &                      tune_sc_eis, tune_sc_invmin, tune_sc_invmax,           &
+    &                      tune_capethresh, tune_dursun_scaling,                  &
+    &                      tune_sbmccn
 
 CONTAINS
 
@@ -321,6 +335,8 @@ CONTAINS
     tune_v0snow      = -1.0_wp      ! defaults are set in data_gscp depending on igscp
     tune_zvz0i       = 1.25_wp      ! original value of Heymsfield+Donner 1990: 3.29
     tune_icesedi_exp = 0.30_wp      ! exponent for density correction of cloud ice sedimentation
+    tune_sbmccn      = 1.0_wp       ! [0-1] scaling factor to reduce the ccn concentration initial profile with respect to the polluted case
+
     !
     ! convection
     !
@@ -339,6 +355,10 @@ CONTAINS
 
     !> fraction of CAPE diurnal cycle correction applied in the tropics
     tune_capdcfac_tr = 0.5_wp
+
+    !> CAPE threshold above which the convective adjustment time scale and entrainment
+    !  are reduced for numerical stability [J/kg]
+    tune_capethresh  = 7000._wp
 
     !> RH threshold for onset of evaporation below cloud base over land (original IFS value 0.7)
     tune_rhebc_land  = 0.75_wp
@@ -410,6 +430,9 @@ CONTAINS
     !> enhancement. 
     tune_sc_invmin   = 200._wp
     tune_sc_invmax   = 1500._wp
+
+    !> scaling of direct solar radiation in sunshine duration diagnostic
+    tune_dursun_scaling = 1._wp
 
     IF (my_process_is_stdio()) THEN
       iunit = temp_defaults()
@@ -490,7 +513,7 @@ CONTAINS
     config_tune_blockred         = tune_blockred
     config_tune_gfluxlaun        = tune_gfluxlaun
     config_tune_gcstar           = tune_gcstar
-    config_tune_zceff_min        = tune_zceff_min 
+    config_tune_zceff_min        = tune_zceff_min
     config_tune_v0snow           = tune_v0snow
     config_tune_zvz0i            = tune_zvz0i
     config_tune_icesedi_exp      = tune_icesedi_exp
@@ -499,6 +522,7 @@ CONTAINS
     config_tune_rdepths          = tune_rdepths
     config_tune_capdcfac_et      = tune_capdcfac_et
     config_tune_capdcfac_tr      = tune_capdcfac_tr
+    config_tune_capethresh       = tune_capethresh
     config_tune_rhebc_land       = tune_rhebc_land
     config_tune_rhebc_ocean      = tune_rhebc_ocean
     config_tune_rcucov           = tune_rcucov
@@ -527,10 +551,12 @@ CONTAINS
     config_max_calibfac_clcl     = max_calibfac_clcl
     config_max_freshsnow_inc     = max_freshsnow_inc
     config_tune_eiscrit          = tune_eiscrit
-    config_tune_sc_eis           = tune_sc_eis    
+    config_tune_sc_eis           = tune_sc_eis
     config_tune_sc_invmin        = tune_sc_invmin
     config_tune_sc_invmax        = tune_sc_invmax
-    
+    config_tune_dursun_scaling   = tune_dursun_scaling
+    config_tune_sbmccn           = tune_sbmccn
+
     !$ACC UPDATE DEVICE(config_tune_gust_factor, config_itune_gust_diag, config_tune_gustsso_lim)
 
     !-----------------------------------------------------

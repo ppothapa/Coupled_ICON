@@ -160,7 +160,6 @@ cat > NAMELIST_nwptest << EOF
  l_test_openmp                = .false.
  l_log_checks                 = .false.
  num_io_procs                 = 2           ! 0: no dedicated I/O processor
- itype_comm                   = 1
  iorder_sendrecv              = 3           ! (1), 3: best value for CRAY
 /
 &grid_nml
@@ -276,7 +275,6 @@ cat > NAMELIST_nwptest << EOF
  vwind_offctr                 = 0.2
  damp_height                  = 44000.
  rayleigh_coeff               = 2.5
- lhdiff_rcf                   = .true.
  divdamp_fac                  = 0.004
  divdamp_order                = 24
  divdamp_type                 = 32

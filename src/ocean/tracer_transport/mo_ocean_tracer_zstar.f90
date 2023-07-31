@@ -162,7 +162,7 @@ CONTAINS
     !$ACC   CREATE(r_p, r_m, z_tracer_update_horz) IF(lacc)
     
 #ifdef NAGFOR
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     z_tracer_max(:,:,:) = 0.0_wp
     z_tracer_min(:,:,:) = 0.0_wp
     r_m(:,:,:)          = 0.0_wp
@@ -178,11 +178,12 @@ CONTAINS
     DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
       CALL get_index_range(edges_in_domain, blockNo, start_index, end_index)
 
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       z_anti(:,:,blockNo)     = 0.0_wp
       !$ACC END KERNELS
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR
       DO edge_index = start_index, end_index
         DO level = start_level, MIN(dolic_e(edge_index,blockNo), end_level)
           
@@ -191,7 +192,7 @@ CONTAINS
                                           &- flx_tracer_low(edge_index,level,blockNo)
         END DO  ! end loop over edges
       END DO  ! end loop over levels
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
     END DO  ! end loop over blocks
 !ICON_OMP_END_DO
 
@@ -201,14 +202,15 @@ CONTAINS
     DO blockNo = cells_in_domain%start_block, cells_in_domain%end_block
       CALL get_index_range(cells_in_domain, blockNo, start_index, end_index)
 
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       z_tracer_new_low(:,:,blockNo)    = 0.0_wp
       z_tracer_update_horz(:,:,blockNo)= 0.0_wp
       z_tracer_max(:,:,blockNo)        = 0.0_wp
       z_tracer_min(:,:,blockNo)        = 0.0_wp
       !$ACC END KERNELS
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(delta_z, delta_z_new, z_fluxdiv_c) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR PRIVATE(delta_z, delta_z_new, z_fluxdiv_c)
       DO jc = start_index, end_index
         IF (dolic_c(jc,blockNo) < 1) CYCLE
         
@@ -231,11 +233,11 @@ CONTAINS
             
         ENDDO
       ENDDO
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
       
       ! precalculate local maximum/minimum of current tracer value and low order
       ! updated value
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       z_tracer_max(:,:,blockNo) =            &
         & MAX(          tracer(:,:,blockNo), &
         &     z_tracer_new_low(:,:,blockNo))
@@ -259,14 +261,15 @@ CONTAINS
 
       ! this is only needed for the parallel test setups
       ! it will try  tocheck the uninitialized (land) parts
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       r_m(:,:,blockNo) = 0.0_wp
       r_p(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
         
       CALL get_index_range(cells_in_domain, blockNo, start_index, end_index)
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(inv_prism_thick_new, p_p, p_m, z_max, z_min) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR PRIVATE(inv_prism_thick_new, p_p, p_m, z_max, z_min)
       DO jc = start_index, end_index
         
         ! get prism thickness
@@ -317,7 +320,7 @@ CONTAINS
           !update old tracer with low-order flux
         ENDDO
       ENDDO
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
     ENDDO
 !ICON_OMP_END_DO
 
@@ -335,11 +338,12 @@ CONTAINS
     DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
       CALL get_index_range(edges_in_domain, blockNo, start_index, end_index)
 
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       flx_tracer_final(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(z_signum, r_frac) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR PRIVATE(z_signum, r_frac)
       DO edge_index = start_index, end_index
       
         DO level = start_level, MIN(dolic_e(edge_index,blockNo), end_level)
@@ -371,11 +375,12 @@ CONTAINS
             ENDIF
         END DO
       END DO
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
     ENDDO
 !ICON_OMP_END_DO NOWAIT
 !ICON_OMP_END_PARALLEL
 
+  !$ACC WAIT(1)
   !$ACC END DATA
   END SUBROUTINE limiter_ocean_zalesak_horz_zstar
   !-------------------------------------------------------------------------
@@ -438,11 +443,12 @@ CONTAINS
     DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
       CALL get_index_range(edges_in_domain, blockNo, start_index, end_index)
 
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       edge_upwind_flux(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR
       DO edge_index = start_index, end_index
         DO level = start_level, MIN(patch_3d%p_patch_1d(1)%dolic_e(edge_index,blockNo), end_level)
           !
@@ -460,7 +466,7 @@ CONTAINS
           
         END DO  ! end loop over edges
       END DO  ! end loop over levels
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
     END DO  ! end loop over blocks
 !ICON_OMP_END_DO NOWAIT
 !ICON_OMP_END_PARALLEL
@@ -580,7 +586,8 @@ CONTAINS
     !$ACC   COPYIN(a_v, stretch_c, dolic_c, inv_prism_thick_c, inv_prism_center_dist_c) &
     !$ACC   COPY(field_column) IF(lacc)
 
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(inv_str_c) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC LOOP GANG VECTOR PRIVATE(inv_str_c)
     DO cell_index = start_index, end_index
       inv_str_c    = 1._wp/stretch_c(cell_index, blockNo)
 
@@ -593,13 +600,13 @@ CONTAINS
         column_tracer(cell_index,level) = field_column(cell_index,level,blockNo)
       END DO
     END DO
-    !$ACC END PARALLEL LOOP
+    !$ACC END PARALLEL
 
     !------------------------------------
     ! Fill triangular matrix
     ! b is diagonal, a is the upper diagonal, c is the lower
     ! top level
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO cell_index = start_index, end_index
       a(cell_index,1) = 0.0_wp
@@ -707,6 +714,7 @@ CONTAINS
       END DO
     END IF
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
     !$ACC END DATA
 
   END SUBROUTINE tracer_diffusion_vertical_implicit_zstar_onBlock
@@ -867,17 +875,18 @@ CONTAINS
       CALL get_index_range(cells_in_domain, jb, start_cell_index, end_cell_index)
       IF (ASSOCIATED(old_tracer%top_bc)) THEN
         !$ACC DATA COPYIN(old_tracer%top_bc) IF(lacc)
-        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         top_bc(:) = old_tracer%top_bc(:,jb)
         !$ACC END KERNELS
         !$ACC END DATA
       ELSE
-        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         top_bc(:) = 0.0_wp
         !$ACC END KERNELS
       ENDIF
  
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(delta_z, delta_z_new) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR PRIVATE(delta_z, delta_z_new)
       DO jc = start_cell_index, end_cell_index
         !! d_z*(coeff*w*C) = coeff*d_z(w*C) since coeff is constant for each column
         div_adv_flux_vert(jc, :, jb) = stretch_c(jc, jb)*div_adv_flux_vert(jc, :, jb)
@@ -910,7 +919,7 @@ CONTAINS
         ENDDO
     
       END DO
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
     END DO
     !ICON_OMP_END_PARALLEL_DO
  
@@ -944,6 +953,7 @@ CONTAINS
     ENDIF!IF ( l_with_vert_tracer_diffusion )
 
     CALL sync_patch_array(sync_c, patch_2D, new_tracer_concentration)
+    !$ACC WAIT(1)
     !$ACC END DATA
   END SUBROUTINE advect_individual_tracers_zstar
 

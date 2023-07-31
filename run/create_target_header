@@ -36,10 +36,9 @@ add_free_var()
 set_default()
 {
     # Set variable with name $1 to $2 if it is not set or empty.
-    if [[ "x$(eval echo \$$1)" == "x" ]]
-    then
-        eval "$1=$2"
-    fi
+    eval : "\${$1:=$2}"
+    # ":" is a shell build in that has no effect. It is used to make the variable expansion a valid statement.
+    # ":="" assigns the default $2 value in place if parameter $1 was unset or null.
 }
 
 start_header()
@@ -56,6 +55,10 @@ start_header()
         echo "[ERROR] $output_script does not exist!"
         exit 1
     fi
+
+    set_default use_ecrad_isolver 0 # Default: McICA (not for OpenACC)
+    set_default use_proc0_shift 0 # VH offloading mode: off
+
     cat >> $output_script << EOF
 #=============================================================================
 set +x
@@ -96,6 +99,11 @@ mpi_procs_pernode=$use_mpi_procs_pernode
 nproma=$use_nproma
 nproma_sub=$use_nproma_sub
 nblocks_c=$use_nblocks_c
+proc0_shift=$use_proc0_shift
+#
+# Ecrad solver (0 for CPU/vector, 2 for GPU)
+# ------------------------------------------
+radiation_ecrad_isolver=${use_ecrad_isolver}
 #
 #=============================================================================
 
@@ -152,11 +160,10 @@ EOF
 # directories with absolute paths
 # -------------------------------
 thisdir=\$(pwd)
-basedir="${use_builddir}"
+export basedir="${use_builddir}"
 # experiments_dir can be predefined in a machine specific run_target_* header
 experiments_dir="\${experiments_dir:=\${basedir}/experiments}"
-export basedir
-icon_data_rootFolder="${icon_data_rootFolder}"
+export icon_data_rootFolder="${icon_data_rootFolder}"
 
 # how to start the icon model
 # ---------------------------
@@ -177,12 +184,35 @@ cdo_diff="${cdo} ${cdo_diff}"
 
 # define script functions used in the experiment run script
 # ---------------------------------------------------------
-. ${base_folder}/run/add_run_routines
+. \${basedir}/run/add_run_routines
 
 #=============================================================================
 
 EOF
 
+}
+
+# Limits the time for slurm jobs started with BB
+limit_time_bb()
+{
+    if [[ "x$use_cpu_time" = "x" ]] # time is not set
+    then
+        use_cpu_time=$limit
+        return 0
+    fi
+    if [[ ${#use_cpu_time} != ${#limit} ]] # hard to cover all cases
+    then
+        echo "Requested time ${use_cpu_time} and the limit ${limit} do not have the same format. Using ${limit}."
+        use_cpu_time=$limit
+        return 0
+    else
+        if [[ ${use_cpu_time} > ${limit} ]] # string comparison
+        then
+            echo "Requested time ${use_cpu_time} is bigger than the limit ${limit}. Using ${limit}."
+            use_cpu_time=$limit
+            return 0
+        fi
+    fi
 }
 
 #=============================================================================
@@ -595,12 +625,14 @@ set_run_target_rcl()
     #fi
     
     set_default use_nproma 752
+    set_default use_nproma_sub $use_nproma
     set_default use_nblocks_c 0
     set_default use_nodes 1
     set_default use_mpi_procs_pernode 1
     set_default use_openmp_threads 1
     set_default use_venum_lhost 2
     set_default use_cpunum_job 6
+    set_default use_proc0_shift 1 # VH offloading mode: on with 1 proc
     # $use_memory can be used to set memsz_job. e.G. "24gb"
 
     
@@ -790,11 +822,47 @@ EOF
 }
 
 #=============================================================================
+set_run_target_gpnl()
+{
+  # gpnl*.dwd.de GPU Node with Linux (login node)
+    icon_data_rootFolder=${icon_data_rootFolder:="/hpc/rwork0/routfor/test/icon"}
+
+    # Use same nproma for GPU and CPU for development purposes
+    set_default use_nproma 40000
+    set_default use_nproma_sub 8000
+    set_default use_nblocks_c 0
+    set_default use_ecrad_isolver 2 # McICA for OpenACC
+    use_nodes=1
+
+    if [[ "$use_mpi" == "yes" ]]
+    then
+        set_default use_mpi_procs_pernode 4
+        set_default use_num_io_procs 3
+    fi
+
+    # no OpenMP Threads
+    set_default use_openmp_threads 1
+
+
+    start_header
+    cat >>$output_script <<EOF
+#=============================================================================
+set +x
+ulimit -Sv unlimited
+
+export ECCODES_DEFINITION_PATH="/hpc/sw/eccodes/definitions/release/2.23.0-5/definitions.edzw:/hpc/sw/eccodes/definitions/release/2.23.0-5/definitions"
+EOF
+    if [[ "$use_gpu" == "yes" ]]
+    then
+        echo "export ENABLE_NVIDIA_SMI_LOGGER=yes" >> $output_script
+    fi
+}
+#=============================================================================
 set_run_target_oflws()
 {
   # *.dwd.de with Linux (workstations)
     icon_data_rootFolder=${icon_data_rootFolder:=""}
-    
+
     set_default use_nproma 64
     set_default use_nproma_sub 64
     set_default use_nblocks_c 0
@@ -802,11 +870,11 @@ set_run_target_oflws()
 
     if [[ "$use_mpi" == "yes" ]]
     then
-	set_default use_mpi_procs_pernode 4
+    set_default use_mpi_procs_pernode 4
     fi
     if [[ "$use_openmp" == "yes" ]]
     then
-	set_default use_openmp_threads 2
+    set_default use_openmp_threads 2
     fi
 
     start_header
@@ -929,8 +997,10 @@ set_run_target_tsa_cpu()
     fi
     if [[ "x$BB_SYSTEM" != "x" ]]
     then
-	# this is buldbot, do not run more than 15 minutes on Tsa (SLURM delays)
-	s_cpu_time="SBATCH --time=00:15:00"
+        # this is buldbot, do not run more than 15 minutes on Tsa (SLURM delays)
+        limit="00:15:00"
+        limit_time_bb # sets use_cpu_time
+        s_cpu_time="SBATCH --time=$use_cpu_time"
     fi
     # ------------------------------------
 
@@ -1029,8 +1099,10 @@ set_run_target_tsa_gpu()
     fi
     if [[ "x$BB_SYSTEM" != "x" ]]
     then
-	# this is buldbot, do not run more than 45 minutes
-	s_cpu_time="SBATCH --time=00:45:00"
+        # this is buldbot, do not run more than 45 minutes
+        limit="00:45:00"
+        limit_time_bb # sets use_cpu_time
+        s_cpu_time="SBATCH --time=$use_cpu_time"
     fi
 
     # ------------------------------------
@@ -1147,8 +1219,10 @@ set_run_target_daint_cpu()
     fi
     if [[ "x$BB_SYSTEM" != "x" ]]
     then
-	# this is buldbot, do not run more than 20 minutes on Daint (SLURM delays)
-	s_cpu_time="SBATCH --time=00:20:00"
+        # this is buldbot, do not run more than 30 minutes on Daint (SLURM delays)
+        limit="00:30:00"
+        limit_time_bb # sets use_cpu_time
+        s_cpu_time="SBATCH --time=$use_cpu_time"
     fi
     # ------------------------------------
 
@@ -1251,8 +1325,10 @@ set_run_target_daint_gpu()
     fi
     if [[ "x$BB_SYSTEM" != "x" ]]
     then
-	# this is buldbot, do not run more than 45 minutes
-	s_cpu_time="SBATCH --time=00:45:00"
+        # this is buldbot, do not run more than 45 minutes
+        limit="00:45:00"
+        limit_time_bb # sets use_cpu_time
+        s_cpu_time="SBATCH --time=$use_cpu_time"
     fi
 
     # ------------------------------------
@@ -1308,6 +1384,8 @@ set_run_target_balfrin_gpu()
 
     is_serial_run="no"
 
+    # hardcode number of nodes
+    set_default use_nodes 1
     set_default use_mpi_procs_pernode $((4+use_prefetch_procs))
 
     job_type=parallel
@@ -1331,8 +1409,10 @@ set_run_target_balfrin_gpu()
     fi
     if [[ "x$BB_SYSTEM" != "x" ]]
     then
-        # this is buldbot, do not run more than 45 minutes
-        s_cpu_time="SBATCH --time=00:45:00"
+        # this is buldbot, do not run more than 80 minutes
+        limit="01:20:00"
+        limit_time_bb # sets use_cpu_time
+        s_cpu_time="SBATCH --time=$use_cpu_time"
     fi
 
     # ------------------------------------
@@ -1411,7 +1491,9 @@ set_run_target_balfrin_cpu()
     if [[ "x$BB_SYSTEM" != "x" ]]
     then
         # this is buldbot, do not run more than 15 minutes on Daint (SLURM delays)
-        s_cpu_time="SBATCH --time=00:15:00"
+        limit="00:15:00"
+        limit_time_bb # sets use_cpu_time
+        s_cpu_time="SBATCH --time=$use_cpu_time"
     fi
     # ------------------------------------
 
@@ -1497,8 +1579,10 @@ set_run_target_dom_gpu()
     fi
     if [[ "x$BB_SYSTEM" != "x" ]]
     then
-	# this is buldbot, do not run more than 45 minutes
-	s_cpu_time="SBATCH --time=00:45:00"
+        # this is buldbot, do not run more than 45 minutes
+        limit="00:45:00"
+        limit_time_bb # sets use_cpu_time
+        s_cpu_time="SBATCH --time=$use_cpu_time"
     fi
 
     # ------------------------------------
@@ -1588,8 +1672,10 @@ set_run_target_tave_knl()
     fi
     if [[ "x$BB_SYSTEM" != "x" ]]
     then
-	# this is buldbot, do not run more than 45 minutes
-	s_cpu_time="SBATCH --time=00:45:00"
+	    # this is buldbot, do not run more than 45 minutes
+        limit="00:45:00"
+        limit_time_bb # sets use_cpu_time
+        s_cpu_time="SBATCH --time=$use_cpu_time"
     fi
     # ------------------------------------
 
@@ -1832,13 +1918,20 @@ create_target_header()
         *mch_opr_r04b07_performance.run|*mch_opr_r04b07_performance_member_id*.run)
             use_nodes=1
             case $use_target in
-                daint_cpu*)
+                *_cpu*)
                     use_mpi_procs_pernode=12
                     use_nproma=16
                 ;;
-                daint_gpu*)
+                *_gpu*)
                     use_mpi_procs_pernode=2
                     # no nproma needed since this uses nlbocks_c anyway
+                ;;
+            esac
+            ;;
+        *mch_bench_r19b07_dev_sppt.run|*mch_bench_r19b07_dev_sppt_member_id*.run)
+            case $use_target in
+                daint_gpu*)
+                    use_mpi_procs_pernode=4
                 ;;
             esac
             ;;
@@ -1868,13 +1961,29 @@ create_target_header()
             ;;
         *mch_ch_r04b09_dace.run|*mch_ch_r04b09_dace_seed_*.run)
             use_nodes=4
-            use_mpi_procs_pernode=12 # Use 12 procs pernode for GPU as well until bug is fixed
+            case $use_target in
+                daint*)
+                    use_mpi_procs_pernode=12 # Use 12 procs pernode for GPU as well until bug is fixed
+                    ;;
+                balfrin*)
+                    use_mpi_procs_pernode=4 # Use 4 procs pernode for GPU as well until bug is fixed
+                    ;;
+            esac
             ;;
         *mch_*)
             case $use_target in
                 daint*)
                     use_nodes=4
                     ;;
+            esac
+            ;;
+	*exclaim_ape*)
+            use_nodes=1
+            case $use_target in
+                daint_cpu*)
+                    use_mpi_procs_pernode=12
+                    use_nproma=16
+                ;;
             esac
             ;;
         *dwd_run_ICON_09_R2B4N5_EPS*)
@@ -1913,32 +2022,20 @@ create_target_header()
                     use_nodes=12
                     ;;
                 rcl)
-                    use_nodes=8
-                    use_venum_lhost=8
+                    use_nodes=6
+                    use_venum_lhost=2
                     use_cpunum_job=6
                     ;;
             esac
             ;;
-        *run_ICON_04_R02B06N08_ifsinit_restarttest*)
-            case $use_target in
-                daint*)
-                    use_nodes=10
-                    ;;
-                rcl)
-                    use_nodes=6
-                    use_venum_lhost=3
-                    use_cpunum_job=3
-                    ;;
-            esac
-            ;;
-        *run_ICON_05_R02B06N07_ifsinit_restarttest*)
+        *run_ICON_05_R02B06N08_ifsinit_restarttest*)
             case $use_target in
                 daint*)
                     use_nodes=20
                     ;;
                 rcl)
                     use_nodes=4
-                    use_venum_lhost=4
+                    use_venum_lhost=2
                     use_cpunum_job=5
                     ;;
             esac
@@ -1949,8 +2046,8 @@ create_target_header()
                     use_nodes=8
                     ;;
                 rcl)
-                    use_nodes=8
-                    use_venum_lhost=4
+                    use_nodes=6
+                    use_venum_lhost=2
                     use_cpunum_job=2
                     add_free_var VE_FORT_NML_REPEAT_FORM NO
                     ;;
@@ -2019,9 +2116,9 @@ create_target_header()
                     use_nodes=6
                     ;;
                 rcl)
-                    use_nodes=2
-                    use_venum_lhost=2
-                    use_cpunum_job=6
+                    use_nodes=1
+                    use_venum_lhost=1
+                    use_cpunum_job=4
                     use_omp_stacksize=3G
                     ;;
             esac
@@ -2035,9 +2132,9 @@ create_target_header()
                     use_nodes=8
                     ;;
                 rcl)
-                    use_nodes=2
-                    use_venum_lhost=2
-                    use_cpunum_job=6
+                    use_nodes=1
+                    use_venum_lhost=1
+                    use_cpunum_job=4
                     ;;
             esac
             ;;
@@ -2140,8 +2237,8 @@ create_target_header()
                     use_nodes=14
                     ;;
                 rcl)
-                    use_nodes=5
-                    use_venum_lhost=5
+                    use_nodes=2
+                    use_venum_lhost=2
                     use_cpunum_job=6
 #                    elapstim_req=43300 # this variable does not exist yet
                     ;;
@@ -2151,7 +2248,7 @@ create_target_header()
     esac
 
     # set more default values
-    set_default use_shell "/bin/ksh"
+    set_default use_shell "/bin/bash"
     set_default use_memory_model "default"
     set_default use_omp_stacksize 32M
       

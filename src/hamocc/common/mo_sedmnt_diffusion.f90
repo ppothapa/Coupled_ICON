@@ -76,7 +76,8 @@ SUBROUTINE DIPOWA (local_bgc_mem, local_sediment_mem, start_idx, end_idx, use_ac
   !
   kbo => local_bgc_mem%kbo  
 
-  !$ACC PARALLEL LOOP GANG VECTOR PRIVATE(sedb1, tredsy) DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC LOOP GANG VECTOR PRIVATE(sedb1, tredsy)
   DO j = start_idx, end_idx
         
     if(local_bgc_mem%bolay(j) > EPSILON(0.5_wp))then
@@ -206,7 +207,7 @@ SUBROUTINE DIPOWA (local_bgc_mem, local_sediment_mem, start_idx, end_idx, use_ac
      endif
 
   END DO ! j loop
-  !$ACC END PARALLEL LOOP
+  !$ACC END PARALLEL
 
 END SUBROUTINE DIPOWA
 

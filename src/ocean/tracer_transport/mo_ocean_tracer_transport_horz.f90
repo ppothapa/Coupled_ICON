@@ -576,13 +576,14 @@ CONTAINS
 
 #ifdef __LVECTOR__
       max_dolic_e = -1
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) REDUCTION(MAX: max_dolic_e) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) REDUCTION(MAX: max_dolic_e) IF(lacc)
       DO edge_index = start_index, end_index
         max_dolic_e = MAX(max_dolic_e, dolic_e(edge_index,blockNo))
       END DO
       !$ACC END PARALLEL LOOP
 
-      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO level = start_level, max_dolic_e
         DO edge_index = start_index, end_index
           IF (dolic_e(edge_index,blockNo) < level) CYCLE
@@ -591,7 +592,8 @@ CONTAINS
           idx2 = cell_idx(edge_index,blockNo,2)
           blk2 = cell_blk(edge_index,blockNo,2)            
 #else    
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR
       DO edge_index = start_index, end_index
         idx1 = cell_idx(edge_index,blockNo,1)
         blk1 = cell_blk(edge_index,blockNo,1)
@@ -628,7 +630,7 @@ CONTAINS
           
         ENDDO       
       END DO  ! end loop over levels
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
     END DO  ! end loop over blocks
 !ICON_OMP_END_PARALLEL_DO
     

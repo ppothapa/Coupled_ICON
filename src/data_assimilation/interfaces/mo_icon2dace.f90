@@ -242,6 +242,7 @@ MODULE mo_icon2dace
                             prefix_out        ! feedback output file prefix
   use mo_tovs,        only: read_tovs_nml,   &! read TOVS_* namelists
                             use_reff,        &! use ICON effective radii in RTTOV
+                            prep_H_btcs,     &! prepare t_vector
                             thin_superob_tovs !
   use mo_rad,         only: rad_set,         &! Options for radiance datasets
                             n_set
@@ -249,7 +250,8 @@ MODULE mo_icon2dace
   ! feedback file interface
   !------------------------
   use mo_fdbk_tables, only: init_fdbk_tables,&! initialise tables
-                            OT_RAD            ! obstype RAD       
+                            OT_RAD,          &! obstype RAD
+                            OF_BT_CLEAR_SKY   ! operator-flag for clear-sky TBs
   use mo_fdbk_3dvar,  only: t_fdbk_3dv,      &! 3dvar feedback file derived type
                             destruct,        &! t_fdbk_3dv destructor routine
                             write_fdbk_3dv    ! write (NetCDF) feedback file
@@ -1617,6 +1619,9 @@ contains
     character(512)          :: fields
     integer                 :: ou
 
+    ! Pointer to the acutally used variant of clc:
+    REAL(wp), DIMENSION(:,:,:), POINTER ::  ptr_clc
+
     g  => state% grid
     nz =  g% nz
     atm_d => p_nh_state(1)% diag
@@ -1638,6 +1643,16 @@ contains
     if (l_rad_cld .and. use_reff .and. atm_phy_nwp_config(1)% icalc_reff .gt. 0) &
        fields = trim(fields)//' '//trim(fields_rad_reff)
 
+    IF (l_rad_cld) THEN
+      NULLIFY(ptr_clc)
+      ! Decide which field for cloud cover has to be used:
+      IF (atm_phy_nwp_config(1)%luse_clc_rad) THEN
+        ptr_clc => phy_d % clc_rad(:,:,:)
+      ELSE
+        ptr_clc => phy_d % clc(:,:,:)
+      END IF
+    END IF
+    
     call allocate (state, fields)
     
     ! Ensure that diagnostic fields are up-to-date (HR, CW)
@@ -1688,7 +1703,7 @@ contains
           state%          qcl    (j,1,k,1) = atm_r% tracer(idx,k,blk,iqc)
           state%          qci    (j,1,k,1) = atm_r% tracer(idx,k,blk,iqi)
           if (l_rad_cld) then
-            state%          clc    (j,1,k,1) = phy_d% clc   (idx,k,blk)*100._wp !convert to percent
+            state%          clc    (j,1,k,1) = ptr_clc         (idx,k,blk)*100._wp !convert to percent
             state%          qv_dia (j,1,k,1) = phy_d% tot_cld  (idx,k,blk,iqv)
             state%          qc_dia (j,1,k,1) = phy_d% tot_cld  (idx,k,blk,iqc)
             state%          qi_dia (j,1,k,1) = phy_d% tot_cld  (idx,k,blk,iqi)
@@ -2326,6 +2341,8 @@ contains
     CALL finish ("finish_dace","DACE coupling requested but not compiled in")
 #else
     character(22) :: comment
+    type(t_vector) ::  H_btcs              !clear-sky Tbs
+    integer, allocatable :: op_flag(:)  ! operator flag for each fdbk file category
 
     call dace_open_output ()
 
@@ -2355,6 +2372,16 @@ contains
     call message ("","")
     call message ("icon2dace","writing feedback files")
     call add_veri (H_det, obs, atm(mec_slotn), ensm=ens_mem)
+    !--------------------------------------------------
+    ! clear-sky model equivalent brightness temperatures
+    !--------------------------------------------------
+    call construct (H_btcs, obs% oi,'H_btcs' )  !clear-sky TB
+    allocate(op_flag(n_source))
+    call prep_H_btcs(H_btcs, obs,op_flag)
+    if (any(op_flag == OF_BT_CLEAR_SKY)) then
+      call add_veri (H_btcs,obs, atm(mec_slotn), op_flag=op_flag)
+    end if
+    call destruct(H_btcs)
     !-------------------------------
     ! clean up observation operators
     !-------------------------------

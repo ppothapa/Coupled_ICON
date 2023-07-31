@@ -185,7 +185,7 @@ CONTAINS
           jbs = 1; jbe = SIZE(field%sftof, 2)
           jcs = 1; jce = SIZE(field%sftof, 1)
           !$ACC DATA CREATE(mask_sftof)
-          !$ACC PARALLEL DEFAULT(PRESENT)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jb = jbs, jbe
             DO jc = jcs, jce
@@ -210,7 +210,7 @@ CONTAINS
           jbs = LBOUND(field%ts_tile, 2); jbe = UBOUND(field%ts_tile, 2)
           jcs = LBOUND(field%ts_tile, 1); jce = UBOUND(field%ts_tile, 1)
 
-          !$ACC PARALLEL DEFAULT(PRESENT)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jb = jbs, jbe
             DO jc = jcs, jce
@@ -226,7 +226,7 @@ CONTAINS
 
           jbs = LBOUND(field%seaice, 2); jbe = UBOUND(field%seaice, 2)
           jcs = LBOUND(field%seaice, 1); jce = UBOUND(field%seaice, 1)
-          !$ACC PARALLEL DEFAULT(PRESENT)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jb = jbs, jbe
             DO jc = jcs, jce
@@ -242,7 +242,7 @@ CONTAINS
           ! set ice thickness
           jbs = LBOUND(field%siced, 2); jbe = UBOUND(field%siced, 2)
           jcs = LBOUND(field%siced, 1); jce = UBOUND(field%siced, 1)
-          !$ACC PARALLEL DEFAULT(PRESENT)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jb = jbs, jbe
             DO jc = jcs, jce
@@ -262,7 +262,7 @@ CONTAINS
         IF (iice <= nsfc_type) THEN
           jbs = LBOUND(field%conc, 3); jbe = UBOUND(field%conc, 3)
           jcs = LBOUND(field%conc, 1); jce = UBOUND(field%conc, 1)
-          !$ACC PARALLEL DEFAULT(PRESENT)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jb = jbs, jbe
             DO jc = jcs, jce
@@ -272,6 +272,7 @@ CONTAINS
           END DO
           !$ACC END PARALLEL
         END IF
+        !$ACC WAIT(1)
         !$ACC END DATA
       END IF
       !

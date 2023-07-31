@@ -30,14 +30,13 @@ MODULE mo_solve_nonhydro
 
   USE mo_kind,                 ONLY: wp, vp
   USE mo_nonhydrostatic_config,ONLY: itime_scheme,iadv_rhotheta, igradp_method,             &
-                                     kstart_moist, lhdiff_rcf, divdamp_order,               &
+                                     kstart_moist, divdamp_order,                           &
                                      divdamp_fac, divdamp_fac2, divdamp_fac3, divdamp_fac4, &
                                      divdamp_z, divdamp_z2, divdamp_z3, divdamp_z4,         &
                                      divdamp_type, rayleigh_type, rhotheta_offctr,          &
                                      veladv_offctr, divdamp_fac_o2, kstart_dd3d, ndyn_substeps_var
   USE mo_dynamics_config,   ONLY: idiv_method
-  USE mo_parallel_config,   ONLY: nproma, p_test_run, itype_comm, use_dycore_barrier, &
-    & cpu_min_nproma
+  USE mo_parallel_config,   ONLY: nproma, p_test_run, use_dycore_barrier, cpu_min_nproma
   USE mo_run_config,        ONLY: ltimer, timers_level, lvert_nest
   USE mo_model_domain,      ONLY: t_patch
   USE mo_grid_config,       ONLY: l_limited_area
@@ -1062,7 +1061,7 @@ MODULE mo_solve_nonhydro
 !$OMP END DO
 
 
-      ELSE IF (istep == 2 .AND. lhdiff_rcf .AND. divdamp_type >= 3) THEN ! apply div damping on 3D divergence
+      ELSE IF (istep == 2 .AND. divdamp_type >= 3) THEN ! apply div damping on 3D divergence
 
         ! add dw/dz contribution to divergence damping term
 
@@ -1420,34 +1419,36 @@ MODULE mo_solve_nonhydro
           ENDDO
         ENDIF
 
-        IF (lhdiff_rcf .AND. istep == 2 .AND. (divdamp_order == 4 .OR. divdamp_order == 24)) THEN ! fourth-order divergence damping
-        ! Compute gradient of divergence of gradient of divergence for fourth-order divergence damping
-          !$ACC LOOP GANG(STATIC: 1) VECTOR TILE(32, 4)
+
+        IF (istep == 2) THEN
+
+          IF (divdamp_order == 4 .OR. divdamp_order == 24) THEN ! fourth-order divergence damping
+          ! Compute gradient of divergence of gradient of divergence for fourth-order divergence damping
+            !$ACC LOOP GANG(STATIC: 1) VECTOR TILE(32, 4)
 #ifdef __LOOP_EXCHANGE
-          DO je = i_startidx, i_endidx
+            DO je = i_startidx, i_endidx
 !DIR$ IVDEP
-            DO jk = 1, nlev
-              z_graddiv2_vn(je,jk) = p_int%geofac_grdiv(je,1,jb)*z_graddiv_vn(jk,je,jb)      &
-                + p_int%geofac_grdiv(je,2,jb)*z_graddiv_vn(jk,iqidx(je,jb,1),iqblk(je,jb,1)) &
-                + p_int%geofac_grdiv(je,3,jb)*z_graddiv_vn(jk,iqidx(je,jb,2),iqblk(je,jb,2)) &
-                + p_int%geofac_grdiv(je,4,jb)*z_graddiv_vn(jk,iqidx(je,jb,3),iqblk(je,jb,3)) &
-                + p_int%geofac_grdiv(je,5,jb)*z_graddiv_vn(jk,iqidx(je,jb,4),iqblk(je,jb,4))
+              DO jk = 1, nlev
+                z_graddiv2_vn(je,jk) = p_int%geofac_grdiv(je,1,jb)*z_graddiv_vn(jk,je,jb)      &
+                  + p_int%geofac_grdiv(je,2,jb)*z_graddiv_vn(jk,iqidx(je,jb,1),iqblk(je,jb,1)) &
+                  + p_int%geofac_grdiv(je,3,jb)*z_graddiv_vn(jk,iqidx(je,jb,2),iqblk(je,jb,2)) &
+                  + p_int%geofac_grdiv(je,4,jb)*z_graddiv_vn(jk,iqidx(je,jb,3),iqblk(je,jb,3)) &
+                  + p_int%geofac_grdiv(je,5,jb)*z_graddiv_vn(jk,iqidx(je,jb,4),iqblk(je,jb,4))
 #else
 !$NEC outerloop_unroll(6)
-          DO jk = 1, nlev
-            DO je = i_startidx, i_endidx
-              z_graddiv2_vn(je,jk) = p_int%geofac_grdiv(je,1,jb)*z_graddiv_vn(je,jk,jb)      &
-                + p_int%geofac_grdiv(je,2,jb)*z_graddiv_vn(iqidx(je,jb,1),jk,iqblk(je,jb,1)) &
-                + p_int%geofac_grdiv(je,3,jb)*z_graddiv_vn(iqidx(je,jb,2),jk,iqblk(je,jb,2)) &
-                + p_int%geofac_grdiv(je,4,jb)*z_graddiv_vn(iqidx(je,jb,3),jk,iqblk(je,jb,3)) &
-                + p_int%geofac_grdiv(je,5,jb)*z_graddiv_vn(iqidx(je,jb,4),jk,iqblk(je,jb,4))
+            DO jk = 1, nlev
+              DO je = i_startidx, i_endidx
+                z_graddiv2_vn(je,jk) = p_int%geofac_grdiv(je,1,jb)*z_graddiv_vn(je,jk,jb)      &
+                  + p_int%geofac_grdiv(je,2,jb)*z_graddiv_vn(iqidx(je,jb,1),jk,iqblk(je,jb,1)) &
+                  + p_int%geofac_grdiv(je,3,jb)*z_graddiv_vn(iqidx(je,jb,2),jk,iqblk(je,jb,2)) &
+                  + p_int%geofac_grdiv(je,4,jb)*z_graddiv_vn(iqidx(je,jb,3),jk,iqblk(je,jb,3)) &
+                  + p_int%geofac_grdiv(je,5,jb)*z_graddiv_vn(iqidx(je,jb,4),jk,iqblk(je,jb,4))
 #endif
 
+              ENDDO
             ENDDO
-          ENDDO
-        ENDIF
+          ENDIF
 
-        IF (lhdiff_rcf .AND. istep == 2) THEN
           ! apply divergence damping if diffusion is not called every sound-wave time step
           IF (divdamp_order == 2 .OR. (divdamp_order == 24 .AND. scal_divdamp_o2 > 1.e-6_wp) ) THEN ! 2nd-order divergence damping
 
@@ -1668,12 +1669,10 @@ MODULE mo_solve_nonhydro
         CALL timer_start(timer_solve_nh_exch)
       ENDIF
 
-      IF (itype_comm == 1) THEN
-        IF (istep == 1) THEN
-          CALL sync_patch_array_mult(SYNC_E,p_patch,2,p_nh%prog(nnew)%vn,z_rho_e,opt_varname="vn_nnew and z_rho_e")
-        ELSE
-          CALL sync_patch_array(SYNC_E,p_patch,p_nh%prog(nnew)%vn,opt_varname="vn_nnew")
-        ENDIF
+      IF (istep == 1) THEN
+        CALL sync_patch_array_mult(SYNC_E,p_patch,2,p_nh%prog(nnew)%vn,z_rho_e,opt_varname="vn_nnew and z_rho_e")
+      ELSE
+        CALL sync_patch_array(SYNC_E,p_patch,p_nh%prog(nnew)%vn,opt_varname="vn_nnew")
       ENDIF
 
       IF (idiv_method == 2 .AND. istep == 1) THEN
@@ -2558,7 +2557,7 @@ MODULE mo_solve_nonhydro
 
 
         ! compute dw/dz for divergence damping term
-        IF (lhdiff_rcf .AND. istep == 1 .AND. divdamp_type >= 3) THEN
+        IF (istep == 1 .AND. divdamp_type >= 3) THEN
 
           !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
           !$ACC LOOP GANG VECTOR TILE(32, 4)
@@ -2752,7 +2751,7 @@ MODULE mo_solve_nonhydro
           ENDIF
 
           ! compute dw/dz for divergence damping term
-          IF (lhdiff_rcf .AND. istep == 1 .AND. divdamp_type >= 3) THEN
+          IF (istep == 1 .AND. divdamp_type >= 3) THEN
 
             !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
             !$ACC LOOP GANG VECTOR TILE(32, 4)
@@ -2816,25 +2815,23 @@ MODULE mo_solve_nonhydro
         CALL timer_start(timer_solve_nh_exch)
       ENDIF
 
-      IF (itype_comm == 1) THEN
-        IF (istep == 1) THEN
-          IF (lhdiff_rcf .AND. divdamp_type >= 3) THEN
-            ! Synchronize w and vertical contribution to divergence damping
+      IF (istep == 1) THEN
+        IF (divdamp_type >= 3) THEN
+          ! Synchronize w and vertical contribution to divergence damping
 #ifdef __MIXED_PRECISION
-            CALL sync_patch_array_mult_mp(SYNC_C,p_patch,1,1,p_nh%prog(nnew)%w,f3din1_sp=z_dwdz_dd, &
-                 &                        opt_varname="w_nnew and z_dwdz_dd")
+          CALL sync_patch_array_mult_mp(SYNC_C,p_patch,1,1,p_nh%prog(nnew)%w,f3din1_sp=z_dwdz_dd, &
+               &                        opt_varname="w_nnew and z_dwdz_dd")
 #else
-            CALL sync_patch_array_mult(SYNC_C,p_patch,2,p_nh%prog(nnew)%w,z_dwdz_dd, &
-                 &                     opt_varname="w_nnew and z_dwdz_dd")
+          CALL sync_patch_array_mult(SYNC_C,p_patch,2,p_nh%prog(nnew)%w,z_dwdz_dd, &
+               &                     opt_varname="w_nnew and z_dwdz_dd")
 #endif
-          ELSE
-            ! Only w needs to be synchronized
-            CALL sync_patch_array(SYNC_C,p_patch,p_nh%prog(nnew)%w,opt_varname="w_nnew")
-          ENDIF
-        ELSE ! istep = 2: synchronize all prognostic variables
-          CALL sync_patch_array_mult(SYNC_C,p_patch,3,p_nh%prog(nnew)%rho, &
-            p_nh%prog(nnew)%exner,p_nh%prog(nnew)%w,opt_varname="rho, exner, w_nnew")
+        ELSE
+          ! Only w needs to be synchronized
+          CALL sync_patch_array(SYNC_C,p_patch,p_nh%prog(nnew)%w,opt_varname="w_nnew")
         ENDIF
+      ELSE ! istep = 2: synchronize all prognostic variables
+        CALL sync_patch_array_mult(SYNC_C,p_patch,3,p_nh%prog(nnew)%rho, &
+          p_nh%prog(nnew)%exner,p_nh%prog(nnew)%w,opt_varname="rho, exner, w_nnew")
       ENDIF
 
       IF (timers_level > 5) CALL timer_stop(timer_solve_nh_exch)

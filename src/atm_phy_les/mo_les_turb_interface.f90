@@ -29,7 +29,7 @@ MODULE mo_les_turb_interface
   USE mo_exception,            ONLY: message, finish
   USE mo_model_domain,         ONLY: t_patch
   USE mo_intp_data_strc,       ONLY: t_int_state
-  USE mo_impl_constants,       ONLY: min_rlcell_int, ismag, iprog
+  USE mo_impl_constants,       ONLY: min_rlcell_int
   USE mo_impl_constants_grf,   ONLY: grf_bdywidth_c
   USE mo_loopindices,          ONLY: get_indices_c
   USE mo_nonhydro_types,       ONLY: t_nh_prog, t_nh_diag, t_nh_metrics
@@ -113,10 +113,9 @@ SUBROUTINE les_turbulence  ( tcall_turb_jg,                   & !>in
   !For 3D turbulence the whole patch needs to be passed. Therefore, this call
   !is made outside the block loop next. However, the tendencies it calculates
   !is then used inside the block loop (see at the end) to update u,v,t,qv,qc
-  IF ( ANY( (/ismag,iprog/) == atm_phy_nwp_config(jg)%inwp_turb ) )THEN
 
-    ! if les metrics is choosen, drive the subgrid diffusion from mo_sgs_turbmetric
-    IF (les_config(jg)%les_metric) THEN
+  ! if les metrics is choosen, drive the subgrid diffusion from mo_sgs_turbmetric
+  IF (les_config(jg)%les_metric) THEN
       CALL drive_subgrid_diffusion_m(p_sim_time,      & !in (Christopher Moseley)
                                      p_prog,          & !inout for w (it is updated inside)
                                      p_prog_now_rcf,  & !inout 
@@ -132,7 +131,7 @@ SUBROUTINE les_turbulence  ( tcall_turb_jg,                   & !>in
                                      prm_nwp_tend,    & !inout
                                      tcall_turb_jg,   & !in
                                      lacc=.TRUE.      ) !in
-    ELSE
+  ELSE
 #ifdef _OPENACC
       CALL finish ('mo_les_turb_interface:', 'inwp_turb=ismag,iprog only available for les_metric on OpenACC')
 #endif
@@ -151,8 +150,6 @@ SUBROUTINE les_turbulence  ( tcall_turb_jg,                   & !>in
                                    prm_nwp_tend,      & !inout
                                    tcall_turb_jg      & !in
                                    )
-    END IF
-
   END IF
 
   

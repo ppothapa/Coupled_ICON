@@ -1,5 +1,5 @@
 % -------------------------------------------------------------------
-\section{Changes incompatible with former versions of the model code}
+\section{Changes incompatible with former versions of the model code}\label{sec:changes}
 % -------------------------------------------------------------------
 \noindent
 % In this section we propose to document all namelist changes that are incompatible with former versions of the model code.
@@ -496,9 +496,34 @@ from ...mpi\_phy... to ...echam\_phy... because programmers felt that the acrony
   \end{itemize}
 \end{changeitem}
 
-\begin{changeitem}{nonhydrostatic\_nml}{2023-05-22}{icon-nwp:master xxx}
+\begin{changeitem}{nonhydrostatic\_nml}{2023-05-22}{icon-nwp:master 1fff9207}
   \begin{itemize}
    \item Removed Namelist switch \texttt{l\_open\_ubc}. The upper boundary condition for vertical velocity $w$ is unconditionally set to $w=0$ (with the exception of vertically nested domains).
+  \end{itemize}
+\end{changeitem}
+
+\begin{changeitem}{Optional output diagnostics, see table~\ref{tab:optionaldiagnostics} on page~\pageref{tab:optionaldiagnostics}}{2023-06-13}{icon-nwp:master 0d921fd4}
+  \begin{itemize}
+   \item Removed optional output diagnostics \texttt{vor\_u} (\emph{zonal component of relative vorticity}) and \texttt{vor\_v} (\emph{meridional component of relative vorticity}). 
+   Reason for removal: the two diagnostics have proven an unfavorable cost-benefit ratio.
+  \end{itemize}
+\end{changeitem}
+
+\begin{changeitem}{nonhydrostatic\_nml}{2023-07-04}{icon-nwp:master 6e5730d5}
+  \begin{itemize}
+   \item Removed Namelist switch \texttt{lhdiff\_rcf}. Option to compute diffusion at dynamics time steps has been removed. It is only computed at advection time steps (in combination with divergence damping in the dynamical core).
+  \end{itemize}
+\end{changeitem}
+
+\begin{changeitem}{parallel\_nml}{2023-07-25}{icon-nwp:master xxx}
+  \begin{itemize}
+   \item Removed Namelist switch \texttt{itype\_comm}. Option to switch on asynchronous halo communication for the dynamical core has been removed.
+  \end{itemize}
+\end{changeitem}
+
+\begin{changeitem}{nonhydrostatic\_nml}{2023-07-25}{icon-nwp:master xxx}
+  \begin{itemize}
+   \item Removed Namelist switch \texttt{nest\_substeps}. Option to change the number of substeps for the child patches has never been functional.
   \end{itemize}
 \end{changeitem}
 % --------------------------------------------------------------------------------------------

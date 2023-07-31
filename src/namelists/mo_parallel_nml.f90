@@ -17,13 +17,14 @@
 MODULE mo_parallel_nml
 
   USE mo_io_units,            ONLY: nnml, nnml_output
+  USE mo_exception,           ONLY: finish, message, message_text
   USE mo_namelist,            ONLY: position_nml, POSITIONED, open_nml, close_nml
   USE mo_master_control,      ONLY: use_restart_namelists
   USE mo_mpi,                 ONLY: my_process_is_stdio
   USE mo_restart_nml_and_att, ONLY: open_tmpfile, store_and_close_namelist, open_and_restore_namelist, close_tmpfile
-  USE mo_io_units,           ONLY: filename_max
-  USE mo_impl_constants,     ONLY: max_dom
-  USE mo_nml_annotate,       ONLY: temp_defaults, temp_settings
+  USE mo_io_units,            ONLY: filename_max
+  USE mo_impl_constants,      ONLY: max_dom
+  USE mo_nml_annotate,        ONLY: temp_defaults, temp_settings
 
   USE mo_parallel_config,     ONLY: &
     & config_n_ghost_rows        => n_ghost_rows,        &
@@ -43,7 +44,6 @@ MODULE mo_parallel_nml
     & config_pio_type            => pio_type,            &
     & config_num_prefetch_proc   => num_prefetch_proc,   &
     & config_proc0_shift         => proc0_shift,         &
-    & config_itype_comm          => itype_comm,          &
     & config_iorder_sendrecv     => iorder_sendrecv,     &
     & set_nproma, &
     & config_nblocks_c           => nblocks_c,             &
@@ -160,9 +160,8 @@ MODULE mo_parallel_nml
     ! i.e. overlapping of reading data, communicating data and computing statistics
     LOGICAL :: use_omp_input
 
-    ! Type of (halo) communication:
+    ! !!! OBSOLETE !!! Type of (halo) communication:
     ! 1 = synchronous communication with local memory for exchange buffers
-    ! 2 = synchronous communication with global memory for exchange buffers
     ! 3 = asynchronous communication within dynamical core with global memory
     !     for exchange buffers (not yet implemented)
     INTEGER :: itype_comm
@@ -228,8 +227,8 @@ MODULE mo_parallel_nml
     INTEGER :: istat
     INTEGER :: funit
     INTEGER :: iunit
-    !0!CHARACTER(len=*), PARAMETER ::   &
-    !0!        &  method_name = 'mo_parallel_nml:read_parallel_namelist'
+    CHARACTER(len=*), PARAMETER ::   &
+            &  routine = 'mo_parallel_nml:read_parallel_nml'
 
     !--------------------------------------------
     ! set default values
@@ -294,9 +293,8 @@ MODULE mo_parallel_nml
     ! i.e. overlapping of reading data, communicating data and computing statistics
     use_omp_input = .FALSE.
 
-    ! Type of (halo) communication:
+    ! !!! OBSOLETE !!! Type of (halo) communication:
     ! 1 = synchronous communication with local memory for exchange buffers
-    ! 2 = synchronous communication with global memory for exchange buffers
     ! 3 = asynchronous communication within dynamical core with global memory
     !     for exchange buffers (not yet implemented)
     itype_comm = 1
@@ -358,6 +356,14 @@ MODULE mo_parallel_nml
     END SELECT
     CALL close_nml
 
+    !----------------------------------------------------
+    ! Sanity check
+    !----------------------------------------------------
+    WRITE(message_text,'(a)') &
+      &  'Namelist switch itype_comm is obsolete and will soon be removed!'
+    CALL message("WARNING",message_text)
+
+
     !-----------------------------------------------------
     ! Store the namelist for restart
     !-----------------------------------------------------
@@ -390,7 +396,6 @@ MODULE mo_parallel_nml
     config_num_prefetch_proc   = num_prefetch_proc
     config_proc0_shift         = proc0_shift
     config_use_omp_input       = use_omp_input
-    config_itype_comm          = itype_comm
     config_iorder_sendrecv     = iorder_sendrecv
     config_nblocks_c           = nblocks_c
     config_use_nblocks_c       = (nblocks_c > 0) ! Only use nblocks_c if it has a reasonable value

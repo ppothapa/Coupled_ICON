@@ -361,7 +361,7 @@ MODULE mo_nh_init_nest_utils
             phdiag_par(jc,26,jb) = 0._wp
             phdiag_par(jc,27,jb) = 0._wp
           ENDIF
-          IF (ANY((/1,2,4,5,6,7/) == atm_phy_nwp_config(jg)%inwp_gscp)) THEN
+          IF (ANY((/1,2,4,5,6,7,8/) == atm_phy_nwp_config(jg)%inwp_gscp)) THEN
             phdiag_par(jc,28,jb) = prm_diag(jg)%ice_gsp(jc,jb)
             phdiag_par(jc,29,jb) = prm_diag(jg)%ice_gsp_rate(jc,jb)
           ELSE
@@ -676,7 +676,7 @@ MODULE mo_nh_init_nest_utils
             prm_diag(jgc)%hail_gsp(jc,jb)      = MAX(0._wp,phdiag_chi(jc,26,jb))
             prm_diag(jgc)%hail_gsp_rate(jc,jb) = phdiag_chi(jc,27,jb) 
           ENDIF
-          IF (ANY((/1,2,4,5,6,7/) == atm_phy_nwp_config(jgc)%inwp_gscp)) THEN
+          IF (ANY((/1,2,4,5,6,7,8/) == atm_phy_nwp_config(jgc)%inwp_gscp)) THEN
             prm_diag(jgc)%ice_gsp(jc,jb)        = MAX(0._wp,phdiag_chi(jc,28,jb))
             prm_diag(jgc)%ice_gsp_rate(jc,jb)   = phdiag_chi(jc,29,jb)
           END IF

@@ -67,8 +67,8 @@ MODULE mo_nwp_turbdiff_interface
   USE mo_scm_nml,                ONLY: scm_sfc_mom, scm_sfc_temp ,scm_sfc_qv
   USE mo_nh_torus_exp,           ONLY: set_scm_bnd
   USE mo_timer
-  USE mo_run_config,           ONLY: timers_level
-  USE mo_fortran_tools,         ONLY: assert_acc_device_only
+  USE mo_run_config,             ONLY: timers_level
+  USE mo_fortran_tools,          ONLY: assert_acc_device_only
   IMPLICIT NONE
 
   PRIVATE
@@ -373,7 +373,6 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
         ENDIF ! ltwomoment
       ENDIF ! turbdiff_config(jg)%ldiff_qs
 
-      !$ACC WAIT
 #ifdef __ICON_ART
       IF ( lart .AND. art_config(jg)%nturb_tracer > 0 ) THEN
          CALL art_turbdiff_interface( 'setup_ptr', p_patch, p_prog_rcf, prm_nwp_tend,  &
@@ -382,7 +381,8 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
            &                          p_rho=p_prog%rho(:,:,:),                         &
            &                          p_metrics=p_metrics,                             &
            &                          p_diag=p_diag, prm_diag=prm_diag,                &
-           &                          jb=jb, idx_nturb_tracer=idx_nturb_tracer )
+           &                          jb=jb, idx_nturb_tracer=idx_nturb_tracer,        &
+           &                          lacc=lacc )
       ENDIF
 #endif
   
@@ -552,24 +552,25 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
         )
 
 
-       ! re-diagnose turbulent deposition fluxes for qc and qi (positive downward)
-       ! So far these fluxes only serve diagnostic purposes. I.e. they 
-       ! must be taken into account when checking the atmospheric water mass balance.
-       !
-       ! ToDo: In the midterm, these fluxes should rather be computed by turbtran and 
-       !       being treated analogous to qhfl_s. I.e. they should also be passed to 
-       !       the soil/surface scheme TERRA.
-       !
-       !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
-       !$ACC LOOP GANG VECTOR
-       DO jc = i_startidx, i_endidx
-         tempv_sfc(jc) = lnd_prog_now%t_g(jc,jb) * (1._wp + vtmpc1*lnd_diag%qv_s(jc,jb))
-         rho_sfc(jc)   = p_diag%pres_sfc(jc,jb)/(rd*tempv_sfc(jc))
-         prm_diag%qcfl_s(jc,jb) = rho_sfc(jc) * prm_diag%tvh(jc,jb) * p_prog_rcf%tracer(jc,nlev,jb,iqc)
+      ! re-diagnose turbulent deposition fluxes for qc and qi (positive downward)
+      ! So far these fluxes only serve diagnostic purposes. I.e. they 
+      ! must be taken into account when checking the atmospheric water mass balance.
+      !
+      ! ToDo: In the midterm, these fluxes should rather be computed by turbtran and 
+      !       being treated analogous to qhfl_s. I.e. they should also be passed to 
+      !       the soil/surface scheme TERRA.
+      !
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR
+      DO jc = i_startidx, i_endidx
+        tempv_sfc(jc) = lnd_prog_now%t_g(jc,jb) * (1._wp + vtmpc1*lnd_diag%qv_s(jc,jb))
+        rho_sfc(jc)   = p_diag%pres_sfc(jc,jb)/(rd*tempv_sfc(jc))
+        prm_diag%qcfl_s(jc,jb) = rho_sfc(jc) * prm_diag%tvh(jc,jb) * p_prog_rcf%tracer(jc,nlev,jb,iqc)
       ENDDO
       !$ACC END PARALLEL
+
       IF (turbdiff_config(jg)%ldiff_qi) THEN
-        !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
         !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           prm_diag%qifl_s(jc,jb) = rho_sfc(jc) * prm_diag%tvh(jc,jb) * p_prog_rcf%tracer(jc,nlev,jb,iqi)
@@ -578,7 +579,7 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
       ENDIF
 
       IF (atm_phy_nwp_config(jg)%l_3d_turb_fluxes) THEN
-        !$ACC PARALLEL DEFAULT(PRESENT)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, nlevp1
           DO jc = i_startidx, i_endidx
@@ -589,6 +590,7 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
         END DO
         !$ACC END PARALLEL
       ENDIF
+
 !DR If accumulated deposition fluxes are required ...
 !!$      DO jc = i_startidx, i_endidx
 !!$        p_diag%extra_2d(jc,jb,1) = p_diag%extra_2d(jc,jb,1) + tcall_turb_jg*prm_diag%qcfl_s(jc,jb)
@@ -606,13 +608,13 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
         !$ACC END KERNELS
       END IF
 
-      !$ACC WAIT
 #ifdef __ICON_ART
       IF ( lart .AND. art_config(jg)%nturb_tracer > 0 ) THEN
          CALL art_turbdiff_interface( 'update_ptr', p_patch, p_prog_rcf, prm_nwp_tend,  &
            &                          ncloud_offset=ncloud_offset,                      &
            &                          ptr=ptr(:), dt=tcall_turb_jg,                     &
-           &                          i_st=i_startidx, i_en=i_endidx )
+           &                          i_st=i_startidx, i_en=i_endidx,                   &
+           &                          lacc=lacc )
       ENDIF
 #endif
 

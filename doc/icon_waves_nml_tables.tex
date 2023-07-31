@@ -10,12 +10,10 @@
 
 \section{Ocean waves specific namelist parameters}
 
-\subsection{waves\_nml (used if configurated with --enable\_waves and model\_type=98 in master\_model\_nml)}
+\subsection{waves\_nml (used if configurated with --enable-waves and model\_type=98 in master\_model\_nml)}
 
 \begin{longtab}
 %Parameter &Type& Default   & Unit& Description&                                                      Scope
- coldstart & L  & .TRUE.    &     & .TRUE.: run the model without previously calculated restart file & \tabularnewline
-           &    &           &     & .FALSE.: a restart file is expected by model start & \tabularnewline
  ndirs     & I  & 24        &     & number of direction of wave spectrum & \tabularnewline
  nfreqs    & I  & 25        &     & number of frequencies of wave spectrum & \tabularnewline
  fr1       & R  & 0.04177248& Hz  & first frequency of wave spectrum & \tabularnewline
@@ -26,11 +24,10 @@
  gamma\_wave&R  & 3.0       &     & overshoot factor & \tabularnewline
  sigma\_a   &R  & 0.07      &     & left peak width of wave spectrum & \tabularnewline
  sigma\_b   &R  & 0.09      &     & right peak width of wave spectrum & \tabularnewline
-% not used, will be removed thetaq    &    & 0.0       & deg & wave direction (not used if iopti 1) & \tabularnewline
  fetch     & R  & 300000.   &  m  & fetch & \tabularnewline
  roair     & R  & 1.225     &kg/m3& air density & \tabularnewline
  rnuair    & R  & 1.5e-5    &m2/s & kinematic air viscosity & \tabularnewline
-rnuairm    & R  & 0.11*rnuair&m2/s& kinematic air viscosity for momentum transfer & \tabularnewline
+ rnuairm    & R  & 0.11*rnuair&m2/s& kinematic air viscosity for momentum transfer & \tabularnewline
  rowater   & R  & 1000.     &kg/m3& water density & \tabularnewline
  xeps      & R  & roair/rowater&  & air water density ratio & \tabularnewline
  xinveps   & R  & 1./xeps   &     & insersed air water density ratio & \tabularnewline
@@ -39,11 +36,9 @@ rnuairm    & R  & 0.11*rnuair&m2/s& kinematic air viscosity for momentum transfe
  jtot\_tauhf& I  & 19       &     & dimension of high freuency wave stress (wtauhf) & must be odd \tabularnewline 
  alpha\_ch  & R  & 0.0075   &     & minimum Charnock constant (ecmwf cy45r1) & \tabularnewline
  depth     &  R & 0.        & m   & ocean depth if not 0, then constant depth & \tabularnewline
+ niter\_smooth  &  I & 1    &     & number of smoothing iterations for wave bathymetry & \tabularnewline
  xkappa    &  R & 0.40      &     & von Karman constant & \tabularnewline
  xnlev     &  R & 10.0      & m   & windspeed reference level & \tabularnewline
- dt\_wave   & I  & 600      & s   & propagation timestep & \tabularnewline
-iforc\_waves& I  & 1        &     & 1: test case & \tabularnewline
-            &    &          &     & 2: forcing from coupled  atmosphere & coupled\_mode = .TRUE. in coupling\_mode\_nml\tabularnewline
  linput\_sf1& L  & .TRUE.   &     & .TRUE.: calculate wind input source function term & \tabularnewline
  linput\_sf2& L  & .TRUE.   &     & .TRUE.: update wind input source function term & \tabularnewline
  ldissip\_sf& L  & .TRUE.   &     & .TRUE.: calculate dissipation source function term & \tabularnewline
@@ -54,9 +49,10 @@ iforc\_waves& I  & 1        &     & 1: test case & \tabularnewline
  lgrid\_refr     &L& .TRUE. &     & .TRUE.: calculate grid refraction & \tabularnewline
  forc\_file\_prefix &C&     &     & common prefix of forcing files & \tabularnewline
                     & &     &     & if not empty, the names of forcing files will be consctructed as: & \tabularnewline
-                    & &     &     & forc\_file\_prefix + \_wind - for 10m wind & coupled\_mode= .FALSE. in coupling\_mode\_nml \tabularnewline
-                    & &     &     & forc\_file\_prefix + \_ice - for sea ice concentration & coupled\_mode= .FALSE. in coupling\_mode\_nml \tabularnewline
-                    & &     &     & forc\_file\_prefix + \_slh - for sea level height & \tabularnewline
-                    & &     &     & forc\_file\_prefix + \_osc - for ocean surface currents & \tabularnewline
+                    & &     &     & forc\_file\_prefix+\_wind.nc - for 10m wind & coupled\_mode= .FALSE. in coupling\_mode\_nml \tabularnewline
+                    & &     &     & forc\_file\_prefix+\_ice.nc - for sea ice concentration & coupled\_mode= .FALSE. in coupling\_mode\_nml \tabularnewline
+                    & &     &     & forc\_file\_prefix+\_slh.nc - for sea level height & \tabularnewline
+                    & &     &     & forc\_file\_prefix+\_osc.nc - for ocean surface currents & \tabularnewline
+                    & &     &     & Data for all time steps in the current simulation should be prepared in a single file. Variables should be named \texttt{u\_10m}, \texttt{v\_10m}, \texttt{fr\_seaice}, \texttt{uosc}, \texttt{vosc} & \tabularnewline
 \end{longtab}
 

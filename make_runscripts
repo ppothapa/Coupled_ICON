@@ -233,6 +233,34 @@ then
     set +x
 fi
 
+# CLM experiment runscript
+
+if [[ -r "${this_folder}/${in_folder}/clmexp.${name}" ]]
+then
+    name_found="yes"
+
+    #__________________________________________________________________________
+    # Create the experiment run script
+    #
+    # This consist of a target specific header and the experiment description in
+    # clmexp.<name>.
+    #
+    # Note: The ICON experiments require the definition of the
+    #       EXPNAME=<name> variable
+    #__________________________________________________________________________
+
+    [[ $debug -eq $TRUE ]] && set -x
+    ${this_folder}/run/make_target_runscript \
+        in_folder=${in_folder} \
+        in_script=clmexp.${name}\
+        out_script=clmexp.${name}.run \
+        EXPNAME=${name} \
+        memory_model="large" \
+        $secondary_build_dir_option \
+        omp_stacksize="200M"
+    set +x
+fi
+
 # post-processing runscript
 
 if [[ -r "${this_folder}/${in_folder}/post.${name}" ]]

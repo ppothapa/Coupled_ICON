@@ -111,6 +111,7 @@ MODULE mo_physical_constants
 !!  REAL(wp), PARAMETER :: grav  = 9.80616_wp       ! [m/s2] av. gravitational acceleration
   ! WMO/SI value
   REAL(wp), PARAMETER :: grav  = 9.80665_wp       !> [m/s2] av. gravitational acceleration
+  !$ACC DECLARE COPYIN(grav)
   REAL(wp), PARAMETER :: rgrav = 1._wp/grav       !! [s2/m]
   !
   REAL(wp), PARAMETER :: rae   = 0.1277E-2_wp     !> [m/m]  ratio of atm. scale height
@@ -147,8 +148,11 @@ MODULE mo_physical_constants
   REAL(wp), PARAMETER ::  cv_i =  2000.0_wp
   !> - phase changes
   REAL(wp), PARAMETER :: alv   = 2.5008e6_wp      !> [J/kg]   latent heat for vaporisation
+  !$ACC DECLARE COPYIN(alv)
   REAL(wp), PARAMETER :: als   = 2.8345e6_wp      !! [J/kg]   latent heat for sublimation
+  !$ACC DECLARE COPYIN(als)
   REAL(wp), PARAMETER :: alf   = als-alv          !! [J/kg]   latent heat for fusion
+  !$ACC DECLARE COPYIN(alf)
   REAL(wp), PARAMETER :: tmelt = 273.15_wp        !! [K]      melting temperature of ice/snow
   REAL(wp), PARAMETER :: t3    = 273.16_wp        !! [K]      Triple point of water at 611hPa
   !

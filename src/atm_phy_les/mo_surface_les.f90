@@ -157,7 +157,7 @@ MODULE mo_surface_les
       !where it is called. Status as on 11.09.2013 (AD)
 
       !change sign of surface fluxes
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jb = 1, p_patch%nblks_c
         DO jc = 1, nproma

@@ -370,6 +370,12 @@ requested: disable the dimension swap if required (--disable-dim-swap)])
       enable_dim_swap=yes],
      [enable_dim_swap=no])])
 
+AC_ARG_ENABLE([realloc-buf],
+  [AS_HELP_STRING([--enable-realloc-buf],
+     [enable reallocatable buffer in the communication @<:@default=no@:>@])],
+  [AS_IF([test x"$enableval" != xno ], [enable_realloc_buf=yes])],
+  [enable_realloc_buf=no])
+
 AC_ARG_ENABLE([vectorized-lrtm],
   [AS_HELP_STRING([--enable-vectorized-lrtm],
      [enable the parallelization-invariant version of LRTM
@@ -840,6 +846,9 @@ AS_VAR_IF([enable_loop_exchange], [yes],
 
 AS_VAR_IF([enable_dim_swap], [yes],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__SWAPDIM"])])
+
+AS_VAR_IF([enable_realloc_buf], [yes],
+  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__REALLOC_BUF"])])
 
 AS_VAR_IF([enable_vectorized_lrtm], [yes],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}LRTM_FULL_VECTORIZATION"])])

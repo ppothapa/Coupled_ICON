@@ -88,7 +88,7 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2), SCHEDULE(runtime)
-      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(idim) IF(acc_is_present(field2D) .AND. lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) COPYIN(idim) IF(acc_is_present(field2D) .AND. lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO l2=1,idim(2)
         DO l1=1,idim(1)
@@ -106,7 +106,7 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2), SCHEDULE(runtime)
-      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(idim) IF(acc_is_present(field2D) .AND. lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) COPYIN(idim) IF(acc_is_present(field2D) .AND. lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO l2=1,idim(2)
         DO l1=1,idim(1)
@@ -121,6 +121,7 @@ CONTAINS
       CALL finish(routine, "Internal error!")
     END SELECT
 
+    !$ACC WAIT(1)
   END SUBROUTINE perform_post_op_r2D
 
 
@@ -159,7 +160,7 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2), SCHEDULE(runtime)
-      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(idim) IF(acc_is_present(field2D) .AND. lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) COPYIN(idim) IF(acc_is_present(field2D) .AND. lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO l2=1,idim(2)
         DO l1=1,idim(1)
@@ -177,7 +178,7 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2), SCHEDULE(runtime)
-      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(idim) IF(acc_is_present(field2D) .AND. lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) COPYIN(idim) IF(acc_is_present(field2D) .AND. lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO l2=1,idim(2)
         DO l1=1,idim(1)
@@ -192,6 +193,7 @@ CONTAINS
       CALL finish(routine, "Internal error!")
     END SELECT
 
+    !$ACC WAIT(1)
   END SUBROUTINE perform_post_op_s2D
 
 
@@ -229,7 +231,7 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2), SCHEDULE(runtime)
-      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(idim) IF(acc_is_present(field2D) .AND. lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) COPYIN(idim) IF(acc_is_present(field2D) .AND. lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO l2=1,idim(2)
         DO l1=1,idim(1)
@@ -298,7 +300,7 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2,l3), SCHEDULE(runtime)
-      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(idim) IF(acc_is_present(field3D) .AND. lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) COPYIN(idim) IF(acc_is_present(field3D) .AND. lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO l3=1,idim(3)
         DO l2=1,idim(2)
@@ -318,7 +320,7 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2,l3), SCHEDULE(runtime)
-      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(idim) IF(acc_is_present(field3D) .AND. lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) COPYIN(idim) IF(acc_is_present(field3D) .AND. lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO l3=1,idim(3)
         DO l2=1,idim(2)
@@ -334,6 +336,8 @@ CONTAINS
     CASE DEFAULT
       CALL finish(routine, "Internal error!")
     END SELECT
+
+    !$ACC WAIT(1)
 
   END SUBROUTINE perform_post_op_r3D
 
@@ -372,7 +376,7 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2,l3), SCHEDULE(runtime)
-      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(idim) IF(acc_is_present(field3D) .AND. lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) COPYIN(idim) IF(acc_is_present(field3D) .AND. lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO l3=1,idim(3)
         DO l2=1,idim(2)
@@ -382,6 +386,7 @@ CONTAINS
         END DO
       END DO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
 !$OMP END DO
 !$OMP END PARALLEL
       !
@@ -392,7 +397,7 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2,l3), SCHEDULE(runtime)
-      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(idim) IF(acc_is_present(field3D) .AND. lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) COPYIN(idim) IF(acc_is_present(field3D) .AND. lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO l3=1,idim(3)
         DO l2=1,idim(2)
@@ -402,6 +407,7 @@ CONTAINS
         END DO
       END DO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
 !$OMP END DO
 !$OMP END PARALLEL
 
@@ -446,7 +452,7 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(l1,l2,l3), SCHEDULE(runtime)
-      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(idim) IF(acc_is_present(field3D) .AND. lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) COPYIN(idim) IF(acc_is_present(field3D) .AND. lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO l3=1,idim(3)
         DO l2=1,idim(2)
@@ -481,6 +487,8 @@ CONTAINS
     CASE DEFAULT
       CALL finish(routine, "Internal error!")
     END SELECT
+
+    !$ACC WAIT(1)
 
   END SUBROUTINE perform_post_op_i3D
 

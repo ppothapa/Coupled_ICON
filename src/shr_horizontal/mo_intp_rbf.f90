@@ -451,8 +451,7 @@ DO jb = i_startblk, i_endblk
   CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                      i_startidx, i_endidx, rl_start, rl_end)
 
-  !$ACC PARALLEL IF(i_am_accel_node)
-
+  !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
   !$ACC LOOP GANG
 #ifdef __LOOP_EXCHANGE
   DO jc = i_startidx, i_endidx

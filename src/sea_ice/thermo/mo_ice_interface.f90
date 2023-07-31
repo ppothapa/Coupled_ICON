@@ -452,7 +452,7 @@ CONTAINS
 
     CASE (4)
       !$ACC DATA PRESENT(Tsurf, hi, SWnet, nonsolar, dnonsolardT) IF(lacc)
-      !$ACC PARALLEL IF(lacc)
+      !$ACC PARALLEL ASYNC(1) IF(lacc)
       !$ACC LOOP SEQ
       DO ji = 1, kice
         !$ACC LOOP GANG VECTOR

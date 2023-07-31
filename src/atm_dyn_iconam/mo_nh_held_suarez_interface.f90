@@ -133,7 +133,7 @@ CONTAINS
     DO jb = jbs,nblks_c
        CALL get_indices_c( p_patch, jb,jbs,nblks_c, is,ie, grf_bdywidth_c+1 )
 
-       !$ACC PARALLEL DEFAULT(PRESENT)
+       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
        !$ACC LOOP GANG VECTOR COLLAPSE(2)
        DO jk=1,nlev
           DO i=is,ie
@@ -143,7 +143,7 @@ CONTAINS
        !$ACC END PARALLEL
 
        IF (lhs_fric_heat) THEN
-         !$ACC PARALLEL DEFAULT(PRESENT)
+         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
          !$ACC LOOP GANG VECTOR COLLAPSE(2)
          DO jk=1,nlev
             DO i=is,ie
@@ -158,7 +158,7 @@ CONTAINS
        ENDIF
 
 ! WS: DEFAULT(NONE): Data clause required with default(none): p_patch   Why?
-       !$ACC PARALLEL
+       !$ACC PARALLEL ASYNC(1)
        !$ACC LOOP GANG VECTOR
        DO i=is,ie
           zlat(i) = p_patch%cells%center(i,jb)%lat
@@ -175,7 +175,7 @@ CONTAINS
        ! the tendency in temp must be transfromed to a tendency in the exner function
        ! For this it is assumed that the density is constant
        
-       !$ACC PARALLEL DEFAULT(PRESENT)
+       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
        !$ACC LOOP GANG VECTOR COLLAPSE(2)
        DO jk=1,nlev
           DO i=is,ie
@@ -196,7 +196,6 @@ CONTAINS
     CALL cells2edges_scalar( zsigma_mc,                    &! in
                            & p_patch, p_int_state%c_lin_e, &! in
                            & zsigma_me, lacc=.TRUE.)        ! out
-    !$ACC WAIT
     ! Now compute the velocity tendency due to friction
 
     jbs = p_patch%edges%start_blk( grf_bdywidth_e+1,1 )
@@ -209,7 +208,7 @@ CONTAINS
                                   & zsigma_me(:,:,jb),     &! in
                                   & nlev, nproma, is, ie,  &! in
                                   & zddt_vn )               ! inout
-       !$ACC PARALLEL DEFAULT(PRESENT)
+       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
        !$ACC LOOP GANG VECTOR COLLAPSE(2)
        DO jk=1,nlev
           DO i=is,ie
@@ -218,6 +217,7 @@ CONTAINS
        ENDDO
        !$ACC END PARALLEL
     ENDDO
+    !$ACC WAIT(1)
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 

@@ -64,7 +64,7 @@ CONTAINS
     ! 3.3 Weighting factors for fractional surface coverage
     !     Accumulate ice portion for diagnostics
 
-    !$ACC PARALLEL DEFAULT(PRESENT) CREATE(zfrw, zfri, zfrl)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) CREATE(zfrw, zfri, zfrl)
     !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jc=jcs,jce
 
@@ -134,8 +134,9 @@ CONTAINS
         field%frac_tile(jc,jb,iice) = zfri(jc)
       END DO
     END IF
-
     !$ACC END PARALLEL
+
+    !$ACC WAIT(1)
 
     NULLIFY(field)
 
@@ -209,7 +210,7 @@ CONTAINS
     END DO
     !$ACC END PARALLEL
 
-    !$ACC WAIT
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     NULLIFY(field)
@@ -236,9 +237,7 @@ CONTAINS
 
     field  => prm_field(jg)
     
-    !$ACC DATA PRESENT(field%cpair, field%qtrc_phy, field%cvair, field%qconv, field%mair)
-
-    !$ACC PARALLEL DEFAULT(PRESENT)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = 1,nlev
       DO jc=jcs,jce
@@ -250,7 +249,7 @@ CONTAINS
     END DO
     !$ACC END PARALLEL
 
-    !$ACC END DATA
+    !$ACC WAIT(1)
     
     NULLIFY(field)
 
@@ -276,7 +275,7 @@ CONTAINS
     field => prm_field(jg)
     
     IF (ASSOCIATED(field% q_phy)) THEN
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG
       DO jk = 1,nlev
         !$ACC LOOP VECTOR
@@ -287,13 +286,15 @@ CONTAINS
       !$ACC END PARALLEL
     END IF
     IF (ASSOCIATED(field% q_phy_vi)) THEN
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO jc=jcs,jce
         field% q_phy_vi(jc, jb) = 0._wp
       END DO
       !$ACC END PARALLEL
     END IF
+
+    !$ACC WAIT(1)
 
     NULLIFY(field)
 
@@ -325,7 +326,7 @@ CONTAINS
     
     ! convert the temperature tendency from physics, as computed for constant pressure conditions,
     ! to constant volume conditions, as needed for the coupling to the dynamics
-    !$ACC PARALLEL DEFAULT(PRESENT)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = 1,nlev
       DO jc=jcs,jce
@@ -335,6 +336,7 @@ CONTAINS
     !$ACC END PARALLEL
 
     !$ACC END DATA
+    !$ACC WAIT(1)
 
     NULLIFY(field)
     NULLIFY(tend )

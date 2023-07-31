@@ -47,7 +47,7 @@ case "$use_host" in
   l*.lvt.dkrz.de|mlogin*) use_site=dkrz.de ;;
   daint*|tave*|santis*|kesch*|tsa*|nid*|balfrin*) use_site=cscs.ch ;;
   uc2*|fh2*|hk*) use_site=kit.edu ;;
-  xc*|rcnl*|oflws*) use_site=dwd.de ;;
+  xc*|rcnl*|oflws*|omlws*|gpnl*) use_site=dwd.de ;;
   *euler.ethz.ch) use_site=ethz.ch ;;
   *mpimet.mpg.de)
     # Filter out machines in the MPI-M network with dynamically assigned domain
@@ -173,6 +173,10 @@ case "$use_site" in
       oflws*|omlws*)
         use_target='oflws'
       ;;
+      gpnl*)
+        use_target='gpnl'
+        use_mpi_startrun='@MPI_LAUNCH@ -np $mpi_total_procs --oversubscribe -mca orte_base_help_aggregate 0 -mca btl_base_warn_component_unused 0 ${basedir}/run/run_wrapper/gpnl.sh '
+      ;;
       *) #hpc
         use_submit='qsubw'
         use_sync_submit='qsub -W block=true'
@@ -243,6 +247,7 @@ case "$use_site" in
 
   local.net)
     use_target='default'
+    test "$use_host" = buildmac1.mpimet.mpg.de && use_shell='/bin/ksh'
   ;;
 
   pa.cluster)

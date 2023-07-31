@@ -54,10 +54,12 @@ MODULE mo_cuflxtends
   USE mo_cufunctions, ONLY: foelhmcu, foeewmcu, foealfcu, &
     & foeewl,   foeewi
 
-  USE mo_fortran_tools, ONLY: t_ptr_tracer
+  USE mo_fortran_tools, ONLY: t_ptr_tracer, assert_acc_device_only
 
 !K.L. for testing:
   USE mo_exception,           ONLY: message, message_text
+
+#include "add_var_acc_macro.inc"
 
   IMPLICIT NONE
 
@@ -296,7 +298,7 @@ CONTAINS
     !!TO GET IDENTICAL RESULTS FOR DIFFERENT NPROMA FORCE KTOPM2 TO 2
     ktopm2=2
 
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
 
     !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jl=kidia,kfdia
@@ -558,6 +560,7 @@ CONTAINS
     ENDDO
 
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
 
     !$ACC END DATA
 
@@ -750,7 +753,7 @@ CONTAINS
     !LLTEST = (.NOT.LEPCLD.AND..NOT.LENCLD2).OR.(LPHYLIN.AND..NOT.LENCLD2)
     lltest = .NOT.lepcld.OR.lphylin
 
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
 
     !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jk=ktdia,klev
@@ -993,6 +996,7 @@ CONTAINS
     ENDIF
 
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
 
     !$ACC END DATA
 
@@ -1144,7 +1148,7 @@ CONTAINS
     zimp=1.0_JPRB-rmfsoluv
     ztsphy=1.0_JPRB/ptsphy
 
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
  
     !$ACC LOOP SEQ
     DO jk=1,klev
@@ -1346,6 +1350,7 @@ CONTAINS
     ENDIF
 
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
 
     !$ACC END DATA
 
@@ -1365,7 +1370,7 @@ CONTAINS
     & ldcum,    lddraf,   ptsphy,   &
     & paph,     zdph,     zdgeoh,           &
     & pmfu,     pmfd,     pudrate,  pddrate,&
-    & pcen,     ptenrhoc  )
+    & pcen,     ptenrhoc, lacc  )
     !
     !!Description:
     !**** *CUCTRACER* - COMPUTE CONVECTIVE TRANSPORT OF CHEM. TRACERS
@@ -1477,6 +1482,7 @@ CONTAINS
     REAL(KIND=jprb)   ,INTENT(in)    :: pddrate(klon,klev)
     TYPE(t_ptr_tracer),INTENT(in)    :: pcen(:)
     TYPE(t_ptr_tracer),INTENT(inout) :: ptenrhoc(:)
+    LOGICAL, OPTIONAL, INTENT(in)    :: lacc
 
 
     ! Set MODULE PARAMETERS for offline
@@ -1505,13 +1511,20 @@ CONTAINS
     !#include "cubidiag.intfb.h"
     !----------------------------------------------------------------------
 
+    CALL assert_acc_device_only('cuctracer', lacc)
+
     IF (lhook) CALL dr_hook('CUCTRACER',0,zhook_handle)
     zimp=1.0_JPRB-rmfsolct
     ztsphy=1.0_JPRB/ptsphy
 
     !!Initialize Cumulus mask + some setups
 
+    !$ACC DATA CREATE(llcumask, zb, zcd, zcen, zcu, zdp, zmfc, zr1, ztenc) &
+    !$ACC   PRESENT(kctop, kdtop, ldcum, lddraf, paph, pddrate, pmfd, pmfu, pudrate, zdgeoh, zdph)
+
 !PREVENT_INCONSISTENT_IFORT_FMA
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk=ktdia+1,klev
       DO jl=kidia,kfdia
         llcumask(jl,jk) = ldcum(jl) .AND. jk >= kctop(jl)-1
@@ -1520,6 +1533,7 @@ CONTAINS
         ENDIF
       ENDDO
     ENDDO
+    !$ACC END PARALLEL
     !----------------------------------------------------------------------
 
     DO jn=1,ktrac
@@ -1528,8 +1542,12 @@ CONTAINS
       !!                 -----------------------------
       tenrhoc => ptenrhoc(jn)%ptr
       cen => pcen(jn)%ptr
+
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP SEQ
       DO jk=ktdia+1,klev
         ik=jk-1
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jl=kidia,kfdia
          zcen(jl,jk)= cen(jl,jk)
          zcd(jl,jk) = cen(jl,ik)
@@ -1539,14 +1557,19 @@ CONTAINS
         ENDDO
       ENDDO
 
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl=kidia,kfdia
         zcu(jl,klev) = cen(jl,klev)
       ENDDO
+      !$ACC END PARALLEL
       !*    2.0          COMPUTE UPDRAFT VALUES
       !!                 ----------------------
 
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP SEQ
       DO jk=klev-1,ktdia+2,-1
         ik=jk+1
+        !$ACC LOOP GANG VECTOR PRIVATE(zerate, zmfa)
         DO jl=kidia,kfdia
           IF ( llcumask(jl,jk) ) THEN
             zerate=pmfu(jl,jk)-pmfu(jl,ik)+pudrate(jl,jk)
@@ -1562,13 +1585,17 @@ CONTAINS
           ENDIF
         ENDDO
       ENDDO
+      !$ACC END PARALLEL
 
 
       !*    3.0          COMPUTE DOWNDRAFT VALUES
       !!                 ------------------------
 
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) PRIVATE(ik, jk)
+      !$ACC LOOP SEQ
       DO jk=ktdia+2,klev
         ik=jk-1
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zerate, zmfa)
         DO jl=kidia,kfdia
           IF ( lddraf(jl).AND.jk==kdtop(jl) ) THEN
             !Nota: in order to avoid final negative Tracer values at LFS the allowed value of ZCD
@@ -1591,6 +1618,7 @@ CONTAINS
       !!In order to avoid negative Tracer at KLEV adjust ZCD
       jk=klev
       ik=jk-1
+      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zmfa, ZPOSI)
       DO jl=kidia,kfdia
         IF (lddraf(jl)) THEN
           !KF
@@ -1609,9 +1637,10 @@ CONTAINS
 
       !*    4.0          COMPUTE FLUXES
       !!                 --------------
-
+      !$ACC LOOP SEQ
       DO jk=ktdia+1,klev
         ik=jk-1
+        !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zmfa)
         DO jl=kidia,kfdia
           IF(llcumask(jl,jk)) THEN
             zmfa=pmfu(jl,jk)+pmfd(jl,jk)
@@ -1620,12 +1649,16 @@ CONTAINS
           ENDIF
         ENDDO
       ENDDO
+      !$ACC END PARALLEL
+
 
       !*    5.0          COMPUTE TENDENCIES = RHS
       !!                 ------------------------
-
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) PRIVATE(ik, jk)
+      !$ACC LOOP SEQ
       DO jk=ktdia+1,klev-1
         ik=jk+1
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jl=kidia,kfdia
           IF(llcumask(jl,jk)) THEN
                       ZTENC(JL,JK)=ZDP(JL,JK)*(ZMFC(JL,IK)-ZMFC(JL,JK))
@@ -1635,6 +1668,7 @@ CONTAINS
       ENDDO
 
       jk=klev
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jl=kidia,kfdia
         IF(ldcum(jl)) THEN
            ZTENC(JL,JK)=-ZDP(JL,JK)*ZMFC(JL,JK)
@@ -1649,7 +1683,9 @@ CONTAINS
         !*    6.0          UPDATE TENDENCIES
         !!                 -----------------
 
+        !$ACC LOOP SEQ
         DO jk=ktdia+1,klev
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jl=kidia,kfdia
             IF(llcumask(jl,jk)) THEN
               ! DR: be aware of conversion from c-tendency (1/s) to rho*c tendency (kg/m3/s)
@@ -1672,8 +1708,10 @@ CONTAINS
 
         !!Fill vectors A, B and RHS
 
+        !$ACC LOOP SEQ
         DO jk=ktdia+1,klev
           ik=jk+1
+          !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(ZZP)
           DO jl=kidia,kfdia
             !!LLCUMBAS(JL,JK)=LLCUMASK(JL,JK).AND.JK<=KCBOT(JL)
             IF(llcumask(jl,jk)) THEN
@@ -1703,7 +1741,9 @@ CONTAINS
 
         !!Compute tendencies
 
+        !$ACC LOOP SEQ
         DO jk=ktdia+1,klev
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jl=kidia,kfdia
             IF(llcumask(jl,jk)) THEN
               ! DR: be aware of conversion from c-tendency (1/s) to rho*c tendency (kg/m3/s)
@@ -1716,11 +1756,16 @@ CONTAINS
         ENDDO
 
       ENDIF
+      !$ACC END PARALLEL
+
     END DO
     !---------------------------------------------------------------------------
 
+    !$ACC WAIT(1)
+    !$ACC END DATA
 
     IF (lhook) CALL dr_hook('CUCTRACER',1,zhook_handle)
+
   END SUBROUTINE cuctracer
 
   !=======================================================================

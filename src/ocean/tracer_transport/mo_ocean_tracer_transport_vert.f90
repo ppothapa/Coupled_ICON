@@ -308,7 +308,7 @@ CONTAINS
     z_face(:, :)  = 0.0_wp
     !$ACC END KERNELS
 
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     !$ACC LOOP GANG(STATIC: 1) VECTOR
 ! !CDIR NODEP
     DO jc = startIndex, endIndex
@@ -440,7 +440,7 @@ CONTAINS
     ! the limitation procedure.
     ! Therefore 2 additional fields z_face_up and z_face_low are
     ! introduced.
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     z_face_low(1:nproma,1:n_zlev) = 0.0_wp
     z_face_up (1:nproma,1:n_zlev) = 0.0_wp
     !$ACC END KERNELS
@@ -460,7 +460,8 @@ CONTAINS
 
     ELSE
         ! simply copy face values to 'face_up' and 'face_low' arrays
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC LOOP GANG VECTOR
         DO jc = startIndex, endIndex
           !$ACC LOOP SEQ
           DO thisLevel = secondLevel, cells_noOfLevels(jc)-1
@@ -468,7 +469,7 @@ CONTAINS
             z_face_low(jc,thisLevel)  = z_face(jc, thisLevel + 1)
           ENDDO
         END DO
-        !$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL
 
     ENDIF  !  p_ityp_vlimit
 
@@ -477,7 +478,7 @@ CONTAINS
     !$ACC END KERNELS
 
 ! !CDIR NODEP
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jc = startIndex, endIndex
 ! !CDIR NODEP
@@ -549,6 +550,7 @@ CONTAINS
       ENDDO
     END DO
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
     !$ACC END DATA
   END SUBROUTINE upwind_vflux_ppm_onBlock
   !-------------------------------------------------------------------------

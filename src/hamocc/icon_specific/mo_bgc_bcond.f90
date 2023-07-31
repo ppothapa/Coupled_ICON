@@ -579,14 +579,15 @@ CONTAINS
        all_cells => p_patch%cells%all
        DO jb = all_cells%start_block, all_cells%end_block
          call get_index_range(all_cells, jb, startidx, endidx)
-         !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+         !$ACC LOOP GANG VECTOR
          DO jc = startidx, endidx
            bgc_ext%dusty(jc,jb) = rday1*ext_data(1)%bgc%dust(jc,jmon1,jb) + &
            &                                   rday2*ext_data(1)%bgc%dust(jc,jmon2,jb)
            bgc_ext%nitro(jc,jb) = rday1*ext_data(1)%bgc%nitro(jc,jmon1,jb) + &
            &                                   rday2*ext_data(1)%bgc%nitro(jc,jmon2,jb)
          END DO
-         !$ACC END PARALLEL LOOP
+         !$ACC END PARALLEL
        END DO
       ENDIF
 

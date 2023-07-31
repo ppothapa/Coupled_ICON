@@ -7,7 +7,7 @@ listname=tolerance-update
 ./rmlist $listname
 ./create_all_builders $listname
 
-./list_part_update $listname
+./list_part_update-ref $listname
 ./list_part_tolerance $listname
 
 ./lslist $listname

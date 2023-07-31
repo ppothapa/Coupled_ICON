@@ -667,7 +667,7 @@ CONTAINS
         CALL add_var(ocean_restart_list, 'zos'//TRIM(var_suffix), ocean_state_prog%h , &
           & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,    &
           & t_cf_var('zos'//TRIM(var_suffix), 'm', 'surface elevation at cell center', DATATYPE_FLT,'zos'),&
-          & grib2_var(255, 255, 1, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
+          & grib2_var(10, 3, 1, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
           & ldims=(/nproma,alloc_cell_blocks/), tlev_source=TLEV_NNEW,&
           & in_group=groups("oce_default", "oce_essentials","oce_prog"))
       END IF
@@ -677,7 +677,7 @@ CONTAINS
         CALL add_var(ocean_restart_list, 'zos'//TRIM(var_suffix), ocean_state_prog%eta_c , &
           & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,    &
           & t_cf_var('zos'//TRIM(var_suffix), 'm', 'zstar sfc elevation at cell center', DATATYPE_FLT,'zos'),&
-          & grib2_var(255, 255, 1, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
+          & grib2_var(10, 3, 1, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
           & ldims=(/nproma,alloc_cell_blocks/), tlev_source=TLEV_NNEW,&
           & in_group=groups("oce_default", "oce_essentials","oce_prog"))
   
@@ -730,7 +730,11 @@ CONTAINS
             & TRIM(oce_config%tracer_longnames(jtrc)), &
             & DATATYPE_FLT, &
             & TRIM(oce_config%tracer_shortnames(jtrc))), &
-            & grib2_var(255, 255, oce_config%tracer_codes(jtrc), DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
+            ! GRIB codes for tracer are the three lower bytes of oce_config%tracer_codes:
+            ! discipline, parameterCategory, parameterNumber
+            & grib2_var(ISHFT(oce_config%tracer_codes(jtrc), -16), &
+              & IAND(ISHFT(oce_config%tracer_codes(jtrc), -8), INT(255)), &  ! 255 = hex FF to mask out right-most byte
+              & IAND(oce_config%tracer_codes(jtrc), INT(255)), DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell), &
             & ref_idx=jtrc, &
             & ldims=(/nproma,n_zlev,alloc_cell_blocks/), tlev_source=TLEV_NNEW, &
             & in_group=oce_tr_groups)
@@ -1184,13 +1188,13 @@ CONTAINS
     CALL add_var(ocean_default_list, 'rho', ocean_state_diag%rho , grid_unstructured_cell,&
       & za_depth_below_sea, &
       & t_cf_var('rho', 'kg/m^3', 'insitu density', datatype_flt),&
-      & dflt_g2_decl_cell,&
+      & grib2_var(10, 4, 16, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
       & ldims=(/nproma,n_zlev,alloc_cell_blocks/),in_group=groups_oce_dde)
 
     CALL add_var(ocean_default_list, 'rhopot', ocean_state_diag%rhopot , grid_unstructured_cell,&
       & za_depth_below_sea, &
       & t_cf_var('rhopot', 'kg/m^3', 'potential density', datatype_flt),&
-      & dflt_g2_decl_cell,&
+      & grib2_var(10, 4, 19, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
       & ldims=(/nproma,n_zlev,alloc_cell_blocks/),in_group=groups_oce_dde)
 
     CALL add_var(ocean_restart_list, 'grad_rho_PP_vert', ocean_state_diag%grad_rho_PP_vert, grid_unstructured_cell, &
@@ -1519,13 +1523,13 @@ CONTAINS
     CALL add_var(ocean_default_list, 'u', ocean_state_diag%u, grid_unstructured_cell, &
       & za_depth_below_sea, &
       & t_cf_var('u','m/s','u zonal velocity component', datatype_flt),&
-      & dflt_g2_decl_cell,&
+      & grib2_var(10, 4, 23, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
       & ldims=(/nproma,n_zlev,alloc_cell_blocks/),in_group=groups_oce_dde)
     ! reconstructed v velocity component
     CALL add_var(ocean_default_list, 'v', ocean_state_diag%v, grid_unstructured_cell, &
       & za_depth_below_sea, &
       & t_cf_var('v','m/s','v meridional velocity component', datatype_flt),&
-      & dflt_g2_decl_cell,&
+      & grib2_var(10, 4, 24, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
       & ldims=(/nproma,n_zlev,alloc_cell_blocks/),in_group=groups_oce_dde)
     ! reconstrcuted velocity in cartesian coordinates
     !   CALL add_var(ocean_restart_list, 'p_vn', ocean_state_diag%p_vn, GRID_UNSTRUCTURED_CELL, ZA_DEPTH_BELOW_SEA, &
@@ -2903,7 +2907,7 @@ CONTAINS
     CALL add_var(ocean_default_list, 'column_thick_c', patch_3d%column_thick_c , &
       & grid_unstructured_cell, za_surface, &
       & t_cf_var('column_thick_c', 'm', 'column_thick_c', datatype_flt),&
-      & dflt_g2_decl_cell,&
+      & grib2_var(10, 4, 7, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
       & ldims=(/nproma,alloc_cell_blocks/),in_group=groups_oce_geometry,isteptype=tstep_constant)
     CALL add_var(ocean_default_list, 'column_thick_e', patch_3d%column_thick_e , &
       & grid_unstructured_edge, za_surface, &
@@ -3054,13 +3058,15 @@ CONTAINS
     oce_config%tracer_stdnames(1)   = 'sea_water_potential_temperature'
     oce_config%tracer_longnames(1)  = 'sea water potential temperature'
     oce_config%tracer_units(1)      = 'deg C'
-    oce_config%tracer_codes(1)      = 2
+    ! discipline=10, parameterCategory=4, parameterNumber=18 encoded in one integer
+    oce_config%tracer_codes(1)      = ISHFT(10,16)+ISHFT(4,8)+18
 
     oce_config%tracer_shortnames(2) = 'so'
     oce_config%tracer_stdnames(2)   = 'sea_water_salinity'
     oce_config%tracer_longnames(2)  = 'sea water salinity'
     oce_config%tracer_units(2)      = 'psu'
-    oce_config%tracer_codes(2)      = 5
+    ! discipline=10, parameterCategory=4, parameterNumber=21 encoded in one integer
+    oce_config%tracer_codes(2)      = ISHFT(10,16)+ISHFT(4,8)+21
   END SUBROUTINE setup_tracer_info
 
   SUBROUTINE transfer_ocean_state( patch_3d, host_to_device )

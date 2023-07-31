@@ -247,19 +247,20 @@ CONTAINS
       DO jb = 1,nblks
         nlen = MERGE(nproma, npromz, jb /= nblks)
         ! DA: Need to list this%dataxxx in the PRESENT section for attach
-        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) IF(i_am_accel_node) &
-        !$ACC   DEFAULT(PRESENT)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1,nlev
           DO jc = 1,nlen
             interpolated(jc,jk,jb,jw) = (1.0_wp-weight) * this%dataold(jc,jk,jb,jw) &
               &                                +weight  * this%datanew(jc,jk,jb,jw)
           ENDDO
         ENDDO
-        !$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL
       ENDDO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
     ENDDO
+    !$ACC WAIT(1)
 
     !$ACC END DATA
     !$ACC END DATA

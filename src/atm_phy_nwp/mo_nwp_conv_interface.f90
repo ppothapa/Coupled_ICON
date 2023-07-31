@@ -258,7 +258,7 @@ CONTAINS
         SELECT CASE (atm_phy_nwp_config(jg)%inwp_turb)
         CASE (0)
 
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = i_startidx,i_endidx
             z_qhfl(jc,nlevp1) = - 4.79846_wp*1.e-5_wp !> moisture flux kg/m2/s
@@ -270,7 +270,7 @@ CONTAINS
 
           ! In turb1,turb2 and turb3, the flux is positive downwards / negative upwards
 
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = i_startidx,i_endidx
             z_qhfl(jc,nlevp1) = prm_diag%qhfl_s(jc,jb)
@@ -280,7 +280,7 @@ CONTAINS
 
         END SELECT
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG
         DO jk = 1, kstart_moist(jg)-1
           !$ACC LOOP VECTOR
@@ -294,7 +294,7 @@ CONTAINS
         !$ACC END PARALLEL
 
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG
         DO jk = kstart_moist(jg),nlev
           !$ACC LOOP VECTOR
@@ -323,7 +323,7 @@ CONTAINS
 
         ! The following input fields must be reset to zero because the convective
         ! tendencies are added to them
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG
         DO jk = 1, nlev
           !$ACC LOOP VECTOR
@@ -338,11 +338,15 @@ CONTAINS
         !$ACC END PARALLEL
 
         IF ( lart .AND. art_config(jg)%nconv_tracer > 0 ) THEN
-#ifdef _OPENACC
-          CALL finish('nwp_convection','ART and prm_nwp_tend%conv_tracer_tend not ported to GPU')
-#endif
           DO jt=1,art_config(jg)%nconv_tracer
-            prm_nwp_tend%conv_tracer_tend(jb,jt)%ptr(:,:) = 0._wp
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+            !$ACC LOOP GANG VECTOR COLLAPSE(2)
+            DO jk = 1, nlev
+              DO jc = 1, nproma
+                prm_nwp_tend%conv_tracer_tend(jb,jt)%ptr(jc,jk) = 0._wp
+              END DO
+            END DO
+            !$ACC END PARALLEL
           ENDDO
           ptr_conv_tracer_tend => prm_nwp_tend%conv_tracer_tend(jb,1:art_config(jg)%nconv_tracer)
           ptr_conv_tracer      => p_prog_rcf%conv_tracer(jb,1:art_config(jg)%nconv_tracer) 
@@ -356,7 +360,7 @@ CONTAINS
         !-------------------------------------------------------------------------
 
         IF ( atm_phy_nwp_config(jg)%inwp_turb /= iedmf ) THEN ! DUALM is allowed to turn off shallow convection
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP VECTOR
           DO jc = i_startidx,i_endidx                         ! ldshcv is set in mo_nwp_turb_sfc_interface.f90
             prm_diag%ldshcv(jc,jb) = .TRUE.                   ! here: option to overwrite DUALM choice
@@ -547,7 +551,7 @@ CONTAINS
 
         ! Postprocessing on some fields
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
 
         ! Conversion from temperature tendencies at constant pressure to constant volume is now done here
         !$ACC LOOP SEQ
@@ -629,6 +633,7 @@ CONTAINS
       ENDIF !inwp_conv
 
     ENDDO  ! jb
+    !$ACC WAIT(1)
 #ifndef __PGI
 !$OMP END PARALLEL DO
 #endif

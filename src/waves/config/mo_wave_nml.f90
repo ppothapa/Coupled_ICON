@@ -59,7 +59,6 @@ CONTAINS
     REAL(wp) :: GAMMA_wave ! OVERSHOOT FACTOR
     REAL(wp) :: SIGMA_A    ! LEFT PEAK WIDTH
     REAL(wp) :: SIGMA_B    ! RIGHT PEAK WIDTH
-    REAL(wp) :: THETAQ     ! WAVE DIRECTION (DEG) (NOT USED IF IOPTI = 1)
     REAL(wp) :: FETCH      ! FETCH IN METRES (IF ZERO THEN 0.5 OF THE LATITUDE INCREMENT IS USED.).
 
     REAL(wp) :: roair   ! AIR DENSITY
@@ -73,7 +72,8 @@ CONTAINS
                          ! 0.0060, if le 30 frequencies changed !@waves todo
                          ! to 0.0075 in subroutine initmdl !@waves todo
 
-    REAL(wp) :: depth ! ocean depth (m) if not 0, then constant depth
+    REAL(wp) :: depth    ! ocean depth (m) if not 0, then constant depth
+    INTEGER  :: niter_smooth ! number of smoothing iterations for wave bathymetry
 
     REAL(wp) :: XKAPPA  ! VON KARMAN CONSTANT.
     REAL(wp) :: XNLEV   ! WINDSPEED REF. LEVEL.
@@ -84,14 +84,6 @@ CONTAINS
     ! to 0.0075 in subroutine INITMDL
 
     INTEGER :: jtot_tauhf          ! dimension of wave_config%wtauhf. it must be odd !!!
-
-    INTEGER :: dt_wave             ! PROPAGATION TIMESTEP !@waves: add units, s?
-    INTEGER :: dt_fastphy          ! time step for fast physics processes !@waves: replace dt_wave by dt_fstphy?
-    LOGICAL :: coldstart           ! if .TRUE. start from initialisation without restart file
-
-    INTEGER :: iforc_waves ! 1 - test case
-                           ! 2 - forcing from coupled atmosphete
-                           ! 3 - forcing from data reader
 
     CHARACTER(LEN=filename_max) :: forc_file_prefix ! prefix of forcing file name
                                            ! the real file name will be constructed as:
@@ -111,18 +103,17 @@ CONTAINS
 
 
     NAMELIST /wave_nml/ &
-         coldstart, iforc_waves, forc_file_prefix,          &
+         forc_file_prefix,          &
          ndirs, nfreqs, fr1, CO, IREF,                      &
-         ALPHA, FM, GAMMA_wave, SIGMA_A, SIGMA_B, THETAQ, FETCH,    &
-         dt_wave,  dt_fastphy, roair, RNUAIR, RNUAIRM, ROWATER, XEPS, XINVEPS, &
-         XKAPPA, XNLEV, BETAMAX, ZALP, jtot_tauhf, ALPHA_CH, depth, &
+         ALPHA, FM, GAMMA_wave, SIGMA_A, SIGMA_B, FETCH,    &
+         roair, RNUAIR, RNUAIRM, ROWATER, XEPS, XINVEPS, &
+         XKAPPA, XNLEV, BETAMAX, ZALP, jtot_tauhf, ALPHA_CH, depth, niter_smooth, &
          linput_sf1, linput_sf2, ldissip_sf, lnon_linear_sf, lbottom_fric_sf, &
          lwave_stress1, lwave_stress2, lgrid_refr
 
     !-----------------------------------------------------------
     ! 1. default settings
     !-----------------------------------------------------------
-    coldstart  = .TRUE.         !! TRUE IF COLDSTART
     ndirs      = 24             !! NUMBER OF DIRECTIONS.
     nfreqs     = 25             !! NUMBER OF FREQUENCIES.
     fr1        = 0.04177248_wp  !! FIRST FREQUENCY [HZ].
@@ -134,7 +125,6 @@ CONTAINS
     GAMMA_wave = 3.0_wp         !! OVERSHOOT FACTOR.
     SIGMA_A    = 0.07_wp        !! LEFT PEAK WIDTH.
     SIGMA_B    = 0.09_wp        !! RIGHT PEAK WIDTH.
-    THETAQ     = 0.0_wp         !! WAVE DIRECTION (DEG) (NOT USED IF IOPTI = 1).
 
     FETCH      = 300000._wp     !! FETCH IN METRES.
 
@@ -151,14 +141,12 @@ CONTAINS
     jtot_tauhf = 19             !! dimension of wtauhf. it must be odd
     ALPHA_CH   = 0.0075_wp      !! minimum charnock constant (ecmwf cy45r1).
 
-    depth      = 0._wp          !! ocean depth (m) if not 0, then constant depth
+    depth        = 0._wp        !! ocean depth (m) if not 0, then constant depth
+    niter_smooth = 1            !! number of smoothing iterations for wave bathymetry
+                                !! if 0 then no smoothing
 
     XKAPPA     = 0.40_wp        !! VON KARMAN CONSTANT.
     XNLEV      = 10.0_wp        !! WINDSPEED REF. LEVEL.
-
-    dt_wave    = 600            !! PROPAGATION TIMESTEP, s
-
-    iforc_waves = 1         !! 1 - test case, 2 - forcing from coupled  atmosphere
 
     forc_file_prefix = ''
 
@@ -229,7 +217,6 @@ CONTAINS
       wave_config(jg)%GAMMA_wave       = GAMMA_wave
       wave_config(jg)%SIGMA_A          = SIGMA_A
       wave_config(jg)%SIGMA_B          = SIGMA_B
-      wave_config(jg)%THETAQ           = THETAQ
       wave_config(jg)%FETCH            = FETCH
       wave_config(jg)%roair            = roair
       wave_config(jg)%RNUAIR           = RNUAIR
@@ -244,8 +231,7 @@ CONTAINS
       wave_config(jg)%jtot_tauhf       = jtot_tauhf
       wave_config(jg)%ALPHA_CH         = ALPHA_CH
       wave_config(jg)%depth            = depth
-      wave_config(jg)%coldstart        = coldstart
-      wave_config(jg)%iforc_waves      = iforc_waves
+      wave_config(jg)%niter_smooth     = niter_smooth
       wave_config(jg)%forc_file_prefix = forc_file_prefix
       wave_config(jg)%linput_sf1       = linput_sf1
       wave_config(jg)%linput_sf2       = linput_sf2

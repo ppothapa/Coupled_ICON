@@ -49,13 +49,9 @@ export MD='rmo'
 #
 # 3. Launch the checksuite from run/
 
-reference_dir=$(cat $basedir/run/tolerance_reference)
-export REFERENCE=$icon_data_rootFolder/buildbot_data/ref/${reference_dir}
-
 rundir=`pwd`
 cd checksuite.icon-dev
 
-# load python packages
 case $HOST in
     *daint*)
         export MD='rnmot'

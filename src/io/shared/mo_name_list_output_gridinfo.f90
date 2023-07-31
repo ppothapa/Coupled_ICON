@@ -14,9 +14,10 @@
 !!
 MODULE mo_name_list_output_gridinfo
 
-  USE mo_cdi,                               ONLY: DATATYPE_PACK16, TSTEP_CONSTANT, vlistDefVar, cdiEncodeParam, streamWriteVar, &
-                                                & vlistDefVarDatatype, vlistDefVarName, vlistDefVarTsteptype, vlistDefVarParam, &
-                                                & gridDefXvals, gridDefYvals, gridDefXbounds, gridDefYbounds, GRID_UNSTRUCTURED
+  USE mo_cdi,                               ONLY: DATATYPE_PACK16, TIME_CONSTANT, TSTEP_CONSTANT, vlistDefVar, cdiEncodeParam, &
+                                                & streamWriteVar, vlistDefVarDatatype, vlistDefVarName, vlistDefVarTsteptype, &
+                                                & vlistDefVarParam, gridDefXvals, gridDefYvals, gridDefXbounds, gridDefYbounds, &
+                                                & GRID_UNSTRUCTURED
   USE mo_zaxis_type,                        ONLY: ZA_surface
   USE mo_kind,                              ONLY: wp
   USE mo_parallel_config,                   ONLY: nproma
@@ -735,7 +736,7 @@ CONTAINS
       gridID(3) = of%cdiVertGridID
       DO igrid=1,3
         DO i=1,2 ! for longitude, latitude:
-          of%cdi_grb2(idx(igrid),i) = vlistDefVar(vlistID, gridID(igrid), zaxisID, TSTEP_CONSTANT)
+          of%cdi_grb2(idx(igrid),i) = vlistDefVar(vlistID, gridID(igrid), zaxisID, TIME_CONSTANT)
           CALL vlistDefVarDatatype(vlistID,  of%cdi_grb2(idx(igrid),i), grid_coord_grib2(i)%bits)
           CALL vlistDefVarTsteptype(vlistID, of%cdi_grb2(idx(igrid),i), TSTEP_CONSTANT)
           CALL vlistDefVarName(vlistID,      of%cdi_grb2(idx(igrid),i), TRIM(grid_coord_name(i)))
@@ -763,7 +764,7 @@ CONTAINS
     CASE (REMAP_REGULAR_LATLON)
       ! for longitude, latitude:
       DO i=1,2
-        of%cdi_grb2(ILATLON,i) = vlistDefVar(vlistID, of%cdiLonLatGridID, zaxisID, TSTEP_CONSTANT)
+        of%cdi_grb2(ILATLON,i) = vlistDefVar(vlistID, of%cdiLonLatGridID, zaxisID, TIME_CONSTANT)
         CALL vlistDefVarDatatype(vlistID,  of%cdi_grb2(ILATLON,i), grid_coord_grib2(i)%bits)
         CALL vlistDefVarTsteptype(vlistID, of%cdi_grb2(ILATLON,i), TSTEP_CONSTANT)
         CALL vlistDefVarName(vlistID,      of%cdi_grb2(ILATLON,i), TRIM(grid_coord_name(i)))

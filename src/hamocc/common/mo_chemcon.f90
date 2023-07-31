@@ -85,10 +85,11 @@ SUBROUTINE CHEMCON (local_bgc_mem, start_idx, end_idx, klevs, psao, ptho,  &
   !             --------------------------------
   !
 
- !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
- DO jc = start_idx, end_idx
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC LOOP GANG VECTOR
+  DO jc = start_idx, end_idx
 
-       IF (pddpo(jc, 1) > EPSILON(0.5_wp)) THEN           ! wet cell
+      IF (pddpo(jc, 1) > EPSILON(0.5_wp)) THEN           ! wet cell
               !
               !*        21.1 SET ABSOLUTE TEMPERATURE
               !              ------------------------
@@ -310,10 +311,10 @@ SUBROUTINE CHEMCON (local_bgc_mem, start_idx, end_idx, klevs, psao, ptho,  &
                local_bgc_mem%aksurf(jc,9) = ak2p * SWS2total
                local_bgc_mem%aksurf(jc,10) = ak3p * SWS2total
 
-           ENDIF
+      ENDIF
 
-     END DO
-     !$ACC END PARALLEL LOOP
+  END DO
+  !$ACC END PARALLEL
 
   !
   !     -----------------------------------------------------------------
@@ -326,7 +327,8 @@ SUBROUTINE CHEMCON (local_bgc_mem, start_idx, end_idx, klevs, psao, ptho,  &
      !*     22.1 APPROX. SEAWATER PRESSURE AT U-POINT DEPTH (BAR)
      !  ----------------------------------------------------------------
 
-  !$ACC PARALLEL LOOP GANG VECTOR PRIVATE(lnkpk0) DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC LOOP GANG VECTOR PRIVATE(lnkpk0)
   DO jc = start_idx, end_idx
      kpke=klevs(jc)
      !$ACC LOOP SEQ
@@ -590,7 +592,7 @@ SUBROUTINE CHEMCON (local_bgc_mem, start_idx, end_idx, klevs, psao, ptho,  &
           END IF
         END DO
   END DO
-  !$ACC END PARALLEL LOOP
+  !$ACC END PARALLEL
 
 
 

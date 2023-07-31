@@ -1,0 +1,113 @@
+#!/bin/bash
+set -euo pipefail
+
+# This script collects all probtest tolerance/reference data and
+# 1. creates a hash list of experiment:hash(tolerance, reference)
+# 2. Copies new tolerance/reference data to the pool
+# 3. adds the current data and icon-git-hash to used_in file
+
+
+# Variables passed via list_part_tolerance -> addexp/runexp -> create_target_header
+#
+# tolerance_experiments : comma separated list of experiments
+# update_hash_file : if given and "yes", then print lines to update the hash_file
+#                    instead of writing a new yaml.
+# basedir : the directory where ICON has been build in.
+
+# make sure the resulting data and directories are global readable
+umask 0022
+
+# get date string
+date_str=$(date '+%Y-%m-%d %H:%M:%S')
+
+# get repository
+origin=$(git config --get remote.origin.url)
+
+# get current commit
+git_commit=$(git rev-parse HEAD)
+
+builder=$(echo "${BB_NAME}" | tr '[:upper:]' '[:lower:]')
+
+
+reference_root="${icon_data_rootFolder}/buildbot_data/ref"
+
+
+# make sure the resulting data and directories are global readable
+umask 0022
+
+# generating iterable array of builders
+IFS=',' read -ra experiments <<< "${tolerance_experiments}"
+
+declare -A experiment_hashes
+
+for exp in "${experiments[@]}"; do
+    model_output_dir="${basedir}/experiments/${exp}"
+    reference_file_name="${model_output_dir}/${exp}_reference.csv"
+    tolerance_file_name="${model_output_dir}/${exp}_tolerance.csv"
+
+    experiment_hash=$(cat "$reference_file_name" "$tolerance_file_name" | sha256sum | cut -b -40 )
+    reference_dir=${reference_root}/${experiment_hash}
+    experiment_hashes[$exp]=$experiment_hash
+
+    mkdir -p "$reference_dir"
+    mv -v "$reference_file_name" "${reference_dir}/${exp}_reference.csv"
+    mv -v "$tolerance_file_name" "${reference_dir}/${exp}_tolerance.csv"
+
+    # leave a log message
+    echo "${builder} ${date_str} ${origin} ${git_commit}" >> "${reference_dir}/sources.log"
+
+done
+
+# sort keys
+declare -a sorted_keys
+sort_keys () {
+    # Sort function arguments into array `sorted_keys`.
+    # Arguments must not contain a `\n` character.
+    local IFS=$'\n' # use as separator for $* and to split the output of sort into an array
+    # "$*" will be substituted by a IFS-joined string of all arguments.
+    # Brackets convert the output of sort into array.
+    local LC_ALL=C # use language independent, traditional sort order by byte values
+    sorted_keys=($(sort <<< "$*"))
+}
+sort_keys "${!experiment_hashes[@]}"
+
+mkdir -p "${basedir}/run/tolerance/hashes/new/"
+# Please don't change this path/file name. It is used by buildbot.
+hash_file=${basedir}/run/tolerance/hashes/new/${builder}
+
+# in case no hash file exists for this builder yet, create one
+# or in case no update is requested, create new has file
+if [[ ! -f "${basedir}/run/tolerance/hashes/${builder}" ]] ||  [[ "${update_hash_file-}" != yes ]]; then
+
+    {
+        # write yaml dictionary
+        echo "--- # ICON probtest tolerance data"
+        echo "# This file can be parsed using yaml"
+        echo "# Data is stored in <icon_data_rootFolder>/buildbot_data/ref/<experiment_hash>"
+        echo "icon_data_rootFolder: ${icon_data_rootFolder}"
+        echo "builder: ${builder}"
+        echo "# The list below maps each experiment to its current experiment_hash"
+        for exp in "${sorted_keys[@]}"; do
+            experiment_hash=${experiment_hashes[$exp]}
+            echo "\"$exp\": $experiment_hash"
+        done
+    } > "$hash_file"
+
+    cat "$hash_file"
+
+else # update requested
+    echo ""
+    echo "Please update the following ${#sorted_keys[@]} line(s) in '${hash_file#${basedir}}'."
+    echo "If any of the experiments is not yet in the list, please add it in alphabetical order"
+    for exp in "${sorted_keys[@]}"; do
+        experiment_hash=${experiment_hashes[$exp]}
+        echo "\"$exp\": $experiment_hash"
+    done
+    echo ""
+
+    echo "# Don't use this file" > $hash_file
+    echo "# Please update the tolerance hashes manually by using the output of tolerance/pp.collect_tolerance_hashes" > $hash_file
+fi
+
+# exit 0 on success (and don't execute any appended scripts)
+exit 0

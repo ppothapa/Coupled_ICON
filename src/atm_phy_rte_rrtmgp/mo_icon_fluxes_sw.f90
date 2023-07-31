@@ -75,12 +75,14 @@ CONTAINS
     ! implicitly defined) solar flux in the 14 bands.
 
     ! This routine is called from within RRTMGP, so it shouldn't be async
-    !$ACC PARALLEL LOOP DEFAULT(PRESENT) FIRSTPRIVATE(nbndsw, solar_constant) &
-    !$ACC   COPYIN(ssi_fraction) GANG VECTOR
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) FIRSTPRIVATE(nbndsw, solar_constant) &
+    !$ACC   COPYIN(ssi_fraction)
+    !$ACC LOOP GANG VECTOR
     DO i = 1, nbndsw
       this%band_weight(i) = solar_constant*ssi_fraction( MOD(i, nbndsw)+1 ) ! / ssi_default(:)
     END DO
-    !$ACC END PARALLEL LOOP
+    !$ACC END PARALLEL
+    !$ACC WAIT(1)
   END SUBROUTINE set_fractions
 
   FUNCTION reduce_icon(this, gpt_flux_up, gpt_flux_dn, spectral_disc, top_at_1, gpt_flux_dn_dir) result(error_msg)
@@ -114,7 +116,7 @@ CONTAINS
     band2gpt(:,:) = spectral_disc%get_band_lims_gpoint()
 
     ! This routine is called from within RRTMGP, so it shouldn't be async
-    !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(band2gpt) VECTOR_LENGTH(64)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) COPYIN(band2gpt) VECTOR_LENGTH(64)
     !$ACC LOOP GANG VECTOR PRIVATE(limits)
     DO jl = 1, ncol
       this%vis_dn_dir_sfc(jl) = 0.0_wp
@@ -159,6 +161,7 @@ CONTAINS
       ENDDO
     ENDDO
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
   
   END FUNCTION reduce_icon
 

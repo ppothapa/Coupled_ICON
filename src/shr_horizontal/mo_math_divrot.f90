@@ -129,7 +129,6 @@ PUBLIC :: recon_lsq_cell_l, recon_lsq_cell_l_svd
 PUBLIC :: recon_lsq_cell_q, recon_lsq_cell_q_svd
 PUBLIC :: recon_lsq_cell_c, recon_lsq_cell_c_svd
 PUBLIC :: div, div_avg
-PUBLIC :: div_quad_twoadjcells
 PUBLIC :: rot_vertex, rot_vertex_ri
 PUBLIC :: rot_vertex_atmos
 
@@ -297,8 +296,8 @@ SUBROUTINE recon_lsq_cell_l( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
     END DO ! end loop over vertical levels
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(PRESENT) PRIVATE(z_qt_times_d) ASYNC(1) IF(i_am_accel_node)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(z_qt_times_d)
     DO jk = slev, elev
       DO jc = i_startidx, i_endidx
 
@@ -788,7 +787,7 @@ SUBROUTINE recon_lsq_cell_q( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
     !
     ! 1. compute right hand side of linear system
     !
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG
     DO jc = i_startidx, i_endidx
@@ -820,7 +819,7 @@ SUBROUTINE recon_lsq_cell_q( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
     ! 2. compute cell based coefficients for quadratic reconstruction
     !
 
-      !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG
     DO jk = slev, elev
 
@@ -872,6 +871,7 @@ SUBROUTINE recon_lsq_cell_q( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
   END DO ! end loop over blocks
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
+  !$ACC WAIT(1)
   !$ACC END DATA
 
 
@@ -1012,7 +1012,7 @@ SUBROUTINE recon_lsq_cell_q_svd( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
     ! 1. compute right hand side of linear system
     !
 
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG
     DO jc = i_startidx, i_endidx
@@ -1044,7 +1044,7 @@ SUBROUTINE recon_lsq_cell_q_svd( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
     ! 2. compute cell based coefficients for quadratic reconstruction
     !    calculate matrix vector product PINV(A) * b
     !
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG
     DO jk = slev, elev
 
@@ -1078,6 +1078,7 @@ SUBROUTINE recon_lsq_cell_q_svd( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
     !$ACC END PARALLEL
 
   END DO ! end loop over blocks
+  !$ACC WAIT(1)
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
   !$ACC END DATA
@@ -1232,7 +1233,7 @@ SUBROUTINE recon_lsq_cell_c( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
     !
     ! 1. compute right hand side of linear system
     !
@@ -1267,7 +1268,7 @@ SUBROUTINE recon_lsq_cell_c( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
     !
     ! 2. compute cell based coefficients for quadratic reconstruction
     !
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG
     DO jk = slev, elev
 
@@ -1358,6 +1359,7 @@ SUBROUTINE recon_lsq_cell_c( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
     !$ACC END PARALLEL
 
   END DO ! end loop over blocks
+  !$ACC WAIT(1)
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
   !$ACC END DATA
@@ -1799,7 +1801,7 @@ i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
     ! coefficient (equal to +-1) is necessary, given by
     ! ptr_patch%grid%cells%edge_orientation)
 
-      !$ACC PARALLEL IF(i_am_accel_node)
+      !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       !$ACC LOOP GANG
       DO jc = i_startidx, i_endidx
@@ -1928,8 +1930,6 @@ i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL IF(i_am_accel_node)
-
     ! original comment for divergence computation;
     ! everything that follows in this explanation has been combined into geofac_div
 
@@ -1945,6 +1945,7 @@ i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
     ! coefficient (equal to +-1) is necessary, given by
     ! ptr_patch%grid%cells%edge_orientation)
 
+      !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       !$ACC LOOP GANG
       DO jc = i_startidx, i_endidx
@@ -2080,8 +2081,7 @@ i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL IF(i_am_accel_node)
-
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG
     DO jc = i_startidx, i_endidx
@@ -2447,140 +2447,6 @@ ENDIF
 
 END SUBROUTINE div_avg
 
-!-------------------------------------------------------------------------
-!
-!
-!>
-!! Computes discrete divergence of a vector field for the quadrilateral.
-!!
-!! Computes discrete divergence of a vector field for the quadrilateral
-!! control volume formed by two adjacent triangles
-!! The vector field is given by its components in the directions normal
-!! to the edges.
-!! The midpoint rule is used for quadrature.
-!! input:  lives on edges (velocity points)
-!! output: lives on edges
-!!
-!! @par Revision History
-!! Developed  by  Jochen Foerstner, DWD (2008-07-16).
-!!
-SUBROUTINE div_quad_twoadjcells( vec_e, ptr_patch, ptr_int, div_vec_e,  &
-  &                              opt_slev, opt_elev,                    &
-                                 opt_rlstart, opt_rlend )
-!
-!
-! patch on which computation is performed
-TYPE(t_patch), TARGET, INTENT(in) :: ptr_patch
-
-! Interpolation state
-TYPE(t_int_state), INTENT(in)     :: ptr_int
-!
-! edge based variable of which divergence is computed
-REAL(wp), INTENT(in) ::  &
-  &  vec_e(:,:,:) ! dim: (nproma,nlev,nblks_e)
-
-INTEGER, INTENT(in), OPTIONAL ::  &
-  &  opt_slev    ! optional vertical start level
-
-INTEGER, INTENT(in), OPTIONAL ::  &
-  &  opt_elev    ! optional vertical end level
-
-INTEGER, INTENT(in), OPTIONAL ::  &
-  &  opt_rlstart, opt_rlend   ! start and end values of refin_ctrl flag
-
-!
-! edge based variable in which divergence is stored
-!REAL(wp), INTENT(out) ::  &
-REAL(wp), INTENT(inout) ::  &
-  &  div_vec_e(:,:,:) ! dim: (nproma,nlev,nblks_e)
-
-!
-
-INTEGER :: slev, elev     ! vertical start and end level
-INTEGER :: je, jk, jb
-INTEGER :: rl_start, rl_end
-INTEGER :: i_startblk, i_endblk, i_startidx, i_endidx, i_nchdom
-
-INTEGER,  DIMENSION(:,:,:),   POINTER :: iqidx, iqblk
-
-!-----------------------------------------------------------------------
-
-! check optional arguments
-IF ( PRESENT(opt_slev) ) THEN
-  slev = opt_slev
-ELSE
-  slev = 1
-END IF
-IF ( PRESENT(opt_elev) ) THEN
-  elev = opt_elev
-ELSE
-  elev = UBOUND(vec_e,2)
-END IF
-
-
-IF ( PRESENT(opt_rlstart) ) THEN
-  IF (opt_rlstart == 1) THEN
-    CALL finish ('mo_math_operators:div_quad_twoadjcells_midpoint',  &
-          &      'opt_rlstart must not be equal to 1')
-  ENDIF
-  rl_start = opt_rlstart
-ELSE
-  rl_start = 2
-END IF
-IF ( PRESENT(opt_rlend) ) THEN
-  rl_end = opt_rlend
-ELSE
-  rl_end = min_rledge
-END IF
-
-! Set pointers to required index lists
-iqidx => ptr_patch%edges%quad_idx
-iqblk => ptr_patch%edges%quad_blk
-
-! values for the blocking
-i_nchdom   = MAX(1,ptr_patch%n_childdom)
-i_startblk = ptr_patch%edges%start_blk(rl_start,1)
-i_endblk   = ptr_patch%edges%end_blk(rl_end,i_nchdom)
-
-!
-! loop through all patch edges (and blocks)
-!
-!$ACC DATA PRESENT(vec_e, div_vec_e, ptr_int%geofac_qdiv) IF(i_am_accel_node)
-!$OMP PARALLEL
-!$OMP DO PRIVATE(jb,je,jk,i_startidx,i_endidx) ICON_OMP_RUNTIME_SCHEDULE
-DO jb = i_startblk, i_endblk
-
-  CALL get_indices_e(ptr_patch, jb, i_startblk, i_endblk, &
-                     i_startidx, i_endidx, rl_start, rl_end)
-
-  !$ACC PARALLEL IF(i_am_accel_node)
-
-#ifdef __LOOP_EXCHANGE
-  !$ACC LOOP GANG VECTOR COLLAPSE(2)
-  DO je = i_startidx, i_endidx
-    DO jk = slev, elev
-#else
-  !$ACC LOOP GANG VECTOR COLLAPSE(2)
-  DO jk = slev, elev
-    DO je = i_startidx, i_endidx
-#endif
-
-      div_vec_e(je,jk,jb) =  &
-        &    vec_e(iqidx(je,jb,1),jk,iqblk(je,jb,1))*ptr_int%geofac_qdiv(je,1,jb) &
-        &  + vec_e(iqidx(je,jb,2),jk,iqblk(je,jb,2))*ptr_int%geofac_qdiv(je,2,jb) &
-        &  + vec_e(iqidx(je,jb,3),jk,iqblk(je,jb,3))*ptr_int%geofac_qdiv(je,3,jb) &
-        &  + vec_e(iqidx(je,jb,4),jk,iqblk(je,jb,4))*ptr_int%geofac_qdiv(je,4,jb)
-
-    END DO
-  END DO
-  !$ACC END PARALLEL
-
-END DO
-!$OMP END DO NOWAIT
-!$OMP END PARALLEL
-!$ACC END DATA
-
-END SUBROUTINE div_quad_twoadjcells
 
 !-------------------------------------------------------------------------
 !
@@ -2710,7 +2576,7 @@ END IF
     ! is necessary, given by g%verts%edge_orientation
     !
 
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jv = i_startidx, i_endidx

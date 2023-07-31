@@ -122,8 +122,9 @@ CONTAINS
 
 !!! WE start with remineralisation of organic to estimate alkalinity changes first
 !          
-    !$ACC PARALLEL LOOP GANG VECTOR PRIVATE(powcar) DEFAULT(PRESENT) IF(lacc)
-    Do j = start_idx, end_idx
+   !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+   !$ACC LOOP GANG VECTOR PRIVATE(powcar)
+   DO j = start_idx, end_idx
 
          IF(local_bgc_mem%bolay(j) > 0._wp) THEN
             local_sediment_mem%sedlay(j,1,issso12)                                     &
@@ -430,9 +431,9 @@ CONTAINS
          ENDIF   ! oxygen <1.e-6
 
          ENDIF   ! bolay
-        ENDDO
-        ENDIF
-        !!!! N-cycle !!!!!!!!
+      ENDDO
+      ENDIF
+      !!!! N-cycle !!!!!!!!
 
 
 
@@ -573,19 +574,21 @@ CONTAINS
            local_sediment_mem%powtra(j,k,ipowaic)=local_sediment_mem%powtra(j,k,ipowaic)+posol*pors2w(k)
            local_sediment_mem%powtra(j,k,ipowaal)=local_sediment_mem%powtra(j,k,ipowaal)+2._wp*posol*pors2w(k)
          ENDIF
+      ENDDO
    ENDDO
- ENDDO
- !$ACC END PARALLEL LOOP
+   !$ACC END PARALLEL
 
-  CALL dipowa(local_bgc_mem, local_sediment_mem, start_idx,end_idx, use_acc=lacc)
-  
-  !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
-  DO j = start_idx, end_idx
+   CALL dipowa(local_bgc_mem, local_sediment_mem, start_idx,end_idx, use_acc=lacc)
+
+   !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+   !$ACC LOOP GANG VECTOR
+   DO j = start_idx, end_idx
         local_sediment_mem%sedlay(j,1,issster) = local_sediment_mem%sedlay(j,1,issster)                 &
              &                + local_sediment_mem%produs(j)/(porsol(1)*seddw(1))
-  ENDDO
-  !$ACC END PARALLEL LOOP
-      END SUBROUTINE POWACH
+   ENDDO
+   !$ACC END PARALLEL
+
+   END SUBROUTINE POWACH
       
       
 SUBROUTINE powach_impl(local_bgc_mem, local_sediment_mem, start_idx, end_idx, psao )

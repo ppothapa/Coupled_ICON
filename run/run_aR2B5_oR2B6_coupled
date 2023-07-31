@@ -723,7 +723,6 @@ cat > ${atm_namelist} << EOF
  l_log_checks            = .true.
  num_io_procs            = ${mpi_atm_io_procs}
  num_restart_procs       = 0
- itype_comm              = 1
  iorder_sendrecv         = 3
  proc0_shift             = 1
  use_omp_input           = .true.
@@ -850,7 +849,6 @@ rbf_scale_mode_ll        = 2
  vwind_offctr            = 0.2                       ! 0.2 for R2B6 and higher resolution, 0.3 for lower resolution
  damp_height             = 44000.                    
  rayleigh_coeff          = 0.5
- lhdiff_rcf              = .true.                    
  divdamp_order           = 24                        ! 2 ass, 24 fc
  divdamp_type            = 32                        ! optional: 2 assimilation cycle, 32 forecast
  divdamp_fac             = 0.004                     ! 0.004 for R2B6; recommendation for R3B7: 0.003

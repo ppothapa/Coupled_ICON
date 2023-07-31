@@ -1,0 +1,11 @@
+spack:
+  specs:
+  - cosmo-eccodes-definitions@2.25.0.1
+  - icon @develop %nvhpc +grib2 +eccodes-definitions +ecrad +dace gpu=openacc+cuda +mpi-gpu +realloc-buf +pgi-inlib ~aes ~jsbach ~ocean ~coupling ~rte-rrtmgp ~loop-exchange ~async-io-rma +mixed-precision 
+  view: true
+  concretizer:
+    unify: true
+  develop:
+    icon:
+      path: ../../../../..
+      spec: icon @develop %nvhpc +grib2 +eccodes-definitions +ecrad +dace gpu=openacc+cuda +mpi-gpu +realloc-buf +pgi-inlib ~aes ~jsbach ~ocean ~coupling ~rte-rrtmgp ~loop-exchange ~async-io-rma +mixed-precision

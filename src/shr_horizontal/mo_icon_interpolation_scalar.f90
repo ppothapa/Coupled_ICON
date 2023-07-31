@@ -154,12 +154,11 @@ MODULE mo_icon_interpolation_scalar
   PUBLIC :: verts2edges_scalar
   PUBLIC :: cells2edges_scalar
   PUBLIC :: edges2verts_scalar
-  PUBLIC :: edges2cells_scalar 
+  PUBLIC :: edges2cells_scalar
   PUBLIC :: cells2verts_scalar
   PUBLIC :: cells2verts_scalar_ri
   PUBLIC :: verts2cells_scalar
   PUBLIC :: cell_avg
-  PUBLIC :: edges2edges_scalar
 
   INTERFACE edges2cells_scalar
     MODULE PROCEDURE edges2cells_scalar_dp, edges2cells_scalar_sp
@@ -270,7 +269,7 @@ DO jb = i_startblk, i_endblk
   CALL get_indices_e(ptr_patch, jb, i_startblk, i_endblk, &
                      i_startidx, i_endidx, rl_start, rl_end)
 
-  !$ACC PARALLEL IF(i_am_accel_node)
+  !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
   !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
   DO je = i_startidx, i_endidx
@@ -290,6 +289,7 @@ DO jb = i_startblk, i_endblk
   !$ACC END PARALLEL
 
 END DO
+!$ACC WAIT(1)
 
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -596,7 +596,7 @@ IF (timers_level > 10) CALL timer_start(timer_intp)
     CALL get_indices_v(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
     DO jv = i_startidx, i_endidx
@@ -720,7 +720,7 @@ IF (timers_level > 10) CALL timer_start(timer_intp)
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
     DO jc = i_startidx, i_endidx
@@ -840,7 +840,7 @@ IF (timers_level > 10) CALL timer_start(timer_intp)
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
     DO jc = i_startidx, i_endidx
@@ -1211,7 +1211,7 @@ END SUBROUTINE cells2verts_scalar_sp
       CALL get_indices_v(ptr_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, rl_start, rl_end)
 
-      !$ACC PARALLEL IF(i_am_accel_node)
+      !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jv = i_startidx, i_endidx
@@ -1443,7 +1443,7 @@ IF (timers_level > 10) CALL timer_start(timer_intp)
       nlen = npromz_c
     ENDIF
 
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
     DO jc = 1, nlen
@@ -1473,109 +1473,6 @@ IF (timers_level > 10) CALL timer_start(timer_intp)
 
 
 END SUBROUTINE verts2cells_scalar
-
-!------------------------------------------------------------------------
-!
-!
-!>
-!!  Computes interpolation from edges to rhombus centers
-!!
-!! Interpolation on quads. Coefficients are given on input.
-!!
-!! @par Revision History
-!! Developed  by Almut Gassmann, MPI-M (2010-02-08)
-!! Modified by Almut Gassmann, MPI-M (2010-10-18)
-!! - center is always counted (remove option l_skip_center)
-!!
-SUBROUTINE edges2edges_scalar(p_edge_in,ptr_patch,c_int,p_edge_out,&
-  &                           opt_slev, opt_elev)
-!
-
-TYPE(t_patch), TARGET, INTENT(in) :: ptr_patch
-
-! cell based scalar input field
-REAL(wp), INTENT(in) :: p_edge_in(:,:,:)   ! dim: (nproma,nlev,nblks_e)
-
-! coefficients for interpolation
-REAL(wp), INTENT(in) :: c_int(:,:,:)       ! dim: (4 or 5,nproma,nblks_e)
-
-! vertex based scalar output field
-REAL(wp), INTENT(inout) :: p_edge_out(:,:,:) ! dim: (nproma,nlev,nblks_e)
-
-INTEGER, INTENT(in), OPTIONAL ::  &
-  &  opt_slev    ! optional vertical start level
-
-INTEGER, INTENT(in), OPTIONAL ::  &
-  &  opt_elev    ! optional vertical end level
-
-INTEGER :: nblks_e, npromz_e, nlen, jb, jk, je
-INTEGER :: slev, elev        !< vertical start and end level
-
-INTEGER,  DIMENSION(:,:,:),   POINTER :: iidx, iblk
-
-!-----------------------------------------------------------------------
-
-! check optional arguments
-IF ( PRESENT(opt_slev) ) THEN
-  slev = opt_slev
-ELSE
-  slev = 1
-END IF
-IF ( PRESENT(opt_elev) ) THEN
-  elev = opt_elev
-ELSE
-  elev = UBOUND(p_edge_in,2)
-END IF
-
-iidx => ptr_patch%edges%quad_idx
-iblk => ptr_patch%edges%quad_blk
-
-! values for the blocking
-nblks_e  = ptr_patch%nblks_e
-npromz_e = ptr_patch%npromz_e
-
-
-IF (timers_level > 10) CALL timer_start(timer_intp)
-
-!$ACC DATA PRESENT(p_edge_in, c_int, p_edge_out, iidx, iblk) IF(i_am_accel_node)
-
-!$OMP PARALLEL
-!$OMP DO PRIVATE(jb,nlen,je,jk) ICON_OMP_DEFAULT_SCHEDULE
-  DO jb = 1, nblks_e
-    IF (jb /= nblks_e) THEN
-      nlen = nproma
-    ELSE
-      nlen = npromz_e
-    ENDIF
-
-    !$ACC PARALLEL IF(i_am_accel_node)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
-#ifdef __LOOP_EXCHANGE
-    DO je = 1, nlen
-      DO jk = slev, elev
-#else
-    DO jk = slev, elev
-      DO je = 1, nlen
-#endif
-        p_edge_out(je,jk,jb) =                                        &
-        & + c_int(1,je,jb)* p_edge_in(iidx(je,jb,1),jk,iblk(je,jb,1)) &
-        & + c_int(2,je,jb)* p_edge_in(iidx(je,jb,2),jk,iblk(je,jb,2)) &
-        & + c_int(3,je,jb)* p_edge_in(iidx(je,jb,3),jk,iblk(je,jb,3)) &
-        & + c_int(4,je,jb)* p_edge_in(iidx(je,jb,4),jk,iblk(je,jb,4)) &
-        & + c_int(5,je,jb)* p_edge_in(je,jk,jb)
-      ENDDO
-    ENDDO
-    !$ACC END PARALLEL
-
-  END DO
-!$OMP END DO NOWAIT
-!$OMP END PARALLEL
-
-  !$ACC END DATA
-
-  IF (timers_level > 10) CALL timer_stop(timer_intp)
-
-END SUBROUTINE edges2edges_scalar
 
 !-------------------------------------------------------------------------
 !

@@ -279,14 +279,15 @@ CONTAINS
             &      +zstunde/24._wp* 2._wp*pi )
           !$ACC END KERNELS
 
-          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+          !$ACC LOOP GANG VECTOR
           DO jc = 1,ie
             IF ( z_cosmu0(jc,jb) > -1.e-5_wp ) THEN
               zsmu0(jc,jb) = zsmu0(jc,jb) + MAX(1.e-3_wp,z_cosmu0(jc,jb))**2
               n_cosmu0pos(jc,jb) = n_cosmu0pos(jc,jb) + 1
             ENDIF
           ENDDO
-          !$ACC END PARALLEL LOOP
+          !$ACC END PARALLEL
 
         ENDDO !jb
 
@@ -296,7 +297,7 @@ CONTAINS
 
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         !$ACC LOOP GANG VECTOR
 !DIR$ SIMD
         DO jc = 1,ie
@@ -402,7 +403,7 @@ CONTAINS
 
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         !$ACC LOOP GANG VECTOR
         DO jc = 1,ie
           IF ( n_cosmu0pos(jc,jb) > 0 ) THEN

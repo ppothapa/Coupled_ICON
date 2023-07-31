@@ -52,7 +52,7 @@ MODULE mo_atm_phy_nwp_config
   USE mo_phy_events,          ONLY: t_phyProcFast, t_phyProcSlow, t_phyProcGroup
   USE mo_nudging_config,      ONLY: configure_nudging, nudging_config
   USE mo_name_list_output_config, ONLY: is_variable_in_output
-  USE mo_io_config,           ONLY: dt_lpi, dt_celltracks, dt_radar_dbz
+  USE mo_io_config,           ONLY: dt_lpi, dt_celltracks, dt_radar_dbz, dt_hailcast
   USE mo_2mom_mcrph_config,   ONLY: t_cfg_2mom
 
   IMPLICIT NONE
@@ -124,7 +124,7 @@ MODULE mo_atm_phy_nwp_config
     REAL(wp) :: mu_rain          !! parameter in gamma distribution for rain
     REAL(wp) :: mu_snow          !! ...for snow
     REAL(wp) :: rain_n0_factor   !! tuning factor for intercept parameter of raindrop size distribution
-
+    LOGICAL ::  lsbm_warm_full    !! false: Piggy Backing with 2M, true: full warm-phase SBM
     REAL(wp) :: qi0, qc0
 
     INTEGER  :: icpl_aero_gscp     !! type of aerosol-microphysics coupling
@@ -159,8 +159,11 @@ MODULE mo_atm_phy_nwp_config
 
     LOGICAL :: lhave_graupel       ! Flag if microphysics scheme has a prognostic variable for graupel
     LOGICAL :: l2moment            ! Flag if 2-moment microphysics scheme is used 
+    LOGICAL :: lsbm                ! Flag if sbm microphysics scheme is used    
     LOGICAL :: lhydrom_read_from_fg(1:20)  ! Flag for each hydrometeor tracer, if it has been read from fg file
     LOGICAL :: lhydrom_read_from_ana(1:20) ! Flag for each hydrometeor tracer, if it has been read from ana file
+
+    LOGICAL :: luse_clc_rad
 
 #ifndef __NO_ICON_LES__
     LOGICAL :: is_les_phy          !>TRUE is turbulence is 3D 
@@ -339,6 +342,7 @@ CONTAINS
 
 
       ! Set flags for the microphysics schemes:
+      atm_phy_nwp_config(jg)%lsbm = .FALSE.
       SELECT CASE (atm_phy_nwp_config(jg)%inwp_gscp)
       CASE (2)
         atm_phy_nwp_config(jg)%lhave_graupel = .TRUE.
@@ -346,12 +350,23 @@ CONTAINS
       CASE (4,5,6,7)
         atm_phy_nwp_config(jg)%lhave_graupel = .TRUE.
         atm_phy_nwp_config(jg)%l2moment = .TRUE.
+      CASE (8)
+        atm_phy_nwp_config(jg)%lhave_graupel = .TRUE.
+        atm_phy_nwp_config(jg)%lsbm = .TRUE.
       CASE DEFAULT
         atm_phy_nwp_config(jg)%lhave_graupel = .FALSE.
         atm_phy_nwp_config(jg)%l2moment = .FALSE.
       END SELECT
       atm_phy_nwp_config(jg)%lhydrom_read_from_fg(:) = .FALSE.
       atm_phy_nwp_config(jg)%lhydrom_read_from_ana(:) = .FALSE.
+
+      IF (atm_phy_nwp_config(jg)%icalc_reff > 0 .AND. &
+             atm_phy_nwp_config(jg)%icpl_rad_reff == 1 .AND. &
+             atm_phy_nwp_config(jg)%icalc_reff /= 101 ) THEN
+        atm_phy_nwp_config(jg)%luse_clc_rad = .TRUE.
+      ELSE
+        atm_phy_nwp_config(jg)%luse_clc_rad = .FALSE.
+      END IF
 
       ! Switch off stochastic convection for horizontal resolution greater than 20km
       IF ((atm_phy_nwp_config(jg)%lstoch_sde .or. atm_phy_nwp_config(jg)%lstoch_expl) .and. &
@@ -1095,9 +1110,9 @@ CONTAINS
   !! @par Revision History
   !! Initial revision by Guenther Zaengl, DWD (2020-02-14)
   !!
-  SUBROUTINE setup_nwp_diag_events(lpi_max_Event, celltracks_Event, dbz_Event)
+  SUBROUTINE setup_nwp_diag_events(lpi_max_Event, celltracks_Event, dbz_Event, hail_Event)
 
-    TYPE(event), POINTER, INTENT(INOUT) :: lpi_max_Event, celltracks_Event, dbz_Event
+    TYPE(event), POINTER, INTENT(INOUT) :: lpi_max_Event, celltracks_Event, dbz_Event, hail_Event
 
     ! local
     TYPE(timedelta), POINTER               :: eventInterval    => NULL()
@@ -1171,6 +1186,28 @@ CONTAINS
     CALL mtime_strerror(ierr, errstring)
     CALL finish('setup_nwp_diag_events', "event 'dbz_max': "//errstring)
   ENDIF
+
+  ! --- create Event for hailcast
+  CALL getPTStringFromMS(INT(dt_hailcast*1000._wp,i8), td_string)
+  eventInterval => newTimedelta(td_string)
+  hail_Event => newEvent( 'hail_max', time_config%tc_exp_startdate,  &   ! "anchor date"
+       &                     time_config%tc_exp_startdate,             &   ! start
+       &                     time_config%tc_exp_stopdate,              &
+       &                     eventInterval, errno=ierr )
+  IF (ierr /= no_Error) THEN
+    ! give an elaborate error message:
+    CALL datetimeToString( time_config%tc_exp_startdate, dt_string)
+    WRITE (0,*) "event reference date: ", dt_string
+    CALL datetimeToString( time_config%tc_exp_startdate, dt_string)
+    WRITE (0,*) "event start date    : ", dt_string
+    CALL datetimeToString( time_config%tc_exp_stopdate,  dt_string)
+    WRITE (0,*) "event end date      : ", dt_string
+    CALL timedeltaToString(eventInterval, td_string)
+    WRITE (0,*) "event interval      : ", td_string
+    CALL mtime_strerror(ierr, errstring)
+    CALL finish('setup_nwp_diag_events', "event 'hail_max': "//errstring)
+  ENDIF
+
 
   END SUBROUTINE setup_nwp_diag_events
 

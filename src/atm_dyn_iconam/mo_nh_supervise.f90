@@ -901,7 +901,7 @@ CONTAINS
       CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
                          i_startidx, i_endidx, rl_start, rl_end)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP PRIVATE(jc)
       DO jc = i_startidx, i_endidx
         pt_diag%ddt_pres_sfc(jc,jb) = (pt_diag%pres_sfc(jc,jb)-pt_diag%pres_sfc_old(jc,jb))/dt
@@ -923,13 +923,14 @@ CONTAINS
 
         dps_blk_scal = 0._wp
         npoints_blk_scal = 0
-        !$ACC PARALLEL DEFAULT(PRESENT) REDUCTION(+: dps_blk_scal, npoints_blk_scal) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) REDUCTION(+: dps_blk_scal, npoints_blk_scal) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           dps_blk_scal = dps_blk_scal + ABS(pt_diag%ddt_pres_sfc(jc,jb))
           npoints_blk_scal = npoints_blk_scal + 1
         ENDDO
         !$ACC END PARALLEL
+        !$ACC WAIT(1)
         dps_blk(jb) = dps_blk_scal
         npoints_blk(jb) = npoints_blk_scal
       ENDDO
@@ -951,6 +952,7 @@ CONTAINS
 !$OMP END MASTER
     ENDIF  ! msg_level
 !$OMP END PARALLEL
+    !$ACC WAIT(1)
 
   END SUBROUTINE compute_dpsdt
 

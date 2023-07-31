@@ -186,7 +186,7 @@ CONTAINS
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR PRIVATE(z_x, z_y, z_gauss_pts_1, z_gauss_pts_2) COLLAPSE(2)
       DO jk = slev, elev
 !$NEC ivdep
@@ -225,6 +225,7 @@ CONTAINS
       !$ACC END PARALLEL
 
     ENDDO  ! loop over blocks
+    !$ACC WAIT(1)
 
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -328,7 +329,7 @@ CONTAINS
 !$OMP DO PRIVATE(je,jk,jb,ie,z_gauss_pts_1,z_gauss_pts_2,wgt_t_detjac,z_x,z_y) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR PRIVATE(je, jk, z_gauss_pts_1, z_gauss_pts_2)
 !$NEC ivdep
       DO ie = 1, falist%len(jb)
@@ -366,6 +367,7 @@ CONTAINS
       !$ACC END PARALLEL
 
     ENDDO  ! loop over blocks
+    !$ACC WAIT(1)
 
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -509,7 +511,7 @@ CONTAINS
   ! or use cubic quadrature instead in your namelist.
 #endif
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP SEQ
       DO jk = slev, elev
 !$NEC ivdep
@@ -571,6 +573,7 @@ CONTAINS
       !$ACC END PARALLEL
 
     ENDDO  ! loop over blocks
+    !$ACC WAIT(1)
 
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -694,7 +697,7 @@ CONTAINS
 !$OMP z_quad_vector,z_x,z_y) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR
 !$NEC ivdep
       DO ie = 1, falist%len(jb)
@@ -748,7 +751,7 @@ CONTAINS
       !$ACC END PARALLEL
 
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR
 !$NEC ivdep
       DO ie = 1, falist%len(jb)
@@ -763,6 +766,7 @@ CONTAINS
       !$ACC END PARALLEL
 
     ENDDO  ! loop over blocks
+    !$ACC WAIT(1)
 
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -914,7 +918,7 @@ CONTAINS
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(z_eta, z_wgt) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) COPYIN(z_eta, z_wgt) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR PRIVATE(z_x, z_y, wgt_t_detjac, z_gauss_pts, z_quad_vector) COLLAPSE(2)
       DO jk = slev, elev
 !$NEC ivdep
@@ -1044,6 +1048,7 @@ CONTAINS
       !$ACC END PARALLEL
 
     ENDDO  ! loop over blocks
+    !$ACC WAIT(1)
 
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -1162,7 +1167,7 @@ CONTAINS
 !$OMP z_quad_vector,z_x,z_y) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
 
-      !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(z_wgt, z_eta) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) COPYIN(z_wgt, z_eta) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR PRIVATE(z_gauss_pts, wgt_t_detjac, z_quad_vector, z_x, z_y)
 !$NEC ivdep
       DO ie = 1, falist%len(jb)
@@ -1230,6 +1235,7 @@ CONTAINS
       !$ACC END PARALLEL
 
     ENDDO  ! loop over blocks
+    !$ACC WAIT(1)
 
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL

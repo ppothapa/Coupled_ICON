@@ -487,7 +487,7 @@ SUBROUTINE satad_v_3D_gpu (maxiter, tol, te, qve, qce,    & ! IN, INOUT
 
 !!!=============================================================================================
 
-  !$ACC PARALLEL DEFAULT(PRESENT)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
   !$ACC LOOP GANG VECTOR TILE(128, 1)
   DO k = klo, kup
     DO i = ilo , iup

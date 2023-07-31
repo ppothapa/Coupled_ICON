@@ -88,11 +88,13 @@ MODULE radar_interface
        &                              timer_radar_ongeom   , &
        &                              timer_radar_comppolar, &
        &                              timer_radar_out      , & 
-       &                              timer_radar_barrier
+       &                              timer_radar_barrier  , &
+       &                              timer_radar_acc_data_copies
 
   USE mo_opt_nwp_reflectivity,  ONLY: compute_field_dbz_1mom, compute_field_dbz_2mom
   USE gscp_data,                ONLY: cloud_num
   USE mo_emvorado_warmbubbles_type,  ONLY: autobubs_list
+  USE mo_emvorado_gpu_util,          ONLY: radar_d2h_hydrometeors, radar_d2h_model_variables
 
 !!$ There are other parameters available for the 1mom-scheme, but these are
 !!$  not yet coupled explicitly to the EMVORADO 1mom reflectivity routines (at the moment
@@ -593,7 +595,7 @@ CONTAINS
       itype_gscp_fwo = 140
     CASE (2)
       itype_gscp_fwo = 150
-    CASE (4,5,6,7)
+    CASE (4,5,6,7,8)
       ! 2-moment scheme including hail:
       itype_gscp_fwo = 260
       luse_muD_relation_rain_fwo = atm_phy_nwp_config(idom)%cfg_2mom%luse_mu_Dm_rain
@@ -675,7 +677,13 @@ CONTAINS
     IF (ASSOCIATED(qnc_s)) NULLIFY(qnc_s)
     
     IF (ALLOCATED(p_nh_state)) THEN  
-      
+
+#ifdef _OPENACC
+      CALL timer_start(timer_radar_acc_data_copies)
+      CALL radar_d2h_hydrometeors(ntlev, idom, .TRUE.)
+      CALL timer_stop(timer_radar_acc_data_copies)
+#endif
+
       qv  => p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqv)
       qc  => p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqc)
       qr  => p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqr)
@@ -1226,6 +1234,13 @@ CONTAINS
         END IF
       END IF
 
+
+#ifdef _OPENACC
+      CALL timer_start(timer_radar_acc_data_copies)
+      CALL radar_d2h_model_variables(ntlev_dyn, idom, .TRUE.)
+      CALL timer_stop(timer_radar_acc_data_copies)
+#endif
+
       ! Link the ICON model prognostic variables and other fields:
       hhl  => p_nh_state(idom)%metrics%z_ifc(:,:,:)
       hfl  => p_nh_state(idom)%metrics%z_mc(:,:,:)
@@ -1416,7 +1431,7 @@ CONTAINS
 
     SELECT CASE ( itype_gscp_model_in )
 
-    CASE ( 4, 5, 6 )
+    CASE ( 4, 5, 6, 8 )
 
       ! Note: computations include halos and boundaries for consistency to EMVORADO internal computations
       CALL compute_field_dbz_2mom( npr       = ni,                   &
