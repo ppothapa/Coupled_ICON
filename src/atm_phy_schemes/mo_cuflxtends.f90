@@ -298,7 +298,7 @@ CONTAINS
     !!TO GET IDENTICAL RESULTS FOR DIFFERENT NPROMA FORCE KTOPM2 TO 2
     ktopm2=2
 
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
 
     !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jl=kidia,kfdia
@@ -560,6 +560,7 @@ CONTAINS
     ENDDO
 
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
 
     !$ACC END DATA
 
@@ -752,7 +753,7 @@ CONTAINS
     !LLTEST = (.NOT.LEPCLD.AND..NOT.LENCLD2).OR.(LPHYLIN.AND..NOT.LENCLD2)
     lltest = .NOT.lepcld.OR.lphylin
 
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
 
     !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jk=ktdia,klev
@@ -995,6 +996,7 @@ CONTAINS
     ENDIF
 
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
 
     !$ACC END DATA
 
@@ -1146,7 +1148,7 @@ CONTAINS
     zimp=1.0_JPRB-rmfsoluv
     ztsphy=1.0_JPRB/ptsphy
 
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
  
     !$ACC LOOP SEQ
     DO jk=1,klev
@@ -1348,6 +1350,7 @@ CONTAINS
     ENDIF
 
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
 
     !$ACC END DATA
 
@@ -1520,7 +1523,7 @@ CONTAINS
     !$ACC   PRESENT(kctop, kdtop, ldcum, lddraf, paph, pddrate, pmfd, pmfu, pudrate, zdgeoh, zdph)
 
 !PREVENT_INCONSISTENT_IFORT_FMA
-    !$ACC PARALLEL DEFAULT(PRESENT)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk=ktdia+1,klev
       DO jl=kidia,kfdia
@@ -1540,7 +1543,7 @@ CONTAINS
       tenrhoc => ptenrhoc(jn)%ptr
       cen => pcen(jn)%ptr
 
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP SEQ
       DO jk=ktdia+1,klev
         ik=jk-1
@@ -1562,7 +1565,7 @@ CONTAINS
       !*    2.0          COMPUTE UPDRAFT VALUES
       !!                 ----------------------
 
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP SEQ
       DO jk=klev-1,ktdia+2,-1
         ik=jk+1
@@ -1588,7 +1591,7 @@ CONTAINS
       !*    3.0          COMPUTE DOWNDRAFT VALUES
       !!                 ------------------------
 
-      !$ACC PARALLEL DEFAULT(PRESENT) PRIVATE(ik, jk)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) PRIVATE(ik, jk)
       !$ACC LOOP SEQ
       DO jk=ktdia+2,klev
         ik=jk-1
@@ -1651,7 +1654,7 @@ CONTAINS
 
       !*    5.0          COMPUTE TENDENCIES = RHS
       !!                 ------------------------
-      !$ACC PARALLEL DEFAULT(PRESENT) PRIVATE(ik, jk)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) PRIVATE(ik, jk)
       !$ACC LOOP SEQ
       DO jk=ktdia+1,klev-1
         ik=jk+1
@@ -1758,6 +1761,7 @@ CONTAINS
     END DO
     !---------------------------------------------------------------------------
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     IF (lhook) CALL dr_hook('CUCTRACER',1,zhook_handle)

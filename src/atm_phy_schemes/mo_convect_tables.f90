@@ -490,7 +490,7 @@ CONTAINS
     !$ACC DATA PRESENT(dua) IF(PRESENT(dua))
 
     IF (PRESENT(ua) .AND. .NOT. PRESENT(dua)) THEN
-      !$ACC PARALLEL
+      !$ACC PARALLEL ASYNC(1)
       !$ACC LOOP GANG VECTOR PRIVATE(x, dx, ddx, a, b, c, d, bxa)
       DO jl = jcs,size
 
@@ -515,7 +515,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL
     ELSE IF (PRESENT(ua) .AND. PRESENT(dua)) THEN
-      !$ACC PARALLEL
+      !$ACC PARALLEL ASYNC(1)
       !$ACC LOOP GANG VECTOR PRIVATE(x, dx, ddx, a, b, c, d, bxa)
       DO jl = jcs,size
 
@@ -844,7 +844,7 @@ CONTAINS
 
       znphase = 0.0_wp
 
-      !$ACC PARALLEL
+      !$ACC PARALLEL ASYNC(1)
       !$ACC LOOP GANG VECTOR PRIVATE(ztshft, ztt, ztest) REDUCTION(+: znphase) REDUCTION(*: zinbounds)
       DO jl = jcs,size
 
@@ -875,7 +875,7 @@ CONTAINS
       nphase = INT(znphase)
 
     ELSE
-      !$ACC PARALLEL
+      !$ACC PARALLEL ASYNC(1)
       !$ACC LOOP GANG VECTOR PRIVATE(ztshft, ztt) REDUCTION(*: zinbounds)
       DO jl = jcs,size
 
@@ -1072,7 +1072,7 @@ CONTAINS
     ! first compute all lookup indices and check if they are all within allowed bounds
 
 !IBM* ASSERT(NODEPS)
-    !$ACC PARALLEL
+    !$ACC PARALLEL ASYNC(1)
     !$ACC LOOP GANG VECTOR PRIVATE(jl, ztshft, ztt) REDUCTION(*: zinbounds)
     DO nl = 1, kidx
       jl = list(nl)
@@ -1085,6 +1085,7 @@ CONTAINS
       zinbounds = FSEL(ztt-ztmax,0.0_wp,zinbounds)
     END DO
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
 
     ! if one index was out of bounds -> print error and exit
     IF (zinbounds == 0.0_wp) CALL lookuperror(name)
@@ -1264,7 +1265,7 @@ CONTAINS
 
     CALL lookup_ua_list_spline_2('compute_qsat',kbdim,is,loidx(:), ptsfc(:), ua(:))
 !
-    !$ACC PARALLEL
+    !$ACC PARALLEL ASYNC(1)
     !$ACC LOOP GANG VECTOR PRIVATE(jl, zpap, zes, zcor)
     DO jc = 1,is
       jl = loidx(jc)
@@ -1274,6 +1275,7 @@ CONTAINS
       pqs(jl) = zes*zcor
     ENDDO
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
 !
     IF (lookupoverflow) CALL lookuperror ('compute_qsat')
     !$ACC END DATA

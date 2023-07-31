@@ -121,7 +121,7 @@ CONTAINS
       ENDIF
     ENDDO
 #else
-    !$ACC PARALLEL DEFAULT(PRESENT) REDUCTION(MIN: start_idx_diff_threshold) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) REDUCTION(MIN: start_idx_diff_threshold) IF(lacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = 1, nlevs
       DO jc = 1, nlen

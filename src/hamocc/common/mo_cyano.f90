@@ -60,9 +60,10 @@ SUBROUTINE cyano (local_bgc_mem, start_idx,end_idx,pddpo, za, use_acc)
   !
   ! --------------------------------------------------------------------
   !
-  !$ACC DATA COPY(local_bgc_mem, local_bgc_mem%bgctra, local_bgc_mem%bgcflux) &
-  !$ACC   COPY(local_bgc_mem%bgctend, local_bgc_mem%satoxy) IF(lacc)
-  !$ACC PARALLEL LOOP GANG VECTOR IF(lacc)
+     !$ACC DATA COPY(local_bgc_mem, local_bgc_mem%bgctra, local_bgc_mem%bgcflux) &
+     !$ACC   COPY(local_bgc_mem%bgctend, local_bgc_mem%satoxy) IF(lacc)
+     !$ACC PARALLEL ASYNC(1) IF(lacc)
+     !$ACC LOOP GANG VECTOR
      DO j = start_idx, end_idx
 
         IF (pddpo(j,1) > EPSILON(0.5_wp)) THEN
@@ -97,7 +98,8 @@ SUBROUTINE cyano (local_bgc_mem, start_idx,end_idx,pddpo, za, use_acc)
         ENDIF
 
      ENDDO
-     !$ACC END PARALLEL LOOP
+     !$ACC END PARALLEL
+     !$ACC WAIT(1)
      !$ACC END DATA
  
  
@@ -167,7 +169,8 @@ SUBROUTINE cyadyn(local_bgc_mem, klevs, start_idx, end_idx, pddpo, za, ptho, pti
         lacc = .FALSE.
       END IF
   
-  !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC LOOP GANG VECTOR COLLAPSE(2)
   DO k = 1, max_klevs
    DO j = start_idx, end_idx
 
@@ -331,7 +334,7 @@ SUBROUTINE cyadyn(local_bgc_mem, klevs, start_idx, end_idx, pddpo, za, ptho, pti
             ENDIF ! wet cells
       ENDDO ! 
   ENDDO ! 
-  !$ACC END PARALLEL LOOP
+  !$ACC END PARALLEL
  
 
 ! -------------- buoyancy of cyanobacteria----------------------------------------
@@ -342,7 +345,8 @@ SUBROUTINE cyadyn(local_bgc_mem, klevs, start_idx, end_idx, pddpo, za, ptho, pti
   ! C(k,T+dt)=(ddpo(k)*C(k,T)+w*dt*C(k-1,T+dt))/(ddpo(k)+w*dt)
   ! sedimentation=w*dt*C(ks,T+dt)
   !
- !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+ !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+ !$ACC LOOP GANG VECTOR
  DO j=start_idx,end_idx
     kpke=klevs(j)
     IF (kpke > 0)THEN
@@ -371,7 +375,7 @@ SUBROUTINE cyadyn(local_bgc_mem, klevs, start_idx, end_idx, pddpo, za, ptho, pti
     endif   
    ENDIF
  ENDDO
- !$ACC END PARALLEL LOOP
+ !$ACC END PARALLEL
                   
  
 END SUBROUTINE  cyadyn

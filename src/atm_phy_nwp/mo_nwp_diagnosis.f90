@@ -258,7 +258,7 @@ CONTAINS
           & i_startidx, i_endidx, rl_start, rl_end)
 
 !DIR$ IVDEP
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
 
@@ -281,7 +281,7 @@ CONTAINS
           & i_startidx, i_endidx, rl_start, rl_end)
 
 !DIR$ IVDEP
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
 
@@ -310,7 +310,7 @@ CONTAINS
         !$ACC END PARALLEL
 
         IF (lcall_phy_jg(itsfc)) THEN
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jt=1,ntiles_total
 !DIR$ IVDEP
@@ -322,7 +322,7 @@ CONTAINS
           !$ACC END PARALLEL
           ! special treatment for variable resid_wso
           IF (var_in_output(jg)%res_soilwatb) THEN
-            !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
             !$ACC LOOP GANG VECTOR COLLAPSE(2)
             DO jt=1,ntiles_total
 !DIR$ IVDEP
@@ -341,7 +341,7 @@ CONTAINS
         ! but the instantaneous max/min over all tiles. In case of no tiles both are equivalent.
         IF (lcall_phy_jg(itturb)) THEN
 !DIR$ IVDEP
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             prm_diag%tmax_2m(jc,jb) = MAX(prm_diag%t_tilemax_inst_2m(jc,jb), prm_diag%tmax_2m(jc,jb) )
@@ -355,7 +355,7 @@ CONTAINS
 
           IF (lcall_phy_jg(itturb)) THEN
 !DIR$ IVDEP
-            !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
             !$ACC LOOP GANG VECTOR
             DO jc = i_startidx, i_endidx
               ! ATTENTION:
@@ -394,7 +394,7 @@ CONTAINS
             ENDDO  ! jc
             !$ACC END PARALLEL
 
-            !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
             !$ACC LOOP GANG VECTOR COLLAPSE(2)
             DO jk = 1, nlev_soil
 !DIR$ IVDEP
@@ -408,7 +408,7 @@ CONTAINS
 
             IF (atm_phy_nwp_config(jg)%lcalc_extra_avg) THEN
 !DIR$ IVDEP
-              !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+              !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
               !$ACC LOOP GANG VECTOR
               DO jc = i_startidx, i_endidx
                 ! time averaged surface u-momentum flux SSO
@@ -444,7 +444,7 @@ CONTAINS
             !e.g. dt_phy_jg(itradheat) may then be greater than p_sim_time
             !leading to wrong averaging.
 !DIR$ IVDEP
-            !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
             !$ACC LOOP GANG VECTOR
             DO jc = i_startidx, i_endidx
 
@@ -774,7 +774,7 @@ CONTAINS
     zprof(:) = 1._wp
     !$ACC END KERNELS
     IF (lcalib_clcov) THEN
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP PRIVATE(jk1, z_help)
       DO jk = nlev, 1, -1
         jk1 = jk + pt_patch%nshift_total
@@ -805,7 +805,7 @@ CONTAINS
         prm_diag%tot_cld_vi(i_startidx:i_endidx,jb,1:3) = 0.0_wp
         !$ACC END KERNELS
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP SEQ
         DO jk = kstart_moist, nlev
 !DIR$ IVDEP
@@ -836,14 +836,14 @@ CONTAINS
         CASE ( 1 )      ! maximum-random overlap
 
           !$ACC DATA CREATE(clearsky)
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             clearsky(jc) = 1._wp - prm_diag%clc(jc,kstart_moist,jb)
           ENDDO
           !$ACC END PARALLEL
           
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP SEQ
           DO jk = kstart_moist+1, ih_clch
             !$ACC LOOP GANG VECTOR
@@ -856,7 +856,7 @@ CONTAINS
           !$ACC END PARALLEL
           
           ! store high-level clouds
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             prm_diag%clch(jc,jb) = MAX( 0._wp, 1._wp - clearsky(jc) - eps_clc)
@@ -864,7 +864,7 @@ CONTAINS
           !$ACC END PARALLEL
           
           ! continue downward for total cloud cover
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP SEQ
           DO jk = ih_clch+1, nlev
             !$ACC LOOP GANG VECTOR
@@ -878,7 +878,7 @@ CONTAINS
           
           ! store total cloud cover, start for mid-level clouds
 !DIR$ IVDEP
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             prm_diag%clct(jc,jb) = MAX( 0._wp, 1._wp - clearsky(jc) - eps_clc)
@@ -887,7 +887,7 @@ CONTAINS
           !$ACC END PARALLEL
           
           ! mid-level clouds
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP SEQ
           DO jk = ih_clch+2, ih_clcm
             !$ACC LOOP GANG VECTOR
@@ -901,7 +901,7 @@ CONTAINS
           
           ! store mid-level cloud cover, start for low-level clouds
 !DIR$ IVDEP
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             prm_diag%clcm(jc,jb) = MAX( 0._wp, 1._wp - clearsky(jc) - eps_clc)
@@ -911,7 +911,7 @@ CONTAINS
           !$ACC END PARALLEL
           
           ! continue downward for mid-level clouds
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP SEQ
           DO jk = ih_clcm+2, nlev
             !$ACC LOOP GANG VECTOR
@@ -924,18 +924,19 @@ CONTAINS
           !$ACC END PARALLEL
           
           ! store low-level clouds
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             prm_diag%clcl(jc,jb) = MAX( 0._wp, 1._wp - clearsky(jc) - eps_clc)
           ENDDO
           !$ACC END PARALLEL
+          !$ACC WAIT(1)
           !$ACC END DATA
 
         CASE ( 2 )      ! generalized overlap (Hogan, Illingworth, 2000)
 
           !$ACC DATA CREATE(alpha)
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
 
@@ -992,7 +993,7 @@ CONTAINS
 
           ! calibration of layer-wise cloud cover fields
           IF (lcalib_clcov) THEN
-            !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
             !$ACC LOOP GANG VECTOR PRIVATE(lland, clcl_mod, clcm_mod, clct_fac)
             DO jc = i_startidx, i_endidx
               lland = ext_data%atm%fr_land(jc,jb)+ext_data%atm%fr_lake(jc,jb) > 0._wp
@@ -1009,6 +1010,7 @@ CONTAINS
             ENDDO
             !$ACC END PARALLEL
           ENDIF
+          !$ACC WAIT(1)
           !$ACC END DATA
 
         END SELECT
@@ -1032,7 +1034,7 @@ CONTAINS
 
       ! pre-computation of rho * \Delta z
       ! (deep-atmosphere modification applied: height-dependence of grid cell volume)
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP COLLAPSE(2)
       DO jk = 1, nlev
         DO jc = i_startidx, i_endidx 
@@ -1043,11 +1045,11 @@ CONTAINS
       !$ACC END PARALLEL
 
       DO jt = 1, iqm_max
-        !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         pt_diag%tracer_vi(i_startidx:i_endidx,jb,jt) = 0.0_wp
         !$ACC END KERNELS
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP SEQ
         DO jk = advection_config(jg)%iadv_slev(jt), nlev
 
@@ -1063,7 +1065,8 @@ CONTAINS
         !$ACC END PARALLEL
       ENDDO  ! jt
 
-    ENDDO ! nblks   
+    ENDDO ! nblks
+    !$ACC WAIT(1)
 !$OMP END DO
 !$OMP END PARALLEL  
     
@@ -1622,7 +1625,7 @@ CONTAINS
       ! normalized by 700hPa. Thus, cldepth=1 for a cloud extending vertically over a 
       ! range of 700 hPa. Only used for visualization purpose (i.e. gray-scale pictures)
       !
-      !$ACC PARALLEL DEFAULT(PRESENT) CREATE(iclbas, p_clbas) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) CREATE(iclbas, p_clbas) IF(lzacc)
       !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx
         prm_diag%cldepth(jc,jb) = 0._wp
@@ -1745,8 +1748,8 @@ CONTAINS
       ENDDO  ! jc
       !$ACC END PARALLEL
 
-
     ENDDO  ! jb
+    !$ACC WAIT(1)
 !$OMP END DO
 !$OMP END PARALLEL
 

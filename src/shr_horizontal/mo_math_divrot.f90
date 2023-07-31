@@ -296,8 +296,8 @@ SUBROUTINE recon_lsq_cell_l( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
     END DO ! end loop over vertical levels
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(PRESENT) PRIVATE(z_qt_times_d) ASYNC(1) IF(i_am_accel_node)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(z_qt_times_d)
     DO jk = slev, elev
       DO jc = i_startidx, i_endidx
 
@@ -787,7 +787,7 @@ SUBROUTINE recon_lsq_cell_q( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
     !
     ! 1. compute right hand side of linear system
     !
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG
     DO jc = i_startidx, i_endidx
@@ -819,7 +819,7 @@ SUBROUTINE recon_lsq_cell_q( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
     ! 2. compute cell based coefficients for quadratic reconstruction
     !
 
-      !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG
     DO jk = slev, elev
 
@@ -871,6 +871,7 @@ SUBROUTINE recon_lsq_cell_q( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
   END DO ! end loop over blocks
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
+  !$ACC WAIT(1)
   !$ACC END DATA
 
 
@@ -1011,7 +1012,7 @@ SUBROUTINE recon_lsq_cell_q_svd( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
     ! 1. compute right hand side of linear system
     !
 
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG
     DO jc = i_startidx, i_endidx
@@ -1043,7 +1044,7 @@ SUBROUTINE recon_lsq_cell_q_svd( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
     ! 2. compute cell based coefficients for quadratic reconstruction
     !    calculate matrix vector product PINV(A) * b
     !
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG
     DO jk = slev, elev
 
@@ -1077,6 +1078,7 @@ SUBROUTINE recon_lsq_cell_q_svd( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
     !$ACC END PARALLEL
 
   END DO ! end loop over blocks
+  !$ACC WAIT(1)
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
   !$ACC END DATA
@@ -1231,7 +1233,7 @@ SUBROUTINE recon_lsq_cell_c( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
     !
     ! 1. compute right hand side of linear system
     !
@@ -1266,7 +1268,7 @@ SUBROUTINE recon_lsq_cell_c( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
     !
     ! 2. compute cell based coefficients for quadratic reconstruction
     !
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG
     DO jk = slev, elev
 
@@ -1357,6 +1359,7 @@ SUBROUTINE recon_lsq_cell_c( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
     !$ACC END PARALLEL
 
   END DO ! end loop over blocks
+  !$ACC WAIT(1)
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
   !$ACC END DATA
@@ -1798,7 +1801,7 @@ i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
     ! coefficient (equal to +-1) is necessary, given by
     ! ptr_patch%grid%cells%edge_orientation)
 
-      !$ACC PARALLEL IF(i_am_accel_node)
+      !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       !$ACC LOOP GANG
       DO jc = i_startidx, i_endidx
@@ -1927,8 +1930,6 @@ i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL IF(i_am_accel_node)
-
     ! original comment for divergence computation;
     ! everything that follows in this explanation has been combined into geofac_div
 
@@ -1944,6 +1945,7 @@ i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
     ! coefficient (equal to +-1) is necessary, given by
     ! ptr_patch%grid%cells%edge_orientation)
 
+      !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       !$ACC LOOP GANG
       DO jc = i_startidx, i_endidx
@@ -2079,8 +2081,7 @@ i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL IF(i_am_accel_node)
-
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG
     DO jc = i_startidx, i_endidx
@@ -2575,7 +2576,7 @@ END IF
     ! is necessary, given by g%verts%edge_orientation
     !
 
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jv = i_startidx, i_endidx

@@ -1180,11 +1180,12 @@ CONTAINS
     DO blockNo = start_block, end_block
       CALL get_index_range(edges_inDomain, blockNo, start_edge_index, end_edge_index)
 
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       out_vn_e(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR
       level_loop_e: DO level = startLevel, endLevel
         edge_idx_loop: DO je =  start_edge_index, end_edge_index
           IF (lsm_e(je,level,blockNo) == sea) THEN
@@ -1230,8 +1231,9 @@ CONTAINS
           ENDIF
         END DO edge_idx_loop
       END DO level_loop_e
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
+    !$ACC WAIT(1)
     !$ACC END DATA
   END SUBROUTINE map_edges2edges_viacell_3d_mlev_const_z
   !-----------------------------------------------------------------------------
@@ -1310,11 +1312,12 @@ CONTAINS
     DO blockNo = start_block, end_block
       CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
 
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       out_vn_e(:, :, blockNo) = 0.0_wp
       !$ACC END KERNELS
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR
       DO je =  start_edge_index, end_edge_index
 
         IF (dolic_e(je,blockNo) < 1) CYCLE
@@ -1361,9 +1364,10 @@ CONTAINS
         END DO ! levels
 
       END DO
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
 
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
+    !$ACC WAIT(1)
     !$ACC END DATA
 
 !ICON_OMP_END_DO NOWAIT
@@ -1434,11 +1438,12 @@ CONTAINS
     DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
       CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
 
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       out_vn_e(:, :, blockNo) = 0.0_wp
       !$ACC END KERNELS
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR
       DO je =  start_edge_index, end_edge_index
 
         IF (patch_3d%p_patch_1d(1)%dolic_e(je,blockNo) < 1) CYCLE
@@ -1491,9 +1496,10 @@ CONTAINS
         END DO ! levels
 
       END DO
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
 
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
+    !$ACC WAIT(1)
     !$ACC END DATA
 !ICON_OMP_END_DO NOWAIT
 !ICON_OMP_END_PARALLEL
@@ -1579,7 +1585,8 @@ CONTAINS
       
       out_vn_e(:,:,blockNo) = 0.0_wp
       
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR
       level_loop_e2: DO level = startLevel, endLevel
         edge_idx_loop2: DO je =  start_edge_index, end_edge_index
           IF (lsm_e(je,level,blockNo) == sea) THEN
@@ -1623,8 +1630,9 @@ CONTAINS
           ENDIF
         END DO edge_idx_loop2
       END DO level_loop_e2
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
+    !$ACC WAIT(1)
     !$ACC END DATA
     
   END SUBROUTINE map_edges2edges_viacell_3d_mlev_constZs
@@ -1718,18 +1726,20 @@ CONTAINS
 
 #ifdef __LVECTOR__
       max_dolic_e = -1
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) REDUCTION(MAX: max_dolic_e) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) REDUCTION(MAX: max_dolic_e) IF(lacc)
       DO je = start_edge_index, end_edge_index
         max_dolic_e = MAX(max_dolic_e, dolic_e(je,blockNo))
       END DO
       !$ACC END PARALLEL LOOP
 
-      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO level = startLevel, max_dolic_e
         DO je = start_edge_index, end_edge_index
           IF (dolic_e(je,blockNo) < level) CYCLE
 #else           
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR
       DO je =  start_edge_index, end_edge_index
 #endif
         cell_1_index = cell_idx(je,blockNo,1)
@@ -1775,7 +1785,7 @@ CONTAINS
         END DO !levels
         
       END DO
-     !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
       
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
 !ICON_OMP_END_PARALLEL_DO
@@ -1844,11 +1854,12 @@ CONTAINS
     DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
       CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
 
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       out_vn_e(:, :, blockNo) = 0.0_wp
       !$ACC END KERNELS
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR
       DO je =  start_edge_index, end_edge_index
 
         IF (patch_3d%p_patch_1d(1)%dolic_e(je,blockNo) < 1) CYCLE
@@ -1901,9 +1912,10 @@ CONTAINS
         END DO ! levels
 
       END DO
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
 
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
+    !$ACC WAIT(1)
     !$ACC END DATA
 
 !ICON_OMP_END_DO NOWAIT
@@ -1991,11 +2003,12 @@ CONTAINS
     DO blockNo = start_block, end_block
       CALL get_index_range(edges_inDomain, blockNo, start_edge_index, end_edge_index)
 
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       out_vn_e(:,blockNo) = 0.0_wp
       !$ACC END KERNELS
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR
       edge_idx_loop: DO je =  start_edge_index, end_edge_index
         endLevel = dolic_e(je,blockNo)
         level_loop_e: DO level = startLevel, endLevel
@@ -2044,8 +2057,9 @@ CONTAINS
           ENDIF
         END DO  level_loop_e
       END DO edge_idx_loop
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
+    !$ACC WAIT(1)
     !$ACC END DATA
   END SUBROUTINE map_edges2edges_viacell_2D_constZ
   !-------------------------------------------------------------------------
@@ -2114,7 +2128,8 @@ CONTAINS
     DO blockNo = start_block, end_block
       CALL get_index_range(edges_indomain, blockNo, start_edge_index, end_edge_index)
       
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR
       DO je = start_edge_index, end_edge_index
         
         out_vn_e(je,blockNo) = 0.0_wp
@@ -2152,8 +2167,9 @@ CONTAINS
           
         END DO
       END DO
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
+    !$ACC WAIT(1)
     !$ACC END DATA
 
 !ICON_OMP_END_PARALLEL_DO

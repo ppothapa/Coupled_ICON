@@ -415,10 +415,11 @@ CONTAINS
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,i_startidx,i_endidx,jk,jc,temp,qv,p_ex), ICON_OMP_RUNTIME_SCHEDULE
     DO jb = i_startblk, i_endblk
+
       CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
         i_startidx, i_endidx, rl_start, rl_end)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(temp, qv, p_ex)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
@@ -685,7 +686,7 @@ CONTAINS
         ENDIF
       ENDDO
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO jt=1,SIZE(conv_list)
         idx = conv_list(jt)

@@ -1555,7 +1555,7 @@ CONTAINS
 
 !ACC: explicit PRESENT is required to circumvent a 'partially present error' with PGI 20.9
     IF(PRESENT(add)) THEN
-      !$ACC PARALLEL PRESENT(recv, send) DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL PRESENT(recv, send) DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k=1,ndim2
         DO i=1,p_pat%n_pnts
@@ -1568,7 +1568,7 @@ CONTAINS
       ENDDO
       !$ACC END PARALLEL
     ELSE
-      !$ACC PARALLEL PRESENT(recv, send) DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL PRESENT(recv, send) DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k=1,ndim2
         DO i=1,p_pat%n_pnts
@@ -1580,6 +1580,7 @@ CONTAINS
       ENDDO
       !$ACC END PARALLEL
     END IF
+    !$ACC WAIT(1)
 
   END SUBROUTINE exchange_data_r3d_seq
 
@@ -1654,7 +1655,7 @@ CONTAINS
     !     END DO
 
     IF(PRESENT(add)) THEN
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k=1,ndim2
         DO i=1,p_pat%n_pnts
@@ -1667,7 +1668,7 @@ CONTAINS
       ENDDO
       !$ACC END PARALLEL
     ELSE
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k=1,ndim2
         DO i=1,p_pat%n_pnts
@@ -1679,6 +1680,7 @@ CONTAINS
       ENDDO
       !$ACC END PARALLEL
     END IF
+    !$ACC WAIT(1)
 
   END SUBROUTINE exchange_data_s3d_seq
 
@@ -1766,16 +1768,17 @@ CONTAINS
     ENDIF
 
     IF (ndim2 == 1) THEN
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO i = 1, p_pat%n_send
         send_buf(1,i) = send_ptr(send_src_idx(i),1,send_src_blk(i))
       ENDDO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     ELSE
 #if defined( __SX__ ) || defined( _OPENACC )
 !$NEC outerloop_unroll(4)
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k = 1, ndim2
         DO i = 1, p_pat%n_send
@@ -1783,6 +1786,7 @@ CONTAINS
         ENDDO
       ENDDO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
 #else
 #ifdef __OMPPAR_COPY__
 !$OMP PARALLEL DO
@@ -1853,16 +1857,17 @@ CONTAINS
     IF(PRESENT(add)) THEN
       IF (ndim2 == 1) THEN
         k = 1
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO i = 1, p_pat%n_pnts
           recv(recv_dst_idx(i),k,recv_dst_blk(i)) = &
             recv_buf(k,recv_src(i)) + add(recv_dst_idx(i),k,recv_dst_blk(i))
         ENDDO
         !$ACC END PARALLEL
+        !$ACC WAIT(1)
       ELSE
 #if defined( __SX__ ) || defined( _OPENACC )
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
 !$NEC outerloop_unroll(4)
         DO k = 1, ndim2
@@ -1872,6 +1877,7 @@ CONTAINS
           ENDDO
         ENDDO
         !$ACC END PARALLEL
+        !$ACC WAIT(1)
 #else
 #ifdef __OMPPAR_COPY__
 !$OMP PARALLEL DO
@@ -1888,15 +1894,16 @@ CONTAINS
     ELSE
       IF (ndim2 == 1) THEN
         k = 1
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO i = 1, p_pat%n_pnts
           recv(recv_dst_idx(i),k,recv_dst_blk(i)) = recv_buf(k,recv_src(i))
         ENDDO
         !$ACC END PARALLEL
+        !$ACC WAIT(1)
       ELSE
 #if defined( __SX__ ) || defined( _OPENACC )
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
 !$NEC outerloop_unroll(4)
         DO k = 1, ndim2
@@ -1905,6 +1912,7 @@ CONTAINS
           ENDDO
         ENDDO
         !$ACC END PARALLEL
+        !$ACC WAIT(1)
 #else
 #ifdef __OMPPAR_COPY__
 !$OMP PARALLEL DO
@@ -1996,7 +2004,7 @@ CONTAINS
     !     END DO
 
     IF(PRESENT(add)) THEN
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k=1,ndim2
         DO i=1,p_pat%n_pnts
@@ -2009,7 +2017,7 @@ CONTAINS
       ENDDO
       !$ACC END PARALLEL
     ELSE
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k=1,ndim2
         DO i=1,p_pat%n_pnts
@@ -2021,6 +2029,7 @@ CONTAINS
       ENDDO
       !$ACC END PARALLEL
     END IF
+    !$ACC WAIT(1)
 
   END SUBROUTINE exchange_data_i3d_seq
 
@@ -2103,16 +2112,17 @@ CONTAINS
     ENDIF
 
     IF (ndim2 == 1) THEN
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO i = 1, p_pat%n_send
         send_buf(1,i) = send_ptr(send_src_idx(i),1,send_src_blk(i))
       ENDDO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     ELSE
 #if defined( __SX__ ) || defined( _OPENACC )
 !$NEC outerloop_unroll(4)
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k = 1, ndim2
         DO i = 1, p_pat%n_send
@@ -2120,6 +2130,7 @@ CONTAINS
         ENDDO
       ENDDO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
 #else
 #ifdef __OMPPAR_COPY__
 !$OMP PARALLEL DO
@@ -2189,15 +2200,16 @@ CONTAINS
 
     IF (ndim2 == 1) THEN
       k = 1
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO i = 1, p_pat%n_pnts
         recv(recv_dst_idx(i),k,recv_dst_blk(i)) = recv_buf(k,recv_src(i))
       ENDDO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     ELSE
 #if defined( __SX__ ) || defined( _OPENACC )
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 !$NEC outerloop_unroll(4)
       DO k = 1, ndim2
@@ -2206,6 +2218,7 @@ CONTAINS
         ENDDO
       ENDDO
       !$ACC END PARALLEL
+      !$AC WAIT(1)
 #else
 #ifdef __OMPPAR_COPY__
 !$OMP PARALLEL DO
@@ -3021,7 +3034,7 @@ CONTAINS
 #if defined( __OMPPAR_COPY__ ) && !defined( _OPENACC )
 !$OMP PARALLEL DO PRIVATE(jb,jl,koffset,k,n)
 #endif
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG
     DO i = 1, n_send
       jb = send_src_blk(i)
@@ -3045,6 +3058,7 @@ CONTAINS
       ENDIF
     ENDDO
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
 
 #if defined( __OMPPAR_COPY__ ) && !defined( _OPENACC )
 !$OMP END PARALLEL DO
@@ -3119,7 +3133,7 @@ CONTAINS
 #if defined( __OMPPAR_COPY__ ) && !defined( _OPENACC )
 !$OMP PARALLEL DO PRIVATE(jb,jl,ik,koffset,k,n)
 #endif
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG
     DO i = 1, n_pnts
       jb = recv_dst_blk(i)
@@ -3137,6 +3151,7 @@ CONTAINS
 !$OMP END PARALLEL DO
 #else
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
 #endif
 #endif
 
@@ -3337,7 +3352,7 @@ CONTAINS
 
     IF (my_process_is_mpi_seq()) THEN
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG
       DO np = 1, npats
         !$ACC LOOP VECTOR
@@ -3354,6 +3369,7 @@ CONTAINS
         ENDDO
       ENDDO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
 
     ELSE    ! WS: removed RETURN statement to allow for OpenACC DATA region
 
@@ -3386,7 +3402,7 @@ CONTAINS
       ! Set up send buffer
 #if defined( __SX__ ) || defined( _OPENACC )
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO n = 1, nfields
         !$ACC LOOP SEQ
@@ -3403,6 +3419,7 @@ CONTAINS
         ENDDO
       ENDDO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
 #else
 #ifdef __OMPPAR_COPY__
 !$OMP PARALLEL PRIVATE(np)
@@ -3583,7 +3600,7 @@ CONTAINS
 !$OMP DO
 #endif
 
-            !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
             !$ACC LOOP GANG VECTOR COLLAPSE(2)
             DO i = 1, isum1
               DO k = 1, ndim2tot
@@ -3605,7 +3622,7 @@ CONTAINS
       ! Fill in receive buffer
 
 #if defined( __SX__ ) || defined( _OPENACC )
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO n = 1, nfields
         !$ACC LOOP SEQ
@@ -3622,6 +3639,7 @@ CONTAINS
         ENDDO
       ENDDO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
 #else
       DO np = 1, npats
 #ifdef __OMPPAR_COPY__
@@ -3839,7 +3857,7 @@ CONTAINS
     ! -----------------------------
 
     IF(PRESENT(add)) THEN
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO i=1,n_pnts
         recv( recv_dst_idx(i), recv_dst_blk(i) )  =    &
@@ -3849,7 +3867,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL
     ELSE
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO i=1,n_pnts
         recv( recv_dst_idx(i), recv_dst_blk(i) )  = &
@@ -3858,6 +3876,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL
     END IF
+    !$ACC WAIT(1)
 
   END SUBROUTINE exchange_data_r2d_seq
 
@@ -3917,7 +3936,7 @@ CONTAINS
     ! -----------------------------
 
     IF(PRESENT(add)) THEN
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO i=1,n_pnts
         recv( recv_dst_idx(i), recv_dst_blk(i) )  =    &
@@ -3927,7 +3946,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL
     ELSE
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO i=1,n_pnts
         recv( recv_dst_idx(i), recv_dst_blk(i) )  = &
@@ -3936,6 +3955,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL
     END IF
+    !$ACC WAIT(1)
 
   END SUBROUTINE exchange_data_s2d_seq
 
@@ -4043,7 +4063,7 @@ CONTAINS
     ! -----------------------------
 
     IF(PRESENT(add)) THEN
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO i=1,n_pnts
         recv( recv_dst_idx(i), recv_dst_blk(i) )  =    &
@@ -4053,7 +4073,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL
     ELSE
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO i=1,n_pnts
         recv( recv_dst_idx(i), recv_dst_blk(i) )  = &
@@ -4062,6 +4082,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL
     END IF
+    !$ACC WAIT(1)
 
   END SUBROUTINE exchange_data_i2d_seq
 
@@ -4156,7 +4177,7 @@ CONTAINS
     ! "communication" (direct copy)
     ! -----------------------------
 
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO i=1,n_pnts
       recv( recv_dst_idx(i), recv_dst_blk(i) )  = &
@@ -4164,6 +4185,7 @@ CONTAINS
         &       send_src_blk(recv_src(i)))
     END DO
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
 
   END SUBROUTINE exchange_data_l2d_seq
 

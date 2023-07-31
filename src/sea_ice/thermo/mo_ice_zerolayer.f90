@@ -270,7 +270,7 @@ CONTAINS
     !$ACC   PRESENT(dnonsolardT, Tfw) IF(lacc)
     
     ! initialization of the output
-    !$ACC PARALLEL IF(lacc)
+    !$ACC PARALLEL ASYNC(1) IF(lacc)
     !$ACC LOOP SEQ
     DO k = 1,kice
       !$ACC LOOP GANG VECTOR
@@ -291,7 +291,7 @@ CONTAINS
         nfg_flag = 1._wp
     ENDIF
 
-    !$ACC PARALLEL IF(lacc)
+    !$ACC PARALLEL ASYNC(1) IF(lacc)
     !$ACC LOOP SEQ
     DO k=1,kice
       !$ACC LOOP GANG VECTOR PRIVATE(k_effective, F_A, F_S, deltaT) &
@@ -374,7 +374,7 @@ CONTAINS
     !$ACC DATA PRESENT(Tsurf, hi, hs, Qtop, Qbot, Tfw) IF(lacc)
 
     ! initialization of output variables
-    !$ACC PARALLEL IF(lacc)
+    !$ACC PARALLEL ASYNC(1) IF(lacc)
     !$ACC LOOP SEQ
     DO k = 1,kice
       !$ACC LOOP GANG VECTOR
@@ -385,7 +385,7 @@ CONTAINS
     END DO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL IF(lacc)
+    !$ACC PARALLEL ASYNC(1) IF(lacc)
     !$ACC LOOP SEQ
     DO k=1,kice
       !$ACC LOOP GANG VECTOR PRIVATE(k_effective, F_A, F_S, deltaT) &

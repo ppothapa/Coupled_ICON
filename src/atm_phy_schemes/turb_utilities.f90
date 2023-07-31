@@ -479,7 +479,7 @@ LOGICAL, INTENT(IN), OPTIONAL :: lacc ! flag for using GPU code
 
   ! Provisional values for pattern length array:
   IF (PRESENT(l_pat)) THEN
-    !$ACC PARALLEL IF(lzacc)
+    !$ACC PARALLEL ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO i=ivstart, ivend
         IF (fr_land(i) < 0.5_wp) THEN
@@ -500,7 +500,7 @@ LOGICAL, INTENT(IN), OPTIONAL :: lacc ! flag for using GPU code
 ! Effective values of the surface area indices:
   IF (PRESENT(sai) .AND. PRESENT(eai)   .AND. PRESENT(tai) .AND. &
       PRESENT(lai) .AND. PRESENT(plcov) .AND. PRESENT(icant) ) THEN
-    !$ACC PARALLEL IF(lzacc)
+    !$ACC PARALLEL ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO i=ivstart, ivend
         IF (fr_land(i) < 0.5_wp) THEN
@@ -512,7 +512,7 @@ LOGICAL, INTENT(IN), OPTIONAL :: lacc ! flag for using GPU code
     !$ACC END PARALLEL
 
     IF (icant.EQ.1) THEN            ! icant is itype_tran
-        !$ACC PARALLEL IF(lzacc)
+        !$ACC PARALLEL ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO i=ivstart, ivend
           IF (fr_land(i) >= 0.5_wp) THEN
@@ -523,7 +523,7 @@ LOGICAL, INTENT(IN), OPTIONAL :: lacc ! flag for using GPU code
         END DO
         !$ACC END PARALLEL
     ELSE                            ! would then be icant = itype_tran = 2
-        !$ACC PARALLEL IF(lzacc)
+        !$ACC PARALLEL ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO i=ivstart, ivend
           IF (fr_land(i) >= 0.5_wp) THEN
@@ -549,7 +549,7 @@ LOGICAL, INTENT(IN), OPTIONAL :: lacc ! flag for using GPU code
         !$ACC END PARALLEL
 
         IF (e_surf /= 1.0_wp) THEN
-          !$ACC PARALLEL IF(lzacc)
+          !$ACC PARALLEL ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO i=ivstart, ivend
               fakt=EXP( e_surf*LOG( sai(i)) )/sai(i)
@@ -2068,6 +2068,7 @@ LOGICAL ::  &
   IF (PRESENT(qc)) THEN
      qt => qt_tar
      tl => tl_tar
+
      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
      !$ACC LOOP SEQ
      DO k = kstart, kend
@@ -2367,7 +2368,7 @@ REAL (KIND=wp), DIMENSION(:,:), POINTER, CONTIGUOUS :: &
   IF (linisetup .OR. lnewvtype) THEN
 
      IF (linisetup .OR. .NOT.PRESENT(rho_n)) THEN
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO k=k_hi,k_lw
 !DIR$ IVDEP
            !$ACC LOOP GANG VECTOR
@@ -2389,7 +2390,7 @@ REAL (KIND=wp), DIMENSION(:,:), POINTER, CONTIGUOUS :: &
                                  nvars=1, pvar=(/varprf(rhon,rhoh)/), depth=expl_mom)
 
 !DIR$ IVDEP
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO i=i_st,i_en
            rhon(i,k_sf)=rho_s(i)
@@ -2399,14 +2400,14 @@ REAL (KIND=wp), DIMENSION(:,:), POINTER, CONTIGUOUS :: &
 
      IF (linisetup) THEN
 !DIR$ IVDEP
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO i=i_st,i_en
            disc_mom(i,k_hi)=rho(i,k_hi)*expl_mom(i,k_hi)*fr_var
         END DO
         !$ACC END PARALLEL
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO k=k_hi+1,k_lw
 !DIR$ IVDEP
            !$ACC LOOP GANG VECTOR
@@ -2419,7 +2420,7 @@ REAL (KIND=wp), DIMENSION(:,:), POINTER, CONTIGUOUS :: &
       END IF
 
 
-     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
      DO k=k_hi+1,k_lw
 !DIR$ IVDEP
         !$ACC LOOP GANG VECTOR
@@ -2432,7 +2433,7 @@ REAL (KIND=wp), DIMENSION(:,:), POINTER, CONTIGUOUS :: &
      END DO
      !$ACC END PARALLEL
 !DIR$ IVDEP
-     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
      !$ACC LOOP GANG VECTOR
      DO i=i_st,i_en
 !Achtung: Einfuehrung von 'tsv': macht Unterschiede
@@ -2445,7 +2446,7 @@ REAL (KIND=wp), DIMENSION(:,:), POINTER, CONTIGUOUS :: &
      !Attention: 'tkmin' should be excluded for the surface level 'k_sf'!
 
      IF (itndcon.EQ.3) THEN
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO k=k_hi+1,k_sf
 !DIR$ IVDEP
            !$ACC LOOP GANG VECTOR
@@ -2458,13 +2459,13 @@ REAL (KIND=wp), DIMENSION(:,:), POINTER, CONTIGUOUS :: &
 
 !    This manipulation enforces always a complete decoupling from the surface:
      IF (lfreeslip) THEN
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO i=i_st,i_en
            expl_mom(i,k_sf)=0.0_wp
         END DO
         !$ACC END PARALLEL
-     END IF   
+     END IF
 
      CALL prep_impl_vert_diff( lsflucond, ldynimpwt, lprecondi, &
           i_st, i_en, k_tp=k_tp, k_sf=k_sf, &
@@ -2478,7 +2479,7 @@ REAL (KIND=wp), DIMENSION(:,:), POINTER, CONTIGUOUS :: &
   IF (lsfgrduse .AND. igrdcon.NE.2) THEN !effective surface value from effective surface gradient
 !DIR$ IVDEP
 !$NEC ivdep
-     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
      !$ACC LOOP GANG VECTOR
      DO i=i_st,i_en
         cur_prof(i,k_sf)=cur_prof(i,k_sf-1)-diff_dep(i,k_sf)*eff_flux(i,k_sf)
@@ -2488,7 +2489,7 @@ REAL (KIND=wp), DIMENSION(:,:), POINTER, CONTIGUOUS :: &
   END IF
 
   IF (igrdcon.EQ.1) THEN !only correction profiles
-     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
      DO k=k_sf,kgc,-1
 !DIR$ IVDEP
 !$NEC ivdep
@@ -2500,14 +2501,14 @@ REAL (KIND=wp), DIMENSION(:,:), POINTER, CONTIGUOUS :: &
      !$ACC END PARALLEL
 !DIR$ IVDEP
 !$NEC ivdep
-     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
      !$ACC LOOP GANG VECTOR
      DO i=i_st,i_en
         cur_prof(i,kgc-1)=0.0_wp
      END DO
      !$ACC END PARALLEL
 
-     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
      DO k=kgc,k_sf
 !DIR$ IVDEP
 !$NEC ivdep
@@ -2518,7 +2519,7 @@ REAL (KIND=wp), DIMENSION(:,:), POINTER, CONTIGUOUS :: &
      END DO
      !$ACC END PARALLEL
   ELSEIF (igrdcon.EQ.2) THEN !effektive total profile
-     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
      DO k=kgc,k_sf
 !DIR$ IVDEP
 !$NEC ivdep
@@ -2534,14 +2535,14 @@ REAL (KIND=wp), DIMENSION(:,:), POINTER, CONTIGUOUS :: &
      !Related downward flux densities:
 !DIR$ IVDEP
 !$NEC ivdep
-     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
      !$ACC LOOP GANG VECTOR
      DO i=i_st,i_en
         eff_flux(i,2)=-dif_tend(i,1)*disc_mom(i,1)*dt_var
      END DO
      !$ACC END PARALLEL
 
-     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
      DO k=k_hi+1,k_lw
 !DIR$ IVDEP
 !$NEC ivdep
@@ -2552,7 +2553,7 @@ REAL (KIND=wp), DIMENSION(:,:), POINTER, CONTIGUOUS :: &
      END DO
      !$ACC END PARALLEL
      !Virtual total vertical increment:
-     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
      DO k=k_hi+1,k_sf
 !DIR$ IVDEP
 !$NEC ivdep
@@ -2563,7 +2564,7 @@ REAL (KIND=wp), DIMENSION(:,:), POINTER, CONTIGUOUS :: &
      END DO
      !$ACC END PARALLEL
      !Related corrected profile:
-     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
      DO k=k_hi+1,k_sf
 !DIR$ IVDEP
 !$NEC ivdep
@@ -2576,7 +2577,7 @@ REAL (KIND=wp), DIMENSION(:,:), POINTER, CONTIGUOUS :: &
   END IF
 
   IF (itndcon.GE.1) THEN !calculate updated profile by adding tendency increment to current profile
-     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
      DO k=k_hi,k_lw
 !DIR$ IVDEP
 !$NEC ivdep
@@ -2588,7 +2589,7 @@ REAL (KIND=wp), DIMENSION(:,:), POINTER, CONTIGUOUS :: &
      !$ACC END PARALLEL
 !DIR$ IVDEP
 !$NEC ivdep
-     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
      !$ACC LOOP GANG VECTOR
      DO i=i_st,i_en
         dif_tend(i,k_sf)=cur_prof(i,k_sf)
@@ -2618,7 +2619,7 @@ REAL (KIND=wp), DIMENSION(:,:), POINTER, CONTIGUOUS :: &
   !'dif_tend' now contains the final updated profile including vertical diffusion.
 
   !Calculation of time tendencies for pure vertical diffusion:
-  !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
   DO k=k_hi,k_lw
 !DIR$ IVDEP
 !$NEC ivdep
@@ -2632,7 +2633,7 @@ REAL (KIND=wp), DIMENSION(:,:), POINTER, CONTIGUOUS :: &
 ! Volume correction within the roughness layer:
 
   IF (PRESENT(r_air)) THEN
-     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
      DO k=kcm,k_lw  !r_air-gradient within the roughness layer
 !DIR$ IVDEP
 !$NEC ivdep
@@ -2642,7 +2643,7 @@ REAL (KIND=wp), DIMENSION(:,:), POINTER, CONTIGUOUS :: &
         END DO
      END DO
      !$ACC END PARALLEL
-     !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
      DO k=kcm,k_lw  !within the roughness layer
 !DIR$ IVDEP
 !$NEC ivdep
@@ -2732,7 +2733,7 @@ INTEGER :: &
 
 !  Implicit and explicit weights:
 
-   !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+   !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
    IF (ldynimpwt) THEN !dynamical determination of implicit weights
       !$ACC LOOP SEQ
       DO k=k_tp+2, k_sf+1-m

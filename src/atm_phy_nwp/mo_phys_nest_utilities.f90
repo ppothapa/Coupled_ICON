@@ -1524,7 +1524,7 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
     CALL get_indices_c(p_pp, jb, i_startblk, i_endblk,                           &
                        i_startidx, i_endidx, i_startrow, min_rlcell_int)
 
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = 1, nshift+1
       DO jc = i_startidx, i_endidx
@@ -1567,7 +1567,7 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
       ENDDO
       !$ACC END PARALLEL
 
-      !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, n2dvars_rg
         DO jc = i_startidx, i_endidx
@@ -1577,7 +1577,7 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
       !$ACC END PARALLEL
 
       IF (atm_phy_nwp_config(jg)%l_3d_rad_fluxes) THEN
-        !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, nl
           DO jc = i_startidx, i_endidx
@@ -2815,7 +2815,7 @@ SUBROUTINE interpol_rrg_grf (jg, jgc, jn, ntl_rcf, lacc)
 
     CALL get_indices_c(ptr_pp, jb, i_startblk, i_endblk, i_startidx, i_endidx, 1)
 
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
 
@@ -2853,7 +2853,7 @@ SUBROUTINE interpol_rrg_grf (jg, jgc, jn, ntl_rcf, lacc)
     CALL get_indices_c(ptr_pc, jb, i_startblk, i_endblk,        &
                        i_startidx, i_endidx, 1, grf_bdywidth_c)
 
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
 
@@ -2864,7 +2864,9 @@ SUBROUTINE interpol_rrg_grf (jg, jgc, jn, ntl_rcf, lacc)
       prm_diagc%albnirdif(jc,jb)   = z_aux3d_c(jc,4,jb)
     ENDDO
     !$ACC END PARALLEL
+
   ENDDO
+  !$ACC WAIT(1)
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 

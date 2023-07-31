@@ -509,7 +509,7 @@ MODULE mo_nwp_reff_interface
            &                is, ie, i_rlstart, i_rlend)
 
 ! Set to zero all
-      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(nreff_calc, jg, jb)
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) FIRSTPRIVATE(nreff_calc, jg, jb)
       !$ACC LOOP GANG VECTOR
       DO ireff = 1, nreff_calc
         reff_calc_dom(jg)%reff_calc_arr(ireff)%p_reff(:,:,jb) = 0.0_wp  ! Clean values
@@ -554,7 +554,9 @@ MODULE mo_nwp_reff_interface
              &      ireff ," in domain ", jg      
           IF ( PRESENT (return_reff) ) return_reff = .false.        
         END IF
+
       END DO
+
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -573,6 +575,7 @@ MODULE mo_nwp_reff_interface
     END IF
   END IF
   
+  !$ACC WAIT
   !$ACC END DATA ! p_reff
   !$ACC EXIT DATA DELETE(indices, n_ind, ncn)
 
@@ -625,7 +628,7 @@ MODULE mo_nwp_reff_interface
 
       ! .. Branch clc_rad from the normal clc and modify it for input to the radiation scheme:
       
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = kstart_moist(jg), nlev
         DO jc = is, ie

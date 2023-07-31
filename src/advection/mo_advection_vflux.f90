@@ -393,11 +393,11 @@ CONTAINS
     END IF
 
     IF ( PRESENT(opt_q_ubc) ) THEN
-      !$ACC KERNELS PRESENT(opt_q_ubc, zq_ubc) IF(i_am_accel_node)
+      !$ACC KERNELS PRESENT(opt_q_ubc, zq_ubc) ASYNC(1) IF(i_am_accel_node)
       zq_ubc(:,:) = opt_q_ubc(:,:)
       !$ACC END KERNELS
     ELSE
-      !$ACC KERNELS PRESENT(zq_ubc) IF(i_am_accel_node)
+      !$ACC KERNELS PRESENT(zq_ubc) ASYNC(1) IF(i_am_accel_node)
       zq_ubc(:,:) = 0._wp
       !$ACC END KERNELS
     ENDIF
@@ -433,7 +433,7 @@ CONTAINS
       CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,       &
         &                 i_startidx, i_endidx, i_rlstart, i_rlend )
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = slev+1, nlev
         DO jc = i_startidx, i_endidx
@@ -460,6 +460,7 @@ CONTAINS
 
     ENDDO ! end loop over blocks
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
 !$OMP END DO NOWAIT

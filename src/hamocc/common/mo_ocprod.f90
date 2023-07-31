@@ -105,7 +105,8 @@ SUBROUTINE ocprod (local_bgc_mem, klev,start_idx, end_idx, ptho, pddpo, za, ptie
     lacc = .FALSE.
   END IF
 
- !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+ !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+ !$ACC LOOP GANG VECTOR COLLAPSE(2)
  DO k = 1, max_klevs
    DO j = start_idx, end_idx
 
@@ -823,8 +824,8 @@ SUBROUTINE ocprod (local_bgc_mem, klev,start_idx, end_idx, ptho, pddpo, za, ptie
   
       ENDIF ! wet cells
      ENDDO ! k=1,kpke
-  ENDDO ! j=start_idx,end_idx 
-  !$ACC END PARALLEL LOOP
+ ENDDO ! j=start_idx,end_idx 
+ !$ACC END PARALLEL
  
  
 

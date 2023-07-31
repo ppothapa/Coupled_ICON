@@ -610,7 +610,7 @@ CONTAINS
 
         CALL calc_qsum (pt_prog_rcf%tracer, z_qsum, condensate_list, jb, i_startidx, i_endidx, 1, kstart_moist(jg), nlev)
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR PRIVATE(z_tempv) COLLAPSE(2)
         DO jk = kstart_moist(jg), nlev
 !DIR$ IVDEP
@@ -631,7 +631,7 @@ CONTAINS
 
         ! initialize tt_lheat to be in used LHN
         IF (lcompute_tt_lheat) THEN
-          !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
+          !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           prm_diag%tt_lheat (:,:,jb) = prm_diag%tt_lheat (:,:,jb) + pt_diag%temp   (:,:,jb)
           !$ACC END KERNELS
         ENDIF
@@ -941,7 +941,7 @@ CONTAINS
 
           ELSE ! Standard Update one-moment
             ! update prognostic variables
-            !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
             !$ACC LOOP GANG VECTOR COLLAPSE(2)
             DO jk = 1, nlev
               DO jc = i_startidx, i_endidx
@@ -1057,7 +1057,7 @@ CONTAINS
 
         CALL calc_qsum (pt_prog_rcf%tracer, z_qsum, condensate_list, jb, i_startidx, i_endidx, 1, kstart_moist(jg), nlev)
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, nlev
 !DIR$ IVDEP
@@ -1085,7 +1085,7 @@ CONTAINS
         ! the virtual increment is neglected here because this tendency is used only as
         ! input for the convection scheme, which is rather insensitive against this quantity
         IF ( lcall_phy_jg(itconv) ) THEN
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jk = kstart_moist(jg), nlev
 !DIR$ IVDEP
@@ -1100,7 +1100,7 @@ CONTAINS
           ENDDO
           !$ACC END PARALLEL
         ENDIF
-        
+
       ENDIF ! recalculation
 
       IF (lcall_phy_jg(itturb) .OR. linit .OR. l_any_slowphys) THEN
@@ -1185,7 +1185,7 @@ CONTAINS
         CALL calc_tend(i_startidx, i_endidx, nlev, sppt(jg)%ddt_temp_fast(:,:,jb), pt_diag%temp(:,:,jb), sppt(jg)%temp_now(:,:,jb), dt_loc, lacc=lzacc)
 
         ! Wind components - use existing tendencies from turbulence
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, nlev
           DO jc = i_startidx, i_endidx
@@ -1346,7 +1346,7 @@ CONTAINS
              &  kc_entr_zone(:),                                 &
              &  lfound_inversion(:))
         ELSE
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             kc_inversion(jc)=0._wp
@@ -1514,7 +1514,7 @@ CONTAINS
         CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
 &                       i_startidx, i_endidx, rl_start, rl_end)
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           zcosmu0 (jc,jb) &
@@ -1525,7 +1525,7 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO jc = 1, nproma
           prm_diag%swflxsfc (jc,jb)=0._wp
@@ -1539,14 +1539,14 @@ CONTAINS
 
 #ifdef __PGI_WORKAROUND
           !$ACC DATA CREATE(gp_count_t) IF(lzacc)
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP VECTOR
           DO isubs = 1, ntiles_total
             gp_count_t(isubs) = ext_data%atm%gp_count_t(jb,isubs)
           ENDDO
           !$ACC END PARALLEL
 #endif
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO isubs = 1, ntiles_total+ntiles_water
             DO jc = 1, nproma
@@ -1922,7 +1922,7 @@ CONTAINS
 
         ! artificial Rayleigh friction: active if GWD or SSO scheme is active
         IF (atm_phy_nwp_config(jg)%inwp_sso > 0 .OR. atm_phy_nwp_config(jg)%inwp_gwd > 0) THEN
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR PRIVATE(vabs, rfric_fac) COLLAPSE(2)
           DO jk = 1, nlev
 !DIR$ IVDEP
@@ -1950,7 +1950,7 @@ CONTAINS
         ! in the current time step, but the radiation time step should be a multiple
         ! of the convection time step anyway in order to obtain up-to-date cloud cover fields
         IF (l_any_slowphys) THEN
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jk = 1, nlev
 !DIR$ IVDEP
@@ -1972,7 +1972,7 @@ CONTAINS
 
         ! SQRT of Richardson number between the two lowest model levels
         ! This is used below to reduce frictional heating near the surface under very stable conditions
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR PRIVATE(n2, dvdz2)
         DO jc = i_startidx, i_endidx
           n2 = 2._wp*grav/(pt_prog%theta_v(jc,nlev,jb)+pt_prog%theta_v(jc,nlev-1,jb)) * MAX(1.e-4_wp,        &
@@ -1984,7 +1984,7 @@ CONTAINS
         !$ACC END PARALLEL
 
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR PRIVATE(wfac) COLLAPSE(2)
         DO jk = 1, nlev
 !DIR$ IVDEP
@@ -2028,12 +2028,12 @@ CONTAINS
 
 
         IF (kstart_moist(jg) > 1) THEN
-          !$ACC KERNELS IF(lzacc)
+          !$ACC KERNELS ASYNC(1) IF(lzacc)
           z_ddt_alpha(:,1:kstart_moist(jg)-1) = 0._wp
           !$ACC END KERNELS
         ENDIF
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = kstart_moist(jg), nlev
           DO jc = i_startidx, i_endidx
@@ -2049,7 +2049,7 @@ CONTAINS
         !$ACC END PARALLEL
 
         ! Convert temperature tendency into Exner function tendency
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, nlev
 !DIR$ IVDEP
@@ -2158,7 +2158,7 @@ CONTAINS
         ELSE IF (lcall_phy_jg(itconv)) THEN
 !DIR$ IVDEP
           !$ACC DATA PRESENT(pt_diag%temp)
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR PRIVATE(convfac, convind)
           DO jc = i_startidx, i_endidx
             convind = prm_diag%k950(jc,jb) ! using this varibale directly in the next row gave a memory "memory not mapped to object" error in PGI (GPU) 20.8 
@@ -2277,10 +2277,11 @@ CONTAINS
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
         DO jb = i_startblk, i_endblk
+
           CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
             & i_startidx, i_endidx, rl_start, rl_end )
 
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jk = 1, nlev
 !DIR$ IVDEP
@@ -2337,7 +2338,7 @@ CONTAINS
       IF ( l_any_slowphys .AND. lcall_phy_jg(itturb) ) THEN
 #endif
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
         DO jce = i_startidx, i_endidx
@@ -2377,7 +2378,7 @@ CONTAINS
         !$ACC END PARALLEL
 
       ELSE IF (lcall_phy_jg(itturb) ) THEN
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
         DO jce = i_startidx, i_endidx
@@ -2450,8 +2451,6 @@ CONTAINS
     IF (timers_level > 10) CALL timer_start(timer_phys_sync_vn)
     IF (lcall_phy_jg(itturb)) THEN
       CALL sync_patch_array(SYNC_E, pt_patch, pt_prog%vn)
-      ! DA: TODO: make kernels async in the interface and remove the wait
-      !$ACC WAIT(1)
     ENDIF
     IF (timers_level > 10) CALL timer_stop(timer_phys_sync_vn)
     IF (timers_level > 2) CALL timer_stop(timer_phys_acc)

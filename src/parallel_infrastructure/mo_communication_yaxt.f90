@@ -1093,7 +1093,8 @@ SUBROUTINE exchange_data_r3d(p_pat, recv, send, add)
    IF (PRESENT(add)) THEN
      IF (ALLOCATED(p_pat%dst_mask)) THEN
        dst_mask => p_pat%dst_mask(:)
-       !$ACC PARALLEL PRESENT(recv, add) IF(lzacc)
+       !$ACC PARALLEL PRESENT(recv, add) ASYNC(1) IF(lzacc)
+       !$ACC LOOP GANG VECTOR COLLAPSE(3)
        DO k = 1, o
          DO j = 1, n
            DO i = 1, m
@@ -1103,10 +1104,11 @@ SUBROUTINE exchange_data_r3d(p_pat, recv, send, add)
            END DO
          END DO
        END DO
-
        !$ACC END PARALLEL
+
      ELSE
-       !$ACC PARALLEL PRESENT(recv, add) IF(lzacc)
+       !$ACC PARALLEL PRESENT(recv, add) ASYNC(1) IF(lzacc)
+       !$ACC LOOP GANG VECTOR COLLAPSE(3)
        DO k = 1, o
          DO j = 1, n
            DO i = 1, m
@@ -1115,8 +1117,10 @@ SUBROUTINE exchange_data_r3d(p_pat, recv, send, add)
          END DO
        END DO
        !$ACC END PARALLEL
+
      END IF
    END IF
+   !$ACC WAIT(1)
 
 #if defined(_OPENACC) && ! defined(__USE_G2G)
    !$ACC UPDATE DEVICE(recv) IF(i_am_accel_node)
@@ -1258,7 +1262,8 @@ SUBROUTINE exchange_data_s3d(p_pat, recv, send, add)
    IF (PRESENT(add)) THEN
      IF (ALLOCATED(p_pat%dst_mask)) THEN
        dst_mask => p_pat%dst_mask(:)
-       !$ACC PARALLEL PRESENT(recv, add) IF(lzacc)
+       !$ACC PARALLEL PRESENT(recv, add) ASYNC(1) IF(lzacc)
+       !$ACC LOOP GANG VECTOR COLLAPSE(3)
        DO k = 1, o
          DO j = 1, n
            DO i = 1, m
@@ -1269,8 +1274,10 @@ SUBROUTINE exchange_data_s3d(p_pat, recv, send, add)
          END DO
        END DO
        !$ACC END PARALLEL
+
      ELSE
-       !$ACC PARALLEL PRESENT(recv, add) IF(lzacc)
+       !$ACC PARALLEL PRESENT(recv, add) ASYNC(1) IF(lzacc)
+       !$ACC LOOP GANG VECTOR COLLAPSE(3)
        DO k = 1, o
          DO j = 1, n
            DO i = 1, m
@@ -1279,8 +1286,10 @@ SUBROUTINE exchange_data_s3d(p_pat, recv, send, add)
          END DO
        END DO
        !$ACC END PARALLEL
+
      END IF
    END IF
+   !$ACC WAIT(1)
 
 #if defined(_OPENACC) && ! defined(__USE_G2G)
    !$ACC UPDATE DEVICE(recv) IF(i_am_accel_node)
@@ -1424,7 +1433,8 @@ SUBROUTINE exchange_data_i3d(p_pat, recv, send, add)
    IF (PRESENT(add)) THEN
      IF (ALLOCATED(p_pat%dst_mask)) THEN
        dst_mask => p_pat%dst_mask(:)
-       !$ACC PARALLEL PRESENT(recv, add) IF(lzacc)
+       !$ACC PARALLEL PRESENT(recv, add) ASYNC(1) IF(lzacc)
+       !$ACC LOOP GANG VECTOR COLLAPSE(3)
        DO k = 1, o
          DO j = 1, n
            DO i = 1, m
@@ -1435,8 +1445,10 @@ SUBROUTINE exchange_data_i3d(p_pat, recv, send, add)
          END DO
        END DO
        !$ACC END PARALLEL
+
      ELSE
-       !$ACC PARALLEL PRESENT(recv, add) IF(lzacc)
+       !$ACC PARALLEL PRESENT(recv, add) ASYNC(1) IF(lzacc)
+       !$ACC LOOP GANG VECTOR COLLAPSE(3)
        DO k = 1, o
          DO j = 1, n
            DO i = 1, m
@@ -1445,8 +1457,10 @@ SUBROUTINE exchange_data_i3d(p_pat, recv, send, add)
          END DO
        END DO
        !$ACC END PARALLEL
+
      END IF
    END IF
+   !$ACC WAIT(1)
 
 #if defined(_OPENACC) && ! defined(__USE_G2G)
    !$ACC UPDATE DEVICE(recv) IF(i_am_accel_node)
@@ -2339,7 +2353,8 @@ SUBROUTINE exchange_data_4de1(p_pat, nfields, ndim2tot, recv, send)
        ALLOCATE(send_buffer(SIZE(send, 2), SIZE(send, 3), SIZE(send, 4)))
        !$ACC DATA PRESENT(send, recv) CREATE(recv_buffer, send_buffer) IF(lzacc)
        DO i = 1, SIZE(recv, 1)
-         !$ACC PARALLEL IF(lzacc)
+         !$ACC PARALLEL ASYNC(1) IF(lzacc)
+         !$ACC LOOP GANG VECTOR COLLAPSE(3)
          DO j = 1, SIZE(recv, 2)
            DO k = 1, SIZE(recv, 3)
              DO l = 1, SIZE(recv, 4)
@@ -2349,8 +2364,12 @@ SUBROUTINE exchange_data_4de1(p_pat, nfields, ndim2tot, recv, send)
            END DO
          END DO
          !$ACC END PARALLEL
+         !$ACC WAIT(1)
+
          CALL exchange_data_r3d(p_pat, recv_buffer, send_buffer)
-         !$ACC PARALLEL IF(lzacc)
+
+         !$ACC PARALLEL ASYNC(1) IF(lzacc)
+         !$ACC LOOP GANG VECTOR COLLAPSE(3)
          DO j = 1, SIZE(recv, 2)
            DO k = 1, SIZE(recv, 3)
              DO l = 1, SIZE(recv, 4)
@@ -2360,12 +2379,14 @@ SUBROUTINE exchange_data_4de1(p_pat, nfields, ndim2tot, recv, send)
          END DO
          !$ACC END PARALLEL
        END DO
+       !$ACC WAIT(1)
        !$ACC END DATA
        DEALLOCATE(send_buffer)
      ELSE
        !$ACC DATA PRESENT(recv) CREATE(recv_buffer) IF(lzacc)
        DO i = 1, SIZE(recv, 1)
-         !$ACC PARALLEL IF(lzacc)
+         !$ACC PARALLEL ASYNC(1) IF(lzacc)
+         !$ACC LOOP GANG VECTOR COLLAPSE(3)
          DO j = 1, SIZE(recv, 2)
            DO k = 1, SIZE(recv, 3)
              DO l = 1, SIZE(recv, 4)
@@ -2374,8 +2395,12 @@ SUBROUTINE exchange_data_4de1(p_pat, nfields, ndim2tot, recv, send)
            END DO
          END DO
          !$ACC END PARALLEL
+         !$ACC WAIT(1)
+
          CALL exchange_data_r3d(p_pat, recv_buffer)
-         !$ACC PARALLEL IF(lzacc)
+
+         !$ACC PARALLEL ASYNC(1) IF(lzacc)
+         !$ACC LOOP GANG VECTOR COLLAPSE(3)
          DO j = 1, SIZE(recv, 2)
            DO k = 1, SIZE(recv, 3)
              DO l = 1, SIZE(recv, 4)
@@ -2385,6 +2410,7 @@ SUBROUTINE exchange_data_4de1(p_pat, nfields, ndim2tot, recv, send)
          END DO
          !$ACC END PARALLEL
        END DO
+       !$ACC WAIT(1)
        !$ACC END DATA
      END IF
      DEALLOCATE(recv_buffer)

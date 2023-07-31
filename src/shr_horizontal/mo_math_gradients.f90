@@ -227,7 +227,7 @@ i_endblk   = ptr_patch%edges%end_blk(rl_end,i_nchdom)
 !  loop through all patch edges (and blocks)
 !
 
-IF (timers_level > 10) CALL timer_start(timer_grad)
+  IF (timers_level > 10) CALL timer_start(timer_grad)
 
   !$ACC DATA PRESENT(psi_c, grad_norm_psi_e, ptr_patch%edges%inv_dual_edge_length, iidx, iblk) IF(i_am_accel_node)
 
@@ -236,10 +236,10 @@ IF (timers_level > 10) CALL timer_start(timer_grad)
 !$OMP DO PRIVATE(jb,i_startidx,i_endidx,je,jk) ICON_OMP_DEFAULT_SCHEDULE
   DO jb = i_startblk, i_endblk
 
-  CALL get_indices_e(ptr_patch, jb, i_startblk, i_endblk, &
+    CALL get_indices_e(ptr_patch, jb, i_startblk, i_endblk, &
                      i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG
     DO je = i_startidx, i_endidx
@@ -262,11 +262,11 @@ IF (timers_level > 10) CALL timer_start(timer_grad)
           &  * ptr_patch%edges%inv_dual_edge_length(je,jb)
 
       ENDDO
-
     END DO
     !$ACC END PARALLEL
 
   END DO
+  !$ACC WAIT(1)
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
@@ -384,7 +384,7 @@ DO jb = i_startblk, i_endblk
   CALL get_indices_e(ptr_patch, jb, i_startblk, i_endblk, &
                      i_startidx, i_endidx, rl_start, rl_end)
 
-  !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
   !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO je = i_startidx, i_endidx
     !
@@ -417,6 +417,7 @@ END DO
 ! TODO: OpenMP
 !
 
+!$ACC WAIT(1)
 !$ACC END DATA
 
 END SUBROUTINE grad_fd_tang
@@ -524,7 +525,7 @@ i_nchdom = MAX(1,ptr_patch%n_childdom)
   ! Fill nest boundaries with zero to avoid trouble with MPI synchronization
 
 #ifdef _OPENACC
-    !$ACC KERNELS PRESENT(p_grad) IF(i_am_accel_node)
+    !$ACC KERNELS PRESENT(p_grad) ASYNC(1) IF(i_am_accel_node)
     p_grad(:,:,:,1:i_startblk) = 0._wp
     !$ACC END KERNELS
 #else
@@ -539,7 +540,7 @@ i_nchdom = MAX(1,ptr_patch%n_childdom)
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG
     DO jc = i_startidx, i_endidx
@@ -814,7 +815,7 @@ i_nchdom = MAX(1,ptr_patch%n_childdom)
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG
     DO jc = i_startidx, i_endidx
@@ -984,7 +985,7 @@ ENDIF
   IF (ptr_patch%id > 1) THEN
   ! Fill nest boundaries with zero to avoid trouble with MPI synchronization
 #ifdef _OPENACC
-    !$ACC KERNELS IF(i_am_accel_node)
+    !$ACC KERNELS ASYNC(1) IF(i_am_accel_node)
     p_grad(:,:,:,1:i_startblk) = 0._wp
     !$ACC END KERNELS
 #else
@@ -999,7 +1000,7 @@ ENDIF
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG
     DO jc = i_startidx, i_endidx

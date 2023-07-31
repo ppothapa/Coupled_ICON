@@ -487,8 +487,8 @@ MODULE mo_adjust
       
        IF(kcall == 5) THEN  ! Same as 4 but with LDFLAG all true
         
-!OCL NOVREC
 !DIR$ IVDEP
+!OCL NOVREC
          !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zqp, zqsat, zcor, zcond, zcond1)
          DO jl=kidia,kfdia
            zqp    =1.0_JPRB/psp(jl)
@@ -512,9 +512,9 @@ MODULE mo_adjust
       
        IF(kcall == 3) THEN
 
-!OCL NOVREC
 !DIR$ IVDEP
-         !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zqp, zqsat, zcor, zcond1)
+!OCL NOVREC
+         !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zqp, zqsat, zcor, zcond1, pt1, pq1)
          DO jl=kidia,kfdia
            zqp    =1.0_JPRB/psp(jl)
            zqsat=foeewmcu(pt(jl,kk))*zqp

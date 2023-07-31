@@ -60,7 +60,7 @@ CONTAINS
 
     zmixcap   = rho_ref*cpsea*dmixsea ! mixed layer heat capacity? 
 
-    !$ACC PARALLEL DEFAULT(PRESENT)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR PRIVATE(zfluxw)
     DO jl = start_column,  end_column
 

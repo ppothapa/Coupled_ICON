@@ -264,7 +264,7 @@ CONTAINS
     jce  = SIZE(tsw,1)
     nblk = SIZE(tsw,2)
 
-    !$ACC PARALLEL DEFAULT(PRESENT) COPYIN(tiw) CREATE(zts, zic, ztsw) IF(lzopenacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) COPYIN(tiw) CREATE(zts, zic, ztsw) IF(lzopenacc)
 !$omp parallel private(jb,jc)
 !$omp do
     !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
@@ -336,6 +336,7 @@ CONTAINS
 !$omp end do nowait
 !$omp end parallel
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
 
     !CALL message('','Interpolated sea surface temperature and sea ice cover.')
 

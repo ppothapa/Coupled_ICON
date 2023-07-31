@@ -179,7 +179,7 @@ CONTAINS
           !$ACC END KERNELS
         ENDIF
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+        !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) IF(i_am_accel_node)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1,nlev
 !DIR$ IVDEP
@@ -202,6 +202,7 @@ CONTAINS
           ENDDO
         ENDDO
         !$ACC END PARALLEL
+
       ENDDO
 !$OMP END DO NOWAIT
     ENDIF
@@ -223,6 +224,7 @@ CONTAINS
     IF (lfull_comp) THEN
 !$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx,w_tavg) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = i_startblk, i_endblk
+
         CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,           &
           &                 i_startidx, i_endidx, i_rlstart_c, i_rlend_c )
 
@@ -233,7 +235,7 @@ CONTAINS
           !$ACC END KERNELS
         ENDIF
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, nlevp1
 !DIR$ IVDEP
@@ -284,7 +286,7 @@ CONTAINS
           &                 i_startidx, i_endidx, i_rlstart_e, i_rlend_e )
 
         IF (idiv_method == 1) THEN
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jk = 1, nlev
             DO je = i_startidx, i_endidx
@@ -296,7 +298,7 @@ CONTAINS
           ENDDO
           !$ACC END PARALLEL
         ELSE ! use averaged mass fluxes for approximate consistency with averaged divergence
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
           DO je = i_startidx, i_endidx
@@ -320,6 +322,7 @@ CONTAINS
           ENDDO
           !$ACC END PARALLEL
         ENDIF
+
       ENDDO
 !$OMP END DO NOWAIT
 
@@ -329,10 +332,11 @@ CONTAINS
 
 !$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = i_startblk, i_endblk
+
         CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,           &
           &                 i_startidx, i_endidx, i_rlstart_c, i_rlend_c )
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, nlevp1
           DO jc = i_startidx, i_endidx
@@ -342,6 +346,7 @@ CONTAINS
           ENDDO
         ENDDO
         !$ACC END PARALLEL
+
       ENDDO
 !$OMP END DO
 
@@ -360,7 +365,7 @@ CONTAINS
         CALL get_indices_e( p_patch, jb, i_startblk, i_endblk,           &
           &                 i_startidx, i_endidx, i_rlstart_e, i_rlend_e )
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
         DO je = i_startidx, i_endidx
@@ -388,6 +393,7 @@ CONTAINS
 
 !$OMP END PARALLEL
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     IF (timers_level > 5) CALL timer_stop(timer_prep_tracer)
@@ -437,7 +443,7 @@ CONTAINS
       CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,           &
         &                 i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlev
         DO jc = i_startidx, i_endidx
@@ -451,6 +457,7 @@ CONTAINS
 !$OMP ENDDO NOWAIT
 !$OMP END PARALLEL
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
   END SUBROUTINE compute_airmass

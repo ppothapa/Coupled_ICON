@@ -802,7 +802,7 @@ CONTAINS
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk,   &
         &                i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx, i_endidx
@@ -830,6 +830,7 @@ CONTAINS
       !$ACC END PARALLEL
 
     END DO  ! end loop over blocks
+    !$ACC WAIT(1)
 
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -1146,8 +1147,8 @@ CONTAINS
       ELSE IF (use_zlsq) THEN
 
 !$NEC outerloop_unroll(8)
-        !$ACC PARALLEL DEFAULT(PRESENT) PRIVATE(ilc0, ibc0) ASYNC(1) IF(i_am_accel_node)
-        !$ACC LOOP GANG VECTOR COLLAPSE(2)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(ilc0, ibc0)
         DO jk = slev, elev
           DO je = i_startidx, i_endidx
 
@@ -1169,8 +1170,8 @@ CONTAINS
       ELSE
 
 !$NEC outerloop_unroll(8)
-        !$ACC PARALLEL DEFAULT(PRESENT) PRIVATE(ilc0, ibc0) ASYNC(1) IF(i_am_accel_node)
-        !$ACC LOOP GANG VECTOR COLLAPSE(2)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(ilc0, ibc0)
         DO jk = slev, elev
           DO je = i_startidx, i_endidx
 
@@ -2104,7 +2105,7 @@ CONTAINS
         SELECT  CASE( lsq_high_ord )
         CASE( 2 )  ! quadratic reconstruction
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = slev, elev
           DO je = i_startidx, i_endidx
@@ -2120,7 +2121,7 @@ CONTAINS
 
         CASE( 3 )  ! cubic reconstruction
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = slev, elev
           DO je = i_startidx, i_endidx
@@ -2148,7 +2149,7 @@ CONTAINS
         SELECT  CASE( lsq_high_ord )
         CASE( 2 )  ! quadratic reconstruction
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = slev, elev
           DO je = i_startidx, i_endidx
@@ -2165,7 +2166,7 @@ CONTAINS
 
         CASE( 3 )  ! cubic reconstruction
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = slev, elev
           DO je = i_startidx, i_endidx
@@ -2184,6 +2185,7 @@ CONTAINS
 
       ENDIF
     ENDDO  ! loop over blocks
+    !$ACC WAIT(1)
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 

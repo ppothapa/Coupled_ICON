@@ -219,6 +219,10 @@ CONTAINS
 !   zalfa=LOG(2.0_JPRB)
     zorcpd=1._jprb/rcpd
 
+    !$ACC WAIT(1) ! ACCWA (cray 15.0.1): The WAIT(1) and missing ASYNC(1) are required to avoid the error
+                  !                      "Invalid accelerator routine parallelism attribute: cuadjtq".
+                  !                      Note that cuadjtq is also called in other regions of the code,
+                  !                      but only the call here in cuinin raises the error above.
     !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
 
     !$ACC LOOP SEQ
@@ -609,7 +613,7 @@ jkt2=njkt2
 zrg=1.0_JPRB/rg
 zrcpd=1.0_JPRB/rcpd
 
-!$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
 
 !$ACC LOOP SEQ
 DO jk=1,klev
@@ -1204,6 +1208,7 @@ DO jk=ktdia,klev
 ENDDO
 !$ACC END PARALLEL
 
+!$ACC WAIT(1)
 !$ACC END DATA
 
 IF (lhook) CALL dr_hook('CUBASEN',1,zhook_handle)

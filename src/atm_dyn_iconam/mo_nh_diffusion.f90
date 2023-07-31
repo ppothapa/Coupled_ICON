@@ -1576,7 +1576,8 @@ MODULE mo_nh_diffusion
 !DIR$ IVDEP
           DO jc = 1, nlen_zdiffu
 #else
-        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) PRIVATE(ic, ishift) ASYNC(1) IF(i_am_accel_node)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(ic, ishift)
         DO jb = 1, nblks_zdiffu
           DO jc = 1, nproma_zdiffu
             IF (jb == nblks_zdiffu .AND. jc > npromz_zdiffu) CYCLE
@@ -1598,7 +1599,7 @@ MODULE mo_nh_diffusion
               (1._wp-vcoef(3,ic))* p_nh_prog%theta_v(icell(4,ic),ilev(4,ic)+1,iblk(4,ic)))  )
           ENDDO
         ENDDO
-        !$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL
 !$OMP END DO
 
       ENDIF
@@ -1609,7 +1610,8 @@ MODULE mo_nh_diffusion
         CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                            i_startidx, i_endidx, rl_start, rl_end)
 
-        !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, nlev
 !DIR$ IVDEP
           DO jc = i_startidx, i_endidx
@@ -1623,7 +1625,7 @@ MODULE mo_nh_diffusion
 
           ENDDO
         ENDDO
-        !$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL
 
       ENDDO
 !$OMP END DO NOWAIT
@@ -1646,9 +1648,8 @@ MODULE mo_nh_diffusion
 
     IF (ltimer) CALL timer_stop(timer_nh_hdiffusion)
 
+    !$ACC WAIT(1)
     !$ACC END DATA
-
-    !$ACC WAIT
 
 #ifdef _OPENACC
     vn_tmp         => p_nh_prog%vn

@@ -478,24 +478,26 @@ CONTAINS
       lacc = .FALSE.
     END IF
 
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     div_vec_c(:,:) = 0.0_wp
     !$ACC END KERNELS
     
 #ifdef __LVECTOR__
     max_dolic_c = -1
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) REDUCTION(MAX: max_dolic_c) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) REDUCTION(MAX: max_dolic_c) IF(lacc)
     DO jc = start_index, end_index
       max_dolic_c = MAX(max_dolic_c, dolic_c(jc,blockNo))
     END DO
     !$ACC END PARALLEL LOOP
 
-    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO level = start_level, MIN(end_level, max_dolic_c)
       DO jc = start_index, end_index
         IF (dolic_c(jc,blockNo) < level) CYCLE
 #else         
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC LOOP GANG VECTOR
     DO jc = start_index, end_index
       DO level = start_level, MIN(end_level, dolic_c(jc, blockNo))
 #endif
@@ -505,7 +507,7 @@ CONTAINS
           & vec_e(idx(jc,blockNo,3),level,blk(jc,blockNo,3)) * div_coeff(jc,level,blockNo,3)
       END DO
     END DO
-    !$ACC END PARALLEL LOOP
+    !$ACC END PARALLEL
 
   END SUBROUTINE div_oce_3D_onTriangles_onBlock
   !-------------------------------------------------------------------------
@@ -555,11 +557,12 @@ CONTAINS
 
     !$ACC DATA PRESENT(blk, div_coeff, div_vec_c, dolic_c, idx, vec_e) IF(lacc)
 
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     div_vec_c(:,:) = 0.0_wp
     !$ACC END KERNELS
     
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC LOOP GANG VECTOR
     DO jc = start_index, end_index
       DO level = start_level, MIN(end_level, dolic_c(jc, blockNo))
         temp_div_vec = 0.0_wp
@@ -573,7 +576,7 @@ CONTAINS
         div_vec_c(jc,level) = temp_div_vec
       END DO
     END DO
-    !$ACC END PARALLEL LOOP
+    !$ACC END PARALLEL
     !$ACC END DATA
 
   END SUBROUTINE div_oce_3D_general_onBlock
@@ -681,11 +684,12 @@ CONTAINS
 
     DO blockNo = start_block, end_block
       CALL get_index_range(cells_subset, blockNo, start_index, end_index)
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       div_vec_c(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR
       DO jc = start_index, end_index
         DO level = start_level, MIN(end_level, dolic_c(jc, blockNo))
           ! compute the discrete divergence for cell jc by finite volume
@@ -719,8 +723,9 @@ CONTAINS
           div_vec_c(jc,level,blockNo) = temp_div_vec
         END DO
       END DO
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
     END DO
+    !$ACC WAIT(1)
     !$ACC END DATA
 
 !ICON_OMP_END_DO NOWAIT
@@ -875,7 +880,8 @@ CONTAINS
 
     !$ACC DATA PRESENT(blk, div_coeff, div_vec_c, idx, vec_e) IF(lacc)
 
-    !$ACC PARALLEL LOOP DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC LOOP
     DO jc = start_index, end_index
 
       div_vec_c(jc) =  &
@@ -883,7 +889,7 @@ CONTAINS
         & vec_e(idx(jc,blockNo,2),blk(jc,blockNo,2)) * div_coeff(jc,level,blockNo,2) + &
         & vec_e(idx(jc,blockNo,3),blk(jc,blockNo,3)) * div_coeff(jc,level,blockNo,3)
     END DO
-    !$ACC END PARALLEL LOOP
+    !$ACC END PARALLEL
     !$ACC END DATA
   END SUBROUTINE div_oce_2D_onTriangles_onBlock
   !-------------------------------------------------------------------------
@@ -933,7 +939,8 @@ CONTAINS
     div_vec_c(:) = 0.0_wp
     !$ACC END KERNELS
 
-    !$ACC PARALLEL LOOP DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC LOOP
     DO jc = start_index, end_index
       temp_div_vec = 0.0_wp
 
@@ -948,7 +955,7 @@ CONTAINS
       END DO
       div_vec_c(jc) = temp_div_vec
     END DO
-    !$ACC END PARALLEL LOOP
+    !$ACC END PARALLEL
     !$ACC END DATA
   END SUBROUTINE div_oce_2D_general_onBlock
   !-------------------------------------------------------------------------
@@ -991,7 +998,8 @@ CONTAINS
 
     !$ACC DATA PRESENT(blk, div_coeff, div_vec_c, idx, vec_e) IF(lacc)
 
-    !$ACC PARALLEL LOOP DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC LOOP
     DO jc = start_index, end_index
 
       div_vec_c(jc) =  &
@@ -999,7 +1007,7 @@ CONTAINS
         & vec_e(idx(jc,blockNo,2),blk(jc,blockNo,2)) * div_coeff(jc,blockNo,2) + &
         & vec_e(idx(jc,blockNo,3),blk(jc,blockNo,3)) * div_coeff(jc,blockNo,3)
     END DO
-    !$ACC END PARALLEL LOOP
+    !$ACC END PARALLEL
     !$ACC END DATA
   END SUBROUTINE div_oce_2D_onTriangles_onBlock_sp
   !-------------------------------------------------------------------------
@@ -1044,7 +1052,8 @@ CONTAINS
 
     !$ACC DATA PRESENT(blk, div_coeff, div_vec_c, idx, vec_e) IF(lacc)
 
-    !$ACC PARALLEL LOOP DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC LOOP
     DO jc = start_index, end_index
       temp_div_vec = 0.0_wp
       !$ACC LOOP REDUCTION(+: temp_div_vec)
@@ -1056,7 +1065,7 @@ CONTAINS
       END DO
       div_vec_c(jc) = temp_div_vec
     END DO
-    !$ACC END PARALLEL LOOP
+    !$ACC END PARALLEL
     !$ACC END DATA
 
   END SUBROUTINE div_oce_2D_general_onBlock_sp

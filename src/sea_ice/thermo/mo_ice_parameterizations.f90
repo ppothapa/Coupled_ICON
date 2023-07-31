@@ -93,7 +93,7 @@ CONTAINS
     SELECT CASE (i_ice_albedo)
     CASE (1)
       ! This is Uwe's albedo expression from the old budget function
-      !$ACC PARALLEL IF(lacc)
+      !$ACC PARALLEL ASYNC(1) IF(lacc)
       !$ACC LOOP SEQ
       DO k=1,kice
         !$ACC LOOP GANG VECTOR PRIVATE(albflag)
@@ -116,7 +116,7 @@ CONTAINS
       !$ACC END PARALLEL
 
       ! all albedos are the same
-      !$ACC PARALLEL IF(lacc)
+      !$ACC PARALLEL ASYNC(1) IF(lacc)
       !$ACC LOOP SEQ
       DO k=1,kice
         !$ACC LOOP GANG VECTOR
@@ -130,7 +130,7 @@ CONTAINS
 
     CASE (2)
       ! This is the CCSM 3 albedo scheme
-      !$ACC PARALLEL IF(lacc)
+      !$ACC PARALLEL ASYNC(1) IF(lacc)
       !$ACC LOOP SEQ
 !PREVENT_INCONSISTENT_IFORT_FMA
       DO k=1,kice
@@ -151,7 +151,7 @@ CONTAINS
       !$ACC END PARALLEL
 
       ! diffuse and direct albedos are the same
-      !$ACC PARALLEL IF(lacc)
+      !$ACC PARALLEL ASYNC(1) IF(lacc)
       !$ACC LOOP SEQ
       DO k=1,kice
         !$ACC LOOP GANG VECTOR
@@ -164,7 +164,7 @@ CONTAINS
 
     END SELECT
 
-   !$ACC END DATA
+    !$ACC END DATA
 
   END SUBROUTINE set_ice_albedo
 

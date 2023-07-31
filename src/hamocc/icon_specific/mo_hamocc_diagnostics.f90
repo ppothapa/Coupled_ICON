@@ -74,7 +74,8 @@ DO jb = all_cells%start_block, all_cells%end_block
 
     CALL get_index_range(all_cells, jb, start_index, end_index)
 
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC LOOP GANG VECTOR
     DO jc=start_index, end_index
      
       max_lev = p_patch_3D%p_patch_1d(1)%dolic_c(jc,jb) 
@@ -101,7 +102,7 @@ DO jb = all_cells%start_block, all_cells%end_block
        END IF
 
     END DO
-    !$ACC END PARALLEL LOOP
+    !$ACC END PARALLEL
 
 END DO
 

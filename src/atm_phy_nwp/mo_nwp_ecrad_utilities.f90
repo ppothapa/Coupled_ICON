@@ -145,7 +145,7 @@ CONTAINS
 
     seed_in_time = create_rdm_seed_in_time(current_datetime)
 
-    !$ACC PARALLEL DEFAULT(PRESENT)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
         ecrad_single_level%cos_sza(jc)            = cosmu0(jc)
@@ -341,8 +341,8 @@ CONTAINS
     ! Shonk et al. 2010, but using COS function to be smoother over equator
     ! as is implemented in IFS
     !$ACC DATA CREATE(zdecorr, ptr_center)
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
-    !$ACC LOOP GANG VECTOR
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC LOOP GANG VECTOR PRIVATE(zcos_lat)
     DO jc = i_startidx, i_endidx
       ! Shonk et al. (2010) but smoothed over the equator
       zcos_lat     = COS(ptr_center(jc)%lat)

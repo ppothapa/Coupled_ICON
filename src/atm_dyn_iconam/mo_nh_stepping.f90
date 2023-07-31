@@ -3087,7 +3087,7 @@ MODULE mo_nh_stepping
           
           CALL get_indices_c(p_patch(jg), jb, i_startblk, i_endblk, i_startidx, i_endidx, rl_start, rl_end)
 
-          !$ACC PARALLEL
+          !$ACC PARALLEL ASYNC(1)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jk = 1, nlev
             DO jc = i_startidx, i_endidx
@@ -3097,6 +3097,7 @@ MODULE mo_nh_stepping
             END DO
           END DO
           !$ACC END PARALLEL
+
         END DO  !jb
 #ifndef _OPENACC
 !$OMP END DO NOWAIT
@@ -3113,7 +3114,7 @@ MODULE mo_nh_stepping
           
           CALL get_indices_v(p_patch(jg), jb, i_startblk, i_endblk, i_startidx, i_endidx, rl_start, rl_end)
 
-          !$ACC PARALLEL
+          !$ACC PARALLEL ASYNC(1)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jk = 1, nlev
             DO jv = i_startidx, i_endidx
@@ -3123,7 +3124,9 @@ MODULE mo_nh_stepping
             END DO
           END DO
           !$ACC END PARALLEL
+
         END DO  !jb
+        !$ACC WAIT(1)
 #ifndef _OPENACC
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL

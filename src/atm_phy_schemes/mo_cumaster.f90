@@ -618,7 +618,7 @@ ENDIF
 !                  ------------------------------------
 
 
-!$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
 
 !$ACC LOOP SEQ
 DO jk=1,klev
@@ -770,7 +770,7 @@ CALL cubasen &
 ! CALCULATE COLUMN AND SUB CLOUD LAYER MOISTURE CONVERGENCE
 ! AND SUB CLOUD LAYER MOIST STATIC ENERGY CONVERGENCE
 
-!$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
 
 !$ACC LOOP GANG(STATIC: 1) VECTOR
 DO jl=kidia,kfdia
@@ -954,7 +954,7 @@ CALL cuascn &
 !              CALCULATE PRECIPITATION RATE (FOR DOWNDRAFT CALCULATION)
 !              -----------------------------------------------------
 
-!$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
 
 !DIR$ IVDEP
 !OCL NOVREC
@@ -1068,7 +1068,7 @@ ENDIF
 
 !   DEEP CONVECTION
 
-!$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
 
 !$ACC LOOP GANG(STATIC: 1) VECTOR
 DO jl=kidia,kfdia
@@ -1241,7 +1241,6 @@ DO jl=kidia,kfdia
   ENDIF
 ENDDO
 !$ACC END PARALLEL
-
 
 !!!BEGINNING OF STOCHASTIC ROUTINES
 
@@ -1522,7 +1521,7 @@ ENDIF !lstoch_deep
 
 ! rescale DD fluxes if deep and shallow convection
 
-!$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
 !$ACC LOOP SEQ
 DO jk=ktdia,klev
   !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(zfac)
@@ -1543,7 +1542,7 @@ ENDDO
 ! Updraft iteration is .FALSE. by default
 IF(lmfit) THEN
 
-  !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
   !$ACC LOOP SEQ
   DO jk=ktdia+1,klev-1
     !$ACC LOOP GANG VECTOR
@@ -1586,7 +1585,7 @@ IF(lmfit) THEN
     & zdmfen,   pcape,    tune_capethresh, &
     & kcbot,    kctop,    ictop0,   idpl,     pmfude_rate,    zkineu,   pwmean, lacc )
 
-  !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
   !$ACC LOOP GANG VECTOR PRIVATE(ikb, itopm2, zpbmpt)
   DO jl=kidia,kfdia
     IF (ldcum(jl)) THEN
@@ -1608,7 +1607,7 @@ IF(lmfit) THEN
 
 ELSE
 
-  !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
   !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO jl=kidia,kfdia
     IF(ldcum(jl)) THEN
@@ -1674,7 +1673,7 @@ ENDIF
 
 !                 exclude pathological KTYPE=2 KCBOT=KCTOP=KLEV-1
 
-!$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
 !$ACC LOOP GANG(STATIC: 1) VECTOR
 DO jl=kidia,kfdia
   IF(ktype(jl)==2.AND.kcbot(jl)==kctop(jl).AND.kcbot(jl)>=klev-1) THEN
@@ -1782,7 +1781,7 @@ CALL cuflxn &
 !- correct UD detrainment rates if entrainment becomes negative
 !- conservation correction for precip
 
-!$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
 
 !$ACC LOOP GANG(STATIC: 1) VECTOR
 DO jl=kidia,kfdia
@@ -2012,7 +2011,7 @@ CALL cudtdqn &
 
 IF(lmfdudv) THEN
 
-  !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
 
   !$ACC LOOP SEQ
   DO jk=klev-1,ktdia+1,-1
@@ -2175,7 +2174,7 @@ IF(lmfdudv) THEN
   IF(LMFUVDIS) THEN
 ! add KE dissipation
 
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
 
     !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO JL=KIDIA,KFDIA
@@ -2215,7 +2214,6 @@ IF(lmfdudv) THEN
     !$ACC END PARALLEL
   ENDIF
 
-
 ENDIF
 
 !----------------------------------------------------------------------
@@ -2225,7 +2223,7 @@ ENDIF
 !                  ---------------------------------------------------
 
 IF (.NOT.phy_params%lmfscv .OR. .NOT.phy_params%lmfpen) THEN
-  !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
 
   !$ACC LOOP SEQ
   DO jk=ktdia+1,klev
@@ -2263,7 +2261,7 @@ IF ( lmftrac .AND. ktrac>0 ) THEN
 
 !US this is only the case for lart, which is not considered yet for GPUs
 
-  !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
   !$ACC LOOP GANG VECTOR
   DO jl = 1, klon
     zmfs(jl)=1.0_JPRB
@@ -2271,7 +2269,7 @@ IF ( lmftrac .AND. ktrac>0 ) THEN
   !$ACC END PARALLEL
 
   ! transport switched off for mid-level convection
-  !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
 
   !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO jl=kidia,kfdia
@@ -2372,7 +2370,7 @@ ENDIF
 !                  FOR ERA40
 !                  ---------------------------------------------------
 
-!$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
 !$ACC LOOP GANG VECTOR PRIVATE(zro) COLLAPSE(2)
 DO jk=ktdia+1,klev
   DO jl=kidia,kfdia
@@ -2462,7 +2460,7 @@ ENDIF
 !                  --------------------------------------------------
 
 
-  !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
   !$ACC LOOP GANG VECTOR COLLAPSE(2)
   DO jk=ktdia,klev
      DO jl=kidia,kfdia
@@ -2476,7 +2474,7 @@ ENDIF
   !$ACC END PARALLEL
 
   IF (phy_params%lmfdsnow) THEN
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     !$ACC LOOP GANG VECTOR PRIVATE(zdz) COLLAPSE(2)
     DO jk=ktdia,klev
       DO jl=kidia,kfdia
@@ -2485,7 +2483,7 @@ ENDIF
         ptenrhor(jl,jk)=psnde(jl,jk,2)*zdz
       ENDDO
     ENDDO
-  !$ACC END PARALLEL
+    !$ACC END PARALLEL
   ENDIF
 
 !----------------------------------------------------------------------
@@ -2531,6 +2529,7 @@ IF (lhook) CALL dr_hook('CUMASTRN',1,zhook_handle)
 !end for l_lpi
 !$ACC END DATA
 
+!$ACC WAIT(1)
 !$ACC END DATA
 
 END SUBROUTINE cumastrn
