@@ -331,11 +331,16 @@ ldd ${MODEL}
 # start experiment
 #
 
+# Combine START and MODEL if START_MODEL is not already set.
+# START_MODEL is used to ease the execution of a machine that uses a complex
+# mpirun command with multiple binaries
+START_MODEL="${START_MODEL:=$START $MODEL}"
+
 rm -f finish.status
 #
 date
 set -x
-${START} ${MODEL} || exit 1
+${START_MODEL} || exit 1
 set +x
 date
 #

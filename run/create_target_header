@@ -85,7 +85,7 @@ export OMP_NUM_THREADS=${use_openmp_threads}
 export ICON_THREADS=${use_openmp_threads}
 export OMP_SCHEDULE=${use_OMP_SCHEDULE}
 export OMP_DYNAMIC="false"
-export OMP_STACKSIZE=${use_omp_stacksize}
+export OMP_STACKSIZE=${use_omp_stacksize:-200M}
 #
 # MPI variables
 # -------------
@@ -617,25 +617,33 @@ set_run_target_rcl()
 
     if [[ "$use_mpi" == "yes" ]]
     then
+        # Careful, this is the number of threads per VE, not the number of MPI processes.
         set_default use_mpi_procs_pernode 8
+    else
+        set_default use_mpi_procs_pernode 1
     fi
-    #if [[ "$use_openmp" == "yes" ]]
-    #then
-    #    set_default use_openmp_threads 2
-    #fi
-    
+
+    if [[ "$use_openmp" == "yes" ]]
+    then
+        set_default use_openmp_threads 2
+    else
+        set_default use_openmp_threads 1
+    fi
+
+    use_OMP_SCHEDULE="dynamic,1"
+    set_default use_omp_stacksize 2G
+
     set_default use_nproma 752
     set_default use_nproma_sub $use_nproma
     set_default use_nblocks_c 0
     set_default use_nodes 1
-    set_default use_mpi_procs_pernode 1
-    set_default use_openmp_threads 1
     set_default use_venum_lhost 2
     set_default use_cpunum_job 6
     set_default use_proc0_shift 1 # VH offloading mode: on with 1 proc
+    set_default use_num_io_procs 1
+
     # $use_memory can be used to set memsz_job. e.G. "24gb"
 
-    
     # absolute path to cdo
     cdo="/hpc/sw/cdo/1.9.8/x86/gnu/bin/cdo"
     cdo_diff="diffn"
@@ -725,6 +733,8 @@ EOF
     cat >> $output_script << EOF
 set -x
 
+export VE_OMP_STACKSIZE=\$OMP_STACKSIZE
+
 # Run information
 let PPN=\${CPE}*\${NE}/\${OMP_NUM_THREADS}         # no. of MPI procs. per NQS job
 let NE1=\${NE}-1
@@ -741,10 +751,6 @@ fi
 # set path variables used in add_run_routines (not used on RCL, thus set to null)
 current_status_file=/dev/null #\$PWD/${job_name}.status
 final_status_file=/dev/null #\$PWD/${job_name}.final_status
-
-# absolute path to directory with plenty of space:
-# overwrite usual output directory path
-experiments_dir="\$TMPDIR"
 
 # path to model binary, including the executable:
 #MODEL=\${PBS_O_WORKDIR}/../../build/VE/bin/icon
@@ -1361,6 +1367,7 @@ export CRAY_CUDA_MPS=1
 export MPICH_RDMA_ENABLED_CUDA=1
 #export PGI_ACC_SYNCHRONOUS=1
 export ECCODES_DEFINITION_PATH=${icon_data_rootFolder}/mch/eccodes_definitions
+export NVCOMPILER_TERM=trace
 EOF
 }
 
@@ -1517,6 +1524,7 @@ EOF
   start_header
 
   cat >> $output_script << EOF
+export NVCOMPILER_TERM=trace
 EOF
 }
 
@@ -2250,8 +2258,7 @@ create_target_header()
     # set more default values
     set_default use_shell "/bin/bash"
     set_default use_memory_model "default"
-    set_default use_omp_stacksize 32M
-      
+
     cat > $output_script << EOF
 #! $use_shell
 EOF

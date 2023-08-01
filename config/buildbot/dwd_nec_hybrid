@@ -10,50 +10,23 @@ MY_DIR=$(cd "$(dirname "$0")"; pwd)
 ICON_DIR=$(cd "${MY_DIR}/../.."; pwd)
 
 # create vector engine binary
-
-mkdir -p vector
-cd vector
-
-${ICON_DIR}/config/dwd/rcl.VE.bb-dwd_nec_hybrid
-
-if test 0 -ne "$?" && test ! -z "${BB_NAME}"; then
-  echo " ***** Configuration logs from '$(pwd)' ***** "
-  for f in $(find . -name 'config.log' -print); do
-    echo " ||||| '$f' ||||| "
-    cat "$f"
-  done
-  echo " ***** End of configuration logs from '$(pwd)' ***** "
-fi
-
+${ICON_DIR}/config/dwd/rcl.VE.bb-dwd_nec_hybrid --prefix=${PWD}/vector
 MAKE_PROCS=14
 make -j ${MAKE_PROCS}
+make install
 
-cd ..
 
-# copy a valid info file to where runexp expects it. buildbot is doing
-# in-source-builds, only at the moment
-cp -v $OLDPWD/run/set-up.info run/
+# Save the _vector_ info file as it is required for
+# create_target_header afterwards.
+mv -v run/set-up.info run/set-up.info.vector
+
+make distclean
 
 # create vector host binary
-
-mkdir -p host
-cd host
-
-${ICON_DIR}/config/dwd/rcl.VH.bb-dwd_nec_hybrid
-
-if test 0 -ne "$?" && test ! -z "${BB_NAME}"; then
-  echo " ***** Configuration logs from '$(pwd)' ***** "
-  for f in $(find . -name 'config.log' -print); do
-    echo " ||||| '$f' ||||| "
-    cat "$f"
-  done
-  echo " ***** End of configuration logs from '$(pwd)' ***** "
-fi
-
+${ICON_DIR}/config/dwd/rcl.VH.bb-dwd_nec_hybrid --prefix=${PWD}/host
 MAKE_PROCS=14
 make -j ${MAKE_PROCS}
-
-cd ..
+make install
 
 VECTOR_BINARY="${PWD}/vector/bin/icon"
 HOST_BINARY="${PWD}/host/bin/icon"
@@ -61,3 +34,15 @@ HOST_BINARY="${PWD}/host/bin/icon"
 set +e
 find "${PWD}/vector" "${PWD}/host"
 file "$VECTOR_BINARY" "$HOST_BINARY"
+
+# Restore the _vector_ info file as it is required for create_target_header.
+mv -v run/set-up.info.vector run/set-up.info
+
+# Link a temporary directory with lots of space into the experiments subdir. Reruns
+# /etc/profile to get a new directory
+ksh -c '. /etc/profile && ln -s "$TMPDIR" experiments'
+ls -l "${PWD}/experiments"
+
+# Copy the vector binary to the place, that is stored as builddir in set-up.info.
+# Only then it can be found by create_target_header.
+cp "${VECTOR_BINARY}" "${PWD}/bin/icon"
