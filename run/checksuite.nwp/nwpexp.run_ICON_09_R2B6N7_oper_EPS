@@ -423,7 +423,7 @@ lsynsat=.false. ! .false.,.true., ! requires RTTOV library - left out for this t
                         'T_SO',      'W_SO'
  stream_partitions_pl = 1
  pe_placement_pl      = 0
- pl_varlist           = 'FI', 'T', 'U', 'V', 'RELHUM'
+ pl_varlist           = 'FI'   !, 'T', 'U', 'V', 'RELHUM'
  p_levels             =    100,   200,            500,           1000,           3000,
                           5000,  7000,  10000,  20000,  25000,  30000,  50000,  70000,
                          85000, 92500, 100000
