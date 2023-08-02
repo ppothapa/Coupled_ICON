@@ -1273,24 +1273,24 @@ I& 5 & &
 Order of $\nabla$ operator for diffusion:\\
 -1: no diffusion\\
 2: $\nabla^{2}$ diffusion\\
-3: Smagorinsky $\nabla^{2}$ diffusion \\
+3: (removed)\\
 4: $\nabla^{4}$ diffusion \\
 5: Smagorinsky $\nabla^{2}$ diffusion combined with $\nabla^{4}$
-background diffusion as specified via hdiff\_efdt\_ratio  &
+background diffusion as specified via hdiff\_efdt\_ratio. Set hdiff\_efdt\_ratio<=0 for switching off background diffusion.  &
 \tabularnewline
 
 %\hline
 \textbf{lsmag\_3d}&
 L(max\_dom)& .FALSE. & &
 .TRUE.: Use 3D Smagorinsky formulation for computing the horizontal diffusion coefficient (recommended at mesh sizes
-finer than 1 km if the LES turbulence scheme is not used)& hdiff\_order=3 or 5; itype\_vn\_diffu=1
+finer than 1 km if the LES turbulence scheme is not used)& hdiff\_order=5; itype\_vn\_diffu=1
 \tabularnewline
 
 %\hline
 \textbf{lhdiff\_smag\_w}&
 L(max\_dom)& .FALSE. & &
 .TRUE.: Use additional Smagorinsky diffusion for w (recommended at mesh sizes
-finer than 500 m if the LES turbulence scheme is not used)& hdiff\_order=3 or 5; lhdiff\_w=.true.
+finer than 500 m if the LES turbulence scheme is not used)& hdiff\_order=5; lhdiff\_w=.true.
 \tabularnewline
 
 %\hline
@@ -1298,7 +1298,7 @@ finer than 500 m if the LES turbulence scheme is not used)& hdiff\_order=3 or 5;
 I& 1 & &
 Reconstruction method used for Smagorinsky diffusion: \\
 1: u/v reconstruction at vertices only \\
-2: u/v reconstruction at cells and vertices& iequations=3, hdiff\_order=3 or 5
+2: u/v reconstruction at cells and vertices& iequations=3, hdiff\_order=5
 \tabularnewline
 
 %\hline
@@ -1306,7 +1306,7 @@ Reconstruction method used for Smagorinsky diffusion: \\
 I& 2 & &
 Discretization of temperature diffusion: \\
 1: $K_h \nabla^2 T$ \\
-2: $\nabla \cdot (K_h \nabla T)$  & iequations=3, hdiff\_order=3 or 5
+2: $\nabla \cdot (K_h \nabla T)$  & iequations=3, hdiff\_order=5
 \tabularnewline
 
 
@@ -1314,7 +1314,7 @@ Discretization of temperature diffusion: \\
 \textbf{hdiff\_efdt\_ratio}&
 R& 36.0 & &
 ratio of e-folding time to time step (or 2{*} time step when using
-a 3 time level time stepping scheme) (for triangular NH model, values above 30 are recommended when using hdiff\_order=5) &
+a 3 time level time stepping scheme) (values above 30 are recommended when using hdiff\_order=5) &
 \tabularnewline
 
 %\hline
@@ -4762,14 +4762,14 @@ for downward extrapolation over steep slopes \\
 l\_zdiffu\_t&
 L& .TRUE.& &
 .TRUE.: Compute Smagorinsky temperature diffusion truly horizontally over steep slopes&
- hdiff\_order=3/5 .AND. lhdiff\_temp = .true.
+ hdiff\_order=5 .AND. lhdiff\_temp = .true.
 \tabularnewline
 
 %\hline
 thslp\_zdiffu&
 R& 0.025& &
 Slope threshold above which truly horizontal temperature diffusion is activated&
-hdiff\_order=3/5 .AND. lhdiff\_temp=.true. .AND. l\_zdiffu\_t=.true.
+hdiff\_order=5 .AND. lhdiff\_temp=.true. .AND. l\_zdiffu\_t=.true.
 \tabularnewline
 
 %\hline
@@ -4777,7 +4777,7 @@ thhgtd\_zdiffu&
 R& 200& m&
 Threshold of height difference between neighboring grid points above which
 truly horizontal temperature diffusion is activated (alternative criterion to thslp\_zdiffu)&
- hdiff\_order=3/5 .AND. lhdiff\_temp=.true. .AND. l\_zdiffu\_t=.true.
+ hdiff\_order=5 .AND. lhdiff\_temp=.true. .AND. l\_zdiffu\_t=.true.
 \tabularnewline
 
 %\hline

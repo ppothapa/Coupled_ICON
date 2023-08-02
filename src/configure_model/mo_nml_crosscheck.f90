@@ -44,7 +44,6 @@ MODULE mo_nml_crosscheck
   USE mo_advection_config,         ONLY: advection_config
   USE mo_nonhydrostatic_config,    ONLY: itime_scheme_nh => itime_scheme,                  &
     &                                    rayleigh_type, ivctype
-  USE mo_diffusion_config,         ONLY: diffusion_config
   USE mo_atm_phy_nwp_config,       ONLY: atm_phy_nwp_config, icpl_aero_conv, iprog_aero
   USE mo_lnd_nwp_config,           ONLY: ntiles_lnd, lsnowtile, sstice_mode
   USE mo_aes_phy_config,           ONLY: aes_phy_config
@@ -585,32 +584,7 @@ CONTAINS
       ENDDO
     ENDIF
 #endif
-    !--------------------------------------------------------------------
-    ! Horizontal diffusion
-    !--------------------------------------------------------------------
 
-    DO jg =1,n_dom
-
-      SELECT CASE( diffusion_config(jg)%hdiff_order )
-      CASE(-1)
-        WRITE(message_text,'(a,i2.2)') 'Horizontal diffusion '//&
-                                       'switched off for domain ', jg
-        CALL message(routine,message_text)
-
-      CASE(2,3,4,5)
-        CONTINUE
-
-      CASE DEFAULT
-        CALL finish(routine,                       &
-          & 'Error: Invalid choice for  hdiff_order. '// &
-          & 'Choose from -1, 2, 3, 4, and 5.')
-      END SELECT
-
-      IF ( diffusion_config(jg)%hdiff_efdt_ratio<=0._wp) THEN
-        CALL message(routine,'No horizontal background diffusion is used')
-      ENDIF
-
-    ENDDO
 
     !--------------------------------------------------------------------
     ! checking the meanings of the io settings

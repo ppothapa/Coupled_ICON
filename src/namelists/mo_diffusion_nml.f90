@@ -15,7 +15,6 @@
 MODULE mo_diffusion_nml
 
   USE mo_diffusion_config,    ONLY: diffusion_config
-  USE mo_dynamics_config,     ONLY: iequations
   USE mo_kind,                ONLY: wp
   USE mo_impl_constants,      ONLY: max_dom
   USE mo_mpi,                 ONLY: my_process_is_stdio 
@@ -37,10 +36,9 @@ MODULE mo_diffusion_nml
   !-------------------------------------------------------------------------
   INTEGER :: hdiff_order  ! order of horizontal diffusion
                           ! -1: no diffusion
-                          ! 2: 2nd order linear diffusion on all vertical levels 
-                          ! 3: Smagorinsky diffusion without background diffusion
-                          ! 4: 4th order linear diffusion on all vertical levels 
-                          ! 5: Smagorinsky diffusion with fourth-order background diffusion
+                          ! 2: 2nd order linear diffusion on all vertical levels
+                          ! 4: 4th order linear diffusion on all vertical levels
+                          ! 5: Smagorinsky diffusion with optional fourth-order background diffusion
 
   REAL(wp) :: hdiff_efdt_ratio      ! ratio of e-folding time to (2*)time step
   REAL(wp) :: hdiff_w_efdt_ratio    ! ratio of e-folding time to time step for w diffusion (NH only)
@@ -106,31 +104,25 @@ CONTAINS
     lsmag_3d(:)          = .FALSE.
     lhdiff_smag_w(:)     = .FALSE.
 
-    IF (iequations == 3) THEN
-      hdiff_order          = 5
-      hdiff_efdt_ratio     = 36.0_wp
-      hdiff_smag_fac       = 0.015_wp
-      hdiff_smag_fac2      = REAL(2.e-6*(1600. + 25000. + SQRT(1600.*(1600.+50000.))),wp) ! (1)
-      hdiff_smag_fac3      = 0.000_wp
-      hdiff_smag_fac4      = 1.000_wp
-      hdiff_smag_z         = 32500._wp
-      hdiff_smag_z2        = REAL(       1600. + 50000. + SQRT(1600.*(1600.+50000.)) ,wp) ! (1)
-      hdiff_smag_z3        = 50000._wp
-      hdiff_smag_z4        = 90000._wp
-      !
-      ! (1) These irrational values are computed in single precision and then converted
-      !     to working precision, meaning double precision, to prevent that these values
-      !     differ after writing to and reading from the restart file. If this happens,
-      !     then a restart changes results compared to a reference simulation without restart.
-      !     This problem was found in restart tests with executables built with Intel compilers
-      !     when these values were computed with all numbers in working precision.
-      !     Using single precision computations solved the problem.
-      !
-    ELSE
-      hdiff_order          = 4
-      hdiff_efdt_ratio     = 1.0_wp
-      hdiff_smag_fac       = 0.15_wp
-    ENDIF
+    hdiff_order          = 5
+    hdiff_efdt_ratio     = 36.0_wp
+    hdiff_smag_fac       = 0.015_wp
+    hdiff_smag_fac2      = REAL(2.e-6*(1600. + 25000. + SQRT(1600.*(1600.+50000.))),wp) ! (1)
+    hdiff_smag_fac3      = 0.000_wp
+    hdiff_smag_fac4      = 1.000_wp
+    hdiff_smag_z         = 32500._wp
+    hdiff_smag_z2        = REAL(       1600. + 50000. + SQRT(1600.*(1600.+50000.)) ,wp) ! (1)
+    hdiff_smag_z3        = 50000._wp
+    hdiff_smag_z4        = 90000._wp
+    !
+    ! (1) These irrational values are computed in single precision and then converted
+    !     to working precision, meaning double precision, to prevent that these values
+    !     differ after writing to and reading from the restart file. If this happens,
+    !     then a restart changes results compared to a reference simulation without restart.
+    !     This problem was found in restart tests with executables built with Intel compilers
+    !     when these values were computed with all numbers in working precision.
+    !     Using single precision computations solved the problem.
+    !
 
     hdiff_min_efdt_ratio = 1.0_wp
     hdiff_w_efdt_ratio   = 15.0_wp
@@ -179,7 +171,7 @@ CONTAINS
       lhdiff_vn   = .FALSE.
       lhdiff_w    = .FALSE.
 
-    CASE(2,3,4,5,24,42)
+    CASE(2,4,5)
 
       IF ((.NOT.lhdiff_temp).AND.(.NOT.lhdiff_vn)) THEN
         CALL message('','')
@@ -191,9 +183,9 @@ CONTAINS
       END IF
 
     CASE DEFAULT
-      CALL finish(TRIM(routine),                         &
-        & 'Error: Invalid choice of  hdiff_order. '// &                
-        & 'Choose from -1, 2, 3, 4, 5, 24, and 42.')
+      CALL finish(TRIM(routine),                     &
+        & 'Error: Invalid choice of hdiff_order. '// &
+        & 'Choose from -1, 2, 4, and 5.')
     END SELECT
 
     IF ( hdiff_efdt_ratio<=0._wp) THEN
