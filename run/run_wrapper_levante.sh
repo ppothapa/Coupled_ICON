@@ -51,8 +51,7 @@ then
     echo Compute process $SLURM_LOCALID on $(hostname)
 
     numanode=(2-3 0-1 6-7 4-5)
-    # workaround for levante, should be (0 1 2 3)
-    gpus=(0 0 0 0)
+    gpus=(0 1 2 3)
     nics=(mlx5_0:1 mlx5_0:1 mlx5_1:1 mlx5_1:1)
     reorder=(0 1 2 3)
 
