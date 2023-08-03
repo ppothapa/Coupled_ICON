@@ -52,7 +52,7 @@ MODULE mo_nh_diffusion
   USE mo_math_constants,      ONLY: dbl_eps
   USE mo_vertical_coord_table,ONLY: vct_a
   USE mo_gridref_config,      ONLY: denom_diffu_v
-  USE mo_parallel_config,     ONLY: p_test_run, itype_comm
+  USE mo_parallel_config,     ONLY: p_test_run
   USE mo_sync,                ONLY: SYNC_E, SYNC_C, SYNC_V, sync_patch_array, &
                                     sync_patch_array_mult, sync_patch_array_mult_mp
   USE mo_physical_constants,  ONLY: cvd_o_rd, grav
@@ -143,10 +143,12 @@ MODULE mo_nh_diffusion
     INTEGER  :: icount(p_patch%nblks_c), iclist(2*nproma,p_patch%nblks_c), iklist(2*nproma,p_patch%nblks_c)
     REAL(wp) :: tdlist(2*nproma,p_patch%nblks_c), tdiff, trefdiff, thresh_tdiff, z_theta, fac2d
 
-    INTEGER,  DIMENSION(:,:,:), POINTER :: icidx, icblk, ieidx, ieblk, ividx, ivblk, &
-                                           iecidx, iecblk
-    INTEGER,  DIMENSION(:,:),   POINTER :: icell, ilev, iblk !, iedge, iedblk
-    REAL(wp), DIMENSION(:,:),   POINTER :: vcoef, geofac_n2s !, blcoef
+    INTEGER,  POINTER, CONTIGUOUS :: icidx(:,:,:), icblk(:,:,:), ieidx(:,:,:), &
+      &                              ieblk(:,:,:), ividx(:,:,:), ivblk(:,:,:), &
+      &                              iecidx(:,:,:), iecblk(:,:,:)
+    INTEGER,  POINTER, CONTIGUOUS :: icell(:,:), ilev(:,:), iblk(:,:)
+    REAL(wp), POINTER, CONTIGUOUS :: vcoef(:,:), geofac_n2s(:,:)
+
     LOGICAL :: ltemp_diffu, lfeedback_jg
     INTEGER :: diffu_type, discr_vn, discr_t
     INTEGER :: jg                 !< patch ID
@@ -224,13 +226,9 @@ MODULE mo_nh_diffusion
            ! diffusion coefficient is enhanced near the model top (see below)
         diff_multfac_vn(:) = MIN(1._wp/128._wp,diffusion_config(jg)%k4*REAL(ndyn_substeps,wp)/3._wp)
       ENDIF
-      IF (diffu_type == 3) THEN
-        smag_offset   = 0._vp
-        smag_limit(:) = 0.125_vp
-      ELSE
-        smag_offset   = 0.25_wp*diffusion_config(jg)%k4*REAL(ndyn_substeps,wp)
-        smag_limit(:) = 0.125_wp-4._wp*diff_multfac_vn(:)
-      ENDIF
+
+      smag_offset   = REAL(0.25_wp*diffusion_config(jg)%k4*REAL(ndyn_substeps,wp),vp)
+      smag_limit(:) = 0.125_wp-4._wp*diff_multfac_vn(:)
     ENDIF
 
     ! Multiplication factor for nabla4 diffusion on vertical wind speed
@@ -246,7 +244,8 @@ MODULE mo_nh_diffusion
       ENDDO
     ENDIF
 
-    IF (diffu_type == 3 .OR. diffu_type == 5) THEN
+
+    IF (diffu_type == 5) THEN
 
       ! temperature diffusion is used only in combination with Smagorinsky diffusion
       ltemp_diffu = diffusion_config(jg)%lhdiff_temp
@@ -311,7 +310,7 @@ MODULE mo_nh_diffusion
     !$ACC DATA CREATE(div, kh_c, kh_smag_e, kh_smag_ec, u_vert, v_vert, u_cell, v_cell, z_w_v, z_temp) &
     !$ACC   CREATE(z_nabla4_e, z_nabla4_e2, z_nabla2_e, z_nabla2_c, enh_diffu_3d, icount) &
     !$ACC   CREATE(z_vn_ie, z_vt_ie) &
-    !$ACC   COPYIN(nrdmax, diff_multfac_vn, diff_multfac_n2w, diff_multfac_smag, smag_limit, enh_smag_fac, smag_blending) &
+    !$ACC   COPYIN(nrdmax, diff_multfac_vn, diff_multfac_n2w, diff_multfac_smag, smag_limit, smag_blending) &
     !$ACC   PRESENT(p_patch, p_int, p_nh_prog, p_nh_diag, p_nh_metrics) &
     !$ACC   PRESENT(ividx, ivblk, iecidx, iecblk, icidx, icblk, ieidx, ieblk) &
     !$ACC   IF(i_am_accel_node)
@@ -337,7 +336,7 @@ MODULE mo_nh_diffusion
       CALL nabla4_vec( p_nh_prog%vn, p_patch, p_int, z_nabla4_e,  &
                        opt_rlstart=7,opt_nabla2=z_nabla2_e )
 
-    ELSE IF ((diffu_type == 3 .OR. diffu_type == 5) .AND. discr_vn == 1 .AND. .NOT. diffusion_config(jg)%lsmag_3d) THEN
+    ELSE IF ( diffu_type == 5 .AND. discr_vn == 1 .AND. .NOT. diffusion_config(jg)%lsmag_3d) THEN
 
       IF (p_test_run) THEN
         !$ACC KERNELS PRESENT(u_vert, v_vert) ASYNC(1) IF(i_am_accel_node)
@@ -354,15 +353,13 @@ MODULE mo_nh_diffusion
       rl_start = start_bdydiff_e
       rl_end   = min_rledge_int - 2
 
-      IF (itype_comm == 1 .OR. itype_comm == 3) THEN
 #ifdef __MIXED_PRECISION
-        CALL sync_patch_array_mult_mp(SYNC_V,p_patch,0,2,f3din1_sp=u_vert,f3din2_sp=v_vert, &
-                                      opt_varname="diffusion: u_vert and v_vert")
+      CALL sync_patch_array_mult_mp(SYNC_V,p_patch,0,2,f3din1_sp=u_vert,f3din2_sp=v_vert, &
+                                    opt_varname="diffusion: u_vert and v_vert")
 #else
-        CALL sync_patch_array_mult(SYNC_V,p_patch,2,u_vert,v_vert,                          &
-                                   opt_varname="diffusion: u_vert and v_vert")
+      CALL sync_patch_array_mult(SYNC_V,p_patch,2,u_vert,v_vert,                          &
+                                 opt_varname="diffusion: u_vert and v_vert")
 #endif
-      ENDIF
 
 !$OMP PARALLEL PRIVATE(i_startblk,i_endblk)
 
@@ -463,7 +460,7 @@ MODULE mo_nh_diffusion
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
-    ELSE IF ((diffu_type == 3 .OR. diffu_type == 5) .AND. discr_vn == 1) THEN ! 3D Smagorinsky diffusion
+    ELSE IF ( diffu_type == 5 .AND. discr_vn == 1) THEN ! 3D Smagorinsky diffusion
 
       IF (p_test_run) THEN
         !$ACC KERNELS PRESENT(u_vert, v_vert, z_w_v) ASYNC(1) IF(i_am_accel_node)
@@ -481,15 +478,14 @@ MODULE mo_nh_diffusion
       rl_start = start_bdydiff_e
       rl_end   = min_rledge_int - 2
 
-      IF (itype_comm == 1 .OR. itype_comm == 3) THEN
 #ifdef __MIXED_PRECISION
-        CALL sync_patch_array_mult_mp(SYNC_V,p_patch,0,2,f3din1_sp=u_vert,f3din2_sp=v_vert, &
-                                      opt_varname="diffusion: u_vert and v_vert 2")
+      CALL sync_patch_array_mult_mp(SYNC_V,p_patch,0,2,f3din1_sp=u_vert,f3din2_sp=v_vert, &
+                                    opt_varname="diffusion: u_vert and v_vert 2")
 #else
-        CALL sync_patch_array_mult(SYNC_V,p_patch,2,u_vert,v_vert,                          &
-                                   opt_varname="diffusion: u_vert and v_vert 2")
+      CALL sync_patch_array_mult(SYNC_V,p_patch,2,u_vert,v_vert,                          &
+                                 opt_varname="diffusion: u_vert and v_vert 2")
 #endif
-      ENDIF
+
       CALL cells2verts_scalar(p_nh_prog%w, p_patch, p_int%cells_aw_verts, z_w_v, opt_rlend=min_rlvert_int)
       CALL sync_patch_array(SYNC_V,p_patch,z_w_v,opt_varname="diffusion: z_w_v")
       CALL sync_patch_array(SYNC_C,p_patch,p_nh_diag%theta_v_ic,opt_varname="diffusion: theta_v_ic")
@@ -508,7 +504,7 @@ MODULE mo_nh_diffusion
         CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
                            i_startidx, i_endidx, rl_start, rl_end)
 
-                           
+
         !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
         DO jk = 2, nlev
           DO je = i_startidx, i_endidx
@@ -660,7 +656,7 @@ MODULE mo_nh_diffusion
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
-    ELSE IF ((diffu_type == 3 .OR. diffu_type == 5) .AND. discr_vn >= 2) THEN
+    ELSE IF ( diffu_type == 5 .AND. discr_vn >= 2) THEN
 
       !  RBF reconstruction of velocity at vertices and cells
       CALL rbf_vec_interpol_vertex( p_nh_prog%vn, p_patch, p_int,                  &
@@ -791,8 +787,7 @@ MODULE mo_nh_diffusion
     ENDIF
 
     ! Compute input quantities for turbulence scheme
-    IF ((diffu_type == 3 .OR. diffu_type == 5) .AND.                               &
-        (turbdiff_config(jg)%itype_sher >= 1 .OR. turbdiff_config(jg)%ltkeshs)) THEN
+    IF ( diffu_type == 5 .AND. (turbdiff_config(jg)%itype_sher >= 1 .OR. turbdiff_config(jg)%ltkeshs)) THEN
 
 !$OMP PARALLEL PRIVATE(i_startblk,i_endblk)
       rl_start = grf_bdywidth_c+1
@@ -848,7 +843,9 @@ MODULE mo_nh_diffusion
 
     ENDIF
 
-    IF (diffu_type == 5) THEN ! Add fourth-order background diffusion
+    ! Add fourth-order background diffusion
+    !
+    IF (diffu_type == 5 .AND. diffusion_config(jg)%hdiff_efdt_ratio >0._wp) THEN
 
       IF (discr_vn > 1) THEN
         CALL sync_patch_array(SYNC_E,p_patch,z_nabla2_e,      &
@@ -871,15 +868,13 @@ MODULE mo_nh_diffusion
       rl_start = grf_bdywidth_e+1
       rl_end   = min_rledge_int
 
-      IF (itype_comm == 1 .OR. itype_comm == 3) THEN
 #ifdef __MIXED_PRECISION
-        CALL sync_patch_array_mult_mp(SYNC_V,p_patch,0,2,f3din1_sp=u_vert,f3din2_sp=v_vert, &
-                                      opt_varname="diffusion: u_vert and v_vert 3")
+      CALL sync_patch_array_mult_mp(SYNC_V,p_patch,0,2,f3din1_sp=u_vert,f3din2_sp=v_vert, &
+                                    opt_varname="diffusion: u_vert and v_vert 3")
 #else
-        CALL sync_patch_array_mult(SYNC_V,p_patch,2,u_vert,v_vert,                          &
-                                   opt_varname="diffusion: u_vert and v_vert 3")
+      CALL sync_patch_array_mult(SYNC_V,p_patch,2,u_vert,v_vert,                          &
+                                 opt_varname="diffusion: u_vert and v_vert 3")
 #endif
-      ENDIF
 
 !$OMP PARALLEL PRIVATE(i_startblk,i_endblk)
 
@@ -1031,7 +1026,7 @@ MODULE mo_nh_diffusion
 
     ENDIF
 
-    ! Apply diffusion for the cases of diffu_type = 3 or 4
+    ! Apply diffusion for case diffu_type = 4
 
 !$OMP PARALLEL PRIVATE(i_startblk,i_endblk,rl_start,rl_end)
 
@@ -1041,78 +1036,7 @@ MODULE mo_nh_diffusion
     i_startblk = p_patch%edges%start_block(rl_start)
     i_endblk   = p_patch%edges%end_block(rl_end)
 
-    IF (diffu_type == 3) THEN ! Only Smagorinsky diffusion
-      IF ( jg == 1 .AND. l_limited_area .OR. jg > 1 .AND. .NOT. lfeedback(jg)) THEN
-
-!$OMP DO PRIVATE(jb,i_startidx,i_endidx,jk,je,z_d_vn_hdf) ICON_OMP_DEFAULT_SCHEDULE
-        DO jb = i_startblk,i_endblk
-
-          CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
-                             i_startidx, i_endidx, rl_start, rl_end)
-
-          !$ACC PARALLEL LOOP DEFAULT(PRESENT) PRIVATE(z_d_vn_hdf) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
-          DO jk = 1, nlev
-!DIR$ IVDEP
-            DO je = i_startidx, i_endidx
-              !
-              z_d_vn_hdf =   p_patch%edges%area_edge(je,jb)                                             &
-                &          * MAX(nudgezone_diff*p_int%nudgecoeff_e(je,jb),REAL(kh_smag_e(je,jk,jb),wp)) &
-                &          * z_nabla2_e(je,jk,jb) 
-              !
-              p_nh_prog%vn(je,jk,jb)            =  p_nh_prog%vn(je,jk,jb)         + z_d_vn_hdf
-              !
-#ifdef __ENABLE_DDT_VN_XYZ__
-              IF (p_nh_diag%ddt_vn_hdf_is_associated) THEN
-                p_nh_diag%ddt_vn_hdf(je,jk,jb)  =  p_nh_diag%ddt_vn_hdf(je,jk,jb) + z_d_vn_hdf * r_dtime
-              END IF
-              !
-              IF (p_nh_diag%ddt_vn_dyn_is_associated) THEN
-                p_nh_diag%ddt_vn_dyn(je,jk,jb)  =  p_nh_diag%ddt_vn_dyn(je,jk,jb) + z_d_vn_hdf * r_dtime
-              END IF
-#endif
-              !
-            ENDDO
-          ENDDO
-          !$ACC END PARALLEL LOOP
-        ENDDO
-!$OMP END DO
-
-      ELSE
-
-!$OMP DO PRIVATE(jb,i_startidx,i_endidx,jk,je,z_d_vn_hdf) ICON_OMP_DEFAULT_SCHEDULE
-        DO jb = i_startblk,i_endblk
-
-          CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
-                             i_startidx, i_endidx, rl_start, rl_end)
-
-          !$ACC PARALLEL LOOP DEFAULT(PRESENT) PRIVATE(z_d_vn_hdf) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
-          DO jk = 1, nlev
-!DIR$ IVDEP
-            DO je = i_startidx, i_endidx
-              !
-              z_d_vn_hdf = p_patch%edges%area_edge(je,jb) * kh_smag_e(je,jk,jb) * z_nabla2_e(je,jk,jb)
-              !
-              p_nh_prog%vn(je,jk,jb)            =  p_nh_prog%vn(je,jk,jb)         + z_d_vn_hdf
-              !
-#ifdef __ENABLE_DDT_VN_XYZ__
-              IF (p_nh_diag%ddt_vn_hdf_is_associated) THEN
-                p_nh_diag%ddt_vn_hdf(je,jk,jb)  =  p_nh_diag%ddt_vn_hdf(je,jk,jb) + z_d_vn_hdf * r_dtime
-              END IF
-              !
-              IF (p_nh_diag%ddt_vn_dyn_is_associated) THEN
-                p_nh_diag%ddt_vn_dyn(je,jk,jb)  =  p_nh_diag%ddt_vn_dyn(je,jk,jb) + z_d_vn_hdf * r_dtime
-              END IF
-#endif
-              !
-            ENDDO
-          ENDDO
-          !$ACC END PARALLEL LOOP
-        ENDDO
-!$OMP END DO
-
-      ENDIF
-
-    ELSE IF (diffu_type == 4) THEN
+    IF (diffu_type == 4) THEN  ! fourth-order diffusion
 
 !$OMP DO PRIVATE(jb,i_startidx,i_endidx,jk,je,z_d_vn_hdf) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = i_startblk,i_endblk
@@ -1326,9 +1250,7 @@ MODULE mo_nh_diffusion
 
 !$OMP END PARALLEL
 
-    IF (itype_comm == 1 .OR. itype_comm == 3) THEN
-      CALL sync_patch_array(SYNC_E, p_patch, p_nh_prog%vn,opt_varname="diffusion: vn sync")
-    ENDIF
+    CALL sync_patch_array(SYNC_E, p_patch, p_nh_prog%vn,opt_varname="diffusion: vn sync")
 
     IF (ltemp_diffu) THEN ! Smagorinsky temperature diffusion
 
@@ -1583,7 +1505,8 @@ MODULE mo_nh_diffusion
 !DIR$ IVDEP
           DO jc = 1, nlen_zdiffu
 #else
-        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) PRIVATE(ic, ishift) ASYNC(1) IF(i_am_accel_node)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(ic, ishift)
         DO jb = 1, nblks_zdiffu
           DO jc = 1, nproma_zdiffu
             IF (jb == nblks_zdiffu .AND. jc > npromz_zdiffu) CYCLE
@@ -1605,7 +1528,7 @@ MODULE mo_nh_diffusion
               (1._wp-vcoef(3,ic))* p_nh_prog%theta_v(icell(4,ic),ilev(4,ic)+1,iblk(4,ic)))  )
           ENDDO
         ENDDO
-        !$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL
 !$OMP END DO
 
       ENDIF
@@ -1616,7 +1539,8 @@ MODULE mo_nh_diffusion
         CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                            i_startidx, i_endidx, rl_start, rl_end)
 
-        !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(i_am_accel_node)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, nlev
 !DIR$ IVDEP
           DO jc = i_startidx, i_endidx
@@ -1630,7 +1554,7 @@ MODULE mo_nh_diffusion
 
           ENDDO
         ENDDO
-        !$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL
 
       ENDDO
 !$OMP END DO NOWAIT
@@ -1653,9 +1577,8 @@ MODULE mo_nh_diffusion
 
     IF (ltimer) CALL timer_stop(timer_nh_hdiffusion)
 
+    !$ACC WAIT(1)
     !$ACC END DATA
-
-    !$ACC WAIT
 
 #ifdef _OPENACC
     vn_tmp         => p_nh_prog%vn

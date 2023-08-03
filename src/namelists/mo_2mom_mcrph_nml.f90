@@ -111,6 +111,7 @@ CONTAINS
     REAL(wp) :: bgeo_g    ! bgeo for graupel, D = ageo*x^bgeo
     REAL(wp) :: avel_g    ! avel for graupel, v = avel*x^bvel
     REAL(wp) :: bvel_g    ! bvel for graupel, v = avel*x^bvel
+    INTEGER  :: iicephase    ! (0) warm-phase 2M, (1) mixed-phase 2M
 
     NAMELIST /twomom_mcrph_nml/ i2mom_solver, ccn_type, alpha_spacefilling,             &
          &                      D_conv_ii, D_rainfrz_ig, D_rainfrz_gh,                  &
@@ -120,7 +121,8 @@ CONTAINS
          &                      melt_g_tune_fak, isnow_stick, iice_stick, iparti_stick, &
          &                      nu_h, mu_h, ageo_h, bgeo_h, avel_h, bvel_h, cap_snow,   &
          &                      vsedi_max_s,                &
-         &                      nu_g, mu_g, ageo_g, bgeo_g, avel_g, bvel_g
+         &                      nu_g, mu_g, ageo_g, bgeo_g, avel_g, bvel_g,             &
+         &                      iicephase 
 
     !----------------------------------------------------------
     ! 1. default settings from module mo_2mom_mcrph_processes:
@@ -168,6 +170,7 @@ CONTAINS
     bgeo_g             = cfg_2mom_default % bgeo_g
     avel_g             = cfg_2mom_default % avel_g
     bvel_g             = cfg_2mom_default % bvel_g
+    iicephase          = cfg_2mom_default % iicephase
 
     IF (my_process_is_stdio()) THEN
       iunit = temp_defaults()
@@ -231,6 +234,10 @@ CONTAINS
       CALL finish( TRIM(routine), 'Incorrect setting for cfg_2mom%ccn_type. Must be -1, 6, 7, 8, or 9.')
     END IF
 
+    IF (ALL(iicephase /= (/0, 1/)) ) THEN
+      CALL finish( TRIM(routine), 'Incorrect setting for cfg_2mom%iicephase. Must be 0, or 1.')
+    END IF
+
     !----------------------------------------------------
     ! 5. Fill the configuration state
     !----------------------------------------------------
@@ -273,6 +280,7 @@ CONTAINS
       atm_phy_nwp_config(jg) % cfg_2mom % bgeo_g              = bgeo_g
       atm_phy_nwp_config(jg) % cfg_2mom % avel_g              = avel_g
       atm_phy_nwp_config(jg) % cfg_2mom % bvel_g              = bvel_g
+      atm_phy_nwp_config(jg) % cfg_2mom % iicephase           = iicephase
 
     ENDDO
 

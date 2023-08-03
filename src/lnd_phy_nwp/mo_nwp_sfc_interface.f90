@@ -1665,7 +1665,7 @@ CONTAINS
   
        ELSE ! aggregate fields over tiles
 
-         !$ACC PARALLEL DEFAULT(PRESENT) CREATE(t_g_s) ASYNC(1) IF(lzacc)
+         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) CREATE(t_g_s) IF(lzacc)
          !$ACC LOOP GANG(STATIC: 1) VECTOR
          DO jc = i_startidx, i_endidx
            t_g_s(jc)      = 0._wp
@@ -1764,7 +1764,7 @@ CONTAINS
 
     ENDDO  ! jb
     !$ACC END DATA ! subroutine create
-    !$ACC END DATA ! subroutine create
+    !$ACC END DATA ! subroutine present
 !$OMP END DO
 !$OMP END PARALLEL
  
@@ -2249,6 +2249,7 @@ CONTAINS
       !$ACC END PARALLEL
 
     ENDDO  !jb
+    !$ACC WAIT(1)
 !$OMP END DO
 !$OMP END PARALLEL
 

@@ -72,7 +72,6 @@ MODULE mo_nh_interface_nwp
   USE mo_physical_constants,      ONLY: rd, rd_o_cpd, vtmpc1, p0ref, rcvd, cvd, cvv, tmelt, grav
 
   USE mo_nh_diagnose_pres_temp,   ONLY: diagnose_pres_temp, diag_pres, diag_temp, calc_qsum
-
   USE mo_atm_phy_nwp_config,      ONLY: atm_phy_nwp_config, iprog_aero
   USE mo_iau,                     ONLY: iau_update_tracer
   USE mo_util_phys,               ONLY: tracer_add_phytend, inversion_height_index
@@ -128,7 +127,7 @@ MODULE mo_nh_interface_nwp
 #ifndef __NO_ICON_UPATMO__
   USE mo_nwp_upatmo_interface,    ONLY: nwp_upatmo_interface, nwp_upatmo_update
 #endif
-  USE mo_fortran_tools,           ONLY: set_acc_host_or_device
+  USE mo_fortran_tools,           ONLY: set_acc_host_or_device, copy
 #ifdef HAVE_RADARFWO
   USE mo_emvorado_warmbubbles_type, ONLY: autobubs_list
   USE mo_run_config,                ONLY: luse_radarfwo
@@ -140,7 +139,9 @@ MODULE mo_nh_interface_nwp
   USE mo_sppt_config,             ONLY: sppt_config
   USE mo_sppt_util,               ONLY: construct_rn
   USE mo_sppt_core,               ONLY: calc_tend, pert_tend, apply_tend, save_state
+
   USE mo_nwp_tuning_config,       ONLY: tune_sc_eis
+  USE mo_sbm_storage,             ONLY: t_sbm_storage, get_sbm_storage
 
   !$ser verbatim USE mo_ser_all,              ONLY: serialize_all
 
@@ -241,6 +242,9 @@ CONTAINS
 
     REAL(wp) :: z_exner_sv(nproma,pt_patch%nlev,pt_patch%nblks_c), z_tempv, sqrt_ri(nproma), n2, dvdz2, &
       zddt_u_raylfric(nproma,pt_patch%nlev), zddt_v_raylfric(nproma,pt_patch%nlev), convfac, wfac
+
+    !< SBM microphysics:
+    TYPE(t_sbm_storage), POINTER:: ptr_sbm_storage =>NULL()   ! pointer to SBM storage object
 
     !< vertical interfaces
 
@@ -410,6 +414,7 @@ CONTAINS
 
     ENDIF
 
+
     !-------------------------------------------------------------------------
     !>  Update the slow-physics tendencies on the tracer fields,
     !!  afterwards perform saturation adjustment
@@ -545,6 +550,17 @@ CONTAINS
       !> Initial saturation adjustment (a second one follows at the end of the microphysics)
       !!-------------------------------------------------------------------------
 
+      ! SBM microphysics
+      ! store snapshots of qv and temp just before saturation adjustment
+      IF (atm_phy_nwp_config(jg)%inwp_gscp == 8) THEN
+        ptr_sbm_storage => get_sbm_storage(patch_id = jg)
+!$OMP PARALLEL
+        CALL copy(pt_prog_rcf%tracer(:,:,:,iqv), ptr_sbm_storage%qv_before_satad   )
+        CALL copy(pt_diag%temp(:,:,:),           ptr_sbm_storage%temp_before_satad )
+!$OMP END PARALLEL
+      ENDIF
+
+
       IF (lcall_phy_jg(itsatad)) THEN
 
         ! initialize tt_lheat to be in used LHN
@@ -553,8 +569,6 @@ CONTAINS
           prm_diag%tt_lheat (:,:,jb) = - pt_diag%temp   (:,:,jb)
           !$ACC END KERNELS
         ENDIF
-
-        
 
         IF ( atm_phy_nwp_config(jg)%inwp_turb == iedmf ) THEN   ! EDMF DUALM: no satad in PBL
             CALL satad_v_3D( &
@@ -596,7 +610,7 @@ CONTAINS
 
         CALL calc_qsum (pt_prog_rcf%tracer, z_qsum, condensate_list, jb, i_startidx, i_endidx, 1, kstart_moist(jg), nlev)
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR PRIVATE(z_tempv) COLLAPSE(2)
         DO jk = kstart_moist(jg), nlev
 !DIR$ IVDEP
@@ -617,7 +631,7 @@ CONTAINS
 
         ! initialize tt_lheat to be in used LHN
         IF (lcompute_tt_lheat) THEN
-          !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
+          !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           prm_diag%tt_lheat (:,:,jb) = prm_diag%tt_lheat (:,:,jb) + pt_diag%temp   (:,:,jb)
           !$ACC END KERNELS
         ENDIF
@@ -806,8 +820,7 @@ CONTAINS
 #ifdef __ICON_ART
     IF (lart) THEN
 
-      CALL calc_o3_gems(pt_patch,mtime_datetime,pt_diag,prm_diag,ext_data%atm%o3)
-
+      CALL calc_o3_gems(pt_patch,mtime_datetime,pt_diag,prm_diag,ext_data%atm%o3,use_acc=lzacc)
 
       IF (.NOT. linit) THEN
         CALL art_reaction_interface(jg,                    & !> in
@@ -831,14 +844,16 @@ CONTAINS
                 &                   p_metrics,             & !> in
                 &                   pt_diag,               & !> inout
                 &                   pt_prog_rcf%tracer,    & !>
-                &                   prm_diag = prm_diag)     !> optional
-                
+                &                   prm_diag = prm_diag,   & !> optional
+                &                   lacc=lzacc)
+
         CALL art_washout_interface(pt_prog,pt_diag,        & !>in
                 &            dt_phy_jg(itfastphy),         & !>in
                 &            pt_patch,                     & !>in
                 &            prm_diag,                     & !>in
                 &            p_metrics,                    & !>in
-                &            pt_prog_rcf%tracer)             !>inout
+                &            pt_prog_rcf%tracer,           & !>inout
+                &            lacc=lzacc)
       END IF
     ENDIF !lart
 #endif
@@ -926,7 +941,7 @@ CONTAINS
 
           ELSE ! Standard Update one-moment
             ! update prognostic variables
-            !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
             !$ACC LOOP GANG VECTOR COLLAPSE(2)
             DO jk = 1, nlev
               DO jc = i_startidx, i_endidx
@@ -1042,7 +1057,7 @@ CONTAINS
 
         CALL calc_qsum (pt_prog_rcf%tracer, z_qsum, condensate_list, jb, i_startidx, i_endidx, 1, kstart_moist(jg), nlev)
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, nlev
 !DIR$ IVDEP
@@ -1070,7 +1085,7 @@ CONTAINS
         ! the virtual increment is neglected here because this tendency is used only as
         ! input for the convection scheme, which is rather insensitive against this quantity
         IF ( lcall_phy_jg(itconv) ) THEN
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jk = kstart_moist(jg), nlev
 !DIR$ IVDEP
@@ -1085,7 +1100,7 @@ CONTAINS
           ENDDO
           !$ACC END PARALLEL
         ENDIF
-        
+
       ENDIF ! recalculation
 
       IF (lcall_phy_jg(itturb) .OR. linit .OR. l_any_slowphys) THEN
@@ -1146,7 +1161,6 @@ CONTAINS
                           & lacc=lzacc                         ) !>in
       !$ser verbatim IF (.not. linit) CALL serialize_all(nproma, jg, "turbtrans", .FALSE., opt_lupdate_cpu=.TRUE., opt_dt=mtime_datetime)
 
-
       IF (timers_level > 1) CALL timer_stop(timer_nwp_turbulence)
  
     ENDIF !lcall(itturb)
@@ -1171,7 +1185,7 @@ CONTAINS
         CALL calc_tend(i_startidx, i_endidx, nlev, sppt(jg)%ddt_temp_fast(:,:,jb), pt_diag%temp(:,:,jb), sppt(jg)%temp_now(:,:,jb), dt_loc, lacc=lzacc)
 
         ! Wind components - use existing tendencies from turbulence
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, nlev
           DO jc = i_startidx, i_endidx
@@ -1332,7 +1346,7 @@ CONTAINS
              &  kc_entr_zone(:),                                 &
              &  lfound_inversion(:))
         ELSE
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             kc_inversion(jc)=0._wp
@@ -1415,7 +1429,7 @@ CONTAINS
 
       CALL set_reff( prm_diag, pt_patch, pt_prog, pt_diag, ext_data )
 
-      IF (  atm_phy_nwp_config(jg)%icpl_rad_reff > 0 .AND. atm_phy_nwp_config(jg)%icalc_reff /= 101 ) THEN
+      IF (  atm_phy_nwp_config(jg)%icpl_rad_reff == 1 .AND. atm_phy_nwp_config(jg)%icalc_reff /= 101 ) THEN
 
         ! .. Copy clc to clc_rad, combine reff's and enforce clc_rad = 1.0 at points where qs, qg, qr are present:
         CALL combine_phases_radiation_reff( prm_diag, pt_patch, pt_prog )
@@ -1500,7 +1514,7 @@ CONTAINS
         CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
 &                       i_startidx, i_endidx, rl_start, rl_end)
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           zcosmu0 (jc,jb) &
@@ -1511,7 +1525,7 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO jc = 1, nproma
           prm_diag%swflxsfc (jc,jb)=0._wp
@@ -1525,14 +1539,14 @@ CONTAINS
 
 #ifdef __PGI_WORKAROUND
           !$ACC DATA CREATE(gp_count_t) IF(lzacc)
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP VECTOR
           DO isubs = 1, ntiles_total
             gp_count_t(isubs) = ext_data%atm%gp_count_t(jb,isubs)
           ENDDO
           !$ACC END PARALLEL
 #endif
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO isubs = 1, ntiles_total+ntiles_water
             DO jc = 1, nproma
@@ -1908,7 +1922,7 @@ CONTAINS
 
         ! artificial Rayleigh friction: active if GWD or SSO scheme is active
         IF (atm_phy_nwp_config(jg)%inwp_sso > 0 .OR. atm_phy_nwp_config(jg)%inwp_gwd > 0) THEN
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR PRIVATE(vabs, rfric_fac) COLLAPSE(2)
           DO jk = 1, nlev
 !DIR$ IVDEP
@@ -1936,7 +1950,7 @@ CONTAINS
         ! in the current time step, but the radiation time step should be a multiple
         ! of the convection time step anyway in order to obtain up-to-date cloud cover fields
         IF (l_any_slowphys) THEN
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jk = 1, nlev
 !DIR$ IVDEP
@@ -1958,7 +1972,7 @@ CONTAINS
 
         ! SQRT of Richardson number between the two lowest model levels
         ! This is used below to reduce frictional heating near the surface under very stable conditions
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR PRIVATE(n2, dvdz2)
         DO jc = i_startidx, i_endidx
           n2 = 2._wp*grav/(pt_prog%theta_v(jc,nlev,jb)+pt_prog%theta_v(jc,nlev-1,jb)) * MAX(1.e-4_wp,        &
@@ -1970,7 +1984,7 @@ CONTAINS
         !$ACC END PARALLEL
 
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR PRIVATE(wfac) COLLAPSE(2)
         DO jk = 1, nlev
 !DIR$ IVDEP
@@ -2014,12 +2028,12 @@ CONTAINS
 
 
         IF (kstart_moist(jg) > 1) THEN
-          !$ACC KERNELS IF(lzacc)
+          !$ACC KERNELS ASYNC(1) IF(lzacc)
           z_ddt_alpha(:,1:kstart_moist(jg)-1) = 0._wp
           !$ACC END KERNELS
         ENDIF
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = kstart_moist(jg), nlev
           DO jc = i_startidx, i_endidx
@@ -2035,7 +2049,7 @@ CONTAINS
         !$ACC END PARALLEL
 
         ! Convert temperature tendency into Exner function tendency
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, nlev
 !DIR$ IVDEP
@@ -2144,7 +2158,7 @@ CONTAINS
         ELSE IF (lcall_phy_jg(itconv)) THEN
 !DIR$ IVDEP
           !$ACC DATA PRESENT(pt_diag%temp)
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR PRIVATE(convfac, convind)
           DO jc = i_startidx, i_endidx
             convind = prm_diag%k950(jc,jb) ! using this varibale directly in the next row gave a memory "memory not mapped to object" error in PGI (GPU) 20.8 
@@ -2263,10 +2277,11 @@ CONTAINS
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
         DO jb = i_startblk, i_endblk
+
           CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
             & i_startidx, i_endidx, rl_start, rl_end )
 
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jk = 1, nlev
 !DIR$ IVDEP
@@ -2323,7 +2338,7 @@ CONTAINS
       IF ( l_any_slowphys .AND. lcall_phy_jg(itturb) ) THEN
 #endif
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
         DO jce = i_startidx, i_endidx
@@ -2363,7 +2378,7 @@ CONTAINS
         !$ACC END PARALLEL
 
       ELSE IF (lcall_phy_jg(itturb) ) THEN
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
         DO jce = i_startidx, i_endidx
@@ -2436,8 +2451,6 @@ CONTAINS
     IF (timers_level > 10) CALL timer_start(timer_phys_sync_vn)
     IF (lcall_phy_jg(itturb)) THEN
       CALL sync_patch_array(SYNC_E, pt_patch, pt_prog%vn)
-      ! DA: TODO: make kernels async in the interface and remove the wait
-      !$ACC WAIT(1)
     ENDIF
     IF (timers_level > 10) CALL timer_stop(timer_phys_sync_vn)
     IF (timers_level > 2) CALL timer_stop(timer_phys_acc)
@@ -2450,7 +2463,7 @@ CONTAINS
 #endif
       CALL nwp_diag_output_2(pt_patch, pt_prog_rcf, prm_nwp_tend)
     ENDIF
-    
+
     CALL nwp_opt_diagnostics_2(pt_patch,             & !in
       &                        p_metrics,            & !in
       &                        pt_prog, pt_prog_rcf, & !in
@@ -2475,15 +2488,29 @@ CONTAINS
 
 #ifdef __ICON_ART
     IF (lart) THEN
+
       ! Call the ART diagnostics
       CALL art_diagnostics_interface(pt_prog%rho,            &
         &                            pt_diag%pres,           &
         &                            pt_prog_now_rcf%tracer, &
         &                            p_metrics%ddqz_z_full,  &
         &                            p_metrics%z_mc, jg,     &
-        &                            dt_phy_jg, p_sim_time)
+        &                            dt_phy_jg, p_sim_time,  &
+        &                            lacc=lzacc              )
+
     ENDIF !lart
 #endif
+
+    ! SBM microphysics
+    ! store temperature snapshot at the end of a timestep
+    IF (atm_phy_nwp_config(jg)%inwp_gscp == 8) THEN
+      ptr_sbm_storage => get_sbm_storage(patch_id = jg)
+!$OMP PARALLEL
+      CALL copy(pt_prog_rcf%tracer(:,:,:,iqv), ptr_sbm_storage%qv_old )
+      CALL copy(pt_diag%temp(:,:,:), ptr_sbm_storage%temp_old         )
+!$OMP END PARALLEL
+    ENDIF
+
 
     IF (ltimer) CALL timer_stop(timer_physics)
 

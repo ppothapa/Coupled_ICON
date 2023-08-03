@@ -161,7 +161,7 @@ DO jb = i_startblk, i_endblk
   CALL get_indices_v(ptr_pp, jb, i_startblk, i_endblk, &
    i_startidx, i_endidx, grf_nudgintp_start_c, min_rlvert_int)
 
-  !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
   !$ACC LOOP COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
   DO jv = i_startidx, i_endidx
@@ -189,6 +189,7 @@ DO jb = i_startblk, i_endblk
     ENDDO
   ENDDO
   !$ACC END PARALLEL
+
 ENDDO
 !$OMP END DO
 
@@ -203,7 +204,7 @@ DO jb =  i_startblk, i_endblk
    i_startidx, i_endidx, grf_nudgintp_start_e, min_rledge_int)
 
 ! child edges 1 and 2
-  !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
   !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
   DO je = i_startidx, i_endidx
@@ -212,7 +213,6 @@ DO jb =  i_startblk, i_endblk
   DO jk = 1, nlev_c
     DO je = i_startidx, i_endidx
 #endif
-
       dvn_tang =     u_vert(ividx(je,jb,2),jk,ivblk(je,jb,2)) *    &
                      ptr_pp%edges%primal_normal_vert(je,jb,2)%v1 + &
                      v_vert(ividx(je,jb,2),jk,ivblk(je,jb,2)) *    &
@@ -294,7 +294,7 @@ DO jb =  i_startblk, i_endblk
   CALL get_indices_e(ptr_pc, jb, i_startblk, i_endblk, &
     i_startidx, i_endidx, grf_nudge_start_e, min_rledge_int)
 
-  !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
   !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
   DO je = i_startidx, i_endidx
@@ -310,10 +310,12 @@ DO jb =  i_startblk, i_endblk
   ENDDO
 #endif
   !$ACC END PARALLEL
+
 ENDDO
 !$OMP END DO NOWAIT
 
 !$OMP END PARALLEL
+!$ACC WAIT(1)
 !$ACC END DATA
 
 END SUBROUTINE interpol_vec_nudging
@@ -351,7 +353,7 @@ SUBROUTINE interpol_scal_nudging_core(ptr_pp, jb, i_startblk, i_endblk, all_enab
 
   CALL get_indices_c(ptr_pp, jb, i_startblk, i_endblk, &
        i_startidx, i_endidx, grf_nudgintp_start_c, min_rlcell_int)
-  !$ACC PARALLEL DEFAULT(PRESENT) CREATE(grad_x, grad_y, maxval_neighb) &
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) CREATE(grad_x, grad_y, maxval_neighb) &
   !$ACC   CREATE(minval_neighb) PRESENT(h_aux, ptr_dist, l_enabled, ptr_coeff) &
   !$ACC   PRESENT(p_in_fld, iblk, iidx) IF(i_am_accel_node)
   IF (all_enabled) THEN ! Use vectorizable form with loop reordering
@@ -531,6 +533,7 @@ SUBROUTINE interpol_scal_nudging_core(ptr_pp, jb, i_startblk, i_endblk, all_enab
     ENDDO
   ENDDO
   !$ACC END PARALLEL
+  !$ACC WAIT(1)
 
 END SUBROUTINE interpol_scal_nudging_core
 

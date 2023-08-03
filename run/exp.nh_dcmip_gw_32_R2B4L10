@@ -122,8 +122,8 @@ cat > ${atmo_namelist} << EOF
  vwind_offctr   = 0.05 ! default: 0.15 
 /
 &diffusion_nml
- hdiff_order          = 3
- hdiff_efdt_ratio     = 1.0
+ hdiff_order          = 5           ! Smagorinsky diffusion with fourth order background diffusion
+ hdiff_efdt_ratio     = 0.0         ! deactivated fourth order backgorund diffusion
  hdiff_min_efdt_ratio = 1.0
  lhdiff_vn            = .TRUE.
  lhdiff_temp          = .FALSE.

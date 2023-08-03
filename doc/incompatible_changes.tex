@@ -509,9 +509,27 @@ from ...mpi\_phy... to ...echam\_phy... because programmers felt that the acrony
   \end{itemize}
 \end{changeitem}
 
-\begin{changeitem}{nonhydrostatic\_nml}{2023-07-04}{icon-nwp:master xxx}
+\begin{changeitem}{nonhydrostatic\_nml}{2023-07-04}{icon-nwp:master 6e5730d5}
   \begin{itemize}
    \item Removed Namelist switch \texttt{lhdiff\_rcf}. Option to compute diffusion at dynamics time steps has been removed. It is only computed at advection time steps (in combination with divergence damping in the dynamical core).
+  \end{itemize}
+\end{changeitem}
+
+\begin{changeitem}{parallel\_nml}{2023-07-25}{icon-nwp:master xxx}
+  \begin{itemize}
+   \item Removed Namelist switch \texttt{itype\_comm}. Option to switch on asynchronous halo communication for the dynamical core has been removed.
+  \end{itemize}
+\end{changeitem}
+
+\begin{changeitem}{nonhydrostatic\_nml}{2023-07-25}{icon-nwp:master xxx}
+  \begin{itemize}
+   \item Removed Namelist switch \texttt{nest\_substeps}. Option to change the number of substeps for the child patches has never been functional.
+  \end{itemize}
+\end{changeitem}
+
+\begin{changeitem}{diffusion\_nml}{2023-08-02}{icon-nwp:master xxx}
+  \begin{itemize}
+   \item Removed option for Smagorinsky $\nabla^{2}$ diffusion \texttt{hdiff\_order=3}. Use \texttt{hdiff\_order=5} in combination with \texttt{hdiff\_efdt\_ratio<=0} (deactivated background diffusion), instead.
   \end{itemize}
 \end{changeitem}
 % --------------------------------------------------------------------------------------------

@@ -54,7 +54,7 @@ MODULE mo_test_communication
   USE mo_atmo_nonhydrostatic, ONLY: construct_atmo_nonhydrostatic, destruct_atmo_nonhydrostatic
   USE mo_async_latbc_types,   ONLY: t_latbc_data
 
-  USE mo_parallel_config,    ONLY: itype_comm, iorder_sendrecv
+  USE mo_parallel_config,    ONLY: iorder_sendrecv
   USE mo_sync,               ONLY: SYNC_C, SYNC_E, SYNC_V, sync_patch_array, &
     &                              sync_patch_array_mult, sync_patch_array_4de1
   USE mo_icon_comm_lib
@@ -166,12 +166,10 @@ CONTAINS
     !---------------------------------------------------------------------
     ! test the 3D sync
     !---------------------------------------------------------------------
-    itype_comm = 1
     iorder_sendrecv = 1
     CALL test_oldsync_cells_3D("sync_1_1")
     CALL test_oldsync_edges_3D("sync_1_1")
 
-    itype_comm = 1
     iorder_sendrecv = 3
     CALL test_oldsync_cells_3D("sync_1_3")
     CALL test_oldsync_edges_3D("sync_1_3")
@@ -454,7 +452,6 @@ CONTAINS
     !---------------------------------------------------------------------
     ! test the 2D sync
     !---------------------------------------------------------------------
-    itype_comm = 1
     iorder_sendrecv = 1
     timer_sync_1_1_2D_cells  = new_timer  ("sync_1_1_2D_cells")
     timer_sync_1_1_2D_edges  = new_timer  ("sync_1_1_2D_edges")
@@ -471,7 +468,6 @@ CONTAINS
     CALL test_sync_2D_all(pnt_2D_cells, pnt_2D_edges, pnt_2D_verts, timer_sync_1_1_2D_all)
 
     !---------------------------------------------------------------------
-    itype_comm = 1
     iorder_sendrecv = 2
     timer_sync_1_2_2D_cells  = new_timer  ("sync_1_2_2D_cells")
     timer_sync_1_2_2D_edges  = new_timer  ("sync_1_2_2D_edges")

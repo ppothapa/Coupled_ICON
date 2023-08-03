@@ -14,3 +14,5 @@ builder: balfrin_cpu_nvidia
 "mch_opr_r19b07_lpi": 61bf1df0f3a3174e0f5f368489256ad3b19e40a5
 "mch_opr_r19b07_midnight": d91c6bf4c3e3cabd45c04e05a6c191aabceb6382
 "mch_opr_r19b07_turb": 90cd5cc867e6ef9fc688053818ed556dc3df5979
+"mch_pollen_test": 76299826239ec2460fe3bdc4fbbb7e3433bdfcfe
+"mch_ch_r04b09_dace": 1204fd179fce0a17815220b8555ae439946444b2

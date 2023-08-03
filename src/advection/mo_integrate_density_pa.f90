@@ -530,7 +530,8 @@ CONTAINS
         CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
                            i_startidx, i_endidx, i_rlstart, i_rlend)
 
-        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1,nlev
           DO je = i_startidx, i_endidx
 
@@ -541,18 +542,18 @@ CONTAINS
 
           ENDDO  ! je
         ENDDO  ! jk
-        !$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL
+
       ENDDO  ! jb
 !$OMP END DO
 !$OMP END PARALLEL
 
     ENDIF  ! lcoupled_rho
 
-    !$ACC WAIT
 
     CALL sync_patch_array(SYNC_E, p_patch, p_diag%mass_fl_e)
     CALL sync_patch_array(SYNC_C, p_patch, p_diag%rho_ic )
-
+!$ACC WAIT(1)
   !$ACC END DATA
 
   END SUBROUTINE integrate_density_pa

@@ -114,13 +114,15 @@ CONTAINS
   IF(PRESENT(k_t))THEN
 !ICON_OMP_PARALLEL_DO PRIVATE(start_edge_index,end_edge_index, edge_index, level, &
 !ICON_OMP il_c1, ib_c1, il_c2, ib_c2) ICON_OMP_DEFAULT_SCHEDULE
+    !$ACC DATA COPYIN(k_t) IF(lacc)
     DO blockNo = start_block, end_block
       CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
       !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       diff_flx(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR
       DO edge_index = start_edge_index, end_edge_index
         !Get indices of two adjacent triangles
         il_c1 = cell_idx(edge_index,blockNo,1)
@@ -139,15 +141,15 @@ CONTAINS
         ENDDO
         
       ENDDO
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
     ENDDO
+    !$ACC END DATA
 !ICON_OMP_END_PARALLEL_DO
 
     IF (PRESENT(subset_range)) THEN
       IF (.NOT. is_in_domain) &
         & CALL sync_patch_array(sync_e, patch_2D, diff_flx)
     ENDIF
-
   ELSEIF(.NOT.PRESENT(k_t))THEN  
 !ICON_OMP_PARALLEL_DO PRIVATE(start_edge_index,end_edge_index, edge_index, level, &
 !ICON_OMP il_c1, ib_c1, il_c2, ib_c2) ICON_OMP_DEFAULT_SCHEDULE
@@ -157,7 +159,8 @@ CONTAINS
       diff_flx(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR
       DO edge_index = start_edge_index, end_edge_index
         !Get indices of two adjacent triangles
         il_c1 = cell_idx(edge_index,blockNo,1)
@@ -175,7 +178,7 @@ CONTAINS
         ENDDO
         
       ENDDO
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
     ENDDO
 !ICON_OMP_END_PARALLEL_DO
 
@@ -535,7 +538,7 @@ CONTAINS
     REAL(wp) :: fact(nproma,1:n_zlev)
     REAL(wp) :: column_tracer(nproma,1:n_zlev)
     REAL(wp), POINTER :: field_column(:,:,:)
-    INTEGER :: bottom_level(nproma)
+    INTEGER :: bottom_level(nproma), max_bottom_level
     INTEGER :: cell_index, level
     TYPE(t_subset_range), POINTER :: cells_in_domain
     TYPE(t_patch), POINTER :: patch_2d
@@ -543,11 +546,6 @@ CONTAINS
     LOGICAL :: lacc
     CHARACTER(len=*), PARAMETER :: routine = modname//':tracer_diffusion_vertical_implicit_onBlock_lvector'
 
-#ifdef _OPENACC
-    CALL finish(routine, 'This version is not intended for OpenACC')
-#endif
-
-!     REAL(wp) :: tmp, tmp_add
     !-----------------------------------------------------------------------
     patch_2d        => patch_3d%p_patch_2d(1)
     cells_in_domain => patch_2d%cells%in_domain
@@ -561,6 +559,15 @@ CONTAINS
       lacc = .FALSE.
     END IF
 
+    !$ACC DATA PRESENT(a_v, h) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_c, patch_3d%p_patch_1d(1)%inv_prism_thick_c) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%inv_prism_center_dist_c, patch_3d%p_patch_1d(1)%prism_thick_flat_sfc_c) &
+    !$ACC   CREATE(a, b, bottom_level, c, column_tracer, fact, inv_prism_thickness) &
+    !$ACC   CREATE(inv_prisms_center_distance, top_cell_thickness) &
+    !$ACC   COPY(field_column) IF(lacc)
+
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC LOOP GANG VECTOR
     DO cell_index = start_index, end_index
       bottom_level(cell_index) = patch_3d%p_patch_1d(1)%dolic_c(cell_index,blockNo)
       IF (bottom_level(cell_index) < 2 ) CYCLE ! nothing to diffuse
@@ -573,8 +580,18 @@ CONTAINS
       inv_prisms_center_distance(cell_index,2) = 1.0_wp / ( 0.5_wp * &
           & (top_cell_thickness(cell_index) + patch_3D%p_patch_1d(1)%prism_thick_flat_sfc_c(cell_index,2,blockNo))) 
     ENDDO
-    
-    DO level=1,MAXVAL(bottom_level(start_index:end_index))
+    !$ACC END PARALLEL
+
+    max_bottom_level = -1
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) REDUCTION(MAX: max_bottom_level) IF(lacc)
+    DO level = start_index, end_index
+      max_bottom_level = MAX(max_bottom_level, bottom_level(level))
+    END DO
+    !$ACC END PARALLEL LOOP
+
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+    DO level=1,max_bottom_level
       DO cell_index = start_index, end_index
         IF (bottom_level(cell_index) < 2 .OR. level > bottom_level(cell_index)) CYCLE ! nothing to diffuse
           
@@ -586,20 +603,25 @@ CONTAINS
          
       ENDDO
     ENDDO
+    !$ACC END PARALLEL
 
     !------------------------------------
     ! Fill triangular matrix
     ! b is diagonal, a is the upper diagonal, c is the lower
     
     !  top level
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO cell_index = start_index, end_index
       IF (bottom_level(cell_index) < 2) CYCLE ! nothing to diffuse
       a(cell_index,1) = 0.0_wp
       c(cell_index,1) = -a_v(cell_index,2) * inv_prism_thickness(cell_index,1) * inv_prisms_center_distance(cell_index,2)*dtime
       b(cell_index,1) = 1.0_wp - c(cell_index,1)
     ENDDO
-      
-    DO level=2,MAXVAL(bottom_level(start_index:end_index))-1
+
+    !$ACC LOOP SEQ
+    DO level=2,max_bottom_level-1
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO cell_index = start_index, end_index
       IF (level >= bottom_level(cell_index)) CYCLE ! nothing to diffuse        
         a(cell_index,level) = - a_v(cell_index,level)   * inv_prism_thickness(cell_index,level) * inv_prisms_center_distance(cell_index,level)*dtime
@@ -609,6 +631,7 @@ CONTAINS
     ENDDO
     
     ! bottom
+    !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO cell_index = start_index, end_index
       IF (bottom_level(cell_index) < 2) CYCLE ! nothing to diffuse        
       a(cell_index,bottom_level(cell_index)) = -a_v(cell_index,bottom_level(cell_index)) * &
@@ -619,7 +642,9 @@ CONTAINS
             
     IF (eliminate_upper_diag) THEN
       ! solve the tridiagonal matrix by eliminating c (the upper diagonal) 
-      DO level=MAXVAL(bottom_level(start_index:end_index))-1,1,-1
+      !$ACC LOOP SEQ
+      DO level=max_bottom_level-1,1,-1
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO cell_index = start_index, end_index
           IF (level >= bottom_level(cell_index) .OR. bottom_level(cell_index) < 2) CYCLE ! nothing to diffuse        
           
@@ -630,13 +655,16 @@ CONTAINS
           
         ENDDO
       ENDDO
-        
+
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO cell_index = start_index, end_index
         IF (bottom_level(cell_index) < 2) CYCLE ! nothing to diffuse
         ocean_tracer%concentration(cell_index,1,blockNo) = column_tracer(cell_index,1)/b(cell_index,1)
       ENDDO
-      
-      DO level=2,MAXVAL(bottom_level(start_index:end_index))
+
+      !$ACC LOOP SEQ
+      DO level=2,max_bottom_level
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO cell_index=start_index,end_index
           IF (level > bottom_level(cell_index) .OR. bottom_level(cell_index) < 2) CYCLE ! nothing to diffuse        
           
@@ -648,8 +676,9 @@ CONTAINS
     ELSE
     
       ! solve the tridiagonal matrix by eliminating a (the lower diagonal)        
-        
-      DO level=2, MAXVAL(bottom_level(start_index:end_index))
+      !$ACC LOOP SEQ
+      DO level=2, max_bottom_level
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO cell_index=start_index,end_index
           IF (level > bottom_level(cell_index) .OR. bottom_level(cell_index) < 2) CYCLE ! nothing to diffuse        
         
@@ -659,15 +688,17 @@ CONTAINS
           column_tracer(cell_index,level) = column_tracer(cell_index,level) - fact(cell_index,level)*column_tracer(cell_index,level-1)
         ENDDO
       ENDDO
-      
+
+      !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO cell_index=start_index,end_index
         IF (bottom_level(cell_index) < 2) CYCLE ! nothing to diffuse        
         ocean_tracer%concentration(cell_index,bottom_level(cell_index),blockNo) = &
             column_tracer(cell_index,bottom_level(cell_index))/b(cell_index,bottom_level(cell_index))
       ENDDO
-      
-      
-      DO level=MAXVAL(bottom_level(start_index:end_index))-1,1,-1
+
+      !$ACC LOOP SEQ
+      DO level=max_bottom_level-1,1,-1
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO cell_index=start_index,end_index
           IF (level >= bottom_level(cell_index) .OR. bottom_level(cell_index) < 2) CYCLE ! nothing to diffuse        
         
@@ -678,7 +709,9 @@ CONTAINS
       ENDDO
       
     ENDIF  ! eliminate_upper_diag
-        
+    !$ACC END PARALLEL
+    !$ACC WAIT(1)
+    !$ACC END DATA
   END SUBROUTINE tracer_diffusion_vertical_implicit_onBlock_lvector
   !------------------------------------------------------------------------
  
@@ -746,7 +779,8 @@ CONTAINS
     !$ACC   CREATE(inv_prisms_center_distance, top_cell_thickness) IF(lacc)
 
     max_bottom_level = -1
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) REDUCTION(MAX: max_bottom_level) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) REDUCTION(MAX: max_bottom_level) IF(lacc)
+    !$ACC LOOP GANG VECTOR
     DO cell_index = start_index, end_index
       bottom_level(cell_index) = dolic_c(cell_index,blockNo)
       max_bottom_level = MAX(max_bottom_level, bottom_level(cell_index))
@@ -772,14 +806,15 @@ CONTAINS
       ENDDO
           
     ENDDO
-    !$ACC END PARALLEL LOOP
+    !$ACC END PARALLEL
 
     !------------------------------------
     ! Fill triangular matrix
     ! b is diagonal, a is the upper diagonal, c is the lower
 
     !  top level
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+    !$ACC WAIT
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO cell_index = start_index, end_index
 !       IF (bottom_level(cell_index) < 2) CYCLE ! nothing to diffuse
@@ -888,6 +923,7 @@ CONTAINS
       
     ENDIF  ! eliminate_upper_diag
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
     !$ACC END DATA
   END SUBROUTINE tracer_diffusion_vertical_implicit_onBlock_cpuvector
   !------------------------------------------------------------------------

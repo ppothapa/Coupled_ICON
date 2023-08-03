@@ -381,7 +381,7 @@ CONTAINS
 
     IF (prev_radtime%date%day /= mtime_datetime%date%day) THEN
       IF (inwp_radiation == 4) THEN
-        IF (ANY(irad_aero == [iRadAeroKinne, iRadAeroKinneVolc, iRadAeroKinneVolcSP, iRadAeroKinneSP])) &
+        IF (ANY(irad_aero == [iRadAeroKinne, iRadAeroKinneVolc])) &
             & CALL read_bc_aeropt_kinne(mtime_datetime, pt_patch, .TRUE., nbands_lw, nbands_sw)
         IF (ANY(irad_aero == [iRadAeroVolc, iRadAeroKinneVolc, iRadAeroKinneVolcSP])) &
             & CALL read_bc_aeropt_cmip6_volc(mtime_datetime, nbands_lw, nbands_sw)

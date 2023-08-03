@@ -726,7 +726,7 @@ enddo
       
 !        Berechnung der Luftdichte und des Exner-Faktors am Unterrand:
 !DIR$ IVDEP
-         !$ACC PARALLEL DEFAULT(PRESENT)
+         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
          !$ACC LOOP GANG VECTOR PRIVATE(virt)
          DO i=ivstart, ivend
             virt=z1+rvd_m_o*qv_s(i) !virtueller Faktor
@@ -847,7 +847,7 @@ enddo
                vtyp_tkv => vtyp(ivtype)%tkv
                dvar_sv  => dvar(n)%sv
 !DIR$ IVDEP
-               !$ACC PARALLEL ASYNC DEFAULT(PRESENT)
+               !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
                !$ACC LOOP GANG VECTOR
                DO i=ivstart, ivend
                   zvari(i,ke1,m)=dvar_sv(i)/(rhon(i,ke1)*vtyp_tkv(i,ke1))
@@ -855,7 +855,7 @@ enddo
                !$ACC END PARALLEL
                IF (n.EQ.tem) THEN !flux density is that of sensible heat
 !DIR$ IVDEP
-                  !$ACC PARALLEL ASYNC DEFAULT(PRESENT)
+                  !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
                   !$ACC LOOP GANG VECTOR
                   DO i=ivstart, ivend
                      zvari(i,ke1,m)=zvari(i,ke1,m)/(cp_d*eprs(i,ke1))
@@ -878,7 +878,7 @@ enddo
             cur_prof => hlp
             dvar_av => dvar(n)%av    ! OpenACC issue with derived type
 
-            !$ACC PARALLEL ASYNC DEFAULT(PRESENT)
+            !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
             !$ACC LOOP GANG VECTOR COLLAPSE(2)
             DO k=kstart_vdiff,ke
 !DIR$ IVDEP
@@ -891,7 +891,7 @@ enddo
             IF (ASSOCIATED(dvar(n)%sv)) THEN !surface variable is present
               dvar_sv=>dvar(n)%sv !XL_CHANGE: OpenACC issue with derived type
 !DIR$ IVDEP
-               !$ACC PARALLEL ASYNC DEFAULT(PRESENT)
+               !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
                !$ACC LOOP GANG VECTOR
                DO i=ivstart, ivend
                   cur_prof(i,ke1)=dvar_sv(i)
@@ -900,7 +900,7 @@ enddo
             ELSEIF (n.LE.nvel .OR. ilow_def_cond.EQ.2) THEN
                !No-slip-condition for momentum or zero-concentr.-condition as a default:
 !DIR$ IVDEP
-               !$ACC PARALLEL ASYNC DEFAULT(PRESENT)
+               !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
                !$ACC LOOP GANG VECTOR
                DO i=ivstart, ivend
                   cur_prof(i,ke1)=z0
@@ -908,7 +908,7 @@ enddo
                !$ACC END PARALLEL
             ELSE !enforce a zero flux condition as a default
 !DIR$ IVDEP
-               !$ACC PARALLEL ASYNC DEFAULT(PRESENT)
+               !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
                !$ACC LOOP GANG VECTOR
                DO i=ivstart, ivend
                   cur_prof(i,ke1)=cur_prof(i,ke)
@@ -918,7 +918,7 @@ enddo
 
             IF (itndcon.GT.0) THEN !explicit tendencies have to be considered
               dvar_at => dvar(n)%at
-               !$ACC PARALLEL ASYNC DEFAULT(PRESENT)
+               !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
                !$ACC LOOP GANG VECTOR COLLAPSE(2)
                DO k=kstart_vdiff,ke
 !DIR$ IVDEP
@@ -930,7 +930,7 @@ enddo
             END IF
 
             IF (n.EQ.tem) THEN !temperature needs to be transformed
-               !$ACC PARALLEL ASYNC DEFAULT(PRESENT)
+               !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
                !$ACC LOOP GANG VECTOR COLLAPSE(2)
                DO k=kstart_vdiff,ke
 !DIR$ IVDEP
@@ -942,14 +942,14 @@ enddo
                !$ACC END PARALLEL
 !DIR$ IVDEP
 !$NEC ivdep
-               !$ACC PARALLEL ASYNC DEFAULT(PRESENT)
+               !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
                !$ACC LOOP GANG VECTOR
                DO i=ivstart, ivend
                   cur_prof(i,ke1)=cur_prof(i,ke1)/eprs(i,ke1)
                END DO
                !$ACC END PARALLEL
                IF (itndcon.GT.0) THEN !explicit tendencies to be considered
-                  !$ACC PARALLEL ASYNC DEFAULT(PRESENT)
+                  !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
                   !$ACC LOOP GANG VECTOR COLLAPSE(2)
                   DO k=kstart_vdiff,ke
 !DIR$ IVDEP
@@ -979,7 +979,7 @@ enddo
 !XL_COMMENTS : this print seems to occurs for any debug level, on purpose ?
 !            print*, ivtype, associated(vtyp(ivtype)%tkv)
 
-            !$ACC WAIT
+            !$ACC WAIT(1)
 
             CALL vert_grad_diff( kcm, kgc=kstart_vdiff-1+kgc,         &
 !
@@ -1017,7 +1017,7 @@ enddo
 
             IF (n.EQ.tem) THEN
               dvar_at => dvar(n)%at
-               !$ACC PARALLEL ASYNC DEFAULT(PRESENT)
+               !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
                !$ACC LOOP GANG VECTOR COLLAPSE(2)
                DO k=kstart_vdiff,ke
 !DIR$ IVDEP
@@ -1029,7 +1029,7 @@ enddo
                !$ACC END PARALLEL
             ELSE
               dvar_at => dvar(n)%at
-               !$ACC PARALLEL ASYNC DEFAULT(PRESENT)
+               !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
                !$ACC LOOP GANG VECTOR COLLAPSE(2)
                DO k=kstart_vdiff,ke
 !DIR$ IVDEP
@@ -1045,7 +1045,7 @@ enddo
                !qv-flux-convergence (always a tendency) needs to be adapted:
                   IF (lqvcrst) THEN 
                      !by initializing 'qv_conv' with vertical qv-diffusion:
-                  !$ACC PARALLEL ASYNC DEFAULT(PRESENT)
+                  !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
                   !$ACC LOOP GANG VECTOR COLLAPSE(2)
                   DO k=kstart_vdiff,ke
 !DIR$ IVDEP
@@ -1055,7 +1055,7 @@ enddo
                   END DO
                   !$ACC END PARALLEL
                   ELSE !by adding vertical qv-diffusion to 'qv_conv':
-                  !$ACC PARALLEL ASYNC DEFAULT(PRESENT)
+                  !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
                   !$ACC LOOP GANG VECTOR COLLAPSE(2)
                   DO k=kstart_vdiff,ke
 !DIR$ IVDEP
@@ -1084,7 +1084,7 @@ enddo
 
             IF (PRESENT(shfl_s) .OR. lrunscm) THEN
 !DIR$ IVDEP
-               !$ACC PARALLEL ASYNC DEFAULT(PRESENT)
+               !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
                !$ACC LOOP GANG VECTOR
                DO i=ivstart, ivend
                   shfl_s(i)=eprs(i,ke1)*cp_d*zvari(i,ke1,tet)
@@ -1093,7 +1093,7 @@ enddo
             END IF
             IF (PRESENT(qvfl_s) .OR. lrunscm) THEN
 !DIR$ IVDEP
-               !$ACC PARALLEL ASYNC DEFAULT(PRESENT)
+               !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
                !$ACC LOOP GANG VECTOR
                DO i=ivstart, ivend
                   qvfl_s(i)=zvari(i,ke1,vap)
@@ -1127,7 +1127,7 @@ enddo
 
          IF (lum_dif .AND. PRESENT(umfl_s)) THEN
 !DIR$ IVDEP
-            !$ACC PARALLEL ASYNC DEFAULT(PRESENT)
+            !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
             !$ACC LOOP GANG VECTOR
             DO i=ivstart, ivend
                umfl_s(i)=zvari(i,ke1,u_m)
@@ -1136,7 +1136,7 @@ enddo
          END IF
          IF (lvm_dif .AND. PRESENT(vmfl_s)) THEN
 !DIR$ IVDEP
-            !$ACC PARALLEL ASYNC DEFAULT(PRESENT)
+            !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
             !$ACC LOOP GANG VECTOR
             DO i=ivstart, ivend
                vmfl_s(i)=zvari(i,ke1,v_m)
@@ -1185,7 +1185,7 @@ enddo
   END IF !Vertikaldiffusion wird hier berechnet
 !--------------------------------------------------
 
-  !$ACC WAIT
+  !$ACC WAIT(1)
   !$ACC EXIT DATA DELETE(tinc)
   !$ACC END DATA
 

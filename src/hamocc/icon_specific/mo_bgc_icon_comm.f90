@@ -109,7 +109,8 @@
        lacc = .FALSE.
      END IF
  
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR
       DO jc=start_idx,end_idx 
         kpke=klevs(jc)
         IF (pddpo(jc, 1) .GT. EPSILON(0.5_wp)) THEN
@@ -123,7 +124,7 @@
         ENDDO
         ENDIF
       ENDDO
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
  
       END SUBROUTINE
 
@@ -172,7 +173,7 @@
         lacc = .FALSE.
       END IF
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR
       DO jc=start_index,end_index
         IF (pddpo(jc, 1) .GT. EPSILON(0.5_wp)) THEN
@@ -338,7 +339,7 @@
         lacc = .FALSE.
       END IF
  
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR
       DO jc=start_idx,end_idx 
         IF (pddpo(jc, 1) .GT. EPSILON(0.5_wp)) THEN

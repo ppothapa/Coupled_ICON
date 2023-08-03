@@ -20,6 +20,7 @@ MODULE mo_tropopause
   USE mo_kind,               ONLY: wp
   USE mo_physical_constants, ONLY: rd, cpd, g=>grav
   USE mo_aes_wmo_config,     ONLY: aes_wmo_config
+  USE mo_fortran_tools,      ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
   PRIVATE
@@ -71,7 +72,7 @@ CONTAINS
     ! Routines of ART use this subroutine also in combination with NWP physics.
     ! Therefore, the parameters iplimb and iplimt must not be limited to
     ! ECHAM physics in this case.
-                             ptropo, iplimb_in, iplimt_in      )
+                             ptropo, iplimb_in, iplimt_in, lacc)
 
     ! scalar arguments
     INTEGER, INTENT(in) :: jg
@@ -83,6 +84,7 @@ CONTAINS
     ! array arguments
     REAL(wp), INTENT(in)    :: ptm1(kbdim,klev), papm1(kbdim,klev)
     REAL(wp), INTENT(inout) :: ptropo(kbdim)
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
     ! local arrays
     REAL(wp) :: ztropo(kproma)
@@ -104,6 +106,10 @@ CONTAINS
 
     REAL(wp) :: zasum, zamean
     REAL(wp) :: zpapm1(kproma,klev)
+    LOGICAL :: lzacc ! non-optional version of lacc
+
+  !------------------------------------------------------------------------------
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     zkappa   = rd/cpd                   ! 0.286
     zzkap    = 1.0_wp/zkappa
@@ -124,11 +130,12 @@ CONTAINS
     END IF
 
     !$ACC DATA PRESENT(ptm1, papm1, ptropo) &
-    !$ACC   CREATE(ztropo, zpmk, zpm, ztm, zdtdz, zplimb, zplimt, zpapm1)
+    !$ACC   CREATE(ztropo, zpmk, zpm, ztm, zdtdz, zplimb, zplimt, zpapm1) &
+    !$ACC   IF(lzacc)
 
     ! Calculate the height of the tropopause
 
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jl = jcs, kproma
       ztropo(jl) = -999.0_wp
@@ -139,7 +146,7 @@ CONTAINS
 
     ! compute dt/dz
 
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = iplimt-2, iplimb+1
       DO jl = jcs, kproma
@@ -148,7 +155,7 @@ CONTAINS
     ENDDO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(za, zb)
     DO jk = iplimt-1, iplimb+1
       DO jl = jcs, kproma
@@ -169,7 +176,7 @@ CONTAINS
     !$ACC END PARALLEL
 
 
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR PRIVATE(zag, zbg, zptph, zp2km, zasum, kcount, zamean, jk, jj)
     nproma_loop: DO jl = jcs, kproma
       !$ACC LOOP SEQ
@@ -217,7 +224,7 @@ CONTAINS
 
     ! if tropopause not found use previous value in time
 
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jl = jcs,kproma
       IF (ztropo(jl) > 0.0_wp) THEN

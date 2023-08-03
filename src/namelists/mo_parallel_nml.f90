@@ -17,7 +17,7 @@
 MODULE mo_parallel_nml
 
   USE mo_io_units,            ONLY: nnml, nnml_output
-  USE mo_exception,           ONLY: finish
+  USE mo_exception,           ONLY: finish, message, message_text
   USE mo_namelist,            ONLY: position_nml, POSITIONED, open_nml, close_nml
   USE mo_master_control,      ONLY: use_restart_namelists
   USE mo_mpi,                 ONLY: my_process_is_stdio
@@ -44,7 +44,6 @@ MODULE mo_parallel_nml
     & config_pio_type            => pio_type,            &
     & config_num_prefetch_proc   => num_prefetch_proc,   &
     & config_proc0_shift         => proc0_shift,         &
-    & config_itype_comm          => itype_comm,          &
     & config_iorder_sendrecv     => iorder_sendrecv,     &
     & set_nproma, &
     & config_nblocks_c           => nblocks_c,             &
@@ -161,7 +160,7 @@ MODULE mo_parallel_nml
     ! i.e. overlapping of reading data, communicating data and computing statistics
     LOGICAL :: use_omp_input
 
-    ! Type of (halo) communication:
+    ! !!! OBSOLETE !!! Type of (halo) communication:
     ! 1 = synchronous communication with local memory for exchange buffers
     ! 3 = asynchronous communication within dynamical core with global memory
     !     for exchange buffers (not yet implemented)
@@ -294,7 +293,7 @@ MODULE mo_parallel_nml
     ! i.e. overlapping of reading data, communicating data and computing statistics
     use_omp_input = .FALSE.
 
-    ! Type of (halo) communication:
+    ! !!! OBSOLETE !!! Type of (halo) communication:
     ! 1 = synchronous communication with local memory for exchange buffers
     ! 3 = asynchronous communication within dynamical core with global memory
     !     for exchange buffers (not yet implemented)
@@ -360,8 +359,10 @@ MODULE mo_parallel_nml
     !----------------------------------------------------
     ! Sanity check
     !----------------------------------------------------
-    IF (itype_comm > 1) CALL finish(routine, &
-      'itype_comm > 1 is deprecated, please use itype_comm=1')
+    WRITE(message_text,'(a)') &
+      &  'Namelist switch itype_comm is obsolete and will soon be removed!'
+    CALL message("WARNING",message_text)
+
 
     !-----------------------------------------------------
     ! Store the namelist for restart
@@ -395,7 +396,6 @@ MODULE mo_parallel_nml
     config_num_prefetch_proc   = num_prefetch_proc
     config_proc0_shift         = proc0_shift
     config_use_omp_input       = use_omp_input
-    config_itype_comm          = itype_comm
     config_iorder_sendrecv     = iorder_sendrecv
     config_nblocks_c           = nblocks_c
     config_use_nblocks_c       = (nblocks_c > 0) ! Only use nblocks_c if it has a reasonable value

@@ -5,7 +5,7 @@
 spack:
   # add package specs to the `specs` list
   specs:
-  - icon@develop%nvhpc +ecrad +rte-rrtmgp gpu=60 +mixed-precision +dace fcgroup=DACE;externals/dace_icon;-O1
+  - icon@develop%nvhpc +ecrad +rte-rrtmgp +art gpu=60 +mixed-precision +dace fcgroup=DACE;externals/dace_icon;-O1
   - eccodes@2.19.0%nvhpc
   - nvidia-blas%nvhpc
   - nvidia-lapack%nvhpc
@@ -15,5 +15,5 @@ spack:
     unify: true
   develop:
     icon:
-      spec: icon@develop%nvhpc +ecrad +rte-rrtmgp gpu=60 +mixed-precision +dace fcgroup=DACE;externals/dace_icon;-O1
+      spec: icon@develop%nvhpc +ecrad +rte-rrtmgp +art gpu=60 +mixed-precision +dace fcgroup=DACE;externals/dace_icon;-O1
       path: ../../../../../

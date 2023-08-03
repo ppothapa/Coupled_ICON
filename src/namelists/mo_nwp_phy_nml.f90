@@ -98,6 +98,7 @@ MODULE mo_nwp_phy_nml
   real(wp) :: mu_rain            !! shape parameter in gamma distribution for rain
   real(wp) :: rain_n0_factor     !! tuning factor for intercept parameter of raindrop size distribution
   real(wp) :: mu_snow            !! ...for snow
+  LOGICAL  :: lsbm_warm_full     !! false: Piggy Backing with 2M, true: full warm-phase SBM
 
   INTEGER  :: icalc_reff(max_dom)    !! type of effective radius calculation
   INTEGER  :: icpl_rad_reff(max_dom) !! coupling radiation and effective radius
@@ -126,7 +127,8 @@ MODULE mo_nwp_phy_nml
     &                    lmflimiter_off, lstoch_sde,lstoch_deep,     &
     &                    ldetrain_conv_prec, rain_n0_factor,         &
     &                    icalc_reff, lupatmo_phy, icpl_rad_reff,     &
-    &                    lgrayzone_deepconv, ithermo_water
+    &                    lgrayzone_deepconv, ithermo_water,          &
+    &                    lsbm_warm_full
 
 CONTAINS
 
@@ -222,6 +224,8 @@ CONTAINS
     mu_snow = 0.0_wp
     rain_n0_factor = 1.0_wp
 
+    lsbm_warm_full = .TRUE. ! false: Piggy Backing with 2M, true: full warm-phase SBM
+
     ustart_raylfric    = 160._wp
     efdt_min_raylfric  = 10800._wp
 
@@ -261,7 +265,8 @@ CONTAINS
                        ! 12     = RRTM parameterization
 
     icpl_rad_reff(:)=  icpl_rad_reff_def ! 0    = no coupling (using old RRTM Parameterization)
-                       ! 1      = coupling RRTM/ECRAD with the effective radius parameterization 
+                       ! 1      = coupling RRTM/ECRAD with the effective radius parameterization (through two phases ice and frozen)
+                       ! 2      = coupling ECRAD with the effective radius parameterization (each phase alone)
 
     ithermo_water(:)=  ithermo_water_def ! 0   = Latent heats (LH) constant in microphysics
                                          ! 1   = LH as function of temperature in microphysics
@@ -387,19 +392,19 @@ CONTAINS
 
     DO jg = 1, max_dom
 
-      IF ( ALL((/0,1,2,3,4,5,6,7,9/) /= inwp_gscp(jg)) ) THEN
-        CALL finish( TRIM(routine), 'Incorrect setting for inwp_gscp. Must be 0,1,2,3,4,5,6,7 or 9.')
+      IF ( ALL((/0,1,2,3,4,5,6,7,8,9/) /= inwp_gscp(jg)) ) THEN
+        CALL finish( TRIM(routine), 'Incorrect setting for inwp_gscp. Must be 0,1,2,3,4,5,6,7,8 or 9.')
       END IF
       
-      IF ( ALL((/0,1,2,4,5,6,7,100,101/) /= icalc_reff(jg)) ) THEN
-        CALL finish( TRIM(routine), 'Incorrect setting for icalc_reff. Must be 0,1,2,4,5, 6,7, 100 or 101.')
+      IF ( ALL((/0,1,2,4,5,6,7,8,100,101/) /= icalc_reff(jg)) ) THEN
+        CALL finish( TRIM(routine), 'Incorrect setting for icalc_reff. Must be 0,1,2,4,5, 6,7,8, 100 or 101.')
       END IF
 
-      IF ( ALL((/0,1/) /= icpl_rad_reff(jg)) ) THEN
-        CALL finish( TRIM(routine), 'Incorrect setting for icpl_rad_reff. Must be 0,1')
+      IF ( ALL((/0,1,2/) /= icpl_rad_reff(jg)) ) THEN
+        CALL finish( TRIM(routine), 'Incorrect setting for icpl_rad_reff. Must be 0,1,2')
       END IF
       
-      IF ( (icpl_rad_reff(jg) == 1) .AND. (icalc_reff(jg) == 0) ) THEN
+      IF ( (icpl_rad_reff(jg) > 0) .AND. (icalc_reff(jg) == 0) ) THEN
         CALL finish( TRIM(routine), 'Incorrect setting for icpl_rad_reff. It must be 0 if no reff is defined (icalc_reff =0)')
       END IF
 
@@ -442,6 +447,10 @@ CONTAINS
 
       IF (ALL((/0,1/) /= inwp_sso(jg))) THEN
         CALL finish(routine,'GPU version only available for inwp_sso == 0 or 1.')
+      ENDIF
+
+      IF (inwp_gscp(jg) == 8) THEN
+        CALL finish(routine,'GPU version not available for Stochastic Bin Microphysics (inwp_gscp=8).')
       ENDIF
 #endif
 
@@ -519,7 +528,7 @@ CONTAINS
       atm_phy_nwp_config(jg)%icalc_reff      = icalc_reff (jg)
       atm_phy_nwp_config(jg)%icpl_rad_reff   = icpl_rad_reff (jg)
       atm_phy_nwp_config(jg)%ithermo_water   = ithermo_water(jg)
-      
+      atm_phy_nwp_config(jg)%lsbm_warm_full  = lsbm_warm_full
     ENDDO
 
     config_lrtm_filename   = TRIM(lrtm_filename)

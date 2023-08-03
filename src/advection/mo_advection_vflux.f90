@@ -82,6 +82,7 @@ MODULE mo_advection_vflux
   USE mo_sync,                ONLY: global_max
   USE mo_mpi,                 ONLY: process_mpi_stdio_id, my_process_is_stdio, get_my_mpi_work_id, &
                                     get_glob_proc0, comm_lev
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
 #ifdef _OPENACC
   USE mo_mpi,                 ONLY: i_am_accel_node
 #endif
@@ -96,6 +97,7 @@ MODULE mo_advection_vflux
   PUBLIC :: vert_upwind_flux
   PUBLIC :: upwind_vflux_up
   PUBLIC :: upwind_vflux_ppm
+  PUBLIC :: upwind_vflux_ppm4gpu
   PUBLIC :: implicit_sedim_tracer
 
   CHARACTER(len=*), PARAMETER :: modname = 'mo_advection_vflux'
@@ -391,11 +393,11 @@ CONTAINS
     END IF
 
     IF ( PRESENT(opt_q_ubc) ) THEN
-      !$ACC KERNELS PRESENT(opt_q_ubc, zq_ubc) IF(i_am_accel_node)
+      !$ACC KERNELS PRESENT(opt_q_ubc, zq_ubc) ASYNC(1) IF(i_am_accel_node)
       zq_ubc(:,:) = opt_q_ubc(:,:)
       !$ACC END KERNELS
     ELSE
-      !$ACC KERNELS PRESENT(zq_ubc) IF(i_am_accel_node)
+      !$ACC KERNELS PRESENT(zq_ubc) ASYNC(1) IF(i_am_accel_node)
       zq_ubc(:,:) = 0._wp
       !$ACC END KERNELS
     ENDIF
@@ -431,7 +433,7 @@ CONTAINS
       CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,       &
         &                 i_startidx, i_endidx, i_rlstart, i_rlend )
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = slev+1, nlev
         DO jc = i_startidx, i_endidx
@@ -458,6 +460,7 @@ CONTAINS
 
     ENDDO ! end loop over blocks
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
 !$OMP END DO NOWAIT
@@ -1977,7 +1980,7 @@ CONTAINS
     &                        dt,                               &
     &                        p_patch, p_metrics,               &
     &                        i_rlstart, i_rlend,               &
-    &                        rhoS )
+    &                        rhoS, lacc )
 
     USE mo_parallel_config,         ONLY: nproma
     USE mo_nonhydro_types ,         ONLY: t_nh_metrics
@@ -1999,6 +2002,8 @@ CONTAINS
 
     REAL (wp), INTENT(IN), OPTIONAL :: rhoS(:,:,:)
 
+    LOGICAL, OPTIONAL, INTENT(IN) :: lacc
+
     INTEGER    :: jk, jb, jc
     REAL (wp)  :: h, dz, c, lambda_im
 
@@ -2010,34 +2015,39 @@ CONTAINS
 
     LOGICAL :: is_rhoS_present
 
+    LOGICAL :: lzacc             ! OpenACC flag
+    CALL set_acc_host_or_device(lzacc, lacc)
+
     is_rhoS_present = PRESENT( rhoS )   ! own variable may help in vectorisation for some compilers
 
     i_startblk = p_patch%cells%start_block(i_rlstart)
     i_endblk   = p_patch%cells%end_block(i_rlend)
 
-#ifdef _OPENACC
-    PRINT *, "Sorry: implicit_sedim_tracer not yet available for OpenACC"
-    IF ( .FALSE. ) THEN
-#else
+    !$ACC DATA CREATE(phi_new, phi_old) IF(lzacc)
+
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx,dz,c,lambda_im,h,phi_old,phi_new) ICON_OMP_GUIDED_SCHEDULE
-#endif
     DO jb = i_startblk, i_endblk
 
       CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,        &
         &                 i_startidx, i_endidx, i_rlstart, i_rlend )
 
       ! calculate densities (for the following flux advection scheme)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, p_patch%nlev
         DO jc = i_startidx, i_endidx
           phi_old(jc,jk) = tracer(jc,jk,jb) * rho(jc,jk,jb)
         ENDDO ! jc
       ENDDO ! jk
+      !$ACC END PARALLEL
 
       IF ( is_rhoS_present ) THEN
 
         ! top level
         jk = 1
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+        !$ACC LOOP GANG VECTOR PRIVATE(dz, c, lambda_im, h)
         DO jc = i_startidx, i_endidx
 
           dz = p_metrics%z_ifc(jc,jk,jb) - p_metrics%z_ifc(jc,jk+1,jb)
@@ -2048,8 +2058,12 @@ CONTAINS
 
           phi_new(jc,jk) = MAX( lambda_im * ( h + rhoS(jc,jk,jb)*dt ), 0.0_wp)
         END DO ! jc
+        !$ACC END PARALLEL
 
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+        !$ACC LOOP SEQ
         DO jk=2, p_patch%nlev
+          !$ACC LOOP GANG VECTOR PRIVATE(dz, c, lambda_im, h)
           DO jc = i_startidx, i_endidx
 
             dz = p_metrics%z_ifc(jc,jk,jb) - p_metrics%z_ifc(jc,jk+1,jb)
@@ -2065,6 +2079,7 @@ CONTAINS
 
           END DO ! jc
         END DO ! jk
+        !$ACC END PARALLEL
 
       ELSE
 
@@ -2072,6 +2087,8 @@ CONTAINS
 
         ! top level
         jk = 1
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+        !$ACC LOOP GANG VECTOR PRIVATE(dz, c, lambda_im, h)
         DO jc = i_startidx, i_endidx
 
           dz = p_metrics%z_ifc(jc,jk,jb) - p_metrics%z_ifc(jc,jk+1,jb)
@@ -2082,8 +2099,12 @@ CONTAINS
 
           phi_new(jc,jk) = MAX( lambda_im * h, 0.0_wp)
         END DO ! jc
+        !$ACC END PARALLEL
 
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+        !$ACC LOOP SEQ
         DO jk=2, p_patch%nlev
+          !$ACC LOOP GANG VECTOR PRIVATE(dz, c, lambda_im, h)
           DO jc = i_startidx, i_endidx
 
             dz = p_metrics%z_ifc(jc,jk,jb) - p_metrics%z_ifc(jc,jk+1,jb)
@@ -2098,23 +2119,26 @@ CONTAINS
             phi_new(jc,jk) = MAX( lambda_im * h, 0.0_wp)
           END DO ! jc
         END DO ! jk
+        !$ACC END PARALLEL
 
       END IF       ! IF ( is_rhoS_present )
 
       ! calculate back the specific mass:
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, p_patch%nlev
         DO jc = i_startidx, i_endidx
           tracer(jc,jk,jb) = phi_new(jc,jk) * rho_inv(jc,jk,jb)
         ENDDO ! jc
       ENDDO ! jk
+      !$ACC END PARALLEL
 
     END DO   ! jb
-#ifdef _OPENACC
-    END IF
-#else
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
-#endif
+
+    !$ACC WAIT
+    !$ACC END DATA
 
   END SUBROUTINE implicit_sedim_tracer
 

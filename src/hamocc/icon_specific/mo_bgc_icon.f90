@@ -214,13 +214,14 @@ IF (test_memory_copies /= bgc_memory_copies) &
  &                          ocean_to_hamocc_state%ice_concentration_sum(:,jb),                           & ! sea ice concentration
  &                          pddpo(:,:,jb), use_acc=lacc)                                                  ! level thickness
 
-        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO k=1,kpke
           DO jc = start_index,end_index
             hamocc_to_ocean_state%swr_fraction(jc,k,jb) = local_bgc_memory%swr_frac(jc,k)
           END DO
         END DO
-        !$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL
 
         stop_detail_timer(timer_bgc_swr,5)
 

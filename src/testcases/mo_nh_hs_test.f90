@@ -204,7 +204,7 @@ CONTAINS
     !---
 
     !$ACC DATA PRESENT(pvn, psigma, fvn_hs)
-    !$ACC PARALLEL
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk=1,nlev
       DO i = is, ie
@@ -263,7 +263,7 @@ CONTAINS
 
     !$ACC DATA CREATE(zsinlat2, zcoslat2, zcoslat4) PRESENT(ptemp_mc, ppres_mc, psigma, plat, fT_hs)
     !$ACC DATA PRESENT(opt_ekinh) IF(PRESENT( opt_ekinh ))
-    !$ACC PARALLEL
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO i=is, ie
       zsinlat2(i) = SIN(plat(i))**2
@@ -272,8 +272,8 @@ CONTAINS
     ENDDO
     !$ACC END PARALLEL
    
-    !$ACC PARALLEL
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(kT_hs, zsigma0, zTempEq, ztmp)
     DO jk = 1,nlev
 
       DO i=is,ie
@@ -299,19 +299,20 @@ CONTAINS
     !$ACC END PARALLEL
 
     IF (l_friheat) THEN
-      !$ACC PARALLEL
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(ztmp)
       DO jk = 1,nlev
         DO i = is,ie
           ztmp = psigma(i,jk)*HSvcoeff1 + HSvcoeff2
           fT_hs(i,jk) = fT_hs(i,jk) + HSkf*MAX( 0._wp,ztmp)*2.0_wp*opt_ekinh(i,jk)/cvd
         ENDDO
-     ENDDO
-     !$ACC END PARALLEL
-  ENDIF
+      ENDDO
+      !$ACC END PARALLEL
+    ENDIF
+    !$ACC WAIT(1)
 
-  !$ACC END DATA
-  !$ACC END DATA
+    !$ACC END DATA
+    !$ACC END DATA
 
   END SUBROUTINE held_suarez_forcing_temp
 

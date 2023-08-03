@@ -595,7 +595,7 @@ CONTAINS
       itype_gscp_fwo = 140
     CASE (2)
       itype_gscp_fwo = 150
-    CASE (4,5,6,7)
+    CASE (4,5,6,7,8)
       ! 2-moment scheme including hail:
       itype_gscp_fwo = 260
       luse_muD_relation_rain_fwo = atm_phy_nwp_config(idom)%cfg_2mom%luse_mu_Dm_rain
@@ -1431,7 +1431,7 @@ CONTAINS
 
     SELECT CASE ( itype_gscp_model_in )
 
-    CASE ( 4, 5, 6 )
+    CASE ( 4, 5, 6, 8 )
 
       ! Note: computations include halos and boundaries for consistency to EMVORADO internal computations
       CALL compute_field_dbz_2mom( npr       = ni,                   &

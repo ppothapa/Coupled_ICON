@@ -246,9 +246,6 @@ CONTAINS
     IF (.NOT. ltimer) timers_level = 0
 
     IF (lart) THEN
-#ifdef _OPENACC
-      CALL finish( TRIM(routine),'ART not supported on GPU -- run without ART')
-#endif
 #ifndef __ICON_ART
       CALL finish( TRIM(routine),'model set to run with ART but compiled with --disable-art')
 #endif

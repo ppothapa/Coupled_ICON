@@ -31,6 +31,7 @@ MODULE mo_radiation_nml
                                  & config_albedo_whitecap     => albedo_whitecap,       &
                                  & config_icld_overlap        => icld_overlap,          &
                                  & config_islope_rad => islope_rad,                     &
+                                 & config_ecrad_use_general_cloud_optics   => ecrad_use_general_cloud_optics,&
                                  & config_irad_h2o   => irad_h2o,                       &
                                  & config_irad_co2   => irad_co2,                       &
                                  & config_irad_ch4   => irad_ch4,                       &
@@ -50,6 +51,8 @@ MODULE mo_radiation_nml
                                  & config_vmr_cfc12  => vmr_cfc12,                      &
                                  & config_izenith    => izenith,                        &
                                  & config_cos_zenith_fixed => cos_zenith_fixed,         &
+                                 & config_decorr_pole => decorr_pole,                   &
+                                 & config_decorr_equator => decorr_equator,             &
                                  & config_mmr_co2    => mmr_co2,                        &
                                  & config_mmr_ch4    => mmr_ch4,                        &
                                  & config_mmr_n2o    => mmr_n2o,                        &
@@ -59,6 +62,9 @@ MODULE mo_radiation_nml
                                  & config_ecrad_llw_cloud_scat => ecrad_llw_cloud_scat, &
                                  & config_ecrad_iliquid_scat => ecrad_iliquid_scat,     &
                                  & config_ecrad_iice_scat => ecrad_iice_scat,           &
+                                 & config_ecrad_isnow_scat => ecrad_isnow_scat,         &
+                                 & config_ecrad_irain_scat => ecrad_irain_scat,         &
+                                 & config_ecrad_igraupel_scat => ecrad_igraupel_scat,   &
                                  & config_ecrad_isolver => ecrad_isolver,               &
                                  & config_ecrad_igas_model => ecrad_igas_model,         &
                                  & config_ecrad_data_path => ecrad_data_path,           &
@@ -169,12 +175,22 @@ MODULE mo_radiation_nml
   INTEGER  :: izenith
   REAL(wp) :: cos_zenith_fixed
   !
+  ! --- Set minimum (pole) and maximum (equator) overlap
+  !     decorrelation length scale in m for latitude-dependen function.
+  REAL(wp) :: decorr_pole
+  REAL(wp) :: decorr_equator
+  !
   ! ecRad specific configuration
   LOGICAL  :: ecrad_llw_cloud_scat
   INTEGER  :: ecrad_iliquid_scat
   INTEGER  :: ecrad_iice_scat
+  INTEGER  :: ecrad_isnow_scat
+  INTEGER  :: ecrad_irain_scat
+  INTEGER  :: ecrad_igraupel_scat
   INTEGER  :: ecrad_isolver
   INTEGER  :: ecrad_igas_model
+  LOGICAL  :: ecrad_use_general_cloud_optics
+
   CHARACTER(len=MAX_CHAR_LENGTH) :: ecrad_data_path
   !
   NAMELIST /radiation_nml/ isolrad,               &
@@ -196,13 +212,19 @@ MODULE mo_radiation_nml
     &                      ghg_filename,          &
     &                      izenith, icld_overlap, &
     &                      cos_zenith_fixed,      &
+    &                      decorr_pole,           &
+    &                      decorr_equator,        &
     &                      islope_rad,            &
     &                      ecrad_llw_cloud_scat,  &
     &                      ecrad_iliquid_scat,    &
     &                      ecrad_iice_scat,       &
+    &                      ecrad_isnow_scat,      &
+    &                      ecrad_irain_scat,      &
+    &                      ecrad_igraupel_scat,   &
     &                      ecrad_isolver,         &
     &                      ecrad_igas_model,      &
-    &                      ecrad_data_path
+    &                      ecrad_data_path,       &
+    &                      ecrad_use_general_cloud_optics
 
 CONTAINS
 
@@ -266,12 +288,19 @@ CONTAINS
     izenith          = 4       ! Default: seasonal orbit and diurnal cycle
     cos_zenith_fixed = 0.5_wp  ! fixed cosine of zenith angle for izenith=6
 
+    decorr_pole    = 2000._wp  ! Default: globally uniform decorrelation length scale
+    decorr_equator = 2000._wp  ! of 2km. 
+
     ecrad_llw_cloud_scat = .FALSE.
     ecrad_iliquid_scat   = 0
     ecrad_iice_scat      = 0
+    ecrad_isnow_scat     = -1        ! No snow in radiation calculation
+    ecrad_irain_scat     = -1        ! No rain in radiation calculation
+    ecrad_igraupel_scat  = -1        ! No graupel in radiation calculation
     ecrad_isolver        = 0
     ecrad_igas_model     = 0
     ecrad_data_path      = '.'
+    ecrad_use_general_cloud_optics        = .FALSE.   ! No generalized Hydrometeors
 
     !------------------------------------------------------------------
     ! 2. If this is a resumed integration, overwrite the defaults above 
@@ -343,11 +372,18 @@ CONTAINS
     config_izenith    = izenith
     config_cos_zenith_fixed = cos_zenith_fixed
 
+    config_decorr_pole    = decorr_pole
+    config_decorr_equator = decorr_equator
+
     config_ecrad_llw_cloud_scat = ecrad_llw_cloud_scat
     config_ecrad_iliquid_scat   = ecrad_iliquid_scat
     config_ecrad_iice_scat      = ecrad_iice_scat
+    config_ecrad_isnow_scat     = ecrad_isnow_scat
+    config_ecrad_irain_scat     = ecrad_irain_scat
+    config_ecrad_igraupel_scat  = ecrad_igraupel_scat
     config_ecrad_isolver        = ecrad_isolver
     config_ecrad_igas_model     = ecrad_igas_model
+    config_ecrad_use_general_cloud_optics    = ecrad_use_general_cloud_optics
     config_ecrad_data_path      = TRIM(ecrad_data_path)
 
     IF ( direct_albedo_water == 3 ) THEN
@@ -356,6 +392,8 @@ CONTAINS
       csalb => csalb1
     ENDIF
     __acc_attach(csalb)
+
+    !$ACC UPDATE DEVICE(config_decorr_pole, config_decorr_equator)
 
     !-----------------------------------------------------
     ! 5. Store the namelist for restart

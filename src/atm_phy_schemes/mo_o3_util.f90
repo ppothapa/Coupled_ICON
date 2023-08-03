@@ -1569,8 +1569,8 @@ CONTAINS
 
       jk_start = 0
 
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) PRIVATE(lfound_all) IF(lacc)
-      !$ACC LOOP SEQ
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP SEQ PRIVATE(lfound_all)
       DO jk = 0,pt_patch%nlev
         !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx,i_endidx

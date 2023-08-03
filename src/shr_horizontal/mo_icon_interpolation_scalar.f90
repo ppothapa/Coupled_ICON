@@ -269,7 +269,7 @@ DO jb = i_startblk, i_endblk
   CALL get_indices_e(ptr_patch, jb, i_startblk, i_endblk, &
                      i_startidx, i_endidx, rl_start, rl_end)
 
-  !$ACC PARALLEL IF(i_am_accel_node)
+  !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
   !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
   DO je = i_startidx, i_endidx
@@ -289,6 +289,7 @@ DO jb = i_startblk, i_endblk
   !$ACC END PARALLEL
 
 END DO
+!$ACC WAIT(1)
 
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -595,7 +596,7 @@ IF (timers_level > 10) CALL timer_start(timer_intp)
     CALL get_indices_v(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
     DO jv = i_startidx, i_endidx
@@ -719,7 +720,7 @@ IF (timers_level > 10) CALL timer_start(timer_intp)
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
     DO jc = i_startidx, i_endidx
@@ -839,7 +840,7 @@ IF (timers_level > 10) CALL timer_start(timer_intp)
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
     DO jc = i_startidx, i_endidx
@@ -1210,7 +1211,7 @@ END SUBROUTINE cells2verts_scalar_sp
       CALL get_indices_v(ptr_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, rl_start, rl_end)
 
-      !$ACC PARALLEL IF(i_am_accel_node)
+      !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jv = i_startidx, i_endidx
@@ -1442,7 +1443,7 @@ IF (timers_level > 10) CALL timer_start(timer_intp)
       nlen = npromz_c
     ENDIF
 
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
     DO jc = 1, nlen

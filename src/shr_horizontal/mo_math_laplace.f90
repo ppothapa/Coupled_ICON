@@ -284,7 +284,7 @@ CASE (3) ! (cell_type == 3)
     CALL get_indices_e(ptr_patch, jb, i_startblk, i_endblk, &
                      i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
     !$ACC LOOP GANG
     DO je = i_startidx, i_endidx
@@ -317,6 +317,7 @@ CASE (3) ! (cell_type == 3)
 !$OMP END PARALLEL
 
 END SELECT
+!$ACC WAIT(1)
 
 !$ACC END DATA
 
@@ -526,8 +527,7 @@ CASE (3) ! (cell_type == 3)
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL IF(i_am_accel_node)
-
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
     DO jc = i_startidx, i_endidx
@@ -548,7 +548,6 @@ CASE (3) ! (cell_type == 3)
           &  + psi_c(iidx(jc,jb,2),jk,iblk(jc,jb,2)) * ptr_int%geofac_n2s(jc,3,jb) &
           &  + psi_c(iidx(jc,jb,3),jk,iblk(jc,jb,3)) * ptr_int%geofac_n2s(jc,4,jb)
       END DO !cell loop
-
     END DO !vertical levels loop
     !$ACC END PARALLEL
 
@@ -566,6 +565,7 @@ CASE (6) ! (cell_type == 6) THEN ! Use unoptimized version for the time being
   CALL div( z_grad_fd_norm_e, ptr_patch, ptr_int, nabla2_psi_c, slev, elev)
 
 END SELECT
+!$ACC WAIT(1)
 
 !$ACC END DATA
 
@@ -682,7 +682,7 @@ i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
       i_endidx   = nproma
     ENDIF
 
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
 
@@ -697,8 +697,8 @@ i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
 
     END DO
     !$ACC END PARALLEL
-  END DO
 
+  END DO
 !$OMP END DO
 
   IF (l_limited_area .OR. ptr_patch%id > 1) THEN
@@ -734,7 +734,7 @@ i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
       i_endidx   = nproma
     ENDIF
 
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP VECTOR
     DO jc = i_startidx, i_endidx
       !
@@ -767,7 +767,7 @@ i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG
 #ifdef __LOOP_EXCHANGE
     DO jc = i_startidx, i_endidx
@@ -790,9 +790,9 @@ i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
           &  + psi_c(iidx(jc,jb,2),jk,iblk(jc,jb,2)) * ptr_int%geofac_n2s(jc,3,jb) &
           &  + psi_c(iidx(jc,jb,3),jk,iblk(jc,jb,3)) * ptr_int%geofac_n2s(jc,4,jb)
       END DO !cell loop
-
     END DO !vertical levels loop
     !$ACC END PARALLEL
+
   END DO
 !$OMP END DO
 
@@ -820,7 +820,7 @@ i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
     CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start_l2, rl_end)
 
-    !$ACC PARALLEL IF(i_am_accel_node)
+    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG
 #ifdef __LOOP_EXCHANGE
     DO jc = i_startidx, i_endidx
@@ -844,7 +844,6 @@ i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
           &  + aux_c(iidx(jc,jb,3),jk,iblk(jc,jb,3)) * avg_coeff(jc,4,jb)
 
       END DO !cell loop
-
     END DO !vertical levels loop
     !$ACC END PARALLEL
 
@@ -854,6 +853,7 @@ i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
 ENDIF
 
 END SELECT
+!$ACC WAIT(1)
 
 !$ACC END DATA
 

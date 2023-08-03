@@ -221,6 +221,7 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
   INTEGER :: jb, jc, jk, i_rlstart, i_rlend, ndiag, iter, nlev
   INTEGER :: i_startblk, i_endblk   !> blocks
   INTEGER :: i_startidx, i_endidx   !< slices
+  INTEGER :: kqrs_min   ! lowest upper layer with qrs_flux > 0.0
 
   REAL(KIND=wp) :: zdcoeff
 
@@ -324,7 +325,7 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
 !$OMP DO PRIVATE(jb,jc,jk,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
   DO jb = i_startblk, i_endblk
     CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, i_rlstart, i_rlend)
-    !$ACC PARALLEL DEFAULT(PRESENT)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jc = i_startidx, i_endidx
       pr_obs         (jc,jb) = -0.1_wp
@@ -357,7 +358,7 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
 !$OMP END DO
 
 !$OMP DO PRIVATE(jb,jc,jk,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
-  !$ACC PARALLEL DEFAULT(PRESENT)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
   !$ACC LOOP SEQ
   DO jb = 1, i_startblk    ! initialization along nest boundaries
     !$ACC LOOP GANG(STATIC: 1) VECTOR
@@ -384,7 +385,7 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
 
     CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, i_rlstart, i_rlend)
 
-    !$ACC PARALLEL DEFAULT(PRESENT)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jc = i_startidx, i_endidx
       hzerocl(jc,jb) = p_metrics%z_ifc(jc,nlev+1,jb)
@@ -412,6 +413,7 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
       END IF
     END DO
     !$ACC END PARALLEL
+
   END DO
 !$OMP END DO
 !$OMP END PARALLEL
@@ -474,21 +476,21 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
       SELECT CASE (atm_phy_nwp_config(jg)%inwp_gscp)
       CASE(1, 3)
 
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1)
         DO jc = i_startidx, i_endidx
           pr_mod(jc,jb) = prm_diag%rain_gsp_rate(jc,jb) + prm_diag%snow_gsp_rate(jc,jb)
         END DO
 
       CASE(2)
 
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1)
         DO jc = i_startidx, i_endidx
           pr_mod(jc,jb) = prm_diag%rain_gsp_rate(jc,jb) + prm_diag%snow_gsp_rate(jc,jb) + prm_diag%graupel_gsp_rate(jc,jb)
         END DO
 
-      CASE(4, 5) ! 2-mom schemes
+      CASE(4, 5, 8) ! 2-mom schemes or SBM
 
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1)
         DO jc = i_startidx, i_endidx
           pr_mod(jc,jb) = prm_diag%rain_gsp_rate   (jc,jb) + prm_diag%snow_gsp_rate(jc,jb) + &
                           prm_diag%graupel_gsp_rate(jc,jb) + prm_diag%hail_gsp_rate(jc,jb)
@@ -496,14 +498,14 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
 
       CASE(9)
 
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1)
         DO jc = i_startidx, i_endidx
           pr_mod(jc,jb) = prm_diag%rain_gsp_rate(jc,jb)
         END DO
 
       END SELECT
 
-      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
+      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1)
       DO jk = kstart_moist(jg), nlev
         DO jc = i_startidx, i_endidx
           qrsflux(jc,jk,jb) = prm_diag%qrs_flux(jc,jk,jb)
@@ -511,7 +513,7 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
       END DO
 
       IF (atm_phy_nwp_config(jg)%inwp_convection > 0) THEN
-        !$ACC PARALLEL DEFAULT(PRESENT)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
         !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx
           pr_mod(jc,jb) = pr_mod(jc,jb) + prm_diag%rain_con_rate_3d(jc,nlev,jb) + prm_diag%snow_con_rate_3d(jc,nlev,jb)
@@ -528,7 +530,7 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
         !$ACC END PARALLEL
       END IF
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1)
       DO jc = i_startidx, i_endidx
         pr_ref(jc,jb) = pr_mod(jc,jb)
         zprmod(jc,jb) = pr_mod(jc,jb)
@@ -540,14 +542,14 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
 !-------------------------------------------------------------------------------
 
       IF (atm_phy_nwp_config(jg)%inwp_convection > 0) THEN
-        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
+        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1)
         DO jk = kstart_moist(jg), nlev
           DO jc = i_startidx, i_endidx
             tt_lheat(jc,jk,jb) = prm_diag%tt_lheat(jc,jk,jb)*zdt_1 + prm_nwp_tend%ddt_temp_pconv(jc,jk,jb)
           END DO
         END DO
       ELSE
-        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
+        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1)
         DO jk = kstart_moist(jg), nlev
           DO jc = i_startidx, i_endidx
             tt_lheat(jc,jk,jb) = prm_diag%tt_lheat(jc,jk,jb)*zdt_1
@@ -556,6 +558,7 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
       END IF
 
     END DO
+    !$ACC WAIT(1)
 !$OMP END DO 
 !$OMP END PARALLEL
 
@@ -572,42 +575,37 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
 
     IF (assimilation_config(jg)%lhn_qrs) THEN
 
-!$OMP DO PRIVATE(jb,jc,jk,i_startidx,i_endidx,qrsflux_int,qrsgmax,qrsgthres,vcoordsum,kqrs) ICON_OMP_GUIDED_SCHEDULE
+!$OMP DO PRIVATE(jb,jc,jk,i_startidx,i_endidx,qrsflux_int,qrsgmax,qrsgthres, &
+!$OMP            vcoordsum,kqrs,kqrs_min) ICON_OMP_GUIDED_SCHEDULE
       DO jb = i_startblk, i_endblk
 
         CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, i_rlstart, i_rlend)
 
-        !$ACC PARALLEL DEFAULT(PRESENT)
-        !$ACC LOOP GANG VECTOR
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx
           qrsgmax(jc) = 0._wp
         END DO
-        !$ACC END PARALLEL
 
-        !$ACC PARALLEL DEFAULT(PRESENT)
         !$ACC LOOP SEQ
         DO jk = kstart_moist(jg), nlev
-          !$ACC LOOP GANG VECTOR
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = i_startidx, i_endidx
             qrsgmax(jc) = MAX(qrsgmax(jc), qrsflux(jc,jk,jb))
           END DO
         END DO
-        !$ACC END PARALLEL
 
-        !$ACC PARALLEL DEFAULT(PRESENT)
-        !$ACC LOOP GANG VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx
           qrsgthres(jc)   = MAX(assimilation_config(jg)%thres_lhn, assimilation_config(jg)%rqrsgmax*qrsgmax(jc))
           qrsflux_int(jc) = 0.0_wp
           vcoordsum(jc)   = 0.0_wp
           kqrs(jc)        = nlev+1
         END DO
-        !$ACC END PARALLEL
 
-        !$ACC PARALLEL DEFAULT(PRESENT)
         !$ACC LOOP SEQ
         DO jk = kstart_moist(jg), nlev
-          !$ACC LOOP GANG VECTOR
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = i_startidx, i_endidx
             IF (qrsgmax(jc) >= qrsgthres(jc)) THEN
               IF (qrsflux(jc,jk,jb) >= qrsgthres(jc) .AND. kqrs(jc) == nlev+1) THEN
@@ -616,12 +614,15 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
             END IF
           END DO
         END DO
-        !$ACC END PARALLEL
         
-        !$ACC PARALLEL DEFAULT(PRESENT)
+#ifdef _OPENACC
+        kqrs_min = 1
+#else
+        kqrs_min = MINVAL(kqrs(i_startidx:i_endidx))   ! CPU optimization for loop with qrsflux_int and vcoordsum
+#endif
         !$ACC LOOP SEQ
-        DO jk = MINVAL(kqrs(i_startidx:i_endidx)), nlev
-          !$ACC LOOP GANG VECTOR
+        DO jk = kqrs_min, nlev
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = i_startidx, i_endidx
             IF (jk >= kqrs(jc)) THEN
               qrsflux_int(jc) = qrsflux_int(jc) + qrsflux(jc,jk,jb) * &
@@ -630,10 +631,8 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
             END IF
           END DO
         END DO
-        !$ACC END PARALLEL
         
-        !$ACC PARALLEL DEFAULT(PRESENT)
-        !$ACC LOOP GANG VECTOR
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx
           IF (vcoordsum(jc) /= 0.0_wp) qrsflux_int(jc) = qrsflux_int(jc) / vcoordsum(jc)
           pr_ref(jc,jb) = qrsflux_int(jc)
@@ -656,13 +655,14 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
        CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
             &                i_startidx, i_endidx, i_rlstart, i_rlend)
        
-       !$ACC PARALLEL DEFAULT(PRESENT) REDUCTION(+: zprmod_scal, zprref_scal)
+       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) REDUCTION(+: zprmod_scal, zprref_scal)
        !$ACC LOOP GANG VECTOR
        DO jc=i_startidx,i_endidx
          zprmod_scal    = zprmod_scal    + pr_mod(jc,jb)
          zprref_scal    = zprref_scal    + pr_ref(jc,jb)
        ENDDO
        !$ACC END PARALLEL
+       !$ACC WAIT(1)
        zprmod_s_blk(jb)    = zprmod_scal
        zprref_s_blk(jb)    = zprref_scal
 
@@ -688,7 +688,7 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
        CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
             &                i_startidx, i_endidx, i_rlstart, i_rlend)
 
-       !$ACC PARALLEL DEFAULT(PRESENT)
+       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
        !$ACC LOOP GANG VECTOR
        DO jc=i_startidx,i_endidx
          lhn_fields%ref_bias(jc,jb) = lhn_fields%ref_bias(jc,jb) + zdt/assimilation_config(jg)%dtrefbias * &
@@ -698,6 +698,7 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
        !$ACC END PARALLEL
        
      ENDDO
+     !$ACC WAIT(1)
 !$OMP END DO 
 !$OMP END PARALLEL
    ENDIF
@@ -709,11 +710,14 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
 
      CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, i_rlstart, i_rlend)
 
-     !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
+     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+     !$ACC LOOP GANG VECTOR
      DO jc = i_startidx, i_endidx
        pr_obs_nofilt(jc,jb) = pr_obs(jc,jb)
        pr_mod_nofilt(jc,jb) = pr_ref(jc,jb)
      END DO
+     !$ACC END PARALLEL
+
    ENDDO
 !$OMP END DO
 !$OMP END PARALLEL
@@ -726,11 +730,14 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
 
         CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, i_rlstart, i_rlend)
 
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           z_pr_obs(jc,1,jb) = pr_obs(jc,jb)
           z_pr_mod(jc,1,jb) = pr_ref(jc,jb)
         END DO
+        !$ACC END PARALLEL
+
       END DO
 !$OMP END DO
 !$OMP END PARALLEL
@@ -754,7 +761,7 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
 
           CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, i_rlstart, i_rlend)
 
-          !$ACC PARALLEL DEFAULT(PRESENT)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
           !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = i_startidx, i_endidx
             pr_ref(jc,jb) = MAX( 0.0_wp, z_pr_mod(jc,1,jb) + zdcoeff * &
@@ -791,11 +798,15 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
       DO jb = i_startblk, i_endblk
         CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
                            i_startidx, i_endidx, i_rlstart, i_rlend)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
+
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           IF (pr_obs(jc,jb) < 0.0_wp)        pr_obs(jc,jb) = 0.0_wp
           IF (pr_obs_nofilt(jc,jb) < 0.0_wp) pr_obs(jc,jb) = -1.0_wp
         END DO
+        !$ACC END PARALLEL
+
       END DO
 !$OMP END DO
 !$OMP END PARALLEL
@@ -809,18 +820,22 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
       DO jb = i_startblk, i_endblk
         CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
            &               i_startidx, i_endidx, i_rlstart, i_rlend)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
+
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           zprmod_ref  (jc,jb) = pr_mod_nofilt(jc,jb)
           zprrad      (jc,jb) = pr_obs_nofilt(jc,jb)
           zprmod_ref_f(jc,jb) = pr_ref       (jc,jb)
           zprrad_f    (jc,jb) = pr_obs       (jc,jb)
         END DO
+        !$ACC END PARALLEL
+
       END DO
+      !$ACC WAIT(1)
       !$ACC UPDATE HOST(zprmod_ref, zprrad, zprmod_ref_f, zprrad_f)
 !$OMP END DO
 !$OMP END PARALLEL
-      !$ACC WAIT(1)
       CALL lhn_verification( 'SW', pt_patch, radar_data, lhn_fields, p_sim_time, wobs_space, &
                              zprmod, zprmod_ref, zprrad, zprmod_ref_f, zprrad_f )
     END IF
@@ -956,7 +971,7 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
 
       CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx
         IF (pr_obs(jc,jb) > 0.0_wp) lhn_fields%pr_obs_sum(jc,jb) = lhn_fields%pr_obs_sum(jc,jb) + &
@@ -1056,12 +1071,15 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
 
         CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, i_rlstart, i_rlend)
 
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
           lhn_fields%pr_obs_sum(jc,jb) = 0.0_wp
           lhn_fields%pr_mod_sum(jc,jb) = 0.0_wp
           lhn_fields%pr_ref_sum(jc,jb) = 0.0_wp
         END DO
+        !$ACC END PARALLEL
+
       END DO
 !$OMP END DO
 !$OMP END PARALLEL
@@ -1069,6 +1087,7 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
   
   END IF
 
+  !$ACC WAIT(1)
   !$ACC END DATA
 
 !-------------------------------------------------------------------------------
@@ -1369,7 +1388,9 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,lhn_fields,pr_obs,hzerocl, &
      DO jb = i_startblk,i_endblk
        CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
          &                i_startidx, i_endidx, i_rlstart, i_rlend)
-       !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
+
+       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+       !$ACC LOOP GANG VECTOR
        DO jc = i_startidx,i_endidx
          obs_sum   (jc,jb) =  0.0_wp
          obs_ratio (jc,jb) =  0.0_wp
@@ -1377,6 +1398,8 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,lhn_fields,pr_obs,hzerocl, &
          bbllim    (jc,jb) =  0.0_wp
          lhn_fields%brightband(jc,jb) = .FALSE.
        END DO
+       !$ACC END PARALLEL
+
      END DO
 !$OMP END DO
 !$OMP END PARALLEL
@@ -1389,70 +1412,83 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,lhn_fields,pr_obs,hzerocl, &
      DO jb = i_startblk,i_endblk
        CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
          &                i_startidx, i_endidx, i_rlstart, i_rlend)
-        !$ACC PARALLEL DEFAULT(PRESENT)
-        !$ACC LOOP SEQ
-        DO ns=nsums,nsume
-          !$ACC LOOP GANG VECTOR
-          DO jc = i_startidx,i_endidx
-            IF (NINT(radar_data%radar_ct%blacklist(jc,jb)) /= 0_i4 ) CYCLE
-            IF (radar_data%radar_td%obs(jc,jb,ns) >= 0.0_wp) THEN
-              obs_sum (jc,jb) = obs_sum (jc,jb) + radar_data%radar_td%obs(jc,jb,ns)
-              obs_cnt (jc,jb) = obs_cnt (jc,jb) + 1_i4
-            ENDIF
-          ENDDO
-        ENDDO
-        !$ACC END PARALLEL
-      ENDDO
+
+       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+       !$ACC LOOP SEQ
+       DO ns=nsums,nsume
+         !$ACC LOOP GANG VECTOR
+         DO jc = i_startidx,i_endidx
+           IF (NINT(radar_data%radar_ct%blacklist(jc,jb)) /= 0_i4 ) CYCLE
+           IF (radar_data%radar_td%obs(jc,jb,ns) >= 0.0_wp) THEN
+             obs_sum (jc,jb) = obs_sum (jc,jb) + radar_data%radar_td%obs(jc,jb,ns)
+             obs_cnt (jc,jb) = obs_cnt (jc,jb) + 1_i4
+           ENDIF
+         ENDDO
+       ENDDO
+       !$ACC END PARALLEL
+
+     ENDDO
 !$OMP END DO 
 !$OMP END PARALLEL
 
      DO jb = i_startblk,i_endblk
        CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
          &                i_startidx, i_endidx, i_rlstart, i_rlend)
-        !$ACC PARALLEL DEFAULT(PRESENT)
-        !$ACC LOOP GANG VECTOR REDUCTION(+: obs_sum_g, nsum_g)
-        DO jc = i_startidx,i_endidx
-            IF (obs_cnt (jc,jb) <  1_i4 ) CYCLE
-            obs_sum (jc,jb) = obs_sum (jc,jb) / REAL(obs_cnt (jc,jb),wp)
-            IF ( obs_sum (jc,jb) > assimilation_config(jg)%bbthres ) THEN 
-               obs_sum_g = obs_sum_g + obs_sum (jc,jb)
-               nsum_g    = nsum_g + 1
-            ENDIF
-        ENDDO
-        !$ACC END PARALLEL
-      ENDDO
 
-      obs_sum_g = global_sum(obs_sum_g)
-      nsum_g = global_sum(nsum_g)
+       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+       !$ACC LOOP GANG VECTOR REDUCTION(+: obs_sum_g, nsum_g)
+       DO jc = i_startidx,i_endidx
+           IF (obs_cnt (jc,jb) <  1_i4 ) CYCLE
+           obs_sum (jc,jb) = obs_sum (jc,jb) / REAL(obs_cnt (jc,jb),wp)
+           IF ( obs_sum (jc,jb) > assimilation_config(jg)%bbthres ) THEN 
+              obs_sum_g = obs_sum_g + obs_sum (jc,jb)
+              nsum_g    = nsum_g + 1
+           ENDIF
+       ENDDO
+       !$ACC END PARALLEL
 
-      IF (nsum_g > 0 ) THEN
-         obs_sum_g = obs_sum_g / nsum_g
-         IF ( obs_sum_g > 0._wp ) THEN
+     ENDDO
+     !$ACC WAIT(1)
+
+     obs_sum_g = global_sum(obs_sum_g)
+     nsum_g = global_sum(nsum_g)
+
+     IF (nsum_g > 0 ) THEN
+        obs_sum_g = obs_sum_g / nsum_g
+        IF ( obs_sum_g > 0._wp ) THEN
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
-           DO jb = i_startblk, i_endblk
-             CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
-               &                i_startidx, i_endidx, i_rlstart, i_rlend)
-             !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
-             DO jc = i_startidx, i_endidx
-               obs_ratio (jc,jb) = obs_sum (jc,jb) / obs_sum_g
-             END DO
-           END DO
+          DO jb = i_startblk, i_endblk
+            CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
+              &                i_startidx, i_endidx, i_rlstart, i_rlend)
+
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+            !$ACC LOOP GANG VECTOR
+            DO jc = i_startidx, i_endidx
+              obs_ratio (jc,jb) = obs_sum (jc,jb) / obs_sum_g
+            END DO
+            !$ACC END PARALLEL
+
+          END DO
 !$OMP END DO
 !$OMP END PARALLEL
-         END IF
-      ENDIF
+        END IF
+     END IF
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
-      DO jb = i_startblk, i_endblk
+     DO jb = i_startblk, i_endblk
        CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
          &                i_startidx, i_endidx, i_rlstart, i_rlend)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT)
-        DO jc = i_startidx, i_endidx
-          bbllim(jc,jb)= MAX(MIN(1000._wp,assimilation_config(jg)%hzerolim - hzerocl(jc,jb)),-100._wp)
-        END DO
-      END DO
+
+       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+       !$ACC LOOP GANG VECTOR
+       DO jc = i_startidx, i_endidx
+         bbllim(jc,jb)= MAX(MIN(1000._wp,assimilation_config(jg)%hzerolim - hzerocl(jc,jb)),-100._wp)
+       END DO
+       !$ACC END PARALLEL
+
+     END DO
 !$OMP END DO
 !$OMP END PARALLEL
 
@@ -1472,14 +1508,18 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,lhn_fields,pr_obs,hzerocl, &
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jc,jn,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
   DO jb = i_startblk, i_endblk
-      CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
+    CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, i_rlstart, i_rlend)
-    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT)
+
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jn = 0, 4
       DO jc = i_startidx, i_endidx
         num_t_obs(jc,jb,jn) = 0
       END DO
     END DO
+    !$ACC END PARALLEL
+
   END DO
 !$OMP END DO
 !$OMP END PARALLEL
@@ -1491,7 +1531,8 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,lhn_fields,pr_obs,hzerocl, &
     DO jb = i_startblk,i_endblk
       CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
       &                i_startidx, i_endidx, i_rlstart, i_rlend)
-      !$ACC PARALLEL DEFAULT(PRESENT)
+
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx,i_endidx
         IF (NINT(radar_data%radar_ct%blacklist(jc,jb)) /= 1_i4 .AND. .NOT. lhn_fields%brightband(jc,jb)) THEN
@@ -1649,8 +1690,8 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,lhn_fields,pr_obs,hzerocl, &
         ENDIF
        ENDDO
        !$ACC END PARALLEL
+
      ENDDO
-  
 !$OMP END DO 
 !$OMP END PARALLEL
 
@@ -1661,7 +1702,8 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,lhn_fields,pr_obs,hzerocl, &
      DO jb = i_startblk,i_endblk
        CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
        &                i_startidx, i_endidx, i_rlstart, i_rlend)
-       !$ACC PARALLEL DEFAULT(PRESENT)
+
+       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
        !$ACC LOOP GANG VECTOR
        DO jc = i_startidx,i_endidx
 
@@ -1836,6 +1878,7 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,lhn_fields,pr_obs,hzerocl, &
         ENDIF
        ENDDO
        !$ACC END PARALLEL
+
      ENDDO
 !$OMP END DO 
 !$OMP END PARALLEL
@@ -1846,6 +1889,7 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,lhn_fields,pr_obs,hzerocl, &
 !IF (.NOT.assimilation_config(jg)%lhn_spqual) wobs_space(:,:) = 1.0_wp
 
 ! determine statistics about spatial weights
+
 
   IF ( assimilation_config(jg)%lhn_diag ) THEN
     !$ACC UPDATE HOST(num_t_obs, wobs_space, radar_data%radar_ct%blacklist)
@@ -1974,7 +2018,8 @@ SUBROUTINE detect_bright_band(pt_patch,radar_data,lhn_fields,sumrad,bbllim,hzero
    DO jb = i_startblk,i_endblk
        CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
          &                i_startidx, i_endidx, i_rlstart, i_rlend)
-       !$ACC PARALLEL DEFAULT(PRESENT)
+
+       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
        !$ACC LOOP GANG(STATIC: 1) VECTOR
        DO jc = i_startidx,i_endidx
            IF(NINT(radar_data%radar_ct%blacklist(jc,jb)) /= 1_i4 .AND. &
@@ -1992,17 +2037,19 @@ SUBROUTINE detect_bright_band(pt_patch,radar_data,lhn_fields,sumrad,bbllim,hzero
            ENDIF
        ENDDO
       !$ACC END PARALLEL
+
    ENDDO
+   !$ACC WAIT(1)
 !$OMP END DO 
 !$OMP END PARALLEL
 
-  IF ( assimilation_config(jg)%lhn_diag ) THEN
-    !$ACC UPDATE HOST(lhn_fields%brightband)
-    nbright=COUNT(lhn_fields%brightband)
-    nbrightg=global_sum(nbright,opt_iroot=p_io)
-    IF (my_process_is_stdio()) &
-     WRITE(nulhn(jg), *)' n of points which are possibly brightband    : numbright = ',nbrightg
-  ENDIF
+   IF ( assimilation_config(jg)%lhn_diag ) THEN
+     !$ACC UPDATE HOST(lhn_fields%brightband)
+     nbright=COUNT(lhn_fields%brightband)
+     nbrightg=global_sum(nbright,opt_iroot=p_io)
+     IF (my_process_is_stdio()) &
+      WRITE(nulhn(jg), *)' n of points which are possibly brightband    : numbright = ',nbrightg
+   ENDIF
    !$ACC END DATA
    
 !-------------------------------------------------------------------------------
@@ -2229,7 +2276,7 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
      ntcoeff = 1.0_wp
   ENDIF
 
-  !$ACC PARALLEL DEFAULT(PRESENT) COPY(ntreat)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) COPY(ntreat)
   !$ACC LOOP GANG VECTOR PRIVATE(w, ntreat_local)
   DO ip = i_startidx, i_endidx
 
@@ -2272,7 +2319,7 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
   END DO
   !$ACC END PARALLEL
 
-  !$ACC PARALLEL DEFAULT(PRESENT)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
   !$ACC LOOP GANG VECTOR &
   !$ACC   REDUCTION(+: n_local, n_down, n_up, n_down_lim, n_artif, n_up_lim) &
   !$ACC   PRIVATE(ip, pr_quot, scale_fac, fac, prmax, prmax_th)
@@ -2356,7 +2403,8 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
 ! filter and scale the local profiles and nearby profiles from this node
 ! or artificial profiles
 
-  !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) PRIVATE(ip)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+  !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(ip)
   DO k = ke-4, ke
 !NEC$ ivdep
     DO i = 1, ntreat
@@ -2365,8 +2413,10 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
       abs_lim_prof(ip,k) = 0.0
     END DO
   END DO
+  !$ACC END PARALLEL
 
-  !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) PRIVATE(ip, dz)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+  !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(ip, dz)
   DO k = 1, ke-5 ! do not touch the lowest model levels
 !NEC$ ivdep
     DO i = 1, ntreat
@@ -2378,10 +2428,12 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
       IF (abs_lim_prof(ip,k) < 1.e-7) abs_lim_prof(ip,k) = 0.0
     ENDDO
   ENDDO
+  !$ACC END PARALLEL
 
 !      determine the temperature correction due to lhn
 
-  !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) PRIVATE(ip)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+  !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(ip)
   DO k = 1, ke
 !NEC$ ivdep
     DO i = 1, ntreat
@@ -2400,6 +2452,8 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
       ENDIF
     ENDDO
   ENDDO
+  !$ACC END PARALLEL
+
 !-------------------------------------------------------------------------------
 ! Section 5 : Vertical filtering of increments (if assimilation_config(jg)%lhn_filt)
 !-------------------------------------------------------------------------------
@@ -2414,7 +2468,7 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
 
   ENDIF
 
-  !$ACC PARALLEL DEFAULT(PRESENT)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
   !$ACC LOOP GANG VECTOR COLLAPSE(2) REDUCTION(+: n_incloud, n_ex_lim_p, n_ex_lim_n) PRIVATE(ip)
   DO k = 1, ke
 !NEC$ ivdep
@@ -2469,7 +2523,7 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
 !-------------------------------------------------------------------------------
 
   IF (assimilation_config(jg)%lhn_wweight) THEN
-    !$ACC PARALLEL DEFAULT(PRESENT)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR &
     !$ACC   REDUCTION(+: n_windcor, n_windcor0) PRIVATE(ip, umean, vmean, zvb)
 !NEC$ ivdep
@@ -2497,7 +2551,8 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
     ENDDO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) PRIVATE(ip)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(ip)
     DO k = 1, ke
 !NEC$ ivdep
       DO i = 1, ntreat
@@ -2505,9 +2560,11 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
         ttend_lhn(ip,k) = ttend_lhn(ip,k) * wind_corr(ip)
       ENDDO
     ENDDO
+    !$ACC END PARALLEL
 
   ENDIF
 
+  !$ACC WAIT(1)
   !$ACC END DATA
 
 !-------------------------------------------------------------------------------
@@ -2660,11 +2717,11 @@ SUBROUTINE lhn_q_inc(i_startidx,i_endidx,jg,zdt,ke,t,ttend_lhn,p,qv,qc,qi, &
   !$ACC   PRESENT(t, p, qc, qi, qv, scale_fac_index, qvtend_lhn, ttend_lhn, assimilation_config(jg:jg))
 
   ! set moisture increments to be determined to zero
-  !$ACC KERNELS DEFAULT(PRESENT)
+  !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
   qvtend_lhn(:,:) = 0.0_wp
   !$ACC END KERNELS
 
-  !$ACC PARALLEL DEFAULT(PRESENT)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
   !$ACC LOOP GANG VECTOR COLLAPSE(2) REDUCTION(+: nred, ninc, ninc2) PRIVATE(zp, esat, relhum, zqv)
   DO   k=1,ke
     DO jc = i_startidx,i_endidx
@@ -2725,7 +2782,7 @@ SUBROUTINE lhn_q_inc(i_startidx,i_endidx,jg,zdt,ke,t,ttend_lhn,p,qv,qc,qi, &
     ENDDO
   ENDDO
   !$ACC END PARALLEL
-
+  !$ACC WAIT(1)
   !$ACC END DATA
 
 !-------------------------------------------------------------------------------
@@ -2809,7 +2866,7 @@ SUBROUTINE filter_prof (prof_filt,ntreat,treat_list,kup,klow,eps,lelim,lsmooth, 
 ! eliminate isolated peaks
    IF (lelim) THEN
 
-     !$ACC PARALLEL DEFAULT(PRESENT)
+     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(ip)
 !NEC$ ivdep
      DO i = 1, ntreat
@@ -2898,8 +2955,10 @@ SUBROUTINE filter_prof (prof_filt,ntreat,treat_list,kup,klow,eps,lelim,lsmooth, 
        ENDDO
      ENDDO
      !$ACC END PARALLEL
+
    ELSE
-     !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) PRIVATE(ip)
+     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(ip)
      DO k = kup, klow
 !NEC$ ivdep
        DO i = 1, ntreat
@@ -2907,12 +2966,14 @@ SUBROUTINE filter_prof (prof_filt,ntreat,treat_list,kup,klow,eps,lelim,lsmooth, 
          proffilt(ip,k)=prof_filt(ip,k)
        END DO
      END DO
+     !$ACC END PARALLEL
+
    ENDIF
 
 ! smooth profile
    IF (lsmooth) THEN
 
-     !$ACC PARALLEL DEFAULT(PRESENT)
+     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
      !$ACC LOOP SEQ
      DO k=klow-1,kup+1,-1
 !NEC$ ivdep
@@ -2944,7 +3005,9 @@ SUBROUTINE filter_prof (prof_filt,ntreat,treat_list,kup,klow,eps,lelim,lsmooth, 
        ENDIF
      ENDDO
      !$ACC END PARALLEL
+
    ENDIF
+   !$ACC WAIT(1)
    !$ACC END DATA
 
 !-------------------------------------------------------------------------------

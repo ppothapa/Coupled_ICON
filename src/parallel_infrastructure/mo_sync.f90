@@ -1094,7 +1094,7 @@ SUBROUTINE sync_idx(type_arr, type_idx, p_patch, idx, blk, opt_remap, opt_varnam
 
   !$ACC DATA COPYIN(z_idx) IF(i_am_accel_node)
 
-  !$ACC PARALLEL IF(i_am_accel_node)
+  !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
   !$ACC LOOP GANG VECTOR COLLAPSE(2)
   DO jb = 1, nblks
     DO jl = 1, nproma
@@ -1110,12 +1110,13 @@ SUBROUTINE sync_idx(type_arr, type_idx, p_patch, idx, blk, opt_remap, opt_varnam
     END DO
   END DO
   !$ACC END PARALLEL
+  !$ACC WAIT(1)
 
   ! Sync z_idx
   CALL sync_patch_array(type_arr, p_patch, z_idx, opt_varname)
 
   ! Set all points with local index corresponding to z_idx
-  !$ACC PARALLEL IF(i_am_accel_node)
+  !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
   !$ACC LOOP GANG VECTOR COLLAPSE(2)
   DO jb = 1, nblks
     DO jl = 1, nproma
@@ -1162,6 +1163,7 @@ SUBROUTINE sync_idx(type_arr, type_idx, p_patch, idx, blk, opt_remap, opt_varnam
 
   END DO
   !$ACC END PARALLEL
+  !$ACC WAIT(1)
 
   !$ACC END DATA
 

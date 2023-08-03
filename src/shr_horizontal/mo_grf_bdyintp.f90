@@ -120,6 +120,7 @@ SUBROUTINE interpol_vec_grf (p_pp, p_pc, p_grf, p_vn_in, p_vn_out)
 !$OMP PARALLEL
 !$OMP DO PRIVATE (jb,jk,je,nlen,nshift) ICON_OMP_DEFAULT_SCHEDULE
   DO jb = 1, nblks_bdyintp
+
     IF (jb == nblks_bdyintp) THEN
       nlen = npromz_bdyintp
     ELSE
@@ -128,7 +129,7 @@ SUBROUTINE interpol_vec_grf (p_pp, p_pc, p_grf, p_vn_in, p_vn_out)
     nshift = (jb-1)*nproma_bdyintp
 
     ! PRESENT(p_pp%edges%refin_ctrl) is required, as PGI 20.9 can not find this variable otherwise.
-    !$ACC PARALLEL DEFAULT(PRESENT) PRESENT(p_pp%edges%refin_ctrl) IF(i_am_accel_node)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) PRESENT(p_pp%edges%refin_ctrl) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO je = nshift+1, nshift+nlen
       DO jk = 1, nlev_c
@@ -312,6 +313,7 @@ SUBROUTINE interpol2_vec_grf (p_pp, p_pc, p_grf, nfields, f3din1, f3dout1, &
 
 !$OMP DO PRIVATE(jb,jn,jk,jv,nlen,nshift) ICON_OMP_DEFAULT_SCHEDULE
   DO jb = 1, nblks_bdyintp_v
+
     IF (jb == nblks_bdyintp_v) THEN
       nlen = npromz_bdyintp_v
     ELSE
@@ -319,7 +321,7 @@ SUBROUTINE interpol2_vec_grf (p_pp, p_pc, p_grf, nfields, f3din1, f3dout1, &
     ENDIF
     nshift = (jb-1)*nproma_bdyintp
 
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR COLLAPSE(3)
     DO jv = nshift+1, nshift+nlen
       DO jn = 1, nfields
@@ -350,6 +352,7 @@ SUBROUTINE interpol2_vec_grf (p_pp, p_pc, p_grf, nfields, f3din1, f3dout1, &
 
 !$OMP DO PRIVATE(jb,jn,jk,je,nlen,nshift,dvn_tang) ICON_OMP_DEFAULT_SCHEDULE
   DO jb = 1, nblks_bdyintp_e
+
     IF (jb == nblks_bdyintp_e) THEN
       nlen = npromz_bdyintp_e
     ELSE
@@ -358,7 +361,7 @@ SUBROUTINE interpol2_vec_grf (p_pp, p_pc, p_grf, nfields, f3din1, f3dout1, &
     nshift = (jb-1)*nproma_bdyintp
 
     ! PRESENT(p_grf, iblk, iidx) is necessary to help PGI_20_9 with address-not-mapped errors
-    !$ACC PARALLEL DEFAULT(PRESENT) PRESENT(p_grf, iblk, iidx) IF(i_am_accel_node)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) PRESENT(p_grf, iblk, iidx) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR COLLAPSE(3) PRIVATE(dvn_tang)
     DO je = nshift+1, nshift+nlen
       DO jn = 1, nfields
@@ -408,6 +411,7 @@ SUBROUTINE interpol2_vec_grf (p_pp, p_pc, p_grf, nfields, f3din1, f3dout1, &
     !$ACC END PARALLEL
 
   ENDDO ! blocks
+  !$ACC WAIT(1)
 !$OMP END DO
 !$OMP END PARALLEL
 
@@ -630,11 +634,10 @@ SUBROUTINE interpol_scal_grf (p_pp, p_pc, p_grf, nfields,&
       DO jn = 1, nfields
         elev   = UBOUND(p_out(jn)%fld,2)
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jc = nshift+1, nshift+nlen
           DO jk = 1, elev
-
             val_ctr(jk,jc) = p_in(jn)%fld(iidx(1,jc),jk+js,iblk(1,jc))
             grad_x(jk,jc) =  &
               p_grf%coeff_bdyintp_c(1,1,jc)*p_in(jn)%fld(iidx(1,jc),jk+js,iblk(1,jc)) + &
@@ -684,7 +687,7 @@ SUBROUTINE interpol_scal_grf (p_pp, p_pc, p_grf, nfields,&
         ENDDO
         !$ACC END PARALLEL
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
         !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(min_expval, max_expval) &
         !$ACC   PRIVATE(relaxed_minval, relaxed_maxval, limfac1, limfac2, limfac)
         DO jc = nshift+1, nshift+nlen
@@ -731,7 +734,7 @@ SUBROUTINE interpol_scal_grf (p_pp, p_pc, p_grf, nfields,&
 
         IF (l_limit_nneg(jn)) THEN
 
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jc = nshift+1, nshift+nlen
             DO jk = 1, elev
@@ -755,7 +758,7 @@ SUBROUTINE interpol_scal_grf (p_pp, p_pc, p_grf, nfields,&
         
         ELSE
 
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jc = nshift+1, nshift+nlen
             DO jk = 1, elev
@@ -780,6 +783,7 @@ SUBROUTINE interpol_scal_grf (p_pp, p_pc, p_grf, nfields,&
 
       ENDDO ! fields
     ENDDO ! blocks
+    !$ACC WAIT(1)
 
 ! -------------------------------------
 

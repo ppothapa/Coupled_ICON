@@ -465,9 +465,9 @@ function performance_check
         --timing-current ${EXPERIMENT}_${BB_NAME} \
         --timing-reference run/performance_reference/${EXPERIMENT}_${BB_NAME} \
         --i-table 0 \
-        --measurement-uncertainty 1 \
-        --tolerance-factor 1.1 \
-        --new-reference-threshold 0.95
+        --measurement-uncertainty 2 \
+        --tolerance-factor 1.04 \
+        --new-reference-threshold 0.96
     TOL_STATUS=$?
 
     # get the relevant success check

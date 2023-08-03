@@ -277,7 +277,8 @@
 
     DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC LOOP GANG VECTOR
         DO jc = i_startidx_c, i_endidx_c
             IF (p_patch_3D%p_patch_1D(1)%dolic_c(jc,jb) > 0) THEN
                 !$ACC LOOP SEQ
@@ -287,7 +288,7 @@
                 ENDDO
             endif
         ENDDO
-        !$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL
     ENDDO
 
    END SUBROUTINE DILUTE_HAMOCC_TRACERS

@@ -285,7 +285,7 @@ CONTAINS
         i_endidx = npr
       ENDIF
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2) &
       !$ACC   PRIVATE(alf, bet, hlp, m2s, m3s, nn, n_i, rho_c, rho_i, rho_r, rho_s, x_c, x_i_mono, zn0s, ztc) &
       !$ACC   PRIVATE(z_cloud, z_ice, z_rain, z_snow)
@@ -389,10 +389,10 @@ CONTAINS
         ENDDO
 
       END IF
-
       !$ACC END PARALLEL
 
     ENDDO
+    !$ACC WAIT(1)
 !$OMP END DO
 !$OMP END PARALLEL
 
@@ -600,7 +600,7 @@ CONTAINS
         i_endidx = npr
       ENDIF
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2) &
       !$ACC   PRIVATE(d_r, muD, n_c, n_g, n_h, n_i, n_r, n_s, q_c, q_g, q_h, q_i, q_r, q_s, T_a) &
       !$ACC   PRIVATE(x_c, x_g, x_h, x_i, x_r, x_s, z_fac_r_muD)
@@ -685,7 +685,9 @@ CONTAINS
         END DO
       END DO
       !$ACC END PARALLEL
+
     END DO
+    !$ACC WAIT(1)
 !$OMP END DO
 !$OMP END PARALLEL
 

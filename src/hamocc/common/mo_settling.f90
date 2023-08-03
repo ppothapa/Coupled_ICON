@@ -70,8 +70,9 @@ CONTAINS
      !
      kbo => local_bgc_mem%kbo
      
-       !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
-       DO j=start_idx,end_idx
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR
+      DO j=start_idx,end_idx
         kpke=klev(j)        
 
         IF(kpke > 0)THEN
@@ -165,7 +166,8 @@ CONTAINS
           ENDIF
          ENDIF
       END DO
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
+
       END SUBROUTINE settling 
 
 

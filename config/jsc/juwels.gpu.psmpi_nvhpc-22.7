@@ -31,7 +31,7 @@ CFLAGS='-g -O3'
 CPPFLAGS="-I${ECCODES_ROOT}/include"
 
 FC='mpif90'
-FCFLAGS="-g -O3 -Mrecursive -Mallocatable=03 -acc=verystrict -ta=nvidia:cc80 -Minfo=accel,inline -D__SWAPDIM -D__USE_G2G -D__ENABLE_REALLOC -I${EBROOTNETCDFMINFORTRAN}/include "
+FCFLAGS="-g -O3 -Mrecursive -Mallocatable=03 -acc=verystrict -ta=nvidia:cc80 -Minfo=accel,inline -D__SWAPDIM -D__USE_G2G -D__REALLOC_BUF -I${EBROOTNETCDFMINFORTRAN}/include "
 # -I${SERIALBOX2_ROOT}/include
 
 LDFLAGS="-L${ECCODES_ROOT}/lib64 -L${ECCODES_ROOT}/lib"

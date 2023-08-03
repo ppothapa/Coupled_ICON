@@ -100,7 +100,7 @@ USE mo_2mom_mcrph_util, ONLY:                            &
 USE mo_2mom_mcrph_types, ONLY: ltabdminwgg
 
 USE mo_2mom_prepare, ONLY: prepare_twomoment, post_twomoment
-
+USE mo_nwp_tuning_config,  ONLY: tune_sbmccn
 !==============================================================================
 
   IMPLICIT NONE
@@ -123,7 +123,7 @@ USE mo_2mom_prepare, ONLY: prepare_twomoment, post_twomoment
 !! Now in namelist phy_ctl!  INTEGER, PARAMETER :: i2mom_solver = 1  ! (0) explicit (1) semi-implicit solve
 !!$  ! now this comes from cfg_params !  INTEGER, PARAMETER :: i2mom_solver = 1  ! (0) explicit (1) semi-implicit solve
   
-  INTEGER, PARAMETER :: cloud_type_default_gscp4 = 2603, ccn_type_gscp4 = 7 
+  INTEGER, PARAMETER :: cloud_type_default_gscp4 = 2603, ccn_type_gscp4 = 7
   INTEGER, PARAMETER :: cloud_type_default_gscp5 = 2603, ccn_type_gscp5 = 8
 
   ! AS: For gscp=4 use 2103 with ccn_type = 1 (HDCP2 IN and CCN schemes)
@@ -212,7 +212,9 @@ CONTAINS
     REAL(wp), OPTIONAL, INTENT (INOUT)  :: dtemp(:,:)
 
     INTEGER,  INTENT (IN)             :: msg_level
+
     LOGICAL,  OPTIONAL,  INTENT (IN)  :: l_cv
+
     INTEGER,  OPTIONAL,  INTENT (IN)  :: ithermo_water
 
     ! ... Variables which are global in module_2mom_mcrph_main
@@ -657,7 +659,7 @@ CONTAINS
 
         ! .. this subroutine calculates all the microphysical sources and sinks
         CALL clouds_twomoment(ik_slice, dt, lprogin, atmo, cloud, rain, &
-             ice, snow, graupel, hail, ninact, nccn, ninpot)
+             ice, snow, graupel, hail, ninact, nccn, ninpot) 
 
         DO kk=kts,kte
           DO ii = its, ite
@@ -1253,6 +1255,7 @@ CONTAINS
 
     ! characteristics of different kinds of CN
     ! (copied from COSMO 5.0 Segal & Khain nucleation subroutine)
+
     SELECT CASE(ccn_type)
     CASE(6)
       !... maritime case
@@ -1269,12 +1272,21 @@ CONTAINS
       ccn_coeffs%R2    = 0.03d0       ! in mum
       ccn_coeffs%etas  = 0.8          ! soluble fraction
     CASE(8)
+    IF (tune_sbmccn < 1.0_wp) THEN
+      !... maritime case
+      ccn_coeffs%Ncn0 = 100.0d06   ! CN concentration at ground
+      ccn_coeffs%Nmin =  35.0d06
+      ccn_coeffs%lsigs = 0.4d0      ! log(sigma_s)
+      ccn_coeffs%R2    = 0.03d0     ! in mum
+      ccn_coeffs%etas  = 0.9        ! soluble fraction
+    ELSE
       !... continental case
       ccn_coeffs%Ncn0 = 1700.0d06
       ccn_coeffs%Nmin =   35.0d06
       ccn_coeffs%lsigs = 0.2d0
       ccn_coeffs%R2    = 0.03d0       ! in mum
       ccn_coeffs%etas  = 0.7          ! soluble fraction
+    END IF
     CASE(9)
       !... "polluted" continental
       ccn_coeffs%Ncn0 = 3200.0d06

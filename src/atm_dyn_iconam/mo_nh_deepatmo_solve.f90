@@ -30,8 +30,7 @@ MODULE mo_nh_deepatmo_solve
     &                                  divdamp_type, rayleigh_type, rhotheta_offctr,          &
     &                                  veladv_offctr, divdamp_fac_o2, kstart_dd3d, ndyn_substeps_var
   USE mo_dynamics_config,        ONLY: idiv_method
-  USE mo_parallel_config,        ONLY: nproma, p_test_run, itype_comm, use_dycore_barrier, &
-    &                                  use_icon_comm
+  USE mo_parallel_config,        ONLY: nproma, p_test_run, use_dycore_barrier, use_icon_comm
   USE mo_run_config,             ONLY: ltimer, timers_level, lvert_nest
   USE mo_model_domain,           ONLY: t_patch
   USE mo_grid_config,            ONLY: l_limited_area
@@ -1409,7 +1408,7 @@ MODULE mo_nh_deepatmo_solve
           CALL icon_comm_sync(p_nh%prog(nnew)%vn, p_patch%sync_edges_not_owned, &
             & name="solve_step2_vn")
         ENDIF
-      ELSE IF (itype_comm == 1) THEN
+      ELSE
         IF (istep == 1) THEN
           CALL sync_patch_array_mult(SYNC_E,p_patch,2,p_nh%prog(nnew)%vn,z_rho_e)
         ELSE
@@ -2365,7 +2364,7 @@ MODULE mo_nh_deepatmo_solve
           CALL icon_comm_sync(p_nh%prog(nnew)%rho, p_nh%prog(nnew)%exner, p_nh%prog(nnew)%w, &
             & p_patch%sync_cells_not_owned, name="solve_step2_w")
         ENDIF
-      ELSE IF (itype_comm == 1) THEN
+      ELSE
         IF (istep == 1) THEN
           IF (divdamp_type >= 3) THEN
             ! Synchronize w and vertical contribution to divergence damping

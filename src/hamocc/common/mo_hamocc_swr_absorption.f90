@@ -60,7 +60,8 @@ SUBROUTINE swr_absorption(local_bgc_mem, start_idx,end_idx, klevs, pfswr, psicom
     ! use them in absorption (rcyano=1)
     rcyano=merge(1._wp,0._wp,l_cyadyn)
 
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC LOOP GANG VECTOR
     DO j = start_idx, end_idx
 
       local_bgc_mem%strahl(j) = pfswr(j) * (1._wp - psicomo(j))
@@ -90,8 +91,8 @@ SUBROUTINE swr_absorption(local_bgc_mem, start_idx,end_idx, klevs, pfswr, psicom
       local_bgc_mem%meanswr(j,kpke) = local_bgc_mem%swr_frac(j,k) 
 
       ENDIF
-   ENDDO
-   !$ACC END PARALLEL LOOP
+    ENDDO
+    !$ACC END PARALLEL
  
 
 END SUBROUTINE swr_absorption

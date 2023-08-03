@@ -41,7 +41,9 @@ MODULE mo_nwp_ecrad_init
   USE mo_radiation_config,     ONLY: icld_overlap, irad_aero, ecrad_data_path,           &
                                  &   ecrad_isolver, ecrad_igas_model, isolrad,           &
                                  &   ecrad_llw_cloud_scat, ecrad_iliquid_scat,           &
-                                 &   ecrad_iice_scat,                                    &
+                                 &   ecrad_iice_scat, ecrad_isnow_scat,                  &
+                                 &   ecrad_irain_scat, ecrad_igraupel_scat,              &
+                                 &   ecrad_use_general_cloud_optics,                     &
                                  &   iRadAeroConst, iRadAeroTegen, iRadAeroART,          &
                                  &   iRadAeroConstKinne, iRadAeroKinne, iRadAeroVolc,    &
                                  &   iRadAeroKinneVolc,  iRadAeroKinneVolcSP,            &
@@ -60,7 +62,9 @@ MODULE mo_nwp_ecrad_init
                                  &   IOverlapExponential,                                &
                                  &   nweight_nir_ecrad, iband_nir_ecrad, weight_nir_ecrad,&
                                  &   nweight_vis_ecrad, iband_vis_ecrad, weight_vis_ecrad,&
-                                 &   nweight_par_ecrad, iband_par_ecrad, weight_par_ecrad
+                                 &   nweight_par_ecrad, iband_par_ecrad, weight_par_ecrad,&
+                                 &   ecrad_hyd_list,                                     &   
+                                 &   ecrad_iqc, ecrad_iqi, ecrad_iqr, ecrad_iqs, ecrad_iqg
 #endif
 
 
@@ -100,7 +104,8 @@ CONTAINS
       &  wavelength_bound_lw(0)    !< Wavelength bound LW emissivity (m)
     INTEGER                   :: &
       &  i_band_in_sw(2),        & !< The albedo band indices corresponding to each interval
-      &  i_band_in_lw(1)           !< The emissivity band indices corresponding to each interval
+      &  i_band_in_lw(1),        & !< The emissivity band indices corresponding to each interval
+      &  cc_cloud                  !< counter for cloud_types
 
     CALL message('', 'Setup of ecRad')
 
@@ -147,27 +152,8 @@ CONTAINS
     ! LW scattering due to clouds
     ecrad_conf%do_lw_cloud_scattering = ecrad_llw_cloud_scat
 
-    ! Liquid cloud particle scattering properties
-    SELECT CASE (ecrad_iliquid_scat)
-      CASE(0)
-        ecrad_conf%i_liq_model = ILiquidModelSOCRATES
-      CASE(1)
-        ecrad_conf%i_liq_model = ILiquidModelSlingo
-      CASE DEFAULT
-        CALL finish(routine, 'ecrad_iliquid_scat not valid for ecRad')
-    END SELECT
-    
-    ! Ice cloud particle scattering properties
-    SELECT CASE (ecrad_iice_scat)
-      CASE(0)
-        ecrad_conf%i_ice_model = IIceModelFu
-      CASE(1)
-        ecrad_conf%i_ice_model = IIceModelBaran2016
-      CASE(2)
-        ecrad_conf%i_ice_model = IIceModelYi
-      CASE DEFAULT
-        CALL finish(routine, 'ecrad_iice_scat not valid for ecRad')
-    END SELECT
+    ! Select if generalized optics are used. This might be overruled by ecrad_igas_model later.
+    ecrad_conf%use_general_cloud_optics = ecrad_use_general_cloud_optics
 
     ! Radiation solver
     SELECT CASE (ecrad_isolver)
@@ -195,20 +181,119 @@ CONTAINS
     SELECT CASE (ecrad_igas_model)
       CASE(0)
         ecrad_conf%i_gas_model = IGasModelIFSRRTMG  !< Use RRTM gas model
-        ! For the time being do not use generalised cloud hydrometeors, but the old ice/water method
-        ecrad_conf%use_general_cloud_optics = .false. ! Default is .true., which behaves differently to previous
-                                                      ! default settings (e.g. different default liquid/ice optics)
         ! Although the following switches are meant for ecckd, we set them to false to prevent unexpected behavior when accessing these switches
         ecrad_conf%do_cloud_aerosol_per_lw_g_point = .false.
         ecrad_conf%do_cloud_aerosol_per_sw_g_point = .false.
       CASE(1)
         ecrad_conf%i_gas_model = IGasModelECCKD  !< Use ecckd gas model
-        ecrad_conf%use_general_cloud_optics = .true. !ecckd needs general cloud optics framework
         ecrad_conf%do_cloud_aerosol_per_lw_g_point = .true.
         ecrad_conf%do_cloud_aerosol_per_sw_g_point = .true.
       CASE DEFAULT
         CALL finish(routine, 'ecrad_igas_model not valid for ecRad')
     END SELECT
+
+    ! Generalized hydrometeors
+    
+    IF ( ecrad_conf%use_general_cloud_optics ) THEN
+      ! Cont how many cloud types are.
+      ecrad_conf%n_cloud_types   = 2
+      IF ( ecrad_isnow_scat > -1 )    ecrad_conf%n_cloud_types = ecrad_conf%n_cloud_types + 1
+      IF ( ecrad_irain_scat > -1 )    ecrad_conf%n_cloud_types = ecrad_conf%n_cloud_types + 1
+      IF ( ecrad_igraupel_scat > -1 ) ecrad_conf%n_cloud_types = ecrad_conf%n_cloud_types + 1
+
+      ALLOCATE (ecrad_hyd_list(ecrad_conf%n_cloud_types))
+      ecrad_hyd_list(:) = 0
+      cc_cloud = 0
+
+      cc_cloud = cc_cloud + 1
+      ecrad_hyd_list(cc_cloud) = ecrad_iqc
+
+      SELECT CASE (ecrad_iliquid_scat)
+        CASE(0)
+          ecrad_conf%cloud_type_name(cc_cloud) = "mie_droplet"
+        CASE DEFAULT                                                                   
+          CALL finish(routine, 'ecrad_iliquid_scat not valid for ecRad and use_general_cloud_optics = T')  
+      END SELECT
+
+      cc_cloud = cc_cloud + 1
+      ecrad_hyd_list(cc_cloud) = ecrad_iqi
+
+      SELECT CASE (ecrad_iice_scat)
+        CASE(0)
+          ecrad_conf%cloud_type_name(cc_cloud) = "fu-muskatel_ice"
+        CASE(10)
+          ecrad_conf%cloud_type_name(cc_cloud) = "fu-muskatel-rough_ice"
+        CASE(11)
+          ecrad_conf%cloud_type_name(cc_cloud) = "baum-general-habit-mixture_ice"
+        CASE DEFAULT                                                                   
+          CALL finish(routine, 'ecrad_iice_scat not valid for ecRad and use_general_cloud_optics = T')  
+      END SELECT
+
+      IF (ecrad_isnow_scat > -1) THEN ! Snow is optional for radiation
+        cc_cloud = cc_cloud + 1
+        ecrad_hyd_list(cc_cloud) = ecrad_iqs
+
+        SELECT CASE (ecrad_isnow_scat)
+          CASE(0)
+            ecrad_conf%cloud_type_name(cc_cloud) = "fu-muskatel_ice"
+          CASE(10)
+            ecrad_conf%cloud_type_name(cc_cloud) = "fu-muskatel-rough_ice"
+          CASE DEFAULT                                                                   
+            CALL finish(routine, 'ecrad_isnow_scat not valid for ecRad and use_general_cloud_optics = T')  
+        END SELECT
+      ENDIF
+
+      IF (ecrad_irain_scat > -1) THEN ! Rain is optional for radiation
+        cc_cloud = cc_cloud + 1
+        ecrad_hyd_list(cc_cloud) = ecrad_iqr
+
+        SELECT CASE (ecrad_irain_scat)
+          CASE(0)
+            ecrad_conf%cloud_type_name(cc_cloud) = "mie_rain"
+          CASE DEFAULT                                                                   
+            CALL finish(routine, 'ecrad_irain_scat not valid for ecRad and use_general_cloud_optics = T')  
+          END SELECT
+      ENDIF
+
+      IF (ecrad_igraupel_scat > -1) THEN ! Graupel is optional for radiation
+        cc_cloud = cc_cloud + 1
+        ecrad_hyd_list(cc_cloud) = ecrad_iqg
+
+        SELECT CASE (ecrad_igraupel_scat)
+          CASE(0)
+            ecrad_conf%cloud_type_name(cc_cloud) = "fu-muskatel_ice"
+          CASE(10)
+            ecrad_conf%cloud_type_name(cc_cloud) = "fu-muskatel-rough_ice"
+          CASE DEFAULT                                                                   
+            CALL finish(routine, 'ecrad_igraupel_scat not valid for ecRad and use_general_cloud_optics = T')  
+        END SELECT
+      ENDIF
+      
+    ELSE
+      
+      ! Liquid cloud particle scattering properties
+      SELECT CASE (ecrad_iliquid_scat)
+        CASE(0)
+          ecrad_conf%i_liq_model = ILiquidModelSOCRATES
+        CASE(1)
+          ecrad_conf%i_liq_model = ILiquidModelSlingo
+        CASE DEFAULT
+          CALL finish(routine, 'ecrad_iliquid_scat not valid for ecRad and use_general_cloud_optics = F')
+      END SELECT
+    
+      ! Ice cloud particle scattering properties
+      SELECT CASE (ecrad_iice_scat)
+        CASE(0)
+          ecrad_conf%i_ice_model = IIceModelFu
+        CASE(1)
+          ecrad_conf%i_ice_model = IIceModelBaran2016
+        CASE(2)
+          ecrad_conf%i_ice_model = IIceModelYi
+        CASE DEFAULT
+          CALL finish(routine, 'ecrad_iice_scat not valid for ecRad and use_general_cloud_optics = F')
+      END SELECT
+
+    END IF
 
     IF (ecrad_conf%i_gas_model == IGasModelIFSRRTMG) THEN
       ecrad_conf%do_setup_ifsrrtm = .true.
@@ -466,6 +551,10 @@ CONTAINS
     ENDIF
     IF (ecrad_conf%use_vectorizable_generator) THEN
       CALL finish(routine,'ecrad_conf%use_vectorizable_generator not ported to GPU')
+    ENDIF
+
+    IF ( ecrad_conf%use_general_cloud_optics ) THEN
+      CALL finish(routine,'ecrad_conf%use_general_cloud_optics not ported to GPU')
     ENDIF
 
   END SUBROUTINE ecrad_openacc_crosscheck

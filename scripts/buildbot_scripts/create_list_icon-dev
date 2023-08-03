@@ -95,15 +95,17 @@ $addexp "checksuite.ocean_internal/technical/exp.test_multioutput_model_40km" \
 # add tolerance check to CSCS builders
 $addexp "checksuite.icon-dev/check.mch_ch_lowres"                                 --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia balfrin_gpu_nvidia_mixed DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 $addexp "checksuite.icon-dev/check.mch_opr_r04b07*"                               --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia balfrin_gpu_nvidia_mixed DAINT_CPU_nvidia DAINT_GPU_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
-$addexp "checksuite.icon-dev/check.mch_ch_r04b09_dace"                            --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
+$addexp "checksuite.icon-dev/check.mch_ch_r04b09_dace"                            --builders "balfrin_cpu_nvidia balfrin_gpu_nvidia DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 $addexp "checksuite.icon-dev/check.mch_ch_r04b09_dace_synsat"                     --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 $addexp "checksuite.icon-dev/check.exclaim_ape_R02B04"                            --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 $addexp "checksuite.icon-dev/check.mch_opr_r19b07_lpi"                            --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia balfrin_gpu_nvidia_mixed DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
+
 $addexp "checksuite.icon-dev/check.dwd_run_ICON_09_R2B4N5_EPS"                    --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 $addexp "checksuite.icon-dev/check.mch_bench_r19b07_dev_sppt"                     --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia balfrin_gpu_nvidia_mixed DAINT_CPU_nvidia DAINT_GPU_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
+$addexp "checksuite.icon-dev/check.mch_pollen_test"                               --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia balfrin_gpu_nvidia_mixed" --list $listname
 ./rmexp checksuite.icon-dev/check.mch_opr_r04b07_nest                             --builders "DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed"  --list $listname
 ./rmexp checksuite.icon-dev/check.mch_opr_r04b07_performance                      --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
-./rmexp checksuite.icon-dev/check.mch_opr_r04b07_lhn_12_emvorado                  --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
+./rmexp checksuite.icon-dev/check.mch_opr_r04b07_lhn_12_emvorado                  --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed balfrin_gpu_nvidia_mixed" --list $listname
 
 # GPU builders explicitly turned off due to unresolved bug
 $addexp "checksuite.icon-dev/check.mch_opr_r19b07_midnight"                       --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed DAINT_CPU_nvidia" --list $listname
@@ -139,24 +141,43 @@ done
 # only DWD_nec
 $addexp checksuite.nwp/nwpexp.run_ICON_01_R3B9_lam                             --builders DWD_nec --list $listname
 $addexp checksuite.nwp/nwpexp.run_ICON_02_R2B13_lam                            --builders DWD_nec --list $listname
-$addexp checksuite.nwp/nwpexp.run_ICON_05_R02B06N07_ifsinit_restarttest        --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_03_R19B7N8-ID2_ID1_lam                  --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_05_R02B06N08_ifsinit_restarttest        --builders DWD_nec --list $listname
 $addexp checksuite.nwp/nwpexp.run_ICON_06_R02B06N07_UPATMO_ifsinit_restarttest --builders DWD_nec --list $listname
 $addexp checksuite.nwp/nwpexp.run_ICON_07_R02B04N06M_restarttest               --builders DWD_nec --list $listname
 $addexp checksuite.nwp/nwpexp.run_ICON_08_R19B7-ID2_oper                       --builders DWD_nec --list $listname
 $addexp checksuite.nwp/nwpexp.run_ICON_09_R2B6N7_oper_EPS                      --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_11_R3B08_lam_initmode7_restarttest      --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_12_R3B08_lam_initmode4                  --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_13_R2B08-dkltest                        --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_14_R2B6N7_oper_IAU_and_restarttest      --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_15_R19B7-ID2_ass                        --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_16_R19B7-ID2_ass                        --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_19_R2B4_cmip_forcing                    --builders DWD_nec --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_22_R3B08_lam_SBM_initmode4              --builders DWD_nec --list $listname
+# SCM tests
+$addexp checksuite.rcnl.dwd.de/exp.run_ICON-SCM_01_BOMEX.run                   --builders DWD_nec --list $listname
 $addexp checksuite.rcnl.dwd.de/exp.run_ICON-SCM_02_REAL.run                    --builders DWD_nec --list $listname
+$addexp checksuite.rcnl.dwd.de/exp.run_ICON-SCM_03_LANFEX.run                  --builders DWD_nec --list $listname
+# ART experiments
+$addexp checksuite.nwp/nwpexp.run_ICON-ART_01_R3B08_lam_initmode7_pollen       --builders DWD_nec --list $listname
+
+
 # only DWD_nec_yac2
 ## Prototype 1
 $addexp checksuite.nwp/nwpexp.run_ICON_17_R2B4_AO_coupled                      --builders DWD_nec_yac2   --list $listname
 ## Prototype 2
 $addexp checksuite.nwp/nwpexp.run_ICON_20_R2B4_R2B6_AO_coupled                 --builders DWD_nec_yac2   --list $listname
 #only DWD_nec_hybrid
+$addexp checksuite.nwp/nwpexp.run_ICON_11_R3B08_lam_initmode7_restarttest      --builders DWD_nec_hybrid --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_14_R2B6N7_oper_IAU_and_restarttest      --builders DWD_nec_hybrid --list $listname
 $addexp checksuite.nwp/nwpexp.run_ICON_19_R2B4_cmip_forcing                    --builders DWD_nec_hybrid --list $listname
 
 # wave tests
 $addexp "checksuite.nwp/nwpexp.run_ICON_18_R2B4_waves"             --builders "DWD_nec_hybrid levante_intel_hybrid levante_nag" --list $listname
 $addexp "checksuite.nwp/nwpexp.run_ICON_21_R2B4_waves_standalone"  --builders "DWD_nec_hybrid levante_intel_hybrid levante_nag" --list $listname
-
+# clm tests
+$addexp checksuite.clm/clmexp.ICON_CLM                                    --builders DWD_nec_hybrid --list $listname
 
 #-----------------------------------------------------------
 # ICON Coupled Setups

@@ -337,7 +337,7 @@ CONTAINS
     IF (PRESENT(uc)) THEN
       !$ACC DATA PRESENT(uc)
 !IBM* NOVECTOR
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR PRIVATE(zavm1, zavm3, zavm4, zavm5, zldcp)
       DO jl = jcs, size
         zavm1 = FSEL(tmelt-temp(jl),cavi1,cavl1)
@@ -352,7 +352,7 @@ CONTAINS
       !$ACC END DATA
     ELSE
 !IBM* NOVECTOR
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR PRIVATE(zavm1, zavm3, zavm4, zavm5, zldcp)
       DO jl = jcs, size
         zavm1 = FSEL(tmelt-temp(jl),cavi1,cavl1)
@@ -388,7 +388,7 @@ CONTAINS
       !$ACC DATA PRESENT(uc)
 !IBM* NOVECTOR
 !IBM* ASSERT(NODEPS)
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR PRIVATE(jl, zavm1, zavm3, zavm4, zavm5, zldcp)
       DO nl = jcs, kidx
         jl = list(nl)
@@ -405,7 +405,7 @@ CONTAINS
     ELSE
 !IBM* NOVECTOR
 !IBM* ASSERT(NODEPS)
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR PRIVATE(jl, zavm1, zavm3, zavm4, zavm5, zldcp)
       DO nl = jcs, kidx
         jl = list(nl)
@@ -437,7 +437,7 @@ CONTAINS
 
     IF (PRESENT(ua) .AND. .NOT. PRESENT(dua)) THEN
       !$ACC DATA PRESENT(ua)
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR PRIVATE(x, dx, ddx, a, b, c, d, bxa)
       DO jl = jcs,size
         x = zalpha(jl)
@@ -457,7 +457,7 @@ CONTAINS
       !$ACC END DATA
     ELSE IF (PRESENT(ua) .AND. PRESENT(dua)) THEN
       !$ACC DATA PRESENT(ua, dua)
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR PRIVATE(x, dx, ddx, a, b, c, d, bxa)
       DO jl = jcs,size
         x = zalpha(jl)
@@ -508,7 +508,7 @@ CONTAINS
 
     IF (PRESENT(ua) .AND. .NOT. PRESENT(dua)) THEN
       !$ACC DATA PRESENT(store_idx, lookup_idx, zalpha, table, ua)
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR PRIVATE(jl, x, dx, ddx, a, b, c, d, bxa)
 !IBM* ASSERT(NODEPS)
       DO nl = kidx1, kidx2
@@ -528,10 +528,10 @@ CONTAINS
       END DO
       !$ACC END PARALLEL
       !$ACC END DATA
-    ELSE IF (PRESENT(ua) .AND. PRESENT(dua)) THEN
 
+    ELSE IF (PRESENT(ua) .AND. PRESENT(dua)) THEN
       !$ACC DATA PRESENT(store_idx, lookup_idx, zalpha, table, ua, dua)
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR PRIVATE(jl, x, dx, ddx, a, b, c, d, bxa)
 !IBM* ASSERT(NODEPS)
       DO nl = kidx1, kidx2
@@ -849,7 +849,7 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
     ztmax = flucupmax
     IF (PRESENT(xi)) THEN
       znphase = 0.0_wp
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR PRIVATE(ztshft, ztt, ztest) REDUCTION(+: znphase) PRIVATE(zinbounds)
       DO jl = jcs,size
         ztshft = FSEL(tmelt-temp(jl),1.0_wp,0.0_wp)
@@ -872,7 +872,7 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
       !$ACC END PARALLEL
       nphase = INT(znphase)
     ELSE
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR PRIVATE(ztshft, ztt) PRIVATE(zinbounds)
       DO jl = jcs, size
         ztshft = FSEL(tmelt-temp(jl),1.0_wp,0.0_wp)
@@ -884,6 +884,7 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
       END DO
       !$ACC END PARALLEL
     END IF
+    !$ACC WAIT(1)
 
 #ifndef _OPENACC
     ! if one index was out of bounds -> print error and exit
@@ -1165,7 +1166,7 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
     ! first compute all lookup indices and check if they are all within allowed bounds
 
 !IBM* ASSERT(NODEPS)
-    !$ACC PARALLEL DEFAULT(PRESENT)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR PRIVATE(jl, ztshft, ztt) PRIVATE(zinbounds)
     DO nl = jcs, kidx
       jl = list(nl)
@@ -1183,6 +1184,7 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
     IF (zinbounds == 0.0_wp) THEN
       IF ( PRESENT(kblock) .AND. PRESENT(kblock_size) .AND. PRESENT(klev) ) THEN
         ! tied to patch(1), does not yet work for nested grids
+        !$ACC WAIT(1)
         !$ACC UPDATE HOST(temp)
         DO jl = 1, size
           ztt = rsdeltat*temp(jl)
@@ -1202,6 +1204,7 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
 #endif
     CALL fetch_ua_spline(jcs, kidx, idx, zalpha, tlucu, ua, dua)
 
+    !$ACC WAIT(1)
     !$ACC END DATA
   END SUBROUTINE lookup_ua_list_spline
   !----------------------------------------------------------------------------

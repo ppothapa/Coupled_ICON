@@ -119,15 +119,39 @@ MODULE mo_radiation_config
     INTEGER  :: izenith           ! circular orbit, no seasonal cycle but with diurnal cycle 
     REAL(wp) :: cos_zenith_fixed  ! fixed cosine of zenith angle for izenith=6
     !
+    ! --- Set minimum (pole) and maximum (equator) overlap
+    !     decorrelation length scale in m for latitude-dependen function.
+    REAL(wp) :: decorr_pole
+    REAL(wp) :: decorr_equator
+    !$ACC DECLARE CREATE(decorr_pole, decorr_equator)
+
+    !
     ! ecRad specific configuration
     LOGICAL  :: ecrad_llw_cloud_scat    !< Do long wave cloud scattering?
+
+    LOGICAL  :: ecrad_use_general_cloud_optics            ! Use generalized hydrometeors with different optical tables
+    ! The next parameters can take different values depending on ecrad_use_general_cloud_optics (e_gen_cop)
     INTEGER  :: ecrad_iliquid_scat      !< Optical properties for liquid cloud scattering
-                                        !< 0: SOCRATES
-                                        !< 1: Slingo (1989)
+                                        !< 0: SOCRATES (e_gen_cop =F) / Mie Droplet (e_gen_cop=T)
+                                        !< 1: Slingo (1989) (only e_gen_cop=F)
     INTEGER  :: ecrad_iice_scat         !< Optical properties for ice cloud scattering
-                                        !< 0: Fu et al. (1996)
-                                        !< 1: Baran et al. (2016)
-                                        !< 2: Yi et al. (2013)
+                                        !< 0: Fu et al. (both but extended radii for e_gen_cop=T)
+                                        !< 1: Baran et al. (2016) (only e_gen_cop=F)
+                                        !< 2: Yi et al. (2013) (only e_gen_cop=F)
+                                        !< 10: Rough Fu (only only e_gen_cop=T)
+                                        !< 11: Baum (only only e_gen_cop=T)     
+    INTEGER  :: ecrad_isnow_scat        !< Optical properties for snow scattering (only e_gen_cop=T)
+                                        !< -1: Snow is not considered independently in radiation calculation
+                                        !<  0: Fu et al. 
+                                        !< 10: Rough Fu 
+    INTEGER  :: ecrad_igraupel_scat     !< Optical properties for graupel scattering (only e_gen_cop=T)
+                                        !< -1: Graupel is not considered independently in radiation calculation
+                                        !<  0: Fu et al. 
+                                        !< 10: Rough Fu 
+    INTEGER  :: ecrad_irain_scat        !< Optical properties for rain scattering (only e_gen_cop=T)
+                                        !< -1: Rain is not considered independently in radiation calculation
+                                        !<  0: Mie Rain
+
     INTEGER  :: ecrad_isolver           !< Radiation solver
                                         !< 0: McICA (Pincus et al. 2003)
                                         !< 1: Tripleclouds (Shonk and Hogan 2008)

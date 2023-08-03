@@ -70,7 +70,7 @@ CONTAINS
     !$ACC DATA PRESENT(field%frac_tile) &
     !$ACC   CREATE(zfrw, zfri)
 
-    !$ACC PARALLEL DEFAULT(PRESENT)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jc = 1, nproma
       IF (iwtr.LE.nsfc_type) THEN
@@ -102,6 +102,7 @@ CONTAINS
          &      field%  qtrc_phy(:,:,jb,iqi),  &! in    xim1
          &      field%  aclc(:,:,jb)          ) ! out   (for "radiation" and "vdiff_down")
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     NULLIFY(field)

@@ -119,14 +119,14 @@ CONTAINS
     jks = 1
     jke = (SIZE(dz,2))
 
-    !$ACC PARALLEL DEFAULT(PRESENT)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR
     DO jc = jcs,jce
        zqnc(jc) = cloud_num
     END DO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(PRESENT)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = jks,jke
        DO jc = jcs,jce
@@ -215,7 +215,7 @@ CONTAINS
     ! Calculate tendencies and convert temperature tendency, as computed
     ! in satad/graupel for constant volume to constant pressure
     !
-    !$ACC PARALLEL DEFAULT(PRESENT)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = jks,jke
        DO jc = jcs,jce
@@ -229,7 +229,7 @@ CONTAINS
        END DO
     END DO
     !$ACC END PARALLEL
-
+    !$ACC WAIT(1)
     !$ACC END DATA
 
   END SUBROUTINE cloud_mig

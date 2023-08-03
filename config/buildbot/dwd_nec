@@ -37,6 +37,12 @@ file "$VECTOR_BINARY" "$HOST_BINARY"
 
 # Restore the _vector_ info file as it is required for create_target_header.
 mv -v run/set-up.info.vector run/set-up.info
+
+# Link a temporary directory with lots of space into the experiments subdir. Reruns
+# /etc/profile to get a new directory
+ksh -c '. /etc/profile && ln -s "$TMPDIR" experiments'
+ls -l "${PWD}/experiments"
+
 # Copy the vector binary to the place, that is stored as builddir in set-up.info.
 # Only then it can be found by create_target_header.
 cp "${VECTOR_BINARY}" "${PWD}/bin/icon"

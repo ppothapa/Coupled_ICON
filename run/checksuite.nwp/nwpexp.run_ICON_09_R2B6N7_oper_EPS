@@ -146,7 +146,6 @@ cat > ${atmo_namelist} << EOF
  num_restart_procs       = ${num_restart_procs}
  num_prefetch_proc       = ${num_prefetch_proc}
  num_io_procs_radar      = ${num_io_procs_radar}
- itype_comm              =  1
  iorder_sendrecv         =  3
  proc0_shift             = ${proc0_shift}
  use_omp_input           = .true.
@@ -424,38 +423,38 @@ lsynsat=.false. ! .false.,.true., ! requires RTTOV library - left out for this t
                         'T_SO',      'W_SO'
  stream_partitions_pl = 1
  pe_placement_pl      = 0
- pl_varlist           = 'FI', 'T', 'U', 'V', 'RELHUM'
+ pl_varlist           = 'FI'   !, 'T', 'U', 'V', 'RELHUM'
  p_levels             =    100,   200,            500,           1000,           3000,
                           5000,  7000,  10000,  20000,  25000,  30000,  50000,  70000,
                          85000, 92500, 100000
  output_grid          = .false.
 /
-&output_nml
- ! ----------------------------------------------------------- !
- ! ---  IGLO: ensemble forecast - native grid (00+12 UTC)  --- !
- ! ---        + feedback files                             --- !
- ! ----------------------------------------------------------- !
- filetype             = 2         ! output format: 2=GRIB2, 4=NETCDFv2
- dom                  = 1                         ! write global domains
- remap                = 0                         ! icon grid
- output_time_unit     = 1                         ! 1: seconds
- output_bounds        = 0.,648000.,21600.,        ! 0h,180h,6h,
- steps_per_file       = 1
- taxis_tunit          = 2
- mode                 = 1  ! 1: forecast mode (relative t-axis), 2: climate mode (absolute t-axis)
- include_last         = .true.
- output_filename      = 'igfff'                      ! file name base
- filename_format      = '<output_filename><ddhhmmss>v02'
- stream_partitions_ml = 1
- pe_placement_ml      = 1
- ml_varlist           = 'P',
-                        'CLCT',      'CLCH',      'CLCM',      'CLCL',
-                        'PMSL',      'T_2M',      'TD_2M',     'TMIN_2M',
-                        'TMAX_2M',   'U_10M',     'V_10M',     'TOT_PREC',
-                        'CLCT_MOD',  'Z0'
-                        'ASOB_S',    'ASWDIFD_S', 'ASWDIFU_S', 'ASWDIR_S'
- output_grid          = .false.
-/
+!&output_nml
+! ! ----------------------------------------------------------- !
+! ! ---  IGLO: ensemble forecast - native grid (00+12 UTC)  --- !
+! ! ---        + feedback files                             --- !
+! ! ----------------------------------------------------------- !
+! filetype             = 2         ! output format: 2=GRIB2, 4=NETCDFv2
+! dom                  = 1                         ! write global domains
+! remap                = 0                         ! icon grid
+! output_time_unit     = 1                         ! 1: seconds
+! output_bounds        = 0.,648000.,21600.,        ! 0h,180h,6h,
+! steps_per_file       = 1
+! taxis_tunit          = 2
+! mode                 = 1  ! 1: forecast mode (relative t-axis), 2: climate mode (absolute t-axis)
+! include_last         = .true.
+! output_filename      = 'igfff'                      ! file name base
+! filename_format      = '<output_filename><ddhhmmss>v02'
+! stream_partitions_ml = 1
+! pe_placement_ml      = 1
+! ml_varlist           = 'P',
+!                        'CLCT',      'CLCH',      'CLCM',      'CLCL',
+!                        'PMSL',      'T_2M',      'TD_2M',     'TMIN_2M',
+!                        'TMAX_2M',   'U_10M',     'V_10M',     'TOT_PREC',
+!                        'CLCT_MOD',  'Z0'
+!                        'ASOB_S',    'ASWDIFD_S', 'ASWDIFU_S', 'ASWDIR_S'
+! output_grid          = .false.
+!/
 &output_nml
  ! ----------------------------------------------------------- !
  ! ---  IGLO: ensemble forecast - native grid (00+12 UTC)  --- !

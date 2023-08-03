@@ -418,7 +418,7 @@ MODULE mo_sppt_util
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                        i_startidx, i_endidx, rl_start, rl_end)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR PRIVATE(lon_cell, lat_cell, ilon_lo, ilat_lo, ilon_hi, ilat_hi, lon_lo, lat_lo, lon_hi, lat_hi, fq11, fq21, fq12, fq22)
       DO jc = i_startidx,i_endidx
 
@@ -455,7 +455,9 @@ MODULE mo_sppt_util
 
       END DO
       !$ACC END PARALLEL
+
     END DO
+    !$ACC WAIT(1)
 
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL

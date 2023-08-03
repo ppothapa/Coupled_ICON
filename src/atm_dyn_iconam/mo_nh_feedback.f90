@@ -1187,7 +1187,7 @@ CONTAINS
       CALL get_indices_c(p_pc, jb, i_startblk, i_endblk, &
         i_startidx, i_endidx, grf_bdywidth_c+1, min_rlcell)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlev_c
         DO jc = i_startidx, i_endidx
@@ -1213,7 +1213,7 @@ CONTAINS
       CALL get_indices_c(p_pp, jb, i_startblk, i_endblk, &
         i_startidx, i_endidx, grf_fbk_start_c, min_rlcell_int)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(z_rho_corr)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
@@ -1259,7 +1259,6 @@ CONTAINS
       ENDDO
       !$ACC END PARALLEL
 
-
       IF (ltransport) THEN ! tracer mass feedback
 #ifdef __LOOP_EXCHANGE
         DO jc = i_startidx, i_endidx
@@ -1272,7 +1271,7 @@ CONTAINS
         DO nt = 1, trFeedback%len
           jt = trFeedback%list(nt)
 
-          !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) IF(i_am_accel_node)
+          !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
           DO jk = 1, nlev_c
             DO jc = i_startidx, i_endidx
 #endif
@@ -1294,7 +1293,7 @@ CONTAINS
 
       IF ( ltransport .AND. lprog_aero ) THEN
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
         DO jc = i_startidx, i_endidx
@@ -1312,6 +1311,7 @@ CONTAINS
           ENDDO
         ENDDO
         !$ACC END PARALLEL
+
       ENDIF
 
     ENDDO
@@ -1330,7 +1330,7 @@ CONTAINS
       CALL get_indices_e(p_pp, jb, i_startblk, i_endblk, &
         i_startidx, i_endidx, grf_fbk_start_e, min_rledge_int)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx, i_endidx
@@ -1349,6 +1349,7 @@ CONTAINS
       !$ACC END PARALLEL
 
     ENDDO
+    !$ACC WAIT(1)
 #ifndef __PGI
 !$OMP END DO NOWAIT
 
@@ -1420,7 +1421,7 @@ CONTAINS
       diff_vn(:,:,jb) = 0._wp
       !$ACC END KERNELS
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx,i_endidx
         IF (p_grfp%mask_ovlp_e(je,jb,i_chidx)) THEN
@@ -1477,7 +1478,7 @@ CONTAINS
 
       CALL get_indices_v(p_patch(jgp), jb, i_startblk, i_endblk, i_startidx, i_endidx, 1, min_rlvert_int-1)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       DO jv = i_startidx, i_endidx
         IF (p_grfp%mask_ovlp_v(jv,jb,i_chidx)) THEN
@@ -1506,6 +1507,7 @@ CONTAINS
 #endif
       ENDDO
       !$ACC END PARALLEL
+
     ENDDO
 #ifndef __PGI
 !$OMP END DO
@@ -1519,7 +1521,7 @@ CONTAINS
 
       CALL get_indices_c(p_patch(jgp), jb, i_startblk, i_endblk, i_startidx, i_endidx, 1, min_rlcell_int-1)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
         IF (p_grfp%mask_ovlp_ch(jc,jb,i_chidx)) THEN
@@ -1545,6 +1547,7 @@ CONTAINS
 #endif
       ENDDO
       !$ACC END PARALLEL
+
     ENDDO
 #ifndef __PGI
 !$OMP END DO
@@ -1558,7 +1561,7 @@ CONTAINS
 
       CALL get_indices_e(p_patch(jgp), jb, i_startblk, i_endblk, i_startidx, i_endidx, 1, i_rlend_e)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx, i_endidx
         IF (p_grfp%mask_ovlp_e(je,jb,i_chidx)) THEN
@@ -1595,7 +1598,7 @@ CONTAINS
       !$ACC END PARALLEL
 
       ! 2b. Execute relaxation
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx,i_endidx
         IF (p_grfp%mask_ovlp_e(je,jb,i_chidx)) THEN
@@ -1638,7 +1641,7 @@ CONTAINS
       CALL get_indices_c(p_patch(jgp), jb, i_startblk, i_endblk, i_startidx, i_endidx, 1, i_rlend_c)
 
       ! Compute differences between feedback fields and corresponding parent fields
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx,i_endidx
         IF (p_grfp%mask_ovlp_c(jc,jb,i_chidx)) THEN
@@ -1673,7 +1676,7 @@ CONTAINS
 
 
       ! Relaxation of dynamical variables
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx,i_endidx
         IF (p_grfp%mask_ovlp_c(jc,jb,i_chidx)) THEN
@@ -1738,7 +1741,7 @@ CONTAINS
 #else
         DO nt = 1, trFeedback%len
           jt = trFeedback%list(nt)
-          !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) IF(i_am_accel_node)
+          !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
           DO jk = nshift+nst_fbk, nlev_p
             DO jc = i_startidx,i_endidx
               IF (p_grfp%mask_ovlp_c(jc,jb,i_chidx)) THEN
@@ -1762,7 +1765,7 @@ CONTAINS
 
         IF ( lprog_aero ) THEN
 
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jt = 1, nclass_aero
             DO jc = i_startidx,i_endidx

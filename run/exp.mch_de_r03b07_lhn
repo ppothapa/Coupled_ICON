@@ -162,7 +162,6 @@ cat > ${atmo_namelist} << EOF
  num_restart_procs = 0
  num_prefetch_proc = 1
  num_io_procs_radar = 0
- itype_comm        = 1
  iorder_sendrecv   = 3
  proc0_shift       = 0
  use_omp_input     = .false.

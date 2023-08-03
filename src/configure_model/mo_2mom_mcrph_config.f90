@@ -101,6 +101,7 @@ MODULE mo_2mom_mcrph_config
     REAL(wp) :: ecoll_gg        ! Collision efficiency for graupel autoconversion (dry graupel)
     REAL(wp) :: ecoll_gg_wet    ! Collision efficiency for graupel autoconversion (wet graupel)
     REAL(wp) :: Tcoll_gg_wet ! Temperature threshold for switching to wet graupel autoconversion
+    INTEGER  :: iicephase    ! (0) warm-phase 2M, (1) mixed-phase 2M
 
   END TYPE t_cfg_2mom
 

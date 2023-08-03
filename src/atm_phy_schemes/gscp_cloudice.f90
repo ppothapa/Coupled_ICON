@@ -629,7 +629,7 @@ SUBROUTINE cloudice (                &
   ENDIF
 
   ! Delete precipitation fluxes from previous timestep
-  !$ACC PARALLEL DEFAULT(PRESENT)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
   !$ACC LOOP GANG VECTOR
   DO iv = iv_start, iv_end
     prr_gsp (iv) = 0.0_wp
@@ -664,7 +664,7 @@ SUBROUTINE cloudice (                &
 ! transfer rates  and sedimentation terms
 ! *********************************************************************
 
-  !$ACC PARALLEL DEFAULT(PRESENT)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
   !$ACC LOOP SEQ
 #ifdef __LOOP_EXCHANGE
   DO iv = iv_start, iv_end  !loop over horizontal domain
@@ -1410,7 +1410,7 @@ llqi =  zqik > zqmin
     !$ACC DATA &
     !$ACC   PRESENT(ddt_tend_t, t, t_in)
 
-    !$ACC PARALLEL DEFAULT(PRESENT)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO k=k_start,ke
       DO iv=iv_start,iv_end
@@ -1427,7 +1427,7 @@ llqi =  zqik > zqmin
     !$ACC   PRESENT(ddt_tend_qv, ddt_tend_qc, ddt_tend_qr, ddt_tend_qs) &
     !$ACC   PRESENT(ddt_tend_qi, qv_in, qc_in, qr_in, qs_in, qi_in)
 
-    !$ACC PARALLEL DEFAULT(PRESENT)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO k=k_start,ke
       DO iv=iv_start,iv_end
@@ -1439,6 +1439,7 @@ llqi =  zqik > zqmin
       END DO
     END DO
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
 
     !$ACC END DATA
     

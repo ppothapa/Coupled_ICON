@@ -1273,24 +1273,24 @@ I& 5 & &
 Order of $\nabla$ operator for diffusion:\\
 -1: no diffusion\\
 2: $\nabla^{2}$ diffusion\\
-3: Smagorinsky $\nabla^{2}$ diffusion \\
+3: (removed)\\
 4: $\nabla^{4}$ diffusion \\
 5: Smagorinsky $\nabla^{2}$ diffusion combined with $\nabla^{4}$
-background diffusion as specified via hdiff\_efdt\_ratio  &
+background diffusion as specified via hdiff\_efdt\_ratio. Set hdiff\_efdt\_ratio<=0 for switching off background diffusion.  &
 \tabularnewline
 
 %\hline
 \textbf{lsmag\_3d}&
 L(max\_dom)& .FALSE. & &
 .TRUE.: Use 3D Smagorinsky formulation for computing the horizontal diffusion coefficient (recommended at mesh sizes
-finer than 1 km if the LES turbulence scheme is not used)& hdiff\_order=3 or 5; itype\_vn\_diffu=1
+finer than 1 km if the LES turbulence scheme is not used)& hdiff\_order=5; itype\_vn\_diffu=1
 \tabularnewline
 
 %\hline
 \textbf{lhdiff\_smag\_w}&
 L(max\_dom)& .FALSE. & &
 .TRUE.: Use additional Smagorinsky diffusion for w (recommended at mesh sizes
-finer than 500 m if the LES turbulence scheme is not used)& hdiff\_order=3 or 5; lhdiff\_w=.true.
+finer than 500 m if the LES turbulence scheme is not used)& hdiff\_order=5; lhdiff\_w=.true.
 \tabularnewline
 
 %\hline
@@ -1298,7 +1298,7 @@ finer than 500 m if the LES turbulence scheme is not used)& hdiff\_order=3 or 5;
 I& 1 & &
 Reconstruction method used for Smagorinsky diffusion: \\
 1: u/v reconstruction at vertices only \\
-2: u/v reconstruction at cells and vertices& iequations=3, hdiff\_order=3 or 5
+2: u/v reconstruction at cells and vertices& iequations=3, hdiff\_order=5
 \tabularnewline
 
 %\hline
@@ -1306,7 +1306,7 @@ Reconstruction method used for Smagorinsky diffusion: \\
 I& 2 & &
 Discretization of temperature diffusion: \\
 1: $K_h \nabla^2 T$ \\
-2: $\nabla \cdot (K_h \nabla T)$  & iequations=3, hdiff\_order=3 or 5
+2: $\nabla \cdot (K_h \nabla T)$  & iequations=3, hdiff\_order=5
 \tabularnewline
 
 
@@ -1314,7 +1314,7 @@ Discretization of temperature diffusion: \\
 \textbf{hdiff\_efdt\_ratio}&
 R& 36.0 & &
 ratio of e-folding time to time step (or 2{*} time step when using
-a 3 time level time stepping scheme) (for triangular NH model, values above 30 are recommended when using hdiff\_order=5) &
+a 3 time level time stepping scheme) (values above 30 are recommended when using hdiff\_order=5) &
 \tabularnewline
 
 %\hline
@@ -4733,13 +4733,6 @@ divdamp\_type = 32
 \tabularnewline
 
 %\hline
-nest\_substeps&
-I& 2& &
-Number of dynamics substeps for the child patches.\\
-\textcolor{red}{DO NOT CHANGE!!! The code will not work correctly with other values}&
-\tabularnewline
-
-%\hline
 l\_masscorr\_nest&
 L& .FALSE.& &
 .TRUE.: Apply mass conservation correction also in nested domain & ifeedback\_type=1
@@ -4769,14 +4762,14 @@ for downward extrapolation over steep slopes \\
 l\_zdiffu\_t&
 L& .TRUE.& &
 .TRUE.: Compute Smagorinsky temperature diffusion truly horizontally over steep slopes&
- hdiff\_order=3/5 .AND. lhdiff\_temp = .true.
+ hdiff\_order=5 .AND. lhdiff\_temp = .true.
 \tabularnewline
 
 %\hline
 thslp\_zdiffu&
 R& 0.025& &
 Slope threshold above which truly horizontal temperature diffusion is activated&
-hdiff\_order=3/5 .AND. lhdiff\_temp=.true. .AND. l\_zdiffu\_t=.true.
+hdiff\_order=5 .AND. lhdiff\_temp=.true. .AND. l\_zdiffu\_t=.true.
 \tabularnewline
 
 %\hline
@@ -4784,7 +4777,7 @@ thhgtd\_zdiffu&
 R& 200& m&
 Threshold of height difference between neighboring grid points above which
 truly horizontal temperature diffusion is activated (alternative criterion to thslp\_zdiffu)&
- hdiff\_order=3/5 .AND. lhdiff\_temp=.true. .AND. l\_zdiffu\_t=.true.
+ hdiff\_order=5 .AND. lhdiff\_temp=.true. .AND. l\_zdiffu\_t=.true.
 \tabularnewline
 
 %\hline
@@ -5264,6 +5257,13 @@ part of diagnosed cloud water&
 inwp\_cldcover = 1
 \tabularnewline
 
+%\hline
+lsbm\_warm\_full&
+L (max\_ dom) & .TRUE. &  & TRUE: warm-phase Spectral Bin Microphysics (SBM). False: 2-moment scheme
+is applied (as for inwp\_gscp = 4) and SBM is running in a "Piggy Backing" mode for diagnostic purposes&
+inwp\_gscp = 8
+\tabularnewline
+
 
 %\hline
 \textbf{inwp\_radiation}&
@@ -5459,7 +5459,8 @@ I (max\_ dom) &
 &
 Coupling of the effective radius with radiation: \\
 0 \,\,\,  = No coupling. The calculation of the effective radius happens at the radiation interface. \\
-1 \,\,\, = Radiation uses the effective radius defined by icalc\_reff. All hydrometeors are combined in a frozen and a liquid phase.
+1 \,\,\, = Radiation uses the effective radius defined by icalc\_reff. All hydrometeors are combined in a frozen and a liquid phase. \\
+2 \,\,\, = Radiation uses the effective radius defined by icalc\_reff for  all hydrometeors independently (given by ecrad\_iset\_genhyd).
 &run\_nml:iforcing = inwp \\
 inwp\_radiation = 1 or 4  \\
 icalc\_reff > 0
@@ -5646,6 +5647,16 @@ R&
 0.33&
 &
 Exponent for density correction of cloud ice sedimentation&
+run\_nml:iforcing = inwp
+\tabularnewline
+
+\hline
+tune\_sbmccn&
+R&
+1.0&
+&
+Scaling factor (0,1] for initial aerosol concentration profile, used for comparison\\
+between simulations with two-moment and warm SBM microphysics&
 run\_nml:iforcing = inwp
 \tabularnewline
 
@@ -6043,6 +6054,14 @@ Choice of the aerosol scenario for cloud nucleation (CCN):\\
 9: ``very high CCN'' (``polluted'')\\
 If applied together with the ART aerosol physics \textbf{inwp\_gscp=6}, this parameter has no effect.
 &
+iforcing=3, inwp\_gscp=4,5,6,7
+\tabularnewline
+
+iicephase &
+I& 1 & &
+Turning on/off mixed phase processes in the two-moment scheme:\\
+0: warm phase processes only\\
+1: mixed phase processes&
 iforcing=3, inwp\_gscp=4,5,6,7
 \tabularnewline
 
@@ -6991,13 +7010,6 @@ Default implementation of mo\_communication to be used: \\
 \tabularnewline
 
 %\hline
-itype\_comm &
-I & 1& &
-1: use local memory for exchange buffers \\
-3: asynchronous halo communication for dynamical core (currently deactivated)&
-\tabularnewline
-
-%\hline
 \textbf{num\_io\_procs} &
 I & 0& &
 Number of I/O processors (running exclusively for doing I/O)&
@@ -7359,18 +7371,16 @@ Aerosols\\
 6: Tegen aerosol climatology {\color{red}for run\_nml/iforcing = 3 (NWP) .AND. itopo =1 }\\
 9: ART online aerosol radiation interaction, uses Tegen for aerosols not chosen to be represented in ART {\color{red}for run\_nml/iforcing = 3 (NWP) .AND. itopo =1 .AND. lart=TRUE .AND. iart\_ari=1}\\
 12: tropospheric 'Kinne' aerosols, constant in time\\
-13: tropospheric 'Kinne' aerosols, time dependent from file
-(if the 1850--file is given for all simulated years, only the
-natural background of aerosols is applied)\\
+13: total tropospheric 'Kinne' aerosols, time dependent from file \\
 14: volcanic stratospheric aerosols for CMIP6, time dependent from file\\
 15: tropospheric 'Kinne' aerosols + volcanic stratospheric aerosols for CMIP6,
 time dependent, both from file.
 If the 1850--file of the 'Kinne' aerosols is given, only the natural background from Kinne aerosol is applied.\\
-18: tropospheric natural 'Kinne' aerosols for 1850 (the 1850--file has to be linked for all
-years!) + time dep. volcanic stratospheric aerosols for CMIP6, both from file + param.
+18: tropospheric natural 'Kinne' aerosols from pre-industry (the 1850--file has to be linked for all
+simulations!) + time dep. volcanic stratospheric aerosols for CMIP6, both from file + param.
 time dep. anthropogenic 'simple plumes' \\
-19: tropospheric natural 'Kinne' aerosols for 1850
-(the 1850--file has to be linked for all years!) +
+19: tropospheric natural 'Kinne' aerosols from pre-industry
+(the 1850--file has to be linked for all simulations!) +
 param. time dep. anthropogenic 'simple plumes' \\
 &
 \tabularnewline
@@ -7426,13 +7436,25 @@ Long-wave cloud scattering.
 \tabularnewline
 
 %\hline
+ecrad\_use\_general\_cloud\_optics &
+L&
+.FALSE.&
+&
+General cloud optics in ecrad. \\
+It allows for different optical properties of ice and liquid.
+& inwp\_radiation=4 (ecRad) 
+\tabularnewline
+
+
+%\hline
 ecrad\_iliquid\_scat &
 I&
 0&
 &
 Optical properties for liquid cloud scattering. \\
-0: SOCRATES \\
-1: Slingo (1989)
+Different options depending on ecrad\_use\_general\_cloud\_optics (eugco) \\
+0: SOCRATES (eugco = .FALSE.) \textbackslash  Mie-droplet (eugco = .TRUE.)\\
+1: Slingo (1989) (eugco = .FALSE.) 
 & inwp\_radiation=4 (ecRad)
 \tabularnewline
 
@@ -7442,9 +7464,70 @@ I&
 0&
 &
 Optical properties for ice cloud scattering. \\
+Different options depending on ecrad\_use\_general\_cloud\_optics (eugco) \\
+0: Fu et al. (1996) (both) \\
+1: Baran et al. (2016) (eugco=.FALSE.) \\
+2: Yi (2013) (eugco=.FALSE.) \\
+10: Rough Fu (eugco=.TRUE.) \\
+11: Baum (eugco=.TRUE.)
+& inwp\_radiation=4 (ecRad) 
+\tabularnewline
+
+%\hline
+ecrad\_isnow\_scat &
+I&
+-1&
+&
+Optical properties for snow scattering. \\
+-1: No explicit snow in radiation. \\
 0: Fu et al. (1996) \\
-1: Baran et al. (2016)
+10: Rough Fu 
+& inwp\_radiation=4 (ecRad) \\
+ecrad\_use\_general\_cloud\_optics = .TRUE.
+\tabularnewline
+
+%\hline
+decorr\_pole &
+R&
+2000&
+m&
+Decorrelation length scale at poles \\
 & inwp\_radiation=4 (ecRad)
+\tabularnewline
+
+%\hline
+decorr\_equator &
+R&
+2000&
+m&
+Decorrelation length scale at equator \\
+& inwp\_radiation=4 (ecRad)
+\tabularnewline
+
+%\hline
+ecrad\_irain\_scat &
+I&
+-1&
+&
+Optical properties for rain  scattering. \\
+-1: No explicit rain in radiation. \\
+0: Mie-rain 
+& inwp\_radiation=4 (ecRad) \\
+ecrad\_use\_general\_cloud\_optics = .TRUE.
+\tabularnewline
+
+
+%\hline
+ecrad\_igraupel\_scat &
+I&
+-1&
+&
+Optical properties for graupel scattering. \\
+-1: No explicit graupel in radiation. \\
+0: Fu et al. (1996) \\
+10: Rough Fu 
+& inwp\_radiation=4 (ecRad) \\
+ecrad\_use\_general\_cloud\_optics = .TRUE.
 \tabularnewline
 
 %\hline

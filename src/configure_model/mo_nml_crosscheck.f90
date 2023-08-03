@@ -32,7 +32,7 @@ MODULE mo_nml_crosscheck
     &                                    wshear_uv_heights, n_wshear, srh_heights, n_srh
   USE mo_parallel_config,          ONLY: check_parallel_configuration,                     &
     &                                    ignore_nproma_use_nblocks_c,                      &
-    &                                    num_io_procs, itype_comm,                         &
+    &                                    num_io_procs,                                     &
     &                                    num_prefetch_proc, use_dp_mpi2io, num_io_procs_radar
   USE mo_limarea_config,           ONLY: latbc_config, LATBC_TYPE_CONST, LATBC_TYPE_EXT
   USE mo_master_config,            ONLY: isRestart
@@ -44,7 +44,6 @@ MODULE mo_nml_crosscheck
   USE mo_advection_config,         ONLY: advection_config
   USE mo_nonhydrostatic_config,    ONLY: itime_scheme_nh => itime_scheme,                  &
     &                                    rayleigh_type, ivctype
-  USE mo_diffusion_config,         ONLY: diffusion_config
   USE mo_atm_phy_nwp_config,       ONLY: atm_phy_nwp_config, icpl_aero_conv, iprog_aero
   USE mo_lnd_nwp_config,           ONLY: ntiles_lnd, lsnowtile, sstice_mode
   USE mo_aes_phy_config,           ONLY: aes_phy_config
@@ -56,7 +55,10 @@ MODULE mo_nml_crosscheck
     &                                    irad_n2o, irad_o2, irad_cfc11, irad_cfc12,        &
     &                                    icld_overlap, ecrad_llw_cloud_scat, isolrad,      &
     &                                    ecrad_iliquid_scat, ecrad_iice_scat,              &
-    &                                    ecrad_isolver, ecrad_igas_model
+    &                                    ecrad_isnow_scat, ecrad_irain_scat,               &
+    &                                    ecrad_igraupel_scat,                              & 
+    &                                    ecrad_isolver, ecrad_igas_model,                  &
+    &                                    ecrad_use_general_cloud_optics
   USE mo_turbdiff_config,          ONLY: turbdiff_config
   USE mo_initicon_config,          ONLY: init_mode, dt_iau, ltile_coldstart, timeshift,    &
     &                                    itype_vert_expol
@@ -293,10 +295,10 @@ CONTAINS
 
       DO jg =1,n_dom
 
-        IF (atm_phy_nwp_config(1)%inwp_turb /= iedmf) THEN
+        IF ((atm_phy_nwp_config(1)%inwp_turb /= iedmf) .AND. (atm_phy_nwp_config(jg)%inwp_gscp /= 8)) THEN
           IF( atm_phy_nwp_config(jg)%inwp_satad == 0       .AND. &
           & ((atm_phy_nwp_config(jg)%inwp_convection >0 ) .OR. &
-          &  (atm_phy_nwp_config(jg)%inwp_gscp > 0      )    ) ) &
+          &  (atm_phy_nwp_config(jg)%inwp_gscp > 0 )   ) ) &
           &  CALL finish( routine,'satad has to be switched on')
         ENDIF
 
@@ -325,6 +327,14 @@ CONTAINS
         IF (.NOT. ltestcase .AND. atm_phy_nwp_config(jg)%inwp_surface == 0) THEN
           CALL finish( routine,'Real-data applications require using a surface scheme!')
         ENDIF
+
+        IF ( (atm_phy_nwp_config(jg)%icpl_rad_reff == 2)  .AND.  & 
+             ( (atm_phy_nwp_config(jg)%inwp_radiation/= 4)  .OR.  &  
+             (ecrad_igas_model /=1) ) ) THEN
+          CALL finish( routine, 'Wrong value for: icpl_rad_reff. Coupling effective radius for all '//  &  
+                                 'hydrometeors only works with ECRAD and ECCKD gas model!')
+        ENDIF
+
 
         ! check radiation scheme in relation to chosen ozone and irad_aero=iRadAeroTegen to itopo
 
@@ -396,10 +406,32 @@ CONTAINS
             ENDIF
             IF (.NOT. ANY( icld_overlap == (/1,2,5/)       ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, icld_overlap has to be 1, 2 or 5')
-            IF (.NOT. ANY( ecrad_iliquid_scat == (/0,1/)   ) ) &
-              &  CALL finish(routine,'For inwp_radiation = 4, ecrad_iliquid_scat has to be 0 or 1')
-            IF (.NOT. ANY( ecrad_iice_scat    == (/0,1,2/) ) ) &
-              &  CALL finish(routine,'For inwp_radiation = 4, ecrad_iice_scat has to be 0, 1 or 2')
+            IF ( ecrad_igas_model   == 1  .AND. .NOT. ecrad_use_general_cloud_optics) THEN
+              ecrad_use_general_cloud_optics = .TRUE.
+              CALL message(routine,'Warning: Reset ecrad_use_general_cloud_optics = T. &
+                                    &It is the only valid option for ECCKD')
+            ENDIF
+            IF ( ecrad_use_general_cloud_optics )THEN
+              IF (.NOT. ANY( ecrad_iliquid_scat == (/0/)   ) ) &
+                &  CALL finish(routine,'For inwp_radiation = 4 ecrad_use_general_cloud_optics = T, &
+                                       &ecrad_iliquid_scat has to be 0')
+              IF (.NOT. ANY( ecrad_iice_scat    == (/0,10,11/) ) ) &
+                &  CALL finish(routine,'For inwp_radiation = 4 ecrad_use_general_cloud_optics = T, &
+                                       &ecrad_iice_scat has to be 0, 10 or 11')
+            ELSE
+              IF (.NOT. ANY( ecrad_iliquid_scat == (/0,1/)   ) ) &
+                &  CALL finish(routine,'For inwp_radiation = 4 ecrad_use_general_cloud_optics = F, &
+                                       &ecrad_iliquid_scat has to be 0 or 1')
+              IF (.NOT. ANY( ecrad_iice_scat    == (/0,1,2/) ) ) &
+                &  CALL finish(routine,'For inwp_radiation = 4 ecrad_use_general_cloud_optics = F, & 
+                                       &ecrad_iice_scat has to be 0, 1 or 2')
+            ENDIF
+            IF (.NOT. ANY( ecrad_isnow_scat    == (/-1,0,10/) ) ) &
+              &  CALL finish(routine,'For inwp_radiation = 4, ecrad_isnow_scat has to be -1, 0 or 10')
+            IF (.NOT. ANY( ecrad_irain_scat    == (/-1,0/) ) ) &
+              &  CALL finish(routine,'For inwp_radiation = 4, ecrad_isnow_scat has to be -1 or 0')
+            IF (.NOT. ANY( ecrad_igraupel_scat    == (/-1,0,10/) ) ) &
+              &  CALL finish(routine,'For inwp_radiation = 4, ecrad_igraupel_scat has to be -1, 0 or 10')
             IF (.NOT. ANY( ecrad_isolver  == (/0,1,2,3/)       ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, ecrad_isolver has to be 0, 1, 2 or 3')
             IF (.NOT. ANY( ecrad_igas_model   == (/0,1/)   ) ) &
@@ -412,6 +444,17 @@ CONTAINS
             ENDIF
             IF (.NOT. ANY( isolrad      == (/0,1,2/)       ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, isolrad has to be 0, 1 or 2')
+            IF ( .NOT. ecrad_use_general_cloud_optics .AND. &
+              & (ecrad_isnow_scat > -1 .OR. ecrad_igraupel_scat > -1 .OR. ecrad_irain_scat > -1 )) &
+              &  CALL finish(routine,'Ecrad with qr/qs/qg can only be used with ecrad_use_general_cloud_optics = T')
+            IF ( ecrad_use_general_cloud_optics .AND. & 
+              & (ecrad_isnow_scat > -1 .OR. ecrad_igraupel_scat > -1 .OR. ecrad_irain_scat > -1 ) .AND. &
+              &  atm_phy_nwp_config(jg)%icpl_rad_reff /= 2 ) &
+              &  CALL finish(routine,'Ecrad with qr/qs/qg can only be used with icpl_rad_reff= 2')
+            IF ( ecrad_igraupel_scat > -1 .AND. ANY(atm_phy_nwp_config(jg)%inwp_gscp == (/1,3/) ) ) THEN
+              ecrad_igraupel_scat = -1
+              CALL message(routine,'Warning: Reset ecrad_igraupel_scat = -1 because of no graupel in microphysics')
+            ENDIF
           ELSE
             IF ( ecrad_llw_cloud_scat ) &
               &  CALL message(routine,'Warning: ecrad_llw_cloud_scat is set to .true., but ecRad is not used')
@@ -423,6 +466,8 @@ CONTAINS
               &  CALL message(routine,'Warning: ecrad_isolver is explicitly set, but ecRad is not used')
             IF ( ecrad_igas_model /= 0 ) &
               &  CALL message(routine,'Warning: ecrad_igas_model is explicitly set, but ecRad is not used')
+            IF ( ecrad_use_general_cloud_optics ) &
+              &  CALL message(routine,'Warning: ecrad_use_general_cloud_optics is explicitly set, but ecRad is not used')
           ENDIF
 
         ELSE
@@ -539,39 +584,7 @@ CONTAINS
       ENDDO
     ENDIF
 #endif
-    !--------------------------------------------------------------------
-    ! Horizontal diffusion
-    !--------------------------------------------------------------------
 
-    DO jg =1,n_dom
-
-      SELECT CASE( diffusion_config(jg)%hdiff_order )
-      CASE(-1)
-        WRITE(message_text,'(a,i2.2)') 'Horizontal diffusion '//&
-                                       'switched off for domain ', jg
-        CALL message(routine,message_text)
-
-      CASE(2,3,4,5)
-        CONTINUE
-
-      CASE DEFAULT
-        CALL finish(routine,                       &
-          & 'Error: Invalid choice for  hdiff_order. '// &
-          & 'Choose from -1, 2, 3, 4, and 5.')
-      END SELECT
-
-      IF ( diffusion_config(jg)%hdiff_efdt_ratio<=0._wp) THEN
-        CALL message(routine,'No horizontal background diffusion is used')
-      ENDIF
-
-      IF (itype_comm == 3 .AND. diffusion_config(jg)%hdiff_order /= 5)  &
-        CALL finish(routine, 'itype_comm=3 requires hdiff_order = 5')
-
-      IF (itype_comm == 3 .AND. (diffusion_config(jg)%itype_vn_diffu > 1 .OR. &
-        diffusion_config(jg)%itype_t_diffu > 1) )                             &
-        CALL finish(routine, 'itype_comm=3 requires itype_t/vn_diffu = 1')
-
-    ENDDO
 
     !--------------------------------------------------------------------
     ! checking the meanings of the io settings
@@ -868,6 +881,24 @@ CONTAINS
         CALL finish(routine,'iart_ari > 0 requires irad_aero=9 (ART)')
       ENDIF
     ENDDO
+
+#ifdef _OPENACC
+    DO jg = 1, n_dom
+      IF (    art_config(jg)%iart_aci_cold  >  0  .OR.  &
+          &   art_config(jg)%iart_aci_warm  >  0  .OR.  &
+          &   art_config(jg)%iart_ari       >  0  .OR.  &      
+          &   art_config(jg)%iart_dust      >  0  .OR.  &
+          &   art_config(jg)%iart_init_aero >  0  .OR.  &
+          &   art_config(jg)%iart_radioact  >  0  .OR.  &
+          &   art_config(jg)%iart_seasalt   >  0  .OR.  &
+          &   art_config(jg)%iart_volcano   >  0  .OR.  &
+          &   art_config(jg)%lart_chem            .OR.  &
+          &   art_config(jg)%lart_chemtracer            ) THEN
+        CALL finish(routine,  &
+          &  'mo_nml_crosscheck: art_crosscheck: some activated art switches are currently not supported on GPU.')
+      END IF
+    ENDDO
+#endif
 
 #endif
   END SUBROUTINE art_crosscheck

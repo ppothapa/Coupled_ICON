@@ -78,7 +78,7 @@ SUBROUTINE sedshi(local_bgc_mem, local_sediment_mem, start_idx, end_idx, use_acc
   !$ACC   PRESENT(local_sediment_mem%sedlay, local_sediment_mem%burial) &
   !$ACC   COPYIN(porsol, seddw) &
   !$ACC   CREATE(wsed, fulsed) IF(lacc)
-  !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
   !$ACC LOOP SEQ
   DO k = 1, ks-1
      !$ACC LOOP GANG VECTOR
@@ -123,7 +123,8 @@ SUBROUTINE sedshi(local_bgc_mem, local_sediment_mem, start_idx, end_idx, use_acc
   ! to surface layers in the long range. Can be supplied again if a
   ! sediment column has a deficiency in volume.
 
-  !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC LOOP GANG VECTOR
   DO j = start_idx, end_idx
 
         IF (local_bgc_mem%bolay(j) > 0._wp) THEN
@@ -135,9 +136,9 @@ SUBROUTINE sedshi(local_bgc_mem, local_sediment_mem, start_idx, end_idx, use_acc
         ENDIF
 
   ENDDO !end j-loop
-  !$ACC END PARALLEL LOOP
+  !$ACC END PARALLEL
 
-  !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
   !$ACC LOOP SEQ
   DO iv = 1, nsedtra
      !$ACC LOOP GANG VECTOR
@@ -172,7 +173,7 @@ SUBROUTINE sedshi(local_bgc_mem, local_sediment_mem, start_idx, end_idx, use_acc
 
  
   ! determine how the total sediment column is filled
-  !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
   !$ACC LOOP SEQ
   DO k = 1, ks
      !$ACC LOOP GANG VECTOR
@@ -191,7 +192,8 @@ SUBROUTINE sedshi(local_bgc_mem, local_sediment_mem, start_idx, end_idx, use_acc
 
   ! shift the sediment deficiency from the deepest (local_sediment_mem%burial)
   ! layer into layer ks
-  !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC LOOP GANG VECTOR
   DO j = start_idx, end_idx
 
         IF (local_bgc_mem%bolay(j) > 0._wp) THEN
@@ -245,11 +247,11 @@ SUBROUTINE sedshi(local_bgc_mem, local_sediment_mem, start_idx, end_idx, use_acc
         ENDIF ! local_bgc_mem%bolay >0
 
   ENDDO !end j-loop
-  !$ACC END PARALLEL LOOP
+  !$ACC END PARALLEL
  
  
   !     redistribute overload of deepest layer ks to layers 2 to ks
-  !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
   !$ACC LOOP SEQ
   DO  k = ks, 2, -1
      !$ACC LOOP GANG VECTOR
@@ -282,6 +284,7 @@ SUBROUTINE sedshi(local_bgc_mem, local_sediment_mem, start_idx, end_idx, use_acc
  
  
  ENDIF ! l_up_sedshi
+ !$ACC WAIT(1)
  !$ACC END DATA
 
 END SUBROUTINE 

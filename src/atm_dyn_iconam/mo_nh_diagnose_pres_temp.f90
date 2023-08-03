@@ -168,7 +168,7 @@ MODULE mo_nh_diagnose_pres_temp
 
         ELSE ! .NOT. lforcing or Held-Suarez test forcing
 
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jk = slev, nlev
 !DIR$ IVDEP
@@ -188,7 +188,7 @@ MODULE mo_nh_diagnose_pres_temp
       
       IF ( l_opt_calc_temp_ifc ) THEN
         
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = MAX(slev+1,2), nlev
 !DIR$ IVDEP
@@ -201,7 +201,7 @@ MODULE mo_nh_diagnose_pres_temp
         !$ACC END PARALLEL
 
         IF ( PRESENT(lnd_prog) ) THEN
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
           !$ACC LOOP GANG VECTOR
           DO jc =  i_startidx, i_endidx
             pt_diag%temp_ifc(jc,     1,jb) = pt_diag%temp (jc,1,jb)
@@ -209,7 +209,7 @@ MODULE mo_nh_diagnose_pres_temp
           ENDDO
           !$ACC END PARALLEL
         ELSE
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
           !$ACC LOOP GANG VECTOR
           DO jc =  i_startidx, i_endidx
             pt_diag%temp_ifc(jc,     1,jb) = pt_diag%temp (jc,1,jb)
@@ -236,6 +236,7 @@ MODULE mo_nh_diagnose_pres_temp
     ENDDO !jb
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
+    !$ACC WAIT(1)
     !$ACC END DATA
     
     IF (timers_level > 8) CALL timer_stop(timer_diagnose_pres_temp)
@@ -285,7 +286,7 @@ MODULE mo_nh_diagnose_pres_temp
 
     IF (lconstgrav) THEN
       
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
 !DIR$ IVDEP
       !$ACC LOOP GANG VECTOR PRIVATE(dz1, dz2, dz3)
       DO jc = i_startidx, i_endidx
@@ -312,7 +313,7 @@ MODULE mo_nh_diagnose_pres_temp
       !! by a given model layer
       !-------------------------------------------------------------------------
       
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP SEQ
       DO jk = nlev, slev,-1
 !DIR$ IVDEP
@@ -341,7 +342,7 @@ MODULE mo_nh_diagnose_pres_temp
       ! (geometric heights are replaced by geopotential heights)
 
 !DIR$ IVDEP
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR PRIVATE(dz1, dz2, dz3)
       DO jc = i_startidx, i_endidx
         dz1 = p_metrics%dzgpot_mc(jc,nlev,jb)
@@ -356,7 +357,7 @@ MODULE mo_nh_diagnose_pres_temp
       ENDDO  !jc
       !$ACC END PARALLEL
       
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP SEQ
       DO jk = nlev, slev,-1
 !DIR$ IVDEP
@@ -384,6 +385,7 @@ MODULE mo_nh_diagnose_pres_temp
       
     ENDIF  !IF (lconstgrav)
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
   END SUBROUTINE diag_pres
@@ -418,7 +420,7 @@ MODULE mo_nh_diagnose_pres_temp
     !$ACC DATA PRESENT(pt_prog_rcf, pt_diag, pt_prog) &
     !$ACC   CREATE(z_qsum) &
     !$ACC   IF(i_am_accel_node)
-    
+
     CALL calc_qsum (pt_prog_rcf%tracer, z_qsum, condensate_list, jb, i_startidx, i_endidx, slev, slev_moist, nlev)
 
     !$ACC PARALLEL DEFAULT(PRESENT) ATTACH(pt_prog_rcf%tracer) ASYNC(1) IF(i_am_accel_node)

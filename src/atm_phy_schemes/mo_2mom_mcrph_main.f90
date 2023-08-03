@@ -649,111 +649,116 @@ CONTAINS
       !$ACC END PARALLEL
     END IF
 
-    ! homogeneous and heterogeneous ice nucleation
-    CALL ice_nucleation_homhet(ik_slice, use_prog_in, atmo, cloud, ice, n_inact, n_inpot)
+    IF (cfg_params%iicephase .EQ. 1) THEN
 
-    ! homogeneous freezing of cloud droplets
-    CALL cloud_freeze(ik_slice, dt, cloud_coeffs, qnc_const, atmo, cloud, ice)
-    IF (ischeck) CALL check(ik_slice,'cloud_freeze', cloud, rain, ice, snow, graupel,hail)
+      ! homogeneous and heterogeneous ice nucleation
+      CALL ice_nucleation_homhet(ik_slice, use_prog_in, atmo, cloud, ice, n_inact, n_inpot)
 
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
-    DO k=kstart,kend
-      DO i=istart,iend
-        ice%n(i,k) = MIN(ice%n(i,k), ice%q(i,k)/ice%x_min)
-        ice%n(i,k) = MAX(ice%n(i,k), ice%q(i,k)/ice%x_max)
+      ! homogeneous freezing of cloud droplets
+      CALL cloud_freeze(ik_slice, dt, cloud_coeffs, qnc_const, atmo, cloud, ice)
+      IF (ischeck) CALL check(ik_slice,'cloud_freeze', cloud, rain, ice, snow, graupel,hail)
+
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      DO k=kstart,kend
+        DO i=istart,iend
+          ice%n(i,k) = MIN(ice%n(i,k), ice%q(i,k)/ice%x_min)
+          ice%n(i,k) = MAX(ice%n(i,k), ice%q(i,k)/ice%x_max)
+        END DO
       END DO
-    END DO
-    !$ACC END PARALLEL
+      !$ACC END PARALLEL
 
-    IF (ischeck) CALL check(ik_slice,'ice nucleation',cloud,rain,ice,snow,graupel,hail)
+      IF (ischeck) CALL check(ik_slice,'ice nucleation',cloud,rain,ice,snow,graupel,hail)
 
-    ! depositional growth of all ice particles
-    ! ( store deposition rate of ice and snow for conversion calculation in
-    !   ice_riming and snow_riming )
-    CALL vapor_dep_relaxation(ik_slice,dt,ice_coeffs,snow_coeffs,graupel_coeffs,hail_coeffs,&
-         &                    atmo,ice,snow,graupel,hail,dep_rate_ice,dep_rate_snow)
-    IF (ischeck) CALL check(ik_slice,'vapor_dep_relaxation',cloud,rain,ice,snow,graupel,hail)
+      ! depositional growth of all ice particles
+      ! ( store deposition rate of ice and snow for conversion calculation in
+      !   ice_riming and snow_riming )
+      CALL vapor_dep_relaxation(ik_slice,dt,ice_coeffs,snow_coeffs,graupel_coeffs,hail_coeffs,&
+           &                    atmo,ice,snow,graupel,hail,dep_rate_ice,dep_rate_snow)
+      IF (ischeck) CALL check(ik_slice,'vapor_dep_relaxation',cloud,rain,ice,snow,graupel,hail)
 
-    ! ice-ice collisions
-    CALL ice_selfcollection(ik_slice,dt,atmo,ice,snow,ice_coeffs,ltab_estick_ice)
-    CALL snow_selfcollection(ik_slice,dt,atmo,snow,snow_coeffs,ltab_estick_snow)
-    CALL particle_particle_collection(ik_slice, dt, atmo, ice, snow, sic_coeffs, ltab_estick_parti)
-    IF (ischeck) CALL check(ik_slice, 'ice and snow collection',cloud,rain,ice,snow,graupel,hail)
+      ! ice-ice collisions
+      CALL ice_selfcollection(ik_slice,dt,atmo,ice,snow,ice_coeffs,ltab_estick_ice)
+      CALL snow_selfcollection(ik_slice,dt,atmo,snow,snow_coeffs,ltab_estick_snow)
+      CALL particle_particle_collection(ik_slice, dt, atmo, ice, snow, sic_coeffs, ltab_estick_parti)
+      IF (ischeck) CALL check(ik_slice, 'ice and snow collection',cloud,rain,ice,snow,graupel,hail)
 
-    CALL graupel_selfcollection(ik_slice, dt, atmo, graupel, graupel_coeffs)
-    CALL particle_particle_collection(ik_slice, dt, atmo, ice, graupel, gic_coeffs, ltab_estick_parti)
-    CALL particle_particle_collection(ik_slice, dt, atmo, snow, graupel, gsc_coeffs, ltab_estick_parti)
-    IF (ischeck) CALL check(ik_slice, 'graupel collection',cloud,rain,ice,snow,graupel,hail)
+      CALL graupel_selfcollection(ik_slice, dt, atmo, graupel, graupel_coeffs)
+      CALL particle_particle_collection(ik_slice, dt, atmo, ice, graupel, gic_coeffs, ltab_estick_parti)
+      CALL particle_particle_collection(ik_slice, dt, atmo, snow, graupel, gsc_coeffs, ltab_estick_parti)
+      IF (ischeck) CALL check(ik_slice, 'graupel collection',cloud,rain,ice,snow,graupel,hail)
 
-    ! conversion of graupel to hail in wet growth regime
-    IF (timers_level > 10) CALL timer_start(timer_phys_2mom_wetgrowth)
-    CALL graupel_hail_conv_wet_gamlook(ik_slice, graupel_ltable1, graupel_ltable2,       &
-         &                             graupel_nm1, graupel_nm2, graupel_g1, graupel_g2, &
-         &                             ltabdminwgg, atmo, graupel, cloud, rain, ice, snow, hail)
-    IF (timers_level > 10) CALL  timer_stop(timer_phys_2mom_wetgrowth)
-    IF (ischeck) CALL check(ik_slice, 'graupel_hail_conv_wet_gamlook',cloud,rain,ice,snow,graupel,hail)
+      ! conversion of graupel to hail in wet growth regime
+      IF (timers_level > 10) CALL timer_start(timer_phys_2mom_wetgrowth)
+      CALL graupel_hail_conv_wet_gamlook(ik_slice, graupel_ltable1, graupel_ltable2,       &
+           &                             graupel_nm1, graupel_nm2, graupel_g1, graupel_g2, &
+           &                             ltabdminwgg, atmo, graupel, cloud, rain, ice, snow, hail)
+      IF (timers_level > 10) CALL  timer_stop(timer_phys_2mom_wetgrowth)
+      IF (ischeck) CALL check(ik_slice, 'graupel_hail_conv_wet_gamlook',cloud,rain,ice,snow,graupel,hail)
 
-    ! hail collisions
-    CALL particle_particle_collection(ik_slice, dt, atmo, ice, hail, hic_coeffs, ltab_estick_parti)    ! Important?
-    CALL particle_particle_collection(ik_slice, dt, atmo, snow, hail, hsc_coeffs, ltab_estick_parti)
-    IF (ischeck) CALL check(ik_slice, 'hail collection',cloud,rain,ice,snow,graupel,hail)
+      ! hail collisions
+      CALL particle_particle_collection(ik_slice, dt, atmo, ice, hail, hic_coeffs, ltab_estick_parti)    ! Important?
+      CALL particle_particle_collection(ik_slice, dt, atmo, snow, hail, hsc_coeffs, ltab_estick_parti)
+      IF (ischeck) CALL check(ik_slice, 'hail collection',cloud,rain,ice,snow,graupel,hail)
 
-    ! riming of ice with cloud droplets and rain drops, and conversion to graupel
-    CALL ice_riming(ik_slice, dt, icr_coeffs, irr_coeffs, atmo, ice, cloud, rain, graupel, dep_rate_ice)
-    IF (ischeck) CALL check(ik_slice, 'ice_riming',cloud,rain,ice,snow,graupel,hail)
+      ! riming of ice with cloud droplets and rain drops, and conversion to graupel
+      CALL ice_riming(ik_slice, dt, icr_coeffs, irr_coeffs, atmo, ice, cloud, rain, graupel, dep_rate_ice)
+      IF (ischeck) CALL check(ik_slice, 'ice_riming',cloud,rain,ice,snow,graupel,hail)
 
-    ! riming of snow with cloud droplets and rain drops, and conversion to graupel
-    CALL snow_riming(ik_slice, dt, scr_coeffs, srr_coeffs, atmo, snow, cloud, rain, ice, graupel, dep_rate_snow)
-    IF (ischeck) CALL check(ik_slice, 'snow_riming',cloud,rain,ice,snow,graupel,hail)
+      ! riming of snow with cloud droplets and rain drops, and conversion to graupel
+      CALL snow_riming(ik_slice, dt, scr_coeffs, srr_coeffs, atmo, snow, cloud, rain, ice, graupel, dep_rate_snow)
+      IF (ischeck) CALL check(ik_slice, 'snow_riming',cloud,rain,ice,snow,graupel,hail)
 
-    ! hail-cloud and hail-rain riming
-    CALL particle_cloud_riming(ik_slice, dt, atmo, hail, hcr_coeffs, cloud, rain, ice)
-    CALL particle_rain_riming(ik_slice, dt, atmo, hail, hrr_coeffs, rain, ice)
-    IF (ischeck) CALL check(ik_slice, 'hail riming',cloud,rain,ice,snow,graupel,hail)
+      ! hail-cloud and hail-rain riming
+      CALL particle_cloud_riming(ik_slice, dt, atmo, hail, hcr_coeffs, cloud, rain, ice)
+      CALL particle_rain_riming(ik_slice, dt, atmo, hail, hrr_coeffs, rain, ice)
+      IF (ischeck) CALL check(ik_slice, 'hail riming',cloud,rain,ice,snow,graupel,hail)
 
-    ! graupel-cloud and graupel-rain riming
-    CALL particle_cloud_riming(ik_slice, dt, atmo, graupel, gcr_coeffs, cloud, rain, ice)
-    CALL particle_rain_riming(ik_slice, dt, atmo, graupel, grr_coeffs, rain, ice)
-    IF (ischeck) CALL check(ik_slice, 'graupel riming',cloud,rain,ice,snow,graupel,hail)
+      ! graupel-cloud and graupel-rain riming
+      CALL particle_cloud_riming(ik_slice, dt, atmo, graupel, gcr_coeffs, cloud, rain, ice)
+      CALL particle_rain_riming(ik_slice, dt, atmo, graupel, grr_coeffs, rain, ice)
+      IF (ischeck) CALL check(ik_slice, 'graupel riming',cloud,rain,ice,snow,graupel,hail)
 
-    ! freezing of rain and conversion to ice/graupel/hail
-    CALL rain_freeze_gamlook(ik_slice, dt, rain_ltable1, rain_ltable2, rain_ltable3, &
-         &                   rain_nm1, rain_nm2, rain_nm3, rain_g1, rain_g2,         &
-         &                   rain_coeffs,atmo,rain,ice,snow,graupel,hail)
-    IF (ischeck) CALL check(ik_slice, 'rain_freeze_gamlook',cloud,rain,ice,snow,graupel,hail)
+      ! freezing of rain and conversion to ice/graupel/hail
+      CALL rain_freeze_gamlook(ik_slice, dt, rain_ltable1, rain_ltable2, rain_ltable3, &
+           &                   rain_nm1, rain_nm2, rain_nm3, rain_g1, rain_g2,         &
+           &                   rain_coeffs,atmo,rain,ice,snow,graupel,hail)
+      IF (ischeck) CALL check(ik_slice, 'rain_freeze_gamlook',cloud,rain,ice,snow,graupel,hail)
 
-    ! melting of ice and snow
-    CALL ice_melting(ik_slice, atmo, ice, cloud, rain)
-    CALL snow_melting(ik_slice,dt,snow_coeffs,atmo,snow,rain)
+      ! melting of ice and snow
+      CALL ice_melting(ik_slice, atmo, ice, cloud, rain)
+      CALL snow_melting(ik_slice,dt,snow_coeffs,atmo,snow,rain)
 
-    ! melting of graupel and hail can be simple or LWF-based
-    SELECT TYPE (graupel)
-    TYPE IS (particle_frozen)
-      CALL graupel_melting(ik_slice,dt,graupel_coeffs,atmo,graupel,rain)
-    TYPE IS (particle_lwf)
+      ! melting of graupel and hail can be simple or LWF-based
+      SELECT TYPE (graupel)
+      TYPE IS (particle_frozen)
+        CALL graupel_melting(ik_slice,dt,graupel_coeffs,atmo,graupel,rain)
+      TYPE IS (particle_lwf)
 #ifdef _OPENACC
-      CALL finish('graupel','particle_lwf not supported on GPU')
+        CALL finish('graupel','particle_lwf not supported on GPU')
 #endif
-      CALL prepare_melting_lwf(ik_slice, atmo, gmelting)
-      CALL particle_melting_lwf(ik_slice, dt, graupel, rain, gmelting)
-    END SELECT
-    SELECT TYPE (hail)
-    TYPE IS (particle_frozen)
-      CALL hail_melting_simple(ik_slice,dt,hail_coeffs,atmo,hail,rain)
-    TYPE IS (particle_lwf)
+        CALL prepare_melting_lwf(ik_slice, atmo, gmelting)
+        CALL particle_melting_lwf(ik_slice, dt, graupel, rain, gmelting)
+      END SELECT
+      SELECT TYPE (hail)
+      TYPE IS (particle_frozen)
+        CALL hail_melting_simple(ik_slice,dt,hail_coeffs,atmo,hail,rain)
+      TYPE IS (particle_lwf)
 #ifdef _OPENACC
-      CALL finish('hail','particle_lwf not supported on GPU')
+        CALL finish('hail','particle_lwf not supported on GPU')
 #endif
-      CALL particle_melting_lwf(ik_slice, dt, hail, rain, gmelting)
-    END SELECT
-    IF (ischeck) CALL check(ik_slice, 'melting',cloud,rain,ice,snow,graupel,hail)
+        CALL particle_melting_lwf(ik_slice, dt, hail, rain, gmelting)
+      END SELECT
+      IF (ischeck) CALL check(ik_slice, 'melting',cloud,rain,ice,snow,graupel,hail)
 
-    ! evaporation from melting ice particles
-    CALL evaporation(ik_slice, dt, atmo, snow, snow_coeffs)
-    CALL evaporation(ik_slice, dt, atmo, graupel, graupel_coeffs)
-    CALL evaporation(ik_slice, dt, atmo, hail, hail_coeffs)
-    IF (ischeck) CALL check(ik_slice, 'evaporation of ice',cloud,rain,ice,snow,graupel,hail)
+      ! evaporation from melting ice particles
+      CALL evaporation(ik_slice, dt, atmo, snow, snow_coeffs)
+      CALL evaporation(ik_slice, dt, atmo, graupel, graupel_coeffs)
+      CALL evaporation(ik_slice, dt, atmo, hail, hail_coeffs)
+      IF (ischeck) CALL check(ik_slice, 'evaporation of ice',cloud,rain,ice,snow,graupel,hail)
+
+    END IF ! cfg_params%iicephase
+
 
     ! warm rain processes
     ! (using something other than SB is somewhat inconsistent and not recommended)
