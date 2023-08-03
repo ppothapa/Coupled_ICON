@@ -617,7 +617,11 @@ Selects source of aerosol types\\
 18: Kinne background aerosols (of natural origin, 1850) are set and Stenchikov's
 volcanic aerosols are added to Kinne background and Simple plumes are added \\
 aes\_phy\_config(jg)\% dt\_rad > 0.000s \tabularnewline
-
+%
+aes\_rad\_config(jg)\% lrad\_yac & L & .FALSE. & &
+.TRUE.: O3 and Kinne Aerosol is coupled via yac for \\
+irad\_aero 13, 15, 18, 19  and \\
+irad\_o3 4,5,6, \tabularnewline
 \end{longtab}
 
 %------------------------------------------------------------------------------

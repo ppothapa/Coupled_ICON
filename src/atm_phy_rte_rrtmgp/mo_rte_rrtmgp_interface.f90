@@ -88,10 +88,10 @@ CONTAINS
 
   ! TODO/BUG?
   !-------------------------------------------------------------------
-  SUBROUTINE rte_rrtmgp_interface(                                               &
-      jg, jb, jcs, jce, nproma, klev,                                       &
-      & irad_aero                                                          ,&
-      & psctm, ssi_factor,                                                  &
+  SUBROUTINE rte_rrtmgp_interface(                                          &
+      & jg, jb, jcs, jce, nproma, klev                                     ,&
+      & irad_aero       , lrad_yac                                         ,&
+      & psctm           , ssi_factor                                       ,&
       & loland          ,loglac          ,this_datetime                    ,&
       & pcos_mu0        ,daylght_frc                                       ,&
       & alb_vis_dir     ,alb_nir_dir     ,alb_vis_dif     ,alb_nir_dif     ,&
@@ -123,6 +123,7 @@ CONTAINS
          nproma, klev, & !< array dimensions(?)
          irad_aero       !< aerosol control
 
+    LOGICAL, INTENT(IN) :: lrad_yac                      !< kinne aerosol from yac (true) or file
     REAL(wp),INTENT(IN) :: psctm                         !< orbit and time dependent solar constant for radiation time step
     REAL(wp),INTENT(IN) :: ssi_factor(:)                 !< fraction of TSI in the 14 RRTM SW bands
 
@@ -239,13 +240,13 @@ CONTAINS
       ! iaero=13: only Kinne aerosols are used
       ! iaero=15: Kinne aerosols plus Stenchikov's volcanic aerosols are used
       ! iaero=18: Kinne background aerosols (of natural origin, 1850) are set
-        CALL set_bc_aeropt_kinne(this_datetime,                       &
+        CALL set_bc_aeropt_kinne(this_datetime,                        &
               & jg,                                                    &
               & jcs, nproma,    nproma,                klev,           &
               & jb,             nbndsw,                nbndlw,         &
               & zf,             dz,                                    &
               & aer_tau_sw,     aer_ssa_sw,            aer_asy_sw,     &
-              & aer_tau_lw                                              )
+              & aer_tau_lw, opt_from_yac=lrad_yac )
       END IF
       IF (irad_aero==14 .OR. irad_aero==15 .OR. irad_aero==18) THEN
       ! iaero=14: only Stechnikov's volcanic aerosols are used (added to zero)

@@ -95,6 +95,7 @@ MODULE mo_radiation_config
     INTEGER  :: irad_cfc11  !< CFC 11
     INTEGER  :: irad_cfc12  !< CFC 12
     INTEGER  :: irad_aero   !< aerosols
+    LOGICAL  :: lrad_yac    !< aerosol coupling
     LOGICAL  :: lrad_aero_diag  !< diagnose aerosols
     ENUM, BIND(C)
         ENUMERATOR :: iRadAeroNone=0,        iRadAeroConst=2,        iRadAeroTegen=6, iRadAeroART=9, &

@@ -64,6 +64,10 @@ ECCODES_LIBS='-leccodes_f90 -leccodes'
 XML2_ROOT='/usr'
 XML2_LIBS='-lxml2'
 
+# FYAML_ROOT=$(spack find --format='{prefix}' "libfyaml%${compiler}")
+FYAML_ROOT='/sw/spack-levante/libfyaml-0.7.12-fvbhgo'
+FYAML_LIBS='-lfyaml'
+
 ################################################################################
 
 BUILD_ENV="export LD_LIBRARY_PATH=\"${HDF5_ROOT}/lib:${NETCDF_ROOT}/lib:${NETCDFF_ROOT}/lib:${ECCODES_ROOT}/lib64:\${LD_LIBRARY_PATH}\"; export PATH=\"${HDF5_ROOT}/bin:\${PATH}\"; ${BLAS_LAPACK_BUILD_ENV}"
@@ -72,7 +76,7 @@ CC="${MPI_ROOT}/bin/mpicc"
 CFLAGS='-g -gdwarf-4 -march=native -mpc64'
 ICON_CFLAGS='-O3'
 ICON_BUNDLED_CFLAGS='-O2'
-CPPFLAGS="-I${HDF5_ROOT}/include -I${NETCDF_ROOT}/include -I${ECCODES_ROOT}/include -I${XML2_ROOT}/include/libxml2"
+CPPFLAGS="-I${HDF5_ROOT}/include -I${NETCDF_ROOT}/include -I${ECCODES_ROOT}/include -I${XML2_ROOT}/include/libxml2 -I${FYAML_ROOT}/include"
 
 FC="${MPI_ROOT}/bin/mpif90"
 FCFLAGS="-I${HDF5_ROOT}/include -I${NETCDFF_ROOT}/include -I${ECCODES_ROOT}/include -fmodule-private -fimplicit-none -fmax-identifier-length=63 -Wall -Wcharacter-truncation -Wconversion -Wunderflow -Wunused-parameter -Wno-surprising -fall-intrinsics -g -march=native -mpc64"
@@ -84,8 +88,8 @@ ICON_OCEAN_FCFLAGS='-O3 -fno-tree-loop-vectorize -std=f2008 -fallow-argument-mis
 ICON_BUNDLED_FCFLAGS="${common_extra_FCFLAGS} -std=f2008"
 ICON_ECRAD_FCFLAGS="${common_extra_FCFLAGS} -fallow-invalid-boz"
 
-LDFLAGS="-L${HDF5_ROOT}/lib -L${NETCDF_ROOT}/lib -L${NETCDFF_ROOT}/lib ${BLAS_LAPACK_LDFLAGS} -L${ECCODES_ROOT}/lib64"
-LIBS="-Wl,--disable-new-dtags -Wl,--as-needed ${XML2_LIBS} ${ECCODES_LIBS} ${BLAS_LAPACK_LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS} ${HDF5_LIBS} ${ZLIB_LIBS}"
+LDFLAGS="-L${HDF5_ROOT}/lib -L${NETCDF_ROOT}/lib -L${NETCDFF_ROOT}/lib ${BLAS_LAPACK_LDFLAGS} -L${ECCODES_ROOT}/lib64 -L${FYAML_ROOT}/lib"
+LIBS="-Wl,--disable-new-dtags -Wl,--as-needed ${XML2_LIBS} ${FYAML_LIBS} ${ECCODES_LIBS} ${BLAS_LAPACK_LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS} ${HDF5_LIBS} ${ZLIB_LIBS}"
 
 MPI_LAUNCH="${MPI_ROOT}/bin/mpiexec"
 

@@ -9,10 +9,14 @@ export MODULESHOME="/usr/share/Modules"
 MY_DIR=$(cd "$(dirname "$0")"; pwd)
 ICON_DIR=$(cd "${MY_DIR}/../.."; pwd)
 
-# create vector engine binary
+# =============================================================================
+# these setting are critical to proper logging by buildbot
+export VE_DIR="${ICON_DIR}/vector"
+export VH_DIR="${ICON_DIR}/host"
 
-mkdir -p vector
-cd vector
+# create vector engine binary
+mkdir -p ${VE_DIR}
+cd ${VE_DIR}
 
 ${ICON_DIR}/config/dwd/rcl.VE.bb-dwd_nec_hybrid
 
@@ -26,18 +30,18 @@ if test 0 -ne "$?" && test ! -z "${BB_NAME}"; then
 fi
 
 MAKE_PROCS=14
-make -j ${MAKE_PROCS}
+make -j ${MAKE_PROCS} |& tee make.log
 
-cd ..
+cd -
 
 # copy a valid info file to where runexp expects it. buildbot is doing
 # in-source-builds, only at the moment
 cp -v $OLDPWD/run/set-up.info run/
 
+# =============================================================================
 # create vector host binary
-
-mkdir -p host
-cd host
+mkdir -p ${VH_DIR}
+cd ${VH_DIR}
 
 ${ICON_DIR}/config/dwd/rcl.VH.bb-dwd_nec_hybrid
 
@@ -51,13 +55,13 @@ if test 0 -ne "$?" && test ! -z "${BB_NAME}"; then
 fi
 
 MAKE_PROCS=14
-make -j ${MAKE_PROCS}
+make -j ${MAKE_PROCS} |& tee make.log
 
-cd ..
+cd -
 
-VECTOR_BINARY="${PWD}/vector/bin/icon"
-HOST_BINARY="${PWD}/host/bin/icon"
+VECTOR_BINARY="${VE_DIR}/bin/icon"
+HOST_BINARY="${VH_DIR}/bin/icon"
 
 set +e
-find "${PWD}/vector" "${PWD}/host"
+find "${VE_DIR}" "${VH_DIR}"
 file "$VECTOR_BINARY" "$HOST_BINARY"

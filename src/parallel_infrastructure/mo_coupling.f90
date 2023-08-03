@@ -23,7 +23,8 @@ MODULE mo_coupling
   USE mo_io_units, ONLY: nerr
 #if !defined NOMPI && defined YAC_coupling
   USE mo_yac_finterface, ONLY: yac_finit_comm, yac_ffinalize, &
-                               yac_finit_comm_group, yac_fget_groupcomm
+                               yac_fmpi_handshake,            &
+                               YAC_MAX_CHARLEN
   USE mpi
 #endif
 
@@ -35,8 +36,7 @@ MODULE mo_coupling
   PUBLIC :: finalize_coupler
   PUBLIC :: coupler_config_files_exist
 
-  CHARACTER(LEN=*), PARAMETER :: xml_filename = "coupling.xml"
-  CHARACTER(LEN=*), PARAMETER :: xsd_filename = "coupling.xsd"
+  CHARACTER(LEN=*), PARAMETER :: yaml_filename = "coupling.yaml"
 
   LOGICAL :: config_files_have_been_checked = .FALSE.
   LOGICAL :: config_files_exist = .FALSE.
@@ -48,7 +48,7 @@ CONTAINS
 
   LOGICAL FUNCTION coupler_config_files_exist()
 
-    LOGICAL :: xml_exists, xsd_exists
+    LOGICAL :: yaml_exists
 
     IF (config_files_have_been_checked) THEN
 
@@ -56,11 +56,10 @@ CONTAINS
 
     ELSE
 
-      INQUIRE(FILE=TRIM(ADJUSTL(xml_filename)), EXIST=xml_exists)
-      INQUIRE(FILE=TRIM(ADJUSTL(xsd_filename)), EXIST=xsd_exists)
+      INQUIRE(FILE=TRIM(ADJUSTL(yaml_filename)), EXIST=yaml_exists)
 
       config_files_have_been_checked = .TRUE.
-      config_files_exist = xml_exists .AND. xsd_exists
+      config_files_exist = yaml_exists
       coupler_config_files_exist = config_files_exist
 
     END IF
@@ -76,8 +75,12 @@ CONTAINS
 
     CHARACTER(*), PARAMETER :: routine = modname//":init_coupler"
 
-    INTEGER :: group_comm, group_rank
-    INTEGER :: result, ierror
+    INTEGER :: ierror
+
+    INTEGER :: global_rank
+    INTEGER :: yac_comm
+    INTEGER :: group_comms(2)
+    CHARACTER(len=YAC_MAX_CHARLEN) :: group_names(2)
 
     IF (coupler_config_files_exist()) THEN
 
@@ -85,39 +88,27 @@ CONTAINS
 
       IF (PRESENT(global_name)) THEN
 
-        CALL yac_finit_comm_group( &
-          TRIM(xml_filename), TRIM(xsd_filename), world_communicator, global_name)
+         group_names(1) = "yac"
+         group_names(2) = TRIM(global_name)
 
-        CALL yac_fget_groupcomm(group_comm)
+         CALL yac_fmpi_handshake( MPI_COMM_WORLD, group_names, group_comms)
+         yac_comm = group_comms(1)
+         world_communicator = group_comms(2)
+         CALL yac_finit_comm(yac_comm)
 
-        CALL mpi_comm_compare(world_communicator, group_comm, result, ierror)
+         CALL MPI_COMM_RANK ( world_communicator, global_rank, ierror )
+         IF ( global_rank == 0 ) &
+            CALL yac_fread_config_yaml( TRIM(yaml_filename) )
 
-        IF ((result /= MPI_IDENT) .AND. (result /= MPI_CONGRUENT)) THEN
-
-          world_communicator = group_comm
-
-          CALL mpi_comm_rank(group_comm, group_rank, ierror)
-
-          IF (group_rank == 0) THEN
-
-            CALL print_info_stderr( &
-              routine, &
-              'splitting the set of available MPI ranks (MPI_COMM_WORLD communicator).')
-            CALL print_info_stderr( &
-              routine, &
-              '"' // global_name // '" operates on a proper subset of MPI_COMM_WORLD')
-          END IF
-
-        ELSE
-
-          CALL mpi_comm_free(group_comm, ierror)
-
-        END IF
+         CALL mpi_comm_free(yac_comm, ierror)
 
       ELSE
 
-        CALL yac_finit_comm( &
-          TRIM(xml_filename), TRIM(xsd_filename), world_communicator)
+        CALL yac_finit_comm( world_communicator )
+        CALL MPI_COMM_RANK ( world_communicator, global_rank, ierror )
+        IF ( global_rank == 0 ) &
+           CALL yac_fread_config_yaml( TRIM(yaml_filename) )
+        
       END IF
     END IF
 #endif

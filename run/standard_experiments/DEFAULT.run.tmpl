@@ -297,9 +297,9 @@ EOF
 #%  if WITH_ATMO is set and WITH_OCEAN is set:
 # I.3 YAC coupling library configuration
 #-----------------------------------------------------------------------------
-# component names in coupling.xml must (!) match with modelname_list[*]
-cat > coupling.xml << EOF
-%{COUPLING_XML}
+# component names in coupling.yaml must (!) match with modelname_list[*]
+cat > coupling.yaml << EOF
+%{COUPLING_YAML}
 EOF
 
 #%  endif
