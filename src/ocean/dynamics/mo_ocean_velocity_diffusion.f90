@@ -97,22 +97,6 @@ CONTAINS
       lacc = .FALSE.
     END IF
 
-#ifdef _OPENACC
-    i_am_accel_node = my_process_is_work()       ! Activate GPUs
-    lacc = .TRUE.
-#endif
-
-    !$ACC DATA COPYIN(patch_3d%p_patch_2d(1)%edges%cell_idx, patch_3d%p_patch_2d(1)%edges%cell_blk) &
-    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%vertex_idx, patch_3d%p_patch_2d(1)%edges%vertex_blk) &
-    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%cells%edge_idx, patch_3d%p_patch_2d(1)%cells%edge_blk) &
-    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%cells%all, patch_3d%p_patch_2d(1)%edges%tangent_orientation) &
-    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%inv_primal_edge_length) &
-    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%inv_dual_edge_length) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_c, patch_3d%p_patch_1d(1)%dolic_e) &
-    !$ACC   COPYIN(vn_in, p_diag, p_diag%vort, operators_coeff, operators_coeff%div_coeff) &
-    !$ACC   COPYIN(physics_parameters, physics_parameters%HarmonicViscosity_coeff) &
-    !$ACC   COPY(laplacian_vn_out) IF(lacc)
-
     IF(VelocityDiffusion_order==1)THEN
       
       !divgrad laplacian is chosen
@@ -172,14 +156,6 @@ CONTAINS
       CALL finish(method_name, "unknown VelocityDiffusion_order")
     ENDIF
     
-    ! CALL sync_patch_array(sync_e, patch_3D%p_patch_2d(1), laplacian_vn_out)
-
-    !$ACC END DATA
-
-#ifdef _OPENACC
-    lacc = .FALSE.
-    i_am_accel_node = .FALSE.                    ! Deactivate GPUs
-#endif
   END SUBROUTINE velocity_diffusion
   !-------------------------------------------------------------------------
 

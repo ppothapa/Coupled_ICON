@@ -99,11 +99,20 @@
       END SUBROUTINE lhs_surface_height_destruct
     
     ! interface routine for the left hand side computation
-      SUBROUTINE lhs_surface_height_zstar(this, x, ax)
+      SUBROUTINE lhs_surface_height_zstar(this, x, ax, use_acc)
         CLASS(t_surface_height_lhs_zstar), INTENT(INOUT) :: this
         REAL(wp), INTENT(IN) :: x(:,:)
         REAL(wp), INTENT(OUT) :: ax(:,:)
-    
+        LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+        LOGICAL :: lacc
+
+        IF (PRESENT(use_acc)) THEN
+          lacc = use_acc
+          CALL finish("lhs_surface_height_zstar()", "OpenACC version not implemented yet")
+        ELSE
+          lacc = .FALSE.
+        END IF
+
         IF (this%use_shortcut) &
           & CALL finish("t_surface_height_lhs::lhs_surface_height_wp", &
             & "should not be here because of shortcut!")

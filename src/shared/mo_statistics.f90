@@ -2276,27 +2276,38 @@ CONTAINS
   !-----------------------------------------------------------------------
 
   !-----------------------------------------------------------------------
-  SUBROUTINE verticallyIntegrated_field_notWeighted(vint_field,field_3D,subset,levels)
+  SUBROUTINE verticallyIntegrated_field_notWeighted(vint_field,field_3D,subset,levels, use_acc)
     REAL(wp),INTENT(inout)          :: vint_field(:,:)
     REAL(wp),INTENT(in)             :: field_3D(:,:,:)
     TYPE(t_subset_range),INTENT(in) :: subset
     INTEGER,INTENT(in),OPTIONAL :: levels
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
 
     INTEGER :: idx,block,level,start_index,end_index
 
     INTEGER :: mylevels
     LOGICAL :: my_force_level
+    LOGICAL  :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     IF (ASSOCIATED(subset%vertical_levels) .AND. .NOT. PRESENT(levels)) THEN
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index, idx, level) SCHEDULE(dynamic)
       DO block = subset%start_block, subset%end_block
         CALL get_index_range(subset, block, start_index, end_index)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO idx = start_index, end_index
           vint_field(idx,block) = 0.0_wp
+          !$ACC LOOP SEQ
           DO level = 1, subset%vertical_levels(idx,block)
             vint_field(idx,block) = vint_field(idx,block) + field_3D(idx,level,block)
           END DO
         END DO
+        !$ACC END PARALLEL LOOP
       END DO
 !ICON_OMP_END_PARALLEL_DO
 
@@ -2307,12 +2318,15 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index, idx, level) SCHEDULE(dynamic)
       DO block = subset%start_block, subset%end_block
         CALL get_index_range(subset, block, start_index, end_index)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO idx = start_index, end_index
            vint_field(idx,block) = 0.0_wp
+          !$ACC LOOP SEQ
            DO level = 1, mylevels
             vint_field(idx,block) = vint_field(idx,block) + field_3D(idx,level,block)
           END DO
         END DO
+        !$ACC END PARALLEL LOOP
       END DO
 !ICON_OMP_END_PARALLEL_DO
 

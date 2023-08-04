@@ -69,10 +69,10 @@ MODULE mo_ocean_boundcond
   INTEGER            :: current_step = 0
 
 CONTAINS
-  
-  SUBROUTINE top_bound_cond_horz_veloc( patch_3D, ocean_state, p_op_coeff, p_oce_sfc, use_acc)
+
+  SUBROUTINE top_bound_cond_horz_veloc( patch_3D, ocean_state, p_op_coeff, p_oce_sfc, use_acc )
     !
-    TYPE(t_patch_3D ),TARGET, INTENT(IN):: patch_3D
+    TYPE(t_patch_3D ),TARGET, INTENT(IN)       :: patch_3D
     TYPE(t_hydro_ocean_state), INTENT(inout)   :: ocean_state            ! ocean state variable
     TYPE(t_operator_coeff), INTENT(IN)         :: p_op_coeff
     TYPE(t_ocean_surface)                      :: p_oce_sfc       ! external data
@@ -87,21 +87,6 @@ CONTAINS
       lacc = .FALSE.
     END IF
 
-#ifdef _OPENACC
-    i_am_accel_node = my_process_is_work()       ! Activate GPUs
-    lacc = .TRUE.
-#endif
-
-    !$ACC DATA COPYIN(patch_3d%p_patch_2d(1)%edges%cell_idx, patch_3d%p_patch_2d(1)%edges%cell_idx) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_c, patch_3d%p_patch_1d(1)%dolic_e) &
-    !$ACC   COPYIN(patch_3d%lsm_c) &
-    !$ACC   COPYIN(ocean_state, ocean_state%p_aux, ocean_state%p_diag, ocean_state%p_diag%thick_c) &
-    !$ACC   COPYIN(p_oce_sfc, p_oce_sfc%TopBC_WindStress_cc) &
-    !$ACC   COPYIN(p_oce_sfc%TopBC_WindStress_u, p_oce_sfc%TopBC_WindStress_v) &
-    !$ACC   COPYIN(p_op_coeff, p_op_coeff%edge2cell_coeff_cc_t) &
-    !$ACC   COPY(ocean_state%p_aux%bc_top_u, ocean_state%p_aux%bc_top_v) &
-    !$ACC   COPY(ocean_state%p_aux%bc_top_veloc_cc, ocean_state%p_aux%bc_top_vn) IF(lacc)
-
     IF (forcing_windstress_u_type > 100 .OR. forcing_windstress_u_type == 0) THEN
 #ifdef _OPENACC
       CALL finish(routine, 'OpenACC version not implemented')
@@ -114,12 +99,6 @@ CONTAINS
       CALL top_bound_cond_horz_veloc_fromCells( patch_3D, ocean_state, p_op_coeff, p_oce_sfc, use_acc=lacc)
     ENDIF
 
-    !$ACC END DATA
-
-#ifdef _OPENACC
-    lacc = .FALSE.
-    i_am_accel_node = .FALSE.                    ! Deactivate GPUs
-#endif
   END SUBROUTINE top_bound_cond_horz_veloc
   !-------------------------------------------------------------------------
     

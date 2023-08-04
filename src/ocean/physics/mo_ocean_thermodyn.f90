@@ -244,20 +244,6 @@ CONTAINS
       lacc = .FALSE.
     END IF
 
-#ifdef _OPENACC
-    i_am_accel_node = my_process_is_work()       ! Activate GPUs
-    lacc = .TRUE.
-#endif
-
-    !$ACC DATA COPYIN(patch_3d%p_patch_2d(1)%alloc_cell_blocks) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%constantPrismCenters_Zdistance) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_c) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_e) &
-    !$ACC   COPYIN(rho, bc_total_top_potential, grad_coeff) &
-    !$ACC   COPY(pressure_hyd) &
-    !$ACC   COPY(press_grad) &
-    !$ACC   IF(lacc)
-
     !-----------------------------------------------------------------------
     z_grav_rho_inv = OceanReferenceDensity_inv * grav
     patch_2D        => patch_3d%p_patch_2d(1)
@@ -348,13 +334,6 @@ CONTAINS
     END DO
 !ICON_OMP_END_DO NOWAIT
 !ICON_OMP_END_PARALLEL
-
-    !$ACC END DATA
-
-#ifdef _OPENACC
-    lacc = .FALSE.
-    i_am_accel_node = .FALSE.                    ! Deactivate GPUs
-#endif
 
     END SUBROUTINE calc_internal_press_grad
     !-------------------------------------------------------------------------

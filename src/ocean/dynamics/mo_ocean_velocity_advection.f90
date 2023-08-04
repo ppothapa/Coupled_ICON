@@ -103,28 +103,6 @@ CONTAINS
       lacc = .FALSE.
     END IF
 
-#ifdef _OPENACC
-    i_am_accel_node = my_process_is_work()       ! Activate GPUs
-    lacc = .TRUE.
-#endif
-
-    !$ACC DATA COPYIN(patch_3d, patch_3d%p_patch_2d, patch_3d%p_patch_2d(1)%verts, patch_3d%p_patch_2d(1)%edges) &
-    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%nblks_v, patch_3d%p_patch_2d(1)%nblks_e) &
-    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%verts%f_v) &
-    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%verts%edge_idx, patch_3d%p_patch_2d(1)%verts%edge_blk) &
-    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%vertex_idx, patch_3d%p_patch_2d(1)%edges%vertex_blk) &
-    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%cell_idx, patch_3d%p_patch_2d(1)%edges%cell_blk) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%vertex_bottomLevel, patch_3d%p_patch_2d(1)%verts%num_edges) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_e, patch_3d%p_patch_1d(1)%prism_thick_e) &
-    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%primal_edge_length, patch_3d%lsm_e) &
-    !$ACC   COPYIN(ocean_coefficients, ocean_coefficients%vertex_bnd_edge_idx, ocean_coefficients%vertex_bnd_edge_blk) &
-    !$ACC   COPYIN(ocean_coefficients%rot_coeff, ocean_coefficients%grad_coeff) &
-    !$ACC   COPYIN(ocean_coefficients%edge2vert_coeff_cc_t, ocean_coefficients%edge2edge_viavert_coeff) &
-    !$ACC   COPYIN(ocean_coefficients%bnd_edges_per_vertex, ocean_coefficients%boundaryEdge_Coefficient_Index) &
-    !$ACC   COPYIN(p_diag) &
-    !$ACC   COPYIN(vn_old, p_diag%p_vn_dual, p_diag%kin) &
-    !$ACC   COPY(veloc_adv_horz_e, p_diag%vort, p_diag%grad) IF(lacc)
-
     IF (velocity_advection_form == rotational_form) THEN
 
 
@@ -177,12 +155,6 @@ CONTAINS
         & veloc_adv_horz_e)
     ENDIF
 
-    !$ACC END DATA
-
-#ifdef _OPENACC
-    lacc = .FALSE.
-    i_am_accel_node = .FALSE.                    ! Deactivate GPUs
-#endif
   END SUBROUTINE veloc_adv_horz_mimetic
   !-------------------------------------------------------------------------
 
@@ -213,19 +185,6 @@ CONTAINS
       lacc = .FALSE.
     END IF
 
-#ifdef _OPENACC
-    i_am_accel_node = my_process_is_work()       ! Activate GPUs
-    lacc = .TRUE.
-#endif
-
-    !$ACC DATA COPYIN(patch_3d%p_patch_2d(1)%edges%cell_idx, patch_3d%p_patch_2d(1)%edges%cell_idx) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_c, patch_3d%p_patch_1d(1)%dolic_e) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%prism_thick_flat_sfc_c) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%constantPrismCenters_Zdistance) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%constantPrismCenters_invZdistance) &
-    !$ACC   COPYIN(ocean_coefficients, ocean_coefficients%edge2cell_coeff_cc_t, p_diag, p_diag%p_vn, p_diag%w) &
-    !$ACC   COPY(veloc_adv_vert_e) IF(lacc)
-
     SELECT CASE(HorizonatlVelocity_VerticalAdvection_form)
     CASE(VerticalAdvection_MimeticRotationalForm)
       CALL veloc_adv_vert_mimetic_rot( patch_3D, p_diag,ocean_coefficients, veloc_adv_vert_e, use_acc=lacc)
@@ -255,12 +214,6 @@ CONTAINS
       CALL finish("veloc_adv_vert_mimetic","unknown HorizonatlVelocity_VerticalAdvection_form")
     END SELECT
 
-    !$ACC END DATA
-
-#ifdef _OPENACC
-    lacc = .FALSE.
-    i_am_accel_node = .FALSE.                    ! Deactivate GPUs
-#endif
   END SUBROUTINE veloc_adv_vert_mimetic
   !-------------------------------------------------------------------------
 

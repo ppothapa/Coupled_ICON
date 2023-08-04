@@ -244,31 +244,113 @@ CONTAINS
     CALL dbg_print('on entry: vn-old'               ,ocean_state%p_prog(nold(1))%vn,str_module, 3, in_subset=owned_edges)
     CALL dbg_print('on entry: h-new'                ,ocean_state%p_prog(nnew(1))%h ,str_module, 2, in_subset=owned_cells)
     CALL dbg_print('on entry: vn-new'               ,ocean_state%p_prog(nnew(1))%vn,str_module, 2, in_subset=owned_edges)
+
     ! Apply windstress
-    CALL top_bound_cond_horz_veloc(patch_3d, ocean_state, op_coeffs, p_oce_sfc) ! ,     &
-    start_timer(timer_ab_expl,3)
-    CALL calculate_explicit_term_ab(patch_3d, ocean_state, p_phys_param, &
-      & is_initial_timestep(timestep), op_coeffs, p_as)
-    stop_timer(timer_ab_expl,3)
-    IF(.NOT.l_rigid_lid)THEN
-      ! Calculate RHS of surface equation
-      start_detail_timer(timer_ab_rhs4sfc,5)
-      CALL fill_rhs4surface_eq_ab(patch_3d, ocean_state, op_coeffs)
-      stop_detail_timer(timer_ab_rhs4sfc,5)
-      ! Solve surface equation with solver
-! decide on guess to use in solver
 #ifdef _OPENACC
     i_am_accel_node = my_process_is_work()       ! Activate GPUs
     lacc = .TRUE.
 #endif
+
+    !$ACC DATA COPYIN(patch_3d, patch_3d%p_patch_2d, patch_3d%p_patch_2d(1)%verts, patch_3d%p_patch_2d(1)%edges) &
+    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%nblks_v, patch_3d%p_patch_2d(1)%nblks_e) &
+    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%verts%f_v) &
+    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%verts%edge_idx, patch_3d%p_patch_2d(1)%verts%edge_blk) &
+    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%vertex_idx, patch_3d%p_patch_2d(1)%edges%vertex_blk) &
+    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%cell_idx, patch_3d%p_patch_2d(1)%edges%cell_blk) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%vertex_bottomLevel, patch_3d%p_patch_2d(1)%verts%num_edges) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_e, patch_3d%p_patch_1d(1)%prism_thick_e) &
+    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%primal_edge_length, patch_3d%lsm_e) &
+    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%alloc_cell_blocks) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%constantPrismCenters_Zdistance) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_c, nold) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%prism_thick_flat_sfc_c) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%constantPrismCenters_invZdistance) &
+    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%cells%edge_idx, patch_3d%p_patch_2d(1)%cells%edge_blk) &
+    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%cells%all, patch_3d%p_patch_2d(1)%edges%tangent_orientation) &
+    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%inv_primal_edge_length) &
+    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%inv_dual_edge_length) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%prism_thick_flat_sfc_e) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%inv_prism_thick_e) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%inv_prism_center_dist_e) &
+    !$ACC   COPYIN(patch_3d%lsm_c) &
+    !$ACC   COPYIN(op_coeffs, op_coeffs%vertex_bnd_edge_idx, op_coeffs%vertex_bnd_edge_blk) &
+    !$ACC   COPYIN(op_coeffs%rot_coeff, op_coeffs%grad_coeff) &
+    !$ACC   COPYIN(op_coeffs%edge2vert_coeff_cc_t, op_coeffs%edge2edge_viavert_coeff) &
+    !$ACC   COPYIN(op_coeffs%bnd_edges_per_vertex, op_coeffs%boundaryEdge_Coefficient_Index) &
+    !$ACC   COPYIN(op_coeffs%edge2cell_coeff_cc_t) &
+    !$ACC   COPYIN(op_coeffs%div_coeff) &
+    !$ACC   COPY(ocean_state, ocean_state%p_diag) &
+    !$ACC   COPY(ocean_state%p_diag%p_vn_dual, ocean_state%p_diag%kin) &
+    !$ACC   COPY(ocean_state%p_diag%veloc_adv_horz, ocean_state%p_diag%vort) &
+    !$ACC   COPY(ocean_state%p_diag%rho) &
+    !$ACC   COPY(ocean_state%p_diag%press_hyd) &
+    !$ACC   COPY(ocean_state%p_diag%p_vn, ocean_state%p_diag%w) &
+    !$ACC   COPY(ocean_state%p_diag%veloc_adv_vert) &
+    !$ACC   COPY(ocean_state%p_diag%laplacian_horz) &
+    !$ACC   COPY(ocean_state%p_diag%press_grad) &
+    !$ACC   COPY(ocean_state%p_diag%grad) &
+    !$ACC   COPY(ocean_state%p_diag%vn_pred) &
+    !$ACC   COPY(ocean_state%p_diag%thick_c) &
+    !$ACC   COPY(ocean_state%p_prog, ocean_state%p_prog(nold(1))%vn, ocean_state%p_prog(nnew(1))%vn) &
+    !$ACC   COPY(ocean_state%p_prog(nold(1))%h) &
+    !$ACC   COPY(ocean_state%p_aux, ocean_state%p_aux%bc_total_top_potential) &
+    !$ACC   COPY(ocean_state%p_aux%g_n) &
+    !$ACC   COPY(ocean_state%p_aux%g_nm1) &
+    !$ACC   COPY(ocean_state%p_aux%g_nimd) &
+    !$ACC   COPY(ocean_state%p_aux%bc_bot_vn) &
+    !$ACC   COPY(ocean_state%p_aux%bc_top_vn) &
+    !$ACC   COPY(ocean_state%p_aux%bc_top_u) &
+    !$ACC   COPY(ocean_state%p_aux%bc_top_v) &
+    !$ACC   COPY(ocean_state%p_aux%bc_top_veloc_cc) &
+    !$ACC   COPY(p_phys_param, p_phys_param%a_veloc_v, p_phys_param%HarmonicViscosity_coeff) &
+    !$ACC   COPYIN(p_oce_sfc, p_oce_sfc%TopBC_WindStress_cc) &
+    !$ACC   COPYIN(p_oce_sfc%TopBC_WindStress_u, p_oce_sfc%TopBC_WindStress_v) &
+    !$ACC   IF(lacc)
+
+    CALL top_bound_cond_horz_veloc(patch_3d, ocean_state, op_coeffs, p_oce_sfc, use_acc=lacc)
+
+    start_timer(timer_ab_expl,3)
+    CALL calculate_explicit_term_ab(patch_3d, ocean_state, p_phys_param, &
+      & is_initial_timestep(timestep), op_coeffs, p_as, use_acc=lacc)
+    stop_timer(timer_ab_expl,3)
+
+    !$ACC END DATA
+
+#ifdef _OPENACC
+    i_am_accel_node = .FALSE.
+    lacc = .FALSE.
+#endif
+
+    IF(.NOT.l_rigid_lid)THEN
+#ifdef _OPENACC
+      i_am_accel_node = my_process_is_work()       ! Activate GPUs
+      lacc = .TRUE.
+#endif
+
+      !$ACC DATA COPYIN(patch_3d%p_patch_2d(1)%edges%in_domain) &
+      !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_e, nold) &
+      !$ACC   COPYIN(patch_3d%p_patch_1d(1)%prism_thick_e) &
+      !$ACC   COPYIN(op_coeffs, op_coeffs%edge2edge_viacell_coeff, op_coeffs%div_coeff) &
+      !$ACC   COPY(ocean_state, ocean_state%p_diag, ocean_state%p_diag%vn_pred) &
+      !$ACC   COPY(ocean_state%p_diag%thick_e) &
+      !$ACC   COPY(ocean_state%p_prog, ocean_state%p_prog(nold(1))%vn) &
+      !$ACC   COPY(ocean_state%p_prog(nold(1))%h) &
+      !$ACC   COPY(ocean_state%p_aux, ocean_state%p_aux%p_rhs_sfc_eq) &
+      !$ACC   COPY(free_sfc_solver, free_sfc_solver%x_loc_wp) &
+      !$ACC   IF(lacc)
+
+      ! Calculate RHS of surface equation
+      start_detail_timer(timer_ab_rhs4sfc,5)
+      CALL fill_rhs4surface_eq_ab(patch_3d, ocean_state, op_coeffs, use_acc=lacc)
+      stop_detail_timer(timer_ab_rhs4sfc,5)
+
+      ! Solve surface equation with solver
+      ! decide on guess to use in solver
       SELECT CASE (solver_FirstGuess)
       CASE (1)
         CALL smooth_onCells(patch_3d, ocean_state%p_prog(nold(1))%h, free_sfc_solver%x_loc_wp, &
           & (/ 0.5_wp, 0.5_wp /), .false., -999999.0_wp, use_acc=lacc)
       CASE (2)
-        !$ACC DATA COPY(nold, free_sfc_solver, free_sfc_solver%x_loc_wp, ocean_state, ocean_state%p_prog) &
-        !$ACC   COPY(ocean_state%p_prog(nold(1))%h) &
-        !$ACC   IF(lacc)
         DO blockNo = all_cells%start_block, all_cells%end_block
           CALL get_index_range(all_cells, blockNo, StartIndex, EndIndex)
           !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
@@ -277,10 +359,7 @@ CONTAINS
           END DO
           !$ACC END PARALLEL LOOP
         END DO
-        !$ACC END DATA
       CASE default
-        !$ACC DATA COPY(nold, free_sfc_solver, free_sfc_solver%x_loc_wp) &
-        !$ACC   IF(lacc)
         DO blockNo = all_cells%start_block, all_cells%end_block
           CALL get_index_range(all_cells, blockNo, StartIndex, EndIndex)
           !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
@@ -289,11 +368,12 @@ CONTAINS
           END DO
           !$ACC END PARALLEL LOOP
         END DO
-        !$ACC END DATA
       END SELECT
+
+      !$ACC END DATA
 #ifdef _OPENACC
-    lacc = .FALSE.
-    i_am_accel_node = .FALSE.                    ! Deactivate GPUs
+      lacc = .FALSE.
+      i_am_accel_node = .FALSE.                    ! Deactivate GPUs
 #endif
 
       free_sfc_solver%b_loc_wp => ocean_state%p_aux%p_rhs_sfc_eq
@@ -395,18 +475,26 @@ CONTAINS
   !! Developed  by  Peter Korn, MPI-M (2010).
   !!
 !<Optimize:inUse>
-  SUBROUTINE calculate_explicit_term_ab( patch_3d, ocean_state, p_phys_param,&
-    & is_first_timestep, op_coeffs, p_as)
+  SUBROUTINE calculate_explicit_term_ab( patch_3d, ocean_state, p_phys_param, &
+    & is_first_timestep, op_coeffs, p_as, use_acc)
     TYPE(t_patch_3d ), POINTER, INTENT(in) :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET    :: ocean_state
     TYPE (t_ho_params)                   :: p_phys_param
     LOGICAL,INTENT(in)                   :: is_first_timestep
     TYPE(t_operator_coeff), INTENT(IN), TARGET :: op_coeffs
     TYPE(t_atmos_for_ocean), INTENT(inout) :: p_as
+    LOGICAL, INTENT(in), OPTIONAL          :: use_acc
     TYPE(t_subset_range), POINTER :: owned_edges, owned_cells
+    LOGICAL :: lacc
 
     owned_edges     => patch_3d%p_patch_2d(n_dom)%edges%owned
     owned_cells     => patch_3d%p_patch_2d(n_dom)%cells%owned
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     ! STEP 1: horizontal advection
     start_detail_timer(timer_extra1,4)
@@ -416,16 +504,17 @@ CONTAINS
         & ocean_state%p_prog(nold(1))%vn,    &
         & ocean_state%p_diag,                &
         & ocean_state%p_diag%veloc_adv_horz, &
-        & op_coeffs)
+        & op_coeffs, use_acc=lacc)
     ELSE
       CALL veloc_adv_horz_mimetic( patch_3d,         &
         & ocean_state%p_prog(nold(1))%vn,    &
         & ocean_state%p_prog(nnew(1))%vn,    &
         & ocean_state%p_diag,                &
         & ocean_state%p_diag%veloc_adv_horz, &
-        & op_coeffs)
+        & op_coeffs, use_acc=lacc)
     ENDIF
     stop_detail_timer(timer_extra1,4)
+
     ! STEP 2: compute 3D contributions: gradient of hydrostatic pressure and vertical velocity advection
     IF ( iswm_oce /= 1 ) THEN
       ! calculate density from EOS using temperature and salinity at timelevel n
@@ -433,49 +522,28 @@ CONTAINS
 
       !------------------------------------------------------------------------
       ! this is calculated before the dynamics
-!       CALL calculate_density( patch_3d,                         &
-!        & ocean_state%p_prog(nold(1))%tracer(:,:,:,1:no_tracer),&
-!        & ocean_state%p_diag%rho(:,:,:) )
       !------------------------------------------------------------------------
-
-!       IF(.NOT.l_partial_cells)THEN
-!         ! calculate hydrostatic pressure from density at timelevel nc
-!         CALL calc_internal_press( patch_3d,                  &  ! in
-!           & ocean_state%p_diag%rho,                          &  ! in
-!           & patch_3d%p_patch_1d(1)%prism_thick_flat_sfc_c,   &  ! in
-!           & ocean_state%p_prog(nold(1))%h,                   &  ! in
-!           & ocean_state%p_diag%press_hyd)                       ! inout
-!
-!         ! calculate gradient of hydrostatic pressure in 3D
-!         CALL grad_fd_norm_oce_3d(               &
-!           & ocean_state%p_diag%press_hyd,       &
-!           & patch_3d,                           &
-!           & op_coeffs%grad_coeff,               &
-!           & ocean_state%p_diag%press_grad)
-!       ELSE
-!          CALL calc_internal_press_grad0( patch_3d,&
-!          &                              ocean_state%p_diag%rho,&
-!          &                              op_coeffs%grad_coeff,  &
-!          &                              ocean_state%p_diag%press_grad)
-!       ENDIF
-
 
      CALL calc_internal_press_grad( patch_3d,&
          &                          ocean_state%p_diag%rho,&
          &                          ocean_state%p_diag%press_hyd,&
          &                          ocean_state%p_aux%bc_total_top_potential, &
          &                          op_coeffs%grad_coeff,  &
-         &                          ocean_state%p_diag%press_grad)
+         &                          ocean_state%p_diag%press_grad, use_acc=lacc)
+
       ! calculate vertical velocity advection
-      CALL veloc_adv_vert_mimetic(          &
-        & patch_3d,                         &
-        & ocean_state%p_diag,op_coeffs,     &
-        & ocean_state%p_diag%veloc_adv_vert )
+      CALL veloc_adv_vert_mimetic(           &
+        & patch_3d,                          &
+        & ocean_state%p_diag, op_coeffs,     &
+        & ocean_state%p_diag%veloc_adv_vert, &
+        & use_acc=lacc )
       stop_detail_timer(timer_extra2,4)
+
     ELSE  !  iswm_oce=1
       ocean_state%p_diag%veloc_adv_vert = 0.0_wp
       ocean_state%p_diag%laplacian_vert = 0.0_wp
     ENDIF
+
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     idt_src = 3  ! output print level (1-5, fix)
     CALL dbg_print('density'                   ,ocean_state%p_diag%rho           ,str_module,idt_src, &
@@ -490,20 +558,24 @@ CONTAINS
     ! STEP 3: compute harmonic or biharmoic laplacian diffusion of velocity.
     !         This term is discretized explicitly. Order and form of the laplacian
     !         are determined in mo_oce_diffusion according to namelist settings
+
     start_detail_timer(timer_extra3,5)
-    CALL velocity_diffusion(patch_3d,              &
-      & ocean_state%p_prog(nold(1))%vn, &
-      & p_phys_param,            &
-      & ocean_state%p_diag,op_coeffs,  &
-      & ocean_state%p_diag%laplacian_horz)
+    CALL velocity_diffusion(patch_3d,      &
+      & ocean_state%p_prog(nold(1))%vn,    &
+      & p_phys_param,                      &
+      & ocean_state%p_diag,op_coeffs,      &
+      & ocean_state%p_diag%laplacian_horz, &
+      & use_acc=lacc)
     stop_detail_timer(timer_extra3,5)
+
     start_detail_timer(timer_extra4,4)
     IF (   MASS_MATRIX_INVERSION_TYPE == MASS_MATRIX_INVERSION_ALLTERMS&
       &.OR.MASS_MATRIX_INVERSION_TYPE == MASS_MATRIX_INVERSION_ADVECTION) THEN
-      CALL explicit_vn_pred_invert_mass_matrix( patch_3d, ocean_state, op_coeffs, p_phys_param, is_first_timestep)
+      CALL explicit_vn_pred_invert_mass_matrix( patch_3d, ocean_state, op_coeffs, p_phys_param, is_first_timestep )
     ELSE ! If no inversion of mass matrix
-      CALL explicit_vn_pred( patch_3d, ocean_state, op_coeffs, p_phys_param, is_first_timestep)
+      CALL explicit_vn_pred( patch_3d, ocean_state, op_coeffs, p_phys_param, is_first_timestep, use_acc=lacc )
     ENDIF!
+
     stop_detail_timer(timer_extra4,4)
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     idt_src=3  ! output print level (1-5, fix)
@@ -526,6 +598,7 @@ CONTAINS
     CALL dbg_print('G_n+1/2 - g_nimd'         ,ocean_state%p_aux%g_nimd       ,str_module,idt_src, in_subset=owned_edges)
     CALL dbg_print('G_n'                      ,ocean_state%p_aux%g_n          ,str_module,idt_src, in_subset=owned_edges)
     CALL dbg_print('G_n-1'                    ,ocean_state%p_aux%g_nm1        ,str_module,idt_src, in_subset=owned_edges)
+
   END SUBROUTINE calculate_explicit_term_ab
 
   !-------------------------------------------------------------------------
@@ -553,32 +626,7 @@ CONTAINS
     patch_2D        => patch_3d%p_patch_2d(n_dom)
     edges_in_domain => patch_3d%p_patch_2d(n_dom)%edges%in_domain
 
-#ifdef _OPENACC
-    i_am_accel_node = my_process_is_work()    ! Activate GPUs
-    lacc = .TRUE.
-#endif
-
-    !$ACC DATA COPY(nold, ocean_state, ocean_state%p_prog, ocean_state%p_prog(nold(1))%h) &
-    !$ACC   COPYIN(op_coeffs, op_coeffs%grad_coeff) &
-    !$ACC   COPY(z_gradh_e) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_e) &
-    !$ACC   COPY(ocean_state, ocean_state%p_aux, ocean_state%p_aux%g_n) &
-    !$ACC   COPY(ocean_state%p_aux%g_nimd, ocean_state%p_aux%g_nm1) &
-    !$ACC   COPY(ocean_state%p_diag, ocean_state%p_diag%press_grad) &
-    !$ACC   COPY(ocean_state%p_diag%grad) &
-    !$ACC   COPY(ocean_state%p_diag%veloc_adv_horz, ocean_state%p_diag%veloc_adv_vert) &
-    !$ACC   COPY(ocean_state%p_diag%laplacian_horz) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_e, nold) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%prism_thick_e) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%prism_thick_flat_sfc_e) &
-    !$ACC   COPY(z_gradh_e, ocean_state, ocean_state%p_diag, ocean_state%p_diag%vn_pred) &
-    !$ACC   COPY(ocean_state%p_prog, ocean_state%p_prog(nold(1))%vn) &
-    !$ACC   COPY(ocean_state%p_aux, ocean_state%p_aux%g_nimd) &
-    !$ACC   COPY(ocean_state%p_aux%bc_bot_vn, ocean_state%p_aux%bc_top_vn) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%inv_prism_thick_e) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%inv_prism_center_dist_e) &
-    !$ACC   COPY(p_phys_param, p_phys_param%a_veloc_v) &
-    !$ACC   IF(lacc)
+    !$ACC DATA CREATE(z_gradh_e) IF(lacc)
 
     ! STEP 4: calculate weighted gradient of surface height at previous timestep
 !ICON_OMP_PARALLEL_DO PRIVATE(start_edge_index,end_edge_index, z_gradh_e) ICON_OMP_DEFAULT_SCHEDULE
@@ -624,11 +672,6 @@ CONTAINS
 !ICON_OMP_END_PARALLEL_DO
 
     !$ACC END DATA
-
-#ifdef _OPENACC
-    lacc = .FALSE.
-    i_am_accel_node = .FALSE.                 ! Deactivate GPUs
-#endif
 
   END SUBROUTINE explicit_vn_pred
 
@@ -941,21 +984,13 @@ CONTAINS
 
     inv_gdt2 = 1.0_wp / (grav*dtime*dtime)
 
-#ifdef _OPENACC
-    i_am_accel_node = my_process_is_work()       ! Activate GPUs
-    lacc = .TRUE.
-#endif
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     !$ACC DATA CREATE(z_vn_ab, z_e, div_z_depth_int_c, div_z_c) &
-    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%in_domain) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_e, nold) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%prism_thick_e) &
-    !$ACC   COPYIN(op_coeffs, op_coeffs%edge2edge_viacell_coeff, op_coeffs%div_coeff) &
-    !$ACC   COPY(ocean_state, ocean_state%p_diag, ocean_state%p_diag%vn_pred) &
-    !$ACC   COPY(ocean_state%p_diag%thick_e) &
-    !$ACC   COPY(ocean_state%p_prog, ocean_state%p_prog(nold(1))%vn) &
-    !$ACC   COPY(ocean_state%p_prog(nold(1))%h) &
-    !$ACC   COPY(ocean_state%p_aux, ocean_state%p_aux%p_rhs_sfc_eq) &
     !$ACC   IF(lacc)
 
     !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
@@ -1106,11 +1141,6 @@ CONTAINS
     ENDIF!patch_2d%cells%max_connectivity
 
   !$ACC END DATA
-
-#ifdef _OPENACC
-    i_am_accel_node = .FALSE.
-    lacc = .FALSE.
-#endif
 
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     idt_src=3  ! output print level (1-5, fix)

@@ -556,7 +556,7 @@ CONTAINS
             & ocean_state%p_prog(nnew(1))%stretch_c(:, :), &
             & patch_3D%p_patch_1d(1)%prism_thick_flat_sfc_c(:,:,:),&
             & ice, total_salt, total_saltinseaice, &
-            & total_saltinliquidwater )
+            & total_saltinliquidwater, use_acc=lacc )
         END IF
 
         monitor%total_salt = total_salt
@@ -760,7 +760,7 @@ CONTAINS
               & patch_3D%p_patch_1d(1)%del_zlev_i, &
               & ocean_state%p_prog(nnew(1))%stretch_c(:, :), &
               & patch_3D%p_patch_1d(1)%prism_volume, &
-              & owned_cells)
+              & owned_cells, use_acc=lacc)
          END IF
 
       END IF
@@ -803,7 +803,7 @@ CONTAINS
              p_diag%delta_ice,                                      &
              p_diag%delta_snow,                                     &
              p_diag%delta_thetao,                                   &
-             p_diag%delta_so, use_acc=.false.)
+             p_diag%delta_so, use_acc=lacc)
 
         ELSEIF (vert_cor_type .EQ. 1) THEN
 
@@ -811,7 +811,7 @@ CONTAINS
              p_diag%delta_ice,                                      &
              p_diag%delta_snow,                                     &
              p_diag%delta_thetao,                                   &
-             p_diag%delta_so, ocean_state%p_prog(nnew(1))%stretch_c(:, :))
+             p_diag%delta_so, ocean_state%p_prog(nnew(1))%stretch_c(:, :), use_acc=lacc)
 
         ENDIF
 
@@ -848,7 +848,7 @@ CONTAINS
              & p_diag%global_sltbasin, &
              & p_diag%atlantic_sltbasin, &
              & p_diag%pacific_sltbasin, &
-             & monitor%amoc26n)
+             & monitor%amoc26n, use_acc=lacc)
 
 
         CALL timer_stop(timer_calc_moc)
@@ -875,7 +875,7 @@ CONTAINS
              p_diag%heat_content_seaice, &
              p_diag%heat_content_snow,&
              p_diag%heat_content_total, &
-             ocean_state%p_prog(nnew(1))%stretch_c(:, :) )
+             ocean_state%p_prog(nnew(1))%stretch_c(:, :), use_acc=lacc )
 
         ENDIF
 
@@ -919,14 +919,14 @@ CONTAINS
                ,p_diag%RR, p_diag%SS, p_diag%TT, p_diag%sigma0 &
                ,p_diag%hflR, p_diag%fwR, p_diag%tauxU, p_diag%tauyV &
                ,p_oce_sfc%topbc_windstress_u, p_oce_sfc%topbc_windstress_v &
-               ,p_oce_sfc%heatflux_total, p_oce_sfc%frshflux_volumetotal )
+               ,p_oce_sfc%heatflux_total, p_oce_sfc%frshflux_volumetotal, use_acc=lacc )
 
       ENDIF
 
       IF (isRegistered('mld')) THEN
 
         CALL calc_mld(patch_3d, ocean_state%p_diag%mld, &
-             ocean_state%p_diag%zgrad_rho,0.125_wp)
+             ocean_state%p_diag%zgrad_rho,0.125_wp, use_acc=lacc)
 
         CALL dbg_print('Diag: mld',ocean_state%p_diag%mld, &
              str_module,4,in_subset=owned_cells)
@@ -935,15 +935,17 @@ CONTAINS
       IF (isRegistered('mlotst') .or. isRegistered('mlotstsq') ) THEN
 
         CALL calc_mld(patch_3d, ocean_state%p_diag%mlotst, &
-             ocean_state%p_diag%zgrad_rho,0.03_wp)
+             ocean_state%p_diag%zgrad_rho,0.03_wp, use_acc=lacc)
 
         CALL dbg_print('Diag: mlotst',ocean_state%p_diag%mlotst, &
              str_module,4,in_subset=owned_cells)
 
         IF (isRegistered('mlotstsq')) THEN
 
+          !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
           ocean_state%p_diag%mlotstsq= &
                ocean_state%p_diag%mlotst*ocean_state%p_diag%mlotst
+          !$ACC END KERNELS
 
           CALL dbg_print('Diag: mlotstsq',ocean_state%p_diag%mlotstsq, &
                str_module,4,in_subset=owned_cells)
@@ -954,7 +956,7 @@ CONTAINS
       IF (isRegistered('condep')) THEN
 
         CALL calc_condep(patch_3d, ocean_state%p_diag%condep, &
-             ocean_state%p_diag%zgrad_rho)
+             ocean_state%p_diag%zgrad_rho, use_acc=lacc)
 
         CALL dbg_print('Diag: condep',ocean_state%p_diag%condep,str_module,4, &
              in_subset=owned_cells)
@@ -998,8 +1000,10 @@ CONTAINS
           &                      isRegistered('ice_framStrait'))
 
       IF (isRegistered('verticallyTotal_mass_flux_e')) THEN
+        IF(lacc) CALL finish("calc_fast_oce_diagnostic", "verticallyIntegrated_field is ported to GPU &
+                              but not checked whether it gives correct results")
         CALL verticallyIntegrated_field(ocean_state%p_diag%verticallyTotal_mass_flux_e, &
-          & ocean_state%p_diag%mass_flx_e, owned_edges)
+          & ocean_state%p_diag%mass_flx_e, owned_edges, use_acc=lacc)
         CALL dbg_print('Total_mass_flux_e ', ocean_state%p_diag%verticallyTotal_mass_flux_e, &
            str_module, 1, in_subset=owned_edges)
 
@@ -1237,7 +1241,7 @@ CONTAINS
     IF ( allocated_levels < end_vertical) &
       & CALL finish(method_name, "allocated_levels < end_vertical")
 
-    !$ACC DATA PRESENT(w, h, rho, del_zlev_i, stretch, weights, in_subset) &
+    !$ACC DATA PRESENT(w, h, rho, del_zlev_i, stretch, weights, in_subset%vertical_levels) &
     !$ACC   CREATE(sum_value, sum_weight, total_sum, total_weight) IF(lacc)
 
     !ICON_OMP_PARALLEL PRIVATE(myThreadNo)
@@ -1485,7 +1489,7 @@ CONTAINS
              global_moc, atlant_moc, pacind_moc, global_hfl, atlant_hfl, pacind_hfl, &
              global_wfl, atlant_wfl, pacind_wfl, &
              global_hfbasin, atlant_hfbasin, pacind_hfbasin, &
-             global_sltbasin, atlant_sltbasin, pacind_sltbasin, amoc26n)
+             global_sltbasin, atlant_sltbasin, pacind_sltbasin, amoc26n, use_acc)
 
     TYPE(t_patch),    TARGET, INTENT(in)  :: patch_2d
     TYPE(t_patch_3d ),TARGET, INTENT(in)  :: patch_3d
@@ -1512,6 +1516,7 @@ CONTAINS
 
     ! northward ocean salt transport calculated from tendencies
     REAL(wp), INTENT(inout) :: global_sltbasin(:,:), atlant_sltbasin(:,:), pacind_sltbasin(:,:) ! (1,nlat_moc)
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
 
     ! local variables
     INTEGER, PARAMETER ::  latSmooth = 3   !  latitudinal smoothing area is 2*jbrei-1 rows of 1 deg
@@ -1526,13 +1531,24 @@ CONTAINS
     TYPE(t_subset_range), POINTER :: cells
 
     CHARACTER(LEN=*), PARAMETER :: routine = 'mo_ocean_diagnostics:calc_moc'
+    LOGICAL  :: lacc
 
     !-----------------------------------------------------------------------
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
     mpi_comm = MERGE(p_comm_work_test, p_comm_work, p_test_run)
 
     n=MAX(12,n_zlev) !needs at leat 12 levels to store the wfl/hfl/hfbasin variables
     ALLOCATE(allmocs(4,n,nlat_moc))
 
+    !$ACC DATA CREATE(allmocs)
+
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     allmocs(:,:,:)  = 0.0_wp
 
     global_moc(:,:) = 0.0_wp
@@ -1554,7 +1570,7 @@ CONTAINS
     global_sltbasin(:,:) = 0.0_wp
     pacind_sltbasin(:,:) = 0.0_wp
     atlant_sltbasin(:,:) = 0.0_wp
-
+    !$ACC END KERNELS
 
     ! limit cells to in-domain because of summation
     cells   => patch_2d%cells%in_domain
@@ -1563,8 +1579,14 @@ CONTAINS
 
     DO BLOCK = cells%start_block, cells%end_block
       CALL get_index_range(cells, BLOCK, start_index, end_index)
+      ! 2023-08 psam-DKRZ: An alternate implementation with ACC LOOP GANG needs the use of atomic update, 
+      ! but it does not give bit-identical results compared to the CPU results
+      !$ACC PARALLEL DEFAULT(PRESENT) &
+      !$ACC   PRIVATE(deltaMoc, deltahfbasin, deltasltbasin, deltahfl, deltawfl, ilat) IF(lacc)
+      !$ACC LOOP SEQ
       DO idx = start_index, end_index
         lat = patch_2d%cells%center(idx,BLOCK)%lat*rad2deg
+        !$ACC LOOP SEQ
         DO level = 1, cells%vertical_levels(idx,BLOCK)
 
           deltaMoc = patch_2d%cells%area(idx,BLOCK) * OceanReferenceDensity * w(idx,level,BLOCK)
@@ -1594,10 +1616,11 @@ CONTAINS
           ! distribute MOC over (2*jbrei)+1 latitude rows
           !  - no weighting with latitudes done
           !  - lat: index of 180 X 1 deg meridional resolution
+          !$ACC LOOP SEQ
           DO l = -latSmooth, latSmooth
             ilat = NINT(REAL(nlat_moc, wp)*0.5_wp + lat + REAL(l, wp))
             ilat = MAX(1,MIN(ilat,nlat_moc))
-
+            
             global_moc(level,ilat) =       global_moc(level,ilat) - deltaMoc*smoothWeight
             atlant_moc(level,ilat) = atlant_moc(level,ilat) - MERGE(deltaMoc*smoothWeight, &
                  0.0_wp, patch_3D%basin_c(idx,BLOCK) == 1)
@@ -1631,11 +1654,14 @@ CONTAINS
             END IF
 
           END DO
+
         END DO
       END DO
+      !$ACC END PARALLEL
     END DO
 
     ! compute point-wise sum over all mpi ranks and store results
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     allmocs(1,1:n_zlev,:) = global_moc(1:n_zlev,:)
     allmocs(2,1:n_zlev,:) = atlant_moc(1:n_zlev,:)
     allmocs(3,1:n_zlev,:) = pacind_moc(1:n_zlev,:)
@@ -1655,9 +1681,14 @@ CONTAINS
     allmocs(4,10,:) = global_sltbasin(1,:)
     allmocs(4,11,:) = atlant_sltbasin(1,:)
     allmocs(4,12,:) = pacind_sltbasin(1,:)
+    !$ACC END KERNELS
 
+    !$ACC UPDATE SELF(allmocs) IF(lacc)
     allmocs = p_sum(allmocs,mpi_comm)
+    !$ACC UPDATE DEVICE(allmocs) IF(lacc)
 
+
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     global_moc(1:n_zlev,:) = allmocs(1,1:n_zlev,:)
     atlant_moc(1:n_zlev,:) = allmocs(2,1:n_zlev,:)
     pacind_moc(1:n_zlev,:) = allmocs(3,1:n_zlev,:)
@@ -1673,11 +1704,11 @@ CONTAINS
     global_sltbasin(1,:) = allmocs(4,10,:)
     atlant_sltbasin(1,:) = allmocs(4,11,:)
     pacind_sltbasin(1,:) = allmocs(4,12,:)
-
-
+    !$ACC END KERNELS
 
     ! compute partial sums along meridian
     DO l=nlat_moc-1,1,-1   ! fixed to 1 deg meridional resolution
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       global_moc(:,l)=global_moc(:,l+1)+global_moc(:,l)
       atlant_moc(:,l)=atlant_moc(:,l+1)+atlant_moc(:,l)
       pacind_moc(:,l)=pacind_moc(:,l+1)+pacind_moc(:,l)
@@ -1693,20 +1724,25 @@ CONTAINS
       global_sltbasin(:,l)=global_sltbasin(:,l+1)+global_sltbasin(:,l)
       atlant_sltbasin(:,l)=atlant_sltbasin(:,l+1)+atlant_sltbasin(:,l)
       pacind_sltbasin(:,l)=pacind_sltbasin(:,l+1)+pacind_sltbasin(:,l)
+      !$ACC END KERNELS
     END DO
 
+    !$ACC UPDATE SELF(atlant_moc) IF(lacc)
     !find atlantic moc at 26n , depth=1000m
     factor_to_sv=1.0_wp/OceanReferenceDensity*1e-6_wp
     amoc26n(1)=atlant_moc(get_level_index_by_depth(patch_3d, 1000.0_wp),116)*factor_to_sv
-
+    !$ACC UPDATE DEVICE(amoc26n) IF(lacc)
 
     ! calculate ocean heat transport as residual from the tendency in heat content (dH/dt)
     ! minus the integral of surface heat flux
 
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     global_hfbasin(:,:)=global_hfl(:,:)-global_hfbasin(:,:)
     atlant_hfbasin(:,:)=atlant_hfl(:,:)-atlant_hfbasin(:,:)
     pacind_hfbasin(:,:)=pacind_hfl(:,:)-pacind_hfbasin(:,:)
+    !$ACC END KERNELS
 
+    !$ACC END DATA
     DEALLOCATE (allmocs)
 
   END SUBROUTINE calc_moc_hfl_internal
@@ -2012,6 +2048,7 @@ CONTAINS
   !!taken from MPIOM
 !<Optimize:inUse>
   FUNCTION calc_max_condep(vertical_density_gradient,max_lev) RESULT(condep)
+    !$ACC ROUTINE SEQ
     REAL(wp),INTENT(in)  :: vertical_density_gradient(n_zlev)
     INTEGER, INTENT(in)  :: max_lev
     INTEGER :: condep
@@ -2043,6 +2080,7 @@ CONTAINS
 !<Optimize:inUse>
   FUNCTION calc_mixed_layer_depth(vertical_density_gradient,critical_value,max_lev,thickness, depth_of_first_layer) &
     & result(mixed_layer_depth)
+    !$ACC ROUTINE SEQ
     REAL(wp), TARGET :: vertical_density_gradient(n_zlev)
     REAL(wp), INTENT(in)  :: critical_value
     INTEGER,  INTENT(in)  :: max_lev
@@ -2089,15 +2127,15 @@ CONTAINS
     REAL(wp), INTENT(in)                     :: thetao(:,:,:)   ! temperature
     REAL(wp), INTENT(in)                     :: so(:,:,:)   ! salinity
     REAL(wp), INTENT(in),OPTIONAL            :: stretch_c(:, :)
-    TYPE(t_sea_ice), INTENT(IN)              :: ice
+    TYPE(t_sea_ice), INTENT(in)              :: ice
     TYPE(t_subset_range), POINTER            :: subset
 
-    REAL(wp), INTENT(INOUT)  :: delta_ice(:,:)
-    REAL(wp), INTENT(INOUT)  :: delta_snow(:,:)
-    REAL(wp), INTENT(INOUT)  :: delta_thetao(:,:,:)
-    REAL(wp), INTENT(INOUT)  :: delta_so(:,:,:)
+    REAL(wp), INTENT(inout)  :: delta_ice(:,:)
+    REAL(wp), INTENT(inout)  :: delta_snow(:,:)
+    REAL(wp), INTENT(inout)  :: delta_thetao(:,:,:)
+    REAL(wp), INTENT(inout)  :: delta_so(:,:,:)
 
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
 
     INTEGER  :: n, blk, cell, cellStart,cellEnd, level, dz
     REAL(wp) :: dti, rhoicwa, rhosnic, rhosnwa, tfreeze, tmelt,           &
@@ -2191,6 +2229,7 @@ CONTAINS
       END DO ! blk
 
     ENDIF
+    !$ACC UPDATE SELF(delta_ice, delta_snow, delta_so, delta_thetao) IF(lacc)
 
   END SUBROUTINE diag_heat_salt_tendency
 
@@ -2302,7 +2341,7 @@ CONTAINS
                ,wT, wS, wR, ww, uv, uw, vw, rr, ss, tt, sigma0   &
                ,hflr, fwr, tauxu, tauyv &
                , topbc_windstress_u, topbc_windstress_v &
-               ,heatflux_total, frshflux_volumetotal)
+               ,heatflux_total, frshflux_volumetotal, use_acc)
 
     TYPE(t_patch_3d), TARGET, INTENT(in)  :: patch_3d
 
@@ -2347,15 +2386,24 @@ CONTAINS
     REAL(wp), INTENT(INOUT)  :: uw(:,:,:) !< product of v-velocity and w-velocity
     REAL(wp), INTENT(INOUT)  :: vw(:,:,:) !< product of u-velocity and v-velocity
 
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+
 
     TYPE(t_subset_range), POINTER            :: subset
 
     INTEGER  :: blk, cell, cellStart,cellEnd, level
+    LOGICAL  :: lacc
 
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     subset => patch_3d%p_patch_2d(1)%cells%owned
     DO blk = subset%start_block, subset%end_block
       CALL get_index_range(subset, blk, cellStart, cellEnd)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO cell = cellStart, cellEnd
 
           hflR(cell,blk) = heatflux_total(cell,blk) * ( R(cell,1,blk) -1000.0_wp )
@@ -2364,6 +2412,7 @@ CONTAINS
           tauyv(cell,blk) = topbc_windstress_v(cell,blk) * V(cell,1,blk)
 
 
+        !$ACC LOOP SEQ
         DO level=1,subset%vertical_levels(cell,blk)
 
 
@@ -2395,6 +2444,7 @@ CONTAINS
 
         END DO ! level
       END DO ! cell
+      !$ACC END PARALLEL LOOP
     END DO !block
 
   END SUBROUTINE calc_eddydiag
@@ -2446,7 +2496,7 @@ CONTAINS
     monitor%ice_ocean_volume_budget(:)    = 0.0_wp
   END SUBROUTINE reset_ocean_monitor
 
-  SUBROUTINE calc_condep(patch_3d, condep, zgrad_rho)
+  SUBROUTINE calc_condep(patch_3d, condep, zgrad_rho, use_acc)
 
     TYPE(t_patch_3d), TARGET, INTENT(in)  :: patch_3d
 !    TYPE(t_hydro_ocean_state), TARGET, INTENT(inout) :: ocean_state
@@ -2455,9 +2505,18 @@ CONTAINS
 
     REAL(wp), INTENT(inout) ::   condep(:,:)
     REAL(wp), INTENT(in) ::      zgrad_rho(:,:,:)
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
 
 
     INTEGER  :: blockNo, jc, start_index, end_index
+    LOGICAL  :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
 
     patch_2d => patch_3D%p_patch_2d(1)
     owned_cells => patch_2d%cells%owned
@@ -2465,29 +2524,41 @@ CONTAINS
     !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index) SCHEDULE(dynamic)
     DO blockNo = owned_cells%start_block, owned_cells%end_block
       CALL get_index_range(owned_cells, blockNo, start_index, end_index)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jc =  start_index, end_index
                 condep(jc,blockNo) = &
              REAL(calc_max_condep(zgrad_rho(jc,:,blockNo), &
              patch_3d%p_patch_1d(1)%dolic_c(jc,blockNo)),KIND=wp)
 
       ENDDO
+      !$ACC END PARALLEL LOOP
     ENDDO
     !ICON_OMP_END_PARALLEL_DO
 
   END SUBROUTINE calc_condep
 
-  SUBROUTINE calc_mld(patch_3d, mld, zgrad_rho, sigcrit)
+  SUBROUTINE calc_mld(patch_3d, mld, zgrad_rho, sigcrit, use_acc)
 
     TYPE(t_patch_3d), TARGET, INTENT(in)     :: patch_3d
     REAL(wp), TARGET, Intent(inout)          :: mld(:,:)
     REAL(wp), TARGET, Intent(in)             :: zgrad_rho(:,:,:)
     REAL(wp)                                 :: sigcrit
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+
 
     TYPE(t_patch), POINTER                   :: patch_2d
     TYPE(t_subset_range), POINTER            :: owned_cells
 
 
     INTEGER  :: blockNo, jc, start_index, end_index
+    LOGICAL  :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
 
     patch_2d => patch_3D%p_patch_2d(1)
     owned_cells => patch_2d%cells%owned
@@ -2495,6 +2566,8 @@ CONTAINS
     !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index) SCHEDULE(dynamic)
     DO blockNo = owned_cells%start_block, owned_cells%end_block
       CALL get_index_range(owned_cells, blockNo, start_index, end_index)
+      ! 2023-08 psam-DKRZ: use of GANG VECTOR here gives runtime error
+      !$ACC PARALLEL LOOP VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jc =  start_index, end_index
 
          mld(jc,blockNo) = calc_mixed_layer_depth(zgrad_rho(jc,:,blockNo),&
@@ -2504,8 +2577,10 @@ CONTAINS
              patch_3d%p_patch_1d(1)%zlev_m(1))
 
       ENDDO
+      !$ACC END PARALLEL LOOP
     ENDDO
     !ICON_OMP_END_PARALLEL_DO
+
   END SUBROUTINE calc_mld
 
   !>
