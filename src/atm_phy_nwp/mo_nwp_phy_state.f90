@@ -5170,6 +5170,15 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
                 & lopenacc=.TRUE. )
     __acc_attach(diag%innertropics_mask)
 
+    !  mask field that is used for latitude-dependent SSO tuning parameters
+    cf_desc    = t_cf_var('sso_lat_mask', '', 'sso_lat_mask', datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( diag_list, 'sso_lat_mask', diag%sso_lat_mask,                      &
+                & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,           &
+                & ldims=shape2d, lrestart=.FALSE., loutput=.FALSE.,                  &
+                & lopenacc=.TRUE. )
+    __acc_attach(diag%sso_lat_mask)
+
     ! buffer field needed for the combination of vertical nesting with a reduced radiation grid
     IF (k_jg > n_dom_start) THEN
       cf_desc    = t_cf_var('buffer_rrg', '', 'buffer_rrg', datatype_flt)

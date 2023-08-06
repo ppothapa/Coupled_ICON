@@ -75,7 +75,7 @@ MODULE mo_nwp_parameters
     ! Parameters which are only computed if Sub-grid Scale Orography (SSO) scheme is switched on
     !
     INTEGER  :: ngwdlim, ngwdtop, nktopg
-    REAL(wp) :: gkwake, gkdrag, gfrcrit, grcrit, minsso, blockred
+    REAL(wp) :: gkwake, gkdrag, gfrcrit, grcrit, minsso, minsso_gwd, blockred, gkdrag_enh, grcrit_enh
     !
     ! Parameters which are always computed
     !

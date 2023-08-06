@@ -432,6 +432,7 @@ MODULE mo_nwp_phy_types
 
     REAL(wp), POINTER :: tropics_mask(:,:)      !< mask field that is 1 in the tropics and 0 in the extratropics
     REAL(wp), POINTER :: innertropics_mask(:,:) !< mask field that is 1 in the inner tropics and 0 elsewhere
+    REAL(wp), POINTER :: sso_lat_mask(:,:)      !< mask field that is used for latitude-dependent SSO tuning parameters
 
     LOGICAL, POINTER, CONTIGUOUS :: &
       & locum     (:,:),    & !< convective  activity indicator

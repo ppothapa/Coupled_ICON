@@ -5547,6 +5547,16 @@ run\_nml:iforcing = inwp
 \tabularnewline
 
 \hline
+tune\_gkdrag\_enh&
+R (max\_ dom)&
+0.075&
+&
+enhanced value of gravity wave drag constant at low latitudes (needs to be actively set to a larger value than gkdrag to be effective)&
+run\_nml:iforcing = inwp
+\tabularnewline
+
+
+\hline
 tune\_gfrcrit&
 R (max\_ dom)&
 0.4&
@@ -5566,12 +5576,33 @@ run\_nml:iforcing = inwp
 \tabularnewline
 
 \hline
+tune\_grcrit\_enh&
+R (max\_ dom)&
+0.25&
+&
+enhanced value of critical Richardson number at low latitudes (needs to be actively set to a larger value than grcrit to be effective)&
+run\_nml:iforcing = inwp
+\tabularnewline
+
+
+\hline
 
 tune\_minsso&
 R (max\_ dom)&
 10.&
 m &
 minimum SSO standard deviation for which SSO scheme is applied&
+run\_nml:iforcing = inwp
+\tabularnewline
+
+\hline
+
+tune\_minsso\_gwd&
+R (max\_ dom)&
+0.&
+m &
+minimum SSO standard deviation for which wave drag component if SSO scheme is applied (effective only if larger than minsso; the default
+of zero means that the parameter needs to be actively set)&
 run\_nml:iforcing = inwp
 \tabularnewline
 
