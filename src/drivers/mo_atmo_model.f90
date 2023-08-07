@@ -561,7 +561,9 @@ CONTAINS
     CALL configure_dynamics ( n_dom, ldynamics, ltransport )
 
     IF (iforcing == inwp) THEN ! set dimensions of tile-based variables
-      CALL configure_lnd_nwp()
+      CALL configure_lnd_nwp ( &
+          & ANY(atm_phy_nwp_config(1:n_dom)%inwp_surface == LSS_JSBACH) &
+        )
     ENDIF
 
     !------------------------------------------------------------------

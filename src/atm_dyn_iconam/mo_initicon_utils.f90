@@ -39,7 +39,7 @@ MODULE mo_initicon_utils
     &                               lvert_remap_fg, aerosol_fg_present, icpl_da_sfcevap
   USE mo_impl_constants,      ONLY: MODE_DWDANA, MODE_IAU,                              &
                                     MODE_IAU_OLD, MODE_IFSANA, MODE_COMBINED,           &
-    &                               MODE_COSMO, MODE_ICONVREMAP, MODIS,                 &
+    &                               MODE_COSMO, MODE_ICONVREMAP, MODIS, LSS_JSBACH,     &
     &                               min_rlcell_int, grf_bdywidth_c, min_rlcell,         &
     &                               iss, iorg, ibc, iso4, idu, SUCCESS, iaes
   USE mo_loopindices,         ONLY: get_indices_c
@@ -1082,7 +1082,7 @@ MODULE mo_initicon_utils
 
 
     ! set frice_thrhld depending on tile usage
-    IF ( ntiles_total == 1 ) THEN  ! no tile approach
+    IF ( ntiles_total == 1 .AND. ALL(atm_phy_nwp_config(:)%inwp_surface /= LSS_JSBACH) ) THEN  ! no tile approach
       zfrice_thrhld = 0.5_wp
     ELSE
       zfrice_thrhld = frsi_min

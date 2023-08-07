@@ -2252,7 +2252,9 @@ create_target_header()
                     ;;
             esac
             ;;
-
+        *atm_nwp_jsbach_test*)
+            use_memory="18gb"
+            ;;
     esac
 
     # set more default values

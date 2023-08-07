@@ -50,7 +50,7 @@ MODULE mo_nh_interface_nwp
   USE mo_exception,               ONLY: message, message_text, finish
   USE mo_impl_constants,          ONLY: itconv, itccov, itrad, itgscp,                        &
     &                                   itsatad, itturb, itsfc, itradheat,                    &
-    &                                   itsso, itgwd, itfastphy, icosmo, igme, iedmf,         &
+    &                                   itsso, itgwd, itfastphy, icosmo, igme, iedmf, ivdiff, &
     &                                   min_rlcell_int, min_rledge_int, min_rlcell, ismag, iprog
   USE mo_impl_constants_grf,      ONLY: grf_bdywidth_c, grf_bdywidth_e
   USE mo_loopindices,             ONLY: get_indices_c, get_indices_e
@@ -88,6 +88,10 @@ MODULE mo_nh_interface_nwp
   USE mo_nwp_sfc_interface,       ONLY: nwp_surface
   USE mo_nwp_conv_interface,      ONLY: nwp_convection
   USE mo_nwp_rad_interface,       ONLY: nwp_radiation
+  USE mo_nwp_vdiff_interface,     ONLY: nwp_vdiff, nwp_vdiff_update_seaice_list, &
+    &                                   nwp_vdiff_update_seaice
+  USE mo_turb_vdiff_config,       ONLY: vdiff_config
+  USE mo_ccycle_config,           ONLY: ccycle_config
   USE mo_nwp_ocean_interface,     ONLY: nwp_couple_ocean
   USE mo_sync,                    ONLY: sync_patch_array, sync_patch_array_mult, SYNC_E,      &
                                         SYNC_C, SYNC_C1
@@ -743,6 +747,31 @@ CONTAINS
 
       !$ser verbatim IF (.not. linit) CALL serialize_all(nproma, jg, "turbdiff", .FALSE., opt_lupdate_cpu=.TRUE., opt_dt=mtime_datetime)
 
+      CASE (ivdiff)
+
+        !  The vdiff interface calls the land-surface scheme itself.
+        CALL nwp_vdiff( &
+            & mtime_datetime, dt_phy_jg(itfastphy), pt_patch, ccycle_config(jg), &
+            & vdiff_config(jg), pt_prog, pt_prog_rcf, pt_diag, p_metrics, prm_diag, ext_data, &
+            & lnd_diag, lnd_prog_new, wtr_prog_now, wtr_prog_new, prm_diag%nwp_vdiff_state, &
+            & prm_nwp_tend, initialize=linit, lacc=lzacc &
+          )
+
+        IF (is_coupled_run()) THEN
+          ! Sea-ice cover might change if ocean passed back new values.
+
+          CALL nwp_vdiff_update_seaice ( &
+              & pt_patch, .FALSE., lnd_diag%fr_seaice(:,:), ext_data%atm%list_sea, &
+              & ext_data%atm%list_seaice, wtr_prog_new, lacc=lzacc &
+            )
+
+        ELSE
+          CALL nwp_vdiff_update_seaice_list ( &
+              & pt_patch, lnd_diag%fr_seaice(:,:), ext_data%atm%list_sea, &
+              & ext_data%atm%list_seaice, lacc=lzacc &
+            )
+        END IF
+
 #ifndef __NO_ICON_LES__
       CASE(ismag,iprog)
 
@@ -757,19 +786,19 @@ CONTAINS
         CALL sync_patch_array_mult(SYNC_C, pt_patch, ntracer_sync+5, pt_diag%temp, pt_diag%tempv, &
                                    pt_prog%exner, pt_diag%u, pt_diag%v, f4din=pt_prog_rcf%tracer(:,:,:,1:ntracer_sync))
 
-        CALL les_turbulence (  dt_phy_jg(itfastphy),              & !>in
-                              & p_sim_time,                       & !>in
-                              & pt_patch, p_metrics,              & !>in
-                              & pt_int_state,                     & !>in
-                              & pt_prog,                          & !>in
-                              & pt_prog_now_rcf,                  & !>inout
-                              & pt_prog_rcf,                      & !>inout
-                              & pt_diag ,                         & !>inout
-                              & prm_diag,prm_nwp_tend,            & !>inout
-                              & lnd_prog_now,                     & !>in
-                              & lnd_prog_new,                     & !>inout ONLY for idealized LES
-                              & lnd_diag,                         & !>in
-                              & lacc=lzacc                        ) !>in
+        CALL les_turbulence (  dt_phy_jg(itfastphy),             & !>in
+                             & p_sim_time,                       & !>in
+                             & pt_patch, p_metrics,              & !>in
+                             & pt_int_state,                     & !>in
+                             & pt_prog,                          & !>in
+                             & pt_prog_now_rcf,                  & !>inout
+                             & pt_prog_rcf,                      & !>inout
+                             & pt_diag ,                         & !>inout
+                             & prm_diag,prm_nwp_tend,            & !>inout
+                             & lnd_prog_now,                     & !>in
+                             & lnd_prog_new,                     & !>inout ONLY for idealized LES
+                             & lnd_diag,                         & !>in
+                             & lacc=lzacc                        ) !>in
 
 #endif
       CASE DEFAULT
@@ -1738,10 +1767,10 @@ CONTAINS
 
 
     !-------------------------------------------------------------------------
-    !> Ocean coupling: if coupling time step
+    !> Ocean coupling: if coupling time step (VDIFF calls this internally)
     !-------------------------------------------------------------------------
 
-    IF ( is_coupled_run() .AND. (.NOT. linit) ) THEN
+    IF ( is_coupled_run() .AND. (.NOT. linit) .AND. atm_phy_nwp_config(jg)%inwp_turb /= ivdiff) THEN
 
       IF (ltimer) CALL timer_start(timer_coupling)
 #ifdef _OPENACC

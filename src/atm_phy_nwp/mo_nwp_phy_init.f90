@@ -39,7 +39,8 @@ MODULE mo_nwp_phy_init
   USE mo_impl_constants,      ONLY: min_rlcell, min_rlcell_int, io3_ape,            &
     &                               MODE_COMBINED, MODE_IFSANA, icosmo, ismag,      &
     &                               iprog, igme, iedmf, SUCCESS,   &
-    &                               MODE_COSMO, MODE_ICONVREMAP, iss, iorg, ibc, iso4, idu
+    &                               MODE_COSMO, MODE_ICONVREMAP, iss, iorg, ibc,    &
+    &                               iso4, idu, LSS_JSBACH, LSS_TERRA, ivdiff
   USE mo_impl_constants_grf,  ONLY: grf_bdywidth_c
   USE mo_loopindices,         ONLY: get_indices_c
   USE mo_parallel_config,     ONLY: nproma
@@ -97,6 +98,9 @@ MODULE mo_nwp_phy_init
                                     imode_pat_len, pat_len, ndim
   USE turb_transfer,          ONLY: turbtran
   USE turb_diffusion,         ONLY: turbdiff
+  USE mo_nwp_vdiff_interface, ONLY: nwp_vdiff_init, nwp_vdiff_update_seaice_list, nwp_vdiff
+  USE mo_turb_vdiff_config,   ONLY: vdiff_config
+  USE mo_ccycle_config,       ONLY: ccycle_config
 
   USE mo_nwp_sfc_utils,       ONLY: nwp_surface_init, init_snowtile_lists, init_sea_lists, &
     &                               aggregate_tg_qvs, copy_lnd_prog_now2new
@@ -342,6 +346,14 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   ! mo_ext_data_state/init_index_lists due to its dependence on fr_seaice
   IF (msg_level >= 12) CALL message('mo_nwp_phy_init:', 'initialize sea-ice lists, call init_sea_lists')
   CALL init_sea_lists(p_patch, lseaice, p_diag_lnd%fr_seaice(:,:), ext_data)
+  IF (atm_phy_nwp_config(p_patch%id)%inwp_turb == ivdiff) THEN
+    ! TODO: move this to a more appropriate place.
+    !$ACC UPDATE DEVICE(p_diag_lnd%fr_seaice)
+    CALL nwp_vdiff_update_seaice_list ( &
+        & p_patch, p_diag_lnd%fr_seaice(:,:), ext_data%atm%list_sea, ext_data%atm%list_seaice, &
+        & lacc=.TRUE. &
+      )
+  END IF
 
 
   IF (.NOT. lreset_mode .AND. itype_vegetation_cycle >= 2) THEN
@@ -1403,7 +1415,8 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   !< surface initialization (including seaice)
   !------------------------------------------
 
-  IF ( atm_phy_nwp_config(jg)%inwp_surface == 1 ) THEN  ! TERRA
+  SELECT CASE (atm_phy_nwp_config(jg)%inwp_surface)
+  CASE (LSS_TERRA)
     IF (linit_mode) THEN
       CALL nwp_surface_init(p_patch, ext_data, p_prog_lnd_now, p_prog_lnd_new, &
         &                   p_prog_wtr_now, p_prog_wtr_new, p_diag_lnd, p_diag, prm_diag)
@@ -1418,7 +1431,12 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
     ! for even and odd multiples of the advection time step
     CALL copy_lnd_prog_now2new(p_patch, p_prog_lnd_now, p_prog_lnd_new)
     IF (msg_level >= 12)  CALL message(modname, 'init TERRA')
-  END IF
+  CASE (LSS_JSBACH)
+    CALL nwp_vdiff_init( &
+        & p_patch, vdiff_config(jg), prm_diag, ext_data, p_prog_lnd_now, p_diag_lnd, &
+        & prm_diag%nwp_vdiff_state &
+      )
+  END SELECT
 
 
   !------------------------------------------
@@ -1835,6 +1853,8 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
     END IF
 
   END IF
+  ! No handling of VDIFF here. VDIFF does its initialization together with the slow physics.
+  ! Configured in event setup in src/configure_model/mo_atm_phy_nwp_config.f90.
  
   IF ( atm_phy_nwp_config(jg)%inwp_turb == iedmf .AND. linit_mode ) THEN  !EDMF DUALM
 

@@ -428,7 +428,7 @@ MODULE mo_jsb_time_iface
   USE mo_aes_phy_config,         ONLY: aes_phy_tc, dt_zero
   USE mo_atm_phy_nwp_config,     ONLY: atm_phy_nwp_config
   USE mo_run_config,             ONLY: l_timer_host => ltimer, iforcing
-  USE mo_impl_constants,         ONLY: inwp
+  USE mo_impl_constants,         ONLY: inwp, itrad
   USE mo_master_config,          ONLY: isRestart
 
   IMPLICIT NONE
@@ -628,8 +628,7 @@ CONTAINS
 
     SELECT CASE (iforcing)
     CASE(inwp)
-    ! TODO: Activate optimization for NWP physics.
-      ltrig_rad_m1 = .TRUE.
+      ltrig_rad_m1 = atm_phy_nwp_config(model_id)%lcall_phy(itrad)
 
     CASE DEFAULT
       ltrig_rad_m1 = .TRUE.
@@ -1497,7 +1496,6 @@ CONTAINS
     END IF
     nelem%info%ndims = 1
     nelem%info%used_dimensions(1:1) = ldims(1:1)
-
   END SUBROUTINE add_var_list_element_r1d
 
   SUBROUTINE add_var_list_element_r2d(this_list, name, ptr,                             &
