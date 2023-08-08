@@ -35,6 +35,10 @@ CC='mpicc'
 CFLAGS='-g -march=native -mpc64'
 ICON_CFLAGS='-O3'
 ICON_BUNDLED_CFLAGS='-O2'
+
+CXX=$(eval "${BUILD_ENV}" >/dev/null; mpicxx -show | sed 's: .*$::')
+CXXFLAGS='-g -march=native -mpc64 -O2'
+
 CPPFLAGS="-I${sw_root}/include -I${sw_root}/include/libxml2"
 
 FC='mpif90'
@@ -99,6 +103,8 @@ BUILD_ENV="${BUILD_ENV}" \
 CC="${CC}" \
 CFLAGS="${CFLAGS}" \
 CPPFLAGS="${CPPFLAGS}" \
+CXX="${CXX}" \
+CXXFLAGS="${CXXFLAGS}" \
 FC="${FC}" \
 FCFLAGS="${FCFLAGS}" \
 ICON_BUNDLED_CFLAGS="${ICON_BUNDLED_CFLAGS}" \

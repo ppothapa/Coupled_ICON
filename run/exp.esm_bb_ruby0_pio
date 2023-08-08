@@ -488,9 +488,6 @@ cat > ${atm_namelist} << EOF
  aes_vdf_config(1)%fsl        = 0.5       ! default: 0.4
 /
 &cloud_mig_nml
- cloud_mig_config(1)%mu_rain        = 0.5
- cloud_mig_config(1)%rain_n0_factor = 0.1
- cloud_mig_config(1)%v0snow         = 25.
 /
 &aes_cov_nml
  aes_cov_config(1)%crs        = 0.978     ! Critical relative humidity at surface, default 0.968

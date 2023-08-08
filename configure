@@ -596,7 +596,6 @@ MPI_ENABLED
 ART_ENABLED
 EMVORADO_ENABLED
 DACE_ENABLED_OR_NEEDED
-RTE_RRTMGP_ENABLED
 JSBACH_ENABLED
 DELAYED_CONFIG_ENABLED
 DEFAULT_VERBOSITY
@@ -631,9 +630,7 @@ ICON_YAXT_CFLAGS
 ICON_YAXT_FCFLAGS
 ICON_SCT_CFLAGS
 ICON_SCT_FCFLAGS
-ICON_ECRAD_CFLAGS
 ICON_ECRAD_FCFLAGS
-ICON_RTE_RRTMGP_CFLAGS
 ICON_RTE_RRTMGP_FCFLAGS
 BUNDLED_LIBFILES
 DEPGEN_FCFLAGS
@@ -641,6 +638,9 @@ HIPFLAGS
 HIPCXX
 CUDAFLAGS
 CUDACXX
+ICON_BUNDLED_CXXFLAGS
+CXXFLAGS
+CXX
 ICON_BUNDLED_CFLAGS
 ICON_CFLAGS
 ac_ct_CC
@@ -776,7 +776,6 @@ with_external_cdi
 with_external_mtime
 with_external_yac
 with_external_tixi
-with_external_cub
 '
       ac_precious_vars='build_alias
 host_alias
@@ -794,14 +793,15 @@ CFLAGS
 CPPFLAGS
 ICON_CFLAGS
 ICON_BUNDLED_CFLAGS
+CXX
+CXXFLAGS
+ICON_BUNDLED_CXXFLAGS
 CUDACXX
 CUDAFLAGS
 HIPCXX
 HIPFLAGS
 ICON_RTE_RRTMGP_FCFLAGS
-ICON_RTE_RRTMGP_CFLAGS
 ICON_ECRAD_FCFLAGS
-ICON_ECRAD_CFLAGS
 ICON_SCT_FCFLAGS
 ICON_SCT_CFLAGS
 ICON_YAXT_FCFLAGS
@@ -1571,9 +1571,7 @@ Optimization Features:
   --enable-pgi-inlib      enable PGI/NVIDIA cross-file function inlining via
                           an inline library [default=no]
   --enable-nccl           enable NCCL for communication [default=no]
-  --enable-cuda-graphs    enable CUDA graphs. Warning! This is an experimental
-                          feature and it requires Nvidia HPC SDK >= 23.3
-                          [default=no]
+  --enable-cuda-graphs    enable CUDA graphs [default=no]
   --enable-fcgroup-<NAME> enable Fortran compile group <NAME>, which can be
                           compiled with an extra set of compiler flags. <NAME>
                           can be any non-empty string consisting of capital
@@ -1606,7 +1604,6 @@ Optional Packages:
   --with-external-mtime   use external MTIME library [default=no]
   --with-external-yac     use external YAC library [default=no]
   --with-external-tixi    use external TIXI library [default=no]
-  --with-external-cub     use external CUB library [default=no]
 
 Some influential environment variables:
   BUILD_ENV   initialization code to set up the building environment (must be
@@ -1642,6 +1639,11 @@ Some influential environment variables:
   ICON_BUNDLED_CFLAGS
               C compiler flags to be appended to CFLAGS when configuring the
               bundled libraries [default=$ICON_CFLAGS]
+  CXX         C++ compiler command
+  CXXFLAGS    C++ compiler flags
+  ICON_BUNDLED_CXXFLAGS
+              C++ compiler flags to be appended to CXXFLAGS when configuring
+              the bundled libraries
   CUDACXX     CUDA Compiler command
   CUDAFLAGS   CUDA Compiler flags
   HIPCXX      HIP Compiler command
@@ -1650,17 +1652,10 @@ Some influential environment variables:
               Fortran compiler flags to be appended to FCFLAGS when
               configuring the bundled version of RTE+RRTMGP library
               [default=$ICON_BUNDLED_FCFLAGS]
-  ICON_RTE_RRTMGP_CFLAGS
-              C compiler flags to be appended to CFLAGS when configuring the
-              bundled version of RTE+RRTMGP library
-              [default=$ICON_BUNDLED_CFLAGS]
   ICON_ECRAD_FCFLAGS
               Fortran compiler flags to be appended to FCFLAGS when
               configuring the bundled version of ECRAD library
               [default=$ICON_BUNDLED_FCFLAGS]
-  ICON_ECRAD_CFLAGS
-              C compiler flags to be appended to CFLAGS when configuring the
-              bundled version of ECRAD library [default=$ICON_BUNDLED_CFLAGS]
   ICON_SCT_FCFLAGS
               Fortran compiler flags to be appended to FCFLAGS when
               configuring the bundled version of SCT library
@@ -3284,7 +3279,7 @@ else
 fi
 
 
-# Check whether --enable-cuda_graphs was given.
+# Check whether --enable-cuda-graphs was given.
 if test "${enable_cuda_graphs+set}" = set; then :
   enableval=$enable_cuda_graphs; if test x"$enableval" != xno; then :
   enable_cuda_graphs=yes
@@ -3511,17 +3506,6 @@ if test "${with_external_tixi+set}" = set; then :
 fi
 else
   with_external_tixi=no
-fi
-
-
-
-# Check whether --with-external-cub was given.
-if test "${with_external_cub+set}" = set; then :
-  withval=$with_external_cub; if test x"$withval" != xno; then :
-  with_external_cub=yes
-fi
-else
-  with_external_cub=no
 fi
 
 
@@ -5262,7 +5246,53 @@ if test "x$enable_nccl" = xyes; then :
 fi
 
 if test "x$enable_cuda_graphs" = xyes; then :
-  as_fn_append FCFLAGS " ${FC_PP_DEF}ICON_USE_CUDA_GRAPH"
+  icon_warn=yes
+   case "$FC_VENDOR,$FC_VERSION" in #(
+  portland,nv:*) :
+
+
+
+  # Used to indicate true or false condition
+  ax_compare_version=false
+
+  # Convert the two version strings to be compared into a format that
+  # allows a simple string comparison.  The end result is that a version
+  # string of the form 1.12.5-r617 will be converted to the form
+  # 0001001200050617.  In other words, each number is zero padded to four
+  # digits, and non digits are removed.
+
+  ax_compare_version_A=`echo "$FC_VERSION" | cut -d: -f2"" | sed -e 's/\([0-9]*\)/Z\1Z/g' \
+                     -e 's/Z\([0-9]\)Z/Z0\1Z/g' \
+                     -e 's/Z\([0-9][0-9]\)Z/Z0\1Z/g' \
+                     -e 's/Z\([0-9][0-9][0-9]\)Z/Z0\1Z/g' \
+                     -e 's/[^0-9]//g'`
+
+
+  ax_compare_version_B=`echo "23.3" | sed -e 's/\([0-9]*\)/Z\1Z/g' \
+                     -e 's/Z\([0-9]\)Z/Z0\1Z/g' \
+                     -e 's/Z\([0-9][0-9]\)Z/Z0\1Z/g' \
+                     -e 's/Z\([0-9][0-9][0-9]\)Z/Z0\1Z/g' \
+                     -e 's/[^0-9]//g'`
+
+
+    ax_compare_version=`echo "x$ax_compare_version_A
+x$ax_compare_version_B" | sed 's/^ *//' | sort -r | sed "s/x${ax_compare_version_A}/true/;s/x${ax_compare_version_B}/false/;1q"`
+
+
+
+    if test "$ax_compare_version" = "true" ; then
+    icon_warn=no
+      fi
+
+                ;; #(
+  *) :
+     ;;
+esac
+   if test "x$icon_warn" = xyes; then :
+  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Fortran compiler is not recognized as NVIDIA HPC Fortran 23.3 or newer: it is strongly recommended to disable CUDA graphs (--disable-cuda-graphs)" >&5
+$as_echo "$as_me: WARNING: Fortran compiler is not recognized as NVIDIA HPC Fortran 23.3 or newer: it is strongly recommended to disable CUDA graphs (--disable-cuda-graphs)" >&2;}
+fi
+   as_fn_append FCFLAGS " ${FC_PP_DEF}ICON_USE_CUDA_GRAPH"
 fi
 
 ######################### C COMPILER COMMAND AND FLAGS #########################
@@ -5274,6 +5304,7 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 
 CFLAGS=${CFLAGS-}
 subdir_CFLAGS=$CFLAGS
+subdir_CPPFLAGS=$CPPFLAGS
 
 test -n "${ICON_CFLAGS}" && as_fn_append CFLAGS " ${ICON_CFLAGS}"
 
@@ -6140,6 +6171,13 @@ fi
 
 done
 
+
+
+
+######################## C++ COMPILER COMMAND AND FLAGS ########################
+
+CXXFLAGS=${CXXFLAGS-}
+subdir_CXXFLAGS=$CXXFLAGS
 
 
 
@@ -8066,7 +8104,6 @@ else
   as_fn_error $? "unable to find sources of the RTE+RRTMGP library ($icon_subdir_unique_file) in '$icon_subdir_srcdir': either disable usage of the RTE+RRTMGP toolbox for radiation calculations (--disable-rte-rrtmgp) or provide an external version of RTE+RRTMGP library (--with-external-rte-rrtmgp) by setting FCFLAGS, LDFLAGS and LIBS accordingly" "$LINENO" 5
 fi
             ICON_RTE_RRTMGP_FCFLAGS=${ICON_RTE_RRTMGP_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
-            ICON_RTE_RRTMGP_CFLAGS=${ICON_RTE_RRTMGP_CFLAGS-$ICON_BUNDLED_CFLAGS}
                            acx_subdir_srcdirs_fn "externals/rte-rrtmgp"
    acx_subdir_run_cmd_externals_rte_rrtmgp="'$ac_srcdir/configure'"
    acx_subdir_run_dir_externals_rte_rrtmgp="externals/rte-rrtmgp"
@@ -8120,7 +8157,7 @@ esac
 esac
      shift
    done
-      set dummy CFLAGS="$subdir_CFLAGS $ICON_RTE_RRTMGP_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_RTE_RRTMGP_FCFLAGS" NETCDF_FCFLAGS= NETCDF_FCLIBS= --enable-gpu="$icon_gpu_primary" --enable-silent-rules="$enable_silent_rules"; shift
+      set dummy FCFLAGS="$subdir_FCFLAGS $ICON_RTE_RRTMGP_FCFLAGS" NETCDF_FCFLAGS= NETCDF_FCLIBS= --enable-gpu="$icon_gpu_primary" --enable-silent-rules="$enable_silent_rules"; shift
    for acx_tmp; do
      case $acx_tmp in #(
   *\'*) :
@@ -8176,7 +8213,6 @@ else
   as_fn_error $? "unable to find sources of the the ECRAD library ($icon_subdir_unique_file) in '$icon_subdir_srcdir': either disable usage of the ECMWF radiation scheme (--disable-ecrad) or provide an external version of ECRAD library (--with-external-ecrad) by setting FCFLAGS, LDFLAGS and LIBS accordingly" "$LINENO" 5
 fi
             ICON_ECRAD_FCFLAGS=${ICON_ECRAD_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
-            ICON_ECRAD_CFLAGS=${ICON_ECRAD_CFLAGS-$ICON_BUNDLED_CFLAGS}
                            acx_subdir_srcdirs_fn "externals/ecrad"
    acx_subdir_run_cmd_externals_ecrad="'$ac_srcdir/configure'"
    acx_subdir_run_dir_externals_ecrad="externals/ecrad"
@@ -8232,7 +8268,7 @@ esac
 esac
      shift
    done
-      set dummy CFLAGS="$subdir_CFLAGS $ICON_ECRAD_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_ECRAD_FCFLAGS" NETCDF_FCFLAGS= NETCDF_FCLIBS= --enable-silent-rules="$enable_silent_rules" --enable-pgi-inlib="$enable_pgi_inlib"; shift
+      set dummy FCFLAGS="$subdir_FCFLAGS $ICON_ECRAD_FCFLAGS" NETCDF_FCFLAGS= NETCDF_FCLIBS= --enable-silent-rules="$enable_silent_rules" --enable-pgi-inlib="$enable_pgi_inlib"; shift
    for acx_tmp; do
      case $acx_tmp in #(
   *\'*) :
@@ -9617,38 +9653,30 @@ fi
 
 case $icon_gpu_secondary in #(
   cuda) :
-    if test "x$with_external_cub" = xyes; then :
-  ac_ext=cu
+    ac_ext=cu
 ac_compile='$CUDACXX -c $CUDAFLAGS conftest.$ac_ext >&5'
 ac_link='$CUDACXX -o conftest$ac_exeext $CUDAFLAGS $LDFLAGS conftest.$ac_ext $LIBS >&5'
 ac_compiler_gnu=$acx_cv_cuda_compiler_gnu
 
-      ac_fn_cuda_check_header_compile "$LINENO" "cub/device/device_select.cuh" "ac_cv_header_cub_device_device_select_cuh" "// override default includes
+   ac_fn_cuda_check_header_compile "$LINENO" "cub/device/device_select.cuh" "ac_cv_header_cub_device_device_select_cuh" "// override default includes
 "
 if test "x$ac_cv_header_cub_device_device_select_cuh" = xyes; then :
 
 else
   { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
 $as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
-as_fn_error $? "unable to find header files of CUB library: either switch the secondary GPU compiler (e.g. --enable-gpu=${icon_gpu_primary}+hip) or disable GPU support (--disable-gpu), or use the bundled version of CUB library (--without-external-cub), or set CUDAFLAGS accordingly
+as_fn_error $? "unable to find header files of CUB library: either switch the secondary GPU compiler (e.g. --enable-gpu=${icon_gpu_primary}+hip) or disable GPU support
+(--disable-gpu), or set CUDAFLAGS accordingly
 See \`config.log' for more details
 ${icon_usr_note}" "$LINENO" 5; }
 fi
 
 
-      ac_ext=${ac_fc_srcext-f}
+   ac_ext=${ac_fc_srcext-f}
 ac_compile='$FC -c $FCFLAGS $ICON_FCFLAGS $ac_fcflags_srcext conftest.$ac_ext >&5'
 ac_link='$FC -o conftest$ac_exeext $FCFLAGS $ICON_FCFLAGS $LDFLAGS $ac_fcflags_srcext conftest.$ac_ext $LIBS >&5'
 ac_compiler_gnu=$ac_cv_fc_compiler_gnu
-
-else
-  icon_subdir_srcdir="$srcdir/externals/cub"
-      icon_subdir_unique_file="cub/device/device_select.cuh"
-      if test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"; then :
-  as_fn_error $? "unable to find sources of the bundled version of CUB library ($icon_subdir_unique_file) in '$icon_subdir_srcdir': either switch the secondary GPU compiler (e.g. --enable-gpu=${icon_gpu_primary}+hip), or disable GPU support (--disable-gpu) or provide an external version of CUB library (--with-external-cub) by setting CUDAFLAGS accordingly" "$LINENO" 5
-fi
-      as_fn_append CUDAFLAGS " -I${srcdir}/externals/cub"
-fi ;; #(
+ ;; #(
   hip) :
     ac_ext=cc
 ac_compile='$HIPCXX -c $HIPFLAGS conftest.$ac_ext >&5'
@@ -10334,14 +10362,6 @@ if test "x$enable_jsbach" = xyes; then :
 
 else
   JSBACH_ENABLED='#'
-
-fi
-
-if test "x$enable_rte_rrtmgp" = xyes; then :
-  RTE_RRTMGP_ENABLED=''
-
-else
-  RTE_RRTMGP_ENABLED='#'
 
 fi
 

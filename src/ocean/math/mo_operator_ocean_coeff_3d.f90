@@ -226,19 +226,27 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  SUBROUTINE Get3DVectorTo2DLocal_array3D(vector, position_local, levels, subset, geometry_info, x, y)
+  SUBROUTINE Get3DVectorTo2DLocal_array3D(vector, position_local, levels, subset, geometry_info, x, y, use_acc)
     TYPE(t_cartesian_coordinates), POINTER :: vector(:,:,:)
     TYPE(t_geographical_coordinates) , TARGET :: position_local(:,:)
     INTEGER, POINTER :: levels(:,:) 
     TYPE(t_subset_range), POINTER :: subset 
     TYPE(t_grid_geometry_info), INTENT(in) :: geometry_info    
     REAL(wp), POINTER ::  x(:,:,:), y(:,:,:)
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
     
-    INTEGER :: blockNo, start_index, end_index, this_index, level
+    INTEGER  :: blockNo, start_index, end_index, this_index, level
     REAL(wp) :: sinLon, cosLon, sinLat, cosLat
     REAL(wp) :: cartesian_x, cartesian_y, cartesian_z, y_help
+    LOGICAL  :: lacc
     
     CHARACTER(LEN=*), PARAMETER :: method_name='Get3DVectorTo2DLocal_array3D'
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
     
     SELECT CASE(geometry_info%geometry_type)
 
@@ -251,6 +259,7 @@ CONTAINS
 !ICON_OMP sinLat, cosLat, cartesian_x, cartesian_y, cartesian_z, y_help) ICON_OMP_DEFAULT_SCHEDULE
       DO blockNo = subset%start_block, subset%end_block
         CALL get_index_range(subset, blockNo, start_index, end_index)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO this_index =  start_index, end_index
         
           ! these should be calclulated once and stored in the coefficients structure
@@ -259,6 +268,7 @@ CONTAINS
           sinLat = SIN(position_local(this_index,blockNo)%lat)
           cosLat = COS(position_local(this_index,blockNo)%lat)
 
+          !$ACC LOOP SEQ
           DO level = 1, levels(this_index,blockNo)
             cartesian_x = vector(this_index,level,blockNo)%x(1)
             cartesian_y = vector(this_index,level,blockNo)%x(2)
@@ -271,6 +281,7 @@ CONTAINS
                         
           ENDDO
         ENDDO
+        !$ACC END PARALLEL LOOP
       ENDDO
 !ICON_OMP_END_PARALLEL_DO
             
@@ -281,12 +292,14 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index,end_index, this_index, level) ICON_OMP_DEFAULT_SCHEDULE
       DO blockNo = subset%start_block, subset%end_block
         CALL get_index_range(subset, blockNo, start_index, end_index)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO this_index =  start_index, end_index
           DO level = 1, levels(this_index,blockNo)  
             x(this_index,level,blockNo) = vector(this_index,level,blockNo)%x(1)
             y(this_index,level,blockNo) = vector(this_index,level,blockNo)%x(2)
           ENDDO
         ENDDO
+        !$ACC END PARALLEL LOOP
       ENDDO
 !ICON_OMP_END_PARALLEL_DO
       

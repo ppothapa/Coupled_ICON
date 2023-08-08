@@ -1,3 +1,9 @@
+#%# -*- mode: sh -*-
+#
+# Setup for levante (SLURM)
+#
+# $Id: levante.tmpl 1 2023-03-01 12:09:29Z m221078 $
+#
 #%  if EMAIL is defined:
 #SBATCH --mail-type=FAIL,ARRAY_TASKS
 #SBATCH --mail-user=%{JOB.email|d(EMAIL)|join(',')}
@@ -8,7 +14,24 @@
 #SBATCH --%{var}
 #%    elif ' ' in val:
 #SBATCH --%{var}='%{val}'
-#%    else:
+#%    elif val:
 #SBATCH --%{var}=%{val}
 #%    endif
 #%  endfor
+#%#
+#%  if JOB.job_type == 'parallel':
+# Environment variables for the target system
+
+#%    for var in JOB.env:
+#%      set val = JOB.env[var]
+#%      if val:
+#%        for line in JOB.env.comments[var]:
+%{line}
+#%        endfor
+#%        set inline_comment = JOB.env.inline_comments[var]
+export %{var}=%{'"'+val+'"' if ' ' in val else val}%{' '+inline_comment if inline_comment}
+#%      else:
+unset %{var}%{' '+inline_comment if inline_comment}
+#%      endif
+#%    endfor
+#%  endif

@@ -8,10 +8,6 @@ ICON_DIR=$(cd "${MY_DIR}/../.."; pwd)
 if [ ! -z "${BB_NAME-}" ]; then
   set -x
 
-  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_encoding.sh"
-  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_src_noexec.sh"
-  "${ICON_DIR}/scripts/buildbot_scripts/build_checks/check_omp_sentinels.sh"
-
   set MPI_LAUNCH='srun -A mh0156 -p compute -N 1 -t 2'
 else
   # Setting MPI_LAUNCH to an empty string is not the same as not setting it at
@@ -20,7 +16,7 @@ else
   set dummy; shift
 fi
 
-${ICON_DIR}/config/dkrz/levante.nag --disable-openmp --enable-waves "$@"
+${ICON_DIR}/config/dkrz/levante.nag --disable-openmp --enable-waves --disable-delayed-config "$@"
 
 if [ ! -z "${BB_NAME-}" ] ; then
   MAKE_PROCS=22

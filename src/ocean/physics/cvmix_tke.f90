@@ -50,6 +50,7 @@ public :: put_tke
 
 interface cvmix_coeffs_tke
   module procedure integrate_tke              ! calculation if prognostic TKE equation
+  module procedure integrate_tke_gpu
   module procedure tke_wrap                   ! necessary to handle old/new values and to hand over user_defined constants
 end interface cvmix_coeffs_tke 
 
@@ -402,8 +403,6 @@ call cvmix_coeffs_tke( &
                  KappaH_out   = new_KappaH,               & ! out
                  Ssqr         = Vmix_vars%Ssqr_iface,                             &
                  Nsqr         = Vmix_vars%Nsqr_iface,                             &
-                 old_KappaM   = Vmix_vars%KappaM_iface,                           &
-                 old_KappaH   = Vmix_vars%KappaH_iface,                           &
                  ! FIXME: nils: better calc IDEMIX Ri directly in ! CVMIX/IDEMIX
                  alpha_c      = Vmix_vars%alpha_c,                                &
                  E_iw         = Vmix_vars%E_iw,                                   &
@@ -457,6 +456,439 @@ end subroutine tke_wrap
 
 !=================================================================================
 
+subroutine integrate_tke_gpu(                      &
+                             start_index,          &
+                             end_index,            &
+                             nproma,               &
+                             levels,               &
+                             tke_old,              &
+                             tke_new,              &
+                             KappaM_out,           &
+                             KappaH_out,           &
+                             cvmix_int_1,          &
+                             cvmix_int_2,          &
+                             cvmix_int_3,          &
+                             dzw,                  &
+                             dzt,                  &
+                             max_nlev,             &
+                             Ssqr,                 &
+                             Nsqr,                 &
+                             tke_Tbpr,             & ! diagnostic
+                             tke_Tspr,             & ! diagnostic
+                             tke_Tdif,             & ! diagnostic
+                             tke_Tdis,             & ! diagnostic
+                             tke_Twin,             & ! diagnostic
+                             tke_Tiwf,             & ! diagnostic
+                             tke_Tbck,             & ! diagnostic
+                             tke_Ttot,             & ! diagnostic
+                             tke_Lmix,             & ! diagnostic
+                             tke_Pr,               & ! diagnostic
+                             tke_plc,              & ! langmuir turbulence
+                             forc_tke_surf,        &
+                             E_iw,                 &
+                             dtime,                &
+                             iw_diss,              &
+                             forc_rho_surf,        &
+                             rho_ref,              &
+                             grav,                 &
+                             alpha_c,              &
+                             use_acc)
+
+  integer, intent(in)                  :: start_index
+  integer, intent(in)                  :: end_index
+  integer, intent(in)                  :: nproma
+  integer, intent(in)                  :: max_nlev
+  integer, intent(in)                  :: levels(nproma)
+  real(cvmix_r8), intent(in)           :: tke_old(nproma,max_nlev+1)
+  real(cvmix_r8), intent(out)          :: tke_new(nproma,max_nlev+1)
+  real(cvmix_r8), intent(out)          :: KappaM_out(nproma,max_nlev+1)
+  real(cvmix_r8), intent(out)          :: KappaH_out(nproma,max_nlev+1)
+  real(cvmix_r8), intent(out)          :: cvmix_int_1(nproma,max_nlev+1)
+  real(cvmix_r8), intent(out)          :: cvmix_int_2(nproma,max_nlev+1)
+  real(cvmix_r8), intent(out)          :: cvmix_int_3(nproma,max_nlev+1)
+  real(cvmix_r8), intent(in)           :: dzw(nproma,max_nlev)
+  real(cvmix_r8), intent(in)           :: dzt(nproma,max_nlev+1)
+  real(cvmix_r8), intent(in)           :: Ssqr(nproma,max_nlev+1)
+  real(cvmix_r8), intent(in)           :: Nsqr(nproma,max_nlev+1)
+  real(cvmix_r8), intent(out)          :: tke_Tbpr(nproma,max_nlev+1)
+  real(cvmix_r8), intent(out)          :: tke_Tspr(nproma,max_nlev+1)
+  real(cvmix_r8), intent(out)          :: tke_Tdif(nproma,max_nlev+1)
+  real(cvmix_r8), intent(out)          :: tke_Tdis(nproma,max_nlev+1)
+  real(cvmix_r8), intent(out)          :: tke_Twin(nproma,max_nlev+1)
+  real(cvmix_r8), intent(out)          :: tke_Tiwf(nproma,max_nlev+1)
+  real(cvmix_r8), intent(out)          :: tke_Tbck(nproma,max_nlev+1)
+  real(cvmix_r8), intent(out)          :: tke_Ttot(nproma,max_nlev+1)
+  real(cvmix_r8), intent(out)          :: tke_Lmix(nproma,max_nlev+1)
+  real(cvmix_r8), intent(out)          :: tke_Pr(nproma,max_nlev+1)
+  real(cvmix_r8), intent(in), optional :: tke_plc(nproma,max_nlev+1)
+  real(cvmix_r8), intent(in)           :: forc_tke_surf(nproma)
+  real(cvmix_r8), intent(in), optional :: E_iw(nproma,max_nlev+1)
+  real(cvmix_r8), intent(in)           :: dtime
+  real(cvmix_r8), intent(in), optional :: iw_diss(nproma,max_nlev+1)
+  real(cvmix_r8), intent(in)           :: forc_rho_surf(nproma)
+  real(cvmix_r8), intent(in)           :: rho_ref
+  real(cvmix_r8), intent(in)           :: grav
+  real(cvmix_r8), intent(in), optional :: alpha_c(nproma,max_nlev+1)
+  logical, intent(in), optional        :: use_acc
+
+  ! local variables
+  type(tke_type), pointer              :: tke_constants_in
+  logical :: lacc
+
+  real(cvmix_r8), dimension(nproma,max_nlev+1) :: &
+    tke_unrest                                  , & ! copy of tke before restorring to background value
+    tke_upd                                     , & ! copy of tke before in which surface/bottom values given by Dirichlet boundary conditions
+    mxl                                         , & ! mixing length scale (m)
+    sqrttke                                     , & ! square root of TKE (m/s)
+    prandtl                                     , & ! Prandtl number
+    Rinum                                       , & ! Richardson number 
+    K_diss_v                                    , & ! shear production of TKE (m^2/s^3)
+    P_diss_v                                    , & ! buoyancy production of TKE (m^2/s^3)
+    forc                                            ! combined forcing for TKE (m^2/s^3)
+
+  real(cvmix_r8) :: tke_surf, tke_bott
+
+  real(cvmix_r8)                                               :: &
+    alpha_tke                                                   , &
+    c_eps                                                       , &
+    cd                                                          , &
+    KappaM_max                                                  , &
+    KappaM_min                                                  , &
+    KappaH_min                                                  , &
+    mxl_min                                                     , &
+    c_k                                                         , &
+    clc                                                         , &
+    tke_surf_min                                                , &
+    tke_min
+
+  integer :: tke_mxl_choice
+
+  logical :: only_tke, use_ubound_dirichlet, use_lbound_dirichlet, l_lc, use_Kappa_min
+  
+  real(cvmix_r8)                                               :: &
+    zzw                                                         , & ! depth of interface k 
+    depth                                                       , & ! total water depth
+    diff_surf_forc                                              , &
+    diff_bott_forc
+
+  ! input to tri-diagonal solver
+  real(cvmix_r8), dimension(nproma,max_nlev+1)                 :: &
+    a_dif                                                       , & !
+    b_dif                                                       , & !
+    c_dif                                                       , & !
+    a_tri                                                       , & !
+    b_tri                                                       , & !
+    c_tri                                                       , & !
+    d_tri                                                       , & !
+    ke                                                              !  diffusivity for tke
+
+  real(cvmix_r8), dimension(nproma,max_nlev+1)                 :: &
+    cp                                                          , & !
+    dp
+
+  integer :: k, kk, kp1, jc, nlev, i
+  real(cvmix_r8) :: m, fxa
+
+  CHARACTER(LEN=*), PARAMETER :: method_name = module_name//':integrate_tke_gpu'
+
+  if (present(use_acc)) then
+    lacc = use_acc
+  else
+    lacc = .FALSE.
+  end if
+
+  tke_constants_in => tke_constants_saved
+
+  !$ACC DATA COPYIN(tke_constants_in) &
+  !$ACC   CREATE(tke_unrest, tke_upd, mxl, sqrttke, prandtl, Rinum, K_diss_v, P_diss_v, forc) &
+  !$ACC   CREATE(a_dif, b_dif, c_dif, a_tri, b_tri, c_tri, d_tri, ke, cp, dp) &
+  !$ACC   IF(lacc)
+
+  !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+  DO jc = start_index, end_index
+    IF (levels(jc) > 0) THEN
+      
+      ! initialize diagnostics
+      tke_Tbpr(jc,:) = 0.0
+      tke_Tspr(jc,:) = 0.0
+      tke_Tdif(jc,:) = 0.0
+      tke_Tdis(jc,:) = 0.0
+      tke_Twin(jc,:) = 0.0
+      tke_Tiwf(jc,:) = 0.0
+      tke_Tbck(jc,:) = 0.0
+      tke_Ttot(jc,:) = 0.0
+      cvmix_int_1(jc,:) = 0.0
+      cvmix_int_2(jc,:) = 0.0
+      cvmix_int_3(jc,:) = 0.0
+
+      tke_new(jc,:) = 0.0
+      tke_upd(jc,:) = 0.0
+
+      a_dif(jc,:) = 0.0
+      b_dif(jc,:) = 0.0
+      c_dif(jc,:) = 0.0
+      a_tri(jc,:) = 0.0
+      b_tri(jc,:) = 0.0
+      c_tri(jc,:) = 0.0
+
+      alpha_tke  = tke_constants_in%alpha_tke
+      c_eps      = tke_constants_in%c_eps
+      cd         = tke_constants_in%cd
+      use_Kappa_min = tke_constants_in%use_Kappa_min
+      KappaM_min = tke_constants_in%KappaM_min
+      KappaH_min = tke_constants_in%KappaH_min
+      KappaM_max = tke_constants_in%KappaM_max
+      mxl_min    = tke_constants_in%mxl_min
+      c_k        = tke_constants_in%c_k
+      tke_min    = tke_constants_in%tke_min
+      tke_surf_min   = tke_constants_in%tke_surf_min
+      tke_mxl_choice = tke_constants_in%tke_mxl_choice
+      only_tke = tke_constants_in%only_tke
+      l_lc     = tke_constants_in%l_lc 
+      clc      = tke_constants_in%clc
+      use_ubound_dirichlet = tke_constants_in%use_ubound_dirichlet
+      use_lbound_dirichlet = tke_constants_in%use_lbound_dirichlet
+
+      nlev = levels(jc)
+
+      !---------------------------------------------------------------------------------
+      ! Part 1: calculate mixing length scale
+      !---------------------------------------------------------------------------------
+      sqrttke(jc,:) = sqrt(max(0d0,tke_old(jc,:)))
+
+      ! turbulent mixing length
+      mxl(jc,:) = sqrt(2D0)*sqrttke(jc,:)/sqrt(max(1d-12,Nsqr(jc,:)))
+
+      ! constrain mixing length scale as in MITgcm
+      if (tke_mxl_choice==2) then 
+        mxl(jc,1) = 0.d0
+        mxl(jc,nlev+1) = 0.d0
+        do k=2,nlev
+          mxl(jc,k) = min(mxl(jc,k), mxl(jc,k-1) + dzw(jc,k-1))
+        end do
+        mxl(jc,nlev) = min(mxl(jc,nlev), mxl_min + dzw(jc,nlev))
+        do k=nlev-1,2,-1
+          mxl(jc,k) = min(mxl(jc,k), mxl(jc,k+1) + dzw(jc,k))
+        end do
+        mxl(jc,:) = max(mxl(jc,:), mxl_min)
+      else if (tke_mxl_choice==3) then
+        depth = sum(dzw(jc,1:nlev))
+        do k=2,nlev+1
+          zzw = sum(dzw(jc,1:k-1))
+          mxl(jc,k) = min(zzw, mxl(jc,k), depth-zzw)
+        end do
+        mxl(jc,1) = mxl(jc,2)
+        mxl(jc,:) = max(mxl(jc,:), mxl_min)
+      else
+!        CALL finish(method_name,'Wrong choice of tke_mxl_choice. Aborting...')
+      end if
+
+      !---------------------------------------------------------------------------------
+      ! Part 2: calculate diffusivities
+      !---------------------------------------------------------------------------------
+      KappaM_out(jc,:) = min(KappaM_max, c_k*mxl(jc,:)*sqrttke(jc,:))
+      Rinum(jc,:) = Nsqr(jc,:) / max(Ssqr(jc,:), 1d-12)
+ 
+      if (.not.only_tke) &
+        Rinum(jc,:) = min(Rinum(jc,:), KappaM_out(jc,:) * Nsqr(jc,:) / max(1d-12, alpha_c(jc,:)*E_iw(jc,:)**2))
+
+      prandtl(jc,:) = max(1d0, min(10d0, 6.6*Rinum(jc,:)))
+      KappaH_out(jc,:) = KappaM_out(jc,:) / prandtl(jc,:)
+
+      ! restrict to minimum values
+      if (use_Kappa_min) then
+        KappaM_out(jc,:) = max(KappaM_min, KappaM_out(jc,:))
+        KappaH_out(jc,:) = max(KappaH_min, KappaH_out(jc,:))
+      end if
+
+      !---------------------------------------------------------------------------------
+      ! Part 3: tke forcing
+      !---------------------------------------------------------------------------------
+      ! initialize forcing
+      forc(jc,:) = 0.0
+
+      ! --- forcing by shear and buoycancy production
+      K_diss_v(jc,:) = Ssqr(jc,:) * KappaM_out(jc,:)
+      P_diss_v(jc,:) = Nsqr(jc,:) * KappaH_out(jc,:)
+      P_diss_v(jc,1) = -forc_rho_surf(jc) * grav / rho_ref
+      forc(jc,:) = forc(jc,:) + K_diss_v(jc,:) - P_diss_v(jc,:)
+   
+      ! --- additional langmuir turbulence term
+      if (l_lc) forc(jc,:) = forc(jc,:) + tke_plc(jc,:)
+
+      ! --- forcing by internal wave dissipation
+      if (.not.only_tke) forc(jc,:) = forc(jc,:) + iw_diss(jc,:)
+
+      !---------------------------------------------------------------------------------
+      ! Part 4: vertical diffusion and dissipation is solved implicitely 
+      !---------------------------------------------------------------------------------
+      ke(jc,:) = 0.d0
+      do k = 1, nlev
+        kp1      = min(k+1,nlev)
+        kk       = max(k,2) 
+        ke(jc,k) = alpha_tke * 0.5 * (KappaM_out(jc,kp1) + KappaM_out(jc,kk))
+      end do
+
+      !--- c is lower diagonal of matrix
+      do k=1,nlev
+        c_dif(jc,k) = ke(jc,k)/( dzt(jc,k)*dzw(jc,k) )
+      end do
+      c_dif(jc,nlev+1) = 0.d0 ! not part of the diffusion matrix, thus value is arbitrary
+ 
+      !--- b is main diagonal of matrix
+      do k=2,nlev
+        b_dif(jc,k) = ke(jc,k-1)/( dzt(jc,k)*dzw(jc,k-1) ) + ke(jc,k)/( dzt(jc,k)*dzw(jc,k) )
+      end do
+ 
+      !--- a is upper diagonal of matrix
+      do k=2,nlev+1
+        a_dif(jc,k) = ke(jc,k-1)/( dzt(jc,k)*dzw(jc,k-1) )
+      end do
+      a_dif(jc,1) = 0.d0 ! not part of the diffusion matrix, thus value is arbitrary
+
+      ! copy tke_old
+      tke_upd(jc,1:nlev+1) = tke_old(jc,1:nlev+1)
+ 
+      ! upper boundary condition
+      if (use_ubound_dirichlet) then
+        sqrttke(jc,1)   = 0.d0 ! to suppres dissipation for k=1
+        forc(jc,1)      = 0.d0 ! to suppres forcing for k=1
+        tke_surf        = max(tke_surf_min, cd*forc_tke_surf(jc))
+        tke_upd(jc,1)   = tke_surf
+        diff_surf_forc  = a_dif(jc,2) * tke_surf
+        forc(jc,2)      = forc(jc,2) + diff_surf_forc
+        a_dif(jc,2)     = 0.d0 ! and set matrix element to zero
+        b_dif(jc,1)     = 0.d0 ! 0 line in matrix for k=1
+        c_dif(jc,1)     = 0.d0 ! 0 line in matrix for k=1
+      else
+        ! add wind forcing
+        forc(jc,1)      = forc(jc,1) + (cd*forc_tke_surf(jc)**(3./2.))/(dzt(jc,1))
+        b_dif(jc,1)     = ke(jc,1)/( dzt(jc,1)*dzw(jc,1) )
+        diff_surf_forc  = 0.0
+      endif
+
+      ! lower boundary condition
+      if (use_lbound_dirichlet) then
+        sqrttke(jc,nlev+1) = 0.d0 ! to suppres dissipation for k=nlev+1
+        forc(jc,nlev+1)    = 0.d0 ! to suppres forcing for k=nlev+1
+        tke_bott           = tke_min
+        tke_upd(jc,nlev+1) = tke_bott
+        diff_bott_forc     = c_dif(jc,nlev)*tke_bott
+        forc(jc,nlev)      = forc(jc,nlev)+diff_bott_forc
+        c_dif(jc,nlev)     = 0.d0 ! and set matrix element to zero
+        b_dif(jc,nlev+1)   = 0.d0 ! 0 line in matrix for k=nlev+1
+        a_dif(jc,nlev+1)   = 0.d0 ! 0 line in matrix for k=nlev+1   
+      else
+        b_dif(jc,nlev+1)   = ke(jc,nlev)/( dzt(jc,nlev+1)*dzw(jc,nlev) )
+        diff_bott_forc     = 0.0
+      end if
+
+      !--- construct tridiagonal matrix to solve diffusion and dissipation implicitely
+      a_tri(jc,:)      = -dtime * a_dif(jc,:)
+      b_tri(jc,:)      = 1+dtime * b_dif(jc,:)
+      b_tri(jc,2:nlev) = b_tri(jc,2:nlev) + dtime * c_eps * sqrttke(jc,2:nlev) / mxl(jc,2:nlev)
+      c_tri(jc,:)      = -dtime * c_dif(jc,:)
+ 
+      !--- d is r.h.s. of implicite equation (d: new tke with only explicite tendencies included)
+      d_tri(jc,1:nlev+1)  = tke_upd(jc,1:nlev+1) + dtime*forc(jc,1:nlev+1)
+ 
+      ! solve the tri-diag matrix
+      cp(jc,1) = c_tri(jc,1) / b_tri(jc,1)
+      dp(jc,1) = d_tri(jc,1) / b_tri(jc,1)
+
+      do i = 2,nlev+1
+        m = b_tri(jc,i) - cp(jc,i-1) * a_tri(jc,i)
+        fxa = 1D0/m
+        cp(jc,i) = c_tri(jc,i) * fxa
+        dp(jc,i) = (d_tri(jc,i) - dp(jc,i-1) * a_tri(jc,i)) * fxa
+      end do
+
+      tke_new(jc,nlev+1) = dp(jc,nlev+1)
+
+      do i = nlev,1,-1
+        tke_new(jc,i) = dp(jc,i) - cp(jc,i)* tke_new(jc,i+1)
+      end do
+ 
+      ! --- diagnose implicite tendencies (only for diagnostics)
+      ! vertical diffusion of TKE
+      do k=2,nlev
+        tke_Tdif(jc,k)    = a_dif(jc,k) * tke_new(jc,k-1) - b_dif(jc,k) * tke_new(jc,k) + c_dif(jc,k) * tke_new(jc,k+1)
+      end do
+      tke_Tdif(jc,1)      = - b_dif(jc,1) * tke_new(jc,1) + c_dif(jc,1) * tke_new(jc,2)
+      tke_Tdif(jc,nlev+1) = a_dif(jc,nlev+1) * tke_new(jc,nlev) - b_dif(jc,nlev+1) * tke_new(jc,nlev+1)
+      tke_Tdif(jc,2)      = tke_Tdif(jc,2) + diff_surf_forc
+      tke_Tdif(jc,nlev)   = tke_Tdif(jc,nlev) + diff_bott_forc
+
+      ! flux out of first box due to diffusion with Dirichlet boundary value of TKE
+      ! (tke_surf=tke_upd(1)) and TKE of box below (tke_new(2))
+      if (use_ubound_dirichlet) &
+        tke_Tdif(jc,1) = - ke(jc,1) / dzw(jc,1) / dzt(jc,1) &
+                        * (tke_surf - tke_new(jc,2))
+
+      if (use_lbound_dirichlet) then
+        k = nlev+1
+        tke_Tdif(jc,k) = ke(jc,k-1)/dzw(jc,k-1)/dzt(jc,k) &
+                        * (tke_new(jc,k-1)-tke_bott)
+      end if 
+ 
+      ! dissipation of TKE
+      tke_Tdis(jc,:) = 0.d0
+      tke_Tdis(jc,2:nlev) = -c_eps / mxl(jc,2:nlev) * sqrttke(jc,2:nlev) * tke_new(jc,2:nlev)
+
+      !---------------------------------------------------------------------------------
+      ! Part 5: reset tke to bounding values
+      !---------------------------------------------------------------------------------
+      ! copy of unrestored tke to diagnose energy input by restoring
+      tke_unrest(jc,:) = tke_new(jc,:)
+
+      ! restrict values of TKE to tke_min, if IDEMIX is not used
+      if (only_tke) &
+        tke_new(jc,1:nlev+1) = MAX(tke_new(jc,1:nlev+1), tke_min)
+
+      !---------------------------------------------------------------------------------
+      ! Part 6: Assign diagnostic variables
+      !---------------------------------------------------------------------------------
+      tke_Tbpr(jc,1:nlev+1) = -P_diss_v(jc,1:nlev+1)
+      tke_Tspr(jc,1:nlev+1) = K_diss_v(jc,1:nlev+1)
+      tke_Tbck(jc,:) = (tke_new(jc,:) - tke_unrest(jc,:)) / dtime
+      if (use_ubound_dirichlet) then
+        tke_Twin(jc,1) = (tke_new(jc,1) - tke_old(jc,1)) / dtime - tke_Tdif(jc,1) 
+        tke_Tbck(jc,1) = 0.0
+      else
+        tke_Twin(jc,1) = (cd * forc_tke_surf(jc)**(3./2.)) / (dzt(jc,1))
+      end if
+
+      if (use_lbound_dirichlet) then
+        tke_Twin(jc,nlev+1) = (tke_new(jc,nlev+1) - tke_old(jc,nlev+1)) /  dtime - tke_Tdif(jc,nlev+1) 
+        tke_Tbck(jc,nlev+1) = 0.0
+      else
+        tke_Twin(jc,nlev+1) = 0.0
+      end if
+
+      tke_Tiwf(jc,1:nlev+1) = iw_diss(jc,1:nlev+1)
+      tke_Ttot(jc,:)        = (tke_new(jc,:) - tke_old(jc,:)) / dtime
+      tke_Lmix(jc,nlev+1:)  = 0.0
+      tke_Lmix(jc,1:nlev+1) = mxl(jc,1:nlev+1)
+      tke_Pr(jc,nlev+1:)    = 0.0
+      tke_Pr(jc,1:nlev+1)   = prandtl(jc,1:nlev+1)
+
+      ! -----------------------------------------------
+      ! the rest is for debugging
+      ! -----------------------------------------------
+      cvmix_int_1(jc,:) = KappaH_out(jc,:)
+      cvmix_int_2(jc,:) = KappaM_out(jc,:)
+      cvmix_int_3(jc,:) = Nsqr(jc,:)
+
+    END IF
+  END DO
+  !$ACC END PARALLEL LOOP
+
+  !$ACC END DATA
+
+end subroutine integrate_tke_gpu
+
+!=================================================================================
+
 subroutine integrate_tke( &
                          i,                    & ! FIXME: nils: for debuging
                          j,                    & ! FIXME: nils: for debuging
@@ -492,8 +924,6 @@ subroutine integrate_tke( &
                          E_iw,                 &
                          dtime,                &
                          bottom_fric,          &
-                         old_KappaM,           &
-                         old_KappaH,           &
                          iw_diss,              & ! FIXME: nils: rename?
                          forc_rho_surf,        &
                          !Kappa_GM,             & ! FIXME: nils: today: delete?
@@ -517,8 +947,6 @@ subroutine integrate_tke( &
   real(cvmix_r8), dimension(max_nlev+1), intent(in)                :: & 
     tke_old                                                      ,& !
     !old_tke_diss                                                 ,& !
-    old_KappaM                                                   ,& !
-    old_KappaH                                                   ,& !
     dzt                                                             !
   real(cvmix_r8), dimension(max_nlev+1), intent(in)             :: & 
     Ssqr                                                         ,& !

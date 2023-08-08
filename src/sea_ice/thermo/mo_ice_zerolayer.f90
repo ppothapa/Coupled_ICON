@@ -62,9 +62,10 @@ CONTAINS
   !! Initial release by Achim Randelhoff
   !! Modified        by Vladimir Lapin, MPI (2016-11)
   !
-  SUBROUTINE ice_growth_zerolayer(p_patch, ice)
+  SUBROUTINE ice_growth_zerolayer(p_patch, ice, use_acc)
     TYPE(t_patch),             INTENT(IN), TARGET    :: p_patch
     TYPE(t_sea_ice),           INTENT(INOUT)         :: ice
+    LOGICAL, INTENT(IN), OPTIONAL                    :: use_acc
 
     ! Local variables
     REAL(wp), DIMENSION(nproma, ice%kice, p_patch%alloc_cell_blocks) ::        &
@@ -75,14 +76,27 @@ CONTAINS
     ! Loop indices
     TYPE(t_subset_range), POINTER :: all_cells
     INTEGER :: k, jb, jc, i_startidx_c, i_endidx_c
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    !$ACC DATA CREATE(Q_surplus, hiold, hsold) IF(lacc)
 
     !-------------------------------------------------------------------------------------------
     all_cells            => p_patch%cells%all
     ! initialization
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     Q_surplus   (:,:,:)    = 0.0_wp
+    !$ACC END KERNELS
     ! Save ice and snow thickness before thermodynamic effects
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     hiold (:,:,:) = ice%hi(:,:,:)
     hsold (:,:,:) = ice%hs(:,:,:)
+    !$ACC END KERNELS
 !    ice%heatOceI(:,:,:) = 0.0_wp ! initialized in ice_zero
 
     !---------DEBUG DIAGNOSTICS-----------------------------------------------------------------
@@ -96,6 +110,7 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, k, jc) SCHEDULE(dynamic)
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
       DO k=1,ice%kice
         DO jc = i_startidx_c,i_endidx_c
           IF (ice%hi(jc,k,jb) > 0._wp) THEN
@@ -181,8 +196,11 @@ CONTAINS
           ENDIF
         END DO
       END DO
+      !$ACC END PARALLEL LOOP
     END DO
 !ICON_OMP_END_PARALLEL_DO
+
+    !$ACC END DATA
 
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     CALL dbg_print('GrowZero aft.: hi'         , ice%hi         , str_module, 3, in_subset=p_patch%cells%owned)
@@ -266,11 +284,8 @@ CONTAINS
       lacc = .FALSE.
     END IF
 
-    !$ACC DATA PRESENT(Tsurf, hi, hs, Qtop, Qbot, SWnet, nonsolar) &
-    !$ACC   PRESENT(dnonsolardT, Tfw) IF(lacc)
-    
     ! initialization of the output
-    !$ACC PARALLEL ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     !$ACC LOOP SEQ
     DO k = 1,kice
       !$ACC LOOP GANG VECTOR
@@ -291,7 +306,7 @@ CONTAINS
         nfg_flag = 1._wp
     ENDIF
 
-    !$ACC PARALLEL ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     !$ACC LOOP SEQ
     DO k=1,kice
       !$ACC LOOP GANG VECTOR PRIVATE(k_effective, F_A, F_S, deltaT) &
@@ -329,8 +344,6 @@ CONTAINS
       END DO
     END DO
     !$ACC END PARALLEL
-
-    !$ACC END DATA
 
   END SUBROUTINE set_ice_temp_zerolayer
   !-------------------------------------------------------------------------------
@@ -371,10 +384,8 @@ CONTAINS
       lacc = .FALSE.
     END IF
 
-    !$ACC DATA PRESENT(Tsurf, hi, hs, Qtop, Qbot, Tfw) IF(lacc)
-
     ! initialization of output variables
-    !$ACC PARALLEL ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     !$ACC LOOP SEQ
     DO k = 1,kice
       !$ACC LOOP GANG VECTOR
@@ -385,7 +396,7 @@ CONTAINS
     END DO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     !$ACC LOOP SEQ
     DO k=1,kice
       !$ACC LOOP GANG VECTOR PRIVATE(k_effective, F_A, F_S, deltaT) &
@@ -421,8 +432,6 @@ CONTAINS
       END DO
     END DO
     !$ACC END PARALLEL
-
-    !$ACC END DATA
 
   END SUBROUTINE set_ice_temp_zerolayer_analytical
   !-------------------------------------------------------------------------------

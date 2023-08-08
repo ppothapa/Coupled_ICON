@@ -43,7 +43,7 @@ command_line = argparse.ArgumentParser(description=__doc__.split('\n', 1)[0])
 command_line.add_argument('start_date', type=check_date, help=
     'first date of period (YYYY-MM-DD... or YYYYMMDD...)')
 command_line.add_argument('-V', '--version', action='version', version="""
-$Id: DEFAULT.mon.tmpl 1 2021-05-04 23:03:55Z m221078 $
+$Id: DEFAULT.mon.tmpl 2 2023-05-09 09:37:54Z k203123 $
 %{VERSIONS_|join('\n')}
 """)
 command_line.add_argument('-c', '--clean', action='store_true', help=
@@ -58,7 +58,18 @@ command_line.add_argument('-W', '--work-dir', action='store_true', help=
     'take files from work directory instead of data directory')
 command_line.add_argument('-N', '--include-next-date', action='store_true', help=
     'also include files with time stamps for next start date')
+command_line.add_argument('-s', '--set-start-date', type=check_date, help=
+    'set lower bound of interval to be processed explicitly'
+    ' (implies --no-trigger)')
+command_line.add_argument('-n', '--set-next-date', type=check_date, help=
+    'set upper bound of interval to be processed explicitly'
+    ' (implies --no-trigger)')
+command_line.add_argument('--no-trigger', action='store_true', help=
+    'do not execute triggered jobs')
 args = command_line.parse_args()
+
+if args.set_start_date or args.set_next_date:
+    args.no_trigger = True
 
 # Do time computations using mtime
 
@@ -80,6 +91,13 @@ if next_date > final_date:
 offset = mtime.TimeDelta('-%{namelists.NAMELIST_atm.run_nml.modeltimestep}')
 end_date = next_date + offset
 
+# Override processing interval on demand.
+# Can only be done here, because end_date needs to be consistent with run dir
+if args.set_start_date:
+    start_date = args.set_start_date
+if args.set_next_date:
+    next_date = args.set_next_date
+
 # Determine date/time stamp formatting
 
 weed = re.compile(r'[-:]|\.\d+$') # for re-formatting of date/time stamps
@@ -99,6 +117,32 @@ if args.work_dir:
     input_dir = os.path.join('%{WORK_DIR}', '%{jobs.run.subdir}').format(
         start_stamp=run_stamp(start_date), end_stamp=run_stamp(end_date))
 
+# Set-up template variables
+
+mon_dir = '%{MON_DIR}'
+exp_id = '%{EXP_ID}'
+
+template_dict = {}
+template_dict['start_date'] = str(start_date)
+template_dict['min_date'] = str(start_date)
+if args.include_next_date:
+    template_dict['min_date'] = str(start_date+mtime.TimeDelta('PT1S'))
+template_dict['end_date'] = str(end_date)
+template_dict['start_stamp'] = stamp(start_date)
+template_dict['end_stamp'] = stamp(end_date)
+template_dict['mean_op'] = '%{JOB.mean_op|d('yearavg')}'
+template_dict['mean_op_name'] = re.sub(r'\W+', '_',
+                                       template_dict['mean_op']).strip('_')
+if args.include_next_date:
+    template_dict['mean_op'] += ' -seltimestep,1/-2'
+template_dict['input_dir'] = input_dir
+template_dict['mon_dir'] = mon_dir
+template_dict['exp_id'] = exp_id
+
+# Prolog
+
+logging.info('monitoring started '
+             'for {start_date}-{end_date}'.format(**template_dict))
 
 # Define required output
 
@@ -192,31 +236,9 @@ for info in file_infos:
 
 logging.debug('files: %s', ', '.join(files))
 
-# Set-up template variables
+# Add file list to template variables
 
-mon_dir = '%{MON_DIR}'
-exp_id = '%{EXP_ID}'
-
-template_dict = {}
-template_dict['start_date'] = str(start_date)
-template_dict['min_date'] = str(start_date)
-if args.include_next_date:
-    template_dict['min_date'] = str(start_date+mtime.TimeDelta('PT1S'))
-template_dict['end_date'] = str(end_date)
-template_dict['start_stamp'] = stamp(start_date)
-template_dict['end_stamp'] = stamp(end_date)
 template_dict['files'] = ' '.join(files)
-template_dict['mean_op'] = '%{JOB.mean_op|d('yearavg')}'
-template_dict['mean_op_name'] = re.sub(r'\W+', '_',
-                                       template_dict['mean_op']).strip('_')
-template_dict['input_dir'] = input_dir
-template_dict['mon_dir'] = mon_dir
-template_dict['exp_id'] = exp_id
-
-# Prolog
-
-logging.info('monitoring started '
-             'for {start_date}-{end_date}'.format(**template_dict))
 
 # Determine additional files to be plotted
 
@@ -237,10 +259,10 @@ for add_dir in add_dirs:
     add_prefixes.append(add_prefix)
 
     add_prefix_options.append(
-        '--with{0}={1}_$${{tag}}.nc:{2}_$${{tag}}.nc'.format(
+        '--with{0}={1}_$${{tag}}.nc:{2}'.format(
             idx, add_prefix, add_exp_id))
     add_prefix_options.append(
-        '--with{0}a={1}_$${{tag}}_$(MEAN_OP_NAME).nc'.format(idx, add_exp_id))
+        '--with{0}a={1}_$${{tag}}_$(MEAN_OP_NAME).nc:{1}_$(MEAN_OP_NAME)'.format(idx, add_exp_id))
 
     idx += 1
 
@@ -361,7 +383,8 @@ $(TARGETS_DIR)/%.pdf: $(TARGETS_DIR)/%.nc
 	    done; \
 	    cd $(MON_DIR) ;\
 	    $(PLOT_TIMESER) --manifest=$$base.lst --mode=monitoring \
-	        --with1=$$base.nc --with1a=$${{base}}_$(MEAN_OP_NAME).nc \
+	        --with1=$$base.nc:$(EXP_ID) \
+	        --with1a=$${{base}}_$(MEAN_OP_NAME).nc:$(EXP_ID)_$(MEAN_OP_NAME) \
 	        {add_prefix_options} --output=$$base'
 	touch $@
 
@@ -461,5 +484,9 @@ shutil.rmtree(work_dir)
 
 logging.info('monitoring finished '
              'for {start_date}-{end_date}'.format(**template_dict))
+
+if args.no_trigger:
+    logging.info('not executing triggered jobs')
+    sys.exit()
 
 #% include 'standard_experiments/trigger.tmpl'

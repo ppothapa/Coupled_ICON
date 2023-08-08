@@ -773,11 +773,11 @@ CONTAINS
     old_tracer_concentration => old_tracer%concentration
     new_tracer_concentration => new_tracer%concentration
     !---------------------------------------------------------------------
-    !$ACC DATA PRESENT(patch_3d%p_patch_2d(1)%nblks_e, patch_3d%p_patch_2d(1)%alloc_cell_blocks) &
+
+    !$ACC DATA COPYIN(old_tracer_concentration) &
+    !$ACC   COPY(new_tracer_concentration) &
     !$ACC   CREATE(div_adv_flux_horz, div_adv_flux_vert, div_diff_flux_horz, top_bc) &
-    !$ACC   CREATE(z_adv_flux_h, z_adv_low, z_adv_high) &
-    !$ACC   COPYIN(old_tracer_concentration) &
-    !$ACC   COPY(new_tracer_concentration) IF(lacc)
+    !$ACC   CREATE(z_adv_flux_h, z_adv_low, z_adv_high) IF(lacc)
 
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     idt_src=2  ! output print level (1-5, fix)
@@ -987,7 +987,7 @@ CONTAINS
       lacc = .FALSE.
     END IF
 
-    !$ACC DATA PRESENT(patch_3d%p_patch_2d(1)%alloc_cell_blocks, patch_3d%p_patch_2d(1)%nblks_e)
+    !$ACC DATA PRESENT(patch_3d%p_patch_2d(1)%alloc_cell_blocks, patch_3d%p_patch_2d(1)%nblks_e) IF(lacc)
 
     DO tracer_index = 1, old_tracers%no_of_tracers
           

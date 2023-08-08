@@ -283,7 +283,7 @@ CONTAINS
   !! Original version by Tobias Ruppert and Thomas Heinze, DWD (2006-11-14)
   !!
   ELEMENTAL SUBROUTINE gvec2cvec (p_gu, p_gv, p_long, p_lat, p_cu, p_cv, p_cw, geometry_info)
-    !
+    !$ACC ROUTINE SEQ
     REAL(wp), INTENT(in)  :: p_gu, p_gv     ! zonal and meridional vec. component
     REAL(wp), INTENT(in)  :: p_long, p_lat  ! geo. coord. of data point
     TYPE(t_grid_geometry_info), INTENT(in), OPTIONAL :: geometry_info
@@ -346,7 +346,7 @@ CONTAINS
   !! Original version by Thomas Heinze, DWD (2006-11-16)
   !!
   ELEMENTAL SUBROUTINE cvec2gvec (p_cu, p_cv, p_cw, p_long, p_lat, p_gu, p_gv, geometry_info)
-    !
+    !$ACC ROUTINE SEQ
     REAL(wp), INTENT(in)  :: p_cu, p_cv, p_cw  ! Cart. vector
     REAL(wp), INTENT(in)  :: p_long, p_lat     ! geo. coord. of data point
     TYPE(t_grid_geometry_info), INTENT(in), OPTIONAL :: geometry_info
@@ -1643,7 +1643,7 @@ CONTAINS
   !! Developed by Thomas Heinze (2006-07-05).
   !!
   ELEMENTAL FUNCTION cc_dot_product(cc_x1, cc_x2)  result (p_prod)
-    !
+    !$ACC ROUTINE SEQ
     TYPE(t_cartesian_coordinates), INTENT(in):: cc_x1, cc_x2 ! cart. coordinates
 
     REAL(wp) :: p_prod    ! scalar product of cart.coordinates
@@ -1662,7 +1662,7 @@ CONTAINS
   !! Developed by Marco Restelli (2007-11-22)
   !!
   ELEMENTAL FUNCTION cc_norm(cc_x1)  result (norm)
-    !
+    !$ACC ROUTINE SEQ
     TYPE(t_cartesian_coordinates), INTENT(in) :: cc_x1 ! cart. coordinates
 
     REAL(wp) :: norm

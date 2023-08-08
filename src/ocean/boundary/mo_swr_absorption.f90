@@ -119,7 +119,7 @@ CONTAINS
 
   END SUBROUTINE jerlov_swr_absorption
 
-  SUBROUTINE subsurface_swr_absorption(patch_3d, ocean_state)
+  SUBROUTINE subsurface_swr_absorption(patch_3d, ocean_state, use_acc)
 ! !
 ! !    !>
 ! !    !! This is part two of the sw-absorption scheme and should be called after
@@ -141,6 +141,7 @@ CONTAINS
 
     TYPE(t_patch_3d ),TARGET, INTENT(in)              :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET, INTENT(inout)  :: ocean_state
+    LOGICAL, INTENT(IN), OPTIONAL                     :: use_acc
 
     REAL(wp), POINTER :: swsum(:,:)
     REAL(wp), POINTER :: swrab(:,:,:)
@@ -156,7 +157,13 @@ CONTAINS
 
     TYPE(t_patch), POINTER                   :: patch_2d
     TYPE(t_subset_range), POINTER            :: all_cells
+    LOGICAL :: lacc
 
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     patch_2d => patch_3D%p_patch_2d(1)
     all_cells => patch_2d%cells%all
@@ -169,9 +176,12 @@ CONTAINS
     cc = clw * rho_ref
     dti=1.0_wp/dtime
 
+    !$ACC DATA CREATE(heatabb, heatabs_t) IF(lacc)
+
     !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index,hetabs_t,level,heatabb) SCHEDULE(dynamic)
     DO blockNo = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, blockNo, start_index, end_index)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jc =  start_index, end_index
 
         heatabs_t(jc,blockno)=patch_3d%wet_c(jc,1,blockNo)*heatabs(jc,blockNo)*dtime/cc
@@ -196,12 +206,15 @@ CONTAINS
         END DO
 
       END DO
+      !$ACC END PARALLEL LOOP
     END DO
+
+    !$ACC END DATA
 
   END SUBROUTINE subsurface_swr_absorption
 
 
-  SUBROUTINE subsurface_swr_absorption_zstar(patch_3d, ocean_state, stretch_c)
+  SUBROUTINE subsurface_swr_absorption_zstar(patch_3d, ocean_state, stretch_c, use_acc)
  !
  !    !>
  !    !! This is part two of the sw-absorption scheme and should be called after
@@ -220,11 +233,13 @@ CONTAINS
     USE mo_dynamics_config,           ONLY: nold
     USE mo_run_config,                ONLY: dtime
     USE mo_parallel_config,           ONLY: nproma
-
+    USE mo_impl_constants,            ONLY: max_char_length
+    USE mo_exception,                 ONLY: finish
 
     TYPE(t_patch_3d ),TARGET, INTENT(in)              :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET, INTENT(inout)  :: ocean_state
     REAL(wp), INTENT(IN   ) :: stretch_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks) 
+    LOGICAL, INTENT(IN), OPTIONAL                     :: use_acc
 
     REAL(wp), POINTER :: swsum(:,:)
     REAL(wp), POINTER :: swrab(:,:,:)
@@ -240,7 +255,14 @@ CONTAINS
 
     TYPE(t_patch), POINTER                   :: patch_2d
     TYPE(t_subset_range), POINTER            :: all_cells
+    LOGICAL                                  :: lacc
+    CHARACTER(LEN=max_char_length), PARAMETER :: str_module = 'subsurface_swr_absorption_zstar'
 
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     patch_2d => patch_3D%p_patch_2d(1)
     all_cells => patch_2d%cells%all
@@ -253,9 +275,12 @@ CONTAINS
     cc = clw * rho_ref
     dti=1.0_wp/dtime
 
+    !$ACC DATA CREATE(heatabb, heatabs_t) IF(lacc)
+
     !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index,hetabs_t,level,heatabb) SCHEDULE(dynamic)
     DO blockNo = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, blockNo, start_index, end_index)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jc =  start_index, end_index
 
         heatabs_t(jc,blockno)=patch_3d%wet_c(jc,1,blockNo)*heatabs(jc,blockNo)*dtime/cc
@@ -281,7 +306,10 @@ CONTAINS
         END DO
 
       END DO
+      !$ACC END PARALLEL LOOP
     END DO
+
+    !$ACC END DATA
 
   END SUBROUTINE subsurface_swr_absorption_zstar
 
@@ -295,21 +323,24 @@ CONTAINS
   !! from hamocc ( LFB_BGC_OCE=.true.)
 
 
-  SUBROUTINE  dynamic_swr_absorption(patch_3d, ocean_state)
+  SUBROUTINE dynamic_swr_absorption(patch_3d, ocean_state, use_acc)
 
     USE mo_model_domain,              ONLY: t_patch, t_patch_3d
     USE mo_ocean_types,               ONLY: t_hydro_ocean_state
     USE mo_grid_subset,               ONLY: t_subset_range, get_index_range
     USE mo_run_config,                ONLY: dtime
+    USE mo_exception,                 ONLY: finish
 
     TYPE(t_patch_3d ),TARGET, INTENT(in)              :: patch_3D
     TYPE(t_hydro_ocean_state), TARGET, INTENT(inout)  :: ocean_state
+    LOGICAL, INTENT(IN), OPTIONAL                     :: use_acc
 
     REAL(wp), POINTER :: swsum(:,:)
     REAL(wp), POINTER :: swrab(:,:,:)
     REAL(wp), POINTER :: swr_frac(:,:,:)
 
     INTEGER  :: blockNo, jc, start_index, end_index, level
+    LOGICAL  :: lacc
   
     REAL(wp), PARAMETER :: fvisible=0.58_wp ! visible fraction of the spectrum
                                       ! only this part has potential to
@@ -318,7 +349,17 @@ CONTAINS
 
     TYPE(t_patch), POINTER                   :: patch_2d
     TYPE(t_subset_range), POINTER            :: all_cells
+    CHARACTER(len=*), PARAMETER :: routine = 'dynamic_swr_absorption'
 
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+#ifdef _OPENACC
+    IF (lacc) CALL finish(routine, 'OpenACC version currently not tested/validated')
+#endif
 
     patch_2d => patch_3D%p_patch_2d(1)
     all_cells => patch_2d%cells%all
@@ -332,6 +373,7 @@ CONTAINS
     !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index) SCHEDULE(dynamic)
     DO blockNo = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, blockNo, start_index, end_index)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jc =  start_index, end_index
 
         swsum(jc,blockNo)=swr_frac(jc,2,blockNo)
@@ -347,6 +389,7 @@ CONTAINS
 
         swsum(jc,blockNo)=swsum(jc,blockNo)*fvisible
       END DO
+      !$ACC END PARALLEL LOOP
     END DO
 
 

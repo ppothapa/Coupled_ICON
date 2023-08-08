@@ -69,7 +69,7 @@ MODULE mo_ocean_physics
     &  LeithClosure_order,   LeithClosure_form, &
     &  TracerDiffusion_LeithWeight,             &
     &  max_turbulenece_TracerDiffusion,                       &
-    &  LeithViscosity_SmoothIterations, LeithViscosity_SpatialSmoothFactor 
+    &  LeithViscosity_SmoothIterations, LeithViscosity_SpatialSmoothFactor
   USE mo_ocean_surface_types,            ONLY:  &
       t_ocean_surface                             ! contains p_oce_sfc
 
@@ -96,7 +96,7 @@ MODULE mo_ocean_physics
     & za_depth_below_sea, za_depth_below_sea_half, za_surface
   USE mo_grid_subset,         ONLY: t_subset_range, get_index_range
   USE mo_sync,                ONLY: sync_c, sync_e, sync_v, sync_patch_array, global_max, sync_patch_array_mult
-  USE  mo_ocean_thermodyn,    ONLY: calculate_density_onColumn, calculate_density_mpiom_v
+  USE  mo_ocean_thermodyn,    ONLY: calculate_density_onColumn, calculate_density_mpiom_v, calculate_density_onColumn_gpu
   USE mo_ocean_math_operators,ONLY: div_oce_3d
   USE mo_timer,               ONLY: timers_level, timer_start, timer_stop, timer_upd_phys
   USE mo_statistics,          ONLY: global_minmaxmean
@@ -127,7 +127,7 @@ MODULE mo_ocean_physics
   PUBLIC :: update_ho_params_zstar
 !   PUBLIC :: calc_characteristic_physical_numbers
   PUBLIC :: scale_horizontal_diffusion, copy2Dto3D
-  
+
   ! variables
   TYPE (t_var_list_ptr), PUBLIC :: ocean_params_list
 
@@ -146,7 +146,7 @@ CONTAINS
     TYPE(t_patch_3d ),POINTER, INTENT(in) :: patch_3d
     TYPE (t_ho_params)                          :: physics_param
     REAL(wp), TARGET                     :: fu10   (:,:) ! t_atmos_for_ocean%fu10
- 
+
     ! Local variables
     INTEGER :: i, i_no_trac
     INTEGER :: je, blockNo, jk,jc, il_c1, ib_c1, il_c2, ib_c2
@@ -170,8 +170,8 @@ CONTAINS
     IF(GMRedi_configuration==GMRedi_combined&
       &.OR.GMRedi_configuration==GM_only.OR.GMRedi_configuration==Redi_only)THEN
 
-      CALL init_GMRedi(patch_3d) 
-      
+      CALL init_GMRedi(patch_3d)
+
       physics_param%k_tracer_isoneutral = k_tracer_isoneutral_parameter
       physics_param%k_tracer_dianeutral = k_tracer_dianeutral_parameter
 
@@ -231,7 +231,7 @@ CONTAINS
       CALL dbg_print('LeithBiharmVisc:'     ,physics_param%LeithBiharmonicViscosity_BasisCoeff,str_module,0, &
         & in_subset=patch_2D%edges%owned)
     ENDIF
-        
+
     DO i=1,no_tracer
 
       IF(i==1)THEN!temperature
@@ -261,16 +261,16 @@ CONTAINS
 
 
       physics_param%a_tracer_v(:,:,:,i) = physics_param%a_tracer_v_back(i)
- 
+
     END DO
 
     physics_param%bottom_drag_coeff = bottom_drag_coeff
-    
+
     ! precalculate exponential wind mixing decay with depth
     DO jk=2,n_zlev
       WindMixingDecay(jk) = EXP(-patch_3d%p_patch_1d(1)%del_zlev_m(jk-1)/WindMixingDecayDepth)
       WindMixingLevel(jk) = lambda_wind * patch_3d%p_patch_1d(1)%inv_del_zlev_m(jk-1)
-    ENDDO 
+    ENDDO
 
     ! setup tke scheme
     SELECT CASE(vert_mix_type)
@@ -302,24 +302,24 @@ CONTAINS
   !-------------------------------------------------------------------------
 
    !-------------------------------------------------------------------------
-  REAL(wp) FUNCTION edge_area(patch_2D, je,jb) 
+  REAL(wp) FUNCTION edge_area(patch_2D, je,jb)
     TYPE(t_patch), POINTER :: patch_2D
     INTEGER, INTENT(in) :: je, jb
-  
+
     INTEGER :: c1_idx, c1_blk,  c2_idx, c2_blk
-    
+
     c1_idx = patch_2D%edges%cell_idx(je,jb,1)
     c1_blk = patch_2D%edges%cell_blk(je,jb,1)
     c2_idx = patch_2D%edges%cell_idx(je,jb,2)
     c2_blk = patch_2D%edges%cell_blk(je,jb,2)
-  
+
     edge_area = (patch_2D%cells%area(c1_idx, c1_blk) + patch_2D%cells%area(c2_idx, c2_blk)) * 0.5_wp
-    
+
 !     edge_area = patch_2D%edges%primal_edge_length(je,jb)*patch_2D%edges%dual_edge_length(je,jb))
   END FUNCTION edge_area
   !-------------------------------------------------------------------------
-  
-  
+
+
   !-------------------------------------------------------------------------
   SUBROUTINE scale_horizontal_diffusion(patch_3D, &
     & DiffusionScaling, DiffusionReferenceValue, DiffusionBackgroundValue, out_DiffusionCoefficients)
@@ -463,7 +463,7 @@ CONTAINS
     CASE(9)
       ! multiply DiffusionReferenceValue by sqrt(dual_edge_length**3)
       ! recommended values:
-      !  Biharmonic viscosicity: 
+      !  Biharmonic viscosicity:
       !  Tracer diffusion: 1.25E-5
       DO jb = all_edges%start_block, all_edges%end_block
         CALL get_index_range(all_edges, jb, start_index, end_index)
@@ -629,7 +629,7 @@ CONTAINS
 
   END SUBROUTINE calc_lower_bound_veloc_diff
   !-------------------------------------------------------------------------
- 
+
   !-------------------------------------------------------------------------
   !! @par Revision History
   !! Initial release by Peter Korn, MPI-M (2011-08)
@@ -669,8 +669,8 @@ CONTAINS
     END DO
 
     ! we do need to sync here
-    CALL sync_patch_array(sync_v, patch_2D, z_k_ave_v)    
-        
+    CALL sync_patch_array(sync_v, patch_2D, z_k_ave_v)
+
     DO blockNo = all_edges%start_block, all_edges%end_block
       CALL get_index_range(all_edges, blockNo, start_index, end_index)
       DO je = start_index, end_index
@@ -679,15 +679,15 @@ CONTAINS
         ib_v1 = patch_2D%edges%vertex_blk(je,blockNo,1)
         il_v2 = patch_2D%edges%vertex_idx(je,blockNo,2)
         ib_v2 = patch_2D%edges%vertex_blk(je,blockNo,2)
-          
+
         k_h(je,blockNo)= 0.5_wp * smoothFactor * (z_k_ave_v(il_v1,ib_v1) + z_k_ave_v(il_v2,ib_v2)) + &
           & (1.0_wp - smoothFactor) * k_h(je,blockNo)
       ENDDO
     END DO
 
     ! we do not need to sync edge coefficients
-    ! CALL sync_patch_array(sync_e, patch_2D, k_h)   
-    
+    ! CALL sync_patch_array(sync_e, patch_2D, k_h)
+
     !---------Debug Diagnostics-------------------------------------------
     idt_src=1  ! output print levels - 0: print in any case
     CALL dbg_print('smoothed Laplac Diff.'     ,k_h                     ,str_module,idt_src, &
@@ -697,7 +697,7 @@ CONTAINS
 
   END SUBROUTINE smooth_lapl_diff
   !-------------------------------------------------------------------------
- 
+
   !-------------------------------------------------------------------------
   !! @par Revision History
   !! Initial release by Peter Korn, MPI-M (2011-08)
@@ -721,10 +721,10 @@ CONTAINS
     cells_in_domain => patch_2D%cells%in_domain
 
     ALLOCATE(z_k_ave_c(nproma,n_zlev, patch_2D%alloc_cell_blocks))
- 
+
 !ICON_OMP_PARALLEL_DO PRIVATE(blockNo, start_index, end_index, jv, jev, ile, ibe, sea_edges_onLevel, level)
     DO blockNo = cells_in_domain%start_block, cells_in_domain%end_block
-    
+
       z_k_ave_c(:,:,blockNo) = 0.0_wp
 
       CALL get_index_range(cells_in_domain, blockNo, start_index, end_index)
@@ -736,8 +736,8 @@ CONTAINS
           DO level=1,patch_3D%p_patch_1D(1)%dolic_e(ile,ibe)
             z_k_ave_c(jv,level,blockNo)= z_k_ave_c(jv,level,blockNo) + k_h(ile,level,ibe)
             sea_edges_onLevel(level) = sea_edges_onLevel(level) + 1
-          END DO 
-        END DO 
+          END DO
+        END DO
         DO level=1,n_zlev
           IF (sea_edges_onLevel(level) > 1) &
             z_k_ave_c(jv,level,blockNo) = z_k_ave_c(jv,level,blockNo) / REAL(sea_edges_onLevel(level),wp)
@@ -747,8 +747,8 @@ CONTAINS
 !ICON_OMP_END_PARALLEL_DO
 
     ! we do need to sync here
-    CALL sync_patch_array(sync_c, patch_2D, z_k_ave_c)    
-        
+    CALL sync_patch_array(sync_c, patch_2D, z_k_ave_c)
+
 !ICON_OMP_PARALLEL_DO PRIVATE(blockNo, start_index, end_index, je, il_c1, ib_c1, il_c2, ib_c2, level)
     DO blockNo = all_edges%start_block, all_edges%end_block
       CALL get_index_range(all_edges, blockNo, start_index, end_index)
@@ -758,7 +758,7 @@ CONTAINS
         ib_c1 = patch_2D%edges%cell_blk(je,blockNo,1)
         il_c2 = patch_2D%edges%cell_idx(je,blockNo,2)
         ib_c2 = patch_2D%edges%cell_blk(je,blockNo,2)
-   
+
         DO level=1,patch_3D%p_patch_1D(1)%dolic_e(je,blockNo)
           k_h(je,level,blockNo)= 0.5_wp * smoothFactor * (z_k_ave_c(il_c1,level,ib_c1) + z_k_ave_c(il_c2,level,ib_c2)) + &
             & (1.0_wp - smoothFactor) * k_h(je,level,blockNo)
@@ -768,8 +768,8 @@ CONTAINS
 !ICON_OMP_END_PARALLEL_DO
 
     ! we do not need to sync edge coefficients
-    ! CALL sync_patch_array(sync_e, patch_2D, k_h)   
-    
+    ! CALL sync_patch_array(sync_e, patch_2D, k_h)
+
     !---------Debug Diagnostics-------------------------------------------
     idt_src=1  ! output print levels - 0: print in any case
     CALL dbg_print('smoothed Laplac Diff.'     ,k_h                     ,str_module,idt_src, &
@@ -779,7 +779,7 @@ CONTAINS
 
   END SUBROUTINE smooth_lapl_diff_3D
   !-------------------------------------------------------------------------
- 
+
   !-------------------------------------------------------------------------
   !! @par Revision History
   !! Initial release by Peter Korn, MPI-M (2011-08)
@@ -817,8 +817,8 @@ CONTAINS
           DO level=1,patch_3D%p_patch_1D(1)%dolic_e(ile,ibe)
             z_k_ave_v(jv,level,blockNo)= z_k_ave_v(jv,level,blockNo) + k_h(ile,level,ibe)
             sea_edges_onLevel(level) = sea_edges_onLevel(level) + 1
-          END DO 
-        END DO 
+          END DO
+        END DO
         DO level=1,n_zlev
           IF (sea_edges_onLevel(level) > 1) &
             z_k_ave_v(jv,level,blockNo) = z_k_ave_v(jv,level,blockNo) / REAL(sea_edges_onLevel(level),wp)
@@ -828,8 +828,8 @@ CONTAINS
 !ICON_OMP_END_PARALLEL_DO
 
     ! we do need to sync here
-    CALL sync_patch_array(sync_v, patch_2D, z_k_ave_v)    
-        
+    CALL sync_patch_array(sync_v, patch_2D, z_k_ave_v)
+
 !ICON_OMP_PARALLEL_DO PRIVATE(blockNo, start_index, end_index, je, il_v1, ib_v1, il_v2, ib_v2, level)
     DO blockNo = all_edges%start_block, all_edges%end_block
       CALL get_index_range(all_edges, blockNo, start_index, end_index)
@@ -839,7 +839,7 @@ CONTAINS
         ib_v1 = patch_2D%edges%vertex_blk(je,blockNo,1)
         il_v2 = patch_2D%edges%vertex_idx(je,blockNo,2)
         ib_v2 = patch_2D%edges%vertex_blk(je,blockNo,2)
-   
+
         DO level=1,patch_3D%p_patch_1D(1)%dolic_e(je,blockNo)
           k_h(je,level,blockNo)= 0.5_wp * smoothFactor * (z_k_ave_v(il_v1,level,ib_v1) + z_k_ave_v(il_v2,level,ib_v2)) + &
             & (1.0_wp - smoothFactor) * k_h(je,level,blockNo)
@@ -849,8 +849,8 @@ CONTAINS
 !ICON_OMP_END_PARALLEL_DO
 
     ! we do not need to sync edge coefficients
-    ! CALL sync_patch_array(sync_e, patch_2D, k_h)   
-    
+    ! CALL sync_patch_array(sync_e, patch_2D, k_h)
+
     !---------Debug Diagnostics-------------------------------------------
     idt_src=1  ! output print levels - 0: print in any case
     CALL dbg_print('smoothed Laplac Diff.'     ,k_h                     ,str_module,idt_src, &
@@ -879,7 +879,7 @@ CONTAINS
   !! @par Revision History
   !! Initial release by Peter Korn, MPI-M (2011-02)
 !<Optimize:inUse:done>
-  SUBROUTINE update_ho_params(patch_3d, ocean_state, fu10, concsum, params_oce,op_coeffs, atmos_fluxes, p_oce_sfc)
+  SUBROUTINE update_ho_params(patch_3d, ocean_state, fu10, concsum, params_oce,op_coeffs, atmos_fluxes, p_oce_sfc, use_acc)
     !, calculate_density_func)
 
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
@@ -890,35 +890,47 @@ CONTAINS
     TYPE (t_ocean_surface), INTENT(IN)   :: p_oce_sfc
     TYPE(t_operator_coeff),INTENT(in)    :: op_coeffs
     TYPE(t_atmos_fluxes)                 :: atmos_fluxes
+    LOGICAL, INTENT(IN), OPTIONAL        :: use_acc
 
     INTEGER :: tracer_index
+    LOGICAL :: lacc
     !INTEGER :: vert_mix_type=2 ! by_nils ! FIXME: make this a namelist parameter
     !-------------------------------------------------------------------------
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
     start_timer(timer_upd_phys,1)
 
 !    CALL calc_characteristic_physical_numbers(patch_3d, ocean_state)
 
 !   Calculate the vertical density gradient on the interfaces (zgrad_rho)
 !   and the Richardson Number ; shall be used in PP and possibly TKE
-    CALL calc_vertical_stability(patch_3d, ocean_state)
+    CALL calc_vertical_stability(patch_3d, ocean_state, use_acc=lacc)
 
     SELECT CASE(vert_mix_type)
     CASE(vmix_pp)
       CALL update_PP_scheme(patch_3d, ocean_state, fu10, concsum, params_oce,op_coeffs)
     CASE(vmix_tke)
       !write(*,*) 'Do calc_tke...'
-      CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10)
+#ifdef _OPENACC
+      CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10, concsum, use_acc=lacc)
+#else
+      CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10, concsum)
+#endif
     CASE(vmix_idemix_tke)
       !write(*,*) 'Do calc_idemix...'
       CALL calc_idemix(patch_3d, ocean_state, params_oce, op_coeffs, atmos_fluxes)
       !CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes)
-      CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10)
-    CASE(3) ! by_ogut 
+      CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10, concsum)
+    CASE(3) ! by_ogut
       CALL calc_kpp(patch_3d, ocean_state, params_oce, atmos_fluxes, p_oce_sfc, concsum)
     CASE default
       write(*,*) "Unknown vert_mix_type!"
     END SELECT
- 
 
     IF (LeithClosure_order == 1 .or.  LeithClosure_order == 21) THEN
       IF (LeithClosure_form == 1) THEN
@@ -971,9 +983,9 @@ CONTAINS
     TYPE (t_ocean_surface), INTENT(IN)   :: p_oce_sfc
     TYPE(t_operator_coeff),INTENT(in)    :: op_coeffs
     TYPE(t_atmos_fluxes)                 :: atmos_fluxes
-    REAL(wp), INTENT(IN) :: eta_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks) !! sfc ht 
-    REAL(wp), INTENT(IN) :: stretch_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks) 
-    REAL(wp), INTENT(IN) :: stretch_e(nproma, patch_3d%p_patch_2d(1)%nblks_e) !! stretch factor 
+    REAL(wp), INTENT(IN) :: eta_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks) !! sfc ht
+    REAL(wp), INTENT(IN) :: stretch_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
+    REAL(wp), INTENT(IN) :: stretch_e(nproma, patch_3d%p_patch_2d(1)%nblks_e) !! stretch factor
 
     INTEGER :: tracer_index
     !INTEGER :: vert_mix_type=2 ! by_nils ! FIXME: make this a namelist parameter
@@ -994,17 +1006,17 @@ CONTAINS
     CASE(vmix_tke)
       !write(*,*) 'Do calc_tke...'
       ! tke does not need a special routine for zstar
-      CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10)
+      CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10, concsum)
     CASE(vmix_idemix_tke)
       !write(*,*) 'Do calc_idemix...'
       CALL calc_idemix(patch_3d, ocean_state, params_oce, op_coeffs, atmos_fluxes)
-      CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10)
-    CASE(3) ! by_ogut 
+      CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10, concsum)
+    CASE(3) ! by_ogut
       CALL calc_kpp(patch_3d, ocean_state, params_oce, atmos_fluxes, p_oce_sfc, concsum)
     CASE default
       write(*,*) "Unknown vert_mix_type!"
     END SELECT
- 
+
 
 
     stop_timer(timer_upd_phys,1)
@@ -1032,18 +1044,18 @@ CONTAINS
     INTEGER :: jk, blockNo, je, jc,jb, i
     INTEGER :: start_cell_index, end_cell_index, cell_index
     INTEGER :: start_edge_index, end_edge_index
-    INTEGER :: start_level, level,end_level 
+    INTEGER :: start_level, level,end_level
     INTEGER :: vertex1_idx, vertex1_blk, vertex2_idx, vertex2_blk
 !     INTEGER :: LEITH_EXPONENT
     TYPE(t_subset_range), POINTER ::edges_in_domain
     TYPE(t_patch), POINTER :: patch_2D
     REAL(wp):: div_e, grad_vort_abs
     !-------------------------------------------------------------------------------
-    patch_2D        => patch_3D%p_patch_2D(1) 
+    patch_2D        => patch_3D%p_patch_2D(1)
     edges_in_domain => patch_2D%edges%in_domain
 
     start_level = 1
-   !-------------------------------------------------------------------------------   
+   !-------------------------------------------------------------------------------
    !leith closure for Laplacian(harmonic) viscosity
 
 !      LEITH_EXPONENT=3
@@ -1075,7 +1087,7 @@ CONTAINS
               & param%TracerDiffusion_BasisCoeff(je,blockNo,i) +  &
               & MIN(grad_vort_abs * TracerDiffusion_LeithWeight * &
               &     param%LeithHarmonicViscosity_BasisCoeff(je,blockNo), &
-              &     param%TracerDiffusion_BasisCoeff(je,blockNo,i) * max_turbulenece_TracerDiffusion) 
+              &     param%TracerDiffusion_BasisCoeff(je,blockNo,i) * max_turbulenece_TracerDiffusion)
           END DO
 
         END DO
@@ -1146,7 +1158,7 @@ CONTAINS
 !     ELSEIF(LeithClosure_type==2)THEN
 !     CALL dbg_print('LeithClosure: ptp_vn',ocean_state%p_diag%ptp_vn,&
 !       & str_module,idt_src, in_subset=edges_in_domain)
-! 
+!
 !     CALL div_oce_3d( ocean_state%p_diag%ptp_vn, patch_3D, operators_coeff%div_coeff, div_c, &
 !       & subset_range=patch_2d%cells%all)
 
@@ -1268,7 +1280,7 @@ CONTAINS
 !     ELSEIF(LeithClosure_type==2)THEN
 !     CALL dbg_print('LeithClosure: ptp_vn',ocean_state%p_diag%ptp_vn,&
 !       & str_module,idt_src, in_subset=edges_in_domain)
-! 
+!
 !     CALL div_oce_3d( ocean_state%p_diag%ptp_vn, patch_3D, operators_coeff%div_coeff, div_c, &
 !       & subset_range=patch_2d%cells%all)
 
@@ -1333,9 +1345,9 @@ CONTAINS
       CALL smooth_lapl_diff_3D( patch_3d, &
         & param%HarmonicViscosity_coeff, LeithViscosity_SpatialSmoothFactor )
     ENDDO
-    
+
     !---------------------------------------------------------------------
-    ! tracer diffusion 
+    ! tracer diffusion
 !     IF (TracerDiffusion_LeithWeight > 0.0_wp) THEN
 !       DO i=1,no_tracer
 !       param%TracerDiffusion_coeff(je,level,blockNo,i) = &
@@ -1382,7 +1394,7 @@ CONTAINS
 !     ELSEIF(LeithClosure_type==2)THEN
 !     CALL dbg_print('LeithClosure: ptp_vn',ocean_state%p_diag%ptp_vn,&
 !       & str_module,idt_src, in_subset=edges_in_domain)
-! 
+!
 !     CALL div_oce_3d( ocean_state%p_diag%ptp_vn, patch_3D, operators_coeff%div_coeff, div_c, &
 !       & subset_range=patch_2d%cells%all)
 
@@ -1447,9 +1459,9 @@ CONTAINS
       CALL smooth_lapl_diff_3D( patch_3d, &
         & param%HarmonicViscosity_coeff, LeithViscosity_SpatialSmoothFactor )
     ENDDO
-    
+
     !---------------------------------------------------------------------
-    ! tracer diffusion 
+    ! tracer diffusion
 !     IF (TracerDiffusion_LeithWeight > 0.0_wp) THEN
 !       DO i=1,no_tracer
 !   param%TracerDiffusion_coeff(je,level,blockNo,i) = &
@@ -1508,7 +1520,7 @@ CONTAINS
 !     ELSEIF(LeithClosure_type==2)THEN
 !     CALL dbg_print('LeithClosure: ptp_vn',ocean_state%p_diag%ptp_vn,&
 !       & str_module,idt_src, in_subset=edges_in_domain)
-! 
+!
 !     CALL div_oce_3d( ocean_state%p_diag%ptp_vn, patch_3D, operators_coeff%div_coeff, div_c, &
 !       & subset_range=patch_2d%cells%all)
 
@@ -2088,21 +2100,33 @@ CONTAINS
   !-------------------------------------------------------------------------
 
 !<Optimize:inUse>
-  SUBROUTINE calc_vertical_stability(patch_3d, ocean_state)
+  SUBROUTINE calc_vertical_stability(patch_3d, ocean_state, use_acc)
     TYPE(t_patch_3d ),TARGET, INTENT(in)             :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET                :: ocean_state
+    LOGICAL, INTENT(in), OPTIONAL                    :: use_acc
 
     !Local variables
     INTEGER :: start_index, end_index, cell_index,level,end_level, blockNo
+    LOGICAL :: lacc
 
     TYPE(t_subset_range), POINTER :: cells_in_domain, all_cells
     TYPE(t_patch), POINTER :: patch_2D
 
     REAL(wp) :: z_grav_rho
     REAL(wp) :: z_shear_cell
-#ifdef __LVECTOR__
+    CHARACTER(len=*), PARAMETER :: routine = 'calc_vertical_stability'
+
+#if defined(__LVECTOR__) && !defined(__LVEC_BITID__)
     REAL(wp) :: z_rho_up(nproma,n_zlev), z_rho_down(nproma,n_zlev) !, density(n_zlev)
-    REAL(wp) :: pressure(nproma,n_zlev), salinity(nproma,n_zlev)
+    REAL(wp) :: pressure(nproma,n_zlev), salinity(nproma,n_zlev)!
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    IF (lacc) CALL finish(routine, 'lvector version not ported to GPU')
 
     IF (eos_type /= 2) THEN
      write(0,*) "Vector version for eos_type =",eos_type," not yet implemented."
@@ -2115,6 +2139,8 @@ CONTAINS
     !-------------------------------------------------------------------------------
 
     z_grav_rho = grav/OceanReferenceDensity
+
+    !$ACC DATA CREATE(z_rho_up, pressure, z_rho_down, salinity) IF(lacc)
 
     !ICON_OMP_PARALLEL PRIVATE(salinity, z_rho_up, z_rho_down, pressure)
     salinity = sal_ref
@@ -2204,6 +2230,12 @@ CONTAINS
     REAL(wp) :: z_rho_up(n_zlev), z_rho_down(n_zlev) !, density(n_zlev)
     REAL(wp) :: pressure(n_zlev), salinity(n_zlev)
 
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
     !-------------------------------------------------------------------------------
     patch_2D        => patch_3d%p_patch_2d(1)
     cells_in_domain => patch_2D%cells%in_domain
@@ -2212,20 +2244,27 @@ CONTAINS
 
     z_grav_rho = grav/OceanReferenceDensity
 
+    !$ACC DATA CREATE(salinity, z_rho_up, z_rho_down, pressure) IF(lacc)
+
     !ICON_OMP_PARALLEL PRIVATE(salinity, z_rho_up, z_rho_down, pressure)
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     salinity(1:n_zlev) = sal_ref
     z_rho_up(:)=0.0_wp
     z_rho_down(:)=0.0_wp
     pressure(:) = 0._wp
+    !$ACC END KERNELS
 
     !ICON_OMP_DO PRIVATE(start_index, end_index, cell_index, end_level, level, &
     !ICON_OMP z_shear_cell) ICON_OMP_DEFAULT_SCHEDULE
     DO blockNo = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, blockNo, start_index, end_index)
 
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       ocean_state%p_diag%Richardson_Number(:, :, blockNo) = 0.0_wp
       ocean_state%p_diag%zgrad_rho(:,:, blockNo) = 0.0_wp
+      !$ACC END KERNELS
 
+      !$ACC PARALLEL LOOP GANG VECTOR PRIVATE(salinity, z_rho_up, z_rho_down, pressure) DEFAULT(PRESENT) IF(lacc)
       DO cell_index = start_index, end_index
 
         end_level = patch_3d%p_patch_1d(1)%dolic_c(cell_index,blockNo)
@@ -2239,13 +2278,27 @@ CONTAINS
         pressure(2:end_level) = patch_3d%p_patch_1d(1)%depth_CellInterface(cell_index, 2:end_level, blockNo) &
              * OceanReferenceDensity * sitodbar
 
+#ifdef _OPENACC
+        DO level = 1, end_level-1
+          CALL calculate_density_onColumn_gpu(ocean_state%p_prog(nold(1))%tracer(cell_index,level,blockNo,1), &
+                                              salinity(level), pressure(level+1), z_rho_up(level))
+        END DO
+#else
         z_rho_up(1:end_level-1) = &
              calculate_density_onColumn(ocean_state%p_prog(nold(1))%tracer(cell_index,1:end_level-1,blockNo,1), &
              salinity(1:end_level-1), pressure(2:end_level),end_level-1)
+#endif
 
+#ifdef _OPENACC
+        DO level = 2, end_level
+          CALL calculate_density_onColumn_gpu(ocean_state%p_prog(nold(1))%tracer(cell_index,level,blockNo,1), &
+                                              salinity(level), pressure(level), z_rho_down(level))
+        END DO
+#else
         z_rho_down(2:end_level) = &
              calculate_density_onColumn(ocean_state%p_prog(nold(1))%tracer(cell_index,2:end_level,blockNo,1), &
              salinity(2:end_level), pressure(2:end_level), end_level-1)
+#endif
 
         DO level = 2, end_level
 
@@ -2266,11 +2319,13 @@ CONTAINS
                (z_rho_down(level) - z_rho_up(level-1)) / z_shear_cell, 0.0_wp)
         END DO ! levels
       END DO ! index
+      !$ACC END PARALLEL LOOP
 #endif
     END DO
 !ICON_OMP_END_DO
 !ICON_OMP_END_PARALLEL
 
+    !$ACC END DATA
 
   END SUBROUTINE calc_vertical_stability
   !-------------------------------------------------------------------------
@@ -2281,8 +2336,8 @@ CONTAINS
   SUBROUTINE calc_vertical_stability_zstar(patch_3d, ocean_state, eta_c, stretch_c)
     TYPE(t_patch_3d ),TARGET, INTENT(in)             :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET                :: ocean_state
-    REAL(wp), INTENT(IN) :: eta_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks) !! sfc ht 
-    REAL(wp), INTENT(IN) :: stretch_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks) 
+    REAL(wp), INTENT(IN) :: eta_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks) !! sfc ht
+    REAL(wp), INTENT(IN) :: stretch_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
 
     !Local variables
     INTEGER :: start_index, end_index, cell_index,level,end_level, blockNo

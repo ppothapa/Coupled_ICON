@@ -1199,34 +1199,7 @@ ccycle\_config(jg)\% ico2conc = 2
 %------------------------------------------------------------------------------
 \subsection{cloud\_mig\_nml}
 
-The parameterization of cloud microphysics 'graupel' for the AES physics is configured by a data structure \textit{cloud\_mig\_config(jg=1:ndom)\%<param>}, which is a 1-dimensional array extending over all  domains.
-
-\begin{longtab}
-cloud\_mig\_config(jg)\% zceff\_min & R & 0.01 & &
-Minimum value for sticking efficiency &
-aes\_phy\_config(jg)\% dt\_mig > 0.000s \tabularnewline
-%
-cloud\_mig\_config(jg)\% v0snow & R & 25.0 & &
-factor in the terminal velocity for snow &
-aes\_phy\_config(jg)\% dt\_mig > 0.000s \tabularnewline
-%
-cloud\_mig\_config(jg)\% zvz0i & R & 1.25 & &
-Terminal fall velocity of ice  (original value of Heymsfield+Donner 1990: 3.29) &
-aes\_phy\_config(jg)\% dt\_mig > 0.000s \tabularnewline
-%
-cloud\_mig\_config(jg)\% icesedi\_exp & R & 0.33 & &
-exponent for density correction for coud ice sedimentation &
-aes\_phy\_config(jg)\% dt\_mig > 0.000s \tabularnewline
-%
-cloud\_mig\_config(jg)\% mu\_rain & R & 0.0 & &
-COSMO\_EU default &
-aes\_phy\_config(jg)\% dt\_mig > 0.000s \tabularnewline
-%
-cloud\_mig\_config(jg)\% rain\_n0\_factor & R & 1.0 &  &
-COSMO\_EU default &
-aes\_phy\_config(jg)\% dt\_mig > 0.000s \tabularnewline
-
-\end{longtab}
+The parameterization of cloud microphysics 'graupel' for the AES physics is configured by a data structure \textit{cloud\_mig\_config(jg=1:ndom)\%<param>}, which is a 1-dimensional array extending over all  domains. There are no namelist parameters available for this parameterization.
 
 %------------------------------------------------------------------------------
 % coupling_model_nml:

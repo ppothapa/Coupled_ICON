@@ -559,8 +559,7 @@ CONTAINS
       lacc = .FALSE.
     END IF
 
-    !$ACC DATA PRESENT(a_v, h) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_c, patch_3d%p_patch_1d(1)%inv_prism_thick_c) &
+    !$ACC DATA COPYIN(a_v, h, patch_3d%p_patch_1d(1)%dolic_c, patch_3d%p_patch_1d(1)%inv_prism_thick_c) &
     !$ACC   COPYIN(patch_3d%p_patch_1d(1)%inv_prism_center_dist_c, patch_3d%p_patch_1d(1)%prism_thick_flat_sfc_c) &
     !$ACC   CREATE(a, b, bottom_level, c, column_tracer, fact, inv_prism_thickness) &
     !$ACC   CREATE(inv_prisms_center_distance, top_cell_thickness) &
@@ -659,7 +658,7 @@ CONTAINS
       !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO cell_index = start_index, end_index
         IF (bottom_level(cell_index) < 2) CYCLE ! nothing to diffuse
-        ocean_tracer%concentration(cell_index,1,blockNo) = column_tracer(cell_index,1)/b(cell_index,1)
+        field_column(cell_index,1,blockNo) = column_tracer(cell_index,1)/b(cell_index,1)
       ENDDO
 
       !$ACC LOOP SEQ
@@ -692,7 +691,7 @@ CONTAINS
       !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO cell_index=start_index,end_index
         IF (bottom_level(cell_index) < 2) CYCLE ! nothing to diffuse        
-        ocean_tracer%concentration(cell_index,bottom_level(cell_index),blockNo) = &
+        field_column(cell_index,bottom_level(cell_index),blockNo) = &
             column_tracer(cell_index,bottom_level(cell_index))/b(cell_index,bottom_level(cell_index))
       ENDDO
 

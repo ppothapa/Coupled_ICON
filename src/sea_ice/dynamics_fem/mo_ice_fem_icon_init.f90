@@ -582,60 +582,104 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   ! copy ice velocities to ICON variables
-  SUBROUTINE copy_fem2icon(u_ice, u_, nlev, lev_idx)
+  SUBROUTINE copy_fem2icon(u_ice, u_, nlev, lev_idx, use_acc)
     INTEGER, INTENT(in) :: nlev, lev_idx
     REAL(wp), INTENT(IN) :: u_ice(fem_patch%n_patch_verts)
     REAL(wp), INTENT(INOUT) :: u_(nproma, nlev, fem_patch%nblks_v)
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+
     INTEGER :: jv, jb, npad, nlast
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
     DO jb = 1, fem_patch%nblks_v-1
       DO jv = 1, nproma
         u_(jv, lev_idx, jb) = u_ice((jb-1)*nproma + jv)
       END DO
     END DO
+    !$ACC END PARALLEL LOOP
+
     npad = nproma*fem_patch%nblks_v - fem_patch%n_patch_verts
     nlast = nproma - npad
     jb = fem_patch%nblks_v
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
     DO jv = 1, nlast
       u_(jv, lev_idx, jb) = u_ice((jb-1)*nproma + jv)
     END DO
+    !$ACC END PARALLEL LOOP
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
     DO jv = nlast+1,nproma
       u_(jv, lev_idx, jb) = -9999._wp
     END DO
+    !$ACC END PARALLEL LOOP
+
   END SUBROUTINE copy_fem2icon
 
   ! Reshape and copy ice velocity to FEM model variables
-  SUBROUTINE copy_icon2fem(u_, u_ice, nlev, lev_idx)
+  SUBROUTINE copy_icon2fem(u_, u_ice, nlev, lev_idx, use_acc)
     INTEGER, INTENT(in) :: nlev, lev_idx
     REAL(wp), INTENT(IN) :: u_(nproma, nlev, fem_patch%nblks_v)
     REAL(wp), INTENT(OUT) :: u_ice(fem_patch%n_patch_verts)
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+
+    LOGICAL :: lacc
     INTEGER :: jv, jb, npad, nlast
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
     DO jb = 1, fem_patch%nblks_v-1
       DO jv = 1, nproma
         u_ice((jb-1)*nproma + jv) = u_(jv, lev_idx, jb)
       END DO
     END DO
+    !$ACC END PARALLEL LOOP
     npad = nproma*fem_patch%nblks_v - fem_patch%n_patch_verts
     nlast = nproma - npad
     jb = fem_patch%nblks_v
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
     DO jv = 1, nlast
       u_ice((jb-1)*nproma + jv) = u_(jv, lev_idx, jb)
     END DO
+    !$ACC END PARALLEL LOOP
   END SUBROUTINE copy_icon2fem
 
-  SUBROUTINE exchange_nod2Dx2(u1_ice, u2_ice)
+  SUBROUTINE exchange_nod2Dx2(u1_ice, u2_ice, use_acc)
     REAL(wp), INTENT(INOUT) :: u1_ice(fem_patch%n_patch_verts), &
          u2_ice(fem_patch%n_patch_verts)
-
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    
+    LOGICAL :: lacc
     ! Temporary buffer
     REAL(wp) :: u_(nproma, 2, fem_patch%nblks_v)
 
-    CALL copy_fem2icon(u1_ice, u_, 2, 1)
-    CALL copy_fem2icon(u2_ice, u_, 2, 2)
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    !$ACC DATA CREATE(u_) IF(lacc)
+
+    CALL copy_fem2icon(u1_ice, u_, 2, 1, use_acc=lacc)
+    CALL copy_fem2icon(u2_ice, u_, 2, 2, use_acc=lacc)
 
     CALL sync_patch_array(SYNC_V, fem_patch, u_)
 
-    CALL copy_icon2fem(u_, u1_ice, 2, 1)
-    CALL copy_icon2fem(u_, u2_ice, 2, 2)
+    CALL copy_icon2fem(u_, u1_ice, 2, 1, use_acc=lacc)
+    CALL copy_icon2fem(u_, u2_ice, 2, 2, use_acc=lacc)
+
+    !$ACC END DATA
 
   END SUBROUTINE exchange_nod2Dx2
 

@@ -27,7 +27,10 @@ MODULE mo_surface
 !#endif
 
   USE mo_physical_constants,ONLY: grav, Tf, alf, albedoW, stbo, tmelt, rhos!!$, rhoi
+  USE mo_physical_constants,ONLY: cvd, cpd
   USE mo_coupling_config,   ONLY: is_coupled_run
+  USE mo_coupling_config,   ONLY: config_use_sens_heat_flux_hack
+  USE mo_coupling_config,   ONLY: config_suppress_sens_heat_flux_hack_over_ice
   USE mo_aes_phy_config,    ONLY: aes_phy_config
   USE mo_aes_phy_memory,    ONLY: cdimissval
   USE mo_aes_vdf_config,    ONLY: aes_vdf_config
@@ -1076,22 +1079,49 @@ CONTAINS
       ! Net shortwave on all bands.
       ! Net longwave - we don't have tiles yet
       ! First all ice classes
-      !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
-      DO k=1,kice
-        DO jl = jcs,kproma
-          swflx_ice(jl,k) = rvds_dif(jl) * (1._wp - albvisdif_ice(jl,k)) +     &
-                          & rvds_dir(jl) * (1._wp - albvisdir_ice(jl,k)) +     &
-                          & rnds_dif(jl) * (1._wp - albnirdif_ice(jl,k)) +     &
-                          & rnds_dir(jl) * (1._wp - albnirdir_ice(jl,k))
 
-          nonsolar_ice(jl,k) = &
-            emissivity(jl) * (rlds(jl) - stbo * (Tsurf(jl,k)+tmelt)**4) &  !  longwave net
-            & + plhflx_tile(jl,idx_ice) + pshflx_tile(jl,idx_ice)
+      IF (config_use_sens_heat_flux_hack .AND. &
+          .NOT. config_suppress_sens_heat_flux_hack_over_ice) THEN
 
-          dnonsolardT(jl,k) = -4._wp * emissivity(jl) * stbo * (Tsurf(jl,k)+tmelt)**3
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
+        DO k=1,kice
+          DO jl = jcs,kproma
+            swflx_ice(jl,k) = rvds_dif(jl) * (1._wp - albvisdif_ice(jl,k)) +     &
+                            & rvds_dir(jl) * (1._wp - albvisdir_ice(jl,k)) +     &
+                            & rnds_dif(jl) * (1._wp - albnirdif_ice(jl,k)) +     &
+                            & rnds_dir(jl) * (1._wp - albnirdir_ice(jl,k))
+
+            nonsolar_ice(jl,k) = &
+              emissivity(jl) * (rlds(jl) - stbo * (Tsurf(jl,k)+tmelt)**4) &  !  longwave net
+              & + plhflx_tile(jl,idx_ice) + (cvd/cpd)*pshflx_tile(jl,idx_ice)
+
+            dnonsolardT(jl,k) = -4._wp * emissivity(jl) * stbo * (Tsurf(jl,k)+tmelt)**3
+          ENDDO
         ENDDO
-      ENDDO
-      !$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL LOOP
+
+      ELSE ! .NOT. config_use_sens_heat_flux_hack .OR.
+           ! config_suppress_sens_heat_flux_hack_over_ice
+
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
+        DO k=1,kice
+          DO jl = jcs,kproma
+            swflx_ice(jl,k) = rvds_dif(jl) * (1._wp - albvisdif_ice(jl,k)) +     &
+                            & rvds_dir(jl) * (1._wp - albvisdir_ice(jl,k)) +     &
+                            & rnds_dif(jl) * (1._wp - albnirdif_ice(jl,k)) +     &
+                            & rnds_dir(jl) * (1._wp - albnirdir_ice(jl,k))
+
+            nonsolar_ice(jl,k) = &
+              emissivity(jl) * (rlds(jl) - stbo * (Tsurf(jl,k)+tmelt)**4) &  !  longwave net
+              & + plhflx_tile(jl,idx_ice) + pshflx_tile(jl,idx_ice)
+
+            dnonsolardT(jl,k) = -4._wp * emissivity(jl) * stbo * (Tsurf(jl,k)+tmelt)**3
+          ENDDO
+        ENDDO
+        !$ACC END PARALLEL LOOP
+
+      ENDIF ! config_use_sens_heat_flux_hack .AND.
+            ! .NOT. config_suppress_sens_heat_flux_hack_over_ice
 
       !$ACC WAIT
       CALL ice_fast(jcs, kproma, kbdim, kice, pdtime, &
