@@ -2681,7 +2681,7 @@ MODULE mo_nh_stepping
     ! compute dynamics timestep
     dt_dyn = dt_phy/ndyn_substeps_var(jg)
 
-    IF ( idiv_method == 1 .AND. (ltransport .OR. p_patch%n_childdom > 0 .AND. grf_intmethod_e >= 5)) THEN
+    IF ( idiv_method == 1 .AND. (ltransport .OR. p_patch%n_childdom > 0 .AND. grf_intmethod_e == 6)) THEN
       lprep_adv = .TRUE. ! do computations for preparing tracer advection in solve_nh
     ELSE
       lprep_adv = .FALSE.

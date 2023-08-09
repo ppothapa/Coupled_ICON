@@ -511,15 +511,18 @@ CONTAINS
     !-----------------------------------------------------------------------------
     ! For the NH model, the initialization routines called from
     ! construct_2d_gridref_state require the metric terms to be present
-      
+
     IF (n_dom_start==0 .OR. n_dom > 1) THEN
 
       ! Construct gridref state
       ! For non-parallel runs (either 1 PE only or on the test PE) this is done as usual,
       ! for parallel runs, the main part of the gridref state is constructed on the
       ! local parent with the following call
-      CALL construct_2d_gridref_state (p_patch, p_grf_state)
-        
+      CALL construct_2d_gridref_state (p_patch(n_dom_start:),                  &
+        &                              p_patch_local_parent(n_dom_start+1:),   &
+        &                              p_grf_state(n_dom_start:),              &
+        &                              p_grf_state_local_parent(n_dom_start+1:))
+
       ! Transfer gridref state from local parent to p_grf_state
       DO jg = n_dom_start+1, n_dom
         jgp = p_patch(jg)%parent_id
@@ -700,11 +703,16 @@ CONTAINS
     END IF
 
     ! Deconstruct grid refinement state
+    IF ( n_dom_start==0 .OR. n_dom > 1) THEN
+      CALL destruct_2d_gridref_state( p_patch, p_patch_local_parent, p_grf_state, &
+        &                             p_grf_state_local_parent )
 
-    IF (n_dom > 1) THEN
-      CALL destruct_2d_gridref_state( p_patch, p_grf_state )
+      ! Note that p_grf_state_local_parent is not allocated for n_dom=1 without radiation grid
+      DEALLOCATE (p_grf_state_local_parent, STAT=error_status)
+      IF (error_status /= SUCCESS) THEN
+        CALL finish(routine, 'deallocation for p_grf_state_local_parent failed')
+      ENDIF
     ENDIF
-    IF (msg_level > 5) CALL message(routine,'destruct_2d_gridref_state is done')
 
     DEALLOCATE (p_grf_state, STAT=error_status)
     IF (error_status /= SUCCESS) THEN
@@ -712,7 +720,6 @@ CONTAINS
     ENDIF
 
     ! Deallocate interpolation fields
-
     CALL destruct_2d_interpol_state( p_int_state )
     IF (msg_level>5) CALL message(routine,'destruct_2d_interpol_state is done')
 

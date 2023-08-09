@@ -1376,7 +1376,7 @@ MODULE mo_nh_deepatmo_solve
       ENDIF
 
       ! Preparations for nest boundary interpolation of mass fluxes from parent domain
-      IF (jg > 1 .AND. grf_intmethod_e >= 5 .AND. idiv_method == 1 .AND. jstep == 0 .AND. istep == 1) THEN
+      IF (jg > 1 .AND. grf_intmethod_e == 6 .AND. idiv_method == 1 .AND. jstep == 0 .AND. istep == 1) THEN
 !$OMP DO PRIVATE(ic,je,jb,jk) ICON_OMP_DEFAULT_SCHEDULE
         DO ic = 1, p_nh%metrics%bdy_mflx_e_dim
           je = p_nh%metrics%bdy_mflx_e_idx(ic)
@@ -1637,7 +1637,7 @@ MODULE mo_nh_deepatmo_solve
 !$OMP END DO
 
       ! Apply mass fluxes across lateral nest boundary interpolated from parent domain
-      IF (jg > 1 .AND. grf_intmethod_e >= 5 .AND. idiv_method == 1) THEN
+      IF (jg > 1 .AND. grf_intmethod_e == 6 .AND. idiv_method == 1) THEN
 !$OMP DO PRIVATE(ic,je,jb,jk) ICON_OMP_DEFAULT_SCHEDULE
         DO ic = 1, p_nh%metrics%bdy_mflx_e_dim
           je = p_nh%metrics%bdy_mflx_e_idx(ic)

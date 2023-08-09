@@ -1636,7 +1636,7 @@ MODULE mo_solve_nonhydro
       ENDIF
 
       ! Preparations for nest boundary interpolation of mass fluxes from parent domain
-      IF (jg > 1 .AND. grf_intmethod_e >= 5 .AND. idiv_method == 1 .AND. jstep == 0 .AND. istep == 1) THEN
+      IF (jg > 1 .AND. grf_intmethod_e == 6 .AND. idiv_method == 1 .AND. jstep == 0 .AND. istep == 1) THEN
 
         !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
         !$ACC LOOP GANG
@@ -1937,7 +1937,7 @@ MODULE mo_solve_nonhydro
 !$OMP END DO
 
       ! Apply mass fluxes across lateral nest boundary interpolated from parent domain
-      IF (jg > 1 .AND. grf_intmethod_e >= 5 .AND. idiv_method == 1) THEN
+      IF (jg > 1 .AND. grf_intmethod_e == 6 .AND. idiv_method == 1) THEN
 
         !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
         ! PGI 21.2 requires GANG-VECTOR on this level. (Having the jk as VECTOR crashes.)
@@ -3095,7 +3095,7 @@ MODULE mo_solve_nonhydro
        !$ACC UPDATE DEVICE(rho_incr_tmp, exner_incr_tmp)
 
        grf_bdy_mflx_tmp   => p_nh%diag%grf_bdy_mflx
-       !$ACC UPDATE DEVICE(grf_bdy_mflx_tmp) IF((jg > 1) .AND. (grf_intmethod_e >= 5) .AND. (idiv_method == 1) .AND. (jstep == 0))
+       !$ACC UPDATE DEVICE(grf_bdy_mflx_tmp) IF((jg > 1) .AND. (grf_intmethod_e == 6) .AND. (idiv_method == 1) .AND. (jstep == 0))
 
 ! prep_adv:
 
@@ -3200,7 +3200,7 @@ MODULE mo_solve_nonhydro
       !$ACC UPDATE HOST(vn_ie_int_tmp) IF(idyn_timestep == 1 .AND. l_child_vertnest)
 
       grf_bdy_mflx_tmp    => p_nh%diag%grf_bdy_mflx
-      !$ACC UPDATE HOST(grf_bdy_mflx_tmp) IF((jg > 1) .AND. (grf_intmethod_e >= 5) .AND. (idiv_method == 1) .AND. (jstep == 0))
+      !$ACC UPDATE HOST(grf_bdy_mflx_tmp) IF((jg > 1) .AND. (grf_intmethod_e == 6) .AND. (idiv_method == 1) .AND. (jstep == 0))
 
       vn_traj_tmp         => prep_adv%vn_traj
       mass_flx_me_tmp     => prep_adv%mass_flx_me

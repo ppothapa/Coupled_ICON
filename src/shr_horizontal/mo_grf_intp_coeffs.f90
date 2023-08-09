@@ -43,8 +43,7 @@ MODULE mo_grf_intp_coeffs
 USE mo_kind,                ONLY: wp
 USE mo_exception,           ONLY: finish
 USE mo_impl_constants,      ONLY: SUCCESS, min_rlcell_int, min_rledge_int
-USE mo_model_domain,        ONLY: t_patch, t_grid_edges, t_grid_cells, t_grid_vertices, &
- &                                p_patch_local_parent
+USE mo_model_domain,        ONLY: t_patch, t_grid_edges, t_grid_cells, t_grid_vertices
 
 USE mo_grid_config,         ONLY: n_dom, n_dom_start, grid_sphere_radius
 
@@ -53,49 +52,35 @@ USE mo_math_utilities,      ONLY: gc2cc, gvec2cvec, arc_length, &
                                   arc_length_v
 USE mo_math_utility_solvers, ONLY: solve_chol_v, choldec_v
 
-USE mo_impl_constants_grf,  ONLY: grf_bdyintp_start_c, grf_bdyintp_start_e,  &
-                                  grf_fbk_start_c
+USE mo_impl_constants_grf,  ONLY: grf_bdyintp_start_c, grf_bdyintp_start_e
 
 USE mo_parallel_config,     ONLY: nproma
 USE mo_loopindices,         ONLY: get_indices_c, get_indices_e
 USE mo_mpi,                 ONLY: my_process_is_mpi_parallel
 USE mo_communication,       ONLY: exchange_data
-USE mo_sync,                ONLY: global_sum_array
 
-USE mo_grf_intp_data_strc,  ONLY: t_gridref_single_state, t_gridref_state, &
-  &                               p_grf_state_local_parent
-USE mo_gridref_config,      ONLY: grf_idw_exp_e12, grf_idw_exp_e34, rbf_vec_kern_grf_e, &
-  &                               grf_velfbk, rbf_scale_grf_e
+USE mo_grf_intp_data_strc,  ONLY: t_gridref_single_state, t_gridref_state
+USE mo_gridref_config,      ONLY: rbf_vec_kern_grf_e, grf_velfbk, rbf_scale_grf_e
 
 IMPLICIT NONE
 
 PRIVATE
 
-TYPE(t_patch), POINTER :: p_patch(:)
 
-PUBLIC :: grf_intp_coeffs_setpatch
-PUBLIC :: compute_pc2cc_distances, compute_pe2ce_distances, gridref_info,         &
-        & init_fbk_wgt, grf_index, rbf_compute_coeff_grf_e, idw_compute_coeff_grf_e
+PUBLIC :: compute_pc2cc_distances
+PUBLIC :: compute_pe2ce_distances
+PUBLIC :: init_fbk_wgt
+PUBLIC :: grf_index
+PUBLIC :: rbf_compute_coeff_grf_e
 
 
 !> module name string
 CHARACTER(LEN=*), PARAMETER :: modname = 'mo_grf_intp_coeffs'
 
 
-
 CONTAINS
 
 #include "intp_functions.inc"
-
-
-SUBROUTINE grf_intp_coeffs_setpatch(in_patch)
-
-  TYPE(t_patch), TARGET, INTENT(IN)  :: in_patch(n_dom_start:)
-
-  p_patch => in_patch
-
-END SUBROUTINE grf_intp_coeffs_setpatch
-
 
 !-------------------------------------------------------------------------
 !
@@ -107,7 +92,11 @@ END SUBROUTINE grf_intp_coeffs_setpatch
 !! @par Revision History
 !! Developed  by Guenther. Zaengl, DWD, 2009-12-16
 !!
-SUBROUTINE compute_pc2cc_distances()
+SUBROUTINE compute_pc2cc_distances(p_patch, p_patch_local_parent, p_grf_state_local_parent)
+
+TYPE(t_patch),         TARGET, INTENT(IN)    :: p_patch(n_dom_start:)
+TYPE(t_patch),         TARGET, INTENT(IN)    :: p_patch_local_parent(n_dom_start+1:)
+TYPE(t_gridref_state), TARGET, INTENT(INOUT) :: p_grf_state_local_parent(n_dom_start+1:)
 !
 ! local variables
 TYPE(t_patch),      POINTER :: p_pp => NULL()
@@ -230,7 +219,11 @@ END SUBROUTINE compute_pc2cc_distances
 !! @par Revision History
 !! Developed  by Guenther. Zaengl, DWD, 2010-03-11
 !!
-SUBROUTINE compute_pe2ce_distances( )
+SUBROUTINE compute_pe2ce_distances(p_patch, p_patch_local_parent, p_grf_state_local_parent)
+
+TYPE(t_patch),         TARGET, INTENT(IN)    :: p_patch(n_dom_start:)
+TYPE(t_patch),         TARGET, INTENT(IN)    :: p_patch_local_parent(n_dom_start+1:)
+TYPE(t_gridref_state), TARGET, INTENT(INOUT) :: p_grf_state_local_parent(n_dom_start+1:)
 !
 ! local variables
 TYPE(t_patch),      POINTER :: p_pp => NULL()
@@ -315,79 +308,6 @@ END SUBROUTINE compute_pe2ce_distances
 !
 !
 !>
-!! This routine computes fbk_dom_area
-!!
-!! @par Revision History
-!! Developed  by Guenther. Zaengl, DWD, 2009-03-19
-!! Reduced to the computation of fbk_dom_area, Rainer Johanni, 2011-12-20
-!!
-SUBROUTINE gridref_info( p_grf)
-
-
-TYPE(t_gridref_state), TARGET, INTENT(INOUT) :: p_grf  (n_dom_start:)
-
-! local variables
-
-TYPE(t_grid_cells), POINTER :: p_gcp => NULL()
-TYPE(t_patch),      POINTER :: p_pp => NULL()
-
-INTEGER :: jb, jc, jg, ji, i_startblk, i_endblk,         &
-           i_startidx, i_endidx, i_nchdom, icid
-
-
-REAL(wp), ALLOCATABLE :: z_area(:,:)
-
-!-----------------------------------------------------------------------
-!
-
-DO jg = n_dom_start, n_dom-1
-
-  p_gcp  => p_patch(jg)%cells
-  p_pp   => p_patch(jg)
-
-  i_nchdom = p_pp%n_childdom
-  IF (i_nchdom == 0) CYCLE
-
-! c) Compute area of feedback domains
-  DO ji = 1, i_nchdom
-
-    icid = p_pp%child_id(ji)
-    p_grf(jg)%fbk_dom_area(ji) = 0._wp
-
-    ALLOCATE(z_area(nproma,p_pp%nblks_c))
-    z_area = 0._wp
-
-    i_startblk = p_gcp%start_blk(1,1)
-    i_endblk   = p_gcp%end_blk(min_rlcell_int,i_nchdom)
-
-    DO jb = i_startblk, i_endblk
-
-      CALL get_indices_c(p_pp, jb, i_startblk, i_endblk, &
-                         i_startidx, i_endidx, 1, min_rlcell_int)
-
-      DO jc = i_startidx, i_endidx
-
-        IF (p_gcp%refin_ctrl(jc,jb) <= grf_fbk_start_c .AND. p_gcp%child_id(jc,jb) == icid .AND. &
-           p_gcp%decomp_info%owner_mask(jc,jb)) z_area(jc,jb) = p_gcp%area(jc,jb)
-
-      ENDDO
-    ENDDO
-
-    p_grf(jg)%fbk_dom_area(ji) = global_sum_array(z_area)
-    DEALLOCATE(z_area)
-
-  ENDDO
-
-ENDDO
-
-
-END SUBROUTINE gridref_info
-
-!-------------------------------------------------------------------------
-!
-!
-!
-!>
 !! This routine computes the feedback weighting coefficients needed for.
 !!
 !! This routine computes the feedback weighting coefficients needed for
@@ -401,7 +321,11 @@ END SUBROUTINE gridref_info
 !! Moved from hierarchy_management to grf_interpolation (2009-03-12)
 !! Add feedback weight computation for edge-based variables (2009-03-19)
 !!
-SUBROUTINE init_fbk_wgt( )
+SUBROUTINE init_fbk_wgt(p_patch, p_patch_local_parent, p_grf_state_local_parent)
+
+TYPE(t_patch),         TARGET, INTENT(IN)    :: p_patch(n_dom_start:)
+TYPE(t_patch),         TARGET, INTENT(IN)    :: p_patch_local_parent(n_dom_start+1:)
+TYPE(t_gridref_state), TARGET, INTENT(INOUT) :: p_grf_state_local_parent(n_dom_start+1:)
 
 ! local variables
 
@@ -746,7 +670,12 @@ END SUBROUTINE init_fbk_wgt
 !! Developed and tested  by G. Zaengl (June 2008)
 !! Rewritten for vectorization by G. Zaengl (May 2010)
 !!
-SUBROUTINE grf_index()
+SUBROUTINE grf_index(p_patch, p_patch_local_parent, p_grf_state_local_parent)
+
+TYPE(t_patch),         TARGET, INTENT(IN)    :: p_patch(n_dom_start:)
+TYPE(t_patch),         TARGET, INTENT(IN)    :: p_patch_local_parent(n_dom_start+1:)
+TYPE(t_gridref_state), TARGET, INTENT(INOUT) :: p_grf_state_local_parent(n_dom_start+1:)
+
 !
 TYPE(t_patch),      POINTER :: p_pp => NULL()
 TYPE(t_patch),      POINTER :: p_pc => NULL()
@@ -1133,8 +1062,12 @@ END SUBROUTINE grf_index
 !! @par Revision History
 !! Developed and tested by Guenther Zaengl (May 2008)
 !!
-SUBROUTINE rbf_compute_coeff_grf_e ()
+SUBROUTINE rbf_compute_coeff_grf_e (p_patch, p_patch_local_parent, p_grf_state_local_parent)
 !
+TYPE(t_patch),         TARGET, INTENT(IN)    :: p_patch(n_dom_start:)
+TYPE(t_patch),         TARGET, INTENT(IN)    :: p_patch_local_parent(n_dom_start+1:)
+TYPE(t_gridref_state), TARGET, INTENT(INOUT) :: p_grf_state_local_parent(n_dom_start+1:)
+
 TYPE(t_patch),      POINTER :: p_pp => NULL()
 TYPE(t_patch),      POINTER :: p_pc => NULL()
 
@@ -1443,367 +1376,6 @@ LEV_LOOP: DO jg = n_dom_start, n_dom-1
 END DO LEV_LOOP
 
 END SUBROUTINE rbf_compute_coeff_grf_e
-
-!-------------------------------------------------------------------------
-!
-!
-!>
-!! This routine computes the coefficients needed for inverse-distance-weighting.
-!!
-!! This routine computes the coefficients needed for inverse-distance-weighting
-!! (IDW) interpolation to child cells and edges, which is required along the
-!! lateral boundaries of nested model domains. Unlike RBF interpolation, the
-!! IDW interpolation assumes a locally plain surface tangential to the sphere at
-!! the target point of the interpolation (i.e. there is no transformation to
-!! 3D cartesian space).
-!!
-!! @par Revision History
-!! Developed and tested  by Guenther Zaengl (May 2008)
-!!
-SUBROUTINE idw_compute_coeff_grf_e ()
-!
-TYPE(t_patch),      POINTER :: p_pp => NULL()
-TYPE(t_patch),      POINTER :: p_pc => NULL()
-
-TYPE(t_grid_edges),POINTER  :: ptr_ep, ptr_ec ! pointer to parent and child edges
-
-TYPE(t_gridref_single_state),POINTER :: ptr_grf ! pointer to gridref_state for a
-                                              ! single child domain
-
-                                                             ! coordinates of ...
-TYPE(t_cartesian_coordinates) :: cc_e1, cc_e, cc_childedge    ! edge midpoints
-
-REAL(wp)           :: z_nx1(3),z_nx2(3)     ! 3d  normal velocity
-                                            ! vectors at edge midpoints
-
-REAL(wp)           :: z_dist, z_mindist     ! distance/minimum distance between data points
-
-REAL(wp)           :: z_nxprod              ! scalar product of normal
-                                            ! velocity vectors
-REAL(wp)           :: z_wgtsum              ! sum of weighting factors (for normalization)
-
-REAL(wp) :: z_idwwgt(6)      ! IDW weighting factors
-
-! Index variables
-INTEGER :: jg, jb, je, jcd, jgc, &
-           iie1, ibe1, je1, iiec, ibec
-INTEGER :: istencil              ! number of edges for the stencil
-INTEGER :: i_startblk                ! start block
-INTEGER :: i_endblk                  ! end index
-INTEGER :: i_startidx                ! start index
-INTEGER :: i_endidx                  ! end index
-
-TYPE(t_patch), POINTER      :: ptr_patch(:)
-!--------------------------------------------------------------------
-
-ptr_patch => p_patch
-
-LEV_LOOP: DO jg = n_dom_start, n_dom-1
-
- CD_LOOP: DO jcd = 1, ptr_patch(jg)%n_childdom
-
-  jgc  = ptr_patch(jg)%child_id(jcd)
-  p_pc => p_patch(jgc)
-
-  p_pp    => p_patch_local_parent(jgc)
-  ptr_grf => p_grf_state_local_parent(jgc)%p_dom(jcd)
-
-  ptr_ep   => p_pp%edges
-  ptr_ec   => p_pc%edges
-
-  ! Start and end blocks for which vector interpolation is needed
-  i_startblk = p_pp%edges%start_blk(grf_bdyintp_start_e,jcd)
-  i_endblk   = p_pp%edges%end_blk(min_rledge_int,jcd)
-
-!$OMP PARALLEL PRIVATE (z_idwwgt,istencil,jb, i_startidx, i_endidx)
-  DO jb =  i_startblk, i_endblk
-
-    CALL get_indices_e(p_pp, jb, i_startblk, i_endblk, &
-                       i_startidx, i_endidx, grf_bdyintp_start_e, min_rledge_int)
-
-! Note: OMP parallelization is done over je because for reasonable (=efficient)
-! choices of nproma, the boundary interpolation zone extends over no more
-! than 2 blocks.
-! Note: OMP directives do not work in combination with subroutine inlining on the NEC
-!$OMP DO PRIVATE (je,je1,iie1,ibe1,cc_e,cc_e1,                       &
-!$OMP    z_mindist,z_nx1,z_wgtsum,      &
-!$OMP    z_nx2,z_nxprod,z_dist,iiec,ibec,cc_childedge) ICON_OMP_DEFAULT_SCHEDULE
-    DO je = i_startidx, i_endidx
-
-      ! 1a) child edge 1
-      !
-      ! get current number of points for stencil and
-      ! allocate temporary arrays
-      istencil = ptr_grf%grf_vec_stencil_1a(je,jb)
-
-     ! compute minimum distance between local point and other stencil points
-      cc_e = gc2cc(ptr_ep%center(je,jb))
-      z_mindist = 1.e38_wp
-      DO je1 = 1, istencil
-        iie1 = ptr_grf%grf_vec_ind_1a(je,je1,jb)
-        ibe1 = ptr_grf%grf_vec_blk_1a(je,je1,jb)
-        IF ((je /= iie1) .OR. (jb /= ibe1)) THEN
-          cc_e1 = gc2cc(ptr_ep%center(iie1,ibe1))
-          z_mindist = MIN(z_mindist,arc_length(cc_e1,cc_e))
-        ENDIF
-      END DO
-
-      !  compute the vector IDW interpolation coefficients
-
-      iiec = ptr_ep%child_idx(je,jb,1) ! child edge 1
-      ibec = ptr_ep%child_blk(je,jb,1)
-      cc_childedge = gc2cc(ptr_ec%center(iiec,ibec))
-
-      z_nx1(:) = ptr_ec%primal_cart_normal(iiec,ibec)%x(:)
-
-      z_wgtsum = 0.0_wp
-
-      DO je1 = 1, istencil
-        !
-        ! indices for each edge je1 of IDW stencil
-        !
-        iie1 = ptr_grf%grf_vec_ind_1a(je,je1,jb)
-        ibe1 = ptr_grf%grf_vec_blk_1a(je,je1,jb)
-        !
-        ! transform to cartesian vector
-        !
-        cc_e1 = gc2cc(ptr_ep%center(iie1,ibe1))
-        z_dist = arc_length(cc_e1,cc_childedge)/z_mindist
-
-        !
-        ! normal component and coordinates of edge midpoints for each edge je1
-        ! of IDW stencil
-        ! transform to cartesian vectors
-        ! compute unit normal to edge je1
-        z_nx2(:) = ptr_ep%primal_cart_normal(iie1,ibe1)%x(:)
-
-        z_nxprod = DOT_PRODUCT(z_nx1,z_nx2)
-
-        z_idwwgt(je1) = z_nxprod * invdwgt(z_dist,grf_idw_exp_e12)
-        z_wgtsum = z_wgtsum + z_idwwgt(je1)*z_nxprod
-
-      END DO
-
-      ! Store normalized weighting factors in output array
-      DO je1 = 1, istencil
-        ptr_grf%grf_vec_coeff_1a(je1,je,jb) = z_idwwgt(je1)/z_wgtsum
-      END DO
-
-      ! 1a) child edge 2
-      !
-      ! get current number of points for stencil and
-      ! allocate temporary arrays
-      istencil = ptr_grf%grf_vec_stencil_1b(je,jb)
-
-      ! compute minimum distance between local point and other stencil points
-      cc_e = gc2cc(ptr_ep%center(je,jb))
-      z_mindist = 1.e38_wp
-      DO je1 = 1, istencil
-        iie1 = ptr_grf%grf_vec_ind_1b(je,je1,jb)
-        ibe1 = ptr_grf%grf_vec_blk_1b(je,je1,jb)
-        IF ((je /= iie1) .OR. (jb /= ibe1)) THEN
-          cc_e1 = gc2cc(ptr_ep%center(iie1,ibe1))
-          z_mindist = MIN(z_mindist,arc_length(cc_e1,cc_e))
-        ENDIF
-      END DO
-
-      !  compute the vector IDW interpolation coefficients
-
-      iiec = ptr_ep%child_idx(je,jb,2) ! child edge 2
-      ibec = ptr_ep%child_blk(je,jb,2)
-      cc_childedge = gc2cc(ptr_ec%center(iiec,ibec))
-
-      z_nx1(:) = ptr_ec%primal_cart_normal(iiec,ibec)%x(:)
-
-      z_wgtsum = 0.0_wp
-
-      DO je1 = 1, istencil
-        !
-        ! indices for each edge je1 of IDW stencil
-        !
-        iie1 = ptr_grf%grf_vec_ind_1b(je,je1,jb)
-        ibe1 = ptr_grf%grf_vec_blk_1b(je,je1,jb)
-        !
-        ! transform to cartesian vector
-        !
-        cc_e1 = gc2cc(ptr_ep%center(iie1,ibe1))
-        z_dist = arc_length(cc_e1,cc_childedge)/z_mindist
-
-        !
-        ! normal component and coordinates of edge midpoints for each edge je1
-        ! of IDW stencil
-        ! transform to cartesian vectors
-        ! compute unit normal to edge je1
-        z_nx2(:) = ptr_ep%primal_cart_normal(iie1,ibe1)%x(:)
-
-        z_nxprod = DOT_PRODUCT(z_nx1,z_nx2)
-
-        z_idwwgt(je1) = z_nxprod * invdwgt(z_dist,grf_idw_exp_e12)
-        z_wgtsum = z_wgtsum + z_idwwgt(je1)*z_nxprod
-
-      END DO
-
-      ! Store normalized weighting factors in output array
-      DO je1 = 1, istencil
-        ptr_grf%grf_vec_coeff_1b(je1,je,jb) = z_idwwgt(je1)/z_wgtsum
-      END DO
-
-      ! 1c) child edge 3
-      !
-      ! get current number of points for stencil and
-      ! allocate temporary arrays
-      istencil = ptr_grf%grf_vec_stencil_2a(je,jb)
-
-      ! compute minimum distance between local point and other stencil points
-      cc_e = gc2cc(ptr_ep%center(je,jb))
-      z_mindist = 1.e38_wp
-      DO je1 = 1, istencil
-        iie1 = ptr_grf%grf_vec_ind_2a(je,je1,jb)
-        ibe1 = ptr_grf%grf_vec_blk_2a(je,je1,jb)
-        IF ((je /= iie1) .OR. (jb /= ibe1)) THEN
-          cc_e1 = gc2cc(ptr_ep%center(iie1,ibe1))
-          z_mindist = MIN(z_mindist,arc_length(cc_e1,cc_e))
-        ENDIF
-      END DO
-
-      !  compute the vector IDW interpolation coefficients
-
-      iiec = ABS(ptr_ep%child_idx(je,jb,3)) ! child edge 3
-      ibec = ptr_ep%child_blk(je,jb,3)
-      cc_childedge = gc2cc(ptr_ec%center(iiec,ibec))
-
-      z_nx1(:) = ptr_ec%primal_cart_normal(iiec,ibec)%x(:)
-
-      z_wgtsum = 0.0_wp
-
-      DO je1 = 1, istencil
-        !
-        ! indices for each edge je1 of IDW stencil
-        !
-        iie1 = ptr_grf%grf_vec_ind_2a(je,je1,jb)
-        ibe1 = ptr_grf%grf_vec_blk_2a(je,je1,jb)
-        !
-        ! transform to cartesian vector
-        !
-        cc_e1 = gc2cc(ptr_ep%center(iie1,ibe1))
-        z_dist = arc_length(cc_e1,cc_childedge)/z_mindist
-
-        !
-        ! normal component and coordinates of edge midpoints for each edge je1
-        ! of IDW stencil
-        ! transform to cartesian vectors
-        ! compute unit normal to edge je1
-        z_nx2(:) = ptr_ep%primal_cart_normal(iie1,ibe1)%x(:)
-
-        z_nxprod = DOT_PRODUCT(z_nx1,z_nx2)
-
-        z_idwwgt(je1) = z_nxprod * invdwgt(z_dist,grf_idw_exp_e34)
-        z_wgtsum = z_wgtsum + z_idwwgt(je1)*z_nxprod
-
-      END DO
-
-      ! Store normalized weighting factors in output array
-      DO je1 = 1, istencil
-        ptr_grf%grf_vec_coeff_2a(je1,je,jb) = z_idwwgt(je1)/z_wgtsum
-      END DO
-
-      ! 1d) child edge 4
-      IF (ptr_ep%refin_ctrl(je,jb) == -1) CYCLE
-      !
-      ! get current number of points for stencil and
-      ! allocate temporary arrays
-      istencil = ptr_grf%grf_vec_stencil_2b(je,jb)
-
-      ! compute minimum distance between local point and other stencil points
-      cc_e = gc2cc(ptr_ep%center(je,jb))
-      z_mindist = 1.e38_wp
-      DO je1 = 1, istencil
-        iie1 = ptr_grf%grf_vec_ind_2b(je,je1,jb)
-        ibe1 = ptr_grf%grf_vec_blk_2b(je,je1,jb)
-        IF ((je /= iie1) .OR. (jb /= ibe1)) THEN
-          cc_e1 = gc2cc(ptr_ep%center(iie1,ibe1))
-          z_mindist = MIN(z_mindist,arc_length(cc_e1,cc_e))
-        ENDIF
-      END DO
-
-      !  compute the vector IDW interpolation coefficients
-
-      iiec = ABS(ptr_ep%child_idx(je,jb,4)) ! child edge 4
-      ibec = ptr_ep%child_blk(je,jb,4)
-      cc_childedge = gc2cc(ptr_ec%center(iiec,ibec))
-
-      z_nx1(:) = ptr_ec%primal_cart_normal(iiec,ibec)%x(:)
-
-      z_wgtsum = 0.0_wp
-
-      DO je1 = 1, istencil
-        !
-        ! indices for each edge je1 of IDW stencil
-        !
-        iie1 = ptr_grf%grf_vec_ind_2b(je,je1,jb)
-        ibe1 = ptr_grf%grf_vec_blk_2b(je,je1,jb)
-        !
-        ! transform to cartesian vector
-        !
-        cc_e1 = gc2cc(ptr_ep%center(iie1,ibe1))
-        z_dist = arc_length(cc_e1,cc_childedge)/z_mindist
-
-        !
-        ! normal component and coordinates of edge midpoints for each edge je1
-        ! of IDW stencil
-        ! transform to cartesian vectors
-        ! compute unit normal to edge je1
-        z_nx2(:) = ptr_ep%primal_cart_normal(iie1,ibe1)%x(:)
-
-        z_nxprod = DOT_PRODUCT(z_nx1,z_nx2)
-
-        z_idwwgt(je1) = z_nxprod * invdwgt(z_dist,grf_idw_exp_e34)
-        z_wgtsum = z_wgtsum + z_idwwgt(je1)*z_nxprod
-
-      END DO
-
-      ! Store normalized weighting factors in output array
-      DO je1 = 1, istencil
-        ptr_grf%grf_vec_coeff_2b(je1,je,jb) = z_idwwgt(je1)/z_wgtsum
-      END DO
-
-    ENDDO
-!$OMP END DO NOWAIT
-  ENDDO ! blocks
-
-!$OMP END PARALLEL
-
-! Optional debug output for IDW coefficients
-#ifdef DEBUG_COEFF
-  DO jb =  i_startblk, i_endblk
-
-    CALL get_indices_e(ptr_patch(jg), jb, i_startblk, i_endblk, &
-                       i_startidx, i_endidx, grf_bdyintp_start_e, min_rledge_int)
-
-    DO je = i_startidx, i_endidx
-
-      istencil = ptr_grf%grf_vec_stencil_1a(je,jb)
-      write(610+jg,'(2i5,25f12.6)') jb,je,ptr_grf%grf_vec_coeff_1a(1:istencil,je,jb)
-      istencil = ptr_grf%grf_vec_stencil_1b(je,jb)
-      write(610+jg,'(2i5,25f12.6)') jb,je,ptr_grf%grf_vec_coeff_1b(1:istencil,je,jb)
-      istencil = ptr_grf%grf_vec_stencil_2a(je,jb)
-      write(610+jg,'(2i5,25f12.6)') jb,je,ptr_grf%grf_vec_coeff_2a(1:istencil,je,jb)
-      IF (ptr_ep%refin_ctrl(je,jb) == -1) CYCLE
-      istencil = ptr_grf%grf_vec_stencil_2b(je,jb)
-      write(610+jg,'(2i5,25f12.6)') jb,je,ptr_grf%grf_vec_coeff_2b(1:istencil,je,jb)
-
-    END DO
-  END DO
-#endif
-
- END DO CD_LOOP
-#ifdef DEBUG_COEFF
-  CLOSE (610+jg)
-#endif
-END DO LEV_LOOP
-
-END SUBROUTINE idw_compute_coeff_grf_e
-
 
 !-------------------------------------------------------------------------
 END MODULE mo_grf_intp_coeffs

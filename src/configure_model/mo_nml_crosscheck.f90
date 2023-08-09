@@ -75,7 +75,6 @@ MODULE mo_nml_crosscheck
   USE mtime,                       ONLY: getTotalMilliSecondsTimeDelta, datetime,          &
     &                                    newDatetime, deallocateDatetime
   USE mo_gridref_config,           ONLY: grf_intmethod_e
-  USE mo_interpol_config
   USE mo_sleve_config,             ONLY: itype_laydistr, flat_height, top_height
   USE mo_nudging_config,           ONLY: nudging_config, indg_type
   USE mo_nwp_tuning_config,        ONLY: itune_gust_diag
@@ -265,7 +264,7 @@ CONTAINS
     !--------------------------------------------------------------------
     ! Nonhydrostatic atm
     !--------------------------------------------------------------------
-    IF (grf_intmethod_e >= 5 .AND. iequations /= INH_ATMOSPHERE .AND. n_dom > 1) THEN
+    IF (grf_intmethod_e == 6 .AND. iequations /= INH_ATMOSPHERE .AND. n_dom > 1) THEN
       grf_intmethod_e = 4
       CALL message( routine, 'grf_intmethod_e has been reset to 4')
     ENDIF
