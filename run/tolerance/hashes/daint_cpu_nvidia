@@ -17,4 +17,5 @@ builder: daint_cpu_nvidia
 "mch_opr_r19b07_2m_gscp5": 87961449f48a1560c5554c137b9b30411475c9ae
 "mch_opr_r19b07_lpi": 2972ba0ef31050e19d6b3a4182de0228d17b74cd
 "mch_opr_r19b07_midnight": 3f83dbb49c4382a44b8825079a89a5c7908dbf74
+"mch_opr_r04b07_sstice_inst": 4d635e11e3aa587f123414f259e546d946c82bad
 "mch_opr_r19b07_turb": 4a91c7e8dd05e415f35d6495e7bfc2609ed86d8a
