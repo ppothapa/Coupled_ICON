@@ -1266,6 +1266,7 @@ CONTAINS
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       out_vn_e(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
+      !$ACC WAIT(1)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR
@@ -1315,8 +1316,8 @@ CONTAINS
         END DO edge_idx_loop
       END DO level_loop_e
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
-    !$ACC WAIT(1)
     !$ACC END DATA
   END SUBROUTINE map_edges2edges_viacell_3d_mlev_const_z
   !-----------------------------------------------------------------------------
@@ -1394,6 +1395,7 @@ CONTAINS
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       out_vn_e(:, :, blockNo) = 0.0_wp
       !$ACC END KERNELS
+      !$ACC WAIT(1)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR
@@ -1444,10 +1446,9 @@ CONTAINS
 
       END DO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
 
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
-
-    !$ACC WAIT(1)
 
 !ICON_OMP_END_DO NOWAIT
 !ICON_OMP_END_PARALLEL
@@ -1519,6 +1520,7 @@ CONTAINS
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       out_vn_e(:, :, blockNo) = 0.0_wp
       !$ACC END KERNELS
+      !$ACC WAIT(1)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR
@@ -1575,9 +1577,9 @@ CONTAINS
 
       END DO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
 
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
-    !$ACC WAIT(1)
     !$ACC END DATA
 !ICON_OMP_END_DO NOWAIT
 !ICON_OMP_END_PARALLEL
@@ -1661,7 +1663,10 @@ CONTAINS
     DO blockNo = start_block, end_block
       CALL get_index_range(edges_inDomain, blockNo, start_edge_index, end_edge_index)
 
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       out_vn_e(:,:,blockNo) = 0.0_wp
+      !$ACC END KERNELS
+      !$ACC WAIT(1)
       
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR
@@ -1709,8 +1714,8 @@ CONTAINS
         END DO edge_idx_loop2
       END DO level_loop_e2
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
-    !$ACC WAIT(1)
     !$ACC END DATA
 
   END SUBROUTINE map_edges2edges_viacell_3d_mlev_constZs
@@ -1809,6 +1814,7 @@ CONTAINS
         max_dolic_e = MAX(max_dolic_e, dolic_e(je,blockNo))
       END DO
       !$ACC END PARALLEL LOOP
+      !$ACC WAIT(1)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
@@ -1864,7 +1870,7 @@ CONTAINS
 
       END DO
       !$ACC END PARALLEL
-      
+      !$ACC WAIT(1)
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
 !ICON_OMP_END_PARALLEL_DO
 
@@ -1935,6 +1941,7 @@ CONTAINS
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       out_vn_e(:, :, blockNo) = 0.0_wp
       !$ACC END KERNELS
+      !$ACC WAIT(1)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR
@@ -1991,9 +1998,9 @@ CONTAINS
 
       END DO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
 
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
-    !$ACC WAIT(1)
     !$ACC END DATA
 
 !ICON_OMP_END_DO NOWAIT
@@ -2084,6 +2091,7 @@ CONTAINS
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       out_vn_e(:,blockNo) = 0.0_wp
       !$ACC END KERNELS
+      !$ACC WAIT(1)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR
@@ -2136,8 +2144,8 @@ CONTAINS
         END DO  level_loop_e
       END DO edge_idx_loop
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
-    !$ACC WAIT(1)
     !$ACC END DATA
   END SUBROUTINE map_edges2edges_viacell_2D_constZ
   !-------------------------------------------------------------------------
@@ -2246,8 +2254,8 @@ CONTAINS
         END DO
       END DO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
-    !$ACC WAIT(1)
     !$ACC END DATA
 
 !ICON_OMP_END_PARALLEL_DO

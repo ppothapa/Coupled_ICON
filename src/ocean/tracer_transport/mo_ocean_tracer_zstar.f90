@@ -168,6 +168,7 @@ CONTAINS
     r_m(:,:,:)          = 0.0_wp
     r_p(:,:,:)          = 0.0_wp
     !$ACC END KERNELS
+    !$ACC WAIT(1)
 #endif
  
     !-----------------------------------------------------------------------
@@ -181,6 +182,7 @@ CONTAINS
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       z_anti(:,:,blockNo)     = 0.0_wp
       !$ACC END KERNELS
+      !$ACC WAIT(1)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR
@@ -193,6 +195,7 @@ CONTAINS
         END DO  ! end loop over edges
       END DO  ! end loop over levels
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     END DO  ! end loop over blocks
 !ICON_OMP_END_DO
 
@@ -208,6 +211,7 @@ CONTAINS
       z_tracer_max(:,:,blockNo)        = 0.0_wp
       z_tracer_min(:,:,blockNo)        = 0.0_wp
       !$ACC END KERNELS
+      !$ACC WAIT(1)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR PRIVATE(delta_z, delta_z_new, z_fluxdiv_c)
@@ -234,6 +238,7 @@ CONTAINS
         ENDDO
       ENDDO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
       
       ! precalculate local maximum/minimum of current tracer value and low order
       ! updated value
@@ -245,6 +250,7 @@ CONTAINS
         & MIN(          tracer(:,:,blockNo), &
         &     z_tracer_new_low(:,:,blockNo))
       !$ACC END KERNELS
+      !$ACC WAIT(1)
 
     ENDDO
 !ICON_OMP_END_DO
@@ -265,6 +271,7 @@ CONTAINS
       r_m(:,:,blockNo) = 0.0_wp
       r_p(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
+      !$ACC WAIT(1)
         
       CALL get_index_range(cells_in_domain, blockNo, start_index, end_index)
 
@@ -321,6 +328,7 @@ CONTAINS
         ENDDO
       ENDDO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     ENDDO
 !ICON_OMP_END_DO
 
@@ -341,6 +349,7 @@ CONTAINS
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       flx_tracer_final(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
+      !$ACC WAIT(1)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR PRIVATE(z_signum, r_frac)
@@ -376,11 +385,11 @@ CONTAINS
         END DO
       END DO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     ENDDO
 !ICON_OMP_END_DO NOWAIT
 !ICON_OMP_END_PARALLEL
 
-  !$ACC WAIT(1)
   !$ACC END DATA
   END SUBROUTINE limiter_ocean_zalesak_horz_zstar
   !-------------------------------------------------------------------------
@@ -446,6 +455,7 @@ CONTAINS
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       edge_upwind_flux(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
+      !$ACC WAIT(1)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR
@@ -467,6 +477,7 @@ CONTAINS
         END DO  ! end loop over edges
       END DO  ! end loop over levels
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     END DO  ! end loop over blocks
 !ICON_OMP_END_DO NOWAIT
 !ICON_OMP_END_PARALLEL
@@ -601,6 +612,7 @@ CONTAINS
       END DO
     END DO
     !$ACC END PARALLEL
+      !$ACC WAIT(1)
 
     !------------------------------------
     ! Fill triangular matrix
@@ -878,11 +890,13 @@ CONTAINS
         !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         top_bc(:) = old_tracer%top_bc(:,jb)
         !$ACC END KERNELS
+        !$ACC WAIT(1)
         !$ACC END DATA
       ELSE
         !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         top_bc(:) = 0.0_wp
         !$ACC END KERNELS
+        !$ACC WAIT(1)
       ENDIF
  
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
@@ -920,6 +934,7 @@ CONTAINS
     
       END DO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     END DO
     !ICON_OMP_END_PARALLEL_DO
  
@@ -953,7 +968,6 @@ CONTAINS
     ENDIF!IF ( l_with_vert_tracer_diffusion )
 
     CALL sync_patch_array(sync_c, patch_2D, new_tracer_concentration)
-    !$ACC WAIT(1)
     !$ACC END DATA
   END SUBROUTINE advect_individual_tracers_zstar
 

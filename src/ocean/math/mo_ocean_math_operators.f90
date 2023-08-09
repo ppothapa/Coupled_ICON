@@ -510,6 +510,7 @@ CONTAINS
     !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     div_vec_c(:,:) = 0.0_wp
     !$ACC END KERNELS
+    !$ACC WAIT(1)
 
 #ifdef __LVECTOR__
     max_dolic_c = -1
@@ -518,6 +519,7 @@ CONTAINS
       max_dolic_c = MAX(max_dolic_c, dolic_c(jc,blockNo))
     END DO
     !$ACC END PARALLEL LOOP
+    !$ACC WAIT(1)
 
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
@@ -537,6 +539,7 @@ CONTAINS
       END DO
     END DO
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
 
   END SUBROUTINE div_oce_3D_onTriangles_onBlock
   !-------------------------------------------------------------------------
@@ -589,6 +592,7 @@ CONTAINS
     !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     div_vec_c(:,:) = 0.0_wp
     !$ACC END KERNELS
+    !$ACC WAIT(1)
     
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     !$ACC LOOP GANG VECTOR
@@ -606,6 +610,7 @@ CONTAINS
       END DO
     END DO
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
     !$ACC END DATA
 
   END SUBROUTINE div_oce_3D_general_onBlock
@@ -716,6 +721,7 @@ CONTAINS
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       div_vec_c(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
+      !$ACC WAIT(1)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR
@@ -753,8 +759,8 @@ CONTAINS
         END DO
       END DO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     END DO
-    !$ACC WAIT(1)
     !$ACC END DATA
 
 !ICON_OMP_END_DO NOWAIT
@@ -913,6 +919,7 @@ CONTAINS
         & vec_e(idx(jc,blockNo,3),blk(jc,blockNo,3)) * div_coeff(jc,level,blockNo,3)
     END DO
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
     !$ACC END DATA
 
   END SUBROUTINE div_oce_2D_onTriangles_onBlock
@@ -978,6 +985,7 @@ CONTAINS
       div_vec_c(jc) = temp_div_vec
     END DO
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
 
   END SUBROUTINE div_oce_2D_general_onBlock
   !-------------------------------------------------------------------------
@@ -1030,6 +1038,7 @@ CONTAINS
         & vec_e(idx(jc,blockNo,3),blk(jc,blockNo,3)) * div_coeff(jc,blockNo,3)
     END DO
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
     !$ACC END DATA
   END SUBROUTINE div_oce_2D_onTriangles_onBlock_sp
   !-------------------------------------------------------------------------
@@ -1088,6 +1097,7 @@ CONTAINS
       div_vec_c(jc) = temp_div_vec
     END DO
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
     !$ACC END DATA
 
   END SUBROUTINE div_oce_2D_general_onBlock_sp

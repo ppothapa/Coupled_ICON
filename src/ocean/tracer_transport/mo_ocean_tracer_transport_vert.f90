@@ -434,6 +434,7 @@ CONTAINS
 
     ENDDO
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
 
     ! 4. Limitation of first guess parabola (which is based on z_face)
     ! Note that z_face_up(k) does not need to equal z_face_low(k-1) after
@@ -444,6 +445,7 @@ CONTAINS
     z_face_low(1:nproma,1:n_zlev) = 0.0_wp
     z_face_up (1:nproma,1:n_zlev) = 0.0_wp
     !$ACC END KERNELS
+    !$ACC WAIT(1)
 
     IF (vertical_limiter_type == islopel_vsm) THEN
       !     ! monotonic (mo) limiter
@@ -470,6 +472,7 @@ CONTAINS
           ENDDO
         END DO
         !$ACC END PARALLEL
+        !$ACC WAIT(1)
 
     ENDIF  !  p_ityp_vlimit
 

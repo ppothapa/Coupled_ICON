@@ -175,8 +175,8 @@ CONTAINS
         END DO
       END DO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     END DO
-    !$ACC WAIT(1)
     !$ACC END DATA
   END SUBROUTINE copy_individual_tracer_ab
   !-------------------------------------------------------------------------
@@ -393,10 +393,10 @@ CONTAINS
         END DO
       END DO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     END DO
 
     CALL sync_patch_array(sync_c, patch_2D, new_tracer_concentration)
-    !$ACC WAIT(1)
     !$ACC END DATA
 
     !$ACC END DATA
@@ -551,10 +551,12 @@ CONTAINS
         !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         top_bc(:) = old_tracer_top_bc(:,jb)
         !$ACC END KERNELS
+        !$ACC WAIT(1)
       ELSE
         !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         top_bc(:) = 0.0_wp
         !$ACC END KERNELS
+        !$ACC WAIT(1)
       ENDIF
       
 #ifdef __LVECTOR__
@@ -565,6 +567,7 @@ CONTAINS
         max_dolic_c = MAX(max_dolic_c, dolic_c(jc,jb))
       END DO
       !$ACC END PARALLEL LOOP
+      !$ACC WAIT(1)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR
@@ -587,16 +590,18 @@ CONTAINS
             &  div_adv_flux_horz(jc,level,jb) +div_adv_flux_vert(jc,level,jb)&
             & -div_diff_flux_horz(jc,level,jb) - top_bc(jc))) / delta_z_new
 
-#ifndef __LVECTOR__
         ENDDO
-#endif
+#ifndef __LVECTOR__
       ENDDO
+#endif
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
 
       IF (vert_mix_type .EQ. vmix_kpp .and. typeOfTracers == "ocean") THEN
         !by_Oliver: account for nonlocal transport term for heat and scalar
         !(salinity) if KPP scheme is used
 
+        !$ACC DATA COPYIN(old_transport_tendencies) IF(lacc)
 #ifdef __LVECTOR__
         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
@@ -619,7 +624,8 @@ CONTAINS
           END DO
         END DO
         !$ACC END PARALLEL
-
+        !$ACC WAIT(1)
+        !$ACC END DATA
       ELSE
 
 #ifdef __LVECTOR__
@@ -643,7 +649,7 @@ CONTAINS
           END DO
         END DO
         !$ACC END PARALLEL
-
+        !$ACC WAIT(1)
       END IF
 
     END DO
@@ -673,7 +679,6 @@ CONTAINS
 
     CALL sync_patch_array(sync_c, patch_2D, new_tracer_concentration)
 
-    !$ACC WAIT(1)
     !$ACC END DATA
 
     !---------DEBUG DIAGNOSTICS-------------------------------------------

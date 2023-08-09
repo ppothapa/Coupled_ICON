@@ -142,6 +142,7 @@ CONTAINS
         
       ENDDO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     ENDDO
     !$ACC END DATA
 !ICON_OMP_END_PARALLEL_DO
@@ -179,6 +180,7 @@ CONTAINS
         
       ENDDO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     ENDDO
 !ICON_OMP_END_PARALLEL_DO
 
@@ -580,6 +582,7 @@ CONTAINS
           & (top_cell_thickness(cell_index) + patch_3D%p_patch_1d(1)%prism_thick_flat_sfc_c(cell_index,2,blockNo))) 
     ENDDO
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
 
     max_bottom_level = -1
     !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) REDUCTION(MAX: max_bottom_level) IF(lacc)
@@ -587,6 +590,7 @@ CONTAINS
       max_bottom_level = MAX(max_bottom_level, bottom_level(level))
     END DO
     !$ACC END PARALLEL LOOP
+    !$ACC WAIT(1)
 
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
@@ -603,6 +607,7 @@ CONTAINS
       ENDDO
     ENDDO
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
 
     !------------------------------------
     ! Fill triangular matrix
@@ -806,6 +811,7 @@ CONTAINS
           
     ENDDO
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
 
     !------------------------------------
     ! Fill triangular matrix
