@@ -99,6 +99,7 @@ MODULE mo_turb_vdiff_config
 
   !> Config variables for each domain.
   TYPE(t_vdiff_config) :: vdiff_config(max_dom)
+  !$ACC DECLARE CREATE(vdiff_config)
   PUBLIC :: vdiff_config
 
 CONTAINS
@@ -152,6 +153,7 @@ CONTAINS
     config%f_theta0 = -SQRT(config%f_tau0**2/2.0_wp/config%pr0)
     config%c_e      =  SQRT(config%f_tau0**3)
     config%rturb_prandtl = 1/config%turb_prandtl
+
   END SUBROUTINE vdiff_config_update
 
   !<

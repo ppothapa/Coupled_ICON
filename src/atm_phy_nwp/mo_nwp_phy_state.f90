@@ -69,6 +69,8 @@ USE mo_impl_constants,      ONLY: success, &
   &                               TASK_COMPUTE_SRH,                   &
   &                               TASK_COMPUTE_INVERSION,             &
   &                               iedmf,                              &
+  &                               ivdiff,                             &
+  &                               LSS_JSBACH,                         &
   &                               HINTP_TYPE_LONLAT_NNB,              &
   &                               HINTP_TYPE_LONLAT_BCTR,             &
   &                               HINTP_TYPE_LONLAT_RBF,              &
@@ -88,6 +90,7 @@ USE turb_data,              ONLY: ltkecon
 USE mo_initicon_config,     ONLY: icpl_da_sfcevap, icpl_da_snowalb, icpl_da_skinc
 USE mo_radiation_config,    ONLY: irad_aero, iRadAeroTegen, iRadAeroART
 USE mo_lnd_nwp_config,      ONLY: ntiles_total, ntiles_water, nlev_soil
+USE mo_nwp_vdiff_interface, ONLY: nwp_vdiff_setup
 USE mo_var_list,            ONLY: add_var, add_ref, t_var_list_ptr
 USE mo_var_list_register,   ONLY: vlr_add, vlr_del
 USE mo_var_groups,          ONLY: groups, MAX_GROUPS
@@ -578,7 +581,6 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
                   & in_group=groups("iau_init_vars"),                          &
                   & lopenacc=.TRUE.  )
       __acc_attach(diag%ice_gsp_rate)
-
     END SELECT
 
     !For two moment microphysics
@@ -593,7 +595,6 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
                   & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,   &
                   & ldims=shape2d, isteptype=TSTEP_INSTANT, lopenacc=.TRUE. )
       __acc_attach(diag%hail_gsp_rate)
-
     END SELECT
 
 
@@ -1239,9 +1240,10 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
     cf_desc      = t_cf_var('clc', '',  'cloud cover', datatype_flt)
     new_cf_desc  = t_cf_var('clc', '%', 'cloud cover', datatype_flt)
     grib2_desc   = grib2_var(0, 6, 22, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    lrestart     = (atm_phy_nwp_config(k_jg)%inwp_turb == ivdiff .OR. lart)
     CALL add_var( diag_list, 'clc', diag%clc,                                 &
       & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,            &
-      & ldims=shape3d, lrestart=lart,                                         &
+      & ldims=shape3d, lrestart=lrestart,                                     &
       & in_group=groups("cloud_diag"),                                        &
       & vert_interp=create_vert_interp_metadata(                              &
       &             vert_intp_type=vintp_types("P","Z","I"),                  &
@@ -5170,6 +5172,15 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
                 & lopenacc=.TRUE. )
     __acc_attach(diag%innertropics_mask)
 
+    !  mask field that is used for latitude-dependent SSO tuning parameters
+    cf_desc    = t_cf_var('sso_lat_mask', '', 'sso_lat_mask', datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( diag_list, 'sso_lat_mask', diag%sso_lat_mask,                      &
+                & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,           &
+                & ldims=shape2d, lrestart=.FALSE., loutput=.FALSE.,                  &
+                & lopenacc=.TRUE. )
+    __acc_attach(diag%sso_lat_mask)
+
     ! buffer field needed for the combination of vertical nesting with a reduced radiation grid
     IF (k_jg > n_dom_start) THEN
       cf_desc    = t_cf_var('buffer_rrg', '', 'buffer_rrg', datatype_flt)
@@ -5323,6 +5334,12 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
                   & lopenacc=.TRUE.)
       __acc_attach(diag%radtop_gmean)
     ENDIF
+
+    ! Initialize JSBACH + VDIFF state.
+    IF (atm_phy_nwp_config(k_jg)%inwp_surface == LSS_JSBACH .OR. atm_phy_nwp_config(k_jg)%inwp_turb == ivdiff) THEN
+      CALL diag%nwp_vdiff_state%init(nproma, p_patch(k_jg)%nlev, p_patch(k_jg)%nblks_c, diag_list)
+      CALL nwp_vdiff_setup( p_patch(k_jg) )
+    END IF
 
     CALL message('mo_nwp_phy_state:construct_nwp_phy_diag', &
                  'construction of NWP physical fields finished')  

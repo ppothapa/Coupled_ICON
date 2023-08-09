@@ -29,7 +29,7 @@ MODULE mo_atm_phy_nwp_config
     &                               itrad, itradheat, itsso, itgscp, itsatad,  &
     &                               itturb, itsfc, itgwd, itfastphy,           &
     &                               iphysproc, iphysproc_short, ismag, iedmf,  &
-    &                               iprog, SUCCESS
+    &                               iprog, SUCCESS, ivdiff
   USE mo_math_constants,      ONLY: dbl_eps, pi_2, deg2rad
   USE mo_exception,           ONLY: message, message_text, finish
   USE mo_model_domain,        ONLY: t_patch
@@ -860,6 +860,8 @@ CONTAINS
     TYPE(timedelta), POINTER        :: plusSlack    => NULL()
     CHARACTER(LEN=MAX_TIMEDELTA_STR_LEN) :: dt_phy_str       ! physics timestep (PT-format)
 
+    LOGICAL :: requires_init
+
 
     ! construct physics group for given patch
     CALL atm_phy_nwp_config%phyProcs%construct(grpName=TRIM(grpName), pid=pid, grpSize=iphysproc)
@@ -1010,6 +1012,9 @@ CONTAINS
     CALL getPTStringFromMS(INT(dt_phy(itfastphy)*1000._wp,i8), dt_phy_str)
     eventInterval=>newTimedelta(dt_phy_str)
     !
+    ! VDIFF runs initialization step with slow physics on GPU, not with fast physics on host.
+    requires_init = (atm_phy_nwp_config%inwp_turb == ivdiff)
+    !
     CALL atm_phy_nwp_config%phyProc_turb%initialize(                            &
       &                     name        = 'turb',                               & !in
       &                     id          = itturb,                               & !in
@@ -1018,6 +1023,7 @@ CONTAINS
       &                     endDate     = eventEndDate_proc,                    & !in
       &                     dt          = eventInterval,                        & !in
       &                     plusSlack   = plusSlack,                            & !in
+      &                     optReqInit  = requires_init,                        & !in
       &                     optInclStart= .TRUE.                                ) !in
     ! add to physics group
     CALL atm_phy_nwp_config%phyProcs%addToGroup(                          &

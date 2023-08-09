@@ -21,14 +21,14 @@
 
 MODULE mo_turb_vdiff
 
-  USE mo_exception,          ONLY: message, message_text, finish
+  USE mo_exception,          ONLY: finish
   USE mo_impl_constants_grf, ONLY: grf_bdywidth_c
-  USE mo_impl_constants,     ONLY: min_rlcell_int, min_rlcell, SUCCESS
+  USE mo_impl_constants,     ONLY: min_rlcell_int, SUCCESS
   USE mo_kind,               ONLY: wp
   USE mo_loopindices,        ONLY: get_indices_c
   USE mo_model_domain,       ONLY: t_patch
   USE mo_nh_testcases_nml,   ONLY: isrfc_type, shflx, lhflx
-  USE mo_physical_constants, ONLY: grav, rgrav, cpd, cpv
+  USE mo_physical_constants, ONLY: rgrav, cpd
   USE mo_turb_vdiff_sma,     ONLY: atm_exchange_coeff3d, diffuse_hori_velocity, &
                                  & diffuse_vert_velocity,diffuse_scalar
   USE mo_turb_vdiff_config,  ONLY: t_vdiff_config
@@ -95,6 +95,7 @@ MODULE mo_turb_vdiff
   PUBLIC :: vdiff_mixed_time_value
   PUBLIC :: vdiff_new_time_value
   PUBLIC :: vdiff_get_richtmyer_coeff_momentum
+  PUBLIC :: vdiff_get_tke
 
   PUBLIC    :: ih
   PROTECTED :: ih
@@ -168,7 +169,7 @@ CONTAINS
                        & pzf, pzh,                                      &! in
                        & pfrc,                                          &! in
                        & ptsfc_tile, pocu,      pocv,       ppsfc,      &! in
-                       & pum1,       pvm1,      pwp1,                   &! in
+                       & pum1,       pvm1,      pwm1,                   &! in
                        & ptm1,       pqm1,                              &! in
                        & pxlm1,      pxim1,     pxm1,       pxtm1,      &! in
                        & pmair,      rho,                               &! in
@@ -239,7 +240,7 @@ CONTAINS
       & pxvar    (:,:,:)  ,&!< (kbdim,klev) step t-dt
       & pz0m_tile(:,:,:)    !< (kbdim,ksfc_type) roughness length at step t-dt
 
-    REAL(wp),INTENT(INOUT) ::        &
+    REAL(wp),INTENT(IN) ::        &
       & rho     (:,:,:)   ,&!< (kbdim,klev) air density [kg/m3]
       & pum1    (:,:,:)   ,&!< (kbdim,klev) u-wind at step t-dt
       & pvm1    (:,:,:)     !< (kbdim,klev) q-wind at step t-dt
@@ -256,7 +257,7 @@ CONTAINS
     REAL(wp),INTENT(INOUT) :: pustar (:,:)         !< (kbdim)
     REAL(wp),INTENT(OUT)   :: pwstar (:,:)         !< (kbdim)
     REAL(wp),INTENT(INOUT) :: pwstar_tile(:,:,:)   !< (kbdim,ksfc_type)
-    REAL(wp),INTENT(INOUT) :: pwp1    (:,:,:)      !< (kbdim,klevp1) vertical wind in m/s
+    REAL(wp),INTENT(IN)    :: pwm1    (:,:,:)      !< (kbdim,klevp1) vertical wind in m/s
     REAL(wp),INTENT(OUT)   :: ddt_u (:,:,:),      &
                             & ddt_v (:,:,:),      &
                             & ddt_w (:,:,:)
@@ -494,7 +495,7 @@ CONTAINS
         !-----------------------------------------------------------------------
 
         ! DA: this routine is async, no need to wait
-        CALL sfc_exchange_coeff( jcs, jce, kbdim, ksfc_type,                    &! in
+        CALL sfc_exchange_coeff( jb, jcs, jce, kbdim, ksfc_type, patch,        &! in
                               & idx_wtr, idx_ice, idx_lnd,                     &! in
                               & pz0m_tile(:,jb,:),  ptsfc_tile(:,jb,:),        &! in
                               & pfrc(:,jb,:),       phdtcbl(:,jb),             &! in
@@ -552,7 +553,7 @@ CONTAINS
                             & pz0m_tile(:,:,:), ptsfc_tile(:,:,:), pfrc(:,:,:),       &! in
                             & ppsfc(:,:),                                             &! in
                             & zghf(:,:,:),                                            &! in
-                            & pum1(:,:,:), pvm1(:,:,:), pwp1(:,:,:),                  &! in
+                            & pum1(:,:,:), pvm1(:,:,:), pwm1(:,:,:),                  &! in
                             & ptm1(:,:,:), ptvm1(:,:,:),                              &! in
                             & pqm1(:,:,:), pxm1(:,:,:),                               &! in
                             & rho(:,:,:),                                             &! in
@@ -593,7 +594,7 @@ CONTAINS
                                 & rho_ic(:,:,:), w_vert(:,:,:), w_ie(:,:,:),        &
                                 & km_c(:,:,:), km_iv(:,:,:), km_ic(:,:,:),          &
                                 & u_vert(:,:,:), v_vert(:,:,:), div_c(:,:,:),       &
-                                & pum1(:,:,:), pvm1(:,:,:), pwp1(:,:,:), vn(:,:,:), &
+                                & pum1(:,:,:), pvm1(:,:,:), pwm1(:,:,:), vn(:,:,:), &
                                 & ddt_w(:,:,:), pdtime)
 
 
@@ -868,8 +869,8 @@ CONTAINS
     !$ACC LOOP GANG VECTOR PRIVATE(a2, a3, a2sub, bu, bv) COLLAPSE(2)
     DO jsfc = 1, ksfc_type
       DO jc = jcs, kproma
-        a3 = -pcfm_tile(jc,jsfc) * pfactor_sfc(jc) / pmair(jc,klev)
-        a2 = 1 - aa(jc, klev, 1, imuv) - a3
+        a3 = -pcfm_tile(jc, jsfc) * pfactor_sfc(jc) / pmair(jc, klev)
+        a2 = 1._wp - aa(jc, klev, 1, imuv) - a3
 
         a2sub = a2 - aa(jc, klev, 1, imuv) * aa(jc, klev-1, 3, imuv)
 
@@ -1013,6 +1014,55 @@ CONTAINS
     END IF
 
   END SUBROUTINE vdiff_update_boundary
+
+
+  SUBROUTINE vdiff_get_tke (jcs, kproma, klev, vdiff_config, ptotte, pri, tke)
+
+    INTEGER, INTENT(IN) :: jcs !< Start cell index.
+    INTEGER, INTENT(IN) :: kproma !< End cell index.
+    INTEGER, INTENT(IN) :: klev !< Number of vertical levels.
+
+    !> VDIFF configuration for the current domain.
+    TYPE(t_vdiff_config), INTENT(IN) :: vdiff_config
+
+    !> Total turbulence energy (jcs:kproma,nlev) [m**2/s**2].
+    REAL(wp), INTENT(IN) :: ptotte(:,:)
+    !> Richardson number (jcs:kproma,nlev) [1].
+    REAL(wp), INTENT(IN) :: pri(:,:)
+
+    !> Turbulence kinetic energy as diagnosed by the TTE scheme (jcs:kproma,nlev+1) [m**2/s**2].
+    REAL(wp), INTENT(INOUT) :: tke(:,:)
+
+    INTEGER :: jc, jl
+    REAL(wp) :: tte, ri
+    REAL(wp) :: pr0, ek_ep_ratio_stable, ek_ep_ratio_unstable
+
+    pr0 = vdiff_config%pr0
+    ek_ep_ratio_stable = vdiff_config%ek_ep_ratio_stable
+    ek_ep_ratio_unstable = vdiff_config%ek_ep_ratio_unstable
+
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+    !$ACC LOOP GANG VECTOR
+    DO jc = jcs, kproma
+      tke(jc,1) = 0._wp
+    END DO
+
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(tte, ri)
+    DO jl = 1, klev
+      DO jc = jcs, kproma
+        tte = ptotte(jc,jl)
+        ri = pri(jc,jl)
+
+        IF(ri > 0._wp) THEN
+          tke(jc,jl+1) = tte / (1._wp + ri/(pr0 + ek_ep_ratio_stable * ri))
+        ELSE
+          tke(jc,jl+1) = tte / (1._wp + ri/(ek_ep_ratio_unstable * ri - pr0))
+        END IF
+      END DO
+    END DO
+    !$ACC END PARALLEL
+
+  END SUBROUTINE vdiff_get_tke
 
 
   SUBROUTINE vdiff_up( jcs, kproma, kbdim, klev, klevm1, &! in
@@ -1592,7 +1642,7 @@ CONTAINS
     END DO
 #else
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(jmax)
     DO im = 1,nmatrix
       DO jc = jcs,kproma
 
@@ -1600,9 +1650,8 @@ CONTAINS
         aa(jc,1,3,im) = aa(jc,1,3,im)/aa(jc,1,2,im)
         !$ACC LOOP SEQ
         DO jk = 2,jmax
-          jkm1 = jk - 1
           aa(jc,jk,2,im) =  aa(jc,jk,2,im)                       &
-                            & -aa(jc,jk,1,im)*aa(jc,jkm1,3,im)
+                            & -aa(jc,jk,1,im)*aa(jc,jk-1,3,im)
           aa(jc,jk,3,im) =  aa(jc,jk,3,im)/aa(jc,jk,2,im)
         ENDDO
       ENDDO

@@ -25,7 +25,7 @@ MODULE mo_nml_crosscheck
     &                                    iaes, RAYLEIGH_CLASSIC,                           &
     &                                    iedmf, icosmo, iprog, MODE_IAU, MODE_IAU_OLD,     &
     &                                    max_echotop, max_wshear, max_srh,                 &
-    &                                    LSS_JSBACH, LSS_TERRA
+    &                                    LSS_JSBACH, LSS_TERRA, ivdiff
   USE mo_time_config,              ONLY: time_config, dt_restart
   USE mo_extpar_config,            ONLY: itopo
   USE mo_io_config,                ONLY: dt_checkpoint, lnetcdf_flt64_output, echotop_meta,&
@@ -45,7 +45,7 @@ MODULE mo_nml_crosscheck
   USE mo_nonhydrostatic_config,    ONLY: itime_scheme_nh => itime_scheme,                  &
     &                                    rayleigh_type, ivctype
   USE mo_atm_phy_nwp_config,       ONLY: atm_phy_nwp_config, icpl_aero_conv, iprog_aero
-  USE mo_lnd_nwp_config,           ONLY: ntiles_lnd, lsnowtile, sstice_mode
+  USE mo_lnd_nwp_config,           ONLY: ntiles_lnd, lsnowtile, sstice_mode, llake
   USE mo_aes_phy_config,           ONLY: aes_phy_config
   USE mo_radiation_config,         ONLY: irad_aero, iRadAeroNone, iRadAeroConst,           &
     &                                    iRadAeroTegen, iRadAeroART, iRadAeroConstKinne,   &
@@ -531,6 +531,10 @@ CONTAINS
             ntiles_lnd = 1
             CALL message(routine,'Warning: ntiles reset to 1 because JSBACH handles tiles internally')
           ENDIF
+          IF (llake) THEN
+            llake = .FALSE.
+            CALL message(routine,'Warning: llake=.FALSE. because JSBACH handles lakes internally')
+          END IF
         END SELECT
 
       ENDDO
@@ -755,7 +759,7 @@ CONTAINS
     END IF
     CALL check_meteogram_configuration(num_io_procs)
 
-    IF (iforcing==iaes) CALL land_crosscheck()
+    IF (ANY(iforcing == [iaes, inwp])) CALL land_crosscheck()
 
     IF (iforcing==inwp) CALL coupled_crosscheck()
 
@@ -831,8 +835,9 @@ CONTAINS
 
     CHARACTER(len=*), PARAMETER :: routine =  modname//'::coupled_crosscheck'
 
-    IF ( ntiles_lnd == 1 .AND. is_coupled_run() ) THEN
-       CALL finish(routine, "Coupled atm/ocean runs not supported with ntiles=1")
+    IF ( ntiles_lnd == 1 .AND. is_coupled_run() .AND. .NOT. &
+        & (iforcing == inwp .AND. ALL(atm_phy_nwp_config(1:n_dom)%inwp_turb == ivdiff)) ) THEN
+       CALL finish(routine, "Coupled atm/ocean runs not supported with ntiles=1 when not using VDIFF")
     ENDIF
 
     IF ( sstice_mode /= 1 .AND. is_coupled_run() ) THEN
