@@ -34,6 +34,8 @@ MODULE mo_io_nml
                                  & config_gust_interval           => gust_interval          , &
                                  & config_celltracks_interval     => celltracks_interval    , &
                                  & config_dt_lpi                  => dt_lpi                 , &
+                                 & config_dt_hailcast             => dt_hailcast            , &
+                                 & config_wdur_min_hailcast       => wdur_min_hailcast      , &
                                  & config_dt_celltracks           => dt_celltracks          , &
                                  & config_dt_radar_dbz            => dt_radar_dbz           , &
                                  & config_echotop_meta            => echotop_meta           , &
@@ -120,6 +122,8 @@ CONTAINS
     CHARACTER(len=max_timedelta_str_len) :: melt_interval(max_dom)     ! time interval over which snow melt is accumulated
     CHARACTER(len=max_timedelta_str_len) :: maxt_interval(max_dom)     ! time interval for tmax_2m and tmin_2m 
     REAL(wp):: dt_lpi                     ! calling frequency [seconds] of lpi diagnosis for hourly maximum calculation
+    REAL(wp):: dt_hailcast                ! calling frequency [seconds] of hail diagnosis for hourly maximum calculation
+    REAL(wp):: wdur_min_hailcast          ! minimal updraft persistence [seconds] for hailcast to be activated
     REAL(wp):: dt_celltracks              ! calling frequency [seconds] of celltrack diagnosis for hourly maximum calculation
                                           ! this pertains to the following variables: tcond_max/tcond10_max, uh_max, vorw_ctmax, w_ctmax
     REAL(wp):: dt_radar_dbz               ! calling frequency [seconds] of radar reflectivity diagnosis for hourly maximum calculation
@@ -196,6 +200,7 @@ CONTAINS
       &              precip_interval, totprec_d_interval, runoff_interval,&
       &              maxt_interval, checkpoint_on_demand,                 &
       &              nrestart_streams, dt_lpi, dt_celltracks,             &
+      &              dt_hailcast, wdur_min_hailcast,                      &
       &              dt_radar_dbz, sunshine_interval, itype_dursun,       &
       &              itype_convindices, melt_interval, wshear_uv_heights, &
       &              srh_heights
@@ -228,6 +233,8 @@ CONTAINS
     dt_lpi                  = 180._wp      ! 3 minutes
     dt_celltracks           = 120._wp      ! 2 minutes
     dt_radar_dbz            = 120._wp      ! 2 minutes
+    dt_hailcast             = 180._wp      ! 3 minutes
+    wdur_min_hailcast       = 900._wp      ! 15 minutes
     inextra_2d              = 0     ! no extra output 2D fields
     inextra_3d              = 0     ! no extra output 3D fields
     itype_dursun            = 0
@@ -319,6 +326,8 @@ CONTAINS
     config_maxt_interval(:)        = maxt_interval(:)
     config_dt_checkpoint           = dt_checkpoint
     config_dt_lpi                  = dt_lpi
+    config_dt_hailcast             = dt_hailcast
+    config_wdur_min_hailcast       = wdur_min_hailcast
     config_dt_celltracks           = dt_celltracks
     config_dt_radar_dbz            = dt_radar_dbz
     config_inextra_2d              = inextra_2d

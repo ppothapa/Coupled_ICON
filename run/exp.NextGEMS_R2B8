@@ -163,7 +163,6 @@ cat > ${atmo_namelist} << EOF
  itime_scheme         = 4
  ivctype              = 2
  l_zdiffu_t           = .true.
- lhdiff_rcf           = .true.
  thhgtd_zdiffu        = 125.
  thslp_zdiffu         = 0.02
 /

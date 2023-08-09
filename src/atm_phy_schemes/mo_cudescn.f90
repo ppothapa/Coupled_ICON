@@ -225,7 +225,7 @@ CONTAINS
 
 !PREVENT_INCONSISTENT_IFORT_FMA
 
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
 
     !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jl=kidia,kfdia
@@ -381,6 +381,7 @@ CONTAINS
     ENDIF   !! if over lmfdd
     !$ACC END PARALLEL
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     IF (lhook) CALL dr_hook('CUDLFSN',1,zhook_handle)
@@ -562,7 +563,7 @@ CONTAINS
     !!                         SPECIFYING FINAL T,Q,U,V AND DOWNWARD FLUXES
     !!                    -------------------------------------------------
 
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
 
     !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jl=kidia,kfdia
@@ -733,6 +734,7 @@ CONTAINS
     ENDDO
     !$ACC END PARALLEL
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     IF (lhook) CALL dr_hook('CUDDRAFN',1,zhook_handle)

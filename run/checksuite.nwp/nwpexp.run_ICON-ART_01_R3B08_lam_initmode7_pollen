@@ -157,17 +157,17 @@ num_prefetch_proc=1
 
 cat > ${atmo_namelist} << EOF
 &parallel_nml
- nproma            = 752
+ nproma            = $nproma
+ nproma_sub        =  ${nproma_sub} ! loop chunk length for radiation
  p_test_run        = .false.
  l_test_openmp     = .true.
  l_log_checks      = .true.
  num_io_procs      = $num_io_procs
  num_restart_procs = $num_restart_procs
  num_prefetch_proc = $num_prefetch_proc
- itype_comm        = 1
  iorder_sendrecv   = 3
  num_dist_array_replicas = 4
- proc0_shift             = 1
+ proc0_shift             = ${proc0_shift}
  use_omp_input           = .true.
 /
 &grid_nml
@@ -225,7 +225,7 @@ radiation_grid_filename = ${radiation_grid_filename}
 /
 &run_nml
  num_lev               = 60           ! 60
- nsteps                = 900             ! 50 ! 1200 ! 7200 !
+ nsteps                = 360             ! 50 ! 1200 ! 7200 !
  lvert_nest            = .false.
  dtime                 = 60              ! timestep in seconds
  ldynamics             = .true.               ! dynamics
@@ -322,6 +322,8 @@ radiation_grid_filename = ${radiation_grid_filename}
  vmr_n2o             = 322.0e-09
  vmr_o2              = 0.20946
  isolrad             = 1
+ ecrad_isolver       = ${radiation_ecrad_isolver}
+ ! Solver version. 2: McICA with OpenACC, 0: McICA
 /
 &nonhydrostatic_nml
  iadv_rhotheta   = 2
@@ -331,7 +333,6 @@ radiation_grid_filename = ${radiation_grid_filename}
  vwind_offctr    = 0.2
  damp_height     = 14000.
  rayleigh_coeff  = 1.0
- lhdiff_rcf      = .true.
  divdamp_order   = 24
  divdamp_type    = 32
  divdamp_fac     = 0.004   ! 0.004 for R2B6; recommendation for R3B7: 0.003

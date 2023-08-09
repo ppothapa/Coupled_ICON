@@ -451,8 +451,8 @@ MODULE mo_rte_rrtmgp_radiation
          &                xm_liq,       xm_ice,         xc_frc,           &
          &                cld_cvr                                         )
 
-    CALL rte_rrtmgp_interface(jg, jb, jcs, jce, nproma, klev, &
-      aes_rad_config(jg)%irad_aero,  &
+    CALL rte_rrtmgp_interface(jg, jb, jcs, jce, nproma, klev             ,&
+      aes_rad_config(jg)%irad_aero, aes_rad_config(jg)%lrad_yac          ,&
       psctm(jg), ssi_factor, loland, loglac, this_datetime               ,&
       pcos_mu0        ,daylght_frc                                       ,&
       alb_vis_dir     ,alb_nir_dir     ,alb_vis_dif     ,alb_nir_dif     ,&

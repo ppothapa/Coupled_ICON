@@ -35,7 +35,7 @@ MODULE mo_opt_nwp_diagnostics
   USE gscp_data,                ONLY: cloud_num
   USE mo_nh_diagnose_pres_temp, ONLY: calc_qsum
   USE mo_opt_nwp_reflectivity,  ONLY: compute_field_dbz_1mom, compute_field_dbz_2mom
-  USE mo_exception,             ONLY: finish, message
+  USE mo_exception,             ONLY: finish, message, warning
   USE mo_fortran_tools,         ONLY: assign_if_present, set_acc_host_or_device, assert_acc_host_only, &
     &                                 assert_acc_device_only, init
   USE mo_impl_constants,        ONLY: min_rlcell_int, min_rledge_int, &
@@ -46,11 +46,12 @@ MODULE mo_opt_nwp_diagnostics
   USE mo_nonhydro_types,        ONLY: t_nh_prog, t_nh_diag, t_nh_metrics
   USE mo_nwp_phy_types,         ONLY: t_nwp_phy_diag
   USE mo_run_config,            ONLY: iqv, iqc, iqi, iqr, iqs, iqg, iqni, &
-       &                              iqh, iqnc, iqnr, iqns, iqng, iqnh, iqgl, iqhl, msg_level
+       &                              iqh, iqnc, iqnr, iqns, iqng, iqnh, iqgl, iqhl, msg_level, dtime
   USE mo_loopindices,           ONLY: get_indices_c, get_indices_e
   USE mo_atm_phy_nwp_config,    ONLY: atm_phy_nwp_config
   USE mo_nonhydrostatic_config, ONLY: kstart_moist
-  USE mo_io_config,             ONLY: echotop_meta
+  USE mo_io_config,             ONLY: echotop_meta, &
+       &                              wdur_min_hailcast
   USE mo_lnd_nwp_config,        ONLY: nlev_soil, dzsoil
   USE mo_nwp_lnd_types,         ONLY: t_lnd_diag
   USE mo_ext_data_types,        ONLY: t_external_data
@@ -67,7 +68,10 @@ MODULE mo_opt_nwp_diagnostics
   USE mo_communication,         ONLY: exchange_data
   USE mo_grid_config,           ONLY: l_limited_area
   USE mo_mpi,                   ONLY: my_process_is_mpi_workroot, get_my_mpi_work_id
+  USE mo_timer,                 ONLY: timer_start, timer_stop, timers_level
+  USE mo_diag_hailcast,         ONLY: hailstone_driver
   USE mo_util_phys,             ONLY: inversion_height_index  
+  USE mo_nwp_tuning_config,     ONLY: tune_dursun_scaling
 #ifdef HAVE_RADARFWO
   USE radar_data_mie,             ONLY: ldebug_dbz
   USE radar_interface,            ONLY: initialize_tmax_atomic_1mom, &
@@ -120,6 +124,8 @@ MODULE mo_opt_nwp_diagnostics
   PUBLIC :: compute_field_srh
   PUBLIC :: compute_field_visibility
   PUBLIC :: compute_field_inversion_height
+  PUBLIC :: compute_updraft_duration
+  PUBLIC :: compute_hail_statistics
   
   !> module name
   CHARACTER(LEN=*), PARAMETER :: modname = 'mo_opt_nwp_diagnostics'
@@ -213,12 +219,13 @@ CONTAINS
     ! Set the uppermost model level for the occurence of a wet bulb temperature (wbl)
     ! to about 8000m above surface
     ktopmin = nlev+2
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) REDUCTION(MIN: ktopmin) IF(lzacc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) REDUCTION(MIN: ktopmin) IF(lzacc)
     DO k = nlev+1, 1, -1
       IF ( hhlr(k) < 8000.0_wp ) THEN
         ktopmin = k
       ENDIF
     ENDDO
+    !$ACC WAIT(1)
     if( ktopmin>nlev+1 ) ktopmin = 2
 
     ! Initialize the definition mask and the output array snowlmt
@@ -272,8 +279,8 @@ CONTAINS
       ENDDO
     ENDDO
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
 
-    !$ACC WAIT
     !$ACC END DATA
 
   END SUBROUTINE calsnowlmt
@@ -331,8 +338,8 @@ CONTAINS
       CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
         i_startidx, i_endidx, rl_start, rl_end)
       
-      !$ACC PARALLEL DEFAULT(PRESENT) PRIVATE(w_avg) IF(lzacc)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(w_avg)
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
         DO jk = slev, elev
@@ -352,7 +359,6 @@ CONTAINS
     ENDDO  ! jb
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
-
 
   END SUBROUTINE compute_field_omega
 
@@ -511,7 +517,7 @@ CONTAINS
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, rl_start, rl_end)
       
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = slev, elev
         DO jc = i_startidx, i_endidx
@@ -566,8 +572,8 @@ CONTAINS
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, rl_start, rl_end)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) PRIVATE(ivd1, ivd2, vdfac) IF(lzacc)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(ivd1, ivd2, vdfac)
       DO jk = slev, elev
         DO je = i_startidx, i_endidx
 
@@ -616,6 +622,7 @@ CONTAINS
       !$ACC END PARALLEL
 
     ENDDO 
+    !$ACC WAIT(1)
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
     
@@ -640,7 +647,7 @@ CONTAINS
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
         &                i_startidx, i_endidx, rl_start, rl_end)
       
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = slev, elev
         DO jc = i_startidx, i_endidx
@@ -648,7 +655,9 @@ CONTAINS
         ENDDO
       ENDDO
       !$ACC END PARALLEL
+
     ENDDO  ! jb
+    !$ACC WAIT(1)
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL    
 
@@ -1202,7 +1211,7 @@ CONTAINS
     i_endblk   = ptr_patch%cells%end_block  ( i_rlend   )
 
     ! nullify every grid point (lateral boundary, too)
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jb=1,ptr_patch%nblks_c
       DO jc=1,nproma
@@ -1220,7 +1229,7 @@ CONTAINS
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         vol     (jc)     = 0.0_wp
@@ -1229,7 +1238,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO jk = kstart_moist(jg), ptr_patch%nlev
         !$ACC LOOP GANG VECTOR PRIVATE(delta_z, w_c, q_liqu, q_i, q_s, q_g, epsw, q_solid, lpi_incr)
@@ -1309,7 +1318,7 @@ CONTAINS
       !$ACC END PARALLEL
 
       ! normalization
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         IF ( vol(jc) > 1.0e-30_wp ) THEN
@@ -1371,7 +1380,7 @@ CONTAINS
       CALL get_indices_c( p_pp, jb, i_startblk, i_endblk,           &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         p_nmbr_w( jc, jb) = 0.0_wp
@@ -1402,7 +1411,7 @@ CONTAINS
       CALL get_indices_c( p_pp, jb, i_startblk, i_endblk,           &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      !$ACC PARALLEL IF(lzacc)
+      !$ACC PARALLEL ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         p_nmbr_w(jc, jb) =                            &
@@ -1435,7 +1444,7 @@ CONTAINS
       CALL get_indices_c( p_pp, jb, i_startblk, i_endblk,           &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         p_nmbr_w_sum  (jc)  = 0
@@ -1443,7 +1452,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL
 
-      !$ACC PARALLEL IF(lzacc)
+      !$ACC PARALLEL ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO l=1, p_int%cell_environ%max_nmbr_nghbr_cells
         
@@ -1461,7 +1470,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         p_frac_w(jc) = DBLE( p_nmbr_w_sum(jc) ) / DBLE( p_nmbr_all_sum(jc) )
@@ -1469,7 +1478,7 @@ CONTAINS
       !$ACC END PARALLEL
 
       ! write back to the 4 child grid cells:
-      !$ACC PARALLEL IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO i = 1, 4
         DO jc = i_startidx, i_endidx
@@ -1479,6 +1488,7 @@ CONTAINS
       !$ACC END PARALLEL
 
     END DO
+    !$ACC WAIT(1)
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
     !$ACC END DATA ! p_nmbr_w
@@ -1501,7 +1511,7 @@ CONTAINS
 
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         ! finally, this is the 'updraft in environment criterion':
@@ -1512,6 +1522,7 @@ CONTAINS
       !$ACC END PARALLEL
 
     END DO
+    !$ACC WAIT(1)
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
@@ -1575,13 +1586,14 @@ CONTAINS
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         lpi_max(jc,jb) = MAX( lpi_max(jc,jb), lpi(jc,jb) )
       END DO
       !$ACC END PARALLEL
     END DO
+    !$ACC WAIT(1)
     !$ACC END DATA
 !$OMP END PARALLEL
 
@@ -1639,7 +1651,7 @@ CONTAINS
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, jb, jg)
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) FIRSTPRIVATE(i_startidx, i_endidx, jb, jg)
       !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx
         cld_base_found(jc) = .FALSE.
@@ -1657,7 +1669,8 @@ CONTAINS
       ENDDO
       !$ACC END PARALLEL
     ENDDO
-  !$ACC END DATA
+    !$ACC WAIT(1)
+    !$ACC END DATA
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
@@ -1885,7 +1898,7 @@ CONTAINS
 
       ! add contribution by qv
       !
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = slev, p_patch%nlev
         DO jc = i_startidx, i_endidx
@@ -1896,7 +1909,7 @@ CONTAINS
 
       ! integrate over column
       !
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO jk = slev, p_patch%nlev
         !$ACC LOOP GANG VECTOR
@@ -1906,7 +1919,9 @@ CONTAINS
         END DO
       END DO
       !$ACC END PARALLEL
+
     ENDDO  !jb
+    !$ACC WAIT(1)
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
@@ -2543,7 +2558,7 @@ CONTAINS
     !$ACC   CREATE(kstart, klcl, klfc, k_ml) &
     !$ACC   IF(lzacc)
 
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, nlev, kmoist) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) FIRSTPRIVATE(i_startidx, i_endidx, nlev, kmoist) IF(lzacc)
     !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jc = i_startidx, i_endidx
       k_ml  (jc)  = nlev  ! index used to step through the well mixed layer
@@ -2605,6 +2620,7 @@ CONTAINS
       END IF
     ENDDO
     !$ACC END PARALLEL
+
     ! The pseudoadiabatic ascent of the test parcel:
     IF (l3km) THEN
       CALL ascent ( i_startidx=i_startidx, i_endidx=i_endidx, kmoist=kmoist, te=te, qve=qve, prs=prs, hhl=hhl,  &
@@ -2619,7 +2635,7 @@ CONTAINS
                     lacc= lacc )
     ENDIF
     IF (llev) THEN
-      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, nlev) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) FIRSTPRIVATE(i_startidx, i_endidx, nlev) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         IF ((klcl(jc) .LE. 0) .OR. (klcl(jc) .GT. nlev)) THEN ! if index not defined
@@ -2638,6 +2654,7 @@ CONTAINS
       ENDDO
       !$ACC END PARALLEL
     ENDIF
+    !$ACC WAIT(1)
     !$ACC END DATA
   END SUBROUTINE cal_cape_cin
 
@@ -2697,7 +2714,7 @@ CONTAINS
     nk = SIZE(te,2)
     
     ! initialize outputs (good practice)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, kmoist, nk, z_limit) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) FIRSTPRIVATE(i_startidx, i_endidx, kmoist, nk, z_limit) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
       cape_mu  (jc) = 0.0_wp 
@@ -2819,7 +2836,7 @@ CONTAINS
     !$ACC   CREATE(cape_mu_COSMO, cin_mu_COSMO, acape, acin, lcomp, kstart) &
     !$ACC   IF(lzacc)
 
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, nlev) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) FIRSTPRIVATE(i_startidx, i_endidx, nlev) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
       cape_mu_COSMO(jc)  = 0.0_wp
@@ -2850,7 +2867,7 @@ CONTAINS
     ! defined above.
     !------------------------------------------------------------------------------
     parcelloop:  DO k = kmoist, nlev
-      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(k, nlev, i_startidx, i_endidx, mup_lay_thck) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) FIRSTPRIVATE(k, nlev, i_startidx, i_endidx, mup_lay_thck) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         kstart(jc) = k
@@ -2859,6 +2876,7 @@ CONTAINS
         acin  (jc) = missing_value
       ENDDO
       !$ACC END PARALLEL
+
       ! ! Take temperature and moisture of environment profile at current 
       ! ! level as initial values for the ascending parcel, call "ascent"
       ! ! to perform the dry/moist adiabatic parcel ascent and get back
@@ -2871,7 +2889,7 @@ CONTAINS
                      acape=acape, acin=acin, lcomp = lcomp,                    & ! out (cape, cin) in (logical array for computation)
                      lacc= lacc )
       
-      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) FIRSTPRIVATE(i_startidx, i_endidx) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = i_startidx, i_endidx
         IF ( acape(jc) > cape_mu_COSMO(jc) ) THEN
@@ -2881,6 +2899,7 @@ CONTAINS
       ENDDO
       !$ACC END PARALLEL
     ENDDO parcelloop
+    !$ACC WAIT(1)
     !$ACC END DATA
   END SUBROUTINE
 
@@ -2951,7 +2970,7 @@ CONTAINS
   !$ACC   CREATE(kstart, k3000m, k6000m, k600, k650) &
   !$ACC   CREATE(qvp_start, te_start) &
   !$ACC   IF(lzacc)
-  !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, nlev, kmoist) IF(lzacc)
+  !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) FIRSTPRIVATE(i_startidx, i_endidx, nlev, kmoist) IF(lzacc)
   !$ACC LOOP GANG VECTOR
   DO jc = i_startidx, i_endidx
     kstart(jc) = nlev  
@@ -2981,14 +3000,15 @@ CONTAINS
         te_start(jc) = te  (jc,kstart(jc))
         qvp_start(jc) = qve (jc,kstart(jc))
     ENDDO
-  !$ACC END PARALLEL
+    !$ACC END PARALLEL
+
     CALL ascent ( i_startidx=i_startidx, i_endidx=i_endidx,                & ! in (grid)
                   kmoist=kmoist, te=te, qve=qve, prs=prs, hhl=hhl,         & ! in (environment properties)
                   kstart=kstart, qvp_start=qvp_start, te_start=te_start,   & ! in (initial parcel conditions)
                   asi=si,                                                  & ! out (Showalter Index)
                   lacc= lacc )                                            ! in (GPU flag)
     
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, nlev) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) FIRSTPRIVATE(i_startidx, i_endidx, nlev) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
         IF (prs(jc,nlev) < sistartprs) THEN
@@ -3012,6 +3032,7 @@ CONTAINS
     qvp_start(jc) = qve (jc,kstart(jc))    
   ENDDO
   !$ACC END PARALLEL
+
   CALL ascent ( i_startidx=i_startidx, i_endidx=i_endidx,                  & ! in (grid)
                   kmoist=kmoist, te=te, qve=qve, prs=prs, hhl=hhl,         & ! in (environment properties)
                   kstart=kstart, qvp_start=qvp_start, te_start=te_start,   & ! in (initial parcel conditions)
@@ -3028,7 +3049,7 @@ CONTAINS
   !------------------------------------------------------------------------------
   ! For these indeces, we need to obtain the levels corresponding to 600 hPa, 650 hPa,
   ! 3000m and 6000m (NOTE that this is not Height Above Ground (HAG) but Above mean Sea Level (a.s.l.))
-  !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, nlev, kmoist) IF(lzacc)
+  !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) FIRSTPRIVATE(i_startidx, i_endidx, nlev, kmoist) IF(lzacc)
   ! inizialisation
   !$ACC LOOP GANG VECTOR PRIVATE(hl_l, hl_u)
   DO jc = i_startidx, i_endidx
@@ -3167,6 +3188,7 @@ CONTAINS
     ENDIF
   ENDDO
   !$ACC END PARALLEL
+  !$ACC WAIT(1)
   !$ACC END DATA
   END SUBROUTINE
 
@@ -3223,7 +3245,7 @@ CONTAINS
     !$ACC   CREATE(lcloudtop) &
     !$ACC   IF(lzacc)
 
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, kmoist, nlev) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) FIRSTPRIVATE(i_startidx, i_endidx, kmoist, nlev) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
       cloudtop     (jc) = missing_value
@@ -3239,8 +3261,9 @@ CONTAINS
         ENDIF
       ENDDO
     ENDDO
-  !$ACC END PARALLEL
-  !$ACC END DATA
+    !$ACC END PARALLEL
+    !$ACC WAIT(1)
+    !$ACC END DATA
   END SUBROUTINE
 
   SUBROUTINE ascent ( i_startidx, i_endidx, kmoist, te, qve, prs, hhl,  & ! in
@@ -3464,8 +3487,7 @@ CONTAINS
     !$ACC   IF(lzacc)
     nlev = SIZE( te,2)
 
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx) IF(lzacc)
-    
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) FIRSTPRIVATE(i_startidx, i_endidx) IF(lzacc)
     IF (PRESENT(lcomp)) THEN
       !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx  
@@ -3506,8 +3528,9 @@ CONTAINS
       k3000m  (jc) = -1 ! this is done also in the COSMO subroutine so it is reproduced here
     ENDDO
     !$ACC END PARALLEL
+
     IF(lacape3km) THEN
-      !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(nlev, kmoist, i_startidx, i_endidx) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) FIRSTPRIVATE(nlev, kmoist, i_startidx, i_endidx) IF(lzacc)
       !$ACC LOOP SEQ
       DO k = nlev-1, kmoist+1, -1
         !$ACC LOOP GANG VECTOR PRIVATE(hl_l, hl_u)
@@ -3526,7 +3549,7 @@ CONTAINS
       !$ACC END PARALLEL
     ENDIF
 
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     ! Loop over all model levels above kstart
     !$ACC LOOP SEQ
     kloop: DO k = nlev, kmoist, -1
@@ -3762,10 +3785,9 @@ CONTAINS
     ENDDO  kloop       ! End k-loop over levels
     !$ACC END PARALLEL
 
-
     ! Subtract the CIN above the LFC from the total accumulated CIN to 
     ! get only contriubtions from below the LFC as the definition demands.
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) FIRSTPRIVATE(i_startidx, i_endidx) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
       ! make CIN positive
@@ -3775,7 +3797,7 @@ CONTAINS
     ENDDO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(i_startidx, i_endidx, lacape, lacape3km, lacin, lalcl, lalfc) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) FIRSTPRIVATE(i_startidx, i_endidx, lacape, lacape3km, lacin, lalcl, lalfc) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc = i_startidx, i_endidx
       IF (lacape)    acape(jc)    = cape      (jc)
@@ -3785,6 +3807,7 @@ CONTAINS
       IF (lalfc)     alfc (jc)    = lfclev    (jc) 
     ENDDO
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
     !$ACC END DATA
   END SUBROUTINE ascent
 
@@ -4012,7 +4035,7 @@ CONTAINS
              z_radar   = dbz3d_lin(:,:,:),                 &
              lacc      = lzacc                             )
 
-      CASE ( 4, 5, 6 )
+      CASE ( 4, 5, 6, 8 )
 #ifdef _OPENACC
         CALL finish(routine, 'compute_field_dbz_2mom is supported by OpenACC, but never tested.')
 #endif
@@ -4261,7 +4284,7 @@ CONTAINS
         DEALLOCATE (Tmax_i, Tmax_s, Tmax_g)
         IF (ALLOCATED(dummy0)) DEALLOCATE(dummy0)
 
-      CASE ( 4, 5, 6, 7 )
+      CASE ( 4, 5, 6, 7, 8)
 
         t   => p_diag%temp(:,:,:)
         rho_tot => p_prog%rho(:,:,:)
@@ -4500,18 +4523,20 @@ CONTAINS
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
-        !$ACC LOOP SEQ
-        DO jk = kstart_moist(jg), ptr_patch%nlev
-          !$ACC LOOP GANG VECTOR
-          DO jc = i_startidx, i_endidx
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP SEQ
+      DO jk = kstart_moist(jg), ptr_patch%nlev
+        !$ACC LOOP GANG VECTOR
+        DO jc = i_startidx, i_endidx
 
-            dbz_cmax(jc,jb) = MAX (dbz_cmax(jc,jb), dbz3d_lin(jc,jk,jb))
+          dbz_cmax(jc,jb) = MAX (dbz_cmax(jc,jb), dbz3d_lin(jc,jk,jb))
 
-          END DO
         END DO
-        !$ACC END PARALLEL
+      END DO
+      !$ACC END PARALLEL
+
     END DO
+    !$ACC WAIT(1)
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
@@ -4561,19 +4586,20 @@ CONTAINS
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
-        !$ACC LOOP SEQ
-        DO jk = kstart_moist(jg), ptr_patch%nlev
-          !$ACC LOOP GANG VECTOR
-          DO jc = i_startidx, i_endidx
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP SEQ
+      DO jk = kstart_moist(jg), ptr_patch%nlev
+        !$ACC LOOP GANG VECTOR
+        DO jc = i_startidx, i_endidx
 
-            dbz_ctmax(jc,jb) = MAX (dbz_ctmax(jc,jb), dbz3d_lin(jc,jk,jb))
+          dbz_ctmax(jc,jb) = MAX (dbz_ctmax(jc,jb), dbz3d_lin(jc,jk,jb))
 
-          END DO
         END DO
-        !$ACC END PARALLEL
+      END DO
+      !$ACC END PARALLEL
 
     END DO
+    !$ACC WAIT(1)
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
@@ -4624,7 +4650,7 @@ CONTAINS
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
       
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR PRIVATE(jk)
       DO jc = i_startidx, i_endidx
 
@@ -4639,6 +4665,7 @@ CONTAINS
       !$ACC END PARALLEL
       
     END DO
+    !$ACC WAIT(1)
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
@@ -4704,7 +4731,7 @@ CONTAINS
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO jk = ptr_patch%nlev, kstart_moist(jg), -1
         !$ACC LOOP GANG VECTOR PRIVATE(zml)
@@ -4723,6 +4750,7 @@ CONTAINS
       !$ACC END PARALLEL
 
     END DO
+    !$ACC WAIT(1)
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
@@ -4788,7 +4816,7 @@ CONTAINS
         CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                             i_startidx, i_endidx, i_rlstart, i_rlend)
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         
         ! Find the model level just below the echotop:
         !$ACC LOOP GANG(STATIC: 1) VECTOR
@@ -4832,6 +4860,7 @@ CONTAINS
         !$ACC END PARALLEL
 
       END DO
+      !$ACC WAIT(1)
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
@@ -4897,7 +4926,7 @@ CONTAINS
         CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                             i_startidx, i_endidx, i_rlstart, i_rlend)
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
 
         ! Find the model level just below the echotop:
         !$ACC LOOP GANG(STATIC: 1) VECTOR
@@ -4937,6 +4966,7 @@ CONTAINS
         !$ACC END PARALLEL
 
       END DO
+      !$ACC WAIT(1)
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
@@ -4949,16 +4979,20 @@ CONTAINS
   !>
   !! Calculate sunshine duration
   !!
-  !!  According to WMO (2003),2 sunshine duration during a given period is defined as
-  !!  the sum of that sub-period for which the perpendicular direct solar irradiance exceeds 120 W m-2
-  !!  WMO-No. 8 Guide to Meteorological Instruments and Methods of Observation
+  !! According to WMO (2003),2 sunshine duration during a given period is defined as
+  !! the sum of that sub-period for which the perpendicular direct solar irradiance exceeds 120 W m-2
+  !! WMO-No. 8 Guide to Meteorological Instruments and Methods of Observation
   !!
   !! The direct solar irradiance at the surface is calculated from the shortwave net flux at surface, 
   !! the shortwave upward flux and the shortwave diffuse downward radiative flux. It is divided
   !! by the cosine of solar zenith angle to get the perpendicular solar irradiance.
   !! If the direct solar irradiance exeeds 120 Wm-2 the sunshine duration is extended by the fast physics timestep
   !!
-  !! settings for sunshine duration
+  !! The direct solar irradiance at the surface can be scaled by the namelist parameter tune_dursun_scaling
+  !! (default is 1) to reduce the sunshine duration bias. This might be needed to account for the delta-Eddington 
+  !! scaling in ecRad and other biases (e.g. ice water path)
+  !!
+  !! settings for sunshine duration: 
   !!
   !! dursun_thresh is the threshold for solar direct irradiance in W/m2
   !!       above which the sunshine duration is increased (default 120 W/m2)
@@ -5033,13 +5067,16 @@ CONTAINS
 
       CALL get_indices_c( pt_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR PRIVATE(sun_el, swrad_dir, theta_sun, xval)
       DO jc = i_startidx, i_endidx
         IF(cosmu0(jc,jb)>cosmu0_dark) THEN
 
           ! compute sunshine duration
-          xval = (swflxsfc(jc,jb) + swflx_up_sfc(jc,jb) - swflx_dn_sfc_diff(jc,jb))/cosmu0(jc,jb)
+          ! direct solar irradiance is scaled by the tuning factor tune_dursun_scaling (default is 1) to reduce 
+          ! a possible bias
+          xval = (swflxsfc(jc,jb) + swflx_up_sfc(jc,jb) - swflx_dn_sfc_diff(jc,jb))*tune_dursun_scaling/cosmu0(jc,jb)
           xval = (xval - dursun_thresh)/(dursun_thresh_width/pi)
           IF (xval > 0.5_wp*pi) THEN
             dursun(jc,jb) = dursun(jc,jb) + dt_phy
@@ -5088,13 +5125,180 @@ CONTAINS
 
       END DO ! jc loop
       !$ACC END PARALLEL
+
     END DO ! jb loop
+    !$ACC WAIT(1)
     !$ACC END DATA
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
   END SUBROUTINE compute_field_dursun
 
+  SUBROUTINE compute_updraft_duration(ptr_patch, w, wdur, wup_mask)
+    TYPE(t_patch),      INTENT(IN)    :: ptr_patch              !< patch on which computation is performed
+    REAL(wp), INTENT(IN) :: w(:,:,:)
+    REAL(wp), INTENT(INOUT) :: wdur(:,:)
+    INTEGER, INTENT(INOUT) :: wup_mask(:,:)
+    REAL(wp), DIMENSION(nproma,ptr_patch%nblks_c) :: wdur_prev
+    INTEGER, DIMENSION(nproma,ptr_patch%nblks_c) :: wup_mask_prev
+
+    ! Vertex blocks of current cell
+    INTEGER :: my_neighbor_blk ( 3 )
+
+    ! Vertex indices of current cell
+    INTEGER :: my_neighbor_idx ( 3 )
+
+    INTEGER :: i,k,jb,jc,i_rlstart,i_rlend,i_startblk,i_endblk,i_startidx,i_endidx,dt
+
+    !$ACC DATA CREATE(wdur_prev, wup_mask_prev, my_neighbor_idx, my_neighbor_blk)
+
+    CALL init(wup_mask_prev)
+    CALL init(wdur_prev)
+
+    dt = dtime
+    !------------------------------------------------------------------------------ 
+
+    ! without halo or boundary points: 
+    i_rlstart = grf_bdywidth_c + 1 
+    i_rlend   = min_rlcell_int 
+    i_startblk = ptr_patch%cells%start_block( i_rlstart )
+    i_endblk   = ptr_patch%cells%end_block  ( i_rlend   )
+
+    DO jb = i_startblk, i_endblk
+
+      CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,           &
+                          i_startidx, i_endidx, i_rlstart, i_rlend)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR
+      DO jc = i_startidx, i_endidx
+        wdur_prev(jc,jb) = wdur(jc,jb)
+        wup_mask_prev(jc,jb) = wup_mask(jc,jb)
+        wup_mask(jc,jb) = 0
+        wdur(jc,jb) = 0.0_wp
+        DO k = 1, ptr_patch%nlev
+          IF ( w(jc,k,jb) >= 10.0_wp) THEN
+            wup_mask(jc,jb) = 1
+          END IF
+        END DO
+      END DO
+      !$ACC END PARALLEL
+    END DO
+
+    CALL sync_patch_array(SYNC_C,ptr_patch, wdur_prev)
+    CALL sync_patch_array(SYNC_C,ptr_patch, wup_mask_prev)
+
+    DO jb = i_startblk, i_endblk
+
+      CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,           &
+                          i_startidx, i_endidx, i_rlstart, i_rlend)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR PRIVATE(my_neighbor_idx, my_neighbor_blk)
+      DO jc = i_startidx, i_endidx
+
+        ! ------------------------------------- Find neighbors ------------------------------------
+
+        DO i = 1,3
+            my_neighbor_idx(i) = ptr_patch%cells%neighbor_idx(jc, jb, i)
+            my_neighbor_blk(i) = ptr_patch%cells%neighbor_blk(jc, jb, i)
+        END DO
+
+        ! ------------------------------------------------------------------------
+        IF ( wup_mask(jc,jb) == 1                                        .OR. &
+             wup_mask_prev(jc,jb) == 1                                   .OR. &
+             wup_mask_prev(my_neighbor_idx(1), my_neighbor_blk(1)) == 1  .OR. &
+             wup_mask_prev(my_neighbor_idx(2), my_neighbor_blk(2)) == 1  .OR. &
+             wup_mask_prev(my_neighbor_idx(3), my_neighbor_blk(3)) == 1 ) THEN
+          wdur(jc,jb) = MAX(                                    &
+             wdur_prev(jc,jb),                                  &
+             wdur_prev(my_neighbor_idx(1), my_neighbor_blk(1)), &
+             wdur_prev(my_neighbor_idx(2), my_neighbor_blk(2)), &
+             wdur_prev(my_neighbor_idx(3), my_neighbor_blk(3)) ) + REAL(dt,kind=wp)
+
+        END IF
+      END DO
+      !$ACC END PARALLEL
+    END DO
+    !$ACC WAIT
+    !$ACC END DATA
+
+  END SUBROUTINE compute_updraft_duration
+
   !>
+  !! Calculate dhail
+  !!
+  SUBROUTINE compute_field_dhail(ptr_patch, p_metrics, p_prog, p_prog_rcf, p_diag,nwp_p_diag, topography_c, dhail)
+
+    TYPE(t_patch),      INTENT(IN)    :: ptr_patch              !< patch on which computation is performed
+    TYPE(t_nh_prog),    INTENT(IN)    :: p_prog                 !< prognostic variables
+    TYPE(t_nh_prog),    INTENT(IN)    :: p_prog_rcf             !< prognostic variables (reduced calling frequency)
+    TYPE(t_nh_diag),    INTENT(IN)    :: p_diag                 !< diagnostic variables
+    TYPE(t_nwp_phy_diag),  INTENT(IN) :: nwp_p_diag             !< diagnostic variables
+    TYPE(t_nh_metrics), INTENT(IN)    :: p_metrics              !< metric variables
+    REAL(wp),           INTENT(IN)    :: topography_c(:,:)      !< height of ground surface above sea level
+
+    REAL(wp), INTENT(INOUT) :: dhail(:,:,:) !< expected hail diameter
+
+#ifdef _OPENMP
+    CALL warning('compute_field_dhail','No OpenMP pragmas implemented for hailcast!')
+#endif
+
+    CALL hailstone_driver(ptr_patch, p_metrics, p_prog, p_prog_rcf, p_diag,nwp_p_diag%wdur, topography_c, wdur_min_hailcast , dhail)
+
+  END SUBROUTINE compute_field_dhail
+
+  SUBROUTINE compute_hail_statistics(ptr_patch, p_metrics, p_prog, p_prog_rcf, p_diag,nwp_p_diag, topography_c)
+    TYPE(t_patch),      INTENT(IN)    :: ptr_patch              !< patch on which computation is performed
+    TYPE(t_nh_prog),    INTENT(IN)    :: p_prog                 !< prognostic variables
+    TYPE(t_nh_prog),    INTENT(IN)    :: p_prog_rcf             !< prognostic variables (reduced calling frequency)
+    TYPE(t_nh_diag),    INTENT(IN) :: p_diag                 !< diagnostic variables
+    TYPE(t_nwp_phy_diag),    INTENT(INOUT) :: nwp_p_diag                 !< diagnostic variables
+    TYPE(t_nh_metrics), INTENT(IN)    :: p_metrics              !< metric variables
+    REAL(wp),           INTENT(IN)    :: topography_c(:,:)      !< height of ground surface above sea level
+
+    ! Helper variable for computation of standard deviation
+    REAL(wp) :: sum_sd
+
+    INTEGER :: k,jb,jc,i_rlstart,i_rlend,i_startblk,i_endblk,i_startidx,i_endidx
+
+
+    ! without halo or boundary points: 
+    i_rlstart = grf_bdywidth_c + 1 
+    i_rlend   = min_rlcell_int 
+    i_startblk = ptr_patch%cells%start_block( i_rlstart )
+    i_endblk   = ptr_patch%cells%end_block  ( i_rlend   )
+
+    CALL compute_field_dhail ( ptr_patch, p_metrics, p_prog, &
+                               p_prog_rcf, p_diag, nwp_p_diag, topography_c, nwp_p_diag%dhail )
+
+
+    DO jb = i_startblk, i_endblk
+
+      CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,           &
+                          i_startidx, i_endidx, i_rlstart, i_rlend)
+
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR PRIVATE(sum_sd)
+      DO jc = i_startidx, i_endidx
+
+
+        ! maximize hail size
+        nwp_p_diag%dhail_mx(jc,jb) = MAX(nwp_p_diag%dhail(jc,1,jb),nwp_p_diag%dhail(jc,2,jb),nwp_p_diag%dhail(jc,3,jb),nwp_p_diag%dhail(jc,4,jb),nwp_p_diag%dhail(jc,5,jb))
+
+        ! Compute average hail size
+        nwp_p_diag%dhail_av(jc,jb) = SUM(nwp_p_diag%dhail(jc,:,jb)) / REAL(SIZE(nwp_p_diag%dhail,2),wp)
+
+        sum_sd = 0.0_wp
+        DO k = 1, SIZE(nwp_p_diag%dhail,2)
+            sum_sd = sum_sd + ( nwp_p_diag%dhail(jc,k,jb) - nwp_p_diag%dhail_av(jc,jb) )**2
+        END DO
+        nwp_p_diag%dhail_sd(jc,jb) = SQRT( sum_sd / REAL(SIZE(nwp_p_diag%dhail, 2)-1,wp) ) 
+
+      END DO
+      !$ACC END PARALLEL
+
+    END DO
+
+  END SUBROUTINE compute_hail_statistics
+
   !! Compute vertical wind shear of either u or v component as the difference between a height AGL and the lowest model level.
   !! This is done for a number of heights and is stored in a pseudo 3D field.
   !!

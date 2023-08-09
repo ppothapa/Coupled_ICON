@@ -133,7 +133,7 @@ INTEGER(KIND=jpim) :: jk, jl
   !$ACC   IF(lacc)
 
   !US we could use default (none) here, but PGI complains about beta then!?
-  !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
 
   ! Make land sea-mask for beta
   !$ACC LOOP GANG(STATIC: 1) VECTOR
@@ -186,6 +186,7 @@ INTEGER(KIND=jpim) :: jk, jl
   ENDDO
 
   !$ACC END PARALLEL
+  !$ACC WAIT(1)
 
   !$ACC END DATA
 

@@ -15,6 +15,12 @@ MAKE_PROCS=22
 # slurm specific stuff is set here in this file to keep the jobscripts as general as possible
 #TODO use mh0156 for dkrz
 case $(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]') in
+  levante_aurora)
+    cd ${ICON_DIR} && ${ICON_DIR}/config/buildbot/buildModel.sbatch > ${LOGFILE} 2>&1
+    if test 0 -ne "$?" ; then
+      exit 1
+    fi
+    ;;
   levante*)
     sbatch --wait -A mh0156 --qos=buildbot -p shared,compute -n ${MAKE_PROCS} -o ${LOGFILE} -D $(pwd) ${ICON_DIR}/config/buildbot/buildModel.sbatch
     if test 0 -ne "$?" ; then

@@ -173,9 +173,9 @@ CONTAINS
     TYPE(t_subset_range), POINTER :: cells_in_domain, edges_in_domain
     CHARACTER(len=*), PARAMETER :: routine = modname//':lhs_surface_height_ab_mim_wp'
 
-#ifdef _OPENACC
-    CALL finish(routine, 'OpenACC version currently not implemented')
-#endif
+!#ifdef _OPENACC
+!    CALL finish(routine, 'OpenACC version currently not implemented')
+!#endif
 
     cells_in_domain => this%patch_2D%cells%in_domain
     edges_in_domain => this%patch_2D%edges%in_domain

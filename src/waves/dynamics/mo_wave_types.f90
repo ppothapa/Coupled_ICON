@@ -17,7 +17,7 @@
 !=============================================================================================
 MODULE mo_wave_types
 
-  USE mo_kind,                ONLY: wp
+  USE mo_kind,                ONLY: wp, vp
   USE mo_var_list,            ONLY: t_var_list_ptr
   USE mo_fortran_tools,       ONLY: t_ptr_2d3d
 
@@ -80,6 +80,10 @@ MODULE mo_wave_types
       &  AF11(:),             & ! for discrete approximation of nonlinear transfer
       &  FKLAP(:), FKLAP1(:), & ! --//--
       &  FKLAM(:), FKLAM1(:)  & ! --//--
+      &  => NULL()
+
+    REAL(vp), POINTER, CONTIGUOUS :: &
+      &  geo_bath_grad_c(:,:,:,:) & ! bathymetry geographical gradient (2,nproma,nlev,nblks_c) (m/m)
       &  => NULL()
 
     INTEGER, POINTER, CONTIGUOUS ::  &

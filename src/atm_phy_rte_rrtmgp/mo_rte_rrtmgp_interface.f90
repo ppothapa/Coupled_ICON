@@ -88,10 +88,10 @@ CONTAINS
 
   ! TODO/BUG?
   !-------------------------------------------------------------------
-  SUBROUTINE rte_rrtmgp_interface(                                               &
-      jg, jb, jcs, jce, nproma, klev,                                       &
-      & irad_aero                                                          ,&
-      & psctm, ssi_factor,                                                  &
+  SUBROUTINE rte_rrtmgp_interface(                                          &
+      & jg, jb, jcs, jce, nproma, klev                                     ,&
+      & irad_aero       , lrad_yac                                         ,&
+      & psctm           , ssi_factor                                       ,&
       & loland          ,loglac          ,this_datetime                    ,&
       & pcos_mu0        ,daylght_frc                                       ,&
       & alb_vis_dir     ,alb_nir_dir     ,alb_vis_dif     ,alb_nir_dif     ,&
@@ -123,6 +123,7 @@ CONTAINS
          nproma, klev, & !< array dimensions(?)
          irad_aero       !< aerosol control
 
+    LOGICAL, INTENT(IN) :: lrad_yac                      !< kinne aerosol from yac (true) or file
     REAL(wp),INTENT(IN) :: psctm                         !< orbit and time dependent solar constant for radiation time step
     REAL(wp),INTENT(IN) :: ssi_factor(:)                 !< fraction of TSI in the 14 RRTM SW bands
 
@@ -239,13 +240,13 @@ CONTAINS
       ! iaero=13: only Kinne aerosols are used
       ! iaero=15: Kinne aerosols plus Stenchikov's volcanic aerosols are used
       ! iaero=18: Kinne background aerosols (of natural origin, 1850) are set
-        CALL set_bc_aeropt_kinne(this_datetime,                       &
+        CALL set_bc_aeropt_kinne(this_datetime,                        &
               & jg,                                                    &
               & jcs, nproma,    nproma,                klev,           &
               & jb,             nbndsw,                nbndlw,         &
               & zf,             dz,                                    &
               & aer_tau_sw,     aer_ssa_sw,            aer_asy_sw,     &
-              & aer_tau_lw                                              )
+              & aer_tau_lw, opt_from_yac=lrad_yac )
       END IF
       IF (irad_aero==14 .OR. irad_aero==15 .OR. irad_aero==18) THEN
       ! iaero=14: only Stechnikov's volcanic aerosols are used (added to zero)
@@ -434,20 +435,22 @@ CONTAINS
     
     m = SIZE(src,1)
     n = SIZE(src,2)
-    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+    !$ACC LOOP GANG VECTOR
     DO j = 1, n
       tgt_min(j)=low  + (j-1)*epsilon(tgt_min)
       tgt_max(j)=high - (n-j)*epsilon(tgt_max)
     END DO
-    !$ACC END PARALLEL LOOP
+    !$ACC END PARALLEL
 
-    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO j = 1, n
       DO i = 1 , m
          tgt(i,j) = min(tgt_max(j), max(tgt_min(j), src(i,j)))
       ENDDO
     ENDDO
-    !$ACC END PARALLEL LOOP
+    !$ACC END PARALLEL
 
     !$ACC END DATA
   END SUBROUTINE clamp_pressure
@@ -655,8 +658,8 @@ CONTAINS
     ! Is there fractional cloudiness i.e. differences from 0 or 1? If not we can skip McICA sampling
     !
     do_frac_cloudiness = .false.
-    !$ACC PARALLEL LOOP DEFAULT(PRESENT) COPY(do_frac_cloudiness) &
-    !$ACC   GANG VECTOR COLLAPSE(2) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) COPY(do_frac_cloudiness)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = 1, klev
       DO jl = 1, ncol
          IF (min(abs(cld_frc(jl,jk) - 1._wp), abs(cld_frc(jl,jk))) > cld_frc_thresh) THEN
@@ -667,7 +670,7 @@ CONTAINS
          END IF
       END DO
     END DO
-    !$ACC END PARALLEL LOOP
+    !$ACC END PARALLEL
     !
     ! Keep the fractional cloudiness turned off for now
     do_frac_cloudiness = .false. 
@@ -688,7 +691,8 @@ CONTAINS
                   'Droplet minimun size required is bigger than maximum')
     END IF
 
-    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = 1, klev
       DO jl = 1, ncol
         !
@@ -727,7 +731,7 @@ CONTAINS
         END IF
       END DO
     END DO
-    !$ACC END PARALLEL LOOP
+    !$ACC END PARALLEL
     !
     ! RRTMGP cloud optics: here compute effective radius of liquid and ice from formulae in
     !   mo_radiation_cloud_optics.
@@ -794,13 +798,14 @@ CONTAINS
 
     ! 2.0 Surface Properties
     ! --------------------------------
-   !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) COLLAPSE(2) ASYNC(1)
+   !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+   !$ACC LOOP GANG VECTOR COLLAPSE(2)
    DO j=1,ncol
       DO i=1,nbndlw
         zsemiss(i,j)=emissivity(j)
       END DO
     END DO
-    !$ACC END PARALLEL LOOP
+    !$ACC END PARALLEL
 
     !
     ! Surface albedo interpolation
@@ -905,7 +910,8 @@ CONTAINS
       !$ACC DATA CREATE(aerosol_lw%tau)
       !
       !DA TODO: this can be just a pointer assignment
-      !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(3) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO band = 1, nbndlw
         DO j = 1, klev
           DO i = 1, ncol
@@ -913,7 +919,7 @@ CONTAINS
           END DO
         END DO
       END DO
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
       !
       ! RTE-RRTMGP ACC code is synchronous, so need to wait before calling it
       !$ACC WAIT
@@ -963,7 +969,8 @@ CONTAINS
       ! pressure field
       !
       !DA TODO: remove plev_vr alltogether
-      !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk=1,seed_size
         DO jl=1,ncol
           rnseeds(jl,jk) = &
@@ -971,7 +978,7 @@ CONTAINS
              int(inverse_pressure_scale * plev(jl,klev+2-jk)))* 1E9 + rad_perm)
         END DO
       END DO
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
 
       ALLOCATE(cloud_mask(ncol,klev,k_dist_lw%get_ngpt()))
       CALL stop_on_err(clouds_lw%alloc_1scl(ncol, klev, k_dist_lw))
@@ -992,8 +999,8 @@ CONTAINS
         gpt_start = gpt_lims(1) ! avoid copying array gpt_lims
         gpt_end   = gpt_lims(2)
 
-        !$ACC PARALLEL LOOP DEFAULT(PRESENT) &
-        !$ACC   GANG VECTOR COLLAPSE(3) ASYNC(1)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR COLLAPSE(3)
         DO gpt = gpt_start, gpt_end
           DO j = 1, klev
             DO i = 1, ncol
@@ -1005,7 +1012,7 @@ CONTAINS
             ENDDO
           ENDDO
         ENDDO
-        !$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL
 
       ENDDO
       !$ACC END DATA
@@ -1094,7 +1101,8 @@ CONTAINS
     END DO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO gpt = 1, ngptsw 
       DO i = 1, ncol
         toa_flux(i,gpt) = toa_flux(i,gpt) * daylght_frc(i) * psctm / tsi_norm_factor(i)
@@ -1104,7 +1112,7 @@ CONTAINS
         toa_flux(i,gpt) = toa_flux(i,gpt) * (1360.9_wp/1368.22_wp)
       ENDDO
     ENDDO
-    !$ACC END PARALLEL LOOP
+    !$ACC END PARALLEL
     !
     ! 4.2.2 Aerosol optical depth: add to clear-sky, reorder bands
     !
@@ -1115,7 +1123,8 @@ CONTAINS
       !$ACC DATA CREATE(aerosol_sw%tau, aerosol_sw%ssa, aerosol_sw%g) &
       !$ACC   PRESENT(aer_tau_sw, aer_ssa_sw, aer_asy_sw)
       !DA TODO: this could be just a pointer assignment
-      !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(3) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(3)
       DO band = 1, nbndsw
         DO j = 1, klev
           DO i = 1, ncol
@@ -1125,7 +1134,7 @@ CONTAINS
           END DO
         END DO
       END DO
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
       ! RTE-RRTMGP ACC code is synchronous, so need to wait before calling it
       !$ACC WAIT
       CALL stop_on_err(aerosol_sw%increment(atmos_sw))
@@ -1169,7 +1178,8 @@ CONTAINS
     !
     IF (do_frac_cloudiness) THEN
 
-      !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk=1,seed_size
         DO jl=1,ncol
           rnseeds(jl,jk) = &
@@ -1177,7 +1187,7 @@ CONTAINS
              int(inverse_pressure_scale * plev(jl,klev+1-seed_size+jk)))* 1E9 + rad_perm)
         END DO
       END DO
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
 
       ALLOCATE(cloud_mask(ncol,klev,k_dist_sw%get_ngpt()))
       CALL stop_on_err(clouds_sw%alloc_2str(ncol, klev, k_dist_sw))
@@ -1200,8 +1210,8 @@ CONTAINS
         gpt_start = gpt_lims(1) ! avoid copying array gpt_lims
         gpt_end   = gpt_lims(2)
 
-        !$ACC PARALLEL LOOP DEFAULT(PRESENT) &
-        !$ACC   GANG VECTOR COLLAPSE(3) ASYNC(1)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR COLLAPSE(3)
         DO gpt = gpt_start, gpt_end
           DO j = 1, klev
             DO i = 1, ncol
@@ -1217,7 +1227,7 @@ CONTAINS
             ENDDO
           ENDDO
         ENDDO
-        !$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL
 
       ENDDO
       !$ACC END DATA
@@ -1565,7 +1575,8 @@ SUBROUTINE reorient_3d_wrt2 (field)
   nl2=SIZE(field,2)
   nl3=SIZE(field,3)
 
-  !$ACC PARALLEL LOOP PRESENT(field) GANG VECTOR COLLAPSE(3) ASYNC(1)
+  !$ACC PARALLEL PRESENT(field) ASYNC(1)
+  !$ACC LOOP GANG VECTOR COLLAPSE(3)
   DO il3 = 1, nl3
     DO il2 = 1, nl2/2
       DO il1 = 1, nl1
@@ -1577,7 +1588,7 @@ SUBROUTINE reorient_3d_wrt2 (field)
       END DO
     END DO
   END DO
-  !$ACC END PARALLEL LOOP
+  !$ACC END PARALLEL
 END SUBROUTINE reorient_3d_wrt2
 
 SUBROUTINE rearrange_bands2rrtmgp(nproma, klev, nbnd, field)

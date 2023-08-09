@@ -63,6 +63,10 @@ def runexp():
     for eobj in eobjs:
         # finally submit the jobs
         eobj.submit(bobj)
+        exp_jobid = eobj.batch_job.jobid
+        if exp_jobid is not None:
+            exp_file = eobj.get_run_name(relative=True)
+            print(f"Submitted {exp_file} (jobID:{exp_jobid})")
 
     def cleanupOnInterupt(signum,frame):
         print("runexp: caught signal",signum, frame)

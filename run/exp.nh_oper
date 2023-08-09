@@ -119,7 +119,6 @@ cat > ${atmo_namelist} << EOF
  l_test_openmp  = .false.
  l_log_checks   = .false.
  num_io_procs   = 1   ! asynchronous output for values >= 1
- itype_comm     = 1
  iorder_sendrecv = 3  ! best value for CRAY (slightly faster than option 1)
 /
 &grid_nml
@@ -234,7 +233,6 @@ cat > ${atmo_namelist} << EOF
  vwind_offctr   = 0.2
  damp_height    = 44000.
  rayleigh_coeff = 1.0   ! R3B7: 1.0 for forecasts, 5.0 in assimilation cycle; 0.5/2.5 for R2B6 (i.e. ensemble) runs
- lhdiff_rcf     = .true.
  divdamp_order  = 24    ! setting for forecast runs; use '2' for assimilation cycle
  divdamp_type   = 32    ! ** new setting for assimilation and forecast runs **
  divdamp_fac    = 0.004 ! use 0.032 in conjunction with divdamp_order = 2 in assimilation cycle

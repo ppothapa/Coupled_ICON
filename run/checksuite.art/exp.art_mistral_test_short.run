@@ -208,7 +208,6 @@ cat > ${atmo_namelist} << EOF
  num_io_procs      = 2
  num_restart_procs = 0
  num_prefetch_proc = 1
- itype_comm        = 1
  iorder_sendrecv   = 3
  num_dist_array_replicas = 4
  use_omp_input           = .true.
@@ -375,7 +374,6 @@ radiation_grid_filename = ${radiation_grid_filename}
  vwind_offctr    = 0.2
  damp_height     = 14000.
  rayleigh_coeff  = 1.0
- lhdiff_rcf      = .true.
  divdamp_order   = 24
  divdamp_type    = 32
  divdamp_fac     = 0.004   ! 0.004 for R2B6; recommendation for R3B7: 0.003

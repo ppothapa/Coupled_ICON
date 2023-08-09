@@ -36,6 +36,8 @@ machine=balfrin
 ./addmachine $machine --list $list
 ./addbuilder balfrin_cpu_nvidia     --machine $machine --build_script="./config/buildbot/balfrin_cpu_nvidia"  --builderflags="Active"  --list $list
 ./addbuilder balfrin_gpu_nvidia     --machine $machine --build_script="./config/buildbot/balfrin_gpu_nvidia"  --builderflags="Active"  --list $list
+./addbuilder balfrin_cpu_nvidia_mixed     --machine $machine --build_script="./config/buildbot/balfrin_cpu_nvidia_mixed"  --builderflags="Active"  --list $list
+./addbuilder balfrin_gpu_nvidia_mixed     --machine $machine --build_script="./config/buildbot/balfrin_gpu_nvidia_mixed"  --builderflags="Active"  --list $list
 
 #DWD machines
 machine=dwd_nec
@@ -65,6 +67,8 @@ machine=levante
 ./addbuilder levante_gpu_nvhpc              --machine $machine  --build_script="config/buildbot/levante_gpu_nvhpc" \
   --configureflags="--with-mpi --without-openmp"  --builderflags="Active" --list $list
 ./addbuilder levante_cpu_nvhpc              --machine $machine  --build_script="config/buildbot/levante_cpu_nvhpc" \
+  --configureflags="--with-mpi --without-openmp"  --builderflags="Active" --list $list
+./addbuilder levante_aurora             --machine $machine  --build_script="config/buildbot/levante_aurora" \
   --configureflags="--with-mpi --without-openmp"  --builderflags="Active" --list $list
 
 machine=jsc

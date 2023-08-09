@@ -22,7 +22,7 @@ MODULE mo_bc_ozone
   USE mo_kind,                     ONLY: wp, i8
   USE mo_exception,                ONLY: message, message_text, warning
   USE mo_model_domain,             ONLY: t_patch
-  USE mo_parallel_config,          ONLY: p_test_run
+  USE mo_parallel_config,          ONLY: p_test_run, nproma
   USE mo_io_config,                ONLY: default_read_method
   USE mo_read_interface,           ONLY: openInputFile, closeFile,        &
   &                                      read_3D_time, t_stream_id, on_cells
@@ -34,7 +34,14 @@ MODULE mo_bc_ozone
   USE mo_netcdf_errhandler,        ONLY: nf
   USE mo_time_config,              ONLY: time_config
   USE mo_bcs_time_interpolation,   ONLY: t_time_interpolation_weights, &
-  &                                      calculate_time_interpolation_weights
+       &                                      calculate_time_interpolation_weights
+
+#ifdef YAC_coupling
+  USE mo_atmo_coupling_frame,      ONLY: field_id
+  USE mo_yac_finterface
+#endif
+  USE mo_sync,                     ONLY: sync_c, sync_patch_array
+
   IMPLICIT NONE
   PRIVATE
   INTEGER(i8), SAVE                 :: pre_year(max_dom)=-HUGE(1) ! Variable to check if it is time to read
@@ -60,12 +67,13 @@ MODULE mo_bc_ozone
   
 CONTAINS
 
-  SUBROUTINE read_bc_ozone(year, p_patch, irad_o3, vmr2mmr_opt)
+  SUBROUTINE read_bc_ozone(year, p_patch, irad_o3, vmr2mmr_opt, opt_from_yac)
 
     INTEGER(i8)  , INTENT(in)            :: year
     TYPE(t_patch), TARGET, INTENT(in)    :: p_patch
     INTEGER      , INTENT(in)            :: irad_o3
     REAL(wp)     , INTENT(in), OPTIONAL  :: vmr2mmr_opt
+    LOGICAL      , INTENT(IN), OPTIONAL  :: opt_from_yac
 
     CHARACTER(len=512)                :: fname
     TYPE(t_stream_id)                 :: stream_id
@@ -77,8 +85,12 @@ CONTAINS
     INTEGER                           :: imonth_beg, imonth_end      ! months with range 0-13
     INTEGER                           :: kmonth_beg, kmonth_end      ! months with range 1-12
     INTEGER                           :: nmonths
+    INTEGER                           :: info, ierr, i, j
     REAL(wp), POINTER                 :: zo3_plev(:,:,:,:)           ! (nproma, levels, blocks, time)
     REAL(wp)                          :: vmr2mmr_o3
+    REAL(wp), ALLOCATABLE, SAVE       :: yac_recv_buf(:,:)           ! (nbr_hor_cells, levels)
+    LOGICAL                           :: l_first
+    LOGICAL                           :: from_yac = .FALSE.
 
     jg    = p_patch%id
     WRITE(cjg,'(i2.2)') jg
@@ -110,7 +122,42 @@ CONTAINS
     IF (.NOT. ALLOCATED(ext_ozone)) ALLOCATE(ext_ozone(n_dom))
     !$ACC ENTER DATA PCREATE(ext_ozone)
 
-    IF (year > pre_year(jg)) THEN
+    l_first = .NOT. ALLOCATED(ext_ozone(jg)% o3_plev)
+
+    IF (PRESENT(opt_from_yac)) from_yac = opt_from_yac
+
+#ifdef YAC_coupling
+    IF (from_yac) THEN
+
+       nplev_o3 =  yac_fget_field_collection_size(field_id(14))
+       ext_ozone(jg)%nplev_o3 = nplev_o3
+
+       IF ( .NOT. ALLOCATED(yac_recv_buf) ) &
+            ALLOCATE(yac_recv_buf(p_patch%n_patch_cells, nplev_o3))
+       IF ( .NOT. ALLOCATED(ext_ozone(jg)% o3_plev) ) THEN
+          ALLOCATE(ext_ozone(jg)% o3_plev(nproma, nplev_o3, p_patch%nblks_c, 1))
+          ext_ozone(jg)% o3_plev = 0
+       END IF
+
+       CALL yac_fget(field_id(14), p_patch%n_patch_cells, nplev_o3, &
+            yac_recv_buf, info, ierr)
+
+       IF ( info > 0 .AND. info < 7 ) THEN
+          DO i=1,p_patch%nblks_c
+             DO j=1,nproma
+                IF ((i-1)*nproma+j > p_patch%n_patch_cells) CYCLE
+                ext_ozone(jg)% o3_plev(j,:,i,1) = vmr2mmr_o3*yac_recv_buf((i-1)*nproma+j,:)
+             END DO
+          END DO
+          CALL sync_patch_array(sync_c, p_patch, ext_ozone(jg)%o3_plev(:,:,:,1))
+       END IF
+
+       fname = 'bc_ozone.nc'
+
+    END IF
+#endif
+
+    IF (year > pre_year(jg) .AND. .NOT. from_yac) THEN
       !
       ! If year = pre_year, then the external monthly ozone data are already stored.
       ! Nothing needs to be done.
@@ -410,46 +457,53 @@ CONTAINS
 
         END SELECT
 
-        ! Read pressure level grid on which the external ozone data are valid
-        ! This needs to be done equally for all irad_o3 cases.
-
-        nplev_o3 = SIZE(ext_ozone(jg)% o3_plev,2)
-
-        ext_ozone(jg)% nplev_o3 = nplev_o3
-
-        !$ACC EXIT DATA DELETE(ext_ozone(jg)%plev_full_o3) IF(ALLOCATED(ext_ozone(jg)%plev_full_o3))
-        !$ACC EXIT DATA DELETE(ext_ozone(jg)%plev_half_o3) IF(ALLOCATED(ext_ozone(jg)%plev_half_o3))
-        IF(ALLOCATED(ext_ozone(jg)% plev_full_o3)) DEALLOCATE(ext_ozone(jg)% plev_full_o3)
-        IF(ALLOCATED(ext_ozone(jg)% plev_half_o3)) DEALLOCATE(ext_ozone(jg)% plev_half_o3)
-        ALLOCATE(ext_ozone(jg)% plev_full_o3(nplev_o3  ))
-        ALLOCATE(ext_ozone(jg)% plev_half_o3(nplev_o3+1))
-        !$ACC ENTER DATA PCREATE(ext_ozone(jg)%plev_full_o3, ext_ozone(jg)%plev_half_o3)
-
-        mpi_comm = MERGE(p_comm_work_test, p_comm_work, p_test_run)
-
-        IF(my_process_is_stdio()) THEN
-          CALL nf(nf_open(TRIM(fname), NF_NOWRITE, ncid), subprog_name)
-          CALL nf(nf_inq_varid(ncid, 'plev', varid), subprog_name)
-          CALL nf(nf_get_var_double(ncid, varid, ext_ozone(jg)% plev_full_o3), subprog_name)
-          CALL nf(nf_close(ncid), subprog_name)
-        END IF
-        CALL p_bcast(ext_ozone(jg)% plev_full_o3(:), p_io, mpi_comm)
-
-        ! define half levels of ozone pressure grid
-        ! upper boundary: ph =      0.Pa -> extrapolation of uppermost value
-        ! lower boundary: ph = 125000.Pa -> extrapolation of lowermost value
-        ext_ozone(jg)% plev_half_o3(1)          = 0._wp
-        ext_ozone(jg)% plev_half_o3(2:nplev_o3) = 0.5_wp*( ext_ozone(jg)% plev_full_o3(1:nplev_o3-1) &
-          &                                               +ext_ozone(jg)% plev_full_o3(2:nplev_o3  ) )
-
-        ext_ozone(jg)% plev_half_o3(nplev_o3+1) = 125000._wp
-
-        ! Set pointer for OpenACC
-        !$ACC UPDATE DEVICE(ext_ozone(jg)%plev_half_o3, ext_ozone(jg)%plev_full_o3)
       END IF
       !$ACC UPDATE DEVICE(ext_ozone(jg)%o3_plev)
 
       pre_year(jg) = year
+
+    END IF ! (year > pre_year(jg))  .AND. .NOT. from_yac
+
+    IF (l_first) THEN
+
+      ! Read pressure level grid on which the external ozone data are valid
+      ! This needs to be done equally for all irad_o3 cases.
+
+      nplev_o3 = SIZE(ext_ozone(jg)% o3_plev,2)
+
+      ext_ozone(jg)% nplev_o3 = nplev_o3
+
+      !$ACC EXIT DATA DELETE(ext_ozone(jg)%plev_full_o3) IF(ALLOCATED(ext_ozone(jg)%plev_full_o3))
+      !$ACC EXIT DATA DELETE(ext_ozone(jg)%plev_half_o3) IF(ALLOCATED(ext_ozone(jg)%plev_half_o3))
+      IF(ALLOCATED(ext_ozone(jg)% plev_full_o3)) DEALLOCATE(ext_ozone(jg)% plev_full_o3)
+      IF(ALLOCATED(ext_ozone(jg)% plev_half_o3)) DEALLOCATE(ext_ozone(jg)% plev_half_o3)
+      ALLOCATE(ext_ozone(jg)% plev_full_o3(nplev_o3  ))
+      ALLOCATE(ext_ozone(jg)% plev_half_o3(nplev_o3+1))
+      !$ACC ENTER DATA PCREATE(ext_ozone(jg)%plev_full_o3, ext_ozone(jg)%plev_half_o3)
+
+      mpi_comm = MERGE(p_comm_work_test, p_comm_work, p_test_run)
+
+      IF(my_process_is_stdio()) THEN
+        CALL nf(nf_open(TRIM(fname), NF_NOWRITE, ncid), subprog_name)
+        CALL nf(nf_inq_varid(ncid, 'plev', varid), subprog_name)
+        CALL nf(nf_get_var_double(ncid, varid, ext_ozone(jg)% plev_full_o3), subprog_name)
+        CALL nf(nf_close(ncid), subprog_name)
+      END IF
+      CALL p_bcast(ext_ozone(jg)% plev_full_o3(:), p_io, mpi_comm)
+
+      ! define half levels of ozone pressure grid
+      ! upper boundary: ph =      0.Pa -> extrapolation of uppermost value
+      ! lower boundary: ph = 125000.Pa -> extrapolation of lowermost value
+      ext_ozone(jg)% plev_half_o3(1)          = 0._wp
+      ext_ozone(jg)% plev_half_o3(2:nplev_o3) = 0.5_wp*( ext_ozone(jg)% plev_full_o3(1:nplev_o3-1) &
+        &                                               +ext_ozone(jg)% plev_full_o3(2:nplev_o3  ) )
+
+      ext_ozone(jg)% plev_half_o3(nplev_o3+1) = 125000._wp
+
+      l_first = .FALSE.
+
+      ! Set pointer for OpenACC
+      !$ACC UPDATE DEVICE(ext_ozone(jg)%plev_half_o3, ext_ozone(jg)%plev_full_o3)
 
     END IF
 

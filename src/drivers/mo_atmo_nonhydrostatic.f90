@@ -406,26 +406,26 @@ CONTAINS
     ! Unfortunately this conflicts with our trying to call the config-routines
     ! as early as possible.
     DO jg =1,n_dom
-      CALL configure_advection( jg, p_patch(jg)%nlev, p_patch(1)%nlev,   &
-        &                       iforcing, iqc, iqt,                      &
-        &                       kstart_moist(jg), kend_qvsubstep(jg),    &
-        &                       lvert_nest, ntracer,                     &
-        &                       idiv_method, itime_scheme,               &
-        &                       p_nh_state_lists(jg)%tracer_list(:),     &
-        &                       kstart_tracer(jg,:) )
+       CALL configure_advection( jg, p_patch(jg)%nlev,                   &
+        &                        p_patch(1)%nlev, iforcing, iqc, iqt,    &
+        &                        kstart_moist(jg), kend_qvsubstep(jg),   &
+        &                        lvert_nest, ntracer,                    &
+        &                        idiv_method, itime_scheme,              &
+        &                        p_nh_state_lists(jg),                   &
+        &                        .TRUE., kstart_tracer(jg,:) )
     ENDDO
 
-   IF (ldass_lhn) THEN
-     CALL message(routine,'configure_lhn')
-     DO jg =1,n_dom
-       CALL configure_lhn(jg)
-     ENDDO
-     !$ACC ENTER DATA COPYIN(assimilation_config)
+    IF (ldass_lhn) THEN
+      CALL message(routine,'configure_lhn')
+      DO jg =1,n_dom
+        CALL configure_lhn(jg)
+      ENDDO
+      !$ACC ENTER DATA COPYIN(assimilation_config)
 
-     CALL init_radar_data(p_patch(1:))
+      CALL init_radar_data(p_patch(1:))
 
-     CALL construct_lhn_state(p_patch(1:))
-   ENDIF
+      CALL construct_lhn_state(p_patch(1:))
+    ENDIF
 
     !------------------------------------------------------------------
     ! Prepare for time integration

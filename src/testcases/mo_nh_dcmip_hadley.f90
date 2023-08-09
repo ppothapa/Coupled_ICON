@@ -247,8 +247,7 @@ CONTAINS
 
     LOGICAL, INTENT(IN), OPTIONAL :: lacc     ! if true use OpenACC
 
-    REAL(wp) ::           &                   !< zonal and meridional velocity
-      & zu(nproma), zv(nproma)
+    REAL(wp) ::  zu, zv                       !< zonal and meridional velocity
 
     REAL(wp) ::        &                      !< geometric height at edge points
       &  z_me(nproma,p_patch%nlev,p_patch%nblks_e), &
@@ -326,27 +325,28 @@ CONTAINS
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
                          i_startidx, i_endidx, i_rlstart, i_rlend)
 
-
-      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(z_lat, ztop, zu, zv)
       DO jk = 1, nlev
         DO je = i_startidx, i_endidx
 
           z_lat  = p_patch%edges%center(je,jb)%lat
 
-          zu(je) = u0*cos(z_lat)
+          zu = u0*cos(z_lat)
 
           ztop   = z_ife(je,1,jb)
 
-          zv(je) = -(rho0/z_rho_e(je,jk,jb))                                 &
+          zv = -(rho0/z_rho_e(je,jk,jb))                                 &
             &    * (grid_sphere_radius*w0*pi) /(nhadley*ztop)                &
             &    * cos(z_lat)*sin(nhadley*z_lat)*cos(pi*z_me(je,jk,jb)/ztop) &
             &    * cos(pi*time/tau)
-          p_nh_prog%vn(je,jk,jb) = zu(je) * p_patch%edges%primal_normal(je,jb)%v1  &
-            &                    + zv(je) * p_patch%edges%primal_normal(je,jb)%v2
+          p_nh_prog%vn(je,jk,jb) = zu * p_patch%edges%primal_normal(je,jb)%v1  &
+            &                    + zv * p_patch%edges%primal_normal(je,jb)%v2
 
         ENDDO  !je
       ENDDO  !jk
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
+
     ENDDO  !jb
 !$OMP END DO
 
@@ -368,8 +368,8 @@ CONTAINS
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                          i_startidx, i_endidx, i_rlstart, i_rlend)
 
-
-      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(z_lat)
       DO jk = 1, nlev
         DO jc = i_startidx, i_endidx
 
@@ -384,13 +384,14 @@ CONTAINS
 
         ENDDO  !jc
       ENDDO  !jk
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
 
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       p_nh_prog%w(i_startidx:i_endidx,nlevp1,jb) = 0._wp
       !$ACC END KERNELS
 
     ENDDO  !jb
+    !$ACC WAIT(1)
 
     !$ACC END DATA
 

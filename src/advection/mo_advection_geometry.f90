@@ -1696,6 +1696,7 @@ CONTAINS
 !$OMP END DO
 !$OMP END PARALLEL
 
+  !$ACC WAIT(1)
   !$ACC END DATA
 
   END SUBROUTINE divide_flux_area_list

@@ -31,7 +31,6 @@ MODULE mo_nonhydrostatic_nml
                                     & config_itime_scheme     => itime_scheme     , &
                                     & config_ndyn_substeps    => ndyn_substeps    , &
                                     & config_vcfl_threshold   => vcfl_threshold   , &
-                                    & config_lhdiff_rcf       => lhdiff_rcf       , &
                                     & config_lextra_diffu     => lextra_diffu     , &
                                     & config_divdamp_fac      => divdamp_fac      , &
                                     & config_divdamp_fac2     => divdamp_fac2     , &
@@ -62,8 +61,7 @@ MODULE mo_nonhydrostatic_nml
                                     & config_l_masscorr_nest  => l_masscorr_nest  , &
                                     & config_l_zdiffu_t       => l_zdiffu_t       , &
                                     & config_thslp_zdiffu     => thslp_zdiffu     , &
-                                    & config_thhgtd_zdiffu    => thhgtd_zdiffu    , &
-                                    & config_nest_substeps    => nest_substeps
+                                    & config_thhgtd_zdiffu    => thhgtd_zdiffu
 
 
   IMPLICIT NONE
@@ -113,17 +111,17 @@ CONTAINS
     INTEGER :: ndyn_substeps           ! number of dynamics substeps per fast-physics step
     REAL(wp):: vcfl_threshold          ! threshold for vertical advection CFL number at which the adaptive time step reduction
                                        ! (increase of ndyn_substeps w.r.t. the fixed fast-physics time step) is triggered
-    LOGICAL :: lhdiff_rcf              ! if true: compute horizontal diffusion only at the large time step
+    LOGICAL :: lhdiff_rcf              ! !!! OBSOLETE !!! if true: compute horizontal diffusion only at the large time step
     LOGICAL :: lextra_diffu            ! if true: apply additional diffusion at grid points close
     ! to the CFL stability limit for vertical advection
-    REAL(wp):: divdamp_fac             ! Scaling factor for divergence damping at height divdamp_z and below  (used if lhdiff_rcf = true)
-    REAL(wp):: divdamp_fac2            ! Scaling factor for divergence damping at height divdamp_z2           (used if lhdiff_rcf = true)
-    REAL(wp):: divdamp_fac3            ! Scaling factor for divergence damping at height divdamp_z3           (used if lhdiff_rcf = true)
-    REAL(wp):: divdamp_fac4            ! Scaling factor for divergence damping at height divdamp_z4 and above (used if lhdiff_rcf = true)
-    REAL(wp):: divdamp_z               ! Height up to which divdamp_fac is used, start of linear profile      (used if lhdiff_rcf = true)
-    REAL(wp):: divdamp_z2              ! Height of divdamp_fac2, end of linear and start of quadratic profile (used if lhdiff_rcf = true)
-    REAL(wp):: divdamp_z3              ! Height of divdamp_fac3, to define quadratic profile                  (used if lhdiff_rcf = true)
-    REAL(wp):: divdamp_z4              ! Height from which divdamp_fac4, end of quadratic profile             (used if lhdiff_rcf = true)
+    REAL(wp):: divdamp_fac             ! Scaling factor for divergence damping at height divdamp_z and below
+    REAL(wp):: divdamp_fac2            ! Scaling factor for divergence damping at height divdamp_z2
+    REAL(wp):: divdamp_fac3            ! Scaling factor for divergence damping at height divdamp_z3
+    REAL(wp):: divdamp_fac4            ! Scaling factor for divergence damping at height divdamp_z4 and above
+    REAL(wp):: divdamp_z               ! Height up to which divdamp_fac is used, start of linear profile
+    REAL(wp):: divdamp_z2              ! Height of divdamp_fac2, end of linear and start of quadratic profile
+    REAL(wp):: divdamp_z3              ! Height of divdamp_fac3, to define quadratic profile
+    REAL(wp):: divdamp_z4              ! Height from which divdamp_fac4, end of quadratic profile
     INTEGER :: divdamp_order           ! Order of divergence damping
     INTEGER :: divdamp_type            ! Type of divergence damping (2D or 3D divergence)
     REAL(wp):: divdamp_trans_start     ! Lower bound of transition zone between 2D and 3D div damping in case of divdamp_type = 32
@@ -149,7 +147,6 @@ CONTAINS
     ! horizontal pressure gradient
     LOGICAL :: l_open_ubc              ! .true.: open upper boundary condition (w=0 otherwise)
 
-    INTEGER :: nest_substeps           ! the number of dynamics substeps for the child patches
     LOGICAL :: l_masscorr_nest         ! Apply mass conservation correction also to nested domain
 
     LOGICAL :: l_zdiffu_t              ! .true.: apply truly horizontal temperature diffusion
@@ -165,7 +162,7 @@ CONTAINS
          & divdamp_fac, divdamp_fac2, divdamp_fac3, divdamp_fac4,    &
          & divdamp_z, divdamp_z2, divdamp_z3, divdamp_z4,            &
          & igradp_method, exner_expol, l_open_ubc,                   &
-         & nest_substeps, l_masscorr_nest, l_zdiffu_t,               &
+         & l_masscorr_nest, l_zdiffu_t,                              &
          & thslp_zdiffu, thhgtd_zdiffu, divdamp_order, divdamp_type, &
          & rhotheta_offctr, lextra_diffu, veladv_offctr,             &
          & divdamp_trans_start, divdamp_trans_end, htop_aero_proc,   &
@@ -186,14 +183,14 @@ CONTAINS
     ! (increase of ndyn_substeps w.r.t. the fixed fast-physics time step) is triggered
     vcfl_threshold = 1.05_wp
 
-    ! reduced calling frequency also for horizontal diffusion
+    ! !!! OBSOLETE !!! reduced calling frequency also for horizontal diffusion
     lhdiff_rcf = .TRUE.  ! new default since 2012-05-09 after successful testing
 
     ! apply additional horizontal diffusion on vn and w at grid points close to the stability
     ! limit for vertical advection
     lextra_diffu = .TRUE.
 
-    ! scaling factor for divergence damping (used only if lhdiff_rcf = true)
+    ! scaling factor for divergence damping
     divdamp_fac  = 0.0025_wp
     divdamp_fac2 = 0.0040_wp
     divdamp_fac3 = 0.0040_wp
@@ -259,8 +256,6 @@ CONTAINS
 #endif
     ! TRUE: use the open upper boundary condition
     l_open_ubc        = .FALSE.
-    ! 2 child dynamics substeps (DO NOT CHANGE!!! The code will not work correctly with other values)
-    nest_substeps     = 2
     ! TRUE: apply mass conservation correction computed for feedback in the nested domain, too
     l_masscorr_nest   = .FALSE.
 
@@ -372,6 +367,9 @@ CONTAINS
     WRITE(message_text,'(a)') &
       &  'Namelist switch l_open_ubc is obsolete and will soon be removed!'
     CALL message("WARNING",message_text)
+    WRITE(message_text,'(a)') &
+      &  'Namelist switch lhdiff_rcf is obsolete and will soon be removed!'
+    CALL message("WARNING",message_text)
 
 
     !----------------------------------------------------
@@ -389,7 +387,6 @@ CONTAINS
        config_exner_expol       = exner_expol
        config_ndyn_substeps     = ndyn_substeps
        config_vcfl_threshold    = vcfl_threshold
-       config_lhdiff_rcf        = lhdiff_rcf
        config_lextra_diffu      = lextra_diffu
        config_divdamp_fac       = divdamp_fac
        config_divdamp_fac2      = divdamp_fac2
@@ -406,7 +403,6 @@ CONTAINS
        config_divdamp_trans_end   = divdamp_trans_end
        config_itime_scheme      = itime_scheme
        config_ivctype           = ivctype
-       config_nest_substeps     = nest_substeps
        config_l_zdiffu_t        = l_zdiffu_t
        config_thslp_zdiffu      = thslp_zdiffu
        config_thhgtd_zdiffu     = thhgtd_zdiffu

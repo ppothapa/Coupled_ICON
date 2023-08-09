@@ -45,7 +45,8 @@ SUBROUTINE update_linage (local_bgc_mem, klev,start_idx,end_idx, pddpo, use_acc)
 
   fac001 = dtbgc/(86400._wp*365._wp) 
 
-  !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC LOOP GANG VECTOR
   DO jc = start_idx, end_idx
      kpke=klev(jc)
      !$ACC LOOP SEQ
@@ -56,7 +57,7 @@ SUBROUTINE update_linage (local_bgc_mem, klev,start_idx,end_idx, pddpo, use_acc)
      ENDDO
      if(pddpo(jc,1) > EPSILON(0.5_wp)) local_bgc_mem%bgctra(jc,1,iagesc) = 0._wp
   ENDDO
-  !$ACC END PARALLEL LOOP
+  !$ACC END PARALLEL
 
 
 END SUBROUTINE update_linage 
@@ -89,7 +90,8 @@ SUBROUTINE update_weathering (local_bgc_mem, start_idx,end_idx, pddpo, za, use_a
     lacc = .FALSE.
   END IF
 
-  !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC LOOP GANG VECTOR
   DO jc = start_idx, end_idx
 
   if(pddpo(jc,1) > EPSILON(0.5_wp)) then
@@ -106,7 +108,7 @@ SUBROUTINE update_weathering (local_bgc_mem, start_idx,end_idx, pddpo, za, use_a
   endif
 
   ENDDO
-  !$ACC END PARALLEL LOOP
+  !$ACC END PARALLEL
 
 END SUBROUTINE
 
@@ -138,7 +140,8 @@ SUBROUTINE nitrogen_deposition (local_bgc_mem, start_idx,end_idx, pddpo, za, nit
     lacc = .FALSE.
   END IF
 
-  !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC LOOP GANG VECTOR
   DO jc = start_idx, end_idx
 
   if(pddpo(jc,1) > EPSILON(0.5_wp)) then
@@ -154,7 +157,7 @@ SUBROUTINE nitrogen_deposition (local_bgc_mem, start_idx,end_idx, pddpo, za, nit
   endif
 
   ENDDO
-  !$ACC END PARALLEL LOOP
+  !$ACC END PARALLEL
 
 
 END SUBROUTINE
@@ -187,7 +190,8 @@ SUBROUTINE dust_deposition (local_bgc_mem, start_idx,end_idx, pddpo, za, dustinp
     lacc = .FALSE.
   END IF
 
-  !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC LOOP GANG VECTOR
   DO jc = start_idx, end_idx
 
   if(pddpo(jc,1) > EPSILON(0.5_wp)) then
@@ -199,7 +203,7 @@ SUBROUTINE dust_deposition (local_bgc_mem, start_idx,end_idx, pddpo, za, dustinp
   endif
 
  ENDDO
- !$ACC END PARALLEL LOOP
+ !$ACC END PARALLEL
 
 END SUBROUTINE
 
@@ -270,7 +274,8 @@ SUBROUTINE gasex (local_bgc_mem, start_idx,end_idx, pddpo, za, ptho, psao,  &
   !
 
   k = 1      ! surface layer
-  !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC LOOP GANG VECTOR
   DO j = start_idx, end_idx
 
 
@@ -445,7 +450,7 @@ SUBROUTINE gasex (local_bgc_mem, start_idx,end_idx, pddpo, za, ptho, psao,  &
 
         ENDIF ! wet cell
      END DO
-     !$ACC END PARALLEL LOOP
+     !$ACC END PARALLEL
 
 END SUBROUTINE 
 END MODULE mo_bgc_surface

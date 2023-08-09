@@ -16,6 +16,7 @@
 !----------------------------
 MODULE mo_wave_stepping
   USE mo_exception,                ONLY: message, message_text, finish
+  USE mo_impl_constants,           ONLY: SUCCESS
   USE mo_run_config,               ONLY: output_mode, ltestcase
   USE mo_name_list_output,         ONLY: write_name_list_output
   USE mo_parallel_config,          ONLY: proc0_offloading
@@ -27,9 +28,9 @@ MODULE mo_wave_stepping
   USE mo_grid_config,              ONLY: n_dom, nroot
   USE mo_io_units,                 ONLY: filename_max
   USE mo_master_config,            ONLY: getModelBaseDir
-  USE mo_initicon_config,          ONLY: generate_filename
   USE mo_dynamics_config,          ONLY: nnow, nnew
-  USE mo_fortran_tools,            ONLY: swap, init
+  USE mo_fortran_tools,            ONLY: swap
+  USE mo_intp_data_strc,           ONLY: p_int_state
 
   USE mo_wave_adv_exp,             ONLY: init_wind_adv_test,init_ice_adv_test
   USE mo_init_wave_physics,        ONLY: init_wave_phy
@@ -41,10 +42,14 @@ MODULE mo_wave_stepping
        &                                 air_sea, input_source_function, last_prog_freq_ind, &
        &                                 impose_high_freq_tail, tm1_period, wave_stress, &
        &                                 wm1_wm2_wavenumber, dissipation_source_function, &
-       &                                 set_energy2emin, bottom_friction, nonlinear_transfer
-  USE mo_wave_config,              ONLY: wave_config
+       &                                 set_energy2emin, bottom_friction, nonlinear_transfer, &
+       &                                 wave_refraction
+  USE mo_wave_config,              ONLY: wave_config, generate_filename
   USE mo_wave_forcing_state,       ONLY: wave_forcing_state
+  USE mo_wave_forcing,             ONLY: t_read_wave_forcing
   USE mo_wave_events,              ONLY: create_wave_events, dummyWaveEvent
+  USE mo_wave_td_update,           ONLY: update_bathymetry_gradient
+  USE mo_coupling_config,          ONLY: is_coupled_run
 
   IMPLICIT NONE
 
@@ -65,53 +70,33 @@ CONTAINS
   !! Initial revision by Mikhail Dobrynin, DWD, (2019-06-24)
   !!
   SUBROUTINE perform_wave_stepping (time_config)
+
+    CHARACTER(len=*), PARAMETER :: routine = modname//':perform_wave_stepping'
+
     TYPE(t_time_config), INTENT(IN) :: time_config  !< information for time control
 
     TYPE(datetime),  POINTER :: mtime_current     => NULL() !< current datetime
     TYPE(timedelta), POINTER :: model_time_step   => NULL()
+    !
+    ! note that the following TARGET attribute is essential! Otherwise the pointer to the
+    ! specific reader inside the time interpolator object (this%reader in time_intp_intp)
+    ! will loose its association status.
+    TYPE(t_read_wave_forcing), ALLOCATABLE, TARGET :: reader_wave_forcing(:)
     INTEGER                  :: jstep                       !< time step number
     LOGICAL                  :: lprint_timestep             !< print current datetime information
     INTEGER                  :: jg, jlev
-
-    CHARACTER(len=*), PARAMETER :: routine = modname//':perform_wave_stepping'
+    INTEGER                  :: ierrstat
 
     ! Time levels
     INTEGER :: n_new, n_now
 
     CHARACTER(LEN=filename_max) :: wave_forc_wind_fn(n_dom) ! forc_file_prefix+'_wind' for U and V 10 meter wind (m/s)
     CHARACTER(LEN=filename_max) :: wave_forc_ice_fn(n_dom)  ! forc_file_prefix+'_ice'  for sea ice concentration (fraction of 1)
-    CHARACTER(LEN=filename_max) :: wave_forc_slh_fn(n_dom)  ! forc_file_prefix+'_slh'  for sea level height (m
+    CHARACTER(LEN=filename_max) :: wave_forc_slh_fn(n_dom)  ! forc_file_prefix+'_slh'  for sea level height (m)
     CHARACTER(LEN=filename_max) :: wave_forc_osc_fn(n_dom)  ! forc_file_prefix+'_osc'  for U and V ocean surface currents (m/s)
 
-    DO jg = 1, n_dom
-      IF (TRIM(wave_config(jg)%forc_file_prefix) /= '') THEN
-
-        jlev = p_patch(jg)%level
-
-        wave_forc_wind_fn(jg) = " "
-        wave_forc_ice_fn(jg) = " "
-        wave_forc_slh_fn(jg) = " "
-        wave_forc_osc_fn(jg) = " "
-
-        wave_forc_wind_fn(jg) = generate_filename(TRIM(wave_config(jg)%forc_file_prefix)//"_wind", getModelBaseDir(), &
-             &                  nroot, jlev, jg)
-        wave_forc_ice_fn(jg) = generate_filename(TRIM(wave_config(jg)%forc_file_prefix)//"_ice", getModelBaseDir(), &
-             &                  nroot, jlev, jg)
-        wave_forc_slh_fn(jg) = generate_filename(TRIM(wave_config(jg)%forc_file_prefix)//"_slh", getModelBaseDir(), &
-             &                  nroot, jlev, jg)
-        wave_forc_osc_fn(jg) = generate_filename(TRIM(wave_config(jg)%forc_file_prefix)//"_osc", getModelBaseDir(), &
-             &                  nroot, jlev, jg)
-
-        CALL message(routine,'10m wind from: '//wave_forc_wind_fn(jg))
-        CALL message(routine,'ice concentration from: '//wave_forc_ice_fn(jg))
-        CALL message(routine,'sea level height from: '//wave_forc_slh_fn(jg))
-        CALL message(routine,'ocean surface currents from: '//wave_forc_osc_fn(jg))
-
-        CALL finish(routine,'read of forcing data from '//TRIM(wave_config(jg)%forc_file_prefix)//'* files is not implemented yet')
-
-
-      END IF
-    END DO
+    ! convenience pointer
+    mtime_current => time_config%tc_current_date
 
     IF (ltestcase) THEN
       !-----------------------------------------------------------------------
@@ -119,78 +104,125 @@ CONTAINS
       CALL message(routine,'test case run: advection experiment')
 
       DO jg = 1, n_dom
-        n_now  = nnow(jg)
-        n_new  = nnew(jg)
         ! Initialisation of 10 meter wind and sea ice
         CALL init_wind_adv_test(p_patch(jg), wave_forcing_state(jg))
         CALL init_ice_adv_test(p_patch(jg), wave_forcing_state(jg))
-
-        ! Initialisation of the wave spectrum
-        CALL init_wave_phy(p_patch(jg), wave_config(jg), &
-             p_wave_state(jg)%prog(n_now), &
-             p_wave_state(jg)%diag, &
-             wave_ext_data(jg), &
-             wave_forcing_state(jg))
-
-        ! Calculate new spectrum
-        CALL new_spectrum(p_patch(jg), wave_config(jg), &
-             p_wave_state(jg)%diag, & ! IN %ustar, %femeanws, %femean, %sl, %fl
-             wave_forcing_state(jg)%dir10m, &
-             p_wave_state(jg)%prog(n_now)%tracer) ! INOUT
-
-        ! Calculate total and mean frequency energy
-        CALL total_energy(p_patch(jg), wave_config(jg), &
-             p_wave_state(jg)%prog(n_now)%tracer, &
-             p_wave_state(jg)%diag%llws, &
-             p_wave_state(jg)%diag%emean, & ! OUT
-             p_wave_state(jg)%diag%emeanws) ! OUT
-        CALL mean_frequency_energy(p_patch(jg), wave_config(jg), &
-             p_wave_state(jg)%prog(n_now)%tracer, &
-             p_wave_state(jg)%diag%llws, &
-             p_wave_state(jg)%diag%emean, &
-             p_wave_state(jg)%diag%emeanws, &
-             p_wave_state(jg)%diag%femean, & ! OUT
-             p_wave_state(jg)%diag%femeanws) ! OUT
-
-        ! Calculate roughness length and friction velocities
-        CALL air_sea(p_patch(jg), wave_config(jg), &
-             wave_forcing_state(jg)%sp10m, &
-             p_wave_state(jg)%diag%tauw, &
-             p_wave_state(jg)%diag%ustar, & ! OUT
-             p_wave_state(jg)%diag%z0)      ! OUT
-
-        ! Calculate tm1 period and f1 frequency and wavenumbers
-        CALL tm1_period(p_patch(jg), wave_config(jg), &
-             p_wave_state(jg)%prog(n_now)%tracer, &
-             p_wave_state(jg)%diag%emean, &
-             p_wave_state(jg)%diag%tm1, &  ! OUT
-             p_wave_state(jg)%diag%f1mean) ! OUT
-!        CALL wm1_wm2_wavenumber(p_patch     = p_patch(jg),                         & !IN
-!          &                     wave_config = wave_config(jg),                     & !IN
-!          &                     wave_num_c  = p_wave_state(jg)%diag%wave_num_c,    & !IN
-!          &                     tracer      = p_wave_state(jg)%prog(n_now)%tracer, & !IN
-!          &                     emean       = p_wave_state(jg)%diag%emean,         & !IN
-!          &                     akmean      = p_wave_state(jg)%diag%akmean,        & !OUT
-!          &                     xkmean      = p_wave_state(jg)%diag%xkmean)          !OUT
-
-        ! Calculate output
-        CALL significant_wave_height(p_patch = p_patch(jg), &
-             &                       emean   = p_wave_state(jg)%diag%emean(:,:), &
-             &                       hs      = p_wave_state(jg)%diag%hs(:,:))
-
       END DO
+    ENDIF
 
-      ! advection experiment
-      !-----------------------------------------------------------------------
+    IF (is_coupled_run()) THEN
+
+      CALL finish(routine,'coupled run: work in progress...')
+
     ELSE
-      CALL message(routine,'normal run: work in progress...')
+      CALL message(routine,'standalone run: forcing data are read from file...')
+
+      ALLOCATE(reader_wave_forcing(n_dom), STAT=ierrstat)
+      IF (ierrstat /= SUCCESS) CALL finish(routine, 'Allocation failed for reader_wave_forcing')
+
+      DO jg = 1, n_dom
+        IF (wave_config(jg)%lread_forcing) THEN
+
+          jlev = p_patch(jg)%level
+
+          wave_forc_wind_fn(jg) = generate_filename(TRIM(wave_config(jg)%forc_file_prefix)//"_wind.nc",&
+            &                 getModelBaseDir(), nroot, jlev, jg)
+          wave_forc_ice_fn(jg)  = generate_filename(TRIM(wave_config(jg)%forc_file_prefix)//"_ice.nc", &
+            &                 getModelBaseDir(), nroot, jlev, jg)
+          wave_forc_slh_fn(jg)  = generate_filename(TRIM(wave_config(jg)%forc_file_prefix)//"_slh.nc", &
+            &                 getModelBaseDir(), nroot, jlev, jg)
+          wave_forc_osc_fn(jg)  = generate_filename(TRIM(wave_config(jg)%forc_file_prefix)//"_osc.nc", &
+            &                 getModelBaseDir(), nroot, jlev, jg)
+
+          ! initialize reader of external forcing data
+          CALL reader_wave_forcing(jg)%init(p_patch             = p_patch(jg),           & !in
+            &                               destination_time    = mtime_current,         & !in
+            &                               wave_forc_wind_file = wave_forc_wind_fn(jg), & !in
+            &                               wave_forc_ice_file  = wave_forc_ice_fn(jg),  & !in
+            &                               wave_forc_slh_file  = wave_forc_slh_fn(jg),  & !in
+            &                               wave_forc_osc_file  = wave_forc_osc_fn(jg) )   !in
+
+          ! get initial forcing data set (read from file and copy to forcing state vector)
+          CALL reader_wave_forcing(jg)%update_forcing(                                &
+            &                destination_time = mtime_current,                        & !in
+            &                u10m             = wave_forcing_state(jg)%u10m,          & !out
+            &                v10m             = wave_forcing_state(jg)%v10m,          & !out
+            &                sp10m            = wave_forcing_state(jg)%sp10m,         & !out
+            &                dir10m           = wave_forcing_state(jg)%dir10m,        & !out
+            &                sic              = wave_forcing_state(jg)%sea_ice_c,     & !out
+            &                slh              = wave_forcing_state(jg)%sea_level_c,   & !out
+            &                uosc             = wave_forcing_state(jg)%usoce_c,       & !out
+            &                vosc             = wave_forcing_state(jg)%vsoce_c,       & !out
+            &                ice_free_mask_c  = wave_forcing_state(jg)%ice_free_mask_c) !out
+        ELSE
+          WRITE(message_text,'(a,a,a)') 'No forcing files specified, testcase run is assumed.'
+          CALL message(routine, message_text)
+        END IF
+      END DO
     END IF
 
-    ! create wave events
+    DO jg = 1, n_dom
+      n_now  = nnow(jg)
+      n_new  = nnew(jg)
+
+      ! update bathymetry gradient
+      CALL update_bathymetry_gradient(p_patch(jg), & ! IN
+           p_int_state(jg),                        & ! IN
+           wave_ext_data(jg)%bathymetry_c,         & ! IN
+           p_wave_state(jg)%diag%geo_bath_grad_c)    ! OUT
+
+      ! Initialisation of the wave spectrum
+      CALL init_wave_phy(p_patch(jg), wave_config(jg), &
+           p_wave_state(jg)%prog(n_now), &
+           p_wave_state(jg)%diag, &
+           wave_ext_data(jg), &
+           wave_forcing_state(jg))
+
+      ! Calculate new spectrum
+      CALL new_spectrum(p_patch(jg), wave_config(jg), &
+           p_wave_state(jg)%diag, & ! IN %ustar, %femeanws, %femean, %sl, %fl
+           wave_forcing_state(jg)%dir10m, &
+           p_wave_state(jg)%prog(n_now)%tracer) ! INOUT
+
+      ! Calculate total and mean frequency energy
+      CALL total_energy(p_patch(jg), wave_config(jg), &
+           p_wave_state(jg)%prog(n_now)%tracer, &
+           p_wave_state(jg)%diag%llws, &
+           p_wave_state(jg)%diag%emean, & ! OUT
+           p_wave_state(jg)%diag%emeanws) ! OUT
+      CALL mean_frequency_energy(p_patch(jg), wave_config(jg), &
+           p_wave_state(jg)%prog(n_now)%tracer, &
+           p_wave_state(jg)%diag%llws, &
+           p_wave_state(jg)%diag%emean, &
+           p_wave_state(jg)%diag%emeanws, &
+           p_wave_state(jg)%diag%femean, & ! OUT
+           p_wave_state(jg)%diag%femeanws) ! OUT
+
+      ! Calculate roughness length and friction velocities
+      CALL air_sea(p_patch(jg), wave_config(jg), &
+           wave_forcing_state(jg)%sp10m, &
+           p_wave_state(jg)%diag%tauw, &
+           p_wave_state(jg)%diag%ustar, & ! OUT
+           p_wave_state(jg)%diag%z0)      ! OUT
+
+      ! Calculate tm1 period and f1 frequency and wavenumbers
+      CALL tm1_period(p_patch(jg), wave_config(jg), &
+           p_wave_state(jg)%prog(n_now)%tracer, &
+           p_wave_state(jg)%diag%emean, &
+           p_wave_state(jg)%diag%tm1, &  ! OUT
+           p_wave_state(jg)%diag%f1mean) ! OUT
+
+        ! Calculate output
+      CALL significant_wave_height(p_patch = p_patch(jg), &
+           &                       emean   = p_wave_state(jg)%diag%emean(:,:), &
+           &                       hs      = p_wave_state(jg)%diag%hs(:,:))
+
+    END DO
+
+      ! create wave events
     CALL create_wave_events(time_config)
 
     ! convenience pointer
-    mtime_current   => time_config%tc_current_date
     model_time_step => time_config%tc_dt_model
 
     ! TODO: write logical function such that the timestep information is
@@ -231,12 +263,6 @@ CONTAINS
         WRITE(message_text,'(a)') "dummyWaveEvent is active"
         CALL message('',message_text)
 
-!----------
-! TEST change sea level height
-!       wave_forcing_state(1)%sea_level_c = wave_forcing_state(1)%sea_level_c + 5.0
-!       wave_ext_data(1)%bathymetry_c = wave_ext_data(1)%bathymetry_c + wave_forcing_state(1)%sea_level_c
-! TEST
-!-----------
       ENDIF
 
       DO jg = 1, n_dom
@@ -244,7 +270,45 @@ CONTAINS
         n_now  = nnow(jg)
         n_new  = nnew(jg)
 
-        ! Calculate total and mean frequency energy
+        IF (is_coupled_run()) THEN
+          ! get new forcing data from coupled atmosphere
+
+        ELSE
+          ! get new forcing data (read from file and copy to forcing state vector)
+          IF (wave_config(jg)%lread_forcing) THEN
+            CALL reader_wave_forcing(jg)%update_forcing(                                &
+              &                destination_time = mtime_current,                        & !in
+              &                u10m             = wave_forcing_state(jg)%u10m,          & !out
+              &                v10m             = wave_forcing_state(jg)%v10m,          & !out
+              &                sp10m            = wave_forcing_state(jg)%sp10m,         & !out
+              &                dir10m           = wave_forcing_state(jg)%dir10m,        & !out
+              &                sic              = wave_forcing_state(jg)%sea_ice_c,     & !out
+              &                slh              = wave_forcing_state(jg)%sea_level_c,   & !out
+              &                uosc             = wave_forcing_state(jg)%usoce_c,       & !out
+              &                vosc             = wave_forcing_state(jg)%vsoce_c,       & !out
+              &                ice_free_mask_c  = wave_forcing_state(jg)%ice_free_mask_c) !out
+          END IF
+        END IF ! is_coupled_run()
+
+!!!
+!!!  CALL ADVECTION
+!!!
+        ! Calculate wave refraction
+        IF (wave_config(jg)%lgrid_refr) THEN
+          CALL wave_refraction(p_patch(jg), wave_config(jg), &
+               p_wave_state(jg)%diag%wave_num_c,      & ! IN
+               p_wave_state(jg)%diag%gv_c,            & ! IN
+               wave_ext_data(jg)%bathymetry_c,        & ! IN
+               p_wave_state(jg)%diag%geo_bath_grad_c, & ! IN
+               p_wave_state(jg)%prog(n_now)%tracer)   ! INOUT
+
+          ! Set energy to absolute allowed minimum
+          CALL set_energy2emin(p_patch(jg), wave_config(jg), &
+               p_wave_state(jg)%prog(n_now)%tracer) ! INOUT
+
+        END IF
+
+          ! Calculate total and mean frequency energy
         CALL total_energy(p_patch(jg), wave_config(jg), &
              p_wave_state(jg)%prog(n_now)%tracer, &
              p_wave_state(jg)%diag%llws,&
@@ -310,7 +374,7 @@ CONTAINS
           &                     ustar       = p_wave_state(jg)%diag%ustar,    & !IN
           &                     lpfi        = p_wave_state(jg)%diag%last_prog_freq_ind) !OUT
 
-       ! Calculate wave stress
+        ! Calculate wave stress
         IF (wave_config(jg)%lwave_stress1) THEN
           CALL wave_stress(p_patch(jg), wave_config(jg), &
                p_wave_state(jg)%diag, & !IN: last_prog_freq_ind,ustar,sl OUT: phiaw,tauw
@@ -360,7 +424,7 @@ CONTAINS
           CALL nonlinear_transfer(p_patch(jg), wave_config(jg), &
                wave_ext_data(jg)%bathymetry_c,           & !IN
                p_wave_state(jg)%prog(n_now)%tracer,      & !INOUT
-               p_wave_state(jg)%diag)                      !INOUT: fl, sl
+              p_wave_state(jg)%diag)                      !INOUT: fl, sl
         END IF
 
         ! Calculate dissipation due to bottom friction
@@ -406,7 +470,6 @@ CONTAINS
              p_wave_state(jg)%diag%last_prog_freq_ind, & !IN
              p_wave_state(jg)%prog(n_now)%tracer)        !INOUT
 
-        !call advection
 
         ! update tracers from now to new without advection
         p_wave_state(jg)%prog(n_new)%tracer = p_wave_state(jg)%prog(n_now)%tracer
@@ -414,10 +477,6 @@ CONTAINS
         ! Set energy to absolute allowed minimum
         CALL set_energy2emin(p_patch(jg), wave_config(jg), &
              p_wave_state(jg)%prog(n_new)%tracer) ! INOUT
-
-        IF (wave_config(jg)%lgrid_refr) THEN
-          !call grid refraction (n_now)
-        END IF
 
         ! Update total and mean frequency energy
         CALL total_energy(p_patch(jg), wave_config(jg), &
@@ -455,6 +514,16 @@ CONTAINS
 
     ENDDO TIME_LOOP
 
+    ! cleanup
+    IF (ALLOCATED(reader_wave_forcing)) THEN
+      DO jg=1,n_dom
+
+        CALL reader_wave_forcing(jg)%deinit()
+        !
+      ENDDO
+      DEALLOCATE(reader_wave_forcing, STAT=ierrstat)
+      IF (ierrstat /= SUCCESS) CALL finish(routine, 'Deallocation failed for reader_wave_forcing')
+    ENDIF
 
     CALL message(routine,'finished')
   END SUBROUTINE perform_wave_stepping

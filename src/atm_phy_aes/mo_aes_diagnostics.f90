@@ -144,7 +144,7 @@ CONTAINS
       !$ACC DATA PRESENT(field%pr, field%evap, field%sftof) &
       !$ACC   CREATE(scr)
 
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jb = 1, patch%alloc_cell_blocks
         DO jc = 1, nproma
@@ -153,12 +153,13 @@ CONTAINS
         END DO
       END DO
       !$ACC END PARALLEL
+
       call levels_horizontal_mean( scr(:,:), &
           & patch%cells%area(:,:), &
           & patch%cells%owned, &
           & fwfoce_gmean, lopenacc=.TRUE.)
 
-      !$ACC WAIT
+      !$ACC WAIT(1)
       !$ACC END DATA
 
       NULLIFY(field)

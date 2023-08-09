@@ -83,7 +83,8 @@ SUBROUTINE calc_dissol (local_bgc_mem, start_idx, end_idx, klevs, pddpo, psao, p
   !*********************************************************************
  ! Dissolution in surface layer, 
  ! needs to be separate from subsurface due to lysocline depth different calculation
-  !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC LOOP GANG VECTOR
   DO j= start_idx, end_idx
 
         k=1
@@ -154,7 +155,7 @@ SUBROUTINE calc_dissol (local_bgc_mem, start_idx, end_idx, klevs, pddpo, psao, p
 
          END DO
   END DO
-  !$ACC END PARALLEL LOOP
+  !$ACC END PARALLEL
 
 END SUBROUTINE
 

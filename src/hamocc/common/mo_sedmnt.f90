@@ -163,7 +163,7 @@ SUBROUTINE  ini_bottom(local_bgc_mem, start_idx, end_idx, klevs, pddpo, use_acc)
     lacc = .FALSE.
   END IF
 
-  !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
   !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO j = start_idx, end_idx
    k=klevs(j)

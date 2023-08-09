@@ -355,7 +355,7 @@ ENDIF
 !     2.           SET DEFAULT VALUES
 !                  ------------------
 
-!$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+!$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
 
 !$ACC LOOP SEQ
 DO jk=1,klev
@@ -1085,6 +1085,7 @@ ENDDO
 
 !$ACC END PARALLEL
 
+!$ACC WAIT(1)
 !$ACC END DATA
 
 IF (lhook) CALL dr_hook('CUASCN',1,zhook_handle)

@@ -48,6 +48,7 @@ MODULE mo_fortran_tools
   PUBLIC :: init_contiguous_dp, init_contiguous_sp
   PUBLIC :: init_contiguous_i4, init_contiguous_l
   PUBLIC :: minval_1d
+  PUBLIC :: minval_2d
   PUBLIC :: resize_arr_c1d
   PUBLIC :: DO_DEALLOCATE
   PUBLIC :: DO_PTR_DEALLOCATE
@@ -1583,6 +1584,37 @@ CONTAINS
 #endif
 
   END FUNCTION minval_1d
+
+  FUNCTION minval_2d(var, lacc)
+    !! Computes the MINVAL(var)
+    !! This wrapper enables the use of OpenACC without using ACC-KERNELS
+      INTEGER, INTENT(IN) :: var(:,:) ! input array
+      LOGICAL, INTENT(IN), OPTIONAL :: lacc ! if true, use OpenACC
+      LOGICAL :: lzacc ! non-optional version of lacc
+      INTEGER :: minval_2d, i, j, s1, s2
+  
+#ifdef _OPENACC
+      CALL set_acc_host_or_device(lzacc, lacc)
+  
+      s1 = SIZE(var, 1)
+      s2 = SIZE(var, 2)
+  
+      minval_2d = HUGE(minval_2d)
+  
+      !$ACC PARALLEL DEFAULT(PRESENT) COPY(minval_2d) ASYNC(1) REDUCTION(MIN: minval_2d) IF(lacc)
+      !$ACC LOOP GANG VECTOR
+      DO j = 1, s2
+        DO i = 1, s1
+          minval_2d = MIN(minval_2d, var(i,j)) ! The loop is equivalent to MINVAL(var(:,:))
+        ENDDO
+      ENDDO
+      !$ACC END PARALLEL
+      !$ACC WAIT ! required to sync result back to CPU
+#else
+      minval_2d = MINVAL(var(:,:))
+#endif
+  
+    END FUNCTION minval_2d
 
   SUBROUTINE insert_dimension_r_dp_3_2_s(ptr_out, ptr_in, in_shape, &
        new_dim_rank)

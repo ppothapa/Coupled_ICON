@@ -117,7 +117,7 @@ MODULE mo_sppt_core
 
         ! Interpolate random numbers in time
         !
-        !$ACC PARALLEL DEFAULT(PRESENT)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, p_patch%nlev
           DO jc = i_startidx, i_endidx
@@ -135,7 +135,7 @@ MODULE mo_sppt_core
         IF(ltaper) THEN
 
           ! Apply tapering factor
-          !$ACC PARALLEL DEFAULT(PRESENT)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jk = 1, p_patch%nlev
             DO jc = i_startidx, i_endidx
@@ -188,7 +188,7 @@ MODULE mo_sppt_core
     ! Calculate tendencies
     !>---------------------------------------------------------------------
 
-    !$ACC PARALLEL DEFAULT(PRESENT)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = 1, nlev
       DO jc = i_startidx, i_endidx
@@ -238,7 +238,7 @@ MODULE mo_sppt_core
     ! Perturb tendencies
     !>---------------------------------------------------------------------
 
-    !$ACC PARALLEL DEFAULT(PRESENT)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = 1, nlev
       DO jc = i_startidx, i_endidx
@@ -279,11 +279,10 @@ MODULE mo_sppt_core
     ENDDO ! end of jk
     !$ACC END PARALLEL
 
-
     ! note that convective tendencies for qr and qs exist only if ldetrain_conv_prec=.TRUE.
     IF (atm_phy_nwp_config(jg)%ldetrain_conv_prec) THEN
 
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlev
         DO jc = i_startidx, i_endidx
@@ -300,7 +299,7 @@ MODULE mo_sppt_core
 
     ELSE
 
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlev
         DO jc = i_startidx, i_endidx
@@ -371,8 +370,7 @@ MODULE mo_sppt_core
       CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk,  &
         &                i_startidx, i_endidx, rl_start, rl_end)
 
-
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = kstart_moist(jg), nlev
         DO jc = i_startidx, i_endidx
@@ -390,6 +388,7 @@ MODULE mo_sppt_core
         ENDDO ! jc
       ENDDO ! jk
       !$ACC END PARALLEL
+
     ENDDO ! jb
 !$OMP END DO
 
@@ -431,7 +430,7 @@ MODULE mo_sppt_core
     ! Save state
     !>---------------------------------------------------------------------
 
-    !$ACC PARALLEL DEFAULT(PRESENT)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO jk = 1, nlev
       DO jc = i_startidx, i_endidx

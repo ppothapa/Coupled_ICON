@@ -6,6 +6,9 @@ MODULE mo_nwp_gpu_util
   USE mo_dynamics_config,         ONLY: nnow, nnew, nnow_rcf, nnew_rcf
   USE mo_intp_data_strc,          ONLY: t_int_state
   USE mo_nwp_parameters,          ONLY: t_phy_params
+#ifdef __ICON_ART
+  USE mo_art_data,                ONLY: t_art_data
+#endif
   USE mo_nonhydrostatic_config,   ONLY: kstart_moist, kstart_tracer
   USE mo_grid_config,             ONLY: n_dom
   USE mo_nwp_phy_state,           ONLY: phy_params, prm_diag
@@ -25,6 +28,9 @@ MODULE mo_nwp_gpu_util
   PRIVATE
 
   PUBLIC :: gpu_d2h_nh_nwp, gpu_h2d_nh_nwp, devcpy_nwp, hostcpy_nwp, gpu_d2h_dace
+#ifdef __ICON_ART
+  PUBLIC :: gpu_d2h_art, gpu_h2d_art
+#endif
 
   CONTAINS
 
@@ -38,7 +44,6 @@ MODULE mo_nwp_gpu_util
     LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
     TYPE(t_atm_phy_nwp_config), POINTER :: a
-
 
     CALL assert_acc_device_only("gpu_d2h_nh_nwp", lacc)
 
@@ -107,7 +112,6 @@ MODULE mo_nwp_gpu_util
     IF (sppt_config(jg)%lsppt) THEN
       CALL gpu_update_var_list('sppt_of_domain_', .false., domain=jg, lacc=.TRUE.)
     END IF
-
 #endif
 
     IF (PRESENT(phy_params)) THEN
@@ -122,7 +126,7 @@ MODULE mo_nwp_gpu_util
       !$ACC   HOST(a%ldetrain_conv_prec, a%inwp_radiation, a%inwp_sso, a%inwp_gwd, a%inwp_cldcover, a%inwp_turb) &
       !$ACC   HOST(a%inwp_surface, a%itype_z0, a%dt_conv, a%dt_ccov, a%dt_rad, a%dt_sso, a%dt_gwd, a%dt_fastphy) &
       !$ACC   HOST(a%mu_rain, a%mu_snow, a%rain_n0_factor, a%qi0, a%qc0, a%icpl_aero_gscp, a%ustart_raylfric) &
-      !$ACC   HOST(a%efdt_min_raylfric, a%latm_above_top, a%icalc_reff, a%icpl_rad_reff, a%ithermo_water) &
+      !$ACC   HOST(a%efdt_min_raylfric, a%latm_above_top, a%icalc_reff, a%icpl_rad_reff, a%luse_clc_rad, a%ithermo_water) &
       !$ACC   HOST(a%lupatmo_phy, a%lenabled, a%lcall_phy, a%lcalc_acc_avg) &
       !$ACC   HOST(a%lcalc_extra_avg, a%lhave_graupel, a%l2moment, a%lhydrom_read_from_fg, a%lhydrom_read_from_ana) &
 #ifndef __NO_ICON_LES__
@@ -147,7 +151,6 @@ MODULE mo_nwp_gpu_util
     LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
     TYPE(t_atm_phy_nwp_config), POINTER :: a
-
 
     CALL assert_acc_device_only("gpu_d2h_nh_nwp", lacc)
 
@@ -217,7 +220,6 @@ MODULE mo_nwp_gpu_util
     IF (sppt_config(jg)%lsppt) THEN
       CALL gpu_update_var_list('sppt_of_domain_', .true., domain=jg, lacc=.TRUE.)
     END IF
-
 #endif
 
     IF (PRESENT(phy_params)) THEN
@@ -232,7 +234,7 @@ MODULE mo_nwp_gpu_util
       !$ACC   DEVICE(a%ldetrain_conv_prec, a%inwp_radiation, a%inwp_sso, a%inwp_gwd, a%inwp_cldcover, a%inwp_turb) &
       !$ACC   DEVICE(a%inwp_surface, a%itype_z0, a%dt_conv, a%dt_ccov, a%dt_rad, a%dt_sso, a%dt_gwd, a%dt_fastphy) &
       !$ACC   DEVICE(a%mu_rain, a%mu_snow, a%rain_n0_factor, a%qi0, a%qc0, a%icpl_aero_gscp, a%ustart_raylfric) &
-      !$ACC   DEVICE(a%efdt_min_raylfric, a%latm_above_top, a%icalc_reff, a%icpl_rad_reff, a%ithermo_water) &
+      !$ACC   DEVICE(a%efdt_min_raylfric, a%latm_above_top, a%icalc_reff, a%icpl_rad_reff, a%luse_clc_rad, a%ithermo_water) &
       !$ACC   DEVICE(a%lupatmo_phy, a%lenabled, a%lcall_phy, a%lcalc_acc_avg) &
       !$ACC   DEVICE(a%lcalc_extra_avg, a%lhave_graupel, a%l2moment, a%lhydrom_read_from_fg, a%lhydrom_read_from_ana) &
 #ifndef __NO_ICON_LES__
@@ -243,6 +245,72 @@ MODULE mo_nwp_gpu_util
     ENDIF
 
   END SUBROUTINE gpu_h2d_nh_nwp
+
+#ifdef __ICON_ART
+  SUBROUTINE gpu_d2h_art(p_art_data, lacc)
+
+    TYPE(t_art_data), OPTIONAL, INTENT(inout) :: p_art_data
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
+
+    ! local scalars
+    INTEGER :: ipoll
+
+    CALL assert_acc_device_only("gpu_d2h_art", lacc)
+
+    IF (PRESENT(p_art_data)) THEN
+      !$ACC WAIT
+
+      !$ACC UPDATE HOST(p_art_data%air_prop%art_dyn_visc, p_art_data%air_prop%art_free_path) &
+      !$ACC   HOST(p_art_data%atmo%gz0, p_art_data%atmo%ktrpwmop1_real, p_art_data%atmo%ktrpwmop1) &
+      !$ACC   HOST(p_art_data%atmo%ktrpwmo, p_art_data%atmo%lat, p_art_data%atmo%llsm, p_art_data%atmo%lon) &
+      !$ACC   HOST(p_art_data%atmo%ptropo, p_art_data%atmo%rh_2m, p_art_data%atmo%swflxsfc) &
+      !$ACC   HOST(p_art_data%atmo%swflx_par_sfc, p_art_data%atmo%sza, p_art_data%atmo%sza_deg) &
+      !$ACC   HOST(p_art_data%atmo%theta, p_art_data%atmo%t_2m, p_art_data%diag%acc_drydepo) &
+      !$ACC   HOST(p_art_data%turb_fields%sv, p_art_data%turb_fields%vdep)
+
+      DO ipoll = 1, p_art_data%ext%pollen_prop%npollen_types
+        !$ACC UPDATE HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%fr_cov) &
+        !$ACC   HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%f_q_alt) &
+        !$ACC   HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%rh_sum) &
+        !$ACC   HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%sobs_sum)
+      END DO
+    END IF
+
+  END SUBROUTINE gpu_d2h_art
+
+  SUBROUTINE gpu_h2d_art(p_art_data, lacc)
+
+    TYPE(t_art_data), OPTIONAL, INTENT(inout) :: p_art_data
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
+
+    ! local scalars
+    INTEGER :: ipoll
+
+    TYPE(t_atm_phy_nwp_config), POINTER :: a
+
+
+    CALL assert_acc_device_only("gpu_h2d_art", lacc)
+
+    IF (PRESENT(p_art_data)) THEN
+      !$ACC WAIT
+
+      !$ACC UPDATE DEVICE(p_art_data%air_prop%art_dyn_visc, p_art_data%air_prop%art_free_path) &
+      !$ACC   DEVICE(p_art_data%atmo%gz0, p_art_data%atmo%ktrpwmop1_real, p_art_data%atmo%ktrpwmop1) &
+      !$ACC   DEVICE(p_art_data%atmo%ktrpwmo, p_art_data%atmo%lat, p_art_data%atmo%llsm, p_art_data%atmo%lon) &
+      !$ACC   DEVICE(p_art_data%atmo%ptropo, p_art_data%atmo%rh_2m, p_art_data%atmo%swflxsfc) &
+      !$ACC   DEVICE(p_art_data%atmo%swflx_par_sfc, p_art_data%atmo%sza, p_art_data%atmo%sza_deg) &
+      !$ACC   DEVICE(p_art_data%atmo%theta, p_art_data%atmo%t_2m, p_art_data%diag%acc_drydepo) &
+      !$ACC   DEVICE(p_art_data%turb_fields%sv, p_art_data%turb_fields%vdep)
+
+      DO ipoll = 1, p_art_data%ext%pollen_prop%npollen_types
+        !$ACC UPDATE DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%fr_cov) &
+        !$ACC   DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%f_q_alt) &
+        !$ACC   DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%rh_sum) &
+        !$ACC   DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%sobs_sum)
+      END DO
+    END IF
+  END SUBROUTINE gpu_h2d_art
+#endif
 
   SUBROUTINE devcpy_nwp(lacc)
     LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
@@ -262,9 +330,10 @@ MODULE mo_nwp_gpu_util
 
   END SUBROUTINE hostcpy_nwp
 
-  SUBROUTINE gpu_d2h_dace(jg)
+  SUBROUTINE gpu_d2h_dace(jg, atm_phy_nwp_config)
 
     INTEGER, INTENT(IN) :: jg
+    TYPE(t_atm_phy_nwp_config), INTENT(in) :: atm_phy_nwp_config
 
     LOGICAL :: lqr, lqs, lqg
 
@@ -306,6 +375,16 @@ MODULE mo_nwp_gpu_util
     !$ACC UPDATE HOST(p_lnd_state(jg)% prog_lnd(nnow_rcf(jg))%t_g)
     !$ACC UPDATE HOST(p_lnd_state(jg)%diag_lnd%h_snow)
     !$ACC UPDATE HOST(p_lnd_state(jg)%diag_lnd%fr_seaice)
+
+    IF (atm_phy_nwp_config%luse_clc_rad) THEN
+      !$ACC UPDATE HOST(prm_diag(jg)%clc_rad)
+    ELSE
+      !$ACC UPDATE HOST(prm_diag(jg)%clc)
+    END IF
+    IF (atm_phy_nwp_config% icalc_reff /= 0) THEN
+      !$ACC UPDATE HOST(prm_diag(jg)%reff_qc)
+      !$ACC UPDATE HOST(prm_diag(jg)%reff_qi)
+    END IF
 
     ! Not sure why this is needed
 #ifdef _OPENACC

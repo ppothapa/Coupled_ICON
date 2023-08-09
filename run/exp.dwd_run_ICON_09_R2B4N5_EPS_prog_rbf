@@ -175,7 +175,6 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  l_log_checks    = .true.
  num_io_procs    =  0
  num_restart_procs = 0
- itype_comm      =  1
  iorder_sendrecv =  3
  proc0_shift     = 0
  use_omp_input   = .false.

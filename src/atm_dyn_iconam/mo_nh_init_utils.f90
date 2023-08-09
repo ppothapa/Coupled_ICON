@@ -33,7 +33,6 @@ MODULE mo_nh_init_utils
   USE mo_sync,                  ONLY: sync_patch_array, SYNC_C
   USE mo_intp_data_strc,        ONLY: t_int_state
   USE mo_intp,                  ONLY: edges2cells_scalar
-  USE mo_math_laplace,          ONLY: nabla2_scalar
   USE mo_math_gradients,        ONLY: grad_fd_norm
   USE mo_loopindices,           ONLY: get_indices_c, get_indices_e
   USE mo_initicon_types,        ONLY: t_init_state
@@ -48,7 +47,6 @@ MODULE mo_nh_init_utils
 
   ! subroutines
   !
-  PUBLIC :: compute_smooth_topo 
   PUBLIC :: interp_uv_2_vn
   PUBLIC :: init_w, adjust_w
   PUBLIC :: convert_thdvars
@@ -672,70 +670,5 @@ CONTAINS
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
   END SUBROUTINE compute_exner_pert
-
-
-  !---------------------------------------------------------------------------
-  !>
-  !! Computes the smoothed topography needed for the SLEVE coordinate.
-  !! May be bypassed once an option for reading the smooth topography from data
-  !! is available
-  !!
-  !! @par Revision History
-  !! Initial release by Guenther Zaengl, DWD, (2010-07-21)
-  !!
-  SUBROUTINE compute_smooth_topo(p_patch, p_int, topo_c, topo_smt_c)
-
-    TYPE(t_patch),TARGET,INTENT(INOUT) :: p_patch
-    TYPE(t_int_state), INTENT(IN) :: p_int
-
-    ! Input fields: topography on cells
-    REAL(wp), INTENT(IN) :: topo_c(:,:)
-
-    ! Output fields: smooth topography on cells
-    REAL(wp), INTENT(OUT) :: topo_smt_c(:,:)
-
-    INTEGER  :: jb, jc, iter, niter
-    INTEGER  :: i_startblk, nblks_c, i_startidx, i_endidx
-    REAL(wp) :: z_topo(nproma,1,p_patch%nblks_c),nabla2_topo(nproma,1,p_patch%nblks_c)
-
-    !-------------------------------------------------------------------------
-
-    niter = 25 ! 25 smoothing iterations (do we need this to be a namelist variable?)
-
-    ! Initialize auxiliary fields for topography with data and nullify nabla2 field
-    z_topo(:,1,:)      = topo_c(:,:)
-    nabla2_topo(:,1,:) = 0._wp
-
-    i_startblk = p_patch%cells%start_blk(2,1)
-    nblks_c    = p_patch%nblks_c
-
-    CALL sync_patch_array(SYNC_C,p_patch,z_topo)
-
-    ! Apply nabla2-diffusion niter times to create smooth topography
-    DO iter = 1, niter
-
-      CALL nabla2_scalar(z_topo, p_patch, p_int, nabla2_topo, &
-        &                 slev=1, elev=1, rl_start=2, rl_end=min_rlcell )
-
-      DO jb = i_startblk,nblks_c
-
-        CALL get_indices_c(p_patch, jb, i_startblk, nblks_c, &
-                           i_startidx, i_endidx, 2)
-
-        DO jc = i_startidx, i_endidx
-          z_topo(jc,1,jb) = z_topo(jc,1,jb) + 0.125_wp*nabla2_topo(jc,1,jb) &
-            &                               * p_patch%cells%area(jc,jb)
-        ENDDO
-      ENDDO
-
-      CALL sync_patch_array(SYNC_C,p_patch,z_topo)
-
-    ENDDO
-
-    ! Store smooth topography on output fields
-    topo_smt_c(:,:) = z_topo(:,1,:)
-
-  END SUBROUTINE compute_smooth_topo
-
 
 END MODULE mo_nh_init_utils

@@ -198,7 +198,7 @@ CONTAINS
           ELSE
             nlen = p_patch%npromz_c
           END IF
-          !$ACC PARALLEL LOOP DEFAULT(PRESENT)
+          !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1)
           DO n = 1, nlen
             frac_oce(n,i_blk) = 1.0_wp-prm_field(jg)%frac_tile(n,i_blk,ilnd) - prm_field(jg)%alake(n,i_blk)
           ENDDO
@@ -214,7 +214,7 @@ CONTAINS
           ELSE
             nlen = p_patch%npromz_c
           END IF
-          !$ACC PARALLEL LOOP DEFAULT(PRESENT)
+          !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1)
           DO n = 1, nlen
             frac_oce(n,i_blk) = 1.0_wp-prm_field(jg)%frac_tile(n,i_blk,ilnd)
           ENDDO
@@ -231,7 +231,7 @@ CONTAINS
         ELSE
           nlen = p_patch%npromz_c
         END IF
-        !$ACC PARALLEL LOOP DEFAULT(PRESENT)
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1)
         DO n = 1, nlen
           frac_oce(n,i_blk) = 1.0
         ENDDO
@@ -253,12 +253,13 @@ CONTAINS
       ELSE
         nlen = p_patch%npromz_c
       END IF
-      !$ACC PARALLEL LOOP DEFAULT(PRESENT) COPYOUT(buffer(nn+1:nn+nlen, 1:2))
+      !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COPYOUT(buffer(nn+1:nn+nlen, 1:2))
       DO n = 1, nlen
          buffer(nn+n,1) = prm_field(jg)%u_stress_tile(n,i_blk,iwtr)
          buffer(nn+n,2) = prm_field(jg)%u_stress_tile(n,i_blk,iice)
       ENDDO
     ENDDO
+    !$ACC WAIT(1)
 !ICON_OMP_END_DO
 !ICON_OMP_END_PARALLEL
 
@@ -284,12 +285,13 @@ CONTAINS
       ELSE
         nlen = p_patch%npromz_c
       END IF
-      !$ACC PARALLEL LOOP DEFAULT(PRESENT) COPYOUT(buffer(nn+1:nn+nlen, 1:2))
+      !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COPYOUT(buffer(nn+1:nn+nlen, 1:2))
       DO n = 1, nlen
          buffer(nn+n,1) = prm_field(jg)%v_stress_tile(n,i_blk,iwtr)
          buffer(nn+n,2) = prm_field(jg)%v_stress_tile(n,i_blk,iice)
       ENDDO
     ENDDO
+    !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
@@ -324,7 +326,7 @@ CONTAINS
         ELSE
           nlen = p_patch%npromz_c
         END IF
-        !$ACC PARALLEL LOOP DEFAULT(PRESENT) COPYOUT(buffer(nn+1:nn+nlen, 1:3))
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COPYOUT(buffer(nn+1:nn+nlen, 1:3))
         DO n = 1, nlen
 
           ! total rates of rain and snow over whole cell
@@ -336,6 +338,7 @@ CONTAINS
             &              prm_field(jg)%evap_tile(n,i_blk,iice)*prm_field(jg)%frac_tile(n,i_blk,iice)
         ENDDO
       ENDDO
+      !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
 
     ! Full coupling including jsbach: surface types ocean, ice, land
@@ -350,7 +353,7 @@ CONTAINS
         ELSE
           nlen = p_patch%npromz_c
         END IF
-        !$ACC PARALLEL LOOP DEFAULT(PRESENT) COPYOUT(buffer(nn+1:nn+nlen, 1:3)) NO_CREATE(scr)
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COPYOUT(buffer(nn+1:nn+nlen, 1:3)) NO_CREATE(scr)
         DO n = 1, nlen
 
           ! total rates of rain and snow over whole cell
@@ -371,6 +374,7 @@ CONTAINS
           IF ( idbg_mxmn >= 1 .OR. idbg_val >=1 ) scr(n,i_blk) = buffer(nn+n,3)
         ENDDO
       ENDDO
+      !$ACC WAIT(1)
       !$ACC END DATA
 !ICON_OMP_END_PARALLEL_DO
       IF ( idbg_mxmn >= 1 .OR. idbg_val >=1 )  &
@@ -402,7 +406,7 @@ CONTAINS
       ELSE
         nlen = p_patch%npromz_c
       END IF
-      !$ACC PARALLEL LOOP DEFAULT(PRESENT) COPYOUT(buffer(nn+1:nn+nlen, 1:4))
+      !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COPYOUT(buffer(nn+1:nn+nlen, 1:4))
       DO n = 1, nlen
         buffer(nn+n,1) = prm_field(jg)%swflxsfc_tile(n,i_blk,iwtr)
         buffer(nn+n,2) = prm_field(jg)%lwflxsfc_tile(n,i_blk,iwtr)
@@ -410,6 +414,7 @@ CONTAINS
         buffer(nn+n,4) = prm_field(jg)%lhflx_tile   (n,i_blk,iwtr)
       ENDDO
     ENDDO
+    !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
@@ -434,12 +439,13 @@ CONTAINS
       ELSE
         nlen = p_patch%npromz_c
       END IF
-      !$ACC PARALLEL LOOP DEFAULT(PRESENT) COPYOUT(buffer(nn+1:nn+nlen, 1:2))
+      !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COPYOUT(buffer(nn+1:nn+nlen, 1:2))
       DO n = 1, nlen
         buffer(nn+n,1) = prm_field(jg)%Qtop(n,1,i_blk)
         buffer(nn+n,2) = prm_field(jg)%Qbot(n,1,i_blk)
       ENDDO
     ENDDO
+    !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
@@ -469,12 +475,13 @@ CONTAINS
       ELSE
         nlen = p_patch%npromz_c
       END IF
-      !$ACC PARALLEL LOOP DEFAULT(PRESENT) COPYOUT(buffer(nn+1:nn+nlen, 1))
+      !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COPYOUT(buffer(nn+1:nn+nlen, 1))
       DO n = 1, nlen
         ! as far as no tiles (pre04) are correctly implemented, use the grid-point mean of 10m wind for coupling
         buffer(nn+n,1) = prm_field(jg)%sfcWind(n,i_blk)
       ENDDO
     ENDDO
+    !$ACC WAIT(1)
 !!ICON_OMP_END_PARALLEL_DO
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
@@ -509,11 +516,12 @@ CONTAINS
       ELSE
         nlen = p_patch%npromz_c
       END IF
-      !$ACC PARALLEL LOOP DEFAULT(PRESENT) COPYOUT(buffer(nn+1:nn+nlen, 1))
+      !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COPYOUT(buffer(nn+1:nn+nlen, 1))
       DO n = 1, nlen
         buffer(nn+n,1) = pt_diag%pres_msl(n,i_blk)
       ENDDO
     ENDDO
+    !$ACC WAIT(1)
 !!ICON_OMP_END_PARALLEL_DO
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
@@ -553,25 +561,26 @@ CONTAINS
           END IF
           SELECT CASE (ccycle_config(jg)%iccycle)
           CASE (1) ! c-cycle with interactive atm. co2 concentration, qtrc_phy in kg/kg
-             !$ACC PARALLEL LOOP DEFAULT(PRESENT) COPYOUT(buffer(nn+1:nn+nlen, 1))
+             !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COPYOUT(buffer(nn+1:nn+nlen, 1))
              DO n = 1, nlen
                 buffer(nn+n,1)    =  amd/amco2 * 1.0e6_wp * prm_field(jg)%qtrc_phy(n,nlev,i_blk,ico2)
              END DO
           CASE (2) ! c-cycle with prescribed  atm. co2 concentration
              SELECT CASE (ccycle_config(jg)%ico2conc)
              CASE (2) ! constant  co2 concentration, vmr_co2 in m3/m3
-                !$ACC PARALLEL LOOP DEFAULT(PRESENT) COPYOUT(buffer(nn+1:nn+nlen, 1))
+                !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COPYOUT(buffer(nn+1:nn+nlen, 1))
                 DO n = 1, nlen
                    buffer(nn+n,1) =              1.0e6_wp * ccycle_config(jg)%vmr_co2
                 END DO
              CASE (4) ! transient co2 concentration, ghg_co2mmr in kg/kg
-                !$ACC PARALLEL LOOP DEFAULT(PRESENT) COPYOUT(buffer(nn+1:nn+nlen, 1))
+                !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COPYOUT(buffer(nn+1:nn+nlen, 1))
                 DO n = 1, nlen
                    buffer(nn+n,1) =  amd/amco2 * 1.0e6_wp * ghg_co2mmr
                 END DO
              END SELECT
           END SELECT
        ENDDO
+       !$ACC WAIT(1)
 !!ICON_OMP_END_PARALLEL_DO
 
        IF (ltimer) CALL timer_start(timer_coupling_put)
@@ -638,7 +647,7 @@ CONTAINS
         ELSE
           nlen = p_patch%npromz_c
         END IF
-        !$ACC PARALLEL LOOP DEFAULT(PRESENT) COPYIN(buffer(nn+1:nn+nlen, 1)) NO_CREATE(scr)
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COPYIN(buffer(nn+1:nn+nlen, 1)) NO_CREATE(scr)
         DO n = 1, nlen
 
           !  - lake part is included in land part, must be subtracted as well, see frac_oce
@@ -657,6 +666,7 @@ CONTAINS
           ENDIF
         ENDDO
       ENDDO
+      !$ACC WAIT(1)
       !$ACC END DATA
 !ICON_OMP_END_PARALLEL_DO
       IF ( idbg_mxmn >= 1 .OR. idbg_val >=1 )  &
@@ -689,7 +699,7 @@ CONTAINS
         ELSE
           nlen = p_patch%npromz_c
         END IF
-        !$ACC PARALLEL LOOP DEFAULT(PRESENT) COPYIN(buffer(nn+1:nn+nlen, 1))
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COPYIN(buffer(nn+1:nn+nlen, 1))
         DO n = 1, nlen
           IF ( nn+n > nbr_inner_cells ) THEN
             prm_field(jg)%ocu(n,i_blk) = dummy
@@ -698,6 +708,7 @@ CONTAINS
           ENDIF
         ENDDO
       ENDDO
+      !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
 
       CALL sync_patch_array(sync_c, p_patch, prm_field(jg)%ocu(:,:))
@@ -727,7 +738,7 @@ CONTAINS
         ELSE
           nlen = p_patch%npromz_c
         END IF
-        !$ACC PARALLEL LOOP DEFAULT(PRESENT) COPYIN(buffer(nn+1:nn+nlen, 1))
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COPYIN(buffer(nn+1:nn+nlen, 1))
         DO n = 1, nlen
           IF ( nn+n > nbr_inner_cells ) THEN
             prm_field(jg)%ocv(n,i_blk) = dummy
@@ -736,6 +747,7 @@ CONTAINS
           ENDIF
         ENDDO
       ENDDO
+      !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
 
       CALL sync_patch_array(sync_c, p_patch, prm_field(jg)%ocv(:,:))
@@ -766,7 +778,7 @@ CONTAINS
         ELSE
           nlen = p_patch%npromz_c
         END IF
-        !$ACC PARALLEL LOOP DEFAULT(PRESENT) COPYIN(buffer(nn+1:nn+nlen, 1:3))
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COPYIN(buffer(nn+1:nn+nlen, 1:3))
         DO n = 1, nlen
           IF ( nn+n > nbr_inner_cells ) THEN
             prm_field(jg)%hi  (n,1,i_blk) = dummy
@@ -779,6 +791,7 @@ CONTAINS
           ENDIF
         ENDDO
       ENDDO
+      !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
 
       CALL sync_patch_array(sync_c, p_patch, prm_field(jg)%hi  (:,1,:))
@@ -792,12 +805,13 @@ CONTAINS
         ELSE
           nlen = p_patch%npromz_c
         END IF
-        !$ACC PARALLEL LOOP DEFAULT(PRESENT)
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1)
         DO n = 1, nlen
           prm_field(jg)%seaice(n,i_blk) = prm_field(jg)%conc(n,1,i_blk)
           prm_field(jg)%siced(n,i_blk)  = prm_field(jg)%hi(n,1,i_blk)
         ENDDO
       ENDDO
+      !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
 
     END IF
@@ -829,7 +843,7 @@ CONTAINS
              ELSE
                 nlen = p_patch%npromz_c
              END IF
-             !$ACC PARALLEL LOOP DEFAULT(PRESENT) COPYIN(buffer(nn+1:nn+nlen, 1))
+             !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COPYIN(buffer(nn+1:nn+nlen, 1))
              DO n = 1, nlen
                 IF ( nn+n > nbr_inner_cells ) THEN
                    prm_field(jg)%co2_flux_tile(n,i_blk,iwtr) = dummy
@@ -838,6 +852,7 @@ CONTAINS
                 ENDIF
              ENDDO
           ENDDO
+          !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
           !
           CALL sync_patch_array(sync_c, p_patch, prm_field(jg)%co2_flux_tile(:,:,iwtr))

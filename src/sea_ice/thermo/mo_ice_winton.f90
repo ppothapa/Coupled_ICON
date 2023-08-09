@@ -128,7 +128,7 @@ CONTAINS
     !$ACC   PRESENT(dnonsolardT, Tfw) IF(lacc)
 
     ! initialization
-    !$ACC PARALLEL IF(lacc)
+    !$ACC PARALLEL ASYNC(1) IF(lacc)
     !$ACC LOOP SEQ
     DO k = 1,kice
       !$ACC LOOP GANG VECTOR
@@ -140,7 +140,7 @@ CONTAINS
     !$ACC END PARALLEL
     idt2   =  1.0_wp / (2.0_wp*pdtime)
     
-    !$ACC PARALLEL IF(lacc)
+    !$ACC PARALLEL ASYNC(1) IF(lacc)
     !$ACC LOOP SEQ
     DO k=1,kice
       !$ACC LOOP GANG VECTOR PRIVATE(B, A, K1, K2, D, iK1B, Tsurfm, A1a, A1) &

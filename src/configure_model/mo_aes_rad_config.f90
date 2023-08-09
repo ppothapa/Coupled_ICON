@@ -109,6 +109,7 @@ MODULE mo_aes_rad_config
      INTEGER  :: irad_cfc11     !< CFC 11
      INTEGER  :: irad_cfc12     !< CFC 12
      INTEGER  :: irad_aero      !< aerosols
+     LOGICAL  :: lrad_yac       !< kinne aerosol coupling
      !
      ! --- Volume mixing ratios - 1990 values (CMIP5)
      !
@@ -182,6 +183,7 @@ CONTAINS
     aes_rad_config(:)% irad_cfc11     = 2
     aes_rad_config(:)% irad_cfc12     = 2
     aes_rad_config(:)% irad_aero      = 2
+    aes_rad_config(:)% lrad_yac       = .FALSE.
     !
     ! Default volume mixing ratios: 1990 values (CMIP5)
     aes_rad_config(:)% vmr_co2        =  348.0e-06_wp
@@ -226,6 +228,7 @@ CONTAINS
     INTEGER , POINTER :: irad_h2o, irad_co2, irad_ch4, irad_n2o, irad_o3, irad_o2, irad_cfc11, irad_cfc12, irad_aero
     REAL(wp), POINTER ::            vmr_co2,  vmr_ch4,  vmr_n2o,           vmr_o2,  vmr_cfc11,  vmr_cfc12
     REAL(wp), POINTER :: frad_h2o, frad_co2, frad_ch4, frad_n2o, frad_o3, frad_o2
+    LOGICAL , POINTER :: lrad_yac
     LOGICAL , POINTER :: lclearsky
     REAL(wp), POINTER :: frad_cfc11, frad_cfc12
 
@@ -262,6 +265,7 @@ CONTAINS
        irad_cfc11 => aes_rad_config(jg)% irad_cfc11
        irad_cfc12 => aes_rad_config(jg)% irad_cfc12
        irad_aero  => aes_rad_config(jg)% irad_aero
+       lrad_yac   => aes_rad_config(jg)% lrad_yac
        !
        vmr_co2    => aes_rad_config(jg)% vmr_co2
        vmr_ch4    => aes_rad_config(jg)% vmr_ch4
@@ -517,6 +521,8 @@ CONTAINS
           CALL message('','No aerosol in radiation')
        END SELECT
        !
+       IF ( lrad_yac ) CALL message('','aerosol and ozone coupling via YAC')
+       !
        !
        ! --- Check scaling factors
        !
@@ -645,6 +651,7 @@ CONTAINS
        CALL print_value('    aes_rad_config('//TRIM(cg)//')% irad_cfc11    ',aes_rad_config(jg)% irad_cfc11    )
        CALL print_value('    aes_rad_config('//TRIM(cg)//')% irad_cfc12    ',aes_rad_config(jg)% irad_cfc12    )
        CALL print_value('    aes_rad_config('//TRIM(cg)//')% irad_aero     ',aes_rad_config(jg)% irad_aero     )
+       CALL print_value('    aes_rad_config('//TRIM(cg)//')% lrad_yac      ',aes_rad_config(jg)% lrad_yac      )
        CALL message    ('','')
        CALL print_value('    aes_rad_config('//TRIM(cg)//')% vmr_co2       ',aes_rad_config(jg)% vmr_co2       )
        CALL print_value('    aes_rad_config('//TRIM(cg)//')% vmr_ch4       ',aes_rad_config(jg)% vmr_ch4       )

@@ -286,8 +286,8 @@ CONTAINS
       CALL get_indices_e(ptr_p, jb, i_startblk, i_endblk,        &
            i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) TILE(64, 2) &
-      !$ACC   ASYNC(1) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+      !$ACC LOOP GANG VECTOR TILE(64, 2)
       DO jk = slev, elev
         DO je = i_startidx, i_endidx
           !
@@ -345,6 +345,7 @@ CONTAINS
 
         ENDDO ! loop over edges
       ENDDO   ! loop over vertical levels
+      !$ACC END PARALLEL
 
     END DO    ! loop over blocks
 
@@ -358,7 +359,7 @@ CONTAINS
         RETURN
       END IF
     END IF
-    !$ACC WAIT
+    !$ACC WAIT(1)
 
   END SUBROUTINE btraj_compute_o1
  

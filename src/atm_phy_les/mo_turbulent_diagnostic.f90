@@ -63,7 +63,6 @@ MODULE mo_turbulent_diagnostic
 
   INTEGER  :: nrec_tseries,   nrec_profile
   INTEGER  :: fileid_tseries, fileid_profile
-  INTEGER  :: sampl_freq_step, avg_interval_step
   LOGICAL  :: is_sampling_time, is_writing_time, is_rh_out
 
   !Some indices: think of better way
@@ -81,7 +80,7 @@ MODULE mo_turbulent_diagnostic
   PUBLIC  :: les_cloud_diag
   PUBLIC  :: calculate_turbulent_diagnostics, write_vertical_profiles, write_time_series
   PUBLIC  :: init_les_turbulent_output, close_les_turbulent_output
-  PUBLIC  :: sampl_freq_step, avg_interval_step, is_sampling_time, is_writing_time
+  PUBLIC  :: is_sampling_time, is_writing_time
   PUBLIC  :: idx_sgs_th_flx, idx_sgs_qv_flx, idx_sgs_qc_flx, idx_sgs_u_flx, idx_sgs_v_flx
 
 CONTAINS
@@ -822,11 +821,11 @@ CONTAINS
        CALL levels_horizontal_mean(p_prog_rcf%tracer(:,:,:,iqr), p_patch%cells%area,  &
                                    p_patch%cells%owned, outvar(1:nlev))
      CASE('qg')
-       IF(ANY((/4,5/) == atm_phy_nwp_config(jg)%inwp_gscp))&
+       IF(ANY((/4,5,8/) == atm_phy_nwp_config(jg)%inwp_gscp))&
          CALL levels_horizontal_mean(p_prog_rcf%tracer(:,:,:,iqg), p_patch%cells%area,  &
                                      p_patch%cells%owned, outvar(1:nlev))
      CASE('qh')
-       IF(ANY((/4,5/) == atm_phy_nwp_config(jg)%inwp_gscp))&
+       IF(ANY((/4,5,8/) == atm_phy_nwp_config(jg)%inwp_gscp))&
          CALL levels_horizontal_mean(p_prog_rcf%tracer(:,:,:,iqh), p_patch%cells%area,  &
                                      p_patch%cells%owned, outvar(1:nlev))
      CASE('tke')
@@ -951,17 +950,17 @@ CONTAINS
        CALL levels_horizontal_mean(prm_diag%snow_gsp_rate, p_patch%cells%area, p_patch%cells%owned, outvar0d)
        outvar0d = outvar0d * day_sec
      CASE('precp_g')
-       IF(ANY((/4,5/) == atm_phy_nwp_config(jg)%inwp_gscp))THEN
+       IF(ANY((/4,5,8/) == atm_phy_nwp_config(jg)%inwp_gscp))THEN
          CALL levels_horizontal_mean(prm_diag%graupel_gsp_rate, p_patch%cells%area, p_patch%cells%owned, outvar0d)
          outvar0d = outvar0d * day_sec
        END IF
      CASE('precp_h')
-       IF(ANY((/4,5/) == atm_phy_nwp_config(jg)%inwp_gscp))THEN
+       IF(ANY((/4,5,8/) == atm_phy_nwp_config(jg)%inwp_gscp))THEN
          CALL levels_horizontal_mean(prm_diag%hail_gsp_rate, p_patch%cells%area, p_patch%cells%owned, outvar0d)
          outvar0d = outvar0d * day_sec
        END IF
      CASE('precp_i')
-       IF(ANY((/4,5/) == atm_phy_nwp_config(jg)%inwp_gscp))THEN
+       IF(ANY((/4,5,8/) == atm_phy_nwp_config(jg)%inwp_gscp))THEN
          CALL levels_horizontal_mean(prm_diag%ice_gsp_rate, p_patch%cells%area, p_patch%cells%owned, outvar0d)
          outvar0d = outvar0d * day_sec
        END IF
@@ -1085,18 +1084,7 @@ CONTAINS
 
    jg = p_patch%id
 
-   !Check if diagnostics are to be calculated or not
-   IF(.NOT.les_config(jg)%ldiag_les_out)THEN
-    sampl_freq_step   = 0
-    avg_interval_step = 0
-    RETURN
-   END IF
-
    IF(msg_level>18)CALL message(routine,'Start!')
-
-   !Sampling and output frequencies in terms of time steps
-   sampl_freq_step   = NINT(les_config(jg)%sampl_freq_sec/dtime)
-   avg_interval_step = NINT(les_config(jg)%avg_interval_sec/dtime)
 
    is_rh_out = l_rh
 

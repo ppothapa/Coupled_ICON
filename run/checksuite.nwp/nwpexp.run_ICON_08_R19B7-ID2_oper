@@ -134,6 +134,7 @@ num_io_procs_radar=0
 cat > ${atmo_namelist} << EOF
 &parallel_nml
  nproma                  =  ${nproma}
+ nproma_sub              =  ${nproma_sub} ! loop chunk length for radiation
  p_test_run              = .false.
  l_test_openmp           = .true.
  l_log_checks            = .true.
@@ -141,10 +142,9 @@ cat > ${atmo_namelist} << EOF
  num_restart_procs       = ${num_restart_procs}
  num_prefetch_proc       = ${num_prefetch_proc}
  num_io_procs_radar      = ${num_io_procs_radar}
- itype_comm              = 1
  iorder_sendrecv         = 3
  !!! num_dist_array_replicas = 4
- proc0_shift             = 1
+ proc0_shift             = ${proc0_shift}
  use_omp_input           = .true.
 /
 &grid_nml
@@ -177,7 +177,12 @@ cat > ${atmo_namelist} << EOF
  qcana_mode            = 2
  qiana_mode            = 0  ! due to KENDA, before: 1
  use_lakeiceana        = .true.
- icpl_da_sfcevap       = 3
+ icpl_da_sfcevap       = 4
+ icpl_da_skinc         = 2
+ adjust_tso_tsnow      = .TRUE.
+ icpl_da_snowalb       = 2
+ icpl_da_sfcfric       = 1
+ icpl_da_tkhmin        = 1
 /
 &limarea_nml
  dtime_latbc             = 3600          ! 3600.
@@ -239,7 +244,6 @@ cat > ${atmo_namelist} << EOF
  itype_z0           = 2
  latm_above_top     = .true.
  ldetrain_conv_prec = .true.
- lrtm_filename      = 'rrtmg_lw.nc'
  mu_rain            = 0.5
  rain_n0_factor     = 0.1
 ! cp-cv-bugfix:
@@ -262,6 +266,7 @@ cat > ${atmo_namelist} << EOF
  icpl_turb_clc    = 2
  max_calibfac_clcl = 2.0
  tune_box_liq     = 0.04
+ tune_eiscrit     = 7.0
 /
 &turbdiff_nml
  a_hshr        = 2.0
@@ -320,6 +325,8 @@ cat > ${atmo_namelist} << EOF
   direct_albedo_water = 3
   albedo_whitecap = 1
   isolrad     = 1
+  ecrad_isolver = ${radiation_ecrad_isolver}
+ ! Solver version. 2: McICA with OpenACC, 0: McICA
 /
 &nonhydrostatic_nml
   damp_height     = 12250.

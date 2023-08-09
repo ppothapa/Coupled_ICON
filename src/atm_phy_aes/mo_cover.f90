@@ -185,7 +185,7 @@ CONTAINS
           !
 !IBM* novector
 
-          !$ACC PARALLEL DEFAULT(PRESENT)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
           !$ACC LOOP GANG VECTOR PRIVATE(zcor)
           DO jl = jcs,kproma
              zpapm1i      = SWDIV_NOCHK(1._wp,papm1(jl,jk))
@@ -394,8 +394,8 @@ CONTAINS
        !$ACC END PARALLEL
        !
     END SELECT
+    !$ACC WAIT(1)
     !$ACC END DATA
-    !$ACC WAIT
     !
     !
   END SUBROUTINE cover

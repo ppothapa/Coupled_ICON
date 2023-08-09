@@ -520,7 +520,7 @@ SUBROUTINE parturs( zsurf, z1  , u1   , v1     , t1   , qv1  ,    &
       IF ( msg_level >= 25) CALL message( 'mo_gme_turbdiff:', 'parturs')
  
 !     wind velocity in Prandtl layer
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO j1 = i_startidx, i_endidx
         zvpb(j1) = MAX( SQRT( u1(j1)**2 +v1(j1)**2), zvmin)
@@ -1291,7 +1291,7 @@ SUBROUTINE parturs( zsurf, z1  , u1   , v1     , t1   , qv1  ,    &
 !     heat/moisture         ---> zch
 !     roughness length      ---> zgz0
 !
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO j1 = i_startidx, i_endidx
         zv  (j1) = MAX ( SQRT (u(j1,ke)**2+v(j1,ke)**2), zvmin )
@@ -1306,7 +1306,7 @@ SUBROUTINE parturs( zsurf, z1  , u1   , v1     , t1   , qv1  ,    &
 ! 4.  Compute the temperature and dew point temperature at 2 m, and the
 !     wind components at 10 m
 !
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR PRIVATE(zh_s, zh_p, zfi_p, zfi_2, zsqcm, zchdcm, zlnz, zh_05m) &
       !$ACC   PRIVATE(zh_2m, zp_2m, zp_p, zpsat_2m, zpsat_p, zqvs_2m, zqvs_p, zqv_2m, zqv_2m_min, zfrac) &
       !$ACC   PRIVATE(rho_s, ufr_s, psiMO_tp, psiMO_t2, lOburecip, z0tWMO_g, rho_srec)

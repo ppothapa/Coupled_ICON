@@ -59,7 +59,7 @@ CONTAINS
     !$ACC   PRESENT(ninact, ninpot, nccn, rho, cloud) &
     !$ACC   PRESENT(rain, ice, snow, graupel, hail)
 
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kts, kte, its, ite, lprogccn, lprogin)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) FIRSTPRIVATE(kts, kte, its, ite, lprogccn, lprogin)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO kk = kts, kte
       DO ii = its, ite
@@ -177,7 +177,7 @@ CONTAINS
 
     ! enforce upper and lower bounds for number concentrations
     ! (may not be necessary or only at initial time)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kts, kte, its, ite)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) FIRSTPRIVATE(kts, kte, its, ite)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO kk=kts,kte
       DO ii=its,ite
@@ -195,7 +195,7 @@ CONTAINS
     END DO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kts, kte, its, ite)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) FIRSTPRIVATE(kts, kte, its, ite)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO kk=kts,kte
       DO ii=its,ite
@@ -279,7 +279,7 @@ CONTAINS
     ! ... Transformation of variables back to ICON standard variables
     !$ACC DATA PRESENT(qv, qc, qr, qi, qs, qg, qh, qnc, qnr, qni, qns, qng, qnh) &
     !$ACC   PRESENT(ninact, ninpot, nccn, rho_r)
-    !$ACC PARALLEL DEFAULT(NONE) FIRSTPRIVATE(kts, kte, its, ite, lprogccn, lprogin)
+    !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) FIRSTPRIVATE(kts, kte, its, ite, lprogccn, lprogin)
     !$ACC LOOP GANG VECTOR PRIVATE(hlp) COLLAPSE(2)
     DO kk = kts, kte
       DO ii = its, ite

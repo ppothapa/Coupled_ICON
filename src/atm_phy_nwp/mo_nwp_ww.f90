@@ -397,7 +397,7 @@ CONTAINS
 
     !$ACC DATA CREATE(t_t, ph_t, qc_t) PRESENT(t, qc, ph) IF(lzacc)
 
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO i = 1, ie
       DO k = 1, ke
@@ -407,7 +407,7 @@ CONTAINS
     end do
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO i = 1, ie
       DO k = 1, ke1
@@ -417,7 +417,7 @@ CONTAINS
     !$ACC END PARALLEL
 
 
-    !$ACC PARALLEL DEFAULT(PRESENT)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR PRIVATE(test_fog, rgdiff, lsnb, irrb, igfb, iwolk) &
     !$ACC   PRIVATE(iwolkc, isprb, rgdiff, rkdiff, rldiff, rrdiff, rsdiff, dp, lconvb) &
     !$ACC   PRIVATE(vbetr, tblmax, tdblmax, rfblmax, vbl, qvmin, zfrac, tdbl, rfbl) &
@@ -682,6 +682,7 @@ WW_PRECIP: IF (rgdiff < rgdiff_th1) THEN
    
     ENDDO
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
     !$ACC END DATA
 
   END SUBROUTINE ww_diagnostics

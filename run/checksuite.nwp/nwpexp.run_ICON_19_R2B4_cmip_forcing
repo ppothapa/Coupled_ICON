@@ -88,8 +88,10 @@ ln -sf ${INDATADIR}/CI_${NEXT_YYYY}_${NEXT_MM}_iconR2B04_DOM01.nc CI_${NEXT_YYYY
 # link aerosols
 ln -sf ${INDATADIR}/R2B4_aeropt_kinne_sw_b14_coa.nc bc_aeropt_kinne_sw_b14_coa.nc
 ln -sf ${INDATADIR}/R2B4_aeropt_kinne_lw_b16_coa.nc bc_aeropt_kinne_lw_b16_coa.nc
-ln -sf ${INDATADIR}/R2B4_aeropt_kinne_sw_b14_fin_${YYYY}.nc bc_aeropt_kinne_sw_b14_fin_${YYYY}.nc
-ln -sf ${INDATADIR}/R2B4_aeropt_kinne_sw_b14_fin_${NEXT_YYYY}.nc bc_aeropt_kinne_sw_b14_fin_${NEXT_YYYY}.nc
+
+# The data from 1850 should be linked here, not 1979. But 1979 is used just for test:
+ln -sf ${INDATADIR}/R2B4_aeropt_kinne_sw_b14_fin_1979.nc bc_aeropt_kinne_sw_b14_fin.nc
+
 ln -sf ${INDATADIR}/bc_aeropt_cmip6_volc_lw_b16_sw_b14_${YYYY}.nc bc_aeropt_cmip6_volc_lw_b16_sw_b14_${YYYY}.nc
 ln -sf ${INDATADIR}/bc_aeropt_cmip6_volc_lw_b16_sw_b14_${NEXT_YYYY}.nc bc_aeropt_cmip6_volc_lw_b16_sw_b14_${NEXT_YYYY}.nc
 ln -sf ${ICONDIR}/data/MACv2.0-SP_v1.nc .
@@ -166,6 +168,7 @@ num_io_procs_radar=0
 cat > NAMELIST_${EXPID} << EOF
         &parallel_nml
           nproma                       =  ${nproma}
+          nproma_sub                   = ${nproma_sub} ! loop chunk length for radiation
           p_test_run                   = .FALSE.
           l_test_openmp                = .FALSE.
           l_log_checks                 = .FALSE.
@@ -173,9 +176,8 @@ cat > NAMELIST_${EXPID} << EOF
           num_restart_procs            = ${num_restart_procs}
           num_prefetch_proc            = ${num_prefetch_proc}
           num_io_procs_radar           = ${num_io_procs_radar}
-          itype_comm                   = 1
           iorder_sendrecv              = 1
-          proc0_shift                  = 1
+          proc0_shift                  = ${proc0_shift}
           use_omp_input                = .TRUE.
         /
         &grid_nml
@@ -333,6 +335,8 @@ cat > NAMELIST_${EXPID} << EOF
           irad_aero   = 18
           izenith     = 4           ! 4: NWP default, 3: no annual cycle
           albedo_type = 2           ! Modis albedo
+          ecrad_isolver = ${radiation_ecrad_isolver}
+ ! Solver version. 2: McICA with OpenACC, 0: McICA
         /
         &nonhydrostatic_nml	
           iadv_rhotheta       = 2
@@ -343,7 +347,6 @@ cat > NAMELIST_${EXPID} << EOF
           damp_height         = 50000.
           rayleigh_coeff      = 0.10
           ndyn_substeps       = 5
-          lhdiff_rcf          = .TRUE.
           divdamp_order       = 24          ! 2 ass, 24 fc
           divdamp_type        = 32          ! optional: 2 assimilation cycle, 32 forecast
           divdamp_fac         = 0.004       ! 0.004 for R2B6; recommendation for R3B7: 0.003

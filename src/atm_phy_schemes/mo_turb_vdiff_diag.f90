@@ -223,7 +223,7 @@ CONTAINS
       &                                       ,klev=jk,kblock=jb,kblock_size=kbdim)
       CALL lookup_ua_spline(jcs,kproma,idx,za,zua)
 
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO jl=jcs,kproma
         zpapm1i(jl) = 1._wp/papm1(jl,jk)
@@ -231,7 +231,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL
 
-      !$ACC PARALLEL DEFAULT(PRESENT)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP GANG VECTOR
       DO 211 jl=jcs,kproma
 

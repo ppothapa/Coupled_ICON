@@ -133,7 +133,7 @@ INTEGER(KIND=jpim) :: jk, jl
   !$ACC   CREATE(unitVolume, zrho, kland) &
   !$ACC   IF(lacc)
 
-  !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
 
   ! Make land sea mask for beta
   !$ACC LOOP GANG(STATIC: 1) VECTOR
@@ -195,6 +195,7 @@ INTEGER(KIND=jpim) :: jk, jl
 !!  lpi=lpi/15000._jprb 
 
   !$ACC END PARALLEL
+  !$ACC WAIT(1)
 
   !$ACC END DATA
 
@@ -269,7 +270,7 @@ INTEGER(KIND=jpim) :: jk, jl
   !$ACC   CREATE(thetae600, thetae900, thetae, deltap600, deltap900, fa, fb) &
   !$ACC   IF(lacc)
 
-  !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
 
   ! compute equivalent potential temperature
   !$ACC LOOP SEQ
@@ -339,6 +340,7 @@ INTEGER(KIND=jpim) :: jk, jl
   ENDDO
 
   !$ACC END PARALLEL
+  !$ACC WAIT(1)
                      
   !$ACC END DATA
 

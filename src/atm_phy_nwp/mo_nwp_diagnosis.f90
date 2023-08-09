@@ -68,7 +68,7 @@ MODULE mo_nwp_diagnosis
                                    compute_field_uh_max, compute_field_vorw_ctmax, compute_field_w_ctmax, &
                                    compute_field_dbz3d_lin, maximize_field_dbzctmax,                      &
                                    compute_field_echotop, compute_field_echotopinm, compute_field_dursun, &
-                                   compute_field_twater
+                                   compute_field_twater, compute_hail_statistics, compute_updraft_duration
   USE mo_nwp_ww,             ONLY: ww_diagnostics, ww_datetime
   USE mtime,                 ONLY: datetime, timeDelta, getTimeDeltaFromDateTime,  &
     &                              deallocateTimedelta, newTimeDelta, event
@@ -76,6 +76,7 @@ MODULE mo_nwp_diagnosis
   USE mo_exception,          ONLY: finish
   USE mo_math_constants,     ONLY: pi
   USE mo_statistics,         ONLY: time_avg, levels_horizontal_mean
+  USE mo_ext_data_state,     ONLY: ext_data
   USE mo_ext_data_types,     ONLY: t_external_data
   USE mo_nwp_parameters,     ONLY: t_phy_params
   USE mo_time_config,        ONLY: time_config
@@ -83,6 +84,7 @@ MODULE mo_nwp_diagnosis
   USE mo_upatmo_impl_const,  ONLY: idamtr
   USE mo_mpi,                ONLY: p_io, p_comm_work, p_bcast
   USE mo_fortran_tools,      ONLY: assert_acc_host_only, set_acc_host_or_device, assert_acc_device_only
+  USE mo_radiation_config,   ONLY: decorr_pole, decorr_equator
 
   IMPLICIT NONE
 
@@ -256,7 +258,7 @@ CONTAINS
           & i_startidx, i_endidx, rl_start, rl_end)
 
 !DIR$ IVDEP
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
 
@@ -279,7 +281,7 @@ CONTAINS
           & i_startidx, i_endidx, rl_start, rl_end)
 
 !DIR$ IVDEP
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO jc = i_startidx, i_endidx
 
@@ -308,7 +310,7 @@ CONTAINS
         !$ACC END PARALLEL
 
         IF (lcall_phy_jg(itsfc)) THEN
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jt=1,ntiles_total
 !DIR$ IVDEP
@@ -320,7 +322,7 @@ CONTAINS
           !$ACC END PARALLEL
           ! special treatment for variable resid_wso
           IF (var_in_output(jg)%res_soilwatb) THEN
-            !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
             !$ACC LOOP GANG VECTOR COLLAPSE(2)
             DO jt=1,ntiles_total
 !DIR$ IVDEP
@@ -339,7 +341,7 @@ CONTAINS
         ! but the instantaneous max/min over all tiles. In case of no tiles both are equivalent.
         IF (lcall_phy_jg(itturb)) THEN
 !DIR$ IVDEP
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             prm_diag%tmax_2m(jc,jb) = MAX(prm_diag%t_tilemax_inst_2m(jc,jb), prm_diag%tmax_2m(jc,jb) )
@@ -353,7 +355,7 @@ CONTAINS
 
           IF (lcall_phy_jg(itturb)) THEN
 !DIR$ IVDEP
-            !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
             !$ACC LOOP GANG VECTOR
             DO jc = i_startidx, i_endidx
               ! ATTENTION:
@@ -392,7 +394,7 @@ CONTAINS
             ENDDO  ! jc
             !$ACC END PARALLEL
 
-            !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
             !$ACC LOOP GANG VECTOR COLLAPSE(2)
             DO jk = 1, nlev_soil
 !DIR$ IVDEP
@@ -406,7 +408,7 @@ CONTAINS
 
             IF (atm_phy_nwp_config(jg)%lcalc_extra_avg) THEN
 !DIR$ IVDEP
-              !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+              !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
               !$ACC LOOP GANG VECTOR
               DO jc = i_startidx, i_endidx
                 ! time averaged surface u-momentum flux SSO
@@ -442,7 +444,7 @@ CONTAINS
             !e.g. dt_phy_jg(itradheat) may then be greater than p_sim_time
             !leading to wrong averaging.
 !DIR$ IVDEP
-            !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
             !$ACC LOOP GANG VECTOR
             DO jc = i_startidx, i_endidx
 
@@ -739,15 +741,16 @@ CONTAINS
     INTEGER :: jt               ! tracer loop index
 
     REAL(wp):: clearsky(nproma)
-    REAL(wp):: ccmax, ccran, alpha(nproma,pt_patch%nlev), clcl_mod, clcm_mod, clct_fac
+    REAL(wp):: ccmax, ccran, alpha(nproma,pt_patch%nlev), clcl_mod, clcm_mod, clct_fac, zlat,zcos_lat
     LOGICAL :: lland
     LOGICAL :: lzacc ! non-optional version of lacc
 
     REAL(wp), PARAMETER :: eps_clc = 1.e-7_wp
 
     INTEGER,  PARAMETER :: i_overlap = 2       ! 1: maximum-random overlap
-                                               ! 2: generalized overlap (Hogan, Illingworth, 2000) 
-    REAL(wp) :: zdecorr(pt_patch%nlev)         ! decorrelation length scale del(z0) 
+                                               ! 2: generalized overlap (Hogan, Illingworth, 2000)
+    REAL(wp) :: zprof(pt_patch%nlev)           ! decorrelation length scale profile del(z0)
+    REAL(wp) :: zdecorr(nproma)                ! decorrelation length scale, lat-dependent 
 
   !-----------------------------------------------------------------
 
@@ -766,27 +769,29 @@ CONTAINS
     i_endblk   = pt_patch%cells%end_block(rl_end)
 
     ! set height-dependent decorrelation length scale
-    !$ACC DATA CREATE(zdecorr, rhodz) IF(lzacc)
+    !$ACC DATA CREATE(zprof, rhodz, zdecorr) IF(lzacc)
     !$ACC KERNELS IF(lzacc)
-    zdecorr(:) = 2000._wp
+    zprof(:) = 1._wp
     !$ACC END KERNELS
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
-    !$ACC LOOP PRIVATE(jk1, z_help)
-    DO jk = nlev, 1, -1
-      jk1 = jk + pt_patch%nshift_total
-      z_help = 0.5_wp*(vct_a(jk1)+vct_a(jk1+1))
-      IF (z_help < 3000._wp) THEN
-        zdecorr(jk) = 800._wp + 0.4_wp*z_help
-      ELSE
-        EXIT
-      ENDIF
-    ENDDO
-    !$ACC END PARALLEL
+    IF (lcalib_clcov) THEN
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP PRIVATE(jk1, z_help)
+      DO jk = nlev, 1, -1
+        jk1 = jk + pt_patch%nshift_total
+        z_help = 0.5_wp*(vct_a(jk1)+vct_a(jk1+1))
+        IF (z_help < 3000._wp) THEN
+          zprof(jk) = (800._wp + 0.4_wp*z_help)*0.0005_wp
+        ELSE
+          EXIT
+        ENDIF
+      ENDDO
+      !$ACC END PARALLEL
+    ENDIF
 
 !$OMP PARALLEL
     IF ( atm_phy_nwp_config(jg)%lenabled(itccov) ) THEN
 
-!$OMP DO PRIVATE(jc,jk,jb,z_help,i_startidx,i_endidx,clearsky,ccmax,ccran,alpha,clcl_mod,clcm_mod,clct_fac,lland)
+!$OMP DO PRIVATE(jc,jk,jb,z_help,i_startidx,i_endidx,clearsky,ccmax,ccran,alpha,clcl_mod,clcm_mod,clct_fac,lland,zdecorr,zlat,zcos_lat)
       DO jb = i_startblk, i_endblk
         !
         CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
@@ -800,7 +805,7 @@ CONTAINS
         prm_diag%tot_cld_vi(i_startidx:i_endidx,jb,1:3) = 0.0_wp
         !$ACC END KERNELS
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP SEQ
         DO jk = kstart_moist, nlev
 !DIR$ IVDEP
@@ -831,14 +836,14 @@ CONTAINS
         CASE ( 1 )      ! maximum-random overlap
 
           !$ACC DATA CREATE(clearsky)
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             clearsky(jc) = 1._wp - prm_diag%clc(jc,kstart_moist,jb)
           ENDDO
           !$ACC END PARALLEL
           
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP SEQ
           DO jk = kstart_moist+1, ih_clch
             !$ACC LOOP GANG VECTOR
@@ -851,7 +856,7 @@ CONTAINS
           !$ACC END PARALLEL
           
           ! store high-level clouds
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             prm_diag%clch(jc,jb) = MAX( 0._wp, 1._wp - clearsky(jc) - eps_clc)
@@ -859,7 +864,7 @@ CONTAINS
           !$ACC END PARALLEL
           
           ! continue downward for total cloud cover
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP SEQ
           DO jk = ih_clch+1, nlev
             !$ACC LOOP GANG VECTOR
@@ -873,7 +878,7 @@ CONTAINS
           
           ! store total cloud cover, start for mid-level clouds
 !DIR$ IVDEP
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             prm_diag%clct(jc,jb) = MAX( 0._wp, 1._wp - clearsky(jc) - eps_clc)
@@ -882,7 +887,7 @@ CONTAINS
           !$ACC END PARALLEL
           
           ! mid-level clouds
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP SEQ
           DO jk = ih_clch+2, ih_clcm
             !$ACC LOOP GANG VECTOR
@@ -896,7 +901,7 @@ CONTAINS
           
           ! store mid-level cloud cover, start for low-level clouds
 !DIR$ IVDEP
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             prm_diag%clcm(jc,jb) = MAX( 0._wp, 1._wp - clearsky(jc) - eps_clc)
@@ -906,7 +911,7 @@ CONTAINS
           !$ACC END PARALLEL
           
           ! continue downward for mid-level clouds
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP SEQ
           DO jk = ih_clcm+2, nlev
             !$ACC LOOP GANG VECTOR
@@ -919,25 +924,33 @@ CONTAINS
           !$ACC END PARALLEL
           
           ! store low-level clouds
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
             prm_diag%clcl(jc,jb) = MAX( 0._wp, 1._wp - clearsky(jc) - eps_clc)
           ENDDO
           !$ACC END PARALLEL
+          !$ACC WAIT(1)
           !$ACC END DATA
 
         CASE ( 2 )      ! generalized overlap (Hogan, Illingworth, 2000)
 
           !$ACC DATA CREATE(alpha)
-          !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           !$ACC LOOP GANG VECTOR
           DO jc = i_startidx, i_endidx
+
+            ! Calculate latitude-dependent decorrelation length scale based on
+            ! Shonk et al. 2010, but using COS function to be smoother over equator
+            ! as is implemented in IFS
+            ! Shonk et al. (2010) but smoothed over the equator
+            zcos_lat       = COS(pt_patch%cells%center(jc,jb)%lat)
+            zdecorr(jc)    = decorr_pole + (decorr_equator-decorr_pole) * zcos_lat*zcos_lat
             prm_diag%clct(jc,jb) = prm_diag%clc(jc,kstart_moist,jb)
             prm_diag%clch(jc,jb) = prm_diag%clc(jc,kstart_moist,jb)
             prm_diag%clcm(jc,jb) = 0.0_wp 
             prm_diag%clcl(jc,jb) = 0.0_wp 
-          ENDDO
+         ENDDO
 
 !PREVENT_INCONSISTENT_IFORT_FMA
           !$ACC LOOP SEQ
@@ -948,7 +961,7 @@ CONTAINS
               ccmax = MAX( prm_diag%clc(jc,jk,jb),  prm_diag%clct(jc,jb) )
               ccran =      prm_diag%clc(jc,jk,jb) + prm_diag%clct(jc,jb) - &
                        & ( prm_diag%clc(jc,jk,jb) * prm_diag%clct(jc,jb) )
-              alpha(jc,jk) = MIN( EXP( - (p_metrics%z_mc(jc,jk-1,jb)-p_metrics%z_mc(jc,jk,jb)) / zdecorr(jk) ), &
+              alpha(jc,jk) = MIN( EXP( - (p_metrics%z_mc(jc,jk-1,jb)-p_metrics%z_mc(jc,jk,jb)) / (zdecorr(jc)*zprof(jk)) ), &
                              prm_diag%clc(jc,jk-1,jb)/MAX(eps_clc,prm_diag%clc(jc,jk,jb)) )
               prm_diag%clct(jc,jb) = alpha(jc,jk) * ccmax + (1._wp-alpha(jc,jk)) * ccran
             ENDDO
@@ -980,7 +993,7 @@ CONTAINS
 
           ! calibration of layer-wise cloud cover fields
           IF (lcalib_clcov) THEN
-            !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+            !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
             !$ACC LOOP GANG VECTOR PRIVATE(lland, clcl_mod, clcm_mod, clct_fac)
             DO jc = i_startidx, i_endidx
               lland = ext_data%atm%fr_land(jc,jb)+ext_data%atm%fr_lake(jc,jb) > 0._wp
@@ -997,6 +1010,7 @@ CONTAINS
             ENDDO
             !$ACC END PARALLEL
           ENDIF
+          !$ACC WAIT(1)
           !$ACC END DATA
 
         END SELECT
@@ -1020,7 +1034,7 @@ CONTAINS
 
       ! pre-computation of rho * \Delta z
       ! (deep-atmosphere modification applied: height-dependence of grid cell volume)
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP COLLAPSE(2)
       DO jk = 1, nlev
         DO jc = i_startidx, i_endidx 
@@ -1031,11 +1045,11 @@ CONTAINS
       !$ACC END PARALLEL
 
       DO jt = 1, iqm_max
-        !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         pt_diag%tracer_vi(i_startidx:i_endidx,jb,jt) = 0.0_wp
         !$ACC END KERNELS
 
-        !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP SEQ
         DO jk = advection_config(jg)%iadv_slev(jt), nlev
 
@@ -1051,7 +1065,8 @@ CONTAINS
         !$ACC END PARALLEL
       ENDDO  ! jt
 
-    ENDDO ! nblks   
+    ENDDO ! nblks
+    !$ACC WAIT(1)
 !$OMP END DO
 !$OMP END PARALLEL  
     
@@ -1193,7 +1208,7 @@ CONTAINS
       ! Calculation of grid scale (gsp) and total (gsp+con) instantaneous precipitation rates:
       !
       SELECT CASE (atm_phy_nwp_config(jg)%inwp_gscp)
-      CASE(4,5,6,7)
+      CASE(4,5,6,7,8)
         !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO jc =  i_startidx, i_endidx
           prm_diag%prec_gsp_rate(jc,jb) = prm_diag%rain_gsp_rate(jc,jb)  &
@@ -1403,11 +1418,11 @@ CONTAINS
 
       IF (atm_phy_nwp_config(jg)%inwp_gscp > 0 ) THEN
 
-        CALL ww_diagnostics( nproma, nlev, nlevp1,  i_startidx, i_endidx, jg,             &
+        CALL ww_diagnostics( nproma, nlev, nlevp1,  i_startidx, i_endidx, jg,            &
             &                pt_diag%temp(:,:,jb), pt_prog_rcf%tracer(:,:,jb,iqv),       &
             &                pt_prog_rcf%tracer(:,:,jb,iqc),                             &
             &                pt_diag%u   (:,:,jb), pt_diag%v         (:,:,jb),           &
-            &                prm_diag%clc(:,:,jb),                                       &
+            &                prm_diag%clc(:,:,jb),                                   &
             &                pt_diag%pres(:,:,jb), pt_diag%pres_ifc  (:,:,jb),           &
             &                prm_diag%t_2m     (:,jb), prm_diag%td_2m   (:,jb),          &
             &                p_prog_lnd_now%t_g(:,jb),                                   &
@@ -1610,7 +1625,7 @@ CONTAINS
       ! normalized by 700hPa. Thus, cldepth=1 for a cloud extending vertically over a 
       ! range of 700 hPa. Only used for visualization purpose (i.e. gray-scale pictures)
       !
-      !$ACC PARALLEL DEFAULT(PRESENT) CREATE(iclbas, p_clbas) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) CREATE(iclbas, p_clbas) IF(lzacc)
       !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx
         prm_diag%cldepth(jc,jb) = 0._wp
@@ -1733,8 +1748,8 @@ CONTAINS
       ENDDO  ! jc
       !$ACC END PARALLEL
 
-
     ENDDO  ! jb
+    !$ACC WAIT(1)
 !$OMP END DO
 !$OMP END PARALLEL
 
@@ -1754,7 +1769,7 @@ CONTAINS
   !!
   SUBROUTINE nwp_opt_diagnostics(p_patch, p_patch_lp, p_int_lp, p_nh, p_int, prm_diag, &
      l_output, nnow, nnow_rcf, &
-     lpi_max_Event, celltracks_Event, dbz_Event, mtime_current,  plus_slack, lacc)
+     lpi_max_Event, celltracks_Event, dbz_Event, hail_max_Event, mtime_current,  plus_slack, lacc)
 
     TYPE(t_patch)       ,INTENT(IN)   :: p_patch(:), p_patch_lp(:)  ! patches and their local parents
     TYPE(t_int_state)   ,INTENT(IN)   :: p_int_lp(:)                ! interpolation state for local parents
@@ -1762,7 +1777,7 @@ CONTAINS
     TYPE(t_int_state)   ,INTENT(IN)   :: p_int(:)                   ! interpolation state
     TYPE(t_nwp_phy_diag),INTENT(INOUT):: prm_diag(:)                ! physics diagnostics
 
-    TYPE(event),     POINTER, INTENT(INOUT) :: lpi_max_Event, celltracks_Event, dbz_Event
+    TYPE(event),     POINTER, INTENT(INOUT) :: lpi_max_Event, celltracks_Event, dbz_Event, hail_max_Event
     TYPE(datetime),  POINTER, INTENT(IN   ) :: mtime_current  !< current_datetime
     TYPE(timedelta), POINTER, INTENT(IN   ) :: plus_slack
 
@@ -1770,14 +1785,15 @@ CONTAINS
     INTEGER, INTENT(IN) :: nnow(:), nnow_rcf(:)
     LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
-    LOGICAL :: l_active(3), l_lpimax_event_active, l_celltracks_event_active, l_dbz_event_active, &
-               l_need_dbz3d, l_need_temp, l_need_pres
+    LOGICAL :: l_active(4), l_lpimax_event_active, l_celltracks_event_active, l_dbz_event_active, l_hail_event_active, &
+               l_need_dbz3d, l_need_temp, l_need_pres, l_need_wup 
     INTEGER :: jg, k
 
     CALL assert_acc_device_only("nwp_opt_diagnostics", lacc)
     l_active(1) = is_event_active(lpi_max_Event,    mtime_current, proc0_offloading, plus_slack, opt_lasync=.TRUE.)
     l_active(2) = is_event_active(celltracks_Event, mtime_current, proc0_offloading, plus_slack, opt_lasync=.TRUE.)
     l_active(3) = is_event_active(dbz_Event,        mtime_current, proc0_offloading, plus_slack, opt_lasync=.TRUE.)
+    l_active(4) = is_event_active(hail_max_Event,   mtime_current, proc0_offloading, plus_slack, opt_lasync=.TRUE.)
 
     ! In NEC hybrid mode, mtime is called on p_io only, so result needs to be broadcasted
     IF (proc0_offloading)  CALL p_bcast(l_active, p_io, p_comm_work)
@@ -1785,6 +1801,7 @@ CONTAINS
     l_lpimax_event_active     = l_active(1)
     l_celltracks_event_active = l_active(2)
     l_dbz_event_active        = l_active(3)
+    l_hail_event_active       = l_active(4)
 
     IF (ltimer) CALL timer_start(timer_nh_diagnostics)
 
@@ -1814,11 +1831,19 @@ CONTAINS
                     l_need_dbz3d .AND. .NOT. l_output(jg)
       l_need_pres = l_need_dbz3d .AND. .NOT. l_output(jg)
 
+      l_need_wup = (var_in_output(jg)%dhail_av .OR. & 
+                   var_in_output(jg)%dhail_mx .OR. & 
+                   var_in_output(jg)%dhail_sd)
+
       IF (l_need_temp .OR. l_need_pres) THEN
         CALL diagnose_pres_temp(p_nh(jg)%metrics, p_nh(jg)%prog(nnow(jg)), p_nh(jg)%prog(nnow_rcf(jg)),         &
                                 p_nh(jg)%diag, p_patch(jg), opt_calc_temp=l_need_temp, opt_calc_pres=l_need_pres)
       ENDIF
 
+      IF (l_need_wup) THEN
+        CALL  compute_updraft_duration( p_patch(jg), p_nh(jg)%prog(nnow(jg))%w, &
+               &                   prm_diag(jg)%wdur,prm_diag(jg)%wup_mask)
+      ENDIF
 
       ! maximization of LPI_MAX (LPI max. during the time interval "celltracks_interval") if required
       IF ( var_in_output(jg)%lpi_max .AND. (l_output(jg) .OR. l_lpimax_event_active ) ) THEN
@@ -1903,6 +1928,14 @@ CONTAINS
       IF ( var_in_output(jg)%echotopinm .AND. (l_output(jg) .OR. l_dbz_event_active ) ) THEN
         CALL compute_field_echotopinm ( p_patch(jg), jg, p_nh(jg)%metrics, &
                                         prm_diag(jg)%dbz3d_lin, prm_diag(jg)%echotopinm, lacc=.TRUE. )
+      END IF
+
+      ! output of dhail (maximum expected hail diameter at the ground) 
+      ! during a time interval (namelist param. dt_hail) is required:
+      IF ( (var_in_output(jg)%dhail_mx .OR. var_in_output(jg)%dhail_av .OR. var_in_output(jg)%dhail_sd) .AND. &
+           ( l_output(jg) .OR. l_hail_event_active) ) THEN
+        CALL compute_hail_statistics( p_patch(jg), p_nh(jg)%metrics, p_nh(jg)%prog(nnow(jg)), &
+                                   p_nh(jg)%prog(nnow_rcf(jg)), p_nh(jg)%diag, prm_diag(jg), ext_data(jg)%atm%topography_c )
       END IF
     END DO
 
@@ -2301,7 +2334,8 @@ CONTAINS
             qsmin(jb) = MIN(qsmin(jb),ptr_tracer(jc,jk,jb,iqs))
             
             IF(atm_phy_nwp_config(jg)%inwp_gscp==4 &
-                 & .OR.atm_phy_nwp_config(jg)%inwp_gscp==5 .OR. atm_phy_nwp_config(jg)%inwp_gscp==7)THEN
+                 & .OR.atm_phy_nwp_config(jg)%inwp_gscp==5 .OR. atm_phy_nwp_config(jg)%inwp_gscp==7 &
+                 & .OR. atm_phy_nwp_config(jg)%inwp_gscp==8)THEN
                qgmax(jb) = MAX(qgmax(jb),ptr_tracer(jc,jk,jb,iqg))
                qgmin(jb) = MIN(qgmin(jb),ptr_tracer(jc,jk,jb,iqg))
                qhmax(jb) = MAX(qhmax(jb),ptr_tracer(jc,jk,jb,iqh))
@@ -2342,7 +2376,8 @@ CONTAINS
     qsmaxi = MAXVAL(qsmax(i_startblk:i_endblk))
     qsmini = MINVAL(qsmin(i_startblk:i_endblk))
     IF(atm_phy_nwp_config(jg)%inwp_gscp==4 &
-         & .OR.atm_phy_nwp_config(jg)%inwp_gscp==5 .OR.atm_phy_nwp_config(jg)%inwp_gscp==7)THEN
+         & .OR.atm_phy_nwp_config(jg)%inwp_gscp==5 .OR.atm_phy_nwp_config(jg)%inwp_gscp==7 &
+         & .OR.atm_phy_nwp_config(jg)%inwp_gscp==8)THEN
        qgmaxi = MAXVAL(qgmax(i_startblk:i_endblk))
        qgmini = MINVAL(qgmin(i_startblk:i_endblk))
        qhmaxi = MAXVAL(qhmax(i_startblk:i_endblk))
@@ -2377,7 +2412,8 @@ CONTAINS
     qsmaxi = global_max(qsmaxi)
     qsmini = global_min(qsmini)
     IF(atm_phy_nwp_config(jg)%inwp_gscp==4 &
-         & .OR.atm_phy_nwp_config(jg)%inwp_gscp==5 .OR. atm_phy_nwp_config(jg)%inwp_gscp==7)THEN
+         & .OR.atm_phy_nwp_config(jg)%inwp_gscp==5 .OR. atm_phy_nwp_config(jg)%inwp_gscp==7 &
+         & .OR. atm_phy_nwp_config(jg)%inwp_gscp==8)THEN
        qgmaxi = global_max(qgmaxi)
        qgmini = global_min(qgmini)
        qhmaxi = global_max(qhmaxi)
@@ -2405,7 +2441,7 @@ CONTAINS
        CALL message("",TRIM(message_text))
        WRITE(message_text,'(A10,8E11.3)') '  min: ', wmini,qvmini,qcmini,qrmini,qimini,qsmini
        CALL message("",TRIM(message_text))
-    CASE(4)
+    CASE(4,8)
        WRITE(message_text,'(A10,9A11)')   '  var: ', 'w','qv','qc','qr','qi','qs','qg','qh','temp'
        CALL message("",TRIM(message_text))
        WRITE(message_text,'(A10,9E11.3)') '  max: ', wmaxi,qvmaxi,qcmaxi,qrmaxi,qimaxi,qsmaxi,qgmaxi,qhmaxi,tmaxi

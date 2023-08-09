@@ -48,9 +48,10 @@ MODULE mo_util_cdi
                                  & cdi_max_name, &
                                  & subtypeDefActiveIndex, CDI_DATATYPE_PACK23, CDI_DATATYPE_PACK32, cdiStringError, &
                                  & FILETYPE_GRB2, vlistDefVar, cdiEncodeParam, &
-                                 & vlistDefVarName, vlistDefVarLongname,        &
+                                 & vlistDefVarName, vlistDefVarLongname, vlistDefVarTsteptype, &
     &                              vlistDefVarStdname, vlistDefVarUnits, vlistDefVarParam, vlistDefVarMissval, &
-    &                              vlistDefVarDatatype, vlistDefVarIntKey, vlistDefVarDblKey
+    &                              vlistDefVarDatatype, vlistDefVarIntKey, vlistDefVarDblKey, &
+                                 & TIME_CONSTANT, TIME_VARYING, TSTEP_CONSTANT
 
   IMPLICIT NONE
   PRIVATE
@@ -1173,9 +1174,9 @@ CONTAINS
       mapped_name = out_varnames_dict%get(info%name, default=info%name)
     END IF
 
-    ! note that an explicit call of vlistDefVarTsteptype is obsolete, since
-    ! isteptype is already defined via vlistDefVar
-    varID = vlistDefVar(vlistID, gridID, zaxisID, info%isteptype)
+
+    varID = vlistDefVar(vlistID, gridID, zaxisID, MERGE(TIME_CONSTANT, TIME_VARYING, info%isteptype == TSTEP_CONSTANT))
+    CALL vlistDefVarTsteptype(vlistID, varID, info%isteptype)
 
     CALL vlistDefVarName(vlistID, varID, TRIM(mapped_name))
     IF (info%post_op%lnew_cf) THEN

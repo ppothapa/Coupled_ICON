@@ -2,4 +2,4 @@
 #
 # configure wrapper which is used for buildbot builder dwd_nec (VH)
 #
-"$(dirname -- "${BASH_SOURCE[0]}")"/rcl.VH.gcc-9.2.0_mpi-2.22_art_oper "$@"
+"$(dirname -- "${BASH_SOURCE[0]}")"/rcl.VH.gcc-11.2.0_mpi-2.22_art_oper "$@"

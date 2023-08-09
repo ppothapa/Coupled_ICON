@@ -44,7 +44,6 @@ MODULE mo_nonhydro_state
     &                                TASK_COMPUTE_OMEGA, TLEV_NNOW_RCF,              &
     &                                MODE_ICONVREMAP,HINTP_TYPE_LONLAT_RBF,          &
     &                                HINTP_TYPE_LONLAT_BCTR,                         &
-    &                                TASK_COMPUTE_VOR_U, TASK_COMPUTE_VOR_V,         &
     &                                MIN_RLCELL_INT, MIN_RLCELL
   USE mo_cdi_constants,        ONLY: GRID_UNSTRUCTURED_CELL, GRID_UNSTRUCTURED_EDGE, &
     &                                GRID_UNSTRUCTURED_VERT, GRID_CELL, GRID_EDGE,   &
@@ -65,7 +64,8 @@ MODULE mo_nonhydro_state
     &                                iqni, iqg, iqh, iqnr, iqns,                & 
     &                                iqng, iqnh, iqnc, inccn, ininpot, ininact, &
     &                                iqgl, iqhl,                                &
-    &                                iqtke, ltestcase, lart
+    &                                iqtke, ltestcase, lart,                    &
+    &                                iqbin, iqb_i, iqb_e, iqb_s            
   USE mo_coupling_config,      ONLY: is_coupled_run
   USE mo_io_config,            ONLY: inextra_2d, inextra_3d, lnetcdf_flt64_output, &
     &                                t_var_in_output
@@ -77,10 +77,8 @@ MODULE mo_nonhydro_state
   USE mo_nudging_config,       ONLY: nudging_config, indg_type
   USE mo_var_list,             ONLY: add_var, find_list_element, add_ref, t_var_list_ptr
   USE mo_var_list_register, ONLY: vlr_add, vlr_del
-  USE mo_var_list_register_utils, ONLY: vlr_add_vref
   USE mo_var,                  ONLY: t_var
   USE mo_var_groups,           ONLY: MAX_GROUPS, groups
-  USE mo_var_metadata_types,   ONLY: t_var_metadata, t_var_metadata_dynamic
   USE mo_var_metadata,         ONLY: create_vert_interp_metadata,            &
     &                                create_hor_interp_metadata,             &
     &                                vintp_types, get_timelevel_string
@@ -205,7 +203,9 @@ MODULE mo_nonhydro_state
       IF (ist/=SUCCESS) CALL finish(routine,                                   &
         'allocation of prognostic state list array failed')
 
-      ! create tracer list (no extra timelevels)
+      ! Create tracer list (no extra timelevels).
+      ! The list will be filled in `configure_advection`, once the total number
+      ! of tracers is known.
       ALLOCATE(p_nh_state_lists(jg)%tracer_list(1:n_timelevels), STAT=ist)
       IF (ist/=SUCCESS) CALL finish(routine,                                   &
         'allocation of prognostic tracer list array failed')
@@ -232,17 +232,6 @@ MODULE mo_nonhydro_state
           &  p_nh_state_lists(jg)%prog_list(jt), listname, TRIM(varname_prefix), &
           &  l_extra_timelev, jt)
 
-        !
-        ! Build prog state tracer list
-        ! no memory allocation (only references to prog list)
-        !
-        IF (.NOT. l_extra_timelev) THEN ! not needed for extra timelevel
-          WRITE(listname,'(a,i2.2,a,i2.2)') 'nh_state_tracer_of_domain_',jg, &
-            &                               '_and_timelev_',jt
-          varname_prefix = ''
-          CALL new_nh_state_tracer_list(p_patch(jg), p_nh_state_lists(jg)%prog_list(jt), &
-            &  p_nh_state_lists(jg)%tracer_list(jt), listname )
-        ENDIF
       ENDDO ! jt
 
       !
@@ -474,6 +463,7 @@ MODULE mo_nonhydro_state
     TYPE(t_var), POINTER :: target_element
     INTEGER              :: tracer_idx
 
+    INTEGER                       :: iqb
     LOGICAL :: ingroup(MAX_GROUPS)
     !**
     !--------------------------------------------------------------
@@ -951,6 +941,68 @@ MODULE mo_nonhydro_state
           __acc_attach(p_prog%tracer_ptr(iqhl)%p_3d)
         END IF
 
+        !33 drop mass bins
+        DO iqb = iqb_i, iqb_s
+          IF ( iqbin(iqb) /= 0 ) THEN
+              tracer_name = TRIM(vname_prefix)//TRIM(advconf%tracer_names(iqbin(iqb)))
+              CALL add_ref( p_prog_list, tracer_container_name,                      &
+                    & TRIM(tracer_name)//suffix, p_prog%tracer_ptr(iqbin(iqb))%p_3d, &
+                    & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
+                    & t_cf_var(TRIM(tracer_name),                                    &
+                    &  'kgkg-1 ','drop mass bins', datatype_flt),                    &
+                    & grib2_var(0, 1, 71, ibits, GRID_UNSTRUCTURED, GRID_CELL),      &
+                    & ref_idx=iqbin(iqb),                                            &
+                    & ldims=shape3d_c,                                               &
+                    & tlev_source=TLEV_NNOW_RCF,                                     & ! output from nnow_rcf slice
+                    & tracer_info=create_tracer_metadata_hydro(lis_tracer=.TRUE.,    &
+                    &             name        = TRIM(tracer_name)//suffix,           &
+                    &             ihadv_tracer=advconf%ihadv_tracer(iqbin(iqb)),     &
+                    &             ivadv_tracer=advconf%ivadv_tracer(iqbin(iqb))),    &
+                    & vert_interp=create_vert_interp_metadata(                       &
+                    &             vert_intp_type=vintp_types("P","Z","I"),           &
+                    &             vert_intp_method=VINTP_METHOD_LIN,                 &
+                    &             l_loglin=.FALSE.,                                  &
+                    &             l_extrapol=.FALSE., l_pd_limit=.FALSE.,            &
+                    &             lower_limit=0._wp  ),                              &
+                    & in_group=groups("atmo_ml_vars","atmo_pl_vars","atmo_zl_vars",  &
+                    &                 "dwd_fg_atm_vars","mode_dwd_fg_in",            &
+                    &                 "mode_iau_ana_in","mode_iau_anaatm_in",        &
+                    &                 "mode_iau_fg_in",                              &
+                    &                 "LATBC_PREFETCH_VARS")  )
+          END IF
+        END DO
+
+        !33 ccn number bins
+        DO iqb = iqb_s+1, iqb_e
+          IF ( iqbin(iqb) /= 0 ) THEN
+            tracer_name = TRIM(vname_prefix)//TRIM(advconf%tracer_names(iqbin(iqb)))
+            CALL add_ref( p_prog_list, tracer_container_name,                        &
+                    & TRIM(tracer_name)//suffix, p_prog%tracer_ptr(iqbin(iqb))%p_3d, &
+                    & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
+                    & t_cf_var(TRIM(tracer_name),                                    &
+                    &  ' kg-1 ','ccn number bins', datatype_flt),                    &
+                    & grib2_var(0, 6, 28, ibits, GRID_UNSTRUCTURED, GRID_CELL),      &
+                    & ref_idx=iqbin(iqb),                                            &
+                    & ldims=shape3d_c,                                               &
+                    & tlev_source=TLEV_NNOW_RCF,                                     & ! output from nnow_rcf slice
+                    & tracer_info=create_tracer_metadata(lis_tracer=.TRUE.,          &
+                    &             name        = TRIM(tracer_name)//suffix,           &
+                    &             ihadv_tracer=advconf%ihadv_tracer(iqbin(iqb)),     &
+                    &             ivadv_tracer=advconf%ivadv_tracer(iqbin(iqb))),    &
+                    & vert_interp=create_vert_interp_metadata(                       &
+                    &             vert_intp_type=vintp_types("P","Z","I"),           &
+                    &             vert_intp_method=VINTP_METHOD_LIN,                 &
+                    &             l_loglin=.FALSE.,                                  &
+                    &             l_extrapol=.FALSE., l_pd_limit=.FALSE.,            &
+                    &             lower_limit=0._wp  ),                              &
+                    & in_group=groups("atmo_ml_vars","atmo_pl_vars","atmo_zl_vars",  &
+                    &                 "dwd_fg_atm_vars","mode_dwd_fg_in",            &
+                    &                 "mode_iau_ana_in","mode_iau_anaatm_in",        &
+                    &                 "mode_iau_fg_in",                              &
+                    &                 "LATBC_PREFETCH_VARS")  )
+          END IF
+        END DO
+
         !O3
         IF ( iqt <= io3 .AND. io3 <= ntracer) THEN
           tlen = LEN_TRIM(advconf%tracer_names(io3))
@@ -1262,7 +1314,7 @@ MODULE mo_nonhydro_state
                     &             lower_limit=0._wp  ),                              &
                     & in_group=groups("atmo_ml_vars", "atmo_pl_vars", "atmo_zl_vars")  )
           __acc_attach(p_prog%tracer_ptr(ininact)%p_3d)
-        END IF ! inwp_gscp==4, inwp_gscp==5 .or. inwp_gscp==6 .or. inwp_gscp==7
+        END IF ! inwp_gscp==4,5,6,7,8
 
         ! concentration of cloud condensation nuclei
         IF ( inccn /= 0 ) THEN
@@ -1469,43 +1521,6 @@ MODULE mo_nonhydro_state
 
 
   END SUBROUTINE new_nh_state_prog_list
-
-
-
-  !-------------------------------------------------------------------------
-  !
-  !
-  !>
-  !! Creates tracer var list.
-  !!
-  !! Creates tracer var list containing references to all prognostic tracer 
-  !! fields.
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Reinert, DWD (2012-02-02)
-  !!
-  SUBROUTINE new_nh_state_tracer_list (p_patch, from_var_list, p_tracer_list, listname)
-    TYPE(t_patch), INTENT(IN) :: p_patch ! current patch
-    TYPE(t_var_list_ptr), INTENT(IN) :: from_var_list ! source list to be referenced
-    TYPE(t_var_list_ptr), INTENT(INOUT) :: p_tracer_list ! new tracer list (containing all tracers)
-    CHARACTER(*), INTENT(IN) :: listname
-    TYPE (t_var_metadata), POINTER :: from_info
-    TYPE (t_var_metadata_dynamic), POINTER :: from_info_dyn
-    INTEGER :: iv
-
-    ! Register a field list and apply default settings
-    CALL vlr_add(p_tracer_list, TRIM(listname), patch_id=p_patch%id, &
-      &          lrestart=.FALSE., loutput =.FALSE.)
-    ! add references to all tracer fields of the source list (prognostic state)
-    DO iv = 1, from_var_list%p%nvars
-      ! retrieve information from actual linked list element
-      from_info => from_var_list%p%vl(iv)%p%info
-      from_info_dyn => from_var_list%p%vl(iv)%p%info_dyn
-      ! Only add tracer fields to the tracer list
-      IF (from_info_dyn%tracer%lis_tracer .AND. .NOT.from_info%lcontainer) &
-        & CALL vlr_add_vref(p_tracer_list, from_info%name, from_var_list, in_group=groups())
-    END DO
-  END SUBROUTINE new_nh_state_tracer_list
 
 
   !-------------------------------------------------------------------------
@@ -1727,8 +1742,6 @@ MODULE mo_nonhydro_state
     &       p_diag%rhons_incr, &
     &       p_diag%rhong_incr, &
     &       p_diag%rhonh_incr, &
-    &       p_diag%vor_u, &
-    &       p_diag%vor_v, &
     &       p_diag%extra_2d, &
     &       p_diag%extra_3d)
 
@@ -3536,52 +3549,6 @@ MODULE mo_nonhydro_state
                     & l_pp_scheduler_task=TASK_COMPUTE_OMEGA, lrestart=.FALSE.,      &
                     & lopenacc = .TRUE. )
       __acc_attach(p_diag%omega)
-    END IF
-
-    ! zonal component of relative vorticity  p_diag%vor_u(nproma,nlev,nblks_c)
-    ! (GRIB2: we use the available local DWD definition for ecCodes shortname 'VORTIC_U')
-    ! 
-    IF (var_in_output%vor_u) THEN
-#ifdef _OPENACC
-      CALL finish("mo_nonhydro_state::new_nh_state_diag_list", "No Open-ACC parallelization available for vor_u.")
-#endif
-      cf_desc    = t_cf_var('vor_u', 's-1', 'zonal component of relative vorticity', datatype_flt)
-      grib2_desc = grib2_var(0, 2, 198, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_diag_list,                                                     &
-                    & "vor_u", p_diag%vor_u,                                         &
-                    & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
-                    & cf_desc, grib2_desc,                                           &
-                    & ldims=shape3d_c,                                               &
-                    & vert_interp=create_vert_interp_metadata(                       &
-                    &             vert_intp_type=vintp_types("P","Z","I"),           &
-                    &             vert_intp_method=VINTP_METHOD_LIN,                 &
-                    &             l_loglin=.FALSE., l_extrapol=.FALSE.),             &
-                    & l_pp_scheduler_task=TASK_COMPUTE_VOR_U, lrestart=.FALSE.,      &
-                    & lopenacc = .TRUE. )
-      __acc_attach(p_diag%vor_u)
-    END IF
-
-    ! meridional component of relative vorticity  p_diag%vor_v(nproma,nlev,nblks_c)
-    ! (GRIB2: we use the available local DWD definition for ecCodes shortname 'VORTIC_V')
-    ! 
-    IF (var_in_output%vor_v) THEN
-#ifdef _OPENACC
-      CALL finish("mo_nonhydro_state::new_nh_state_diag_list", "No Open-ACC parallelization available for vor_v.")
-#endif
-      cf_desc    = t_cf_var('vor_v', 's-1', 'meridional component of relative vorticity', datatype_flt)
-      grib2_desc = grib2_var(0, 2, 199, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_diag_list,                                                     &
-                    & "vor_v", p_diag%vor_v,                                         &
-                    & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
-                    & cf_desc, grib2_desc,                                           &
-                    & ldims=shape3d_c,                                               &
-                    & vert_interp=create_vert_interp_metadata(                       &
-                    &             vert_intp_type=vintp_types("P","Z","I"),           &
-                    &             vert_intp_method=VINTP_METHOD_LIN,                 &
-                    &             l_loglin=.FALSE., l_extrapol=.FALSE.),             &
-                    & l_pp_scheduler_task=TASK_COMPUTE_VOR_V, lrestart=.FALSE.,      &
-                    & lopenacc = .TRUE. )
-      __acc_attach(p_diag%vor_v)
     END IF
 
     !---------------------- End of optional diagnostics ----------------------

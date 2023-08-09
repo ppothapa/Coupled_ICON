@@ -44,7 +44,7 @@ MODULE mo_nwp_phy_init
   USE mo_loopindices,         ONLY: get_indices_c
   USE mo_parallel_config,     ONLY: nproma
   USE mo_fortran_tools,       ONLY: copy
-  USE mo_run_config,          ONLY: ltestcase, iqv, iqc, inccn, ininpot, msg_level
+  USE mo_run_config,          ONLY: ltestcase, iqv, iqc, inccn, ininpot, msg_level 
   USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config, lrtm_filename,               &
     &                               cldopt_filename, icpl_aero_conv, iprog_aero
   USE mo_extpar_config,       ONLY: itype_vegetation_cycle
@@ -72,6 +72,8 @@ MODULE mo_nwp_phy_init
   ! microphysics
   USE gscp_data,              ONLY: gscp_set_coefficients
   USE mo_2mom_mcrph_driver,   ONLY: two_moment_mcrph_init
+  USE mo_sbm_util,            ONLY: sbm_init 
+
 #ifdef __ICON_ART
   USE mo_art_clouds_interface,ONLY: art_clouds_interface_2mom_init
 #endif
@@ -224,6 +226,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   LOGICAL :: ltkeinp_loc, lgz0inp_loc  !< turbtran switches
   LOGICAL :: linit_mode, lturb_init, lreset_mode
   LOGICAL :: lupatmo_phy
+  LOGICAL :: l_filename_year
 
   INTEGER :: jb,ic,jc,jt,jg,ist,nzprv
   INTEGER :: nlev, nlevp1, nlevcm    !< number of full, half and canopy levels
@@ -429,7 +432,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
     ELSE
       prm_diag%rlamh_fac_t(:,jb,:) = 1._wp
     ENDIF
-    IF (icpl_da_snowalb >= 1) THEN
+    IF (icpl_da_snowalb >= 1 .AND. .NOT. isRestart()) THEN
       ! Tuning factor for snow albedo
       DO jc = i_startidx,i_endidx
         IF (ANY(p_diag_lnd%h_snow_t(jc,jb,1:ntiles_total) > 0._wp)) THEN
@@ -901,6 +904,11 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
 
     ! Init of number concentrations moved to mo_initicon_io.f90 !!!
 
+  CASE (8) !sbm micrphysics
+    IF (msg_level >= 12)  CALL message('mo_nwp_phy_init:', 'init microphysics: sbm')
+
+    IF (jg == 1) CALL sbm_init(p_patch, p_prog_now, ext_data%atm%fr_land, p_metrics%ddqz_z_full)
+
   CASE (5) !two moment microphysics
     IF (msg_level >= 12)  CALL message(modname, 'init microphysics: two-moment')
 
@@ -1043,12 +1051,15 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
         ENDIF ! .NOT.lreset_mode .AND. jg==1
         !
         ! Domain-specific aerosol setups
-        IF (irad_aero == iRadAeroConstKinne) THEN
-          CALL read_bc_aeropt_kinne(ini_date, p_patch, .FALSE., ecrad_conf%n_bands_lw, ecrad_conf%n_bands_sw)
+        IF (ANY( irad_aero == (/iRadAeroConstKinne, iRadAeroKinneVolcSP, iRadAeroKinneSP/) )) THEN
+          ! Only the background aerosol (pre-industry) is read in:
+          l_filename_year = .FALSE.
+          CALL read_bc_aeropt_kinne(ini_date, p_patch, l_filename_year, ecrad_conf%n_bands_lw, ecrad_conf%n_bands_sw)
         ENDIF
-        IF (ANY( irad_aero == (/iRadAeroKinne,iRadAeroKinneVolc,iRadAeroKinneVolcSP,iRadAeroKinneSP/) )) THEN
-          ! Kinne climatology
-          CALL read_bc_aeropt_kinne(ini_date, p_patch, .TRUE., ecrad_conf%n_bands_lw, ecrad_conf%n_bands_sw)
+        IF (ANY( irad_aero == (/iRadAeroKinne,iRadAeroKinneVolc/) )) THEN
+          ! Transient Kinne aerosol:
+          l_filename_year = .TRUE.
+          CALL read_bc_aeropt_kinne(ini_date, p_patch, l_filename_year, ecrad_conf%n_bands_lw, ecrad_conf%n_bands_sw)
         ENDIF
         IF (ANY( irad_aero == (/iRadAeroVolc,iRadAeroKinneVolc,iRadAeroKinneVolcSP/) )) THEN
           ! Volcanic aerosol from CMIP6

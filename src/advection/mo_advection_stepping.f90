@@ -559,8 +559,7 @@ CONTAINS
         CALL get_indices_c(p_patch, jb, i_startblk, i_endblk,  &
                        i_startidx, i_endidx, i_rlstart, i_rlend)
 
-        !$ACC PARALLEL DEFAULT(PRESENT) PRESENT(trNotAdvect) &
-        !$ACC   ASYNC(1) IF(i_am_accel_node)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) PRESENT(trNotAdvect) IF(i_am_accel_node)
         !$ACC LOOP SEQ
         DO nt = 1, trNotAdvect%len ! Tracer loop
 
@@ -601,8 +600,7 @@ CONTAINS
         ! For mass conservation, a correction has to be applied in the
         ! feedback routine anyway
 
-        !$ACC PARALLEL DEFAULT(PRESENT) PRESENT(trAdvect) &
-        !$ACC   ASYNC(1) IF(i_am_accel_node)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) PRESENT(trAdvect) IF(i_am_accel_node)
         !$ACC LOOP SEQ
         DO nt = 1, trAdvect%len ! Tracer loop
 
@@ -616,8 +614,10 @@ CONTAINS
                 &   + p_dtime * p_grf_tend_tracer(jc,jk,jb,jt) )
             ENDDO
           ENDDO  !jk
+
         ENDDO  !Tracer loop
         !$ACC END PARALLEL
+
       ENDDO  !jb
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -655,8 +655,7 @@ CONTAINS
         CALL get_indices_c(p_patch, jb, i_startblk, i_endblk,  &
                        i_startidx, i_endidx, i_rlstart, i_rlend)
 
-        !$ACC PARALLEL DEFAULT(PRESENT) PRESENT(trAdvect, advection_config) &
-        !$ACC   ASYNC(1) IF(i_am_accel_node)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) PRESENT(trAdvect, advection_config) IF(i_am_accel_node)
         !$ACC LOOP SEQ
         DO nt = 1, trAdvect%len ! Tracer loop
 
@@ -703,17 +702,17 @@ CONTAINS
 
         END DO  ! Tracer loop
         !$ACC END PARALLEL
+
       END DO  !jb
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
-      IF ( iforcing /= inwp ) THEN
+      IF (iforcing /= inwp) THEN 
         CALL sync_patch_array_mult(SYNC_C, p_patch, ntracer,  f4din=opt_ddt_tracer_adv, &
                &                   opt_varname='ntracer and opt_ddt_tracer_adv' )
       ENDIF
 
     ENDIF  ! PRESENT(opt_ddt_tracer_adv)
-
 
     !
     ! eventually do a clipping of negative values to zero
@@ -726,7 +725,7 @@ CONTAINS
     END IF
 
 
-    !$ACC WAIT
+    !$ACC WAIT(1)
 
     !$ACC END DATA
     !$ACC END DATA

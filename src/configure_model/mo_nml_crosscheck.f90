@@ -22,37 +22,28 @@ MODULE mo_nml_crosscheck
   USE mo_kind,                     ONLY: wp
   USE mo_exception,                ONLY: message, message_text, finish, em_info
   USE mo_impl_constants,           ONLY: inwp, tracer_only, inh_atmosphere,                &
-    &                                    NO_HADV, UP, MIURA, MIURA3, FFSL, FFSL_HYB,       &
-    &                                    MCYCL, MIURA_MCYCL, MIURA3_MCYCL,                 &
-    &                                    FFSL_MCYCL, FFSL_HYB_MCYCL, iaes,                 &
-    &                                    RAYLEIGH_CLASSIC,                                 &
+    &                                    iaes, RAYLEIGH_CLASSIC,                           &
     &                                    iedmf, icosmo, iprog, MODE_IAU, MODE_IAU_OLD,     &
     &                                    max_echotop, max_wshear, max_srh,                 &
     &                                    LSS_JSBACH, LSS_TERRA
   USE mo_time_config,              ONLY: time_config, dt_restart
-  USE mo_extpar_config,            ONLY: itopo                                             
+  USE mo_extpar_config,            ONLY: itopo
   USE mo_io_config,                ONLY: dt_checkpoint, lnetcdf_flt64_output, echotop_meta,&
     &                                    wshear_uv_heights, n_wshear, srh_heights, n_srh
   USE mo_parallel_config,          ONLY: check_parallel_configuration,                     &
     &                                    ignore_nproma_use_nblocks_c,                      &
-    &                                    num_io_procs, itype_comm,                         &
+    &                                    num_io_procs,                                     &
     &                                    num_prefetch_proc, use_dp_mpi2io, num_io_procs_radar
   USE mo_limarea_config,           ONLY: latbc_config, LATBC_TYPE_CONST, LATBC_TYPE_EXT
   USE mo_master_config,            ONLY: isRestart
   USE mo_run_config,               ONLY: nsteps, dtime, iforcing, output_mode,             &
-    &                                    ltransport, ntracer, ltestcase,                   &
-    &                                    nqtendphy, iqtke, iqv, iqc, iqi,                  &
-    &                                    iqs, iqr, iqt, iqtvar, ltimer,                    &
-    &                                    iqni, iqg, iqm_max,                               &
-    &                                    iqh, iqnr, iqns, iqng, iqnh, iqnc, iqgl, iqhl,    & 
-    &                                    inccn, ininact, ininpot,                          &
+    &                                    ltransport, ltestcase, ltimer,                    &
     &                                    activate_sync_timers, timers_level, lart,         &
     &                                    msg_level, luse_radarfwo
   USE mo_dynamics_config,          ONLY: iequations, ldeepatmo
   USE mo_advection_config,         ONLY: advection_config
   USE mo_nonhydrostatic_config,    ONLY: itime_scheme_nh => itime_scheme,                  &
-    &                                    lhdiff_rcf, rayleigh_type,                        &
-    &                                    ivctype
+    &                                    rayleigh_type, ivctype
   USE mo_diffusion_config,         ONLY: diffusion_config
   USE mo_atm_phy_nwp_config,       ONLY: atm_phy_nwp_config, icpl_aero_conv, iprog_aero
   USE mo_lnd_nwp_config,           ONLY: ntiles_lnd, lsnowtile, sstice_mode
@@ -65,7 +56,10 @@ MODULE mo_nml_crosscheck
     &                                    irad_n2o, irad_o2, irad_cfc11, irad_cfc12,        &
     &                                    icld_overlap, ecrad_llw_cloud_scat, isolrad,      &
     &                                    ecrad_iliquid_scat, ecrad_iice_scat,              &
-    &                                    ecrad_isolver, ecrad_igas_model
+    &                                    ecrad_isnow_scat, ecrad_irain_scat,               &
+    &                                    ecrad_igraupel_scat,                              & 
+    &                                    ecrad_isolver, ecrad_igas_model,                  &
+    &                                    ecrad_use_general_cloud_optics
   USE mo_turbdiff_config,          ONLY: turbdiff_config
   USE mo_initicon_config,          ONLY: init_mode, dt_iau, ltile_coldstart, timeshift,    &
     &                                    itype_vert_expol
@@ -74,7 +68,7 @@ MODULE mo_nml_crosscheck
   USE mo_grid_config,              ONLY: lplane, n_dom, l_limited_area, start_time,        &
     &                                    nroot, is_plane_torus, n_dom_start, l_scm_mode,   &
     &                                    vct_filename
-  USE mo_art_config,               ONLY: art_config, ctracer_art
+  USE mo_art_config,               ONLY: art_config
   USE mo_time_management,          ONLY: compute_timestep_settings,                        &
     &                                    compute_restart_settings,                         &
     &                                    compute_date_settings
@@ -97,7 +91,6 @@ MODULE mo_nml_crosscheck
   USE mo_ls_forcing_nml,           ONLY: is_ls_forcing
 #endif
 #ifdef __ICON_ART
-  USE mo_art_init_interface,       ONLY: art_calc_ntracer_and_names
   USE mo_grid_config,              ONLY: lredgrid_phys
 #endif
 
@@ -122,14 +115,12 @@ CONTAINS
   SUBROUTINE atm_crosscheck
 
     INTEGER  :: jg, i
-    INTEGER  :: jt   ! tracer loop index
-    INTEGER  :: z_go_tri(11)  ! for crosscheck
     CHARACTER(len=*), PARAMETER :: routine =  modname//'::atm_crosscheck'
     REAL(wp) :: secs_restart, secs_checkpoint, secs_iau_end
     TYPE(datetime), POINTER :: reference_dt
     LOGICAL  :: l_global_nudging
     INTEGER(c_int64_t) :: msecs_restart
-    
+
     !--------------------------------------------------------------------
     ! Compute date/time/time step settings
     ! and initialize the event manager
@@ -217,7 +208,7 @@ CONTAINS
     !--------------------------------------------------------------------
 
     ! Vertical grid
-    IF (ivctype==1) THEN 
+    IF (ivctype==1) THEN
       IF (TRIM(vct_filename) == "") THEN
         IF (itype_laydistr /= 3 .AND. layer_thickness < 0) THEN
           CALL finish(routine, &
@@ -251,7 +242,7 @@ CONTAINS
     !--------------------------------------------------------------------
     IF (l_scm_mode) THEN
       ! data read from 0: ASCII, 1: normal netcdf file, 2: DEPHY unified format
-      IF ( (i_scm_netcdf /= 1) .AND. (i_scm_netcdf /= 2) ) & 
+      IF ( (i_scm_netcdf /= 1) .AND. (i_scm_netcdf /= 2) ) &
         CALL finish(routine, 'i_scm_netcdf not valid for SCM, only 1 or 2 allowed')
       ltestcase      = .TRUE.
       is_plane_torus = .TRUE.
@@ -275,13 +266,11 @@ CONTAINS
     !--------------------------------------------------------------------
     ! Nonhydrostatic atm
     !--------------------------------------------------------------------
-    IF (lhdiff_rcf .AND. (itype_comm == 3)) CALL finish(routine, &
-      'lhdiff_rcf is available only for idiv_method=1 and itype_comm<=2')
-
     IF (grf_intmethod_e >= 5 .AND. iequations /= INH_ATMOSPHERE .AND. n_dom > 1) THEN
       grf_intmethod_e = 4
       CALL message( routine, 'grf_intmethod_e has been reset to 4')
     ENDIF
+
 
     !--------------------------------------------------------------------
     ! Atmospheric physics, general
@@ -307,10 +296,10 @@ CONTAINS
 
       DO jg =1,n_dom
 
-        IF (atm_phy_nwp_config(1)%inwp_turb /= iedmf) THEN
+        IF ((atm_phy_nwp_config(1)%inwp_turb /= iedmf) .AND. (atm_phy_nwp_config(jg)%inwp_gscp /= 8)) THEN
           IF( atm_phy_nwp_config(jg)%inwp_satad == 0       .AND. &
           & ((atm_phy_nwp_config(jg)%inwp_convection >0 ) .OR. &
-          &  (atm_phy_nwp_config(jg)%inwp_gscp > 0      )    ) ) &
+          &  (atm_phy_nwp_config(jg)%inwp_gscp > 0 )   ) ) &
           &  CALL finish( routine,'satad has to be switched on')
         ENDIF
 
@@ -340,6 +329,14 @@ CONTAINS
           CALL finish( routine,'Real-data applications require using a surface scheme!')
         ENDIF
 
+        IF ( (atm_phy_nwp_config(jg)%icpl_rad_reff == 2)  .AND.  & 
+             ( (atm_phy_nwp_config(jg)%inwp_radiation/= 4)  .OR.  &  
+             (ecrad_igas_model /=1) ) ) THEN
+          CALL finish( routine, 'Wrong value for: icpl_rad_reff. Coupling effective radius for all '//  &  
+                                 'hydrometeors only works with ECRAD and ECCKD gas model!')
+        ENDIF
+
+
         ! check radiation scheme in relation to chosen ozone and irad_aero=iRadAeroTegen to itopo
 
         IF ( (atm_phy_nwp_config(jg)%inwp_radiation > 0) )  THEN
@@ -367,7 +364,7 @@ CONTAINS
             &  ( atm_phy_nwp_config(jg)%icpl_aero_gscp > 0 .OR. icpl_aero_conv > 0 ) ) THEN
             CALL finish(routine,'aerosol-precipitation coupling requires irad_aero=6 (Tegen) or =9 (ART)')
           ENDIF
-         
+
           ! Kinne, CMIP6 volcanic aerosol only work with ecRad
           IF ( ANY( irad_aero == (/iRadAeroConstKinne,iRadAeroKinne,iRadAeroVolc,            &
             &                      iRadAeroKinneVolc,iRadAeroKinneVolcSP,iRadAeroKinneSP/) ) &
@@ -410,10 +407,32 @@ CONTAINS
             ENDIF
             IF (.NOT. ANY( icld_overlap == (/1,2,5/)       ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, icld_overlap has to be 1, 2 or 5')
-            IF (.NOT. ANY( ecrad_iliquid_scat == (/0,1/)   ) ) &
-              &  CALL finish(routine,'For inwp_radiation = 4, ecrad_iliquid_scat has to be 0 or 1')
-            IF (.NOT. ANY( ecrad_iice_scat    == (/0,1,2/) ) ) &
-              &  CALL finish(routine,'For inwp_radiation = 4, ecrad_iice_scat has to be 0, 1 or 2')
+            IF ( ecrad_igas_model   == 1  .AND. .NOT. ecrad_use_general_cloud_optics) THEN
+              ecrad_use_general_cloud_optics = .TRUE.
+              CALL message(routine,'Warning: Reset ecrad_use_general_cloud_optics = T. &
+                                    &It is the only valid option for ECCKD')
+            ENDIF
+            IF ( ecrad_use_general_cloud_optics )THEN
+              IF (.NOT. ANY( ecrad_iliquid_scat == (/0/)   ) ) &
+                &  CALL finish(routine,'For inwp_radiation = 4 ecrad_use_general_cloud_optics = T, &
+                                       &ecrad_iliquid_scat has to be 0')
+              IF (.NOT. ANY( ecrad_iice_scat    == (/0,10,11/) ) ) &
+                &  CALL finish(routine,'For inwp_radiation = 4 ecrad_use_general_cloud_optics = T, &
+                                       &ecrad_iice_scat has to be 0, 10 or 11')
+            ELSE
+              IF (.NOT. ANY( ecrad_iliquid_scat == (/0,1/)   ) ) &
+                &  CALL finish(routine,'For inwp_radiation = 4 ecrad_use_general_cloud_optics = F, &
+                                       &ecrad_iliquid_scat has to be 0 or 1')
+              IF (.NOT. ANY( ecrad_iice_scat    == (/0,1,2/) ) ) &
+                &  CALL finish(routine,'For inwp_radiation = 4 ecrad_use_general_cloud_optics = F, & 
+                                       &ecrad_iice_scat has to be 0, 1 or 2')
+            ENDIF
+            IF (.NOT. ANY( ecrad_isnow_scat    == (/-1,0,10/) ) ) &
+              &  CALL finish(routine,'For inwp_radiation = 4, ecrad_isnow_scat has to be -1, 0 or 10')
+            IF (.NOT. ANY( ecrad_irain_scat    == (/-1,0/) ) ) &
+              &  CALL finish(routine,'For inwp_radiation = 4, ecrad_isnow_scat has to be -1 or 0')
+            IF (.NOT. ANY( ecrad_igraupel_scat    == (/-1,0,10/) ) ) &
+              &  CALL finish(routine,'For inwp_radiation = 4, ecrad_igraupel_scat has to be -1, 0 or 10')
             IF (.NOT. ANY( ecrad_isolver  == (/0,1,2,3/)       ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, ecrad_isolver has to be 0, 1, 2 or 3')
             IF (.NOT. ANY( ecrad_igas_model   == (/0,1/)   ) ) &
@@ -426,6 +445,17 @@ CONTAINS
             ENDIF
             IF (.NOT. ANY( isolrad      == (/0,1,2/)       ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, isolrad has to be 0, 1 or 2')
+            IF ( .NOT. ecrad_use_general_cloud_optics .AND. &
+              & (ecrad_isnow_scat > -1 .OR. ecrad_igraupel_scat > -1 .OR. ecrad_irain_scat > -1 )) &
+              &  CALL finish(routine,'Ecrad with qr/qs/qg can only be used with ecrad_use_general_cloud_optics = T')
+            IF ( ecrad_use_general_cloud_optics .AND. & 
+              & (ecrad_isnow_scat > -1 .OR. ecrad_igraupel_scat > -1 .OR. ecrad_irain_scat > -1 ) .AND. &
+              &  atm_phy_nwp_config(jg)%icpl_rad_reff /= 2 ) &
+              &  CALL finish(routine,'Ecrad with qr/qs/qg can only be used with icpl_rad_reff= 2')
+            IF ( ecrad_igraupel_scat > -1 .AND. ANY(atm_phy_nwp_config(jg)%inwp_gscp == (/1,3/) ) ) THEN
+              ecrad_igraupel_scat = -1
+              CALL message(routine,'Warning: Reset ecrad_igraupel_scat = -1 because of no graupel in microphysics')
+            ENDIF
           ELSE
             IF ( ecrad_llw_cloud_scat ) &
               &  CALL message(routine,'Warning: ecrad_llw_cloud_scat is set to .true., but ecRad is not used')
@@ -437,6 +467,8 @@ CONTAINS
               &  CALL message(routine,'Warning: ecrad_isolver is explicitly set, but ecRad is not used')
             IF ( ecrad_igas_model /= 0 ) &
               &  CALL message(routine,'Warning: ecrad_igas_model is explicitly set, but ecRad is not used')
+            IF ( ecrad_use_general_cloud_optics ) &
+              &  CALL message(routine,'Warning: ecrad_use_general_cloud_optics is explicitly set, but ecRad is not used')
           ENDIF
 
         ELSE
@@ -465,7 +497,7 @@ CONTAINS
              & ANY(atm_phy_nwp_config(1:n_dom)%inwp_gscp == 1) ) THEN
           CALL finish(routine,'combining inwp_gscp=1 and inwp_gscp=2 in nested runs is not allowed')
         END IF
-        
+
         IF (  atm_phy_nwp_config(jg)%mu_rain < 0.0   .OR. &
           &   atm_phy_nwp_config(jg)%mu_rain > 5.0)  THEN
           CALL finish(routine,'mu_rain requires: 0 < mu_rain < 5')
@@ -510,325 +542,23 @@ CONTAINS
     ! Tracers and diabatic forcing
     !--------------------------------------------------------------------
 
-    !ATTENTION: note that in the following we make use of jg without and jg-loop.
-    !           Curently it is right for the wrong reasons.
-
-    !
-    ! Check settings of ntracer
-    !
-    ! provisional number of water species for which convective
-    ! and turbulent tendencies of NWP physics are stored
-    nqtendphy = 0
-
-    SELECT CASE(iforcing)
-    CASE (INWP) ! iforcing
-
-      ! ** NWP physics section ** 
-      !
-      ! IMPORTANT: For NWP physics, five microphysics tracers (QV, QC, QI, QR and QS) must always be
-      !            defined because their presence is implicitly assumed in the physics-dynamics interface
-      !            when converting between temperature and virtual temperature.
-      !
-      !            Any additional mass-related microphysics tracers must be numbered in consecutive order
-      !            after iqs = 5. The parameter "iqm_max" must signify the highest tracer index carrying a
-      !            moisture mixing ratio. Additional tracers for hydrometeor number concentrations (in
-      !            case of a two-moment scheme) or other purposes (aerosols, qt variance or anything else)
-      !            can be numbered freely after iqm_max. The parameter "iqt", denoting the start index
-      !            of tracers not related at all to moisture, is used in configure_advection to specify
-      !            the index range of tracers for which advection is turned off in the stratosphere
-      !            (i.e. all cloud and precipitation variables including number concentrations)
-      !
-      !            The indices for specific tracers (iqv, iqc, iqi, ...) have initial values 0, as valid
-      !            for unused tracers. Below the indices are properly defined for the tracers to be used
-      !            for the selected physics configuration. Accordingly also the names for theses tracers
-      !            are defined.
-      !
-      !            Note also that the namelist parameter "ntracer" is reset automatically to the correct
-      !            value when NWP physics is used in order to avoid multiple namelist changes when playing
-      !            around with different physics schemes.
-      !
-      ! Default settings valid for all microphysics options
-      !
-      iqv       = 1 ; advection_config(:)%tracer_names(iqv) = 'qv' !> water vapour
-      iqc       = 2 ; advection_config(:)%tracer_names(iqc) = 'qc' !! cloud water
-      iqi       = 3 ; advection_config(:)%tracer_names(iqi) = 'qi' !! ice 
-      iqr       = 4 ; advection_config(:)%tracer_names(iqr) = 'qr' !! rain water
-      iqs       = 5 ; advection_config(:)%tracer_names(iqs) = 'qs' !! snow
-      nqtendphy = 3     !! number of water species for which convective and turbulent tendencies are stored
-      !
-      ! The following parameters may be reset depending on the selected physics scheme
-      !
-      iqm_max   = 5     !! end index of water species mass mixing ratios
-      iqt       = 6     !! start index of other tracers not related at all to moisture
-      !
-      ntracer   = 5     !! total number of tracers
-
-      !
-      ! Taking the 'highest' microphysics option in some cases allows using more
-      ! complex microphysics schemes in nested domains than in the global domain
-      ! However, a clean implementation would require a domain-dependent 'ntracer' dimension
-      SELECT CASE (MAXVAL(atm_phy_nwp_config(1:n_dom)%inwp_gscp))
-        
-
-      CASE(2)  ! COSMO-DE (3-cat ice: snow, cloud ice, graupel)
-
-       ! CALL finish('mo_atm_nml_crosscheck', 'Graupel scheme not implemented.')
-        
-        iqg     = 6 ; advection_config(:)%tracer_names(iqg) = 'qg' !! graupel
-        iqm_max = iqg
-        iqt     = iqt + 1
-
-        ntracer = ntracer + 1  !! increase total number of tracers by 1
-
- 
-      CASE(3)  ! improved ice nucleation scheme C. Koehler (note: iqm_max does not change!)
-
-        iqni     = 6 ; advection_config(:)%tracer_names(iqni)     = 'qni'     !! cloud ice number
-        ininact  = 7 ; advection_config(:)%tracer_names(ininact)  = 'ninact'  !! activated ice nuclei  
-        iqt      = iqt + 2
-
-        ntracer = ntracer + 2  !! increase total number of tracers by 2
-
-      CASE(4)  ! two-moment scheme 
-      
-        iqg     = 6  ; advection_config(:)%tracer_names(iqg)     = 'qg'
-        iqh     = 7  ; advection_config(:)%tracer_names(iqh)     = 'qh'
-        iqni    = 8  ; advection_config(:)%tracer_names(iqni)    = 'qni'
-        iqnr    = 9  ; advection_config(:)%tracer_names(iqnr)    = 'qnr'
-        iqns    = 10 ; advection_config(:)%tracer_names(iqns)    = 'qns'
-        iqng    = 11 ; advection_config(:)%tracer_names(iqng)    = 'qng'
-        iqnh    = 12 ; advection_config(:)%tracer_names(iqnh)    = 'qnh'
-        iqnc    = 13 ; advection_config(:)%tracer_names(iqnc)    = 'qnc'
-        ininact = 14 ; advection_config(:)%tracer_names(ininact) = 'ninact'
-
-        nqtendphy = 3     !! number of water species for which convective and turbulent tendencies are stored
-        iqm_max   = 7     !! end index of water species mass mixing ratios
-        iqt       = 15    !! start index of other tracers not related at all to moisture
-       
-        ntracer = 14
-
-      CASE(7)  ! two-moment scheme with additional prognostic liquid water (melting) variables for graupel and hail
-      
-        iqg     = 6  ; advection_config(:)%tracer_names(iqg)     = 'qg'
-        iqh     = 7  ; advection_config(:)%tracer_names(iqh)     = 'qh'
-        iqgl    = 8  ; advection_config(:)%tracer_names(iqgl)    = 'qgl'
-        iqhl    = 9  ; advection_config(:)%tracer_names(iqhl)    = 'qhl'      
-        iqni    = 10 ; advection_config(:)%tracer_names(iqni)    = 'qni'       
-        iqnr    = 11 ; advection_config(:)%tracer_names(iqnr)    = 'qnr'      
-        iqns    = 12 ; advection_config(:)%tracer_names(iqns)    = 'qns'       
-        iqng    = 13 ; advection_config(:)%tracer_names(iqng)    = 'qng'       
-        iqnh    = 14 ; advection_config(:)%tracer_names(iqnh)    = 'qnh'
-        iqnc    = 15 ; advection_config(:)%tracer_names(iqnc)    = 'qnc'
-        ininact = 16 ; advection_config(:)%tracer_names(ininact) = 'ninact'
-
-        nqtendphy = 3     !! number of water species for which convective and turbulent tendencies are stored
-        iqm_max   = 9     !! end index of water species mass mixing ratios
-        iqt       = 17    !! start index of other tracers not related at all to moisture
-       
-        ntracer = 16
-
-      CASE(5)  ! two-moment scheme with CCN and IN budgets
-      
-        iqg     = 6  ; advection_config(:)%tracer_names(iqg)     = 'qg'
-        iqh     = 7  ; advection_config(:)%tracer_names(iqh)     = 'qh'
-        iqni    = 8  ; advection_config(:)%tracer_names(iqni)    = 'qni'
-        iqnr    = 9  ; advection_config(:)%tracer_names(iqnr)    = 'qnr'
-        iqns    = 10 ; advection_config(:)%tracer_names(iqns)    = 'qns'
-        iqng    = 11 ; advection_config(:)%tracer_names(iqng)    = 'qng'
-        iqnh    = 12 ; advection_config(:)%tracer_names(iqnh)    = 'qnh'
-        iqnc    = 13 ; advection_config(:)%tracer_names(iqnc)    = 'qnc'
-        ininact = 14 ; advection_config(:)%tracer_names(ininact) = 'ninact'
-        inccn   = 15 ; advection_config(:)%tracer_names(inccn)   = 'nccn'
-        ininpot = 16 ; advection_config(:)%tracer_names(ininpot) = 'ninpot'
-
-        nqtendphy = 3     !! number of water species for which convective and turbulent tendencies are stored
-        iqm_max   = 7     !! end index of water species mass mixing ratios
-        iqt       = 17    !! start index of other tracers not related at all to moisture
-       
-        ntracer = 16
-        
-      CASE(6)
-      
-        iqg     = 6  ; advection_config(:)%tracer_names(iqg)     = 'qg'
-        iqh     = 7  ; advection_config(:)%tracer_names(iqh)     = 'qh'
-        iqni    = 8  ; advection_config(:)%tracer_names(iqni)    = 'qni'
-        iqnr    = 9  ; advection_config(:)%tracer_names(iqnr)    = 'qnr'
-        iqns    = 10 ; advection_config(:)%tracer_names(iqns)    = 'qns'
-        iqng    = 11 ; advection_config(:)%tracer_names(iqng)    = 'qng'
-        iqnh    = 12 ; advection_config(:)%tracer_names(iqnh)    = 'qnh'
-        iqnc    = 13 ; advection_config(:)%tracer_names(iqnc)    = 'qnc'
-        ininact = 14 ; advection_config(:)%tracer_names(ininact) = 'ninact'
-        
-        nqtendphy = 3     !! number of water species for which convective and turbulent tendencies are stored
-        iqm_max   = 7     !! end index of water species mass mixing ratios
-        iqt       = 15    !! start index of other tracers not related at all to moisture
-        
-        ntracer = 14
-        
-      END SELECT ! microphysics schemes
-
-
-      IF (atm_phy_nwp_config(1)%inwp_turb == iedmf) THEN ! EDMF turbulence
+    IF (atm_phy_nwp_config(1)%inwp_turb == iedmf) THEN ! EDMF turbulence
 #ifdef __NO_ICON_EDMF__
-        CALL finish( routine, 'EDMF turbulence desired, but compilation with --disable-edmf' )
+      CALL finish( routine, 'EDMF turbulence desired, but compilation with --disable-edmf' )
 #endif
 
-        iqtvar = iqt ; advection_config(:)%tracer_names(iqtvar) = 'qtvar' !! qt variance
-        iqt    = iqt + 1   !! start index of other tracers than hydrometeors
-
-        ntracer = ntracer + 1  !! increase total number of tracers by 1
-
-        DO jg =1,n_dom
-          turbdiff_config(jg)%ldiff_qi = .TRUE.  !! turbulent diffusion of QI on (by EDMF)
-        ENDDO
-
-!dmk    ntiles_lnd = 5     !! EDMF currently only works with 5 land tiles - consistent with TESSEL
-                           !! even if the land model is inactive ntiles_lnd should be 5
-
-      ENDIF
-
-      IF ( (advection_config(1)%iadv_tke) > 0 ) THEN
-        IF ( ANY( (/icosmo,iprog/) == atm_phy_nwp_config(jg)%inwp_turb ) ) THEN
-          iqtke = iqt ; advection_config(:)%tracer_names(iqtke) = 'tke_mc' !! TKE
- 
-          ! Note that iqt is not increased, since TKE does not belong to the hydrometeor group.
-
-          ntracer = ntracer + 1  !! increase total number of tracers by 1
-
-          WRITE(message_text,'(a,i3)') 'Attention: TKE is advected, '//&
-                                       'ntracer is increased by 1 to ',ntracer
-          CALL message(routine,message_text)
-        ELSE
-          WRITE(message_text,'(a,i2)') 'TKE advection not supported for inwp_turb= ', &
-            &                          atm_phy_nwp_config(1)%inwp_turb
-
-          CALL finish(routine, message_text )
-        ENDIF
-      ENDIF
-
-      ! Note: Indices for additional tracers are assigned automatically
-      ! via add_tracer_ref in mo_nonhydro_state.
-
-      WRITE(message_text,'(a,i3)') 'Attention: NWP physics is used, '//&
-                                   'ntracer is automatically reset to ',ntracer
-      CALL message(routine,message_text)
-
-
-      ! set the nclass_gscp variable for land-surface scheme to number of hydrometeor mixing ratios
-      DO jg = 1, n_dom
-        atm_phy_nwp_config(jg)%nclass_gscp = iqm_max
+      DO jg =1,n_dom
+        turbdiff_config(jg)%ldiff_qi = .TRUE.  !! turbulent diffusion of QI on (by EDMF)
       ENDDO
 
-    CASE default ! iforcing
-
-      ! set indices for iqv, iqc and iqi dependent on the number of specified tracers
-      !
-      iqm_max = 0  ! end index of water species mixing ratios
-      !
-      iqv = MERGE(1,0,ntracer>=1) ; IF (iqv/=0) iqm_max=1
-      iqc = MERGE(2,0,ntracer>=2) ; IF (iqc/=0) iqm_max=2
-      iqi = MERGE(3,0,ntracer>=3) ; IF (iqi/=0) iqm_max=3
-      !
-      iqt = iqm_max+1 ! starting index of non-water species
-
-    END SELECT ! iforcing
-
-    IF (lart) THEN
-#ifdef _OPENACC
-      CALL finish( TRIM(routine),'ART not supported on GPU -- run without ART')
-#endif
-#ifndef __ICON_ART
-      CALL finish( TRIM(routine),'model set to run with ART but compiled with --disable-art')
-#else
-      ! determine number of ART-tracers (by reading given XML-Files)
-      ! * art_config(1)%iart_ntracer
-      CALL art_calc_ntracer_and_names()
-#endif
-
-      IF(art_config(1)%iart_ntracer > 0) THEN
-        advection_config(1)%tracer_names(ntracer+1:ntracer+art_config(1)%iart_ntracer) =       &
-          &   ctracer_art(ntracer+1:)
-      END IF
-      ntracer = ntracer + art_config(1)%iart_ntracer
-      
-      WRITE(message_text,'(a,i3,a,i3)') 'Attention: transport of ART tracers is active, '//&
-                                   'ntracer is increased by ',art_config(1)%iart_ntracer, &
-                                   ' to ',ntracer
-
-      CALL message(routine,message_text)
-
-    ENDIF
-
-    ! take into account additional passive tracers, if present
-    ! no need to update iqt, since passive tracers do not belong to the hydrometeor group.
-    ! ATTENTION: as long as ntracer is not domain specific, we set jg=1
-    IF ( advection_config(1)%npassive_tracer > 0) THEN
-      ntracer = ntracer + advection_config(1)%npassive_tracer
-      WRITE(message_text,'(a,i3,a,i3)') 'Attention: passive tracers have been added, '//&
-                                   'ntracer is increased by ',advection_config(1)%npassive_tracer, &
-                                   ' to ',ntracer
-      CALL message(routine,message_text)
+      !dmk    ntiles_lnd = 5     !! EDMF currently only works with 5 land tiles - consistent with TESSEL
+      !! even if the land model is inactive ntiles_lnd should be 5
     ENDIF
 
 
-    IF (ltransport) THEN
-
-      DO jg = 1,n_dom
-
-        SELECT CASE ( iforcing )
-        CASE ( INWP )
-        !...........................................................
-        ! in NWP physics
-        !...........................................................
-
-
-          ! Force settings for tracer iqtke, if TKE advection is performed
-          !
-          IF ( advection_config(jg)%iadv_tke > 0 ) THEN
-
-            ! force monotonous slope limiter for vertical advection
-            advection_config(jg)%itype_vlimit(iqtke) = 2
-
-            ! force positive definite flux limiter for horizontal advection
-            advection_config(jg)%itype_hlimit(iqtke) = 4
-
-            SELECT CASE (advection_config(jg)%iadv_tke)
-            CASE (1)
-              ! switch off horizontal advection
-              advection_config(jg)%ihadv_tracer(iqtke) = 0
-            CASE (2)
-              ! check whether horizontal substepping is switched on 
-              IF (ALL( (/22,32,42,52/) /= advection_config(jg)%ihadv_tracer(iqtke)) ) THEN
-                ! choose Miura with substepping
-                advection_config(jg)%ihadv_tracer(iqtke) = 22
-              ENDIF
-            END SELECT
-
-          ENDIF
-
-        END SELECT ! iforcing
-
-#ifdef _OPENACC
-        IF ( .not. advection_config(jg)%llsq_svd ) THEN
-          ! The .FALSE. version is not supported by OpenACC. However, both versions to the same. The .TRUE. version 
-          ! is faster during runtime on most platforms but involves a more expensive calculation of coefficients. 
-          CALL message(routine, 'WARNING: llsq_svd has been set to .true. for this OpenACC GPU run.')
-          advection_config(jg)%llsq_svd = .TRUE.
-        END IF
-#endif
-
-      END DO ! jg = 1,n_dom
-    END IF ! ltransport
-
-
-    !--------------------------------------------------------------------
-    ! Tracer transport
-    !--------------------------------------------------------------------
     ! General
-
     SELECT CASE (iequations)
     CASE (INH_ATMOSPHERE)
-
       IF ((itime_scheme_nh==tracer_only) .AND. (.NOT.ltransport)) THEN
         WRITE(message_text,'(A,i2,A)') &
           'nonhydrostatic_nml:itime_scheme set to ', tracer_only, &
@@ -837,31 +567,24 @@ CONTAINS
       END IF
 
     CASE default
-
       CALL finish(routine, 'iequations /= INH_ATMOSPHERE no longer supported')
     END SELECT
 
 
+#ifdef _OPENACC
     IF (ltransport) THEN
-    DO jg = 1,n_dom
-
-      !----------------------------------------------
-      ! Flux computation methods - consistency check
-
-        z_go_tri(1:11)=(/NO_HADV,UP,MIURA,MIURA3,FFSL,FFSL_HYB,MCYCL,       &
-          &              MIURA_MCYCL,MIURA3_MCYCL,FFSL_MCYCL,FFSL_HYB_MCYCL/)
-        DO jt=1,ntracer
-          IF ( ALL(z_go_tri /= advection_config(jg)%ihadv_tracer(jt)) ) THEN
-            CALL finish( routine,                                       &
-              &  'incorrect settings for TRI-C grid ihadv_tracer. Must be '// &
-              &  '0,1,2,3,4,5,6,20,22,32,42 or 52 ')
-          ENDIF
-        ENDDO
-
-    END DO ! jg = 1,n_dom
-    END IF ! ltransport
-
-
+      DO jg =1,n_dom
+        IF ( .not. advection_config(jg)%llsq_svd ) THEN
+          ! The .FALSE. version is not supported by OpenACC. However,
+          ! both versions do the same. The .TRUE. version is faster
+          ! during runtime on most platforms but involves a more
+          ! expensive calculation of coefficients.
+          CALL message(routine, 'WARNING: llsq_svd has been set to .true. for this OpenACC GPU run.')
+          advection_config(jg)%llsq_svd = .TRUE.
+        END IF
+      ENDDO
+    ENDIF
+#endif
     !--------------------------------------------------------------------
     ! Horizontal diffusion
     !--------------------------------------------------------------------
@@ -886,13 +609,6 @@ CONTAINS
       IF ( diffusion_config(jg)%hdiff_efdt_ratio<=0._wp) THEN
         CALL message(routine,'No horizontal background diffusion is used')
       ENDIF
-
-      IF (itype_comm == 3 .AND. diffusion_config(jg)%hdiff_order /= 5)  &
-        CALL finish(routine, 'itype_comm=3 requires hdiff_order = 5')
-
-      IF (itype_comm == 3 .AND. (diffusion_config(jg)%itype_vn_diffu > 1 .OR. &
-        diffusion_config(jg)%itype_t_diffu > 1) )                             &
-        CALL finish(routine, 'itype_comm=3 requires itype_t/vn_diffu = 1')
 
     ENDDO
 
@@ -989,7 +705,7 @@ CONTAINS
       END IF
     END DO
 
-    
+
     !--------------------------------------------------------------------
     ! Realcase runs
     !--------------------------------------------------------------------
@@ -1009,7 +725,7 @@ CONTAINS
         WRITE (message_text,'(a,a,f6.2)') "Wrong value for dt_iau. ", &
           &   "If >0 then at least equal to advective/phys tstep ",dtime
         CALL finish('initicon_nml:', message_text)
-      ENDIF 
+      ENDIF
 
       IF (.NOT. isRestart()) THEN
         reference_dt => newDatetime("1980-06-01T00:00:00.000")
@@ -1047,7 +763,7 @@ CONTAINS
       ! when performing snowtile warmstart.
       IF ((ntiles_lnd > 1) .AND. (.NOT. ltile_coldstart) .AND. (lsnowtile)) THEN
         IF ( init_mode == MODE_IAU_OLD ) THEN
-          WRITE (message_text,'(a,i2)') "lsnowtile=.TRUE. not allowed for IAU-Mode ", init_mode   
+          WRITE (message_text,'(a,i2)') "lsnowtile=.TRUE. not allowed for IAU-Mode ", init_mode
           CALL finish(routine, message_text)
         ENDIF
       ENDIF
@@ -1055,7 +771,7 @@ CONTAINS
     ENDIF
 
     IF (itune_gust_diag == 3 .AND. ntiles_lnd == 1) THEN
-      WRITE (message_text,'(a)') "itune_gust_diag = 3 requires ntiles > 1"  
+      WRITE (message_text,'(a)') "itune_gust_diag = 3 requires ntiles > 1"
       CALL finish(routine, message_text)
     ENDIF
 
@@ -1074,7 +790,7 @@ CONTAINS
     CALL check_nudging( n_dom, iforcing, ivctype, top_height,                            &
       &                 l_limited_area, num_prefetch_proc, latbc_config%lsparse_latbc,   &
       &                 latbc_config%itype_latbc, latbc_config%nudge_hydro_pres,         &
-      &                 latbc_config%latbc_varnames_map_file, LATBC_TYPE_CONST,          & 
+      &                 latbc_config%latbc_varnames_map_file, LATBC_TYPE_CONST,          &
       &                 LATBC_TYPE_EXT, is_plane_torus, lart, ltransport  )
 
     CALL check_upatmo( n_dom_start, n_dom, iequations, iforcing, ldeepatmo,               &
@@ -1089,7 +805,7 @@ CONTAINS
     ! Cross checks for EMVORADO-related namelist parameters:
     ! *  EMVORADO may be switched on only if nonhydro and inwp enabled.
     ! *  EMVORADO may be switched on only if preprocessor flag enabled (see below).
-    ! 
+    !
     ! ********************************************************************************
 
     CALL emvorado_crosscheck()
@@ -1154,19 +870,19 @@ CONTAINS
 
   !---------------------------------------------------------------------------------------
   SUBROUTINE art_crosscheck
-  
+
     CHARACTER(len=*), PARAMETER :: routine =  modname//'::art_crosscheck'
 #ifdef __ICON_ART
     INTEGER  :: &
       &  jg
 #endif
-    
+
 #ifndef __ICON_ART
     IF (lart) THEN
         CALL finish( routine,'run_nml: lart is set .TRUE. but ICON was compiled without -D__ICON_ART')
     ENDIF
 #endif
-    
+
     IF (.NOT. lart .AND. irad_aero == iRadAeroART ) THEN
       CALL finish(routine,'irad_aero=9 (ART) needs lart = .TRUE.')
     END IF
@@ -1174,12 +890,12 @@ CONTAINS
     IF ( ( irad_aero == iRadAeroART ) .AND. ( iprog_aero /= 0 ) ) THEN
       CALL finish(routine,'irad_aero=9 (ART) requires iprog_aero=0')
     ENDIF
-    
+
 #ifdef __ICON_ART
     IF ( ( irad_aero == iRadAeroART ) .AND. ( itopo /=1 ) ) THEN
       CALL finish(routine,'irad_aero=9 (ART) requires itopo=1')
     ENDIF
-    
+
     DO jg= 1,n_dom
       IF(lredgrid_phys(jg) .AND. irad_aero == iRadAeroART .AND. atm_phy_nwp_config(jg)%inwp_radiation /= 4) THEN
         CALL finish(routine,'irad_aero=9 (ART) and a reduced radiation grid only works with ecRad (inwp_radiation=4)')
@@ -1191,7 +907,25 @@ CONTAINS
         CALL finish(routine,'iart_ari > 0 requires irad_aero=9 (ART)')
       ENDIF
     ENDDO
-    
+
+#ifdef _OPENACC
+    DO jg = 1, n_dom
+      IF (    art_config(jg)%iart_aci_cold  >  0  .OR.  &
+          &   art_config(jg)%iart_aci_warm  >  0  .OR.  &
+          &   art_config(jg)%iart_ari       >  0  .OR.  &      
+          &   art_config(jg)%iart_dust      >  0  .OR.  &
+          &   art_config(jg)%iart_init_aero >  0  .OR.  &
+          &   art_config(jg)%iart_radioact  >  0  .OR.  &
+          &   art_config(jg)%iart_seasalt   >  0  .OR.  &
+          &   art_config(jg)%iart_volcano   >  0  .OR.  &
+          &   art_config(jg)%lart_chem            .OR.  &
+          &   art_config(jg)%lart_chemtracer            ) THEN
+        CALL finish(routine,  &
+          &  'mo_nml_crosscheck: art_crosscheck: some activated art switches are currently not supported on GPU.')
+      END IF
+    ENDDO
+#endif
+
 #endif
   END SUBROUTINE art_crosscheck
   !---------------------------------------------------------------------------------------
@@ -1208,10 +942,10 @@ CONTAINS
         CALL finish( routine,'run_nml: luse_radarfwo is set .TRUE. in some domains but ICON was compiled without -DHAVE_RADARFWO')
     ENDIF
 #endif
-    
+
     ndoms_radaractive = 0
     DO jg = 1, n_dom
-      IF (luse_radarfwo(jg)) ndoms_radaractive = ndoms_radaractive + 1 
+      IF (luse_radarfwo(jg)) ndoms_radaractive = ndoms_radaractive + 1
     END DO
 #ifdef HAVE_RADARFWO
     IF ( ndoms_radaractive > ndoms_max_radar ) THEN
@@ -1236,7 +970,5 @@ CONTAINS
     END IF
 
   END SUBROUTINE emvorado_crosscheck
-
-
 
 END MODULE mo_nml_crosscheck

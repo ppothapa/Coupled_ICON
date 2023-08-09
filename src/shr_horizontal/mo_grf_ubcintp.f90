@@ -106,7 +106,7 @@ SUBROUTINE interpol_vec_ubc(p_pp, p_pc, p_grf, p_vn_in, p_vn_out)
     nlen = MERGE(nproma_ubcintp, npromz_ubcintp, jb /= nblks_ubcintp)
     nshift = (jb-1)*nproma_ubcintp
 
-    !$ACC PARALLEL DEFAULT(PRESENT) PRESENT(p_pp%edges%refin_ctrl) IF(i_am_accel_node)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) PRESENT(p_pp%edges%refin_ctrl) IF(i_am_accel_node)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO je = nshift+1, nshift+nlen
       DO jk = 1,2
@@ -176,6 +176,7 @@ SUBROUTINE interpol_vec_ubc(p_pp, p_pc, p_grf, p_vn_in, p_vn_out)
   CALL exchange_data_grf(p_pc%comm_pat_coll_interpol_vec_ubc,1,2, &
     &                    RECV1=p_vn_out,SEND1=vn_aux)
 
+  !$ACC WAIT
   !$ACC END DATA
 
 END SUBROUTINE interpol_vec_ubc
@@ -258,6 +259,7 @@ SUBROUTINE interpol_scal_ubc(p_pc, p_grf, nfields, f3din, f3dout, llimit_nneg)
 !$OMP DO PRIVATE (jb,nlen,nshift,jn,jc,limfac1,limfac2,limfac,min_expval,max_expval, &
 !$OMP   relaxed_minval,relaxed_maxval) ICON_OMP_DEFAULT_SCHEDULE
   DO jb = 1, nblks_ubcintp
+
     IF (jb == nblks_ubcintp) THEN
       nlen = npromz_ubcintp
     ELSE
@@ -265,7 +267,7 @@ SUBROUTINE interpol_scal_ubc(p_pc, p_grf, nfields, f3din, f3dout, llimit_nneg)
     ENDIF
     nshift = (jb-1)*nproma_ubcintp
 
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(i_am_accel_node)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
     !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
     DO jc = nshift+1, nshift+nlen
@@ -407,7 +409,7 @@ SUBROUTINE interpol_scal_ubc(p_pc, p_grf, nfields, f3din, f3dout, llimit_nneg)
 
         ENDDO
       ENDDO
-        ELSE
+    ELSE
       !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
 #ifdef __LOOP_EXCHANGE
       DO jc = nshift+1, nshift+nlen
@@ -445,6 +447,7 @@ SUBROUTINE interpol_scal_ubc(p_pc, p_grf, nfields, f3din, f3dout, llimit_nneg)
   CALL exchange_data_grf(p_pc%comm_pat_coll_interpol_scal_ubc,1,nfields, &
     &                    RECV1=f3dout,SEND1=h_aux)
 
+  !$ACC WAIT
   !$ACC END DATA
 
 END SUBROUTINE interpol_scal_ubc

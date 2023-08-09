@@ -52,6 +52,7 @@ MODULE mo_rttov_interface
     &                               addclouds, nlev_rttov, num_images, iwc2effdiam,  &
     &                               iceshape, zenmax10, get_synsat_name
   USE mo_name_list_output_config, ONLY: is_variable_in_output
+  USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config
   USE mo_mpi,                 ONLY: p_pe, p_comm_work, p_io, num_work_procs, p_barrier, &
     &                               get_my_mpi_all_id
   USE mo_fortran_tools,       ONLY: assert_acc_device_only, assert_lacc_equals_i_am_accel_node
@@ -302,6 +303,10 @@ SUBROUTINE rttov_driver (jg, jgp, nnow, lacc)
   INTEGER :: nlev_rg, isens, n_profs, ncalc, &
     &        istatus, synsat_idx, isynsat
 
+  ! Pointer to the acutally used variant of clc:
+  REAL(wp), DIMENSION(:,:,:), POINTER ::  ptr_clc => NULL()
+
+
   CALL assert_acc_device_only('rttov_driver', lacc)
 
   ! first, check if nothing to do:
@@ -327,6 +332,12 @@ SUBROUTINE rttov_driver (jg, jgp, nnow, lacc)
   p_lnd_prog   => p_lnd_state(jg)%prog_lnd(nnow)
   p_lnd_diag   => p_lnd_state(jg)%diag_lnd
 
+  ! Decide which field for cloud cover has to be used:
+  IF (atm_phy_nwp_config(jg)%luse_clc_rad) THEN
+    ptr_clc => prm_diag(jg)%clc_rad
+  ELSE
+    ptr_clc => prm_diag(jg)%clc
+  END IF
 
   ! distance of satellite from middle of the earth
   r_sat       = 35880.e3_wp + earth_radius
@@ -348,7 +359,7 @@ SUBROUTINE rttov_driver (jg, jgp, nnow, lacc)
   !$ACC   COPYIN(pres_rttov)
 
   CALL prepare_rttov_input(jg, jgp, nlev_rg, p_nh_metrics%z_ifc, p_nh_diag%pres,               &
-    p_nh_diag%dpres_mc, p_nh_diag%temp, prm_diag(jg)%tot_cld, prm_diag(jg)%clc,                &
+    p_nh_diag%dpres_mc, p_nh_diag%temp, prm_diag(jg)%tot_cld, ptr_clc,                         &
     p_nh_prog%tracer(:,:,:,iqs), prm_diag(jg)%con_udd(:,:,:,3), prm_diag(jg)%con_udd(:,:,:,7), &
     p_extdata%fr_land, p_extdata%fr_lake, p_lnd_diag%fr_seaice, prm_diag(jg)%cosmu0,           &
     p_nh_diag%pres_sfc, p_lnd_prog%t_g, prm_diag(jg)%t_2m, prm_diag(jg)%qv_2m,                 &

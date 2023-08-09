@@ -167,14 +167,16 @@ CONTAINS
     DO jb = start_block, end_block
       CALL get_index_range(all_cells, jb, start_cell_index, end_cell_index)
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR
       DO jc = start_cell_index, end_cell_index
         DO level = 1, n_zlev
           trac_new(jc,level,jb) = trac_old(jc,level,jb)
         END DO
       END DO
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
     END DO
+    !$ACC WAIT(1)
     !$ACC END DATA
   END SUBROUTINE copy_individual_tracer_ab
   !-------------------------------------------------------------------------
@@ -378,7 +380,8 @@ CONTAINS
     DO jb = start_block, end_block
       CALL get_index_range(cells_in_domain, jb, start_cell_index, end_cell_index)
       
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR
       DO jc = start_cell_index, end_cell_index
         DO level = 1, 1!MIN(dolic_c(jc,jb),1)  ! this at most should be 1
 
@@ -389,10 +392,11 @@ CONTAINS
 
         END DO
       END DO
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
     END DO
 
     CALL sync_patch_array(sync_c, patch_2D, new_tracer_concentration)
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     !$ACC END DATA
@@ -432,7 +436,7 @@ CONTAINS
     REAL(wp) :: flux_horz(nproma,n_zlev, patch_3d%p_patch_2D(1)%nblks_e)
     REAL(wp) :: div_adv_flux_vert(nproma,n_zlev, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
     INTEGER :: jc,level,jb, je
-    INTEGER :: z_dolic
+    INTEGER :: z_dolic, max_dolic_c
     INTEGER :: start_cell_index, end_cell_index, start_block, end_block
     TYPE(t_subset_range), POINTER :: cells_in_domain, edges_in_domain
     TYPE(t_patch), POINTER :: patch_2D
@@ -541,21 +545,31 @@ CONTAINS
       IF (ASSOCIATED(old_tracer_top_bc)) THEN
 !         CALL dbg_print('top_bc all'       , old_tracer_top_bc, "transport", 1,  patch_3d%p_patch_2d(1)%cells%all)
 !         CALL finish("ASSOCIATED(old_tracer_top_bc)","")
-        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         top_bc(:) = old_tracer_top_bc(:,jb)
         !$ACC END KERNELS
       ELSE
-        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         top_bc(:) = 0.0_wp
         !$ACC END KERNELS
       ENDIF
       
 #ifdef __LVECTOR__
       level = 1
+      max_dolic_c = -1
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) REDUCTION(MAX: max_dolic_c) IF(lacc)
+      DO jc = start_cell_index, end_cell_index
+        max_dolic_c = MAX(max_dolic_c, dolic_c(jc,jb))
+      END DO
+      !$ACC END PARALLEL LOOP
+
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR
       DO jc = start_cell_index, end_cell_index
         IF (dolic_c(jc,jb) < level) CYCLE
 #else
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR
       DO jc = start_cell_index, end_cell_index
         !TODO check algorithm: inv_prism_thick_c vs. del_zlev_m | * vs. /
         DO level = 1, MIN(dolic_c(jc,jb),1)  ! this at most should be 1
@@ -570,22 +584,24 @@ CONTAINS
             &  div_adv_flux_horz(jc,level,jb) +div_adv_flux_vert(jc,level,jb)&
             & -div_diff_flux_horz(jc,level,jb) - top_bc(jc))) / delta_z_new
 
-        ENDDO
 #ifndef __LVECTOR__
-      ENDDO
-      !$ACC END PARALLEL LOOP
+        ENDDO
 #endif
-
+      ENDDO
+      !$ACC END PARALLEL
 
       IF (vert_mix_type .EQ. vmix_kpp .and. typeOfTracers == "ocean") THEN
         !by_Oliver: account for nonlocal transport term for heat and scalar
         !(salinity) if KPP scheme is used
 #ifdef __LVECTOR__
-        DO level = 2, MAXVAL(dolic_c(start_cell_index:end_cell_index,jb))
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
+        DO level = 2, max_dolic_c
           DO jc = start_cell_index, end_cell_index
             IF (dolic_c(jc,jb) < level) CYCLE
 #else
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC LOOP GANG VECTOR
         DO jc = start_cell_index, end_cell_index
           DO level = 2, dolic_c(jc,jb)
 #endif 
@@ -598,16 +614,19 @@ CONTAINS
               &     - old_transport_tendencies(jc,level,jb))
           END DO
         END DO
-        !$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL
 
       ELSE
 
 #ifdef __LVECTOR__
-        DO level = 2, MAXVAL(dolic_c(start_cell_index:end_cell_index,jb))
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
+        DO level = 2, max_dolic_c
           DO jc = start_cell_index, end_cell_index
             IF (dolic_c(jc,jb) < level) CYCLE
 #else
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC LOOP GANG VECTOR
         DO jc = start_cell_index, end_cell_index
           DO level = 2, dolic_c(jc,jb)
 #endif
@@ -619,7 +638,8 @@ CONTAINS
               &     - div_diff_flux_horz(jc,level,jb) )
           END DO
         END DO
-        !$ACC END PARALLEL LOOP
+        !$ACC END PARALLEL
+
       END IF
 
     END DO
@@ -649,6 +669,7 @@ CONTAINS
 
     CALL sync_patch_array(sync_c, patch_2D, new_tracer_concentration)
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     !---------DEBUG DIAGNOSTICS-------------------------------------------

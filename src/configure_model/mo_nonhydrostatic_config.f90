@@ -52,21 +52,20 @@ MODULE mo_nonhydrostatic_config
     INTEGER :: ndyn_substeps_max        ! maximum number of dynamics substeps per fast-physics step
     INTEGER :: ndyn_substeps_var(max_dom)! current (variable) number of dynamics substeps per fast-physics step
 
-    LOGICAL :: lhdiff_rcf               ! if true: compute horizontal diffusion also at the large time step
-    LOGICAL :: lextra_diffu             ! if true: apply additional diffusion at grid points close 
+    LOGICAL :: lextra_diffu             ! if true: apply additional diffusion at grid points close
                                         ! to the CFL stability limit for vertical advection
 
-    REAL(wp):: divdamp_fac              ! Scaling factor for divergence damping at height divdamp_z and below  (used if lhdiff_rcf = true)
-    REAL(wp):: divdamp_fac2             ! Scaling factor for divergence damping at height divdamp_z2           (used if lhdiff_rcf = true)
-    REAL(wp):: divdamp_fac3             ! Scaling factor for divergence damping at height divdamp_z3           (used if lhdiff_rcf = true)
-    REAL(wp):: divdamp_fac4             ! Scaling factor for divergence damping at height divdamp_z4 and above (used if lhdiff_rcf = true)
-    REAL(wp):: divdamp_z                ! Height up to which divdamp_fac is used, start of linear profile      (used if lhdiff_rcf = true)
-    REAL(wp):: divdamp_z2               ! Height of divdamp_fac2, end of linear and start of quadratic profile (used if lhdiff_rcf = true)
-    REAL(wp):: divdamp_z3               ! Height of divdamp_fac3, to define quadratic profile                  (used if lhdiff_rcf = true)
-    REAL(wp):: divdamp_z4               ! Height from which divdamp_fac4, end of quadratic profile             (used if lhdiff_rcf = true)
+    REAL(wp):: divdamp_fac              ! Scaling factor for divergence damping at height divdamp_z and below
+    REAL(wp):: divdamp_fac2             ! Scaling factor for divergence damping at height divdamp_z2
+    REAL(wp):: divdamp_fac3             ! Scaling factor for divergence damping at height divdamp_z3
+    REAL(wp):: divdamp_fac4             ! Scaling factor for divergence damping at height divdamp_z4 and above
+    REAL(wp):: divdamp_z                ! Height up to which divdamp_fac is used, start of linear profile
+    REAL(wp):: divdamp_z2               ! Height of divdamp_fac2, end of linear and start of quadratic profile
+    REAL(wp):: divdamp_z3               ! Height of divdamp_fac3, to define quadratic profile
+    REAL(wp):: divdamp_z4               ! Height from which divdamp_fac4, end of quadratic profile
 
-    REAL(wp):: divdamp_fac_o2           ! Scaling factor for second-order divergence damping 
-                                        ! (derived variable; used if lhdiff_rcf = true and divdamp_order = 2 or 24)
+    REAL(wp):: divdamp_fac_o2           ! Scaling factor for second-order divergence damping
+                                        ! (derived variable; used if divdamp_order = 2 or 24)
     INTEGER :: divdamp_order            ! Order of divergence damping
     INTEGER :: divdamp_type             ! Type of divergence damping (2D or 3D divergence)
     REAL(wp):: divdamp_trans_start      ! Lower bound of transition zone between 2D and 3D div damping in case of divdamp_type = 32
@@ -94,7 +93,6 @@ MODULE mo_nonhydrostatic_config
     INTEGER :: igradp_method    ! Method for computing the horizontal presure gradient
     REAL(wp):: exner_expol      ! Temporal extrapolation of Exner for computation of
                                 ! horizontal pressure gradient
-    INTEGER :: nest_substeps           ! the number of dynamics substeps for the child patches
     LOGICAL :: l_masscorr_nest  ! Apply mass conservation correction also to nested domain
     LOGICAL :: l_zdiffu_t       ! .true.: apply truly horizontal temperature diffusion 
                                 ! over steep slopes

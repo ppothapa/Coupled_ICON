@@ -1639,6 +1639,7 @@ CONTAINS
         !$ACC END KERNELS
       ENDIF
     ENDIF
+    !$ACC WAIT(1)
 
   
 

@@ -9,34 +9,49 @@ export MODULESHOME="/usr/share/Modules"
 MY_DIR=$(cd "$(dirname "$0")"; pwd)
 ICON_DIR=$(cd "${MY_DIR}/../.."; pwd)
 
-# create vector engine binary
-${ICON_DIR}/config/dwd/rcl.VE.bb-dwd_nec --prefix=${PWD}/vector
+# these setting are critical to proper logging by buildbot
+export VE_DIR="${ICON_DIR}/build/vector"
+export VH_DIR="${ICON_DIR}/build/host"
+INSTALL_PREFIX="${ICON_DIR}" 
+
 MAKE_PROCS=14
-make -j ${MAKE_PROCS}
-make install
+
+# create vector engine binary
+
+# =============================================================================
+# create vector engine binary
+mkdir -p ${VE_DIR}
+cd ${VE_DIR}
+${ICON_DIR}/config/dwd/rcl.VE.bb-dwd_nec --prefix=${INSTALL_PREFIX}/vector
+make -j ${MAKE_PROCS} |& tee make.log
+make install >> make.log 2>&1
+cd -
 
 
 # Save the _vector_ info file as it is required for
 # create_target_header afterwards.
-mv -v run/set-up.info run/set-up.info.vector
+mv -v ${VE_DIR}/run/set-up.info run/set-up.info.vector
 
-make distclean
 
+# =============================================================================
 # create vector host binary
-${ICON_DIR}/config/dwd/rcl.VH.bb-dwd_nec --prefix=${PWD}/host
-MAKE_PROCS=14
-make -j ${MAKE_PROCS}
-make install
+mkdir -p ${VH_DIR}
+cd ${VH_DIR}
+${ICON_DIR}/config/dwd/rcl.VH.bb-dwd_nec --prefix=${INSTALL_PREFIX}/host
+make -j ${MAKE_PROCS} |& tee make.log
+make install >> make.log 2>&1
+cd -
 
-VECTOR_BINARY="${PWD}/vector/bin/icon"
-HOST_BINARY="${PWD}/host/bin/icon"
+VECTOR_BINARY="${INSTALL_PREFIX}/vector/bin/icon"
+HOST_BINARY="${INSTALL_PREFIX}/host/bin/icon"
 
 set +e
-find "${PWD}/vector" "${PWD}/host"
+find "${INSTALL_PREFIX}/vector" "${INSTALL_PREFIX}/host"
 file "$VECTOR_BINARY" "$HOST_BINARY"
 
 # Restore the _vector_ info file as it is required for create_target_header.
 mv -v run/set-up.info.vector run/set-up.info
 # Copy the vector binary to the place, that is stored as builddir in set-up.info.
 # Only then it can be found by create_target_header.
-cp "${VECTOR_BINARY}" "${PWD}/bin/icon"
+mkdir -p "${ICON_DIR}/bin"
+cp "${VECTOR_BINARY}" "${ICON_DIR}/bin/icon"
