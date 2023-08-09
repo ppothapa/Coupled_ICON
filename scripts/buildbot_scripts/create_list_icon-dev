@@ -287,10 +287,15 @@ do
   ./rmexp $experiment --builders levante_nag_serial --list $listname
 done
 
+# JSBACH-NWP test, has to be down here because the GPU builders get deactivated at the top and activated later.
+jsbach_nwp_builders='DWD_nec DWD_nec_hybrid levante_gcc levante_intel levante_gpu_nvhpc'
+$addexp checksuite.icon-dev/check.atm_nwp_jsbach_test --builders "${jsbach_nwp_builders}" --list $listname
+
 # aurora node at DKRZ - not in production,yet
 ./set_builder_flags Active --builders 'levante_aurora' --list $listname
 $addexp "checksuite.infrastructure/aurora/exp.icon_esm_r2b4.run" --builders "levante_aurora" --list $listname
 $addexp "checksuite.infrastructure/aurora/exp.icon_atm_r2b4.run" --builders "levante_aurora" --list $listname
+
 #lets see the list
 ./lslist $listname
 #-----------------------------------------------------------

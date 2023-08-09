@@ -490,7 +490,7 @@ DO jg = n_dom_start+1, n_dom
           ici1 = p_gcp%child_idx(jc,jb,j)
           icb1 = p_gcp%child_blk(jc,jb,j)
 
-          p_grfp%fbk_wgt_aw(jc,jb,1:4) = p_gcc%area(ici1,icb1)/p_gcp%area(jc,jb)
+          p_grfp%fbk_wgt_aw(jc,jb,j) = p_gcc%area(ici1,icb1)/p_gcp%area(jc,jb)
         ENDDO
 
       ENDDO

@@ -89,7 +89,7 @@ AC_ARG_ENABLE([atmo],
      [enable the atmosphere component of ICON @<:@default=yes@:>@])],
   [AS_IF([test x"$enableval" != xno], [enable_atmo=yes])],
   [enable_atmo=yes])
-  
+
 AC_ARG_ENABLE([edmf],
   [AS_HELP_STRING([--enable-edmf],
      [enable the EDMF turbulence component of ICON @<:@default=yes@:>@])],
@@ -119,6 +119,14 @@ AC_ARG_ENABLE([jsbach],
      [enable the land component JSBACH @<:@default=yes@:>@])],
   [AS_IF([test x"$enableval" != xno], [enable_jsbach=yes])],
   [enable_jsbach=yes])
+
+AC_ARG_ENABLE([jsbach-hd],
+  [AS_HELP_STRING([--enable-jsbach-hd],
+     [enable the hydrological discharge scheme of the JSBACH land component
+(JSBACH HD) @<:@default=auto@:>@])],
+  [AS_IF([test x"$enableval" != xno && test x"$enableval" != xauto],
+     [enable_jsbach_hd=yes])],
+  [enable_jsbach_hd=auto])
 
 AC_ARG_ENABLE([waves],
   [AS_HELP_STRING([--enable-waves],
@@ -578,6 +586,21 @@ AC_ARG_WITH([external-cub],
   [AS_IF([test x"$withval" != xno], [with_external_cub=yes])],
   [with_external_cub=no])
 
+############################# OPTIONS CROSSCHECKS ##############################
+
+AS_CASE([$enable_jsbach_hd],
+  [yes], [AS_VAR_IF([enable_jsbach], [no],
+            [AC_MSG_ERROR([dnl
+you are trying to configure with the JSBACH HD scheme but the
+land component JSBACH is disabled. Either disable the hydrological discharge
+scheme of the JSBACH land component (--disable-jsbach-hd) or enable the land
+component JSBACH (--enable-jsbach).])])],
+  [no], [],
+  [auto], [AS_VAR_IF([enable_jsbach], [yes],
+             [enable_jsbach_hd=yes],
+             [enable_jsbach_hd=no])])
+
+
 ############################# CODEBASE EXTENSIONS ##############################
 
 AS_VAR_IF([enable_jsbach], [yes],
@@ -766,6 +789,9 @@ AS_VAR_IF([enable_ocean], [no],
 
 AS_VAR_IF([enable_jsbach], [no],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_JSBACH__"])])
+
+AS_VAR_IF([enable_jsbach_hd], [no],
+  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_JSBACH_HD__"])])
 
 AS_VAR_IF([enable_waves], [no],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_ICON_WAVES__"])])

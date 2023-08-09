@@ -35,6 +35,7 @@ MODULE mo_fortran_tools
   PUBLIC :: assign_if_present
   PUBLIC :: t_ptr_2d3d, t_ptr_2d3d_vp
   PUBLIC :: assign_if_present_allocatable
+  PUBLIC :: if_associated
   PUBLIC :: t_ptr_1d, t_ptr_1d_sp, t_ptr_1d_int
   PUBLIC :: t_ptr_1d_ptr_1d
   PUBLIC :: t_ptr_2d, t_ptr_2d_sp, t_ptr_2d_int
@@ -152,13 +153,20 @@ MODULE mo_fortran_tools
     MODULE PROCEDURE assign_if_present_character_allocatable
   END INTERFACE assign_if_present_allocatable
 
+  !>
+  !! Return the passed pointer if it is associated, else return pointer to `els` (or NULL).
+  INTERFACE if_associated
+    MODULE PROCEDURE if_associated_rc_2d
+  END INTERFACE
+
   !> `copy(b, a)` is meant to make it easier for compilers to circumvent
   !! temporaries as are too often created in a(:, :, :) = b(:, :, :)
   !!
   !! `copy` uses openMP orphaning, i.e. it must be called inside an
   !! OMP PARALLEL region. However, it must not be called inside another
-  !! OMP DO region. 
+  !! OMP DO region.
   INTERFACE copy
+    MODULE PROCEDURE copy_1d_dp
     MODULE PROCEDURE copy_2d_dp
     MODULE PROCEDURE copy_3d_dp
     MODULE PROCEDURE copy_4d_dp
@@ -186,6 +194,7 @@ MODULE mo_fortran_tools
     MODULE PROCEDURE init_zero_4d_i4
     MODULE PROCEDURE init_zero_4d_dp
     MODULE PROCEDURE init_zero_4d_sp
+    MODULE PROCEDURE init_1d_dp
     MODULE PROCEDURE init_2d_dp
     MODULE PROCEDURE init_3d_dp
     MODULE PROCEDURE init_3d_spdp
@@ -417,6 +426,27 @@ CONTAINS
   END SUBROUTINE assign_if_present_character_allocatable
 
   !>
+  !! Return `ptr` if it is associated, else return pointer to `els` or NULL.
+  FUNCTION if_associated_rc_2d (ptr, els) RESULT(p)
+
+    REAL(wp), CONTIGUOUS, POINTER, INTENT(IN) :: ptr(:,:)
+    REAL(wp), CONTIGUOUS, TARGET, INTENT(IN), OPTIONAL :: els(:,:)
+
+    REAL(wp), CONTIGUOUS, POINTER :: p(:,:)
+
+    IF (ASSOCIATED(ptr)) THEN
+      p => ptr
+    ELSE
+      IF (PRESENT(els)) THEN
+        p => els
+      ELSE
+        P => NULL()
+      END IF
+    END IF
+
+  END FUNCTION if_associated_rc_2d
+
+  !>
   !! Swap content of two Integers
   !!
   !! Swap content of two Integers
@@ -482,6 +512,25 @@ CONTAINS
     ENDIF
 
   END SUBROUTINE resize_arr_c1d
+
+  !> copy state, omp parallel, does not wait for other threads to complete
+  SUBROUTINE copy_1d_dp(src, dest, opt_acc_async)
+    REAL(dp), INTENT(in) :: src(:)
+    REAL(dp), INTENT(out) :: dest(:)
+    LOGICAL, INTENT(IN), OPTIONAL :: opt_acc_async
+    INTEGER :: i1, m1
+    m1 = SIZE(dest, 1)
+
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+    !$omp do private(i1)
+    DO i1 = 1, m1
+      dest(i1) = src(i1)
+    END DO
+    !$omp end do nowait
+    !$ACC END PARALLEL LOOP
+
+    CALL acc_wait_if_requested(1, opt_acc_async)
+  END SUBROUTINE copy_1d_dp
 
   !> copy state, omp parallel, does not wait for other threads to complete
   SUBROUTINE copy_2d_dp(src, dest, opt_acc_async)
@@ -1085,6 +1134,24 @@ CONTAINS
 
     CALL acc_wait_if_requested(1, opt_acc_async)
   END SUBROUTINE init_zero_1d_dp
+
+  SUBROUTINE init_1d_dp(init_var, init_val, opt_acc_async)
+    REAL(dp), INTENT(out) :: init_var(:)
+    REAL(dp), INTENT(IN) :: init_val
+    LOGICAL, INTENT(IN), OPTIONAL :: opt_acc_async
+    INTEGER :: i1, m1
+
+    m1 = SIZE(init_var, 1)
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+    !$omp do private(i1)
+    DO i1 = 1, m1
+      init_var(i1) = init_val
+    END DO
+    !$omp end do nowait
+    !$ACC END PARALLEL LOOP
+
+    CALL acc_wait_if_requested(1, opt_acc_async)
+  END SUBROUTINE init_1d_dp
 
   SUBROUTINE init_zero_1d_sp(init_var, opt_acc_async)
     REAL(sp), INTENT(out) :: init_var(:)

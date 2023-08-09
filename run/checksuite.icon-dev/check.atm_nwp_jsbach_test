@@ -1,8 +1,8 @@
 #!/bin/ksh
 #--------------------------------------------------------------------------------
 #
-# _bb_table_Description_  QUBICC test experiment
-# _bb_table_Model_        non-hydrostatic atmosphere with Sapphire physics
+# _bb_table_Description_  Test experiment with JSBACH/VDIFF and NWP physics
+# _bb_table_Model_        non-hydrostatic atmosphere with NWP+JSBACH physics
 
 #--------------------------------------------------------------------------------
 #
@@ -14,18 +14,14 @@
 # - the output  file names     : <EXPERIMENT>_<TYPE>_<DATE>.<FORMAT>
 # - the restart directory name : <EXPERIMENT>_restart_atm_<DATE>.mfr
 #
-# For this test a separate experiment name is needed. Therefore a soft-link
-# is created for the new name exp.atm_qubicc_test_update:
-rm -f exp.atm_qubicc_nc_test_update
-ln -s exp.atm_qubicc_nc_test exp.atm_qubicc_nc_test_update
-export EXPERIMENT='atm_qubicc_nc_test_update'
+export EXPERIMENT='atm_nwp_jsbach_test'
 
 # TYPES is a list of names identifying the files <EXPERIMENT>_<TYPE>_<DATE>.<FORMAT>
 # to be checked.
 #
 export TYPES=''
-TYPES="$TYPES pfull_ml ta_ml rho_ml ua_ml va_ml wa_ml hus_ml"      # atmospheric state
-TYPES="$TYPES cli_ml clw_ml qr_ml qs_ml qg_ml"                     # atmospheric state
+TYPES="$TYPES pres_ml temp_ml rho_ml u_ml v_ml w_ml qv_ml"         # atmospheric state
+TYPES="$TYPES qi_ml qc_ml qr_ml qs_ml clc_ml"                      # atmospheric state
 TYPES="$TYPES atm2d_ml"                                            # atmospheric state, 2d, many vars.
 TYPES="$TYPES flx2d_ml"                                            # parametr.  fluxes, 2d, many vars.
 TYPES="$TYPES ddt_ua_dyn_ml    ddt_va_dyn_ml"                      # tendencies, dynamics
@@ -33,11 +29,8 @@ TYPES="$TYPES ddt_ua_adv_ml    ddt_ua_cor_ml   ddt_ua_dmp_ml"
 TYPES="$TYPES ddt_ua_hdf_ml    ddt_ua_pgr_ml   ddt_va_adv_ml"
 TYPES="$TYPES ddt_va_cor_ml    ddt_va_dmp_ml"
 TYPES="$TYPES ddt_va_hdf_ml    ddt_va_pgr_ml"
-TYPES="$TYPES tend_ta_rlw_ml   tend_ta_rsw_ml"                     # tendencies, radiation
-TYPES="$TYPES tend_ua_vdf_ml   tend_va_vdf_ml   tend_ta_vdf_ml  \
-              tend_qhus_vdf_ml tend_qclw_vdf_ml tend_qcli_vdf_ml"  # tendencies, vertical diffusion
-TYPES="$TYPES tend_ta_mig_ml   tend_qhus_mig_ml \
-              tend_qclw_mig_ml tend_qcli_mig_ml "                  # tendencies, cloud microphysics
+TYPES="$TYPES ddt_u_turb_ml    ddt_v_turb_ml    ddt_temp_turb_ml  \
+              ddt_qv_turb_ml   ddt_qc_turb_ml   ddt_qi_turb_ml"    # tendencies, vertical diffusion
 
 
 # DATES is a list of dates identifying the files <EXPERIMENT>_<TYPE>_<DATE>.<FORMAT>
@@ -45,40 +38,58 @@ TYPES="$TYPES tend_ta_mig_ml   tend_qhus_mig_ml \
 #
 export DATES=''
 DATES="$DATES 19790101T000000Z"                                    # date  of initialization
-DATES="$DATES 19790101T000040Z 19790101T000120Z 19790101T000200Z \
-              19790101T000240Z 19790101T000320Z 19790101T000400Z"  # dates of time steps
+DATES="$DATES 19790101T000100Z 19790101T000200Z 19790101T000300Z \
+              19790101T000400Z 19790101T000500Z 19790101T000600Z"  # dates of time steps
 
 # RESTART_DATE defines the date and time from which restarts should be performed.
-# 
-export RESTART_DATE='19790101T000200Z'
-
-# REFERENCE model directory and reference experiment for update test
-# (abs. path or relative paths w.r.t. <model dir>/run, e.g. .../icon-dev/run)
 #
-export OVERWRITE=no
-#
-if [ -d /users/icontest ]
-then
-    poolFolder_prefix="/users/icontest"
-else
-    poolFolder_prefix=""
-fi
+export RESTART_DATE='19790101T000300Z'
 
 #--------------------------------------------------------------------------------
-# 
+#
 # 2. Define the checksuite mode
 #
-export MD='u'
+# u = update test
+# r = restart test
+# n = nproma test
+# m = mpi test
+# o = omp test
+# t = tolerance test
+#
+# default: MD='rnmo'
+#
+export MD='rnmo'
+
+builder="unknown"
+[[ $BB_NAME ]] && builder=$(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]')
+
+case $builder in
+    daint_*)
+        # no tolerance test for now.
+        MD='rnmo'
+        ;;
+    dwd_*)
+        # Run the full test complement on DWD NEC.
+        MD='rnmo'
+        ;;
+    levante_intel*)
+        # nproma test fails.
+        MD='rmo'
+        ;;
+    levante_gpu*)
+        # MPI test fails.
+        MD='rn'
+        ;;
+esac
 
 #--------------------------------------------------------------------------------
-# 
+#
 # 3. Launch the checksuite from run/
+#
+reference_dir=$(cat $basedir/run/tolerance_reference)
+export REFERENCE=$icon_data_rootFolder/buildbot_data/ref/${reference_dir}
 
-reference_dir=2023-08-02.icon-nwp.a55df43fe066
-
-builder="${BB_SYSTEM}_${BB_SLAVE}" # old buildbot
-[[ ! -z $BB_NAME ]] && builder=$(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]') # new buildbot
-export REFERENCE=$icon_data_rootFolder/buildbot_data/ref/${reference_dir}/${builder}
+module load cdo || true
 
 rundir=`pwd`
 cd checksuite.icon-dev

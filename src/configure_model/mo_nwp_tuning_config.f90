@@ -27,10 +27,10 @@ MODULE mo_nwp_tuning_config
   PRIVATE
 
   PUBLIC :: tune_gkwake
-  PUBLIC :: tune_gkdrag
+  PUBLIC :: tune_gkdrag, tune_gkdrag_enh
   PUBLIC :: tune_gfrcrit
-  PUBLIC :: tune_grcrit
-  PUBLIC :: tune_minsso
+  PUBLIC :: tune_grcrit, tune_grcrit_enh
+  PUBLIC :: tune_minsso, tune_minsso_gwd
   PUBLIC :: tune_blockred
   PUBLIC :: tune_gfluxlaun
   PUBLIC :: tune_gcstar
@@ -90,17 +90,20 @@ MODULE mo_nwp_tuning_config
   REAL(wp) :: &                    !< low level wake drag constant
     &  tune_gkwake(max_dom)
 
-  REAL(wp) :: &                    !< gravity wave drag constant
-    &  tune_gkdrag(max_dom)
+   REAL(wp) :: &                    !< gravity wave drag constant; optional enhanced value for low latitudes
+    &  tune_gkdrag(max_dom), tune_gkdrag_enh(max_dom)
 
   REAL(wp) :: &                    !< critical Froude number in SSO scheme
     &  tune_gfrcrit(max_dom)
 
-  REAL(wp) :: &                    !< critical Richardson number in SSO scheme
-    &  tune_grcrit(max_dom)
+  REAL(wp) :: &                    !< critical Richardson number in SSO scheme; optional enhanced value for low latitudes
+    &  tune_grcrit(max_dom), tune_grcrit_enh(max_dom)
 
   REAL(wp) :: &                    !< minimum SSO standard deviation (m) for which SSO information is used
     &  tune_minsso(max_dom)
+
+  REAL(wp) :: &                    !< minimum SSO standard deviation (m) above which GWD computation is activated
+    &  tune_minsso_gwd(max_dom)    !  provided that the value is larger than tune_minsso
 
   REAL(wp) :: &                    !< multiple of SSO standard deviation above which blocking tendency is reduced
     &  tune_blockred(max_dom)
