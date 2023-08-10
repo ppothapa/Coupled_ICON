@@ -3,7 +3,7 @@ spack:
   - cosmo-eccodes-definitions@2.25.0.1
   - icon @develop %nvhpc +eccodes-definitions +ecrad gpu=80 ~jsbach ~loop-exchange
     ~ocean +rte-rrtmgp ~async-io-rma +dace fcgroup=DACE;externals/dace_icon;-O1 +rttov
-    +emvorado
+    +emvorado ~coupling
   view: true
   concretizer:
     unify: true
@@ -12,4 +12,4 @@ spack:
       path: ../../../../..
       spec: icon @develop %nvhpc +eccodes-definitions +ecrad gpu=80 ~jsbach ~loop-exchange
         ~ocean +rte-rrtmgp ~async-io-rma +dace fcgroup=DACE;externals/dace_icon;-O1
-        +rttov +emvorado
+        +rttov +emvorado ~coupling

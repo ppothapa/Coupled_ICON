@@ -13,4 +13,4 @@ else
   MAKE_PROCS=8
 fi
 
-make -j ${MAKE_PROCS}
+make -j ${MAKE_PROCS} V=1

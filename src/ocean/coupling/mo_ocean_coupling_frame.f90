@@ -22,7 +22,7 @@ MODULE mo_ocean_coupling_frame
   USE mo_exception,           ONLY: warning, message
   USE mo_impl_constants,      ONLY: max_char_length
   USE mo_mpi,                 ONLY: p_pe_work, p_comm_work, p_sum
-  USE mo_run_config,          ONLY: ltimer
+  USE mo_run_config,          ONLY: ltimer, modelTimeStep
   USE mo_timer,               ONLY: timer_start, timer_stop, &
        &                            timer_coupling_init
   USE mo_model_domain,        ONLY: t_patch, t_patch_3d
@@ -37,8 +37,8 @@ MODULE mo_ocean_coupling_frame
     &                               yac_fdef_datetime, yac_fdef_grid,       &
     &                               yac_fdef_points, yac_fset_global_index, &
     &                               yac_fset_core_mask, yac_fdef_mask,      &
-    &                               yac_fdef_field_mask, yac_fsearch,       &
-    &                               YAC_LOCATION_CELL
+    &                               yac_fdef_field_mask, yac_fenddef,       &
+    &                               YAC_LOCATION_CELL, YAC_TIME_UNIT_ISO_FORMAT
   USE mo_coupling_config,     ONLY: is_coupled_run
   USE mo_time_config,         ONLY: time_config 
 
@@ -72,6 +72,7 @@ CONTAINS
     TYPE(t_patch_3d ), TARGET, INTENT(in)    :: patch_3d
 
     CHARACTER(LEN=max_char_length) ::  field_name(no_of_fields)
+    INTEGER                        :: collection_size(no_of_fields)
     INTEGER :: error_status
 
     INTEGER                :: patch_no
@@ -299,19 +300,33 @@ CONTAINS
       & cell_mask_ids(1) )
 
     field_name(1) = "surface_downward_eastward_stress"   ! bundled field containing two components
+    collection_size(1) = 2
     field_name(2) = "surface_downward_northward_stress"  ! bundled field containing two components
+    collection_size(2) = 2
     field_name(3) = "surface_fresh_water_flux"           ! bundled field containing three components
+    collection_size(3) = 3
     field_name(4) = "total_heat_flux"                    ! bundled field containing four components
+    collection_size(4) = 4
     field_name(5) = "atmosphere_sea_ice_bundle"          ! bundled field containing two components
+    collection_size(5) = 2
     field_name(6) = "sea_surface_temperature"
+    collection_size(6) = 1
     field_name(7) = "eastward_sea_water_velocity"
+    collection_size(7) = 1
     field_name(8) = "northward_sea_water_velocity"
+    collection_size(8) = 1
     field_name(9) = "ocean_sea_ice_bundle"               ! bundled field containing three components
+    collection_size(9) = 3
     field_name(10) = "10m_wind_speed"
+    collection_size(10) = 1
     field_name(11) = "river_runoff"
+    collection_size(11) = 1
     field_name(12) = "co2_mixing_ratio"
+    collection_size(12) = 1
     field_name(13) = "co2_flux"
+    collection_size(13) = 1
     field_name(14) = "sea_level_pressure"
+    collection_size(14) = 1
 
     ! Define the mask for all fields but the runoff
 
@@ -323,6 +338,9 @@ CONTAINS
         & cell_point_ids,               &
         & cell_mask_ids(1),             &
         & 1,                            &
+        & collection_size(cell_index),  &
+        & modelTimeStep,                &
+        & YAC_TIME_UNIT_ISO_FORMAT,     &
         & field_id(cell_index) )
       endif
     ENDDO
@@ -376,9 +394,12 @@ CONTAINS
       & cell_point_ids,                 &
       & cell_mask_ids(1),               &
       & 1,                              &
+      & 1,                              &
+      & modelTimeStep,                  &
+      & YAC_TIME_UNIT_ISO_FORMAT,       &
       & field_id(11) )
 
-    CALL yac_fsearch ( error_status )
+    CALL yac_fenddef ( )
 
     IF (ltimer) CALL timer_stop(timer_coupling_init)
 

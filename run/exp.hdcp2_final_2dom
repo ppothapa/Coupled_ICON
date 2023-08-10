@@ -325,7 +325,7 @@ rbf_vec_scale_e   = 0.15, 0.05
 rbf_scale_mode_ll = 1 !2=default for automatic calculations
 /
 &gridref_nml
- grf_intmethod_e  = 5  !6 default
+ grf_intmethod_e  = 6
  grf_scalfbk      = 1
  grf_tracfbk      = 1
  denom_diffu_v    = 150.

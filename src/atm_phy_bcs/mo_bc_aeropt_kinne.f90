@@ -31,6 +31,10 @@ MODULE mo_bc_aeropt_kinne
 
   USE mo_bcs_time_interpolation, ONLY: t_time_interpolation_weights, &
        &                               calculate_time_interpolation_weights
+#ifdef YAC_coupling
+  USE mo_atmo_coupling_frame,   ONLY: field_id
+  USE mo_yac_finterface
+#endif
 
   IMPLICIT NONE
 
@@ -78,13 +82,15 @@ CONTAINS
   !>
   !! SUBROUTINE su_bc_aeropt_kinne -- sets up the memory for fields in which
   !! the aerosol optical properties are stored when needed
-SUBROUTINE su_bc_aeropt_kinne(p_patch, nbndlw, nbndsw)
+SUBROUTINE su_bc_aeropt_kinne(p_patch, nbndlw, nbndsw, opt_from_yac)
 
   TYPE(t_patch), INTENT(in)       :: p_patch
   INTEGER, INTENT(in)             :: nbndlw, nbndsw
+  LOGICAL, INTENT(IN), OPTIONAL   :: opt_from_yac
 
   INTEGER                         :: jg
   INTEGER                         :: nblks_len, nblks
+  LOGICAL                         :: from_yac = .FALSE.
 
   jg = p_patch%id
 
@@ -119,12 +125,27 @@ SUBROUTINE su_bc_aeropt_kinne(p_patch, nbndlw, nbndsw)
     IF ( lend_of_year .OR. ( imonth_end == 1 .AND. time_config%tc_stopdate%date%month == 12 ) ) imonth_end = 13
   ENDIF
 
+! on first call allocate structure for all grids
+  IF ( jg == 1 ) ALLOCATE(ext_aeropt_kinne(n_dom))
+
+  IF (PRESENT(opt_from_yac)) from_yac = opt_from_yac
+
+  IF ( from_yac ) THEN
+     
+    ! time interpolation is done by yac, thus we only need 1 timestep
+    imonth_beg = 1; imonth_end = 1
+
+    ! set vertical grid spacing
+    dz_clim = 500.0
+
+    WRITE(message_text,'(a,f6.2)') ' delta_z set to ', dz_clim
+    CALL message('mo_bc_aeropt_kinne:read_months_bc_aeropt_kinne', message_text)
+
+  ENDIF
+
   WRITE(message_text,'(a,i2,a,i2)') &
      & ' Allocating Kinne aerosols for months ', imonth_beg, ' to ', imonth_end
   CALL message('mo_bc_aeropt_kinne:su_bc_aeropt_kinne', message_text)
-
-! on first call allocate structure for all grids
-  IF ( jg == 1 ) ALLOCATE(ext_aeropt_kinne(n_dom))
 
 ! allocate memory for optical properties on grid jg
   ALLOCATE(ext_aeropt_kinne(jg)% aod_c_s(nblks_len,nbndsw,nblks,imonth_beg:imonth_end))
@@ -211,19 +232,227 @@ END SUBROUTINE shift_months_bc_aeropt_kinne
   !! of the Kinne aerosols for the whole run at the beginning of the run
   !! before entering the time loop
 
-SUBROUTINE read_bc_aeropt_kinne(mtime_current, p_patch, l_filename_year, nbndlw, nbndsw)
+SUBROUTINE read_bc_aeropt_kinne(mtime_current, p_patch, l_filename_year, nbndlw, nbndsw, opt_from_yac)
   
   TYPE(datetime), POINTER, INTENT(in) :: mtime_current
   TYPE(t_patch), INTENT(in)           :: p_patch
   LOGICAL, INTENT(in)                 :: l_filename_year
   INTEGER, INTENT(in)                 :: nbndlw, nbndsw
+  LOGICAL, OPTIONAL, INTENT(IN)       :: opt_from_yac
  
   !LOCAL VARIABLES
   INTEGER(I8)                   :: iyear
   INTEGER                       :: imonthb, imonthe
-  INTEGER                       :: jg
+  INTEGER                       :: jg, nblw_aero, nbsw_aero, nlev_aero, info, ierr, i, j
+  LOGICAL                       :: from_yac
+  REAL(wp), ALLOCATABLE         :: yac_recv_buf(:,:)
+
+  ! TODO
+  INTEGER, PARAMETER   :: nb_lw = 16, nb_sw = 14, lev_clim = 40
 
   jg = p_patch%id
+
+  from_yac = .FALSE.
+#ifdef YAC_coupling
+  IF (PRESENT(opt_from_yac)) from_yac=opt_from_yac
+  IF ( from_yac) THEN
+
+    IF ( pre_year(jg) == -HUGE(1) ) THEN
+      CALL su_bc_aeropt_kinne(p_patch, nbndlw, nbndsw, opt_from_yac=from_yac)
+      pre_year(jg)  =  mtime_current%date%year
+    ENDIF
+
+    ! Savety check of vertical dimension (bands or level)
+    nblw_aero =  yac_fget_field_collection_size(field_id(15))
+    nbsw_aero =  yac_fget_field_collection_size(field_id(18))
+    nlev_aero =  yac_fget_field_collection_size(field_id(17))
+
+    IF ( nblw_aero /= nb_lw ) &
+       CALL finish('set_bc_aeropt_kinne in mo_bc_aeropt_kinne', &
+      &    'inconsistent number of lw bands')
+
+    IF ( nbsw_aero /= nb_sw ) &
+          CALL finish('set_bc_aeropt_kinne in mo_bc_aeropt_kinne', &
+      &    'inconsistent number of sw bands')
+
+    IF ( nlev_aero /= lev_clim ) &
+          CALL finish('set_bc_aeropt_kinne in mo_bc_aeropt_kinne', &
+      &    'inconsistent number of level')
+
+    IF ( .NOT. ALLOCATED(yac_recv_buf) ) THEN
+       ALLOCATE(yac_recv_buf(p_patch%n_patch_cells, lev_clim))
+       IF ( lev_clim < nbsw_aero .OR. lev_clim < nblw_aero ) &
+       CALL finish('set_bc_aeropt_kinne in mo_bc_aeropt_kinne', &
+      &    'insufficient memory')
+          yac_recv_buf = 0.0
+    END IF
+
+    ! aod_c_f       = aod_lw_b16_coa -> paer_tau_lw_vr ( lw band )  (15)
+    ! ssa_c_f       = ssa_lw_b16_coa -> zs_i           ( lw band )  (16)
+    ! asy_c_f       = asy_lw_b16_coa -> not used
+    ! z_km_aer_c_mo = aer_lw_b16_coa -> zq_aod_c       ( level ) (17)
+
+    ! aod_lw_b16_coa -> aod_c_f ( band )
+
+    CALL yac_fget(field_id(15), p_patch%n_patch_cells, nb_lw, &
+     &            yac_recv_buf, info, ierr)
+
+    IF ( info > 0 .AND. info < 7 ) THEN
+       DO i=1,p_patch%nblks_c
+          DO j=1,nproma
+             IF ((i-1)*nproma+j > p_patch%n_patch_cells) CYCLE
+             ext_aeropt_kinne(jg)%aod_c_f(j,1:nb_lw,i,1) = yac_recv_buf((i-1)*nproma+j,1:nb_lw)
+          END DO
+       END DO
+    END IF
+
+    !ssa_lw_b16_coa -> ssa_c_f ( band )
+ 
+    CALL yac_fget(field_id(16), p_patch%n_patch_cells, nb_lw, &
+     &            yac_recv_buf, info, ierr)
+
+    IF ( info > 0 .AND. info < 7 ) THEN
+       DO i=1,p_patch%nblks_c
+          DO j=1,nproma
+             IF ((i-1)*nproma+j > p_patch%n_patch_cells) CYCLE
+             ext_aeropt_kinne(jg)%ssa_c_f(j,1:nb_lw,i,1) = yac_recv_buf((i-1)*nproma+j,1:nb_lw)
+          END DO
+       END DO
+    END IF
+
+    ! aer_lw_b16_coa -> z_km_aer_c_mo ( level )
+
+    CALL yac_fget(field_id(17), p_patch%n_patch_cells, lev_clim, &
+     &            yac_recv_buf, info, ierr)
+
+    IF ( info > 0 .AND. info < 7 ) THEN
+       DO i=1,p_patch%nblks_c
+          DO j=1,nproma
+             IF ((i-1)*nproma+j > p_patch%n_patch_cells) CYCLE
+             ext_aeropt_kinne(jg)%z_km_aer_c_mo(j,1:lev_clim,i,1) = yac_recv_buf((i-1)*nproma+j,1:lev_clim)
+          END DO
+       END DO
+    END IF
+
+    ! aod_c_s       = aod_sw_b14_coa -> zt_c  ( sw band )           (18)
+    ! ssa_c_s       = ssa_sw_b14_coa -> zs_c  ( sw band )           (19)
+    ! asy_c_s       = asy_sw_b14_coa -> zg_c   (sw band )           (20)
+    ! z_km_aer_c_mo = aer_sw_b14_coa -> duplicated, take from aer_lw_b16_coa
+
+    ! aod_lw_b16_coa -> aod_c_f ( band )
+
+    CALL yac_fget(field_id(18), p_patch%n_patch_cells, nb_sw, &
+     &            yac_recv_buf, info, ierr)
+
+    IF ( info > 0 .AND. info < 7 ) THEN
+       DO i=1,p_patch%nblks_c
+          DO j=1,nproma
+             IF ((i-1)*nproma+j > p_patch%n_patch_cells) CYCLE
+             ext_aeropt_kinne(jg)%aod_c_s(j,1:nb_sw,i,1) = yac_recv_buf((i-1)*nproma+j,1:nb_sw)
+          END DO
+       END DO
+    END IF
+
+    !ssa_sw_b14_coa -> ssa_c_s ( band )
+
+    CALL yac_fget(field_id(19), p_patch%n_patch_cells, nb_sw, &
+     &            yac_recv_buf, info, ierr)
+
+    IF ( info > 0 .AND. info < 7 ) THEN
+       DO i=1,p_patch%nblks_c
+          DO j=1,nproma
+             IF ((i-1)*nproma+j > p_patch%n_patch_cells) CYCLE
+             ext_aeropt_kinne(jg)%ssa_c_s(j,1:nb_sw,i,1) = yac_recv_buf((i-1)*nproma+j,1:nb_sw)
+          END DO
+       END DO
+    END IF
+
+    !asy_sw_b14_coa -> asy_c_s ( band )
+ 
+    CALL yac_fget(field_id(20), p_patch%n_patch_cells, nb_sw, &
+     &            yac_recv_buf, info, ierr)
+
+    IF ( info > 0 .AND. info < 7 ) THEN
+       DO i=1,p_patch%nblks_c
+          DO j=1,nproma
+             IF ((i-1)*nproma+j > p_patch%n_patch_cells) CYCLE
+             ext_aeropt_kinne(jg)%asy_c_s(j,1:nb_sw,i,1) = yac_recv_buf((i-1)*nproma+j,1:nb_sw)
+          END DO
+       END DO
+    END IF
+
+    ! aod_f_s       = aod_sw_b14_fin -> zt_f     ( band )        (21)
+    ! ssa_f_s       = ssa_sw_b14_fin -> zs_f     ( band )        (22)
+    ! asy_f_s       = asy_sw_b14_fin -> zg_f     ( band )        (23)
+    ! z_km_aer_f_mo = aer_sw_b14_fin -> zq_aod_f ( level )       (24)
+
+    ! aod_sw_b14_fin -> aod_f_s ( band )
+
+    CALL yac_fget(field_id(21), p_patch%n_patch_cells, nb_sw, &
+      &           yac_recv_buf, info, ierr)
+
+    IF ( info > 0 .AND. info < 7 ) THEN
+       DO i=1,p_patch%nblks_c
+          DO j=1,nproma
+             IF ((i-1)*nproma+j > p_patch%n_patch_cells) CYCLE
+             ext_aeropt_kinne(jg)%aod_f_s(j,1:nb_sw,i,1) = yac_recv_buf((i-1)*nproma+j,1:nb_sw)
+          END DO
+       END DO
+    END IF
+
+    !ssa_sw_b14_fin -> ssa_f_s ( band )
+ 
+    CALL yac_fget(field_id(22), p_patch%n_patch_cells, nb_sw, &
+      &           yac_recv_buf, info, ierr)
+
+    IF ( info > 0 .AND. info < 7 ) THEN
+       DO i=1,p_patch%nblks_c
+          DO j=1,nproma
+             IF ((i-1)*nproma+j > p_patch%n_patch_cells) CYCLE
+             ext_aeropt_kinne(jg)%ssa_f_s(j,1:nb_sw,i,1) = yac_recv_buf((i-1)*nproma+j,1:nb_sw)
+          END DO
+       END DO
+    END IF
+
+    !asy_sw_b14_fin -> asy_f_s ( band )
+ 
+    CALL yac_fget(field_id(23), p_patch%n_patch_cells, nb_sw, &
+     &            yac_recv_buf, info, ierr)
+
+    IF ( info > 0 .AND. info < 7 ) THEN
+       DO i=1,p_patch%nblks_c
+          DO j=1,nproma
+             IF ((i-1)*nproma+j > p_patch%n_patch_cells) CYCLE
+             ext_aeropt_kinne(jg)%asy_f_s(j,1:nb_sw,i,1) = yac_recv_buf((i-1)*nproma+j,1:nb_sw)
+          END DO
+       END DO
+    END IF
+
+    ! aer_sw_b14_fin -> z_km_aer_f_mo ( level )
+ 
+    CALL yac_fget(field_id(24), p_patch%n_patch_cells, lev_clim, &
+      &           yac_recv_buf, info, ierr)
+
+    IF ( info > 0 .AND. info < 7 ) THEN
+       DO i=1,p_patch%nblks_c
+          DO j=1,nproma
+             IF ((i-1)*nproma+j > p_patch%n_patch_cells) CYCLE
+             ext_aeropt_kinne(jg)%z_km_aer_f_mo(j,1:lev_clim,i,1) = yac_recv_buf((i-1)*nproma+j,1:lev_clim)
+          END DO
+       END DO
+    END IF
+
+    !$ACC UPDATE DEVICE(ext_aeropt_kinne(jg)%aod_c_s, ext_aeropt_kinne(jg)%aod_f_s) &
+    !$ACC   DEVICE(ext_aeropt_kinne(jg)%ssa_c_s, ext_aeropt_kinne(jg)%ssa_f_s) &
+    !$ACC   DEVICE(ext_aeropt_kinne(jg)%asy_c_s, ext_aeropt_kinne(jg)%asy_f_s) &
+    !$ACC   DEVICE(ext_aeropt_kinne(jg)%aod_c_f, ext_aeropt_kinne(jg)%ssa_c_f) &
+    !$ACC   DEVICE(ext_aeropt_kinne(jg)%asy_c_f, ext_aeropt_kinne(jg)%z_km_aer_c_mo) &
+    !$ACC   DEVICE(ext_aeropt_kinne(jg)%z_km_aer_f_mo)
+
+    RETURN
+
+  END IF
+#endif
 
   iyear = mtime_current%date%year
 
@@ -335,7 +564,7 @@ SUBROUTINE set_bc_aeropt_kinne (    current_date,                         &
           & zf,                     dz,                                   &
           & paer_tau_sw_vr,         paer_piz_sw_vr,     paer_cg_sw_vr,    &
           & paer_tau_lw_vr,                                               & 
-          & opt_use_acc                                                  )
+          & opt_use_acc, opt_from_yac )
 
   ! !INPUT PARAMETERS
 
@@ -360,6 +589,7 @@ SUBROUTINE set_bc_aeropt_kinne (    current_date,                         &
   REAL(wp),INTENT(out),DIMENSION(kbdim,klev,nb_lw):: &
    paer_tau_lw_vr      !aerosol optical depth (far IR)
   LOGICAL, INTENT(IN), OPTIONAL                          :: opt_use_acc
+  LOGICAL, INTENT(IN), OPTIONAL                          :: opt_from_yac
 
 ! !LOCAL VARIABLES
   
@@ -380,9 +610,13 @@ SUBROUTINE set_bc_aeropt_kinne (    current_date,                         &
                                        ! on echam grid (coarse and fine mode)
   INTEGER                           :: kindex ! index field
   TYPE(t_time_interpolation_weights) :: tiw
-  LOGICAL :: use_acc   = .FALSE.  ! Default: no acceleration
+  LOGICAL :: use_acc  = .FALSE.        ! Default: no acceleration
+  LOGICAL :: from_yac = .FALSE.        ! Default: aerosol from interpolated files
+
+  REAL(wp), ALLOCATABLE, SAVE       :: yac_recv_buf(:,:)           ! (nbr_hor_cells, levels)
 
   IF (PRESENT(opt_use_acc)) use_acc = opt_use_acc
+  IF (PRESENT(opt_from_yac)) from_yac = opt_from_yac
 
   tiw = calculate_time_interpolation_weights(current_date)
 
@@ -414,20 +648,35 @@ SUBROUTINE set_bc_aeropt_kinne (    current_date,                         &
   zq_aod_c(jcs:kproma,1:klev)=0._wp
   !$ACC END KERNELS
 
-  !$ACC PARALLEL LOOP DEFAULT(PRESENT) FIRSTPRIVATE(tiw) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(use_acc)
-  DO jk=1,klev
-     DO jl=jcs,kproma
+  IF ( from_yac ) THEN
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) FIRSTPRIVATE(tiw) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(use_acc)
+    DO jk=1,klev
+      DO jl=jcs,kproma
         kindex = MAX(INT(zh_vr(jl,jk)*rdz_clim+0.5_wp),1)
         IF (kindex > 0 .and. kindex <= lev_clim ) THEN
-           zq_aod_c(jl,jk)= &
-             & ext_aeropt_kinne(jg)% z_km_aer_c_mo(jl,kindex,krow,tiw%month1_index)*tiw%weight1+ &
-             & ext_aeropt_kinne(jg)% z_km_aer_c_mo(jl,kindex,krow,tiw%month2_index)*tiw%weight2
-           zq_aod_f(jl,jk)= &
-             & ext_aeropt_kinne(jg)% z_km_aer_f_mo(jl,kindex,krow,tiw%month1_index)*tiw%weight1+ &
-             & ext_aeropt_kinne(jg)% z_km_aer_f_mo(jl,kindex,krow,tiw%month2_index)*tiw%weight2
+          zq_aod_c(jl,jk)= &
+            & ext_aeropt_kinne(jg)% z_km_aer_c_mo(jl,kindex,krow,1)
+          zq_aod_f(jl,jk)= &
+            & ext_aeropt_kinne(jg)% z_km_aer_f_mo(jl,kindex,krow,1)
         END IF
-     END DO
-  END DO
+      END DO
+    END DO
+  ELSE
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) FIRSTPRIVATE(tiw) GANG VECTOR COLLAPSE(2) ASYNC(1) IF(use_acc)
+    DO jk=1,klev
+      DO jl=jcs,kproma
+        kindex = MAX(INT(zh_vr(jl,jk)*rdz_clim+0.5_wp),1)
+        IF (kindex > 0 .and. kindex <= lev_clim ) THEN
+          zq_aod_c(jl,jk)= &
+            & ext_aeropt_kinne(jg)% z_km_aer_c_mo(jl,kindex,krow,tiw%month1_index)*tiw%weight1+ &
+            & ext_aeropt_kinne(jg)% z_km_aer_c_mo(jl,kindex,krow,tiw%month2_index)*tiw%weight2
+          zq_aod_f(jl,jk)= &
+            & ext_aeropt_kinne(jg)% z_km_aer_f_mo(jl,kindex,krow,tiw%month1_index)*tiw%weight1+ &
+            & ext_aeropt_kinne(jg)% z_km_aer_f_mo(jl,kindex,krow,tiw%month2_index)*tiw%weight2
+        END IF
+      END DO
+    END DO
+  END IF
   
 ! normalize height profile for coarse mode
   !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(use_acc)
@@ -486,8 +735,13 @@ SUBROUTINE set_bc_aeropt_kinne (    current_date,                         &
 
 ! (iii) far infrared
   !$ACC KERNELS DEFAULT(PRESENT) COPYIN(tiw) ASYNC(1) IF(use_acc)
-  zs_i(jcs:kproma,1:nb_lw)=1._wp-(tiw%weight1*ext_aeropt_kinne(jg)% ssa_c_f(jcs:kproma,1:nb_lw,krow,tiw%month1_index)+ &
-                                  tiw%weight2*ext_aeropt_kinne(jg)% ssa_c_f(jcs:kproma,1:nb_lw,krow,tiw%month2_index))
+  IF ( from_yac ) THEN
+     zs_i(jcs:kproma,1:nb_lw)=1._wp-ext_aeropt_kinne(jg)%ssa_c_f(jcs:kproma,1:nb_lw,krow,1)
+  ELSE
+     zs_i(jcs:kproma,1:nb_lw)=1._wp-(tiw%weight1*ext_aeropt_kinne(jg)% ssa_c_f(jcs:kproma,1:nb_lw,krow,tiw%month1_index)+ &
+                                     tiw%weight2*ext_aeropt_kinne(jg)% ssa_c_f(jcs:kproma,1:nb_lw,krow,tiw%month2_index))
+  END IF
+
   !$ACC END KERNELS
   !$ACC PARALLEL LOOP DEFAULT(PRESENT) FIRSTPRIVATE(tiw) GANG VECTOR COLLAPSE(3) ASYNC(1) IF(use_acc)
   DO jk=1,klev
@@ -496,31 +750,49 @@ SUBROUTINE set_bc_aeropt_kinne (    current_date,                         &
            !
            ! ATTENTION: The output data in paer_tau_lw_vr are stored with indices 1:kproma-jcs+1
            !
-           paer_tau_lw_vr(jl-jcs+1,jk,jwl)=zq_aod_c(jl,jk) * &
-                 zs_i(jl,jwl) * &
-                 (tiw%weight1*ext_aeropt_kinne(jg)% aod_c_f(jl,jwl,krow,tiw%month1_index) + &
-                 tiw%weight2*ext_aeropt_kinne(jg)% aod_c_f(jl,jwl,krow,tiw%month2_index))
+           IF ( from_yac ) THEN
+              paer_tau_lw_vr(jl-jcs+1,jk,jwl)=zq_aod_c(jl,jk) * &
+                   zs_i(jl,jwl) * &
+                   ext_aeropt_kinne(jg)% aod_c_f(jl,jwl,krow,1)
+           ELSE
+              paer_tau_lw_vr(jl-jcs+1,jk,jwl)=zq_aod_c(jl,jk) * &
+                    zs_i(jl,jwl) * &
+                    (tiw%weight1*ext_aeropt_kinne(jg)% aod_c_f(jl,jwl,krow,tiw%month1_index) + &
+                    tiw%weight2*ext_aeropt_kinne(jg)% aod_c_f(jl,jwl,krow,tiw%month2_index))
+           END IF
         END DO
      END DO
   END DO
-  
+
 ! (iv) solar radiation
 ! time interpolated single scattering albedo (omega_f, omega_c)
   !$ACC KERNELS DEFAULT(PRESENT) COPYIN(tiw) ASYNC(1) IF(use_acc)
-  zs_c(jcs:kproma,1:nb_sw) = tiw%weight1*ext_aeropt_kinne(jg)% ssa_c_s(jcs:kproma,1:nb_sw,krow,tiw%month1_index) + &
-                             tiw%weight2*ext_aeropt_kinne(jg)% ssa_c_s(jcs:kproma,1:nb_sw,krow,tiw%month2_index)
-  zs_f(jcs:kproma,1:nb_sw) = tiw%weight1*ext_aeropt_kinne(jg)% ssa_f_s(jcs:kproma,1:nb_sw,krow,tiw%month1_index) + &
-                             tiw%weight2*ext_aeropt_kinne(jg)% ssa_f_s(jcs:kproma,1:nb_sw,krow,tiw%month2_index)
-! time interpolated asymmetry factor (g_c, g_{n,a})
-  zg_c(jcs:kproma,1:nb_sw) = tiw%weight1*ext_aeropt_kinne(jg)% asy_c_s(jcs:kproma,1:nb_sw,krow,tiw%month1_index) + &
-                             tiw%weight2*ext_aeropt_kinne(jg)% asy_c_s(jcs:kproma,1:nb_sw,krow,tiw%month2_index)
-  zg_f(jcs:kproma,1:nb_sw) = tiw%weight1*ext_aeropt_kinne(jg)% asy_f_s(jcs:kproma,1:nb_sw,krow,tiw%month1_index) + &
-                             tiw%weight2*ext_aeropt_kinne(jg)% asy_f_s(jcs:kproma,1:nb_sw,krow,tiw%month2_index)
-! time interpolated aerosol optical depths
-  zt_c(jcs:kproma,1:nb_sw) = tiw%weight1*ext_aeropt_kinne(jg)% aod_c_s(jcs:kproma,1:nb_sw,krow,tiw%month1_index) + &
-                             tiw%weight2*ext_aeropt_kinne(jg)% aod_c_s(jcs:kproma,1:nb_sw,krow,tiw%month2_index)
-  zt_f(jcs:kproma,1:nb_sw) = tiw%weight1*ext_aeropt_kinne(jg)% aod_f_s(jcs:kproma,1:nb_sw,krow,tiw%month1_index) + &
-                             tiw%weight2*ext_aeropt_kinne(jg)% aod_f_s(jcs:kproma,1:nb_sw,krow,tiw%month2_index)
+  IF ( from_yac ) THEN
+     zs_c(jcs:kproma,1:nb_sw) = ext_aeropt_kinne(jg)% ssa_c_s(jcs:kproma,1:nb_sw,krow,1)
+     zs_f(jcs:kproma,1:nb_sw) = ext_aeropt_kinne(jg)% ssa_f_s(jcs:kproma,1:nb_sw,krow,1)
+   ! time interpolated asymmetry factor (g_c, g_{n,a})
+     zg_c(jcs:kproma,1:nb_sw) = ext_aeropt_kinne(jg)% asy_c_s(jcs:kproma,1:nb_sw,krow,1)
+     zg_f(jcs:kproma,1:nb_sw) = ext_aeropt_kinne(jg)% asy_f_s(jcs:kproma,1:nb_sw,krow,1)
+   ! time interpolated aerosol optical depths
+     zt_c(jcs:kproma,1:nb_sw) = ext_aeropt_kinne(jg)% aod_c_s(jcs:kproma,1:nb_sw,krow,1)
+     zt_f(jcs:kproma,1:nb_sw) = ext_aeropt_kinne(jg)% aod_f_s(jcs:kproma,1:nb_sw,krow,1)
+  ELSE
+     zs_c(jcs:kproma,1:nb_sw) = tiw%weight1*ext_aeropt_kinne(jg)% ssa_c_s(jcs:kproma,1:nb_sw,krow,tiw%month1_index) + &
+                                tiw%weight2*ext_aeropt_kinne(jg)% ssa_c_s(jcs:kproma,1:nb_sw,krow,tiw%month2_index)
+     zs_f(jcs:kproma,1:nb_sw) = tiw%weight1*ext_aeropt_kinne(jg)% ssa_f_s(jcs:kproma,1:nb_sw,krow,tiw%month1_index) + &
+                                tiw%weight2*ext_aeropt_kinne(jg)% ssa_f_s(jcs:kproma,1:nb_sw,krow,tiw%month2_index)
+   ! time interpolated asymmetry factor (g_c, g_{n,a})
+     zg_c(jcs:kproma,1:nb_sw) = tiw%weight1*ext_aeropt_kinne(jg)% asy_c_s(jcs:kproma,1:nb_sw,krow,tiw%month1_index) + &
+                                tiw%weight2*ext_aeropt_kinne(jg)% asy_c_s(jcs:kproma,1:nb_sw,krow,tiw%month2_index)
+     zg_f(jcs:kproma,1:nb_sw) = tiw%weight1*ext_aeropt_kinne(jg)% asy_f_s(jcs:kproma,1:nb_sw,krow,tiw%month1_index) + &
+                                tiw%weight2*ext_aeropt_kinne(jg)% asy_f_s(jcs:kproma,1:nb_sw,krow,tiw%month2_index)
+   ! time interpolated aerosol optical depths
+     zt_c(jcs:kproma,1:nb_sw) = tiw%weight1*ext_aeropt_kinne(jg)% aod_c_s(jcs:kproma,1:nb_sw,krow,tiw%month1_index) + &
+                                tiw%weight2*ext_aeropt_kinne(jg)% aod_c_s(jcs:kproma,1:nb_sw,krow,tiw%month2_index)
+     zt_f(jcs:kproma,1:nb_sw) = tiw%weight1*ext_aeropt_kinne(jg)% aod_f_s(jcs:kproma,1:nb_sw,krow,tiw%month1_index) + &
+                                tiw%weight2*ext_aeropt_kinne(jg)% aod_f_s(jcs:kproma,1:nb_sw,krow,tiw%month2_index)
+  END IF
+
   !$ACC END KERNELS
   
 ! height interpolation

@@ -7,43 +7,50 @@ script_dir=$(cd "$(dirname "$0")"; pwd)
 icon_dir=$(cd "${script_dir}/../.."; pwd)
 
 ################################################################################
+function addPrefixToBuild() {
+  local _prefix="$1"
+
+  if test -d "${_prefix}"; then
+    _prefix=$(cd "${_prefix}"; pwd)
+    echo "INFO: ICON dependencies are expected in '${_prefix}'"
+    if test -d "${_prefix}/include"; then
+      CPPFLAGS="${CPPFLAGS-} -I${_prefix}/include"
+      FCFLAGS="${FCFLAGS-} -I${_prefix}/include"
+    fi
+    if test -d "${_prefix}/include/libxml2"; then
+      CPPFLAGS="${CPPFLAGS-} -I${_prefix}/include/libxml2"
+    fi
+    if test -d "${_prefix}/lib64"; then
+      LDFLAGS="-L${_prefix}/lib64"
+      BUILD_ENV="${BUILD_ENV-} export LD_LIBRARY_PATH=\"${_prefix}/lib64:\${LD_LIBRARY_PATH}\";"
+    fi
+    if test -d "${_prefix}/lib"; then
+      LDFLAGS="${LDFLAGS-} -L${_prefix}/lib"
+      BUILD_ENV="${BUILD_ENV-} export LD_LIBRARY_PATH=\"${_prefix}/lib:\${LD_LIBRARY_PATH}\";"
+    fi
+    if test -d "${_prefix}/bin"; then
+      BUILD_ENV="${BUILD_ENV-} export PATH=\"${_prefix}/bin:\${PATH}\";"
+    fi
+  else
+    # Most probably, this will fail because the compiler will not be able to find
+    # Fortran module files even if they are installed to a standard directory.
+    echo "WARNING: directory '${_prefix}' not found: \
+      set environment variable ICON_SW_PREFIX to the directory with ICON dependencies (NetCDF, LAPACK, etc.)" >&2
+  fi
+}
+################################################################################
 
 if test -z "${ICON_SW_PREFIX-}"; then
   case $(uname -s) in
     Darwin)
       # Assume that the packages are installed to '/opt/local' (default for MacPorts)
-      ICON_SW_PREFIX='/opt/local' ;;
+      addPrefixToBuild '/opt/local'
+      addPrefixToBuild "${HOME}/.local"
+      ;;
     *)
-      ICON_SW_PREFIX='/usr' ;;
+      addPrefixToBuild '/usr'
+      ;;
   esac
-fi
-
-if test -d "${ICON_SW_PREFIX}"; then
-  ICON_SW_PREFIX=$(cd "${ICON_SW_PREFIX}"; pwd)
-  echo "INFO: ICON dependencies are expected in '${ICON_SW_PREFIX}'"
-  if test -d "${ICON_SW_PREFIX}/include"; then
-    CPPFLAGS="-I${ICON_SW_PREFIX}/include"
-    FCFLAGS="-I${ICON_SW_PREFIX}/include"
-  fi
-  if test -d "${ICON_SW_PREFIX}/include/libxml2"; then
-    CPPFLAGS="${CPPFLAGS-} -I${ICON_SW_PREFIX}/include/libxml2"
-  fi
-  if test -d "${ICON_SW_PREFIX}/lib64"; then
-    LDFLAGS="-L${ICON_SW_PREFIX}/lib64"
-    BUILD_ENV="${BUILD_ENV-} export LD_LIBRARY_PATH=\"${ICON_SW_PREFIX}/lib64:\${LD_LIBRARY_PATH}\";"
-  fi
-  if test -d "${ICON_SW_PREFIX}/lib"; then
-    LDFLAGS="${LDFLAGS-} -L${ICON_SW_PREFIX}/lib"
-    BUILD_ENV="${BUILD_ENV-} export LD_LIBRARY_PATH=\"${ICON_SW_PREFIX}/lib:\${LD_LIBRARY_PATH}\";"
-  fi
-  if test -d "${ICON_SW_PREFIX}/bin"; then
-    BUILD_ENV="${BUILD_ENV-} export PATH=\"${ICON_SW_PREFIX}/bin:\${PATH}\";"
-  fi
-else
-  # Most probably, this will fail because the compiler will not be able to find
-  # Fortran module files even if they are installed to a standard directory.
-  echo "WARNING: directory '${ICON_SW_PREFIX}' not found: \
-set environment variable ICON_SW_PREFIX to the directory with ICON dependencies (NetCDF, LAPACK, etc.)" >&2
 fi
 
 ################################################################################
@@ -63,6 +70,9 @@ BLAS_LAPACK_LIBS='-llapack -lblas'
 # Libxml2
 XML2_LIBS='-lxml2'
 
+# libfyaml
+FYAML_LIBS='-lfyaml'
+
 ################################################################################
 
 BUILD_ENV="${BUILD_ENV-}"
@@ -81,7 +91,7 @@ FCFLAGS="${FCFLAGS-} -fmodule-private -fimplicit-none -fmax-identifier-length=63
 ICON_FCFLAGS='-std=legacy'
 
 LDFLAGS="${LDFLAGS-}"
-LIBS="${XML2_LIBS} ${BLAS_LAPACK_LIBS} ${GRIB2_LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS}"
+LIBS="${FYAML_LIBS} ${XML2_LIBS} ${BLAS_LAPACK_LIBS} ${GRIB2_LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS}"
 
 MPI_LAUNCH='mpiexec'
 

@@ -77,7 +77,7 @@ MODULE mo_nwp_ocean_interface
     & CPF_CO2_FLX, CPF_CO2_VMR, CPF_FRESHFLX, CPF_HEATFLX, CPF_OCE_U,       &
     & CPF_OCE_V, CPF_PRES_MSL, CPF_SEAICE_ATM, CPF_SEAICE_OCE, CPF_SP10M,   &
     & CPF_SST, CPF_UMFL, CPF_VMFL
-  USE mo_yac_finterface      ,ONLY: yac_fput, yac_fget, yac_r8_ptr,         &
+  USE mo_yac_finterface      ,ONLY: yac_fput, yac_fget, yac_dble_ptr,         &
     &                               YAC_ACTION_COUPLING, YAC_ACTION_OUT_OF_BOUND
 #endif
 
@@ -339,11 +339,11 @@ CONTAINS
     INTEGER               :: info, ierror          ! return values from cpl_put/get calls
     INTEGER               :: i_startblk, i_endblk  ! blocks
     INTEGER               :: i_startidx, i_endidx  ! slices
-    INTEGER               :: n_cells               ! total number of cells
 
     REAL(wp), TARGET      :: buf(nproma, p_patch%nblks_c)
+
 #ifdef YAC_coupling
-    TYPE(yac_r8_ptr)      :: ptrs(1,4)
+    TYPE(yac_dble_ptr)    :: ptrs(1,4)
 #endif
 
     REAL(wp), PARAMETER   :: csmall = 1.0E-5_wp    ! small number (security constant)
@@ -365,8 +365,6 @@ CONTAINS
     !$OMP END PARALLEL
 
     jg = p_patch%id
-
-    n_cells = nproma * p_patch%nblks_c
 
     i_startblk = p_patch%cells%start_block(start_prog_cells)
     i_endblk   = p_patch%cells%end_block(end_prog_cells)
@@ -408,8 +406,8 @@ CONTAINS
     !    - zonal wind stress component over ice and water
     !------------------------------------------------
 
-    ptrs(1,1)%p(1:n_cells) => tx%umfl_s_w
-    ptrs(1,2)%p(1:n_cells) => tx%umfl_s_i
+    ptrs(1,1)%p(1:p_patch%n_patch_cells) => tx%umfl_s_w
+    ptrs(1,2)%p(1:p_patch%n_patch_cells) => tx%umfl_s_i
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
     CALL put_ (CPF_UMFL, ptrs(:,1:2), info=info, ierror=ierror)
@@ -423,8 +421,8 @@ CONTAINS
     !    - meridional wind stress component over ice and water
     !------------------------------------------------
 
-    ptrs(1,1)%p(1:n_cells) => tx%vmfl_s_w
-    ptrs(1,2)%p(1:n_cells) => tx%vmfl_s_i
+    ptrs(1,1)%p(1:p_patch%n_patch_cells) => tx%vmfl_s_w
+    ptrs(1,2)%p(1:p_patch%n_patch_cells) => tx%vmfl_s_i
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
     CALL put_ (CPF_VMFL, ptrs(:,1:2), info=info, ierror=ierror)
@@ -466,9 +464,9 @@ CONTAINS
       CALL dbg_print('NWPOce: evapo-cpl', buf, str_module, 3, in_subset=p_patch%cells%owned)
     END IF
 
-    ptrs(1,1)%p(1:n_cells) => tx%rain_rate
-    ptrs(1,2)%p(1:n_cells) => tx%snow_rate
-    ptrs(1,3)%p(1:n_cells) => buf
+    ptrs(1,1)%p(1:p_patch%n_patch_cells) => tx%rain_rate
+    ptrs(1,2)%p(1:p_patch%n_patch_cells) => tx%snow_rate
+    ptrs(1,3)%p(1:p_patch%n_patch_cells) => buf
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
     CALL put_ (CPF_FRESHFLX, ptrs(:,1:3), info=info, ierror=ierror)
@@ -482,10 +480,10 @@ CONTAINS
     !    - short wave, long wave, sensible, latent heat flux
     !------------------------------------------------
 
-    ptrs(1,1)%p(1:n_cells) => tx%swflxsfc_w
-    ptrs(1,2)%p(1:n_cells) => tx%lwflxsfc_w
-    ptrs(1,3)%p(1:n_cells) => tx%shfl_s_w
-    ptrs(1,4)%p(1:n_cells) => tx%lhfl_s_w
+    ptrs(1,1)%p(1:p_patch%n_patch_cells) => tx%swflxsfc_w
+    ptrs(1,2)%p(1:p_patch%n_patch_cells) => tx%lwflxsfc_w
+    ptrs(1,3)%p(1:p_patch%n_patch_cells) => tx%shfl_s_w
+    ptrs(1,4)%p(1:p_patch%n_patch_cells) => tx%lhfl_s_w
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
     CALL put_ (CPF_HEATFLX, ptrs(:,1:4), info=info, ierror=ierror)
@@ -511,8 +509,8 @@ CONTAINS
       ENDDO
     ENDDO
 
-    ptrs(1,1)%p(1:n_cells) => buf
-    ptrs(1,2)%p(1:n_cells) => tx%chfl_i
+    ptrs(1,1)%p(1:p_patch%n_patch_cells) => buf
+    ptrs(1,2)%p(1:p_patch%n_patch_cells) => tx%chfl_i
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
     CALL put_ (CPF_SEAICE_ATM, ptrs(:,1:2), info=info, ierror=ierror)
@@ -526,7 +524,7 @@ CONTAINS
     !    - atmospheric wind speed
     !------------------------------------------------
 
-    ptrs(1,1)%p(1:n_cells) => tx%sp_10m
+    ptrs(1,1)%p(1:p_patch%n_patch_cells) => tx%sp_10m
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
     CALL put_ (CPF_SP10M, ptrs(:,1:1), info=info, ierror=ierror)
@@ -543,7 +541,7 @@ CONTAINS
     !      * it calculated the hydrostatic surface pressure with less noise
     !------------------------------------------------
 
-    ptrs(1,1)%p(1:n_cells) => tx%pres_sfc
+    ptrs(1,1)%p(1:p_patch%n_patch_cells) => tx%pres_sfc
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
     CALL put_ (CPF_PRES_MSL, ptrs(:,1:1), info=info, ierror=ierror)
@@ -600,7 +598,7 @@ CONTAINS
 
       END SELECT
 
-      ptrs(1,1)%p(1:n_cells) => buf
+      ptrs(1,1)%p(1:p_patch%n_patch_cells) => buf
 
       IF (ltimer) CALL timer_start(timer_coupling_put)
       CALL put_ (CPF_CO2_VMR, ptrs(:,1:1), info=info, ierror=ierror)
@@ -634,7 +632,7 @@ CONTAINS
       CALL timer_start(timer_coupling_1stget)
     ENDIF
 
-    ptrs(1,1)%p(1:n_cells) => rx%t_seasfc
+    ptrs(1,1)%p(1:p_patch%n_patch_cells) => rx%t_seasfc
 
     CALL get_ (CPF_SST, ptrs(:,1:1), info=info, ierror=ierror)
 
@@ -654,7 +652,7 @@ CONTAINS
     !------------------------------------------------
 
     IF (ASSOCIATED(rx%ocean_u)) THEN
-      ptrs(1,1)%p(1:n_cells) => rx%ocean_u
+      ptrs(1,1)%p(1:p_patch%n_patch_cells) => rx%ocean_u
 
       IF (ltimer) CALL timer_start(timer_coupling_get)
       CALL get_ (CPF_OCE_U, ptrs(:,1:1), info=info, ierror=ierror)
@@ -671,7 +669,7 @@ CONTAINS
     !------------------------------------------------
 
     IF (ASSOCIATED(rx%ocean_v)) THEN
-      ptrs(1,1)%p(1:n_cells) => rx%ocean_v
+      ptrs(1,1)%p(1:p_patch%n_patch_cells) => rx%ocean_v
 
       IF (ltimer) CALL timer_start(timer_coupling_get)
       CALL get_ (CPF_OCE_V, ptrs(:,1:1), info=info, ierror=ierror)
@@ -686,9 +684,9 @@ CONTAINS
     !    - ice thickness, snow thickness, ice concentration
     !------------------------------------------------
 
-    ptrs(1,1)%p(1:n_cells) => rx%h_ice
-    ptrs(1,2)%p(1:n_cells) => buf ! unused snow thickness
-    ptrs(1,3)%p(1:n_cells) => rx%fr_seaice
+    ptrs(1,1)%p(1:p_patch%n_patch_cells) => rx%h_ice
+    ptrs(1,2)%p(1:p_patch%n_patch_cells) => buf ! unused snow thickness
+    ptrs(1,3)%p(1:p_patch%n_patch_cells) => rx%fr_seaice
 
     IF (ltimer) CALL timer_start(timer_coupling_get)
     CALL get_ (CPF_SEAICE_OCE, ptrs(:,1:3), info=info, ierror=ierror)
@@ -723,7 +721,7 @@ CONTAINS
 
     IF (ccycle_config(jg)%iccycle /= CCYCLE_MODE_NONE .AND. ASSOCIATED(rx%flx_co2)) THEN
 
-      ptrs(1,1)%p(1:n_cells) => rx%flx_co2
+      ptrs(1,1)%p(1:p_patch%n_patch_cells) => rx%flx_co2
 
       IF (ltimer) CALL timer_start(timer_coupling_get)
       CALL get_ (CPF_CO2_FLX, ptrs(:,1:1), info=info, ierror=ierror)
@@ -793,7 +791,7 @@ CONTAINS
 
     SUBROUTINE put_ (field_key, send_field, info, ierror)
       INTEGER, INTENT(IN) :: field_key
-      TYPE(yac_r8_ptr), INTENT(IN) :: send_field(:,:)
+      TYPE(yac_dble_ptr), INTENT(IN) :: send_field(:,:)
       INTEGER, INTENT(OUT) :: info
       INTEGER, INTENT(OUT) :: ierror
 
@@ -810,7 +808,7 @@ CONTAINS
 
     SUBROUTINE get_ (field_key, recv_field, info, ierror)
       INTEGER, INTENT(IN) :: field_key
-      TYPE(yac_r8_ptr), INTENT(IN) :: recv_field(:,:)
+      TYPE(yac_dble_ptr), INTENT(IN) :: recv_field(:,:)
       INTEGER, INTENT(OUT) :: info
       INTEGER, INTENT(OUT) :: ierror
 

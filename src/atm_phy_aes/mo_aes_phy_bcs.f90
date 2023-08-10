@@ -336,19 +336,22 @@ CONTAINS
              & .OR. aes_rad_config(jg)% irad_o3 ==  6 &       ! climatological annual cycle defined by monthly data
              & .OR. aes_rad_config(jg)% irad_o3 ==  5 &       ! transient monthly means
              & .OR. aes_rad_config(jg)% irad_o3 == 10 ) THEN  ! coupled to ART
-          CALL read_bc_ozone(mtime_old%date%year, patch, aes_rad_config(jg)%irad_o3)
+          CALL read_bc_ozone(mtime_old%date%year, patch, aes_rad_config(jg)%irad_o3,   &
+      &                      opt_from_yac=aes_rad_config(jg)%lrad_yac)
         END IF
         !
         ! tropospheric aerosol optical properties after S. Kinne
         IF (aes_rad_config(jg)% irad_aero == 12) THEN
           l_filename_year = .FALSE.
-          CALL read_bc_aeropt_kinne(mtime_old, patch, l_filename_year, nbndlw, nbndsw)
+          CALL read_bc_aeropt_kinne(mtime_old, patch, l_filename_year, nbndlw, nbndsw, &
+      &                             opt_from_yac=aes_rad_config(jg)%lrad_yac)
         END IF
         !
         ! tropospheric aerosol optical properties after S. Kinne
         IF (aes_rad_config(jg)% irad_aero == 13) THEN
           l_filename_year = .TRUE.
-          CALL read_bc_aeropt_kinne(mtime_old, patch, l_filename_year, nbndlw, nbndsw)
+          CALL read_bc_aeropt_kinne(mtime_old, patch, l_filename_year, nbndlw, nbndsw, &
+      &                             opt_from_yac=aes_rad_config(jg)%lrad_yac)
         END IF
         !
         ! stratospheric aerosol optical properties
@@ -359,7 +362,8 @@ CONTAINS
         ! tropospheric aerosols after S. Kinne and stratospheric aerosol optical properties
         IF (aes_rad_config(jg)% irad_aero == 15) THEN
           l_filename_year = .TRUE.
-          CALL read_bc_aeropt_kinne     (mtime_old, patch, l_filename_year, nbndlw, nbndsw)
+          CALL read_bc_aeropt_kinne     (mtime_old, patch, l_filename_year, nbndlw, nbndsw, &
+      &                                  opt_from_yac=aes_rad_config(jg)%lrad_yac)
           CALL read_bc_aeropt_cmip6_volc(mtime_old, nbndlw, nbndsw)
           CALL read_bc_aeropt_stenchikov(mtime_old, patch)
         END IF
@@ -369,7 +373,8 @@ CONTAINS
         ! here, initialization see init_aes_phy (mo_aes_phy_init)) 
         IF (aes_rad_config(jg)% irad_aero == 18) THEN
           l_filename_year = .FALSE.
-          CALL read_bc_aeropt_kinne     (mtime_old, patch, l_filename_year, nbndlw, nbndsw)
+          CALL read_bc_aeropt_kinne     (mtime_old, patch, l_filename_year, nbndlw, nbndsw, &
+      &                                  opt_from_yac=aes_rad_config(jg)%lrad_yac)
           CALL read_bc_aeropt_stenchikov(mtime_old, patch)
         END IF
         ! tropospheric background aerosols (Kinne), no stratospheric
@@ -377,7 +382,8 @@ CONTAINS
         ! here, initialization see init_aes_phy (mo_aes_phy_init)) 
         IF (aes_rad_config(jg)% irad_aero == 19) THEN
           l_filename_year = .FALSE.
-          CALL read_bc_aeropt_kinne     (mtime_old, patch, l_filename_year, nbndlw, nbndsw)
+          CALL read_bc_aeropt_kinne     (mtime_old, patch, l_filename_year, nbndlw, nbndsw, &
+      &                                  opt_from_yac=aes_rad_config(jg)%lrad_yac)
         END IF
         !
         ! greenhouse gas concentrations, assumed constant in horizontal dimensions

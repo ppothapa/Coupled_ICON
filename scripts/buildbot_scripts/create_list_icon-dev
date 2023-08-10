@@ -20,7 +20,7 @@ listname=${1:-icon-dev}
 # temporary set nvhpc builder to Inactive, because they
 # should not run all tests added to levante below
 # their tests will be set up separately
-./set_builder_flags Inactive --builders 'levante_gpu_nvhpc levante_cpu_nvhpc' --list $listname
+./set_builder_flags Inactive --builders 'levante_aurora levante_gpu_nvhpc levante_cpu_nvhpc' --list $listname
 #-----------------------------------------------------------
 # AES
 # add qubicc tests incl. GRIB output to Levante only
@@ -56,6 +56,17 @@ $addexp "checksuite.icon-dev/check.atm_ape"               --machines "daint" --l
 
 # limitted area runs
 $addexp "checksuite.les/exp.ac3_les_20210211.run" --builders "levante_intel_hybrid" --list $listname
+
+
+# DWD wave model test on levante
+$addexp "checksuite.nwp/nwpexp.run_ICON_18_R2B4_waves"             --builders "levante_intel_hybrid levante_nag"  --list $listname
+$addexp "checksuite.nwp/nwpexp.run_ICON_21_R2B4_waves_standalone"  --builders "levante_intel_hybrid levante_nag"  --list $listname
+# DWD couplied test on levante
+$addexp "checksuite.infrastructure/coupling/exp.run_ICON_17_R2B4_AO_coupled_LEVANTE.run" --builders "levante_gcc levante_intel_hybrid" --list $listname
+
+# add bubble test
+#off#$addexp "checksuite.icon-dev/check.atm_2mom_bubble_rceTorus"               --list $listname
+#-----------------------------------------------------------
 
 #-----------------------------------------------------------
 # OES
@@ -93,29 +104,29 @@ $addexp "checksuite.ocean_internal/technical/exp.test_multioutput_model_40km" \
 ./rmexp checksuite.ocean_internal/technical/exp.test_ocean_omip_technical --builders "DAINT_GPU_nvidia" --list $listname
 
 # add tolerance check to CSCS builders
-$addexp "checksuite.icon-dev/check.mch_ch_lowres"                                 --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia balfrin_gpu_nvidia_mixed DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
-$addexp "checksuite.icon-dev/check.mch_opr_r04b07*"                               --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia balfrin_gpu_nvidia_mixed DAINT_CPU_nvidia DAINT_GPU_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
-$addexp "checksuite.icon-dev/check.mch_ch_r04b09_dace"                            --builders "balfrin_cpu_nvidia balfrin_gpu_nvidia DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
-$addexp "checksuite.icon-dev/check.mch_ch_r04b09_dace_synsat"                     --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
-$addexp "checksuite.icon-dev/check.exclaim_ape_R02B04"                            --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
-$addexp "checksuite.icon-dev/check.mch_opr_r19b07_lpi"                            --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia balfrin_gpu_nvidia_mixed DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
+$addexp "checksuite.icon-dev/check.mch_ch_lowres"                         --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia balfrin_gpu_nvidia_mixed DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
+$addexp "checksuite.icon-dev/check.mch_opr_r04b07*"                       --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia balfrin_gpu_nvidia_mixed DAINT_CPU_nvidia DAINT_GPU_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
+$addexp "checksuite.icon-dev/check.mch_ch_r04b09_dace"                    --builders "balfrin_cpu_nvidia balfrin_gpu_nvidia DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
+$addexp "checksuite.icon-dev/check.mch_ch_r04b09_dace_synsat"             --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
+$addexp "checksuite.icon-dev/check.exclaim_ape_R02B04"                    --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
+$addexp "checksuite.icon-dev/check.mch_opr_r19b07_lpi"                    --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia balfrin_gpu_nvidia_mixed DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 
-$addexp "checksuite.icon-dev/check.dwd_run_ICON_09_R2B4N5_EPS"                    --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
-$addexp "checksuite.icon-dev/check.mch_bench_r19b07_dev_sppt"                     --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia balfrin_gpu_nvidia_mixed DAINT_CPU_nvidia DAINT_GPU_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
-$addexp "checksuite.icon-dev/check.mch_pollen_test"                               --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia balfrin_gpu_nvidia_mixed" --list $listname
-./rmexp checksuite.icon-dev/check.mch_opr_r04b07_nest                             --builders "DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed"  --list $listname
-./rmexp checksuite.icon-dev/check.mch_opr_r04b07_performance                      --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
-./rmexp checksuite.icon-dev/check.mch_opr_r04b07_lhn_12_emvorado                  --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed balfrin_gpu_nvidia_mixed" --list $listname
+$addexp "checksuite.icon-dev/check.dwd_run_ICON_09_R2B4N5_EPS"            --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
+$addexp "checksuite.icon-dev/check.mch_bench_r19b07_dev_sppt"             --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia balfrin_gpu_nvidia_mixed DAINT_CPU_nvidia DAINT_GPU_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
+$addexp "checksuite.icon-dev/check.mch_pollen_test"                       --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia balfrin_gpu_nvidia_mixed" --list $listname
+./rmexp checksuite.icon-dev/check.mch_opr_r04b07_nest                     --builders "DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed"  --list $listname
+./rmexp checksuite.icon-dev/check.mch_opr_r04b07_performance              --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
+./rmexp checksuite.icon-dev/check.mch_opr_r04b07_lhn_12_emvorado          --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed balfrin_gpu_nvidia_mixed" --list $listname
+./rmexp checksuite.icon-dev/check.mch_opr_r04b07_sstice_inst              --builders "DAINT_GPU_nvidia_mixed" --list $listname # tolerance test fails because qv exceeds threshold (for the max statistic)
 
 # GPU builders explicitly turned off due to unresolved bug
-$addexp "checksuite.icon-dev/check.mch_opr_r19b07_midnight"                       --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed DAINT_CPU_nvidia" --list $listname
+$addexp "checksuite.icon-dev/check.mch_opr_r19b07_midnight"               --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed DAINT_CPU_nvidia" --list $listname
 # add tolerance check for 2-moment scheme
-$addexp "checksuite.icon-dev/check.mch_opr_r19b07_2m"                             --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia balfrin_gpu_nvidia_mixed DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
+$addexp "checksuite.icon-dev/check.mch_opr_r19b07_2m"                     --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia balfrin_gpu_nvidia_mixed DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 # add tolerance check for 2-moment scheme using gscp=5
-$addexp "checksuite.icon-dev/check.mch_opr_r19b07_2m_gscp5"                       --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
+$addexp "checksuite.icon-dev/check.mch_opr_r19b07_2m_gscp5"               --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 # add tolerance check for 3d-turbulence scheme
-$addexp "checksuite.icon-dev/check.mch_opr_r19b07_turb"                           --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia balfrin_gpu_nvidia_mixed DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
-
+$addexp "checksuite.icon-dev/check.mch_opr_r19b07_turb"                   --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia balfrin_gpu_nvidia_mixed DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 # add tracer only test to DAINT builders (for checking equivalence of vertical transport code for GPU vs CPU)
 $addexp checksuite.icon-dev/check.atm_tracer_Hadley                       --builders "DAINT_CPU_nvidia" --list $listname
 
@@ -181,7 +192,6 @@ $addexp checksuite.clm/clmexp.ICON_CLM                                    --buil
 
 #-----------------------------------------------------------
 # ICON Coupled Setups
-
 # Ruby0 coupled tests, only with mpi
 $addexp exp.esm_bb_ruby0 --without-configureflags "--without-mpi" --machines levante --runflags "cpu_time=00:10:00 no_of_nodes=4" --list $listname
 
@@ -249,7 +259,6 @@ $addexp "checksuite.icon-dev/check.atm_bubble_test" --builders 'levante_cpu_nvhp
 $addexp "checksuite.icon-dev/check.atm_bubble_land_test" --builders 'levante_gpu_nvhpc' --list $listname --runflags "mpi_procs_pernode=3"
 $addexp "checksuite.icon-dev/check.atm_bubble_land_test" --builders 'levante_cpu_nvhpc' --list $listname --runflags "queue=shared ntasks=16 memory=32G"
 
-
 # add tests for checking yaxt and yac stand-alone; this needs yaxt/yac to be enabled
 # Three YAXT tests (test_idxvec_run, test_idxstripes_run, test_perf_stripes_run) fail wih nfort-3.5.1
 # Until there is a fix, these tests are deactivated
@@ -257,8 +266,8 @@ $addexp "checksuite.icon-dev/check.atm_bubble_land_test" --builders 'levante_cpu
 $addexp  checksuite.infrastructure/checkExternals/exp.check_externals_LEVANTE.run --machines levante --list ${listname}
 
 # icon-clm tests
-$addexp checksuite.clm/clmexp.ICON_CLM --builders "levante_intel_hybrid" --list ${listname} --runflags="ntasks=32 queue=shared"
-$addexp checksuite.clm/clmexp.ICON_CLM --builders "DWD_nec_hybrid" --list ${listname}
+$addexp "checksuite.clm/clmexp.ICON_CLM" --builders "levante_intel_hybrid" --list ${listname} --runflags="ntasks=32 queue=shared"
+$addexp "checksuite.clm/clmexp.ICON_CLM" --builders "DWD_nec_hybrid" --list ${listname}
 $addexp "checksuite.clm/clmexp.ICON_CLM_global_mean_no_boundary" --builders "levante_intel_hybrid levante_gcc_hybrid" --list $listname
 
 # remove tests for NAG which are buggy or take too long
@@ -282,6 +291,11 @@ done
 # JSBACH-NWP test, has to be down here because the GPU builders get deactivated at the top and activated later.
 jsbach_nwp_builders='DWD_nec DWD_nec_hybrid levante_gcc levante_intel levante_gpu_nvhpc'
 $addexp checksuite.icon-dev/check.atm_nwp_jsbach_test --builders "${jsbach_nwp_builders}" --list $listname
+
+# aurora node at DKRZ - not in production,yet
+./set_builder_flags Active --builders 'levante_aurora' --list $listname
+$addexp "checksuite.infrastructure/aurora/exp.icon_esm_r2b4.run" --builders "levante_aurora" --list $listname
+$addexp "checksuite.infrastructure/aurora/exp.icon_atm_r2b4.run" --builders "levante_aurora" --list $listname
 
 #lets see the list
 ./lslist $listname

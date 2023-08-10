@@ -492,6 +492,7 @@ $(if [[ "x$BB_SYSTEM" != 'x' ]]
 #SBATCH --partition=$queue
 #SBATCH --chdir=$output_folder
 #SBATCH --nodes=$use_nodes
+#SBATCH --gpus-per-node=4
 #SBATCH --mem=0
 #SBATCH --output=$output_folder/$job_log_name.o
 #SBATCH --error=$output_folder/$job_log_name.o

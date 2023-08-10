@@ -25,7 +25,7 @@ MODULE mo_atmo_coupling_frame
 
   USE mo_parallel_config     ,ONLY: nproma
 
-  USE mo_run_config          ,ONLY: iforcing, ltimer
+  USE mo_run_config          ,ONLY: iforcing, ltimer, modelTimeStep
   USE mo_timer,               ONLY: timer_start, timer_stop, timer_coupling_init
 
   USE mo_impl_constants      ,ONLY: MAX_CHAR_LENGTH, inwp, iaes
@@ -40,6 +40,8 @@ MODULE mo_atmo_coupling_frame
   USE mo_parallel_config     ,ONLY: nproma
 
   USE mo_coupling_config     ,ONLY: is_coupled_run
+  USE mo_aes_rad_config      ,ONLY: aes_rad_config
+  USE mo_aes_phy_config      ,ONLY: aes_phy_config
   USE mo_time_config         ,ONLY: time_config
   USE mo_util_dbg_prnt       ,ONLY: dbg_print
 
@@ -49,8 +51,9 @@ MODULE mo_atmo_coupling_frame
     &                               yac_fdef_datetime, yac_fdef_grid,       &
     &                               yac_fdef_points, yac_fset_global_index, &
     &                               yac_fset_core_mask, yac_fdef_mask,      &
-    &                               yac_fdef_field_mask, yac_fsearch,       &
-    &                               YAC_LOCATION_CELL
+    &                               yac_fdef_field_mask, yac_fenddef,       &
+    &                               YAC_LOCATION_CELL, YAC_TIME_UNIT_ISO_FORMAT, &
+    &                               yac_fget_field_collection_size
 
   USE mtime                  ,ONLY: datetimeToString, MAX_DATETIME_STR_LEN
 
@@ -60,23 +63,10 @@ MODULE mo_atmo_coupling_frame
 
   CHARACTER(len=*), PARAMETER :: str_module = 'mo_atmo_coupling_frame' ! Output of module for debug
 
-  INTEGER, PARAMETER :: no_of_fields = 13
-  CHARACTER(len=*), PARAMETER :: field_name(no_of_fields) = [ CHARACTER(len=40) :: &
-      & "surface_downward_eastward_stress", &   ! bundled field containing two components
-      & "surface_downward_northward_stress", &  ! bundled field containing two components
-      & "surface_fresh_water_flux", &           ! bundled field containing three components
-      & "total_heat_flux", &                    ! bundled field containing four components
-      & "atmosphere_sea_ice_bundle", &          ! bundled field containing two components
-      & "sea_surface_temperature", &
-      & "eastward_sea_water_velocity", &
-      & "northward_sea_water_velocity", &
-      & "ocean_sea_ice_bundle", &               ! bundled field containing three components
-      & "10m_wind_speed", &
-      & "co2_mixing_ratio", &
-      & "co2_flux", &
-      & "sea_level_pressure" &
-    ]
+  INTEGER :: min_no_of_fields = 13
+  INTEGER :: max_no_of_fields = 24
 
+  ! These constants are only valid AFTER calling construct_atmo_coupling !
   INTEGER, PARAMETER :: CPF_UMFL = 1 !< Surface zonal stress for water and ice.
   INTEGER, PARAMETER :: CPF_VMFL = 2 !< Surface meridional stress for water and ice.
   INTEGER, PARAMETER :: CPF_FRESHFLX = 3 !< Fresh water flux (rain, snow, evap).
@@ -98,7 +88,7 @@ MODULE mo_atmo_coupling_frame
       & CPF_OCE_U, CPF_OCE_V, CPF_SEAICE_OCE, CPF_SP10M, CPF_CO2_VMR, CPF_CO2_FLX, &
       & CPF_PRES_MSL
 
-  INTEGER               :: field_id(no_of_fields)
+  INTEGER, ALLOCATABLE  :: field_id(:), tmp_field_id(:)
 
   INTEGER, SAVE         :: nbr_inner_cells
   INTEGER, SAVE         :: mask_checksum = -1
@@ -153,6 +143,13 @@ CONTAINS
     CHARACTER(LEN=MAX_DATETIME_STR_LEN) :: startdatestring
     CHARACTER(LEN=MAX_DATETIME_STR_LEN) :: stopdatestring
 
+    CHARACTER(len=40), ALLOCATABLE :: field_name(:)
+    INTEGER :: collection_size(max_no_of_fields)
+    INTEGER :: intermediate_no_of_fields
+
+    LOGICAL :: needs_o3_coupling = .FALSE.
+    LOGICAL :: needs_areo_coupling = .FALSE.
+
     ! Skip time measurement of the very first yac_fget
     ! as this will measure mainly the wait time caused
     ! by the initialisation of the model components
@@ -165,14 +162,51 @@ CONTAINS
 
     IF (ltimer) CALL timer_start (timer_coupling_init)
 
-    comp_name = TRIM(get_my_process_name())
+    ! setup default coupling fields {{{
+    ALLOCATE(field_name(max_no_of_fields))
+    ALLOCATE(field_id(min_no_of_fields))
+    field_name(CPF_UMFL)             = "surface_downward_eastward_stress"
+    collection_size(CPF_UMFL)        = 2
+
+    field_name(CPF_VMFL)             = "surface_downward_northward_stress"
+    collection_size(CPF_VMFL)        = 2
+
+    field_name(CPF_FRESHFLX)         = "surface_fresh_water_flux"
+    collection_size(CPF_FRESHFLX)    = 3
+
+    field_name(CPF_HEATFLX)          = "total_heat_flux"
+    collection_size(CPF_HEATFLX)     = 4
+
+    field_name(CPF_SEAICE_ATM)       = "atmosphere_sea_ice_bundle"
+    collection_size(CPF_SEAICE_ATM)  = 2
+
+    field_name(CPF_SST)              = "sea_surface_temperature"
+    collection_size(CPF_SST)         = 1
+
+    field_name(CPF_OCE_U)            = "eastward_sea_water_velocity"
+    collection_size(CPF_OCE_U)       = 1
+
+    field_name(CPF_OCE_V)            = "northward_sea_water_velocity"
+    collection_size(CPF_OCE_V)       = 1
+
+    field_name(CPF_SEAICE_OCE)       = "ocean_sea_ice_bundle"
+    collection_size(CPF_SEAICE_OCE)  = 3
+
+    field_name(CPF_SP10M)            = "10m_wind_speed"
+    collection_size(CPF_SP10M)       = 1
+
+    field_name(CPF_CO2_VMR)          = "co2_mixing_ratio"
+    collection_size(CPF_CO2_VMR)     = 1
+
+    field_name(CPF_CO2_FLX)          = "co2_flux"
+    collection_size(CPF_CO2_FLX)     = 1
+
+    field_name(CPF_PRES_MSL)         = "sea_level_pressure"
+    collection_size(CPF_PRES_MSL)    = 1
+    !}}}
 
     jg = 1
     patch_horz => p_patch(jg)
-
-    ! Inform the coupler about what we are
-    CALL yac_fdef_comp ( TRIM(comp_name), comp_id )
-    comp_ids(1) = comp_id
 
     ! Print the YAC version
     CALL message('Running ICON atmosphere in coupled mode with YAC version ', TRIM(yac_fget_version()) )
@@ -184,10 +218,15 @@ CONTAINS
     CALL yac_fdef_datetime ( start_datetime = TRIM(startdatestring), &
          &                   end_datetime   = TRIM(stopdatestring)   )
 
+    ! Inform the coupler about what we are
+    comp_name = TRIM(get_my_process_name())
+    CALL yac_fdef_comp ( TRIM(comp_name), comp_id )
+    comp_ids(1) = comp_id
+
     ! Announce one grid (patch) to the coupler
     grid_name = "icon_atmos_grid"
 
-    ! Extract cell information
+    ! Extract cell information {{{
     !
     ! cartesian coordinates of cell vertices are stored in
     ! patch_horz%verts%cartesian(:,:)%x(1:3)
@@ -292,7 +331,7 @@ CONTAINS
       & YAC_LOCATION_CELL,    &
       & grid_id )
 
-    !
+    ! }}}
     ! The integer land-sea mask:
     !          -2: inner ocean
     !          -1: boundary ocean
@@ -307,7 +346,7 @@ CONTAINS
     ! These points are not touched by yac.
     !
 
-    SELECT CASE( iforcing )
+    SELECT CASE( iforcing ) !{{{
 
       CASE ( inwp )
 
@@ -386,8 +425,7 @@ CONTAINS
           CALL finish ('Please mask handling for new forcing in ' &
             & //'src/coupling/mo_atmo_coupling_frame: construct_atmo_coupling. Thank you!')
 
-    END SELECT
-
+    END SELECT !}}}
 
     CALL yac_fdef_mask (          &
       & grid_id,                  &
@@ -396,15 +434,84 @@ CONTAINS
       & is_valid,                 &
       & cell_mask_ids(1) )
 
-    DO jc = 1, no_of_fields
+    CALL yac_fsync_def()
+
+    DO jc = 1, min_no_of_fields
       CALL yac_fdef_field_mask ( &
         & TRIM(field_name(jc)),  &
         & comp_id,               &
         & cell_point_ids,        &
         & cell_mask_ids(1),      &
         & 1,                     &
+        & collection_size(jc),   &
+        & modelTimeStep,         &
+        & YAC_TIME_UNIT_ISO_FORMAT, &
         & field_id(jc) )
     ENDDO
+
+    ! add Ozone data field if needed
+    needs_o3_coupling = (aes_rad_config(jg)%lrad_yac     .AND.  &
+                        & (aes_rad_config(jg)%irad_o3 == 5 .OR. &
+                        &  aes_rad_config(jg)%irad_o3 == 6))
+    IF  (needs_o3_coupling) THEN
+      ! enlarge the field_id array because it's public and ppl might want to use
+      ! its shape info for looping
+       ALLOCATE(tmp_field_id(min_no_of_fields+1))
+       tmp_field_id(1:min_no_of_fields) = field_id(1:min_no_of_fields)
+       CALL move_alloc(tmp_field_id, field_id)
+
+       field_name(min_no_of_fields+1) = "o3"
+       collection_size(min_no_of_fields+1) = &
+         & yac_fget_field_collection_size("o3_provider", "o3_grid", field_name(min_no_of_fields+1) )
+       CALL yac_fdef_field( &
+         & TRIM(field_name(min_no_of_fields+1)),  &
+         & comp_id,               &
+         & cell_point_ids,        &
+         & 1,                     &
+         & collection_size(min_no_of_fields+1),   &
+         & TRIM(aes_phy_config(jg)%dt_rad), &
+         & YAC_TIME_UNIT_ISO_FORMAT, &
+         & field_id(min_no_of_fields+1) )
+
+    END IF
+
+    needs_areo_coupling =  (aes_rad_config(jg)%lrad_yac        .AND.  &
+                           & (aes_rad_config(jg)%irad_aero == 12 .OR. &
+                           &  aes_rad_config(jg)%irad_aero == 13 .OR. &
+                           &  aes_rad_config(jg)%irad_aero == 15 .OR. &
+                           &  aes_rad_config(jg)%irad_aero == 18 .OR. &
+                           &  aes_rad_config(jg)%irad_aero == 19))
+    IF (needs_areo_coupling) THEN
+      intermediate_no_of_fields = MERGE(min_no_of_fields+1, min_no_of_fields, needs_o3_coupling)
+      field_name(intermediate_no_of_fields+1) = "aod_lw_b16_coa" !TODO 15, 16, ..., 24
+      field_name(intermediate_no_of_fields+2) = "ssa_lw_b16_coa"
+      field_name(intermediate_no_of_fields+3) = "aer_lw_b16_coa"
+      field_name(intermediate_no_of_fields+4) = "aod_sw_b14_coa"
+      field_name(intermediate_no_of_fields+5) = "ssa_sw_b14_coa"
+      field_name(intermediate_no_of_fields+6) = "asy_sw_b14_coa"
+      field_name(intermediate_no_of_fields+7) = "aod_sw_b14_fin"
+      field_name(intermediate_no_of_fields+8) = "ssa_sw_b14_fin"
+      field_name(intermediate_no_of_fields+9) = "asy_sw_b14_fin"
+      field_name(intermediate_no_of_fields+10)= "aer_sw_b14_fin"
+
+      ALLOCATE(tmp_field_id(max_no_of_fields))
+      tmp_field_id(1:intermediate_no_of_fields) = field_id(1:intermediate_no_of_fields)
+      CALL move_alloc(tmp_field_id, field_id)
+
+      DO jc = intermediate_no_of_fields+1, max_no_of_fields
+        collection_size(jc) = yac_fget_field_collection_size("aero_provider", "aero_grid", TRIM(field_name(jc)))
+        CALL yac_fdef_field( &
+          & TRIM(field_name(jc)),  &
+          & comp_id,               &
+          & cell_point_ids,        &
+          & 1,                     &
+          & collection_size(jc),   &
+          & TRIM(aes_phy_config(jg)%dt_rad), &
+          & YAC_TIME_UNIT_ISO_FORMAT, &
+          & field_id(jc) )
+      ENDDO
+
+    END IF
 
 #if !defined(__NO_JSBACH__) && !defined(__NO_JSBACH_HD__)
 
@@ -473,7 +580,7 @@ CONTAINS
 
     ! End definition of coupling fields and search
 
-    CALL yac_fsearch ( error_status )
+    CALL yac_fenddef ( )
 
     IF (ltimer) CALL timer_stop(timer_coupling_init)
 
@@ -481,4 +588,4 @@ CONTAINS
 
 END MODULE mo_atmo_coupling_frame
 
-
+!vim:fdm=marker

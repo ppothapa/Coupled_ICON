@@ -617,7 +617,11 @@ Selects source of aerosol types\\
 18: Kinne background aerosols (of natural origin, 1850) are set and Stenchikov's
 volcanic aerosols are added to Kinne background and Simple plumes are added \\
 aes\_phy\_config(jg)\% dt\_rad > 0.000s \tabularnewline
-
+%
+aes\_rad\_config(jg)\% lrad\_yac & L & .FALSE. & &
+.TRUE.: O3 and Kinne Aerosol is coupled via yac for \\
+irad\_aero 13, 15, 18, 19  and \\
+irad\_o3 4,5,6, \tabularnewline
 \end{longtab}
 
 %------------------------------------------------------------------------------
@@ -2264,11 +2268,12 @@ grf\_intmethod\_e&
 I& 6& &
 Interpolation method for grid refinement (edge-based variables):&
 n\_dom$>$1\tabularnewline
-& & & & 1: inverse-distance weighting (IDW) & \tabularnewline
+& & & & 1: (removed) & \tabularnewline
 & & & & 2: RBF interpolation & \tabularnewline
-& & & & 3: combination gradient-based / IDW & \tabularnewline
+& & & & 3: (removed) & \tabularnewline
 & & & & 4: combination gradient-based / RBF & \tabularnewline
-& & & & 5/6: same as 3/4, respectively, but direct interpolation of mass fluxes along nest interface edges & \tabularnewline
+& & & & 5: (removed) & \tabularnewline
+& & & & 6: same as 4, but direct interpolation of mass fluxes along nest interface edges & \tabularnewline
 
 %\hline
 grf\_velfbk&
@@ -2290,18 +2295,6 @@ I& 2& & Feedback method for tracer variables:&
 n\_dom$>$1\tabularnewline
 & & & & 1: area-weighted averaging & \tabularnewline
 & & & & 2: bilinear interpolation & \tabularnewline
-
-%\hline
-grf\_idw\_exp\_e12&
-R& 1.2& &
-exponent of generalized IDW function for child edges 1/2 &
-n\_dom$>$1\tabularnewline
-
-%\hline
-grf\_idw\_exp\_e34&
-R& 1.7& &
-exponent of generalized IDW function for child edges 3/4 &
-n\_dom$>$1\tabularnewline
 
 %\hline
 rbf\_vec\_kern\_grf\_e&
@@ -2341,7 +2334,7 @@ n\_dom$>$1\tabularnewline
 %\hline
 l\_density\_nudging &
 L& .FALSE.& &
-.TRUE.: Apply density nudging near lateral nest boundary if grf\_intmethod\_e $\le$ 4&
+.TRUE.: Apply density nudging near lateral nest boundary if grf\_intmethod\_e $\in$ \{2,4\}&
 n\_dom$>$1 .AND. lfeedback = .TRUE. \tabularnewline
 
 \hline

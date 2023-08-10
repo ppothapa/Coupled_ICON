@@ -51,6 +51,9 @@ ZLIB_LIB='-lz'
 RTTOV_ROOT='/hpc/rhome/for0adm/nwp/x86_vh/external'
 RTTOV_LIBS='-lrttov13'
 
+FYAML_ROOT="/hpc/sw/libfyaml/0.8/x86/gnu"
+FYAML_LIBS="-L${FYAML_ROOT}/lib -lfyaml"
+
 # flags needed for static linking
 STATICLINK_FLAGS='-static -add-gcc-rpath'
 
@@ -68,7 +71,7 @@ CC='mpincc -vh'
 CFLAGS='-std=gnu99 -mavx2 -mno-fma -O3 -DUSE_XML2 -fbacktrace -g'
 ICON_CFLAGS=''
 ICON_BUNDLED_CFLAGS='-O2'
-CPPFLAGS="${ECCODES_INCLUDE} -I${HDF5ROOT}/include -I${NETCDFROOT}/include ${ECCODES_INCLUDE} -I${XML2ROOT}/include/libxml2"
+CPPFLAGS="${ECCODES_INCLUDE} -I${HDF5ROOT}/include -I${NETCDFROOT}/include ${ECCODES_INCLUDE} -I${XML2ROOT}/include/libxml2 -I${FYAML_ROOT}/include"
 
 # Fortran compiler wrapper on cray machine
 FC='mpinfort -vh'
@@ -77,8 +80,8 @@ ICON_FCFLAGS=''
 ICON_OCEAN_FCFLAGS='-O2'
 ICON_ECRAD_FCFLAGS=""
 
-LDFLAGS="-L${ZLIBROOT}/lib -L${AEC_DIR}/lib -L${SZIPROOT}/lib -L${HDF5ROOT}/lib -L${NETCDFROOT}/lib -L${NETCDFFROOT}/lib -L${RTTOV_ROOT}/lib -L${ECCODES_LIB_DIR} -L${AMDLIB_ROOT}/libs -L${XML2ROOT}/lib -shared-mpi"
-LIBS="-Wl,--as-needed ${XML2_LIBS} ${ECCODES__LIBS} ${RTTOV_LIBS} ${AMD_LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS} ${HDF5_LIBS} ${SZIP_LIB} ${AEC_LIB} ${ZLIB_LIB} ${STATICLINK_FLAGS}"
+LDFLAGS="-L${ZLIBROOT}/lib -L${AEC_DIR}/lib -L${SZIPROOT}/lib -L${HDF5ROOT}/lib -L${NETCDFROOT}/lib -L${NETCDFFROOT}/lib -L${RTTOV_ROOT}/lib -L${ECCODES_LIB_DIR} -L${AMDLIB_ROOT}/libs -L${XML2ROOT}/lib -L${FYAML_ROOT}/lib -shared-mpi"
+LIBS="-Wl,--as-needed ${XML2_LIBS} ${ECCODES__LIBS} ${RTTOV_LIBS} ${AMD_LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS} ${HDF5_LIBS} ${SZIP_LIB} ${AEC_LIB} ${ZLIB_LIB} ${FYAML_LIBS} ${STATICLINK_FLAGS}"
 
 MPI_LAUNCH=''  # needed e.g. for yac configuration. What is the correct setting for gnu ?? 
 

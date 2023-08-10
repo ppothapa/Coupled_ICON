@@ -7,9 +7,9 @@
 !! The purpose of routines construct_io_coupler and destruct_io_coupler is
 !! to initialise YAC on asynchronous IO processes. The YAC component definition
 !! and search are collective operations in the MPI sense. Thus all MPI processes
-!! must call yac_fdef_comp(s) and yac_fsearch.
+!! must call yac_fdef_comp(s) and yac_fenddef.
 !! Currently, the IO processes do not receive any fields via YAC for output.
-!! Therefore, yac_fsearch is called with an empty list of fields.
+!! Therefore, yac_fenddef is called with an empty list of fields.
 !! 
 !! @par Copyright and License
 !!
@@ -24,7 +24,7 @@ MODULE mo_io_coupling
   USE mo_coupling_config,           ONLY: is_coupled_run
   USE mo_impl_constants,            ONLY: MAX_CHAR_LENGTH
   USE mo_exception,                 ONLY: message, message_text
-  USE mo_yac_finterface,            ONLY: yac_fdef_comp, yac_fsearch
+  USE mo_yac_finterface,            ONLY: yac_fdef_comp, yac_fenddef
 
   IMPLICIT NONE
 
@@ -41,7 +41,6 @@ CONTAINS
     CHARACTER(*), PARAMETER :: routine = "mo_io_coupling:construct_io_coupler"
 
     INTEGER :: comp_ids(1)
-    INTEGER :: error_status
 
     IF ( is_coupled_run() ) THEN
 
@@ -53,7 +52,7 @@ CONTAINS
       CALL yac_fdef_comp ( TRIM(comp_name), comp_ids(1) )
 
       ! IO processes need to participate in the YAC search
-      CALL yac_fsearch ( error_status )
+      CALL yac_fenddef ( )
     ENDIF
 
   END SUBROUTINE construct_io_coupler

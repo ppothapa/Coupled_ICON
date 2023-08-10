@@ -68,6 +68,8 @@ machine=levante
   --configureflags="--with-mpi --without-openmp"  --builderflags="Active" --list $list
 ./addbuilder levante_cpu_nvhpc              --machine $machine  --build_script="config/buildbot/levante_cpu_nvhpc" \
   --configureflags="--with-mpi --without-openmp"  --builderflags="Active" --list $list
+./addbuilder levante_aurora             --machine $machine  --build_script="config/buildbot/levante_aurora" \
+  --configureflags="--with-mpi --without-openmp"  --builderflags="Active" --list $list
 
 machine=jsc
 ./addmachine $machine --list $list

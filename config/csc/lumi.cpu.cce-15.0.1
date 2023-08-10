@@ -18,12 +18,15 @@ ECCODES_LIBS='-leccodes'
 XML2_ROOT="${sw_root}/libxml2-2.10.1"
 XML2_LIBS='-lxml2'
 
+FYAML_ROOT="${sw_root}/libfyaml-0.8"
+FYAML_LIBS='-lfyaml'
+
 ################################################################################
 
-BUILD_ENV="module load ${modules}; export LD_LIBRARY_PATH=\"${ECCODES_ROOT}/lib64:${XML2_ROOT}/lib:\${LD_LIBRARY_PATH}\";"
+BUILD_ENV="module load ${modules}; export LD_LIBRARY_PATH=\"${ECCODES_ROOT}/lib64:${XML2_ROOT}/lib:${FYAML_ROOT}/lib:\${LD_LIBRARY_PATH}\";"
 
 CC='cc'
-CPPFLAGS="-I${ECCODES_ROOT}/include -I${XML2_ROOT}/include/libxml2"
+CPPFLAGS="-I${ECCODES_ROOT}/include -I${XML2_ROOT}/include/libxml2 -I${FYAML_ROOT}/include"
 CFLAGS='-g -gdwarf-4'
 ICON_CFLAGS='-O3'
 ICON_BUNDLED_CFLAGS='-O2'
@@ -43,7 +46,7 @@ ICON_O0_FCFLAGS='-O0'
 # list of relative paths to the files of interest):
 ICON_DIAG_FCFLAGS='-hlist=a'
 
-LDFLAGS="-L${ECCODES_ROOT}/lib64 -L${XML2_ROOT}/lib"
+LDFLAGS="-L${ECCODES_ROOT}/lib64 -L${XML2_ROOT}/lib -L${FYAML_ROOT}/lib"
 
 # The compiler does not inject RPATHs to several runtime libraries (e.g.
 # libfabric.so), therefore we generate the required flags based on the
@@ -59,7 +62,7 @@ ICON_LDFLAGS="-Wl,--disable-new-dtags -Wl,--as-needed -Wl,-rpath,${extra_rpath_d
 # to avoid duplicate RPATH entries in the ICON executable:
 EXTRA_CONFIG_ARGS='--disable-rpaths'
 
-LIBS="${XML2_LIBS} ${ECCODES_LIBS}"
+LIBS="${XML2_LIBS} ${ECCODES_LIBS} ${FYAML_LIBS}"
 
 EXTRA_CONFIG_ARGS+=' --disable-mpi-checks --enable-openmp --enable-jsbach --enable-rte-rrtmgp --enable-grib2 --enable-fcgroup-O0 --enable-fcgroup-DIAG'
 
