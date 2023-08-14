@@ -361,7 +361,7 @@ support_baryctr_intp=.true.,
  itype_vegetation_cycle = 2
 /
 &ensemble_pert_nml
-use_ensemble_pert=.false.,
+use_ensemble_pert=.TRUE.,
 /
 &gribout_nml
  preset                          = "ensemble"
@@ -421,12 +421,12 @@ lsynsat=.false. ! .false.,.true., ! requires RTTOV library - left out for this t
                         'T_G',       'H_ICE',     'FR_ICE',    'RELHUM_2M',
                         'T_SNOW',    'H_SNOW',    'FRESHSNW',  'PS',
                         'T_SO',      'W_SO'
- stream_partitions_pl = 1
- pe_placement_pl      = 0
- pl_varlist           = 'FI'   !, 'T', 'U', 'V', 'RELHUM'
- p_levels             =    100,   200,            500,           1000,           3000,
-                          5000,  7000,  10000,  20000,  25000,  30000,  50000,  70000,
-                         85000, 92500, 100000
+! stream_partitions_pl = 1
+! pe_placement_pl      = 0
+! pl_varlist           = 'FI', 'T', 'U', 'V', 'RELHUM'
+! p_levels             =    100,   200,            500,           1000,           3000,
+!                          5000,  7000,  10000,  20000,  25000,  30000,  50000,  70000,
+!                         85000, 92500, 100000
  output_grid          = .false.
 /
 !&output_nml
@@ -872,7 +872,7 @@ fi
 #          But when you worry you make it double ..."
 # ----------------------------------------------------------------------
 
-refdir="${DATAROOT}/ref_data_exp09/2e45a271"
+refdir="${DATAROOT}/ref_data_exp09/0bef2502"
 
 
 bash << EOFSCRIPT
