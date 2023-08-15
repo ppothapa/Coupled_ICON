@@ -260,7 +260,6 @@ set_run_target_bull_milan()
 {
     icon_data_rootFolder=${icon_data_rootFolder:=/pool/data/ICON}
 
-    set_default use_ulimit no
     set_default use_nproma 32
     set_default use_nblocks_c 0
     set_default use_nproma_sub 32
@@ -396,7 +395,6 @@ EOF
     start_header
 
     cat >> $output_script <<EOF
-ulimit -s 2097152
 ulimit -c 0
 $(case $use_flags_group in
     (debug)
@@ -518,7 +516,6 @@ EOF
     start_header
 
     cat >>$output_script << EOF
-ulimit -s 2097152
 ulimit -c 0
 $(case $use_flags_group in
     (debug)
