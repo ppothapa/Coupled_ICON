@@ -30,7 +30,7 @@ MODULE mo_ensemble_pert_config
     &                        tune_minsnowfrac, tune_rhebc_land_trop, tune_rhebc_ocean_trop, &
     &                        tune_rcucov_trop, tune_gfrcrit, tune_capdcfac_tr,              &
     &                        tune_lowcapefac, limit_negpblcape, tune_rdepths, tune_rprcon,  &
-    &                        tune_box_liq_asy, tune_thicklayfac
+    &                        tune_box_liq_asy, tune_thicklayfac, tune_gkdrag_enh
   USE mo_turbdiff_config,    ONLY: turbdiff_config
   USE mo_gribout_config,     ONLY: gribout_config
   USE mo_atm_phy_nwp_config, ONLY: atm_phy_nwp_config  ! Also to prepare perturbations of 2mom parameters;
@@ -228,7 +228,7 @@ MODULE mo_ensemble_pert_config
   REAL(wp), DIMENSION(1:max_dom) :: gkwake_sv, gfrcrit_sv, gkdrag_sv, rain_n0_sv, tkhmin_sv, tkhmin_strat_sv, tkmmin_sv,    &
                                     tkmmin_strat_sv, rlam_heat_sv, rat_sea_sv, tur_len_sv, a_hshr_sv, a_stab_sv, c_diff_sv, &
                                     q_crit_sv, alpha0_sv, alpha0_max_sv, lhn_coef_sv, lhn_artif_fac_sv, fac_lhn_down_sv,    &
-                                    fac_lhn_up_sv
+                                    fac_lhn_up_sv, gkdrag_enh_sv
 
 
 
@@ -382,6 +382,7 @@ MODULE mo_ensemble_pert_config
     gkwake_sv (1:max_dom) = tune_gkwake(1:max_dom)
     gfrcrit_sv(1:max_dom) = tune_gfrcrit(1:max_dom)
     gkdrag_sv (1:max_dom) = tune_gkdrag(1:max_dom)
+    gkdrag_enh_sv (1:max_dom) = tune_gkdrag_enh(1:max_dom)
 
     ! GWD tuning
     gfluxlaun_sv = tune_gfluxlaun
@@ -469,7 +470,14 @@ MODULE mo_ensemble_pert_config
     tune_gfrcrit(1:max_dom) = gfrcrit_sv(1:max_dom) + 2._wp*(rnd_num-0.5_wp)*range_gfrcrit
 
     CALL random_gen(rnd_gkdrag, rnd_num)
-    tune_gkdrag(1:max_dom) = gkdrag_sv(1:max_dom) + 2._wp*(rnd_num-0.5_wp)*range_gkdrag
+    tune_gkdrag(1) = gkdrag_sv(1) + 2._wp*(rnd_num-0.5_wp)*range_gkdrag
+    IF (gkdrag_sv(1) > 0._wp) THEN
+      tune_gkdrag(2:max_dom)     = (gkdrag_sv(1) + 2._wp*(rnd_num-0.5_wp)*range_gkdrag)*gkdrag_sv(2:max_dom)/gkdrag_sv(1)
+      tune_gkdrag_enh(1:max_dom) = (gkdrag_sv(1) + 2._wp*(rnd_num-0.5_wp)*range_gkdrag)*gkdrag_enh_sv(1:max_dom)/gkdrag_sv(1)
+    ELSE
+      tune_gkdrag(2:max_dom)     = gkdrag_sv(2:max_dom) + 2._wp*(rnd_num-0.5_wp)*range_gkdrag
+      tune_gkdrag_enh(1:max_dom) = gkdrag_enh_sv(1:max_dom) + 2._wp*(rnd_num-0.5_wp)*range_gkdrag
+    ENDIF
 
     ! GWD tuning
     CALL random_gen(rnd_gfluxlaun, rnd_num)
@@ -716,9 +724,9 @@ MODULE mo_ensemble_pert_config
     IF (lprint) THEN
 
       ! control output
-      WRITE(message_text,'(3f8.4,e11.4,2f8.4)') tune_gkwake(1), tune_gkdrag(1), tune_gfrcrit(1), &
+      WRITE(message_text,'(4f8.4,e11.4,2f8.4)') tune_gkwake(1), tune_gkdrag(1), tune_gkdrag_enh(1), tune_gfrcrit(1), &
         tune_gfluxlaun, tune_zvz0i, atm_phy_nwp_config(1)%rain_n0_factor
-      CALL message('Perturbed values, gkwake, gkdrag, gfrcrit, gfluxlaun, zvz0i, rain_n0fac', TRIM(message_text))
+      CALL message('Perturbed values, gkwake, gkdrag, gkdrag_enh, gfrcrit, gfluxlaun, zvz0i, rain_n0fac', TRIM(message_text))
 
       WRITE(message_text,'(2e11.4,f8.1)') tune_entrorg, tune_rprcon, tune_rdepths
       CALL message('Perturbed values, entrorg, rprcon, rdepths', TRIM(message_text))
@@ -858,9 +866,10 @@ MODULE mo_ensemble_pert_config
             atm_phy_nwp_config(jg)%lstoch_expl,atm_phy_nwp_config(jg)%lstoch_sde,atm_phy_nwp_config(jg)%lstoch_deep, &
             atm_phy_nwp_config(jg)%lvvcouple, atm_phy_nwp_config(jg)%lvv_shallow_deep)
           
-          phy_params(jg)%gkdrag  = tune_gkdrag(jg)
-          phy_params(jg)%gkwake  = tune_gkwake(jg)
-          phy_params(jg)%gfrcrit = tune_gfrcrit(jg)
+          phy_params(jg)%gkdrag      = tune_gkdrag(jg)
+          phy_params(jg)%gkdrag_enh  = tune_gkdrag_enh(jg)
+          phy_params(jg)%gkwake      = tune_gkwake(jg)
+          phy_params(jg)%gfrcrit     = tune_gfrcrit(jg)
           !$ACC UPDATE DEVICE(phy_params(jg)) ! phy_params contains only statically allocated (scalar) components
         ENDDO
         ! in addition, GWD and microphysics parameters need to be updated
