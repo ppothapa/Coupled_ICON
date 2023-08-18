@@ -131,8 +131,6 @@ MODULE mo_upatmo_phy_config
   !--------------------------------
 
   TYPE t_upatmo_aes_phy
-    LOGICAL  :: l_constgrav    ! Const. gravitational acceleration for AES physics
-    LOGICAL  :: l_shallowatmo  ! Shallow-atmosphere metrics for AES physics
     REAL(wp) :: start_height(iUpatmoPrcId%nitem)  ! Start heights, above which 
                                                   ! processes compute tendencies
     REAL(wp) :: end_height(iUpatmoPrcId%nitem)    ! End heights, below which 
@@ -226,9 +224,6 @@ MODULE mo_upatmo_phy_config
   !--------------------------------
 
   TYPE t_upatmo_nwp_phy
-    LOGICAL :: l_constgrav    ! Const. gravitational acceleration for AES physics
-    LOGICAL :: l_shallowatmo  ! Shallow-atmosphere metrics for AES physics
-    !
     TYPE(t_phy_prc)    :: prc(iUpatmoPrcId%nitem)        ! Control units for single processes
     TYPE(t_phy_prc)    :: grp(iUpatmoGrpId%nitem)        ! --,,-- for process groups
     TYPE(t_phy_gas)    :: gas(iUpatmoGasId%nitem)        ! --,,-- for gases
@@ -269,9 +264,6 @@ CONTAINS !......................................................................
   !!
   SUBROUTINE configure_upatmo_physics( jg,                      & !in
     &                                  lupatmo_phy,             & !in
-    &                                  ldeepatmo,               & !in
-    &                                  ldeepatmo2phys,          & !in
-    &                                  lconstgrav,              & !in
     &                                  iforcing,                & !in
     &                                  l_orbvsop87,             & !in
     &                                  cecc,                    & !in
@@ -300,10 +292,6 @@ CONTAINS !......................................................................
     ! In/out variables
     INTEGER,                   INTENT(IN)    :: jg                      ! Domain index
     LOGICAL,                   INTENT(IN)    :: lupatmo_phy             ! Switch for upper-atmosphere physics in nwp-mode
-    LOGICAL,                   INTENT(IN)    :: ldeepatmo               ! Main deep-atmosphere switch
-    LOGICAL,                   INTENT(IN)    :: ldeepatmo2phys          ! Switch to make some parts of physics aware 
-                                                                        ! of deep-atmosphere (only for AES physics)
-    LOGICAL,                   INTENT(IN)    :: lconstgrav              ! Switch for const. grav in case of deepatmo, too
     INTEGER,                   INTENT(IN)    :: iforcing                ! Switch for physics package (NWP, AES etc.) 
     LOGICAL,                   INTENT(IN)    :: l_orbvsop87             ! .TRUE. for VSOP87 orbit, 
                                                                         ! .FALSE. for Kepler orbit
@@ -382,13 +370,6 @@ CONTAINS !......................................................................
       !
       !*******************************************************************************
 
-      ! Should the input fields to the physics parameterizations 
-      ! be modified for the deep atmosphere?      
-      ! * Gravitational acceleration:
-      upatmo_aes_phy_config%l_constgrav = MERGE(lconstgrav, .TRUE., ldeepatmo2phys)       
-      ! * Metrics (concerns especially the cell volume):
-      upatmo_aes_phy_config%l_shallowatmo = MERGE(.NOT. ldeepatmo, .TRUE., ldeepatmo2phys)
-
       ! Extreme-ultraviolet heating requires psrad orbit parameters.
       ! Only in case of AES-forcing, we overwrite the default settings 
       ! in 'src/namelists/mo_upatmo_nml' with potential namelist input to 'aes_rad_nml'.
@@ -424,7 +405,7 @@ CONTAINS !......................................................................
 
       ! Status changes:
       ! * Required?
-      upatmo_aes_phy_config%l_status(iUpatmoStat%required) = ldeepatmo
+      upatmo_aes_phy_config%l_status(iUpatmoStat%required) = .FALSE.
       ! * Message output desired?
       upatmo_aes_phy_config%l_status(iUpatmoStat%message)  = msg_level >= imsg_thr%high
       ! * Timer monitoring desired?
@@ -438,11 +419,6 @@ CONTAINS !......................................................................
       !
       !*******************************************************************************
       
-      ! In case of NWP forcing, the switch 'ldeepatmo2phys' does not apply. 
-      ! The settings from the deep-atmosphere dynamics are directly adopted
-      upatmo_nwp_phy_config%l_constgrav   = lconstgrav
-      upatmo_nwp_phy_config%l_shallowatmo = .NOT. ldeepatmo 
-
       ! The following settings are only required, 
       ! if upper-atmosphere physics are switched on in 'nwp_phy_nml'
       IF (lupatmo_phy) THEN
@@ -1128,7 +1104,7 @@ CONTAINS !......................................................................
       
       ! Status changes:
       ! * Required?
-      upatmo_nwp_phy_config%l_status(iUpatmoStat%required) = ldeepatmo .OR. &
+      upatmo_nwp_phy_config%l_status(iUpatmoStat%required) = &
         & upatmo_nwp_phy_config%l_phy_stat( iUpatmoPrcStat%enabled )
       ! * Message output desired?
       upatmo_nwp_phy_config%l_status(iUpatmoStat%message)  = msg_level >= imsg_thr%high
@@ -1184,10 +1160,6 @@ CONTAINS !......................................................................
     !
     !*******************************************************************************
 
-    upatmo_aes_phy_config%l_constgrav   = .TRUE.    ! Constant gravitational acceleration
-                                                    ! in physics interface 
-    upatmo_aes_phy_config%l_shallowatmo = .TRUE.    ! Shallow-atmosphere metrics in physics interface 
-                                                    ! in physics interface 
     ! Initialize the status switches, 
     ! but skip 'iUpatmoStat%checked', so as not to overwrite 
     ! its assignment in 'src/namelists/mo_upatmo_nml: check_upatmo'
@@ -1219,10 +1191,6 @@ CONTAINS !......................................................................
     !
     !*******************************************************************************
 
-    upatmo_nwp_phy_config%l_constgrav   = .TRUE.  ! Constant gravitational acceleration
-                                                  ! in physics interface 
-    upatmo_nwp_phy_config%l_shallowatmo = .TRUE.  ! Shallow-atmosphere metrics in physics interface 
-                                                  ! in physics interface 
     ! Initialize the status switches, 
     ! but skip 'iUpatmoStat%checked', so as not to overwrite 
     ! its assignment in 'src/namelists/mo_upatmo_nml: check_upatmo'
@@ -1962,19 +1930,6 @@ CONTAINS !......................................................................
             !
             !*******************************************************************************
 
-            IF (upatmo_aes_phy_config%l_status( iUpatmoStat%required )) THEN
-              msg_prefix = 'upatmo_config('//cjg(cjgadj:)//')%aes_phy%'
-              tlen = LEN_TRIM(msg_prefix)
-              !
-              WRITE (message_text, '(2a,l7)') msg_prefix(:tlen), 'l_constgrav: ', &
-                & upatmo_aes_phy_config%l_constgrav
-              CALL message(routine, message_text)
-              !
-              WRITE (message_text, '(2a,l7)') msg_prefix(:tlen), 'l_shallowatmo: ', &
-                & upatmo_aes_phy_config%l_shallowatmo
-              CALL message(routine, message_text)
-            ENDIF
-
             IF (jg == 1 .AND. upatmo_aes_phy_config%l_enabled) THEN
               ! (For the time being, we take the configuration for NWP, 
               ! where a corresponding configuration for AES is not yet implemented)
@@ -2004,14 +1959,6 @@ CONTAINS !......................................................................
             IF (upatmo_nwp_phy_config%l_status( iUpatmoStat%required )) THEN
               msg_prefix = 'upatmo_config('//cjg(cjgadj:)//')%nwp_phy%'
               tlen = LEN_TRIM(msg_prefix)
-              !
-              WRITE (message_text, '(2a,l7)') msg_prefix(1:tlen), 'l_constgrav: ', &
-                & upatmo_nwp_phy_config%l_constgrav
-              CALL message(routine, message_text)
-              !
-              WRITE (message_text, '(2a,l7)') msg_prefix(1:tlen), 'l_shallowatmo: ', &
-                & upatmo_nwp_phy_config%l_shallowatmo
-              CALL message(routine, message_text)
               !
               WRITE (message_text, '(3a,l7)') 'lupatmo_phy(dom', cjg(cjgadj:), '): ', &
                 & lupatmo_phy

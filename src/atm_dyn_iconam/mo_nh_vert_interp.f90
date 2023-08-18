@@ -31,11 +31,12 @@ MODULE mo_nh_vert_interp
     &                               cells2edges_scalar, cells2verts_scalar
   USE mo_parallel_config,     ONLY: nproma
   USE mo_physical_constants,  ONLY: grav, rd, rdv, o_m_rdv, dtdz_standardatm, p0sl_bg
-  USE mo_grid_config,         ONLY: n_dom
+  USE mo_grid_config,         ONLY: n_dom, grid_sphere_radius
   USE mo_run_config,          ONLY: num_lev, ntracer
   USE mo_io_config,           ONLY: itype_pres_msl
   USE mo_impl_constants,      ONLY: PRES_MSL_METHOD_GME, PRES_MSL_METHOD_IFS, PRES_MSL_METHOD_DWD, &
-    &                               PRES_MSL_METHOD_IFS_CORR, MODE_ICONVREMAP, SUCCESS
+    &                               PRES_MSL_METHOD_IFS_CORR, MODE_ICONVREMAP, MODE_IFSANA,        &
+    &                               MODE_COMBINED, SUCCESS
   USE mo_exception,           ONLY: finish, message, message_text
   USE mo_initicon_config,     ONLY: zpbl1, zpbl2, l_coarse2fine_mode, init_mode, lread_vn, lvert_remap_fg
   USE mo_initicon_types,      ONLY: t_init_state, t_initicon_state
@@ -52,8 +53,9 @@ MODULE mo_nh_vert_interp
   USE mo_satad,               ONLY: sat_pres_water
   USE mo_nwp_sfc_interp,      ONLY: process_sfcfields
   USE mo_upatmo_config,       ONLY: upatmo_config
-  USE mo_nh_deepatmo_utils,   ONLY: height_transform
   USE mo_nh_vert_extrap_utils,ONLY: t_expol_state
+  USE mo_dynamics_config,     ONLY: ldeepatmo
+  USE mo_deepatmo,            ONLY: deepatmo_htrafo
 
 #ifdef _OPENACC
   USE mo_mpi,                 ONLY: i_am_accel_node
@@ -218,7 +220,8 @@ CONTAINS
 
       IF (p_patch(jg)%n_patch_cells==0) CYCLE ! skip empty patches
 
-      CALL vert_interp(p_patch(jg), p_int(jg), p_nh_state(jg)%metrics, initicon(jg))
+      CALL vert_interp(p_patch(jg), p_int(jg), p_nh_state(jg)%metrics, initicon(jg), &
+        &              opt_inputonzgpot=(init_mode == MODE_IFSANA .OR. init_mode == MODE_COMBINED))
 
       ! Apply boundary interpolation for u and v because the outer nest boundary
       ! points would remain undefined otherwise
@@ -306,7 +309,8 @@ CONTAINS
   !! Initial version by Guenther Zaengl, DWD(2011-07-14)
   !!
   !!
-  SUBROUTINE vert_interp(p_patch, p_int, p_metrics, initicon, opt_use_vn, opt_lmask_c, opt_lmask_e, opt_latbcmode)
+  SUBROUTINE vert_interp(p_patch, p_int, p_metrics, initicon, opt_use_vn, opt_lmask_c, opt_lmask_e, opt_latbcmode, &
+    &                    opt_inputonzgpot)
 
     TYPE(t_patch),          INTENT(INOUT)    :: p_patch
     TYPE(t_int_state),      INTENT(IN)       :: p_int
@@ -316,7 +320,7 @@ CONTAINS
     ! t_initicon_state into this subroutine)
     CLASS(t_init_state),    INTENT(INOUT), TARGET :: initicon
 
-    LOGICAL, OPTIONAL,      INTENT(IN)       :: opt_use_vn, opt_latbcmode
+    LOGICAL, OPTIONAL,      INTENT(IN)       :: opt_use_vn, opt_latbcmode, opt_inputonzgpot
     LOGICAL, OPTIONAL,      INTENT(IN)       :: opt_lmask_c(:,:)
     LOGICAL, OPTIONAL,      INTENT(IN)       :: opt_lmask_e(:,:)
 
@@ -326,7 +330,7 @@ CONTAINS
     INTEGER :: jg
     INTEGER :: nlev, nlevp1, idx
     INTEGER :: nlev_in         ! number of vertical levels in source vgrid 
-    LOGICAL :: lc2f, l_use_vn, latbcmode, lfill
+    LOGICAL :: lc2f, l_use_vn, latbcmode, lfill, linputonzgpot
 
     ! Auxiliary fields for input data
     REAL(wp), DIMENSION(nproma,initicon%atm_in%nlev,p_patch%nblks_c) :: temp_v_in
@@ -387,7 +391,9 @@ CONTAINS
 
     ! upper-atmospher extrapolation type
     TYPE(t_expol_state) :: expol
-    LOGICAL :: lexpol, lconstgrav
+    LOGICAL :: lexpol
+
+    INTEGER  :: istat
 
 !-------------------------------------------------------------------------
 
@@ -417,14 +423,22 @@ CONTAINS
       latbcmode = .FALSE.
     ENDIF
 
-    ! (Upper atmosphere/deep atmosphere: 
+    ! The switch opt_inputonzgpot is only relevant for ldeepatmo = .TRUE. (see below)
+    IF (PRESENT(opt_inputonzgpot)) THEN
+      linputonzgpot = opt_inputonzgpot  ! true: input data defined on geopotential height levels
+    ELSE
+      linputonzgpot = .FALSE.
+    ENDIF
+
+    ! (Deep atmosphere: 
     ! The 'z_mc_in'-field is the geopotential height in case of IFS-date. For the shallow atmosphere geopotential 
     ! and geometric height coincide. Unfortunately this does no longer hold for the deep atmosphere. 
-    ! So a further step is required in which geopotential height is transformed into geometric height 
-    ! (see 'src/atm_dyn_iconam/mo_nh_deepatmo_utils' for input/output of 'height_transform').)
-    lconstgrav = upatmo_config(jg)%dyn%l_constgrav
-    IF (upatmo_config(jg)%dyn%l_initonzgpot) THEN
-      CALL height_transform(initicon%const%z_mc_in, p_patch%nblks_c, p_patch%npromz_c, nlev_in, lconstgrav, 'zgpot2z')  
+    ! So a further step is required in which geopotential height is transformed into geometric height.)
+    IF (ldeepatmo .AND. linputonzgpot) THEN
+      CALL deepatmo_htrafo(z_inout=initicon%const%z_mc_in,                                             &
+        & nblks_nproma_npromz=[p_patch%nblks_c,nproma,p_patch%npromz_c], start_end_levels=[1,nlev_in], &
+        & radius=grid_sphere_radius, trafo_type='zgpot2z', ierror=istat, lacc=.FALSE.)
+      IF (istat /= SUCCESS) CALL finish(routine, "deepatmo_htrafo failed.")
     ENDIF
 
     IF (PRESENT(opt_lmask_c)) THEN
@@ -453,7 +467,7 @@ CONTAINS
     IF (.NOT. ASSOCIATED(initicon%const%z_mc_in)) THEN
        CALL finish(routine, "Internal error: z_mc_in not associated!")
     END IF
-    ! (Upper atmosphere/deep atmosphere: it is assumed here and in the following 
+    ! (Deep atmosphere: it is assumed here and in the following 
     ! that the weighting factors computed in 'prepare_...(_intp)' result from 
     ! a pure distance weighting (along coordinate lines etc.), 
     ! so no deep-atmosphere modification is applied, this would have to be reconsidered, 
@@ -634,8 +648,7 @@ CONTAINS
     CALL pressure_intp_initmode(initicon%atm_in%pres, temp_v_in, z_mc_in,              &
       &                        initicon%atm%pres, z_tempv, initicon%const%z_mc,        &
       &                        p_patch%nblks_c, p_patch%npromz_c, nlev, nlev_in,       &
-      &                        wfac_lin, idx0_lin, bot_idx_lin, opt_lmask=opt_lmask_c, &
-      &                        opt_lconstgrav=lconstgrav                               )
+      &                        wfac_lin, idx0_lin, bot_idx_lin, opt_lmask=opt_lmask_c)
 
     ! (Extrapolate pressure to upper atmosphere) 
     IF (lexpol) CALL expol%pres(p_patch, initicon%atm%pres, z_tempv, p_metrics)
@@ -660,8 +673,7 @@ CONTAINS
     CALL pressure_intp_initmode(initicon%atm_in%pres, temp_v_in, z_mc_in,              &
       &                        initicon%atm%pres, z_tempv, initicon%const%z_mc,        &
       &                        p_patch%nblks_c, p_patch%npromz_c, nlev, nlev_in,       &
-      &                        wfac_lin, idx0_lin, bot_idx_lin, opt_lmask=opt_lmask_c, &
-      &                        opt_lconstgrav=lconstgrav                               ) 
+      &                        wfac_lin, idx0_lin, bot_idx_lin, opt_lmask=opt_lmask_c) 
 
     ! (In case of an upper-atmosphere extrapolation, 'hydro_adjust' should not be called 
     ! in 'src/atm_dyn_iconam/mo_initicon_utils: copy_initicon2prog_atm', so it has to be done here. 
@@ -1595,7 +1607,7 @@ CONTAINS
   SUBROUTINE pressure_intp(pres_in, tempv_in, z3d_in, pres_out, z3d_out,                   &
                            nblks, npromz, nlevs_in, nlevs_out,                             &
                            wfac, idx0, bot_idx, wfacpbl1, kpbl1, wfacpbl2, kpbl2, zextrap, &
-                           opt_lconstgrav, lacc                                            )
+                           lacc                                                            )
 
 
     ! Input fields
@@ -1623,7 +1635,6 @@ CONTAINS
     REAL(wp), INTENT(IN) :: wfacpbl2(:,:)  ! corresponding interpolation coefficient
 
     REAL(wp), OPTIONAL, INTENT(IN) :: zextrap(:,:)   ! AGL height from which downward extrapolation starts (in postprocesing mode)
-    LOGICAL,  OPTIONAL, INTENT(IN) :: opt_lconstgrav 
     LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
     ! LOCAL VARIABLES
@@ -1635,7 +1646,6 @@ CONTAINS
     REAL(wp), ALLOCATABLE, TARGET         :: zgpot_out(:,:,:), zgpot_in(:,:,:)
     REAL(wp),              POINTER        :: z_in(:,:,:), z_out(:,:,:)
     REAL(wp) :: p_up, p_down, t_extr
-    LOGICAL  :: lconstgrav
     INTEGER  :: istat
 
 !-------------------------------------------------------------------------
@@ -1647,37 +1657,28 @@ CONTAINS
       CALL finish(routine, "zextrap missing in argument list")
     ENDIF
 
-    IF (PRESENT(opt_lconstgrav)) THEN
-      lconstgrav = opt_lconstgrav
-    ELSE
-      lconstgrav = .TRUE.
-    ENDIF
+    CALL assert_acc_device_only(routine, lacc)
 
-    IF (lconstgrav) THEN
+    IF (.NOT. ldeepatmo) THEN
       z_in  => z3d_in
       z_out => z3d_out
     ELSE
-      CALL assert_acc_host_only(routine//": lconstgrav==.FALSE.", lacc)
-
       ALLOCATE(zgpot_in(nproma, nlevs_in,  nblks), zgpot_out(nproma, nlevs_out, nblks), STAT=istat)
-      IF (istat /= SUCCESS) CALL finish(routine, 'Allocation of zgpot failed!')
-      ! Compute geopotential heights in case of the deep atmosphere
-      CALL height_transform( z_in       = z3d_out,    &  !in 
-        &                    z_out      = zgpot_out,  &  !out       
-        &                    nblks      = nblks,      &  !in
-        &                    npromz     = npromz,     &  !in
-        &                    nlevs      = nlevs_out,  &  !in
-        &                    lconstgrav = lconstgrav, &  !in
-        &                    trafo_type = 'z2zgpot'   )  !in   
-      CALL height_transform(z3d_in, zgpot_in, nblks, npromz, nlevs_in, lconstgrav, 'z2zgpot')
+      IF (istat /= SUCCESS) CALL finish(routine, 'Allocation of zgpot failed')
+      !$ACC ENTER DATA &
+      !$ACC   CREATE(zgpot_in, zgpot_out)
+      CALL deepatmo_htrafo(z_in=z3d_out, z_out=zgpot_out, nblks_nproma_npromz=[nblks,nproma,npromz], &
+        & start_end_levels=[1,nlevs_out], radius=grid_sphere_radius, trafo_type='z2zgpot', ierror=istat, lacc=lacc)
+      IF (istat /= SUCCESS) CALL finish(routine, 'deepatmo_htrafo failed')
+      CALL deepatmo_htrafo(z_in=z3d_in, z_out=zgpot_in, nblks_nproma_npromz=[nblks,nproma,npromz], &
+        & start_end_levels=[1,nlevs_in], radius=grid_sphere_radius, trafo_type='z2zgpot', ierror=istat, lacc=lacc)
+      IF (istat /= SUCCESS) CALL finish(routine, 'deepatmo_htrafo failed')
       z_in  => zgpot_in
       z_out => zgpot_out
       ! Note: the heights above ground level, 'zpbl1', 'zpbl2', 'zextrap' and heights derived from them 
       ! have relatively low values (~ 1 km), so no deep-atmosphere modification is applied to them. 
       ! (Put another way: we regard 'zpbl1', 'zpbl2', and 'zextrap' to represent geopotential heights.)
     ENDIF
-
-    CALL assert_acc_device_only(routine, lacc)
 
     !$ACC DATA PRESENT(pres_in, tempv_in, z3d_in, z3d_out, pres_out, wfac, idx0, bot_idx, kpbl1, wfacpbl1, kpbl2) &
     !$ACC   PRESENT(wfacpbl2, z_in, z_out, zextrap, num_lev, vct_a) &
@@ -1875,9 +1876,11 @@ CONTAINS
     !$ACC END DATA
 
     NULLIFY(z_in, z_out)
-    IF (.NOT. lconstgrav) THEN
+    IF (ldeepatmo) THEN
+      !$ACC EXIT DATA &
+      !$ACC   DELETE(zgpot_in, zgpot_out)
       DEALLOCATE(zgpot_in, zgpot_out, STAT=istat)
-      IF (istat /= SUCCESS) CALL finish(routine, 'Deallocation of zgpot failed!')
+      IF (istat /= SUCCESS) CALL finish(routine, 'Deallocation of zgpot failed')
     ENDIF
 
   END SUBROUTINE pressure_intp
@@ -1901,7 +1904,7 @@ CONTAINS
   !!
   SUBROUTINE pressure_intp_initmode(pres_in, tempv_in, z3d_in, pres_out, tempv_out, z3d_out, &
     &                               nblks, npromz, nlevs_out, nlevs_in, wfac, idx0, bot_idx, &
-    &                               opt_lmask, opt_lconstgrav                                )
+    &                               opt_lmask                                                )
 
 
     ! Input fields
@@ -1925,7 +1928,6 @@ CONTAINS
     INTEGER , INTENT(IN) :: idx0(:,:,:)    ! index of upper level
     INTEGER , INTENT(IN) :: bot_idx(:,:)   ! index of lowest level for which interpolation is possible
     LOGICAL, OPTIONAL,  INTENT(IN) :: opt_lmask(:,:)
-    LOGICAL, OPTIONAL,  INTENT(IN) :: opt_lconstgrav 
 
     ! LOCAL CONSTANTS
 
@@ -1940,7 +1942,6 @@ CONTAINS
     REAL(wp), DIMENSION(nproma,nlevs_out) :: dtvdz_up, dtvdz_down
     REAL(wp) :: p_up, p_down, inv_scal_hgt
     LOGICAL  :: lmask(nproma)
-    LOGICAL  :: lconstgrav
     INTEGER  :: istat
 
 !-------------------------------------------------------------------------
@@ -1950,27 +1951,19 @@ CONTAINS
     ! inverse scale height for filling pressure on data-void grid points with artificial values
     inv_scal_hgt = grav/(rd*fill_temp)
 
-    IF (PRESENT(opt_lconstgrav)) THEN
-      lconstgrav = opt_lconstgrav
-    ELSE
-      lconstgrav = .TRUE.
-    ENDIF
-
-    IF (lconstgrav) THEN
+    IF (.NOT. ldeepatmo) THEN
       z_in  => z3d_in
       z_out => z3d_out
     ELSE
       ALLOCATE(zgpot_in(nproma, nlevs_in,  nblks), zgpot_out(nproma, nlevs_out, nblks), STAT=istat)
-      IF (istat /= SUCCESS) CALL finish('mo_nh_vert_interp: pressure_intp_initmode', 'Allocation of zgpot failed!') 
+      IF (istat /= SUCCESS) CALL finish('mo_nh_vert_interp: pressure_intp_initmode', 'Allocation of zgpot failed') 
       ! Compute geopotential heights in case of the deep atmosphere
-      CALL height_transform( z_in       = z3d_out,    &  !in 
-        &                    z_out      = zgpot_out,  &  !out       
-        &                    nblks      = nblks,      &  !in
-        &                    npromz     = npromz,     &  !in
-        &                    nlevs      = nlevs_out,  &  !in
-        &                    lconstgrav = lconstgrav, &  !in
-        &                    trafo_type = 'z2zgpot'   )  !in   
-      CALL height_transform(z3d_in, zgpot_in, nblks, npromz, nlevs_in, lconstgrav, 'z2zgpot')
+      CALL deepatmo_htrafo(z_in=z3d_out, z_out=zgpot_out, nblks_nproma_npromz=[nblks,nproma,npromz], &
+        & start_end_levels=[1,nlevs_out], radius=grid_sphere_radius, trafo_type='z2zgpot', ierror=istat, lacc=.FALSE.)
+      IF (istat /= SUCCESS) CALL finish('mo_nh_vert_interp: pressure_intp_initmode', 'deepatmo_htrafo failed')
+      CALL deepatmo_htrafo(z_in=z3d_in, z_out=zgpot_in, nblks_nproma_npromz=[nblks,nproma,npromz], &
+        & start_end_levels=[1,nlevs_in], radius=grid_sphere_radius, trafo_type='z2zgpot', ierror=istat, lacc=.FALSE.)
+      IF (istat /= SUCCESS) CALL finish('mo_nh_vert_interp: pressure_intp_initmode', 'deepatmo_htrafo failed')
       z_in  => zgpot_in
       z_out => zgpot_out
     ENDIF
@@ -2095,9 +2088,9 @@ CONTAINS
 !$OMP END PARALLEL
 
     NULLIFY(z_in, z_out)
-    IF (.NOT. lconstgrav) THEN
+    IF (ldeepatmo) THEN
       DEALLOCATE(zgpot_in, zgpot_out, STAT=istat)
-      IF (istat /= SUCCESS) CALL finish('mo_nh_vert_interp: pressure_intp_initmode', 'Deallocation of zgpot failed!') 
+      IF (istat /= SUCCESS) CALL finish('mo_nh_vert_interp: pressure_intp_initmode', 'Deallocation of zgpot failed') 
     ENDIF
 
   END SUBROUTINE pressure_intp_initmode

@@ -62,11 +62,11 @@
 MODULE mo_advection_stepping
 
   USE mo_kind,                ONLY: wp, vp
-  USE mo_exception,           ONLY: finish
   USE mo_timer,               ONLY: timer_start, timer_stop, timer_transport, &
     &                               timer_adv_vert, timer_adv_horz
   USE mo_model_domain,        ONLY: t_patch
   USE mo_intp_data_strc,      ONLY: t_int_state
+  USE mo_nonhydro_types,      ONLY: t_nh_metrics
   USE mo_parallel_config,     ONLY: nproma
   USE mo_run_config,          ONLY: ntracer, lvert_nest, ltimer, timers_level, iforcing, iqv, iqtke
   USE mo_advection_hflux,     ONLY: hor_upwind_flux
@@ -82,8 +82,6 @@ MODULE mo_advection_stepping
 #ifdef _OPENACC
   USE mo_mpi,                 ONLY: i_am_accel_node
 #endif
-  USE mo_dynamics_config,     ONLY: ldeepatmo
-  USE mo_upatmo_impl_const,   ONLY: idamtr
 
   IMPLICIT NONE
 
@@ -136,20 +134,21 @@ CONTAINS
   !!   after removal of the MUSCL vertical advection scheme
   !! 
   !!
-  SUBROUTINE step_advection( p_patch, p_int_state, p_dtime, k_step, p_tracer_now, &
-    &                        p_mflx_contra_h, p_vn_contra_traj, p_mflx_contra_v,  &
-    &                        p_cellhgt_mc_now, p_rhodz_new, p_rhodz_now,          &
-    &                        p_grf_tend_tracer, p_tracer_new,                     &
-    &                        p_mflx_tracer_h, p_mflx_tracer_v, rho_incr,          &
-    &                        q_ubc, q_int,                                        &
-    &                        opt_ddt_tracer_adv, opt_deepatmo_t1mc,               &
-    &                        opt_deepatmo_t2mc                 )
+  SUBROUTINE step_advection( p_patch, p_int_state, p_metrics, p_dtime, k_step, p_tracer_now, &
+    &                        p_mflx_contra_h, p_vn_contra_traj, p_mflx_contra_v,             &
+    &                        p_rhodz_new, p_rhodz_now, p_grf_tend_tracer, p_tracer_new,      &
+    &                        p_mflx_tracer_h, p_mflx_tracer_v, rho_incr,                     &
+    &                        q_ubc, q_int,                                                   &
+    &                        opt_ddt_tracer_adv                                              )
   !
     TYPE(t_patch), TARGET, INTENT(INOUT) ::  &  !< patch on which computation
       &  p_patch                             !< is performed
                                              
     TYPE(t_int_state), INTENT(IN) :: &  !< interpolation state
       &  p_int_state
+
+    TYPE(t_nh_metrics), INTENT(IN) :: & !< metrics
+      &  p_metrics
 
     REAL(wp), INTENT(IN) ::          &  !< advective time step [s]
       &  p_dtime  
@@ -174,11 +173,6 @@ CONTAINS
     REAL(wp), INTENT(INOUT)  ::      &  !< vertical mass flux (contravariant)
       &  p_mflx_contra_v(:,:,:)         !< NH: \rho*w     [kg/m**2/s]
                                         !< dim: (nproma,nlevp1,nblks_c)
-
-    REAL(wp), INTENT(IN) ::          &  !< cell height defined at full levels for
-      &  p_cellhgt_mc_now(:,:,:)        !< time step n 
-                                        !< NH: \Delta z       [m]
-                                        !< dim: (nproma,nlev,nblks_c)
 
     REAL(wp), INTENT(IN) ::          &  !< NH: density weighted cell height at full levels 
       &  p_rhodz_new(:,:,:)             !< at n+1 [kg/m**2]
@@ -224,10 +218,6 @@ CONTAINS
     REAL(wp), INTENT(INOUT), OPTIONAL :: & !< advective tendency    [kg/kg/s]
       &  opt_ddt_tracer_adv(:,:,:,:)     !< dim: (nproma,nlev,nblks_c,ntracer)
 
-    REAL(wp), INTENT(IN), OPTIONAL ::  &   !< deep-atmosphere modification factors,
-      &  opt_deepatmo_t1mc(:,:),       &   !< type 1: (nlev,nitem1)
-      &  opt_deepatmo_t2mc(:,:)            !< type 2: (nitem2,nlev)
-
 
 
     ! Local Variables
@@ -251,12 +241,6 @@ CONTAINS
 
     TYPE(t_trList), POINTER :: trAdvect      !< Pointer to tracer sublist
     TYPE(t_trList), POINTER :: trNotAdvect   !< Pointer to tracer sublist
-
-    REAL(wp) ::   &                     !< Local copies of opt_deepatmo_t1mc and opt_deepatmo_t2mc
-      &  deepatmo_vol  (p_patch%nlev), &
-      &  deepatmo_divh (p_patch%nlev), &
-      &  deepatmo_divzu(p_patch%nlev), &
-      &  deepatmo_divzl(p_patch%nlev)
 
     LOGICAL :: is_present_rho_incr      !< as it says
     LOGICAL :: lstep_even               !< TRUE/FALSE : this is an even/odd timestep
@@ -282,34 +266,12 @@ CONTAINS
     trNotAdvect => advection_config(jg)%trNotAdvect ! 2018-06-05: cray bug do not add to PRESENT list
 
 
-    ! deep-atmosphere modification factors: 
-    ! direct access of opt_deepatmo_t1mc, opt_deepatmo_t2mc not possible, 
-    ! due to co-use of step_advection by hydrostatic model configuration
-    IF ( .NOT. (PRESENT(opt_deepatmo_t1mc) .AND. PRESENT(opt_deepatmo_t2mc)) .AND. &
-      &  ldeepatmo                                                                 ) THEN
-      CALL finish('mo_advection_stepping: step_advection', 'Missing deepatmo argument(s).')
-    ELSEIF ( PRESENT(opt_deepatmo_t1mc) .AND. PRESENT(opt_deepatmo_t2mc) .AND.     &
-      &      ldeepatmo                                                             ) THEN
-      deepatmo_vol(:)   = opt_deepatmo_t1mc(:,idamtr%t1mc%vol)
-      deepatmo_divh(:)  = opt_deepatmo_t1mc(:,idamtr%t1mc%divh)
-      deepatmo_divzu(:) = opt_deepatmo_t2mc(idamtr%t2mc%divzU,:)
-      deepatmo_divzl(:) = opt_deepatmo_t2mc(idamtr%t2mc%divzL,:)
-    ELSE
-      deepatmo_vol(:)   = 1._wp
-      deepatmo_divh(:)  = 1._wp
-      deepatmo_divzu(:) = 1._wp
-      deepatmo_divzl(:) = 1._wp
-    ENDIF
-
-
     !$ACC DATA PRESENT(p_tracer_now, p_mflx_contra_h, p_mflx_contra_v) &
     !$ACC   PRESENT(p_vn_contra_traj) &
-    !$ACC   PRESENT(p_cellhgt_mc_now, p_rhodz_now, p_rhodz_new) &
-    !$ACC   COPYIN(deepatmo_vol, deepatmo_divh, deepatmo_divzu) &
-    !$ACC   COPYIN(deepatmo_divzl) &
+    !$ACC   PRESENT(p_rhodz_now, p_rhodz_new) &
     !$ACC   PRESENT(p_tracer_new, p_mflx_tracer_h, p_mflx_tracer_v) &
     !$ACC   CREATE(rhodz_aux, rhodz_ast2) &
-    !$ACC   PRESENT(p_int_state, p_grf_tend_tracer, q_ubc) &
+    !$ACC   PRESENT(p_int_state, p_grf_tend_tracer, q_ubc, p_metrics) &
     !$ACC   IF(i_am_accel_node)
 
     !XL: rho_incr is passed even when not allocated
@@ -361,9 +323,9 @@ CONTAINS
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, nlev
           DO jc = i_startidx, i_endidx
-            rhodz_aux(jc,jk,jb) = p_rhodz_now(jc,jk,jb)                    &
-              &                 + iau_wgt_adv*p_cellhgt_mc_now(jc,jk,jb)   &
-              &                 * rho_incr(jc,jk,jb) * deepatmo_vol(jk)
+            rhodz_aux(jc,jk,jb) = p_rhodz_now(jc,jk,jb)                       &
+              &                 + iau_wgt_adv*p_metrics%ddqz_z_full(jc,jk,jb) &
+              &                 * rho_incr(jc,jk,jb) * p_metrics%deepatmo_vol_mc(jk)
           ENDDO  !jc
         ENDDO  !jk
         !$ACC END PARALLEL
@@ -409,9 +371,9 @@ CONTAINS
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO jk = 1, nlev
           DO jc = i_startidx, i_endidx
-            rhodz_ast2(jc,jk,jb) = rhodz_ast(jc,jk,jb) + p_dtime                      &
-                                 * ( p_mflx_contra_v(jc,jk+1,jb) * deepatmo_divzl(jk) &
-                                 -   p_mflx_contra_v(jc,jk,jb)   * deepatmo_divzu(jk) )
+            rhodz_ast2(jc,jk,jb) = rhodz_ast(jc,jk,jb) + p_dtime                                   &
+                                 * ( p_mflx_contra_v(jc,jk+1,jb) * p_metrics%deepatmo_divzL_mc(jk) &
+                                 -   p_mflx_contra_v(jc,jk,jb)   * p_metrics%deepatmo_divzU_mc(jk) )
           ENDDO  !jc
         ENDDO !jk
         !$ACC END PARALLEL
@@ -422,22 +384,22 @@ CONTAINS
 
       ! vertical transport
       !
-      CALL vert_adv(p_patch          = p_patch,                 & !in
-        &           p_dtime          = p_dtime,                 & !in
-        &           k_step           = k_step,                  & !in
-        &           p_mflx_contra_v  = p_mflx_contra_v(:,:,:),  & !inout
-        &           p_cellhgt_mc_now = p_cellhgt_mc_now(:,:,:), & !in
-        &           rhodz_now        = rhodz_ast(:,:,:),        & !in
-        &           rhodz_new        = rhodz_ast2(:,:,:),       & !in
-        &           tracer_now       = p_tracer_now(:,:,:,:),   & !in
-        &           tracer_new       = p_tracer_new(:,:,:,:),   & !inout
-        &           p_mflx_tracer_v  = p_mflx_tracer_v(:,:,:,:),& !inout
-        &           deepatmo_divzl   = deepatmo_divzl(:),       & !in
-        &           deepatmo_divzu   = deepatmo_divzu(:),       & !in
-        &           i_rlstart        = i_rlstart,               & !in
-        &           i_rlend          = i_rlend,                 & !in
-        &           q_ubc            = q_ubc(:,:,:),            & !in
-        &           q_int            = q_int(:,:,:)             ) !out
+      CALL vert_adv(p_patch           = p_patch,                        & !in
+        &           p_dtime           = p_dtime,                        & !in
+        &           k_step            = k_step,                         & !in
+        &           p_mflx_contra_v   = p_mflx_contra_v(:,:,:),         & !inout
+        &           p_cellhgt_mc_now  = p_metrics%ddqz_z_full(:,:,:),   & !in
+        &           rhodz_now         = rhodz_ast(:,:,:),               & !in
+        &           rhodz_new         = rhodz_ast2(:,:,:),              & !in
+        &           tracer_now        = p_tracer_now(:,:,:,:),          & !in
+        &           tracer_new        = p_tracer_new(:,:,:,:),          & !inout
+        &           p_mflx_tracer_v   = p_mflx_tracer_v(:,:,:,:),       & !inout
+        &           deepatmo_divzL_mc = p_metrics%deepatmo_divzL_mc(:), & !in
+        &           deepatmo_divzU_mc = p_metrics%deepatmo_divzU_mc(:), & !in
+        &           i_rlstart         = i_rlstart,                      & !in
+        &           i_rlend           = i_rlend,                        & !in
+        &           q_ubc             = q_ubc(:,:,:),                   & !in
+        &           q_int             = q_int(:,:,:)                    ) !out
 
 
       ! horizontal transport
@@ -445,19 +407,19 @@ CONTAINS
       i_rlstart = grf_bdywidth_c+1
       i_rlend   = min_rlcell_int
       !
-      CALL hor_adv(p_patch         = p_patch,                  & !in
-        &          p_int_state     = p_int_state,              & !in
-        &          p_dtime         = p_dtime,                  & !in
-        &          p_mflx_contra_h = p_mflx_contra_h(:,:,:),   & !in
-        &          p_vn            = p_vn_contra_traj(:,:,:),  & !in 
-        &          rhodz_now       = rhodz_ast2(:,:,:),        & !in
-        &          rhodz_new       = p_rhodz_new(:,:,:),       & !in
-        &          tracer_now      = p_tracer_new(:,:,:,:),    & !in
-        &          tracer_new      = p_tracer_new(:,:,:,:),    & !inout
-        &          p_mflx_tracer_h = p_mflx_tracer_h(:,:,:,:), & !inout
-        &          deepatmo_divh   = deepatmo_divh(:),         & !in
-        &          i_rlstart       = i_rlstart,                & !in
-        &          i_rlend         = i_rlend                   ) !in
+      CALL hor_adv(p_patch         = p_patch,                       & !in
+        &          p_int_state     = p_int_state,                   & !in
+        &          p_dtime         = p_dtime,                       & !in
+        &          p_mflx_contra_h = p_mflx_contra_h(:,:,:),        & !in
+        &          p_vn            = p_vn_contra_traj(:,:,:),       & !in 
+        &          rhodz_now       = rhodz_ast2(:,:,:),             & !in
+        &          rhodz_new       = p_rhodz_new(:,:,:),            & !in
+        &          tracer_now      = p_tracer_new(:,:,:,:),         & !in
+        &          tracer_new      = p_tracer_new(:,:,:,:),         & !inout
+        &          p_mflx_tracer_h = p_mflx_tracer_h(:,:,:,:),      & !inout
+        &          deepatmo_divh_mc= p_metrics%deepatmo_divh_mc(:), & !in
+        &          i_rlstart       = i_rlstart,                     & !in
+        &          i_rlend         = i_rlend                        ) !in
 
     ELSE  ! odd timestep
       !
@@ -484,10 +446,10 @@ CONTAINS
           DO jc = i_startidx, i_endidx
             ! here we apply a security measure in order to ensure that 
             ! the cell is not fully emptied during horizontal transport.
-            rhodz_ast2(jc,jk,jb) = MAX(0.1_wp*p_rhodz_new(jc,jk,jb),                    &
-                                     p_rhodz_new(jc,jk,jb) - p_dtime                    &
-                                 * ( p_mflx_contra_v(jc,jk+1,jb) * deepatmo_divzl(jk)   &
-                                 -   p_mflx_contra_v(jc,jk,jb)   * deepatmo_divzu(jk) ) )
+            rhodz_ast2(jc,jk,jb) = MAX(0.1_wp*p_rhodz_new(jc,jk,jb),                                 &
+                                     p_rhodz_new(jc,jk,jb) - p_dtime                                 &
+                                 * ( p_mflx_contra_v(jc,jk+1,jb) * p_metrics%deepatmo_divzL_mc(jk)   &
+                                 -   p_mflx_contra_v(jc,jk,jb)   * p_metrics%deepatmo_divzU_mc(jk) ) )
           ENDDO  !jc
         ENDDO !jk
         !$ACC END PARALLEL
@@ -501,19 +463,19 @@ CONTAINS
       i_rlstart = grf_bdywidth_c+1
       i_rlend   = min_rlcell_int
       !
-      CALL hor_adv(p_patch         = p_patch,                  & !in
-        &          p_int_state     = p_int_state,              & !in
-        &          p_dtime         = p_dtime,                  & !in
-        &          p_mflx_contra_h = p_mflx_contra_h(:,:,:),   & !in
-        &          p_vn            = p_vn_contra_traj(:,:,:),  & !in 
-        &          rhodz_now       = rhodz_ast(:,:,:),         & !in
-        &          rhodz_new       = rhodz_ast2(:,:,:),        & !in
-        &          tracer_now      = p_tracer_now(:,:,:,:),    & !in
-        &          tracer_new      = p_tracer_new(:,:,:,:),    & !inout
-        &          p_mflx_tracer_h = p_mflx_tracer_h(:,:,:,:), & !inout
-        &          deepatmo_divh   = deepatmo_divh(:),         & !in
-        &          i_rlstart       = i_rlstart,                & !in
-        &          i_rlend         = i_rlend                   ) !in
+      CALL hor_adv(p_patch         = p_patch,                       & !in
+        &          p_int_state     = p_int_state,                   & !in
+        &          p_dtime         = p_dtime,                       & !in
+        &          p_mflx_contra_h = p_mflx_contra_h(:,:,:),        & !in
+        &          p_vn            = p_vn_contra_traj(:,:,:),       & !in 
+        &          rhodz_now       = rhodz_ast(:,:,:),              & !in
+        &          rhodz_new       = rhodz_ast2(:,:,:),             & !in
+        &          tracer_now      = p_tracer_now(:,:,:,:),         & !in
+        &          tracer_new      = p_tracer_new(:,:,:,:),         & !inout
+        &          p_mflx_tracer_h = p_mflx_tracer_h(:,:,:,:),      & !inout
+        &          deepatmo_divh_mc= p_metrics%deepatmo_divh_mc(:), & !in
+        &          i_rlstart       = i_rlstart,                     & !in
+        &          i_rlend         = i_rlend                        ) !in
 
 
       ! vertical transport
@@ -521,22 +483,22 @@ CONTAINS
       i_rlstart  = grf_bdywidth_c+1
       i_rlend    = min_rlcell_int
       !
-      CALL vert_adv(p_patch          = p_patch,                 & !in
-        &           p_dtime          = p_dtime,                 & !in
-        &           k_step           = k_step,                  & !in
-        &           p_mflx_contra_v  = p_mflx_contra_v(:,:,:),  & !inout
-        &           p_cellhgt_mc_now = p_cellhgt_mc_now(:,:,:), & !in
-        &           rhodz_now        = rhodz_ast2(:,:,:),       & !in
-        &           rhodz_new        = p_rhodz_new(:,:,:),      & !in
-        &           tracer_now       = p_tracer_new(:,:,:,:),   & !in
-        &           tracer_new       = p_tracer_new(:,:,:,:),   & !inout
-        &           p_mflx_tracer_v  = p_mflx_tracer_v(:,:,:,:),& !inout
-        &           deepatmo_divzl   = deepatmo_divzl(:),       & !in
-        &           deepatmo_divzu   = deepatmo_divzu(:),       & !in
-        &           i_rlstart        = i_rlstart,               & !in
-        &           i_rlend          = i_rlend,                 & !in
-        &           q_ubc            = q_ubc(:,:,:),            & !in
-        &           q_int            = q_int(:,:,:)             ) !out
+      CALL vert_adv(p_patch           = p_patch,                        & !in
+        &           p_dtime           = p_dtime,                        & !in
+        &           k_step            = k_step,                         & !in
+        &           p_mflx_contra_v   = p_mflx_contra_v(:,:,:),         & !inout
+        &           p_cellhgt_mc_now  = p_metrics%ddqz_z_full(:,:,:),   & !in
+        &           rhodz_now         = rhodz_ast2(:,:,:),              & !in
+        &           rhodz_new         = p_rhodz_new(:,:,:),             & !in
+        &           tracer_now        = p_tracer_new(:,:,:,:),          & !in
+        &           tracer_new        = p_tracer_new(:,:,:,:),          & !inout
+        &           p_mflx_tracer_v   = p_mflx_tracer_v(:,:,:,:),       & !inout
+        &           deepatmo_divzL_mc = p_metrics%deepatmo_divzL_mc(:), & !in
+        &           deepatmo_divzU_mc = p_metrics%deepatmo_divzU_mc(:), & !in
+        &           i_rlstart         = i_rlstart,                      & !in
+        &           i_rlend           = i_rlend,                        & !in
+        &           q_ubc             = q_ubc(:,:,:),                   & !in
+        &           q_int             = q_int(:,:,:)                    ) !out
 
     ENDIF  ! lstep_even
  
@@ -754,8 +716,8 @@ CONTAINS
   !!
   SUBROUTINE vert_adv (p_patch, p_dtime, k_step, p_mflx_contra_v,          &
     &                  p_cellhgt_mc_now, rhodz_now, rhodz_new, tracer_now, &
-    &                  tracer_new, p_mflx_tracer_v, deepatmo_divzl,        &
-    &                  deepatmo_divzu, i_rlstart, i_rlend, q_ubc,          &
+    &                  tracer_new, p_mflx_tracer_v, deepatmo_divzL_mc,     &
+    &                  deepatmo_divzU_mc, i_rlstart, i_rlend, q_ubc,       &
     &                  q_int)
 
     TYPE(t_patch), INTENT(IN   )   ::  & !< compute patch
@@ -789,8 +751,11 @@ CONTAINS
     REAL(wp),      INTENT(INOUT)   ::  & !< vertical tracer mass flux at half level centers
       &  p_mflx_tracer_v(:,:,:,:)        !< [kg/m**2/s]
 
-    REAL(wp),      INTENT(IN   )   ::  & !< deep-atmosphere modification factors
-      &  deepatmo_divzl(:), deepatmo_divzu(:)
+    REAL(wp), INTENT(IN) ::            &  !< metrical modification factor for vertical part of divergence at full levels
+      &  deepatmo_divzL_mc(:)             !< [1]
+
+    REAL(wp), INTENT(IN) ::            &  !< metrical modification factor for vertical part of divergence at full levels
+      &  deepatmo_divzU_mc(:)             !< [1]
 
     INTEGER,       INTENT(IN   )   ::  &
       &  i_rlstart, i_rlend
@@ -867,15 +832,11 @@ CONTAINS
           !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO jk = iadv_slev_jt, p_patch%nlev
             DO jc = i_startidx, i_endidx
-
-              ! index of top half level
               ikp1 = jk + 1
-
-              tracer_new(jc,jk,jb,jt) = ( tracer_now(jc,jk,jb,jt) * rhodz_now(jc,jk,jb)   &
-                &    + p_dtime * ( p_mflx_tracer_v(jc,ikp1,jb,jt) * deepatmo_divzl(jk)    &
-                &              -   p_mflx_tracer_v(jc,jk  ,jb,jt) * deepatmo_divzu(jk) ) )&
+              tracer_new(jc,jk,jb,jt) = ( tracer_now(jc,jk,jb,jt) * rhodz_now(jc,jk,jb)      &
+                &    + p_dtime * ( p_mflx_tracer_v(jc,ikp1,jb,jt) * deepatmo_divzL_mc(jk)    &
+                &              -   p_mflx_tracer_v(jc,jk  ,jb,jt) * deepatmo_divzU_mc(jk) ) )&
                 &    / rhodz_new(jc,jk,jb)
-
             END DO  !jc
           END DO  !jk
 
@@ -928,7 +889,7 @@ CONTAINS
   !!
   SUBROUTINE hor_adv (p_patch, p_int_state, p_dtime, p_mflx_contra_h, p_vn, &
     &                 rhodz_now, rhodz_new, tracer_now, tracer_new,         &
-    &                 p_mflx_tracer_h, deepatmo_divh, i_rlstart, i_rlend    )
+    &                 p_mflx_tracer_h, deepatmo_divh_mc, i_rlstart, i_rlend )
 
     TYPE(t_patch), TARGET, INTENT(INOUT)  ::  & !< compute patch
       &  p_patch
@@ -962,8 +923,9 @@ CONTAINS
     REAL(wp),      INTENT(INOUT)   ::  & !< horizontal tracer mass flux at cell edge midpoints 
       &  p_mflx_tracer_h(:,:,:,:)        !< [kg/m**2/s]
 
-    REAL(wp),      INTENT(IN   )   ::  & !< deep-atmosphere modification factors
-      &  deepatmo_divh(:)
+    REAL(wp), INTENT(IN) ::            &  !< metrical modification factor for horizontal part of divergence at full levels
+      &  deepatmo_divh_mc(:)              !< [1]
+                                          !< dim: (nlev)
 
     INTEGER,       INTENT(IN   )   ::  &
       &  i_rlstart, i_rlend
@@ -1018,7 +980,7 @@ CONTAINS
 
 
     !$ACC DATA PRESENT(p_int_state, p_mflx_tracer_h, tracer_now, tracer_new) &
-    !$ACC   PRESENT(rhodz_now, rhodz_new, deepatmo_divh, iidx, iblk) &
+    !$ACC   PRESENT(rhodz_now, rhodz_new, deepatmo_divh_mc, iidx, iblk) &
     !$ACC   CREATE(z_fluxdiv_c) &
     !$ACC   IF(i_am_accel_node)
 
@@ -1054,7 +1016,7 @@ CONTAINS
 #endif
 
 ! TODO: possible GPU optimization: add tracer_new calculation here
-              z_fluxdiv_c(jc,jk) =  deepatmo_divh(jk) * (                                              &
+              z_fluxdiv_c(jc,jk) = deepatmo_divh_mc(jk) * (                                            &
                 & p_mflx_tracer_h(iidx(jc,jb,1),jk,iblk(jc,jb,1),jt)*p_int_state%geofac_div(jc,1,jb) + &
                 & p_mflx_tracer_h(iidx(jc,jb,2),jk,iblk(jc,jb,2),jt)*p_int_state%geofac_div(jc,2,jb) + &
                 & p_mflx_tracer_h(iidx(jc,jb,3),jk,iblk(jc,jb,3),jt)*p_int_state%geofac_div(jc,3,jb) )

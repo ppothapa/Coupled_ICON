@@ -1,7 +1,6 @@
 !>
 !! This module configures:
 !! - Upper-atmosphere physics
-!! - Deep-atmosphere dynamics
 !! - Upper-atmosphere extrapolation
 !!
 !! @author Guidi Zhou, MPI-M, 2016-03-03
@@ -48,8 +47,6 @@ MODULE mo_upatmo_config
 
   PRIVATE
 
-  PUBLIC :: t_upatmo_dyn_config
-  PUBLIC :: upatmo_dyn_config
   PUBLIC :: upatmo_exp_config
   PUBLIC :: upatmo_phy_config
   PUBLIC :: t_upatmo_config
@@ -60,31 +57,12 @@ MODULE mo_upatmo_config
 
   CHARACTER(LEN = *), PARAMETER :: modname = 'mo_upatmo_config'
 
-  ! Note: upper-atmosphere physics, deep-atmosphere dynamics 
-  ! and upper-atmosphere extrapolation are regarded as three elements 
-  ! of the upper-atmosphere extension of ICON. 
+  ! Note: upper-atmosphere physics and upper-atmosphere extrapolation 
+  ! are regarded as two elements of the upper-atmosphere extension of ICON. 
   ! This is why we treat them in one module (as well as code economy).
 
   !------------------------------------------------------------
   !                    Configuration types
-  !------------------------------------------------------------
-
-  ! Namelist parameters that control the deep-atmosphere dynamics.
-  !
-  TYPE t_upatmo_dyn_config
-    LOGICAL :: lnontrad        ! Switch for non-traditional deep-atmosphere terms 
-                               ! in components of momentum equation
-    LOGICAL :: lconstgrav      ! .TRUE. -> gravitational acceleration is const. 
-                               ! like in case of the shallow atmosphere
-    LOGICAL :: lcentrifugal    ! .TRUE. -> explicit centrifugal acceleration is switched on
-    LOGICAL :: ldeepatmo2phys  ! .TRUE. -> the input fields to the AES physics parameterizations
-                               ! are modified for the deep atmosphere, if required 
-                               ! .FALSE. -> the input fields are computed in accordance 
-                               ! with the shallow-atmosphere approximation (standard) in any case
-    ! Status
-    LOGICAL :: lset = .FALSE.  ! .TRUE. after assignment of namelist entries
-  END TYPE t_upatmo_dyn_config
-  
   !------------------------------------------------------------
 
   ! Namelist parameters that control the vertical extrapolation 
@@ -114,14 +92,6 @@ MODULE mo_upatmo_config
   ! which can be allocated for the actual number of domains 'n_dom_start:n_dom', 
   ! in order to save some memory in standard simulations without upper-atmosphere.
   !
-  TYPE t_dyn
-    LOGICAL :: l_constgrav    ! .TRUE. -> gravitational acceleration is assumed to be constant
-    LOGICAL :: l_centrifugal  ! .TRUE. -> centrifugal acceleration is switched on
-    LOGICAL :: l_initonzgpot  ! .TRUE. -> initial data are living on geopotential heights
-    ! Status variables
-    LOGICAL :: l_status(iUpatmoStat%nitem)
-  END TYPE t_dyn
-  !
   TYPE t_exp
     LOGICAL :: l_expol       ! .TRUE. -> upper-atmosphere-specific vertical extrapolation 
                              ! of initial data towards climatological values is switched on    
@@ -138,7 +108,6 @@ MODULE mo_upatmo_config
   TYPE t_upatmo_config
     TYPE(t_upatmo_aes_phy)   :: aes_phy
     TYPE(t_upatmo_nwp_phy)   :: nwp_phy
-    TYPE(t_dyn) :: dyn
     TYPE(t_exp) :: exp
     ! Miscellaneous
     REAL(wp) :: dt_fastphy             ! On several occasions we need the domain-specific dtime 
@@ -153,7 +122,6 @@ MODULE mo_upatmo_config
 
   !------------------------------------------------------------
 
-  TYPE(t_upatmo_dyn_config), TARGET              :: upatmo_dyn_config(0:max_dom)
   TYPE(t_upatmo_exp_config), TARGET              :: upatmo_exp_config(0:max_dom)
   TYPE(t_upatmo_phy_config), TARGET              :: upatmo_phy_config(0:max_dom)
   TYPE(t_upatmo_config),     TARGET, ALLOCATABLE :: upatmo_config(:) 
@@ -169,7 +137,6 @@ CONTAINS !......................................................................
   !>
   !! This subroutine configures:
   !! - Upper-atmosphere physics
-  !! - Deep-atmosphere dynamics
   !! - Upper-atmosphere extrapolation
   !!
   !!
@@ -177,7 +144,6 @@ CONTAINS !......................................................................
     &                          n_dom,                  & !in
     &                          p_patch,                & !in
     &                          lrestart,               & !in
-    &                          ldeepatmo,              & !in
     &                          lupatmo_phy,            & !in
     &                          init_mode,              & !in
     &                          iforcing,               & !in
@@ -204,7 +170,6 @@ CONTAINS !......................................................................
     INTEGER,            INTENT(IN) :: n_dom                  ! End index of domains
     TYPE(t_patch),      INTENT(IN) :: p_patch(n_dom_start:)  ! Domain properties
     LOGICAL,            INTENT(IN) :: lrestart               ! Switch for restart mode
-    LOGICAL,            INTENT(IN) :: ldeepatmo              ! Switch for deep-atmosphere dynamics
     LOGICAL,            INTENT(IN) :: lupatmo_phy(:)         ! (max_dom) Switch for upper-atmosphere physics in nwp-mode
     INTEGER,            INTENT(IN) :: init_mode              ! Initialization mode
     INTEGER,            INTENT(IN) :: iforcing               ! Switch for physics package (NWP, AES etc.)
@@ -323,15 +288,6 @@ CONTAINS !......................................................................
       ! We take the opportunity, to compute the nominal dynamics time step
       ! ("nominal", because 'ndyn_substeps' may change its value during runtime)
       upatmo_config(jg)%dt_dyn_nom = upatmo_config(jg)%dt_fastphy / REAL(ndyn_substeps, wp)
-      
-      !---------------
-      !   Dynamics
-      !---------------
-
-      CALL configure_upatmo_dynamics( ldeepatmo         = ldeepatmo,             & !in
-        &                             init_mode         = init_mode,             & !in
-        &                             upatmo_dyn_config = upatmo_dyn_config(jg), & !in
-        &                             upatmo_config     = upatmo_config(jg)      ) !inout
 
       !---------------
       !    Physics
@@ -361,35 +317,32 @@ CONTAINS !......................................................................
           &                 upatmo_config(jg)%dt_fastphy
       ENDIF
 
-      CALL configure_upatmo_physics( jg                      = jg,                                   & !in
-        &                            lupatmo_phy             = l_upatmo_phy,                         & !in
-        &                            ldeepatmo               = ldeepatmo,                            & !in
-        &                            ldeepatmo2phys          = upatmo_dyn_config(jg)%ldeepatmo2phys, & !in
-        &                            lconstgrav              = upatmo_config(jg)%dyn%l_constgrav,    & !in
-        &                            iforcing                = iforcing,                             & !in
-        &                            l_orbvsop87             = l_orbvsop87(jg_aux),                  & !in
-        &                            cecc                    = cecc(jg_aux),                         & !in
-        &                            cobld                   = cobld(jg_aux),                        & !in
-        &                            clonp                   = clonp(jg_aux),                        & !in
-        &                            lyr_perp                = lyr_perp(jg_aux),                     & !in
-        &                            yr_perp                 = yr_perp(jg_aux),                      & !in
-        &                            nlev                    = nlev,                                 & !in
-        &                            nshift_total            = nshift_total,                         & !in
-        &                            tc_exp_startdate        = tc_exp_startdate,                     & !in
-        &                            tc_exp_stopdate         = tc_exp_stopdate,                      & !in
-        &                            start_time              = start_time(jg_aux),                   & !in
-        &                            end_time                = end_time(jg_aux),                     & !in
-        &                            dtime                   = dtime,                                & !in
-        &                            dt_fastphy              = upatmo_config(jg)%dt_fastphy,         & !in
-        &                            dt_rad_nwp              = dt_rad_nwp(jg_aux),                   & !in
-        &                            dt_grp_prevdom          = dt_grp_prevdom,                       & !inout
-        &                            model_base_dir          = model_base_dir,                       & !in
-        &                            msg_level               = msg_level,                            & !in
-        &                            timers_level            = timers_level,                         & !in
-        &                            upatmo_phy_config       = upatmo_phy_config(jg),                & !inout                     
-        &                            upatmo_aes_phy_config   = upatmo_config(jg)%aes_phy,            & !inout
-        &                            upatmo_nwp_phy_config   = upatmo_config(jg)%nwp_phy,            & !inout
-        &                            vct_a                   = vct_a                                 ) !(opt)in
+      CALL configure_upatmo_physics( jg                      = jg,                           & !in
+        &                            lupatmo_phy             = l_upatmo_phy,                 & !in
+        &                            iforcing                = iforcing,                     & !in
+        &                            l_orbvsop87             = l_orbvsop87(jg_aux),          & !in
+        &                            cecc                    = cecc(jg_aux),                 & !in
+        &                            cobld                   = cobld(jg_aux),                & !in
+        &                            clonp                   = clonp(jg_aux),                & !in
+        &                            lyr_perp                = lyr_perp(jg_aux),             & !in
+        &                            yr_perp                 = yr_perp(jg_aux),              & !in
+        &                            nlev                    = nlev,                         & !in
+        &                            nshift_total            = nshift_total,                 & !in
+        &                            tc_exp_startdate        = tc_exp_startdate,             & !in
+        &                            tc_exp_stopdate         = tc_exp_stopdate,              & !in
+        &                            start_time              = start_time(jg_aux),           & !in
+        &                            end_time                = end_time(jg_aux),             & !in
+        &                            dtime                   = dtime,                        & !in
+        &                            dt_fastphy              = upatmo_config(jg)%dt_fastphy, & !in
+        &                            dt_rad_nwp              = dt_rad_nwp(jg_aux),           & !in
+        &                            dt_grp_prevdom          = dt_grp_prevdom,               & !inout
+        &                            model_base_dir          = model_base_dir,               & !in
+        &                            msg_level               = msg_level,                    & !in
+        &                            timers_level            = timers_level,                 & !in
+        &                            upatmo_phy_config       = upatmo_phy_config(jg),        & !inout                     
+        &                            upatmo_aes_phy_config   = upatmo_config(jg)%aes_phy,    & !inout
+        &                            upatmo_nwp_phy_config   = upatmo_config(jg)%nwp_phy,    & !inout
+        &                            vct_a                   = vct_a                         ) !(opt)in
 
       !---------------
       ! Extrapolation
@@ -438,15 +391,13 @@ CONTAINS !......................................................................
       upatmo_config(jg)%l_status(iUpatmoStat%timer) = timers_level > itmr_thr%med
       
       ! 'upatmo_config' is allocated in any case, but not necessarily required
-      upatmo_config(jg)%l_status(iUpatmoStat%required) = upatmo_config(jg)%dyn%l_status(iUpatmoStat%required)       .OR. &
-        &                                                upatmo_config(jg)%aes_phy%l_status(iUpatmoStat%required)   .OR. &
-        &                                                upatmo_config(jg)%nwp_phy%l_status(iUpatmoStat%required)   .OR. &
+      upatmo_config(jg)%l_status(iUpatmoStat%required) = upatmo_config(jg)%aes_phy%l_status(iUpatmoStat%required) .OR. &
+        &                                                upatmo_config(jg)%nwp_phy%l_status(iUpatmoStat%required) .OR. &
         &                                                upatmo_config(jg)%exp%l_status(iUpatmoStat%required)
       
       ! Indicate that configuration has taken place
-      upatmo_config(jg)%l_status(iUpatmoStat%configured) = upatmo_config(jg)%dyn%l_status(iUpatmoStat%configured)       .OR. &
-        &                                                  upatmo_config(jg)%aes_phy%l_status(iUpatmoStat%configured)   .OR. &
-        &                                                  upatmo_config(jg)%nwp_phy%l_status(iUpatmoStat%configured)   .OR. &
+      upatmo_config(jg)%l_status(iUpatmoStat%configured) = upatmo_config(jg)%aes_phy%l_status(iUpatmoStat%configured) .OR. &
+        &                                                  upatmo_config(jg)%nwp_phy%l_status(iUpatmoStat%configured) .OR. &
         &                                                  upatmo_config(jg)%exp%l_status(iUpatmoStat%configured)
 
       !---------------
@@ -474,68 +425,6 @@ CONTAINS !......................................................................
     ENDIF
     
   END SUBROUTINE configure_upatmo
-
-  !====================================================================================
-
-  !>
-  !! Configure deep-atmosphere dynamics.
-  !!
-  SUBROUTINE configure_upatmo_dynamics( ldeepatmo,         & !in
-    &                                   init_mode,         & !in
-    &                                   upatmo_dyn_config, & !in
-    &                                   upatmo_config      ) !inout
-
-    ! In/out variables
-    LOGICAL,                   INTENT(IN)    :: ldeepatmo         ! Main deep-atmosphere switch
-    INTEGER,                   INTENT(IN)    :: init_mode         ! Initialization mode
-    TYPE(t_upatmo_dyn_config), INTENT(IN)    :: upatmo_dyn_config ! Namelist parameters
-    TYPE(t_upatmo_config),     INTENT(INOUT) :: upatmo_config     ! Upper-atmosphere configuration
-
-    !---------------------------------------------------------
-
-    !-----------------------------------------------------
-    !         Initialization with default values
-    !-----------------------------------------------------
-
-    upatmo_config%dyn%l_constgrav   = .TRUE.   ! Constant gravitational acceleration
-    upatmo_config%dyn%l_centrifugal = .FALSE.  ! No explicit centrifugal acceleration
-    upatmo_config%dyn%l_initonzgpot = .FALSE.  ! Initial data are living on geometric heights 
-    CALL init_logical_1d( variable=upatmo_config%dyn%l_status, value=.FALSE., &
-      &                   opt_ilist=(/iUpatmoStat%checked/), opt_mask="list"  )
-
-    !-----------------------------------------------------
-    !                   Configuration
-    !-----------------------------------------------------
-
-    ! Check, if gravitational acceleration shall be constant in case of deep atmosphere, too
-    upatmo_config%dyn%l_constgrav = MERGE( upatmo_dyn_config%lconstgrav, & ! True-case
-      &                                    .TRUE.,                       & ! False-case
-      &                                    ldeepatmo                     ) ! Condition
-    
-    ! Explicit centrifugal acceleration switched on?
-    ! (If we assume that the parameter 'src/shared/mo_physical_constants: grav' contains 
-    ! a contribution from the centrifugal acceleration, it is not subtracted out!)
-    upatmo_config%dyn%l_centrifugal = MERGE( upatmo_dyn_config%lcentrifugal, & 
-      &                                      .FALSE.,                        & 
-      &                                      ldeepatmo                       ) 
-    
-    ! Should initial data be interpreted to live on geopotential instead of geometric heights?
-    ! (In case of the shallow atmosphere, geometric and geopotential height would coincide,
-    !  but this is unfortunately not the case for the deep atmosphere)
-    ! Currently this variable is set to .true., if
-    ! - the gravitational acceleration varies with height, 
-    ! - and initial data are taken from IFS (MODE_IFSANA or MODE_COMBINED)
-    upatmo_config%dyn%l_initonzgpot = .NOT. upatmo_config%dyn%l_constgrav .AND. &
-      &                               ( init_mode == MODE_IFSANA .OR.           &
-      &                                 init_mode == MODE_COMBINED              )
-    
-    ! 'upatmo_config' is allocated in any case, but not necessarily required
-    upatmo_config%dyn%l_status(iUpatmoStat%required) = ldeepatmo
-    
-    ! Indicate that configuration has taken place
-    upatmo_config%dyn%l_status(iUpatmoStat%configured) = .TRUE.
-
-  END SUBROUTINE configure_upatmo_dynamics
 
   !====================================================================================
 
@@ -712,20 +601,6 @@ CONTAINS !......................................................................
     !                "Any-case" output
     !-----------------------------------------------------
 
-    ! Deep atmosphere:
-    IF (l_onlyPrimDom .AND. upatmo_config%dyn%l_status(iUpatmoStat%required)) THEN
-      CALL message(routine, "Deep-atmosphere modification of non-hydrostatic atmosphere switched on.")
-      CALL message(routine, "Please note: for efficiency reasons and code economy"// &
-        & " the deep-atmosphere modification of the dynamical core disregards:")
-      CALL message("", " - horizontal variation of grid layer heights due to terrain")
-      CALL message("", " - any kind of diffusion, damping and the like (including LES physics)")
-      CALL message("", " - special numerical 'tricks' beyond the main dynamics line,"//&
-        & " such as sub-stepping for tracer advection")
-      CALL message("", " - the feedback procedures for state relaxation between domains")
-      IF (iforcing /= inoforcing) CALL message(routine, "Please note: no physics parameterization"// &
-        & " is modified for the deep atmosphere!")
-    ENDIF
-
     ! Miscellaneous:
     IF (l_onlyPrimDom .AND. upatmo_config%l_status(iUpatmoStat%required)) THEN
       WRITE (message_text, '(a,i0,a)') &
@@ -755,24 +630,6 @@ CONTAINS !......................................................................
           !-----------------------------------------------------
           !               "Low-priority" output
           !-----------------------------------------------------
-
-          ! Deep atmosphere:
-          IF (upatmo_config%dyn%l_status(iUpatmoStat%required)) THEN
-#define msg_prefix 'upatmo_config(', jg, ')%dyn%'
-            !
-            WRITE (message_text, '(a,i0,2a,l1)') &
-              msg_prefix, 'l_constgrav: ', upatmo_config%dyn%l_constgrav
-            CALL message(routine, message_text)
-            !
-            WRITE (message_text, '(a,i0,2a,l1)') &
-              msg_prefix, 'l_centrifugal: ', upatmo_config%dyn%l_centrifugal
-            CALL message(routine, message_text)
-            !
-            WRITE (message_text, '(a,i0,2a,l1)') &
-              msg_prefix, 'l_initonzgpot: ', upatmo_config%dyn%l_initonzgpot
-            CALL message(routine, message_text)
-#undef msg_prefix
-          ENDIF
 
           ! Upper-atmosphere extrapolation:
           IF (upatmo_config%exp%l_status(iUpatmoStat%required) .AND. PRESENT(vct_a)) THEN
@@ -861,47 +718,34 @@ CONTAINS !......................................................................
   !>
   !! Check for conflicts with other namelist settings.
   !!
-  SUBROUTINE check_upatmo( n_dom_start,           & !in
-    &                      n_dom,                 & !in
-    &                      iequations,            & !in
-    &                      iforcing,              & !in
-    &                      ldeepatmo,             & !in
-    &                      lupatmo_phy,           & !in
-    &                      is_plane_torus,        & !in
-    &                      l_limited_area,        & !in
-    &                      lart,                  & !in
-    &                      ivctype,               & !in
-    &                      flat_height,           & !in
-    &                      itype_vert_expol,      & !in
-    &                      ltestcase,             & !in
-    &                      nh_test_name,          & !in
-    &                      init_mode,             & !in
-    &                      inwp_turb,             & !in
-    &                      inwp_radiation)          !in
+  SUBROUTINE check_upatmo( n_dom_start,      & !in
+    &                      n_dom,            & !in
+    &                      iforcing,         & !in
+    &                      lupatmo_phy,      & !in
+    &                      l_limited_area,   & !in
+    &                      ivctype,          & !in
+    &                      flat_height,      & !in
+    &                      itype_vert_expol, & !in
+    &                      init_mode,        & !in
+    &                      inwp_turb,        & !in
+    &                      inwp_radiation)     !in
 
     ! In/out variables
-    INTEGER,                               INTENT(IN)    :: n_dom_start            ! Start index of domains
-    INTEGER,                               INTENT(IN)    :: n_dom                  ! End index of domains
-    INTEGER,                               INTENT(IN)    :: iequations             ! Switch for model equations 
-                                                                                   ! (non-hydrostatic etc.)
-    INTEGER,                               INTENT(IN)    :: iforcing               ! Switch for physics package 
-                                                                                   ! (nwp, aes etc.)
-    LOGICAL,                               INTENT(IN)    :: ldeepatmo              ! Switch for deep-atmosphere dynamics
-    LOGICAL,                               INTENT(IN)    :: lupatmo_phy(:)         ! Switch for upper-atmosphere physics
-                                                                                   ! in nwp-mode
-    LOGICAL,                               INTENT(IN)    :: is_plane_torus         ! Switch for torus mode
-    LOGICAL,                               INTENT(IN)    :: l_limited_area         ! Switch for limited-area mode
-    LOGICAL,                               INTENT(IN)    :: lart                   ! Switch for ART interface
-    INTEGER,                               INTENT(IN)    :: ivctype                ! Type of vertical grid (SLEVE etc.)
-    REAL(wp),                              INTENT(IN)    :: flat_height            ! Below 'flat_height' grid layer 
-                                                                                   ! interfaces follow topography
-    INTEGER,                               INTENT(IN)    :: itype_vert_expol       ! Type of vertical extrapolation 
-                                                                                   ! of initial atmosphere state
-    LOGICAL,                               INTENT(IN)    :: ltestcase              ! Switch for test case mode
-    CHARACTER(LEN=*),                      INTENT(IN)    :: nh_test_name           ! Test case name
-    INTEGER,                               INTENT(IN)    :: init_mode              ! Initialization mode 
-    INTEGER,                               INTENT(IN)    :: inwp_turb(:)           ! Switch for turbulence scheme (NWP)
-    INTEGER,                               INTENT(IN)    :: inwp_radiation(:)      ! Switch for radiation scheme (NWP)
+    INTEGER,  INTENT(IN) :: n_dom_start       ! Start index of domains
+    INTEGER,  INTENT(IN) :: n_dom             ! End index of domains
+    INTEGER,  INTENT(IN) :: iforcing          ! Switch for physics package 
+                                              ! (nwp, aes etc.)
+    LOGICAL,  INTENT(IN) :: lupatmo_phy(:)    ! Switch for upper-atmosphere physics
+                                              ! in nwp-mode
+    LOGICAL,  INTENT(IN) :: l_limited_area    ! Switch for limited-area mode
+    INTEGER,  INTENT(IN) :: ivctype           ! Type of vertical grid (SLEVE etc.)
+    REAL(wp), INTENT(IN) :: flat_height       ! Below 'flat_height' grid layer 
+                                              ! interfaces follow topography
+    INTEGER,  INTENT(IN) :: itype_vert_expol  ! Type of vertical extrapolation 
+                                              ! of initial atmosphere state
+    INTEGER,  INTENT(IN) :: init_mode         ! Initialization mode 
+    INTEGER,  INTENT(IN) :: inwp_turb(:)      ! Switch for turbulence scheme (NWP)
+    INTEGER,  INTENT(IN) :: inwp_radiation(:) ! Switch for radiation scheme (NWP)
 
     ! Local variables
     INTEGER :: jg, istat
@@ -968,60 +812,6 @@ CONTAINS !......................................................................
     ENDIF    
 
     !---------------
-    !   Dynamics
-    !---------------  
-
-    IF (ldeepatmo) THEN
-
-      ! If deep-atmosphere dynamics have been switched on ...
-      IF (iequations /= inh_atmosphere) THEN
-        ! ... only the non-hydrostatic set of equations is allowed
-        CALL finish(routine, &
-          & "Deep-atmosphere configuration is not available for other than the non-hydrostatic equations.")
-      ELSEIF(.NOT. ANY((/inoforcing, inwp, iaes/) == iforcing)) THEN
-        ! ... only no physics forcing, AES forcing or NWP forcing are allowed
-        WRITE (message_text, '(3(a,i0),a)') "Deep-atmosphere configuration is &
-          &not available for all forcings but iforcing = ", inoforcing, &
-          ', or ', iaes, ', or ', inwp, '.'
-        CALL finish(routine, message_text)
-      ELSEIF (ltestcase .AND. (.NOT. (nh_test_name == 'dcmip_bw_11' .OR. nh_test_name == 'lahade'))) THEN
-        ! ... most test cases are not available for the time being
-        ! (only the baroclinic wave test case of Ullrich et al. (2014),
-        ! and the lahade-testcase are currently intended to test the deep-atmosphere equations)
-        CALL finish(routine, &
-          & "Deep-atmosphere configuration is not available for all test cases but dcmip_bw_11 and lahade.")
-      ELSEIF (is_plane_torus) THEN 
-        ! ... the torus configuration is not available for the time being (-> no spherical geometry)
-        CALL finish(routine, &
-          & "Deep-atmosphere configuration is not available in combination with the torus mode.")
-      ENDIF
-
-      ! ... the limited-area mode requires a warning for the time being
-      IF (l_limited_area) THEN 
-        CALL message(routine, "WARNING, are the deep-atmosphere dynamics really necessary,"// &
-          & " and consistent with the driving model?")
-      ENDIF
-
-      ! ... a run in combination with ART necessitates at least a warning for the time being
-      IF (lart) THEN 
-        CALL message(routine, "WARNING, (dynamical) cross-consistency/compatibility of ART"// &
-          & " in combination with the deep atmosphere has not been checked!")
-      ENDIF
-
-      ! ... the computation of the output variable 'potential vorticity' is not modified 
-      ! for the deep atmosphere for the time being
-      IF (is_variable_in_output(var_name="pv")) THEN
-        CALL message(routine,'WARNING, PV-computation is not modified for deep atmosphere!')
-      ENDIF
-
-      ! ... OpenACC-parallelization is not available in combination with the deep-atmosphere configuration
-#ifdef _OPENACC
-      CALL finish(routine, "Deep-atmosphere configuration is not available in combination with Open-ACC.")
-#endif
-
-    ENDIF  !IF (ldeepatmo)
-
-    !---------------
     ! Extrapolation
     !---------------
 
@@ -1060,7 +850,6 @@ CONTAINS !......................................................................
     !---------------
     
     ! Indicate that crosscheck took place
-    upatmo_config(n_dom_start:n_dom)%dyn%l_status(iUpatmoStat%checked)       = .TRUE.
     upatmo_config(n_dom_start:n_dom)%aes_phy%l_status(iUpatmoStat%checked)   = .TRUE.
     upatmo_config(n_dom_start:n_dom)%nwp_phy%l_status(iUpatmoStat%checked)   = .TRUE.
     upatmo_config(n_dom_start:n_dom)%exp%l_status(iUpatmoStat%checked)       = .TRUE.
