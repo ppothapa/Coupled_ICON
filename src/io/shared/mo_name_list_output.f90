@@ -448,9 +448,11 @@ CONTAINS
       IF (pio_type == pio_type_cdipio) &
         CALL namespaceSetActive(prev_cdi_namespace)
 
+#ifdef YAC_coupling
       IF ( is_coupled_run() ) THEN
         IF (my_process_is_io() ) CALL destruct_io_coupler ( "dummy" )
       ENDIF
+#endif
 #endif
 #ifndef NOMPI
 #ifndef __NO_ICON_ATMO__
