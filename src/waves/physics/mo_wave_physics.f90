@@ -618,16 +618,16 @@ CONTAINS
     ! save some paperwork
     wc => wave_config
 
+    CALL list_tr%construct(SIZE(wc%freq_ind))
 
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jc,jf,n,jt,i_startidx,i_endidx,list_tr,temp,temp_1) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP DO PRIVATE(jb,jc,jf,n,jt,i_startidx,i_endidx,temp,temp_1,list_tr) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
       CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,           &
         &                 i_startidx, i_endidx, i_rlstart, i_rlend)
 
       DO jf = 1,wc%nfreqs
 
-        CALL list_tr%construct(SIZE(wc%freq_ind))
         CALL wc%get_tracer_ids_freq(jf,list_tr)
 
         DO jc = i_startidx, i_endidx
@@ -645,7 +645,6 @@ CONTAINS
           ENDDO
         ENDDO  ! n
 
-        CALL list_tr%finalize()
       END DO  ! jf
 
       DO jc = i_startidx, i_endidx
@@ -667,6 +666,9 @@ CONTAINS
     END DO
 !$OMP ENDDO NOWAIT
 !$OMP END PARALLEL
+
+    CALL list_tr%finalize()
+
   END SUBROUTINE mean_frequency_energy
 
   !>
@@ -716,8 +718,10 @@ CONTAINS
     ! save some paperwork
     wc => wave_config
 
+    CALL list_tr%construct(SIZE(wc%freq_ind))
+
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jc,jf,jt,n,i_startidx,i_endidx,list_tr,sum1,sum2) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP DO PRIVATE(jb,jc,jf,jt,n,i_startidx,i_endidx,sum1,sum2,list_tr) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
       CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,           &
         &                 i_startidx, i_endidx, i_rlstart, i_rlend)
@@ -726,7 +730,6 @@ CONTAINS
       ! compute sum of all tracers that match a specific frequency
       DO jf = 1,wc%nfreqs
 
-        CALL list_tr%construct(SIZE(wc%freq_ind))
         CALL wc%get_tracer_ids_freq(jf, list_tr)
 
         ! initialization
@@ -745,7 +748,6 @@ CONTAINS
           ENDDO
         ENDDO  ! n
 
-        CALL list_tr%finalize()
       ENDDO  ! jf
 
       ! initialization
@@ -770,6 +772,8 @@ CONTAINS
     END DO
 !$OMP ENDDO NOWAIT
 !$OMP END PARALLEL
+
+    CALL list_tr%finalize()
 
   END SUBROUTINE total_energy
 
@@ -1085,15 +1089,16 @@ CONTAINS
     ! save some paperwork
     wc => wave_config
 
+    CALL list_tr%construct(SIZE(wc%freq_ind))
+
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jc,jf,jt,n,i_startidx,i_endidx,list_tr,temp) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP DO PRIVATE(jb,jc,jf,jt,n,i_startidx,i_endidx,temp,list_tr) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
       CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,           &
            &                 i_startidx, i_endidx, i_rlstart, i_rlend)
       ! compute sum of all tracers that match a specific frequency
       DO jf = 1,wc%nfreqs
 
-        CALL list_tr%construct(SIZE(wc%freq_ind))
         CALL wc%get_tracer_ids_freq(jf, list_tr)
 
         ! initialization
@@ -1108,7 +1113,6 @@ CONTAINS
           END DO
         END DO  ! n
 
-        CALL list_tr%finalize()
       END DO  ! jf
 
       ! tail part
@@ -1132,9 +1136,11 @@ CONTAINS
         END IF
         f1mean(jc,jb) = 1.0_wp / tm1(jc,jb)
       END DO
-  END DO
+    END DO
 !$OMP ENDDO NOWAIT
 !$OMP END PARALLEL
+
+    CALL list_tr%finalize()
 
   END SUBROUTINE tm1_period
 
@@ -1504,6 +1510,8 @@ CONTAINS
 
     wc => wave_config
 
+    CALL list_tr%construct(SIZE(wc%freq_ind))
+
     i_rlstart  = 1
     i_rlend    = min_rlcell
     i_startblk = p_patch%cells%start_block(i_rlstart)
@@ -1511,13 +1519,12 @@ CONTAINS
     jk         = p_patch%nlev
 
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jc,jb,jf,jt,list_tr,i_startidx,i_endidx,temp,temp2) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP DO PRIVATE(jc,jb,jf,jt,i_startidx,i_endidx,temp,temp2,list_tr) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
       CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,           &
            &                 i_startidx, i_endidx, i_rlstart, i_rlend)
 
       DO jf = 1,wc%nfreqs
-        CALL list_tr%construct(SIZE(wc%freq_ind))
         CALL wc%get_tracer_ids_freq(jf,list_tr)
 
         DO jc = i_startidx, i_endidx
@@ -1532,7 +1539,6 @@ CONTAINS
             temp(jc,jf) = temp(jc,jf) + tracer(jc,jk,jb,jt)
           END DO
         ENDDO
-        CALL list_tr%finalize()
       END DO  !jf
 
       !initialisation
@@ -1561,6 +1567,9 @@ CONTAINS
     END DO
 !$OMP ENDDO NOWAIT
 !$OMP END PARALLEL
+
+    CALL list_tr%finalize()
+
   END SUBROUTINE wm1_wm2_wavenumber
 
 

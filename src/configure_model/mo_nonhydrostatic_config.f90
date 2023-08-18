@@ -202,7 +202,7 @@ CONTAINS
     CALL message(routine, message_text)
 
     ! initialization of control variables derived from ndyn_substeps
-    ndyn_substeps_max    = ndyn_substeps + 3
+    ndyn_substeps_max    = ndyn_substeps + 5
     ndyn_substeps_var(:) = ndyn_substeps !** needs to be saved in restart attributes **
 
 

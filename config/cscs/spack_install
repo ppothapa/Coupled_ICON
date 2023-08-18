@@ -11,6 +11,12 @@ set --
 
 git clone --depth 1 --recurse-submodules --shallow-submodules -b $SPACK_VERSION https://github.com/C2SM/spack-c2sm.git
 . spack-c2sm/setup-env.sh
+# Overwrite default spack user and config cache to avoid long path error with Buildbot
+export SPACK_USER_CONFIG_PATH=$ICON_DIR/spack-config
+export SPACK_USER_CACHE_PATH=$ICON_DIR/spack-cache
+echo "Setting SPACK_USER_CONFIG_PATH to $SPACK_USER_CONFIG_PATH"
+echo "Setting SPACK_USER_CACHE_PATH to $SPACK_USER_CACHE_PATH"
+
 
 if ! git rev-parse --is-inside-work-tree &> /dev/null; then
   echo "Error: This script must be executed from within the icon git repository."
