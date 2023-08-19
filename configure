@@ -9418,7 +9418,7 @@ esac
      ;; #(
   YAXT_CFLAGS=*|YAXT_CLIBS=*|YAXT_FCFLAGS=*|YAXT_FCLIBS=*) :
      ;; #(
-  NETCDF_CFLAGS=*|NETCDF_CLIBS=*|XML2_CFLAGS=*|XML2_CLIBS=*) :
+  NETCDF_CFLAGS=*|NETCDF_CLIBS=*|FYAML_CFLAGS=*|FYAML_CLIBS=*) :
      ;; #(
   MTIME_CFLAGS=*|MTIME_CLIBS=*|FORTRAN_LAPACK_CLIBS=*) :
      ;; #(
@@ -9445,7 +9445,7 @@ esac
 esac
      shift
    done
-      set dummy CFLAGS="$subdir_CFLAGS $ICON_YAC_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_YAC_FCFLAGS" MPI_CFLAGS= MPI_CLIBS= MPI_FCFLAGS= MPI_FCLIBS= YAXT_CLIBS= YAXT_FCLIBS= NETCDF_CFLAGS= NETCDF_CLIBS= XML2_CFLAGS= XML2_CLIBS= MTIME_CLIBS= FORTRAN_LAPACK_CLIBS= --enable-silent-rules="$enable_silent_rules" --disable-maintainer-mode --enable-lib-only --enable-netcdf --with-external-lapack=fortran --with-external-mtime; shift
+      set dummy CFLAGS="$subdir_CFLAGS $ICON_YAC_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_YAC_FCFLAGS" MPI_CFLAGS= MPI_CLIBS= MPI_FCFLAGS= MPI_FCLIBS= YAXT_CLIBS= YAXT_FCLIBS= NETCDF_CFLAGS= NETCDF_CLIBS= FYAML_CFLAGS= FYAML_CLIBS= MTIME_CLIBS= FORTRAN_LAPACK_CLIBS= --enable-silent-rules="$enable_silent_rules" --disable-maintainer-mode --enable-lib-only --enable-netcdf --with-external-lapack=fortran --with-external-mtime; shift
    for acx_tmp; do
      case $acx_tmp in #(
   *\'*) :
