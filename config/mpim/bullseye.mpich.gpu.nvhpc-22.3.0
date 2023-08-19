@@ -73,11 +73,14 @@ LDFLAGS="-c++libs -cuda -L${sw_root}/lib ${RTTOV_LDFLAGS-}"
 # are meant for the linker only via ICON_LDFLAGS so that they are not passed to
 # any libtool script:
 ICON_LDFLAGS='-Wl,--disable-new-dtags -Wl,--as-needed'
-LIBS="-lxml2 -lSerialboxFortran -leccodes_f90 -leccodes ${RTTOV_LIBS-} -llapack -lblas -lnetcdff -lnetcdf -lhdf5_hl_fortran -lhdf5_fortran -lhdf5 -lz"
+LIBS="-lxml2 -lfyaml -lSerialboxFortran -leccodes_f90 -leccodes ${RTTOV_LIBS-} -llapack -lblas -lnetcdff -lnetcdf -lhdf5_hl_fortran -lhdf5_fortran -lhdf5 -lz"
 
 MPI_LAUNCH='mpiexec'
 
 EXTRA_CONFIG_ARGS='--enable-gpu --enable-dim-swap --enable-grib2 --enable-fcgroup-WORKAROUND1'
+
+# The compiler cannot build YAC yet:
+EXTRA_CONFIG_ARGS+=' --disable-coupling'
 
 ################################################################################
 

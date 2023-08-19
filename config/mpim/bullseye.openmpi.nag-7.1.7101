@@ -53,13 +53,16 @@ mismatch_FCFLAGS='-wmismatch=mpi_allgather,mpi_allgatherv,mpi_allreduce,mpi_allt
 
 ICON_FCFLAGS="${non_libtool_FCFLAGS} ${mismatch_FCFLAGS} -C=all"
 
-# Prevent the compiler crash by omitting '-C=calls' implied by '-C=all':
-#   * the problem manifests itself when the MPI support is disabled
-#     (--disable-mpi) or the usage of the parallel features of NetCDF is enabled
-#     (--enable-parallel-netcdf), i.e. when the Fortran 77 interface of NetCDF
-#     is used directly by including 'netcdf.inc';
-#   * an older version of the compiler, NAG 6.2 Build 6252 is not affected.
-ICON_WORKAROUND1_FCFLAGS="${non_libtool_FCFLAGS} ${mismatch_FCFLAGS} -C=alias -C=array -C=bits -C=dangling -C=do -C=intovf -C=present -C=pointer -C=recursion"
+# Prevent the compiler crash, which happens when the MPI support is disabled
+# (--disable-mpi) or the usage of the parallel features of NetCDF is enabled
+# (--enable-parallel-netcdf), i.e. when the Fortran 77 interface of NetCDF is
+# used directly by including 'netcdf.inc':
+#   * NAG 6.2.6252 is not affected;
+#   * NAG 7.1.7101 is affected if '-C=calls' is combined with '-C=dangling'
+#     and/or '-C=pointer';
+#   * NAG 7.1.7125 is affected if '-C=dangling' and/or '-C=pointer' are
+#     specified at all.
+ICON_WORKAROUND1_FCFLAGS="${non_libtool_FCFLAGS} ${mismatch_FCFLAGS} -C=alias -C=array -C=bits -C=calls -C=do -C=intovf -C=present -C=recursion"
 ICON_WORKAROUND1_PATH='src/shr_horizontal/mo_model_domimp_patches.f90'
 
 # Tolerate all argument mismatches in DACE (setting the function-specific
@@ -90,7 +93,7 @@ LDFLAGS="-L${sw_root}/lib ${RTTOV_LDFLAGS-}"
 # work with the Debian-provided GCC (e.g. the building of the CDI tests fails):
 ICON_LDFLAGS='-Wl,-Wl,,--disable-new-dtags'
 
-LIBS="-lfyaml -lxml2 -lSerialboxFortran -leccodes_f90 -leccodes ${RTTOV_LIBS-} -llapack -lblas -lnetcdff -lnetcdf -lhdf5_hl_fortran -lhdf5_fortran -lhdf5 -lz"
+LIBS="-lxml2 -lfyaml -lSerialboxFortran -leccodes_f90 -leccodes ${RTTOV_LIBS-} -llapack -lblas -lnetcdff -lnetcdf -lhdf5_hl_fortran -lhdf5_fortran -lhdf5 -lz"
 
 MPI_LAUNCH='mpiexec --oversubscribe'
 
