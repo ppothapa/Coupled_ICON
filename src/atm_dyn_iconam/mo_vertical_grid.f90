@@ -31,7 +31,7 @@ MODULE mo_vertical_grid
   USE mo_exception,             ONLY: finish, message, message_text
   USE mo_model_domain,          ONLY: t_patch
   USE mo_ext_data_types,        ONLY: t_external_data
-  USE mo_grid_config,           ONLY: n_dom
+  USE mo_grid_config,           ONLY: n_dom, grid_sphere_radius
   USE mo_nonhydrostatic_config, ONLY: rayleigh_type, rayleigh_coeff, damp_height, &
     &                                 igradp_method, vwind_offctr,                &
     &                                 exner_expol, l_zdiffu_t, thslp_zdiffu,      &
@@ -39,11 +39,11 @@ MODULE mo_vertical_grid
     &                                 divdamp_trans_start, divdamp_trans_end
   USE mo_diffusion_config,      ONLY: diffusion_config
   USE mo_parallel_config,       ONLY: nproma, p_test_run
-  USE mo_run_config,            ONLY: msg_level
+  USE mo_run_config,            ONLY: msg_level, iforcing
   USE mo_vertical_coord_table,  ONLY: vct_a
   USE mo_impl_constants,        ONLY: max_dom, RAYLEIGH_CLASSIC, &
     &                                 RAYLEIGH_KLEMP, min_rlcell_int, min_rlcell, min_rledge_int, &
-    &                                 SUCCESS
+    &                                 SUCCESS, iaes, ildf_echam
   USE mo_impl_constants_grf,    ONLY: grf_bdywidth_c, grf_bdywidth_e, grf_fbk_start_c, &
                                       grf_nudge_start_e, grf_nudgezone_width
   USE mo_physical_constants,    ONLY: grav, p0ref, rd, rd_o_cpd, cpd, p0sl_bg, rgrav
@@ -53,7 +53,7 @@ MODULE mo_vertical_grid
   USE mo_intp_rbf,              ONLY: rbf_vec_interpol_cell
   USE mo_math_constants,        ONLY: pi_2
   USE mo_loopindices,           ONLY: get_indices_e, get_indices_c
-  USE mo_nonhydro_types,        ONLY: t_nh_state, t_nh_state_lists
+  USE mo_nonhydro_types,        ONLY: t_nh_state, t_nh_state_lists, t_nh_metrics
   USE mo_init_vgrid,            ONLY: nflatlev
   USE mo_util_vgrid_types,      ONLY: vgrid_buffer
   USE mo_sync,                  ONLY: SYNC_C, SYNC_E, SYNC_V, sync_patch_array, global_sum_array, &
@@ -69,11 +69,11 @@ MODULE mo_vertical_grid
     &                                set_table_entry, print_table, finalize_table
   USE mo_nudging_config,       ONLY: nudging_config, indg_type, indg_profile
   USE mo_dynamics_config,      ONLY: ldeepatmo
-  USE mo_nh_deepatmo_utils,    ONLY: set_deepatmo_metrics
   USE mo_aes_vdf_config,       ONLY: aes_vdf_config
   USE mo_turb_vdiff_params,    ONLY: VDIFF_TURB_3DSMAGORINSKY
   USE mo_var_list,             ONLY: t_var_list_ptr
   USE mo_nonhydro_state,       ONLY: new_zd_metrics  
+  USE mo_deepatmo,             ONLY: deepatmo_htrafo
   IMPLICIT NONE
 
   PRIVATE
@@ -136,7 +136,7 @@ MODULE mo_vertical_grid
     REAL(wp) :: extrapol_dist
     INTEGER,  ALLOCATABLE :: flat_idx(:,:), imask(:,:,:),icount(:)
     INTEGER,  DIMENSION(:,:,:), POINTER :: iidx, iblk, inidx, inblk
-    LOGICAL :: l_found(nproma), lfound_all
+    LOGICAL :: l_found(nproma), lfound_all, is_les_phy
     INTEGER :: error_status
 
 #ifdef INTEL_COMPILER
@@ -1707,14 +1707,36 @@ MODULE mo_vertical_grid
       DEALLOCATE(z_me,flat_idx)
 
       ! deep-atmosphere modifications
-      IF (ldeepatmo) THEN 
-        CALL set_deepatmo_metrics( p_patch(jg), p_nh(jg)%metrics, p_int(jg),         &
+      IF (ldeepatmo) THEN
+        ! (It seems that aes_vdf_config is only initialized if iforcing=iaes or ildf_echam)
+        IF (iforcing == iaes .OR. iforcing == ildf_echam) THEN
+          is_les_phy = aes_vdf_config(jg)%turb==VDIFF_TURB_3DSMAGORINSKY
+        ELSE
+          is_les_phy = .FALSE.
+        ENDIF
 #ifndef __NO_ICON_LES__
-          &                        igradp_method, atm_phy_nwp_config(jg)%is_les_phy, &
-#else
-          &                        igradp_method, .FALSE.,                           &
+        is_les_phy = atm_phy_nwp_config(jg)%is_les_phy .OR. is_les_phy
 #endif
-          &                        h_scal_bg, t0sl_bg, del_t_bg                      )
+        IF (.NOT. ALLOCATED(z_me)) THEN 
+          ALLOCATE(z_me(nproma,nlev,nblks_e), STAT=error_status)
+          IF (error_status /= SUCCESS) CALL finish(routine, 'Allocation of z_me failed')
+        ENDIF
+        CALL cells2edges_scalar(p_nh(jg)%metrics%z_mc, p_patch(jg), p_int(jg)%c_lin_e, z_me)
+        CALL sync_patch_array(SYNC_E, p_patch(jg), z_me)
+        CALL prepare_deepatmo_metrics(nblks_c      = nblks_c,                  &
+          &                           nblks_e      = nblks_e,                  &
+          &                           npromz_c     = npromz_c,                 &
+          &                           npromz_e     = npromz_e,                 &
+          &                           nlev         = nlev,                     &
+          &                           nlevp1       = nlevp1,                   &
+          &                           nshift_total = p_patch(jg)%nshift_total, &
+          &                           is_les_phy   = is_les_phy,               &
+          &                           p_metrics    = p_nh(jg)%metrics,         &
+          &                           z_me         = z_me,                     &
+          &                           ierror       = error_status)
+        IF (error_status /= SUCCESS) CALL finish(routine, 'prepare_deepatmo_metrics failed')
+        DEALLOCATE(z_me, STAT=error_status)
+        IF (error_status /= SUCCESS) CALL finish(routine, 'Deallocation of z_me failed')
       ENDIF
 
     ENDDO  !jg
@@ -2306,7 +2328,400 @@ MODULE mo_vertical_grid
     
   END SUBROUTINE prepare_nudging
   !----------------------------------------------------------------------------
+  ! Procedures related to the deep-atmosphere (deepatmo) configuration:
+  !----------------------------------------------------------------------------
+  !>
+  !! Computes metrical modification for the deep atmosphere
+  !!
+  !! @par Revision History
+  !! Initial revision by Sebastian Borchert, DWD (2017-06-30)
+  !!
+  !!
+  SUBROUTINE prepare_deepatmo_metrics( nblks_c,       &  !in
+    &                                  nblks_e,       &  !in
+    &                                  npromz_c,      &  !in
+    &                                  npromz_e,      &  !in
+    &                                  nlev,          &  !in
+    &                                  nlevp1,        &  !in
+    &                                  nshift_total,  &  !in
+    &                                  is_les_phy,    &  !in
+    &                                  p_metrics,     &  !inout
+    &                                  z_me,          &  !in
+    &                                  ierror)           !optout
 
+    ! In/out variables
+    INTEGER,  INTENT(IN)              :: nblks_c       ! Number of cell blocks
+    INTEGER,  INTENT(IN)              :: nblks_e       ! Number of edge blocks
+    INTEGER,  INTENT(IN)              :: npromz_c      ! Length of last cell block
+    INTEGER,  INTENT(IN)              :: npromz_e      ! Length of last edge block
+    INTEGER,  INTENT(IN)              :: nlev          ! Number of full levels
+    INTEGER,  INTENT(IN)              :: nlevp1        ! Number of half levels
+    INTEGER,  INTENT(IN)              :: nshift_total  ! Shift for vertical nesting
+    LOGICAL,  INTENT(IN)              :: is_les_phy    ! For recomputation of fields (see set_nh_metrics above)
+    TYPE(t_nh_metrics), INTENT(INOUT) :: p_metrics     ! Metrics
+    REAL(wp), INTENT(IN)              :: z_me(:,:,:)   ! Height of edge center
+    INTEGER,  INTENT(OUT), OPTIONAL   :: ierror        ! Optional error flag
+
+    ! Local variables
+    REAL(wp), ALLOCATABLE :: zgpot_me(:,:,:), zgpot_mc(:,:,:), zgpot_ifc(:,:,:)
+    REAL(wp) :: help, temp, aux1, aux2
+    REAL(wp) :: height_mc, height_uifc, height_lifc
+    REAL(wp) :: radial_distance_mc, radial_distance_uifc, radial_distance_lifc
+    INTEGER  :: jb, jk, jc, je, jk_shift
+    INTEGER  :: nlen
+    INTEGER  :: istat
+    LOGICAL  :: is_ierror_present
+
+    !-------------------------------------------------------------------------------
+
+    ! Note: Quantities related to damping, diffusion and the like 
+    ! are not modified for the deep atmosphere
+
+    is_ierror_present = PRESENT(ierror)
+
+    ! Initialize error flag with error:
+    IF (is_ierror_present) ierror = 1
+
+    ! Auxiliary fields
+    ALLOCATE( zgpot_me(nproma,nlev,nblks_e),    &
+      &       zgpot_mc(nproma,nlev,nblks_c),    &
+      &       zgpot_ifc(nproma,nlevp1,nblks_c), &
+      &       STAT=istat                        )
+    IF (istat /= SUCCESS) RETURN
+
+    !-----------------------------------------------------
+    !                Geopotential heights
+    !-----------------------------------------------------
+
+    ! Transform (geometric) heights of levels into geopotential heights of levels
+
+    CALL deepatmo_htrafo( z_in                = z_me,                        & !in
+      &                   z_out               = zgpot_me,                    & !out
+      &                   nblks_nproma_npromz = [nblks_e, nproma, npromz_e], & !in
+      &                   start_end_levels    = [1, nlev],                   & !in
+      &                   radius              = grid_sphere_radius,          & !in
+      &                   trafo_type          = 'z2zgpot',                   & !in
+      &                   ierror              = istat,                       & !optout
+      &                   lacc                = .FALSE.)                       !optin
+    IF (istat /= SUCCESS) RETURN
+
+    CALL deepatmo_htrafo(z_in=p_metrics%z_mc, z_out=zgpot_mc, nblks_nproma_npromz=[nblks_c,nproma,npromz_c],  &
+      & start_end_levels=[1,nlev], radius=grid_sphere_radius, trafo_type='z2zgpot', ierror=istat, lacc=.FALSE.)
+    IF (istat /= SUCCESS) RETURN
+
+    CALL deepatmo_htrafo(z_in=p_metrics%z_ifc, z_out=zgpot_ifc, nblks_nproma_npromz=[nblks_c,nproma,npromz_c],  &
+      & start_end_levels=[1,nlevp1], radius=grid_sphere_radius, trafo_type='z2zgpot', ierror=istat, lacc=.FALSE.)
+    IF (istat /= SUCCESS) RETURN
+
+    !-----------------------------------------------------
+    !                 Modification factors 
+    !       for the deep-atmosphere configuration
+    !-----------------------------------------------------
+
+    ! Note: For the deep-atmosphere-specific metrical modification factors 
+    ! and other quantities to be 1d-fields (varying only in z-direction), 
+    ! the terrain-dependence of coordinate surfaces below z = 'flat_height' 
+    ! is neglected in the deep-atmosphere modifications, 
+    ! otherwise the following fields would become 3d-fields which would be 
+    ! too costly in terms of memory. 
+    ! In addition the metrical modification factors, 
+    ! e.g. for flux divergences, are relatively difficult to compute 
+    ! in sperical geometry, if coordinate surfaces deviate from spherical shells, 
+    ! and cell edges lose the center of Earth as curvature center, so that their 
+    ! shape is no longer determined by being great circle sections.
+
+    DO jk = 1, nlev
+
+      ! Preparation:
+      ! Account for differences in nested domains' vertical index
+      jk_shift = jk + nshift_total
+      ! Height of upper half level of full level 'jk'
+      height_uifc = vct_a(jk_shift)
+      ! Height of lower half level of full level 'jk'
+      height_lifc = vct_a(jk_shift+1)
+      ! Height of full level
+      height_mc = 0.5_wp * ( height_lifc + height_uifc )
+      ! Corresponding radial distances from center of Earth
+      radial_distance_mc   = grid_sphere_radius + height_mc
+      radial_distance_uifc = grid_sphere_radius + height_uifc
+      radial_distance_lifc = grid_sphere_radius + height_lifc
+
+      ! Compute full-level metrical modification factors ...
+      ! ... for horizontal gradients
+      p_metrics%deepatmo_gradh_mc(jk) = grid_sphere_radius / radial_distance_mc
+      ! ... for divergence: 
+      ! Horizontal part (= surface of side wall / cell volume * flux denisty over side wall) 
+      !                    ----------------------------------
+      ! (-> modification is necessary for underlined factor)  
+      ! (There is almost no difference between the magnitude of 'deepatmo_divh_mc'  
+      ! and 'deepatmo_gradh_mc', but nevertheless they are not identical)
+      p_metrics%deepatmo_divh_mc(jk) = p_metrics%deepatmo_gradh_mc(jk) * ( 3._wp / 4._wp ) / & 
+        & ( 1._wp - radial_distance_lifc * radial_distance_uifc / ( radial_distance_lifc + radial_distance_uifc )**2 )
+      ! Vertical part
+      ! 1) = surface of cell bottom / cell volume * flux density over cell bottom
+      !      ------------------------------------
+      p_metrics%deepatmo_divzL_mc(jk) = 3._wp / ( 1._wp + radial_distance_uifc / radial_distance_lifc & 
+        &                                       + ( radial_distance_uifc / radial_distance_lifc )**2 )
+      ! 2) = surface of cell lid / cell volume * flux density over cell lid
+      !      ---------------------------------
+      p_metrics%deepatmo_divzU_mc(jk) = 3._wp / ( 1._wp + radial_distance_lifc / radial_distance_uifc &
+        &                                       + ( radial_distance_lifc / radial_distance_uifc )**2 )
+      ! Full-level metrical modification factors ...
+      ! ... for the volume of a cell
+      ! (This is required e.g. for volume integrals 
+      ! in 'src/atm_dyn_iconam/mo_nh_supervise/subervise_total_integrals_nh')
+      p_metrics%deepatmo_vol_mc(jk) = ( radial_distance_lifc**2 + radial_distance_lifc * radial_distance_uifc &
+        &                             + radial_distance_uifc**2 ) / ( 3._wp * grid_sphere_radius**2 )
+      ! ...: inverse of radial distance from center of Earth
+      p_metrics%deepatmo_invr_mc(jk) = 1._wp / radial_distance_mc
+
+      ! Compute half-level metrical modification factors ...
+      ! ... for horizontal gradients
+      p_metrics%deepatmo_gradh_ifc(jk) = grid_sphere_radius / radial_distance_uifc
+      ! ...: inverse of radial distance from center of Earth
+      p_metrics%deepatmo_invr_ifc(jk) = 1._wp / radial_distance_uifc
+
+    ENDDO  !jk
+
+    ! Half-level metrical modification factors at mean sea level (jk=nlevp1)
+    p_metrics%deepatmo_gradh_ifc(nlevp1) = 1._wp  ! = grid_sphere_radius / radial_distance_uifc = grid_sphere_radius
+    p_metrics%deepatmo_invr_ifc(nlevp1)  = 1._wp / grid_sphere_radius
+
+    !-----------------------------------------------------
+    !                   Recomputations 
+    !      for inclusion of deep-atmosphere effects      
+    !-----------------------------------------------------
+
+    ! The computations in set_nh_metrics above are so densely compressed for runtime-efficiency,
+    ! that a minimally invasive incorporation of deep-atmosphere modifications is practically impossible. 
+    ! We have therefore no choice but to recompute a number of quantities here, unfortunately.
+
+!$OMP PARALLEL
+
+    ! Metrical modification of the geopotential
+
+!$OMP DO PRIVATE(jb, jk, jc, nlen) ICON_OMP_DEFAULT_SCHEDULE
+    DO jb = 1, nblks_c
+        
+      IF (jb /= nblks_c) THEN
+        nlen = nproma
+      ELSE
+        nlen = npromz_c
+        p_metrics%geopot(nlen+1:nproma,1:nlev,jb)           = 0.0_wp
+        p_metrics%geopot_agl(nlen+1:nproma,1:nlev,jb)       = 0.0_wp
+        p_metrics%geopot_agl_ifc(nlen+1:nproma,1:nlevp1,jb) = 0.0_wp
+        p_metrics%dgeopot_mc(nlen+1:nproma,1:nlev,jb)       = 0.0_wp
+      ENDIF
+        
+      DO jk = 1, nlev   
+        DO jc = 1, nlen 
+          ! Geopotential on full levels: 
+          ! Phi = g * z / ( 1 + z / a ), provided that 
+          ! Phi(r=a)=Phi(z=0)=0 m2/s2 (a = radius of Earth)
+          p_metrics%geopot(jc,jk,jb) = grav * zgpot_mc(jc,jk,jb)
+        ENDDO  !jc
+      ENDDO  !jk
+        
+      ! Geopot above ground
+      DO jc = 1, nlen 
+        p_metrics%geopot_agl_ifc(jc,nlevp1,jb) = 0._wp
+      ENDDO
+
+      DO jk = nlev, 1, -1 
+        DO jc = 1, nlen              
+          ! Geopotential difference between layer interfaces            
+          p_metrics%dgeopot_mc(jc,jk,jb) = grav * ( zgpot_ifc(jc,jk,jb) - zgpot_ifc(jc,jk+1,jb) )       
+          ! Geopotential (interfaces)
+          p_metrics%geopot_agl_ifc(jc,jk,jb) = p_metrics%geopot_agl_ifc(jc,jk+1,jb) + p_metrics%dgeopot_mc(jc,jk,jb)              
+          ! Unfortunately, gpot[(z1+z2)/2] /= [gpot(z1)+gpot(z2)]/2, 
+          ! where gpot(z)=zgpot, so we have to compute it separately for full levels
+          p_metrics%geopot_agl(jc,jk,jb) = p_metrics%geopot_agl_ifc(jc,jk+1,jb) &
+            &                            + grav * ( zgpot_mc(jc,jk,jb) - zgpot_ifc(jc,jk+1,jb) )      
+        ENDDO  !jc            
+      ENDDO  !jk 
+        
+    ENDDO  !jb
+!$OMP END DO
+
+    ! Metrical modification of interface slope
+
+    ! Note: numerous quantities are determined from the slope at (or close to) the ground. 
+    ! A modification of them is not necessary, since the respective modification factors 
+    ! are terrain-independent and would be equal to 1 everywhere at the ground 
+    ! (or at least negligibly small)
+
+!$OMP DO PRIVATE(jb, jk, je, nlen) ICON_OMP_DEFAULT_SCHEDULE
+    DO jb = 1, nblks_e
+
+      IF (jb /= nblks_e) THEN
+        nlen = nproma
+      ELSEIF (is_les_phy) THEN
+        nlen = npromz_e
+        p_metrics%ddxn_z_half_e(nlen+1:nproma,1:nlevp1,jb) = 0.0_vp
+        p_metrics%ddxt_z_half_e(nlen+1:nproma,1:nlevp1,jb) = 0.0_vp
+        p_metrics%ddxn_z_full(nlen+1:nproma,1:nlev,jb)     = 0.0_vp
+        p_metrics%ddxt_z_full(nlen+1:nproma,1:nlev,jb)     = 0.0_vp
+      ELSE
+        nlen = npromz_e
+        p_metrics%ddxn_z_full(nlen+1:nproma,1:nlev,jb)     = 0.0_vp
+        p_metrics%ddxt_z_full(nlen+1:nproma,1:nlev,jb)     = 0.0_vp
+      ENDIF
+
+      IF (is_les_phy) THEN
+        DO jk = 1, nlevp1
+          DO je = 1, nlen
+            p_metrics%ddxn_z_half_e(je,jk,jb) = p_metrics%deepatmo_gradh_ifc(jk) * p_metrics%ddxn_z_half_e(je,jk,jb)
+            p_metrics%ddxt_z_half_e(je,jk,jb) = p_metrics%deepatmo_gradh_ifc(jk) * p_metrics%ddxt_z_half_e(je,jk,jb)
+          ENDDO  !je
+        ENDDO  !jk
+      ENDIF  !IF (is_les_phy)
+
+      DO jk = 1, nlev
+        DO je = 1, nlen
+          p_metrics%ddxn_z_full(je,jk,jb) = p_metrics%deepatmo_gradh_mc(jk) * p_metrics%ddxn_z_full(je,jk,jb)          
+          p_metrics%ddxt_z_full(je,jk,jb) = p_metrics%deepatmo_gradh_mc(jk) * p_metrics%ddxt_z_full(je,jk,jb)
+        ENDDO  !je
+      ENDDO  !jk
+
+    ENDDO  !jb
+!$OMP END DO
+
+    ! Metrical modification of reference atmosphere
+
+    ! The deep-atmosphere case is more or less a copy of the shallow-atmosphere case 
+    ! (for computational efficiency reasons), with the geometric height z 
+    ! replaced by the geopotential height zgpot (we say that the reference temperature 
+    ! has the same functional dependency on zgpot as it has on z in case of the 
+    ! shallow atmosphere, this way the integral of -dp/dzgpot-rho*grav=0 in the 
+    ! deep-atmosphere case is formally identical to the integral of -dp/dz-rho*grav=0 
+    ! in case of the shallow atmospehre). 
+    ! Note: the vertical derivative in 'd2dexdz2_fac1_mc', 'd2dexdz2_fac2_mc', 
+    ! and 'd_exner_dz_ref_ic' is still with respect to z, not zgpot.
+
+!$OMP DO PRIVATE(jb, jk, jc, nlen, help, temp, aux1, aux2) ICON_OMP_DEFAULT_SCHEDULE
+    DO jb = 1, nblks_c
+        
+      IF (jb /= nblks_c) THEN
+        nlen = nproma
+      ELSE
+        nlen = npromz_c
+        p_metrics%tsfc_ref(nlen+1:nproma,jb)                   = 0.0_vp
+        p_metrics%exner_ref_mc(nlen+1:nproma,1:nlev,jb)        = 0.0_vp
+        p_metrics%rho_ref_mc(nlen+1:nproma,1:nlev,jb)          = 0.0_vp
+        p_metrics%theta_ref_mc(nlen+1:nproma,1:nlev,jb)        = 0.0_vp
+        p_metrics%theta_ref_ic(nlen+1:nproma,1:nlevp1,jb)      = 0.0_vp
+        p_metrics%d_exner_dz_ref_ic(nlen+1:nproma,1:nlevp1,jb) = 0.0_vp
+        IF (igradp_method <= 3) THEN
+          p_metrics%d2dexdz2_fac1_mc(nlen+1:nproma,1:nlev,jb)  = 0.0_vp
+          p_metrics%d2dexdz2_fac2_mc(nlen+1:nproma,1:nlev,jb)  = 0.0_vp
+        ENDIF
+      ENDIF
+        
+      ! Reference surface temperature
+      DO jc = 1, nlen
+        p_metrics%tsfc_ref(jc,jb) = ( t0sl_bg - del_t_bg ) + del_t_bg * EXP( -zgpot_ifc(jc,nlevp1,jb) / h_scal_bg )
+      ENDDO  !jc
+        
+      DO jk = 1, nlev
+        DO jc = 1, nlen
+          ! Reference pressure, full level mass points
+          aux1 = p0sl_bg  * EXP( -grav / rd * h_scal_bg / ( t0sl_bg - del_t_bg ) * &
+            &    LOG( ( EXP( zgpot_mc(jc,jk,jb) / h_scal_bg ) * ( t0sl_bg - del_t_bg ) + del_t_bg ) / t0sl_bg ) )      
+          ! Reference Exner pressure, full level mass points
+          p_metrics%exner_ref_mc(jc,jk,jb) = ( aux1 / p0ref )**rd_o_cpd            
+          ! Reference temperature, full level mass points
+          temp = ( t0sl_bg - del_t_bg ) + del_t_bg * EXP( -zgpot_mc(jc,jk,jb) / h_scal_bg )            
+          ! Reference density, full level mass points
+          p_metrics%rho_ref_mc(jc,jk,jb) = aux1 / ( rd * temp )            
+          ! Reference potential temperature, full level mass points
+          p_metrics%theta_ref_mc(jc,jk,jb) = temp / p_metrics%exner_ref_mc(jc,jk,jb)
+        ENDDO  !jc
+      ENDDO  !jk
+        
+      IF (igradp_method <= 3) THEN
+        DO jk = 1, nlev
+          DO jc = 1, nlen
+            ! First vertical derivative of reference Exner pressure, full level mass points,
+            ! divided by theta_ref
+            ! Note: for computational efficiency, this field is in addition divided by
+            ! the vertical layer thickness
+            ! (Deep-atmosphere modification: the vertical derivative is with respect to z, 
+            ! so we use dexner/dz=dexner/dzgpot*dzgpot/dz, with dzgpot/dz=(a/r)**2, 
+            ! where a is the radius of Earth, and r=a+z. For the actual modification, 
+            ! we can use that (a/r)**2=deepatmo_gradh_mc**2)
+            p_metrics%d2dexdz2_fac1_mc(jc,jk,jb) = -grav / ( cpd * p_metrics%theta_ref_mc(jc,jk,jb)**2 ) * &
+              &                                    p_metrics%inv_ddqz_z_full(jc,jk,jb) * p_metrics%deepatmo_gradh_mc(jk)**2              
+            ! Vertical derivative of d_exner_dz/theta_ref, full level mass points
+            ! (Deep-atmosphere modification: here we use that for a quantity X, 
+            ! d**2X/dz**2=d**2X/dzgpot**2*dzgpot/dz*(a/r)**2 + dX/dzgpot*d(a/r)**2/dr 
+            ! =d**2X/dzgpot**2*(a/r)**4 - 2*dX/dzgpot*(a/r)**2/r)
+            p_metrics%d2dexdz2_fac2_mc(jc,jk,jb) = 2._wp * grav / ( cpd * p_metrics%theta_ref_mc(jc,jk,jb)**3 ) * ( grav / cpd &
+              &                        - del_t_bg / h_scal_bg * EXP( -zgpot_mc(jc,jk,jb) / h_scal_bg ) )                       &
+              &                        / p_metrics%exner_ref_mc(jc,jk,jb) * p_metrics%deepatmo_gradh_mc(jk)**4                 & 
+              &                        - 2._wp * p_metrics%d2dexdz2_fac1_mc(jc,jk,jb) * p_metrics%ddqz_z_full(jc,jk,jb)        &
+              &                        * p_metrics%deepatmo_gradh_mc(jk) / grid_sphere_radius
+          ENDDO  !jc
+        ENDDO  !jk
+      ENDIF  !IF (igradp_method <= 3)
+        
+      DO jk = 1, nlevp1
+        DO jc = 1, nlen
+          ! Reference pressure, half level mass points
+          aux1 = p0sl_bg * EXP( -grav / rd * h_scal_bg / ( t0sl_bg - del_t_bg ) * &
+            &    LOG( ( EXP( zgpot_ifc(jc,jk,jb) / h_scal_bg ) * ( t0sl_bg - del_t_bg ) + del_t_bg ) / t0sl_bg ) )            
+          ! Reference Exner pressure, half level mass points
+          help = ( aux1 / p0ref )**rd_o_cpd            
+          ! Reference temperature, half level mass points
+          temp = ( t0sl_bg - del_t_bg ) + del_t_bg * EXP( -zgpot_ifc(jc,jk,jb) / h_scal_bg )            
+          ! Reference density, half level mass points
+          aux2 = aux1 / ( rd * temp )            
+          ! Reference Potential temperature, half level mass points
+          p_metrics%theta_ref_ic(jc,jk,jb) = temp / help           
+          ! First vertical derivative of reference Exner pressure, half level mass points
+          p_metrics%d_exner_dz_ref_ic(jc,jk,jb) = -grav / cpd / p_metrics%theta_ref_ic(jc,jk,jb) &
+            &                                   * p_metrics%deepatmo_gradh_ifc(jk)**2
+        ENDDO  !jc
+      ENDDO  !jk
+        
+    ENDDO  !jb
+!$OMP END DO
+
+!$OMP DO PRIVATE(jb, jk, je, nlen, aux1, temp) ICON_OMP_DEFAULT_SCHEDULE
+    DO jb = 1, nblks_e
+
+      IF (jb /= nblks_e) THEN
+        nlen = nproma
+      ELSE
+        nlen = npromz_e
+        p_metrics%rho_ref_me(nlen+1:nproma,1:nlev,jb)   = 0.0_vp
+        p_metrics%theta_ref_me(nlen+1:nproma,1:nlev,jb) = 0.0_vp
+      ENDIF
+
+      DO jk = 1, nlev
+        DO je = 1, nlen            
+          ! Reference pressure, full level edge points
+          aux1 = p0sl_bg * EXP( -grav / rd * h_scal_bg / ( t0sl_bg - del_t_bg ) * &
+            &    LOG( ( EXP( zgpot_me(je,jk,jb) / h_scal_bg ) * ( t0sl_bg - del_t_bg ) + del_t_bg ) / t0sl_bg ) )              
+          ! Reference temperature, full level edge points
+          temp = ( t0sl_bg - del_t_bg ) + del_t_bg * EXP( -zgpot_me(je,jk,jb) / h_scal_bg )
+          ! Reference density, full level edge points
+          p_metrics%rho_ref_me(je,jk,jb) = aux1 / ( rd * temp )            
+          ! Reference potential temperature, full level edge points
+          p_metrics%theta_ref_me(je,jk,jb) = temp / ( ( aux1 / p0ref )**rd_o_cpd )
+        ENDDO  !je
+      ENDDO  !jk
+
+    ENDDO  !jb
+!$OMP END DO
+!$OMP END PARALLEL
+
+    ! Clean-up
+    DEALLOCATE(zgpot_me, zgpot_mc, zgpot_ifc, STAT=istat)
+    IF (istat /= SUCCESS) RETURN
+
+    IF (is_ierror_present) ierror = SUCCESS
+
+  END SUBROUTINE prepare_deepatmo_metrics
 
 END MODULE mo_vertical_grid
 

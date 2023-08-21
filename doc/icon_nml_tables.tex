@@ -1452,8 +1452,12 @@ Coriolis force&
 %\hline
 ldeepatmo &
 L & .FALSE. & &
-Switch for deep-atmosphere modification of non-hydrostatic atmosphere.
-Specific settings can be found in upatmo\_nml. &
+Switch for deep-atmosphere modification.\newline
+[Note: only the reversible part of the dynamics (largely coincident with what is 
+commonly referred to as ``the dynamical core'') is modified for the deep atmosphere.\\
+Irreversible dynamics of any kind (largely coincident with what is commonly referred to as 
+``the physics'') are not explicitly modified.\\
+Neither are artificial numerical measures for stabilizing, smoothing and the like modified explicitly.] &
 iequations = 3 \\
 iforcing = 0, 2, 3 \\
 is\_plane\_torus = .FALSE.
@@ -3417,20 +3421,6 @@ J kg-1 & iforcing = inwp & 2d & - & [2]
 \item[*]  To be used in output\_nml.
 \item[**] The keys, {[1]}, {[2]}, etc., are itemized under the following point.
 \end{itemize}
-%
-%MARK_01_START
-%We inform the user about the removal of two optional diagnostics right here, on site.
-%Doing so for six months, starting June 2023, should be sufficient.
-%Afterwards everything between MARK_01_START and MARK_01_END (including themselves) should be removed.
-  \ifthenelse{\year=2023 \AND \(\month>5 \AND \month<13\)}
-  {\textcolor{red}{\emph{Current information:} optional diagnostics \texttt{vor\_u} and \texttt{vor\_v} have been removed, please see section~\ref{sec:changes}, \emph{Change 2023-06-13} for more information.}}
-  {
-    \ifthenelse{\year=2024 \AND \(\month>0 \AND \month<4\)}
-    {\textcolor{red}{\underline{\emph{Please edit} \texttt{icon/doc/icon\_nml\_tables.txt}}: remove text between \texttt{\%MARK\_01\_START} and \texttt{\%MARK\_01\_END}. Thank you!}}
-    {}
-  }\\
-%MARK_01_END
-%
 
 $\blacksquare$ \emph{Where can I find more about the computation of the diagnostics in the source code?} \\
 
@@ -8773,83 +8763,6 @@ Defined and used in: \verb+src/namelists/mo_turbdiff_nml.f90+
 \begin{longtab}
 
 %
-% deep-atmosphere dynamics
-%
-
-\hline
-\hline
-\multicolumn{5}{|l|}{\emph{Deep-atmosphere dynamics}}
-& ldeepatmo = .TRUE.
-\tabularnewline
-\hline
-\hline
-
-%\hline
-lnontrad &
-L & .TRUE. &  
-&
-.TRUE.: Non-traditional terms in horizontal and vertical components of 
-momentum budget (underlined) are switched on (standard for deep atmosphere):\\
-$\partial v_n/\partial t \underline{ + w[v_{\mathrm{n}}/(a+z) - f_{\mathrm{t}}]} +\cdots = \cdots$ \\
-$\partial w/\partial t \underline{+ v_{\mathrm{n}}[-v_{\mathrm{n}}/(a+z)+f_{\mathrm{t}}] +} \linebreak 
-\underline{v_{\mathrm{t}}[-v_{\mathrm{t}}/(a+z) - f_{\mathrm{n}}] }+\cdots = \cdots$, \\
-where $a$ is radius of model Earth, 
-$f_{{\mathrm{n}},{\mathrm{t}}}=2\Omega\cos(\varphi)\boldsymbol{e_\varphi\cdot e_{\mathrm{n},\mathrm{t}}}$ 
-are non-traditional Coriolis parameters, with edge-normal and edge-tangential 
-components denoted by $\mathrm{n}$ and $\mathrm{t}$, the angular velocity of 
-the model Earth $\Omega$, the latitude $\varphi$, and unit vectors 
-$\boldsymbol{e_{\ldots}}$. 
-%
-\\
-& 
-\tabularnewline
-
-%\hline
-lconstgrav &
-L & .FALSE. &  
-&
-.FALSE.: gravitational acceleration varies with height (standard for deep atmosphere) \\
-.TRUE.: gravitational acceleration is constant (as in case of shallow atmosphere). 
-I.e. underlined factor in gravitational acceleration is set to 1:\\
-$\text{grav}=\text{const.}*\underline{[a/(a+z)]^2}$. 
-%
-\\
-& 
-\tabularnewline
-
-%\hline
-lcentrifugal &
-L & .FALSE. & &
-.TRUE.: Explicit centrifugal acceleration is switched on. 
-I.e. underlined terms in horizontal and vertical components of 
-momentum budget are taken into account:\\
-$\partial v_n/\partial t \underline{+ \Omega^2 (a+z)\sin(\varphi)\cos(\varphi)
-\boldsymbol{e_\varphi\cdot e_{\mathrm{n}}}} +\cdots = \cdots$ \\
-$\partial w/\partial t \underline{-\Omega^2 (a+z) \cos^2(\varphi)} +\cdots = \cdots$. \\
-(If the factor const. in the gravitational acceleration of the model Earth, 
-$\text{grav}=\text{const.}*[a/(a+z)]^2$,
-is assumed to be implicitly composed of a purely gravitational part and 
-a centrifugal part, the latter is not subtracted out for lcentrifugal = .TRUE.!)
-%
-\\
-& 
-\tabularnewline
-
-%\hline
-ldeepatmo2phys &
-L & .FALSE. &  
-&
-.FALSE.: input fields to the physics parameterizations are computed 
-in accordance with the shallow-atmosphere approximation in any case \\ 
-.TRUE.: input fields to the physics parameterizations are modified 
-for the deep atmosphere. (Please note: the physics parameterizations themselves 
-are not explicitly modified for the deep atmosphere!)
-%
-%\\
-& iforcing = 2 (AES)
-\tabularnewline
-
-%
 % upper-atmosphere extrapolation
 %
 
@@ -9388,12 +9301,6 @@ is\_plane\_torus= .TRUE.
 \tabularnewline
 &&&&'\textbf{bb13}': linear gravity- and sound-wave expansion in a channel (Baldauf, Brdar (2013) QJRMS) &
 is\_plane\_torus= .TRUE.
-\tabularnewline
-&&&&'\textbf{lahade}': deep-atmosphere sound wave testcase providing
-comparison of numerical with analytical solution according to method of
-Laeuter, Handorf and Dethloff, J. Comp. Phys.(2005) (requires to set
-src/shared/mo\_physical\_constants: grav to a very small value, e.g. grav = 1.0E-30)&
-ldeepatmo = .TRUE. .AND. lcoriolis = .TRUE. .AND. lcentrifugal = .TRUE.
 \tabularnewline
 &&&&'\textbf{SCM}' Single Column Mode & is\_plane\_torus= .TRUE.
 \tabularnewline
@@ -10027,96 +9934,6 @@ R& 290:0.006 & K and K/m &
 to prescribe initial potential temperature profile for convective boundary layer simulations where th\_cbl(1)
 sets the constant and th\_cbl(2) sets the gradient &
 nh\_test\_name=CBL
-\tabularnewline
-
-%\hline
-lahade\%icase &
-I & 1 & &
-lahade sub-cases: \\ 
-1: spherical sound wave (currently the only sub-case) &
-nh\_test\_name=`lahade'
-\tabularnewline
-
-%\hline
-lahade\%omega &
-R & 0 & m/s &
-Model Earth's angular velocity in units of the velocity the center 
-of the sound wave is advected according to the rotation &
-\tabularnewline
-
-%\hline
-lahade\%bkg\_temp &
-R & 250 & K &
-Temperature of background atmosphere &
-\tabularnewline
-
-%\hline
-lahade\%bkg\_pres &
-R & 100000 & Pa &
-Pressure of background atmosphere &
-\tabularnewline
-
-%\hline
-lahade\%ptb\_ctr\_lat &
-R & 0 & deg &
-Center latitude of spherical sound wave perturbation &
-\tabularnewline
-
-%\hline
-lahade\%ptb\_ctr\_lon &
-R & 0 & deg &
-Center longitude of spherical sound wave perturbation &
-\tabularnewline
-
-%\hline
-lahade\%ptb\_ctr\_hgt &
-R & 0.5 & -> &
-Center height of spherical sound wave perturbation,  
-in units of the model top height [top\_height] &
-\tabularnewline
-
-%\hline
-lahade\%ptb\_rad\_min &
-R & 0.04 & -> &
-Min. radius of spherical shell within which initial perturbation is non-zero, 
-in units of distance from center to model bottom or model top, whichever is
-shorter [min\{ptb\_ctr\_hgt,(1-ptb\_ctr\_hgt)\} * top\_height] &
-\tabularnewline
-
-%\hline
-lahade\%ptb\_rad\_max &
-R & 0.6 & -> &
-Max. radius of spherical shell ... [min\{ptb\_ctr\_hgt,(1-ptb\_ctr\_hgt)\} * top\_height]&
-\tabularnewline
-
-%\hline
-lahade\%ptb\_amp\_temp &
-R & 0.05 & K &
-Temperature amplitude of initial sound wave perturbation&
-\tabularnewline
-
-%\hline
-lahade\%ptb\_n\_rad &
-R & 1 & 1 &
-Number of radial wave crests of initial perturbation 
-= (ptb\_rad\_max - ptb\_rad\_min) / radial wave length &
-\tabularnewline
-
-%\hline
-lahade\%output\_ptb\_var&
-C & ""  &  &
-Select, if the numerical and analytical solutions of a sound-wave-perturbation-variable 
-shall be output. Currently available variables are: \\
-\begin{itemize}
-\item "temp": temperature perturbation
-\item "rho": density perturbation
-\item "pres": pressure perturbation
-\end{itemize}
-Requirements: the fields "{extra}\_3d1"{ a}nd "{extra}\_3d2"{ w}ill contain the numerical 
-and the analytical solutions, respectively. 
-Both have to be added to the ml\_varlist of the output\_nml of your choice 
-in combination with inextra\_3d = 2.
-&
 \tabularnewline
 
 \end{longtab}

@@ -20,7 +20,6 @@ MODULE mo_nh_testcase_interface
 
   USE mo_kind,                   ONLY: wp
   USE mo_impl_constants,         ONLY: TRACER_ONLY
-  USE mo_grid_config,            ONLY: grid_sphere_radius
   USE mo_model_domain,           ONLY: t_patch
   USE mo_nonhydro_types,         ONLY: t_nh_state
   USE mo_intp_data_strc,         ONLY: t_int_state
@@ -32,8 +31,7 @@ MODULE mo_nh_testcase_interface
   USE mo_nh_df_test,             ONLY: get_nh_df_velocity
   USE mo_integrate_density_pa,   ONLY: integrate_density_pa
   USE mo_nh_dcmip_hadley,        ONLY: set_nh_velocity_hadley
-  USE mo_nh_lahade,              ONLY: lahade, nh_lahade_interface
-  USE mo_exception,              ONLY: message, message_text, finish
+  USE mo_exception,              ONLY: finish
 
   IMPLICIT NONE
 
@@ -56,8 +54,7 @@ CONTAINS
   !! - Move call of nh-testcase-interfaces 
   !!   from 'src/atm_dyn_iconam/mo_nh_stepping: integrate_nh' to here
   !!
-  SUBROUTINE nh_testcase_interface( jstep,                   &  !in
-    &                               dt_loc,                  &  !in
+  SUBROUTINE nh_testcase_interface( dt_loc,                  &  !in
     &                               sim_time,                &  !in
     &                               p_patch,                 &  !in 
     &                               p_nh_state,              &  !inout
@@ -65,7 +62,6 @@ CONTAINS
     &                               jstep_adv_marchuk_order  )  !in
 
     ! In/out variables
-    INTEGER,                    INTENT(IN)    :: jstep                    !< global time step
     REAL(wp),                   INTENT(IN)    :: dt_loc                   !< advective time step on this grid level
     REAL(wp),                   INTENT(IN)    :: sim_time                 !< elapsed simulation time on this grid level
     TYPE(t_patch),     TARGET,  INTENT(INOUT) :: p_patch                  !< grid/patch info
@@ -87,8 +83,6 @@ CONTAINS
     ! in 'src/testcases/mo_nh_testcases: init_nh_testcase', 
     ! if you add another testcase here. Otherwise no update will take place!
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-    ! (Note: most testcases are not modified for the deep atmosphere)
     
     ! Domain index
     jg = p_patch%id
@@ -178,32 +172,6 @@ CONTAINS
           &                        dt_loc,                     &  !in
           &                        jstep_adv_marchuk_order,    &  !in
           &                        lcoupled_rho                )  !in
-
-      END SELECT
-
-    ELSE  !itime_scheme
-
-      !----------------------------------------------------
-      !       One of the predictor-corrector schemes
-      !----------------------------------------------------
-
-      SELECT CASE ( TRIM(nh_test_name) )
-
-      CASE ('lahade')
-
-#ifdef _OPENACC
-        CALL finish (routine, 'Test lahade: OpenACC version currently not implemented')
-#endif
-              
-        IF (lahade%lupdate) THEN
-          CALL nh_lahade_interface ( jstep,                      &  !in
-            &                        sim_time,                   &  !in
-            &                        p_patch,                    &  !in
-            &                        p_nh_state%metrics,         &  !in
-            &                        p_nh_state%prog(nnew(jg)),  &  !in
-            &                        p_nh_state%diag,            &  !inout
-            &                        grid_sphere_radius          )  !in
-        ENDIF
 
       END SELECT
 

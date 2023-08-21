@@ -21,8 +21,7 @@ MODULE mo_upatmo_phy_setup
   USE mo_exception,            ONLY: finish, message, message_text
   USE mo_impl_constants,       ONLY: min_rlcell
   USE mo_physical_constants,   ONLY: amd, grav
-  USE mo_upatmo_impl_const,    ONLY: iUpatmoStat, idamtr, iUpatmoPrcStat, &
-    &                                iUpatmoGasStat,                      &
+  USE mo_upatmo_impl_const,    ONLY: iUpatmoStat, iUpatmoPrcStat, iUpatmoGasStat, &
     &                                iUpatmoGrpId,  iUpatmoExtdatStat
   USE mo_master_config,        ONLY: isRestart
   USE mo_upatmo_config,        ONLY: upatmo_config, upatmo_phy_config
@@ -218,7 +217,7 @@ CONTAINS
               
               ! Gravitational acceleration
               ! (includes deep-atmosphere modification)
-              prm_upatmo%diag%grav(jc,jk,jb) = grav * p_metrics%deepatmo_t1mc(jk,idamtr%t1mc%gradh)**2
+              prm_upatmo%diag%grav(jc,jk,jb) = grav * p_metrics%deepatmo_gradh_mc(jk)**2
               
               ! Molar mass of dry air 
               ! (constant for the time being)

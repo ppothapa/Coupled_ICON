@@ -289,7 +289,6 @@ CONTAINS
 
     REAL(wp) :: p_sim_time      !< elapsed simulation time on this grid level
 
-    LOGICAL :: lconstgrav  !< const. gravitational acceleration?
     LOGICAL :: lcalc_inv
     
     ! SCM Nudging
@@ -363,8 +362,6 @@ CONTAINS
       lcompute_tt_lheat = .FALSE.
     ENDIF
 
-    lconstgrav = upatmo_config(jg)%nwp_phy%l_constgrav  ! const. gravitational acceleration?
-
     ! Inversion height is calculated only if the threshold is set to a non-default value
     lcalc_inv = tune_sc_eis < 1000._wp
     
@@ -410,8 +407,7 @@ CONTAINS
            &                              pt_diag, pt_patch,       &
            &                              opt_calc_temp=.TRUE.,    &
            &                              opt_calc_pres=.FALSE.,   &
-           &                              opt_rlend=min_rlcell_int,&
-           &                              opt_lconstgrav=lconstgrav)
+           &                              opt_rlend=min_rlcell_int)
 
       ! Write extensive debugging output
       CALL nwp_diag_output_1(pt_patch, pt_diag, pt_prog_rcf)
@@ -448,8 +444,7 @@ CONTAINS
         CALL diag_temp (pt_prog, pt_prog_rcf, condensate_list, pt_diag,    &
                         jb, i_startidx, i_endidx, 1, kstart_moist(jg), nlev)
         
-        CALL diag_pres (pt_prog, pt_diag, p_metrics,                                &
-                        jb, i_startidx, i_endidx, 1, nlev, opt_lconstgrav=lconstgrav)
+        CALL diag_pres (pt_prog, pt_diag, p_metrics, jb, i_startidx, i_endidx, 1, nlev)
 
       ENDDO
 !$OMP END DO NOWAIT
@@ -643,7 +638,7 @@ CONTAINS
 
       IF (lcall_phy_jg(itgscp) .OR. lcall_phy_jg(itturb) .OR. lcall_phy_jg(itsfc)) THEN
         ! diagnose pressure for subsequent fast-physics parameterizations
-        CALL diag_pres (pt_prog, pt_diag, p_metrics, jb, i_startidx, i_endidx, 1, nlev, opt_lconstgrav=lconstgrav)
+        CALL diag_pres (pt_prog, pt_diag, p_metrics, jb, i_startidx, i_endidx, 1, nlev)
       ENDIF
 
 
@@ -1134,8 +1129,7 @@ CONTAINS
 
       IF (lcall_phy_jg(itturb) .OR. linit .OR. l_any_slowphys) THEN
         ! rediagnose pressure
-        CALL diag_pres (pt_prog, pt_diag, p_metrics,                                &
-                        jb, i_startidx, i_endidx, 1, nlev, opt_lconstgrav=lconstgrav)
+        CALL diag_pres (pt_prog, pt_diag, p_metrics, jb, i_startidx, i_endidx, 1, nlev)
       ENDIF
 
       IF (iprog_aero >= 1 .AND. .NOT. linit) THEN
@@ -1276,8 +1270,7 @@ CONTAINS
         &                      opt_calc_pres     = lpres,         &
         &                      lnd_prog          = lnd_prog_new,  &
         &                      opt_calc_temp_ifc = ltemp_ifc,     &
-        &                      opt_rlend         = min_rlcell_int,&
-        &                      opt_lconstgrav    = lconstgrav     )
+        &                      opt_rlend         = min_rlcell_int)
 
     ENDIF
 

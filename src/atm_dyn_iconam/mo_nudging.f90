@@ -45,7 +45,6 @@ MODULE mo_nudging
   USE mo_run_config,            ONLY: iqv, iqc
   USE mo_parallel_config,       ONLY: nproma
   USE mo_nudging_config,        ONLY: t_nudging_config, indg_type, indg_var, ithermdyn_type
-  USE mo_upatmo_config,         ONLY: t_upatmo_config
   USE mo_model_domain,          ONLY: t_patch
   USE mo_nonhydro_types,        ONLY: t_nh_state, t_nh_prog, t_nh_diag, t_nh_metrics
   USE mo_initicon_types,        ONLY: t_pi_atm
@@ -81,7 +80,6 @@ CONTAINS !..................................................................
     &                           mtime_datetime,   & !in
     &                           nnew,             & !in
     &                           nnew_rcf,         & !in
-    &                           upatmo_config,    & !in
     &                           nudging_config    ) !inout
 
     ! In/out variables
@@ -90,7 +88,6 @@ CONTAINS !..................................................................
     TYPE(t_latbc_data),       TARGET,  INTENT(INOUT) :: latbc             !< Data structure for async latbc prefetching
     TYPE(datetime),           POINTER, INTENT(IN)    :: mtime_datetime    !< Date/time information
     INTEGER,                           INTENT(IN)    :: nnew, nnew_rcf    !< Time level indices
-    TYPE(t_upatmo_config),             INTENT(IN)    :: upatmo_config     !< Upper-atmosphere switches
     TYPE(t_nudging_config),            INTENT(INOUT) :: nudging_config    !< Nudging switches
 
     ! Local variables
@@ -192,8 +189,7 @@ CONTAINS !..................................................................
           &                      opt_calc_temp     = .TRUE.,                       & !optin
           &                      opt_calc_pres     = .TRUE.,                       & !optin 
           &                      opt_calc_temp_ifc = .FALSE.,                      & !optin
-          &                      opt_slev          = nudging_config%ilev_start,    & !optin
-          &                      opt_lconstgrav    = upatmo_config%dyn%l_constgrav ) !optin        
+          &                      opt_slev          = nudging_config%ilev_start     ) !optin        
       ENDIF  !Update press and temp(v)?
 
       !---------------------------------------------------------------

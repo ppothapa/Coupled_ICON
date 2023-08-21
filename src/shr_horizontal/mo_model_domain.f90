@@ -291,10 +291,6 @@ MODULE mo_model_domain
     ! index1=1,nproma, index2=1,nblks_c
     REAL(wp), ALLOCATABLE :: f_c(:,:)
 
-    ! vertical component of centrifugal acceleration
-    ! index1=1,nporma, index2=1,nblks_c
-    REAL(wp), ALLOCATABLE :: cz_c(:,:)
-
     !----------------------------------
     ! cell geometry auxiliary variables
     ! the cartesian coordinates of the cell centers on the unit sphere
@@ -582,11 +578,6 @@ MODULE mo_model_domain
     REAL(wp), ALLOCATABLE :: fn_e(:,:)
     ! tangential component
     REAL(wp), ALLOCATABLE :: ft_e(:,:)
-
-    ! horizontal component of centrifugal acceleration
-    ! index1=1,nproma, index2=1,nblks_e
-    ! (normal component only)
-    REAL(wp), ALLOCATABLE :: cn_e(:,:)
 
     ! refinement control flag
     ! index1=1,nproma, index2=1,nblks_e

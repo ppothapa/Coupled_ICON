@@ -142,10 +142,6 @@ CONTAINS
     IF(ist/=success)THEN
       CALL finish  (routine,  'deallocate for patch cell f_c failed')
     ENDIF
-    DEALLOCATE( p_patch%cells%cz_c,  stat=ist )
-    IF(ist/=success)THEN
-      CALL finish  (routine,  'deallocate for patch cell cz_c failed')
-    ENDIF
     !
     !
     DEALLOCATE(p_patch%edges%phys_id,    stat=ist )
@@ -255,10 +251,6 @@ CONTAINS
     DEALLOCATE( p_patch%edges%ft_e,  stat=ist )
     IF(ist/=success)THEN
       CALL finish  (routine,  'deallocate for patch edge ft_e failed')
-    ENDIF
-    DEALLOCATE( p_patch%edges%cn_e,  stat=ist )
-    IF(ist/=success)THEN
-      CALL finish  (routine,  'deallocate for patch edge cn_e failed')
     ENDIF
     !
     !
@@ -1029,7 +1021,6 @@ CONTAINS
       ALLOCATE( p_patch%cells%edge_orientation(nproma,p_patch%alloc_cell_blocks,max_cell_connectivity) )
       ALLOCATE( p_patch%cells%area(nproma,p_patch%alloc_cell_blocks) )
       ALLOCATE( p_patch%cells%f_c(nproma,p_patch%alloc_cell_blocks) )
-      ALLOCATE( p_patch%cells%cz_c(nproma,p_patch%alloc_cell_blocks) )
     ENDIF
 
     !
@@ -1070,7 +1061,6 @@ CONTAINS
       ALLOCATE( p_patch%edges%f_e(nproma,p_patch%nblks_e) )
       ALLOCATE( p_patch%edges%fn_e(nproma,p_patch%nblks_e) )
       ALLOCATE( p_patch%edges%ft_e(nproma,p_patch%nblks_e) )
-      ALLOCATE( p_patch%edges%cn_e(nproma,p_patch%nblks_e) )
     ENDIF
 
     !
@@ -1126,7 +1116,6 @@ CONTAINS
       p_patch%cells%edge_orientation = 0._wp
       p_patch%cells%area = 0._wp
       p_patch%cells%f_c = 0._wp
-      p_patch%cells%cz_c = 0._wp
 
       p_patch%edges%phys_id = 0
       p_patch%edges%cell_idx = 0
@@ -1165,7 +1154,6 @@ CONTAINS
       p_patch%edges%f_e = 0._wp
       p_patch%edges%fn_e = 0._wp
       p_patch%edges%ft_e = 0._wp
-      p_patch%edges%cn_e = 0._wp
 
       p_patch%verts%phys_id = 0
       p_patch%verts%neighbor_idx = 0

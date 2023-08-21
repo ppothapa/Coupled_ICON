@@ -38,8 +38,7 @@ MODULE mo_nh_stepping
     &                                    divdamp_fac, divdamp_fac_o2, ih_clch, ih_clcm, kstart_moist, &
     &                                    ndyn_substeps, ndyn_substeps_var, ndyn_substeps_max, vcfl_threshold
   USE mo_diffusion_config,         ONLY: diffusion_config
-  USE mo_dynamics_config,          ONLY: nnow,nnew, nnow_rcf, nnew_rcf, nsav1, nsav2, idiv_method, &
-    &                                    ldeepatmo
+  USE mo_dynamics_config,          ONLY: nnow,nnew, nnow_rcf, nnew_rcf, nsav1, nsav2, idiv_method, ldeepatmo
   USE mo_io_config,                ONLY: is_totint_time, n_diag, var_in_output, checkpoint_on_demand
   USE mo_parallel_config,          ONLY: nproma, num_prefetch_proc, proc0_offloading
   USE mo_run_config,               ONLY: ltestcase, dtime, nsteps, ldynamics, ltransport,   &
@@ -210,8 +209,7 @@ MODULE mo_nh_stepping
   USE mo_loopindices,              ONLY: get_indices_c, get_indices_v
   USE mo_nh_testcase_interface,    ONLY: nh_testcase_interface
   USE mo_upatmo_config,            ONLY: upatmo_config
-  USE mo_nh_deepatmo_solve,        ONLY: solve_nh_deepatmo
-  USE mo_upatmo_impl_const,        ONLY: idamtr, iUpatmoPrcStat
+  USE mo_upatmo_impl_const,        ONLY: iUpatmoPrcStat
 #ifndef __NO_ICON_UPATMO__
   USE mo_upatmo_state,             ONLY: prm_upatmo
   USE mo_upatmo_flowevent_utils,   ONLY: t_upatmoRestartAttributes,      &
@@ -1857,8 +1855,7 @@ MODULE mo_nh_stepping
 !#ifdef _OPENACC
 !          CALL finish (routine, 'nh_testcase_interface: OpenACC version currently not implemented')
 !#endif
-          CALL nh_testcase_interface( nstep_global,                &  !in
-            &                         dt_loc,                      &  !in
+          CALL nh_testcase_interface( dt_loc,                      &  !in
             &                         sim_time,                    &  !in
             &                         p_patch(jg),                 &  !in
             &                         p_nh_state(jg),              &  !inout
@@ -1892,13 +1889,13 @@ MODULE mo_nh_stepping
         CALL step_advection(                                                 &
           &       p_patch           = p_patch(jg),                           & !in
           &       p_int_state       = p_int_state(jg),                       & !in
+          &       p_metrics         = p_nh_state(jg)%metrics,                & !in
           &       p_dtime           = dt_loc,                                & !in
           &       k_step            = jstep_adv(jg)%marchuk_order,           & !in
           &       p_tracer_now      = p_nh_state(jg)%prog(n_now_rcf)%tracer, & !in
           &       p_mflx_contra_h   = prep_adv(jg)%mass_flx_me,              & !in
           &       p_vn_contra_traj  = prep_adv(jg)%vn_traj,                  & !in
           &       p_mflx_contra_v   = prep_adv(jg)%mass_flx_ic,              & !in
-          &       p_cellhgt_mc_now  = p_nh_state(jg)%metrics%ddqz_z_full,    & !in
           &       p_rhodz_new       = p_nh_state(jg)%diag%airmass_new,       & !in
           &       p_rhodz_now       = p_nh_state(jg)%diag%airmass_now,       & !in
           &       p_grf_tend_tracer = p_nh_state(jg)%diag%grf_tend_tracer,   & !in
@@ -1908,9 +1905,7 @@ MODULE mo_nh_stepping
           &       rho_incr          = p_nh_state(jg)%diag%rho_incr,          & !in
           &       q_ubc             = prep_adv(jg)%q_ubc,                    & !in
           &       q_int             = prep_adv(jg)%q_int,                    & !out
-          &       opt_ddt_tracer_adv= p_nh_state(jg)%diag%ddt_tracer_adv,    & !optout
-          &       opt_deepatmo_t1mc = p_nh_state(jg)%metrics%deepatmo_t1mc,  & !optin
-          &       opt_deepatmo_t2mc = p_nh_state(jg)%metrics%deepatmo_t2mc   ) !optin
+          &       opt_ddt_tracer_adv= p_nh_state(jg)%diag%ddt_tracer_adv     ) !optout
 
 #ifdef MESSY
         CALL main_tracer_afteradv
@@ -2015,28 +2010,26 @@ MODULE mo_nh_stepping
           ENDIF
 
           !$ser verbatim CALL serialize_all(nproma, jg, "step_advection", .TRUE., opt_lupdate_cpu=.TRUE., opt_dt=datetime_local(jg)%ptr, opt_id=iau_iter)
-          CALL step_advection(                                                &
-            &       p_patch           = p_patch(jg),                          & !in
-            &       p_int_state       = p_int_state(jg),                      & !in
-            &       p_dtime           = dt_loc,                               & !in
-            &       k_step            = jstep_adv(jg)%marchuk_order,          & !in
-            &       p_tracer_now      = p_nh_state(jg)%prog(n_now_rcf)%tracer,& !in
-            &       p_mflx_contra_h   = prep_adv(jg)%mass_flx_me,             & !in
-            &       p_vn_contra_traj  = prep_adv(jg)%vn_traj,                 & !in
-            &       p_mflx_contra_v   = prep_adv(jg)%mass_flx_ic,             & !in
-            &       p_cellhgt_mc_now  = p_nh_state(jg)%metrics%ddqz_z_full,   & !in
-            &       p_rhodz_new       = p_nh_state(jg)%diag%airmass_new,      & !in
-            &       p_rhodz_now       = p_nh_state(jg)%diag%airmass_now,      & !in
-            &       p_grf_tend_tracer = p_nh_state(jg)%diag%grf_tend_tracer,  & !in
-            &       p_tracer_new      = p_nh_state(jg)%prog(n_new_rcf)%tracer,& !inout
-            &       p_mflx_tracer_h   = p_nh_state(jg)%diag%hfl_tracer,       & !out
-            &       p_mflx_tracer_v   = p_nh_state(jg)%diag%vfl_tracer,       & !out
-            &       rho_incr          = p_nh_state(jg)%diag%rho_incr,         & !in
-            &       q_ubc             = prep_adv(jg)%q_ubc,                   & !in
-            &       q_int             = prep_adv(jg)%q_int,                   & !out
-            &       opt_ddt_tracer_adv= p_nh_state(jg)%diag%ddt_tracer_adv,   & !out
-            &       opt_deepatmo_t1mc = p_nh_state(jg)%metrics%deepatmo_t1mc, & !optin
-            &       opt_deepatmo_t2mc = p_nh_state(jg)%metrics%deepatmo_t2mc  ) !optin
+          CALL step_advection(                                                 &
+            &       p_patch           = p_patch(jg),                           & !in
+            &       p_int_state       = p_int_state(jg),                       & !in
+            &       p_metrics         = p_nh_state(jg)%metrics,                & !in
+            &       p_dtime           = dt_loc,                                & !in
+            &       k_step            = jstep_adv(jg)%marchuk_order,           & !in
+            &       p_tracer_now      = p_nh_state(jg)%prog(n_now_rcf)%tracer, & !in
+            &       p_mflx_contra_h   = prep_adv(jg)%mass_flx_me,              & !in
+            &       p_vn_contra_traj  = prep_adv(jg)%vn_traj,                  & !in
+            &       p_mflx_contra_v   = prep_adv(jg)%mass_flx_ic,              & !in
+            &       p_rhodz_new       = p_nh_state(jg)%diag%airmass_new,       & !in
+            &       p_rhodz_now       = p_nh_state(jg)%diag%airmass_now,       & !in
+            &       p_grf_tend_tracer = p_nh_state(jg)%diag%grf_tend_tracer,   & !in
+            &       p_tracer_new      = p_nh_state(jg)%prog(n_new_rcf)%tracer, & !inout
+            &       p_mflx_tracer_h   = p_nh_state(jg)%diag%hfl_tracer,        & !out
+            &       p_mflx_tracer_v   = p_nh_state(jg)%diag%vfl_tracer,        & !out
+            &       rho_incr          = p_nh_state(jg)%diag%rho_incr,          & !in
+            &       q_ubc             = prep_adv(jg)%q_ubc,                    & !in
+            &       q_int             = prep_adv(jg)%q_int,                    & !out
+            &       opt_ddt_tracer_adv= p_nh_state(jg)%diag%ddt_tracer_adv     ) !out
           !$ser verbatim CALL serialize_all(nproma, jg, "step_advection", .FALSE., opt_lupdate_cpu=.TRUE., opt_dt=datetime_local(jg)%ptr, opt_id=iau_iter)
 
 #ifndef __NO_NWP__
@@ -2157,8 +2150,7 @@ MODULE mo_nh_stepping
                 &                      p_nh_state(jg)%diag,                             &
                 &                      p_patch(jg),                                     &
                 &                      opt_calc_temp=.TRUE.,                            &
-                &                      opt_calc_pres=.TRUE.,                            &
-                &                      opt_lconstgrav=upatmo_config(jg)%dyn%l_constgrav )
+                &                      opt_calc_pres=.TRUE.                             )
             !
             CALL interface_iconam_aes(     dt_loc                                    & !in
                 &                         ,datetime_local(jg)%ptr                    & !in
@@ -2242,8 +2234,7 @@ MODULE mo_nh_stepping
 #ifdef _OPENACC
           CALL finish (routine, 'nh_testcase_interface: OpenACC version currently not implemented')
 #endif
-          CALL nh_testcase_interface( nstep_global,                &  !in
-            &                         dt_loc,                      &  !in
+          CALL nh_testcase_interface( dt_loc,                      &  !in
             &                         sim_time,                    &  !in
             &                         p_patch(jg),                 &  !in
             &                         p_nh_state(jg),              &  !inout
@@ -2336,7 +2327,6 @@ MODULE mo_nh_stepping
           &                     mtime_datetime   = datetime_local(jg)%ptr, & !in
           &                     nnew             = nnew(jg),               & !in
           &                     nnew_rcf         = n_new_rcf,              & !in
-          &                     upatmo_config    = upatmo_config(jg),      & !in
           &                     nudging_config   = nudging_config(jg)      ) !inout
 
       ENDIF
@@ -2527,7 +2517,6 @@ MODULE mo_nh_stepping
             CALL initialize_nest(jg, jgc)
 
             ! Apply hydrostatic adjustment, using downward integration
-            ! (deep-atmosphere modification should enter implicitly via reference state)
             CALL hydro_adjust_const_thetav(p_patch(jgc), p_nh_state(jgc)%metrics, .TRUE.,    &
               p_nh_state(jgc)%prog(nnow(jgc))%rho, p_nh_state(jgc)%prog(nnow(jgc))%exner,    &
               p_nh_state(jgc)%prog(nnow(jgc))%theta_v )
@@ -2740,20 +2729,10 @@ MODULE mo_nh_stepping
       ENDIF
 
       ! integrate dynamical core
-      IF (.NOT. ldeepatmo) THEN ! shallow atmosphere
-        CALL solve_nh(p_nh_state, p_patch, p_int_state, prep_adv,     &
-          &           nnow(jg), nnew(jg), linit_dyn(jg), l_recompute, &
-          &           lsave_mflx, lprep_adv, lclean_mflx,             &
-          &           nstep, ndyn_substeps_tot-1, dt_dyn)
-      ELSE                      ! deep atmosphere
-#ifdef _OPENACC
-        CALL finish (routine, 'solve_nh_deepatmo: OpenACC version currently not implemented')
-#endif
-        CALL solve_nh_deepatmo(p_nh_state, p_patch, p_int_state, prep_adv,      &
-          &                    nnow(jg), nnew(jg), linit_dyn(jg), l_recompute,  &
-          &                    lsave_mflx, lprep_adv, lclean_mflx,              &
-          &                    nstep, ndyn_substeps_tot-1, dt_dyn)
-      ENDIF
+      CALL solve_nh(p_nh_state, p_patch, p_int_state, prep_adv,     &
+        &           nnow(jg), nnew(jg), linit_dyn(jg), l_recompute, &
+        &           lsave_mflx, lprep_adv, lclean_mflx,             &
+        &           nstep, ndyn_substeps_tot-1, dt_dyn)
 
       ! now reset linit_dyn to .FALSE.
       linit_dyn(jg) = .FALSE.
@@ -2952,7 +2931,6 @@ MODULE mo_nh_stepping
     INTEGER :: rl_start, rl_end
     INTEGER :: i_startblk, i_endblk, i_startidx, i_endidx
     INTEGER :: nlev
-    INTEGER :: idamtr_t1mc_divh, idamtr_t1mc_gradh
 
     REAL(wp), DIMENSION(:,:,:), POINTER  :: p_vn   => NULL()
 
@@ -3032,14 +3010,6 @@ MODULE mo_nh_stepping
               &                     p_nh_state(jg)%diag%ddt_va_phd)
       END IF
       !
-      IF (p_nh_state(jg)%diag%ddt_ua_cen_is_associated) THEN
-         CALL sync_patch_array(SYNC_E, p_patch(jg), p_nh_state(jg)%diag%ddt_vn_cen)
-         CALL rbf_vec_interpol_cell(p_nh_state(jg)%diag%ddt_vn_cen, &
-              &                     p_patch(jg), p_int_state(jg),   &
-              &                     p_nh_state(jg)%diag%ddt_ua_cen, &
-              &                     p_nh_state(jg)%diag%ddt_va_cen)
-      END IF
-      !
       IF (p_nh_state(jg)%diag%ddt_ua_iau_is_associated) THEN
          CALL sync_patch_array(SYNC_E, p_patch(jg), p_nh_state(jg)%diag%ddt_vn_iau)
          CALL rbf_vec_interpol_cell(p_nh_state(jg)%diag%ddt_vn_iau, &
@@ -3075,19 +3045,13 @@ MODULE mo_nh_stepping
       IF (ldeepatmo) THEN
         ! Modify divergence and vorticity for spherical geometry
 
-#if defined(_OPENACC)
-        CALL finish (routine, 'deepatmo:  OpenACC version currently not implemented')
-#endif
-
-
 #ifndef _OPENACC
-!$OMP PARALLEL PRIVATE (rl_start,rl_end,i_startblk,i_endblk,idamtr_t1mc_divh,idamtr_t1mc_gradh)
+!$OMP PARALLEL PRIVATE (rl_start,rl_end,i_startblk,i_endblk)
 #endif
         rl_start   = 1
         rl_end     = min_rlcell
-        i_startblk = p_patch(jg)%cells%start_block(rl_start)
-        i_endblk   = p_patch(jg)%cells%end_block(rl_end)
-        idamtr_t1mc_divh = idamtr%t1mc%divh
+        i_startblk = p_patch(jg)%cells%start_block(rl_start) 
+        i_endblk   = p_patch(jg)%cells%end_block(rl_end)  
 #ifndef _OPENACC
 !$OMP DO PRIVATE(jb, jc, jk, i_startidx, i_endidx), ICON_OMP_RUNTIME_SCHEDULE
 #endif
@@ -3100,8 +3064,8 @@ MODULE mo_nh_stepping
           DO jk = 1, nlev
             DO jc = i_startidx, i_endidx
               ! Multiply metrical modification factor
-              p_nh_state(jg)%diag%div(jc,jk,jb) = p_nh_state(jg)%diag%div(jc,jk,jb) &
-                &                               * p_nh_state(jg)%metrics%deepatmo_t1mc(jk,idamtr_t1mc_divh)
+              p_nh_state(jg)%diag%div(jc,jk,jb) = p_nh_state(jg)%diag%div(jc,jk,jb) & 
+                &                               * p_nh_state(jg)%metrics%deepatmo_divh_mc(jk)
             END DO
           END DO
           !$ACC END PARALLEL
@@ -3114,7 +3078,6 @@ MODULE mo_nh_stepping
         rl_end     = min_rlvert
         i_startblk = p_patch(jg)%verts%start_block(rl_start)
         i_endblk   = p_patch(jg)%verts%end_block(rl_end)
-        idamtr_t1mc_gradh = idamtr%t1mc%gradh
 #ifndef _OPENACC
 !$OMP DO PRIVATE(jb, jv, jk, i_startidx, i_endidx), ICON_OMP_RUNTIME_SCHEDULE
 #endif
@@ -3128,7 +3091,7 @@ MODULE mo_nh_stepping
             DO jv = i_startidx, i_endidx
               ! Multiply metrical modification factor
               p_nh_state(jg)%diag%omega_z(jv,jk,jb) = p_nh_state(jg)%diag%omega_z(jv,jk,jb) &
-                &                                   * p_nh_state(jg)%metrics%deepatmo_t1mc(jk,idamtr_t1mc_gradh)
+                &                                   * p_nh_state(jg)%metrics%deepatmo_gradh_mc(jk)
             END DO
           END DO
           !$ACC END PARALLEL
@@ -3150,8 +3113,7 @@ MODULE mo_nh_stepping
         &                      p_nh_state(jg)%prog(nnow_rcf(jg)),                     &
         &                      p_nh_state(jg)%diag,p_patch(jg),                       &
         &                      opt_calc_temp=.TRUE.,                                  &
-        &                      opt_calc_pres=.TRUE.,                                  &
-        &                      opt_lconstgrav=upatmo_config(jg)%dyn%l_constgrav       )
+        &                      opt_calc_pres=.TRUE.                                   )
 
     ENDDO ! jg-loop
 
@@ -3448,7 +3410,6 @@ MODULE mo_nh_stepping
     IF (p_nh_diag%ddt_vn_cor_is_associated) CALL init(p_nh_diag%ddt_vn_cor)
     IF (p_nh_diag%ddt_vn_pgr_is_associated) CALL init(p_nh_diag%ddt_vn_pgr)
     IF (p_nh_diag%ddt_vn_phd_is_associated) CALL init(p_nh_diag%ddt_vn_phd)
-    IF (p_nh_diag%ddt_vn_cen_is_associated) CALL init(p_nh_diag%ddt_vn_cen)
     IF (p_nh_diag%ddt_vn_iau_is_associated) CALL init(p_nh_diag%ddt_vn_iau)
     IF (p_nh_diag%ddt_vn_ray_is_associated) CALL init(p_nh_diag%ddt_vn_ray)
     IF (p_nh_diag%ddt_vn_grf_is_associated) CALL init(p_nh_diag%ddt_vn_grf)

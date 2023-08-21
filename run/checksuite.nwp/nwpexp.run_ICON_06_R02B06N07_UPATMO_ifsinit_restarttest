@@ -435,21 +435,6 @@ cat > NAMELIST_NWP << EOF
 
 ! upatmo_nml: upper-atmosphere switches ---------------------------------------
 &upatmo_nml
- !----------------------------------------------
- ! deep-atmosphere dynamics: ldeepatmo = .TRUE.
- !----------------------------------------------
- lnontrad                    =                      .TRUE.        ! .FALSE. -> non-traditional deep-atmosphere terms 
-                                                                  ! in components of momentum equation are switched off 
-                                                                  ! (default is .TRUE.)
- lconstgrav                  =                     .FALSE.        ! .TRUE. -> gravitational acceleration is const. 
-                                                                  ! like in case of the shallow atmosphere 
-                                                                  ! (default is .FALSE.)
- lcentrifugal                =                     .FALSE.        ! .TRUE. -> explicit centrifugal acceleration is switched on 
-                                                                  ! (default is .FALSE.)
- ldeepatmo2phys              =                     .FALSE.        ! .TRUE. -> the input fields to the ECHAM physics parameterizations 
-                                                                  ! are modified for the deep atmosphere, if required 
-                                                                  ! .FALSE. -> the input fields are computed in accordance 
-                                                                  ! with the shallow-atmosphere approximation in any case (default)
  !------------------------------------------------------
  ! upper-atmosphere extrapolation: itype_vert_expol = 2
  !------------------------------------------------------

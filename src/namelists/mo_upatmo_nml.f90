@@ -1,7 +1,6 @@
 !>
 !! This module controls the namelist input for:
 !! - Upper-atmosphere physics
-!! - Deep-atmosphere dynamics
 !! - Upper-atmosphere extrapolation
 !!
 !! @author Guidi Zhou, MPI-M, 2016-03-03
@@ -21,8 +20,7 @@ MODULE mo_upatmo_nml
 
   USE mo_kind,                    ONLY: wp
   USE mo_exception,               ONLY: finish
-  USE mo_upatmo_config,           ONLY: upatmo_dyn_config, upatmo_exp_config, &
-    &                                   upatmo_phy_config
+  USE mo_upatmo_config,           ONLY: upatmo_exp_config, upatmo_phy_config
   USE mo_namelist,                ONLY: position_nml, POSITIONED, open_nml, close_nml
   USE mo_io_units,                ONLY: nnml, nnml_output, filename_max
   USE mo_mpi,                     ONLY: my_process_is_stdio
@@ -51,22 +49,6 @@ MODULE mo_upatmo_nml
   !------------------------------------------------------------
   !                    Namelist parameters
   !------------------------------------------------------------
-
-  !---------------
-  !   Dynamics
-  !---------------  
-
-  ! Specifieres for metric and approximations used in model equations
-  !
-  LOGICAL :: lnontrad        ! .TRUE. -> non-traditional deep-atmosphere terms 
-                             ! in components of momentum equation are switched on
-  LOGICAL :: lconstgrav      ! .TRUE. -> gravitational acceleration is const. 
-                             ! like in case of the shallow atmosphere
-  LOGICAL :: lcentrifugal    ! .TRUE. -> explicit centrifugal acceleration is switched on
-  LOGICAL :: ldeepatmo2phys  ! .TRUE. -> the input fields to the ECHAM physics parameterizations 
-                             ! are modified for the deep atmosphere, if required 
-                             ! .FALSE. -> the input fields are computed in accordance 
-                             ! with the shallow-atmosphere approximation (standard) in any case
 
   !---------------
   ! Extrapolation
@@ -207,11 +189,7 @@ MODULE mo_upatmo_nml
 
   !------------------------------------------------------------
 
-  NAMELIST /upatmo_nml/ lnontrad,               &   
-    &                   lconstgrav,             &   
-    &                   lcentrifugal,           &
-    &                   ldeepatmo2phys,         &
-    &                   expol_start_height,     & 
+  NAMELIST /upatmo_nml/ expol_start_height,     & 
     &                   expol_blending_scale,   &
     &                   expol_vn_decay_scale,   &
     &                   expol_temp_infty,       &
@@ -282,20 +260,6 @@ CONTAINS !......................................................................
     ! add new variables etc. Thank you! 
 
     ! (Where not otherwise stated, the settings apply to all domains)
-
-    !---------------
-    !   Dynamics
-    !---------------  
-
-    ! (Note: to switch on the deep-atmosphere dynamics set 'dynamics_nml: ldeepatmo = .TRUE.'.)
-
-    lnontrad       = .TRUE.   ! Non-traditional deep-atmosphere terms in components 
-                              ! of momentum equation (such as f_t*w or vn/r) are active 
-    lconstgrav     = .FALSE.  ! Gravitational acceleration shall be a function of radius 
-                              ! grav -> grav*(a/r)^2, where a is Earth's radius and r = a + z
-    lcentrifugal   = .FALSE.  ! Explicit centrifugal acceleration switched off
-    ldeepatmo2phys = .FALSE.  ! The input fields to the ECHAM physics parameterizations 
-                              ! are computed in accordance with the shallow-atmosphere approximation
 
     !---------------
     ! Extrapolation
@@ -667,18 +631,7 @@ CONTAINS !......................................................................
     !------------------------------------------------------------
 
     DO jg = 0, max_dom
-      
-      !---------------
-      !   Dynamics
-      !---------------  
 
-      upatmo_dyn_config(jg)%lnontrad       = lnontrad 
-      upatmo_dyn_config(jg)%lconstgrav     = lconstgrav
-      upatmo_dyn_config(jg)%lcentrifugal   = lcentrifugal
-      upatmo_dyn_config(jg)%ldeepatmo2phys = ldeepatmo2phys
-      ! Change status
-      upatmo_dyn_config(jg)%lset           = .TRUE. 
-      
       !---------------
       ! Extrapolation
       !---------------
