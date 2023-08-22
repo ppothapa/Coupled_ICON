@@ -25,7 +25,7 @@
 MODULE mo_diffusion_config
 
   USE mo_kind,                ONLY: wp
-  USE mo_exception,           ONLY: message, message_text
+  USE mo_exception,           ONLY: message, message_text, finish
   USE mo_impl_constants,      ONLY: max_dom
 
   IMPLICIT NONE
@@ -43,11 +43,10 @@ MODULE mo_diffusion_config
 
     INTEGER :: hdiff_order  ! order of horizontal diffusion
                             ! -1: no diffusion
-                            ! 2: 2nd order linear diffusion on all vertical levels 
-                            ! 3: Smagorinsky diffusion for hexagonal model
-                            ! 4: 4th order linear diffusion on all vertical levels 
-                            ! 5: Smagorinsky diffusion for triangular model
-                            
+                            ! 2: 2nd order linear diffusion on all vertical levels
+                            ! 4: 4th order linear diffusion on all vertical levels
+                            ! 5: Smagorinsky diffusion with optional fourth-order background diffusion
+
     REAL(wp) :: hdiff_efdt_ratio      ! ratio of e-folding time to (2*)time step
     REAL(wp) :: hdiff_w_efdt_ratio    ! ratio of e-folding time to time step for w diffusion (NH only)
     REAL(wp) :: hdiff_min_efdt_ratio  ! minimum value of hdiff_efdt_ratio 
@@ -135,6 +134,33 @@ CONTAINS
       ENDDO
 
     ENDIF
+
+
+    ! produce some log-output
+    !
+    DO jg =1,n_dom
+      SELECT CASE( diffusion_config(jg)%hdiff_order )
+      CASE(-1)
+        WRITE(message_text,'(a,i2.2)') 'Horizontal diffusion '//&
+                                       'switched off for domain ', jg
+        CALL message(routine, message_text)
+
+      CASE(2,4,5)
+        ! do nothing
+
+      CASE DEFAULT
+        WRITE(message_text,'(a,i2.2,a)') 'Error: Invalid choice for hdiff_order '//&
+          &                              'for domain ', jg,                        &
+          &                              '. Choose from -1, 2, 4, and 5.'
+        CALL finish(routine, message_text)
+      END SELECT
+
+      IF ( diffusion_config(jg)%hdiff_efdt_ratio<=0._wp ) THEN
+        WRITE(message_text,'(a,i2.2)') 'No horizontal background diffusion is used '//&
+                                       'for domain ', jg
+        CALL message(routine, message_text)
+      ENDIF
+    ENDDO
 
   END SUBROUTINE configure_diffusion
 

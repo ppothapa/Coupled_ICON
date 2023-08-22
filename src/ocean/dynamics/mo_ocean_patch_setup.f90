@@ -105,7 +105,7 @@ MODULE mo_ocean_patch_setup
 !   USE mo_grid_geometry_info, ONLY: planar_torus_geometry
   USE mo_grid_tools,         ONLY: calculate_edge_area
   USE mo_model_domimp_setup, ONLY: init_coriolis
-  USE mo_dynamics_config,    ONLY: lcoriolis
+  USE mo_dynamics_config,    ONLY: lcoriolis, ldeepatmo
   USE mo_sync,               ONLY: disable_sync_checks, enable_sync_checks
 
   IMPLICIT NONE
@@ -123,7 +123,7 @@ CONTAINS
   SUBROUTINE complete_ocean_patch( patch_2D)
     TYPE(t_patch), TARGET, INTENT(inout) :: patch_2D
 
-    CALL init_coriolis( lcoriolis, lplane, patch_2D )
+    CALL init_coriolis( lcoriolis, lplane, ldeepatmo, patch_2D )
     CALL complete_ocean_patch_geometry( patch_2D )
 
   END SUBROUTINE complete_ocean_patch

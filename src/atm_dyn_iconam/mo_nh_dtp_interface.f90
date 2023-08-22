@@ -43,7 +43,6 @@ MODULE mo_nh_dtp_interface
 #ifdef _OPENACC
   USE mo_mpi,                 ONLY: i_am_accel_node
 #endif
-  USE mo_upatmo_impl_const,   ONLY: idamtr
 
   IMPLICIT NONE
   PRIVATE
@@ -434,7 +433,7 @@ CONTAINS
     i_endblk   = p_patch%cells%end_block(i_rlend)
 
 
-    !$ACC DATA PRESENT(rho, airmass, p_metrics%ddqz_z_full) IF(i_am_accel_node)
+    !$ACC DATA PRESENT(rho, airmass, p_metrics%ddqz_z_full, p_metrics%deepatmo_vol_mc) IF(i_am_accel_node)
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jc,jk,jb,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
@@ -447,8 +446,7 @@ CONTAINS
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlev
         DO jc = i_startidx, i_endidx
-          airmass(jc,jk,jb) = rho(jc,jk,jb)*p_metrics%ddqz_z_full(jc,jk,jb) &
-            &               * p_metrics%deepatmo_t1mc(jk,idamtr%t1mc%vol)
+          airmass(jc,jk,jb) = rho(jc,jk,jb)*p_metrics%ddqz_z_full(jc,jk,jb)*p_metrics%deepatmo_vol_mc(jk)
         ENDDO  ! jc
       ENDDO  ! jk
       !$ACC END PARALLEL

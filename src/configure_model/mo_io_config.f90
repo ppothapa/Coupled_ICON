@@ -206,9 +206,6 @@ MODULE mo_io_config
     LOGICAL :: ddt_vn_phd  = .FALSE. !< Flag. TRUE if the storage of ddt_vn_phd is required
     LOGICAL :: ddt_ua_phd  = .FALSE. !<                              ddt_ua_phd
     LOGICAL :: ddt_va_phd  = .FALSE. !<                              ddt_va_phd
-    LOGICAL :: ddt_vn_cen  = .FALSE. !< Flag. TRUE if the storage of ddt_vn_cen is required
-    LOGICAL :: ddt_ua_cen  = .FALSE. !<                              ddt_ua_cen
-    LOGICAL :: ddt_va_cen  = .FALSE. !<                              ddt_va_cen
     LOGICAL :: ddt_vn_iau  = .FALSE. !< Flag. TRUE if the storage of ddt_vn_iau is required
     LOGICAL :: ddt_ua_iau  = .FALSE. !<                              ddt_ua_iau
     LOGICAL :: ddt_va_iau  = .FALSE. !<                              ddt_va_iau
@@ -407,9 +404,6 @@ CONTAINS
       var_in_output(jg)%ddt_vn_phd    = is_variable_in_output_dom(var_name="ddt_vn_phd", jg=jg)
       var_in_output(jg)%ddt_ua_phd    = is_variable_in_output_dom(var_name="ddt_ua_phd", jg=jg)
       var_in_output(jg)%ddt_va_phd    = is_variable_in_output_dom(var_name="ddt_va_phd", jg=jg)
-      var_in_output(jg)%ddt_vn_cen    = is_variable_in_output_dom(var_name="ddt_vn_cen", jg=jg)
-      var_in_output(jg)%ddt_ua_cen    = is_variable_in_output_dom(var_name="ddt_ua_cen", jg=jg)
-      var_in_output(jg)%ddt_va_cen    = is_variable_in_output_dom(var_name="ddt_va_cen", jg=jg)
       var_in_output(jg)%ddt_vn_iau    = is_variable_in_output_dom(var_name="ddt_vn_iau", jg=jg)
       var_in_output(jg)%ddt_ua_iau    = is_variable_in_output_dom(var_name="ddt_ua_iau", jg=jg)
       var_in_output(jg)%ddt_va_iau    = is_variable_in_output_dom(var_name="ddt_va_iau", jg=jg)

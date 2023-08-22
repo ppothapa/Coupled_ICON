@@ -549,7 +549,6 @@ CONTAINS
           ! Parts of the code that might still require modification are (non-exhaustive list!):
           ! * src/atm_dyn_iconam/mo_nh_diffusion: diffusion
           ! * src/atm_dyn_iconam/mo_solve_nonhydro: solve_nh (damping)
-          ! * src/atm_dyn_iconam/mo_nh_deepatmo_solve: solve_nh_deepatmo (damping)
           ! * src/atm_dyn_iconam/mo_vertical_grid: set_nh_metrics ('nudge_c/e_idx/blk')
           ! * src/shr_horizontal/mo_intp_coeffs: init_nudgecoeffs ('nudgecoeff_c/e')
           ! * src/atm_dyn_iconam/mo_nh_stepping: integrate_nh:

@@ -731,6 +731,7 @@ enable_les
 enable_upatmo
 enable_ocean
 enable_jsbach
+enable_jsbach_hd
 enable_waves
 enable_coupling
 enable_aes
@@ -1493,6 +1494,8 @@ Model Features:
                           [default=yes]
   --enable-ocean          enable the ocean component of ICON [default=yes]
   --enable-jsbach         enable the land component JSBACH [default=yes]
+  --enable-jsbach-hd      enable the hydrological discharge scheme of the
+                          JSBACH land component (JSBACH HD) [default=auto]
   --enable-waves          enable the ocean surface wave component of ICON
                           [default=no]
   --enable-coupling       enable the coupling [default=yes]
@@ -2871,6 +2874,16 @@ else
 fi
 
 
+# Check whether --enable-jsbach-hd was given.
+if test "${enable_jsbach_hd+set}" = set; then :
+  enableval=$enable_jsbach_hd; if test x"$enableval" != xno && test x"$enableval" != xauto; then :
+  enable_jsbach_hd=yes
+fi
+else
+  enable_jsbach_hd=auto
+fi
+
+
 # Check whether --enable-waves was given.
 if test "${enable_waves+set}" = set; then :
   enableval=$enable_waves; if test x"$enableval" != xno; then :
@@ -3523,6 +3536,29 @@ fi
 else
   with_external_cub=no
 fi
+
+
+############################# OPTIONS CROSSCHECKS ##############################
+
+case $enable_jsbach_hd in #(
+  yes) :
+    if test "x$enable_jsbach" = xno; then :
+  as_fn_error $? "you are trying to configure with the JSBACH HD scheme but the
+land component JSBACH is disabled. Either disable the hydrological discharge
+scheme of the JSBACH land component (--disable-jsbach-hd) or enable the land
+component JSBACH (--enable-jsbach)." "$LINENO" 5
+fi ;; #(
+  no) :
+     ;; #(
+  auto) :
+    if test "x$enable_jsbach" = xyes; then :
+  enable_jsbach_hd=yes
+else
+  enable_jsbach_hd=no
+fi ;; #(
+  *) :
+     ;;
+esac
 
 
 ############################# CODEBASE EXTENSIONS ##############################
@@ -5137,6 +5173,10 @@ fi
 
 if test "x$enable_jsbach" = xno; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}__NO_JSBACH__"
+fi
+
+if test "x$enable_jsbach_hd" = xno; then :
+  as_fn_append FCFLAGS " ${FC_PP_DEF}__NO_JSBACH_HD__"
 fi
 
 if test "x$enable_waves" = xno; then :

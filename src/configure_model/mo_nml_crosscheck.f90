@@ -22,10 +22,10 @@ MODULE mo_nml_crosscheck
   USE mo_kind,                     ONLY: wp
   USE mo_exception,                ONLY: message, message_text, finish, em_info
   USE mo_impl_constants,           ONLY: inwp, tracer_only, inh_atmosphere,                &
-    &                                    iaes, RAYLEIGH_CLASSIC,                           &
+    &                                    iaes, RAYLEIGH_CLASSIC, inoforcing,               &
     &                                    iedmf, icosmo, iprog, MODE_IAU, MODE_IAU_OLD,     &
     &                                    max_echotop, max_wshear, max_srh,                 &
-    &                                    LSS_JSBACH, LSS_TERRA
+    &                                    LSS_JSBACH, LSS_TERRA, ivdiff
   USE mo_time_config,              ONLY: time_config, dt_restart
   USE mo_extpar_config,            ONLY: itopo
   USE mo_io_config,                ONLY: dt_checkpoint, lnetcdf_flt64_output, echotop_meta,&
@@ -40,13 +40,12 @@ MODULE mo_nml_crosscheck
     &                                    ltransport, ltestcase, ltimer,                    &
     &                                    activate_sync_timers, timers_level, lart,         &
     &                                    msg_level, luse_radarfwo
-  USE mo_dynamics_config,          ONLY: iequations, ldeepatmo
+  USE mo_dynamics_config,          ONLY: iequations, idiv_method, ldeepatmo
   USE mo_advection_config,         ONLY: advection_config
   USE mo_nonhydrostatic_config,    ONLY: itime_scheme_nh => itime_scheme,                  &
-    &                                    rayleigh_type, ivctype
-  USE mo_diffusion_config,         ONLY: diffusion_config
+    &                                    rayleigh_type, ivctype, iadv_rhotheta
   USE mo_atm_phy_nwp_config,       ONLY: atm_phy_nwp_config, icpl_aero_conv, iprog_aero
-  USE mo_lnd_nwp_config,           ONLY: ntiles_lnd, lsnowtile, sstice_mode
+  USE mo_lnd_nwp_config,           ONLY: ntiles_lnd, lsnowtile, sstice_mode, llake
   USE mo_aes_phy_config,           ONLY: aes_phy_config
   USE mo_radiation_config,         ONLY: irad_aero, iRadAeroNone, iRadAeroConst,           &
     &                                    iRadAeroTegen, iRadAeroART, iRadAeroConstKinne,   &
@@ -76,14 +75,12 @@ MODULE mo_nml_crosscheck
   USE mtime,                       ONLY: getTotalMilliSecondsTimeDelta, datetime,          &
     &                                    newDatetime, deallocateDatetime
   USE mo_gridref_config,           ONLY: grf_intmethod_e
-  USE mo_interpol_config
   USE mo_sleve_config,             ONLY: itype_laydistr, flat_height, top_height
   USE mo_nudging_config,           ONLY: nudging_config, indg_type
   USE mo_nwp_tuning_config,        ONLY: itune_gust_diag
   USE mo_nudging_nml,              ONLY: check_nudging
   USE mo_upatmo_config,            ONLY: check_upatmo
   USE mo_name_list_output_config,  ONLY: is_variable_in_output_dom
-  USE mo_nh_testcase_check,        ONLY: check_nh_testcase
   USE mo_coupling_config,          ONLY: is_coupled_run
 
   USE mo_scm_nml,                  ONLY: i_scm_netcdf, scm_sfc_temp, scm_sfc_qv, scm_sfc_mom
@@ -234,8 +231,6 @@ CONTAINS
         & 'surface scheme must be switched off, when running the APE test')
     ENDIF
 
-    IF (ltestcase) CALL check_nh_testcase()
-
 
     !--------------------------------------------------------------------
     ! SCM single column model
@@ -266,11 +261,26 @@ CONTAINS
     !--------------------------------------------------------------------
     ! Nonhydrostatic atm
     !--------------------------------------------------------------------
-    IF (grf_intmethod_e >= 5 .AND. iequations /= INH_ATMOSPHERE .AND. n_dom > 1) THEN
+    IF (grf_intmethod_e == 6 .AND. iequations /= INH_ATMOSPHERE .AND. n_dom > 1) THEN
       grf_intmethod_e = 4
       CALL message( routine, 'grf_intmethod_e has been reset to 4')
     ENDIF
 
+    IF (ldeepatmo) THEN
+      IF (iequations /= INH_ATMOSPHERE) THEN
+        CALL finish(routine, 'Deep-atmosphere configuration requires non-hydrostatic dynamics')
+      ELSEIF (.NOT. ANY([inoforcing, inwp, iaes] == iforcing)) THEN
+        CALL finish(routine, 'Deep-atmosphere configuration: incompatible iforcing')
+      ELSEIF (ltestcase .AND. TRIM(nh_test_name) /= 'dcmip_bw_11') THEN
+        CALL finish(routine, 'Deep-atmosphere configuration: the only supported testcase is "dcmip_bw_11"')
+      ELSEIF (lplane .OR. is_plane_torus) THEN
+        CALL finish(routine, 'Deep-atmosphere configuration is incompatible with plane or torus modes')
+      ELSEIF (iadv_rhotheta /= 2) THEN
+        CALL finish(routine, 'Deep-atmosphere configuration requires iadv_rhotheta = 2')
+      ELSEIF (idiv_method /= 1) THEN
+        CALL finish(routine, 'Deep-atmosphere configuration requires idiv_method = 1')
+      ENDIF
+    ENDIF ! IF (ldeepatmo)
 
     !--------------------------------------------------------------------
     ! Atmospheric physics, general
@@ -532,6 +542,10 @@ CONTAINS
             ntiles_lnd = 1
             CALL message(routine,'Warning: ntiles reset to 1 because JSBACH handles tiles internally')
           ENDIF
+          IF (llake) THEN
+            llake = .FALSE.
+            CALL message(routine,'Warning: llake=.FALSE. because JSBACH handles lakes internally')
+          END IF
         END SELECT
 
       ENDDO
@@ -585,32 +599,7 @@ CONTAINS
       ENDDO
     ENDIF
 #endif
-    !--------------------------------------------------------------------
-    ! Horizontal diffusion
-    !--------------------------------------------------------------------
 
-    DO jg =1,n_dom
-
-      SELECT CASE( diffusion_config(jg)%hdiff_order )
-      CASE(-1)
-        WRITE(message_text,'(a,i2.2)') 'Horizontal diffusion '//&
-                                       'switched off for domain ', jg
-        CALL message(routine,message_text)
-
-      CASE(2,3,4,5)
-        CONTINUE
-
-      CASE DEFAULT
-        CALL finish(routine,                       &
-          & 'Error: Invalid choice for  hdiff_order. '// &
-          & 'Choose from -1, 2, 3, 4, and 5.')
-      END SELECT
-
-      IF ( diffusion_config(jg)%hdiff_efdt_ratio<=0._wp) THEN
-        CALL message(routine,'No horizontal background diffusion is used')
-      ENDIF
-
-    ENDDO
 
     !--------------------------------------------------------------------
     ! checking the meanings of the io settings
@@ -781,7 +770,7 @@ CONTAINS
     END IF
     CALL check_meteogram_configuration(num_io_procs)
 
-    IF (iforcing==iaes) CALL land_crosscheck()
+    IF (ANY(iforcing == [iaes, inwp])) CALL land_crosscheck()
 
     IF (iforcing==inwp) CALL coupled_crosscheck()
 
@@ -793,11 +782,9 @@ CONTAINS
       &                 latbc_config%latbc_varnames_map_file, LATBC_TYPE_CONST,          &
       &                 LATBC_TYPE_EXT, is_plane_torus, lart, ltransport  )
 
-    CALL check_upatmo( n_dom_start, n_dom, iequations, iforcing, ldeepatmo,               &
-      &                atm_phy_nwp_config(:)%lupatmo_phy, is_plane_torus, l_limited_area, &
-      &                lart, ivctype, flat_height, itype_vert_expol, ltestcase,           &
-      &                nh_test_name, init_mode, atm_phy_nwp_config(:)%inwp_turb,          &
-      &                atm_phy_nwp_config(:)%inwp_radiation)
+    CALL check_upatmo( n_dom_start, n_dom, iforcing, atm_phy_nwp_config(:)%lupatmo_phy,   &
+      &                l_limited_area, ivctype, flat_height, itype_vert_expol, init_mode, &
+      &                atm_phy_nwp_config(:)%inwp_turb, atm_phy_nwp_config(:)%inwp_radiation)
 
 
     ! ********************************************************************************
@@ -857,8 +844,9 @@ CONTAINS
 
     CHARACTER(len=*), PARAMETER :: routine =  modname//'::coupled_crosscheck'
 
-    IF ( ntiles_lnd == 1 .AND. is_coupled_run() ) THEN
-       CALL finish(routine, "Coupled atm/ocean runs not supported with ntiles=1")
+    IF ( ntiles_lnd == 1 .AND. is_coupled_run() .AND. .NOT. &
+        & (iforcing == inwp .AND. ALL(atm_phy_nwp_config(1:n_dom)%inwp_turb == ivdiff)) ) THEN
+       CALL finish(routine, "Coupled atm/ocean runs not supported with ntiles=1 when not using VDIFF")
     ENDIF
 
     IF ( sstice_mode /= 1 .AND. is_coupled_run() ) THEN

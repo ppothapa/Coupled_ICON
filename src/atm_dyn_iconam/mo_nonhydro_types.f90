@@ -204,9 +204,6 @@ MODULE mo_nonhydro_types
     &  ddt_vn_phd  (:,:,:) => NULL() ,& ! vn   physics applied in dynamics
     &  ddt_ua_phd  (:,:,:) => NULL() ,& ! ua
     &  ddt_va_phd  (:,:,:) => NULL() ,& ! va
-    &  ddt_vn_cen  (:,:,:) => NULL() ,& ! vn   centrifugal acceleration in deep atmosphere
-    &  ddt_ua_cen  (:,:,:) => NULL() ,& ! ua
-    &  ddt_va_cen  (:,:,:) => NULL() ,& ! va
     &  ddt_vn_iau  (:,:,:) => NULL() ,& ! vn   incremental analysis update
     &  ddt_ua_iau  (:,:,:) => NULL() ,& ! ua
     &  ddt_va_iau  (:,:,:) => NULL() ,& ! va
@@ -240,9 +237,6 @@ MODULE mo_nonhydro_types
     &  ddt_vn_phd_is_associated = .FALSE. ,& ! vn   physics applied in dynamics
     &  ddt_ua_phd_is_associated = .FALSE. ,& ! ua
     &  ddt_va_phd_is_associated = .FALSE. ,& ! va
-    &  ddt_vn_cen_is_associated = .FALSE. ,& ! vn   centrifugal acceleration in deep atmosphere
-    &  ddt_ua_cen_is_associated = .FALSE. ,& ! ua
-    &  ddt_va_cen_is_associated = .FALSE. ,& ! va
     &  ddt_vn_iau_is_associated = .FALSE. ,& ! vn   incremental analysis update
     &  ddt_ua_iau_is_associated = .FALSE. ,& ! ua
     &  ddt_va_iau_is_associated = .FALSE. ,& ! va
@@ -441,19 +435,19 @@ MODULE mo_nonhydro_types
      ! Vertically varying nudging coefficient: nudgecoeff_vert(nlev)
     REAL(wp), POINTER, CONTIGUOUS :: nudgecoeff_vert(:)
 
-    ! Upper atmosphere/deep atmosphere
+    ! Deep atmosphere
     !
     REAL(wp), POINTER, CONTIGUOUS :: &
-     zgpot_ifc(:,:,:)   , & ! geopotential height of the grid layer interfaces (nproma,nlevp1,nblks_c)
-     zgpot_mc(:,:,:)    , & ! geopotential height of cell centers (nproma,nlev,nblks_c)
-     dzgpot_mc(:,:,:)     & ! geopotential layer thickness (nproma,nlev,nblks_c)   
-     => NULL()
-    !
-    REAL(wp), POINTER, CONTIGUOUS :: &
-      deepatmo_t1mc(:,:),  & ! metrical modification factors for full levels (nlev,nitem)
-      deepatmo_t1ifc(:,:), & ! metrical modification factors for half levels (nlevp1,nitem)
-      deepatmo_t2mc(:,:)   & ! metrical modification factors for full levels (nitem,nlev)
-      => NULL()    
+      & deepatmo_gradh_mc(:),  & ! metrical modification factors for horizontal gradient at full levels (nlev)
+      & deepatmo_divh_mc(:),   & ! '' '' '' for horizontal part of divergence at full levels (nlev)
+      & deepatmo_vol_mc(:),    & ! '' '' '' for cell volume at full levels (nlev)
+      & deepatmo_invr_mc(:),   & ! '' '' '': inverse of radial distance of full levels from center of Earth (nlev)
+      & deepatmo_divzU_mc(:),  & ! '' '' '' for vertical part of divergence at full levels (nlev)
+      & deepatmo_divzL_mc(:),  & ! '' '' '' for vertical part of divergence at full levels (nlev)
+      !
+      & deepatmo_gradh_ifc(:),  & ! '' '' '' for horizontal gradient at half levels (nlevp1)
+      & deepatmo_invr_ifc(:)    & ! '' '' '': inverse of radial distance of half levels from center of Earth (nlevp1)
+      & => NULL()
 
 
    ! Corresponding scalar list dimensions

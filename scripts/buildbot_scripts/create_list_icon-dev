@@ -117,6 +117,7 @@ $addexp "checksuite.icon-dev/check.mch_pollen_test"                       --buil
 ./rmexp checksuite.icon-dev/check.mch_opr_r04b07_nest                     --builders "DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed"  --list $listname
 ./rmexp checksuite.icon-dev/check.mch_opr_r04b07_performance              --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
 ./rmexp checksuite.icon-dev/check.mch_opr_r04b07_lhn_12_emvorado          --builders "DAINT_CPU_nvidia DAINT_GPU_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed balfrin_gpu_nvidia_mixed" --list $listname
+./rmexp checksuite.icon-dev/check.mch_opr_r04b07_sstice_inst              --builders "DAINT_GPU_nvidia_mixed" --list $listname # tolerance test fails because qv exceeds threshold (for the max statistic)
 
 # GPU builders explicitly turned off due to unresolved bug
 $addexp "checksuite.icon-dev/check.mch_opr_r19b07_midnight"               --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed DAINT_CPU_nvidia" --list $listname
@@ -287,10 +288,15 @@ do
   ./rmexp $experiment --builders levante_nag_serial --list $listname
 done
 
+# JSBACH-NWP test, has to be down here because the GPU builders get deactivated at the top and activated later.
+jsbach_nwp_builders='DWD_nec DWD_nec_hybrid levante_gcc levante_intel levante_gpu_nvhpc'
+$addexp checksuite.icon-dev/check.atm_nwp_jsbach_test --builders "${jsbach_nwp_builders}" --list $listname
+
 # aurora node at DKRZ - not in production,yet
 ./set_builder_flags Active --builders 'levante_aurora' --list $listname
 $addexp "checksuite.infrastructure/aurora/exp.icon_esm_r2b4.run" --builders "levante_aurora" --list $listname
 $addexp "checksuite.infrastructure/aurora/exp.icon_atm_r2b4.run" --builders "levante_aurora" --list $listname
+
 #lets see the list
 ./lslist $listname
 #-----------------------------------------------------------

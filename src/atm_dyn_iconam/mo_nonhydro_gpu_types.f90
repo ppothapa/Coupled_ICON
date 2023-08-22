@@ -405,7 +405,7 @@ CONTAINS
         DO j=1, SIZE(p_grf)
 
           !$ACC ENTER DATA &
-          !$ACC   COPYIN(p_grf(j)%fbk_wgt_aw, p_grf(j)%fbk_wgt_bln, p_grf(j)%fbk_wgt_e, p_grf(j)%fbk_dom_area) &
+          !$ACC   COPYIN(p_grf(j)%fbk_wgt_aw, p_grf(j)%fbk_wgt_bln, p_grf(j)%fbk_wgt_e) &
           !$ACC   COPYIN(p_grf(j)%mask_ovlp_c, p_grf(j)%mask_ovlp_ch, p_grf(j)%mask_ovlp_e, p_grf(j)%mask_ovlp_v) &
           !$ACC   COPYIN(p_grf(j)%idxlist_bdyintp_src_c, p_grf(j)%idxlist_bdyintp_src_e, p_grf(j)%blklist_bdyintp_src_c) &
           !$ACC   COPYIN(p_grf(j)%blklist_bdyintp_src_e, p_grf(j)%p_dom)
@@ -419,7 +419,7 @@ CONTAINS
           CALL devcpy_grf_single_state( p_grf(j)%p_dom, l_h2d )
 
           !$ACC EXIT DATA &
-          !$ACC   DELETE(p_grf(j)%fbk_wgt_aw, p_grf(j)%fbk_wgt_bln, p_grf(j)%fbk_wgt_e, p_grf(j)%fbk_dom_area) &
+          !$ACC   DELETE(p_grf(j)%fbk_wgt_aw, p_grf(j)%fbk_wgt_bln, p_grf(j)%fbk_wgt_e) &
           !$ACC   DELETE(p_grf(j)%mask_ovlp_c, p_grf(j)%mask_ovlp_ch, p_grf(j)%mask_ovlp_e, p_grf(j)%mask_ovlp_v) &
           !$ACC   DELETE(p_grf(j)%idxlist_bdyintp_src_c, p_grf(j)%idxlist_bdyintp_src_e, p_grf(j)%blklist_bdyintp_src_c) &
           !$ACC   DELETE(p_grf(j)%blklist_bdyintp_src_e, p_grf(j)%p_dom)

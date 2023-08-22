@@ -41,30 +41,29 @@ USE mo_kind,                ONLY: wp
 USE mo_exception,           ONLY: message, finish
 USE mo_impl_constants,      ONLY: SUCCESS, min_rlcell_int, min_rledge_int, min_rlvert_int, &
                                   min_rlcell, min_rledge, min_rlvert
-USE mo_model_domain,        ONLY: t_patch, p_patch_local_parent
+USE mo_model_domain,        ONLY: t_patch
 USE mo_grid_config,         ONLY: n_dom, n_dom_start
 USE mo_impl_constants_grf,  ONLY: grf_bdyintp_start_c, grf_bdyintp_start_e, grf_nudgintp_start_c, &
                                   grf_nudgintp_start_e, grf_bdyintp_end_c, grf_bdyintp_end_e,     &
                                   grf_fbk_start_c, grf_fbk_start_e, grf_bdywidth_c,               &
                                   grf_bdywidth_e
 USE mo_parallel_config,     ONLY: nproma
-
 USE mo_communication,       ONLY: t_p_comm_pattern, blk_no, idx_no, idx_1d, &
   &                               delete_comm_pattern, &
   &                               exchange_data, t_comm_pattern_collection, &
   &                               t_comm_pattern, &
   &                               delete_comm_pattern_collection
-  USE mo_communication_factory, ONLY: setup_comm_pattern, &
-    &                                 setup_comm_pattern_collection
+USE mo_communication_factory, ONLY: setup_comm_pattern, &
+  &                                 setup_comm_pattern_collection
 USE mo_loopindices,         ONLY: get_indices_c, get_indices_e, get_indices_v
 USE mo_intp_data_strc,      ONLY: t_int_state
 USE mo_decomposition_tools, ONLY: t_glb2loc_index_lookup, get_valid_local_index, &
                                   init_glb2loc_index_lookup, set_inner_glb_index, &
                                   deallocate_glb2loc_index_lookup
 
-USE mo_grf_intp_data_strc
-USE mo_grf_intp_coeffs
-USE mo_gridref_config
+USE mo_grf_intp_data_strc,  ONLY: t_gridref_single_state, t_gridref_state
+USE mo_grf_intp_coeffs,     ONLY: compute_pc2cc_distances, compute_pe2ce_distances, &
+  &                               init_fbk_wgt, grf_index, rbf_compute_coeff_grf_e
 USE mo_dist_dir,            ONLY: dist_dir_get_owners, t_dist_dir
 
 
@@ -303,16 +302,9 @@ INTEGER :: grf_vec_dim_1, grf_vec_dim_2
       &             'allocation for fbk_wgt_e failed')
   ENDIF
 
-  ALLOCATE (ptr_grf%fbk_dom_area(i_nchdom), STAT=ist )
-  IF (ist /= SUCCESS) THEN
-    CALL finish (routine,                       &
-      &             'allocation for fbk_dom_area failed')
-  ENDIF
-
   ptr_grf%fbk_wgt_aw    = 0._wp
   ptr_grf%fbk_wgt_bln   = 0._wp
   ptr_grf%fbk_wgt_e     = 0._wp
-  ptr_grf%fbk_dom_area  = 0._wp
 
 END SUBROUTINE allocate_grf_state
 
@@ -328,51 +320,47 @@ END SUBROUTINE allocate_grf_state
 !! Created  by  Guenther Zaengl, DWD (2009-02-11).
 !! Modified by Rainer Johanni (2010-10-29): split out allocation
 !!
-SUBROUTINE construct_2d_gridref_state( ptr_patch, ptr_grf_state )
-!
-TYPE(t_patch), TARGET, INTENT(INOUT) :: ptr_patch(n_dom_start:)
-TYPE(t_gridref_state), INTENT(INOUT) :: ptr_grf_state(n_dom_start:)
+SUBROUTINE construct_2d_gridref_state( p_patch, p_patch_local_parent, &
+  &                                    p_grf_state, p_grf_state_local_parent )
+  !
+  TYPE(t_patch),         INTENT(IN)    :: p_patch                  (n_dom_start:)
+  TYPE(t_patch),         INTENT(IN)    :: p_patch_local_parent     (n_dom_start+1:)
+  TYPE(t_gridref_state), INTENT(INOUT) :: p_grf_state              (n_dom_start:)
+  TYPE(t_gridref_state), INTENT(INOUT) :: p_grf_state_local_parent (n_dom_start+1:)
 
-CHARACTER(LEN=*), PARAMETER :: routine = modname//':construct_2d_gridref_state'
-INTEGER :: jg
+  CHARACTER(LEN=*), PARAMETER :: routine = modname//':construct_2d_gridref_state'
+  INTEGER :: jg
 
 !-----------------------------------------------------------------------
 
-CALL message(routine, &
-  & 'start to construct grf_state')
+  CALL message(routine, 'start to construct grf_state')
 
-DO jg = n_dom_start, n_dom
-  CALL allocate_grf_state(ptr_patch(jg), ptr_grf_state(jg))
-ENDDO
-DO jg = n_dom_start+1, n_dom
-  CALL allocate_grf_state(p_patch_local_parent(jg), p_grf_state_local_parent(jg))
-ENDDO
+  DO jg = n_dom_start, n_dom
+    CALL allocate_grf_state(p_patch(jg), p_grf_state(jg))
+  ENDDO
+  DO jg = n_dom_start+1, n_dom
+    CALL allocate_grf_state(p_patch_local_parent(jg), p_grf_state_local_parent(jg))
+  ENDDO
 
-CALL message (routine,   &
-  & 'memory allocation finished')
+  CALL message (routine, 'memory allocation finished')
 
-IF (n_dom_start == 0 .OR. n_dom > 1) THEN
-  ! set the patch that grf_intp_coeffs will work on
-  CALL grf_intp_coeffs_setpatch(ptr_patch)
 
-  CALL gridref_info ( ptr_grf_state)
+  CALL init_fbk_wgt (p_patch(n_dom_start:), p_patch_local_parent(n_dom_start+1:), &
+    &                p_grf_state_local_parent(n_dom_start+1:))
 
-  CALL init_fbk_wgt ()
+  CALL compute_pc2cc_distances (p_patch(n_dom_start:), p_patch_local_parent(n_dom_start+1:), &
+    &                           p_grf_state_local_parent(n_dom_start+1:))
+  CALL compute_pe2ce_distances (p_patch(n_dom_start:), p_patch_local_parent(n_dom_start+1:), &
+    &                           p_grf_state_local_parent(n_dom_start+1:))
 
-  CALL compute_pc2cc_distances ()
-  CALL compute_pe2ce_distances ()
+  CALL grf_index (p_patch(n_dom_start:), p_patch_local_parent(n_dom_start+1:), &
+    &             p_grf_state_local_parent(n_dom_start+1:))
 
-  CALL grf_index ()
-  IF ( MOD(grf_intmethod_e,2) == 0) THEN
-    CALL rbf_compute_coeff_grf_e ()
-  ELSE IF (MOD(grf_intmethod_e,2) == 1) THEN
-    CALL idw_compute_coeff_grf_e ()
-  ENDIF
+  CALL rbf_compute_coeff_grf_e (p_patch(n_dom_start:), p_patch_local_parent(n_dom_start+1:), &
+    &                           p_grf_state_local_parent(n_dom_start+1:))
 
-ENDIF
 
-CALL message (routine,                        &
-  & 'construction of interpolation state finished')
+  CALL message (routine, 'construction of interpolation state finished')
 
 END SUBROUTINE construct_2d_gridref_state
 
@@ -787,10 +775,6 @@ SUBROUTINE transfer_grf_state(p_p, p_lp, p_grf, p_lgrf, jcd)
   CALL delete_comm_pattern(comm_pat_loc_to_glb_c)
 !CDIR NOIEXPAND
   CALL delete_comm_pattern(comm_pat_loc_to_glb_e)
-
-  ! Transfers from global parent to local parent
-
-  p_lgrf%fbk_dom_area(:) = p_grf%fbk_dom_area(:)
 
 END SUBROUTINE transfer_grf_state
 
@@ -2016,12 +2000,6 @@ INTEGER :: ist
       &             'deallocation for fbk_wgt_e failed')
   ENDIF
 
-  DEALLOCATE (ptr_grf%fbk_dom_area, STAT=ist )
-  IF (ist /= SUCCESS) THEN
-    CALL finish (routine,                       &
-      &             'deallocation for fbk_dom_area failed')
-  ENDIF
-
   DEALLOCATE (ptr_grf%p_dom, STAT=ist )
   IF (ist /= SUCCESS) THEN
     CALL finish (routine,                       &
@@ -2040,28 +2018,33 @@ END SUBROUTINE deallocate_grf_state
 !! @par Revision History
 !! Created  by  Guenther Zaengl, DWD (2009-02-11).
 !!
-SUBROUTINE destruct_2d_gridref_state( ptr_patch, ptr_grf_state )
-!
-TYPE(t_patch), INTENT(IN) :: ptr_patch(n_dom_start:)
-TYPE(t_gridref_state), INTENT(INOUT) :: ptr_grf_state(n_dom_start:)
+SUBROUTINE destruct_2d_gridref_state( p_patch, p_patch_local_parent, p_grf_state, &
+  &                                   p_grf_state_local_parent )
+  !
+  TYPE(t_patch),         INTENT(IN)    :: p_patch(n_dom_start:)
+  TYPE(t_patch),         INTENT(IN)    :: p_patch_local_parent(n_dom_start+1:)
+  TYPE(t_gridref_state), INTENT(INOUT) :: p_grf_state(n_dom_start:)
+  TYPE(t_gridref_state), INTENT(INOUT) :: p_grf_state_local_parent(n_dom_start+1:)
 
-CHARACTER(LEN=*), PARAMETER :: routine = modname//':destruct_2d_gridref_state'
-INTEGER :: jg
+  CHARACTER(LEN=*), PARAMETER :: routine = modname//':destruct_2d_gridref_state'
+  INTEGER :: jg
 
 !-----------------------------------------------------------------------
 
-CALL message(routine, &
-  & 'start to destruct grf state')
+  CALL message(routine, 'start to destruct 2d_gridref state')
 
-!
-! deallocate gridref_state
-!
-DO jg = n_dom_start, n_dom
-  CALL deallocate_grf_state(ptr_patch(jg), ptr_grf_state(jg))
-END DO
+  !
+  ! deallocate gridref_state
+  !
+  DO jg = n_dom_start, n_dom
+    CALL deallocate_grf_state(p_patch(jg), p_grf_state(jg))
+  END DO
 
-CALL message (routine, &
-  & 'destruction of grf state finished')
+  DO jg = n_dom_start+1, n_dom
+    CALL deallocate_grf_state(p_patch_local_parent(jg), p_grf_state_local_parent(jg))
+  END DO
+
+  CALL message (routine, 'destruction of 2d_gridref state finished')
 
 END SUBROUTINE destruct_2d_gridref_state
 

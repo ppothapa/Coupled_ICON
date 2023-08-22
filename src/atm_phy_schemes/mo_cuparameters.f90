@@ -36,7 +36,7 @@ MODULE mo_cuparameters
   USE mo_nwp_tuning_config, ONLY: tune_entrorg, tune_rhebc_land, tune_rhebc_ocean, tune_rcucov, &
     tune_texc, tune_qexc, tune_rhebc_land_trop, tune_rhebc_ocean_trop, tune_rcucov_trop, tune_gkdrag, &
     tune_gkwake, tune_gfrcrit, tune_grcrit, tune_rprcon, tune_rdepths, tune_minsso, tune_blockred, &
-    tune_eiscrit
+    tune_eiscrit, tune_gkdrag_enh, tune_grcrit_enh, tune_minsso_gwd
 
   IMPLICIT NONE
 
@@ -2180,10 +2180,13 @@ IF (lhook) CALL dr_hook('SUCUMF',1,zhook_handle)
   
   ! SSO tuning parameters
   phy_params%gkdrag  = tune_gkdrag(jg)
+  phy_params%gkdrag_enh  = tune_gkdrag_enh(jg)
   phy_params%gkwake  = tune_gkwake(jg)
   phy_params%grcrit  = tune_grcrit(jg)
+  phy_params%grcrit_enh  = tune_grcrit_enh(jg)
   phy_params%gfrcrit = tune_gfrcrit(jg)
   phy_params%minsso  = tune_minsso(jg)
+  phy_params%minsso_gwd  = tune_minsso_gwd(jg)
   phy_params%blockred= tune_blockred(jg)
 
   !      ----------------------------------------------------------------

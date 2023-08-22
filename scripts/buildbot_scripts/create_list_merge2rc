@@ -281,6 +281,10 @@ $addexp "checksuite.nwp/nwpexp.run_ICON_21_R2B4_waves_standalone"  --builders "D
 # clm tests
 $addexp checksuite.clm/clmexp.ICON_CLM                                    --builders DWD_nec_hybrid --list $listname
 
+# JSBACH-NWP test, has to be down here because the GPU builders get deactivated at the top and activated later.
+jsbach_nwp_builders='DWD_nec DWD_nec_hybrid levante_gcc levante_intel levante_gpu_nvhpc'
+$addexp checksuite.icon-dev/check.atm_nwp_jsbach_test --builders "${jsbach_nwp_builders}" --list $listname
+
 #lets see the list
 ./lslist $listname
 #-----------------------------------------------------------

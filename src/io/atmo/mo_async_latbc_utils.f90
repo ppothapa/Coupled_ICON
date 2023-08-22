@@ -993,11 +993,13 @@
           CALL vert_interp(p_patch, p_int, p_nh_state%metrics, latbc%latbc_data(tlev),   &
             &    opt_use_vn=latbc%buffer%lread_vn,                                       &
             &    opt_lmask_c=latbc%patch_data%cell_mask,                           &
-            &    opt_lmask_e=latbc%patch_data%edge_mask, opt_latbcmode=.TRUE.)
+            &    opt_lmask_e=latbc%patch_data%edge_mask, opt_latbcmode=.TRUE.,           &
+            &    opt_inputonzgpot=latbc%buffer%lcompute_hhl_pres)
         ENDIF
       ELSE
         CALL vert_interp(p_patch, p_int, p_nh_state%metrics, latbc%latbc_data(tlev),   &
-          &    opt_use_vn=latbc%buffer%lread_vn, opt_latbcmode=.TRUE.)
+          &    opt_use_vn=latbc%buffer%lread_vn, opt_latbcmode=.TRUE.,                 &
+          &    opt_inputonzgpot=latbc%buffer%lcompute_hhl_pres)
       ENDIF
 
       CALL sync_patch_array(SYNC_E,p_patch,latbc%latbc_data(tlev)%atm%vn)

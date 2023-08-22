@@ -35,22 +35,22 @@ TYPE t_gridref_single_state
   ! Arrays needed during the computation phase of the index relationships and the coefficients
   !
   INTEGER, ALLOCATABLE  :: grf_vec_ind_1a (:,:,:), & ! index arrays defining the stencil
-                           grf_vec_ind_1b (:,:,:), & ! of surrounding edges for RBF/IDW
+                           grf_vec_ind_1b (:,:,:), & ! of surrounding edges for RBF
                            grf_vec_ind_2a (:,:,:), & ! interpolation to lateral boundaries of
                            grf_vec_ind_2b (:,:,:)    ! refined grids
 
   INTEGER, ALLOCATABLE  :: grf_vec_blk_1a (:,:,:), & ! index arrays defining the stencil
-                           grf_vec_blk_1b (:,:,:), & ! of surrounding edges for RBF/IDW
+                           grf_vec_blk_1b (:,:,:), & ! of surrounding edges for RBF
                            grf_vec_blk_2a (:,:,:), & ! interpolation to lateral boundaries of
                            grf_vec_blk_2b (:,:,:)    ! refined grids
 
   INTEGER, ALLOCATABLE  :: grf_vec_stencil_1a (:,:), & ! arrays defining the number of surrounding
-                           grf_vec_stencil_1b (:,:), & ! edges/cells in the stencil for RBF/IDW
+                           grf_vec_stencil_1b (:,:), & ! edges/cells in the stencil for RBF
                            grf_vec_stencil_2a (:,:), & ! interpolation to lateral boundaries of
                            grf_vec_stencil_2b (:,:)   ! refined grids
 
   REAL(wp), ALLOCATABLE :: grf_vec_coeff_1a(:,:,:), & ! arrays containing the coefficients
-                           grf_vec_coeff_1b(:,:,:), & ! used for RBF/IDW vector interpolation
+                           grf_vec_coeff_1b(:,:,:), & ! used for RBF vector interpolation
                            grf_vec_coeff_2a(:,:,:), & ! to lateral boundaries of refined grids
                            grf_vec_coeff_2b(:,:,:)
 
@@ -89,9 +89,6 @@ TYPE t_gridref_state
   REAL(wp), ALLOCATABLE :: fbk_wgt_bln(:,:,:)   ! Bilinear feedback weights for cell-based variables
                                                 !  dim1=1,nproma, dim2=nblks_c, dim3=4
   REAL(wp), ALLOCATABLE :: fbk_wgt_e(:,:,:)     ! Feedback weights for edge-based variables
-
-  REAL(wp), ALLOCATABLE :: fbk_dom_area(:) ! Area of subdomain for which feedback is performed
-                                           ! dimension: n_childdom
 
   ! Mask fields defined at parent level for feedback overlap regions with a nested domain:
   ! dim1=nproma, dim2=nblks, dim3=n_childdom 

@@ -84,7 +84,6 @@ MODULE mo_iau
     &                                   ldass_lhn
   USE mo_dynamics_config,         ONLY: nnow, nnew, nnow_rcf, nnew_rcf
   USE mo_advection_config,        ONLY: advection_config
-  USE mo_upatmo_config,           ONLY: upatmo_config
   USE mo_nonhydrostatic_config,   ONLY: kstart_moist
   USE mo_fortran_tools,           ONLY: assert_acc_device_only, assert_acc_host_only
   USE mo_hash_table,              ONLY: t_HashTable, hashTable_make
@@ -527,8 +526,7 @@ CONTAINS
     ! Diagnose pressure and temperature for subsequent calculations
     CALL diag_temp (pt_prog, pt_prog_rcf, advection_config(jg)%trHydroMass%list, pt_diag, &
                     jb, i_startidx, i_endidx, 1, kstart_moist(jg), kend)
-    CALL diag_pres (pt_prog, pt_diag, p_metrics, jb, i_startidx, i_endidx, 1, kend, &
-      &             opt_lconstgrav=upatmo_config(jg)%nwp_phy%l_constgrav)
+    CALL diag_pres (pt_prog, pt_diag, p_metrics, jb, i_startidx, i_endidx, 1, kend)
 
     !$ACC DATA CREATE(zrhw) PRESENT(pt_prog, p_metrics, pt_diag, pt_prog_rcf, atm_phy_nwp_config)
 

@@ -69,6 +69,8 @@ MODULE mo_albedo
   PUBLIC  :: sfc_albedo_scm
 
   PUBLIC :: sfc_albedo_dir_rg
+  PUBLIC :: sfc_albedo_dir_yang
+  PUBLIC :: sfc_albedo_dir_taylor
   PUBLIC :: sfc_albedo_whitecap
 
 CONTAINS
@@ -96,7 +98,7 @@ CONTAINS
   !!   either prognostic sea-ice albedo (computed within the routines of the sea-ice scheme), 
   !!   or diagnostic sea-ice albedo (computed here) is used. 
   !!
-  SUBROUTINE sfc_albedo(pt_patch, ext_data, lnd_prog, wtr_prog, lnd_diag, prm_diag)
+  SUBROUTINE sfc_albedo(pt_patch, ext_data, lnd_prog, wtr_prog, lnd_diag, prm_diag, lacc)
 
     TYPE(t_patch),          INTENT(   in):: pt_patch  !< grid/patch info.
 
@@ -109,6 +111,8 @@ CONTAINS
     TYPE(t_lnd_diag),       INTENT(   in):: lnd_diag  !< land diagnostic state
 
     TYPE(t_nwp_phy_diag),   INTENT(inout):: prm_diag
+
+    LOGICAL,                INTENT(   in):: lacc      !< accelerator flag
 
     ! Local scalars:
     REAL(wp):: zvege                   !< plant cover fraction
@@ -141,6 +145,10 @@ CONTAINS
       ! Albedo is already up-to-date.
       RETURN
     END IF
+
+#ifdef _OPENACC
+    IF (lacc) CALL finish('mo_albedo:sfc_albedo','sfc_albedo not ported to gpu')
+#endif
 
     i_nchdom  = MAX(1,pt_patch%n_childdom)
 

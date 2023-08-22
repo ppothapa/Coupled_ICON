@@ -1651,7 +1651,7 @@ CONTAINS
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) FIRSTPRIVATE(i_startidx, i_endidx, jb, jg)
+      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) FIRSTPRIVATE(i_startidx, i_endidx, jb, jg) IF(lzacc)
       !$ACC LOOP GANG(STATIC: 1) VECTOR
       DO jc = i_startidx, i_endidx
         cld_base_found(jc) = .FALSE.

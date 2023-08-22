@@ -62,7 +62,7 @@ MODULE mo_dynamics_nml
   LOGICAL  :: lcoriolis      ! if .TRUE.,  the Coriolis force is switched on
 
   LOGICAL  :: ldeepatmo      ! if .TRUE., deep-atmosphere modification is applied 
-                             ! to the non-hydrostatic model equations 
+                             ! to the governing equations, on which the dynamical core is based
 
   NAMELIST/dynamics_nml/ iequations,                  &
                          idiv_method, divavg_cntrwgt, &
