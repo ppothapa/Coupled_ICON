@@ -81,7 +81,6 @@ MODULE mo_nwp_diagnosis
   USE mo_nwp_parameters,     ONLY: t_phy_params
   USE mo_time_config,        ONLY: time_config
   USE mo_nwp_tuning_config,  ONLY: lcalib_clcov, max_calibfac_clcl
-  USE mo_upatmo_impl_const,  ONLY: idamtr
   USE mo_mpi,                ONLY: p_io, p_comm_work, p_bcast
   USE mo_fortran_tools,      ONLY: assert_acc_host_only, set_acc_host_or_device, assert_acc_device_only
   USE mo_radiation_config,   ONLY: decorr_pole, decorr_equator
@@ -812,9 +811,8 @@ CONTAINS
           !$ACC LOOP GANG VECTOR PRIVATE(z_help)
           DO jc = i_startidx, i_endidx
 
-           ! (deep-atmosphere modification applied: height-dependence of grid cell volume)
            z_help = p_metrics%ddqz_z_full(jc,jk,jb) * pt_prog%rho(jc,jk,jb) & 
-             &    * p_metrics%deepatmo_t1mc(jk,idamtr%t1mc%vol)
+             &    * p_metrics%deepatmo_vol_mc(jk)
 
            ! TQV, TQC, TQI
            prm_diag%tot_cld_vi(jc, jb,iqv) = prm_diag%tot_cld_vi(jc, jb,iqv)    + &
@@ -1033,13 +1031,12 @@ CONTAINS
         & i_startidx, i_endidx, rl_start, rl_end)
 
       ! pre-computation of rho * \Delta z
-      ! (deep-atmosphere modification applied: height-dependence of grid cell volume)
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP COLLAPSE(2)
       DO jk = 1, nlev
         DO jc = i_startidx, i_endidx 
           rhodz(jc,jk) = p_metrics%ddqz_z_full(jc,jk,jb) * pt_prog%rho(jc,jk,jb) & 
-            &          * p_metrics%deepatmo_t1mc(jk,idamtr%t1mc%vol)  
+            &          * p_metrics%deepatmo_vol_mc(jk)
         ENDDO
       ENDDO
       !$ACC END PARALLEL

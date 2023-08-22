@@ -86,6 +86,11 @@ MODULE mo_convect_tables
   REAL (wp), PARAMETER :: cthomi  = tmelt-35.0_wp
   REAL (wp), PARAMETER :: csecfrl = 5.e-6_wp
 
+  ABSTRACT INTERFACE
+    SUBROUTINE i_error_reporter (jl)
+      INTEGER, INTENT(IN) :: jl
+    END SUBROUTINE
+  END INTERFACE
 
   ! Constants used for the computation of lookup tables of the saturation
   ! mixing ratio over liquid water (*c_les*) or ice(*c_ies*)
@@ -1047,12 +1052,14 @@ CONTAINS
 
   END SUBROUTINE lookup_ua_list_spline
 
-  SUBROUTINE lookup_ua_list_spline_2(name, size, kidx, list, temp, ua, dua)
+  SUBROUTINE lookup_ua_list_spline_2(name, size, kidx, list, temp, ua, dua, error_reporter)
     CHARACTER(len=*),   INTENT(in)  :: name
     INTEGER,            INTENT(in)  :: size, kidx
     INTEGER,            INTENT(in)  :: list(kidx)
     REAL(wp),           INTENT(in)  :: temp(size)
     REAL(wp), OPTIONAL, INTENT(out) :: ua(size), dua(size)
+    PROCEDURE(i_error_reporter), OPTIONAL :: error_reporter
+
 
     INTEGER :: idx(size)
     REAL(wp) :: zalpha(size)
@@ -1088,7 +1095,23 @@ CONTAINS
     !$ACC WAIT(1)
 
     ! if one index was out of bounds -> print error and exit
-    IF (zinbounds == 0.0_wp) CALL lookuperror(name)
+    IF (zinbounds == 0.0_wp) THEN
+
+      IF ( PRESENT(error_reporter) ) THEN
+        !$ACC UPDATE HOST(temp)
+        DO nl = 1, kidx
+          jl = list(nl)
+
+          ztt = 20._wp*temp(jl)
+          IF ( ztt <= ztmin .OR. ztt >= ztmax ) THEN
+            CALL error_reporter(jl)
+          END IF
+        END DO
+      END IF
+
+      CALL lookuperror(name)
+    END IF
+
     CALL fetch_ua_spline(1,kidx, idx, zalpha, tlucu, ua, dua)
     !$ACC END DATA
     !$ACC END DATA
@@ -1244,13 +1267,15 @@ CONTAINS
   !! Compute saturation specific humidity
   !! from the given temperature and pressure.
   !!
-  SUBROUTINE compute_qsat( kbdim, is, loidx, ppsfc, ptsfc, pqs )
+  SUBROUTINE compute_qsat( kbdim, is, loidx, ppsfc, ptsfc, pqs, error_reporter )
 
     INTEGER, INTENT(IN)  :: kbdim, is
     INTEGER ,INTENT(IN)  :: loidx(kbdim)!<
     REAL(wp),INTENT(IN)  :: ppsfc (kbdim)   !< surface pressure
     REAL(wp),INTENT(IN)  :: ptsfc (kbdim)   !< SST
     REAL(wp),INTENT(INOUT) :: pqs   (kbdim)   !< saturation specific humidity
+
+    PROCEDURE(i_error_reporter), OPTIONAL :: error_reporter
 
     INTEGER  :: jc, jl      !< column index
     REAL(wp) :: zes         !< (saturation vapour pressure)*Rd/Rv/ps
@@ -1263,7 +1288,7 @@ CONTAINS
     !$ACC DATA PRESENT(loidx, ppsfc, ptsfc, pqs) &
     !$ACC   CREATE(ua)
 
-    CALL lookup_ua_list_spline_2('compute_qsat',kbdim,is,loidx(:), ptsfc(:), ua(:))
+    CALL lookup_ua_list_spline_2('compute_qsat',kbdim,is,loidx(:), ptsfc(:), ua(:), error_reporter=error_reporter)
 !
     !$ACC PARALLEL ASYNC(1)
     !$ACC LOOP GANG VECTOR PRIVATE(jl, zpap, zes, zcor)

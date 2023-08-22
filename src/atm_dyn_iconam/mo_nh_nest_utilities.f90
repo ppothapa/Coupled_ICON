@@ -1079,15 +1079,15 @@ CONTAINS
     ENDIF
 
     ! Lateral boundary interpolation of edge-based variables  (velocity components)
-    IF (grf_intmethod_e == 1 .OR. grf_intmethod_e == 2) THEN
+    IF (grf_intmethod_e == 2) THEN
 
       CALL interpol_vec_grf (p_pp, p_pc, p_grf%p_dom(i_chidx), p_diagp%grf_tend_vn, p_diagc%grf_tend_vn)
 
-    ELSE IF (grf_intmethod_e == 3 .OR. grf_intmethod_e == 4) THEN
+    ELSE IF (grf_intmethod_e == 4) THEN
 
       CALL interpol2_vec_grf (p_pp, p_pc, p_grf%p_dom(i_chidx), 1, p_diagp%grf_tend_vn, p_diagc%grf_tend_vn)
 
-    ELSE IF (grf_intmethod_e == 5 .OR. grf_intmethod_e == 6) THEN
+    ELSE IF (grf_intmethod_e == 6) THEN
 
       CALL interpol2_vec_grf (p_pp, p_pc, p_grf%p_dom(i_chidx), 3,                              &
         p_diagp%grf_tend_vn, p_diagc%grf_tend_vn, prep_advp%mass_flx_me, prep_advc%mass_flx_me, &

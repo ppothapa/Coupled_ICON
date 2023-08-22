@@ -42,7 +42,6 @@ MODULE mo_nh_supervise
   USE mo_loopindices,         ONLY: get_indices_c, get_indices_e
   USE mo_impl_constants_grf,  ONLY: grf_bdywidth_c, grf_bdywidth_e
   USE mo_fortran_tools,       ONLY: init, set_acc_host_or_device, assert_lacc_equals_i_am_accel_node, assert_acc_device_only
-  USE mo_upatmo_impl_const,   ONLY: idamtr
 
   IMPLICIT NONE
 
@@ -182,8 +181,6 @@ CONTAINS
     REAL(wp) :: max_vn, max_w
     INTEGER  :: max_vn_level, max_vn_process, max_w_level, max_w_process
 
-    ! (upper-atmosphere-/deep-atmosphere-related variables)
-    REAL(wp), DIMENSION(:), POINTER :: deepatmo_vol
     !-----------------------------------------------------------------------------
 
     CALL assert_lacc_equals_i_am_accel_node('mo_nh_stepping:supervise_total_integrals_nh', lacc)
@@ -227,9 +224,6 @@ CONTAINS
 
     nblks_c   = patch(jg)%nblks_c
     npromz_c  = patch(jg)%npromz_c
-
-    ! (deep atmosphere: metrical modification factor for height-dependence of cell volume)
-    deepatmo_vol => nh_state(jg)%metrics%deepatmo_t1mc(:,idamtr%t1mc%vol)    
 
     ! number of vertical levels
     nlev = patch(jg)%nlev
@@ -301,9 +295,8 @@ CONTAINS
       !$ACC   REDUCTION(+, z_total_mass, z_kin_energy, z_int_energy, z_pot_energy, z_total_drymass)
       DO jk = 1, nlev
         DO jc = 1, nlen
-          ! (deep-atmosphere modification applied)
           z_volume = patch(jg)%cells%area(jc,jb)*nh_state(jg)%metrics%ddqz_z_full(jc,jk,jb) &
-            &       /patch(jg)%n_patch_cells_g*deepatmo_vol(jk)
+            &       /patch(jg)%n_patch_cells_g*nh_state(jg)%metrics%deepatmo_vol_mc(jk)
           z_total_mass = z_total_mass + &
             &              prog%rho(jc,jk,jb)*z_volume
           z_kin_energy = z_kin_energy + &
@@ -351,10 +344,9 @@ CONTAINS
       DO jk = 1,nlev
         !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(z_volume)
         DO jc = 1, nlen
-          ! (deep-atmosphere modification applied)
           z_volume = patch(jg)%cells%area(jc,jb)      &
             & *nh_state(jg)%metrics%ddqz_z_full(jc,jk,jb) &
-            & /REAL(patch(jg)%n_patch_cells_g,wp)*deepatmo_vol(jk)
+            & /REAL(patch(jg)%n_patch_cells_g,wp)*nh_state(jg)%metrics%deepatmo_vol_mc(jk)
           z_total_mass_2d(jc,jb) = z_total_mass_2d(jc,jb)&
             & +prog%rho(jc,jk,jb)*z_volume
           z_kin_energy_2d(jc,jb) = z_kin_energy_2d(jc,jb)&
@@ -441,10 +433,9 @@ CONTAINS
           DO jk = 1, nlev
             !$ACC LOOP GANG VECTOR PRIVATE(z_volume)
             DO jc = 1, nlen
-              ! (deep-atmosphere modification applied)
               z_volume = patch(jg)%cells%area(jc,jb)             &
                 &    * nh_state(jg)%metrics%ddqz_z_full(jc,jk,jb) &
-                &    * prog%rho(jc,jk,jb) * deepatmo_vol(jk)
+                &    * prog%rho(jc,jk,jb) * nh_state(jg)%metrics%deepatmo_vol_mc(jk)
 
               z_aux_tracer(jc,jb) = z_aux_tracer(jc,jb)    &
                 &    + prog_rcf%tracer(jc,jk,jb,jt) * z_volume
@@ -545,8 +536,6 @@ CONTAINS
         ENDIF
       ENDIF
     ENDIF
-
-    deepatmo_vol => NULL()
 
     !$ACC WAIT
 #ifndef NOMPI

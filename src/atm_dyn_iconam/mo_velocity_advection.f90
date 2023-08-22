@@ -72,14 +72,9 @@ MODULE mo_velocity_advection
   !!
   !! @par Revision History
   !! Initial release by Guenther Zaengl (2010-02-03)
-  !! Modification by Sebastian Borchert, DWD (2017-07-07)
-  !! (Dear developer, for computational efficiency reasons, a copy of this subroutine 
-  !! exists in 'src/atm_dyn_iconam/mo_nh_deepatmo_utils'. If you would change something here, 
-  !! please consider to apply your development there, too, in order to help preventing 
-  !! the copy from diverging and becoming a code corpse sooner or later. Thank you!)
   !!
   SUBROUTINE velocity_tendencies (p_prog, p_patch, p_int, p_metrics, p_diag, z_w_concorr_me, z_kin_hor_e, &
-                                  z_vt_ie, ntnd, istep, lvn_only, dtime, dt_linintp_ubc)
+                                  z_vt_ie, ntnd, istep, lvn_only, dtime, dt_linintp_ubc, ldeepatmo)
 
     ! Passed variables
     TYPE(t_patch), TARGET, INTENT(IN)    :: p_patch
@@ -96,6 +91,7 @@ MODULE mo_velocity_advection
     LOGICAL, INTENT(IN)  :: lvn_only ! true: compute only vn tendency
     REAL(wp),INTENT(IN)  :: dtime    ! time step
     REAL(wp),INTENT(IN)  :: dt_linintp_ubc  ! time shift for upper boundary condition
+    LOGICAL, INTENT(IN)  :: ldeepatmo! true: deep-atmosphere modification
 
     ! Local variables
     INTEGER :: jb, jk, jc, je
@@ -384,6 +380,39 @@ MODULE mo_velocity_advection
 
     ENDIF
 
+    IF (.NOT. lvn_only .AND. ldeepatmo) THEN
+!$OMP DO PRIVATE(jb, jk, je, i_startidx, i_endidx) ICON_OMP_DEFAULT_SCHEDULE
+      DO jb = i_startblk, i_endblk
+        CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, rl_start, rl_end)
+        ! -[ vn * ( dw/dn - vn / r + ft ) + vt * ( dw/dt - vt / r - fn ) ]
+        !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR TILE(32, 4)
+#ifdef __LOOP_EXCHANGE
+        DO je = i_startidx, i_endidx
+!DIR$ IVDEP
+          DO jk = 1, nlev
+            z_v_grad_w(jk,je,jb) = z_v_grad_w(jk,je,jb) * p_metrics%deepatmo_gradh_ifc(jk)              &
+             + p_diag%vn_ie(je,jk,jb) *                                                                 &
+               ( p_diag%vn_ie(je,jk,jb) * p_metrics%deepatmo_invr_ifc(jk) - p_patch%edges%ft_e(je,jb) ) &
+             + z_vt_ie(je,jk,jb) *                                                                      &
+               ( z_vt_ie(je,jk,jb) * p_metrics%deepatmo_invr_ifc(jk) + p_patch%edges%fn_e(je,jb) )
+#else
+!$NEC outerloop_unroll(2)
+        DO jk = 1, nlev
+          DO je = i_startidx, i_endidx
+            z_v_grad_w(je,jk,jb) = z_v_grad_w(je,jk,jb) * p_metrics%deepatmo_gradh_ifc(jk)              &
+             + p_diag%vn_ie(je,jk,jb) *                                                                 &
+               ( p_diag%vn_ie(je,jk,jb) * p_metrics%deepatmo_invr_ifc(jk) - p_patch%edges%ft_e(je,jb) ) &
+             + z_vt_ie(je,jk,jb) *                                                                      &
+               ( z_vt_ie(je,jk,jb) * p_metrics%deepatmo_invr_ifc(jk) + p_patch%edges%fn_e(je,jb) )
+#endif
+          ENDDO
+        ENDDO
+        !$ACC END PARALLEL
+      ENDDO
+!$OMP END DO
+    ENDIF
+
     rl_start = 4
     rl_end = min_rlcell_int - 1
 
@@ -658,55 +687,142 @@ MODULE mo_velocity_advection
                          i_startidx, i_endidx, rl_start, rl_end)
 
       ! Sum up terms of horizontal wind advection: grad(Ekin_h) + vt*(f+relvort_e) + wcon_e*dv/dz
-      !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
-      !$ACC LOOP GANG VECTOR TILE(32, 4)
+      IF (.NOT. ldeepatmo) THEN
+        !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR TILE(32, 4)
 #ifdef __LOOP_EXCHANGE
-      DO je = i_startidx, i_endidx
+        DO je = i_startidx, i_endidx
 !DIR$ IVDEP
 #ifdef _CRAYFTN
 !DIR$ PREFERVECTOR
 #endif
-        DO jk = 1, nlev
-          p_diag%ddt_vn_apc_pc(je,jk,jb,ntnd) = - ( z_kin_hor_e(je,jk,jb) *                     &
-           (p_metrics%coeff_gradekin(je,1,jb) - p_metrics%coeff_gradekin(je,2,jb)) +            &
-            p_metrics%coeff_gradekin(je,2,jb)*z_ekinh(jk,icidx(je,jb,2),icblk(je,jb,2)) -       &
-            p_metrics%coeff_gradekin(je,1,jb)*z_ekinh(jk,icidx(je,jb,1),icblk(je,jb,1)) +       &
-            p_diag%vt(je,jk,jb) * ( p_patch%edges%f_e(je,jb) + 0.5_vp*                          &
-           (zeta(jk,ividx(je,jb,1),ivblk(je,jb,1)) + zeta(jk,ividx(je,jb,2),ivblk(je,jb,2)))) + &
-           (p_int%c_lin_e(je,1,jb)*z_w_con_c_full(icidx(je,jb,1),jk,icblk(je,jb,1)) +           &
-            p_int%c_lin_e(je,2,jb)*z_w_con_c_full(icidx(je,jb,2),jk,icblk(je,jb,2)))*           &
-           (p_diag%vn_ie(je,jk,jb) - p_diag%vn_ie(je,jk+1,jb))/p_metrics%ddqz_z_full_e(je,jk,jb))
-        ENDDO
-      ENDDO
-#else
-!$NEC outerloop_unroll(3)
-      DO jk = 1, nlev
-        DO je = i_startidx, i_endidx
-          p_diag%ddt_vn_apc_pc(je,jk,jb,ntnd) = - ( z_kin_hor_e(je,jk,jb) *                     &
-           (p_metrics%coeff_gradekin(je,1,jb) - p_metrics%coeff_gradekin(je,2,jb)) +            &
-            p_metrics%coeff_gradekin(je,2,jb)*z_ekinh(icidx(je,jb,2),jk,icblk(je,jb,2)) -       &
-            p_metrics%coeff_gradekin(je,1,jb)*z_ekinh(icidx(je,jb,1),jk,icblk(je,jb,1)) +       &
-            p_diag%vt(je,jk,jb) * ( p_patch%edges%f_e(je,jb) + 0.5_vp*                          &
-           (zeta(ividx(je,jb,1),jk,ivblk(je,jb,1)) + zeta(ividx(je,jb,2),jk,ivblk(je,jb,2)))) + &
-           (p_int%c_lin_e(je,1,jb)*z_w_con_c_full(icidx(je,jb,1),jk,icblk(je,jb,1)) +           &
-            p_int%c_lin_e(je,2,jb)*z_w_con_c_full(icidx(je,jb,2),jk,icblk(je,jb,2)))*           &
-           (p_diag%vn_ie(je,jk,jb) - p_diag%vn_ie(je,jk+1,jb))/p_metrics%ddqz_z_full_e(je,jk,jb))
-        ENDDO
-      ENDDO
-#endif
-      !$ACC END PARALLEL
-
-      ! If needed, compute separately the Coriolis effect: vt*f
-      IF (p_diag%ddt_vn_adv_is_associated .OR. p_diag%ddt_vn_cor_is_associated) THEN
-        !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
-        !$ACC LOOP GANG VECTOR TILE(32, 4)
-        DO jk = 1, nlev
-          DO je = i_startidx, i_endidx
-            p_diag%ddt_vn_cor_pc(je,jk,jb,ntnd) = - p_diag%vt(je,jk,jb) * p_patch%edges%f_e(je,jb)
+          DO jk = 1, nlev
+            p_diag%ddt_vn_apc_pc(je,jk,jb,ntnd) = - ( z_kin_hor_e(je,jk,jb) *                     &
+             (p_metrics%coeff_gradekin(je,1,jb) - p_metrics%coeff_gradekin(je,2,jb)) +            &
+              p_metrics%coeff_gradekin(je,2,jb)*z_ekinh(jk,icidx(je,jb,2),icblk(je,jb,2)) -       &
+              p_metrics%coeff_gradekin(je,1,jb)*z_ekinh(jk,icidx(je,jb,1),icblk(je,jb,1)) +       &
+              p_diag%vt(je,jk,jb) * ( p_patch%edges%f_e(je,jb) + 0.5_vp*                          &
+             (zeta(jk,ividx(je,jb,1),ivblk(je,jb,1)) + zeta(jk,ividx(je,jb,2),ivblk(je,jb,2)))) + &
+             (p_int%c_lin_e(je,1,jb)*z_w_con_c_full(icidx(je,jb,1),jk,icblk(je,jb,1)) +           &
+              p_int%c_lin_e(je,2,jb)*z_w_con_c_full(icidx(je,jb,2),jk,icblk(je,jb,2)))*           &
+             (p_diag%vn_ie(je,jk,jb) - p_diag%vn_ie(je,jk+1,jb))/p_metrics%ddqz_z_full_e(je,jk,jb))
           ENDDO
         ENDDO
+#else
+!$NEC outerloop_unroll(3)
+        DO jk = 1, nlev
+          DO je = i_startidx, i_endidx
+            p_diag%ddt_vn_apc_pc(je,jk,jb,ntnd) = - ( z_kin_hor_e(je,jk,jb) *                     &
+             (p_metrics%coeff_gradekin(je,1,jb) - p_metrics%coeff_gradekin(je,2,jb)) +            &
+              p_metrics%coeff_gradekin(je,2,jb)*z_ekinh(icidx(je,jb,2),jk,icblk(je,jb,2)) -       &
+              p_metrics%coeff_gradekin(je,1,jb)*z_ekinh(icidx(je,jb,1),jk,icblk(je,jb,1)) +       &
+              p_diag%vt(je,jk,jb) * ( p_patch%edges%f_e(je,jb) + 0.5_vp*                          &
+             (zeta(ividx(je,jb,1),jk,ivblk(je,jb,1)) + zeta(ividx(je,jb,2),jk,ivblk(je,jb,2)))) + &
+             (p_int%c_lin_e(je,1,jb)*z_w_con_c_full(icidx(je,jb,1),jk,icblk(je,jb,1)) +           &
+              p_int%c_lin_e(je,2,jb)*z_w_con_c_full(icidx(je,jb,2),jk,icblk(je,jb,2)))*           &
+             (p_diag%vn_ie(je,jk,jb) - p_diag%vn_ie(je,jk+1,jb))/p_metrics%ddqz_z_full_e(je,jk,jb))
+          ENDDO
+        ENDDO
+#endif
         !$ACC END PARALLEL
-      END IF
+
+        ! If needed, compute separately the Coriolis effect: vt*f
+        IF (p_diag%ddt_vn_adv_is_associated .OR. p_diag%ddt_vn_cor_is_associated) THEN
+          !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+          !$ACC LOOP GANG VECTOR TILE(32, 4)
+          DO jk = 1, nlev
+            DO je = i_startidx, i_endidx
+              p_diag%ddt_vn_cor_pc(je,jk,jb,ntnd) = - p_diag%vt(je,jk,jb) * p_patch%edges%f_e(je,jb)
+            ENDDO
+          ENDDO
+          !$ACC END PARALLEL
+        END IF
+
+      ELSE
+        ! Deep atmosphere: grad(Ekin_h) is multiplied by metrical modification factor to account 
+        ! for spherical geometry, in addition metrical terms and contribution of vertical wind to 
+        ! Coriolis acceleration have been added: wcon_e * dvn/dz -> wcon_e * ( dvn/dz + vn / r - ft ), 
+        ! where r is radius and ft is tangential component of horizontal Coriolis parameter. 
+        ! The vorticity 'zeta' has to be multiplied by 'deepatmo_gradh_mc(jk)', 
+        ! because the subroutine 'rot_vertex_ri', which computes 'zeta', is itself not 
+        ! modified for spherical geometry.
+
+        !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR TILE(32, 4)
+#ifdef __LOOP_EXCHANGE
+        DO je = i_startidx, i_endidx
+!DIR$ IVDEP
+#ifdef _CRAYFTN
+!DIR$ PREFERVECTOR
+#endif
+          DO jk = 1, nlev
+            p_diag%ddt_vn_apc_pc(je,jk,jb,ntnd) = - (                                             & 
+               (                                                                                  & 
+                z_kin_hor_e(je,jk,jb) *                                                           &
+                (p_metrics%coeff_gradekin(je,1,jb) - p_metrics%coeff_gradekin(je,2,jb)) +         &
+                p_metrics%coeff_gradekin(je,2,jb)*z_ekinh(jk,icidx(je,jb,2),icblk(je,jb,2)) -     &
+                p_metrics%coeff_gradekin(je,1,jb)*z_ekinh(jk,icidx(je,jb,1),icblk(je,jb,1))       &
+               ) * p_metrics%deepatmo_gradh_mc(jk)                                                &
+               + p_diag%vt(je,jk,jb) * ( p_patch%edges%f_e(je,jb) + 0.5_vp*                       &
+               (zeta(jk,ividx(je,jb,1),ivblk(je,jb,1)) + zeta(jk,ividx(je,jb,2),ivblk(je,jb,2)))  &
+               * p_metrics%deepatmo_gradh_mc(jk) )                                                &
+               + (p_int%c_lin_e(je,1,jb)*z_w_con_c_full(icidx(je,jb,1),jk,icblk(je,jb,1)) +       &
+               p_int%c_lin_e(je,2,jb)*z_w_con_c_full(icidx(je,jb,2),jk,icblk(je,jb,2))) *         & 
+               (                                                                                  &
+                (p_diag%vn_ie(je,jk,jb) - p_diag%vn_ie(je,jk+1,jb))/p_metrics%ddqz_z_full_e(je,jk,jb) &
+                + p_prog%vn(je,jk,jb) * p_metrics%deepatmo_invr_mc(jk)                            & 
+                - p_patch%edges%ft_e(je,jb)                                                       &
+               )                                                                                  &
+              )
+          ENDDO
+        ENDDO
+#else
+!$NEC outerloop_unroll(3)
+        DO jk = 1, nlev
+          DO je = i_startidx, i_endidx
+            p_diag%ddt_vn_apc_pc(je,jk,jb,ntnd) = - (                                             &
+               (                                                                                  &
+                z_kin_hor_e(je,jk,jb) *                                                           &
+                (p_metrics%coeff_gradekin(je,1,jb) - p_metrics%coeff_gradekin(je,2,jb)) +         &
+                p_metrics%coeff_gradekin(je,2,jb)*z_ekinh(icidx(je,jb,2),jk,icblk(je,jb,2)) -     &
+                p_metrics%coeff_gradekin(je,1,jb)*z_ekinh(icidx(je,jb,1),jk,icblk(je,jb,1))       &         
+               ) * p_metrics%deepatmo_gradh_mc(jk)                                                &
+               + p_diag%vt(je,jk,jb) * ( p_patch%edges%f_e(je,jb) + 0.5_vp*                       &
+               (zeta(ividx(je,jb,1),jk,ivblk(je,jb,1)) + zeta(ividx(je,jb,2),jk,ivblk(je,jb,2)))  &
+               * p_metrics%deepatmo_gradh_mc(jk) )                                                &
+               + (p_int%c_lin_e(je,1,jb)*z_w_con_c_full(icidx(je,jb,1),jk,icblk(je,jb,1)) +       &
+               p_int%c_lin_e(je,2,jb)*z_w_con_c_full(icidx(je,jb,2),jk,icblk(je,jb,2))) *         &
+               (                                                                                  &
+               (p_diag%vn_ie(je,jk,jb) - p_diag%vn_ie(je,jk+1,jb))/p_metrics%ddqz_z_full_e(je,jk,jb) & 
+               + p_prog%vn(je,jk,jb) * p_metrics%deepatmo_invr_mc(jk)                             &
+               - p_patch%edges%ft_e(je,jb)                                                        &
+               )                                                                                  &
+              )
+          ENDDO
+        ENDDO
+#endif
+        !$ACC END PARALLEL
+
+        ! If needed, compute separately the Coriolis effect: vt*f
+        IF (p_diag%ddt_vn_adv_is_associated .OR. p_diag%ddt_vn_cor_is_associated) THEN
+          !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+          !$ACC LOOP GANG VECTOR TILE(32, 4)
+          DO jk = 1, nlev
+            DO je = i_startidx, i_endidx
+              p_diag%ddt_vn_cor_pc(je,jk,jb,ntnd) = - (                                        &
+                 + p_diag%vt(je,jk,jb) * ( p_patch%edges%f_e(je,jb) )                          &
+                 + (p_int%c_lin_e(je,1,jb)*z_w_con_c_full(icidx(je,jb,1),jk,icblk(je,jb,1)) +  &
+                 p_int%c_lin_e(je,2,jb)*z_w_con_c_full(icidx(je,jb,2),jk,icblk(je,jb,2))) *    &
+                 (                                                                             &
+                 - p_patch%edges%ft_e(je,jb)                                                   &
+                 )                                                                             &
+                )
+            ENDDO
+          ENDDO
+          !$ACC END PARALLEL
+        END IF
+
+      ENDIF
 
       IF (lextra_diffu) THEN
         ! Search for grid points for which w_con is close to or above the CFL stability limit

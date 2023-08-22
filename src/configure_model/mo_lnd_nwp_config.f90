@@ -163,8 +163,9 @@ CONTAINS
   !! @par Revision History
   !! Initial revision by Daniel Reinert, DWD (2011-08-01)
   !!
-  SUBROUTINE configure_lnd_nwp()
+  SUBROUTINE configure_lnd_nwp(ljsbach)
   !
+    LOGICAL, INTENT(IN) :: ljsbach !< JSBACH is in use. Don't adjust land/lake/sea thresholds.
     ! local variables
     INTEGER  :: js              ! soil loop index
 
@@ -209,11 +210,18 @@ CONTAINS
     ! settings dealing with surface tiles
     !
 
-    IF (ntiles_lnd == 1) THEN ! Reset options that can be used in combination with tile approach
-      lsnowtile     = .FALSE.
-      frlnd_thrhld  = 0.5_wp
-      frlake_thrhld = 0.5_wp
-      frsea_thrhld  = 0.5_wp
+    IF (ljsbach) THEN
+      ! switch off snowtiles
+      lsnowtile = .FALSE.
+    ELSE  ! TERRA
+      ! when running without land tiles, switch off snowtiles
+      ! and reset thresholds
+      IF (ntiles_lnd==1) THEN
+        lsnowtile     = .FALSE.
+        frlnd_thrhld  = 0.5_wp
+        frlake_thrhld = 0.5_wp
+        frsea_thrhld  = 0.5_wp
+      ENDIF
     ENDIF
 
     ! number of tiles; ntiles_lnd is set by the namelist variable ntiles

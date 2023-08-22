@@ -40,6 +40,9 @@ MODULE mo_turb_vdiff_diag
   USE mo_index_list        ,ONLY: generate_index_list_batched
   USE mo_nh_testcases_nml  ,ONLY: isrfc_type, ufric
 
+  USE mo_model_domain      ,ONLY: t_patch
+  USE mo_math_constants    ,ONLY: rad2deg
+
   IMPLICIT NONE
   PRIVATE
   PUBLIC :: atm_exchange_coeff, sfc_exchange_coeff
@@ -264,7 +267,7 @@ CONTAINS
     CALL lookup_ua_spline_batch(jcs, kproma, klev, idx_batch, za_batch, zua_batch)
 
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(zpapm1i_s, zusus1, zes)
     DO jk=1,klev
       DO jl=jcs,kproma
         zpapm1i_s = 1._wp/papm1(jl,jk)
@@ -311,15 +314,15 @@ CONTAINS
     ! using linear interpolation in pressure coordinate
 
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(zrdp, zsdep1, zsdep2)
     DO 214 jk=1,klevm1
       DO 213 jl=jcs,kproma
         zdgmid(jl,jk) = pghf(jl,jk) - pghf(jl,jk+1)
 
         ! interpolation coefficients
         zrdp   = 1._wp/(papm1(jl,jk) - papm1(jl,jk+1))
-        zsdep1 = (papm1(jl,jk)  - paphm1(jl,jk+1))*zrdp
-        zsdep2 = (paphm1(jl,jk+1)- papm1(jl,jk+1))*zrdp
+        zsdep1 = (paphm1(jl,jk+1)- papm1(jl,jk+1))*zrdp
+        zsdep2 = (papm1(jl,jk)  - paphm1(jl,jk+1))*zrdp
 
         ! vertical interpolation for various variables
         zqsatmid(jl,jk)  =zsdep1*zqsat(jl,jk)+zsdep2*zqsat(jl,jk+1)
@@ -346,7 +349,7 @@ CONTAINS
     !------------------------------------------------
 
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-    !$ACC LOOP GANG VECTOR
+    !$ACC LOOP GANG VECTOR PRIVATE(zcor)
     DO jl = jcs,kproma
       zcor=MAX(ABS(pcoriol(jl)),eps_corio)
       zhdyn(jl)=MIN(pghf(jl,1),chneu*pustarm(jl)/zcor)
@@ -367,7 +370,7 @@ CONTAINS
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP SEQ
     DO jk=klevm1,1,-1
-      !$ACC LOOP GANG VECTOR
+      !$ACC LOOP GANG VECTOR PRIVATE(zds, zdz)
       DO jl=jcs,kproma
         zds=pcptgz(jl,jk)-pcptgz(jl,klev)
         zdz=pghf(jl,jk)-zhdyn(jl)
@@ -395,7 +398,11 @@ CONTAINS
     !--------------------------------------------
 
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(zqtmid, zfux, zfox, zdus1, zdus2, zteldif) &
+    !$ACC   PRIVATE(zmult1, zmult2, zmult3, zmult4, zmult5, zthvirdif, zdqtot, zqddif, zbuoy) &
+    !$ACC   PRIVATE(zdusq, zdvsq, zshear, zri, f_tau, f_theta, e_kin, e_pot, imix_neutral) &
+    !$ACC   PRIVATE(lmix, ldis, lmc, zalh2, zucf, zzb, zdisl, zktest, ztottesq, zthvprod) &
+    !$ACC   PRIVATE(zthvdiss)
     DO 372 jk=1,klevm1
       DO 361 jl=jcs,kproma
 
@@ -549,7 +556,8 @@ CONTAINS
   !-------------
   !>
   !!
-  SUBROUTINE sfc_exchange_coeff( jcs, kproma, kbdim, ksfc_type,          &! in
+  SUBROUTINE sfc_exchange_coeff( jb, jcs, kproma, kbdim, ksfc_type,      &! in
+                               & patch,                                  &! in
                                & idx_wtr, idx_ice, idx_lnd,              &! in
                                & pz0m, ptsfc,                            &! in
                                & pfrc, phdtcbl,                          &! in
@@ -580,8 +588,10 @@ CONTAINS
                                & pcsat, pcair                            &! in, optional
                                & )
 
+    INTEGER, INTENT(IN) :: jb
     INTEGER, INTENT(IN) :: jcs, kproma, kbdim
     INTEGER, INTENT(IN) :: ksfc_type, idx_wtr, idx_ice, idx_lnd
+    TYPE(t_patch), INTENT(IN) :: patch
 
     REAL(wp),INTENT(IN), DIMENSION(:,:) ::              & ! DIMENSION(kbdim,ksfc_type)
                            pz0m,  & !< aerodynamic roughness length
@@ -792,11 +802,13 @@ CONTAINS
 
     DO jsfc = 1,ksfc_type
 
-      CALL compute_qsat( kproma, is(jsfc), loidx(:,jsfc), ppsfc, ptsfc(:,jsfc), pqsat_tile(:,jsfc) )
+      CALL compute_qsat( kproma, is(jsfc), loidx(:,jsfc), ppsfc, ptsfc(:,jsfc), pqsat_tile(:,jsfc), error_reporter=lookup_error_)
      ! loop over mask only
      !
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-      !$ACC LOOP GANG VECTOR
+      !$ACC LOOP GANG VECTOR PRIVATE(js, ztheta, zthetav, zqtl, zqtmid, zqsmid, ztmid, zthetamid) &
+      !$ACC   PRIVATE(zfux, zfox, zmult1, zmult2, zmult3, zmult4, zmult5, zdus1, zdus2, zdqt) &
+      !$ACC   PRIVATE(zbuoy)
       !NEC$ ivdep
       DO jls = 1,is(jsfc)
         js=loidx(jls,jsfc)
@@ -948,7 +960,7 @@ CONTAINS
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP SEQ
       DO jsfc = 1,ksfc_type
-        !$ACC LOOP GANG VECTOR
+        !$ACC LOOP GANG VECTOR PRIVATE(js, zucf, zucfh)
         !NEC$ ivdep
         DO jls = 1,is(jsfc)
           js=loidx(jls,jsfc)
@@ -1024,7 +1036,7 @@ CONTAINS
 
     DO jsfc = 1,ksfc_type
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-      !$ACC LOOP GANG VECTOR
+      !$ACC LOOP GANG VECTOR PRIVATE(js)
       !NEC$ ivdep
       DO jls = 1,is(jsfc)
         js=loidx(jls,jsfc)
@@ -1068,7 +1080,7 @@ CONTAINS
 
     DO jsfc = 1,ksfc_type
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-      !$ACC LOOP GANG VECTOR
+      !$ACC LOOP GANG VECTOR PRIVATE(js)
       !NEC$ ivdep
       DO jls = 1,is(jsfc)
       js=loidx(jls,jsfc)
@@ -1105,7 +1117,7 @@ CONTAINS
 
       DO jsfc = 1,ksfc_type
         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-        !$ACC LOOP GANG VECTOR
+        !$ACC LOOP GANG VECTOR PRIVATE(js, zust)
         !NEC$ ivdep
         DO jls = 1,is(jsfc)
         js=loidx(jls,jsfc)
@@ -1137,7 +1149,7 @@ CONTAINS
 
       DO jsfc = 1,ksfc_type
         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-        !$ACC LOOP GANG VECTOR
+        !$ACC LOOP GANG VECTOR PRIVATE(js)
         !NEC$ ivdep
         DO jls = 1,is(jsfc)
         js=loidx(jls,jsfc)
@@ -1192,7 +1204,7 @@ CONTAINS
 
     DO jsfc = 1,ksfc_type
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-      !$ACC LOOP GANG VECTOR
+      !$ACC LOOP GANG VECTOR PRIVATE(js, ztottev)
       !NEC$ ivdep
       DO jls = 1,is(jsfc)
       js=loidx(jls,jsfc)
@@ -1237,7 +1249,7 @@ CONTAINS
     IF ( isrfc_type == 1 ) THEN
       DO jsfc = 1,ksfc_type
         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-        !$ACC LOOP GANG VECTOR
+        !$ACC LOOP GANG VECTOR PRIVATE(js, ztottev)
         !NEC$ ivdep
         DO jls = 1,is(jsfc)
           js=loidx(jls,jsfc)
@@ -1258,6 +1270,24 @@ CONTAINS
 
     !$ACC WAIT
     !$ACC END DATA
+  CONTAINS
+
+    !> Error reporting function for the table lookup in compute_qsat.
+    !! This function provides context on the surface type and the location where the lookup error
+    !! occurred. It is called through a procedure pointer passed into compute_qsat.
+    SUBROUTINE lookup_error_ (jl)
+      INTEGER, INTENT(IN) :: jl
+
+      WRITE ( 0 , '(a,a,i2,a,i8,a,f8.2,a,f8.2,a,f8.2)' ) &
+          & ' qsat lookup table problem in sfc_exchange_coeff at ', &
+          & ' jsfc    =', jsfc, &
+          & ' cell ID =', patch%cells%decomp_info%glb_index((jb-1)*kbdim+jl), &
+          & ' lon(deg)=', patch%cells%center(jl,jb)%lon*rad2deg, &
+          & ' lat(deg)=', patch%cells%center(jl,jb)%lat*rad2deg, &
+          & ' value   =', ptsfc(jl,jsfc)
+
+    END SUBROUTINE lookup_error_
+
   END SUBROUTINE sfc_exchange_coeff
   !-------------
 

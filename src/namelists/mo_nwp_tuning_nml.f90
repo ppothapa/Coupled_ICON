@@ -31,9 +31,12 @@ MODULE mo_nwp_tuning_nml
   USE mo_nml_annotate,        ONLY: temp_defaults, temp_settings
   USE mo_nwp_tuning_config,   ONLY: config_tune_gkwake    => tune_gkwake,    &
     &                               config_tune_gkdrag    => tune_gkdrag,    &
+    &                               config_tune_gkdrag_enh => tune_gkdrag_enh, &
     &                               config_tune_gfrcrit   => tune_gfrcrit,   &
     &                               config_tune_grcrit    => tune_grcrit,    &
+    &                               config_tune_grcrit_enh => tune_grcrit_enh, &
     &                               config_tune_minsso    => tune_minsso,    &
+    &                               config_tune_minsso_gwd => tune_minsso_gwd, &
     &                               config_tune_blockred  => tune_blockred,  &
     &                               config_tune_gfluxlaun => tune_gfluxlaun, &
     &                               config_tune_gcstar    => tune_gcstar,    &    
@@ -94,17 +97,20 @@ MODULE mo_nwp_tuning_nml
   REAL(wp) :: &                    !< low level wake drag constant
     &  tune_gkwake(max_dom)
 
-  REAL(wp) :: &                    !< gravity wave drag constant
-    &  tune_gkdrag(max_dom)
+  REAL(wp) :: &                    !< gravity wave drag constant; optional enhanced value for low latitudes
+    &  tune_gkdrag(max_dom), tune_gkdrag_enh(max_dom)
 
   REAL(wp) :: &                    !< critical Froude number in SSO scheme
     &  tune_gfrcrit(max_dom)
 
-  REAL(wp) :: &                    !< critical Richardson number in SSO scheme
-    &  tune_grcrit(max_dom)
+  REAL(wp) :: &                    !< critical Richardson number in SSO scheme; optional enhanced value for low latitudes
+    &  tune_grcrit(max_dom), tune_grcrit_enh(max_dom)
 
   REAL(wp) :: &                    !< minimum SSO standard deviation (m) for which SSO information is used
     &  tune_minsso(max_dom)
+
+  REAL(wp) :: &                    !< minimum SSO standard deviation (m) above which GWD computation is activated
+    &  tune_minsso_gwd(max_dom)    !  provided that the value is larger than tune_minsso
 
   REAL(wp) :: &                    !< multiple of SSO standard deviation above which blocking tendency is reduced
     &  tune_blockred(max_dom)
@@ -268,8 +274,8 @@ MODULE mo_nwp_tuning_nml
     &                      tune_blockred, itune_gust_diag, tune_rcapqadv,         &
     &                      tune_gustsso_lim, tune_eiscrit, itune_o3,              &
     &                      tune_sc_eis, tune_sc_invmin, tune_sc_invmax,           &
-    &                      tune_capethresh, tune_dursun_scaling,                  &
-    &                      tune_sbmccn
+    &                      tune_capethresh, tune_gkdrag_enh, tune_grcrit_enh,     &
+    &                      tune_minsso_gwd, tune_dursun_scaling, tune_sbmccn
 
 CONTAINS
 
@@ -298,7 +304,7 @@ CONTAINS
     INTEGER :: istat, funit
     INTEGER :: iunit, jg
 
-    REAL(wp) :: gkwake_def, gkdrag_def, gfrcrit_def, grcrit_def, minsso_def, blockred_def
+    REAL(wp) :: gkwake_def, gkdrag_def, gfrcrit_def, grcrit_def, minsso_def, minsso_gwd_def, blockred_def
 
     CHARACTER(len=*), PARAMETER ::  &
       &  routine = 'mo_nwp_tuning_nml: read_tuning_namelist'
@@ -317,14 +323,19 @@ CONTAINS
     gfrcrit_def = 0.4_wp       ! original COSMO value 0.5
     grcrit_def  = 0.25_wp      ! original COSMO value 0.25
     minsso_def  = 10._wp       ! default 10 m (hardcoded value in original scheme)
+    minsso_gwd_def = 0._wp     ! do not use enhanced threshold for activating GWD calculation
     blockred_def = 100._wp     ! effectively deactivates the blocking reduction
 
     tune_gkwake(:)  = gkwake_def
     tune_gkdrag(:)  = gkdrag_def
+    tune_gkdrag_enh(:)  = gkdrag_def
     tune_gfrcrit(:) = gfrcrit_def
     tune_grcrit(:)  = grcrit_def
+    tune_grcrit_enh(:)  = grcrit_def
     tune_minsso(:)  = minsso_def
+    tune_minsso_gwd(:)  = minsso_gwd_def
     tune_blockred(:) = blockred_def
+
     !
     ! GWD tuning
     tune_gfluxlaun  = 2.50e-3_wp   ! original IFS value 3.75e-3
@@ -461,9 +472,12 @@ CONTAINS
       ! Set array parameters to dummy values to determine which ones are actively set in the namelist
       tune_gkwake(:)  = -1._wp
       tune_gkdrag(:)  = -1._wp
+      tune_gkdrag_enh(:)  = -1._wp
       tune_gfrcrit(:) = -1._wp
       tune_grcrit(:)  = -1._wp
+      tune_grcrit_enh(:)  = -1._wp
       tune_minsso(:)  = -1._wp
+      tune_minsso_gwd(:)  = -1._wp
       tune_blockred(:) = -1._wp
 
       READ (nnml, nwp_tuning_nml)    ! overwrite default settings
@@ -474,6 +488,7 @@ CONTAINS
       IF (tune_gfrcrit(1) < 0._wp) tune_gfrcrit(1) = gfrcrit_def
       IF (tune_grcrit(1)  < 0._wp) tune_grcrit(1)  = grcrit_def
       IF (tune_minsso(1)  < 0._wp) tune_minsso(1)  = minsso_def
+      IF (tune_minsso_gwd(1) < 0._wp) tune_minsso_gwd(1) = minsso_gwd_def
       IF (tune_blockred(1) < 0._wp) tune_blockred(1) = blockred_def
 
       ! Fill remaining array elements with entry of parent domain if not specified in the namelist
@@ -483,7 +498,13 @@ CONTAINS
         IF (tune_gfrcrit(jg) < 0._wp) tune_gfrcrit(jg) = tune_gfrcrit(jg-1)
         IF (tune_grcrit(jg)  < 0._wp) tune_grcrit(jg)  = tune_grcrit(jg-1)
         IF (tune_minsso(jg)  < 0._wp) tune_minsso(jg)  = tune_minsso(jg-1)
+        IF (tune_minsso_gwd(jg)  < 0._wp) tune_minsso_gwd(jg)  = tune_minsso_gwd(jg-1)
         IF (tune_blockred(jg) < 0._wp) tune_blockred(jg) = tune_blockred(jg-1)
+      ENDDO
+
+      DO jg = 1, max_dom
+        IF (tune_gkdrag_enh(jg)  < 0._wp) tune_gkdrag_enh(jg)  = tune_gkdrag(jg)
+        IF (tune_grcrit_enh(jg)  < 0._wp) tune_grcrit_enh(jg)  = tune_grcrit(jg)
       ENDDO
 
       IF (my_process_is_stdio()) THEN
@@ -507,9 +528,12 @@ CONTAINS
 
     config_tune_gkwake           = tune_gkwake
     config_tune_gkdrag           = tune_gkdrag
+    config_tune_gkdrag_enh       = tune_gkdrag_enh
     config_tune_gfrcrit          = tune_gfrcrit
     config_tune_grcrit           = tune_grcrit
+    config_tune_grcrit_enh       = tune_grcrit_enh
     config_tune_minsso           = tune_minsso
+    config_tune_minsso_gwd       = tune_minsso_gwd
     config_tune_blockred         = tune_blockred
     config_tune_gfluxlaun        = tune_gfluxlaun
     config_tune_gcstar           = tune_gcstar

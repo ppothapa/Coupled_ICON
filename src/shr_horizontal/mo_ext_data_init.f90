@@ -2377,6 +2377,7 @@ CONTAINS
 
       DEALLOCATE(icount_falseglac)
 
+      !$ACC UPDATE DEVICE(ext_data(jg)%atm%list_sea%idx, ext_data(jg)%atm%list_sea%ncount)
     END DO  !jg
 
   END SUBROUTINE init_index_lists

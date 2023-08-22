@@ -58,7 +58,7 @@ start_date=${start_date:="2022-12-01T00:00:00Z"}
 
 # output intervals
 output_bounds="0.,10000000.,3600."
-steps_per_file=1
+steps_per_file=3
 
 # namelist files
 atmo_namelist=NAMELIST_${EXPNAME}_atm
@@ -506,8 +506,6 @@ cat >> ${basedir}/run/${atmo_namelist} << EOF
   'ddt_qv_turb','ddt_qc_turb','ddt_qv_conv','ddt_qc_conv','ddt_tke','ddt_tke_pconv','ddt_tke_hsh','qv_s',
   'runoff_g','plantevap','t_snow','rho_snow','h_snow','freshsnow','ddt_vn_adv','ddt_vn_pgr','exner',
   't_sea','fr_ice'
-
-
 /
 
 ! radiation_nml: radiation scheme ---------------------------------------------

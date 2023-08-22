@@ -68,10 +68,13 @@ pgi_inlib_procedures+= \
   sfc_albedo_dir_taylor \
   sfc_albedo_dir_yang \
   sfc_albedo_dir_zaengl \
+  sfc_albedo_whitecap \
   spec_humi \
   swdir_s \
   T_from_internal_energy \
   time_avg \
+  vdiff_mixed_time_value \
+  vdiff_new_time_value \
   watrcon_rt \
   watrdiff_rt \
   zdqsdt \
@@ -102,6 +105,7 @@ pgi_inlib_f90_files+= \
   src/atm_phy_schemes/mo_cuflxtends.f90 \
   src/atm_phy_schemes/mo_cufunctions.f90 \
   src/atm_phy_schemes/mo_satad.f90 \
+  src/atm_phy_schemes/mo_turb_vdiff.f90 \
   src/atm_phy_schemes/turb_utilities.f90 \
   src/lnd_phy_schemes/sfc_flake.f90 \
   src/lnd_phy_schemes/sfc_seaice.f90 \
