@@ -5,7 +5,6 @@ exp=test_hamocc_omip_10days
 
 . ./add_refgen_routines
 
-# execute probtest
 store_model_output
 
 status=$?
