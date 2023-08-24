@@ -1880,12 +1880,12 @@ CONTAINS
 
       stop_timer(timer_tracer_ab,1)
       !------------------------------------------------------------------------
-    END IF
-    
-    !! FIXME zstar: hamocc interface not adapted for zstar
-    CALL ocean_to_hamocc_interface(ocean_state, transport_state, &
-      & p_oce_sfc, p_as, sea_ice, p_phys_param, operators_coefficients, current_time, stretch_e)
 
+    END IF
+
+    CALL ocean_to_hamocc_interface(ocean_state, transport_state, &
+      & p_oce_sfc, p_as, sea_ice, p_phys_param, operators_coefficients, current_time)
+    
   END SUBROUTINE tracer_transport_zstar
   !-------------------------------------------------------------------------
 

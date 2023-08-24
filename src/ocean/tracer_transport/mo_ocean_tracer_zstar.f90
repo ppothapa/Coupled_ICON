@@ -748,7 +748,7 @@ CONTAINS
     REAL(wp), INTENT(IN)               :: stretch_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks) 
     REAL(wp), INTENT(IN)               :: stretch_c_new(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks) 
     TYPE(t_ocean_tracer), TARGET       :: old_tracer
-    TYPE(t_ocean_tracer), INTENT(OUT)  :: new_tracer
+    TYPE(t_ocean_tracer)               :: new_tracer
     LOGICAL, INTENT(in), OPTIONAL      :: use_acc
 
     TYPE(t_patch), POINTER :: patch_2d

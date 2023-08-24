@@ -794,14 +794,18 @@ CONTAINS
   !
   SUBROUTINE sort_and_compress_list(idx_list, dst)
     INTEGER,          INTENT(IN)  :: idx_list(:)
-    CHARACTER(LEN=*), INTENT(OUT) :: dst
+    CHARACTER(LEN=*), INTENT(INOUT) :: dst ! the IN part is for getting the LEN
     ! local variables
     INTEGER :: list(SIZE(idx_list)),  &  ! sorted copy
       &        nnext(SIZE(idx_list))
-    INTEGER :: i, j, N
+    INTEGER :: i, j, N, dst_size, end_dst_size
 
     dst = " "
+!    return
+
     N = SIZE(idx_list)
+    dst_size = len(dst)
+    end_dst_size = dst_size - 40
     list(:) = idx_list(:)
     ! sort the list
 #ifdef __SX__
@@ -827,6 +831,8 @@ CONTAINS
     ! build the result string:
     i = 1
     DO WHILE (i <= n)
+      IF (LEN_TRIM(dst) >= end_dst_size) exit
+
       IF (nnext(i) > 1) THEN
         IF (nnext(i) == 2) THEN
           dst = TRIM(dst)//TRIM(int2string(list(i)))//","//TRIM(int2string(list(i+1)))
