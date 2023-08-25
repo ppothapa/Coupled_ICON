@@ -33,11 +33,11 @@ AC_DEFUN([ACX_LANG_POP_HIP], [AC_LANG_POP([HIP])])
 
 # ACX_PROG_HIPCXX([LIST-OF-COMPILERS = hipcc])
 # -----------------------------------------------------------------------------
-# Searches for the HIP Compiler command among the values of the blank-separated
-# list LIST-OF-COMPILERS (defaults to a single value "hipcc"). Declares
-# precious variables HIPCXX and HIPFLAGS to be set to the compiler command and
-# the compiler flags, respectively. If the environment variable HIPCXX is set,
-# values of the list LIST-OF-COMPILERS are ignored.
+# Searches for the HIP C++ compiler command among the values of the
+# blank-separated list LIST-OF-COMPILERS (defaults to a single value "hipcc").
+# Declares precious variables HIPCXX and HIPFLAGS to be set to the compiler
+# command and the compiler flags, respectively. If the environment variable
+# HIPCXX is set, values of the list LIST-OF-COMPILERS are ignored.
 #
 # Checks whether the compiler supports an ISO C++ standard and/or whether it
 # can compile a basic HIP program. The result of the check is stored in the
@@ -53,13 +53,13 @@ AC_DEFUN([ACX_LANG_POP_HIP], [AC_LANG_POP([HIP])])
 #
 AC_DEFUN_ONCE([ACX_PROG_HIPCXX],
   [AC_LANG_PUSH([HIP])dnl
-   AC_ARG_VAR([HIPCXX], [HIP Compiler command])dnl
-   AC_ARG_VAR([HIPFLAGS], [HIP Compiler flags])dnl
+   AC_ARG_VAR([HIPCXX], [HIP C++ compiler command])dnl
+   AC_ARG_VAR([HIPFLAGS], [HIP C++ compiler flags])dnl
    _AC_ARG_VAR_LDFLAGS()dnl
    _AC_ARG_VAR_LIBS()dnl
    AS_IF([test -z "$HIPCXX"],
      [AC_CHECK_PROGS([HIPCXX], [m4_default([$1], [hipcc])])])
-   _AS_ECHO_LOG([checking for HIP compiler version])
+   _AS_ECHO_LOG([checking for HIP C++ compiler version])
    set dummy $ac_compile
    ac_compiler=$[2]
    _AC_DO_LIMIT([$ac_compiler --version >&AS_MESSAGE_LOG_FD])
@@ -99,10 +99,10 @@ AC_DEFUN_ONCE([ACX_PROG_HIPCXX],
 
 # _ACX_HIP_CXX_TEST(STANDARD)
 # -----------------------------------------------------------------------------
-# Checks whether the HIP compiler supports the ISO C++ STANDARD (only checks
-# for ISO C++ 2014 and ISO C++ 2011 are currently supported) and can compile a
-# basic HIP program. The value of STANDARD is expected to be the last two
-# digits of the standard's year (e.g. 11). The check is skipped if the
+# Checks whether the HIP C++ compiler supports the ISO C++ STANDARD (only
+# checks for ISO C++ 2014 and ISO C++ 2011 are currently supported) and can
+# compile a basic HIP program. The value of STANDARD is expected to be the last
+# two digits of the standard's year (e.g. 11). The check is skipped if the
 # acx_prog_hipcxx_works shell variable is set to a value other than "no" (in a
 # normal scenario that means that a more recent ISO C++ standard is supported).
 #
@@ -138,10 +138,10 @@ AC_DEFUN([_ACX_HIP_CXX_TEST],
 
 # _ACX_HIP_BASIC_TEST()
 # -----------------------------------------------------------------------------
-# Checks whether the HIP compiler can compile a basic HIP program. The check is
-# skipped if the acx_prog_hipcxx_works shell variable is set to a value other
-# than "no" (in a normal scenario that means that the compiler supports an ISO
-# C++ standard, as well as the basic HIP features).
+# Checks whether the HIP C++ compiler can compile a basic HIP program. The
+# check is skipped if the acx_prog_hipcxx_works shell variable is set to a
+# value other than "no" (in a normal scenario that means that the compiler
+# supports an ISO C++ standard, as well as the basic HIP features).
 #
 # If successful, sets the shell variable acx_prog_hipcxx_works to "basic".
 #
@@ -171,8 +171,8 @@ AC_DEFUN([_ACX_HIP_BASIC_TEST],
 # -----------------------------------------------------------------------------
 # A set of macros that expand to the shell code in the INIT_PREPARE section of
 # the configure script that assigns respective shell variables to the source
-# code of the test programs that are used when checking for the HIP compiler
-# features.
+# code of the test programs that are used when checking for the HIP C++
+# compiler features.
 #
 AC_DEFUN([_ACX_HIP_BASIC_TEST_GLOBALS],
   [m4_divert_once([INIT_PREPARE],
@@ -289,13 +289,13 @@ int main (int argc, char **argv)
 # _ACX_HIP_CXX11_OPTIONS()
 # -----------------------------------------------------------------------------
 # Expands into a space-separated list of known flags needed to enable the
-# support for the ISO C++ 2011 standard when running the HIP compiler.
+# support for the ISO C++ 2011 standard when running the HIP C++ compiler.
 #
 m4_define([_ACX_HIP_CXX11_OPTIONS], [-std=gnu++11 -std=c++11])
 
 # _ACX_HIP_CXX14_OPTIONS()
 # -----------------------------------------------------------------------------
 # Expands into a space-separated list of known flags needed to enable the
-# support for the ISO C++ 2014 standard when running the HIP compiler.
+# support for the ISO C++ 2014 standard when running the HIP C++ compiler.
 #
 m4_define([_ACX_HIP_CXX14_OPTIONS], [-std=gnu++14 -std=c++14])

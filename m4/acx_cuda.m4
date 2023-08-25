@@ -33,7 +33,7 @@ AC_DEFUN([ACX_LANG_POP_CUDA], [AC_LANG_POP([CUDA])])
 
 # ACX_PROG_CUDACXX([LIST-OF-COMPILERS = nvcc])
 # -----------------------------------------------------------------------------
-# Searches for the CUDA Compiler command among the values of the
+# Searches for the CUDA C++ compiler command among the values of the
 # blank-separated list LIST-OF-COMPILERS (defaults to a single value "nvcc").
 # Declares precious variables CUDACXX and CUDAFLAGS to be set to the compiler
 # command and the compiler flags, respectively. If the environment variable
@@ -53,13 +53,13 @@ AC_DEFUN([ACX_LANG_POP_CUDA], [AC_LANG_POP([CUDA])])
 #
 AC_DEFUN_ONCE([ACX_PROG_CUDACXX],
   [AC_LANG_PUSH([CUDA])dnl
-   AC_ARG_VAR([CUDACXX], [CUDA Compiler command])dnl
-   AC_ARG_VAR([CUDAFLAGS], [CUDA Compiler flags])dnl
+   AC_ARG_VAR([CUDACXX], [CUDA C++ compiler command])dnl
+   AC_ARG_VAR([CUDAFLAGS], [CUDA C++ compiler flags])dnl
    _AC_ARG_VAR_LDFLAGS()dnl
    _AC_ARG_VAR_LIBS()dnl
    AS_IF([test -z "$CUDACXX"],
      [AC_CHECK_PROGS([CUDACXX], [m4_default([$1], [nvcc])])])
-   _AS_ECHO_LOG([checking for CUDA compiler version])
+   _AS_ECHO_LOG([checking for CUDA C++ compiler version])
    set dummy $ac_compile
    ac_compiler=$[2]
    _AC_DO_LIMIT([$ac_compiler --version >&AS_MESSAGE_LOG_FD])
@@ -104,8 +104,8 @@ AC_DEFUN_ONCE([ACX_PROG_CUDACXX],
 # these flags and should be included after LIBS when linking.
 #
 # The macro is intended to be used in those situations when a program contains
-# CUDA objects but is linked with a compiler other than the CUDA compiler. Note
-# that the result does not contain runtime libraries of the host compiler.
+# CUDA objects but is linked with a compiler other than the CUDA C++ compiler.
+# Note that the result does not contain runtime libraries of the host compiler.
 #
 # The result is cached in the acx_cv_cudacxx_libs variable.
 #
@@ -152,10 +152,10 @@ dnl Extract the flags (currently, we take only -l and -L):
 
 # _ACX_CUDA_CXX_TEST(STANDARD)
 # -----------------------------------------------------------------------------
-# Checks whether the CUDA compiler supports the ISO C++ STANDARD (only checks
-# for ISO C++ 2014 and ISO C++ 2011 are currently supported) and can compile a
-# basic CUDA program. The value of STANDARD is expected to be the last two
-# digits of the standard's year (e.g. 11). The check is skipped if the
+# Checks whether the CUDA C++ compiler supports the ISO C++ STANDARD (only
+# checks for ISO C++ 2014 and ISO C++ 2011 are currently supported) and can
+# compile a basic CUDA program. The value of STANDARD is expected to be the
+# last two digits of the standard's year (e.g. 11). The check is skipped if the
 # acx_prog_cudacxx_works shell variable is set to a value other than "no" (in a
 # normal scenario that means that a more recent ISO C++ standard is supported).
 #
@@ -191,10 +191,10 @@ AC_DEFUN([_ACX_CUDA_CXX_TEST],
 
 # _ACX_CUDA_BASIC_TEST()
 # -----------------------------------------------------------------------------
-# Checks whether the CUDA compiler can compile a basic CUDA program. The check
-# is skipped if the acx_prog_cudacxx_works shell variable is set to a value
-# other than "no" (in a normal scenario that means that the compiler supports
-# an ISO C++ standard, as well as the basic CUDA features).
+# Checks whether the CUDA C++ compiler can compile a basic CUDA program. The
+# check is skipped if the acx_prog_cudacxx_works shell variable is set to a
+# value other than "no" (in a normal scenario that means that the compiler
+# supports an ISO C++ standard, as well as the basic CUDA features).
 #
 # If successful, sets the shell variable acx_prog_cudacxx_works to "basic".
 #
@@ -224,8 +224,8 @@ AC_DEFUN([_ACX_CUDA_BASIC_TEST],
 # -----------------------------------------------------------------------------
 # A set of macros that expand to the shell code in the INIT_PREPARE section of
 # the configure script that assigns respective shell variables to the source
-# code of the test programs that are used when checking for the CUDA compiler
-# features.
+# code of the test programs that are used when checking for the CUDA C++
+# compiler features.
 #
 AC_DEFUN([_ACX_CUDA_BASIC_TEST_GLOBALS],
   [m4_divert_once([INIT_PREPARE],
@@ -342,13 +342,13 @@ int main (int argc, char **argv)
 # _ACX_CUDA_CXX11_OPTIONS()
 # -----------------------------------------------------------------------------
 # Expands into a space-separated list of known flags needed to enable the
-# support for the ISO C++ 2011 standard when running the CUDA compiler.
+# support for the ISO C++ 2011 standard when running the CUDA C++ compiler.
 #
 m4_define([_ACX_CUDA_CXX11_OPTIONS], [-std=c++11])
 
 # _ACX_CUDA_CXX14_OPTIONS()
 # -----------------------------------------------------------------------------
 # Expands into a space-separated list of known flags needed to enable the
-# support for the ISO C++ 2014 standard when running the CUDA compiler.
+# support for the ISO C++ 2014 standard when running the CUDA C++ compiler.
 #
 m4_define([_ACX_CUDA_CXX14_OPTIONS], [-std=c++14])

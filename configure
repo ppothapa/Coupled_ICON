@@ -1644,10 +1644,10 @@ Some influential environment variables:
   ICON_BUNDLED_CXXFLAGS
               C++ compiler flags to be appended to CXXFLAGS when configuring
               the bundled libraries
-  CUDACXX     CUDA Compiler command
-  CUDAFLAGS   CUDA Compiler flags
-  HIPCXX      HIP Compiler command
-  HIPFLAGS    HIP Compiler flags
+  CUDACXX     CUDA C++ compiler command
+  CUDAFLAGS   CUDA C++ compiler flags
+  HIPCXX      HIP C++ compiler command
+  HIPFLAGS    HIP C++ compiler flags
   ICON_RTE_RRTMGP_FCFLAGS
               Fortran compiler flags to be appended to FCFLAGS when
               configuring the bundled version of RTE+RRTMGP library
@@ -6252,7 +6252,7 @@ fi
 done
 
 fi
-   $as_echo "$as_me:${as_lineno-$LINENO}: checking for CUDA compiler version" >&5
+   $as_echo "$as_me:${as_lineno-$LINENO}: checking for CUDA C++ compiler version" >&5
    set dummy $ac_compile
    ac_compiler=$2
    { { ac_try="$ac_compiler --version >&5"
@@ -6721,7 +6721,7 @@ fi
 done
 
 fi
-   $as_echo "$as_me:${as_lineno-$LINENO}: checking for HIP compiler version" >&5
+   $as_echo "$as_me:${as_lineno-$LINENO}: checking for HIP C++ compiler version" >&5
    set dummy $ac_compile
    ac_compiler=$2
    { { ac_try="$ac_compiler --version >&5"
