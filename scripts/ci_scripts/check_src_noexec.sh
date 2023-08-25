@@ -20,6 +20,16 @@ job_num=8
 set -eu
 set -o pipefail
 
+check_exist()
+{
+  for input in "$@"; do
+    if test ! -e "${input}"; then
+      echo "ERROR: '${input}' does not exist" >&2
+      exit 2
+    fi
+  done
+}
+
 list_files()
 {
   issue_warn=$1; shift
@@ -40,7 +50,7 @@ list_files()
 }
 
 if test $# -eq 0; then
-  icon_dir=$(unset CDPATH; cd "$(dirname "$0")/../../.."; pwd)
+  icon_dir=$(unset CDPATH; cd "$(dirname "$0")/../.."; pwd)
   eval "set dummy $(
     eval "set dummy ${icon_directories}; shift"
     for dir in "$@"; do
@@ -48,9 +58,11 @@ if test $# -eq 0; then
     done); shift"
 fi
 
+check_exist "$@"
+
 exitcode=0
 
-list_files yes "$@" | xargs -P ${job_num} -I{} -- ${SHELL} -c 'test ! -x {} || { echo "{}"; exit 1; }' || {
+list_files yes "$@" | xargs -P ${job_num} -I{} -- ${SHELL-$BASH} -c 'test ! -x {} || { echo "{}"; exit 1; }' || {
   echo "ERROR: input files have the executable mode bits set (see above)" >&2
   exitcode=1
 }

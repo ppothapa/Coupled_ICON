@@ -55,6 +55,7 @@ MODULE mo_ice_slow_thermo
   USE mo_sea_ice,             ONLY: ice_conc_change
   USE mo_ice_zerolayer,       ONLY: ice_growth_zerolayer
   USE mo_ice_winton,          ONLY: ice_growth_winton
+  USE mo_exception,           ONLY: finish
 
   IMPLICIT NONE
   PRIVATE
@@ -86,15 +87,17 @@ CONTAINS
   !! Rewrite         by Stephan Lorenz, MPI-M (2015-01).
   !! Restructured    by Vladimir Lapin, MPI-M (2017-03).
   !
-  SUBROUTINE ice_slow_thermo(p_patch_3D, p_os, atmos_fluxes, ice, p_oce_sfc)
+  SUBROUTINE ice_slow_thermo(p_patch_3D, p_os, atmos_fluxes, ice, p_oce_sfc, use_acc)
     TYPE(t_patch_3D), TARGET, INTENT(IN)    :: p_patch_3D
     TYPE(t_hydro_ocean_state),INTENT(IN)    :: p_os         ! sst, sss, ssh only
     TYPE(t_atmos_fluxes),     INTENT(IN)    :: atmos_fluxes
     TYPE(t_sea_ice),          INTENT(INOUT) :: ice
     TYPE(t_ocean_surface),    INTENT(INOUT) :: p_oce_sfc
+    LOGICAL, INTENT(IN), OPTIONAL           :: use_acc
 
     ! Local variables
     TYPE(t_patch),  POINTER :: p_patch
+    LOGICAL :: lacc
 
     REAL(wp), POINTER :: sss    (:,:) ! sea surface salinity (input only)       [psu]
     REAL(wp), POINTER :: sst    (:,:) ! sea surface temperature (input only)    [C]
@@ -110,6 +113,12 @@ CONTAINS
     INTEGER, PARAMETER :: energyCheck_dbg_lev   = 3
     INTEGER, PARAMETER :: energyCheck_dbg_print = 4
 
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
     !-----------------------------------------------------------------------
     p_patch => p_patch_3D%p_patch_2D(1)
 
@@ -121,26 +130,33 @@ CONTAINS
     IF (ltimer) CALL timer_start(timer_ice_slow)
 
     ! initialize growth-related variables with zeros (before ice_growth_*)
-    CALL ice_growth_init (ice)
+    CALL ice_growth_init (ice, use_acc=lacc)
 
     ! heat flux from ocean into ice: ice%zHeatOceI. Will be applied in ice_growth_* routine
-    CALL oce_ice_heatflx (p_patch, p_os, ice)
+    CALL oce_ice_heatflx (p_patch, p_os, ice, use_acc=lacc)
 
     ! totalsnowfall is applied in ice_growth_*
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     ice%totalsnowfall(:,:) =  atmos_fluxes%rpreci(:,:) * dtime
+    !$ACC END KERNELS
+
     ! thick ice growth/melt (K-classes): calculates ice%hs, ice%hi, ice%heatOceI
     !-------------------------------------------------------------------------------
     CALL dbg_print('IceSlow: befZero: totalSnF', ice%totalsnowfall, str_module, 4, in_subset=p_patch%cells%owned)
     !-------------------------------------------------------------------------------
     SELECT CASE (i_ice_therm)
     CASE (1,3)
-        CALL ice_growth_zerolayer (p_patch, ice)
+        CALL ice_growth_zerolayer (p_patch, ice, use_acc=lacc)
     CASE (2)
-        CALL ice_growth_winton    (p_patch, ice)
+        CALL ice_growth_winton    (p_patch, ice, use_acc=lacc)
     END SELECT
+
     ! for historical reasons, ice%totalsnowfall represents cell-average, when applied in mo_ocean_surface*
     ! ToDo: should not be done this way
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     ice%totalsnowfall(:,:) =  ice%totalsnowfall(:,:) * ice%concSum(:,:)
+    !$ACC END KERNELS
+
     !-------------------------------------------------------------------------------
     CALL dbg_print('IceSlow: aftZero: totalSnF', ice%totalsnowfall, str_module, 3, in_subset=p_patch%cells%owned)
     !-------------------------------------------------------------------------------
@@ -149,10 +165,10 @@ CONTAINS
     ! Calculates ice%snow_to_ice and updates ice%draft, ice%draftave
     ! Note that such conversion is assumed to occur with no heat or salt exchange with the ocean.
     ! In particular, the routine does not change ice%heatOceI
-    CALL ice_draft_and_flooding (p_patch, ice)
+    CALL ice_draft_and_flooding (p_patch, ice, use_acc=lacc)
 
     ! fluxes and ice growth over open water
-    CALL ice_open_ocean(p_patch, ice, atmos_fluxes, sst)
+    CALL ice_open_ocean(p_patch, ice, atmos_fluxes, sst, use_acc=lacc)
 
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     energyCheck = energy_in_surface(p_patch, ice, ssh(:,:), sst(:,:), computation_type=0, &
@@ -164,12 +180,12 @@ CONTAINS
     !---------------------------------------------------------------------
 
     ! updates fluxes that ocean will receive
-    CALL update_ice_ocean_fluxes(p_patch, ice, atmos_fluxes, sss, p_oce_sfc)
+    CALL update_ice_ocean_fluxes(p_patch, ice, atmos_fluxes, sss, p_oce_sfc, use_acc=lacc)
 
     ! Ice Concentration Change
     IF ( i_ice_therm >= 1 ) THEN
 !        CALL ice_update_conc(p_patch,ice)
-        CALL ice_conc_change(p_patch,ice, p_os)
+        CALL ice_conc_change(p_patch, ice, p_os, use_acc=lacc)
     ENDIF
 
     !---------DEBUG DIAGNOSTICS-------------------------------------------
@@ -184,8 +200,8 @@ CONTAINS
     ! limits ice thinkness, adjust p_oce_sfc fluxes and calculates the final freeboard
     ! ToDo: limit ice thickness in the ice_growth_*. Then correction to p_oce_sfc will not be needed
     IF (limit_seaice) THEN
-        IF (limit_seaice_type .eq. 1) CALL ice_thickness_limiter( p_patch, ice, p_oce_sfc, p_os )
-        IF (limit_seaice_type .eq. 2) CALL ice_thickness_limiter_hh( p_patch_3d, ice, p_oce_sfc, p_os )
+        IF (limit_seaice_type .eq. 1) CALL ice_thickness_limiter( p_patch, ice, p_oce_sfc, p_os, use_acc=lacc )
+        IF (limit_seaice_type .eq. 2) CALL ice_thickness_limiter_hh( p_patch_3d, ice, p_oce_sfc, p_os, use_acc=lacc )
     ENDIF
 
     !---------DEBUG DIAGNOSTICS-------------------------------------------
@@ -214,11 +230,12 @@ CONTAINS
   !! Originally code by Dirk Notz, following MPI-OM. Code transfered to ICON.
   !! Modified        by Vladimir Lapin, MPI-M (2017-04).
   !
-  SUBROUTINE ice_open_ocean(p_patch, ice, atmos_fluxes, sst)
+  SUBROUTINE ice_open_ocean(p_patch, ice, atmos_fluxes, sst, use_acc)
     TYPE(t_patch),TARGET,      INTENT(IN)    :: p_patch
     TYPE(t_sea_ice),           INTENT(INOUT) :: ice
     TYPE(t_atmos_fluxes),      INTENT(IN)    :: atmos_fluxes
     REAL(wp),                  INTENT(IN)    :: sst(:,:)
+    LOGICAL, INTENT(IN), OPTIONAL            :: use_acc
 
     ! Local variables
     REAL(wp), DIMENSION (nproma, p_patch%alloc_cell_blocks) ::   &
@@ -227,11 +244,22 @@ CONTAINS
     ! Loop indices
     TYPE(t_subset_range), POINTER :: all_cells
     INTEGER :: jb, jc, i_startidx_c, i_endidx_c
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     !-------------------------------------------------------------------------------------------
     all_cells   => p_patch%cells%all
 
+    !$ACC DATA CREATE(AvailMLHeat) IF(lacc)
+
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     AvailMLHeat(:,:) = 0.0_wp
+    !$ACC END KERNELS
     !-------------------------------------------------------------------------------
     CALL dbg_print('IceOpenOcean bef: SST',     sst,            str_module, 4, in_subset=p_patch%cells%owned)
     CALL dbg_print('IceOpenOcean bef: newice',  ice%newice,     str_module, 4, in_subset=p_patch%cells%owned)
@@ -241,6 +269,7 @@ CONTAINS
     !TODOram: openmp
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jc = i_startidx_c, i_endidx_c
         IF (all_cells%vertical_levels(jc,jb) < 1) CYCLE ! Ocean points only
 
@@ -274,7 +303,10 @@ CONTAINS
         ENDIF
 
       END DO
+      !$ACC END PARALLEL LOOP
     END DO
+
+    !$ACC END DATA
 
     !-------------------------------------------------------------------------------
     CALL dbg_print('IceOpenOcean aft: newice',  ice%newice,     str_module, 3, in_subset=p_patch%cells%owned)
@@ -303,12 +335,13 @@ CONTAINS
   !! Originally code by Dirk Notz, following MPI-OM. Code transfered to ICON.
   !! Restructured    by Vladimir Lapin, MPI-M (2016-11).
   !
-  SUBROUTINE update_ice_ocean_fluxes(p_patch, ice, atmos_fluxes, sss, p_oce_sfc)
+  SUBROUTINE update_ice_ocean_fluxes(p_patch, ice, atmos_fluxes, sss, p_oce_sfc, use_acc)
     TYPE(t_patch),TARGET,      INTENT(IN)    :: p_patch
     TYPE(t_sea_ice),           INTENT(IN)    :: ice
     TYPE(t_atmos_fluxes),      INTENT(IN)    :: atmos_fluxes
     REAL(wp),                  INTENT(IN)    :: sss(:,:)
     TYPE(t_ocean_surface),     INTENT(INOUT) :: p_oce_sfc
+    LOGICAL, INTENT(IN), OPTIONAL            :: use_acc
 
     !Local Variables
     REAL(wp), DIMENSION (nproma, p_patch%alloc_cell_blocks) ::   &
@@ -322,21 +355,33 @@ CONTAINS
     ! Loop indices
     TYPE(t_subset_range), POINTER :: all_cells
     INTEGER :: jb, jc, i_startidx_c, i_endidx_c
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     !-------------------------------------------------------------------------------------------
     all_cells   => p_patch%cells%all
 
+    !$ACC DATA CREATE(fi1, fi2, fi3, snowiceave, icegrowave, snowmelted) IF(lacc)
+
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     fi1         (:,:) = 0.0_wp
     fi2         (:,:) = 0.0_wp
     fi3         (:,:) = 0.0_wp
     snowiceave  (:,:) = 0.0_wp
     icegrowave  (:,:) = 0.0_wp
     snowmelted  (:,:) = 0.0_wp
+    !$ACC END KERNELS
     !-------------------------------------------------------------------------------
 
   !TODOram: openmp
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jc = i_startidx_c, i_endidx_c
         IF (all_cells%vertical_levels(jc,jb) < 1) CYCLE ! Ocean points only
 
@@ -398,7 +443,10 @@ CONTAINS
         ENDIF
 
       END DO
+      !$ACC END PARALLEL LOOP
     END DO
+
+    !$ACC END DATA
 
     !-------------------------------------------------------------------------------
     CALL dbg_print('Update_IO_FL: SSS       ', sss           ,str_module, 4, in_subset=p_patch%cells%owned)
@@ -521,26 +569,40 @@ CONTAINS
   !! Initial release by Einar Olason, MPI-M (2013-10).
   !! Modified by Vladimir Lapin,      MPI-M (2015-07).
   !!
-  SUBROUTINE ice_thickness_limiter( p_patch, p_ice, p_oce_sfc, p_os )
+  SUBROUTINE ice_thickness_limiter( p_patch, p_ice, p_oce_sfc, p_os, use_acc )
     TYPE(t_patch),TARGET,      INTENT(IN)    :: p_patch
     TYPE(t_sea_ice),           INTENT(INOUT) :: p_ice
     TYPE(t_ocean_surface),     INTENT(INOUT) :: p_oce_sfc
     TYPE(t_hydro_ocean_state), INTENT(IN)    :: p_os
+    LOGICAL, INTENT(IN), OPTIONAL            :: use_acc
 
     ! Local variables
     TYPE(t_subset_range), POINTER                           :: all_cells
     INTEGER                                                 :: k, jb, jc, i_startidx_c, i_endidx_c
     REAL(wp)                                                :: z_smax, prism_thick_flat
     REAL(wp), DIMENSION (nproma, p_patch%alloc_cell_blocks) :: sss ! Sea surface salinity
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     all_cells    => p_patch%cells%all
+
+    !$ACC DATA CREATE(sss) IF(lacc)
+
     ! surface layer thickness, same as patch_3d%p_patch_1d(1)%prism_thick_flat_sfc_c(:,1,:)
     prism_thick_flat = v_base%del_zlev_m(1)
     ! sea surface salinity
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     sss(:,:)  =  p_os%p_prog(nold(1))%tracer(:,1,:,2)
+    !$ACC END KERNELS
 
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jc = i_startidx_c, i_endidx_c
 
         DO k = 1, p_ice%kice
@@ -585,7 +647,10 @@ CONTAINS
         p_ice%draftave (jc,jb) = sum(p_ice%draft(jc,:,jb) * p_ice%conc(jc,:,jb))
 
       ENDDO
+      !$ACC END PARALLEL LOOP
     ENDDO
+
+    !$ACC END DATA
 
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     CALL dbg_print('iceClUp: hi aft. limiter'     ,p_ice%hi       ,str_module, 3, in_subset=p_patch%cells%owned)
@@ -605,18 +670,31 @@ CONTAINS
   !! Modified by Vladimir Lapin,      MPI-M (2015-07).
   !! Modified by Helmuth Haak,        MPI-M (2020-02).
 
-  SUBROUTINE ice_thickness_limiter_hh( p_patch_3d, p_ice, p_oce_sfc, p_os )
+  SUBROUTINE ice_thickness_limiter_hh( p_patch_3d, p_ice, p_oce_sfc, p_os, use_acc )
     TYPE(t_patch_3d),TARGET,      INTENT(IN) :: p_patch_3d
     TYPE(t_sea_ice),           INTENT(INOUT) :: p_ice
     TYPE(t_ocean_surface),     INTENT(INOUT) :: p_oce_sfc
     TYPE(t_hydro_ocean_state), INTENT(IN)    :: p_os
+    LOGICAL, INTENT(IN), OPTIONAL            :: use_acc
 
     ! Local variables
     TYPE(t_patch), POINTER                   :: p_patch
     TYPE(t_subset_range), POINTER            :: all_cells
-    INTEGER                                                 :: k, jb, jc, i_startidx_c, i_endidx_c
+    INTEGER                                  :: k, jb, jc, i_startidx_c, i_endidx_c
     REAL(wp)                                 :: z_smax ,rhoicwa,zunderice_old,zunderice_new,ddice &
-                                               ,svnew,svold,draft_old 
+                                               ,svnew,svold,draft_old
+    LOGICAL :: lacc
+    CHARACTER(len=*), PARAMETER :: routine = 'ice_thickness_limiter_hh'
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+#ifdef _OPENACC
+    IF (lacc) CALL finish(routine, 'OpenACC version currently not tested/validated')
+#endif
 
     p_patch => p_patch_3D%p_patch_2D(1)
     all_cells => p_patch%cells%all
@@ -624,6 +702,7 @@ CONTAINS
 
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jc = i_startidx_c, i_endidx_c
 
         DO k = 1, p_ice%kice
@@ -650,7 +729,7 @@ CONTAINS
            
             !update surface salinity
             p_os%p_prog(nold(1))%tracer(jc,1,jb,2) =(rhoicwa*ddice*sice &
-	                     +p_os%p_prog(nold(1))%tracer(jc,1,jb,2)*zunderice_old)/p_ice%zunderice(jc,jb)
+                             +p_os%p_prog(nold(1))%tracer(jc,1,jb,2)*zunderice_old)/p_ice%zunderice(jc,jb)
 
             svnew =sice*rhoicwa*(p_ice%hi(jc,k,jb)*p_ice%conc(jc,k,jb)) &
                        +p_os%p_prog(nold(1))%tracer(jc,1,jb,2)*zunderice_new 
@@ -670,10 +749,9 @@ CONTAINS
        p_ice%draftave (jc,jb) = sum(p_ice%draft(jc,:,jb) * p_ice%conc(jc,:,jb))
 
       ENDDO
+      !$ACC END PARALLEL LOOP
     ENDDO
        
-   
-
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     CALL dbg_print('iceClUp: hi aft. limiter'     ,p_ice%hi       ,str_module, 3, in_subset=p_patch%cells%owned)
     CALL dbg_print('iceClUp: hs aft. limiter'     ,p_ice%hs       ,str_module, 3, in_subset=p_patch%cells%owned)
@@ -692,24 +770,38 @@ CONTAINS
   !! Originally code by Dirk Notz, following MPI-OM. Code transfered to ICON.
   !! Restructured    by Vladimir Lapin, MPI-M (2017-03).
   !
-  SUBROUTINE ice_growth_init (ice)
+  SUBROUTINE ice_growth_init (ice,use_acc)
 
     TYPE (t_sea_ice), INTENT(INOUT) :: ice
+    LOGICAL, INTENT(IN), OPTIONAL   :: use_acc
+
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
 !ICON_OMP_PARALLEL
 !ICON_OMP_WORKSHARE
     ! initialize ice-growth-related variables with zeros
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     ice % zHeatOceI   (:,:,:) = 0._wp
     ice % heatOceI    (:,:,:) = 0._wp
-    ice % heatOceW      (:,:) = 0._wp
     ice % snow_to_ice (:,:,:) = 0._wp
-    ice % newice        (:,:) = 0._wp
-    ice % totalsnowfall (:,:) = 0._wp
     ice % delhi       (:,:,:) = 0._wp         ! change in mean ice thickness due to thermodynamic effects
     ice % delhs       (:,:,:) = 0._wp         ! change in mean snow thickness due to melting
-!
     ice % hiold (:,:,:) = ice%hi(:,:,:)
 !    ice % hsold (:,:,:) = ice%hs(:,:,:)
+    !$ACC END KERNELS
+
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    ice % heatOceW      (:,:) = 0._wp
+    ice % newice        (:,:) = 0._wp
+    ice % totalsnowfall (:,:) = 0._wp
+    !$ACC END KERNELS
+!
 !ICON_OMP_END_WORKSHARE
 !ICON_OMP_END_PARALLEL
 

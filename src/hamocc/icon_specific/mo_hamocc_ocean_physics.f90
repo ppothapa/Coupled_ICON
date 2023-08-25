@@ -56,13 +56,12 @@
 
     CONTAINS
 
-  SUBROUTINE tracer_biochemistry_transport(hamocc_ocean_state, operators_coefficients, current_time, stretch_e)
+  SUBROUTINE tracer_biochemistry_transport(hamocc_ocean_state, operators_coefficients, current_time)
 
     TYPE(t_hamocc_ocean_state), TARGET               :: hamocc_ocean_state
     TYPE(t_operator_coeff),   INTENT(inout)          :: operators_coefficients
     TYPE(datetime), POINTER, INTENT(in)              :: current_time
-    REAL(wp), INTENT(IN), OPTIONAL :: stretch_e(nproma, hamocc_ocean_state%ocean_transport_state%patch_3d%p_patch_2d(1)%nblks_e)
-
+ 
     
     TYPE(t_tracer_collection) , POINTER              :: old_tracer_collection, new_tracer_collection
     TYPE(t_ocean_to_hamocc_state), POINTER           :: ocean_to_hamocc_state
@@ -77,6 +76,8 @@
     REAL(wp) :: ptiestu(bgc_nproma, bgc_zlevs, hamocc_ocean_state%ocean_transport_state%patch_3d%p_patch_2d(1)%alloc_cell_blocks)
     REAL(wp) :: ssh(bgc_nproma, hamocc_ocean_state%ocean_transport_state%patch_3d%p_patch_2d(1)%alloc_cell_blocks)
     REAL(wp) :: ssh_new(bgc_nproma, hamocc_ocean_state%ocean_transport_state%patch_3d%p_patch_2d(1)%alloc_cell_blocks)
+ 
+    REAL(wp) :: stretch_e(nproma, hamocc_ocean_state%ocean_transport_state%patch_3d%p_patch_2d(1)%nblks_e)
 
     ! OpenACC data movement - to be deleted later on
     TYPE(t_bgc_memory), POINTER :: local_bgc_memory
@@ -84,14 +85,20 @@
     TYPE(t_aggregates_memory), POINTER :: local_aggregate_memory
     INTEGER :: local_memory_idx
 
-    INTEGER :: i, jk
+    INTEGER :: i, jk, jb, start_index, end_index
     LOGICAL :: lacc
+
+    INTEGER, DIMENSION(:,:,:), POINTER :: cell_idx, cell_blk
+    REAL(wp), DIMENSION(:,:), POINTER :: stretch_c
+    TYPE(t_subset_range), POINTER :: edges_in_domain, all_edges 
     
     transport_state => hamocc_ocean_state%ocean_transport_state
     patch_3d => transport_state%patch_3d
     ocean_to_hamocc_state => hamocc_ocean_state%ocean_to_hamocc_state
     hamocc_to_ocean_state => hamocc_ocean_state%hamocc_to_ocean_state
     hamocc_state_prog => hamocc_state%p_prog(nold(1))
+    edges_in_domain => patch_3d%p_patch_2D(1)%edges%in_domain
+    all_edges => patch_3d%p_patch_2D(1)%edges%all
 
     ! 2023-01 dzo-DKRZ: Use OpenACC directives in called functions for GPU runs
     lacc = .TRUE.
@@ -99,17 +106,32 @@
     !----------------------------------------------------------------------
 
     IF (vert_cor_type == 1) THEN ! z* coordinate
+    
+      stretch_c => ocean_to_hamocc_state%stretch_c(:,:)
       ! Adapt levels to changed stretching factors
       do jk = 1,bgc_zlevs
         pddpo(:,jk,:) = patch_3d%p_patch_1d(1)%prism_thick_flat_sfc_c(:,jk,:) * &
-              &           ocean_to_hamocc_state%stretch_c(:,:) * patch_3d%wet_c(:,1,:)
+              &           stretch_c(:,:) * patch_3d%wet_c(:,1,:)
         pddpo_new(:,jk,:) = patch_3d%p_patch_1d(1)%prism_thick_flat_sfc_c(:,jk,:) * &
               &           ocean_to_hamocc_state%stretch_c_new(:,:) * patch_3d%wet_c(:,1,:)
 
         ptiestu(:,jk,:) = patch_3d%p_patch_1d(1)%depth_cellMiddle(:,jk,:) * &
-              &           ocean_to_hamocc_state%stretch_c(:,:) + ocean_to_hamocc_state%draftave(:,:)
+              &           stretch_c(:,:) + ocean_to_hamocc_state%draftave(:,:)
       enddo
 
+      ! compute stretch_e as the avrege of the two cells
+      cell_idx  => patch_3D%p_patch_2D(1)%edges%cell_idx
+      cell_blk  => patch_3D%p_patch_2D(1)%edges%cell_blk
+      
+!ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index, jb, i) ICON_OMP_DEFAULT_SCHEDULE
+      DO jb = all_edges%start_block, all_edges%end_block
+        CALL get_index_range(all_edges, jb, start_index, end_index)
+        DO i = start_index, end_index
+          stretch_e(i, jb) = 0.5 * stretch_c(cell_idx(i, jb, 1), cell_blk(i, jb, 1)) + 0.5 * stretch_c(cell_idx(i, jb, 2), cell_blk(i, jb, 2))        
+        END DO
+      END DO 
+!ICON_OMP_END_PARALLEL_DO    
+      
       ! ssh is included in the adapted level thickness and depth
       ssh(:,:) = 0.0_wp
       ssh_new(:,:) = 0.0_wp
@@ -173,12 +195,11 @@
     start_timer(timer_bgc_tracer_ab,1)
     hamocc_state_prog => hamocc_state%p_prog(nnew(1))
 
-    IF ((my_process_is_hamocc()) .AND. lfb_bgc_oce) THEN
-      CALL finish("concurrent HAMOCC", "OBGC (phytoplankton and cyano) feedback is not possible with concurent.")
-    ENDIF
+!     IF ((my_process_is_hamocc()) .AND. lfb_bgc_oce) THEN
+!       CALL finish("concurrent HAMOCC", "OBGC (phytoplankton and cyano) feedback is not possible with concurent.")
+!     ENDIF
 
     IF (vert_cor_type == 1) THEN ! zstar transport routines
-      IF (PRESENT(stretch_e)) THEN
         IF (GMRedi_configuration == Cartesian_Mixing) THEN
           !! Note that zstar has no horizontal diffusion
           CALL advect_ocean_tracers_zstar(old_tracer_collection, new_tracer_collection, &
@@ -193,9 +214,6 @@
                  &  ocean_to_hamocc_state%stretch_c, stretch_e, ocean_to_hamocc_state%stretch_c_new)
           ENDIF
         ENDIF
-      ELSE
-        CALL finish("HAMOCC transport", "zstar transport needs stretch_e variable!")
-      ENDIF
     ELSE
       IF (GMRedi_configuration == Cartesian_Mixing) THEN
         CALL advect_ocean_tracers(old_tracer_collection, new_tracer_collection, transport_state, &

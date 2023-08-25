@@ -2,6 +2,7 @@
 
 # List of procedures to be inlined:
 pgi_inlib_procedures+= \
+  T_from_internal_energy \
   alb_seaice_equil \
   alpha0_char \
   calc_ustar \
@@ -55,8 +56,8 @@ pgi_inlib_procedures+= \
   mc_limiter \
   nwp_dyn_gust \
   pade_eval_1 \
-  qsat_rho \
   qsat_ice_rho \
+  qsat_rho \
   reff_crystal \
   reff_droplet \
   rel_hum \
@@ -71,7 +72,6 @@ pgi_inlib_procedures+= \
   sfc_albedo_whitecap \
   spec_humi \
   swdir_s \
-  T_from_internal_energy \
   time_avg \
   vdiff_mixed_time_value \
   vdiff_new_time_value \
@@ -97,6 +97,7 @@ pgi_inlib_f90_files+= \
   src/atm_phy_nwp/mo_nwp_ww.f90 \
   src/atm_phy_nwp/mo_opt_nwp_diagnostics.f90 \
   src/atm_phy_nwp/mo_util_phys.f90 \
+  src/atm_phy_rte_rrtmgp/mo_cloud_optics.f90 \
   src/atm_phy_schemes/gscp_cloudice.f90 \
   src/atm_phy_schemes/gscp_graupel.f90 \
   src/atm_phy_schemes/gscp_hydci_pp_ice.f90 \
@@ -114,16 +115,9 @@ pgi_inlib_f90_files+= \
   src/shared/mo_math_utilities.f90 \
   src/shared/mo_statistics.f90
 
-@RTE_RRTMGP_ENABLED@pgi_inlib_f90_files+= \
-@RTE_RRTMGP_ENABLED@src/atm_phy_rte_rrtmgp/mo_cloud_optics.f90
-
-# List of files where we need to manually limit GPU register usage
-pgi_limit_registers_OBJECTS:=            \
-		src/atm_phy_schemes/mo_cuinit.o
-
-# And limiting flags
-pgi_limit_registers_FCFLAGS:= -gpu=maxregcount:96
-
+# List of files to be compiled with the GPU register limit flag:
+@GPU_ENABLED@pgi_inlib_reglim_f90_files+= \
+@GPU_ENABLED@  src/atm_phy_schemes/mo_cuinit.f90
 
 # acc routines that are not inlined:
 # functions and subroutines in submodules dace and rte-rrtmgp

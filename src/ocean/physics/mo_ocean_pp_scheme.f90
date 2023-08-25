@@ -945,18 +945,20 @@ CONTAINS
   !! Initial release by Leonidas Linardakis, MPI-M (2011-02)
   !<Optimize:inUse:done>
   SUBROUTINE ICON_PP_Edge_vnPredict_scheme(patch_3d, &
-    & blockNo, start_index, end_index, ocean_state, vn_predict) !, calculate_density_func)
+    & blockNo, start_index, end_index, ocean_state, vn_predict, use_acc) !, calculate_density_func)
 
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
     INTEGER, INTENT(in) :: blockNo, start_index, end_index
     TYPE(t_hydro_ocean_state), TARGET :: ocean_state
     REAL(wp) :: vn_predict(:,:)
+    LOGICAL, INTENT(in), OPTIONAL     :: use_acc
 
     ! Local variables
     INTEGER :: je,jk
     !INTEGER  :: ile1, ibe1,ile2, ibe2,ile3, ibe3
     INTEGER :: cell_1_idx, cell_1_block, cell_2_idx,cell_2_block
     INTEGER :: levels
+    LOGICAL :: lacc
 
     !Below is a set of variables and parameters for tracer and velocity
     REAL(wp), PARAMETER :: z_0               = 40.0_wp
@@ -970,6 +972,17 @@ CONTAINS
     REAL(wp) :: z_vert_density_grad_e(1:n_zlev+1)
     TYPE(t_patch), POINTER :: patch_2D
     TYPE(t_ho_params), POINTER :: params_oce
+    CHARACTER(LEN=*), PARAMETER :: routine='ICON_PP_Edge_vnPredict_scheme'
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+#ifdef _OPENACC
+    IF (lacc) CALL finish(routine, "OpenACC version currently not tested/validated")
+#endif
 
     !-------------------------------------------------------------------------
     params_oce      => v_params
@@ -983,6 +996,9 @@ CONTAINS
     z_inv_OceanReferenceDensity  = 1.0_wp/OceanReferenceDensity
     !-------------------------------------------------------------------------
 
+    !$ACC DATA CREATE(z_vert_density_grad_e) IF(lacc)
+
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
     DO je = start_index, end_index
 
       cell_1_idx = patch_2D%edges%cell_idx(je,blockNo,1)
@@ -1027,7 +1043,10 @@ CONTAINS
            & (1.0_wp - VerticalViscosity_TimeWeight) * new_velocity_friction
 
       END DO ! jk = 2, levels
-    ENDDO ! je = start_index, end_index
+    END DO ! je = start_index, end_index
+    !$ACC END PARALLEL LOOP
+
+    !$ACC END DATA
 
   END SUBROUTINE ICON_PP_Edge_vnPredict_scheme
   !-------------------------------------------------------------------------

@@ -54,10 +54,6 @@ MODULE mo_ocean_hamocc_couple_state
   !----------------------------------------------
   TYPE t_ocean_to_hamocc_state
     onCells_2D :: top_dilution_coeff
-    onCells_2D :: eta_c
-    onCells_2D :: stretch_c
-    onCells_2D :: stretch_c_new
-    onCells_2D :: draftave
     onCells_2D :: h_old
     onCells_2D :: h_new
     onCells_2D :: h_old_withIce
@@ -75,7 +71,13 @@ MODULE mo_ocean_hamocc_couple_state
     onCells_2D :: short_wave_flux
     onCells_2D :: wind10m
     onCells_2D :: co2_mixing_ratio   
-     
+
+    ! thses are for the zstar
+!     onCells_2D :: eta_c  not used
+    onCells_2D :: stretch_c
+    onCells_2D :: stretch_c_new
+    onCells_2D :: draftave
+
   END TYPE t_ocean_to_hamocc_state
   !-------------------------_state---------------------
   
@@ -175,13 +177,15 @@ CONTAINS
 
 
     ! zstar variables
-    CALL add_var(hamocc_ocean_state_list, 'eta_c', hamocc_ocean_state%ocean_to_hamocc_state%eta_c , &
-      & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,    &
-      & t_cf_var('eta_c', 'm', 'eta_c', datatype_flt,'eta_c'),&
-      & grib2_var(255, 255, 1, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
-      & ldims=(/nproma,alloc_cell_blocks/),&
-      & in_group=groups("hamocc_ocean_state"))
-    hamocc_ocean_state%ocean_to_hamocc_state%eta_c = 0.0_wp
+    
+    ! not used
+!     CALL add_var(hamocc_ocean_state_list, 'eta_c', hamocc_ocean_state%ocean_to_hamocc_state%eta_c , &
+!       & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,    &
+!       & t_cf_var('eta_c', 'm', 'eta_c', datatype_flt,'eta_c'),&
+!       & grib2_var(255, 255, 1, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
+!       & ldims=(/nproma,alloc_cell_blocks/),&
+!       & in_group=groups("hamocc_ocean_state"))
+!     hamocc_ocean_state%ocean_to_hamocc_state%eta_c = 0.0_wp
 
     CALL add_var(hamocc_ocean_state_list, 'stretch_c', hamocc_ocean_state%ocean_to_hamocc_state%stretch_c , &
       & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,    &
@@ -327,7 +331,7 @@ CONTAINS
       & t_cf_var('swr_fraction','1','swr_fraction', datatype_flt),&
       & grib2_var(255, 255, 255, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
       & ldims=(/nproma,n_zlev,alloc_cell_blocks/),in_group=groups("hamocc_ocean_state"))
-    
+   hamocc_ocean_state%hamocc_to_ocean_state%swr_fraction = 1.0_wp 
     
    END SUBROUTINE construct_hamocc_ocean_state
    !-------------------------------------------------------------------------

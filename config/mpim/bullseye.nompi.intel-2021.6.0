@@ -36,20 +36,24 @@ CC='icc'
 CFLAGS='-g -march=native -pc64 -ftz -fma -ip -qno-opt-dynamic-align'
 ICON_CFLAGS='-O3'
 ICON_BUNDLED_CFLAGS='-O2'
+
+CXX='icpc'
+CXXFLAGS='-g -march=native -pc64 -ftz -fma -ip -qno-opt-dynamic-align -O2'
+
 CPPFLAGS="-I${sw_root}/include -I${sw_root}/include/libxml2"
 
 FC='ifort'
 FCFLAGS="-I${sw_root}/include ${RTTOV_FCFLAGS-} -g -march=native -pc64 -fp-model source"
 
-ICON_FCFLAGS='-O3 -ftz -qoverride-limits -assume realloc_lhs -align array64byte -fma -ip -D__SWAPDIM -DOCE_SOLVE_OMP'
+ICON_FCFLAGS='-O3 -ftz -qoverride-limits -assume realloc_lhs -align array64byte -fma -ip'
 
-ICON_OCEAN_FCFLAGS='-O3 -assume norealloc_lhs -reentrancy threaded -qopt-report-file=stdout -qopt-report=0 -qopt-report-phase=vec'
+ICON_OCEAN_FCFLAGS='-O3 -assume norealloc_lhs -reentrancy threaded -qopt-report-file=stdout -qopt-report=0 -qopt-report-phase=vec -DOCE_SOLVE_OMP'
 ICON_OCEAN_PATH='src/hamocc:src/ocean:src/sea_ice'
 
 ICON_ECRAD_FCFLAGS='-qno-opt-dynamic-align -no-fma -fpe0'  # no optimization?
 
 LDFLAGS="-L${sw_root}/lib ${RTTOV_LDFLAGS-} -Wl,--disable-new-dtags"
-LIBS="-Wl,--as-needed -lfyaml -lxml2 -lSerialboxFortran -leccodes_f90 -leccodes ${RTTOV_LIBS-} -llapack -lblas -lnetcdff -lnetcdf -lhdf5_hl_fortran -lhdf5_fortran -lhdf5 -lz"
+LIBS="-Wl,--as-needed -lxml2 -lSerialboxFortran -leccodes_f90 -leccodes ${RTTOV_LIBS-} -llapack -lblas -lnetcdff -lnetcdf -lhdf5_hl_fortran -lhdf5_fortran -lhdf5 -lz"
 
 AR='xiar'
 
@@ -63,6 +67,8 @@ BUILD_ENV="${BUILD_ENV}" \
 CC="${CC}" \
 CFLAGS="${CFLAGS}" \
 CPPFLAGS="${CPPFLAGS}" \
+CXX="${CXX}" \
+CXXFLAGS="${CXXFLAGS}" \
 FC="${FC}" \
 FCFLAGS="${FCFLAGS}" \
 ICON_BUNDLED_CFLAGS="${ICON_BUNDLED_CFLAGS}" \

@@ -20,7 +20,7 @@ listname=${1:-merge2rc}
 # temporary set nvhpc builder to Inactive, because they
 # should not run all tests added to levante below
 # their tests will be set up separately
-./set_builder_flags Inactive --builders 'levante_aurora levante_gpu_nvhpc levante_cpu_nvhpc' --list $listname
+./set_builder_flags Inactive --builders 'levante_aurora levante_gpu_nvhpc levante_cpu_nvhpc levante_gpu_validation' --list $listname
 #-----------------------------------------------------------
 # AES
 # add qubicc tests incl. GRIB output to Levante only
@@ -35,6 +35,7 @@ $addexp "checksuite.icon-dev/check.atm_heldsuarez"        --machines "levante" -
 $addexp "checksuite.icon-dev/check.atm_ape"               --machines "levante" --list $listname --runflags "queue=compute"
 $addexp "checksuite.icon-dev/check.atm_sma"               --machines "levante" --list $listname --runflags "queue=compute"
 $addexp "checksuite.icon-dev/check.atm_bubble_test"       --machines "levante" --list $listname --runflags "queue=shared"
+$addexp "checksuite.icon-dev/check.atm_bubble_test_update" --machines "levante" --list $listname --runflags "queue=shared"
 $addexp "checksuite.icon-dev/check.atm_bubble_land_test"  --machines "levante" --list $listname --runflags "queue=shared"
 # add qubicc update test on Levante (netcdf) only
 $addexp "checksuite.icon-dev/check.atm_qubicc_nc_update"  --machines "levante" --list $listname --runflags="ntasks=16 queue=shared,compute memory=32G"
@@ -51,6 +52,8 @@ $addexp "checksuite.icon-dev/check.atm_ape"               --machines "daint" --l
 
 # no update test for qubicc on levante_nag's
 ./rmexp "checksuite.icon-dev/check.atm_qubicc_nc_update"  --builders "levante_nag_serial DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
+# no update test for bubble on levante_nag's
+./rmexp "checksuite.icon-dev/check.atm_bubble_test_update"  --builders "levante_nag levante_nag_serial" --list $listname
 #sma fails in a hybrid mixed build
 ./rmexp "checksuite.icon-dev/check.atm_sma"  --builders "levante_intel_hybrid_mixed" --list $listname
 
@@ -205,6 +208,10 @@ $addexp "checksuite.icon-dev/check.atm_bubble_test" --builders 'levante_gpu_nvhp
 $addexp "checksuite.icon-dev/check.atm_bubble_test" --builders 'levante_cpu_nvhpc' --list $listname --runflags "queue=shared ntasks=16 memory=32G"
 $addexp "checksuite.icon-dev/check.atm_bubble_land_test" --builders 'levante_gpu_nvhpc' --list $listname --runflags "mpi_procs_pernode=3"
 $addexp "checksuite.icon-dev/check.atm_bubble_land_test" --builders 'levante_cpu_nvhpc' --list $listname --runflags "queue=shared ntasks=16 memory=32G"
+
+# add ocean_omip test for GPU
+$addexp "checksuite.ocean_internal/gpu/exp.ocean_omip_R2B4_V0_GM0"  --builders 'levante_gpu_nvhpc' --list $listname --runflags "cpu_time=00:10:00"
+$addexp "checksuite.ocean_internal/gpu/exp.ocean_omip_R2B4_V1_GM0"  --builders 'levante_gpu_nvhpc' --list $listname --runflags "cpu_time=00:10:00"
 
 # add tests for checking yaxt and yac stand-alone; this needs yaxt/yac to be enabled
 # Three YAXT tests (test_idxvec_run, test_idxstripes_run, test_perf_stripes_run) fail wih nfort-3.5.1

@@ -252,7 +252,10 @@ CONTAINS
                                  ocean_2_hamocc_redist_edges_3d, & ! transport: mass_flux_e
                                  ocean_2_hamocc_redist_edges_3d, & ! transport: vn
                                  ocean_2_hamocc_redist_cells_3d_halfLevels, & ! transport:w
-                                 ocean_2_hamocc_redist_cells_3d & ! press_hyd
+                                 ocean_2_hamocc_redist_cells_3d, & ! press_hyd
+                                 ocean_2_hamocc_redist_cells_2d, & ! stretch_c    
+                                 ocean_2_hamocc_redist_cells_2d, & ! stretch_c_new
+                                 ocean_2_hamocc_redist_cells_2d  & ! draftave     
                                  /), & !
                                ocean_hamocc_intercomm)
                               ! ocean_2_hamocc_redist_edges_3d, & ! hor_diffusion_coeff
@@ -373,7 +376,10 @@ CONTAINS
     &  mass_flux_e, &
     &  vn, &
     &  w, &
-    &  press_hyd )
+    &  press_hyd, &
+    &  stretch_c, &
+    &  stretch_c_new, &
+    &  draftave)
 
 
     !INTEGER,INTENT(INOUT)  :: &
@@ -392,10 +398,13 @@ CONTAINS
       &  mass_flux_e, &
       &  vn, &
       &  w , & 
-      &  press_hyd
+      &  press_hyd, &
+      &  stretch_c, &
+      &  stretch_c_new, &
+      &  draftave
+ 
 
-
-    TYPE(c_ptr) :: src_data_cptr(15), dst_data_cptr(15)
+    TYPE(c_ptr) :: src_data_cptr(18), dst_data_cptr(18)
 
     src_data_cptr( 1) =  top_dilution_coeff
     src_data_cptr( 2) =  h_old
@@ -412,6 +421,9 @@ CONTAINS
     src_data_cptr(13) =  vn
     src_data_cptr(14) =  w
     src_data_cptr(15) =  press_hyd
+    src_data_cptr(16) =  stretch_c
+    src_data_cptr(17) =  stretch_c_new
+    src_data_cptr(18) =  draftave
 
     dst_data_cptr = src_data_cptr
 

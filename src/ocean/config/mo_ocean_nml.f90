@@ -786,6 +786,11 @@ MODULE mo_ocean_nml
   REAL(wp) :: OceanReferenceDensity = rho_ref
   REAL(wp) :: OceanReferenceDensity_inv
   REAL(wp) :: ReferencePressureIndbars
+
+  !$ACC DECLARE CREATE(eos_type)
+  !$ACC DECLARE CREATE(OceanReferenceDensity)
+  !$ACC DECLARE CREATE(LinearThermoExpansionCoefficient)
+  !$ACC DECLARE CREATE(LinearHalineContractionCoefficient)
   
   ! ist : todo move into different nml
   LOGICAL  :: lhamocc=.FALSE.
@@ -1538,6 +1543,11 @@ MODULE mo_ocean_nml
        nbgctra = n_bgctra
        if(lbgcadv) nbgcadv =  ntraad
     endif
+
+    !$ACC UPDATE DEVICE(eos_type)
+    !$ACC UPDATE DEVICE(OceanReferenceDensity)
+    !$ACC UPDATE DEVICE(LinearThermoExpansionCoefficient)
+    !$ACC UPDATE DEVICE(LinearHalineContractionCoefficient)
 
 END SUBROUTINE read_ocean_namelist
 

@@ -34,14 +34,16 @@ BUILD_ENV=". \"${ENV}\";. \"${script_dir}/module_switcher\"; switch_for_module $
 
 CC='nvc'
 CFLAGS='-g -O2'
+
+CXX='nvc++'
+CXXFLAGS='-g -O2'
+
 CPPFLAGS="-I${sw_root}/include -I${sw_root}/include/libxml2"
 
 FC='nvfortran'
-FCFLAGS="-I${sw_root}/include ${RTTOV_FCFLAGS-} -g -Mrecursive -Mallocatable=03"
+FCFLAGS="-I${sw_root}/include ${RTTOV_FCFLAGS-} -g -Mrecursive -Mallocatable=03 -Mstack_arrays -Minfo=inline"
 
-common_ICON_FCFLAGS='-D__SWAPDIM'
-
-ICON_FCFLAGS="-O ${common_ICON_FCFLAGS}"
+ICON_FCFLAGS='-O2'
 
 LDFLAGS="-L${sw_root}/lib ${RTTOV_LDFLAGS-}"
 # The configure scripts of some of the bundled libraries (e.g. SCT) are
@@ -53,9 +55,9 @@ LDFLAGS="-L${sw_root}/lib ${RTTOV_LDFLAGS-}"
 # are meant for the linker only via ICON_LDFLAGS so that they are not passed to
 # any libtool script:
 ICON_LDFLAGS='-Wl,--disable-new-dtags -Wl,--as-needed'
-LIBS="-lfyaml -lxml2 -lSerialboxFortran -leccodes_f90 -leccodes ${RTTOV_LIBS-} -llapack -lblas -lnetcdff -lnetcdf -lhdf5_hl_fortran -lhdf5_fortran -lhdf5 -lz"
+LIBS="-lxml2 -lSerialboxFortran -leccodes_f90 -leccodes ${RTTOV_LIBS-} -llapack -lblas -lnetcdff -lnetcdf -lhdf5_hl_fortran -lhdf5_fortran -lhdf5 -lz"
 
-EXTRA_CONFIG_ARGS='--disable-mpi --disable-coupling --enable-grib2'
+EXTRA_CONFIG_ARGS='--enable-loop-exchange --enable-grib2 --disable-mpi --disable-coupling'
 
 ################################################################################
 
@@ -64,6 +66,8 @@ BUILD_ENV="${BUILD_ENV}" \
 CC="${CC}" \
 CFLAGS="${CFLAGS}" \
 CPPFLAGS="${CPPFLAGS}" \
+CXX="${CXX}" \
+CXXFLAGS="${CXXFLAGS}" \
 FC="${FC}" \
 FCFLAGS="${FCFLAGS}" \
 ICON_FCFLAGS="${ICON_FCFLAGS}" \

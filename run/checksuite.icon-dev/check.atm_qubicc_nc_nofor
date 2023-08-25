@@ -34,7 +34,7 @@ TYPES="$TYPES ddt_ua_dyn_ml    ddt_va_dyn_ml"                      # tendencies,
 # to be checked.
 #
 export DATES=''
-DATES="$DATES 19790101T000000Z"                                    # date  of initialization
+#DATES="$DATES 19790101T000000Z"                                    # date  of initialization
 DATES="$DATES 19790101T000040Z 19790101T000120Z 19790101T000200Z \
               19790101T000240Z 19790101T000320Z 19790101T000400Z"  # dates of time steps
 

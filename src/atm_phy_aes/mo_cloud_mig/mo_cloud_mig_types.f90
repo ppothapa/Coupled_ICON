@@ -34,13 +34,11 @@ MODULE mo_cloud_mig_types
      ! configuration parameters
      ! ------------------------
      !
+     ! no parameters available.....
+     !
+     ! thresholds
+     !
      ! grid scale microphysics
-     REAL(wp) :: zceff_min      ! minimum value for sticking efficiency
-     REAL(wp) :: v0snow         ! factor in the terminal velocity for snow
-     REAL(wp) :: zvz0i          ! terminal fall velocity of ice
-     REAL(wp) :: icesedi_exp    ! exponent for density correction of cloud ice sedimentation
-     REAL(wp) :: mu_rain        ! parameter in gamma distribution for rain
-     REAL(wp) :: rain_n0_factor ! tuning factor for intercept parameter of raindrop size distribution
      !
   END TYPE t_cloud_mig_config
 

@@ -44,7 +44,7 @@ TYPES="$TYPES tend_ta_mig_ml   tend_qhus_mig_ml \
 # to be checked.
 #
 export DATES=''
-DATES="$DATES 19790101T000000Z"                                    # date  of initialization
+#DATES="$DATES 19790101T000000Z"                                    # date  of initialization
 DATES="$DATES 19790101T000040Z 19790101T000120Z 19790101T000200Z \
               19790101T000240Z 19790101T000320Z 19790101T000400Z"  # dates of time steps
 

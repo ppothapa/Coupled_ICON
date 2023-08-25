@@ -56,11 +56,12 @@ CONTAINS
   !! @par Revision History
   !! Developed by Vladimir Lapin, MPI-M (2015-10-13)
   !<Optimize:inUse>
-  SUBROUTINE gvec2cvec_c_2d(patch_3d, gvec_u, gvec_v, cvec)
+  SUBROUTINE gvec2cvec_c_2d(patch_3d, gvec_u, gvec_v, cvec, use_acc)
 
     TYPE(t_patch_3d),TARGET, INTENT(in)       :: patch_3d
     REAL(wp), INTENT(in)                      :: gvec_u(:,:), gvec_v(:,:)
     TYPE(t_cartesian_coordinates),INTENT(out) :: cvec(nproma,patch_3d%p_patch_2D(1)%alloc_cell_blocks)
+    LOGICAL, INTENT(IN), OPTIONAL             :: use_acc
 
    ! Local variables
     ! Patch and ranges
@@ -69,7 +70,14 @@ CONTAINS
 
     ! Indexing
     INTEGER  :: i_startidx_c, i_endidx_c, jc, jb!, jk
+    LOGICAL  :: lacc
     !-----------------------------------------------------------------------
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     p_patch   => patch_3d%p_patch_2d(1)
     all_cells => p_patch%cells%all
@@ -77,6 +85,7 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c,i_endidx_c, jc) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jc = i_startidx_c, i_endidx_c
         IF(patch_3d%lsm_c(jc,1,jb) <= sea_boundary)THEN
           CALL gvec2cvec(  gvec_u(jc,jb), gvec_v(jc,jb), &
@@ -87,6 +96,7 @@ CONTAINS
           cvec(jc,jb)%x    = 0.0_wp
         ENDIF
       END DO
+      !$ACC END PARALLEL LOOP
     END DO
 !ICON_OMP_END_PARALLEL_DO
 
@@ -100,12 +110,13 @@ CONTAINS
   !! @par Revision History
   !! Developed by Vladimir Lapin, MPI-M (2015-10-13)
   !<Optimize:inUse>
-  SUBROUTINE cvec2gvec_c_2d(patch_3d, cvec, gvec_u, gvec_v)
+  SUBROUTINE cvec2gvec_c_2d(patch_3d, cvec, gvec_u, gvec_v, use_acc)
 
     TYPE(t_patch_3d),TARGET, INTENT(in)       :: patch_3d
     TYPE(t_cartesian_coordinates),INTENT(in)  :: cvec(nproma,patch_3d%p_patch_2D(1)%alloc_cell_blocks)
     REAL(wp), INTENT(out)                     :: gvec_u(nproma,patch_3d%p_patch_2D(1)%alloc_cell_blocks), &
                                                & gvec_v(nproma,patch_3d%p_patch_2D(1)%alloc_cell_blocks)
+    LOGICAL, INTENT(IN), OPTIONAL             :: use_acc
 
    ! Local variables
     ! Patch and ranges
@@ -114,7 +125,14 @@ CONTAINS
 
     ! Indexing
     INTEGER  :: i_startidx_c, i_endidx_c, jc, jb!, jk
+    LOGICAL  :: lacc
     !-----------------------------------------------------------------------
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     p_patch   => patch_3d%p_patch_2d(1)
     all_cells => p_patch%cells%all
@@ -122,6 +140,7 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c,i_endidx_c, jc) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jc = i_startidx_c, i_endidx_c
         IF(patch_3d%lsm_c(jc,1,jb) <= sea_boundary)THEN
           CALL cvec2gvec(  cvec(jc,jb)%x(1),cvec(jc,jb)%x(2),cvec(jc,jb)%x(3), &
@@ -133,6 +152,7 @@ CONTAINS
           gvec_v(jc,jb) = 0._wp
         ENDIF
       END DO
+      !$ACC END PARALLEL LOOP
     END DO
 !ICON_OMP_END_PARALLEL_DO
 
@@ -146,31 +166,41 @@ CONTAINS
   !! @par Revision History
   !! Developed by Vladimir Lapin, MPI-M (2015-10-25)
   !<Optimize:inUse>
-  SUBROUTINE rotate_cvec_v(p_patch, cvec_in, rot_mat_3D, cvec_out)
+  SUBROUTINE rotate_cvec_v(p_patch, cvec_in, rot_mat_3D, cvec_out, use_acc)
 
     TYPE(t_patch), TARGET, INTENT(in)         :: p_patch
     TYPE(t_cartesian_coordinates),INTENT(in)  :: cvec_in (nproma,p_patch%nblks_v)
     REAL(wp)                                  :: rot_mat_3D(3,3)
     TYPE(t_cartesian_coordinates),INTENT(out) :: cvec_out(nproma,p_patch%nblks_v)
+    LOGICAL, INTENT(IN), OPTIONAL             :: use_acc
 
-   ! Local variables
+    ! Local variables
     TYPE(t_subset_range), POINTER :: all_verts
+    LOGICAL  :: lacc
 
     ! Indexing
     INTEGER  :: i_startidx_v, i_endidx_v, jv, jb
     !-----------------------------------------------------------------------
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     all_verts => p_patch%verts%all
 
 !ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_v,i_endidx_v, jv) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = all_verts%start_block, all_verts%end_block
       CALL get_index_range(all_verts, jb, i_startidx_v, i_endidx_v)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jv = i_startidx_v, i_endidx_v
         ! Intrinsic function matmul not applied, due to poor performance.
         cvec_out(jv,jb)%x(1) = DOT_PRODUCT(rot_mat_3D(1,:),cvec_in(jv,jb)%x(:))
         cvec_out(jv,jb)%x(2) = DOT_PRODUCT(rot_mat_3D(2,:),cvec_in(jv,jb)%x(:))
         cvec_out(jv,jb)%x(3) = DOT_PRODUCT(rot_mat_3D(3,:),cvec_in(jv,jb)%x(:))
       END DO
+      !$ACC END PARALLEL LOOP
     END DO
 !ICON_OMP_END_PARALLEL_DO
 
@@ -184,32 +214,48 @@ CONTAINS
   !! @par Revision History
   !! Developed by Vladimir Lapin, MPI-M (2015-10-25)
   !
-  SUBROUTINE cvec2gvec_v_fem(p_patch, cvec, gvec_u, gvec_v)
+  SUBROUTINE cvec2gvec_v_fem(p_patch, cvec, gvec_u, gvec_v, use_acc)
 
     USE mo_ice_fem_mesh,           ONLY: coord_nod2D
 
     TYPE(t_patch), TARGET, INTENT(in)       :: p_patch
     TYPE(t_cartesian_coordinates),INTENT(in):: cvec(nproma,p_patch%nblks_v)
     REAL(wp), INTENT(out)                   :: gvec_u(:), gvec_v(:)
+    LOGICAL, INTENT(IN), OPTIONAL           :: use_acc
 
-   ! Local variables
+    ! Local variables
     TYPE(t_subset_range), POINTER :: all_verts
+    LOGICAL :: lacc
 
     ! Indexing
-    INTEGER  :: i_startidx_v, i_endidx_v, jv, jb, jk
+    INTEGER  :: i_startidx_v, i_endidx_v, jv, jb, jk, i_startidx_v_1, i_endidx_v_1
     !-----------------------------------------------------------------------
 
-    all_verts => p_patch%verts%all
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
-    jk=0
+    all_verts => p_patch%verts%all
+    i_startidx_v_1 = 0
+    i_endidx_v_1   = 0
+
     DO jb = all_verts%start_block, all_verts%end_block
       CALL get_index_range(all_verts, jb, i_startidx_v, i_endidx_v)
+      IF (jb > all_verts%start_block) &
+          CALL get_index_range(all_verts, jb-1, i_startidx_v_1, i_endidx_v_1)
+
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jv = i_startidx_v, i_endidx_v
-        jk=jk+1
-          CALL cvec2gvec(cvec(jv,jb)%x(1), cvec(jv,jb)%x(2), cvec(jv,jb)%x(3), &
-                       & coord_nod2D(1,jk), coord_nod2D(2,jk), & ! lon, lat
-                       & gvec_u(jk), gvec_v(jk))
+        jk = jv-i_startidx_v+1 + &
+            (jb-all_verts%start_block) * (i_endidx_v_1-i_startidx_v_1+1)
+        CALL cvec2gvec(cvec(jv,jb)%x(1), cvec(jv,jb)%x(2), cvec(jv,jb)%x(3), &
+                     & coord_nod2D(1,jk), coord_nod2D(2,jk), & ! lon, lat
+                     & gvec_u(jk), gvec_v(jk))
       END DO
+      !$ACC END PARALLEL LOOP
+
     END DO
 
   END SUBROUTINE cvec2gvec_v_fem
@@ -222,32 +268,47 @@ CONTAINS
   !! @par Revision History
   !! Developed by Vladimir Lapin, MPI-M (2015-10-25)
   !
-  SUBROUTINE gvec2cvec_v_fem(p_patch, gvec_u, gvec_v, cvec)
+  SUBROUTINE gvec2cvec_v_fem(p_patch, gvec_u, gvec_v, cvec, use_acc)
 
     USE mo_ice_fem_mesh,           ONLY: coord_nod2D
 
     TYPE(t_patch), TARGET, INTENT(in)        :: p_patch
     REAL(wp), INTENT(in)                     :: gvec_u(:), gvec_v(:)
     TYPE(t_cartesian_coordinates),INTENT(out):: cvec(nproma,p_patch%nblks_v)
+    LOGICAL, INTENT(IN), OPTIONAL            :: use_acc
 
     ! Local variables
     TYPE(t_subset_range), POINTER :: all_verts
+    LOGICAL :: lacc
 
     ! Indexing
-    INTEGER  :: i_startidx_v, i_endidx_v, jv, jb, jk
+    INTEGER  :: i_startidx_v, i_endidx_v, jv, jb, jk, i_startidx_v_1, i_endidx_v_1
     !-----------------------------------------------------------------------
 
-    all_verts => p_patch%verts%all
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
-    jk=0
+    all_verts => p_patch%verts%all
+    i_startidx_v_1 = 0
+    i_endidx_v_1   = 0
+
     DO jb = all_verts%start_block, all_verts%end_block
       CALL get_index_range(all_verts, jb, i_startidx_v, i_endidx_v)
+      IF (jb > all_verts%start_block) &
+          CALL get_index_range(all_verts, jb-1, i_startidx_v_1, i_endidx_v_1)
+
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jv = i_startidx_v, i_endidx_v
-        jk=jk+1
-          CALL gvec2cvec(  gvec_u(jk), gvec_v(jk),                   &
-                         & coord_nod2D(1,jk), coord_nod2D(2,jk), & ! lon, lat
-                         & cvec(jv,jb)%x(1), cvec(jv,jb)%x(2), cvec(jv,jb)%x(3) )
+        jk = (jv-i_startidx_v+1) + (jb-all_verts%start_block) * (i_endidx_v_1-i_startidx_v_1+1)
+        CALL gvec2cvec(  gvec_u(jk), gvec_v(jk),                   &
+                       & coord_nod2D(1,jk), coord_nod2D(2,jk), & ! lon, lat
+                       & cvec(jv,jb)%x(1), cvec(jv,jb)%x(2), cvec(jv,jb)%x(3) )
       END DO
+      !$ACC END PARALLEL LOOP
+
     END DO
 
   END SUBROUTINE gvec2cvec_v_fem
@@ -263,12 +324,13 @@ CONTAINS
   !! Developed by Einar Olason, MPI-M (2013-08-05)
   !! Modified by Vladimir Lapin, MPI-M (2015-10-13)
   !<Optimize:inUse>
-  SUBROUTINE map_edges2verts(p_patch, vn, edge2vert_coeff_cc, p_vn_dual)
+  SUBROUTINE map_edges2verts(p_patch, vn, edge2vert_coeff_cc, p_vn_dual, use_acc)
 
     TYPE(t_patch), TARGET, INTENT(in)         :: p_patch
     REAL(wp), INTENT(in)                      :: vn(:,:)
     TYPE(t_cartesian_coordinates),INTENT(in)  :: edge2vert_coeff_cc(:,:,:,:)
     TYPE(t_cartesian_coordinates),INTENT(out) :: p_vn_dual(:,:)
+    LOGICAL, INTENT(IN), OPTIONAL             :: use_acc
 
     ! Local variables
     TYPE(t_subset_range), POINTER :: verts_in_domain
@@ -277,18 +339,28 @@ CONTAINS
     INTEGER :: jv, jb,jev
     INTEGER :: ile, ibe
     INTEGER :: i_startidx_v, i_endidx_v
+    LOGICAL :: lacc
 
     !-----------------------------------------------------------------------
 
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
     verts_in_domain => p_patch%verts%in_domain
     ! Set to zero for nag compiler
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     p_vn_dual(:,:)%x(1) = 0._wp
     p_vn_dual(:,:)%x(2) = 0._wp
     p_vn_dual(:,:)%x(3) = 0._wp
+    !$ACC END KERNELS
 
 !ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_v, i_endidx_v, jv, jev, ile, ibe) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = verts_in_domain%start_block, verts_in_domain%end_block
       CALL get_index_range(verts_in_domain, jb, i_startidx_v, i_endidx_v)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(ile, ibe) IF(lacc)
         DO jv = i_startidx_v, i_endidx_v
 
           p_vn_dual(jv,jb)%x = 0.0_wp
@@ -303,6 +375,7 @@ CONTAINS
 
         END DO
       END DO
+      !$ACC END PARALLEL LOOP
     END DO
 !ICON_OMP_END_PARALLEL_DO
 
@@ -317,16 +390,17 @@ CONTAINS
   !! @par Revision History
   !! Developed by Vladimir Lapin, MPI-M (2015-08-13)
   !<Optimize:inUse>
-  SUBROUTINE map_verts2edges(p_patch, p_vn_dual, edge2vert_coeff_cc_t, vn)
+  SUBROUTINE map_verts2edges(p_patch, p_vn_dual, edge2vert_coeff_cc_t, vn, use_acc)
 
     TYPE(t_patch), TARGET, INTENT(in)        :: p_patch
     TYPE(t_cartesian_coordinates),INTENT(in) :: p_vn_dual(:,:) !(nproma,p_patch%nblks_v)
     TYPE(t_cartesian_coordinates),INTENT(in) :: edge2vert_coeff_cc_t(:,:,:,:)
-
     REAL(wp), INTENT(inout)                  :: vn(:,:) !(nproma,p_patch%nblks_e)
+    LOGICAL, INTENT(in), OPTIONAL            :: use_acc
 
     ! Local variables
     TYPE(t_subset_range), POINTER :: edges_in_domain
+    LOGICAL :: lacc
 
     ! Indexing
     INTEGER :: edge_index, edge_block
@@ -334,6 +408,12 @@ CONTAINS
     INTEGER :: start_index_e, end_index_e
 
     TYPE(t_cartesian_coordinates)   :: p_vn_dual_e
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     !-----------------------------------------------------------------------
     edges_in_domain => p_patch%edges%in_domain
@@ -344,6 +424,7 @@ CONTAINS
 !ICON_OMP  il_v1,ib_v1,il_v2,ib_v2,p_vn_dual_e) ICON_OMP_DEFAULT_SCHEDULE
     DO edge_block = edges_in_domain%start_block, edges_in_domain%end_block
       CALL get_index_range(edges_in_domain, edge_block, start_index_e, end_index_e)
+        !$ACC PARALLEL LOOP GANG VECTOR PRIVATE(p_vn_dual_e) DEFAULT(PRESENT) IF(lacc)
         DO edge_index = start_index_e, end_index_e
 
             !!--------------------------------------------------------------------
@@ -362,6 +443,7 @@ CONTAINS
               ! project to get the normal component only
               vn(edge_index,edge_block) = DOT_PRODUCT(p_vn_dual_e%x, p_patch%edges%primal_cart_normal(edge_index,edge_block)%x)
         END DO
+        !$ACC END PARALLEL LOOP
     END DO
 !ICON_OMP_END_PARALLEL_DO
 
@@ -386,7 +468,7 @@ CONTAINS
 
 !!
 SUBROUTINE cells2verts_scalar_seaice( p_cell_in, ptr_patch, c_int, p_vert_out,  &
-  &                            opt_slev, opt_elev, opt_rlstart, opt_rlend )
+  &                            opt_slev, opt_elev, opt_rlstart, opt_rlend, use_acc )
 !
 
 TYPE(t_patch), TARGET, INTENT(in) :: ptr_patch
@@ -407,6 +489,8 @@ INTEGER, INTENT(in), OPTIONAL ::  opt_rlstart, opt_rlend
 ! vertex based scalar output field
 REAL(wp), INTENT(inout) :: p_vert_out(:,:,:) ! dim: (nproma,nlev,nblks_v)
 
+LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+
 INTEGER :: slev, elev     ! vertical start and end level
 INTEGER :: jv, jk, jb, ji
 INTEGER :: rl_start, rl_end
@@ -414,6 +498,7 @@ INTEGER :: i_startblk, i_endblk, i_startidx, i_endidx, i_nchdom
 INTEGER :: cell_index, cell_block
 
 INTEGER,  DIMENSION(:,:,:),   POINTER :: iidx, iblk
+LOGICAL :: lacc
 
 !-----------------------------------------------------------------------
 
@@ -438,6 +523,12 @@ IF ( PRESENT(opt_rlend) ) THEN
   rl_end = opt_rlend
 ELSE
   rl_end = min_rlvert
+END IF
+
+IF ( PRESENT(use_acc) ) THEN
+  lacc = use_acc
+ELSE
+  lacc = .FALSE.
 END IF
 
 iidx => ptr_patch%verts%cell_idx
@@ -465,6 +556,7 @@ IF (ptr_patch%geometry_info%cell_type == 6) THEN
       DO jk = slev, elev
 #else
 !CDIR UNROLL=6
+    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
     DO jk = slev, elev
       DO jv = i_startidx, i_endidx
 #endif
@@ -476,7 +568,7 @@ IF (ptr_patch%geometry_info%cell_type == 6) THEN
 
       ENDDO
     ENDDO
-
+    !$ACC END PARALLEL LOOP
   ENDDO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -494,6 +586,7 @@ ELSE IF (ptr_patch%geometry_info%cell_type == 3) THEN
       DO jk = slev, elev
 #else
 !CDIR UNROLL=6
+    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) PRIVATE(cell_index, cell_block) IF(lacc)
     DO jk = slev, elev
       DO jv = i_startidx, i_endidx
 #endif
@@ -519,7 +612,7 @@ ELSE IF (ptr_patch%geometry_info%cell_type == 3) THEN
 
       ENDDO
     ENDDO
-
+    !$ACC END PARALLEL LOOP
   ENDDO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
