@@ -9,19 +9,18 @@ icon_dir=$(cd "${script_dir}/../.."; pwd)
 ################################################################################
 
 if test -z "${ICON_SW_PREFIX-}"; then
-  export_ld_path=yes
   case $(uname -s) in
     Darwin)
       # Assume that the packages are installed to '/opt/local'
       # (default for MacPorts):
-      ICON_SW_PREFIX='/opt/local'
-      # Do not export irrelevant environment variable:
-      export_ld_path=no
-      ;;
+      ICON_SW_PREFIX='/opt/local' ;;
     *)
       ICON_SW_PREFIX='/usr' ;;
   esac
 fi
+
+# Do not export irrelevant environment variable:
+test "$(uname -s)" = Darwin && export_ld_path=no || export_ld_path=yes
 
 if test -d "${ICON_SW_PREFIX}"; then
   ICON_SW_PREFIX=$(cd "${ICON_SW_PREFIX}"; pwd)
@@ -63,17 +62,17 @@ NETCDF_LIBS='-lnetcdf'
 # NetCDF-Fortran
 NETCDFF_LIBS='-lnetcdff'
 
-# ecCodes
-GRIB2_LIBS='-leccodes'
-
 # BLAS/LAPACK
 BLAS_LAPACK_LIBS='-llapack -lblas'
 
-# Libxml2
-XML2_LIBS='-lxml2'
+# ecCodes
+ECCODES_LIBS='-leccodes'
 
 # libfyaml
 FYAML_LIBS='-lfyaml'
+
+# Libxml2
+XML2_LIBS='-lxml2'
 
 ################################################################################
 
@@ -98,7 +97,7 @@ FCFLAGS="${FCFLAGS-} -fmodule-private -fimplicit-none -fmax-identifier-length=63
 ICON_FCFLAGS='-std=legacy'
 
 LDFLAGS="${LDFLAGS-}"
-LIBS="${XML2_LIBS} ${FYAML_LIBS} ${BLAS_LAPACK_LIBS} ${GRIB2_LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS}"
+LIBS="${XML2_LIBS} ${FYAML_LIBS} ${ECCODES_LIBS} ${BLAS_LAPACK_LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS}"
 
 MPI_LAUNCH='mpiexec'
 
