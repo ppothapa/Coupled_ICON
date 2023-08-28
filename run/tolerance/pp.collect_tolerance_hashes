@@ -71,13 +71,14 @@ sort_keys () {
 }
 sort_keys "${!experiment_hashes[@]}"
 
-mkdir -p "${basedir}/run/tolerance/hashes/new/"
-# Please don't change this path/file name. It is used by buildbot.
-hash_file=${basedir}/run/tolerance/hashes/new/${builder}
+# Please don't change thess path/file names. They are used by buildbot.
+hash_path=run/tolerance/hashes
+mkdir -p "${basedir}/${hash_path}/new/"
+hash_file=${basedir}/${hash_path}/new/${builder}
 
 # in case no hash file exists for this builder yet, create one
 # or in case no update is requested, create new has file
-if [[ ! -f "${basedir}/run/tolerance/hashes/${builder}" ]] ||  [[ "${update_hash_file-}" != yes ]]; then
+if [[ ! -f "${basedir}/${hash_path}/${builder}" ]] ||  [[ "${update_hash_file-}" != yes ]]; then
 
     {
         # write yaml dictionary
@@ -97,7 +98,7 @@ if [[ ! -f "${basedir}/run/tolerance/hashes/${builder}" ]] ||  [[ "${update_hash
 
 else # update requested
     echo ""
-    echo "Please update the following ${#sorted_keys[@]} line(s) in '${hash_file#${basedir}}'."
+    echo "Please update the following ${#sorted_keys[@]} line(s) in '${hash_path}/${builder}'."
     echo "If any of the experiments is not yet in the list, please add it in alphabetical order"
     for exp in "${sorted_keys[@]}"; do
         experiment_hash=${experiment_hashes[$exp]}
@@ -105,8 +106,8 @@ else # update requested
     done
     echo ""
 
-    echo "# Don't use this file" > $hash_file
-    echo "# Please update the tolerance hashes manually by using the output of tolerance/pp.collect_tolerance_hashes" > $hash_file
+    echo "# Don't use this file" > "$hash_file"
+    echo "# Please update the tolerance hashes manually by using the output of tolerance/pp.collect_tolerance_hashes" > "$hash_file"
 fi
 
 # exit 0 on success (and don't execute any appended scripts)

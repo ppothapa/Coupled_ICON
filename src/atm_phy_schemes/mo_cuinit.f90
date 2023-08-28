@@ -967,7 +967,7 @@ DO jkk=klev,MAX(ktdia,jkt1),-1 ! Big external loop for level testing:
    
         ztvu2(jl,jk) = ztu(jl,jk)  *(1.0_JPRB+retv*zqu(jl,jk))
         ztven2(jl,jk)= ptenh(jl,jk)*(1.0_JPRB+retv*pqenh(jl,jk))
-        IF (jk == jkk-1) THEN
+        IF (jk + 1 == jkk) THEN
            ztvu1(jl,jk)  = ztvu2(jl,jk)
            ztven1(jl,jk) = ztven2(jl,jk)
         ENDIF
