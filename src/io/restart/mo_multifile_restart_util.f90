@@ -16,9 +16,9 @@
 
 MODULE mo_multifile_restart_util
   USE mo_kind,           ONLY: dp, sp
-  USE mo_exception,      ONLY: finish
+  USE mo_exception,      ONLY: finish,message_text
   USE mo_impl_constants, ONLY: SUCCESS, REAL_T, SINGLE_T, INT_T
-  USE mo_std_c_lib,      ONLY: strerror
+  USE mo_util_libc,      ONLY: strerror
   USE mo_util_file,      ONLY: createSymlink
   USE mo_util_string,    ONLY: int2string
   USE mo_io_config,      ONLY: restartWritingParameters, ALL_WORKERS_INVOLVED
@@ -100,7 +100,10 @@ CONTAINS
 
     CALL multifileRestartLinkName(modelType, linkname)
     error = createSymlink(filename, linkname)
-    IF(error /= SUCCESS) CALL finish(routine, "error creating symlink to restart file: '"//strerror(error)//"'")
+    IF(error /= SUCCESS) THEN
+      WRITE(message_text, '(a,a)') "error creating symlink to restart file: ", strerror(error)
+      CALL finish(routine,message_text)
+    ENDIF
   END SUBROUTINE createMultifileRestartLink
 
   !XXX: this IS NOT the ONLY place where this path IS defined, it IS also generated/recognized IN c_restart_util.c

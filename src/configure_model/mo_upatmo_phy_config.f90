@@ -1876,32 +1876,32 @@ CONTAINS !......................................................................
           CALL message(routine, 'Notes on configuration of upper-atmosphere physics:')
           message_text = '* upatmo_nml: nwp_grp_<procgroup>%dt ' &
             & //'(default or NAMELIST input) is not rescaled, if grid_nml: grid_rescale_factor /= 1!'
-          CALL message(' ', message_text, adjust_right=.TRUE.)
+          CALL message(' ', message_text)
           ! The upper-atmosphere physics are not and cannot be made restart-safe,  
           ! if more than 2 domains are in use 
           ! for reasons discussed in 'src/upper_atmosphere/mo_upatmo_flowevent_utils'
           IF (lrestart .AND. n_dom > 2) THEN
             message_text = '* upper-atmosphere physics are not restart-safe, if more than 2 domains are in use!'
-            CALL message(' ', message_text, adjust_right=.TRUE.)
+            CALL message(' ', message_text)
           ENDIF
           !
           CALL message(routine, 'Notes on output of (upper-atmosphere) variables:')
           CALL message(' ', '* only variables associated with switched on process groups &
-            &can be selected in output_nml!', adjust_right=.TRUE.)
+            &can be selected in output_nml!')
           message_text = '* every variable name requires the following prefix: ' &
             & // upatmo_nwp_phy_config%vname_prefix
-          CALL message(' ', message_text, adjust_right=.TRUE.)
+          CALL message(' ', message_text)
           CALL message(' ', '* heating rates are isobaric, not isochoric &
-            &(no matter how they are processed internally)!', adjust_right=.TRUE.)
+            &(no matter how they are processed internally)!')
           IF (upatmo_nwp_phy_config%grp( iUpatmoGrpId%rad )%l_stat( iUpatmoPrcStat%enabled )) THEN
             CALL message(' ', '* efficiency and scaling factors sclrlw and effrsw are multiplied &
-              &to the temperature tendencies from the standard radiation,', adjust_right=.TRUE.)
+              &to the temperature tendencies from the standard radiation,')
             CALL message(' ', '  so the forcing is NOT ddt_temp_radsw and ddt_temp_radlw, &
-              &but effrsw * ddt_temp_radsw and sclrlw * ddt_temp_lw', adjust_right=.TRUE.)
+              &but effrsw * ddt_temp_radsw and sclrlw * ddt_temp_lw')
           ENDIF  !Radiation enabled?
           IF (n_dom > 1) THEN
             CALL message(' ', '* halo cells typically contain 0s, which might be visible &
-              &on the lateral boundary of lon-lat-regridded output of nests', adjust_right=.TRUE.)
+              &on the lateral boundary of lon-lat-regridded output of nests')
           ENDIF
           
         ENDIF  !IF (jg == 1 .AND. upatmo_nwp_phy_config%l_phy_stat( iUpatmoPrcStat%enabled ))
@@ -1944,7 +1944,7 @@ CONTAINS !......................................................................
                 ELSE
                   message_text(tlen+1:) = ', => switched off effectively!)'
                 ENDIF
-                CALL message(' ', message_text, adjust_right=.TRUE.)
+                CALL message(' ', message_text)
               ENDDO  !jprc
             ENDIF  !IF (jg == 1 .AND. upatmo_aes_phy_config%l_enabled)
             
@@ -1987,8 +1987,8 @@ CONTAINS !......................................................................
                        & ' s, dt(used) = ',                                                                   &
                        & TRIM(ADJUSTL(real2string(upatmo_nwp_phy_config%grp( jgrp )%dt, opt_fmt='(F20.3)'))), &
                        & ' s)'
-                  CALL message(' ', message_text, adjust_right=.TRUE.)
-                  CALL message(' ', '   Info on single processes:', adjust_right=.TRUE.)
+                  CALL message(' ', message_text)
+                  CALL message(' ', '   Info on single processes:')
                   DO jprc = 1, iUpatmoPrcId%nitem
                     IF (upatmo_nwp_phy_config%prc( jprc )%igrp == jgrp) THEN
                       WRITE (msg_prefix, '(2(f20.1))') &
@@ -2008,7 +2008,7 @@ CONTAINS !......................................................................
                         & ', end level = ',                                                                               &
                         & upatmo_nwp_phy_config%prc( jprc )%iendlev,                                                      &
                         & hght_msg_sfx(ladj_h:)
-                      CALL message(' ', message_text, adjust_right=.TRUE.)
+                      CALL message(' ', message_text)
                     ENDIF  !IF (upatmo_nwp_phy_config%prc( jprc )%igrp == jgrp)
                   ENDDO  !jprc
                 ENDIF  !IF (upatmo_nwp_phy_config%grp( jgrp )%l_stat( iUpatmoPrcStat%enabled ))
@@ -2029,7 +2029,7 @@ CONTAINS !......................................................................
                   IF (upatmo_nwp_phy_config%gas( jgas )%imode == iUpatmoGasMode%extdat) THEN
                     message_text(tlen+3:) = ' (external data from file)'
                   END IF
-                  CALL message(' ', message_text, adjust_right=.TRUE.)
+                  CALL message(' ', message_text)
                 ENDIF  !IF (upatmo_nwp_phy_config%gas( jgas )%l_stat( iUpatmoGasStat%enabled ))
               ENDDO  !jgas
               !

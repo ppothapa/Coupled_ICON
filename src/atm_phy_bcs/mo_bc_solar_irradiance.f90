@@ -143,7 +143,7 @@ CONTAINS
       END IF
       IF (.NOT.PRESENT(ssi)) THEN
         CALL finish ('ssi_time_interpolation of mo_bc_solar_irradiance', &
-                     'Interpolation to radiation time step needs ssi',exit_no=1)
+                     'Interpolation to radiation time step needs ssi')
       ELSE
         tsi    = tiw%weight1 * tsi_radt_m(tiw%month1_index) + tiw%weight2 * tsi_radt_m(tiw%month2_index)
         ssi(:) = tiw%weight1*ssi_radt_m(:,tiw%month1_index) + tiw%weight2*ssi_radt_m(:,tiw%month2_index)

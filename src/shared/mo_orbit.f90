@@ -44,7 +44,7 @@ MODULE mo_orbit
   USE mo_math_constants, ONLY : pi           ,& ! pi
        &                        twopi => pi2 ,& ! pi*2
        &                        deg2rad         ! pi/180
-  USE mo_exception,      ONLY : finish, message, message_text, em_param, warning, print_value
+  USE mo_exception,      ONLY : finish, message, message_text,warning, print_value
   USE mtime,             ONLY : julianday, newJulianday, deallocateJulianday, getJulianDayFromDatetime, &
        &                        newDateTime, deallocateDateTime, datetime, no_of_ms_in_a_day, &
        &                        getNoOfDaysInYearDateTime
@@ -108,7 +108,7 @@ CONTAINS
     phl_rad = clonp*deg2rad
     WRITE(message_text, '(a14,f9.3,a23,f9.3)') &
          & ' eccentricity=',cecc,'  obliquity in degrees=',cobld
-    CALL message('orbit_kepler (mo_radiation_orbit):',message_text,level=em_param)
+    CALL message('orbit_kepler (mo_radiation_orbit):',message_text)
     !
     ! Calculation of eccentric anomaly (big_e) of vernal equinox using
     ! Lacaille's formula.

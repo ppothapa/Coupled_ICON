@@ -20,7 +20,7 @@ MODULE mo_nml_crosscheck
 
   USE, INTRINSIC :: iso_c_binding, ONLY: c_int64_t
   USE mo_kind,                     ONLY: wp
-  USE mo_exception,                ONLY: message, message_text, finish, em_info
+  USE mo_exception,                ONLY: message, message_text, finish
   USE mo_impl_constants,           ONLY: inwp, tracer_only, inh_atmosphere,                &
     &                                    iaes, RAYLEIGH_CLASSIC, inoforcing,               &
     &                                    iedmf, icosmo, iprog, MODE_IAU, MODE_IAU_OLD,     &
@@ -619,14 +619,12 @@ CONTAINS
     IF (activate_sync_timers .AND. .NOT. ltimer) THEN
       activate_sync_timers = .FALSE.
       CALL message(routine, "namelist parameter 'activate_sync_timers' has &
-        &been set to .FALSE., because global 'ltimer' flag is disabled.", &
-        level=em_info)
+        &been set to .FALSE., because global 'ltimer' flag is disabled.")
     END IF
     IF (timers_level > 9 .AND. .NOT. activate_sync_timers) THEN
       activate_sync_timers = .TRUE.
       CALL message(routine, "namelist parameter 'activate_sync_timers' has &
-        &been set to .TRUE., because global 'timers_level' is > 9.", &
-        level=em_info)
+        &been set to .TRUE., because global 'timers_level' is > 9.")
     END IF
 
     DO jg =1,n_dom

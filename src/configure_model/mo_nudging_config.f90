@@ -489,12 +489,12 @@ CONTAINS !......................................................................
           height = 0.5_wp * ( vct_a(jk) + vct_a(jk+1) )  
           WRITE(message_text,'(a)') ' - Level jk = '//TRIM(int2string(jk))//', height z(jk) = ' &
             & //TRIM(real2string(height))//' m'
-          CALL message(' ', message_text, adjust_right=.TRUE.)
+          CALL message(' ', message_text)
           jk     = nudging_config(jg)%ilev_end
           height = 0.5_wp * ( vct_a(jk) + vct_a(jk+1) )  
           WRITE(message_text,'(a)') ' - Level jk = '//TRIM(int2string(jk))//', height z(jk) = ' &
             & //TRIM(real2string(height))//' m'
-          CALL message(' ', message_text, adjust_right=.TRUE.)
+          CALL message(' ', message_text)
           IF (ANY((/indg_profile%sqrddist, indg_profile%tanh, indg_profile%trapid/) &
             & == nudging_config(jg)%nudge_profile)) THEN 
             WRITE(message_text,'(a)') 'Scale height for profile of nudging strength: ' &
@@ -539,7 +539,7 @@ CONTAINS !......................................................................
                     & //TRIM(real2string(nudging_config(jg)%max_nudge_coeff_qv))//")"
                 ENDIF
                 WRITE(message_text,'(a)') '- '//TRIM(c4print)
-                CALL message(' ', message_text, adjust_right=.TRUE.)
+                CALL message(' ', message_text)
               ENDIF  !IF (nudging_config(jg)%lvar(jvar))
             ENDDO  !jvar
             IF (lremove_qv) THEN
