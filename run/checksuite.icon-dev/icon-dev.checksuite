@@ -286,6 +286,11 @@ function diff_results
     
             for TYPE in $TYPES; do
 
+                TEMP_SUFFIX=$(cat /dev/urandom | env LC_ALL=C tr -cd 'a-f0-9' | head -c 16)
+
+                rm -f  FILE1_undefined_${TEMP_SUFFIX}; FILE1="FILE1_undefined_${TEMP_SUFFIX}"
+                rm -f  FILE2_undefined_${TEMP_SUFFIX}; FILE2="FILE2_undefined_${TEMP_SUFFIX}"
+
 		if  [ -f  "${MODEL_DIR1}/experiments/${DEXP1}/${DEXP1}_${TYPE}_${DATE}.nc" ]
                 then
                     FILE1="${MODEL_DIR1}/experiments/${DEXP1}/${DEXP1}_${TYPE}_${DATE}.nc"
@@ -306,10 +311,13 @@ function diff_results
                     fi
                 fi
 
-                TEMP_SUFFIX=$(cat /dev/urandom | env LC_ALL=C tr -cd 'a-f0-9' | head -c 16)
-                DIFF_FILE="cdo_diffn_${DEXP1}_${DEXP2}_${TYPE}_${DATE}_${TEMP_SUFFIX}.out"
+		if [ -f  "$FILE1" ] && [ -f  "$FILE2" ]
+		then
 
                 echo "Compare for TYPE=$TYPE"
+
+                DIFF_FILE="cdo_diffn_${DEXP1}_${DEXP2}_${TYPE}_${DATE}_${TEMP_SUFFIX}.out"
+
                 cdo diffn ${FILE1} ${FILE2} > ${DIFF_FILE}
 
 		# does FILE2 contain the same variables as FILE1?
@@ -344,6 +352,13 @@ function diff_results
                     # Thus the diff file can be deleted.
                     rm ${DIFF_FILE}
                 fi
+
+		else
+		    echo "File(s) for $TYPE not found:"
+		    if ! [ -f  "$FILE1" ]; then echo "FILE1 does not exist: ${MODEL_DIR1}/experiments/${DEXP1}/${DEXP1}_${TYPE}_${DATE}.<nc|grb>"; fi
+		    if ! [ -f  "$FILE2" ]; then echo "FILE2 does not exist: ${MODEL_DIR2}/experiments/${DEXP2}/${DEXP2}_${TYPE}_${DATE}.<nc|grb>"; fi
+                    DIFFERENT_TYPES="$DIFFERENT_TYPES $TYPE"
+		fi
 
             done
     
