@@ -10,7 +10,7 @@ builder: balfrin_cpu_nvidia_mixed
 "mch_opr_r04b07_lhn_00": 59f5c5a60806a740c83b455623709a3459d32a3a
 "mch_opr_r04b07_lhn_12_emvorado": f64a96196ce2e548fbb30ab89c19826b8fbb05ee
 "mch_opr_r04b07_nest": 59c02782fd5a3a93da8e70dcaa1df924f84b1615
-"mch_opr_r04b07_sstice_inst": b08deb96c7c7b8f2cbf40c009f8662baa5c8638f
+"mch_opr_r04b07_sstice_inst": 8127dc7541a94a66fe52919ef83685c16636eedf
 "mch_opr_r19b07_2m": 2d9430b80e2c183c1286ca4e2773af0f32fabb1f
 "mch_opr_r19b07_2m_gscp5": 18d51a1db77ad69a70298152c7d1b2d215512fa9
 "mch_opr_r19b07_lpi": ec94d9afa88d60c4370ceba76823c9e9343c1293
