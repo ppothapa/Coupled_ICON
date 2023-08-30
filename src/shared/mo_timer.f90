@@ -97,6 +97,9 @@ MODULE mo_timer
   PUBLIC :: timer_wmo , timer_two
   PUBLIC :: timer_mig , timer_cld_mig
   PUBLIC :: timer_sat , timer_grp
+  PUBLIC :: timer_qvi
+  PUBLIC :: timer_uvi
+  PUBLIC :: timer_ene
   !
   ! aes radiation
   PUBLIC :: timer_rrtm_prep, timer_rrtm_post
@@ -354,6 +357,9 @@ MODULE mo_timer
   INTEGER :: timer_wmo , timer_two
   INTEGER :: timer_mig , timer_cld_mig
   INTEGER :: timer_sat , timer_grp
+  INTEGER :: timer_qvi
+  INTEGER :: timer_uvi
+  INTEGER :: timer_ene
   !
   ! aes radiation
   INTEGER :: timer_rrtm_prep, timer_rrtm_post
@@ -675,6 +681,10 @@ CONTAINS
        timer_grp    = new_timer("graupel")
        timer_car    = new_timer("interface_aes_car")
        timer_wmo    = new_timer("interface_aes_wmo")
+       !
+       timer_qvi    = new_timer("diagnose_qvi")
+       timer_uvi    = new_timer("diagnose_uvi")
+       timer_ene    = new_timer("diagnose_ene")
        !
     END IF
     !

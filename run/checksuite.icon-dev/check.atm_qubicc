@@ -25,10 +25,10 @@ TYPES="$TYPES atm2d_ml"                                            # atmospheric
 TYPES="$TYPES flx2d_ml"                                            # parametr.  fluxes, 2d, many vars.
 TYPES="$TYPES ddt_ua_dyn_ml    ddt_va_dyn_ml"                      # tendencies, dynamics
 TYPES="$TYPES tend_ta_rlw_ml   tend_ta_rsw_ml"                     # tendencies, radiation
-TYPES="$TYPES tend_ua_vdf_ml   tend_va_vdf_ml   tend_ta_vdf_ml  \
-              tend_qhus_vdf_ml tend_qclw_vdf_ml tend_qcli_vdf_ml"  # tendencies, vertical diffusion
-TYPES="$TYPES tend_ta_mig_ml   tend_qhus_mig_ml \
-              tend_qclw_mig_ml tend_qcli_mig_ml "                  # tendencies, cloud microphysics
+TYPES="$TYPES tend_ta_vdf_ml   tend_ua_vdf_ml   tend_va_vdf_ml   \
+              tend_hus_vdf_ml  tend_clw_vdf_ml  tend_cli_vdf_ml"   # tendencies, vertical diffusion
+TYPES="$TYPES tend_ta_mig_ml   \
+              tend_hus_mig_ml  tend_clw_mig_ml  tend_cli_mig_ml"   # tendencies, cloud microphysics
 
 
 # DATES is a list of dates identifying the files <EXPERIMENT>_<TYPE>_<DATE>.<FORMAT>

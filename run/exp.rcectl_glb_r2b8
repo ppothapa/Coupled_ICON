@@ -358,8 +358,8 @@ if [[ "$output_phy_3d" == "yes" ]]; then
  include_last     = .FALSE.
  ml_varlist       = 'pres_sfc'      , 'pres'   , 'z_mc'      ,
                     'tend_ta_vdf'   , 'tend_ua_vdf'   , 'tend_va_vdf'   ,
-                    'tend_qhus_vdf' , 'tend_qclw_vdf' , 'tend_qcli_vdf' ,
-                    'tend_qqr_vdf'  , 'tend_qqs_vdf'  , 'tend_qqg_vdf'  ,
+                    'tend_hus_vdf'  , 'tend_clw_vdf'  , 'tend_cli_vdf'  ,
+                    'tend_qr_vdf'   , 'tend_qs_vdf'   , 'tend_qg_vdf'   ,
 /
 EOF
 fi
