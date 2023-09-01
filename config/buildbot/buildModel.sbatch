@@ -23,7 +23,7 @@ echo "BB_experimentList: |${BB_EXPERIMENTLIST}|"
 echo "BB_experiment:     |${BB_EXPERIMENT}|"
 
 
-defaultExperimentList='icon-dev'
+defaultExperimentList='merge2rc'
 
 experimentList=${experimentList:-${BB_EXPERIMENTLIST:-${defaultExperimentList}}}
 experimentLogfile="${ICON_DIR}/run/buildbotsExperiments.log"
