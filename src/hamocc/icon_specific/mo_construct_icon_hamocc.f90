@@ -10,7 +10,7 @@ MODULE mo_construct_icon_hamocc
 
   USE mo_kind, ONLY           : wp
   USE mo_hamocc_nml, ONLY     : l_init_bgc
-  USE mo_exception, ONLY      : message, finish, debug_messages_on
+  USE mo_exception, ONLY      : message, finish
   USE mo_control_bgc, ONLY    : dtb, dtbgc, inv_dtbgc, ndtdaybgc,  &
        &                        ldtrunbgc, bgc_zlevs, bgc_nproma, &
        &                        inv_dtb

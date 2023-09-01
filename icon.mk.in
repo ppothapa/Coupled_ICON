@@ -623,17 +623,7 @@ version.c: force-create-version
 c_binding.d: icon.mk
 	$(silent_DEPGEN):;{ \
 	  echo '$(call get_obj_names,src/io/restart/mo_c_restart_util.f90):| support/util_multifile_restart.@OBJEXT@'; \
-	  echo '$(call get_obj_names,src/io/shared/mo_util_file.f90):| support/util_file.@OBJEXT@'; \
-	  echo '$(call get_obj_names,src/io/shared/mo_util_nml.f90):| support/nml_annotate.@OBJEXT@'; \
-	  echo '$(call get_obj_names,src/shared/mo_expression.f90):| support/util_arithmetic_expr.@OBJEXT@'; \
-	  echo '$(call get_obj_names,src/shared/mo_util_backtrace.f90):| support/util_backtrace.@OBJEXT@'; \
-	  echo '$(call get_obj_names,src/shared/mo_util_texthash.f90):| support/util_hash.@OBJEXT@'; \
-	  echo '$(call get_obj_names,src/shared/mo_util_stride.f90):| support/util_stride.@OBJEXT@'; \
-	  echo '$(call get_obj_names,src/shared/mo_util_string_parse.f90):| support/util_string_parse.@OBJEXT@'; \
-	  echo '$(call get_obj_names,src/shared/mo_util_sysinfo.f90):| support/util_sysinfo.@OBJEXT@'; \
-	  echo '$(call get_obj_names,src/shared/mo_util_system.f90):| support/util_system.@OBJEXT@'; \
-	  echo '$(call get_obj_names,src/shared/mo_util_timer.f90):| support/util_timer.@OBJEXT@'; \
-	  echo '$(call get_obj_names,src/shared/mo_util_uuid.f90):| support/util_uuid.@OBJEXT@'; \
+	  echo '$(call get_obj_names,support/mo_util_uuid.f90):| support/util_uuid.@OBJEXT@'; \
 	  echo '$(call get_obj_names,src/shared/mo_util_vcs.f90):| version.@OBJEXT@'; \
 	} >$@
 @ART_ENABLED@	$(silent_none)echo '$(call get_obj_names,src/art/shared/mo_art_util_vcs.f90):| version.@OBJEXT@' >>$@

@@ -561,7 +561,7 @@ if [[ "$output_atm_tend_ml_3h_inst" == "yes" ]]; then
  include_last     = .false.
  output_interval  = "${atm_output_interval_3d}" !     the output interval and
  file_interval    = "${atm_file_interval}"    !     the file interval
- ml_varlist       = 'tend_va_vdf', 'tend_qhus_vdf'
+ ml_varlist       = 'tend_va_vdf', 'tend_hus_vdf'
 /
 &output_nml
  output_filename  = "${EXPNAME}_atm_hori_1_ml_3h_inst"

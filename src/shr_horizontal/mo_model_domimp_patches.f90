@@ -86,7 +86,6 @@ MODULE mo_model_domimp_patches
   !-------------------------------------------------------------------------
 
   USE mo_kind,               ONLY: wp
-  !USE mo_io_units,           ONLY: filename_max
   USE mo_impl_constants,     ONLY: success,                &
     &                              min_rlcell, max_rlcell, &
     &                              min_rledge, max_rledge, &
@@ -95,7 +94,7 @@ MODULE mo_model_domimp_patches
     &                              min_rlcell_int,         &
     &                              min_rledge_int,         &
     &                              min_rlvert_int
-  USE mo_exception,          ONLY: message_text, message, warning, finish, em_warn
+  USE mo_exception,          ONLY: message_text, message, warning, finish
   USE mo_util_string,        ONLY: int2string
   USE mo_model_domain,       ONLY: t_patch, t_pre_patch, p_patch_local_parent, &
        c_num_edges, c_parent, c_phys_id, c_neighbor, c_edge, &

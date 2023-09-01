@@ -34,7 +34,7 @@
 MODULE mo_read_netcdf_broadcast_2
 
   USE mo_kind,               ONLY: sp, dp, wp
-  USE mo_exception,          ONLY: message, warning, finish, em_warn
+  USE mo_exception,          ONLY: message, warning, finish
   USE mo_impl_constants,     ONLY: success
   USE mo_parallel_config,    ONLY: nproma
   USE mo_io_units,           ONLY: filename_max

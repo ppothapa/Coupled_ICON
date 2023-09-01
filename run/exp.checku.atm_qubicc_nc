@@ -30,7 +30,7 @@ TYPES="$TYPES ddt_ua_hdf_ml    ddt_ua_pgr_ml   ddt_va_adv_ml"
 TYPES="$TYPES ddt_va_cor_ml    ddt_va_dmp_ml"
 TYPES="$TYPES ddt_va_hdf_ml    ddt_va_pgr_ml"
 TYPES="$TYPES tend_ta_rlw_ml   tend_ta_rsw_ml"                     # tendencies, radiation
-TYPES="$TYPES tend_ta_vdf_ml   tend_ua_vdf_ml   tend_va_vdf_ml   \
+TYPES="$TYPES tend_ua_vdf_ml   tend_va_vdf_ml   tend_ta_vdf_ml  \
               tend_hus_vdf_ml  tend_clw_vdf_ml  tend_cli_vdf_ml"   # tendencies, vertical diffusion
 TYPES="$TYPES tend_ta_mig_ml   \
               tend_hus_mig_ml  tend_clw_mig_ml  tend_cli_mig_ml"   # tendencies, cloud microphysics
@@ -48,11 +48,17 @@ DATES="$DATES 19790101T000040Z 19790101T000120Z 19790101T000200Z \
 # 
 export RESTART_DATE='19790101T000200Z'
 
+# REFERENCE model directory and reference experiment for update test
+# (abs. path or relative paths w.r.t. <model dir>/run, e.g. .../icon-dev/run)
+#
+export OVERWRITE=yes
+export REFERENCE=../../icon-mpim_ref
+
 #--------------------------------------------------------------------------------
 # 
 # 2. Define the checksuite mode
 #
-export MD='rnmo'
+export MD='u'
 
 #--------------------------------------------------------------------------------
 # 
@@ -60,12 +66,6 @@ export MD='rnmo'
 #
 rundir=`pwd`
 cd checksuite.icon-dev
-
-case $HOST in
-    *daint*)
-        export MD='rnmot'
-
-esac
 
 ./icon-dev.checksuite
 STATUS=$?

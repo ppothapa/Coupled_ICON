@@ -13,7 +13,7 @@
        &                                 bgc_land, bgc_ind, &
        &                                 bgc_soce, bgc_npac, bgc_carb,inv_dtb
 
-      USE mo_exception, ONLY      : message, finish
+      USE mo_exception, ONLY      : message, finish,message_to_own_unit
 
       USE mo_model_domain,   ONLY: t_patch_3D, t_patch
 
@@ -756,12 +756,12 @@
 
    cpara_name='========PARAMETER SETUP'
    cpara_val="============="
-   CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
+   CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
 
    ! Phytoplankton
    cpara_name='PHYTOPLANKTON'
    cpara_val="========"
-   CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
+   CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
    CALL to_bgcout("phytomi",phytomi)
    CALL to_bgcout("dyphy",dyphy)
    CALL to_bgcout("bkphy",bkphy)
@@ -770,7 +770,7 @@
    ! Zooplankton
    cpara_name='ZOOPLANKTON'
    cpara_val="========"
-   CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
+   CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
    CALL to_bgcout("grami",grami)
    CALL to_bgcout("zinges",zinges)
    CALL to_bgcout("grazra",grazra*inv_dtb)
@@ -779,7 +779,7 @@
    ! Cyanobacteria
    cpara_name='CYANOBACTERIA'
    cpara_val="========"
-   CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
+   CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
    CALL to_bgcout("l_cyadyn",l_cyadyn)
    CALL to_bgcout("n2_fixation",n2_fixation)
    CALL to_bgcout("n2_fixation",n2_fixation)
@@ -797,7 +797,7 @@
    ! Detritus
    cpara_name='DETRITUS'
    cpara_val="========"
-   CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
+   CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
    CALL to_bgcout("i_settling",i_settling)
    CALL to_bgcout("drempoc 1/d",drempoc*inv_dtb)
    CALL to_bgcout("denitrification 1/d",denitrification*inv_dtb)
@@ -816,7 +816,7 @@
 
    cpara_name='Ncycle'
    cpara_val="========"
-   CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
+   CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
    CALL to_bgcout("bkno3",bkno3)
    CALL to_bgcout("bkfe",bkfe)
    CALL to_bgcout("bkpo4",bkpo4)
@@ -842,7 +842,7 @@
    ! DOC
    cpara_name='DOC'
    cpara_val="========"
-   CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
+   CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
    CALL to_bgcout("remido",remido*inv_dtb)
    IF (i_settling==2) THEN
        CALL to_bgcout("l_doc_q10",l_doc_q10)     
@@ -854,7 +854,7 @@
    ! Opal
    cpara_name='Si/Opal'
    cpara_val="========"
-   CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
+   CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
    CALL to_bgcout("bkopal",bkopal)
    CALL to_bgcout("dremopal 1/d",dremopal*inv_dtb)
    CALL to_bgcout("ropal",ropal)
@@ -886,13 +886,13 @@
    ! Calc
    cpara_name='Calc'
    cpara_val="========"
-   CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
+   CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
    CALL to_bgcout("dremcalc 1/d",dremcalc*inv_dtb)
    CALL to_bgcout("sinkspeed_calc",sinkspeed_calc*inv_dtb)
 
    cpara_name='======================='
    cpara_val="==========="
-   CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
+   CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
   END SUBROUTINE print_bgc_parameters
 !================================================================================== 
 
@@ -907,17 +907,17 @@
  ! CALL to_bgcout("wdust",wdust)
    cpara_name='========WPOC [m/d]'
    cpara_val="============="
-   CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
+   CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
    
    DO k=1,n_zlev
     write(cpara_name,'(i2)')k
     write(cpara_val,'(f6.2)')wpoc(1,k)/dtb
-    CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
+    CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
    enddo
 
    cpara_name='======================='
    cpara_val="==========="
-   CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
+   CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
   
   END SUBROUTINE print_wpoc
 
@@ -934,7 +934,7 @@ SUBROUTINE to_bgcout_real(cname,val)
   ELSE
     write(cpara_val, '(ES22.15)') val
   ENDIF
-  CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc)
+  CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc)
 END SUBROUTINE
 
 SUBROUTINE to_bgcout_logical(cname,val)
@@ -944,7 +944,7 @@ SUBROUTINE to_bgcout_logical(cname,val)
 
   cpara_name=cname
   cpara_val=merge(".true. ",".false.",val)
-  CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc)
+  CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc)
 END SUBROUTINE
 
 SUBROUTINE to_bgcout_int(cname,val)
@@ -954,7 +954,7 @@ SUBROUTINE to_bgcout_int(cname,val)
 
   cpara_name=cname
   write(cpara_val, '(i0)') val
-  CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc)
+  CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc)
 END SUBROUTINE
 
 

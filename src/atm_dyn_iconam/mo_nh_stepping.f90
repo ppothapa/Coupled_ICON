@@ -122,6 +122,10 @@ MODULE mo_nh_stepping
 #endif
   USE mo_iau,                      ONLY: compute_iau_wgt
 #ifndef __NO_AES__
+  USE mo_omp_block_loop,           ONLY: omp_block_loop_cell
+  USE mo_diagnose_qvi,             ONLY: diagnose_qvi
+  USE mo_diagnose_uvi,             ONLY: diagnose_uvd, diagnose_uvp
+  USE mo_diagnose_ene,             ONLY: diagnose_ene
   USE mo_interface_iconam_aes,     ONLY: interface_iconam_aes
 #endif
   USE mo_phys_nest_utilities,      ONLY: interpol_phys_grf, feedback_phys_diag, interpol_rrg_grf, copy_rrg_ubc
@@ -2152,6 +2156,8 @@ MODULE mo_nh_stepping
                 &                      opt_calc_temp=.TRUE.,                            &
                 &                      opt_calc_pres=.TRUE.                             )
             !
+            CALL omp_block_loop_cell ( p_patch(jg), diagnose_uvd ) ! internal energy vertical integral after dynamics
+            !
             CALL interface_iconam_aes(     dt_loc                                    & !in
                 &                         ,datetime_local(jg)%ptr                    & !in
                 &                         ,p_patch(jg)                               & !in
@@ -2161,7 +2167,10 @@ MODULE mo_nh_stepping
                 &                         ,p_nh_state(jg)%prog(n_now_rcf)            & !inout
                 &                         ,p_nh_state(jg)%prog(n_new_rcf)            & !inout
                 &                         ,p_nh_state(jg)%diag                       )
-
+            !
+            CALL omp_block_loop_cell ( p_patch(jg), diagnose_qvi ) ! tracer mass and tracer mass tendency vertical integral
+            CALL omp_block_loop_cell ( p_patch(jg), diagnose_uvp ) ! internal energy vertical integral after physics
+            CALL omp_block_loop_cell ( p_patch(jg), diagnose_ene ) ! near surface energetics
             !
             IF (ltimer) CALL timer_stop(timer_iconam_aes)
 #endif

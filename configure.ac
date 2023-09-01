@@ -940,25 +940,10 @@ dnl AC_PROG_CC, AC_PROG_CC_C99, and AC_INCLUDES_DEFAULT do check for some of the
 dnl following header files but the actual list of files they check for might
 dnl vary from version to version. Therefore, we check for all the headers that
 dnl are used in the code unconditionally:
-AC_CHECK_HEADERS([stdlib.h stdio.h math.h time.h ctype.h string.h signal.h ]dnl
-  [limits.h errno.h assert.h stdbool.h unistd.h fcntl.h pwd.h stdint.h ]dnl
-  [sys/types.h sys/stat.h sys/param.h sys/resource.h sys/utsname.h ]dnl
-  [sys/time.h sys/times.h dirent.h],
+AC_CHECK_HEADERS([stdlib.h stdio.h math.h time.h ctype.h string.h assert.h ]dnl
+  [stdbool.h dirent.h errno.h fcntl.h sys/stat.h sys/types.h unistd.h],
   [], [AC_MSG_FAILURE([unable to find header file $ac_header])],
   [[// override default includes]])
-
-dnl Check for headers that are protected with HAVE_* macros in the code:
-AC_CHECK_HEADERS([execinfo.h ucontext.h link.h],
-  [], [], [[// override default includes]])
-
-dnl Other header files that are protected in the code but not with the HAVE_*
-dnl macros:
-dnl support/util_hash.c: endian.h
-dnl support/util_sysinfo.c: mcheck.h sys/systemcfg.h
-dnl support/util_timer.c: sys/systemcfg.h asm/msr.h
-
-dnl Header files that are included from non-mandatory files
-dnl support/util_signal.c: features.h strings.h fenv.h fptrap.h
 
 ######################## C++ COMPILER COMMAND AND FLAGS ########################
 
@@ -2265,6 +2250,65 @@ switch the secondary GPU compiler (e.g. dnl
 (--disable-gpu), or set HIPFLAGS accordingly])],
      [[// override default includes]])
    ACX_LANG_POP_HIP])
+
+AS_VAR_IF([with_external_fortran_support], [yes],
+  [AC_CACHE_CHECK([whether Fortran support library is available],
+     [icon_cv_have_fortran_support],
+     [icon_cv_have_fortran_support=no
+      AC_LINK_IFELSE([AC_LANG_PROGRAM([], [[
+      use mo_util_backtrace, only: ftn_util_backtrace
+      implicit none
+      call ftn_util_backtrace()]])],
+        [icon_cv_have_fortran_support=yes])])
+   AS_VAR_IF([icon_cv_have_fortran_support], [no],
+     [AC_MSG_FAILURE([unable to link a test program using Fortran support dnl
+library: either use the bundled version of FORTRAN-SUPPORT dnl
+(--without-external-fortran-support) or set FCFLAGS, LDFLAGS and LIBS dnl
+accordingly])])],
+dnl
+  [icon_subdir_srcdir="$srcdir/externals/fortran-support"
+   icon_subdir_unique_file="src/mo_util_backtrace.f90"
+   AS_IF([test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"],
+     [AC_MSG_ERROR([unable to find sources of the bundled version of dnl
+FORTRAN-SUPPORT library ($icon_subdir_unique_file) in '$icon_subdir_srcdir': dnl
+provide an external version of FORTRAN-SUPPORT library dnl
+(--with-external-fortran-support) by setting FCFLAGS, LDFLAGS and LIBS dnl
+accordingly])])
+   AC_ARG_VAR([ICON_FORTRAN_SUPPORT_FCFLAGS],
+     [Fortran compiler flags to be appended to FCFLAGS when configuring the
+bundled version of FORTRAN-SUPPORT library
+@<:@default=$ICON_BUNDLED_FCFLAGS@:>@])dnl
+ICON_FORTRAN_SUPPORT_FCFLAGS=dnl
+${ICON_FORTRAN_SUPPORT_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
+   AC_ARG_VAR([ICON_FORTRAN_SUPPORT_CFLAGS],
+     [Fortran compiler flags to be appended to CFLAGS when configuring the
+bundled version of FORTRAN-SUPPORT library
+@<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
+   ICON_FORTRAN_SUPPORT_CFLAGS=dnl
+${ICON_FORTRAN_SUPPORT_CFLAGS-$ICON_BUNDLED_CFLAGS}
+   ACX_SUBDIR_INIT_CMAKE([externals/fortran-support], [no-run], [],
+     [AS_ESCAPE(["${CMAKE}"])])
+   ACX_SUBDIR_REMOVE_ARGS([externals/fortran-support],
+dnl C and Fortran compiler flags are replaced below:
+     [-DCMAKE_C_FLAGS=*|-DCMAKE_Fortran_FLAGS=*],
+dnl C++ compiler is used for tests only, which we currently disable:
+     [-DCMAKE_CXX_*=*],
+dnl We build static libraries only:
+     [-DCMAKE_SHARED_LINKER_FLAGS=*|-DCMAKE_MODULE_LINKER_FLAGS=*],
+dnl The interprocedural optimization is not enabled in the project:
+     [-DCMAKE_*_COMPILER_AR=*|-DCMAKE_*_COMPILER_RANLIB=*])
+   ACX_SUBDIR_APPEND_ARGS([externals/fortran-support],
+dnl Extend C and Fortran compiler flags:
+     [-DCMAKE_C_FLAGS="$subdir_CFLAGS $ICON_FORTRAN_SUPPORT_CFLAGS $subdir_CPPFLAGS"],
+     [-DCMAKE_Fortran_FLAGS="$subdir_FCFLAGS $ICON_FORTRAN_SUPPORT_FCFLAGS"],
+dnl Build the static version of the library and disable the tests:
+     [-DBUILD_SHARED_LIBS:BOOL=OFF], [-DBUILD_TESTING:BOOL=OFF],
+dnl Set non-existing build type to avoid extra compiler flags:
+     [-DCMAKE_BUILD_TYPE:STRING=NOEXTRAFLAGS])
+   AS_VAR_APPEND([bundled_includes],
+     ["${FC_MOD_IN}externals/fortran-support/build/src/mod "])
+   BUNDLED_LIBFILES=dnl
+"externals/fortran-support/build/src/libfortran-support.a $BUNDLED_LIBFILES"])
 
 dnl Prepend the include search flags to FCFLAGS:
 AS_IF([test -n "$bundled_includes"], [FCFLAGS="${bundled_includes}${FCFLAGS}"])

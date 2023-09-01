@@ -246,6 +246,8 @@ MODULE mo_mpi
 #ifdef HAVE_YAXT
   USE yaxt,                   ONLY: xt_initialize, xt_initialized
 #endif
+  USE mo_exception,           ONLY: init_logger
+  USE mo_util_backtrace,      ONLY: ftn_util_backtrace
 
   IMPLICIT NONE
 
@@ -2676,6 +2678,14 @@ CONTAINS
     ! by default, the global communicator is the process communicator
     CALL set_process_mpi_name(global_mpi_name)
     CALL set_process_mpi_communicator(global_mpi_communicator)
+
+    CALL init_logger(proc_id=get_my_global_mpi_id(), &
+                     l_write_output=my_process_is_stdio(), &
+                     nerr_unit=nerr, &
+                     l_extra_output=(proc_split .AND. comm_lev > 0 .AND. get_glob_proc0() == p_pe_work),&
+                     extra_info_prefix='PROC SPLIT', &
+                     callback_traceback=ftn_util_backtrace, &
+                     callback_abort=abort_mpi)
 
   END SUBROUTINE start_mpi
   !------------------------------------------------------------------------------

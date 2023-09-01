@@ -24,6 +24,9 @@ if ! git rev-parse --is-inside-work-tree &> /dev/null; then
   exit 1
 fi
 
+# Temporary workaround until cmake becomes a build dependency of icon spackage:
+export CMAKE=$(spack find --format='{prefix}/bin/cmake' cmake@3.18: | head -1)
+
 # The spack spec, i.e. the icon configuration is defined in the enviroment file in the path below
 # and is set by the spack activate command
 spack env activate -p $ICON_DIR/config/cscs/spack/$SPACK_VERSION/$VARIANT

@@ -21,7 +21,7 @@ MODULE mo_bgc_icon
 #endif
 
   USE mo_kind,                ONLY: wp
-  USE mo_exception,           ONLY: finish
+  USE mo_exception,           ONLY: finish,message_to_own_unit
 
   USE mo_model_domain,        ONLY: t_patch,t_patch_3D
 
@@ -41,7 +41,6 @@ MODULE mo_bgc_icon
 &                                   nitrogen_deposition, update_linage
   USE mo_bgc_bcond,           ONLY: ext_data_bgc
   USE mo_hamocc_diagnostics,  ONLY: get_inventories, get_omz
-  USE mo_exception, ONLY: message
   USE mo_carchm,              ONLY: calc_dissol 
   USE mo_powach,              ONLY: powach, powach_impl
   USE mo_sedmnt, ONLY         : ini_bottom
@@ -155,7 +154,7 @@ SUBROUTINE BGC_ICON(p_patch_3D, hamocc_ocean_state, ssh, pddpo, ptiestu, use_acc
  !----------------------------------------------------------------------
  
 IF(l_bgc_check)THEN
- call message('1. before bgc','inventories',io_stdo_bgc)
+ call message_to_own_unit('1. before bgc','inventories',io_stdo_bgc)
  call get_inventories(hamocc_state, ssh, pddpo, hamocc_state%p_prog(nold(1))%tracer, p_patch_3d, 0._wp, 0._wp) 
 ENDIF
 
@@ -466,7 +465,7 @@ ENDIF  ! lsediment_only
   ldtrunbgc = ldtrunbgc + 1
 
   IF(l_bgc_check)THEN
-   call message('2. after bgc','inventories',io_stdo_bgc)
+   call message_to_own_unit('2. after bgc','inventories',io_stdo_bgc)
    call get_inventories(hamocc_state, ssh, pddpo, hamocc_state%p_prog(nold(1))%tracer, p_patch_3d, 1._wp, 1._wp) 
   ENDIF
   
