@@ -1,6 +1,5 @@
 !! Routines for handling proxy variables e.g. accumulation buffers
 #include <omp_definitions.inc>
-
 MODULE mo_derived_variable_handling
 
   USE mo_kind,                ONLY: wp, sp
@@ -11,7 +10,6 @@ MODULE mo_derived_variable_handling
   USE mo_cdi_constants,       ONLY: GRID_UNSTRUCTURED_CELL, GRID_UNSTRUCTURED_EDGE, &
                               & GRID_ZONAL, GRID_UNSTRUCTURED_VERT
   USE mo_name_list_output_types, ONLY: t_output_name_list
-  USE mo_zaxis_type,          ONLY: ZA_OCEAN_SEDIMENT
   USE mo_name_list_output_metadata, ONLY: metainfo_get_timelevel
   USE mo_var_list,            ONLY: add_var, t_var_list_ptr
   USE mo_var,                 ONLY: t_var, t_var_ptr
@@ -23,11 +21,10 @@ MODULE mo_derived_variable_handling
   USE mo_time_config,         ONLY: time_config
   USE mo_cdi,                 ONLY: DATATYPE_FLT32, DATATYPE_FLT64, GRID_LONLAT, TSTEP_CONSTANT
   USE mo_util_texthash,       ONLY: text_hash_c
-  USE mo_mpi,                 ONLY: p_bcast
-! HB: commented openACC stuff for now -- due to weird memory issues, if nproma is large
-#ifdef _OPENACC
-  USE mo_mpi,                 ONLY: i_am_accel_node
-#endif
+  USE mo_mpi,                 ONLY: p_bcast, i_am_accel_node
+  USE ISO_C_BINDING,          ONLY: C_INT
+
+#include <add_var_acc_macro.inc>
 
   IMPLICIT NONE
   PRIVATE
@@ -61,27 +58,15 @@ MODULE mo_derived_variable_handling
   INTEGER, PARAMETER :: nops = 5
   TYPE(t_derivate_op), TARGET :: ops(nops)
   CHARACTER(*), PARAMETER :: dlim = '|'
-  ! operations interface level  - uniq values required
-  INTEGER, PARAMETER :: OP_MEAN                  = 11
-  INTEGER, PARAMETER :: OP_MAX                   = 22
-  INTEGER, PARAMETER :: OP_MIN                   = 33
-  INTEGER, PARAMETER :: OP_MEAN_SQUARE           = 44
-  INTEGER, PARAMETER :: OP_ACC                   = 55
-  INTEGER, PARAMETER :: opcodes(nops)            = [OP_MEAN, OP_MAX, OP_MIN, OP_MEAN_SQUARE, OP_ACC]
-  CHARACTER(*), PARAMETER :: opnames(nops)       = ["mean  ", "max   ", "min   ", "square", "acc   "]
-  INTEGER, PARAMETER :: oplen(nops)              = [4, 3, 3, 6, 3]
-  ! internal field processing functions - uniq values required
-  INTEGER, PARAMETER :: FUNC_ACCUMULATION        = 1100
-  INTEGER, PARAMETER :: FUNC_MAX                 = 2200
-  INTEGER, PARAMETER :: FUNC_MIN                 = 3300
-  INTEGER, PARAMETER :: FUNC_ACCUMULATION_SQUARE = 4400
-  INTEGER, PARAMETER :: FUNC_ASIGN               = 5500
-  INTEGER, PARAMETER :: FUNC_ASIGN_SQUARE        = 6600
-  INTEGER, PARAMETER :: FUNC_APPLY_WEIGHT        = 7700
-  INTEGER, PARAMETER :: FUNC_MASK_MISS           = 8800
+  ENUM, BIND(C)
+    ENUMERATOR :: O_MEAN = 1, O_MAX, O_MIN, O_MEAN_SQ, O_ACC
+    ENUMERATOR :: F_ACC = 100, F_MAX, F_MIN, F_ACC_SQ, F_ASS, F_ASS_SQ, F_WGT, F_MISS
+  END ENUM
+  INTEGER(C_INT), PARAMETER :: opcodes(nops) = [O_MEAN, O_MAX, O_MIN, O_MEAN_SQ, O_ACC]
+  CHARACTER(*), PARAMETER :: opnames(nops)   = ["mean  ", "max   ", "min   ", "square", "acc   "]
+  INTEGER, PARAMETER :: oplen(nops)          = [4, 3, 3, 6, 3]
   ! internal processing rules: which function to use for which operator
-  INTEGER, PARAMETER :: opfuncs(nops) = [FUNC_ACCUMULATION, FUNC_MAX, FUNC_MIN, FUNC_ACCUMULATION_SQUARE, FUNC_ACCUMULATION]
-
+  INTEGER(C_INT), PARAMETER :: opfuncs(nops) = [F_ACC, F_MAX, F_MIN, F_ACC_SQ, F_ACC]
   CHARACTER(*), PARAMETER :: modname = 'mo_derived_variable_handling'
 
   !> Flag indicating that statistics accumulation is active on a domain.
@@ -137,7 +122,7 @@ CONTAINS
     TYPE(t_var), POINTER :: vl_elem
     CHARACTER(LEN=vname_len) :: dname, eString, dname_suffix
     TYPE(t_var_list_ptr) :: src_list
-    CHARACTER(*), PARAMETER :: routine = modname//"::process_mvstream"
+    CHARACTER(*), PARAMETER :: routine = modname//":init_op"
 
     IF (ANY(1 < [p_onl%stream_partitions_ml, p_onl%stream_partitions_pl,  &
       &          p_onl%stream_partitions_hl, p_onl%stream_partitions_il])) &
@@ -250,8 +235,7 @@ CONTAINS
         deriv%tls(l) = tls(k)
       END IF
     END DO
-    IF (l .EQ. 0) &
-      & CALL finish(routine, 'Could not find source variable: '//TRIM(vname))
+    IF (l .EQ. 0) CALL finish(routine, 'no source variable: '//TRIM(vname))
   END SUBROUTINE find_src_element
 
   SUBROUTINE copy_var_to_list(deriv)
@@ -268,7 +252,7 @@ CONTAINS
       & vert_interp=info%vert_interp, hor_interp=info%hor_interp, &
       & in_group=info%in_group, &
       & loutput=.TRUE., lrestart=.FALSE., var_class=info%var_class, &
-      & lopenacc = .FALSE. )
+      & lopenacc = info%lopenacc )
     SELECT CASE(info%hgrid)
     CASE(GRID_UNSTRUCTURED_CELL)
       vl_elem%info%subset = patch_2d%cells%owned
@@ -289,258 +273,150 @@ CONTAINS
   SUBROUTINE perform_op(src, dest, funccode, weight, miss, miss_s)
     TYPE(t_var), POINTER, INTENT(IN) :: src
     TYPE(t_var), POINTER, INTENT(INOUT) :: dest
-    INTEGER, INTENT(IN) :: funccode
+    INTEGER(C_INT), INTENT(IN) :: funccode
     REAL(wp), INTENT(IN), OPTIONAL :: weight, miss
     REAL(sp), INTENT(IN), OPTIONAL :: miss_s
-    REAL(wp) :: miss_src
-    INTEGER :: ic, sb, eb, br
+    REAL(wp) :: miss_src, miss_dst, weight_dst
+    INTEGER :: ic,si,sj,sk,sl,sm,ei,ej,ek,el,em,sbi,ebi,bk,sbk,ebk
     REAL(wp), POINTER :: sd5d(:,:,:,:,:)
     REAL(sp), POINTER :: ss5d(:,:,:,:,:)
-    CHARACTER(*), PARAMETER :: routine = modname//":perform_op"
+    LOGICAL :: lacc
 
-    IF (.NOT.PRESENT(weight) .AND. funccode .EQ. FUNC_APPLY_WEIGHT) THEN
-      CALL finish(routine, "no weight factor provided")
-    ELSE IF (PRESENT(weight) .AND. funccode .NE. FUNC_APPLY_WEIGHT) THEN
-      CALL finish(routine, "no weight factor allowed for this op")
-    END IF
-    IF (funccode .EQ. FUNC_MASK_MISS .AND. .NOT.(PRESENT(miss) .AND. PRESENT(miss_s))) THEN
-      CALL finish(routine, "no missing values provided")
-    ELSE IF((PRESENT(miss) .OR. PRESENT(miss_s)) .AND. funccode .NE. FUNC_MASK_MISS) THEN
-      CALL finish(routine, "no missing values allowed for this op")
-    END IF
-    br = 0
+    IF (PRESENT(weight)) weight_dst = weight
+    IF (PRESENT(miss)) miss_dst = miss
+    IF (PRESENT(miss)) miss_src = MERGE(miss, REAL(miss_s, wp), ASSOCIATED(src%r_ptr))
+    sm = 1; sl = 1; sk = 1; sj = 1; si = 1
+    em = SIZE(dest%r_ptr, 5); el = SIZE(dest%r_ptr, 4); ek = SIZE(dest%r_ptr, 3)
+    ej = SIZE(dest%r_ptr, 2); ei = SIZE(dest%r_ptr, 1)
+    bk = 0; sbk = -1; ebk = HUGE(ebk); sbi = -1; ebi = HUGE(ebi)
     NULLIFY(sd5d, ss5d)
-    IF (funccode .NE. FUNC_MASK_MISS) THEN
-      sb = dest%info%subset%start_block
-      eb = dest%info%subset%end_block
-      IF (src%info%lcontained) THEN
-        ic = src%info%ncontained
-        SELECT CASE(src%info%var_ref_pos)
-        CASE(1)
-          IF (ASSOCIATED(src%r_ptr)) sd5d => src%r_ptr(ic:ic,:,:,:,:)
-          IF (ASSOCIATED(src%s_ptr)) ss5d => src%s_ptr(ic:ic,:,:,:,:)
-        CASE(2)
-          IF (ASSOCIATED(src%r_ptr)) sd5d => src%r_ptr(:,ic:ic,:,:,:)
-          IF (ASSOCIATED(src%s_ptr)) ss5d => src%s_ptr(:,ic:ic,:,:,:)
-        CASE(3)
-          IF (ASSOCIATED(src%r_ptr)) sd5d => src%r_ptr(:,:,ic:ic,:,:)
-          IF (ASSOCIATED(src%s_ptr)) ss5d => src%s_ptr(:,:,ic:ic,:,:)
-        CASE(4)
-          IF (ASSOCIATED(src%r_ptr)) sd5d => src%r_ptr(:,:,:,ic:ic,:)
-          IF (ASSOCIATED(src%s_ptr)) ss5d => src%s_ptr(:,:,:,ic:ic,:)
-        END SELECT
-      ELSE
-        SELECT CASE(dest%info%ndims)
-        CASE(3)
-          br = 3
-          ic = dest%info%used_dimensions(2)
-          IF (ZA_OCEAN_SEDIMENT .EQ. dest%info%vgrid .OR. 1 .EQ. ic) THEN
-            IF (ASSOCIATED(src%r_ptr)) sd5d => src%r_ptr(:,1:ic,sb:eb,1:1,1:1)
-            IF (ASSOCIATED(src%s_ptr)) ss5d => src%s_ptr(:,1:ic,sb:eb,1:1,1:1)
-          ELSE
-            IF (ASSOCIATED(src%r_ptr)) sd5d => src%r_ptr(:,:,sb:eb,1:1,1:1)
-            IF (ASSOCIATED(src%s_ptr)) ss5d => src%s_ptr(:,:,sb:eb,1:1,1:1)
-          END IF
-        CASE(2)
-          IF (GRID_ZONAL .EQ. dest%info%hgrid) THEN
-            IF (ASSOCIATED(src%r_ptr)) sd5d => src%r_ptr(:,:,1:1,1:1,1:1)
-            IF (ASSOCIATED(src%s_ptr)) ss5d => src%s_ptr(:,:,1:1,1:1,1:1)
-          ELSE
-            br = 2
-            IF (ASSOCIATED(src%r_ptr)) sd5d => src%r_ptr(:,sb:eb,1:1,1:1,1:1)
-            IF (ASSOCIATED(src%s_ptr)) ss5d => src%s_ptr(:,sb:eb,1:1,1:1,1:1)
-          END IF
-        CASE DEFAULT
-          IF (ASSOCIATED(src%r_ptr)) sd5d => src%r_ptr(:,:,:,:,:)
-          IF (ASSOCIATED(src%s_ptr)) ss5d => src%s_ptr(:,:,:,:,:)
-        END SELECT
+    IF (ASSOCIATED(src%r_ptr)) sd5d => src%r_ptr(:,:,:,:,:)
+    IF (ASSOCIATED(src%s_ptr)) ss5d => src%s_ptr(:,:,:,:,:)
+    IF (funccode .NE. F_MISS .AND. src%info%lcontained) THEN
+      ic = src%info%ncontained
+      SELECT CASE(src%info%var_ref_pos)
+      CASE(1)
+        IF (ASSOCIATED(src%r_ptr)) sd5d => src%r_ptr(ic:ic,:,:,:,:)
+        IF (ASSOCIATED(src%s_ptr)) ss5d => src%s_ptr(ic:ic,:,:,:,:)
+      CASE(2)
+        IF (ASSOCIATED(src%r_ptr)) sd5d => src%r_ptr(:,ic:ic,:,:,:)
+        IF (ASSOCIATED(src%s_ptr)) ss5d => src%s_ptr(:,ic:ic,:,:,:)
+      CASE(3)
+        IF (ASSOCIATED(src%r_ptr)) sd5d => src%r_ptr(:,:,ic:ic,:,:)
+        IF (ASSOCIATED(src%s_ptr)) ss5d => src%s_ptr(:,:,ic:ic,:,:)
+      CASE(4)
+        IF (ASSOCIATED(src%r_ptr)) sd5d => src%r_ptr(:,:,:,ic:ic,:)
+        IF (ASSOCIATED(src%s_ptr)) ss5d => src%s_ptr(:,:,:,ic:ic,:)
+      END SELECT
+    ELSE IF (funccode .NE. F_MISS) THEN
+      IF (dest%info%ndims .EQ. 3) THEN
+        bk = 3
+        sbk = dest%info%subset%start_block
+        ebk = dest%info%subset%end_block
+      ELSE IF (dest%info%ndims .EQ. 2 .AND. &
+        & GRID_ZONAL .NE. dest%info%hgrid) THEN
+        bk = 2
+        sbk = dest%info%subset%start_block
+        ebk = dest%info%subset%end_block
       END IF
-      eb = eb + 1 - sb
-    ELSE
-      miss_src = MERGE(miss, REAL(miss_s, wp), ASSOCIATED(src%r_ptr))
-      IF (ASSOCIATED(src%r_ptr)) sd5d => src%r_ptr(:,:,:,:,:)
-      IF (ASSOCIATED(src%s_ptr)) ss5d => src%s_ptr(:,:,:,:,:)
+      sbi = dest%info%subset%start_index
+      ebi = dest%info%subset%end_index
     END IF
+    lacc = dest%info%lopenacc .AND. i_am_accel_node
     CALL perform_op_5d()
   CONTAINS
 
   SUBROUTINE perform_op_5d()
-    INTEGER :: ni, j, k, l, m, lsi, lei, blk, si, ei, joff, koff
-    LOGICAL :: ls, blk_is3
+    INTEGER :: i,j,k,l,m,lblk
     REAL(wp), POINTER :: tmp1(:,:,:,:,:), tmp2(:,:,:,:,:)
-    REAL(wp) :: miss__, weight__
 
-    ls = br .NE. 0
-    blk_is3 = br .EQ. 3
-    joff = MERGE(sb - 1, 0, ls .AND. .NOT.blk_is3)
-    koff = MERGE(sb - 1, 0, ls .AND. blk_is3)
-    si = dest%info%subset%start_index
-    ei = dest%info%subset%end_index
-    ni = SIZE(dest%r_ptr, 1)
+#define _begin_loop_construct_ \
+DO m = sm, em;\
+  DO l = sl, el;\
+    DO k = sk, ek;\
+      DO j = sj, ej;\
+        DO i = si, ei;\
+          lblk = MERGE(0, MERGE(k, j, bk.EQ.3), bk.EQ.0);\
+          IF (lblk.LT.sbk .OR. lblk.GT.ebk) CYCLE;\
+          IF (lblk.EQ.sbk .AND. i.LT.sbi) CYCLE;\
+          IF (lblk.EQ.ebk .AND. i.GT.ebi) CYCLE
+#define _close_loop_construct_ \
+        END DO;\
+      END DO;\
+    END DO;\
+  END DO;\
+END DO
+#define _idx_ i,j,k,l,m
+#define __myACC_directive !$ACC PARALLEL LOOP PRESENT(tmp1, tmp2) COLLAPSE(5) GANG VECTOR ASYNC(1) IF(lacc)
+#define __myOMP_directive !ICON_OMP PARALLEL DO PRIVATE(lblk) COLLAPSE(4)
     IF (ASSOCIATED(sd5d)) THEN
-      !$ACC UPDATE HOST(src%r_ptr) IF(src%info%lopenacc .AND. i_am_accel_node)
       tmp1 => sd5d
-    ELSE
-      !$ACC UPDATE HOST(src%s_ptr) IF(src%info%lopenacc .AND. i_am_accel_node)
-      ALLOCATE(tmp1(SIZE(ss5d,1), SIZE(ss5d,2), SIZE(ss5d,3), SIZE(ss5d,4), SIZE(ss5d,5)))
-!ICON_OMP PARALLEL PRIVATE(j,k,l,m,blk,lsi,lei)
-!ICON_OMP DO COLLAPSE(4)
-!!$ACC PARALLEL LOOP PRESENT(tmp1, tmp2) GANG VECTOR COLLAPSE(4) ASYNC(1) IF(i_am_accel_node)
-      DO m = 1, SIZE(tmp1,5)
-        DO l = 1, SIZE(tmp1,4)
-          DO k = 1, SIZE(tmp1,3)
-            DO j = 1, SIZE(tmp1,2)
-              blk = MERGE(k, j, blk_is3)
-              lsi = MERGE(si, 1,  ls .AND. blk .EQ. 1)
-              lei = MERGE(ei, ni, ls .AND. blk .EQ. eb)
-              tmp1(lsi:lei,j,k,l,m) = REAL(ss5d(lsi:lei,j,k,l,m), wp)
-            END DO
-          END DO
-        END DO
-      END DO
-!ICON_OMP END DO NOWAIT
-!ICON_OMP END PARALLEL
+      __acc_attach(tmp1)
+    ELSE IF (funccode .NE. F_MISS .OR. funccode .NE. F_WGT) THEN
+        ALLOCATE(tmp1(si:ei,sj:ej,sk:ek,sl:el,sm:em))
+        !$ACC ENTER DATA CREATE(tmp1) IF(lacc)
+__myOMP_directive
+!$ACC PARALLEL LOOP PRESENT(ss5d, tmp1) COLLAPSE(5) GANG VECTOR ASYNC(1) IF(lacc)
+      _begin_loop_construct_
+        tmp1(_idx_) = REAL(ss5d(_idx_), wp)
+      _close_loop_construct_
     END IF
     tmp2 => dest%r_ptr
-!ICON_OMP PARALLEL PRIVATE(j,k,l,m,blk,lsi,lei)
+    __acc_attach(tmp2)
     SELECT CASE(funccode)
-    CASE(FUNC_ACCUMULATION)
-!ICON_OMP DO COLLAPSE(4)
-!!$ACC PARALLEL LOOP PRESENT(tmp1, tmp2) GANG VECTOR COLLAPSE(4) ASYNC(1) IF(i_am_accel_node)
-      DO m = 1, SIZE(tmp1,5)
-        DO l = 1, SIZE(tmp1,4)
-          DO k = 1, SIZE(tmp1,3)
-            DO j = 1, SIZE(tmp1,2)
-              blk = MERGE(k, j, blk_is3)
-              lsi = MERGE(si, 1,  ls .AND. blk .EQ. 1)
-              lei = MERGE(ei, ni, ls .AND. blk .EQ. eb)
-              tmp2(lsi:lei,j+joff,k+koff,l,m) = &
-                & tmp2(lsi:lei,j+joff,k+koff,l,m) + tmp1(lsi:lei,j,k,l,m)
-            END DO
-          END DO
-        END DO
-      END DO
-!ICON_OMP END DO NOWAIT
-    CASE(FUNC_MAX)
-!ICON_OMP DO COLLAPSE(4)
-!!$ACC PARALLEL LOOP PRESENT(tmp1, tmp2) GANG VECTOR COLLAPSE(4) ASYNC(1) IF(i_am_accel_node)
-      DO m = 1, SIZE(tmp1,5)
-        DO l = 1, SIZE(tmp1,4)
-          DO k = 1, SIZE(tmp1,3)
-            DO j = 1, SIZE(tmp1,2)
-              blk = MERGE(k, j, blk_is3)
-              lsi = MERGE(si, 1,  ls .AND. blk .EQ. 1)
-              lei = MERGE(ei, ni, ls .AND. blk .EQ. eb)
-              WHERE(tmp1(lsi:lei,j,k,l,m) .GT. tmp2(lsi:lei,j+joff,k+koff,l,m)) &
-                & tmp2(lsi:lei,j+joff,k+koff,l,m) = tmp1(lsi:lei,j,k,l,m)
-            END DO
-          END DO
-        END DO
-      END DO
-!ICON_OMP END DO NOWAIT
-    CASE(FUNC_MIN)
-!ICON_OMP DO COLLAPSE(4)
-!!$ACC PARALLEL LOOP PRESENT(tmp1, tmp2) GANG VECTOR COLLAPSE(4) ASYNC(1) IF(i_am_accel_node)
-      DO m = 1, SIZE(tmp1,5)
-        DO l = 1, SIZE(tmp1,4)
-          DO k = 1, SIZE(tmp1,3)
-            DO j = 1, SIZE(tmp1,2)
-              blk = MERGE(k, j, blk_is3)
-              lsi = MERGE(si, 1,  ls .AND. blk .EQ. 1)
-              lei = MERGE(ei, ni, ls .AND. blk .EQ. eb)
-              WHERE(tmp1(lsi:lei,j,k,l,m) .LT. tmp2(lsi:lei,j+joff,k+koff,l,m)) &
-                & tmp2(lsi:lei,j+joff,k+koff,l,m) = tmp1(lsi:lei,j,k,l,m)
-            END DO
-          END DO
-        END DO
-      END DO
-!ICON_OMP END DO NOWAIT
-    CASE(FUNC_ACCUMULATION_SQUARE)
-!ICON_OMP DO COLLAPSE(4)
-!!$ACC PARALLEL LOOP PRESENT(tmp1, tmp2) GANG VECTOR COLLAPSE(4) ASYNC(1) IF(i_am_accel_node)
-      DO m = 1, SIZE(tmp1,5)
-        DO l = 1, SIZE(tmp1,4)
-          DO k = 1, SIZE(tmp1,3)
-            DO j = 1, SIZE(tmp1,2)
-              blk = MERGE(k, j, blk_is3)
-              lsi = MERGE(si, 1,  ls .AND. blk .EQ. 1)
-              lei = MERGE(ei, ni, ls .AND. blk .EQ. eb)
-              tmp2(lsi:lei,j+joff,k+koff,l,m) = tmp2(lsi:lei,j+joff,k+koff,l,m) + &
-                & tmp1(lsi:lei,j,k,l,m) * tmp1(lsi:lei,j,k,l,m)
-            END DO
-          END DO
-        END DO
-      END DO
-!ICON_OMP END DO NOWAIT
-    CASE(FUNC_ASIGN)
-!ICON_OMP DO COLLAPSE(4)
-!!$ACC PARALLEL LOOP PRESENT(tmp1, tmp2) GANG VECTOR COLLAPSE(4) ASYNC(1) IF(i_am_accel_node)
-      DO m = 1, SIZE(tmp1,5)
-        DO l = 1, SIZE(tmp1,4)
-          DO k = 1, SIZE(tmp1,3)
-            DO j = 1, SIZE(tmp1,2)
-              blk = MERGE(k, j, blk_is3)
-              lsi = MERGE(si, 1,  ls .AND. blk .EQ. 1)
-              lei = MERGE(ei, ni, ls .AND. blk .EQ. eb)
-              tmp2(lsi:lei,j+joff,k+koff,l,m) = tmp1(lsi:lei,j,k,l,m)
-            END DO
-          END DO
-        END DO
-      END DO
-!ICON_OMP END DO NOWAIT
-    CASE(FUNC_ASIGN_SQUARE)
-!ICON_OMP DO COLLAPSE(4)
-!!$ACC PARALLEL LOOP PRESENT(tmp1, tmp2) GANG VECTOR COLLAPSE(4) ASYNC(1) IF(i_am_accel_node)
-      DO m = 1, SIZE(tmp1,5)
-        DO l = 1, SIZE(tmp1,4)
-          DO k = 1, SIZE(tmp1,3)
-            DO j = 1, SIZE(tmp1,2)
-              blk = MERGE(k, j, blk_is3)
-              lsi = MERGE(si, 1,  ls .AND. blk .EQ. 1)
-              lei = MERGE(ei, ni, ls .AND. blk .EQ. eb)
-              tmp2(lsi:lei,j+joff,k+koff,l,m) = &
-                & tmp1(lsi:lei,j,k,l,m) * tmp1(lsi:lei,j,k,l,m)
-            END DO
-          END DO
-        END DO
-      END DO
-!ICON_OMP END DO NOWAIT
-    CASE(FUNC_APPLY_WEIGHT)
-      weight__ = weight
-!ICON_OMP DO COLLAPSE(4)
-!!$ACC PARALLEL LOOP PRESENT(tmp1, tmp2) GANG VECTOR COLLAPSE(4) ASYNC(1) IF(i_am_accel_node)
-      DO m = 1, SIZE(tmp1,5)
-        DO l = 1, SIZE(tmp1,4)
-          DO k = 1, SIZE(tmp1,3)
-            DO j = 1, SIZE(tmp1,2)
-              blk = MERGE(k, j, blk_is3)
-              lsi = MERGE(si, 1,  ls .AND. blk .EQ. 1)
-              lei = MERGE(ei, ni, ls .AND. blk .EQ. eb)
-              tmp2(lsi:lei,j+joff,k+koff,l,m) = &
-                & tmp2(lsi:lei,j+joff,k+koff,l,m) * weight__
-            END DO
-          END DO
-        END DO
-      END DO
-!ICON_OMP END DO NOWAIT
-    CASE(FUNC_MASK_MISS)
-      miss__ = miss
-!ICON_OMP DO COLLAPSE(4)
-!!$ACC PARALLEL LOOP PRESENT(tmp1, tmp2) GANG VECTOR COLLAPSE(4) ASYNC(1) IF(i_am_accel_node)
-      DO m = 1, SIZE(tmp2,5)
-        DO l = 1, SIZE(tmp2,4)
-          DO k = 1, SIZE(tmp2,3)
-            DO j = 1, SIZE(tmp2,2)
-              WHERE(tmp1(:,j,k,l,m) .EQ. miss_src) &
-                tmp2(:,j,k,l,m) = miss__
-            END DO
-          END DO
-        END DO
-      END DO
-!ICON_OMP END DO NOWAIT
+    CASE(F_ACC)
+__myOMP_directive
+__myACC_directive
+       _begin_loop_construct_
+       tmp2(_idx_) = tmp2(_idx_) + tmp1(_idx_)
+       _close_loop_construct_
+    CASE(F_MAX)
+__myOMP_directive
+__myACC_directive       
+        _begin_loop_construct_
+        IF (tmp1(_idx_) .GT. tmp2(_idx_)) tmp2(_idx_) = tmp1(_idx_)
+        _close_loop_construct_
+    CASE(F_MIN)
+__myOMP_directive
+__myACC_directive       
+        _begin_loop_construct_
+        IF (tmp1(_idx_) .LT. tmp2(_idx_)) tmp2(_idx_) = tmp1(_idx_)
+        _close_loop_construct_
+    CASE(F_ACC_SQ)
+__myOMP_directive
+__myACC_directive       
+        _begin_loop_construct_
+        tmp2(_idx_) = tmp2(_idx_) + tmp1(_idx_) * tmp1(_idx_)
+        _close_loop_construct_
+    CASE(F_ASS)
+__myOMP_directive
+__myACC_directive       
+        _begin_loop_construct_
+        tmp2(_idx_) = tmp1(_idx_)
+        _close_loop_construct_               
+    CASE(F_ASS_SQ)
+__myOMP_directive
+__myACC_directive       
+        _begin_loop_construct_
+        tmp2(_idx_) = tmp1(_idx_) * tmp1(_idx_) 
+        _close_loop_construct_          
+    CASE(F_WGT)
+__myOMP_directive
+__myACC_directive       
+        _begin_loop_construct_
+        tmp2(_idx_) = tmp2(_idx_) * weight_dst
+        _close_loop_construct_
+    CASE(F_MISS)
+__myOMP_directive
+__myACC_directive       
+        _begin_loop_construct_
+        IF (tmp1(_idx_) .EQ. miss_src) tmp2(_idx_) = miss_dst
+        _close_loop_construct_
     END SELECT
-!ICON_OMP END PARALLEL
-    IF (ASSOCIATED(ss5d)) DEALLOCATE(tmp1)
+    IF (ASSOCIATED(ss5d) .AND. ASSOCIATED(tmp1)) THEN
+      DEALLOCATE(tmp1)
+      !$ACC EXIT DATA DELETE(tmp1) IF(lacc)
+    END IF
   END SUBROUTINE perform_op_5d
 
   END SUBROUTINE perform_op
@@ -581,18 +457,16 @@ CONTAINS
           src => ederiv%vars(iv)%a%src(it)%p
         END IF
         IF (ct .EQ. 0) THEN ! initial assignment
-          CALL perform_op(src, dst, MERGE(FUNC_ASIGN_SQUARE, FUNC_ASIGN, opcodes(iop) .EQ. OP_MEAN_SQUARE))
+          CALL perform_op(src, dst, MERGE(F_ASS_SQ, F_ASS, opcodes(iop) .EQ. O_MEAN_SQ))
         ELSE ! actual update
           CALL perform_op(src, dst, opfuncs(iop))
         END IF
         ct = ct + 1
         IF (isactive) THEN ! output step, so weighting is applied this time for time mean operators
-          IF ((OP_MEAN .EQ. opcodes(iop) .OR. &
-            &  OP_MEAN_SQUARE .EQ. opcodes(iop)) &
-            & .AND. ct .GT. 0) &
-            & CALL perform_op(src, dst, FUNC_APPLY_WEIGHT, weight=(1._wp / REAL(ct, wp)))
+          IF ((O_MEAN .EQ. opcodes(iop) .OR. O_MEAN_SQ .EQ. opcodes(iop)) .AND. ct .GT. 1) &
+            & CALL perform_op(src, dst, F_WGT, weight=(1._wp / REAL(ct, wp)))
           IF (dst%info%lmiss) & ! (re)set missval where applicable
-            & CALL perform_op(src, dst, FUNC_MASK_MISS, miss=dst%info%missval%rval, &
+            & CALL perform_op(src, dst, F_MISS, miss=dst%info%missval%rval, &
                 &             miss_s=src%info%missval%sval)
           ct = 0
         END IF
