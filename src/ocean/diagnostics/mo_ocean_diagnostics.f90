@@ -2167,7 +2167,7 @@ CONTAINS
         DO cell = cellStart, cellEnd
 
           delta_ice(cell,blk) = SUM(ice%hi(cell,:,blk)*ice%conc(cell,:,blk))
-          delta_snow(cell,blk) = SUM(ice%hi(cell,:,blk)*ice%hs(cell,:,blk))
+          delta_snow(cell,blk) = SUM(ice%hs(cell,:,blk)*ice%conc(cell,:,blk))
 
           !$ACC LOOP SEQ
           DO level = 1,subset%vertical_levels(cell,blk)
@@ -2199,7 +2199,7 @@ CONTAINS
                - ( sithk * entmel )) * dti
 
           ! tendency of equivalent thickness of snow
-          snthk = SUM(ice%hi(cell,:,blk)*ice%hs(cell,:,blk)) - delta_snow(cell,blk)
+          snthk = SUM(ice%hs(cell,:,blk)*ice%conc(cell,:,blk)) - delta_snow(cell,blk)
 
           ! converted to heat content
           delta_snow(cell,blk) = (( rhosnwa * clw * OceanReferenceDensity * snthk          &
