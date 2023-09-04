@@ -28,9 +28,11 @@ MODULE mo_wave_model
   USE mo_intp_lonlat_types,       ONLY: lonlat_grids
   USE mo_impl_constants,          ONLY: success, pio_type_async, pio_type_cdipio
   USE mo_dynamics_config,         ONLY: configure_dynamics
-  USE mo_run_config,              ONLY: configure_run, ldynamics, ltransport,  &
-       &                                ntracer, ltimer, dtime,                &
-       &                                nshift, num_lev, output_mode, msg_level
+  USE mo_run_config,              ONLY: configure_run, ldynamics, ltransport,    &
+       &                                ntracer, ltimer, dtime,                  &
+       &                                nshift, num_lev, output_mode, msg_level, &
+       &                                grid_generatingcenter, grid_generatingsubcenter
+  USE mo_gribout_config,          ONLY: configure_gribout
   USE mo_time_config,             ONLY: time_config
   USE mo_io_config,               ONLY: restartWritingParameters, configure_io
   USE mo_load_restart,            ONLY: read_restart_header
@@ -170,6 +172,8 @@ CONTAINS
     IF (timers_level > 4) CALL timer_stop(timer_domain_decomp)
 
     CALL init_io_processes()
+
+    CALL configure_gribout(grid_generatingcenter, grid_generatingsubcenter, n_dom)
 
     !--------------------------------------------------------------------------------
     ! 6. Construct interpolation state, compute interpolation coefficients.

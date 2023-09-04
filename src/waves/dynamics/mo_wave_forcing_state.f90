@@ -107,26 +107,26 @@ CONTAINS
 
     !forcing group
     !wind 10
-    cf_desc    = t_cf_var('u10m', 'm s-1 ','zonal wind in 10m', datatype_flt)
-    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    cf_desc    = t_cf_var('u10m', 'm s-1 ','U-Component of wind in 10m', datatype_flt)
+    grib2_desc = grib2_var(0, 2, 2, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( p_forcing_list, 'u10m', p_forcing%u10m,                         &
          &        GRID_UNSTRUCTURED_CELL, ZA_HEIGHT_10M, cf_desc, grib2_desc,       &
          &        ldims=shape2d_c, in_group=groups("wave_forcing") )
 
-    cf_desc    = t_cf_var('v10m', 'm s-1 ','meridional wind in 10m', datatype_flt)
-    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    cf_desc    = t_cf_var('v10m', 'm s-1 ','V-Component of wind in 10m', datatype_flt)
+    grib2_desc = grib2_var(0, 2, 3, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( p_forcing_list, 'v10m', p_forcing%v10m,                         &
          &        GRID_UNSTRUCTURED_CELL, ZA_HEIGHT_10M, cf_desc, grib2_desc,       &
          &        ldims=shape2d_c, in_group=groups("wave_forcing") )
 
-    cf_desc    = t_cf_var('sp10m', 'm s-1 ','wind speed in 10m', datatype_flt)
-    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    cf_desc    = t_cf_var('sp10m', 'm s-1 ','Wind speed (SP_10M)', datatype_flt)
+    grib2_desc = grib2_var(0, 2, 1, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( p_forcing_list, 'sp10m', p_forcing%sp10m,                      &
          &        GRID_UNSTRUCTURED_CELL, ZA_HEIGHT_10M, cf_desc, grib2_desc,       &
          &        ldims=shape2d_c, in_group=groups("wave_forcing") )
 
-    cf_desc    = t_cf_var('dir10m', 'deg ','wind direction in 10m', datatype_flt)
-    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    cf_desc    = t_cf_var('dir10m', 'deg ','Wind direction (DD_10M)', datatype_flt)
+    grib2_desc = grib2_var(0, 2, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( p_forcing_list, 'dir10m', p_forcing%dir10m,                       &
          &        GRID_UNSTRUCTURED_CELL, ZA_HEIGHT_10M, cf_desc, grib2_desc,       &
          &        ldims=shape2d_c, in_group=groups("wave_forcing") )

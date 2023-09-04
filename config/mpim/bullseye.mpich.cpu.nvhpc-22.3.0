@@ -68,6 +68,9 @@ EXTRA_CONFIG_ARGS='--enable-loop-exchange --enable-grib2 --enable-fcgroup-WORKAR
 # The compiler cannot build YAC yet:
 EXTRA_CONFIG_ARGS+=' --disable-coupling'
 
+# The compiler cannot build YAC yet:
+EXTRA_CONFIG_ARGS+=' --disable-coupling'
+
 ################################################################################
 
 "${icon_dir}/configure" \
