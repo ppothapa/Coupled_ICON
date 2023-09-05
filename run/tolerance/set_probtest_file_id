@@ -85,6 +85,7 @@ case $EXPERIMENT in
         --file-id meteogram "Meteogram*.nc"
         --file-id total_integrals "total_integrals.dat"
         --file-id tracer_total_integrals "tracer_total_integrals.dat"
+        --file-id emvorado_vrsim_volscan "radar_dom1/cdfin*zrsim*volscan.nc"
         )
         ;;
     *mch_*nest*)
