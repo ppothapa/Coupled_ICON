@@ -53,12 +53,12 @@ USE mo_nh_vert_interp_les,   ONLY: init_vertical_grid_for_les
 #endif
 USE mo_dynamics_config,      ONLY: nnow, nnew, nnow_rcf, idiv_method
 ! Horizontal grid
-USE mo_model_domain,         ONLY: p_patch
+USE mo_model_domain,         ONLY: p_patch, p_patch_local_parent
 USE mo_grid_config,          ONLY: n_dom, n_dom_start, start_time, end_time, &
      &                             is_plane_torus, l_limited_area, l_scm_mode
 USE mo_intp_data_strc,       ONLY: p_int_state
 USE mo_intp_lonlat_types,    ONLY: lonlat_grids
-USE mo_grf_intp_data_strc,   ONLY: p_grf_state
+USE mo_grf_intp_data_strc,   ONLY: p_grf_state, p_grf_state_local_parent
 ! Vertical grid
 USE mo_vertical_grid,        ONLY: set_nh_metrics
 ! Grid nesting
@@ -437,7 +437,8 @@ CONTAINS
          &              ext_data        )
 
     IF (n_dom > 1) THEN
-      CALL complete_nesting_setup()
+      CALL complete_nesting_setup(p_patch(1:), p_patch_local_parent(n_dom_start+1:), &
+        &                         p_grf_state_local_parent(n_dom_start+1:), p_nh_state(1:))
     END IF
 
     ! Initialize DACE routines

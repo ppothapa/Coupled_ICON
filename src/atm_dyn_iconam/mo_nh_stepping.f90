@@ -73,7 +73,7 @@ MODULE mo_nh_stepping
                                          prep_rho_bdy_nudging, density_boundary_nudging,&
                                          limarea_nudging_latbdy,                        &
                                          limarea_nudging_upbdy, save_progvars
-  USE mo_nh_feedback,              ONLY: feedback, relax_feedback, lhn_feedback
+  USE mo_nh_feedback,              ONLY: incr_feedback, relax_feedback, lhn_feedback
   USE mo_exception,                ONLY: message, message_text, finish
   USE mo_impl_constants,           ONLY: SUCCESS, inoforcing, iheldsuarez, inwp, iaes,         &
     &                                    MODE_IAU, MODE_IAU_OLD, SSTICE_CLIM,                  &
@@ -2435,7 +2435,7 @@ MODULE mo_nh_stepping
           IF (lfeedback(jgc)) THEN
             IF (timers_level >= 2) CALL timer_start(timer_feedback)
             IF (ifeedback_type == 1) THEN
-              CALL feedback(p_patch, p_nh_state, p_int_state, p_grf_state, p_lnd_state, &
+              CALL incr_feedback(p_patch, p_nh_state, p_int_state, p_grf_state, p_lnd_state, &
                 &           jgc, jg)
             ELSE
               !$ser verbatim CALL serialize_all(nproma, jg, "nesting_relax_feedback", .TRUE., opt_lupdate_cpu=.TRUE., opt_id=jstep)

@@ -262,7 +262,6 @@ cat > ${atmo_namelist} << EOF
  grf_intmethod_e  = 6
  grf_tracfbk      = 2
  denom_diffu_v    = 150.
- l_mass_consvcorr = .true. 
  l_density_nudging = .true.
 /
 &extpar_nml

@@ -2482,9 +2482,6 @@ MODULE mo_initicon_utils
       IF(ASSOCIATED(p_nh_state(jg)%metrics%rho_ref_corr)) &
         & CALL printChecksum(prefix(1:pfx_tlen)//"rho_ref_corr: ", &
         & p_nh_state(jg)%metrics%rho_ref_corr)
-      IF(ASSOCIATED(p_nh_state(jg)%metrics%fbk_dom_volume)) &
-        & CALL printChecksum(prefix(1:pfx_tlen)//"fbk_dom_volume: ", &
-        & p_nh_state(jg)%metrics%fbk_dom_volume)
       IF(ASSOCIATED(p_nh_state(jg)%metrics%ddxn_z_full)) &
         & CALL printChecksum(prefix(1:pfx_tlen)//"ddxn_z_full: ", &
         & p_nh_state(jg)%metrics%ddxn_z_full)

@@ -333,9 +333,7 @@ MODULE mo_nonhydro_types
      mask_mtnpoints_g(:,:) , & ! 
      ! slope angle and azimuth (used for slope-dependent radiation)
      slope_angle(:,:)  , & ! [rad]
-     slope_azimuth(:,:), & ! [rad]; zero means south-facing slope
-     ! Area of subdomain for which feedback is performed; dim: (nlev)
-     fbk_dom_volume(:)       &
+     slope_azimuth(:,:) & ! [rad]; zero means south-facing slope
      => NULL()
 
     ! Variables that are in single precision when "__MIXED_PRECISION" is defined

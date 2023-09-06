@@ -2303,18 +2303,12 @@ Deniminator for lateral boundary diffusion of velocity&
 n\_dom$>$1\tabularnewline
 
 %\hline
-l\_mass\_consvcorr&
-L& .FALSE.& &
-.TRUE.: Apply mass conservation correction in feedback routine &
-n\_dom$>$1\tabularnewline
-
-%\hline
 l\_density\_nudging &
 L& .FALSE.& &
 .TRUE.: Apply density nudging near lateral nest boundary if grf\_intmethod\_e $\in$ \{2,4\}&
 n\_dom$>$1 .AND. lfeedback = .TRUE. \tabularnewline
 
-\hline
+%\hline
 fbk\_relax\_timescale &
 R & 10800& &
 Relaxation time scale for feedback &
@@ -4686,12 +4680,6 @@ divdamp\_trans\_end&
 R & 17500. & &
 Upper bound of transition zone between 2D and 3D divergence damping  &
 divdamp\_type = 32
-\tabularnewline
-
-%\hline
-l\_masscorr\_nest&
-L& .FALSE.& &
-.TRUE.: Apply mass conservation correction also in nested domain & ifeedback\_type=1
 \tabularnewline
 
 %\hline

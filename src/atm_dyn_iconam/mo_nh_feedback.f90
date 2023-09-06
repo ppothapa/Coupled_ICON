@@ -1,5 +1,5 @@
 !>
-!!  This module contains the routines needed for nesting in the nonhydrostatic.
+!!  This module contains the routines needed for nesting in the nonhydrostatic 
 !!  version.
 !!
 !! @par Revision History
@@ -29,18 +29,16 @@ MODULE mo_nh_feedback
   USE mo_intp_data_strc,      ONLY: t_int_state
   USE mo_intp_rbf,            ONLY: rbf_vec_interpol_vertex
   USE mo_grf_intp_data_strc,  ONLY: t_gridref_state, p_grf_state_local_parent
-  USE mo_gridref_config,      ONLY: grf_velfbk, l_mass_consvcorr, fbk_relax_timescale, grf_scalfbk, grf_tracfbk
-  USE mo_nonhydrostatic_config, ONLY: l_masscorr_nest
-  USE mo_dynamics_config,     ONLY: nnow, nnew, nnow_rcf, nnew_rcf, nsav1, nsav2 
+  USE mo_gridref_config,      ONLY: grf_velfbk, fbk_relax_timescale, grf_scalfbk, grf_tracfbk
+  USE mo_dynamics_config,     ONLY: nnow, nnew, nnow_rcf, nnew_rcf, nsav1, nsav2
   USE mo_parallel_config,     ONLY: nproma, p_test_run
   USE mo_advection_config,    ONLY: advection_config, t_trList
   USE mo_run_config,          ONLY: ltransport, iforcing, msg_level, ntracer
   USE mo_nonhydro_types,      ONLY: t_nh_state, t_nh_prog, t_nh_diag
   USE mo_impl_constants,      ONLY: min_rlcell, min_rledge, min_rlcell_int, min_rledge_int, &
-    &                     min_rlvert_int, nclass_aero
+    &                               min_rlvert_int, nclass_aero, SUCCESS
   USE mo_loopindices,         ONLY: get_indices_c, get_indices_e, get_indices_v
-  USE mo_impl_constants_grf,  ONLY: grf_fbk_start_c, grf_fbk_start_e,          &
-    grf_bdywidth_c
+  USE mo_impl_constants_grf,  ONLY: grf_fbk_start_c, grf_fbk_start_e, grf_bdywidth_c
   USE mo_communication,       ONLY: exchange_data_mult
 #ifdef __MIXED_PRECISION
   USE mo_communication,       ONLY: exchange_data_mult_mixprec
@@ -60,15 +58,15 @@ MODULE mo_nh_feedback
 
   IMPLICIT NONE
 
-  PUBLIC :: feedback, relax_feedback, lhn_feedback
+  PUBLIC :: incr_feedback, relax_feedback, lhn_feedback
 
 CONTAINS
   
 
   !>
-  !! This routine computes the feedback of the prognostic variables from the fine mesh.
+  !! This routine computes the incremental feedback of the prognostic variables from the fine mesh.
   !!
-  !! This routine computes the feedback of the prognostic variables from the fine mesh
+  !! This routine computes the incremental feedback of the prognostic variables from the fine mesh
   !! to the corresponding grid point on the coarse mesh
   !! jg in this case denotes the fine mesh level; output goes to parent_id(jg)
   !!
@@ -79,12 +77,11 @@ CONTAINS
   !! Change feedback for cell-based variables from area-weighted averaging
   !! to using fbk_wgt (see above routine)
   !!
-  SUBROUTINE feedback(p_patch, p_nh_state, p_int_state, p_grf_state, p_lnd_state, &
+  SUBROUTINE incr_feedback(p_patch, p_nh_state, p_int_state, p_grf_state, p_lnd_state, &
     jg, jgp)
 
     CHARACTER(len=*), PARAMETER ::  &
-      &  routine = 'mo_nh_feedback:feedback'
-
+      &  routine = 'mo_nh_feedback:incr_feedback'
 
     TYPE(t_patch),       TARGET, INTENT(IN)    ::  p_patch(n_dom_start:n_dom)
     TYPE(t_nh_state), TARGET, INTENT(INOUT)    ::  p_nh_state(n_dom)
@@ -118,12 +115,13 @@ CONTAINS
     TYPE(t_wtr_prog),   POINTER     :: p_wtrp => NULL()
 
     ! Indices
-    INTEGER :: jb, jc, jk, jt, je, js, jgc, i_nchdom, i_chidx, &
-      i_startblk, i_endblk, i_startidx, i_endidx, ic, i_ncd
+    INTEGER :: jb, jc, jk, jt, je, js, i_nchdom, i_chidx, &
+      i_startblk, i_endblk, i_startidx, i_endidx, ic
+    INTEGER :: ist
 
     INTEGER :: nlev_c, nlevp1_c  ! number of full and half levels (child dom)
     INTEGER :: nlev_p, nlevp1_p  ! number of full and half levels (parent dom)
-    INTEGER :: nshift, nshift_c
+    INTEGER :: nshift
     INTEGER :: ntiles, ntiles_h2o
 
     REAL(wp), DIMENSION(nproma,p_patch(jg)%nlev,p_patch(jg)%nblks_v) :: z_u, z_v
@@ -135,21 +133,13 @@ CONTAINS
     REAL(wp), ALLOCATABLE :: feedback_tg(:,:,:)
     REAL(wp), ALLOCATABLE :: feedback_w_tend(:,:,:)
     REAL(wp), ALLOCATABLE :: feedback_tracer_mass(:,:,:,:)
-    REAL(wp), ALLOCATABLE, DIMENSION(:,:,:)   :: fbk_tend, parent_tend
-    REAL(wp), ALLOCATABLE, DIMENSION(:,:,:,:) :: fbk_tr_mass, parent_tr_mass
-    REAL(wp), ALLOCATABLE, DIMENSION(:,:,:)   :: fbk_tr_totmass, parent_tr_totmass
-    REAL(wp) :: tendency_corr(p_patch(jgp)%nlev),        &
-      aux_diff((ntracer+1)*p_patch(jgp)%nlev), &
-      tracer_corr(ntracer*p_patch(jgp)%nlev),  &
-      diff_tg(nproma,p_patch(jgp)%nblks_c),    &
-      tg_pr(nproma,p_patch(jg)%nblks_c),       &
-      parent_tg(nproma,1,p_patch(jgp)%nblks_c)
-
+    REAL(wp) :: diff_tg(nproma,p_patch(jgp)%nblks_c),    &
+                tg_pr(nproma,p_patch(jg)%nblks_c),       &
+                parent_tg(nproma,1,p_patch(jgp)%nblks_c)
     REAL(wp) :: rd_o_cvd, rd_o_p0ref, relfac
 
     INTEGER, DIMENSION(:,:,:), POINTER :: iidx, iblk, iidxv, iblkv
-    REAL(wp), DIMENSION(:,:,:), POINTER :: p_fbkwgt, p_fbkwgt_tr, p_fb_layer_thickness
-    REAL(wp), DIMENSION(:,:),   POINTER :: p_fbarea
+    REAL(wp), DIMENSION(:,:,:), POINTER :: p_fbkwgt, p_fbkwgt_tr
 
     !-----------------------------------------------------------------------
 
@@ -212,43 +202,22 @@ CONTAINS
     ! Relaxation factor used for ground temperature relaxation
     relfac = 0.075_wp
 
-    ! parent_tend, parent_tr_mass, parent_tr_totmass are always calculated on the global parent
-    ! and thus have to be allocated within global parent limits
-
-    i_startblk = p_patch(jgp)%cells%start_blk(grf_fbk_start_c,i_chidx)
-    i_endblk   = p_patch(jgp)%cells%end_blk(min_rlcell_int,i_chidx)
-
-    ALLOCATE(parent_tend(nproma, nlev_p, i_startblk:i_endblk))
-    IF (ltransport) &
-      ALLOCATE(parent_tr_mass(nproma, nlev_p, i_startblk:i_endblk, ntracer), &
-      parent_tr_totmass(nproma, nlev_p, i_startblk:i_endblk) )
-
     ! Allocation of storage fields
-    ! In parallel runs the lower bound of the feedback_* arrays must be 1 for use in exchange data,
-    ! the lower bound of the fbk_* arrays must be i_startblk for the use in global sum.
-
-    i_startblk = p_gcp%start_blk(grf_fbk_start_c,i_chidx)
-    i_endblk   = p_gcp%end_blk(min_rlcell_int,i_chidx)
-
-    ALLOCATE(fbk_tend(nproma, nlev_p,  i_startblk:i_endblk))
-    IF(ltransport) &
-      ALLOCATE(fbk_tr_mass(nproma, nlev_p, i_startblk:i_endblk, ntracer), &
-      fbk_tr_totmass(nproma, nlev_p, i_startblk:i_endblk)  )
+    ! In parallel runs the lower bound of the feedback_* arrays must be 1 for use in exchange data
 
     i_startblk = 1
+    i_endblk   = p_gcp%end_blk(min_rlcell_int,i_chidx)
 
-    ALLOCATE(feedback_thv_tend  (nproma, nlev_p, i_startblk:i_endblk),   &
-      feedback_rho_tend  (nproma, nlev_p, i_startblk:i_endblk),   &
-      feedback_w_tend    (nproma, nlevp1_p, i_startblk:i_endblk),  &
-      feedback_tg        (nproma, 1, i_startblk:i_endblk)  )
+    ALLOCATE(feedback_thv_tend  (nproma, nlev_p,   i_startblk:i_endblk),   &
+             feedback_rho_tend  (nproma, nlev_p,   i_startblk:i_endblk),   &
+             feedback_w_tend    (nproma, nlevp1_p, i_startblk:i_endblk),   &
+             feedback_tg        (nproma, 1,        i_startblk:i_endblk)  )
 
     IF(ltransport) &
       ALLOCATE(feedback_tracer_mass(nproma, nlev_p, i_startblk:i_endblk, ntracer))
 
-    i_startblk = p_gep%start_blk(grf_fbk_start_e,i_chidx)
-    i_endblk   = p_gep%end_blk(min_rledge,i_chidx)
-
     i_startblk = 1
+    i_endblk   = p_gep%end_blk(min_rledge,i_chidx)
 
     ALLOCATE(feedback_vn(nproma, nlev_p, i_startblk:i_endblk))
 
@@ -267,12 +236,9 @@ CONTAINS
     ELSE
       p_fbkwgt_tr => p_grf%fbk_wgt_bln
     ENDIF
-    p_fbarea    => p_gcp%area
 
-    p_fb_layer_thickness => p_gcp%ddqz_z_full
 
     ! Preparation of feedback: compute child tendencies
-
 
 !$OMP PARALLEL PRIVATE(i_startblk,i_endblk)
     !
@@ -309,7 +275,7 @@ CONTAINS
     ENDDO
 !$OMP END DO
 
-    ! Compute feedback tendency for density and tracers, including a layer-wise conservation correction
+    ! Compute feedback tendency for density and tracers
 
     ! Start/End block in the parent domain
     i_startblk = p_gcp%start_blk(grf_fbk_start_c,i_chidx)
@@ -321,8 +287,6 @@ CONTAINS
 
       CALL get_indices_c(p_pp, jb, i_startblk, i_endblk, &
         i_startidx, i_endidx, grf_fbk_start_c, min_rlcell_int)
-
-      fbk_tend(:,:,jb) = 0._wp
 
 #ifdef __LOOP_EXCHANGE
       DO jc = i_startidx, i_endidx
@@ -338,20 +302,13 @@ CONTAINS
             p_child_tend%grf_tend_rho(iidx(jc,jb,3),jk,iblk(jc,jb,3))*p_fbkwgt(jc,jb,3) + &
             p_child_tend%grf_tend_rho(iidx(jc,jb,4),jk,iblk(jc,jb,4))*p_fbkwgt(jc,jb,4)
 
-          fbk_tend(jc,jk+js,jb) = feedback_rho_tend(jc,jk+js,jb)*p_fbarea(jc,jb)* &
-            p_fb_layer_thickness(jc,jk+js,jb)
-
         ENDDO
       ENDDO
 
       ! Tracers
       IF (ltransport) THEN
 
-        fbk_tr_totmass(:,:,jb) = 0._wp
-
         DO jt = 1, ntracer
-
-          fbk_tr_mass(:,:,jb,jt) = 0._wp
 
           feedback_tracer_mass(:,1:nshift,jb,jt) = 0._wp
 
@@ -373,12 +330,6 @@ CONTAINS
                 p_fbkwgt_tr(jc,jb,4)*p_child_prog%rho(iidx(jc,jb,4),jk,iblk(jc,jb,4))*        &
                 p_child_prog_rcf%tracer(iidx(jc,jb,4),jk,iblk(jc,jb,4),jt)
 
-              fbk_tr_mass(jc,jk+js,jb,jt) = feedback_tracer_mass(jc,jk+js,jb,jt)        &
-                &                       * p_fbarea(jc,jb)*p_fb_layer_thickness(jc,jk+js,jb)
-
-              fbk_tr_totmass(jc,jk+js,jb) = fbk_tr_totmass(jc,jk+js,jb)                 &
-                &                       + fbk_tr_mass(jc,jk+js,jb,jt)
-
             ENDDO
           ENDDO
         ENDDO
@@ -387,159 +338,6 @@ CONTAINS
 
     ENDDO
 !$OMP END DO
-
-    ! Calculate the area-weighted sum of (p_parent_prog%rho-p_parent_save%rho)
-    ! as well as the feedback area - this has always to be done in the parent patch
-
-    ! Start/End block in the parent domain
-    i_startblk = p_patch(jgp)%cells%start_blk(1,1)
-    i_endblk   = p_patch(jgp)%cells%end_blk(min_rlcell_int,i_nchdom)
-
-!$OMP DO PRIVATE(jb,i_startidx,i_endidx,jc) ICON_OMP_DEFAULT_SCHEDULE
-    DO jb = i_startblk, i_endblk
-
-      parent_tend(:,:,jb) = 0._wp
-
-      CALL get_indices_c(p_patch(jgp), jb, i_startblk, i_endblk, &
-        i_startidx, i_endidx, 1, min_rlcell_int)
-
-      DO jk = 1, nlev_p
-        DO jc = i_startidx, i_endidx
-          IF (p_grfp%mask_ovlp_c(jc,jb,i_chidx)) THEN
-            parent_tend(jc,jk,jb) =  &
-              (p_parent_prog%rho(jc,jk,jb) - p_parent_save%rho(jc,jk,jb))*   &
-              p_patch(jgp)%cells%area(jc,jb)*p_nh_state(jgp)%metrics%ddqz_z_full(jc,jk,jb)
-          ENDIF
-        ENDDO
-      ENDDO
-
-      IF (ltransport) THEN
-
-        parent_tr_totmass(:,:,jb) = 0._wp
-
-        DO jt = 1, ntracer
-
-          parent_tr_mass(:,:,jb,jt) = 0._wp
-
-          DO jk = 1, nlev_p
-            DO jc = i_startidx, i_endidx
-              IF (p_grfp%mask_ovlp_c(jc,jb,i_chidx)) THEN
-                parent_tr_mass(jc,jk,jb,jt) =  &
-                  p_parent_prog%rho(jc,jk,jb)*p_parent_prog_rcf%tracer(jc,jk,jb,jt)* &
-                  p_patch(jgp)%cells%area(jc,jb)*p_nh_state(jgp)%metrics%ddqz_z_full(jc,jk,jb)
-
-                parent_tr_totmass(jc,jk,jb) = parent_tr_totmass(jc,jk,jb) + &
-                  parent_tr_mass(jc,jk,jb,jt)
-              ENDIF
-            ENDDO
-          ENDDO
-        ENDDO
-      ENDIF
-
-    ENDDO
-!$OMP END DO NOWAIT
-!$OMP END PARALLEL
-
-    ! fbk_dom_volume is now set in p_nh_state(jg)%metrics
-
-    IF (l_mass_consvcorr) THEN
-      IF ( .NOT. (ltransport)) THEN
-        ! compute conservation correction for global mass only
-        aux_diff(1:nlev_p) = global_sum_array3(1,.TRUE.,parent_tend,fbk_tend,diffmask=(/1/))
-        DO jk = 1, nlev_p
-          tendency_corr(jk) = aux_diff(jk) / p_nh_state(jg)%metrics%fbk_dom_volume(jk)
-        ENDDO
-      ELSE IF (iforcing <= 1) THEN
-        ! compute conservation correction for global mass and each tracer separately
-        ! the correction is additive for density and multiplicative for tracer masses
-        aux_diff = global_sum_array3(ntracer+1,.TRUE.,parent_tend,fbk_tend,f4din=parent_tr_mass,&
-          f4dd=fbk_tr_mass,diffmask=(/1,(2,jt=1,ntracer)/))
-        DO jk = 1, nlev_p
-          tendency_corr(jk) = aux_diff(jk) / p_nh_state(jg)%metrics%fbk_dom_volume(jk)
-        ENDDO
-        DO jk = 1, nlev_p*ntracer
-          tracer_corr(jk) = aux_diff(nlev_p+jk)
-        ENDDO
-      ELSE ! iforcing >= 2; tracers represent moisture variables
-        ! compute conservation correction for global mass and total tracer mass
-        ! the correction is additive for density and multiplicative for tracer mass
-        aux_diff(1:2*nlev_p) = global_sum_array3(2,.TRUE.,parent_tend,fbk_tend,              &
-          f3din2=parent_tr_totmass,f3dd2=fbk_tr_totmass,&
-          diffmask=(/1,2/))
-        DO jk = 1, nlev_p
-          tendency_corr(jk) = aux_diff(jk) / p_nh_state(jg)%metrics%fbk_dom_volume(jk)
-          tracer_corr(jk)   = aux_diff(nlev_p+jk)
-        ENDDO
-      ENDIF
-    ELSE ! conservation correction turned off
-      tendency_corr(:) = 0.0_wp
-      tracer_corr(:)   = 1.0_wp
-    ENDIF
-
-!$OMP PARALLEL PRIVATE(i_startblk,i_endblk,nshift_c,i_ncd,ic,jgc)
-
-    IF (l_masscorr_nest) THEN
-      ! Add mass conservation correction to child domain in order to prevent
-      ! possible inconsistencies in the mass fields
-      i_startblk = p_gcc%start_blk(grf_bdywidth_c+1,1)
-      i_endblk   = p_gcc%end_blk(min_rlcell,i_nchdom)
-
-!$OMP DO PRIVATE(jb,i_startidx,i_endidx,jc,jk) ICON_OMP_DEFAULT_SCHEDULE
-      DO jb = i_startblk, i_endblk
-
-        CALL get_indices_c(p_pc, jb, i_startblk, i_endblk, &
-          i_startidx, i_endidx, grf_bdywidth_c+1, min_rlcell)
-
-        DO jk = 1, nlev_c
-          DO jc = i_startidx, i_endidx
-
-            p_child_prog%rho(jc,jk,jb) = p_child_prog%rho(jc,jk,jb) + tendency_corr(jk+js)
-
-            p_child_prog%exner(jc,jk,jb) = &
-              EXP(rd_o_cvd*LOG(rd_o_p0ref*p_child_prog%rho(jc,jk,jb)*p_child_prog%theta_v(jc,jk,jb)))
-
-          ENDDO
-        ENDDO
-
-      ENDDO
-!$OMP END DO
-
-      ! The conservation correction also needs to be applied to all nested domains
-      IF (p_pc%n_childdom > 0) THEN
-
-        DO ic = 1, p_pc%n_chd_total
-          jgc = p_pc%child_id_list(ic)
-
-          i_ncd      = MAX(1,p_patch(jgc)%n_childdom)
-          i_startblk = p_patch(jgc)%cells%start_blk(grf_bdywidth_c+1,1)
-          i_endblk   = p_patch(jgc)%cells%end_blk(min_rlcell,i_ncd)
-          nshift_c   = p_patch(jgc)%nshift_total - p_pp%nshift_total
-
-!$OMP DO PRIVATE(jb,i_startidx,i_endidx,jc,jk) ICON_OMP_DEFAULT_SCHEDULE
-          DO jb = i_startblk, i_endblk
-
-            CALL get_indices_c(p_patch(jgc), jb, i_startblk, i_endblk, &
-              i_startidx, i_endidx, grf_bdywidth_c+1, min_rlcell)
-
-            DO jk = 1, p_patch(jgc)%nlev
-              DO jc = i_startidx, i_endidx
-
-                p_nh_state(jgc)%prog(nnow(jgc))%rho(jc,jk,jb) = &
-                  p_nh_state(jgc)%prog(nnow(jgc))%rho(jc,jk,jb) + tendency_corr(jk+nshift_c)
-
-                p_nh_state(jgc)%prog(nnow(jgc))%exner(jc,jk,jb) = &
-                  EXP(rd_o_cvd*LOG(rd_o_p0ref*p_nh_state(jgc)%prog(nnow(jgc))%rho(jc,jk,jb) * &
-                  p_nh_state(jgc)%prog(nnow(jgc))%theta_v(jc,jk,jb)))
-
-              ENDDO
-            ENDDO
-
-          ENDDO
-!$OMP END DO
-
-        ENDDO
-      ENDIF
-    ENDIF
 
     i_startblk = p_gcp%start_blk(grf_fbk_start_c,i_chidx)
     i_endblk   = p_gcp%end_blk(min_rlcell_int,i_chidx)
@@ -557,8 +355,6 @@ CONTAINS
       DO jk = 1, nlev_c
         DO jc = i_startidx, i_endidx
 #endif
-
-          feedback_rho_tend(jc,jk+js,jb) = feedback_rho_tend(jc,jk+js,jb) + tendency_corr(jk+js)
 
           feedback_thv_tend(jc,jk+js,jb) =                                             &
             p_child_tend%grf_tend_thv(iidx(jc,jb,1),jk,iblk(jc,jb,1))*p_fbkwgt(jc,jb,1) + &
@@ -591,7 +387,6 @@ CONTAINS
 
     ENDDO
 !$OMP END DO
-
 !$OMP END PARALLEL
 
 
@@ -802,33 +597,17 @@ CONTAINS
       ENDIF
 
       ! divide tracer density (which is the feedback quantity) by air density,
-      ! and apply multiplicative mass conservation correction
       IF (ltransport) THEN
-        IF (iforcing <= 1) THEN
-          DO jt = 1, ntracer
-            DO jk = nshift+1, nlev_p
-              DO jc = i_startidx, i_endidx
-                IF (p_grfp%mask_ovlp_c(jc,jb,i_chidx)) THEN
-                  p_parent_prog_rcf%tracer(jc,jk,jb,jt) =                 &
-                    p_parent_prog_rcf%tracer(jc,jk,jb,jt) *               &
-                    tracer_corr(jk+(jt-1)*nlev_p)/p_parent_prog%rho(jc,jk,jb)
-                ENDIF
-              ENDDO
+        DO jt = 1, ntracer
+          DO jk = nshift+1, nlev_p
+            DO jc = i_startidx, i_endidx
+              IF (p_grfp%mask_ovlp_c(jc,jb,i_chidx)) THEN
+                p_parent_prog_rcf%tracer(jc,jk,jb,jt) =                 &
+                  p_parent_prog_rcf%tracer(jc,jk,jb,jt) / p_parent_prog%rho(jc,jk,jb)
+              ENDIF
             ENDDO
           ENDDO
-        ELSE
-          DO jt = 1, ntracer
-            DO jk = nshift+1, nlev_p
-              DO jc = i_startidx, i_endidx
-                IF (p_grfp%mask_ovlp_c(jc,jb,i_chidx)) THEN
-                  p_parent_prog_rcf%tracer(jc,jk,jb,jt) =         &
-                    p_parent_prog_rcf%tracer(jc,jk,jb,jt) *       &
-                    tracer_corr(jk)/p_parent_prog%rho(jc,jk,jb)
-                ENDIF
-              ENDDO
-            ENDDO
-          ENDDO
-        ENDIF
+        ENDDO
       ENDIF
 
     ENDDO
@@ -878,67 +657,45 @@ CONTAINS
 
     ! Recompute tracer also on the halo points
     IF (ltransport) THEN
-      IF (iforcing <= 1) THEN
 !$OMP DO PRIVATE(jk,jt,jc,jb,ic) ICON_OMP_DEFAULT_SCHEDULE
 #ifdef __LOOP_EXCHANGE
-        DO ic = 1, p_nh_state(jgp)%metrics%ovlp_halo_c_dim(i_chidx)
-          jc = p_nh_state(jgp)%metrics%ovlp_halo_c_idx(ic,i_chidx)
-          jb = p_nh_state(jgp)%metrics%ovlp_halo_c_blk(ic,i_chidx)
-          DO jt = 1, ntracer
-            DO jk = nshift+1, nlev_p
-#else
+      DO ic = 1, p_nh_state(jgp)%metrics%ovlp_halo_c_dim(i_chidx)
+        jc = p_nh_state(jgp)%metrics%ovlp_halo_c_idx(ic,i_chidx)
+        jb = p_nh_state(jgp)%metrics%ovlp_halo_c_blk(ic,i_chidx)
         DO jt = 1, ntracer
           DO jk = nshift+1, nlev_p
-!CDIR NODEP,VOVERTAKE,VOB
-            DO ic = 1, p_nh_state(jgp)%metrics%ovlp_halo_c_dim(i_chidx)
-              jc = p_nh_state(jgp)%metrics%ovlp_halo_c_idx(ic,i_chidx)
-              jb = p_nh_state(jgp)%metrics%ovlp_halo_c_blk(ic,i_chidx)
-#endif
-
-              p_parent_prog_rcf%tracer(jc,jk,jb,jt) =                 &
-                p_parent_prog_rcf%tracer(jc,jk,jb,jt) *               &
-                tracer_corr(jk+(jt-1)*nlev_p)/p_parent_prog%rho(jc,jk,jb)
-
-            ENDDO
-          ENDDO
-        ENDDO
-!$OMP END DO NOWAIT
-      ELSE ! iforcing > 1
-!$OMP DO PRIVATE(jk,jt,jc,jb,ic) ICON_OMP_DEFAULT_SCHEDULE
-#ifdef __LOOP_EXCHANGE
-        DO ic = 1, p_nh_state(jgp)%metrics%ovlp_halo_c_dim(i_chidx)
-          jc = p_nh_state(jgp)%metrics%ovlp_halo_c_idx(ic,i_chidx)
-          jb = p_nh_state(jgp)%metrics%ovlp_halo_c_blk(ic,i_chidx)
-          DO jt = 1, ntracer
-            DO jk = nshift+1, nlev_p
 #else
-        DO jt = 1, ntracer
-          DO jk = nshift+1, nlev_p
+      DO jt = 1, ntracer
+        DO jk = nshift+1, nlev_p
 !CDIR NODEP,VOVERTAKE,VOB
-            DO ic = 1, p_nh_state(jgp)%metrics%ovlp_halo_c_dim(i_chidx)
-              jc = p_nh_state(jgp)%metrics%ovlp_halo_c_idx(ic,i_chidx)
-              jb = p_nh_state(jgp)%metrics%ovlp_halo_c_blk(ic,i_chidx)
+          DO ic = 1, p_nh_state(jgp)%metrics%ovlp_halo_c_dim(i_chidx)
+            jc = p_nh_state(jgp)%metrics%ovlp_halo_c_idx(ic,i_chidx)
+            jb = p_nh_state(jgp)%metrics%ovlp_halo_c_blk(ic,i_chidx)
 #endif
 
-              p_parent_prog_rcf%tracer(jc,jk,jb,jt) =         &
-                p_parent_prog_rcf%tracer(jc,jk,jb,jt) *       &
-                tracer_corr(jk)/p_parent_prog%rho(jc,jk,jb)
+            p_parent_prog_rcf%tracer(jc,jk,jb,jt) =                 &
+              p_parent_prog_rcf%tracer(jc,jk,jb,jt) / p_parent_prog%rho(jc,jk,jb)
 
-            ENDDO
           ENDDO
         ENDDO
+      ENDDO
 !$OMP END DO NOWAIT
+    ENDIF
+!$OMP END PARALLEL
+
+    DEALLOCATE(feedback_thv_tend, feedback_rho_tend, feedback_w_tend, feedback_vn, feedback_tg, STAT=ist)
+    IF(ist/=SUCCESS)THEN
+      CALL finish (routine, 'deallocation of feedback variables failed')
+    ENDIF
+    !
+    IF (ltransport) THEN
+      DEALLOCATE(feedback_tracer_mass, STAT=ist)
+      IF(ist/=SUCCESS)THEN
+        CALL finish (routine, 'deallocation of feedback_tracer_mass failed')
       ENDIF
     ENDIF
 
-!$OMP END PARALLEL
-
-    DEALLOCATE(parent_tend, fbk_tend, feedback_thv_tend, feedback_rho_tend, &
-      feedback_w_tend, feedback_vn, feedback_tg)
-    IF (ltransport) &
-      DEALLOCATE(feedback_tracer_mass,parent_tr_mass,parent_tr_totmass,fbk_tr_mass,fbk_tr_totmass)
-
-  END SUBROUTINE feedback
+  END SUBROUTINE incr_feedback
 
 
 

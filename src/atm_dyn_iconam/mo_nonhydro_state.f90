@@ -3805,7 +3805,6 @@ MODULE mo_nonhydro_state
     &       p_metrics%wgtfac_v, &
     &       p_metrics%mixing_length_sq, &
     &       p_metrics%rho_ref_corr, &
-    &       p_metrics%fbk_dom_volume, &
     &       p_metrics%ddxn_z_full, &
     &       p_metrics%ddxn_z_full_c, &
     &       p_metrics%ddxn_z_full_v, &
