@@ -14,7 +14,7 @@
 
 MODULE mo_sppt_util 
 
-  USE mtime,                      ONLY: datetime, timedelta, OPERATOR(+), &
+  USE mtime,                      ONLY: datetime, OPERATOR(+), &
     &                                   newDatetime, deallocateDatetime,  &
     &                                   datetimeToString, MAX_DATETIME_STR_LEN
   USE mo_util_mtime,              ONLY: is_event_active
@@ -382,7 +382,6 @@ MODULE mo_sppt_util
     REAL(wp):: rn_2d_coarse(sppt_config%coarse_nlon, sppt_config%coarse_nlat)
     REAL(wp):: rn_1d_coarse(sppt_config%coarse_nlon * sppt_config%coarse_nlat)
 
-    INTEGER :: num_block_c
     LOGICAL :: lzacc ! non-optional version of lacc
 
     CALL set_acc_host_or_device(lzacc, lacc)
@@ -450,8 +449,9 @@ MODULE mo_sppt_util
         fq12 = rn_2d_coarse(ilon_lo,ilat_hi)
         fq22 = rn_2d_coarse(ilon_hi,ilat_hi)        
 
-        rn_2d(jc,jb) = lerp2(x=lon_cell, y=lat_cell, x1=lon_lo, x2=lon_hi, y1=lat_lo, y2=lat_hi, &
-          &                  fq11=fq11, fq21=fq21, fq12=fq12, fq22=fq22)       
+        rn_2d(jc,jb) = REAL((-1)**kconseed, wp)* &
+                       lerp2(x=lon_cell, y=lat_cell, x1=lon_lo, x2=lon_hi, y1=lat_lo, y2=lat_hi, &
+                             fq11=fq11, fq21=fq21, fq12=fq12, fq22=fq22)
 
       END DO
       !$ACC END PARALLEL
@@ -481,7 +481,6 @@ MODULE mo_sppt_util
 
   SUBROUTINE set_seed_rand_numb(mtime_current, kconseed, seed_rn)
 
-    IMPLICIT NONE
     TYPE(datetime),  POINTER, INTENT(IN)        :: mtime_current    !< current_datetime
     INTEGER                 , INTENT(IN)        :: kconseed         !< ID of the member in the ensemble
     INTEGER                 , INTENT(OUT)       :: seed_rn          !< output seed
@@ -508,7 +507,11 @@ MODULE mo_sppt_util
     !   initialize output
     seed_rn = 0
     !   produce a number from'kconseed'
-    keseed  = IOR( ISHFT( IBITS( 0 , 0 , 30-ibtshf ) , ibtshf ) , kconseed )
+    keseed = (kconseed+1)/2 ! mapping of even/odd enemble ids to the same seed
+    ! doing an xorshift32 see https://en.wikipedia.org/wiki/Xorshift
+    keseed = IEOR(keseed*2**13, keseed)
+    keseed = IEOR(keseed/2**17, keseed)
+    keseed = IEOR(keseed*2** 5, keseed)
 
     !--- generate a unique number from the date and the input keseed
     ! The following transformations are done:

@@ -2207,7 +2207,7 @@ CONTAINS
     ! Add only perturbed tendencies of tracers to the corresponding variable.
     ! Adding tendencies was taking care of during fast physics already.
     IF (sppt_config(jg)%lsppt .AND. .NOT. linit) THEN
-      CALL apply_tend(pt_patch,sppt(jg), pt_prog_rcf, lacc=lzacc)
+      CALL apply_tend(pt_patch,sppt(jg), pt_prog_rcf, dt_loc, lacc=lzacc)
     ENDIF ! end of lsppt
 
     !--------------------------------------------------------

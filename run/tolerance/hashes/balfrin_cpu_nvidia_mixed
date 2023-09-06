@@ -4,7 +4,7 @@
 icon_data_rootFolder: /scratch/e1000/meteoswiss/scratch/jenkins/icon/pool/data/ICON
 builder: balfrin_cpu_nvidia_mixed
 # The list below maps each experiment to its current experiment_hash
-"mch_bench_r19b07_dev_sppt": a45f7fc4e40db03b4f364a297dfc5cdac4cf7c18
+"mch_bench_r19b07_dev_sppt": 82102e39c49926bb479fc1cb45f82e0eda1fa116
 "mch_ch_lowres": 18606c32023a35ee8fa78280bcb985b73e569803
 "mch_opr_r04b07": e0e1f9c95aeacf7e55b52db229262c8e6fac094a
 "mch_opr_r04b07_lhn_00": 59f5c5a60806a740c83b455623709a3459d32a3a
