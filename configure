@@ -770,8 +770,8 @@ enable_intel_consistency
 enable_pgi_inlib
 enable_nccl
 enable_cuda_graphs
-with_external_ecrad
 with_external_rte_rrtmgp
+with_external_ecrad
 with_external_sct
 with_external_yaxt
 with_external_ppm
@@ -779,6 +779,7 @@ with_external_cdi
 with_external_mtime
 with_external_yac
 with_external_tixi
+with_external_fortran_support
 '
       ac_precious_vars='build_alias
 host_alias
@@ -1601,9 +1602,9 @@ Optimization Features:
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
   --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
-  --with-external-ecrad   use external ECRAD library [default=no]
   --with-external-rte-rrtmgp
                           use external RTE+RRTMGP library [default=no]
+  --with-external-ecrad   use external ECRAD library [default=no]
   --with-external-sct     use external SCT library [default=no]
   --with-external-yaxt    use external YAXT library [default=no]
   --with-external-ppm     use external PPM library [default=no]
@@ -1611,6 +1612,8 @@ Optional Packages:
   --with-external-mtime   use external MTIME library [default=no]
   --with-external-yac     use external YAC library [default=no]
   --with-external-tixi    use external TIXI library [default=no]
+  --with-external-fortran-support
+                          use external FORTRAN-SUPPORT library [default=no]
 
 Some influential environment variables:
   BUILD_ENV   initialization code to set up the building environment (must be
@@ -3017,6 +3020,10 @@ else
 fi
 
 
+if test "x$enable_jsbach_hd" = xauto; then :
+  enable_jsbach_hd=$enable_jsbach
+fi
+
 # Check whether --enable-waves was given.
 if test "${enable_waves+set}" = set; then :
   enableval=$enable_waves; if test x"$enableval" != xno; then :
@@ -3202,6 +3209,7 @@ esac
 else
   enable_gpu=no
 fi
+
 
 case $enable_gpu in #(
   openacc+*) :
@@ -3562,17 +3570,6 @@ fi
 
 
 
-# Check whether --with-external-ecrad was given.
-if test "${with_external_ecrad+set}" = set; then :
-  withval=$with_external_ecrad; if test x"$withval" != xno; then :
-  with_external_ecrad=yes
-fi
-else
-  with_external_ecrad=no
-fi
-
-
-
 # Check whether --with-external-rte-rrtmgp was given.
 if test "${with_external_rte_rrtmgp+set}" = set; then :
   withval=$with_external_rte_rrtmgp; if test x"$withval" != xno; then :
@@ -3580,6 +3577,17 @@ if test "${with_external_rte_rrtmgp+set}" = set; then :
 fi
 else
   with_external_rte_rrtmgp=no
+fi
+
+
+
+# Check whether --with-external-ecrad was given.
+if test "${with_external_ecrad+set}" = set; then :
+  withval=$with_external_ecrad; if test x"$withval" != xno; then :
+  with_external_ecrad=yes
+fi
+else
+  with_external_ecrad=no
 fi
 
 
@@ -3660,27 +3668,15 @@ else
 fi
 
 
-############################# OPTIONS CROSSCHECKS ##############################
 
-case $enable_jsbach_hd in #(
-  yes) :
-    if test "x$enable_jsbach" = xno; then :
-  as_fn_error $? "you are trying to configure with the JSBACH HD scheme but the
-land component JSBACH is disabled. Either disable the hydrological discharge
-scheme of the JSBACH land component (--disable-jsbach-hd) or enable the land
-component JSBACH (--enable-jsbach)." "$LINENO" 5
-fi ;; #(
-  no) :
-     ;; #(
-  auto) :
-    if test "x$enable_jsbach" = xyes; then :
-  enable_jsbach_hd=yes
+# Check whether --with-external-fortran-support was given.
+if test "${with_external_fortran_support+set}" = set; then :
+  withval=$with_external_fortran_support; if test x"$withval" != xno; then :
+  with_external_fortran_support=yes
+fi
 else
-  enable_jsbach_hd=no
-fi ;; #(
-  *) :
-     ;;
-esac
+  with_external_fortran_support=no
+fi
 
 
 ############################# CODEBASE EXTENSIONS ##############################
@@ -5299,6 +5295,10 @@ fi
 
 if test "x$enable_jsbach_hd" = xno; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}__NO_JSBACH_HD__"
+else
+  if test "x$enable_jsbach" = xno; then :
+  as_fn_error $? "unsupported combination of the configure options: you are trying to configure with the JSBACH HD scheme but the land component JSBACH is disabled: either disable the hydrological discharge scheme of the JSBACH land component (--disable-jsbach-hd) or enable the land component JSBACH (--enable-jsbach)" "$LINENO" 5
+fi
 fi
 
 if test "x$enable_waves" = xno; then :

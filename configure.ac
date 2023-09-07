@@ -128,6 +128,9 @@ AC_ARG_ENABLE([jsbach-hd],
      [enable_jsbach_hd=yes])],
   [enable_jsbach_hd=auto])
 
+AS_VAR_IF([enable_jsbach_hd], [auto],
+  [AS_VAR_COPY([enable_jsbach_hd], [enable_jsbach])])
+
 AC_ARG_ENABLE([waves],
   [AS_HELP_STRING([--enable-waves],
      [enable the ocean surface wave component of ICON @<:@default=no@:>@])],
@@ -255,6 +258,7 @@ AC_ARG_ENABLE([gpu],
 --enable-gpu='$enableval'; valid values are 'openacc+cuda', 'openacc+hip', dnl
 'openacc' (same as 'openacc+cuda'), 'yes' (same as 'openacc+cuda'), 'no'])])],
 [enable_gpu=no])
+
 AS_CASE([$enable_gpu],
   [openacc+*], [icon_gpu_primary=openacc],
   [icon_gpu_primary=no])
@@ -526,17 +530,17 @@ AS_IF([test -n "$ICON_FCGROUP_ASSIGNMENTS"],
 
 dnl Optional Packages:
 
-AC_ARG_WITH([external-ecrad],
-  [AS_HELP_STRING([--with-external-ecrad],
-     [use external ECRAD library @<:@default=no@:>@])],
-  [AS_IF([test x"$withval" != xno], [with_external_ecrad=yes])],
-  [with_external_ecrad=no])
-
 AC_ARG_WITH([external-rte-rrtmgp],
      [AS_HELP_STRING([--with-external-rte-rrtmgp],
         [use external RTE+RRTMGP library @<:@default=no@:>@])],
   [AS_IF([test x"$withval" != xno], [with_external_rte_rrtmgp=yes])],
   [with_external_rte_rrtmgp=no])
+
+AC_ARG_WITH([external-ecrad],
+  [AS_HELP_STRING([--with-external-ecrad],
+     [use external ECRAD library @<:@default=no@:>@])],
+  [AS_IF([test x"$withval" != xno], [with_external_ecrad=yes])],
+  [with_external_ecrad=no])
 
 AC_ARG_WITH([external-sct],
   [AS_HELP_STRING([--with-external-sct],
@@ -580,20 +584,12 @@ AC_ARG_WITH([external-tixi],
   [AS_IF([test x"$withval" != xno], [with_external_tixi=yes])],
   [with_external_tixi=no])
 
-############################# OPTIONS CROSSCHECKS ##############################
-
-AS_CASE([$enable_jsbach_hd],
-  [yes], [AS_VAR_IF([enable_jsbach], [no],
-            [AC_MSG_ERROR([dnl
-you are trying to configure with the JSBACH HD scheme but the
-land component JSBACH is disabled. Either disable the hydrological discharge
-scheme of the JSBACH land component (--disable-jsbach-hd) or enable the land
-component JSBACH (--enable-jsbach).])])],
-  [no], [],
-  [auto], [AS_VAR_IF([enable_jsbach], [yes],
-             [enable_jsbach_hd=yes],
-             [enable_jsbach_hd=no])])
-
+AC_ARG_WITH([external-fortran-support],
+  [AS_HELP_STRING([--with-external-fortran-support],
+     [use external FORTRAN-SUPPORT library @<:@default=no@:>@])],
+  [AS_IF([test x"$withval" != xno],
+     [with_external_fortran_support=yes])],
+  [with_external_fortran_support=no])
 
 ############################# CODEBASE EXTENSIONS ##############################
 
@@ -763,8 +759,7 @@ ACX_FC_ATTRIBUTE_CONTIGUOUS(
   [AS_VAR_APPEND([FCFLAGS],
   [" ${FC_PP_DEF}HAVE_FC_ATTRIBUTE_CONTIGUOUS"])], [:])
 
-AS_VAR_APPEND([FCFLAGS],
-  [" ${FC_PP_DEF}__ICON__"])
+AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__ICON__"])
 
 AS_VAR_IF([enable_atmo], [no],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_ICON_ATMO__"])])
@@ -785,7 +780,13 @@ AS_VAR_IF([enable_jsbach], [no],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_JSBACH__"])])
 
 AS_VAR_IF([enable_jsbach_hd], [no],
-  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_JSBACH_HD__"])])
+  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_JSBACH_HD__"])],
+  [AS_VAR_IF([enable_jsbach], [no],
+     [AC_MSG_ERROR([unsupported combination of the configure options: you dnl
+are trying to configure with the JSBACH HD scheme but the land component dnl
+JSBACH is disabled: either disable the hydrological discharge scheme of the dnl
+JSBACH land component (--disable-jsbach-hd) or enable the land component dnl
+JSBACH (--enable-jsbach)])])])
 
 AS_VAR_IF([enable_waves], [no],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_ICON_WAVES__"])])
@@ -2299,7 +2300,8 @@ dnl The interprocedural optimization is not enabled in the project:
      [-DCMAKE_*_COMPILER_AR=*|-DCMAKE_*_COMPILER_RANLIB=*])
    ACX_SUBDIR_APPEND_ARGS([externals/fortran-support],
 dnl Extend C and Fortran compiler flags:
-     [-DCMAKE_C_FLAGS="$subdir_CFLAGS $ICON_FORTRAN_SUPPORT_CFLAGS $subdir_CPPFLAGS"],
+     [-DCMAKE_C_FLAGS=dnl
+"$subdir_CFLAGS $ICON_FORTRAN_SUPPORT_CFLAGS $subdir_CPPFLAGS"],
      [-DCMAKE_Fortran_FLAGS="$subdir_FCFLAGS $ICON_FORTRAN_SUPPORT_FCFLAGS"],
 dnl Build the static version of the library and disable the tests:
      [-DBUILD_SHARED_LIBS:BOOL=OFF], [-DBUILD_TESTING:BOOL=OFF],
