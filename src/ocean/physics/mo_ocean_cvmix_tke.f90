@@ -102,7 +102,7 @@ MODULE mo_ocean_cvmix_tke
     & za_depth_below_sea, za_depth_below_sea_half, za_surface
   USE mo_grid_subset,         ONLY: t_subset_range, get_index_range
   USE mo_sync,                ONLY: sync_c, sync_e, sync_v, sync_patch_array, global_max, sync_patch_array_mult
-  USE  mo_ocean_thermodyn,    ONLY: calculate_density_onColumn, calculate_density_onColumn_gpu
+  USE  mo_ocean_thermodyn,    ONLY: calculate_density_onColumn, calculate_density_onColumn_elem
   USE mo_ocean_math_operators,ONLY: div_oce_3d
   USE mo_timer,               ONLY: ltimer, timer_start, timer_stop, &
     & timer_extra10, timer_extra11
@@ -370,13 +370,13 @@ CONTAINS
 
           ! calculate N2
           DO level = 1,levels-1
-            CALL calculate_density_onColumn_gpu(temp(jc,level,blockNo), salt(jc,level,blockNo), &
-                                                pressure(jc,level+1), rho_up(jc,level))
+            rho_up(jc,level) = calculate_density_onColumn_elem(temp(jc,level,blockNo), salt(jc,level,blockNo), &
+                                                pressure(jc,level+1))
           END DO
 
           DO level = 2,levels
-            CALL calculate_density_onColumn_gpu(temp(jc,level,blockNo), salt(jc,level,blockNo), &
-                                                pressure(jc,level), rho_down(jc,level))
+            rho_down(jc,level) = calculate_density_onColumn_elem(temp(jc,level,blockNo), salt(jc,level,blockNo), &
+                                                pressure(jc,level))
           END DO
 
           DO jk = 2, levels

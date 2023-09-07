@@ -78,7 +78,7 @@ CONTAINS
       this%nidx_l = nproma
       this%nidx_e = patch_2d%cells%in_domain%end_index
       this%glb_idx_loc => patch_2d%cells%decomp_info%glb_index
-      this%comm_pat_sync => patch_2d%comm_pat_c 
+      this%comm_pat_sync => patch_2d%comm_pat_c
     CASE(solve_edge)
       this%nblk_a = SIZE(patch_2D%edges%decomp_info%owner_mask, 2)
       this%nblk = patch_2d%edges%in_domain%end_block
@@ -143,152 +143,310 @@ CONTAINS
     this%is_init = .false.
   END SUBROUTINE trivial_transfer_destruct
 
-  SUBROUTINE trivial_transfer_into_once_2d_wp(this, data_in, data_out, tt)
+  SUBROUTINE trivial_transfer_into_once_2d_wp(this, data_in, data_out, tt, use_acc)
     CLASS(t_trivial_transfer), INTENT(IN) :: this
     REAL(KIND=wp), INTENT(IN), DIMENSION(:,:) :: data_in
     REAL(KIND=wp), INTENT(OUT), DIMENSION(:,:), ALLOCATABLE :: data_out
     INTEGER, INTENT(IN) :: tt
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    !$ACC DATA COPYIN(data_in) IF(lacc)
 
     IF (ltimer) CALL timer_start(this%timer_in(tt))
-    IF (.NOT.ALLOCATED(data_out)) &
-      & ALLOCATE(data_out(SIZE(data_in, 1), SIZE(data_in, 2)))
+    IF (.NOT.ALLOCATED(data_out)) THEN
+        ALLOCATE(data_out(SIZE(data_in, 1), SIZE(data_in, 2)))
+        !$ACC ENTER DATA CREATE(data_out) IF(lacc)
+    END IF
 !ICON_OMP PARALLEL WORKSHARE
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     data_out(:,:) = data_in(:,:)
+    !$ACC END KERNELS
 !ICON_OMP END PARALLEL WORKSHARE
     IF (ltimer) CALL timer_stop(this%timer_in(tt))
+
+    !$ACC END DATA
+
   END SUBROUTINE trivial_transfer_into_once_2d_wp
 
-  SUBROUTINE trivial_transfer_into_once_3d_wp(this, data_in, data_out, tt)
+  SUBROUTINE trivial_transfer_into_once_3d_wp(this, data_in, data_out, tt, use_acc)
     CLASS(t_trivial_transfer), INTENT(IN) :: this
     REAL(KIND=wp), INTENT(IN), DIMENSION(:,:,:), CONTIGUOUS :: data_in
     REAL(KIND=wp), INTENT(OUT), DIMENSION(:,:,:), ALLOCATABLE :: data_out
     INTEGER, INTENT(IN) :: tt
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .false.
+    END IF
 
     IF (.NOT.ALLOCATED(data_out)) &
       & ALLOCATE(data_out(SIZE(data_in, 1), SIZE(data_in, 2), SIZE(data_in, 3)))
-    CALL this%into(data_in, data_out, tt)
+
+    CALL this%into(data_in, data_out, tt, use_acc=lacc)
+
   END SUBROUTINE trivial_transfer_into_once_3d_wp
 
   SUBROUTINE trivial_transfer_into_once_idx(this, data_in_idx, data_in_blk, &
-     &  data_out_idx, data_out_blk, tt)
+     &  data_out_idx, data_out_blk, tt, use_acc)
     CLASS(t_trivial_transfer), INTENT(IN) :: this
     INTEGER, INTENT(IN), DIMENSION(:,:,:), CONTIGUOUS :: data_in_idx, data_in_blk
     INTEGER, INTENT(OUT), DIMENSION(:,:,:), ALLOCATABLE :: &
       & data_out_idx, data_out_blk
     INTEGER, INTENT(IN) :: tt
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     IF (.NOT.ALLOCATED(data_out_idx)) &
       & ALLOCATE(data_out_idx(SIZE(data_in_idx, 1), &
         & SIZE(data_in_idx, 2), SIZE(data_in_idx, 3)), &
         & data_out_blk(SIZE(data_in_blk, 1), &
         & SIZE(data_in_blk, 2), SIZE(data_in_blk, 3)))
+
     CALL this%into(data_in_idx, data_in_blk, &
-      & data_out_idx, data_out_blk, tt)
+      & data_out_idx, data_out_blk, tt, use_acc=lacc)
+
   END SUBROUTINE trivial_transfer_into_once_idx
 
-  SUBROUTINE trivial_transfer_into_2d_wp(this, data_in, data_out, tt)
+  SUBROUTINE trivial_transfer_into_2d_wp(this, data_in, data_out, tt, use_acc)
     CLASS(t_trivial_transfer), INTENT(IN) :: this
     REAL(KIND=wp), INTENT(IN), DIMENSION(:,:) :: data_in
     REAL(KIND=wp), INTENT(OUT), DIMENSION(:,:), CONTIGUOUS :: data_out
     INTEGER, INTENT(IN) :: tt
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    !$ACC DATA COPYIN(data_in) &
+    !$ACC   COPYOUT(data_out) IF(lacc)
 
     IF (ltimer) CALL timer_start(this%timer_in(tt))
 !ICON_OMP PARALLEL WORKSHARE
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     data_out(:,:) = data_in(:,:)
+    !$ACC END KERNELS
 !ICON_OMP END PARALLEL WORKSHARE
     IF (ltimer) CALL timer_stop(this%timer_in(tt))
+
+    !$ACC END DATA
+
   END SUBROUTINE trivial_transfer_into_2d_wp
 
-  SUBROUTINE trivial_transfer_into_2d_wp_2(this, di1, do1, di2, do2, tt)
+  SUBROUTINE trivial_transfer_into_2d_wp_2(this, di1, do1, di2, do2, tt, use_acc)
     CLASS(t_trivial_transfer), INTENT(IN) :: this
     REAL(KIND=wp), INTENT(IN), DIMENSION(:,:) :: di1, di2
     REAL(KIND=wp), INTENT(OUT), DIMENSION(:,:), CONTIGUOUS :: do1, do2
     INTEGER, INTENT(IN) :: tt
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    !$ACC DATA COPYIN(di1, di2) &
+    !$ACC   COPY(do1, do2) IF(lacc)
 
     IF (ltimer) CALL timer_start(this%timer_in(tt))
 !ICON_OMP PARALLEL WORKSHARE
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     do1(:,:) = di1(:,:)
     do2(:,:) = di2(:,:)
+    !$ACC END KERNELS
 !ICON_OMP END PARALLEL WORKSHARE
     IF (ltimer) CALL timer_stop(this%timer_in(tt))
+
+    !$ACC END DATA
+
   END SUBROUTINE trivial_transfer_into_2d_wp_2
 
-  SUBROUTINE trivial_transfer_into_3d_wp(this, data_in, data_out, tt)
+  SUBROUTINE trivial_transfer_into_3d_wp(this, data_in, data_out, tt, use_acc)
     CLASS(t_trivial_transfer), INTENT(IN) :: this
     REAL(KIND=wp), INTENT(IN), DIMENSION(:,:,:), CONTIGUOUS :: data_in
     REAL(KIND=wp), INTENT(OUT), DIMENSION(:,:,:), CONTIGUOUS :: data_out
     INTEGER, INTENT(IN) :: tt
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+
+    LOGICAL :: lacc
     INTEGER :: i
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    !$ACC DATA COPYIN(data_in) &
+    !$ACC   COPYOUT(data_out) IF(lacc)
 
     IF (ltimer) CALL timer_start(this%timer_in(tt))
 #ifdef _OPENMP
 !$OMP PARALLEL DO SCHEDULE(STATIC)
 #endif
     DO i = 1, SIZE(data_in, 3)
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       data_out(:,:,i) = data_in(:,:,i)
+      !$ACC END KERNELS
     END DO
 #ifdef _OPENMP
 !$OMP END PARALLEL DO
 #endif
     IF (ltimer) CALL timer_stop(this%timer_in(tt))
+
+    !$ACC END DATA
+
   END SUBROUTINE trivial_transfer_into_3d_wp
 
   SUBROUTINE trivial_transfer_into_idx(this, data_in_idx, data_in_blk, &
-     &  data_out_idx, data_out_blk, tt)
+     &  data_out_idx, data_out_blk, tt, use_acc)
     CLASS(t_trivial_transfer), INTENT(IN) :: this
     INTEGER, INTENT(IN), DIMENSION(:,:,:), CONTIGUOUS :: data_in_blk, data_in_idx
     INTEGER, INTENT(OUT), DIMENSION(:,:,:), CONTIGUOUS :: data_out_blk, data_out_idx
     INTEGER, INTENT(IN) :: tt
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
     INTEGER :: i
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    !$ACC DATA COPYIN(data_in_idx, data_in_blk) &
+    !$ACC   COPYOUT(data_out_idx, data_out_blk) IF(lacc)
 
     IF (ltimer) CALL timer_start(this%timer_in(tt))
 #ifdef _OPENMP
 !$OMP PARALLEL DO SCHEDULE(STATIC)
 #endif
     DO i = 1, SIZE(data_in_idx, 3)
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       data_out_idx(:,:,i) = data_in_idx(:,:,i)
       data_out_blk(:,:,i) = data_in_blk(:,:,i)
+      !$ACC END KERNELS
     END DO
 #ifdef _OPENMP
 !$OMP END PARALLEL DO
 #endif
     IF (ltimer) CALL timer_stop(this%timer_in(tt))
+
+    !$ACC END DATA
+
   END SUBROUTINE trivial_transfer_into_idx
 
-  SUBROUTINE trivial_transfer_out_2d_wp(this, data_in, data_out)
+  SUBROUTINE trivial_transfer_out_2d_wp(this, data_in, data_out, use_acc)
     CLASS(t_trivial_transfer), INTENT(IN) :: this
     REAL(KIND=wp), INTENT(IN), DIMENSION(:,:), CONTIGUOUS :: data_in
     REAL(KIND=wp), INTENT(OUT), DIMENSION(:,:), CONTIGUOUS :: data_out
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    !$ACC DATA COPYIN(data_in) &
+    !$ACC   COPY(data_out) IF(lacc)
 
     IF (ltimer) CALL timer_start(this%timer_out)
 !ICON_OMP PARALLEL WORKSHARE
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     data_out(:,:) = data_in(:,:)
+    !$ACC END KERNELS
 !ICON_OMP END PARALLEL WORKSHARE
     IF (ltimer) CALL timer_stop(this%timer_out)
+
+    !$ACC END DATA
+
   END SUBROUTINE trivial_transfer_out_2d_wp
 
-  SUBROUTINE trivial_transfer_bcst_1d_wp(this, data_in, data_out)
+  SUBROUTINE trivial_transfer_bcst_1d_wp(this, data_in, data_out, use_acc)
     CLASS(t_trivial_transfer), INTENT(IN) :: this
     REAL(KIND=wp), INTENT(IN), DIMENSION(:), CONTIGUOUS :: data_in
     REAL(KIND=wp), INTENT(OUT), DIMENSION(:), CONTIGUOUS :: data_out
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    !$ACC DATA COPYIN(data_in) &
+    !$ACC   COPYOUT(data_out) IF(lacc)
 
     IF (ltimer) CALL timer_start(this%timer_out)
 !ICON_OMP PARALLEL WORKSHARE
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     data_out(:) = data_in(:)
+    !$ACC END KERNELS
 !ICON_OMP END PARALLEL WORKSHARE
     IF (ltimer) CALL timer_stop(this%timer_out)
+
+    !$ACC END DATA
+
   END SUBROUTINE trivial_transfer_bcst_1d_wp
 
-  SUBROUTINE trivial_transfer_bcst_1d_i(this, data_in, data_out)
+  SUBROUTINE trivial_transfer_bcst_1d_i(this, data_in, data_out, use_acc)
     CLASS(t_trivial_transfer), INTENT(IN) :: this
     INTEGER, INTENT(IN), DIMENSION(:), CONTIGUOUS :: data_in
     INTEGER, INTENT(OUT), DIMENSION(:), CONTIGUOUS :: data_out
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    !$ACC DATA COPYIN(data_in) &
+    !$ACC   COPYOUT(data_out) IF(lacc)
 
     IF (ltimer) CALL timer_start(this%timer_out)
 !ICON_OMP PARALLEL WORKSHARE
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     data_out(:) = data_in(:)
+    !$ACC END KERNELS
 !ICON_OMP END PARALLEL WORKSHARE
     IF (ltimer) CALL timer_stop(this%timer_out)
+
+    !$ACC END DATA
+
   END SUBROUTINE trivial_transfer_bcst_1d_i
 
   SUBROUTINE trivial_transfer_sync_2d_wp(this, data_inout)

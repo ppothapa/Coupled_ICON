@@ -7,11 +7,13 @@ MODULE mo_ocean_solve_cg
 
   USE mo_kind, ONLY: wp, sp
   USE mo_ocean_solve_backend, ONLY: t_ocean_solve_backend
-
+#ifdef _OPENACC
+  USE mo_mpi, ONLY: i_am_accel_node, my_process_is_work
+#endif
   IMPLICIT NONE
-  
+
   PRIVATE
- 
+
   PUBLIC :: t_ocean_solve_cg
   CHARACTER(LEN=*), PARAMETER :: this_mod_name = 'mo_ocean_solve_cg'
 
@@ -47,6 +49,7 @@ CONTAINS
         & this%r_wp(this%trans%nidx, this%trans%nblk), &
         & this%rsq_wp(this%trans%nidx, this%trans%nblk))
       this%d_wp(:, this%trans%nblk:this%trans%nblk_a) = 0._wp
+      !$ACC ENTER DATA COPYIN(this%z_wp, this%d_wp, this%r_wp, this%rsq_wp)
     END IF
     x => this%x_wp
     b => this%b_wp
@@ -63,28 +66,50 @@ SUBROUTINE ocean_solve_cg_cal_wp(this)
     INTEGER :: nidx_e, nblk, iblk, k, m, k_final
     REAL(KIND=wp), POINTER, DIMENSION(:,:), CONTIGUOUS :: &
       & x, b, z, d, r, r2
-    LOGICAL :: done
+    LOGICAL :: done, lacc
+
+#ifdef _OPENACC
+    i_am_accel_node = my_process_is_work()       ! Activate GPUs
+    lacc = .TRUE.
+#endif
 
 ! retrieve extends of vector to solve
     nblk = this%trans%nblk
     nidx_e = this%trans%nidx_e
     m = this%par%m
     k_final = -1
+
 ! retrieve arrays
     CALL this%recover_arrays(x, b, z, d, r, r2)
+
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     b(nidx_e+1:, nblk) = 0._wp
+    !$ACC END KERNELS
+
 ! compute initial residual and auxiliary vectors
+    !$ACC UPDATE SELF(x) IF(lacc)
     CALL this%trans%sync(x)
-    CALL this%lhs%apply(x, z)
+    !$ACC UPDATE DEVICE(x) IF(lacc)
+
+    CALL this%lhs%apply(x, z, use_acc=lacc)
+
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     z(nidx_e+1:, nblk) = 0._wp
+    !$ACC END KERNELS
+
 !ICON_OMP PARALLEL DO SCHEDULE(STATIC)
     DO iblk = 1, nblk
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       r(:, iblk) = b(:, iblk) - z(:, iblk)
       d(:, iblk) = r(:, iblk)
       r2(:, iblk) = r(:, iblk) * r(:, iblk)
+      !$ACC END KERNELS
     END DO
 !ICON_OMP END PARALLEL DO
+
+    !$ACC UPDATE SELF(r2) IF(lacc)
     CALL this%trans%global_sum(r2, rn)
+
     ! tolerance
     tol = this%abs_tol_wp
     IF (.NOT.this%par%use_atol) THEN
@@ -93,6 +118,7 @@ SUBROUTINE ocean_solve_cg_cal_wp(this)
     END IF
     tol2 = tol * tol
     done = .false.
+
 ! enter CG iteration
     DO k = 1, m
 ! check if done
@@ -107,41 +133,68 @@ SUBROUTINE ocean_solve_cg_cal_wp(this)
 ! correct search direction (in direction of gradient) / update search vector
       IF (k .GT. 1) THEN
         beta = rn / rn_last
+
+        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
         d(nidx_e+1:, nblk) = 0._wp
+        !$ACC END KERNELS
 !ICON_OMP PARALLEL DO SCHEDULE(STATIC)
         DO iblk = 1, nblk
+          !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
           d(:, iblk) = r(:, iblk) + beta * d(:, iblk)
+          !$ACC END KERNELS
         END DO
 !ICON_OMP END PARALLEL DO
       END IF
       CALL this%trans%sync(d)
-      CALL this%lhs%apply(d, z)
+
+      CALL this%lhs%apply(d, z, use_acc=lacc)
+
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       d(nidx_e+1:, nblk) = 0._wp
+      !$ACC END KERNELS
 ! compute extrapolated location of minimum in direction of d
 !ICON_OMP PARALLEL DO SCHEDULE(STATIC)
       DO iblk = 1, nblk
+        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
         r2(:, iblk) = d(:, iblk) * z(:, iblk)
+        !$ACC END KERNELS
       END DO
 !ICON_OMP END PARALLEL DO
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       r2(nidx_e+1:, nblk) = 0._wp
+      !$ACC END KERNELS
+
+      !$ACC UPDATE SELF(r2) IF(lacc)
       CALL this%trans%global_sum(r2, dz_glob)
       alpha = rn / dz_glob
 ! update guess and residuum
 !ICON_OMP PARALLEL DO SCHEDULE(STATIC)
       DO iblk = 1, nblk
+        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
         x(:, iblk) = x(:, iblk) + alpha * d(:, iblk)
         r(:, iblk) = r(:, iblk) - alpha * z(:, iblk)
         r2(:, iblk) = r(:, iblk) * r(:, iblk)
+        !$ACC END KERNELS
       END DO
 !ICON_OMP END PARALLEL DO
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       r2(nidx_e+1:, nblk) = 0._wp
+      !$ACC END KERNELS
 ! save old and compute new residual norm
       rn_last = rn
+
+      !$ACC UPDATE SELF(r2) IF(lacc)
       CALL this%trans%global_sum(r2, rn)
     END DO
     this%niter_cal(1) = k_final
     this%res_wp(1) = SQRT(rn)
+
     CALL this%trans%sync(x)
+
+#ifdef _OPENACC
+    lacc = .FALSE.
+    i_am_accel_node = .FALSE.                    ! Deactivate GPUs
+#endif
   END SUBROUTINE ocean_solve_cg_cal_wp
 
 ! get solver arrays (alloc them, if not done so, yet) - sp-variant

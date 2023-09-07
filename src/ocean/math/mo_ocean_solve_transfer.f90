@@ -77,82 +77,92 @@ MODULE mo_ocean_solve_transfer
   END TYPE t_transfer
 
   ABSTRACT INTERFACE
-    SUBROUTINE a_trans_into_once_2d_wp(this, data_in, data_out, tt)
+    SUBROUTINE a_trans_into_once_2d_wp(this, data_in, data_out, tt, use_acc)
       USE mo_kind, ONLY: wp
       IMPORT t_transfer
       CLASS(t_transfer), INTENT(IN) :: this
       REAL(KIND=wp), INTENT(IN), DIMENSION(:,:) :: data_in
       REAL(KIND=wp), INTENT(OUT), DIMENSION(:,:), ALLOCATABLE :: data_out
       INTEGER, INTENT(IN) :: tt
+      LOGICAL, INTENT(IN), OPTIONAL :: use_acc
     END SUBROUTINE a_trans_into_once_2d_wp
-    SUBROUTINE a_trans_into_2d_wp_2(this, di1, do1, di2, do2, tt)
+    SUBROUTINE a_trans_into_2d_wp_2(this, di1, do1, di2, do2, tt, use_acc)
       USE mo_kind, ONLY: wp
       IMPORT t_transfer
       CLASS(t_transfer), INTENT(IN) :: this
       REAL(KIND=wp), INTENT(IN), DIMENSION(:,:) :: di1, di2
       REAL(KIND=wp), INTENT(OUT), DIMENSION(:,:), CONTIGUOUS :: do1, do2
       INTEGER, INTENT(IN) :: tt
+      LOGICAL, INTENT(IN), OPTIONAL :: use_acc
     END SUBROUTINE a_trans_into_2d_wp_2
-    SUBROUTINE a_trans_into_once_3d_wp(this, data_in, data_out, tt)
+    SUBROUTINE a_trans_into_once_3d_wp(this, data_in, data_out, tt, use_acc)
       USE mo_kind, ONLY: wp
       IMPORT t_transfer
       CLASS(t_transfer), INTENT(IN) :: this
       REAL(KIND=wp), INTENT(IN), DIMENSION(:,:,:), CONTIGUOUS :: data_in
       REAL(KIND=wp), INTENT(OUT), DIMENSION(:,:,:), ALLOCATABLE :: data_out
       INTEGER, INTENT(IN) :: tt
+      LOGICAL, INTENT(IN), OPTIONAL :: use_acc
     END SUBROUTINE a_trans_into_once_3d_wp
     SUBROUTINE a_trans_into_once_idx(this, data_in_idx, data_in_blk, &
-      & data_out_idx, data_out_blk, tt)
+      & data_out_idx, data_out_blk, tt, use_acc)
       IMPORT t_transfer
       CLASS(t_transfer), INTENT(IN) :: this
       INTEGER, INTENT(IN), DIMENSION(:,:,:), CONTIGUOUS :: data_in_idx, data_in_blk
       INTEGER, INTENT(OUT), DIMENSION(:,:,:), ALLOCATABLE :: &
         & data_out_idx, data_out_blk
       INTEGER, INTENT(IN) :: tt
+      LOGICAL, INTENT(IN), OPTIONAL :: use_acc
     END SUBROUTINE a_trans_into_once_idx
-    SUBROUTINE a_trans_into_2d_wp(this, data_in, data_out, tt)
+    SUBROUTINE a_trans_into_2d_wp(this, data_in, data_out, tt, use_acc)
       USE mo_kind, ONLY: wp
       IMPORT t_transfer
       CLASS(t_transfer), INTENT(IN) :: this
       REAL(KIND=wp), INTENT(IN), DIMENSION(:,:) :: data_in
       REAL(KIND=wp), INTENT(OUT), DIMENSION(:,:), CONTIGUOUS :: data_out
       INTEGER, INTENT(IN) :: tt
+      LOGICAL, INTENT(IN), OPTIONAL :: use_acc
     END SUBROUTINE a_trans_into_2d_wp
-    SUBROUTINE a_trans_into_3d_wp(this, data_in, data_out, tt)
+    SUBROUTINE a_trans_into_3d_wp(this, data_in, data_out, tt, use_acc)
       USE mo_kind, ONLY: wp
       IMPORT t_transfer
       CLASS(t_transfer), INTENT(IN) :: this
       REAL(KIND=wp), INTENT(IN), DIMENSION(:,:,:), CONTIGUOUS :: data_in
       REAL(KIND=wp), INTENT(OUT), DIMENSION(:,:,:), CONTIGUOUS :: data_out
       INTEGER, INTENT(IN) :: tt
+      LOGICAL, INTENT(IN), OPTIONAL :: use_acc
     END SUBROUTINE a_trans_into_3d_wp
     SUBROUTINE a_trans_into_idx(this, data_in_idx, data_in_blk, &
-      & data_out_idx, data_out_blk, tt)
+      & data_out_idx, data_out_blk, tt, use_acc)
       IMPORT t_transfer
       CLASS(t_transfer), INTENT(IN) :: this
       INTEGER, INTENT(IN), DIMENSION(:,:,:), CONTIGUOUS :: data_in_blk, data_in_idx
       INTEGER, INTENT(OUT), DIMENSION(:,:,:), CONTIGUOUS :: data_out_blk, data_out_idx
       INTEGER, INTENT(IN) :: tt
+      LOGICAL, INTENT(IN), OPTIONAL :: use_acc
     END SUBROUTINE a_trans_into_idx
-    SUBROUTINE a_trans_out_2d_wp(this, data_in, data_out)
+    SUBROUTINE a_trans_out_2d_wp(this, data_in, data_out, use_acc)
       USE mo_kind, ONLY: wp
       IMPORT t_transfer
       CLASS(t_transfer), INTENT(IN) :: this
       REAL(KIND=wp), INTENT(IN), DIMENSION(:,:), CONTIGUOUS :: data_in
       REAL(KIND=wp), INTENT(OUT), DIMENSION(:,:), CONTIGUOUS :: data_out
+      LOGICAL, INTENT(IN), OPTIONAL :: use_acc
     END SUBROUTINE a_trans_out_2d_wp
-    SUBROUTINE a_trans_bcst_1d_wp(this, data_in, data_out)
+    SUBROUTINE a_trans_bcst_1d_wp(this, data_in, data_out, use_acc)
       USE mo_kind, ONLY: wp
       IMPORT t_transfer
       CLASS(t_transfer), INTENT(IN) :: this
       REAL(KIND=wp), INTENT(IN), DIMENSION(:), CONTIGUOUS :: data_in
       REAL(KIND=wp), INTENT(OUT), DIMENSION(:), CONTIGUOUS :: data_out
+      LOGICAL, INTENT(IN), OPTIONAL :: use_acc
     END SUBROUTINE a_trans_bcst_1d_wp
-    SUBROUTINE a_trans_bcst_1d_i(this, data_in, data_out)
+    SUBROUTINE a_trans_bcst_1d_i(this, data_in, data_out, use_acc)
       IMPORT t_transfer
       CLASS(t_transfer), INTENT(IN) :: this
       INTEGER, INTENT(IN), DIMENSION(:), CONTIGUOUS :: data_in
       INTEGER, INTENT(OUT), DIMENSION(:), CONTIGUOUS :: data_out
+      LOGICAL, INTENT(IN), OPTIONAL :: use_acc
     END SUBROUTINE a_trans_bcst_1d_i
     SUBROUTINE a_trans_sync_2d_wp(this, data_inout)
       USE mo_kind, ONLY: wp

@@ -1,7 +1,7 @@
 #include "icon_definitions.inc"
 
 ! contains abstact type for actual solver backends
-! this is an abstract interposer layer, 
+! this is an abstract interposer layer,
 ! in order to use a single interface for all backend solvers
 
 MODULE mo_ocean_solve_backend
@@ -15,10 +15,10 @@ MODULE mo_ocean_solve_backend
   USE mo_ocean_solve_aux, ONLY: t_ocean_solve_parm
   USE mo_timer, ONLY: timer_start, timer_stop, new_timer
   USE mo_run_config, ONLY: ltimer
- 
+
   IMPLICIT NONE
   PRIVATE
- 
+
   PUBLIC :: t_ocean_solve_backend
   CHARACTER(LEN=*), PARAMETER :: this_mod_name = 'mo_ocean_solve_backend'
 
@@ -47,7 +47,7 @@ MODULE mo_ocean_solve_backend
 !DIR$ ATTRIBUTES ALIGN : 64 :: x_sp, b_sp
 !DIR$ ATTRIBUTES ALIGN : 64 :: x_wp, b_wp, res_wp, x_loc_wp, res_loc_wp, niter, niter_cal
 #endif
-! interfaces 
+! interfaces
   CONTAINS
     PROCEDURE :: dump_matrix => ocean_solve_backend_dump_matrix
     PROCEDURE :: construct => ocean_solve_backend_construct
@@ -88,13 +88,21 @@ CONTAINS
   END SUBROUTINE ocean_solve_backend_dump_matrix
 
 ! initialize data and arrays
-  SUBROUTINE ocean_solve_backend_construct(this, par, par_sp, lhs_agen, trans)
+  SUBROUTINE ocean_solve_backend_construct(this, par, par_sp, lhs_agen, trans, use_acc)
     CLASS(t_ocean_solve_backend), INTENT(INOUT) :: this
     TYPE(t_ocean_solve_parm), INTENT(IN) :: par, par_sp
     CLASS(t_lhs_agen), TARGET, INTENT(IN) :: lhs_agen
     CLASS(t_transfer), TARGET, INTENT(IN) :: trans
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL :: lacc
     CHARACTER(LEN=*), PARAMETER :: routine = this_mod_name// &
       & "::ocean_solve_t::ocean_solve_backend_construct()"
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     IF (ASSOCIATED(this%trans)) CALL finish(routine, &
       & "already initialized!")
@@ -110,6 +118,9 @@ CONTAINS
     this%trans => trans
 ! initialize lhs-object
     CALL this%lhs%construct(par_sp%nidx .EQ. par%nidx, par, lhs_agen, trans)
+
+    !$ACC ENTER DATA COPYIN(this, this%lhs, this%trans, this%par) &
+    !$ACC   COPYIN(this%trans%nblk, this%trans%nidx_e, this%par%m) IF(lacc)
     this%timer_wait = new_timer("solve_wait")
   END SUBROUTINE ocean_solve_backend_construct
 
@@ -122,16 +133,19 @@ CONTAINS
       & '::ocean_solve_t::ocean_solve'
     INTEGER :: sum_it, n_re, n_it
 
+    LOGICAL :: lacc = .TRUE.
+
     IF (.NOT.ASSOCIATED(this%trans)) &
       & CALL finish(routine, "solve needs to be initialized")
     IF (upd .EQ. 1) CALL this%lhs%update()
 ! transfer input fields to internal solver arrays (from worker-PEs to solver-PEs)
     IF (.NOT.ALLOCATED(this%x_wp)) THEN ! must also allocate
-      CALL this%trans%into_once(this%x_loc_wp, this%x_wp, 1)
-      CALL this%trans%into_once(this%b_loc_wp, this%b_wp, 1)
+      CALL this%trans%into_once(this%x_loc_wp, this%x_wp, 1, use_acc=lacc)
+      CALL this%trans%into_once(this%b_loc_wp, this%b_wp, 1, use_acc=lacc)
     ELSE ! transfer/copy only
-      CALL this%trans%into(this%x_loc_wp, this%x_wp, this%b_loc_wp, this%b_wp, 1)
+      CALL this%trans%into(this%x_loc_wp, this%x_wp, this%b_loc_wp, this%b_wp, 1, use_acc=lacc)
     END IF
+
     this%niter_cal(2) = -2
     IF (this%par_sp%nidx .EQ. this%par%nidx .AND. this%trans%is_solver_pe) THEN
       IF (.NOT.ALLOCATED(this%x_sp)) & ! alloc sp-arrays, if not done, yet
@@ -153,6 +167,7 @@ CONTAINS
       this%niter_cal(2) = sum_it
       this%x_wp(:,:) = REAL(this%x_sp(:,:), wp)
     END IF
+
     IF (this%trans%is_solver_pe) THEN
       sum_it = 0
       n_re = 0
@@ -166,15 +181,18 @@ CONTAINS
       END DO ! WHILE(tolerance >= solver_tolerance)
       this%niter_cal(1) = sum_it
     END IF
+
 ! transfer solution and residuals from solver-PEs back onto worker-PEs
     IF (ltimer) CALL timer_start(this%timer_wait)
     IF (ltimer) CALL p_barrier(p_comm_work)
     IF (ltimer) CALL timer_stop(this%timer_wait)
-    CALL this%trans%sctr(this%x_wp, this%x_loc_wp)
+    CALL this%trans%sctr(this%x_wp, this%x_loc_wp, use_acc=lacc)
+    !> these are 1d arrays with size two
     CALL this%trans%bcst(this%res_wp, this%res_loc_wp)
     CALL this%trans%bcst(this%niter_cal, this%niter)
     niter = this%niter(1)
     niter_sp = this%niter(2)
+
   END SUBROUTINE ocean_solve_backend_solve
 
 END MODULE mo_ocean_solve_backend

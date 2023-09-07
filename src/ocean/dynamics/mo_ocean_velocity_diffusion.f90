@@ -38,9 +38,7 @@ MODULE mo_ocean_velocity_diffusion
   USE mo_grid_subset,         ONLY: t_subset_range, get_index_range
   USE mo_sync,                ONLY: sync_c, sync_e, sync_v, sync_patch_array, sync_patch_array_mult
   USE mo_exception,           ONLY: finish !, message_text, message
-#ifdef _OPENACC
-  USE mo_mpi, ONLY: i_am_accel_node, my_process_is_work
-#endif
+
   IMPLICIT NONE
   
   PRIVATE

@@ -29,9 +29,6 @@ MODULE mo_ocean_ab_timestepping
   USE mo_ocean_physics_types,            ONLY: t_ho_params
   USE mo_ocean_types,                    ONLY: t_hydro_ocean_state, t_operator_coeff, t_solverCoeff_singlePrecision
   USE mo_exception,                      ONLY: finish!, message_text
-#ifdef _OPENACC
-  USE mo_mpi,                            ONLY: i_am_accel_node
-#endif
 
 IMPLICIT NONE
 
@@ -57,7 +54,7 @@ CONTAINS
   !!
 !<Optimize:inUse>
   SUBROUTINE solve_free_surface_eq_ab(patch_3D, ocean_state, external_data, p_as, p_oce_sfc, &
-    & physics_parameters, timestep, op_coeffs, solverCoeff_sp, return_status)
+    & physics_parameters, timestep, op_coeffs, solverCoeff_sp, return_status, use_acc)
     TYPE(t_patch_3D ), INTENT(IN), POINTER :: patch_3D
     TYPE(t_hydro_ocean_state) :: ocean_state
     TYPE(t_external_data) :: external_data
@@ -68,11 +65,19 @@ CONTAINS
     TYPE(t_operator_coeff), INTENT(IN), TARGET :: op_coeffs
     TYPE(t_solverCoeff_singlePrecision), INTENT(in), TARGET :: solverCoeff_sp
     INTEGER :: return_status
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     IF(discretization_scheme==MIMETIC_TYPE)THEN
 
       CALL solve_free_sfc_ab_mimetic( patch_3D, ocean_state, external_data, p_as, p_oce_sfc, &
-        & physics_parameters, timestep, op_coeffs, solverCoeff_sp, return_status)
+        & physics_parameters, timestep, op_coeffs, solverCoeff_sp, return_status, use_acc = lacc)
 
     ELSE
       CALL finish ('solve_free_surface_eq_ab: ',' Discretization type not supported !!')
@@ -138,9 +143,6 @@ CONTAINS
     LOGICAL :: lacc
      !-----------------------------------------------------------------------
 
-    !Store current vertical velocity before the new one is calculated
-    ocean_state%p_diag%w_old = ocean_state%p_diag%w
-
     IF (PRESENT(use_acc)) THEN
       lacc = use_acc
     ELSE
@@ -156,7 +158,8 @@ CONTAINS
 
     ELSE
       CALL finish ('calc_vert_velocity: ',' Discretization type not supported !!')
-    ENDIF
+    END IF
+
   END SUBROUTINE calc_vert_velocity
   !-------------------------------------------------------------------------
 !<Optimize:inUse>

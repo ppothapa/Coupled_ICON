@@ -96,7 +96,7 @@ MODULE mo_ocean_physics
     & za_depth_below_sea, za_depth_below_sea_half, za_surface
   USE mo_grid_subset,         ONLY: t_subset_range, get_index_range
   USE mo_sync,                ONLY: sync_c, sync_e, sync_v, sync_patch_array, global_max, sync_patch_array_mult
-  USE  mo_ocean_thermodyn,    ONLY: calculate_density_onColumn, calculate_density_mpiom_v, calculate_density_onColumn_gpu
+  USE mo_ocean_thermodyn,    ONLY: calculate_density_onColumn, calculate_density_onColumn_elem, calculate_density_mpiom_onColumn
   USE mo_ocean_math_operators,ONLY: div_oce_3d
   USE mo_timer,               ONLY: timers_level, timer_start, timer_stop, timer_upd_phys
   USE mo_statistics,          ONLY: global_minmaxmean
@@ -2184,11 +2184,11 @@ CONTAINS
           end_level = patch_3d%p_patch_1d(1)%dolic_c(cell_index,blockNo)
           IF (end_level < 2 .OR. level > end_level-1) CYCLE
           z_rho_up(cell_index,level) = &
-             calculate_density_mpiom_v(ocean_state%p_prog(nold(1))%tracer(cell_index,level,blockNo,1), &
+             calculate_density_mpiom_onColumn(ocean_state%p_prog(nold(1))%tracer(cell_index,level,blockNo,1), &
              salinity(cell_index,level), pressure(cell_index,level+1) )
 
           z_rho_down(cell_index,level) = &
-             calculate_density_mpiom_v(ocean_state%p_prog(nold(1))%tracer(cell_index,level,blockNo,1), &
+             calculate_density_mpiom_onColumn(ocean_state%p_prog(nold(1))%tracer(cell_index,level,blockNo,1), &
              salinity(cell_index,level), pressure(cell_index,level) )
         ENDDO
       ENDDO
@@ -2196,11 +2196,11 @@ CONTAINS
         end_level = patch_3d%p_patch_1d(1)%dolic_c(cell_index,blockNo)
         IF (end_level < 2 ) CYCLE
         z_rho_up(cell_index,1) = &
-             calculate_density_mpiom_v(ocean_state%p_prog(nold(1))%tracer(cell_index,1,blockNo,1), &
+             calculate_density_mpiom_onColumn(ocean_state%p_prog(nold(1))%tracer(cell_index,1,blockNo,1), &
              salinity(cell_index,1), pressure(cell_index,2) )
 
         z_rho_down(cell_index,end_level) = &
-             calculate_density_mpiom_v(ocean_state%p_prog(nold(1))%tracer(cell_index,end_level,blockNo,1), &
+             calculate_density_mpiom_onColumn(ocean_state%p_prog(nold(1))%tracer(cell_index,end_level,blockNo,1), &
              salinity(cell_index,end_level), pressure(cell_index,end_level) )
       ENDDO
 
@@ -2280,8 +2280,8 @@ CONTAINS
 
 #ifdef _OPENACC
         DO level = 1, end_level-1
-          CALL calculate_density_onColumn_gpu(ocean_state%p_prog(nold(1))%tracer(cell_index,level,blockNo,1), &
-                                              salinity(level), pressure(level+1), z_rho_up(level))
+          z_rho_up(level) = calculate_density_onColumn_elem(ocean_state%p_prog(nold(1))%tracer(cell_index,level,blockNo,1), &
+                                              salinity(level), pressure(level+1))
         END DO
 #else
         z_rho_up(1:end_level-1) = &
@@ -2291,8 +2291,8 @@ CONTAINS
 
 #ifdef _OPENACC
         DO level = 2, end_level
-          CALL calculate_density_onColumn_gpu(ocean_state%p_prog(nold(1))%tracer(cell_index,level,blockNo,1), &
-                                              salinity(level), pressure(level), z_rho_down(level))
+          z_rho_down(level) = calculate_density_onColumn_elem(ocean_state%p_prog(nold(1))%tracer(cell_index,level,blockNo,1), &
+                                              salinity(level), pressure(level))
         END DO
 #else
         z_rho_down(2:end_level) = &
