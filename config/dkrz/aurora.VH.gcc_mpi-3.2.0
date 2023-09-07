@@ -80,16 +80,16 @@ eval "$BUILD_ENV"
 echo ${MODULEPATH}
 
 # C compiler wrapper  for NEC SX-Aurora vector host
-CC="/opt/nec/ve/mpi/${MPIVER}/bin/mpincc"
-CFLAGS="-vh -std=gnu99 -mavx2 -mno-fma -O3 -g"
+CC="/opt/nec/ve/mpi/${MPIVER}/bin/mpincc -vh"
+CFLAGS="-std=gnu99 -mavx2 -mno-fma -O3 -g"
 ICON_CFLAGS=""
 ICON_BUNDLED_CFLAGS="-O2"
 CPPFLAGS="-I${ECCODES_ROOT}/include -I${HDF5_ROOT}/include -I${NETCDF_ROOT}/include -I${FYAML_ROOT}/include"
 
 # Fortran compiler wrapper for NEC SX-Aurora vector host
-FC="/opt/nec/ve/mpi/${MPIVER}/bin/mpinfort"
-NMPI_FC="/opt/nec/ve/nfort/${NCCVER}/bin/nfort"
-FCFLAGS="-vh -I${ECCODES_ROOT}/include -I${HDF5_ROOT}/include -I${NETCDFF_ROOT}/include -std=legacy -fno-range-check -fbacktrace -g -fmodule-private -fimplicit-none -fmax-identifier-length=63 -ffree-line-length-none -Wall -Wcharacter-truncation -Wconversion -Wunderflow -Wunused-parameter  -Wno-surprising -fall-intrinsics -mavx2 -O2 -mno-fma -mpc64  -D__COMM_OPT__ -D__BLOCK_GET__ -D__NEC_VH__"
+FC="/opt/nec/ve/mpi/${MPIVER}/bin/mpinfort -vh"
+NMPI_FC="/opt/nec/ve/nfort/${NCCVER}/bin/nfort -vh"
+FCFLAGS="-I${ECCODES_ROOT}/include -I${HDF5_ROOT}/include -I${NETCDFF_ROOT}/include -std=legacy -fno-range-check -fbacktrace -g -fmodule-private -fimplicit-none -fmax-identifier-length=63 -ffree-line-length-none -Wall -Wcharacter-truncation -Wconversion -Wunderflow -Wunused-parameter  -Wno-surprising -fall-intrinsics -mavx2 -O2 -mno-fma -mpc64  -D__COMM_OPT__ -D__BLOCK_GET__ -D__NEC_VH__"
 
 ICON_FCFLAGS=""
 

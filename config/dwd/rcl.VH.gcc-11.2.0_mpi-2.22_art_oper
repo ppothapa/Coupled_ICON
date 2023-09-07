@@ -67,15 +67,15 @@ echo ${BUILD_ENV}
 eval "$BUILD_ENV"
 
 # C compiler wrapper on cray machine
-CC='mpincc'
-CFLAGS='-vh -std=gnu99 -mavx2 -mno-fma -O3 -DUSE_XML2 -fbacktrace -g'
+CC='mpincc -vh'
+CFLAGS='-std=gnu99 -mavx2 -mno-fma -O3 -DUSE_XML2 -fbacktrace -g'
 ICON_CFLAGS=''
 ICON_BUNDLED_CFLAGS='-O2'
 CPPFLAGS="${ECCODES_INCLUDE} -I${HDF5ROOT}/include -I${NETCDFROOT}/include ${ECCODES_INCLUDE} -I${XML2ROOT}/include/libxml2 -I${FYAML_ROOT}/include"
 
 # Fortran compiler wrapper on cray machine
-FC='mpinfort'
-FCFLAGS="-vh ${ECCODES_INCLUDE} -I${HDF5ROOT}/include -I${NETCDFROOT}/include -I${NETCDFFROOT}/include -I${RTTOV_ROOT}/include/rttov13 -std=gnu -fno-range-check -fbacktrace -g -fmodule-private -fimplicit-none -fmax-identifier-length=63 -ffree-line-length-none -Wall -Wcharacter-truncation -Wconversion -Wunderflow -Wunused-parameter -Wno-surprising -fall-intrinsics -mavx2 -O2 -mno-fma -mpc64 -fallow-argument-mismatch -D__COMM_OPT__ -D__BLOCK_GET__ -D__NEC_VH__ -DUSE_XML2"
+FC='mpinfort -vh'
+FCFLAGS="${ECCODES_INCLUDE} -I${HDF5ROOT}/include -I${NETCDFROOT}/include -I${NETCDFFROOT}/include -I${RTTOV_ROOT}/include/rttov13 -std=gnu -fno-range-check -fbacktrace -g -fmodule-private -fimplicit-none -fmax-identifier-length=63 -ffree-line-length-none -Wall -Wcharacter-truncation -Wconversion -Wunderflow -Wunused-parameter -Wno-surprising -fall-intrinsics -mavx2 -O2 -mno-fma -mpc64 -fallow-argument-mismatch -D__COMM_OPT__ -D__BLOCK_GET__ -D__NEC_VH__ -DUSE_XML2"
 ICON_FCFLAGS=''
 ICON_OCEAN_FCFLAGS='-O2'
 ICON_ECRAD_FCFLAGS=""

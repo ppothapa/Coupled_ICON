@@ -2249,10 +2249,10 @@ if ${acx_subdir_pre_adjusted_cmake_args+:} false; then :
 else
   acx_subdir_pre_adjusted_cmake_args="'-Wno-dev' '--no-warn-unused-cli' '-GUnix Makefiles'"
             eval "set dummy $ac_configure_args"; shift
-                        acx_subdir_cmake_vars_to_transform=
+                                    acx_subdir_cmake_vars_to_transform=
             for acx_tmp; do
               case $acx_tmp in #(
-  AR=*|RANLIB=*|CC=*|CFLAGS=*|CXX=*|CXXFLAGS=*|CPPFLAGS=*|FC=*|FCFLAGS=*|LDFLAGS=*|LIBS=*) :
+  AR=*|RANLIB=*|CFLAGS=*|CXXFLAGS=*|CPPFLAGS=*|FCFLAGS=*|LDFLAGS=*|LIBS=*) :
     acx_arg_name=`expr "x$acx_tmp" : 'x\([^=]*\)='`
                  as_fn_append acx_subdir_cmake_vars_to_transform " $acx_arg_name"
                  acx_arg_cmd_value=`expr "x$acx_tmp" : '[^=]*=\(.*\)'`
@@ -2261,11 +2261,11 @@ else
      ;;
 esac
             done
-            for acx_tmp in AR RANLIB; do
+                        for acx_arg_name in AR RANLIB; do
               case " $acx_subdir_cmake_vars_to_transform " in #(
-  *" $acx_tmp "*) :
+  *" $acx_arg_name "*) :
     acx_prog_search_abspath=unknown
-                 eval acx_prog_exec=\$acx_arg_${acx_tmp}
+                 eval acx_prog_exec=\$acx_arg_${acx_arg_name}
                  case $acx_prog_exec in #(
   *[\\/]*) :
     if as_fn_executable_p $acx_prog_exec; then :
@@ -2286,11 +2286,11 @@ IFS=$as_save_IFS
  ;;
 esac
                  if test "x$acx_prog_search_abspath" = xunknown; then :
-  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: unable to convert argument $acx_tmp to its CMake equivalent(s): absolute path to \"$acx_prog_exec\" is not found" >&5
-$as_echo "$as_me: WARNING: unable to convert argument $acx_tmp to its CMake equivalent(s): absolute path to \"$acx_prog_exec\" is not found" >&2;}
+  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: unable to convert argument $acx_arg_name to its CMake equivalent(s): absolute path to \"$acx_prog_exec\" is not found" >&5
+$as_echo "$as_me: WARNING: unable to convert argument $acx_arg_name to its CMake equivalent(s): absolute path to \"$acx_prog_exec\" is not found" >&2;}
 else
-  eval acx_arg_${acx_tmp}_ABSPATH=\$acx_prog_search_abspath
-                    as_fn_append acx_subdir_cmake_vars_to_transform " ${acx_tmp}_ABSPATH"
+  eval acx_arg_${acx_arg_name}_ABSPATH=\$acx_prog_search_abspath
+                    as_fn_append acx_subdir_cmake_vars_to_transform " ${acx_arg_name}_ABSPATH"
 fi ;; #(
   *) :
      ;;
@@ -2298,13 +2298,13 @@ esac
             done
                         case " $acx_subdir_cmake_vars_to_transform " in #(
   *' CPPFLAGS '*) :
-    for acx_tmp in CFLAGS CXXFLAGS; do
+    for acx_arg_name in CFLAGS CXXFLAGS; do
                  case " $acx_subdir_cmake_vars_to_transform " in #(
-  *" $acx_tmp "*) :
-    as_fn_append acx_arg_${acx_tmp} " $acx_arg_CPPFLAGS" ;; #(
+  *" $acx_arg_name "*) :
+    as_fn_append acx_arg_${acx_arg_name} " $acx_arg_CPPFLAGS" ;; #(
   *) :
-    eval acx_arg_${acx_tmp}=\$acx_arg_CPPFLAGS
-                    as_fn_append acx_subdir_cmake_vars_to_transform " $acx_tmp" ;;
+    eval acx_arg_${acx_arg_name}=\$acx_arg_CPPFLAGS
+                    as_fn_append acx_subdir_cmake_vars_to_transform " $acx_arg_name" ;;
 esac
                done ;; #(
   *) :
@@ -2316,25 +2316,19 @@ else
   acx_arg_PREFIX=$prefix
 fi
             as_fn_append acx_subdir_cmake_vars_to_transform ' PREFIX'
-            for acx_tmp in $acx_subdir_cmake_vars_to_transform; do
+            for acx_arg_name in $acx_subdir_cmake_vars_to_transform; do
               acx_subdir_cmake_vars_to_set=
-              case $acx_tmp in #(
+              case $acx_arg_name in #(
   AR) :
     acx_subdir_cmake_vars_to_set='' ;; #(
   RANLIB) :
     acx_subdir_cmake_vars_to_set='' ;; #(
-  CC) :
-    acx_subdir_cmake_vars_to_set='CMAKE_C_COMPILER' ;; #(
   CFLAGS) :
     acx_subdir_cmake_vars_to_set='CMAKE_C_FLAGS' ;; #(
-  CXX) :
-    acx_subdir_cmake_vars_to_set='CMAKE_CXX_COMPILER' ;; #(
   CXXFLAGS) :
     acx_subdir_cmake_vars_to_set='CMAKE_CXX_FLAGS' ;; #(
   CPPFLAGS) :
     acx_subdir_cmake_vars_to_set='' ;; #(
-  FC) :
-    acx_subdir_cmake_vars_to_set='CMAKE_Fortran_COMPILER' ;; #(
   FCFLAGS) :
     acx_subdir_cmake_vars_to_set='CMAKE_Fortran_FLAGS' ;; #(
   LDFLAGS) :
@@ -2351,7 +2345,7 @@ fi
      ;;
 esac
               if test -n "$acx_subdir_cmake_vars_to_set"; then :
-  eval acx_subdir_quoted_value=\$acx_arg_${acx_tmp}
+  eval acx_subdir_quoted_value=\$acx_arg_${acx_arg_name}
                  case $acx_subdir_quoted_value in #(
   *\'*) :
     acx_subdir_quoted_value=`$as_echo "$acx_subdir_quoted_value" | sed "s/'/'\\\\\\\\''/g"` ;; #(
@@ -2362,7 +2356,7 @@ esac
                    as_fn_append acx_subdir_pre_adjusted_cmake_args " '-D$acx_subdir_cmake_var=$acx_subdir_quoted_value'"
                  done
 fi
-              { eval acx_arg_${acx_tmp}=; unset acx_arg_${acx_tmp};}
+              { eval acx_arg_${acx_arg_name}=; unset acx_arg_${acx_arg_name};}
             done
 
 fi
@@ -4434,7 +4428,7 @@ elif $FC --version 2>&1 | grep '^AMD clang version' >/dev/null 2>&1; then :
   acx_cv_fc_compiler_vendor=amd
 elif $FC -V 2>&1 | grep '^f18 compiler' >/dev/null 2>&1; then :
   acx_cv_fc_compiler_vendor=flang
-elif $FC --version 2>&1 | grep '^clang version' >/dev/null 2>&1; then :
+elif $FC --version 2>&1 | grep 'clang version' >/dev/null 2>&1; then :
   acx_cv_fc_compiler_vendor=flang
 else
   acx_cv_fc_compiler_vendor=unknown
@@ -4475,46 +4469,46 @@ else
   case $acx_cv_fc_compiler_vendor in #(
   intel) :
     acx_cv_fc_compiler_version=`$FC --version 2>/dev/null | sed -n 's/^ifort (IFORT) \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'`
-         if test -z "$acx_cv_fc_compiler_version"; then :
+         if test -n "$acx_cv_fc_compiler_version"; then :
+  acx_cv_fc_compiler_version="classic:${acx_cv_fc_compiler_version}"
+else
   acx_cv_fc_compiler_version=`$FC --version 2>/dev/null | sed -n 's/^ifx (IFORT) \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'`
             if test -n "$acx_cv_fc_compiler_version"; then :
   acx_cv_fc_compiler_version="oneapi:${acx_cv_fc_compiler_version}"
 fi
-else
-  acx_cv_fc_compiler_version="classic:${acx_cv_fc_compiler_version}"
 fi ;; #(
   nag) :
     acx_cv_fc_compiler_version=`$FC -V 2>&1 | sed -n 's/^NAG Fortran Compiler Release \([0-9][0-9]*\.[0-9][0-9]*\).*Build \([0-9][0-9]*\)/\1.\2/p'` ;; #(
   portland) :
     acx_cv_fc_compiler_version=`$FC -V 2>/dev/null | sed -n 's/\(pgfortran\|pgf90\) \([0-9][0-9]*\.[0-9][0-9]*\)-\([0-9][0-9]*\).*/\2.\3/p'`
-         if test -z "$acx_cv_fc_compiler_version"; then :
+         if test -n "$acx_cv_fc_compiler_version"; then :
+  acx_cv_fc_compiler_version="pg:${acx_cv_fc_compiler_version}"
+else
   acx_cv_fc_compiler_version=`$FC -V 2>/dev/null | sed -n 's/nvfortran \([0-9][0-9]*\.[0-9][0-9]*\)-\([0-9][0-9]*\).*/\1.\2/p'`
             if test -n "$acx_cv_fc_compiler_version"; then :
   acx_cv_fc_compiler_version="nv:${acx_cv_fc_compiler_version}"
 fi
-else
-  acx_cv_fc_compiler_version="pg:${acx_cv_fc_compiler_version}"
 fi ;; #(
   cray) :
-    acx_cv_fc_compiler_version=`$FC -V 2>&1 | sed -n 's/.*ersion \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'` ;; #(
+    acx_cv_fc_compiler_version=`$FC -V 2>&1 | sed -n 's/.*[vV]ersion \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'` ;; #(
   nec) :
     acx_cv_fc_compiler_version=`$FC --version 2>&1 | sed -n 's/^nfort (NFORT) \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'` ;; #(
   gnu) :
-    acx_cv_fc_compiler_version=`$FC -dumpfullversion 2>/dev/null`
-         if test $? -ne 0 || test -z "$acx_cv_fc_compiler_version"; then :
-  acx_cv_fc_compiler_version=`$FC -dumpversion 2>/dev/null`
+    acx_cv_fc_compiler_version=`$FC -dumpfullversion 2>/dev/null | sed -n '/^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$/p'`
+         if test -z "$acx_cv_fc_compiler_version"; then :
+  acx_cv_fc_compiler_version=`$FC -dumpversion 2>/dev/null | sed -n '/^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$/p'`
 fi ;; #(
   amd) :
     acx_cv_fc_compiler_version=`$FC --version 2>/dev/null | sed -n 's/.*AOCC_\([0-9][0-9]*\)[._]\([0-9][0-9]*\)[._]\([0-9][0-9]*\).*/\1.\2.\3/p'` ;; #(
   flang) :
     acx_cv_fc_compiler_version=`$FC -V 2>&1 | sed -n 's/.*version \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)/\1/p'`
-         if test -z "$acx_cv_fc_compiler_version"; then :
+         if test -n "$acx_cv_fc_compiler_version"; then :
+  acx_cv_fc_compiler_version="f18:${acx_cv_fc_compiler_version}"
+else
   acx_cv_fc_compiler_version=`$FC --version 2>/dev/null | sed -n 's/.*version \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'`
             if test -n "$acx_cv_fc_compiler_version"; then :
   acx_cv_fc_compiler_version="classic:${acx_cv_fc_compiler_version}"
 fi
-else
-  acx_cv_fc_compiler_version="f18:${acx_cv_fc_compiler_version}"
 fi ;; #(
   *) :
     acx_cv_fc_compiler_version=unknown ;;
@@ -6240,7 +6234,7 @@ elif $CC --version 2>&1 | grep '^AMD clang version' >/dev/null 2>&1; then :
   acx_cv_c_compiler_vendor=amd
 elif $CC --version 2>&1 | grep '^Apple \(LLVM\|clang\) version' >/dev/null 2>&1; then :
   acx_cv_c_compiler_vendor=apple
-elif $CC --version 2>&1 | grep '^clang version' >/dev/null 2>&1; then :
+elif $CC --version 2>&1 | grep 'clang version' >/dev/null 2>&1; then :
   acx_cv_c_compiler_vendor=clang
 else
   acx_cv_c_compiler_vendor=unknown
@@ -6258,49 +6252,48 @@ else
   case $acx_cv_c_compiler_vendor in #(
   intel) :
     acx_cv_c_compiler_version=`$CC --version 2>/dev/null | sed -n 's/^icc (ICC) \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'`
-         if test -z "$acx_cv_c_compiler_version"; then :
+         if test -n "$acx_cv_c_compiler_version"; then :
+  acx_cv_c_compiler_version="classic:${acx_cv_c_compiler_version}"
+else
   acx_cv_c_compiler_version=`$CC --version 2>/dev/null | sed -n 's/^Intel.*oneAPI.*Compiler \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'`
             if test -n "$acx_cv_c_compiler_version"; then :
   acx_cv_c_compiler_version="oneapi:${acx_cv_c_compiler_version}"
 fi
-else
-  acx_cv_c_compiler_version="classic:${acx_cv_c_compiler_version}"
 fi ;; #(
   nag) :
     acx_cv_c_compiler_version=`$CC -V 2>&1 | sed -n 's/^NAG Fortran Compiler Release \([0-9][0-9]*\.[0-9][0-9]*\).*Build \([0-9][0-9]*\)/\1.\2/p'` ;; #(
   portland) :
     acx_cv_c_compiler_version=`$CC -V 2>/dev/null | sed -n 's/pgcc \((.*) \)\?\([0-9][0-9]*\.[0-9][0-9]*\)-\([0-9][0-9]*\).*/\2.\3/p'`
-         if test -z "$acx_cv_c_compiler_version"; then :
+         if test -n "$acx_cv_c_compiler_version"; then :
+  acx_cv_c_compiler_version="pg:${acx_cv_c_compiler_version}"
+else
   acx_cv_c_compiler_version=`$CC -V 2>/dev/null | sed -n 's/nvc \([0-9][0-9]*\.[0-9][0-9]*\)-\([0-9][0-9]*\).*/\1.\2/p'`
             if test -n "$acx_cv_c_compiler_version"; then :
   acx_cv_c_compiler_version="nv:${acx_cv_c_compiler_version}"
 fi
-else
-  acx_cv_c_compiler_version="pg:${acx_cv_c_compiler_version}"
 fi ;; #(
   cray) :
     acx_cv_c_compiler_version=`$CC -V 2>&1 | sed -n 's/.*ersion \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'`
-         if test -z "$acx_cv_c_compiler_version"; then :
-  acx_cv_c_compiler_version=`$CC --version | sed -n 's/.*version \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'`
+         if test -n "$acx_cv_c_compiler_version"; then :
+  acx_cv_c_compiler_version="classic:${acx_cv_c_compiler_version}"
+           acx_cv_c_compiler_version=`$CC --version | sed -n 's/.*version \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'`
             if test -n "$acx_cv_c_compiler_version"; then :
   acx_cv_c_compiler_version="clang:${acx_cv_c_compiler_version}"
 fi
-else
-  acx_cv_c_compiler_version="classic:${acx_cv_c_compiler_version}"
 fi ;; #(
   nec) :
     acx_cv_c_compiler_version=`$CC --version 2>&1 | sed -n 's/^ncc (NCC) \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'` ;; #(
   gnu) :
-    acx_cv_c_compiler_version=`$CC -dumpfullversion 2>/dev/null`
-         if test $? -ne 0 || test -z "$acx_cv_c_compiler_version"; then :
-  acx_cv_c_compiler_version=`$CC -dumpversion 2>/dev/null`
+    acx_cv_c_compiler_version=`$CC -dumpfullversion 2>/dev/null | sed -n '/^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$/p'`
+         if test -z "$acx_cv_c_compiler_version"; then :
+  acx_cv_c_compiler_version=`$CC -dumpversion 2>/dev/null | sed -n '/^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$/p'`
 fi ;; #(
   amd) :
     acx_cv_c_compiler_version=`$CC --version 2>/dev/null | sed -n 's/.*AOCC_\([0-9][0-9]*\)[._]\([0-9][0-9]*\)[._]\([0-9][0-9]*\).*/\1.\2.\3/p'` ;; #(
   apple) :
     acx_cv_c_compiler_version=`$CC --version 2>/dev/null | sed -E -n 's/^Apple (LLVM|clang) version ([0-9]+\.[0-9]+\.[0-9]+).*/\2/p'` ;; #(
   clang) :
-    acx_cv_c_compiler_version=`$CC --version 2>/dev/null | sed -n 's/.*version \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'` ;; #(
+    acx_cv_c_compiler_version=`$CC --version 2>/dev/null | sed -n 's/.*clang version \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'` ;; #(
   *) :
     acx_cv_c_compiler_version=unknown ;;
 esac
@@ -6340,6 +6333,7 @@ done
 CXXFLAGS=${CXXFLAGS-}
 subdir_CXXFLAGS=$CXXFLAGS
 
+export CXX
 
 
 ###################### SECONDARY GPU COMPILERS AND FLAGS #######################
@@ -9904,7 +9898,7 @@ else
 fi
    ICON_FORTRAN_SUPPORT_FCFLAGS=${ICON_FORTRAN_SUPPORT_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
       ICON_FORTRAN_SUPPORT_CFLAGS=${ICON_FORTRAN_SUPPORT_CFLAGS-$ICON_BUNDLED_CFLAGS}
-               acx_subdir_run_cmd_externals_fortran_support="\"\${CMAKE}\""
+                  acx_subdir_run_cmd_externals_fortran_support="\"\${CMAKE}\""
    acx_subdir_run_dir_externals_fortran_support="externals/fortran-support/build"
    acx_subdir_build_type_externals_fortran_support='cmake'
          acx_subdir_pre_adjust_cmake_args
@@ -9984,7 +9978,7 @@ done
 ICON_DELAYED_CONFIG_RULES=''
 
 if test "x$enable_delayed_config" = xyes; then :
-     ICON_DELAYED_CONFIG_RULES="export FC CC$as_nl$as_nl"
+     ICON_DELAYED_CONFIG_RULES="export FC CC CXX$as_nl$as_nl"
    icon_rule_sep=''
    for icon_bundled_srcdir in $extra_src_subdirs; do
      eval icon_bundled_builddir=\$acx_subdir_run_dir_`$as_echo "$icon_bundled_srcdir" | $as_tr_sh`

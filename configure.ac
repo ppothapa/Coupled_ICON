@@ -959,6 +959,9 @@ dnl Therefore we simply declare the following variables to document them in the
 dnl help message:
 AC_ARG_VAR([CXX], [C++ compiler command])dnl
 AC_ARG_VAR([CXXFLAGS], [C++ compiler flags])dnl
+dnl Make sure that the bundled libraries pick up the same CXX if not set by the
+dnl user on the command line:
+export CXX
 
 AC_ARG_VAR([ICON_BUNDLED_CXXFLAGS],
   [C++ compiler flags to be appended to CXXFLAGS when configuring the bundled
@@ -2287,7 +2290,8 @@ bundled version of FORTRAN-SUPPORT library
 @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
    ICON_FORTRAN_SUPPORT_CFLAGS=dnl
 ${ICON_FORTRAN_SUPPORT_CFLAGS-$ICON_BUNDLED_CFLAGS}
-   ACX_SUBDIR_INIT_CMAKE([externals/fortran-support], [no-run], [],
+   ACX_SUBDIR_INIT_CMAKE([externals/fortran-support],
+     [no-run no-adjust-compilers], [],
      [AS_ESCAPE(["${CMAKE}"])])
    ACX_SUBDIR_REMOVE_ARGS([externals/fortran-support],
 dnl C and Fortran compiler flags are replaced below:
@@ -2337,7 +2341,7 @@ AS_VAR_IF([enable_delayed_config], [yes],
   [dnl
 dnl Make sure that the bundled libraries pick up the same FC and CC if not set
 dnl by the user on the command line when configuring ICON:
-   ICON_DELAYED_CONFIG_RULES="export FC CC$as_nl$as_nl"
+   ICON_DELAYED_CONFIG_RULES="export FC CC CXX$as_nl$as_nl"
    icon_rule_sep=''
    for icon_bundled_srcdir in $extra_src_subdirs; do
      ACX_SUBDIR_GET_BUILD_DIR([icon_bundled_builddir], [$icon_bundled_srcdir])
