@@ -340,10 +340,9 @@ CONTAINS
         ENDIF
 
         IF ( (atm_phy_nwp_config(jg)%icpl_rad_reff == 2)  .AND.  & 
-             ( (atm_phy_nwp_config(jg)%inwp_radiation/= 4)  .OR.  &  
-             (ecrad_igas_model /=1) ) ) THEN
+              (atm_phy_nwp_config(jg)%inwp_radiation/= 4) ) THEN
           CALL finish( routine, 'Wrong value for: icpl_rad_reff. Coupling effective radius for all '//  &  
-                                 'hydrometeors only works with ECRAD and ECCKD gas model!')
+                                 'hydrometeors only works with ECRAD!')
         ENDIF
 
 

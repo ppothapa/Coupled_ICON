@@ -220,9 +220,9 @@ CONTAINS
 
       SELECT CASE (ecrad_iice_scat)
         CASE(0)
-          ecrad_conf%cloud_type_name(cc_cloud) = "fu-muskatel_ice"
-        CASE(10)
           ecrad_conf%cloud_type_name(cc_cloud) = "fu-muskatel-rough_ice"
+        CASE(10)
+          ecrad_conf%cloud_type_name(cc_cloud) = "fu-muskatel_ice"
         CASE(11)
           ecrad_conf%cloud_type_name(cc_cloud) = "baum-general-habit-mixture_ice"
         CASE DEFAULT                                                                   
@@ -235,9 +235,9 @@ CONTAINS
 
         SELECT CASE (ecrad_isnow_scat)
           CASE(0)
-            ecrad_conf%cloud_type_name(cc_cloud) = "fu-muskatel_ice"
-          CASE(10)
             ecrad_conf%cloud_type_name(cc_cloud) = "fu-muskatel-rough_ice"
+          CASE(10)
+            ecrad_conf%cloud_type_name(cc_cloud) = "fu-muskatel_ice"
           CASE DEFAULT                                                                   
             CALL finish(routine, 'ecrad_isnow_scat not valid for ecRad and use_general_cloud_optics = T')  
         END SELECT
@@ -261,9 +261,9 @@ CONTAINS
 
         SELECT CASE (ecrad_igraupel_scat)
           CASE(0)
-            ecrad_conf%cloud_type_name(cc_cloud) = "fu-muskatel_ice"
-          CASE(10)
             ecrad_conf%cloud_type_name(cc_cloud) = "fu-muskatel-rough_ice"
+          CASE(10)
+            ecrad_conf%cloud_type_name(cc_cloud) = "fu-muskatel_ice"
           CASE DEFAULT                                                                   
             CALL finish(routine, 'ecrad_igraupel_scat not valid for ecRad and use_general_cloud_optics = T')  
         END SELECT

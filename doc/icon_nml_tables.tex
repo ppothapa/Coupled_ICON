@@ -7440,10 +7440,10 @@ I&
 &
 Optical properties for ice cloud scattering. \\
 Different options depending on ecrad\_use\_general\_cloud\_optics (eugco) \\
-0: Fu et al. (1996) (both) \\
+0: Fu et al. (1996) (eugco = .FALSE.) \textbackslash Rough from Muskatel et al. (2021) (eugco = .TRUE.) \\
 1: Baran et al. (2016) (eugco=.FALSE.) \\
 2: Yi (2013) (eugco=.FALSE.) \\
-10: Rough Fu (eugco=.TRUE.) \\
+10: Smooth from Muskatel et al. (2021) (eugco=.TRUE.) \\
 11: Baum (eugco=.TRUE.)
 & inwp\_radiation=4 (ecRad) 
 \tabularnewline
@@ -7455,10 +7455,36 @@ I&
 &
 Optical properties for snow scattering. \\
 -1: No explicit snow in radiation. \\
-0: Fu et al. (1996) \\
-10: Rough Fu 
+0: Rough from Muskatel et al. (2021) \\
+10: Smooth from Muskatel et al. (2021)
 & inwp\_radiation=4 (ecRad) \\
-ecrad\_use\_general\_cloud\_optics = .TRUE.
+\squeezeme{ecrad\_use\_general\_cloud\_optics = .TRUE.}
+\tabularnewline
+
+%\hline
+ecrad\_irain\_scat &
+I&
+-1&
+&
+Optical properties for rain  scattering. \\
+-1: No explicit rain in radiation. \\
+0: Mie-rain 
+& inwp\_radiation=4 (ecRad) \\
+\squeezeme{ecrad\_use\_general\_cloud\_optics = .TRUE.}
+\tabularnewline
+
+
+%\hline
+ecrad\_igraupel\_scat &
+I&
+-1&
+&
+Optical properties for graupel scattering. \\
+-1: No explicit graupel in radiation. \\
+0: Rough from Muskatel et al. (2021) \\
+10: Smooth from Muskatel et al. (2021)
+& inwp\_radiation=4 (ecRad) \\
+\squeezeme{ecrad\_use\_general\_cloud\_optics = .TRUE.}
 \tabularnewline
 
 %\hline
@@ -7477,32 +7503,6 @@ R&
 m&
 Decorrelation length scale at equator \\
 & inwp\_radiation=4 (ecRad)
-\tabularnewline
-
-%\hline
-ecrad\_irain\_scat &
-I&
--1&
-&
-Optical properties for rain  scattering. \\
--1: No explicit rain in radiation. \\
-0: Mie-rain 
-& inwp\_radiation=4 (ecRad) \\
-ecrad\_use\_general\_cloud\_optics = .TRUE.
-\tabularnewline
-
-
-%\hline
-ecrad\_igraupel\_scat &
-I&
--1&
-&
-Optical properties for graupel scattering. \\
--1: No explicit graupel in radiation. \\
-0: Fu et al. (1996) \\
-10: Rough Fu 
-& inwp\_radiation=4 (ecRad) \\
-ecrad\_use\_general\_cloud\_optics = .TRUE.
 \tabularnewline
 
 %\hline
