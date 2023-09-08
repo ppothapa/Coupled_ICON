@@ -1290,9 +1290,16 @@ CONTAINS
        & grib2_var(255, 255, 255, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
        & ldims=(/nproma,n_zlev+1,alloc_cell_blocks/),in_group=groups("oce_diag","oce_default"), &
        & lrestart_cont=.TRUE.)
+
     ENDIF
 
-    
+    CALL add_var(ocean_default_list, 'ssh', ocean_state_diag%ssh , &
+         & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,    &
+         & t_cf_var('ssh', 'm', 'surface elevation at cell center', DATATYPE_FLT),&
+         & grib2_var(10, 3, 1, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
+         & ldims=(/nproma,alloc_cell_blocks/), &
+         & in_group=groups("oce_default"))
+
     ! somehow these are passed to the moc calculation
     ! tendency of snow
       CALL add_var(ocean_default_list, 'delta_snow', ocean_state_diag%delta_snow , &
@@ -1707,6 +1714,17 @@ CONTAINS
     ! CMIP6
     CALL add_var(ocean_default_list, 'mlotstsq', ocean_state_diag%mlotstsq , grid_unstructured_cell,za_surface, &
       &          t_cf_var('mlotstsq', 'm', 'square_of_ocean_mixed_layer_thickness_defined_by_sigma_t', datatype_flt),&
+      &          dflt_g2_decl_cell,&
+      &          ldims=(/nproma,alloc_cell_blocks/),in_group=groups_oce_dde)
+
+    ! EERIE
+    CALL add_var(ocean_default_list, 'mlotst10', ocean_state_diag%mlotst10 , grid_unstructured_cell,za_surface, &
+      &          t_cf_var('mlotst10', 'm', 'ocean_mixed_layer_thickness_defined_by_sigma_t_10m', datatype_flt),&
+      &          dflt_g2_decl_cell,&
+      &          ldims=(/nproma,alloc_cell_blocks/),in_group=groups_oce_dde)
+    ! EERIE
+    CALL add_var(ocean_default_list, 'mlotst10sq', ocean_state_diag%mlotst10sq , grid_unstructured_cell,za_surface, &
+      &          t_cf_var('mlotst10sq','m','square_of_ocean_mixed_layer_thickness_defined_by_sigma_t_10m', datatype_flt),&
       &          dflt_g2_decl_cell,&
       &          ldims=(/nproma,alloc_cell_blocks/),in_group=groups_oce_dde)
 

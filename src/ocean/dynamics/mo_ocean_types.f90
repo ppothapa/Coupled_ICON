@@ -241,7 +241,7 @@ MODULE mo_ocean_types
       & rsdoabsorb, &  !< Net Rate of Absorption of Shortwave Energy in Ocean Layer
 !      & dummy3d,&
       & swr_frac, &  !< relative swr absorption factor from hamocc (LFB_BGC_OCE)
-      & sigma0, &  !< potential density anomaly (desitity - 1000)
+      & sigma0, &  !<  density anomaly (desitity - 1000)
       & heat_content_liquid_water,    &
       & odensitytend
 
@@ -253,6 +253,8 @@ MODULE mo_ocean_types
       & mld              ,& ! mixed layer depth [m].
       & mlotst           ,& ! mixed layer depth [m]. (CMIP6)
       & mlotstsq        ,& ! squared mixed layer depth [m]. (CMIP6)
+      & mlotst10         ,& ! 10m mixed layer depth [m]. (EERIE)
+      & mlotst10sq       ,& ! 10m squared mixed layer depth [m]. (EERIE)
       & condep           ,&! convection depth index
       & swsum            ,& ! swr fraction absorbed in the surface layer
       & heatabs          ,& ! ( total subsurface ) heating due to absorption [J m-2]
@@ -270,6 +272,7 @@ MODULE mo_ocean_types
       & delta_snow, &
       & heat_content_total ,&
       & zos_square     ,&
+      & ssh     ,&   ! diagnostic including sea ice
       & Rossby_Radius    ,&
       & Wavespeed_baroclinic ,&
       & N2_ref           ,& ! diag: first N2>0 below mld !by_Oliver 
