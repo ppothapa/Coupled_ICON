@@ -363,9 +363,16 @@ CONTAINS
           Ssqr(jc,:) = 0.0_wp
 
           ! wind stress for tke surface forcing (reduced under sea ice)
-          tau_abs = (1.0_wp - concsum(jc,blockNo)) &
-               &    * SQRT((atmos_fluxes%stress_xw(jc,blockNo))**2 &
-               &    + (atmos_fluxes%stress_yw(jc,blockNo))**2 )
+          IF (use_reduced_mixing_under_ice) THEN
+            tau_abs = (1.0_wp - concsum(jc,blockNo))**2 &
+                 &    * SQRT((atmos_fluxes%stress_xw(jc,blockNo))**2 &
+                 &    + (atmos_fluxes%stress_yw(jc,blockNo))**2 )
+          ELSE
+            tau_abs = (1.0_wp - concsum(jc,blockNo)) &
+                 &    * SQRT((atmos_fluxes%stress_xw(jc,blockNo))**2 &
+                 &    + (atmos_fluxes%stress_yw(jc,blockNo))**2 )
+          ENDIF
+
           forc_tke_surf_2D(jc,blockNo) = tau_abs / OceanReferenceDensity
 
           ! calculate N2
@@ -661,6 +668,8 @@ CONTAINS
     REAL(wp) :: bottom_fric_2D(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
     REAL(wp) :: tau_abs
 
+!    REAL(wp) :: minmaxmean(3)
+
     REAL(wp) :: dummy_zeros(n_zlev+1)
     dummy_zeros = 0.0
 
@@ -731,6 +740,9 @@ CONTAINS
     !write(*,*) "TKE before:"
     !write(*,*) tke(8,:,10)
 
+!    minmaxmean(:) = global_minmaxmean(values=concsum(:,:), in_subset=all_cells)
+!    CALL debug_print_MaxMinMean('concsum',   minmaxmean, 'calc_tke', 1)
+
 !ICON_OMP_PARALLEL PRIVATE(pressure)
 
     pressure(1) = 1.0_wp
@@ -754,9 +766,17 @@ CONTAINS
           Ssqr(:) = 0.0_wp
 
           ! wind stress for tke surface forcing (reduced under sea ice)
-          tau_abs = (1.0_wp - concsum(jc,blockNo)) &
-               &    * SQRT((atmos_fluxes%stress_xw(jc,blockNo))**2 &
-               &    + (atmos_fluxes%stress_yw(jc,blockNo))**2 )
+
+          IF (use_reduced_mixing_under_ice) THEN
+            tau_abs = (1.0_wp - concsum(jc,blockNo))**2 &
+                 &    * SQRT((atmos_fluxes%stress_xw(jc,blockNo))**2 &
+                 &    + (atmos_fluxes%stress_yw(jc,blockNo))**2 )
+          ELSE
+            tau_abs = (1.0_wp - concsum(jc,blockNo)) &
+                 &    * SQRT((atmos_fluxes%stress_xw(jc,blockNo))**2 &
+                 &    + (atmos_fluxes%stress_yw(jc,blockNo))**2 )
+          ENDIF
+
           forc_tke_surf_2D(jc,blockNo) = tau_abs / OceanReferenceDensity
 
           ! calculate N2
