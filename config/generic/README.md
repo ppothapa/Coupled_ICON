@@ -81,6 +81,7 @@ platforms are provided in section [Tested platforms](#tested-platforms).
 ### Building tools
 
 - [GNU Make](https://www.gnu.org/software/make) v3.81+
+- [CMake](https://cmake.org) v3.18+
 - [Python](https://www.python.org) v2.6+ or v3.5+
 - [Perl](https://www.perl.org) v5.10+
 - Interoperable C and Fortran compilers
@@ -161,6 +162,7 @@ commands:
 ```bash
 # Install building tools and ICON dependencies:
 sudo port -N install       \
+  cmake                    \
   gcc12                    \
   mpich-gcc12              \
   hdf5 +hl+threadsafe+szip \
@@ -214,6 +216,7 @@ variable is set to `/tmp` before running ICON.
 # Install building tools and ICON dependencies:
 sudo apt install -y \
   build-essential   \
+  cmake             \
   python3           \
   gcc               \
   gfortran          \
@@ -249,6 +252,7 @@ sudo apt install -y cdo
 sudo pacman -S --noconfirm \
   base-devel               \
   git                      \
+  cmake                    \
   python                   \
   gcc-fortran              \
   openmpi                  \
@@ -294,6 +298,7 @@ spack external find
 
 # Install ICON dependencies:
 spack install                             \
+  cmake                                   \
   openmpi                                 \
   netcdf-fortran ^hdf5+hl+szip+threadsafe \
   eccodes                                 \
@@ -304,6 +309,7 @@ spack install                             \
 # Symlink the dependencies to a single prefix (e.g. to $HOME/icon-sw):
 export ICON_SW_PREFIX="$HOME/icon-sw"
 spack view symlink -i "$ICON_SW_PREFIX" \
+  cmake                                 \
   openmpi                               \
   netcdf-fortran                        \
   eccodes                               \
