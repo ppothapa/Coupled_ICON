@@ -273,7 +273,6 @@ cat >> ${atmo_namelist} << EOF
  aes_phy_config(1)%iqneg_p2d  = 2     ! after physics : set neg. humidity to 0
 /
 &aes_cov_nml ! grid(1)
- aes_cov_config(1)%icov       = 3     ! 0/1 scheme based on cloud condensate
  aes_cov_config(1)%cqx        = 1.e-6
 /
 &aes_cop_nml ! grid(1)

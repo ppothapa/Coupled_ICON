@@ -224,73 +224,10 @@ following control parameters:
 
 \begin{longtab}
 %\hline
-aes\_cov\_config(jg)\% icov &
-I & 1 & &
-selects cloud cover scheme \newline
-0: constant cloud cover =  clcon \newline
-1: fractional cloud cover based on rel. humidity \newline
-2: 0/1 cloud cover based on rel. humidity >= csat \newline
-3: 0/1 cloud cover based on cloud condensate >= cqx &
-\tabularnewline
-
-aes\_cov\_config(jg)\% clcon &
-R & 0.0 & &
-constant cloud cover in m2/m2 &
-icov = 0
-\tabularnewline
-
-aes\_cov\_config(jg)\% csat &
-R & 1.0 & &
-relative humidity at which cloud cover is 1 &
-icov = 1, 2
-\tabularnewline
-
-aes\_cov\_config(jg)\% crs &
-R & 0.968 & &
-critical relative humidity at surface &
-icov = 1
-\tabularnewline
-
-aes\_cov\_config(jg)\% crt &
-R & 0.8 & &
-critical relative humidity aloft &
-icov = 1
-\tabularnewline
-
-aes\_cov\_config(jg)\% nex &
-I & 2 & &
-transition parameter for critical relative humidity profile &
-icov = 1
-\tabularnewline
-
-aes\_cov\_config(jg)\% zmaxinv &
-R & 2000. & m &
-maximum height (m) above sea level for search of inversion layer &
-icov = 1
-\tabularnewline
-
-aes\_cov\_config(jg)\% zmininv &
-R & 200. & m &
-minimum height (m) above sea level for search of inversion layer &
-icov = 1
-\tabularnewline
-
-aes\_cov\_config(jg)\% cinv &
-R & 0.25 & &
-fraction of dry adiabatic lapse rate for search of top level of inversion layer over sea &
-icov = 1
-\tabularnewline
-
-aes\_cov\_config(jg)\% csatsc &
-R & 0.7 & &
-lower limit of scaling factor for saturation mixing ratio in layer below inversion &
-icov = 1
-\tabularnewline
-
 aes\_cov\_config(jg)\% cqx &
 R & 1.0e-8 & kg/kg &
-critical mass mixing ratio in kg/kg of cloud water + cloud ice &
-icov = 3
+critical mass fraction of cloud water + cloud ice in air, if exceeded cloud cover in cell = 1, otherwise = 0 &
+
 \tabularnewline
 
 \end{longtab}

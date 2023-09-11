@@ -199,7 +199,6 @@ cat >> ${atmo_namelist} << EOF
 &cloud_mig_nml
 /
 &aes_cov_nml
- aes_cov_config(1)%icov       = 3     ! 0/1 cloud cover based on cloud water and ice
  aes_cov_config(1)%cqx        = 1.e-6
 /
 &extpar_nml

@@ -485,8 +485,6 @@ cat > ${atm_namelist} << EOF
 &cloud_mig_nml
 /
 &aes_cov_nml
- aes_cov_config(1)%crs        = 0.978     ! Critical relative humidity at surface, default 0.968
- !aes_cov_config(1)%crt        = 0.82      ! Critical relative humidity at toa, default 0.8
 /
 &sea_ice_nml
  !albs                           = 0.8       ! Albedo of snow (not melting)              !  def: 0.85

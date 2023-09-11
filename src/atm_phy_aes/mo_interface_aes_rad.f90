@@ -144,8 +144,6 @@ CONTAINS
               & xv_ozn         = field%o3(:,:,jb)          ,&!< out ozone volume mixing ratio [mol/mol]
               !
               & cdnc           = field% acdnc(:,:,jb)      ,&!< in   cloud droplet number conc
-              & cld_frc        = field% aclc(:,:,jb)       ,&!< in   cloud fraction [m2/m2]
-              & cld_cvr        = field%aclcov(:,jb)        ,&!< out  total cloud cover
               !
               & lw_dnw_clr     = field%rldcs_rt(:,:,jb)    ,&!< out  Clear-sky net longwave  at all levels
               & lw_upw_clr     = field%rlucs_rt(:,:,jb)    ,&!< out  Clear-sky net longwave  at all levels

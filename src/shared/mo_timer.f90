@@ -657,7 +657,7 @@ CONTAINS
 
     IF (iforcing == iaes) THEN
        !
-       ! iconam - aes coupling
+       ! iconam - physics coupling
        timer_iconam_aes  = new_timer("iconam_aes")
        timer_dyn2phy     = new_timer("dyn2phy")
        timer_d2p_sync    = new_timer("d2p_sync")
@@ -666,8 +666,7 @@ CONTAINS
        timer_phy2dyn     = new_timer("phy2dyn")
        timer_p2d_sync    = new_timer("p2d_sync")
        !
-       ! aes physics
-       timer_cov    = new_timer("interface_aes_cov")
+       ! physics
        timer_rad    = new_timer("interface_aes_rad")
        timer_rht    = new_timer("interface_aes_rht")
        timer_vdf    = new_timer("interface_aes_vdf")
@@ -682,9 +681,11 @@ CONTAINS
        timer_car    = new_timer("interface_aes_car")
        timer_wmo    = new_timer("interface_aes_wmo")
        !
+       ! diagnostics
        timer_qvi    = new_timer("diagnose_qvi")
        timer_uvi    = new_timer("diagnose_uvi")
        timer_ene    = new_timer("diagnose_ene")
+       timer_cov    = new_timer("diagnose_cov")
        !
     END IF
     !

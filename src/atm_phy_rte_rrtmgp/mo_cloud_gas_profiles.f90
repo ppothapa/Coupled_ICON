@@ -24,6 +24,8 @@ MODULE mo_cloud_gas_profiles
   USE mo_impl_constants,       ONLY: max_dom
   USE mo_run_config,           ONLY: ntracer
   USE mo_parallel_config,      ONLY: nproma
+  USE mo_aes_phy_config,       ONLY: aes_phy_config
+  USE mo_aes_cov_config,       ONLY: aes_cov_config
   USE mo_aes_rad_config,       ONLY: aes_rad_config
   USE mo_run_config,           ONLY: iqv, iqc, iqi, ico2, io3
   USE mo_bc_greenhouse_gases,  ONLY: ghg_co2mmr, ghg_ch4mmr, ghg_n2ommr, ghg_cfcmmr
@@ -332,73 +334,79 @@ CONTAINS
   END SUBROUTINE gas_profiles
 
   SUBROUTINE cloud_profiles(jg,            jcs,           jce,         &
-       &                    klev,          xq_trc,xm_air, cld_frc,     &
-       &                    xm_liq,        xm_ice,        xc_frc,      &
-       &                    cld_cvr                                    )
+       &                    klev,          xq_trc,        xm_air,      &
+       &                    xm_liq,        xm_ice,        xc_frc       )
     INTEGER, INTENT(IN)    :: jg             ! domain index
     INTEGER, INTENT(IN)    :: jcs            ! start index in block of col.
     INTEGER, INTENT(IN)    :: jce            ! end index in block of col.
     INTEGER, INTENT(IN)    :: klev           ! number of vertical levels
     REAL(wp), INTENT(IN)   :: xq_trc(:,:,:)  ! tracer mass mixing ratios
     REAL(wp), INTENT(IN)   :: xm_air(:,:)    ! air mass in layer
-    REAL(wp), INTENT(IN)   :: cld_frc(:,:)   ! cloud fraction in layer
     REAL(wp), INTENT(OUT)  :: xm_liq(:,:)    ! cloud water
     REAL(wp), INTENT(OUT)  :: xm_ice(:,:)    ! cloud ice
     REAL(wp), INTENT(OUT)  :: xc_frc(:,:)    ! cloud fraction in layer
-    REAL(wp), INTENT(OUT)  :: cld_cvr(:)     ! total cloud cover
 
-    INTEGER                    :: jl, jk
-    REAL(wp)                   :: frad
+    INTEGER                    :: jl, jk, jks
+    REAL(wp)                   :: frad, xrad
+    REAL(wp)                   :: cqx
 
-    frad = aes_rad_config(jg)% frad_h2o
-
-    !$ACC DATA PRESENT(xm_liq, xm_ice, xq_trc, xm_air, xc_frc, cld_frc, cld_cvr)
+    !$ACC DATA PRESENT(xm_liq, xm_ice, xq_trc, xm_air, xc_frc)
+    !
     SELECT CASE (aes_rad_config(jg)%irad_h2o)
-    CASE (0)
-      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
-      xm_liq(jcs:jce,:)=0._wp
-      xm_ice(jcs:jce,:)=0._wp
-      !$ACC END KERNELS
-    CASE (1)
-      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
-      xm_liq(jcs:jce,:) = MAX(xq_trc(jcs:jce,:,iqc)*xm_air(jcs:jce,:)*frad,0._wp)
-      xm_ice(jcs:jce,:) = MAX(xq_trc(jcs:jce,:,iqi)*xm_air(jcs:jce,:)*frad,0._wp)
-      !$ACC END KERNELS
+    !
+    CASE (0) ! no clouds in radiation
+      !
+      !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
+      DO jk=1,klev
+        DO jl = jcs,jce
+          xc_frc(jl,jk) = 0.0_wp
+          xm_liq(jl,jk) = 0.0_wp
+          xm_ice(jl,jk) = 0.0_wp
+        END DO
+      END DO
+      !$ACC END PARALLEL LOOP
+      !
+    CASE (1) ! clouds in radiation in layers jks_cloudy to klev, where the mass fraction of
+      !        cloud water + cloud ice in air exceeds cqx, with the cloud mass scaled by frad_h2o
+      !  
+      jks  = aes_phy_config(jg)%jks_cloudy
+      cqx  = aes_cov_config(jg)%cqx
+      frad = aes_rad_config(jg)%frad_h2o
+      !
+      IF (frad == 0.0_wp) THEN
+         xrad = 0.0_wp
+      ELSE
+         xrad = 1.0_wp
+      END IF
+      
+      !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
+      DO jk=1,jks-1 ! no clouds in layers 1 to jks-1
+        DO jl = jcs,jce
+          xc_frc(jl,jk) = 0.0_wp
+          xm_liq(jl,jk) = 0.0_wp
+          xm_ice(jl,jk) = 0.0_wp
+        END DO
+      END DO
+      !$ACC END PARALLEL LOOP
+      !
+      !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
+      DO jk=jks,klev ! clouds in layers jks to klev
+        DO jl = jcs,jce
+          !
+          ! clouds exist (=1) where the mass fraction of clouds in air exceed cqx, if frad /= 0,
+          ! otherwise no clouds in radiation
+          xc_frc(jl,jk) = xrad*MERGE(1.0_wp, 0.0_wp, xq_trc(jl,jk,iqc) + xq_trc(jl,jk,iqi) >= cqx)
+          !
+          ! apply this cloud cover as mask, scale cloud mass in layer by frad, and make >= 0
+          xm_liq(jl,jk) = xc_frc(jl,jk)*MAX(xq_trc(jl,jk,iqc)*xm_air(jl,jk)*frad,0._wp) 
+          xm_ice(jl,jk) = xc_frc(jl,jk)*MAX(xq_trc(jl,jk,iqi)*xm_air(jl,jk)*frad,0._wp)
+          !
+        END DO
+      END DO
+      !$ACC END PARALLEL LOOP
+      !
     END SELECT
     !
-    ! --- cloud cover
-    ! 
-    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
-    DO jk=1,klev
-      DO jl = jcs,jce
-        xc_frc(jl,jk) = MERGE(cld_frc(jl,jk), 0._wp, &
-            xm_liq(jl,jk) > 0.0_wp .OR. xm_ice(jl,jk) > 0.0_wp)
-      END DO
-    END DO
-    !$ACC END PARALLEL LOOP
-    !
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-    !$ACC LOOP GANG(STATIC: 1) VECTOR
-    DO jl = jcs, jce
-      cld_cvr(jl) = 1.0_wp - xc_frc(jl,1)
-    END DO
-
-    !$ACC LOOP SEQ
-    DO jk = 2, klev
-      !$ACC LOOP GANG(STATIC: 1) VECTOR
-      DO jl = jcs, jce
-        cld_cvr(jl) = cld_cvr(jl)                                  &
-            &    *(1.0_wp-MAX(xc_frc(jl,jk),xc_frc(jl,jk-1)))      &
-            &    /(1.0_wp-MIN(xc_frc(jl,jk-1),1.0_wp-EPSILON(1.0_wp)))
-      END DO
-    END DO
-
-    !$ACC LOOP GANG(STATIC: 1) VECTOR
-    DO jl = jcs, jce
-      cld_cvr(jl) = 1.0_wp-cld_cvr(jl)
-    END DO
-    !$ACC END PARALLEL
-
     !$ACC WAIT
     !$ACC END DATA
   END SUBROUTINE cloud_profiles

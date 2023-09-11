@@ -3,4 +3,4 @@
 icon_data_rootFolder: /users/icontest/pool/data/ICON
 builder: daint_cpu_cce
 # The list below maps each experiment to its current experiment_hash
-"atm_qubicc_nc_test": d1c9c328a1e526f383d46a008e0b74b23d7a40c6
+"atm_qubicc_nc_test": c8882d1a2b5bc798546c7775ade44c0792c19cc1
