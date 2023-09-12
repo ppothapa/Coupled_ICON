@@ -49,7 +49,13 @@ LIBS="-Wl,--as-needed ${XML2_LIBS} ${FYAML_LIBS} ${ECCODES_LIBS} ${BLAS_LAPACK_L
 
 MPI_LAUNCH="${MPI_ROOT}/bin/mpiexec"
 
-EXTRA_CONFIG_ARGS='--disable-coupling'
+# The compiler fails one of the YAC configure-time tests, which we suppress and
+# hope for the best:
+EXTRA_CONFIG_ARGS='yac_cv_fc_is_contiguous_works=yes'
+
+# NVHPC 23.3 and older are even worse in detecting whether an array is
+# contiguous. Therefore, we have to disable the run-time checks too:
+ICON_YAC_FCFLAGS="-D'is_contiguous(arg)=.TRUE.'"
 
 ################################################################################
 
@@ -61,6 +67,7 @@ CPPFLAGS="${CPPFLAGS}" \
 FC="${FC}" \
 FCFLAGS="${FCFLAGS}" \
 ICON_YAC_CFLAGS="${ICON_YAC_CFLAGS}" \
+ICON_YAC_FCFLAGS="${ICON_YAC_FCFLAGS}" \
 LDFLAGS="${LDFLAGS}" \
 LIBS="${LIBS}" \
 MPI_LAUNCH="${MPI_LAUNCH}" \

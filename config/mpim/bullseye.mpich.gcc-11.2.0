@@ -65,6 +65,10 @@ MPI_LAUNCH='mpiexec'
 
 EXTRA_CONFIG_ARGS='--enable-grib2 --enable-fcgroup-OCEAN --enable-fcgroup-DACE'
 
+# MPICH 3.4.3 fails one of the YAC configure-time tests, which we disable and
+# hope for the best:
+EXTRA_CONFIG_ARGS+=' --disable-mpi-checks'
+
 ################################################################################
 
 "${icon_dir}/configure" \

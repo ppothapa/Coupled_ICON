@@ -7,11 +7,6 @@ for subdir in @icon_bundled_config_subdirs@ @icon_bundled_cmake_subdirs@; do
   extra_libs=''
 
   case $subdir in
-    externals/yac)
-      # The bundled version of YAC, which we link statically, might require
-      # additional linker flags enabling linking to the software implementation
-      # of the long double arithmetic:
-      extra_libs=`echo '@''LONG_DOUBLE_CLIBS@' | "$subdir/config.status" -q --file=- | sed 's/^ *//;s/ *$//'` ;;
     externals/sct)
       # The bundled version of SCT, which we link statically, might require
       # additional linker flags:

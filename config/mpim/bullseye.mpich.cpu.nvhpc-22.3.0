@@ -65,8 +65,17 @@ MPI_LAUNCH='mpiexec'
 
 EXTRA_CONFIG_ARGS='--enable-loop-exchange --enable-grib2 --enable-fcgroup-WORKAROUND1'
 
-# The compiler cannot build YAC yet:
-EXTRA_CONFIG_ARGS+=' --disable-coupling'
+# The compiler fails one of the YAC configure-time tests, which we suppress and
+# hope for the best:
+EXTRA_CONFIG_ARGS+=' yac_cv_fc_is_contiguous_works=yes'
+
+# NVHPC 23.3 and older are even worse in detecting whether an array is
+# contiguous. Therefore, we have to disable the run-time checks too:
+ICON_YAC_FCFLAGS="${ICON_FCFLAGS} -D'is_contiguous(arg)=.TRUE.'"
+
+# MPICH 3.4.3 fails one of the YAC configure-time tests, which we disable and
+# hope for the best:
+EXTRA_CONFIG_ARGS+=' --disable-mpi-checks'
 
 ################################################################################
 
@@ -83,6 +92,7 @@ ICON_FCFLAGS="${ICON_FCFLAGS}" \
 ICON_LDFLAGS="${ICON_LDFLAGS}" \
 ICON_WORKAROUND1_FCFLAGS="${ICON_WORKAROUND1_FCFLAGS}" \
 ICON_WORKAROUND1_PATH="${ICON_WORKAROUND1_PATH}" \
+ICON_YAC_FCFLAGS="${ICON_YAC_FCFLAGS}" \
 LDFLAGS="${LDFLAGS}" \
 LIBS="${LIBS}" \
 MPI_LAUNCH="${MPI_LAUNCH}" \
