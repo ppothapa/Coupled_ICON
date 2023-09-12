@@ -535,6 +535,32 @@ EOF
 }
 
 #=============================================================================
+set_run_target_levante_aurora()
+{
+    # Aurora nodes at DKRZ
+
+    icon_data_rootFolder=${icon_data_rootFolder:=/pool/data/ICON}
+
+    if [[ "$use_compiler" == "nec" ]]; then
+      set_default use_nproma 752
+      set_default use_nproma_sub 752
+    else
+      set_default use_nproma 48
+      set_default use_nproma_sub 48
+    fi
+    set_default use_nblocks_c 0
+    set_default use_nodes 1
+
+    if [[ "$use_mpi" == "yes" ]]
+    then
+	set_default use_mpi_procs_pernode 4
+    fi
+
+    start_header
+
+}
+
+#=============================================================================
 set_run_target_mpipc()
 {
     # *.mpimet.mpg.de with Linux (workstations and breeze)

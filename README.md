@@ -205,12 +205,12 @@ recommended (topologically sorted) order for the `LIBS` argument is presented in
 | 23 | [HDF5](https://support.hdfgroup.org/HDF5/) (low- and high-level Fortran interfaces) | `--enable-emvorado` or `--enable-rttov`<sup><a name="f10-back" href="#f10">10</a></sup> | `FCFLAGS='-I/path/to/hdf5/include' LDFLAGS='-L/path/to/hdf5/lib' LIBS='-lhdf5_hl_fortran -lhdf5_fortran'` |
 | 24 | [HDF5](https://support.hdfgroup.org/HDF5/) (low-level C interface) | `--enable-sct --without-external-sct` | `CPPFLAGS='-I/path/to/hdf5/include' LDFLAGS='-L/path/to/hdf5/lib' LIBS='-lhdf5'` |
 | 25 | [ZLIB](https://zlib.net/) | `--enable-emvorado` | `LDFLAGS='-L/path/to/zlib/lib' LIBS='-lz'`<sup><a name="f11-back" href="#f11">11</a></sup> |
-| 26 | [AEC](https://gitlab.dkrz.de/k202009/libaec) or [SZIP](https://support.hdfgroup.org/doc_resource/SZIP/) | static linking | `LDFLAGS='-L/path/to/aec/lib' LIBS='-laec'` (or `LIBS='-lsz'`) |
-| 27 | [MPI](https://www.mpi-forum.org/) (Fortran interface) | `--enable-mpi`<sup><a name="f12-back" href="#f12">12</a></sup> or `--enable-yaxt` or `--enable-cdi-pio --without-external-cdi --without-external-yaxt` or `--enable-coupling --without-external-yac` | `FC='/path/to/mpi/bin/mpif90'` or `FCFLAGS='-I/path/to/mpi/include' LDFLAGS='-L/path/to/mpi/lib' LIBS='-lmpifort -lmpi'` (depends on the implementation) |
-| 28 | [MPI](https://www.mpi-forum.org/) (C interface) | `--enable-coupling`<sup><a name="f13-back" href="#f13">13</a></sup> or `--enable-yaxt --without-external-yaxt` or `--enable-mpi --enable-sct --without-external-sct` or `--enable-cdi-pio --without-external-cdi` | `CC=/path/to/mpi/bin/mpicc` or `CPPFLAGS='-I/path/to/mpi/include' LDFLAGS='-L/path/to/mpi/lib' LIBS='-lmpi'` (depends on the implementation) |
+| 26 | [AEC](https://gitlab.dkrz.de/k202009/libaec) or [SZIP](https://support.hdfgroup.org/doc_resource/SZIP/) | static linking | `LDFLAGS='-L/path/to/aec/lib' LIBS='-laec'` (or `LIBS='-lsz'`)<sup><a name="f12-back" href="#f12">12</a></sup> |
+| 27 | [MPI](https://www.mpi-forum.org/) (Fortran interface) | `--enable-mpi`<sup><a name="f13-back" href="#f13">13</a></sup> or `--enable-yaxt` or `--enable-cdi-pio --without-external-cdi --without-external-yaxt` or `--enable-coupling --without-external-yac` | `FC='/path/to/mpi/bin/mpif90'` or `FCFLAGS='-I/path/to/mpi/include' LDFLAGS='-L/path/to/mpi/lib' LIBS='-lmpifort -lmpi'` (depends on the implementation) |
+| 28 | [MPI](https://www.mpi-forum.org/) (C interface) | `--enable-coupling`<sup><a name="f14-back" href="#f14">14</a></sup> or `--enable-yaxt --without-external-yaxt` or `--enable-mpi --enable-sct --without-external-sct` or `--enable-cdi-pio --without-external-cdi` | `CC=/path/to/mpi/bin/mpicc` or `CPPFLAGS='-I/path/to/mpi/include' LDFLAGS='-L/path/to/mpi/lib' LIBS='-lmpi'` (depends on the implementation) |
 | 29 | [ROCm](https://www.amd.com/en/graphics/servers-solutions-rocm) | `--enable-gpu=openacc+hip` | `LDFLAGS='-L/path/to/rocm/lib' LIBS='-lamdhip64'` (depends on the platform) |
 | 30 | [CUDA](https://developer.nvidia.com/cuda-zone) | `--enable-gpu=openacc+cuda` | `LDFLAGS='-L/path/to/cuda/lib' LIBS='-lcudart'` |
-| 31 | [STDC++](https://isocpp.org/)<sup><a name="f14-back" href="#f14">14</a></sup> | `--enable-gpu=openacc+cuda` or `--enable-gpu=openacc+hip` | `LDFLAGS='-L/path/to/gcc/used/by/CUDACXX-or-HIPCXX/lib' LIBS='-lstdc++'` (depends on the implementation) |
+| 31 | [STDC++](https://isocpp.org/)<sup><a name="f15-back" href="#f15">15</a></sup> | `--enable-gpu=openacc+cuda` or `--enable-gpu=openacc+hip` | `LDFLAGS='-L/path/to/gcc/used/by/CUDACXX-or-HIPCXX/lib' LIBS='-lstdc++'` (depends on the implementation) |
 
 1. <a name="f1"/> The dependency conditions and required flags are specified
 assuming that the shared versions of the libraries containing `RPATH` entries
@@ -259,15 +259,28 @@ explicitly when usage of the radiative transfer model for TOVS is enabled
 (`--enable-rttov`). [↩](#f10-back)
 11. <a name="f11"/> ZLIB is used via the `ISO_C_BINDING` interface and does not
 require additional preprocessor flags. [↩](#f11-back)
-12. <a name="f12"/> When usage of the parallel features of CDI is enabled
+12. <a name="f12"/> It is strongly recommended to avoid having both AEC and SZIP
+among the dependencies at the same time to avoid compilation and linking
+problems. That is because AEC provides an extra set of header and library files
+that allow packages that require the SZIP interface to use AEC transparently.
+The only case when both AEC and SZIP can coexist in the dependency graph is
+when all packages that require the SZIP interface are built against the SZIP
+package. In that situation, the linker flags must be set so that `-lsz` is
+resolved with the library file of the SZIP package and not with the one from
+AEC, i.e. `LDFLAGS='-L/path/to/szip/lib -L/path/to/aec/lib'`. Additionally, it
+makes sense to set `-laec` before `-lsz` in the `LIBS` argument. A successful
+static linking in that case indicates that all symbols from `libsz.a` are
+resolved without any symbols from `libaec.a`, i.e. the correct version of
+`libsz.a` is used. [↩](#f12-back)
+13. <a name="f13"/> When usage of the parallel features of CDI is enabled
 (`--enable-cdi-pio`), MPI (parallelization) support (`--enable-mpi`) is
-mandatory. [↩](#f12-back)
-13. <a name="f13"/> There is no shared version of YAC library, which could link
+mandatory. [↩](#f13-back)
+14. <a name="f14"/> There is no shared version of YAC library, which could link
 MPI (C interface) library implicitly, therefore, the latter needs to be linked
 explicitly, regardless of whether an external or the bundled version of YAC is
-used. [↩](#f13-back)
-14. <a name="f14"/> The provided standard C++ library must be compatible with
-the code generated by the host compiler of `CUDACXX` or `HIPCXX`. [↩](#f14-back)
+used. [↩](#f14-back)
+15. <a name="f15"/> The provided standard C++ library must be compatible with
+the code generated by the host compiler of `CUDACXX` or `HIPCXX`. [↩](#f15-back)
 
 ## Bundled libraries
 

@@ -315,6 +315,7 @@ $addexp checksuite.icon-dev/check.atm_nwp_jsbach_test --builders "${jsbach_nwp_b
 ./set_builder_flags Active --builders 'levante_aurora' --list $listname
 $addexp "checksuite.infrastructure/aurora/exp.icon_esm_r2b4.run" --builders "levante_aurora" --list $listname
 $addexp "checksuite.infrastructure/aurora/exp.icon_atm_r2b4.run" --builders "levante_aurora" --list $listname
+$addexp "checksuite.infrastructure/aurora/exp.host_and_vector_only_tests.run" --builders "levante_aurora" --list $listname
 
 #lets see the list
 ./lslist $listname
