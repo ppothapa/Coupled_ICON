@@ -61,7 +61,7 @@ MODULE mo_nml_crosscheck
     &                                    ecrad_use_general_cloud_optics
   USE mo_turbdiff_config,          ONLY: turbdiff_config
   USE mo_initicon_config,          ONLY: init_mode, dt_iau, ltile_coldstart, timeshift,    &
-    &                                    itype_vert_expol
+    &                                    itype_vert_expol, iterate_iau
   USE mo_nh_testcases_nml,         ONLY: nh_test_name, layer_thickness
   USE mo_meteogram_config,         ONLY: meteogram_output_config, check_meteogram_configuration
   USE mo_grid_config,              ONLY: lplane, n_dom, l_limited_area, start_time,        &
@@ -83,6 +83,7 @@ MODULE mo_nml_crosscheck
   USE mo_name_list_output_config,  ONLY: is_variable_in_output_dom
   USE mo_coupling_config,          ONLY: is_coupled_run
 
+  USE mo_assimilation_config,      ONLY: assimilation_config
   USE mo_scm_nml,                  ONLY: i_scm_netcdf, scm_sfc_temp, scm_sfc_qv, scm_sfc_mom
 #ifndef __NO_ICON_LES__
   USE mo_ls_forcing_nml,           ONLY: is_ls_forcing
@@ -785,6 +786,20 @@ CONTAINS
       &                l_limited_area, ivctype, flat_height, itype_vert_expol, init_mode, &
       &                atm_phy_nwp_config(:)%inwp_turb, atm_phy_nwp_config(:)%inwp_radiation)
 
+    !--------------------------------------------------------------------
+    ! assimiliation
+    !--------------------------------------------------------------------
+    IF ( MODE_IAU == init_mode ) THEN
+      IF( ANY(assimilation_config(:)%dace_coupling) .AND. .NOT. iterate_iau ) THEN 
+        ! The MEC in dace_coupling needs the fully initialized state to compute the
+        ! model equivalents for vv=0.
+        CALL finish(routine,                                        &
+        &  'assimilation: dace_coupling requires iterate_iau')
+        ! One might loosen this check slightly by allowing non-iterative IAU if
+        ! dace_time_ctrl(0) > 0. However this case should be tested before
+        ! modifying this crosscheck.
+      ENDIF
+    ENDIF
 
     ! ********************************************************************************
     !

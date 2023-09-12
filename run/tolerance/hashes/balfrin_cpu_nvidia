@@ -7,6 +7,7 @@ builder: balfrin_cpu_nvidia
 "mch_bench_r19b07_dev_sppt": e3e36a52668dc4da22b46d97a6f76e1acbad7110
 "mch_ch_lowres": 9acc6c9c3e1a0d2cc919c165ffa19825cdd041e3
 "mch_ch_r04b09_dace": 1204fd179fce0a17815220b8555ae439946444b2
+"mch_kenda-ch1_small": 9d6a5811fa4647dcd127ed5862f9c1930c1e2b9e
 "mch_opr_r04b07": b75d44ab5a9de9b2195d6cd06dc0113dd395e5b5
 "mch_opr_r04b07_lhn_00": 005e54e7545e1a27a9f60281b332405578ec2846
 "mch_opr_r04b07_lhn_12_emvorado": 55b6cbbe55d655ba03899d903ca4d32ccd7ccf83
