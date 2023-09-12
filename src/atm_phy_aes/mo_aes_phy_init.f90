@@ -1242,6 +1242,7 @@ CONTAINS
     jbs     = p_patch%cells%start_blk(rls,  1)
     jbe     = p_patch%cells%  end_blk(rle,ncd)
     !
+    !$OMP PARALLEL DO PRIVATE(jb,jcs,jce,pfull,avi,latc,vmr_o3) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = jbs,jbe
       !
       CALL get_indices_c(p_patch, jb,jbs,jbe, jcs,jce, rls,rle)
@@ -1258,6 +1259,7 @@ CONTAINS
       o3(jcs:jce,:,jb) = vmr_o3(jcs:jce,:)*amo3/amd
       !
     END DO
+    !$OMP END PARALLEL DO
     !
     l_cariolle_initialized_o3 = .TRUE.
 

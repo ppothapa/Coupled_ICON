@@ -230,7 +230,7 @@ CONTAINS
       CASE (1) ! gas is taken from interactive (so transported) tracer
         !note that trasported species are in MMR ...
         !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
-        gas_profile(jcs:jce,:,igas) = xq_trc(jcs:jce,:,igas) * dom_gas(igas)%mmr2vmr
+        gas_profile(jcs:jce,:,igas) = xq_trc(jcs:jce,:,dom_gas(igas)%itrac) * dom_gas(igas)%mmr2vmr
         !$ACC END KERNELS
       CASE (2,12) ! gas concentration is set from namelist value
         !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)

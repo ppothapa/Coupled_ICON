@@ -197,11 +197,6 @@ CONTAINS
     !-------------------------------------------------------------------
     !
     IF ( aes_phy_tc(jg)%dt_car > dt_zero ) THEN
-#if defined( _OPENACC )
-       CALL warning('GPU:aes_car_main','GPU host synchronization should be removed when port is done!')
-       CALL gpu_update_var_list('prm_field_D', .false., jg, lacc=.TRUE.)
-       CALL gpu_update_var_list('prm_tend_D' , .false., jg, lacc=.TRUE.)
-#endif
        !
        aes_phy_tc(jg)%is_in_sd_ed_interval_car = (aes_phy_tc(jg)%sd_car <= datetime) .AND. (aes_phy_tc(jg)%ed_car > datetime)
        aes_phy_tc(jg)%is_active_car            = isCurrentEventActive(aes_phy_tc(jg)%ev_car, datetime)
@@ -212,11 +207,6 @@ CONTAINS
        !
        CALL omp_block_loop_cell(patch, interface_aes_car)
        !
-#if defined( _OPENACC )
-       CALL warning('GPU:aes_car_main','GPU device synchronization should be removed when port is done!')
-       CALL gpu_update_var_list('prm_field_D', .true., jg, lacc=.TRUE.)
-       CALL gpu_update_var_list('prm_tend_D' , .true., jg, lacc=.TRUE.)
-#endif
     END IF
 
     !-------------------------------------------------------------------
