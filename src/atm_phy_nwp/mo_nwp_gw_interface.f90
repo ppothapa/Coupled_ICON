@@ -175,6 +175,7 @@ CONTAINS
           & psso_gamma=ext_data%atm%sso_gamma   (:,jb)  ,  & !< in:  anisotropy
           & psso_theta=ext_data%atm%sso_theta   (:,jb)  ,  & !< in:  angle
           & psso_sigma=ext_data%atm%sso_sigma   (:,jb)  ,  & !< in:  slope
+          & sso_lat_mask=prm_diag%sso_lat_mask  (:,jb)  ,  & !< in:  latitude mask field
           & sfcfric_fac=prm_diag%sfcfric_fac    (:,jb)  ,  & !< in:  adaptive tuning factor for surface friction
           & pdt       =tcall_sso_jg                     ,  & !< in:  time step
           & mkenvh    =prm_diag%ktop_envel      (:,jb)  ,  & !< out: top of envelope layer

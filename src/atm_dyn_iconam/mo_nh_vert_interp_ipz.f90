@@ -33,7 +33,7 @@ MODULE mo_nh_vert_interp_ipz
   USE mo_physical_constants,  ONLY: grav, rd, dtdz_standardatm
   USE mo_run_config,          ONLY: iforcing, num_lev
   USE mo_io_config,           ONLY: itype_pres_msl
-  USE mo_grid_config,         ONLY: l_limited_area
+  USE mo_grid_config,         ONLY: l_limited_area, grid_sphere_radius
   USE mo_impl_constants,      ONLY: inwp, iaes, PRES_MSL_METHOD_GME, PRES_MSL_METHOD_IFS,   &
     &                               PRES_MSL_METHOD_DWD, PRES_MSL_METHOD_IFS_CORR,          &
     &                               SUCCESS
@@ -45,8 +45,8 @@ MODULE mo_nh_vert_interp_ipz
   USE mo_sync,                ONLY: SYNC_E, sync_patch_array_mult
   USE mo_nh_vert_interp,      ONLY: prepare_lin_intp, prepare_extrap, prepare_cubic_intp, &
     &                               temperature_intp, prepare_extrap_ifspp, pressure_intp
-  USE mo_upatmo_config,       ONLY: upatmo_config
-  USE mo_nh_deepatmo_utils,   ONLY: height_transform
+  USE mo_dynamics_config,     ONLY: ldeepatmo
+  USE mo_deepatmo,            ONLY: deepatmo_htrafo
 #ifdef _OPENACC
   USE openacc,                ONLY: acc_is_present
 #endif  
@@ -115,7 +115,6 @@ CONTAINS
     REAL(wp), DIMENSION(nproma,p_patch%nlev,p_patch%nblks_e) :: z_me
     ! Pointer to virtual temperature / temperature, depending on whether the run is moist or dry
     REAL(wp), POINTER, DIMENSION(:,:,:) :: ptr_tempv
-    LOGICAL :: lconstgrav
 
     !-------------------------------------------------------------------------
     CALL assert_acc_device_only(routine, lacc)
@@ -131,8 +130,6 @@ CONTAINS
     nblks_e  = p_patch%nblks_e
     npromz_e = p_patch%npromz_e
     jg       = p_patch%id
-
-    lconstgrav = upatmo_config(jg)%dyn%l_constgrav
 
     IF (  iforcing == inwp .OR. iforcing == iaes  ) THEN
       ptr_tempv => p_diag%tempv(:,:,:)
@@ -211,7 +208,6 @@ CONTAINS
       &                vcoeff_z%lin_cell%kpbl1, vcoeff_z%lin_cell%wfacpbl2,                 & !in
       &                vcoeff_z%lin_cell%kpbl2,                                             & !in
       &                zextrap=vcoeff_z%lin_cell%zextrap,                                   & !optin
-      &                opt_lconstgrav=lconstgrav,                                           & !optin
       &                lacc=.TRUE.                                                          ) !optin
 
     IF (jg > 1 .OR. l_limited_area) THEN ! copy outermost nest boundary row in order to avoid missing values
@@ -302,7 +298,6 @@ CONTAINS
     REAL(wp), DIMENSION(nproma,p_patch%nlev,p_patch%nblks_e) :: z_me
     ! Pointer to virtual temperature / temperature, depending on whether the run is moist or dry
     REAL(wp), POINTER, DIMENSION(:,:,:) :: ptr_tempv
-    LOGICAL :: lconstgrav
 
     CALL assert_acc_device_only(routine, lacc)
     CALL assert_lacc_equals_i_am_accel_node(routine, lacc)
@@ -317,8 +312,6 @@ CONTAINS
     nblks_e  = p_patch%nblks_e
     npromz_e = p_patch%npromz_e
     jg       = p_patch%id
-
-    lconstgrav = upatmo_config(jg)%dyn%l_constgrav
 
     IF (  iforcing == inwp .OR. iforcing == iaes  ) THEN
       ptr_tempv => p_diag%tempv
@@ -353,7 +346,7 @@ CONTAINS
       &               p_p3d_out, z_auxp, nblks_c, npromz_c, nlev, nplev,                    & !in,out,in
       &               vcoeff_p%lin_cell%kpbl1, vcoeff_p%lin_cell%wfacpbl1,                  & !in
       &               vcoeff_p%lin_cell%kpbl2, vcoeff_p%lin_cell%wfacpbl2,                  & !in
-      &               zextrap=vcoeff_p%lin_cell%zextrap, opt_lconstgrav=lconstgrav,         & !optin
+      &               zextrap=vcoeff_p%lin_cell%zextrap,                                    & !optin
       &               lacc=.TRUE. )
 
     IF (jg > 1 .OR. l_limited_area) THEN ! copy outermost nest boundary row in order to avoid missing values
@@ -595,7 +588,7 @@ CONTAINS
   SUBROUTINE z_at_plevels(pres_ml, tempv_ml, z3d_ml, pres_pl, z3d_pl, &
                           nblks, npromz, nlevs_ml, nlevs_pl,          &
                           kpbl1, wfacpbl1, kpbl2, wfacpbl2,           &
-                          zextrap, opt_lconstgrav, lacc               )
+                          zextrap, lacc                               )
 
     ! Input fields
     REAL(wp),         INTENT(IN)  :: pres_ml  (:,:,:) ! pressure field on model levels
@@ -624,7 +617,6 @@ CONTAINS
     LOGICAL, INTENT(IN), OPTIONAL :: lacc ! if true use OpenACC
 
     REAL(wp), OPTIONAL, INTENT(IN) :: zextrap(:,:)   ! AGL height from which downward extrapolation starts (in postprocesing mode)
-    LOGICAL,  OPTIONAL, INTENT(IN) :: opt_lconstgrav 
 
     ! LOCAL VARIABLES
 
@@ -643,7 +635,6 @@ CONTAINS
     REAL(wp),              POINTER       :: z_ml(:,:,:)
 
     LOGICAL :: l_found(nproma),lfound_all,lzextrap, lerror
-    LOGICAL :: lconstgrav
     INTEGER :: istat
     LOGICAL :: lzacc ! non-optional version of lacc
 
@@ -657,26 +648,17 @@ CONTAINS
       lzextrap = .FALSE.
     ENDIF
 
-    IF (PRESENT(opt_lconstgrav)) THEN
-      lconstgrav = opt_lconstgrav
-    ELSE
-      lconstgrav = .TRUE.
-    ENDIF
-
-    IF (lconstgrav) THEN
+    IF (.NOT. ldeepatmo) THEN
       z_ml => z3d_ml
     ELSE
-      CALL assert_acc_host_only(routine//":lconstgrav==.FALSE", lacc)
       ALLOCATE(zgpot_ml(nproma, nlevs_ml, nblks), STAT=istat)
-      IF (istat /= SUCCESS) CALL finish(routine, 'Allocation of zgpot failed!')
-      ! Compute geopotential heights in case of the deep atmosphere
-      CALL height_transform( z_in       = z3d_ml,     &  !in 
-        &                    z_out      = zgpot_ml,   &  !out       
-        &                    nblks      = nblks,      &  !in
-        &                    npromz     = npromz,     &  !in
-        &                    nlevs      = nlevs_ml,   &  !in
-        &                    lconstgrav = lconstgrav, &  !in
-        &                    trafo_type = 'z2zgpot'   )  !in   
+      IF (istat /= SUCCESS) CALL finish(routine, 'Allocation of zgpot failed')
+      !$ACC ENTER DATA &
+      !$ACC   CREATE(zgpot_ml) &
+      !$ACC   IF(lzacc)
+      CALL deepatmo_htrafo(z_in=z3d_ml, z_out=zgpot_ml, nblks_nproma_npromz=[nblks,nproma,npromz], &
+        & start_end_levels=[1,nlevs_ml], radius=grid_sphere_radius, trafo_type='z2zgpot', ierror=istat, lacc=lzacc)
+      IF (istat /= SUCCESS) CALL finish(routine, 'deepatmo_htrafo failed')
       z_ml => zgpot_ml
       ! Note: the heights above ground level, 'zpbl1', 'zpbl2', 'zextrap' and heights derived from them 
       ! have relatively low values (~ 1 km), so no deep-atmosphere modification is applied to them. 
@@ -983,16 +965,16 @@ CONTAINS
     !$ACC WAIT
     !$ACC END DATA
     NULLIFY(z_ml)
-    IF (.NOT. lconstgrav) THEN
+    IF (ldeepatmo) THEN
+      !$ACC EXIT DATA &
+      !$ACC   DELETE(zgpot_ml) &
+      !$ACC   IF(lzacc)
       DEALLOCATE(zgpot_ml, STAT=istat)
-      IF (istat /= SUCCESS) CALL finish(routine, 'Deallocation of zgpot failed!')
+      IF (istat /= SUCCESS) CALL finish(routine, 'Deallocation of zgpot failed')
       ! 'z3d_pl' contains geopotential heights: transform it to geometric heights
-      CALL height_transform( z_inout    = z3d_pl,     &  !in/out
-        &                    nblks      = nblks,      &  !in
-        &                    npromz     = npromz,     &  !in
-        &                    nlevs      = nlevs_pl,   &  !in
-        &                    lconstgrav = lconstgrav, &  !in
-        &                    trafo_type = 'zgpot2z'   )  !in
+      CALL deepatmo_htrafo(z_inout=z3d_pl, nblks_nproma_npromz=[nblks,nproma,npromz], &
+        & start_end_levels=[1,nlevs_pl], radius=grid_sphere_radius,trafo_type='zgpot2z', ierror=istat, lacc=lzacc)
+      IF (istat /= SUCCESS) CALL finish(routine, "deepatmo_htrafo failed.")
     ENDIF
 
   END SUBROUTINE z_at_plevels

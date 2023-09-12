@@ -42,16 +42,18 @@ MODULE mo_td_ext_data
   USE mo_nwp_lnd_types,       ONLY: t_lnd_state
   USE mo_impl_constants,      ONLY: MAX_CHAR_LENGTH, min_rlcell_int, SSTICE_CLIM, &
     &                               SSTICE_AVG_MONTHLY, SSTICE_AVG_DAILY, SSTICE_ANA_CLINC, &
-    &                               MODIS
+    &                               MODIS, ivdiff
   USE mo_ext_data_init,       ONLY: interpol_monthly_mean
   USE mo_nwp_sfc_utils,       ONLY: process_sst_and_seaice, sst_add_climatological_incr, &
     &                               update_ndvi_dependent_fields
+  USE mo_nwp_vdiff_interface, ONLY: nwp_vdiff_update_seaice
   USE mo_loopindices,         ONLY: get_indices_c
   USE mo_impl_constants_grf,  ONLY: grf_bdywidth_c
   USE mtime,                  ONLY: datetime, newDatetime, deallocateDatetime, &
     &                               datetimeToString, MAX_DATETIME_STR_LEN
   USE mo_bcs_time_interpolation, ONLY: t_time_interpolation_weights,         &
     &                                  calculate_time_interpolation_weights
+  USE mo_dynamics_config,     ONLY: nnow_rcf
 
   IMPLICIT NONE
 
@@ -148,6 +150,9 @@ CONTAINS
         &                               ref_datetime   = ref_datetime,                  &
         &                               target_datetime= target_datetime )
 
+      ! VDIFF updates its SST internally. The routine above cannot be used because there
+      ! are no ocean tiles in `p_lnd_state` with JSBACH/VDIFF.
+
     CASE(SSTICE_CLIM, SSTICE_AVG_MONTHLY, SSTICE_AVG_DAILY)
       !
       ! update SST (t_seasfc) and sea ice fraction (fr_seaice)
@@ -156,19 +161,30 @@ CONTAINS
                                 &  mtime_old, sstice_mode,                 &
                                 &  p_patch, ext_data, p_lnd_state)
 
-      ! rebuild index lists for water and seaice based on fr_seaice, 
-      ! and update tiled surface temperatures
-      !
-      CALL process_sst_and_seaice (p_patch      = p_patch,                             & !in
-        &                          fr_seaice    = p_lnd_state%diag_lnd%fr_seaice(:,:), & !in(out)
-        &                          t_seasfc     = p_lnd_state%diag_lnd%t_seasfc(:,:),  & !in
-        &                          pres_sfc     = p_nh_state%diag%pres_sfc(:,:),       & !in
-        &                          ext_data     = ext_data,                            & !inout
-        &                          prog_lnd_now = p_lnd_state%prog_lnd(nnow_rcf(jg)),  & !inout
-        &                          prog_lnd_new = p_lnd_state%prog_lnd(nnew_rcf(jg)),  & !inout
-        &                          prog_wtr_now = p_lnd_state%prog_wtr(nnow_rcf(jg)),  & !inout
-        &                          prog_wtr_new = p_lnd_state%prog_wtr(nnew_rcf(jg)),  & !inout
-        &                          diag_lnd     = p_lnd_state%diag_lnd  )                !inout
+      IF (atm_phy_nwp_config(jg)%inwp_turb == ivdiff) THEN
+        ! lacc fixed to TRUE here because current sea-ice variables are on the GPU.
+        ! `set_sst_and_seaice` pushes the new SST and sea-ice fraction to the GPU after
+        ! interpolating.
+        CALL nwp_vdiff_update_seaice ( &
+            & p_patch, .TRUE., p_lnd_state%diag_lnd%fr_seaice(:,:), &
+            & ext_data%atm%list_sea, ext_data%atm%list_seaice, p_lnd_state%prog_wtr(nnow_rcf(jg)), &
+            & lacc=.TRUE. &
+          )
+      ELSE
+        ! rebuild index lists for water and seaice based on fr_seaice,
+        ! and update tiled surface temperatures
+        !
+        CALL process_sst_and_seaice (p_patch      = p_patch,                             & !in
+          &                          fr_seaice    = p_lnd_state%diag_lnd%fr_seaice(:,:), & !in(out)
+          &                          t_seasfc     = p_lnd_state%diag_lnd%t_seasfc(:,:),  & !in
+          &                          pres_sfc     = p_nh_state%diag%pres_sfc(:,:),       & !in
+          &                          ext_data     = ext_data,                            & !inout
+          &                          prog_lnd_now = p_lnd_state%prog_lnd(nnow_rcf(jg)),  & !inout
+          &                          prog_lnd_new = p_lnd_state%prog_lnd(nnew_rcf(jg)),  & !inout
+          &                          prog_wtr_now = p_lnd_state%prog_wtr(nnow_rcf(jg)),  & !inout
+          &                          prog_wtr_new = p_lnd_state%prog_wtr(nnew_rcf(jg)),  & !inout
+          &                          diag_lnd     = p_lnd_state%diag_lnd  )                !inout
+      END IF
 
     CASE DEFAULT
       !
@@ -394,6 +410,8 @@ CONTAINS
     CASE DEFAULT
       ! do nothing
     END SELECT
+
+    !$ACC UPDATE DEVICE(p_lnd_state%diag_lnd%t_seasfc, p_lnd_state%diag_lnd%fr_seaice)
 
   END SUBROUTINE set_sst_and_seaice
 !-----------------------------------------------------------------------

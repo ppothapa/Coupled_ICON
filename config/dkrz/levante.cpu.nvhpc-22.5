@@ -4,73 +4,63 @@ set -eu
 unset CDPATH
 ulimit -c 0
 
-MODULES=""
+script_dir=$(cd "$(dirname "$0")"; pwd)
+icon_dir=$(cd "${script_dir}/../.."; pwd)
 
-SCRIPT_DIR=$(cd "$(dirname "$0")"; pwd)
-ICON_DIR=$(cd "${SCRIPT_DIR}/../.."; pwd)
+MPI_ROOT="/sw/spack-levante/openmpi-4.1.4-3qb4sy"
 
-SW_ROOT='/sw/spack-levante'
-
-GCC_ROOT="${SW_ROOT}/gcc-11.2.0-bcn7mb"
-
-COMPILER_LIB="${SW_ROOT}/nvhpc-22.5-v4oky3/Linux_x86_64/2022/compilers/lib"
-COMPILER_LIB="${COMPILER_LIB}:${SW_ROOT}/nvhpc-22.5-v4oky3/Linux_x86_64/22.5/compilers/lib"
-
-HDF5_ROOT="${SW_ROOT}/hdf5-1.12.2-7zpfrp"
+HDF5_ROOT="/sw/spack-levante/hdf5-1.12.2-7zpfrp"
 HDF5_LIBS='-lhdf5_hl -lhdf5'
 
-NETCDF_ROOT="${SW_ROOT}/netcdf-c-4.9.0-gc7kgj"
+NETCDF_ROOT="/sw/spack-levante/netcdf-c-4.9.0-gc7kgj"
 NETCDF_LIBS='-lnetcdf'
 
-NETCDFF_ROOT="${SW_ROOT}/netcdf-fortran-4.5.4-syv4qr"
+NETCDFF_ROOT="/sw/spack-levante/netcdf-fortran-4.5.4-syv4qr"
 NETCDFF_LIBS='-lnetcdff'
 
-ECCODES_ROOT="${SW_ROOT}/eccodes-2.26.0-6iysux"
-ECCODES_LIBS='-leccodes'
+BLAS_LAPACK_LIBS='-llapack -lblas'
 
-XML2_ROOT='/usr'
-XML2_LIBS='-lxml2'
+ECCODES_ROOT="/sw/spack-levante/eccodes-2.26.0-6iysux"
+ECCODES_LIBS='-leccodes'
 
 FYAML_ROOT='/sw/spack-levante/libfyaml-0.7.12-fvbhgo'
 FYAML_LIBS='-lfyaml'
 
-BLAS_LAPACK="${SW_ROOT}/nvhpc-22.5-v4oky3/Linux_x86_64/22.5/compilers/lib"
-BLAS_LAPACK_LIBS='-llapack -lblas -lnvf'
+XML2_ROOT='/usr'
+XML2_LIBS='-lxml2'
 
+################################################################################
 
-STDCPP_LIBS='-lstdc++'
-
-MPI_ROOT="${SW_ROOT}/openmpi-4.1.4-3qb4sy"
-
-ARCH=' -m64 -march=zen3 -mtune=zen3'
-
-BUILD_ENV=". /sw/etc/profile.levante; . \"${SCRIPT_DIR}/module_switcher\"; switch_for_module ${MODULES}; export LD_LIBRARY_PATH=\"${HDF5_ROOT}/lib:${GCC_ROOT}/lib64:${XML2_ROOT}/lib:${FYAML_ROOT}/lib:${NETCDF_ROOT}/lib:${NETCDFF_ROOT}/lib:${COMPILER_LIB}:${ECCODES_ROOT}/lib64:\${LD_LIBRARY_PATH}\";"
+BUILD_ENV="export LD_LIBRARY_PATH=\"${HDF5_ROOT}/lib:${NETCDF_ROOT}/lib:${NETCDFF_ROOT}/lib:${ECCODES_ROOT}/lib64:${FYAML_ROOT}/lib:\${LD_LIBRARY_PATH}\";"
 
 CC="${MPI_ROOT}/bin/mpicc"
-CFLAGS="-g -O2 ${ARCH}"
-CPPFLAGS="-I${HDF5_ROOT}/include -I${NETCDF_ROOT}/include -I${ECCODES_ROOT}/include -I${XML2_ROOT}/include/libxml2 -I${FYAML_ROOT}/include"
+CFLAGS='-g -O2'
+
+# Let YAC find LAPACK with the C compiler:
+ICON_YAC_CFLAGS='-fortranlibs'
+
+CPPFLAGS="-I${HDF5_ROOT}/include -I${NETCDF_ROOT}/include -I${ECCODES_ROOT}/include -I${FYAML_ROOT}/include -I${XML2_ROOT}/include/libxml2"
 
 FC="${MPI_ROOT}/bin/mpif90"
-FCFLAGS="-I${NETCDFF_ROOT}/include -L${GCC_ROOT}/lib64 -lstdc++ -D__SWAPDIM -O1 ${ARCH}"
+FCFLAGS="-I${NETCDFF_ROOT}/include -g -O1 -Mrecursive -Mallocatable=03 -Mstack_arrays -Minfo=inline"
 
-LDFLAGS="-L${HDF5_ROOT}/lib -L${GCC_ROOT}/lib64 -L${NETCDF_ROOT}/lib -L${NETCDFF_ROOT}/lib -L${XML2_ROOT}/lib64 -L${ECCODES_ROOT}/lib64 -L${FYAML_ROOT}/lib"
-LIBS="-Wl,--as-needed ${XML2_LIBS} ${FYAML_LIBS} ${BLAS_LAPACK_LIBS} ${STDCPP_LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS} ${HDF5_LIBS} ${ECCODES_LIBS} -lrt"
-
+LDFLAGS="-L${HDF5_ROOT}/lib -L${NETCDF_ROOT}/lib -L${NETCDFF_ROOT}/lib -L${ECCODES_ROOT}/lib64 -L${FYAML_ROOT}/lib"
+LIBS="-Wl,--as-needed ${XML2_LIBS} ${FYAML_LIBS} ${ECCODES_LIBS} ${BLAS_LAPACK_LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS} ${HDF5_LIBS}"
 
 MPI_LAUNCH="${MPI_ROOT}/bin/mpiexec"
 
-EXTRA_CONFIG_ARGS='--disable-loop-exchange --disable-grib2 --disable-gpu '
+EXTRA_CONFIG_ARGS='--disable-coupling'
 
-EXTRA_CONFIG_ARGS+='--disable-mpi-checks --disable-coupling'
 ################################################################################
 
-"${ICON_DIR}/configure" \
+"${icon_dir}/configure" \
 BUILD_ENV="${BUILD_ENV}" \
 CC="${CC}" \
 CFLAGS="${CFLAGS}" \
 CPPFLAGS="${CPPFLAGS}" \
 FC="${FC}" \
 FCFLAGS="${FCFLAGS}" \
+ICON_YAC_CFLAGS="${ICON_YAC_CFLAGS}" \
 LDFLAGS="${LDFLAGS}" \
 LIBS="${LIBS}" \
 MPI_LAUNCH="${MPI_LAUNCH}" \
@@ -86,14 +76,13 @@ for arg in "$@"; do
 done
 
 # Copy runscript-related files when building out-of-source:
-if test $(pwd) != $(cd "${ICON_DIR}"; pwd); then
+if test $(pwd) != $(cd "${icon_dir}"; pwd); then
   echo "Copying runscript input files from the source directory..."
-  rsync -uavz ${ICON_DIR}/run . --exclude='*.in' --exclude='.*' --exclude='standard_*'
-  ln -sf -t run/ ${ICON_DIR}/run/standard_*
+  rsync -uavz ${icon_dir}/run . --exclude='*.in' --exclude='.*' --exclude='standard_*'
+  ln -sf -t run/ ${icon_dir}/run/standard_*
   ln -sf set-up.info run/SETUP.config
-  rsync -uavz ${ICON_DIR}/externals . --exclude='.git' --exclude='*.f90' --exclude='*.F90' --exclude='*.c' --exclude='*.h' --exclude='*.Po' --exclude='tests' --exclude='*.mod' --exclude='*.o'
-  rsync -uavz ${ICON_DIR}/make_runscripts .
-  ln -sf ${ICON_DIR}/data
-  ln -sf ${ICON_DIR}/vertical_coord_tables
+  rsync -uavz ${icon_dir}/externals . --exclude='.git' --exclude='*.f90' --exclude='*.F90' --exclude='*.c' --exclude='*.h' --exclude='*.Po' --exclude='tests' --exclude='*.mod' --exclude='*.o'
+  rsync -uavz ${icon_dir}/make_runscripts .
+  ln -sf ${icon_dir}/data
+  ln -sf ${icon_dir}/vertical_coord_tables
 fi
-

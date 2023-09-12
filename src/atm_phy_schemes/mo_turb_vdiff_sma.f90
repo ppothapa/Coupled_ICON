@@ -386,8 +386,8 @@ CONTAINS
 
         ! interpolation coefficients
         zrdp   = 1._wp/(papm1(jl,jk,jb) - papm1(jl,jk+1,jb))
-        zsdep1 = (papm1(jl,jk,jb)  - paphm1(jl,jk+1,jb))*zrdp
-        zsdep2 = (paphm1(jl,jk+1,jb)- papm1(jl,jk+1,jb))*zrdp
+        zsdep1 = (paphm1(jl,jk+1,jb)- papm1(jl,jk+1,jb))*zrdp
+        zsdep2 = (papm1(jl,jk,jb)  - paphm1(jl,jk+1,jb))*zrdp
 
         ztvmid = zsdep1*ptvm1(jl,jk,jb)+zsdep2*ptvm1(jl,jk+1,jb)
 

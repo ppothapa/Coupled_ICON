@@ -6,6 +6,7 @@ listname=update-ref
 ./rmlist $listname
 ./create_all_builders $listname
 ./set_builder_flags Inactive --builders "levante_nag_serial" --list $listname
+./set_builder_flags Inactive --builders "levante_nag" --list $listname
 
 ./list_part_update-ref $listname
 

@@ -286,86 +286,63 @@ function diff_results
     
             for TYPE in $TYPES; do
 
-		rm -f 'does_not_exist'
-		FILE1='does_not_exist'
-		FILE2='does_not_exist'
-
 		if  [ -f  "${MODEL_DIR1}/experiments/${DEXP1}/${DEXP1}_${TYPE}_${DATE}.nc" ]
-		then
+                then
                     FILE1="${MODEL_DIR1}/experiments/${DEXP1}/${DEXP1}_${TYPE}_${DATE}.nc"
-		    #
+                    #
                     if  [ -f  "${MODEL_DIR2}/experiments/${DEXP2}/${DEXP2}_${TYPE}_${DATE}.nc" ]
-		    then
-			FILE2="${MODEL_DIR2}/experiments/${DEXP2}/${DEXP2}_${TYPE}_${DATE}.nc"
-		    fi
-		else
-		    if  [ -f  "${MODEL_DIR1}/experiments/${DEXP1}/${DEXP1}_${TYPE}_${DATE}.grb" ]
-		    then
-			FILE1="${MODEL_DIR1}/experiments/${DEXP1}/${DEXP1}_${TYPE}_${DATE}.grb"
-			#
-			if  [ -f  "${MODEL_DIR2}/experiments/${DEXP2}/${DEXP2}_${TYPE}_${DATE}.grb" ]
-			then
-			    FILE2="${MODEL_DIR2}/experiments/${DEXP2}/${DEXP2}_${TYPE}_${DATE}.grb"
-			fi
-		    fi
-		fi
-
-		if  [ -f "${FILE1}" -a -f "${FILE2}" ]
-		then
-		    # FILE1 and FILE2 exist -> compare files
-
-                    TEMP_SUFFIX=$(cat /dev/urandom | env LC_ALL=C tr -cd 'a-f0-9' | head -c 16)
-                    DIFF_FILE="cdo_diffn_${DEXP1}_${DEXP2}_${TYPE}_${DATE}_${TEMP_SUFFIX}.out"
-
-                    echo "Compare for TYPE=$TYPE"
-                    cdo diffn ${FILE1} ${FILE2} > ${DIFF_FILE}
-
-                    cdo_exit_code=$? 
-
-                    # exit code=0: no differences exit_code=1: differences
-                    # both exit codes are fine, other exit codes indicate a crash of cdo
-                    if [[ $cdo_exit_code -ne 0 ]] && [[ $cdo_exit_code -ne 1 ]]; then
-                        echo " abort of cdo during file comparison with exit code $cdo_exit_code"
-                        exit 1
+                    then
+                        FILE2="${MODEL_DIR2}/experiments/${DEXP2}/${DEXP2}_${TYPE}_${DATE}.nc"
                     fi
-
-		    # does FILE2 contain the same variables as FILE1?
-		    not_found=$(grep 'not found' ${DIFF_FILE}|wc -l)
-                    if [ $not_found -ge 1 ]; then
-			echo " $not_found variable(s) of file 1 not found in file 2 -> files cannot be compared"
-			echo " - file 1: ${FILE1}"
-			echo " - file 2: ${FILE2}"
-			DIFFERENT_TYPES="$DIFFERENT_TYPES $TYPE"
+                else
+                    if  [ -f  "${MODEL_DIR1}/experiments/${DEXP1}/${DEXP1}_${TYPE}_${DATE}.grb" ]
+                    then
+                        FILE1="${MODEL_DIR1}/experiments/${DEXP1}/${DEXP1}_${TYPE}_${DATE}.grb"
+                        #
+                        if  [ -f  "${MODEL_DIR2}/experiments/${DEXP2}/${DEXP2}_${TYPE}_${DATE}.grb" ]
+                        then
+                        FILE2="${MODEL_DIR2}/experiments/${DEXP2}/${DEXP2}_${TYPE}_${DATE}.grb"
+                        fi
                     fi
+                fi
 
-		    # have differences been reported?
-		    Max_Absdiff=$(grep 'Max_Absdiff' ${DIFF_FILE}|wc -l)
-                    if [ $Max_Absdiff -ne 0 ]; then
-			echo " File 1 and file 2 differ"
-			echo " - file 1: ${FILE1}"
-			echo " - file 2: ${FILE2}"
-			if [ "$CAT_CDO_DIFFN" == 'yes' ]; then
-                            cat ${DIFF_FILE}
-			fi
-			rm  ${DIFF_FILE}
-			IS_DIFFERENT='yes'
-			DIFFERENT_TYPES="$DIFFERENT_TYPES $TYPE"
-			if [ "$SUB_FILES" == 'yes' ]; then
-                            BFILE1=`basename $FILE1`
-                            BFILE2=`basename $FILE2`
-			    BFILE2=${BFILE2%.nc};BFILE2=${BFILE2%.grb}
-                            WDIR=`dirname $FILE2`
-                            cdo sub ${FILE2} ${FILE1} ${WDIR}/diff_${BFILE2}-${BFILE1}
-			fi
-                    else
-			# No differences are reported.
-			# Thus the diff file can be deleted.
-			rm ${DIFF_FILE}
+                TEMP_SUFFIX=$(cat /dev/urandom | env LC_ALL=C tr -cd 'a-f0-9' | head -c 16)
+                DIFF_FILE="cdo_diffn_${DEXP1}_${DEXP2}_${TYPE}_${DATE}_${TEMP_SUFFIX}.out"
+
+                echo "Compare for TYPE=$TYPE"
+                cdo diffn ${FILE1} ${FILE2} > ${DIFF_FILE}
+
+		# does FILE2 contain the same variables as FILE1?
+		not_found=$(grep 'not found' ${DIFF_FILE}|wc -l)
+                if [ $not_found -ge 1 ]; then
+                    echo " $not_found variable(s) of file 1 not found in file 2 -> files cannot be compared"
+                    echo " - file 1: ${FILE1}"
+                    echo " - file 2: ${FILE2}"
+                    DIFFERENT_TYPES="$DIFFERENT_TYPES $TYPE"
+                fi
+
+		# have differences been reported?
+		Max_Absdiff=$(grep 'Max_Absdiff' ${DIFF_FILE}|wc -l)
+                if [ $Max_Absdiff -ne 0 ]; then
+                    echo " File 1 and file 2 differ"
+                    echo " - file 1: ${FILE1}"
+                    echo " - file 2: ${FILE2}"
+                    if [ "$CAT_CDO_DIFFN" == 'yes' ]; then
+                        cat ${DIFF_FILE}
                     fi
-		else
-		    echo "FILE1 or FILE2 does not exist for TYPE=${TYPE} and DATE=${DATE} ->  comparison not possible"
-		    echo "FILE1: $FILE1"
-		    echo "FILE2: $FILE2"
+                    rm  ${DIFF_FILE}
+                    IS_DIFFERENT='yes'
+                    DIFFERENT_TYPES="$DIFFERENT_TYPES $TYPE"
+                    if [ "$SUB_FILES" == 'yes' ]; then
+                        BFILE1=`basename $FILE1`
+                        BFILE2=`basename $FILE2`
+                        WDIR=`dirname $FILE2`
+                        cdo sub ${FILE2} ${FILE1} ${WDIR}/diff_${BFILE2}-${BFILE1}
+                    fi
+                else
+                    # No differences are reported.
+                    # Thus the diff file can be deleted.
+                    rm ${DIFF_FILE}
                 fi
 
             done
@@ -618,7 +595,12 @@ SUB_FILES=${SUB_FILES='no'}
 # checks depending on the experiment.
 if [ "${EXPERIMENT}" == 'atm_qubicc_test' ]; then
     TYPES=${TYPES='pfull_ml ta_ml rho_ml ua_ml va_ml wa_ml hus_ml atm2d_ml flx2d_ml ddt_ua_dyn_ml ddt_va_dyn_ml tend_ta_rlw_ml tend_ta_rsw_ml tend_ua_vdf_ml tend_va_vdf_ml tend_ta_vdf_ml tend_qhus_vdf_ml tend_qclw_vdf_ml tend_qcli_vdf_ml tend_ta_mig_ml tend_qhus_mig_ml tend_qclw_mig_ml tend_qcli_mig_ml'}
-    DATES=${DATES='19790101T000000Z 19790101T000040Z 19790101T000120Z 19790101T000200Z 19790101T000240Z 19790101T000320Z 19790101T000400Z'}
+    DATES=${DATES='19790101T000040Z 19790101T000120Z 19790101T000200Z 19790101T000240Z 19790101T000320Z 19790101T000400Z'}
+    RESTART_DATE=${RESTART_DATE='19790101T000200Z'}
+fi
+if [ "${EXPERIMENT}" == 'atm_qubicc_nc_test' ]; then
+    TYPES=${TYPES='pfull_ml ta_ml rho_ml ua_ml va_ml wa_ml hus_ml atm2d_ml flx2d_ml ddt_ua_dyn_ml ddt_va_dyn_ml tend_ta_rlw_ml tend_ta_rsw_ml tend_ua_vdf_ml tend_va_vdf_ml tend_ta_vdf_ml tend_qhus_vdf_ml tend_qclw_vdf_ml tend_qcli_vdf_ml tend_ta_mig_ml tend_qhus_mig_ml tend_qclw_mig_ml tend_qcli_mig_ml'}
+    DATES=${DATES='19790101T000040Z 19790101T000120Z 19790101T000200Z 19790101T000240Z 19790101T000320Z 19790101T000400Z'}
     RESTART_DATE=${RESTART_DATE='19790101T000200Z'}
 fi
 if [ "${EXPERIMENT}" == 'atm_amip_les_test' ]; then

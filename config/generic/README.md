@@ -17,8 +17,8 @@ use them either inside the [docker containers](#docker-containers) or
 
 The easiest way to build and run ICON on your personal machine is to use Docker
 images from the
-[Gitlab container registry](https://gitlab.dkrz.de/icon/icon-cimd/container_registry)
-associated with the [icon-cimd project](https://gitlab.dkrz.de/icon/icon-cimd).
+[Gitlab container registry](https://gitlab.dkrz.de/icon/icon/container_registry)
+associated with the [icon project](https://gitlab.dkrz.de/icon/icon).
 
 First, you will need to [install Docker](https://docs.docker.com/get-docker/) on
 your machine. Once that is done, you need to log in to the registry with the
@@ -38,7 +38,7 @@ the experiment you want to run and are not covered in this document.
 
 Run the container in the interactive mode as follows:
 ```bash
-docker run -it -v /path/to/icon-src:/home/icon/icon -v /path/to/pool:/home/icon/pool registry.gitlab.dkrz.de/icon/icon-cimd/icon-dev
+docker run -it -v /path/to/icon-src:/home/icon/icon -v /path/to/pool:/home/icon/pool registry.gitlab.dkrz.de/icon/icon/icon-dev
 ```
 where `/path/to/icon-src` and `/path/to/pool` are paths to ICON source and
 `pool` directories on your machine, and `/home/icon/icon` and `/home/icon/pool`
@@ -48,12 +48,12 @@ As a result of the previous command you will get an interactive command prompt
 of the container. You can now configure, build and run ICON using the following
 commands as a reference:
 ```console
-icon@dev-gcc-6.5.0$ cd ./icon
-icon@dev-gcc-6.5.0$ ./config/generic/gcc
-icon@dev-gcc-6.5.0$ make -j4
-icon@dev-gcc-6.5.0$ ./make_runscripts -s atm_ampi_test
-icon@dev-gcc-6.5.0$ cd ./run
-icon@dev-gcc-6.5.0$ ./exp.atm_amip_test.run
+icon@dev-gcc$ cd ./icon
+icon@dev-gcc$ ./config/generic/gcc
+icon@dev-gcc$ make -j4
+icon@dev-gcc$ ./make_runscripts atm_tracer_Hadley
+icon@dev-gcc$ cd ./run
+icon@dev-gcc$ ./exp.atm_tracer_Hadley.run
 ```
 > **_NOTE:_** To be able to run ICON inside the container, you might need to
 increase the amount of RAM available to Docker (Preferences->Resources->Memory).
@@ -83,8 +83,7 @@ platforms are provided in section [Tested platforms](#tested-platforms).
 - [GNU Make](https://www.gnu.org/software/make) v3.81+
 - [Python](https://www.python.org) v2.6+ or v3.5+
 - [Perl](https://www.perl.org) v5.10+
-- Interoperable C and Fortran compilers (see also known
-[compiler issues](https://gitlab.dkrz.de/icon/icon/-/boards/189))
+- Interoperable C and Fortran compilers
 
 ### Software libraries
 
@@ -93,29 +92,20 @@ other [MPI](https://www.mpi-forum.org) implementation that provides compiler
 wrappers `mpicc` and `mpif90` for C and Fortran, repsectively, as well as the
 job launcher `mpiexec`.
     > **_NOTE:_** The job launcher of [OpenMPI](https://www.open-mpi.org) fails
-to run more MPI processes than the number of real processor cores available on the machine by default.
-That might lead to failures when configuring or running ICON. The solution to the problem is to
-run the configure wrapper with an additional argument `MPI_LAUNCH='mpiexec --oversubscribe'`.
-    >
-    > [OpenMPI](https://www.open-mpi.org) is also known to have problems with
-running on macOS. Although the [list of known issues](https://www.open-mpi.org/faq/?category=osx)
-is very dated, some of them are still relevant. In particular,
-[this one](https://www.open-mpi.org/faq/?category=osx#startup-errors-with-open-mpi-2.0.x)
-(also see [here](https://github.com/open-mpi/ompi/issues/7393)). The solution
-here is to run the configure wrapper with one more argument
-`BUILD_ENV="export TMPDIR='/tmp';"` and make sure that the `TMPDIR` environment
-variable is set to `/tmp` before running ICON.
-    >
-    > [MPICH](https://www.mpich.org) is far from being flawles either. For
-example, the current latest release `4.0.2` of the library fails in some cases
-as well and it is unclear when the problem gets fixed (there is an ongoing
-[internal discussion](https://gitlab.dkrz.de/YAC/YAC-dev/-/issues/15) on how to
-handle it).
-    >
-    > In any case, a good way to make sure that the MPI library does not have
-significant defects is to switch to the root source directory of ICON and run
-the following commands (do not forget the aformentioned extra arguments for the
-configure wrapper if you are using [OpenMPI](https://www.open-mpi.org)):
+to run more MPI processes than the number of real processor cores available on
+the machine by default. That might lead to failures when configuring or running
+ICON. The solution to the problem is to run the configure wrapper with an
+additional argument `MPI_LAUNCH='mpiexec --oversubscribe'` (alternatively, you
+can set the `OMPI_MCA_rmaps_base_oversubscribe` environment variable to `1`).
+
+    > **_NOTE:_** It is not rare that the latest versions (or the default
+versions available via the package managers) of
+[OpenMPI](https://www.open-mpi.org) and [MPICH](https://www.mpich.org) are
+affected with bugs that make the libraries unusable for ICON. A good way to make
+sure that the MPI library does not have significant defects is to switch to the
+root source directory of ICON and run the following commands (do not forget the
+aformentioned extra arguments for the configure wrapper if you are using
+[OpenMPI](https://www.open-mpi.org)):
     > ```bash
     > ./config/generic/gcc --enable-yaxt --enable-cdi-pio --enable-coupling
     > make -j4 check-bundled TESTS= XFAIL_TESTS=  # this step speeds up the next one but can be skipped
@@ -131,10 +121,11 @@ of ICON)
 - <a name="netcdf-c"/> [NetCDF-C](https://www.unidata.ucar.edu/software/netcdf/docs)
 with NetCDF-4 support
 - [NetCDF-Fortran](https://www.unidata.ucar.edu/software/netcdf/docs-fortran)
-- [ecCodes](https://confluence.ecmwf.int/display/ECC) with JPEG2000 and AEC
-support (only C interface required)
 - [BLAS](http://www.netlib.org/blas)
 - [LAPACK](http://www.netlib.org/lapack)
+- [ecCodes](https://confluence.ecmwf.int/display/ECC) with JPEG2000 and AEC
+support (only C interface required)
+- [libfyaml](https://github.com/pantoniou/libfyaml)
 - [Libxml2](http://www.xmlsoft.org)
 
 See section [ICON dependencies](../../README.md#icon-dependencies) for more
@@ -142,8 +133,6 @@ details.
 
 ### Optional tools
 
-- [KornShell](http://www.kornshell.com) for the
-[generated runscripts](../../README.md#running)
 - <a name="cdo"/> [CDO](https://code.mpimet.mpg.de/projects/cdo) for pre- and
 post-processing, also used by some of the
 [generated runscripts](../../README.md#running)
@@ -158,12 +147,9 @@ required subset of [ICON dependencies](../../README.md#icon-dependencies) on
 different operating systems using relevant
 [package managers](https://en.wikipedia.org/wiki/Package_manager).
 
-> **_NOTE:_** The current recommended version of [GCC](https://gcc.gnu.org/) is
-**6.x**. This is why most of the examples below are based on this version.
-
 ### macOS with [MacPorts](https://www.macports.org)
 
-**Tested on `macOS Catalina 10.15.5`.**
+**Tested on `macOS Ventura 13.5.1`.**
 
 Most of the required software packages are either already available on the
 system or installed together with [Xcode](https://developer.apple.com/xcode) and
@@ -175,66 +161,88 @@ commands:
 ```bash
 # Install building tools and ICON dependencies:
 sudo port -N install       \
-  gcc6                     \
-  mpich-gcc6               \
+  gcc12                    \
+  mpich-gcc12              \
   hdf5 +hl+threadsafe+szip \
   netcdf                   \
-  netcdf-fortran +gcc6     \
+  netcdf-fortran +gcc12    \
   eccodes                  \
   libxml2
 
+# Install libfyaml, which is currently not available via MacPorts:
+curl -OL https://github.com/pantoniou/libfyaml/releases/download/v0.8/libfyaml-0.8.tar.gz
+tar xvf libfyaml-0.8.tar.gz
+cd libfyaml-0.8
+./configure --prefix=/opt/local
+make -j
+sudo make install
+
+# The command above can be reverted as follows:
+# curl -OL https://github.com/pantoniou/libfyaml/releases/download/v0.8/libfyaml-0.8.tar.gz
+# tar xvf libfyaml-0.8.tar.gz
+# cd libfyaml-0.8
+# ./configure --prefix=/opt/local
+# sudo make uninstall
+
 # Select the compiler and MPI compiler wrappers:
-sudo port select --set gcc mp-gcc6
-sudo port select --set mpi mpich-gcc6-fortran
+sudo port select --set gcc mp-gcc12
+sudo port select --set mpi mpich-gcc12-fortran
 hash -r
 
 # Install optional tools:
 sudo port -N install cdo +netcdf
 ```
+> **_NOTE:_** You can try replacing `mpich` with `openmpi` in the commands above
+if the version of [MPICH](https://www.mpich.org) that is currently available via
+[MacPorts](https://www.macports.org) fails the tests described in the
+[Software libraries](#software-libraries) section. Note, however, that
+[OpenMPI](https://www.open-mpi.org) is known to have problems with running on
+macOS. Although the
+[list of known issues](https://www.open-mpi.org/faq/?category=osx) is very
+dated, some of them are still relevant. In particular,
+[this one](https://www.open-mpi.org/faq/?category=osx#startup-errors-with-open-mpi-2.0.x)
+(also see [here](https://github.com/open-mpi/ompi/issues/7393)). The solution
+here is to run the configure wrapper with one more argument
+`BUILD_ENV="export TMPDIR='/tmp';"` and make sure that the `TMPDIR` environment
+variable is set to `/tmp` before running ICON.
 
 ### Ubuntu with [Apt](https://wiki.debian.org/Apt)
 
-**Tested on `Ubuntu Bionic Beaver 18.04.4 LTS`.**
+**Tested on `Ubuntu Jammy Jellyfish 22.04.3 LTS`.**
 
 ```bash
 # Install building tools and ICON dependencies:
 sudo apt install -y \
   build-essential   \
   python3           \
-  gcc-6             \
-  gfortran-6        \
-  libmpich-dev      \
+  gcc               \
+  gfortran          \
+  libopenmpi-dev    \
   libhdf5-dev       \
   libnetcdf-dev     \
   libnetcdff-dev    \
   libeccodes-dev    \
   libblas-dev       \
   liblapack-dev     \
+  libfyaml-dev      \
   libxml2-dev
 
-# Select the compiler:
-sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-6 50 \
-  --slave /usr/bin/gfortran gfortran /usr/bin/gfortran-6
-
-# The command above can be reverted as follows:
-# sudo update-alternatives --remove gcc /usr/bin/gcc-6
-
 # Select MPI libraries and compiler wrappers
-sudo update-alternatives --set mpi /usr/include/mpich
-sudo update-alternatives --set mpirun /usr/bin/mpirun.mpich
+sudo update-alternatives --set mpi /usr/bin/mpicc.openmpi
+sudo update-alternatives --set mpirun /usr/bin/mpirun.openmpi
 
 # If the two non-interactive commands above do not work,
 # try the interactive analogues:
-# sudo update-alternatives --config mpirun
 # sudo update-alternatives --config mpi
+# sudo update-alternatives --config mpirun
 
 # Install optional tools:
-sudo apt install -y ksh cdo
+sudo apt install -y cdo
 ```
 
 ### Arch Linux with [Pacman](https://wiki.archlinux.org/index.php/pacman)
 
-**Tested on `Arch Linux 2020.07.01`.**
+**Tested on `Arch Linux 2023.07.23`.**
 
 ```bash
 # Install building tools and ICON dependencies:
@@ -251,43 +259,28 @@ sudo pacman -S --noconfirm \
   lapack                   \
   libxml2
 
+# Install libfyaml from the Arch User Repository:
+( git clone https://aur.archlinux.org/libfyaml.git && cd libfyaml && makepkg -csi --noconfirm )
 # Install ecCodes from the Arch User Repository:
-git clone https://aur.archlinux.org/openjpeg.git && cd openjpeg && makepkg -csi --noconfirm && cd ..
-git clone https://aur.archlinux.org/eccodes.git && cd eccodes && makepkg -csi --noconfirm && cd ..
+( git clone https://aur.archlinux.org/eccodes.git && cd eccodes && makepkg -csi --noconfirm )
 
 # Install optional tools:
-sudo pacman -S --noconfirm rsync ksh
-git clone https://aur.archlinux.org/cdo.git && cd cdo && makepkg -csi --noconfirm && cd ..
+sudo pacman -S --noconfirm rsync
+# Install CDO and its extra dependencies from the Arch User Repository:
+( git clone https://aur.archlinux.org/udunits.git && cd udunits && makepkg -csi --noconfirm )
+( git clone https://aur.archlinux.org/magics++.git && cd magics++ && makepkg -csi --noconfirm )
+( git clone https://aur.archlinux.org/cdo.git && cd cdo && makepkg -csi --noconfirm )
 ```
-
-> **_NOTE:_** [ecCodes package](https://aur.archlinux.org/packages/eccodes) is
-currently broken and its `PKGBUILD` file might need to be extended with an
-additional CMake argument `-DCMAKE_Fortran_FLAGS=-fallow-argument-mismatch`.
 
 ### macOS/Linux with [Spack](https://spack.io)
 
-**Tested on `Ubuntu Bionic Beaver 18.04.4 LTS`.**
+**Tested on `Ubuntu Desktop Jammy Jellyfish 22.04.3 LTS`.**
 
 > **_NOTE:_** Spack has its own list of
 [prerequisites](https://spack.readthedocs.io/en/latest/getting_started.html#prerequisites).
-Most of them are available out-of-the box on most Unix systems. On Ubuntu
-systems, however, the users might need to install them separetly:
+The default Ubuntu Desktop installation seems to be missing only few of them:
 >```bash
->sudo apt install -y build-essential python3
->```
-
-> **_NOTE:_** Although it is possible to install Fortran and C compilers with
-Spack, the current recommendation is to do it using system's default package
-manager. For example, on Ubuntu system, the users can run:
->```bash
->sudo apt install -y gcc-6 g++-6 gfortran-6
->```
-
-> **_NOTE:_** Currently, Spack does not provide `KornShell`. The users are
-recommended to install it using system's default package manager. For example,
-on Ubuntu system, the users can run:
->```bash
->sudo apt install -y ksh
+>sudo apt install -y build-essential git gfortran
 >```
 
 ```bash
@@ -295,18 +288,18 @@ on Ubuntu system, the users can run:
 git clone https://github.com/spack/spack.git
 . ./spack/share/spack/setup-env.sh
 
-# Find the compilers;
+# Find compilers and building tools that are already installed on the system:
 spack compiler find
-
-# Ignore the unneeded compilers:
-spack compiler remove --all gcc@7:
+spack external find
 
 # Install ICON dependencies:
-spack install openmpi &&
-  spack install netcdf-fortran ^hdf5+hl+szip+threadsafe &&
-  spack install eccodes &&
-  spack install netlib-lapack &&
-  spack install libxml2
+spack install                             \
+  openmpi                                 \
+  netcdf-fortran ^hdf5+hl+szip+threadsafe \
+  eccodes                                 \
+  netlib-lapack                           \
+  libfyaml                                \
+  libxml2
 
 # Symlink the dependencies to a single prefix (e.g. to $HOME/icon-sw):
 export ICON_SW_PREFIX="$HOME/icon-sw"
@@ -315,9 +308,9 @@ spack view symlink -i "$ICON_SW_PREFIX" \
   netcdf-fortran                        \
   eccodes                               \
   netlib-lapack                         \
+  libfyaml                              \
   libxml2
 
 # Install optional tools:
-spack install cdo ^hdf5+hl+szip+threadsafe
-spack load cdo
+spack install cdo
 ```

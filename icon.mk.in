@@ -49,7 +49,7 @@ DSL4JSB= ${PYTHON} $(srcdir)/externals/jsbach/scripts/dsl4jsb/dsl4jsb.py
 SB2PP= @SB2PP@
 FPP= @FPP@
 INSTALL= @INSTALL@
-MKDIR_P = @MKDIR_P@
+MKDIR_P= @MKDIR_P@
 
 # Fortran compiler flags:
 FCFLAGS= @FCFLAGS@
@@ -57,21 +57,6 @@ make_FCFLAGS= @FC_MOD_IN@$(moddir) @FC_MOD_OUT@$(moddir)
 ICON_FCFLAGS= @ICON_FCFLAGS@
 @ICON_FCGROUP_FLAGS@
 DEPGEN_FCFLAGS= @DEPGEN_FCFLAGS@
-
-# Pattern- and target-specific assignments are propagated to the prerequisites
-# and override the global assignments. Therefore, we introduce the following
-# match-anything pattern assignments to prevent that:
-%: ICON_FCFLAGS:= $(ICON_FCFLAGS)
-
-# Pattern-specific Fortran compiler flags:
-#   Note the difference in how older versions of GNU Make (at least up to 3.81)
-#   treat pattern-specific variable ASSIGNMENTS and pattern RULES: the last
-#   matching ASSIGNMENT and the first matching RULE win. Newer versions of GNU
-#   Make (starting at least 4.1) give preference to the most specialized pattern
-#   in both cases. This means that, as long as we support older version of GNU
-#   Make, we have to declare the most general ASSIGNMENTS first and the most
-#   general RULES last.
-@ICON_FCGROUP_ASSIGNMENTS@
 
 # C compiler and preprocessor flags:
 CFLAGS= @CFLAGS@
@@ -221,9 +206,11 @@ dir_files:= $(filter-out ./.dirstamp,$(addsuffix .dirstamp,$(sort $(dir $(dep_fi
 # List of original Fortran '.f90' files containing $(pgi_inlib_procedures):
 @PGI_INLIB_ENABLED@pgi_inlib_f90_files:=
 
-# Two lengthy space-separated lists of procedures and files that control the
-# contents of the inline library - $(pgi_inlib_procedures) and
-# $(pgi_inlib_f90_files) - are set in a separate file for the sake of
+# List of files to be compiled with the GPU register limit flag:
+@PGI_INLIB_ENABLED@@GPU_ENABLED@pgi_inlib_reglim_f90_files:=
+
+# Lengthy space-separated lists $(pgi_inlib_procedures), $(pgi_inlib_f90_files)
+# and $(pgi_inlib_reglim_f90_files) are set in a separate file for the sake of
 # readability:
 @PGI_INLIB_ENABLED@include inlib.mk
 
@@ -241,13 +228,23 @@ join_comma= $(subst $() ,$(join_comma_symbol),$(strip $(1)))
 #   certain files with the default optimization level set in $(ICON_FCFLAGS),
 #   which we use at the extraction step, regardless of the Fortran compile group
 #   a file belongs to.
-@PGI_INLIB_ENABLED@pgi_inlib_ex_FCFLAGS= -O0 -Mextract=lib:$(pgi_inlib_name),name:$(call join_comma,$(pgi_inlib_procedures))
-@PGI_INLIB_ENABLED@pgi_inlib_in_FCFLAGS= -Minline=lib:$(pgi_inlib_name),reshape
+@PGI_INLIB_ENABLED@pgi_inlib_common_arg:= lib:$(pgi_inlib_name),name:$(call join_comma,$(pgi_inlib_procedures))
+@PGI_INLIB_ENABLED@pgi_inlib_ex_FCFLAGS= -O0 -Mextract=$(pgi_inlib_common_arg)
+@PGI_INLIB_ENABLED@pgi_inlib_in_FCFLAGS= -Minline=$(pgi_inlib_common_arg),reshape
+
+# Additional flag limiting the GPU register usage (valid only if the inline
+# library is enabled):
+@PGI_INLIB_ENABLED@@GPU_ENABLED@pgi_inlib_reglim_FCFLAGS= -gpu=maxregcount:96
 
 ########################################
 
-# Get object file names that correspond to the source files in $(pgi_inlib_f90_files):
+# Get object file names that correspond to the source files in
+# $(pgi_inlib_f90_files):
 @PGI_INLIB_ENABLED@pgi_inlib_obj_files:= $(call get_obj_names,$(pgi_inlib_f90_files))
+
+# Filter-out object file names that are not needed for the current
+# configuration:
+@PGI_INLIB_ENABLED@pgi_inlib_obj_files:= $(filter $(common_lib_obj_files) $(common_lib_prog_obj_files),$(pgi_inlib_obj_files))
 
 # List of objects that are generated using the inline library:
 @PGI_INLIB_ENABLED@pgi_inlib_target_obj_files:= \
@@ -285,9 +282,6 @@ join_comma= $(subst $() ,$(join_comma_symbol),$(strip $(1)))
 @PGI_INLIB_ENABLED@pgi_inlib_prereq_mod_files:= \
 @PGI_INLIB_ENABLED@  $(filter-out $(pgi_inlib_internal_mod_files),$(pgi_inlib_mod_files))
 
-# Some files need manual register limit:
-@PGI_INLIB_ENABLED@$(pgi_limit_registers_OBJECTS): FCFLAGS+= $(pgi_limit_registers_FCFLAGS)
-
 ############################### MAKEFILE TWEAKS ################################
 
 # Silent rule prefixes:
@@ -301,7 +295,7 @@ silent_CUDACXX= @echo "  CUDACXX " $@;
 silent_DEPGEN=  @echo "  DEPGEN  " $@;
 silent_DSL4JSB= @echo "  DSL4JSB " $@;
 silent_FC=      @echo "  FC      " $@;
-silent_FCEX=    @echo "  FC (EX) " $@;
+silent_FCEX=    @echo "  FC (EX) " $(@D);
 silent_FCIL=    @echo "  FC (IL) " $@;
 silent_FCLD=    @echo "  FCLD    " $@;
 silent_FPP=     @echo "  FPP     " $@;
@@ -330,6 +324,40 @@ nodep_targets:= preprocess depend mostlyclean clean distclean config-bundled \
 vpath %.f90 $(srcdir)
 vpath %.c $(srcdir)
 vpath %.cu $(srcdir)
+
+################### PATTERN- AND TARGET-SPECIFIC ASSIGNMENTS ###################
+
+# Pattern- and target-specific assignments can lead to unexpected side-effects.
+# To have better control over them, all such assignments should be done in this
+# section, once all global variables have their final values.
+
+# Pattern- and target-specific assignments are propagated to the prerequisites
+# and override the global assignments. Therefore, we introduce the following
+# match-anything pattern assignments to prevent that:
+@PGI_INLIB_ENABLED@%: make_FCFLAGS:= $(make_FCFLAGS)
+%: ICON_FCFLAGS:= $(ICON_FCFLAGS)
+#   The following variables have to be expanded recursively (i.e. they are
+#   supposed to be lazily expanded when running the recipes). The eval/value
+#   trick below prevents propagation of the target-specific values to the
+#   prerequisites while keeping the recursive flavor of the variables:
+@PGI_INLIB_ENABLED@$(eval %: silent_FC= $(value silent_FC))
+
+# Target-specific variables enabling the PGI/NVIDIA inlining during compilation:
+@PGI_INLIB_ENABLED@$(pgi_inlib_target_obj_files): silent_FC= $(silent_FCIL)
+@PGI_INLIB_ENABLED@$(pgi_inlib_target_obj_files): make_FCFLAGS+= $(pgi_inlib_in_FCFLAGS)
+
+# Compile $(pgi_inlib_reglim_f90_files) with the GPU register limit flag:
+@PGI_INLIB_ENABLED@@GPU_ENABLED@$(call get_obj_names,$(pgi_inlib_reglim_f90_files)): make_FCFLAGS+= $(pgi_inlib_reglim_FCFLAGS)
+
+# Pattern-specific Fortran compiler flags:
+#   Note the difference in how older versions of GNU Make (at least up to 3.81)
+#   treat pattern-specific variable ASSIGNMENTS and pattern RULES: the last
+#   matching ASSIGNMENT and the first matching RULE win. Newer versions of GNU
+#   Make (starting at least 4.1) give preference to the most specialized pattern
+#   in both cases. This means that, as long as we support older version of GNU
+#   Make, we have to declare the most general ASSIGNMENTS first and the most
+#   general RULES last.
+@ICON_FCGROUP_ASSIGNMENTS@
 
 ############################# USER INTERFACE RULES #############################
 
@@ -369,7 +397,7 @@ mostlyclean: $(bundled_subdirs)
 # also translate 'clean' into 'distclean' for the bundled libraries when the
 # delayed configuration is enabled but that would be counterproductive,
 # therefore, we do not do that):
-clean_files= srclist version.c
+clean_files= srclist version.c $(pp_files)
 
 # With all components and all preprocessing steps enabled, the list above
 # contains ~3k filenames, which might result into the following error if we
@@ -452,16 +480,6 @@ $(common_lib_file): $(common_lib_obj_files)
 # Common archive generation rule:
 $(lib_files): | $(dir_files)
 	$(silent_AR)rm -f $@ && $(AR) $(ARFLAGS) $@ $^ && $(RANLIB) $@
-
-# Target-specific variables enabling the PGI/NVIDIA inlining during compilation:
-#   The eval/value trick below prevents propagation of the target-specific
-#   values (which override the global ones) to the prerequisites while keeping
-#   the recursive flavor of the variables (i.e. they will be lazily expanded
-#   when running the recipes).
-@PGI_INLIB_ENABLED@$(eval %: silent_FC= $(value silent_FC))
-@PGI_INLIB_ENABLED@$(eval %: make_FCFLAGS= $(value make_FCFLAGS))
-@PGI_INLIB_ENABLED@$(pgi_inlib_target_obj_files): silent_FC= $(silent_FCIL)
-@PGI_INLIB_ENABLED@$(pgi_inlib_target_obj_files): make_FCFLAGS += $(pgi_inlib_in_FCFLAGS)
 
 # All objects that can be built with the inline library depend on it:
 #   The compiler documentation suggests that we use $(pgi_inlib_name) as a

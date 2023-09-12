@@ -45,6 +45,8 @@ MODULE mo_nwp_phy_types
   USE mo_kind,                ONLY: wp, vp
   USE mo_fortran_tools,       ONLY: t_ptr_2d3d,t_ptr_tracer
   
+  USE mo_nwp_vdiff_types, ONLY: t_nwp_vdiff_state
+
   IMPLICIT NONE
   PRIVATE
 
@@ -432,6 +434,7 @@ MODULE mo_nwp_phy_types
 
     REAL(wp), POINTER :: tropics_mask(:,:)      !< mask field that is 1 in the tropics and 0 in the extratropics
     REAL(wp), POINTER :: innertropics_mask(:,:) !< mask field that is 1 in the inner tropics and 0 elsewhere
+    REAL(wp), POINTER :: sso_lat_mask(:,:)      !< mask field that is used for latitude-dependent SSO tuning parameters
 
     LOGICAL, POINTER, CONTIGUOUS :: &
       & locum     (:,:),    & !< convective  activity indicator
@@ -513,6 +516,8 @@ MODULE mo_nwp_phy_types
     !> Special 1D and 0D diagnostics for LES runs
     REAL(wp), ALLOCATABLE :: &
       turb_diag_1dvar(:,:), turb_diag_0dvar(:)  
+
+    TYPE(t_nwp_vdiff_state) :: nwp_vdiff_state
 
     ! vars for global diagnostics based on src/atm_phy_echam/mo_echam_phy_memory.f90
     REAL(wp),POINTER ::       &

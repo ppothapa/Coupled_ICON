@@ -94,9 +94,9 @@ CONTAINS
     IF (process_exists(ocean_process)) THEN
       ! we run in a coupled ocean-hamocc setup 
       CALL setup_hamocc_2_ocean_communication(hamocc_ocean_state%patch_3D%p_patch_2d(1), n_zlev)      
-      CALL exchange_ocean_to_hamocc_state()
+ !     CALL exchange_ocean_to_hamocc_state()
       ! sync the input from the ocean, as this is sent only for owned cells/edges
-      CALL sync_hamocc_input()
+ !     CALL sync_hamocc_input()
     ENDIF
     
     CALL init_icon_hamocc (hamocc_ocean_state)  
@@ -149,7 +149,7 @@ CONTAINS
       ! we run in a coupled ocean-hamocc setup 
 !       CALL message("setup_ocean_2_hamocc_communication", "...")
       CALL setup_ocean_2_hamocc_communication(patch_2d, n_zlev)      
-      CALL exchange_ocean_to_hamocc_state()
+!      CALL exchange_ocean_to_hamocc_state()
       
     ELSE
       CALL init_icon_hamocc (hamocc_ocean_state)  
@@ -191,7 +191,7 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   SUBROUTINE ocean_to_hamocc_interface(ocean_state, transport_state, p_oce_sfc, p_as, &
-      & sea_ice, p_phys_param, operators_coefficients, current_time, stretch_e)
+      & sea_ice, p_phys_param, operators_coefficients, current_time)
     TYPE(t_hydro_ocean_state), TARGET, INTENT(in)    :: ocean_state
     TYPE(t_ocean_transport_state), TARGET            :: transport_state
     TYPE(t_atmos_for_ocean),  INTENT(inout)          :: p_as
@@ -200,7 +200,6 @@ CONTAINS
     TYPE(t_ho_params)                                :: p_phys_param
     TYPE(t_operator_coeff),   INTENT(inout)          :: operators_coefficients
     TYPE(datetime), POINTER, INTENT(in)              :: current_time
-    REAL(wp), INTENT(IN), OPTIONAL                   :: stretch_e(nproma, transport_state%patch_3d%p_patch_2d(1)%nblks_e)
 
    
     IF(.not. lhamocc) return
@@ -228,11 +227,7 @@ CONTAINS
      
     ELSE
       ! sequential
-      IF (PRESENT(stretch_e)) THEN
-        CALL tracer_biochemistry_transport(hamocc_ocean_state, operators_coefficients, current_time, stretch_e)
-      ELSE
-        CALL tracer_biochemistry_transport(hamocc_ocean_state, operators_coefficients, current_time)
-      ENDIF
+      CALL tracer_biochemistry_transport(hamocc_ocean_state, operators_coefficients, current_time)
     ENDIF
     
   END SUBROUTINE ocean_to_hamocc_interface
@@ -293,7 +288,7 @@ CONTAINS
     hamocc_to_ocean_state%swr_fraction       => ocean_state%p_diag%swr_frac
 
     ! Variables for zstar calculations
-    ocean_to_hamocc_state%eta_c              => ocean_state%p_prog(nold(1))%eta_c
+!     ocean_to_hamocc_state%eta_c              => ocean_state%p_prog(nold(1))%eta_c
     ocean_to_hamocc_state%stretch_c          => ocean_state%p_prog(nold(1))%stretch_c
     ocean_to_hamocc_state%stretch_c_new      => ocean_state%p_prog(nnew(1))%stretch_c
     ocean_to_hamocc_state%draftave           => sea_ice%draftave    
@@ -324,8 +319,11 @@ CONTAINS
       &  co2_mixing_ratio(:,:),                &
       &  mass_flux_e(:,:,:),                   &
       &  vn(:,:,:),                            &
-      &  w(:,:,:) ,                             &
-      &  press_hyd(:,:,:)  
+      &  w(:,:,:) ,                            &
+      &  press_hyd(:,:,:),                     & 
+      &  stretch_c(:,:),                       &   
+      &  stretch_c_new(:,:),                   &
+      &  draftave(:,:)  
 
     start_timer(timer_exchange_ocean_hamocc,1)
 
@@ -348,6 +346,10 @@ CONTAINS
     vn                        => ocean_transport_state%vn                  
     w                         => ocean_transport_state%w
     press_hyd                 => ocean_to_hamocc_state%press_hyd
+    stretch_c                 => ocean_to_hamocc_state%stretch_c    
+    stretch_c_new             => ocean_to_hamocc_state%stretch_c_new
+    draftave                  => ocean_to_hamocc_state%draftave     
+    
     
 !     CALL exchange_data_ocean_2_hamocc(                                      &
 !       &  c_loc(ocean_to_hamocc_state%top_dilution_coeff(1,1)),              &
@@ -364,22 +366,27 @@ CONTAINS
 !       &  c_loc(ocean_transport_state%vn(1,1,1)),                            &
 !       &  c_loc(ocean_transport_state%w(1,1,1)))
       
-    CALL exchange_data_ocean_2_hamocc(                &
-      &  c_loc(top_dilution_coeff(1,1)),              &
-      &  c_loc(h_old(1,1)),                           &
-      &  c_loc(h_new(1,1)),                           &
-      &  c_loc(h_old_withIce(1,1)),                   &
-      &  c_loc(ice_concentration_sum(1,1)),           &
-      &  c_loc(temperature(1,1,1)),                   &
-      &  c_loc(salinity(1,1,1)),                      &
-      &  c_loc(ver_diffusion_coeff(1,1,1)),           &
-      &  c_loc(short_wave_flux(1,1)),                 &
-      &  c_loc(wind10m(1,1)),                         &
-      &  c_loc(co2_mixing_ratio(1,1)),                &
-      &  c_loc(mass_flux_e(1,1,1)),                   &
-      &  c_loc(vn(1,1,1)),                            &
-      &  c_loc(w(1,1,1)),                              &
-      &  c_loc(press_hyd(1,1,1))  )
+    CALL exchange_data_ocean_2_hamocc(              &
+      &  c_loc(top_dilution_coeff(1,1)),            &
+      &  c_loc(h_old(1,1)),                         &
+      &  c_loc(h_new(1,1)),                         &
+      &  c_loc(h_old_withIce(1,1)),                 &
+      &  c_loc(ice_concentration_sum(1,1)),         &
+      &  c_loc(temperature(1,1,1)),                 &
+      &  c_loc(salinity(1,1,1)),                    &
+      &  c_loc(ver_diffusion_coeff(1,1,1)),         &
+      &  c_loc(short_wave_flux(1,1)),               &
+      &  c_loc(wind10m(1,1)),                       &
+      &  c_loc(co2_mixing_ratio(1,1)),              &
+      &  c_loc(mass_flux_e(1,1,1)),                 &
+      &  c_loc(vn(1,1,1)),                          &
+      &  c_loc(w(1,1,1)),                           &
+      &  c_loc(press_hyd(1,1,1)),                   &
+      &  c_loc(stretch_c(1,1)),                     &
+      &  c_loc(stretch_c_new(1,1)),                 &
+      &  c_loc(draftave(1,1))  &
+      &  )
+      
   
     stop_timer(timer_exchange_ocean_hamocc,1)
 
@@ -395,10 +402,11 @@ CONTAINS
       &  swr_frac(:,:,:),      &
       &  co2_flux(:,:)
 
+    
     start_timer(timer_exchange_ocean_hamocc,1)
 
     hamocc_to_ocean_state => hamocc_ocean_state%hamocc_to_ocean_state
-    
+
     co2_flux => hamocc_to_ocean_state%co2_flux    
     swr_frac => hamocc_to_ocean_state%swr_fraction
     
@@ -407,6 +415,10 @@ CONTAINS
       &  c_loc(swr_frac(1,1,1)))
      
     stop_timer(timer_exchange_ocean_hamocc,1)
+
+    CALL dbg_print('swr_fraction', hamocc_to_ocean_state%swr_fraction , "from hamocc", 2,  &
+       & hamocc_ocean_state%patch_3d%p_patch_2d(1)%cells%owned)
+
 
   END SUBROUTINE exchange_hamocc_to_ocean_state
   !-------------------------------------------------------------------------
@@ -441,7 +453,7 @@ CONTAINS
     !----------------------------------------------
     ! use a copy to a 3d strucure to do the communication of the 2d
     ! Not nice, but probably better...
-    ALLOCATE(gather_cells_2d(nproma,8,alloc_cell_blocks))
+    ALLOCATE(gather_cells_2d(nproma,11,alloc_cell_blocks))
     gather_cells_2d(:,1,:) = hamocc_ocean_state%ocean_to_hamocc_state%top_dilution_coeff(:,:)
     gather_cells_2d(:,2,:) = hamocc_ocean_state%ocean_to_hamocc_state%h_old(:,:)                 
     gather_cells_2d(:,3,:) = hamocc_ocean_state%ocean_to_hamocc_state%h_new(:,:)                 
@@ -450,6 +462,9 @@ CONTAINS
     gather_cells_2d(:,6,:) = hamocc_ocean_state%ocean_to_hamocc_state%short_wave_flux(:,:)      
     gather_cells_2d(:,7,:) = hamocc_ocean_state%ocean_to_hamocc_state%wind10m(:,:)               
     gather_cells_2d(:,8,:) = hamocc_ocean_state%ocean_to_hamocc_state%co2_mixing_ratio(:,:)
+    gather_cells_2d(:,9,:) = hamocc_ocean_state%ocean_to_hamocc_state%stretch_c(:,:)    
+    gather_cells_2d(:,10,:) = hamocc_ocean_state%ocean_to_hamocc_state%stretch_c_new(:,:)
+    gather_cells_2d(:,11,:) = hamocc_ocean_state%ocean_to_hamocc_state%draftave (:,:)    
         
     CALL sync_patch_array(sync_c, patch_2d, gather_cells_2d)
 
@@ -461,6 +476,9 @@ CONTAINS
     hamocc_ocean_state%ocean_to_hamocc_state%short_wave_flux(:,:)       = gather_cells_2d(:,6,:)
     hamocc_ocean_state%ocean_to_hamocc_state%wind10m(:,:)               = gather_cells_2d(:,7,:)
     hamocc_ocean_state%ocean_to_hamocc_state%co2_mixing_ratio(:,:)      = gather_cells_2d(:,8,:)
+    hamocc_ocean_state%ocean_to_hamocc_state%stretch_c(:,:)             = gather_cells_2d(:,9,:)
+    hamocc_ocean_state%ocean_to_hamocc_state%stretch_c_new(:,:)         = gather_cells_2d(:,10,:)
+    hamocc_ocean_state%ocean_to_hamocc_state%draftave (:,:)             = gather_cells_2d(:,11,:)
     
     DEALLOCATE(gather_cells_2d)
     

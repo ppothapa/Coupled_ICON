@@ -32,6 +32,9 @@ MODULE mo_nh_diagnose_pres_temp
   USE mo_timer,               ONLY: timers_level, timer_start, timer_stop, timer_diagnose_pres_temp
   USE mo_parallel_config,     ONLY: nproma
   USE mo_advection_config,    ONLY: advection_config
+  USE mo_dynamics_config,     ONLY: ldeepatmo
+  USE mo_grid_config,         ONLY: grid_sphere_radius
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
 #ifdef _OPENACC
   USE mo_mpi,                 ONLY: i_am_accel_node
 #endif
@@ -48,7 +51,6 @@ MODULE mo_nh_diagnose_pres_temp
   PUBLIC :: diag_pres
   PUBLIC :: calc_qsum
 
-
   CONTAINS
 
   ! moved here from mo_nh_stepping to avoid circular dependencies
@@ -62,7 +64,7 @@ MODULE mo_nh_diagnose_pres_temp
   !!
   SUBROUTINE diagnose_pres_temp (p_metrics, pt_prog, pt_prog_rcf, pt_diag, pt_patch, &
     &                            opt_calc_temp, opt_calc_pres, opt_calc_temp_ifc,    &
-    &                            lnd_prog, opt_slev, opt_rlend, opt_lconstgrav       )
+    &                            lnd_prog, opt_slev, opt_rlend                       )
 
 
 !!$    CHARACTER(len=*), PARAMETER ::  &
@@ -83,8 +85,6 @@ MODULE mo_nh_diagnose_pres_temp
 
     INTEGER, INTENT(IN), OPTIONAL :: opt_slev, opt_rlend 
 
-    LOGICAL, INTENT(IN), OPTIONAL :: opt_lconstgrav
-
     INTEGER  :: jb,jk,jc,jg
     INTEGER  :: nlev, nlevp1              !< number of full levels
     INTEGER  :: i_startblk, i_endblk, i_startidx, i_endidx
@@ -92,7 +92,6 @@ MODULE mo_nh_diagnose_pres_temp
     INTEGER  :: slev, slev_moist
 
     LOGICAL  :: l_opt_calc_temp, l_opt_calc_pres, l_opt_calc_temp_ifc
-    LOGICAL  :: lconstgrav
 
 
     IF (timers_level > 8) CALL timer_start(timer_diagnose_pres_temp)
@@ -128,12 +127,6 @@ MODULE mo_nh_diagnose_pres_temp
       slev = opt_slev
     ELSE
       slev = 1
-    ENDIF
-
-    IF ( PRESENT(opt_lconstgrav) ) THEN
-      lconstgrav = opt_lconstgrav
-    ELSE
-      lconstgrav = .TRUE.
     ENDIF
 
     ! number of vertical levels
@@ -226,13 +219,8 @@ MODULE mo_nh_diagnose_pres_temp
       !!
       !-------------------------------------------------------------------------
 
-      IF ( l_opt_calc_pres ) THEN
+      IF ( l_opt_calc_pres ) CALL diag_pres (pt_prog, pt_diag, p_metrics, jb, i_startidx, i_endidx, slev, nlev)
 
-        CALL diag_pres (pt_prog, pt_diag, p_metrics,                                   &
-                        jb, i_startidx, i_endidx, slev, nlev, opt_lconstgrav=lconstgrav)
-
-      ENDIF ! calc_pres
-      
     ENDDO !jb
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
@@ -254,8 +242,7 @@ MODULE mo_nh_diagnose_pres_temp
   !! Note that the pressure is diagnosed by vertical integration of the 
   !! hydrostatic equation!
   !!
-  SUBROUTINE diag_pres (pt_prog, pt_diag, p_metrics,                         &
-                        jb, i_startidx, i_endidx, slev, nlev, opt_lconstgrav )
+  SUBROUTINE diag_pres (pt_prog, pt_diag, p_metrics, jb, i_startidx, i_endidx, slev, nlev)
 
 
     TYPE(t_nh_metrics), INTENT(IN)    :: p_metrics
@@ -266,26 +253,16 @@ MODULE mo_nh_diagnose_pres_temp
 
     INTEGER, INTENT(IN) :: jb, i_startidx, i_endidx, slev, nlev
 
-    LOGICAL, INTENT(IN), OPTIONAL :: opt_lconstgrav
-
     INTEGER  :: jk,jc
 
     REAL(wp) :: dz1, dz2, dz3
-
-    LOGICAL  :: lconstgrav
-
-    IF ( PRESENT(opt_lconstgrav) ) THEN
-      lconstgrav = opt_lconstgrav
-    ELSE
-      lconstgrav = .TRUE.
-    ENDIF
 
     !$ACC DATA PRESENT(pt_diag%tempv, pt_diag%pres_sfc, pt_diag%pres_ifc, pt_diag%pres) &
     !$ACC   PRESENT(pt_diag%dpres_mc, pt_prog%theta_v, pt_prog%exner, p_metrics%ddqz_z_full) &
     !$ACC   IF(i_am_accel_node)
 
-    IF (lconstgrav) THEN
-      
+    IF (.NOT. ldeepatmo) THEN
+
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
 !DIR$ IVDEP
       !$ACC LOOP GANG VECTOR PRIVATE(dz1, dz2, dz3)
@@ -338,52 +315,17 @@ MODULE mo_nh_diagnose_pres_temp
 
     ELSE
 
-      ! Deep-atmosphere version
-      ! (geometric heights are replaced by geopotential heights)
+      CALL diag_pres_deepatmo(z_mc=p_metrics%z_mc(:,:,jb), z_ifc=p_metrics%z_ifc(:,:,jb),                  &
+        & exner=pt_prog%exner(:,:,jb), tempv=pt_diag%tempv(:,:,jb), pres_sfc=pt_diag%pres_sfc(:,jb),       & 
+        & pres_ifc=pt_diag%pres_ifc(:,:,jb), pres=pt_diag%pres(:,:,jb), dpres_mc=pt_diag%dpres_mc(:,:,jb), &
+        & start_indices=[i_startidx,slev], end_indices=[i_endidx,nlev],                                    &
+#ifdef _OPENACC
+        & lacc=i_am_accel_node)
+#else
+        & lacc=.FALSE.)
+#endif
 
-!DIR$ IVDEP
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
-      !$ACC LOOP GANG VECTOR PRIVATE(dz1, dz2, dz3)
-      DO jc = i_startidx, i_endidx
-        dz1 = p_metrics%dzgpot_mc(jc,nlev,jb)
-        dz2 = p_metrics%dzgpot_mc(jc,nlev-1,jb)
-        dz3 = 0.5_wp*p_metrics%dzgpot_mc(jc,nlev-2,jb) 
-        
-        pt_diag%pres_sfc(jc,jb) = p0ref * EXP( cpd_o_rd*LOG(pt_prog%exner(jc,nlev-2,jb)) + &
-          &  grav_o_rd*(dz1/pt_diag%tempv(jc,nlev,jb) + dz2/pt_diag%tempv(jc,nlev-1,jb) +  &
-          & dz3/pt_diag%tempv(jc,nlev-2,jb)) )
-        
-        pt_diag%pres_ifc(jc,nlev+1,jb) = pt_diag%pres_sfc(jc,jb)
-      ENDDO  !jc
-      !$ACC END PARALLEL
-      
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
-      !$ACC LOOP SEQ
-      DO jk = nlev, slev,-1
-!DIR$ IVDEP
-        !$ACC LOOP GANG VECTOR
-        DO jc = i_startidx, i_endidx
-          
-          pt_diag%pres_ifc(jc,jk,jb) = pt_diag%pres_ifc(jc,jk+1,jb)                &
-            & *EXP(-grav_o_rd*p_metrics%dzgpot_mc(jc,jk,jb)/pt_diag%tempv(jc,jk,jb))
-          
-          ! pressure at main levels
-          ! (since gpot(0.5*(z1+z2)) /= 0.5*(gpot(z1)+gpot(z2)), where gpot(z)=zgpot, 
-          ! the pressure at main levels cannot be computed from the geometric mean, 
-          ! so we have to integrate again)
-          pt_diag%pres(jc,jk,jb) = pt_diag%pres_ifc(jc,jk+1,jb) &
-            & *EXP(-grav_o_rd*(p_metrics%zgpot_mc(jc,jk,jb)     & 
-            & -p_metrics%zgpot_ifc(jc,jk+1,jb))                 & 
-            & /pt_diag%tempv(jc,jk,jb))
-          
-          pt_diag%dpres_mc(jc,jk,jb) = pt_diag%pres_ifc(jc,jk+1,jb) &
-            &                        - pt_diag%pres_ifc(jc,jk  ,jb)
-          
-        ENDDO  !jc
-      ENDDO  !jk
-      !$ACC END PARALLEL
-      
-    ENDIF  !IF (lconstgrav)
+    ENDIF ! IF (.NOT. ldeepatmo)
 
     !$ACC WAIT(1)
     !$ACC END DATA
@@ -498,6 +440,119 @@ MODULE mo_nh_diagnose_pres_temp
 
 
   END SUBROUTINE calc_qsum
+
+  !>
+  !! Deep-atmosphere variant of diag_pres (for use within block loop)
+  !!
+  SUBROUTINE diag_pres_deepatmo( z_mc,          & !in
+    &                            z_ifc,         & !in
+    &                            exner,         & !in
+    &                            tempv,         & !in
+    &                            pres_sfc,      & !inout
+    &                            pres_ifc,      & !inout
+    &                            pres,          & !inout
+    &                            dpres_mc,      & !inout
+    &                            start_indices, & !in
+    &                            end_indices,   & !in
+    &                            lacc)            !optin
+
+    ! In/out variables
+    REAL(wp), INTENT(IN)              :: z_mc(:,:)        ! Height of cell centers
+    REAL(wp), INTENT(IN)              :: z_ifc(:,:)       ! Height of cell interfaces
+    REAL(wp), INTENT(IN)              :: exner(:,:)       ! Exner pressure
+    REAL(wp), INTENT(IN)              :: tempv(:,:)       ! Virtual temperature
+    REAL(wp), INTENT(INOUT)           :: pres_sfc(:)      ! Surface pressure
+    REAL(wp), INTENT(INOUT)           :: pres_ifc(:,:)    ! Pressure at cell interfaces
+    REAL(wp), INTENT(INOUT)           :: pres(:,:)        ! Pressure at cell centers
+    REAL(wp), INTENT(INOUT)           :: dpres_mc(:,:)    ! Pressure difference between lower and upper cell interfaces
+    INTEGER,  INTENT(IN)              :: start_indices(2) ! Start indices: [i_startidx,slev]
+    INTEGER,  INTENT(IN)              :: end_indices(2)   ! End indices:   [i_endidx,  nlev]
+    LOGICAL,  INTENT(IN),    OPTIONAL :: lacc             ! Optional flag for use of OpenACC
+
+    ! Local variables
+    REAL(wp) :: inv_grid_sphere_radius
+    REAL(wp) :: zgpot_ifc_nlevp1, zgpot_ifc_nlev, zgpot_ifc_nlevm1, zgpot_ifc_nlevm2
+    REAL(wp) :: dzgpot_mc_nlev, dzgpot_mc_nlevm1, dzgpot_mc_nlevm2_halved
+    REAL(wp) :: zgpot_mc, dzgpot_mc, zgpot_lifc, zgpot_uifc
+    INTEGER  :: jk, jc
+    INTEGER  :: nlev
+    LOGICAL  :: lzacc
+
+    !-----------------------------------------------------------------------
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    ! Rudimentary consistency checks
+    IF (ANY(start_indices(:) < 1) .OR. ANY(end_indices(:) < 1)) THEN
+      RETURN
+    ELSEIF (ANY(start_indices(:) > end_indices(:))) THEN
+      RETURN
+    ELSEIF (ANY(end_indices(:) > SHAPE(z_ifc))) THEN
+      RETURN
+    ENDIF
+
+    nlev = end_indices(2)
+
+    ! Inverse Earth radius
+    inv_grid_sphere_radius = 1._wp / grid_sphere_radius
+
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+    !$ACC LOOP GANG VECTOR &
+    !$ACC   PRIVATE(zgpot_ifc_nlevp1, zgpot_ifc_nlev, zgpot_ifc_nlevm1, zgpot_ifc_nlevm2) &
+    !$ACC   PRIVATE(dzgpot_mc_nlev, dzgpot_mc_nlevm1, dzgpot_mc_nlevm2_halved)
+    DO jc = start_indices(1), end_indices(1)
+
+      ! Auxiliary geopotential heights
+      zgpot_ifc_nlevp1 = z_ifc(jc,nlev+1) / (1._wp + inv_grid_sphere_radius * z_ifc(jc,nlev+1))
+      zgpot_ifc_nlev   = z_ifc(jc,nlev)   / (1._wp + inv_grid_sphere_radius * z_ifc(jc,nlev))
+      zgpot_ifc_nlevm1 = z_ifc(jc,nlev-1) / (1._wp + inv_grid_sphere_radius * z_ifc(jc,nlev-1))
+      zgpot_ifc_nlevm2 = z_ifc(jc,nlev-2) / (1._wp + inv_grid_sphere_radius * z_ifc(jc,nlev-2))
+
+      ! Auxiliary geopotential height differences
+      dzgpot_mc_nlev          = zgpot_ifc_nlev   - zgpot_ifc_nlevp1
+      dzgpot_mc_nlevm1        = zgpot_ifc_nlevm1 - zgpot_ifc_nlev
+      dzgpot_mc_nlevm2_halved = 0.5_wp * (zgpot_ifc_nlevm2 - zgpot_ifc_nlevm1)
+
+      ! Surface pressure
+      pres_sfc(jc) = p0ref * EXP(cpd_o_rd * LOG(exner(jc,nlev-2)) + grav_o_rd * (dzgpot_mc_nlev / tempv(jc,nlev) &
+        &          + dzgpot_mc_nlevm1 / tempv(jc,nlev-1) + dzgpot_mc_nlevm2_halved / tempv(jc,nlev-2)))
+
+      ! Start value for vertical integration of hydrostatic balance
+      pres_ifc(jc,nlev+1) = pres_sfc(jc)
+
+    ENDDO  !jc
+    !$ACC END PARALLEL
+
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+    !$ACC LOOP SEQ
+    DO jk = end_indices(2), start_indices(2), -1 
+!DIR$ IVDEP
+      !$ACC LOOP GANG VECTOR &
+      !$ACC   PRIVATE(zgpot_mc, zgpot_lifc, zgpot_uifc, dzgpot_mc)
+      DO jc = start_indices(1), end_indices(1)
+
+        ! Auxiliary geopotential heights and height differences
+        zgpot_mc   = z_mc(jc,jk)    / (1._wp + inv_grid_sphere_radius * z_mc(jc,jk))
+        zgpot_lifc = z_ifc(jc,jk+1) / (1._wp + inv_grid_sphere_radius * z_ifc(jc,jk+1))
+        zgpot_uifc = z_ifc(jc,jk)   / (1._wp + inv_grid_sphere_radius * z_ifc(jc,jk))
+        dzgpot_mc  = zgpot_uifc - zgpot_lifc
+
+        ! Integrate hydrostatic balance: cell interfaces
+        pres_ifc(jc,jk) = pres_ifc(jc,jk+1) * EXP(-grav_o_rd * dzgpot_mc / tempv(jc,jk))
+
+        ! Integrate hydrostatic balance: cell centers
+        ! (since gpot(0.5*(z1+z2)) /= 0.5*(gpot(z1)+gpot(z2)), where gpot(z)=zgpot, 
+        ! the pressure at main levels cannot be computed from the geometric mean, 
+        ! so we have to integrate again)
+        pres(jc,jk) = pres_ifc(jc,jk+1) * EXP(-grav_o_rd * (zgpot_mc - zgpot_lifc) / tempv(jc,jk))
+
+        dpres_mc(jc,jk) = pres_ifc(jc,jk+1) - pres_ifc(jc,jk)
+
+      ENDDO  !jc
+    ENDDO  !jk
+    !$ACC END PARALLEL
+
+  END SUBROUTINE diag_pres_deepatmo
 
 END MODULE  mo_nh_diagnose_pres_temp
 

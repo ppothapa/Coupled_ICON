@@ -34,7 +34,6 @@ MODULE mo_gridref_config
 
   PUBLIC :: rbf_vec_kern_grf_e, rbf_scale_grf_e,                                &
     &                    grf_velfbk, grf_scalfbk, grf_tracfbk,                  &
-    &                    grf_idw_exp_e12, grf_idw_exp_e34,                      &
     &                    grf_intmethod_c, grf_intmethod_e,                      &
     &                    grf_intmethod_ct, denom_diffu_v, denom_diffu_t,        &
     &                    l_mass_consvcorr, l_density_nudging, fbk_relax_timescale
@@ -52,7 +51,7 @@ MODULE mo_gridref_config
     REAL(wp) :: rbf_scale_grf_e(max_dom)
 
     INTEGER  :: grf_intmethod_c,  &  ! switch for type of grid refinement interpolation
-      &         grf_intmethod_ct, &  ! (see below for explanation of options)
+      &         grf_intmethod_ct, & 
       &         grf_intmethod_e
 
     INTEGER  :: grf_velfbk     ! switch for velocity feedback method
@@ -66,9 +65,6 @@ MODULE mo_gridref_config
     INTEGER  :: grf_tracfbk    ! switch for feedback method of passive tracer variables
                                ! 1 = area-weighted averaging
                                ! 2 = bilinear interpolation
-
-    ! Exponents for IDW interpolation in idw_compute_coeff_grf
-    REAL(wp) :: grf_idw_exp_e12, grf_idw_exp_e34
 
     ! Denominators of normalized diffusion coefficients for boundary diffusion
     REAL(wp) :: denom_diffu_v, denom_diffu_t

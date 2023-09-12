@@ -99,11 +99,11 @@ REAL (KIND = wp) ::      &
 !
 ! Tunable parameters
 ! ------------------
-  Gkdrag                  , &   ! gw drag constant (set in mo_nwp_tuning_nml)
+  Gkdrag, gkdrag_add      , &   ! gw drag constants (set in mo_nwp_tuning_nml)
   Gkwake                  , &   ! gw drag constant (set in mo_nwp_tuning_nml)
-  Grcrit                  , &   ! critical Richardson number (set in mo_nwp_tuning_nml)
+  Grcrit, grcrit_add      , &   ! critical Richardson numbers (set in mo_nwp_tuning_nml)
   Gfrcrit                 , &   ! critical Froude number (determines depth of blocking layer; set in mo_nwp_tuning_nml)
-  minsso                  , &   ! minimum SSO standard deviation (m) for which SSO information is used
+  minsso, minsso_gwd      , &   ! minimum SSO standard deviation (m) for which SSO information is used (blocking/GWD part)
   blockred                , &   ! multiple of SSO standard deviation above which blocking tendency is reduced
 
 ! Security constants
@@ -127,8 +127,7 @@ SUBROUTINE sso (                                                       &
            ie     , ke     , ke1    ,  istart  , iend   ,              &
            ppf    , pph    , pfif   , pt       , pu , pv  , pfis     , &
            psso_stdh, psso_gamma, psso_theta, psso_sigma, sfcfric_fac, &
-           pdt    , mkenvh, params,                                    &
-           ldebug ,                                                    &
+           pdt    , mkenvh, params, sso_lat_mask, ldebug ,             &
            pdu_sso, pdv_sso, pustr_sso, pvstr_sso, pvdis_sso, lacc )
 
 !------------------------------------------------------------------------------
@@ -207,6 +206,9 @@ SUBROUTINE sso (                                                       &
       REAL(KIND=wp), INTENT(IN) :: psso_theta (:)  !  (ie)
       REAL(KIND=wp), INTENT(IN) :: psso_sigma (:)  !  (ie)
 
+      ! Latitude mask for improved GWD tuning
+      REAL(KIND=wp), INTENT(IN) :: sso_lat_mask (:)  !  (ie)
+
       ! Factor for adaptive tuning of surface friction
       REAL(KIND=wp), INTENT(IN) :: sfcfric_fac(:)  !  (ie)
 
@@ -239,7 +241,7 @@ SUBROUTINE sso (                                                       &
       INTEGER  mknu   (ie)
       INTEGER  mknu2  (ie)
 
-      LOGICAL  lo_sso (ie)
+      LOGICAL  lo_sso (ie), lo_sso_gwd(ie)
 
       LOGICAL :: lzacc ! non-optional version of lacc
 
@@ -291,18 +293,21 @@ SUBROUTINE sso (                                                       &
 
 !     Set tuning parameters
       Gkdrag  = params%Gkdrag
+      Gkdrag_add  = MAX(0._wp,params%Gkdrag_enh-params%Gkdrag)
       Gkwake  = params%Gkwake
       Grcrit  = params%Grcrit
+      Grcrit_add  = MAX(0._wp,params%Grcrit_enh-params%Grcrit)
       Gfrcrit = params%Gfrcrit
       minsso  = params%minsso
+      minsso_gwd  = params%minsso_gwd
       blockred= params%blockred
 
       CALL set_acc_host_or_device(lzacc, lacc)
 
       !Declaration of GPU arrays  
       !$ACC DATA PRESENT(pt, pu, pv, pfif, pfis, pph, ppf, psso_stdh, psso_gamma, sfcfric_fac) &
-      !$ACC   PRESENT(psso_theta, psso_sigma, pdv_sso, pdu_sso, pustr_sso, pvstr_sso, pvdis_sso) &
-      !$ACC   CREATE(mcrit, mkcrith, mknu, mknu2, lo_sso) &
+      !$ACC   PRESENT(psso_theta, psso_sigma, pdv_sso, pdu_sso, pustr_sso, pvstr_sso, pvdis_sso, sso_lat_mask) &
+      !$ACC   CREATE(mcrit, mkcrith, mknu, mknu2, lo_sso, lo_sso_gwd) &
       !$ACC   CREATE(zfi, ztau, zstrdu, zstrdv, zstab, zvph, zrho, zri, zpsi, zzdep) &
       !$ACC   CREATE(zdudt, zdvdt, zdtdt, zulow, zvlow, zvidis, zd1, zd2, zdmod, mkenvh) IF(lzacc)
 
@@ -331,11 +336,8 @@ SUBROUTINE sso (                                                       &
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO j1=istart,iend
-        IF (psso_stdh(j1).GT.minsso) THEN
-          lo_sso(j1)=.TRUE.
-        ELSE
-          lo_sso(j1)=.FALSE.
-        ENDIF
+        lo_sso(j1)     = MERGE(.TRUE., .FALSE., psso_stdh(j1) > minsso)
+        lo_sso_gwd(j1) = MERGE(.TRUE., .FALSE., psso_stdh(j1) > MAX(minsso,minsso_gwd))
       END DO
       !$ACC END PARALLEL
       !$ACC WAIT IF(lzacc)
@@ -344,33 +346,33 @@ SUBROUTINE sso (                                                       &
 !     Computation of basic state variables in *sso_setup*
 ! ========================================================
 
-      CALL sso_setup (                                   &
-         ie     , ke   , ke1 ,   istart , iend   ,       &
-         pph   , ppf   , pu    , pv  , pt  ,zfi  ,       &
-         psso_stdh, psso_theta, psso_gamma, lo_sso,       &
-         zrho  , zri   , zstab, ztau, zvph, zpsi, zzdep, &
-         zulow , zvlow , zd1  , zd2 ,zdmod, mkcrith ,    &
+      CALL sso_setup (                                            &
+         ie     , ke   , ke1 ,   istart , iend   ,                &
+         pph   , ppf   , pu    , pv  , pt  ,zfi  ,                &
+         psso_stdh, sso_lat_mask, psso_theta, psso_gamma, lo_sso, &
+         zrho  , zri   , zstab, ztau, zvph, zpsi, zzdep,          &
+         zulow , zvlow , zd1  , zd2 ,zdmod, mkcrith ,             &
          mcrit, mkenvh,mknu,mknu2, lacc=lzacc )
 
 ! ========================================================
 !     Surface gravity wave stress amplitude
 ! ========================================================
 
-      CALL gw_stress (                                   &
-         ie     , ke1 , istart , iend   ,                &
-         zrho,zstab,zvph,psso_stdh,psso_sigma,zdmod,     &
-         lo_sso, zfi, mkenvh, ztau, lacc=lzacc )
+      CALL gw_stress (                                            &
+         ie     , ke1 , istart , iend   ,                         &
+         zrho,zstab,zvph,psso_stdh,sso_lat_mask,psso_sigma,zdmod, &
+         lo_sso_gwd, zfi, mkenvh, ztau, lacc=lzacc )
 
 ! ========================================================
 !     Gravity wave stress profile
 ! ========================================================
 
-      CALL gw_profil(                                    &
-         ie     , ke     , ke1 , istart , iend ,         &
-         pph   , zrho  , zstab , zvph    , zri  ,        &
-         ztau  , zdmod , psso_sigma, psso_stdh  ,        &
-         mkcrith, mcrit, mkenvh, mknu    , mknu2,        &
-         lo_sso , lacc=lzacc )
+      CALL gw_profil(                                          &
+         ie     , ke     , ke1 , istart , iend ,               &
+         pph   , zrho  , zstab , zvph    , zri  ,              &
+         ztau  , zdmod , psso_sigma, psso_stdh , sso_lat_mask, &
+         mkcrith, mcrit, mkenvh, mknu    , mknu2,              &
+         lo_sso_gwd , lacc=lzacc )
 
 ! ========================================================
 !     Computation of SSO effects' tendencies
@@ -554,7 +556,7 @@ END SUBROUTINE sso
 SUBROUTINE sso_setup (                                      &
            ie     , ke   , ke1 ,   istart , iend   ,        &
            pph ,ppf ,pu ,pv ,pt ,pfi,                       &
-           psso_stdh, psso_theta, psso_gamma , lo_sso,      &
+           psso_stdh, sso_lat_mask, psso_theta, psso_gamma , lo_sso,      &
            prho  , pri   , pstab, ptau, pvph , ppsi, pzdep, &
            pulow , pvlow , pd1  , pd2 , pdmod,              &
            kkcrith, kcrit, kkenvh,kknu,kknu2, lacc)
@@ -607,6 +609,7 @@ SUBROUTINE sso_setup (                                      &
 
 !     subgrid scale orography parameters
       REAL(KIND=wp) :: psso_stdh (:) ! (ie)
+      REAL(KIND=wp) :: sso_lat_mask (:) ! (ie)
       REAL(KIND=wp) :: psso_theta(:) ! (ie)
       REAL(KIND=wp) :: psso_gamma(:) ! (ie)
 
@@ -998,7 +1001,7 @@ SUBROUTINE sso_setup (                                      &
           IF(lo_sso(j1)) THEN
             zdwind=MAX(ABS(zvpf(j1,j3)-zvpf(j1,j3-1)),Gvsec)
             pri(j1,j3)=pstab(j1,j3)*(zdp(j1,j3) / (G*prho(j1,j3)*zdwind))**2
-            pri(j1,j3)=MAX(pri(j1,j3),Grcrit)
+            pri(j1,j3)=MAX(pri(j1,j3),Grcrit+Grcrit_add*sso_lat_mask(j1))
           ENDIF
         END DO
       END DO                ! end of vertical loop
@@ -1120,7 +1123,7 @@ END SUBROUTINE sso_setup
 
 SUBROUTINE gw_stress (                                  &
            ie     , ke1 , istart , iend   ,             &
-           prho,pstab,pvph,psso_stdh,psso_sigma,pdmod,  &
+           prho,pstab,pvph,psso_stdh,sso_lat_mask,psso_sigma,pdmod,  &
            lo_sso, pfi,mkenvh,ptau ,lacc )
 
 !------------------------------------------------------------------------------
@@ -1161,7 +1164,7 @@ SUBROUTINE gw_stress (                                  &
       ! projection parameter = SQRT(D1**2+D2**2)    cf. eq.4.7
       REAL(KIND=wp) :: pfi (:,:) ! (ie,ke) full-level geopotential
       INTEGER mkenvh (:) ! (ie) index of top of envelope layer
-
+      REAL(KIND=wp) :: sso_lat_mask (:) ! (ie)
       LOGICAL lo_sso(:) ! (ie)
       LOGICAL :: lzacc ! non-optional version of lacc
       !
@@ -1178,12 +1181,13 @@ SUBROUTINE gw_stress (                                  &
       REAL(KIND=wp) :: zblock ! the magnitude of the subgrid scale standard
       REAL(KIND=wp) :: zeff   ! deviation which enters the stress amplitude
                               ! calculation
+      REAL(KIND=wp) :: zramp  ! ramp function to avoid sudden jumps at sso stdev threshold (minsso_gwd)
       INTEGER j1  ! loop variable
 
       CALL set_acc_host_or_device(lzacc, lacc)
 
       !Declaration of GPU arrays
-      !$ACC DATA PRESENT(ptau, lo_sso, prho, pstab, pvph, psso_stdh, psso_sigma, pdmod, pfi, mkenvh) IF(lzacc)
+      !$ACC DATA PRESENT(ptau, lo_sso, prho, pstab, pvph, psso_stdh, psso_sigma, sso_lat_mask, pdmod, pfi, mkenvh) IF(lzacc)
 
 !     gravity wave stress amplitude (eq.4.11)
 !     =======================================
@@ -1193,9 +1197,10 @@ SUBROUTINE gw_stress (                                  &
         IF(lo_sso(j1)) THEN
           zblock=pfi(j1,mkenvh(j1))/g
           zeff=MAX(0._wp,3._wp*psso_stdh(j1)-zblock)
+          zramp = MAX(0._wp, MIN(1._wp, (psso_stdh(j1)-minsso_gwd)/MAX(0.1_wp,minsso_gwd)))
 
-          ptau(j1,ke1)=Gkdrag*prho(j1,ke1)*psso_sigma(j1)*zeff**2*0.5_wp      &
-     &                /psso_stdh(j1)*pvph(j1,ke1)*pdmod(j1)*SQRT(pstab(j1,ke1))
+          ptau(j1,ke1)=(Gkdrag+Gkdrag_add*sso_lat_mask(j1))*prho(j1,ke1)*psso_sigma(j1)*zeff**2*0.5_wp      &
+     &                /psso_stdh(j1)*pvph(j1,ke1)*pdmod(j1)*SQRT(pstab(j1,ke1))*zramp
         ELSE
           ptau(j1,ke1)=0.0_wp
         ENDIF
@@ -1218,7 +1223,7 @@ END SUBROUTINE gw_stress
 SUBROUTINE gw_profil(                                    &
            ie     , ke     , ke1 , istart , iend ,       &
            pph    , prho   , pstab  , pvph     , pri ,   &
-           ptau   , pdmod  , psso_sigma, psso_stdh   ,   &
+           ptau   , pdmod  , psso_sigma, psso_stdh, sso_lat_mask   ,   &
            kkcrith, kcrit, kkenvh, kknu, kknu2 ,         &
            lo_sso , lacc)
 
@@ -1275,6 +1280,7 @@ SUBROUTINE gw_profil(                                    &
       ! standard deviation of sso-height (m)
       REAL(KIND=wp) :: psso_sigma(:) ! (ie)
       ! mean sso-slope                   (-)
+      REAL(KIND=wp) :: sso_lat_mask (:) ! (ie)
 
 !     various significant levels
       INTEGER kkcrith(:) ! (ie)
@@ -1289,12 +1295,12 @@ SUBROUTINE gw_profil(                                    &
 !     ==========================
 
       REAL(KIND=wp) :: zdz2   (ie,ke)
-      REAL(KIND=wp) :: ztau   (ie,ke1)
+      REAL(KIND=wp) :: ztau1(ie), ztau2(ie), ztau3(ie)
       REAL(KIND=wp) :: znorm  (ie)
       REAL(KIND=wp) :: zoro   (ie)
 
       REAL(KIND=wp) :: zb,zdelp,zdelpt,zalpha,zalfa,zdel,zriw    ! utitility variables
-      REAL(KIND=wp) :: zsqri,zdz2n                               ! utitility variables
+      REAL(KIND=wp) :: zsqri,zdz2n,rcrit                               ! utitility variables
 
       INTEGER j1,j3                 ! loop indices
       LOGICAL :: lzacc ! non-optional version of lacc
@@ -1303,8 +1309,8 @@ SUBROUTINE gw_profil(                                    &
 
       !Declaration of GPU arrays
       !$ACC DATA PRESENT(pph, prho, pstab, pri, pvph, ptau, pdmod, psso_stdh, psso_sigma) &
-      !$ACC   PRESENT(kkcrith, kcrit, kkenvh, kknu, kknu2, lo_sso) &
-      !$ACC   CREATE(zdz2, ztau, znorm, zoro) IF(lzacc)
+      !$ACC   PRESENT(kkcrith, kcrit, kkenvh, kknu, kknu2, lo_sso, sso_lat_mask) &
+      !$ACC   CREATE(zdz2, ztau1, ztau2, ztau3, znorm, zoro) IF(lzacc)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
@@ -1312,8 +1318,7 @@ SUBROUTINE gw_profil(                                    &
         IF(lo_sso(j1)) THEN
           zoro(j1) = psso_sigma(j1)*pdmod(j1)           &
      &                 /(4._wp*MAX(psso_stdh(j1),1.0_wp))
-          ztau(j1,kknu(j1)+1) = ptau(j1,kknu(j1)+1)
-          ztau(j1,ke1          ) = ptau(j1,ke1          )
+          ztau1(j1) = ptau(j1,ke1)
         ENDIF
       END DO
       !$ACC END PARALLEL
@@ -1327,7 +1332,7 @@ SUBROUTINE gw_profil(                                    &
 !     ===========================================  
           IF(lo_sso(j1)) THEN
             IF(j3.GE.kknu2(j1)) THEN
-              ptau(j1,j3)=ztau(j1,ke1)
+              ptau(j1,j3)=ztau1(j1)
             ENDIF
           ENDIF
 
@@ -1335,7 +1340,7 @@ SUBROUTINE gw_profil(                                    &
 !     ===============================
           IF(lo_sso(j1)) THEN
             IF(j3.LT.kknu2(j1)) THEN
-            znorm(j1)=Gkdrag*prho(j1,j3)*SQRT(pstab(j1,j3))  &
+            znorm(j1)=(Gkdrag+Gkdrag_add*sso_lat_mask(j1))*prho(j1,j3)*SQRT(pstab(j1,j3))  &
                       *pvph(j1,j3)*zoro(j1)
             zdz2(j1,j3)=ptau(j1,j3+1)/MAX(znorm(j1),Gssec)
             ENDIF
@@ -1353,9 +1358,10 @@ SUBROUTINE gw_profil(                                    &
             zsqri=SQRT(pri(j1,j3))
             zalfa=SQRT(pstab(j1,j3)*zdz2(j1,j3))/pvph(j1,j3)
             zriw=pri(j1,j3)*(1._wp-zalfa)/(1._wp+zalfa*zsqri)**2
-            IF(zriw.LT.Grcrit) THEN      ! breaking occurs
-              zdel=4._wp/zsqri/Grcrit+1._wp/Grcrit**2+4._wp/Grcrit
-              zb=1._wp/Grcrit+2._wp/zsqri
+            rcrit=Grcrit+Grcrit_add*sso_lat_mask(j1)
+            IF(zriw.LT.rcrit) THEN      ! breaking occurs
+              zdel=4._wp/zsqri/rcrit+1._wp/rcrit**2+4._wp/rcrit
+              zb=1._wp/rcrit+2._wp/zsqri
               zalpha=0.5_wp*(-zb+SQRT(zdel))
               zdz2n=(pvph(j1,j3)*zalpha)**2/pstab(j1,j3)
               ptau(j1,j3)=znorm(j1)*zdz2n
@@ -1377,8 +1383,8 @@ SUBROUTINE gw_profil(                                    &
       !$ACC LOOP GANG VECTOR
       DO j1=istart,iend
         IF(lo_sso(j1)) THEN
-          ztau(j1,kkenvh(j1)) =ptau(j1,kkenvh(j1))
-          ztau(j1,kkcrith(j1))=ptau(j1,kkcrith(j1))
+          ztau2(j1) = ptau(j1,kkenvh(j1))
+          ztau3(j1) = ptau(j1,kkcrith(j1))
         ENDIF
       END DO
       !$ACC END PARALLEL
@@ -1389,11 +1395,9 @@ SUBROUTINE gw_profil(                                    &
         DO j1=istart,iend
           IF(lo_sso(j1)) THEN
             IF(j3.GT.kkcrith(j1).AND.j3.LT.kkenvh(j1))THEN
-            zdelp=pph(j1,j3)-pph(j1,kkenvh(j1))
-            zdelpt=pph(j1,kkcrith(j1))-pph(j1,kkenvh(j1))
-            ptau(j1,j3)=ztau(j1,kkenvh(j1)) +                 &
-     &          (ztau(j1,kkcrith(j1))-ztau(j1,kkenvh(j1)) )*  &
-     &              zdelp/zdelpt
+              zdelp=pph(j1,j3)-pph(j1,kkenvh(j1))
+              zdelpt=pph(j1,kkcrith(j1))-pph(j1,kkenvh(j1))
+              ptau(j1,j3)=ztau2(j1) + (ztau3(j1)-ztau2(j1) ) * zdelp/zdelpt
             ENDIF
           ENDIF
         END DO

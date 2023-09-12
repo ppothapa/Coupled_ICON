@@ -177,8 +177,8 @@ MODULE mo_timer
 
   PUBLIC :: timer_global_nudging
 
-  ! upper atmosphere / deep atmosphere
-  PUBLIC :: timer_deepatmo_ztrafo, timer_expol
+  ! upper atmosphere
+  PUBLIC :: timer_expol
   PUBLIC :: timer_upatmo, timer_upatmo_constr, timer_upatmo_destr, timer_upatmo_phy, &
     &       timer_upatmo_phy_init, timer_upatmo_phy_tend, timer_upatmo_phy_diag,     &
     &       timer_upatmo_phy_imf, timer_upatmo_phy_rad, timer_upatmo_phy_acc
@@ -396,8 +396,8 @@ MODULE mo_timer
 
   INTEGER :: timer_global_nudging
 
-  ! upper atmosphere / deep atmosphere
-  INTEGER :: timer_deepatmo_ztrafo, timer_expol
+  ! upper atmosphere
+  INTEGER :: timer_expol
   INTEGER :: timer_upatmo, timer_upatmo_constr, timer_upatmo_destr, timer_upatmo_phy, &
     &        timer_upatmo_phy_init, timer_upatmo_phy_tend, timer_upatmo_phy_diag,     &
     &        timer_upatmo_phy_imf, timer_upatmo_phy_rad, timer_upatmo_phy_acc
@@ -781,8 +781,7 @@ CONTAINS
 
     timer_global_nudging = new_timer("global_nudging")
 
-    ! upper atmosphere / deep atmosphere
-    timer_deepatmo_ztrafo = new_timer("deepatmo_ztrafo")
+    ! upper atmosphere
     timer_expol           = new_timer("upatmo_expol")
     timer_upatmo          = new_timer("upper_atmosphere")
     timer_upatmo_constr   = new_timer("upatmo_construction") 

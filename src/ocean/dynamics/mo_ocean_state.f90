@@ -670,8 +670,16 @@ CONTAINS
           & grib2_var(10, 3, 1, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
           & ldims=(/nproma,alloc_cell_blocks/), tlev_source=TLEV_NNEW,&
           & in_group=groups("oce_default", "oce_essentials","oce_prog"))
+        ! zstar stretching 
+        CALL add_var(ocean_default_list, 'stretch_c'//TRIM(var_suffix), ocean_state_prog%stretch_c , &
+          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,    &
+          & t_cf_var('stretch_c'//TRIM(var_suffix), 'm', 'zstar surface stretch at cell center', &
+          & DATATYPE_FLT,'stretch_c'),&
+          & grib2_var(255, 255, 1, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
+          & ldims=(/nproma,alloc_cell_blocks/), tlev_source=TLEV_NNEW)
+        ocean_state_prog%stretch_c = 0.0_wp
       END IF
-
+                
       IF (vert_cor_type == 1) THEN
         ! zstar height
         CALL add_var(ocean_restart_list, 'zos'//TRIM(var_suffix), ocean_state_prog%eta_c , &
@@ -3075,18 +3083,17 @@ CONTAINS
     LOGICAL,                   INTENT(IN) :: host_to_device   !   .TRUE. : h2d   .FALSE. : d2h
 
     !$ACC ENTER DATA COPYIN(patch_3d, patch_3d%p_patch_1d, patch_3d%p_patch_2d) &
-    !$ACC   COPYIN(patch_3D%p_patch_1D(1)%dolic_c, patch_3D%p_patch_1d(1)%prism_thick_c) &
+    !$ACC   COPYIN(patch_3D%p_patch_1D(1)%dolic_c) &
     !$ACC   COPYIN(patch_3D%p_patch_1d(1)%prism_thick_flat_sfc_c) &
     !$ACC   COPYIN(patch_3d%p_patch_1D(1)%prism_thick_flat_sfc_c, patch_3d%p_patch_1d(1)%del_zlev_m) &
     !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_c, patch_3d%p_patch_1d(1)%dolic_e) &
     !$ACC   COPYIN(patch_3d%p_patch_2d(1)%alloc_cell_blocks, patch_3d%p_patch_2D(1)%nblks_e) &
+    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%cells, patch_3d%p_patch_2d(1)%edges) &
     !$ACC   COPYIN(patch_3d%p_patch_2d(1)%cells%edge_idx, patch_3d%p_patch_2d(1)%cells%edge_blk) &
     !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%cell_idx, patch_3d%p_patch_2d(1)%edges%cell_blk) &
     !$ACC   COPYIN(patch_3d%p_patch_2d(1)%cells%neighbor_idx, patch_3d%p_patch_2d(1)%cells%neighbor_blk) &
     !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%cell_idx, patch_3d%p_patch_2d(1)%edges%cell_blk) &
-    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%inv_dual_edge_length) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%prism_thick_c, patch_3d%p_patch_1d(1)%inv_prism_thick_c) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%inv_prism_center_dist_c)
+    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%inv_dual_edge_length)
 
   END SUBROUTINE transfer_ocean_state
 

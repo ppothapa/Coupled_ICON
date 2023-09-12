@@ -68,6 +68,10 @@ MODULE mo_ocean_bulk_forcing
   USE mo_ocean_time_events,   ONLY: isEndOfThisRun 
   USE mo_statistics,         ONLY: subset_sum
   USE mo_grid_geometry_info,  ONLY: planar_torus_geometry
+
+#ifdef _OPENACC
+  USE openacc, ONLY: acc_is_present 
+#endif
   
   IMPLICIT NONE
   
@@ -112,7 +116,7 @@ CONTAINS
   !! Initial release by Stephan Lorenz, MPI-M (2014)
   !! Adapted for zstar by V.Singh, MPI-M (2020)
   !
-  SUBROUTINE update_surface_relaxation(p_patch_3D, p_os, p_ice, p_oce_sfc, tracer_no, stretch_c)
+  SUBROUTINE update_surface_relaxation(p_patch_3D, p_os, p_ice, p_oce_sfc, tracer_no, stretch_c, use_acc)
 
     TYPE (t_patch_3D ),    TARGET, INTENT(IN) :: p_patch_3D
     TYPE (t_hydro_ocean_state), INTENT(INOUT) :: p_os
@@ -120,6 +124,7 @@ CONTAINS
     TYPE (t_ocean_surface)                    :: p_oce_sfc
     INTEGER,                       INTENT(IN) :: tracer_no       !  no of tracer: 1=temperature, 2=salinity
     REAL(wp), INTENT(IN), OPTIONAL :: stretch_c(nproma, p_patch_3d%p_patch_2d(1)%alloc_cell_blocks) !! sfc ht 
+    LOGICAL,  INTENT(IN), OPTIONAL :: use_acc
 
     !Local variables
     INTEGER                       :: jc, jb
@@ -128,17 +133,25 @@ CONTAINS
     TYPE(t_patch), POINTER        :: p_patch
     REAL(wp),      POINTER        :: t_top(:,:), s_top(:,:)
     TYPE(t_subset_range), POINTER :: all_cells
+    LOGICAL                       :: lacc
 
     REAL(wp), PARAMETER         :: seconds_per_month = 2.592e6_wp  ! TODO: use real month length
 
     CHARACTER(LEN=max_char_length), PARAMETER :: str_module = 'mo_ocean_testbed_zstar'
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
     !-----------------------------------------------------------------------
     p_patch   => p_patch_3D%p_patch_2D(1)
     all_cells => p_patch%cells%all
     !-------------------------------------------------------------------------
 
     t_top => p_os%p_prog(nold(1))%tracer(:,1,:,1)
-
+    s_top => p_os%p_prog(nold(1))%tracer(:,1,:,2)
 
     IF (tracer_no == 1) THEN  ! surface temperature relaxation
       !
@@ -153,6 +166,7 @@ CONTAINS
 
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(thick, relax_strength) IF(lacc)
         DO jc = i_startidx_c, i_endidx_c
           IF ( p_patch_3D%lsm_c(jc,1,jb) <= sea_boundary ) THEN
 
@@ -170,13 +184,14 @@ CONTAINS
             IF (vert_cor_type .EQ. 1) THEN
               thick = p_patch_3D%p_patch_1D(1)%prism_thick_flat_sfc_c(jc,1,jb) * stretch_c(jc,jb)
             ELSE
-	      thick = p_patch_3D%p_patch_1D(1)%prism_thick_flat_sfc_c(jc,1,jb) + p_os%p_prog(nold(1))%h(jc,jb)
+              thick = p_patch_3D%p_patch_1D(1)%prism_thick_flat_sfc_c(jc,1,jb) + p_os%p_prog(nold(1))%h(jc,jb)
             ENDIF
             p_oce_sfc%HeatFlux_Relax(jc,jb) = p_oce_sfc%TempFlux_Relax(jc,jb) * thick * OceanReferenceDensity*clw
 
           ENDIF
 
         END DO
+        !$ACC END PARALLEL LOOP
       END DO
 
       !---------DEBUG DIAGNOSTICS-------------------------------------------
@@ -196,10 +211,9 @@ CONTAINS
       ! note that the freshwater flux is opposite in sign to F_S, see below,
       ! i.e. fwf >0 for  S-S* >0 (i.e. increasing freshwater flux to decrease salinity)
 
-      s_top => p_os%p_prog(nold(1))%tracer(:,1,:,2)
-
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(thick, relax_strength) IF(lacc)
         DO jc = i_startidx_c, i_endidx_c
           IF ( p_patch_3D%lsm_c(jc,1,jb) <= sea_boundary ) THEN
 
@@ -217,13 +231,14 @@ CONTAINS
             IF (vert_cor_type .EQ. 1) THEN
               thick = p_patch_3D%p_patch_1D(1)%prism_thick_flat_sfc_c(jc,1,jb) * stretch_c(jc,jb)
             ELSE
-	      thick = p_patch_3D%p_patch_1D(1)%prism_thick_flat_sfc_c(jc,1,jb) + p_os%p_prog(nold(1))%h(jc,jb)
+              thick = p_patch_3D%p_patch_1D(1)%prism_thick_flat_sfc_c(jc,1,jb) + p_os%p_prog(nold(1))%h(jc,jb)
             ENDIF
 
             p_oce_sfc%FrshFlux_Relax(jc,jb) = -p_oce_sfc%SaltFlux_Relax(jc,jb) * thick / s_top(jc,jb)
 
           ENDIF
         END DO
+        !$ACC END PARALLEL LOOP
       END DO
 
       !---------DEBUG DIAGNOSTICS-------------------------------------------
@@ -247,12 +262,13 @@ CONTAINS
   !! @par Revision History
   !! Initial release by Stephan Lorenz, MPI-M (2014)
   !
-  SUBROUTINE apply_surface_relaxation(p_patch_3D, p_os, p_oce_sfc, tracer_no)
+  SUBROUTINE apply_surface_relaxation(p_patch_3D, p_os, p_oce_sfc, tracer_no, use_acc)
 
     TYPE (t_patch_3D ),    TARGET, INTENT(IN)    :: p_patch_3D
     TYPE (t_hydro_ocean_state),    INTENT(INOUT) :: p_os
     TYPE (t_ocean_surface), INTENT(IN)           :: p_oce_sfc
     INTEGER,                      INTENT(IN)     :: tracer_no       !  no of tracer: 1=temperature, 2=salinity
+    LOGICAL, INTENT(IN), OPTIONAL                :: use_acc
 
     !Local variables
     INTEGER :: jc, jb
@@ -262,30 +278,46 @@ CONTAINS
     TYPE(t_patch), POINTER :: patch_2D
     REAL(wp),      POINTER :: t_top(:,:), s_top(:,:)
     TYPE(t_subset_range), POINTER :: all_cells
+    LOGICAL :: lacc
+    
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+    
     !-----------------------------------------------------------------------
     patch_2D         => p_patch_3D%p_patch_2D(1)
     !-------------------------------------------------------------------------
-
+    
     all_cells => patch_2D%cells%all
-
-    t_top =>p_os%p_prog(nold(1))%tracer(:,1,:,1)
-    t_top_old(:,:) = t_top(:,:)
-
-
+    
     ! add relaxation term to temperature tracer
     IF (tracer_no == 1) THEN
 
+      t_top =>p_os%p_prog(nold(1))%tracer(:,1,:,1)
+
+      !$ACC DATA CREATE(t_top_old) IF(lacc)
+
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      t_top_old(:,:) = t_top(:,:)
+      !$ACC END KERNELS
+
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO jc = i_startidx_c, i_endidx_c
-
+          
           IF ( p_patch_3D%lsm_c(jc,1,jb) <= sea_boundary ) THEN
             t_top_old(jc,jb) = t_top(jc,jb)
             t_top(jc,jb)     = t_top_old(jc,jb) + p_oce_sfc%TempFlux_Relax(jc,jb)*dtime
           ENDIF
-
+          
         END DO
+        !$ACC END PARALLEL LOOP
       END DO
+
+      !$ACC END DATA
 
       !---------DEBUG DIAGNOSTICS-------------------------------------------
       CALL dbg_print('AppTrcRlx: TempFluxRelax'  , p_oce_sfc%TempFlux_Relax, str_module, 3, in_subset=patch_2D%cells%owned)
@@ -297,16 +329,25 @@ CONTAINS
     ELSE IF (tracer_no == 2) THEN
 
       s_top =>p_os%p_prog(nold(1))%tracer(:,1,:,2)
+
+      !$ACC DATA CREATE(s_top_old) IF(lacc)
+
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       s_top_old(:,:) = s_top(:,:)
+      !$ACC END KERNELS
 
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
         DO jc = i_startidx_c, i_endidx_c
           IF ( p_patch_3D%lsm_c(jc,1,jb) <= sea_boundary ) THEN
             s_top(jc,jb)     = s_top_old(jc,jb) + p_oce_sfc%SaltFlux_Relax(jc,jb)*dtime
           ENDIF
         END DO
+        !$ACC END PARALLEL LOOP
       END DO
+
+      !$ACC END DATA
 
       !---------DEBUG DIAGNOSTICS-------------------------------------------
       CALL dbg_print('AppTrcRlx: SaltFluxRelax', p_oce_sfc%SaltFlux_Relax, str_module, 3, in_subset=patch_2D%cells%owned)
@@ -333,11 +374,12 @@ CONTAINS
   !! @par Revision History
   !! Initial release by Stephan Lorenz, MPI-M (2010/2014)
   !
-  SUBROUTINE update_flux_fromFile(p_patch_3D, p_as, this_datetime)
+  SUBROUTINE update_flux_fromFile(p_patch_3D, p_as, this_datetime, use_acc)
 
     TYPE(t_patch_3D ),TARGET, INTENT(IN)        :: p_patch_3D
     TYPE(t_atmos_for_ocean)                     :: p_as
     TYPE(datetime), POINTER                     :: this_datetime
+    LOGICAL, INTENT(IN), OPTIONAL               :: use_acc
     !
     ! local variables
     CHARACTER(LEN=max_char_length), PARAMETER :: routine = 'mo_ocean_bulk_forcing:update_flux_fromFile'
@@ -345,10 +387,16 @@ CONTAINS
     REAL(wp) :: rday1, rday2
     REAL(wp) ::  z_c2(nproma,p_patch_3D%p_patch_2D(1)%alloc_cell_blocks)
     REAL(wp) :: sodt
-
+    LOGICAL  :: lacc
 
     TYPE(t_patch), POINTER:: patch_2D 
     !TYPE(t_subset_range), POINTER :: all_cells
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     !-----------------------------------------------------------------------
     patch_2D   => p_patch_3D%p_patch_2D(1)
@@ -435,6 +483,8 @@ CONTAINS
 
     END IF
 
+    !$ACC DATA CREATE(z_c2) IF(lacc)
+
     !
     ! OMIP data read in mo_ext_data into variable ext_data
     !
@@ -448,6 +498,8 @@ CONTAINS
 
     ! ext_data has rank n_dom due to grid refinement in the atmosphere but not in the ocean
     !IF (forcing_windstress_u_type == 1)
+
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     p_as%topBoundCond_windStress_u(:,:) = rday1*ext_data(1)%oce%flux_forc_mon_c(:,jmon1,:,1) + &
       &                                   rday2*ext_data(1)%oce%flux_forc_mon_c(:,jmon2,:,1)
 
@@ -479,21 +531,27 @@ CONTAINS
       &               rday2*ext_data(1)%oce%flux_forc_mon_c(:,jmon2,:,4)
     !  - change units to deg C, subtract tmelt (0 deg C, 273.15)
     p_as%tafo(:,:)  = p_as%tafo(:,:) - tmelt
+
     p_as%ftdew(:,:) = rday1*ext_data(1)%oce%flux_forc_mon_c(:,jmon1,:,5) + &
       &               rday2*ext_data(1)%oce%flux_forc_mon_c(:,jmon2,:,5)
+
     p_as%fu10(:,:)  = rday1*ext_data(1)%oce%flux_forc_mon_c(:,jmon1,:,6) + &
       &               rday2*ext_data(1)%oce%flux_forc_mon_c(:,jmon2,:,6)
+
     p_as%fclou(:,:) = rday1*ext_data(1)%oce%flux_forc_mon_c(:,jmon1,:,7) + &
       &               rday2*ext_data(1)%oce%flux_forc_mon_c(:,jmon2,:,7)
+
     p_as%pao(:,:)   = rday1*ext_data(1)%oce%flux_forc_mon_c(:,jmon1,:,8) + &
       &               rday2*ext_data(1)%oce%flux_forc_mon_c(:,jmon2,:,8)
+
     !  don't - change units to mb/hPa
     !p_as%pao(:,:)   = p_as%pao(:,:) !* 0.01
     p_as%fswr(:,:)  = rday1*ext_data(1)%oce%flux_forc_mon_c(:,jmon1,:,9) + &
       &               rday2*ext_data(1)%oce%flux_forc_mon_c(:,jmon2,:,9)
-      
+
     p_as%u(:,:)     = rday1*ext_data(1)%oce%flux_forc_mon_c(:,jmon1,:,13) + &
       &               rday2*ext_data(1)%oce%flux_forc_mon_c(:,jmon2,:,13)
+
     p_as%v(:,:)     = rday1*ext_data(1)%oce%flux_forc_mon_c(:,jmon1,:,14) + &
       &               rday2*ext_data(1)%oce%flux_forc_mon_c(:,jmon2,:,14)
 
@@ -505,11 +563,18 @@ CONTAINS
       &                                     rday2*ext_data(1)%oce%flux_forc_mon_c(:,jmon2,:,10)
     !p_as%FrshFlux_Evaporation  (:,:) = rday1*ext_data(1)%oce%flux_forc_mon_c(:,jmon1,:,11) + &
     !  &                                     rday2*ext_data(1)%oce%flux_forc_mon_c(:,jmon2,:,11)
+
+    !$ACC END KERNELS
+
     IF (forcing_set_runoff_to_zero) THEN
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       p_as%FrshFlux_Runoff(:,:) = 0.0_wp
+      !$ACC END KERNELS
     ELSE
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       p_as%FrshFlux_Runoff(:,:) = rday1*ext_data(1)%oce%flux_forc_mon_c(:,jmon1,:,12) + &
         &                              rday2*ext_data(1)%oce%flux_forc_mon_c(:,jmon2,:,12)
+      !$ACC END KERNELS
     ENDIF
 
  !  ! for test only - introduced temporarily
@@ -529,9 +594,13 @@ CONTAINS
  !  p_as%pao(:,:)   = 101300.0_wp
 
     !---------DEBUG DIAGNOSTICS-------------------------------------------
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     z_c2(:,:)=ext_data(1)%oce%flux_forc_mon_c(:,jmon1,:,4)
+    !$ACC END KERNELS
     CALL dbg_print('FlxFil: Ext data4-ta/mon1' ,z_c2        ,str_module,3, in_subset=patch_2D%cells%owned)
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     z_c2(:,:)=ext_data(1)%oce%flux_forc_mon_c(:,jmon2,:,4)
+    !$ACC END KERNELS
     CALL dbg_print('FlxFil: Ext data4-ta/mon2' ,z_c2        ,str_module,3, in_subset=patch_2D%cells%owned)
     CALL dbg_print('FlxFil: p_as%tafo'         ,p_as%tafo   ,str_module,3, in_subset=patch_2D%cells%owned)
     CALL dbg_print('FlxFil: p_as%windStr-u',p_as%topBoundCond_windStress_u, str_module,3,in_subset=patch_2D%cells%owned)
@@ -546,10 +615,11 @@ CONTAINS
       ! Apply temperature relaxation data (record 3) from stationary forcing
       !  - change units to deg C, subtract tmelt (0 deg C, 273.15)
       !  - this is not done for type_surfRelax_Temp=3, since init-data is in Celsius
-
+       !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
        p_as%data_surfRelax_Temp(:,:) = &
          &  rday1*(ext_data(1)%oce%flux_forc_mon_c(:,jmon1,:,3)-tmelt) + &
          &  rday2*(ext_data(1)%oce%flux_forc_mon_c(:,jmon2,:,3)-tmelt)
+       !$ACC END KERNELS
 
     END IF
 
@@ -568,19 +638,38 @@ CONTAINS
         &  ' mon1=',jmon1,' mon2=',jmon2,' day1=',rday1,' day2=',rday2
       CALL message (' ', message_text)
     END IF
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     z_c2(:,:)=ext_data(1)%oce%flux_forc_mon_c(:,jmon1,:,1)
+    !$ACC END KERNELS
     CALL dbg_print('FlxFil: Ext data1-u/mon1'  ,z_c2 ,str_module,idt_src, in_subset=patch_2D%cells%owned)
+
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     z_c2(:,:)=ext_data(1)%oce%flux_forc_mon_c(:,jmon2,:,1)
+    !$ACC END KERNELS
     CALL dbg_print('FlxFil: Ext data1-u/mon2'  ,z_c2 ,str_module,idt_src, in_subset=patch_2D%cells%owned)
+
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     z_c2(:,:)=ext_data(1)%oce%flux_forc_mon_c(:,jmon1,:,2)
+    !$ACC END KERNELS
     CALL dbg_print('FlxFil: Ext data2-v/mon1'  ,z_c2 ,str_module,idt_src, in_subset=patch_2D%cells%owned)
+
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     z_c2(:,:)=ext_data(1)%oce%flux_forc_mon_c(:,jmon2,:,2)
+    !$ACC END KERNELS
     CALL dbg_print('FlxFil: Ext data2-v/mon2'  ,z_c2 ,str_module,idt_src, in_subset=patch_2D%cells%owned)
+
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     z_c2(:,:)=ext_data(1)%oce%flux_forc_mon_c(:,jmon1,:,3)
+    !$ACC END KERNELS
     CALL dbg_print('FlxFil: Ext data3-t/mon1'  ,z_c2 ,str_module,idt_src, in_subset=patch_2D%cells%owned)
+
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     z_c2(:,:)=ext_data(1)%oce%flux_forc_mon_c(:,jmon2,:,3)
+    !$ACC END KERNELS
     CALL dbg_print('FlxFil: Ext data3-t/mon2'  ,z_c2 ,str_module,idt_src, in_subset=patch_2D%cells%owned)
     !---------------------------------------------------------------------
+
+    !$ACC END DATA
 
   END SUBROUTINE update_flux_fromFile
 
@@ -599,16 +688,15 @@ CONTAINS
   !! Rewritten by Stephan Lorenz, MPI-M (2015-06).
   !!  Using interface with parameters in order to call budget routine independent of ocean model
 
-  SUBROUTINE calc_omip_budgets_ice(p_patch_3d, geolat, tafoC, ftdewC, fu10, fclou, pao, fswr,                &
+  SUBROUTINE calc_omip_budgets_ice(p_patch_3d, tafoC, ftdewC, fu10, fclou, pao, fswr,                &
     &                              kice, tice, hice, albvisdir, albvisdif, albnirdir, albnirdif, &
     &                              LWnetIce, SWnetIce, sensIce, latentIce,                       &
-    &                              dLWdTIce, dsensdTIce, dlatdTIce)                              
+    &                              dLWdTIce, dsensdTIce, dlatdTIce, use_acc)
 
 
     TYPE(t_patch_3d),         INTENT(IN), TARGET    :: p_patch_3d
     TYPE(t_patch), POINTER:: patch_2D
  !  INPUT variables for OMIP via parameter:
-    REAL(wp), INTENT(in)    :: geolat(:,:)      ! latitude                             [rad]
     REAL(wp), INTENT(in)    :: tafoC(:,:)       ! 2 m air temperature in Celsius       [C]
     REAL(wp), INTENT(in)    :: ftdewC(:,:)      ! 2 m dew point temperature in Celsius [C]
     REAL(wp), INTENT(in)    :: fu10(:,:)        ! 10 m wind speed                      [m/s]
@@ -631,6 +719,8 @@ CONTAINS
     REAL(wp), INTENT(inout) :: dLWdTIce (:,:,:) ! derivitave of LWnetIce w.r.t temperature
     REAL(wp), INTENT(inout) :: dsensdTIce(:,:,:)! derivitave of sensIce w.r.t temperature
     REAL(wp), INTENT(inout) :: dlatdTIce(:,:,:) ! derivitave of latentIce w.r.t temperature
+
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
 
  !  Local variables
  !  REAL(wp), DIMENSION (nproma,patch_2D%alloc_cell_blocks) :: &
@@ -658,16 +748,31 @@ CONTAINS
     INTEGER :: i
     REAL(wp) :: aw,bw,cw,dw,ai,bi,ci,di,AAw,BBw,CCw,AAi,BBi,CCi,alpha,beta
     REAL(wp) :: fvisdir, fvisdif, fnirdir, fnirdif, local_rad2deg
+    LOGICAL  :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     patch_2D         => p_patch_3D%p_patch_2D(1)
 
+    !$ACC DATA CREATE(Tsurf, tafoK, fu10lim, esta, esti, sphumida, sphumidi, rhoair, dragl0) &
+    !$ACC   CREATE(dragl1, dragl, drags, fakts, humi, fa, fi, dsphumididesti, destidT, dfdT) IF(lacc)
+
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     tafoK(:,:)  = tafoC(:,:) + tmelt  ! Change units of tafo  to Kelvin
 
     ! set to zero for NAG
     sphumida(:,:)  = 0.0_wp
+
     fa      (:,:)  = 0.0_wp
+
     esta    (:,:)  = 0.0_wp
+
     rhoair  (:,:)  = 0.0_wp
+    !$ACC END KERNELS
 
     !-----------------------------------------------------------------------
     ! Compute water vapor pressure and specific humididty in 2m height (esta)
@@ -692,9 +797,13 @@ CONTAINS
     alpha=0.62197_wp; beta=0.37803_wp
 
     ! #slo# correction: pressure in enhancement formula is in mb (hPa) according to Buck 1981 and 1996
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     fa(:,:)        = 1.0_wp+AAw+pao*0.01_wp*(BBw+CCw*ftdewC**2)
+
     esta(:,:)      = fa * aw*EXP((bw-ftdewC/dw)*ftdewC/(ftdewC+cw))
+
     sphumida(:,:)  = alpha * esta/(pao-beta*esta)
+    !$ACC END KERNELS
 
     !-----------------------------------------------------------------------
     !  Compute longwave radiation according to
@@ -710,19 +819,25 @@ CONTAINS
     !-----------------------------------------------------------------------
 
     ! Berliand & Berliand ('52) calculate only LWnet
-    humi    = 0.39_wp - 0.05_wp*SQRT(esta/100._wp)
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    humi(:,:) = 0.39_wp - 0.05_wp*SQRT(esta(:,:)/100._wp)
+    !$ACC END KERNELS
 
     ! icon-identical calculation of rad2deg
     local_rad2deg = 180.0_wp / 3.14159265358979323846264338327950288_wp
     ! This is needed for the f-plane planar torus setup
     IF ( patch_2d%geometry_info%geometry_type == planar_torus_geometry &
          & .AND. coriolis_type ==  f_plane_coriolis ) THEN
-      fakts   =  1.0_wp - ( 0.5_wp + 0.4_wp/90._wp &
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      fakts(:,:) =  1.0_wp - ( 0.5_wp + 0.4_wp/90._wp &
            &         *MIN(ABS(coriolis_fplane_latitude ),60._wp) ) * fclou(:,:)**2
+      !$ACC END KERNELS
     ELSE
-    fakts   =  1.0_wp - ( 0.5_wp + 0.4_wp/90._wp &
-      &         *MIN(ABS(local_rad2deg*geolat(:,:)),60._wp) ) * fclou(:,:)**2
-      !   &         *MIN(ABS(rad2deg*patch_2D%cells%center(:,:)%lat),60._wp) ) * fclou(:,:)**2
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      fakts(:,:) =  1.0_wp - ( 0.5_wp + 0.4_wp/90._wp &
+           &         *MIN(ABS(local_rad2deg*patch_2D%cells%center(:,:)%lat),60._wp) ) * fclou(:,:)**2
+      !$ACC END KERNELS
+      !    &         *MIN(ABS(rad2deg*patch_2D%cells%center(:,:)%lat),60._wp) ) * fclou(:,:)**2
     ENDIF
 
     !-----------------------------------------------------------------------
@@ -734,22 +849,31 @@ CONTAINS
 
     ! with nag there is floating invalid operation on rest of last nproma-block only due to pao=nan
     ! rhoair(:,:) = pao(:,:) / (rd*tafoK(:,:)*(1.0_wp+0.61_wp*sphumida(:,:)) ) !  error with nag
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     WHERE (pao(:,:)>0.0_wp) rhoair(:,:) = pao(:,:) / (rd*tafoK(:,:)*(1.0_wp+0.61_wp*sphumida(:,:)) )
+    !$ACC END KERNELS
 
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     fu10lim(:,:)    = MAX (2.5_wp, MIN(32.5_wp,fu10(:,:)) )
+
     dragl1(:,:)     = 1e-3_wp*(-0.0154_wp + 0.5698_wp/fu10lim(:,:) &
       &               - 0.6743_wp/(fu10lim(:,:) * fu10lim(:,:)))
+
     dragl0(:,:)     = 1e-3_wp*(0.8195_wp+0.0506_wp*fu10lim(:,:) &
       &               - 0.0009_wp*fu10lim(:,:)*fu10lim(:,:))
+    !$ACC END KERNELS
 
     ! Fractions of SWin in each band (from cice)
     fvisdir=0.28_wp; fvisdif=0.24_wp; fnirdir=0.31_wp; fnirdif=0.17_wp
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     Tsurf(:,:) = 0.0_wp ! For debug output
+    !$ACC END KERNELS
 
     ! Over sea ice area only
     !  TODO: in case of no ice model, ice variables cannot be used here
     !  ice classes: currently one class (kice=1) is used, therefore formulation can be simplified to 2-dim variables as in mpiom
     DO i = 1, kice
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       WHERE (hice(:,i,:)>0._wp)
         
         !  albedo model: atmos_fluxes%albvisdir, albvisdif, albnirdir, albnirdif
@@ -793,8 +917,10 @@ CONTAINS
           &                    - dragl(:,:)*dsphumididesti(:,:)*(fi(:,:)*destidT(:,:) &
           &                    + esti(:,:)*dfdT(:,:)) )
       ENDWHERE
+      !$ACC END KERNELS
     ENDDO
 
+    !$ACC END DATA
 
   END SUBROUTINE calc_omip_budgets_ice
 
@@ -807,12 +933,13 @@ CONTAINS
   !! Initial release by Stephan Lorenz, MPI-M (2012-08). Originally code written by
   !! Dirk Notz, following MPIOM. Code transfered to ICON.
 
-  SUBROUTINE calc_omip_budgets_oce(p_patch_3d, p_as, p_os, p_ice, atmos_fluxes)
+  SUBROUTINE calc_omip_budgets_oce(p_patch_3d, p_as, p_os, p_ice, atmos_fluxes, use_acc)
     TYPE(t_patch_3d),         INTENT(IN), TARGET    :: p_patch_3d
     TYPE(t_atmos_for_ocean),  INTENT(IN)    :: p_as
     TYPE(t_hydro_ocean_state),INTENT(IN)    :: p_os
     TYPE (t_sea_ice),         INTENT(IN)    :: p_ice
     TYPE(t_atmos_fluxes),     INTENT(INOUT) :: atmos_fluxes
+    LOGICAL, INTENT(IN), OPTIONAL           :: use_acc
 
  !  INPUT variables:
  !  p_as%tafo(:,:),      : 2 m air temperature                              [C]
@@ -860,15 +987,29 @@ CONTAINS
 
     TYPE(t_patch), POINTER:: patch_2D
     TYPE(t_subset_range), POINTER :: all_cells
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     patch_2D         => p_patch_3D%p_patch_2D(1)
-
-    Tsurf(:,:)  = p_os%p_prog(nold(1))%tracer(:,1,:,1)  ! set surface temp = mixed layer temp
-    tafoK(:,:)  = p_as%tafo(:,:)  + tmelt               ! Change units of tafo  to Kelvin
-    ftdewC(:,:) = p_as%ftdew(:,:) - tmelt               ! Change units of ftdew to Celsius
-
     ! subset range pointer
     all_cells => patch_2D%cells%all
+
+    !$ACC DATA CREATE(Tsurf, tafoK, fu10lim, esta, estw, sphumida, sphumidw, ftdewC, rhoair) &
+    !$ACC   CREATE(dragl0, dragl1, dragl, drags, fakts, humi, fa, fw) &
+    !$ACC   IF(lacc)
+
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    Tsurf(:,:)  = p_os%p_prog(nold(1))%tracer(:,1,:,1)  ! set surface temp = mixed layer temp
+
+    tafoK(:,:)  = p_as%tafo(:,:)  + tmelt               ! Change units of tafo  to Kelvin
+
+    ftdewC(:,:) = p_as%ftdew(:,:) - tmelt               ! Change units of ftdew to Celsius
+    !$ACC END KERNELS
 
     !-----------------------------------------------------------------------
     ! Compute water vapor pressure and specific humididty in 2m height (esta)
@@ -885,20 +1026,28 @@ CONTAINS
     aw    = 611.21_wp; bw    = 18.678_wp;  cw  = 257.14_wp; dw = 234.5_wp
 
     ! #slo# correction: pressure in enhancement formula is in mb (hPa) according to Buck 1981 and 1996
-   !fa(:,:)   = 1.0_wp+AAw+p_as%pao(:,:)*(BBw+CCw*ftdewC(:,:)**2)
+    !fa(:,:)   = 1.0_wp+AAw+p_as%pao(:,:)*(BBw+CCw*ftdewC(:,:)**2)
+
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     fa(:,:)   = 1.0_wp+AAw+p_as%pao(:,:)*0.01_wp*(BBw+CCw*ftdewC(:,:)**2)
     esta(:,:) = fa(:,:) * aw*EXP((bw-ftdewC(:,:)/dw)*ftdewC(:,:)/(ftdewC(:,:)+cw))
-   !esta(:,:) =           aw*EXP((bw-ftdewC(:,:)/dw)*ftdewC(:,:)/(ftdewC(:,:)+cw))
-   !fw(:,:)   = 1.0_wp+AAw+p_as%pao(:,:)*(BBw+CCw*Tsurf(:,:) **2)
+
+    !esta(:,:) =           aw*EXP((bw-ftdewC(:,:)/dw)*ftdewC(:,:)/(ftdewC(:,:)+cw))
+    !fw(:,:)   = 1.0_wp+AAw+p_as%pao(:,:)*(BBw+CCw*Tsurf(:,:) **2)
+
     fw(:,:)   = 1.0_wp+AAw+p_as%pao(:,:)*0.01_wp*(BBw+CCw*Tsurf(:,:) **2)
-   !estw(:,:) = fw(:,:) *aw*EXP((bw-Tsurf(:,:) /dw)*Tsurf(:,:) /(Tsurf(:,:) +cw))
+
+    !estw(:,:) = fw(:,:) *aw*EXP((bw-Tsurf(:,:) /dw)*Tsurf(:,:) /(Tsurf(:,:) +cw))
     ! For a given surface salinity we should multiply estw with  1 - 0.000537*S
     ! #slo# correction according to MPIOM: lowering of saturation vapor pressure over saline water
     !       is taken constant to 0.9815
+
     estw(:,:) = 0.9815_wp*fw(:,:)*aw*EXP((bw-Tsurf(:,:) /dw)*Tsurf(:,:) /(Tsurf(:,:) +cw))
 
     sphumida(:,:)  = alpha * esta(:,:)/(p_as%pao(:,:)-beta*esta(:,:))
+
     sphumidw(:,:)  = alpha * estw(:,:)/(p_as%pao(:,:)-beta*estw(:,:))
+    !$ACC END KERNELS
 
     !-----------------------------------------------------------------------
     !  Compute longwave radiation according to
@@ -913,25 +1062,34 @@ CONTAINS
     !  the default usage).
     !-----------------------------------------------------------------------
 
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     humi(:,:)    = 0.39_wp - 0.05_wp*SQRT(esta(:,:)/100._wp)
+    !$ACC END KERNELS
 
     ! This is needed for the f-plane planar torus setup
     IF ( patch_2d%geometry_info%geometry_type == planar_torus_geometry &
          & .AND. coriolis_type ==  f_plane_coriolis ) THEN
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     fakts(:,:)   =  1.0_wp - ( 0.5_wp + 0.4_wp/90._wp &
            &         *MIN(ABS(coriolis_fplane_latitude),60._wp) ) * p_as%fclou(:,:)**2
+    !$ACC END KERNELS
     ! Berliand & Berliand ('52) calculate only LWnetw
 
     ELSE
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       fakts(:,:)   =  1.0_wp - ( 0.5_wp + 0.4_wp/90._wp &
            &         *MIN(ABS(rad2deg*patch_2D%cells%center(:,:)%lat),60._wp) ) * p_as%fclou(:,:)**2
+      !$ACC END KERNELS
       ! Berliand & Berliand ('52) calculate only LWnetw
     ENDIF
 
     ! #eoo# 2012-12-14: another bugfix
     ! #slo# #hha# 2012-12-13: bugfix, corrected form
+
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     atmos_fluxes%LWnetw(:,:) = - fakts(:,:) * humi(:,:) * zemiss_def*stbo * tafoK(:,:)**4  &
       &                - 4._wp*zemiss_def*stbo*tafoK(:,:)**3 * (Tsurf(:,:) - p_as%tafo(:,:))
+
     ! same form as MPIOM:
     !atmos_fluxes%LWnetw(:,:) = - (fakts(:,:) * humi(:,:) * zemiss_def*stbo * tafoK(:,:)**4  &
     !  &         + 4._wp*zemiss_def*stbo*tafoK(:,:)**3 * (Tsurf(:,:) - p_as%tafo(:,:)))
@@ -945,6 +1103,7 @@ CONTAINS
       &                ( 1._wp-atmos_fluxes%albvisdifw(:,:) )*fvisdif*p_as%fswr(:,:) +   &
       &                ( 1._wp-atmos_fluxes%albnirdirw(:,:) )*fnirdir*p_as%fswr(:,:) +   &
       &                ( 1._wp-atmos_fluxes%albnirdifw(:,:) )*fnirdif*p_as%fswr(:,:)
+    !$ACC END KERNELS
 
     !-----------------------------------------------------------------------
     !  Calculate bulk equations according to
@@ -953,34 +1112,50 @@ CONTAINS
     !      Met., 103(3), 439-458, doi: 10.1023/A:1014945408605.
     !-----------------------------------------------------------------------
 
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     rhoair(:,:) = 0._wp
+    !$ACC END KERNELS
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jc = i_startidx_c,i_endidx_c
 
         rhoair(jc,jb) = p_as%pao(jc,jb)                &
           &            /(rd*tafoK(jc,jb)*(1.0_wp+0.61_wp*sphumida(jc,jb)) )
 
       END DO
+      !$ACC END PARALLEL LOOP
     END DO
 
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     fu10lim(:,:)    = MAX (2.5_wp, MIN(32.5_wp,p_as%fu10(:,:)) )
+
     dragl1(:,:)     = 1e-3_wp*(-0.0154_wp + 0.5698_wp/fu10lim(:,:) &
       &               - 0.6743_wp/(fu10lim(:,:) * fu10lim(:,:)))
+
     dragl0(:,:)     = 1e-3_wp*(0.8195_wp+0.0506_wp*fu10lim(:,:) &
       &               - 0.0009_wp*fu10lim(:,:)*fu10lim(:,:))
+
     dragl(:,:)      = dragl0(:,:) + dragl1(:,:) * (Tsurf(:,:)-p_as%tafo(:,:))
+
     ! A reasonable maximum and minimum is needed for dragl in case there's a large difference
     ! between the 2-m and surface temperatures.
+
     dragl(:,:)      = MAX(0.5e-3_wp, MIN(3.0e-3_wp,dragl(:,:)))
+
     drags(:,:)      = 0.95_wp * dragl(:,:)
+
     atmos_fluxes%sensw(:,:) = drags(:,:)*rhoair(:,:)*cpd*p_as%fu10(:,:) * fr_fac &
       &               * (p_as%tafo(:,:) -Tsurf(:,:))
+
     atmos_fluxes%latw(:,:)  = dragl(:,:)*rhoair(:,:)*alv*p_as%fu10(:,:) * fr_fac &
       &               * (sphumida(:,:)-sphumidw(:,:))
+    !$ACC END KERNELS
 
     ! wind stress over ice and open water
-    CALL surface_stress(p_patch_3d, p_as, p_os, p_ice, atmos_fluxes, rhoair)
+    CALL surface_stress(p_patch_3d, p_as, p_os, p_ice, atmos_fluxes, rhoair, use_acc=lacc)
+
+    !$ACC END DATA
 
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     idt_src=4  ! output print level (1-5          , fix)
@@ -1015,13 +1190,14 @@ CONTAINS
 
 
 
-  SUBROUTINE surface_stress(p_patch_3d, p_as, p_os, p_ice, atmos_fluxes, rhoair)
+  SUBROUTINE surface_stress(p_patch_3d, p_as, p_os, p_ice, atmos_fluxes, rhoair, use_acc)
     TYPE(t_patch_3d),         INTENT(IN), TARGET    :: p_patch_3d
     TYPE(t_atmos_for_ocean),  INTENT(IN)    :: p_as
     TYPE(t_hydro_ocean_state),INTENT(IN)    :: p_os
     TYPE(t_sea_ice),          INTENT(IN)    :: p_ice
     TYPE(t_atmos_fluxes),     INTENT(INOUT) :: atmos_fluxes
-	REAL(wp), INTENT(IN)                 	:: rhoair(:,:)	
+    REAL(wp), INTENT(IN)                    :: rhoair(:,:)
+    LOGICAL, INTENT(IN), OPTIONAL           :: use_acc
 
 !  Local variables
 
@@ -1031,42 +1207,65 @@ CONTAINS
 
     REAL(wp) :: u_for_stress(nproma, p_patch_3D%p_patch_2D(1)%alloc_cell_blocks), &
                 v_for_stress(nproma, p_patch_3D%p_patch_2D(1)%alloc_cell_blocks)
+    LOGICAL  :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    !$ACC DATA CREATE(u_for_stress, v_for_stress, wspeed, C_ao) IF(lacc)
 
     ! wind stress over ice and open water
     SELECT CASE (bulk_wind_stress_type)
 
     CASE(wind_stress_from_file)
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       atmos_fluxes%stress_xw(:,:) = p_as%topBoundCond_windStress_u(:,:)
+
       atmos_fluxes%stress_yw(:,:) = p_as%topBoundCond_windStress_v(:,:)
 
       atmos_fluxes%stress_x(:,:) = p_as%topBoundCond_windStress_u(:,:) ! over ice
-      atmos_fluxes%stress_y(:,:) = p_as%topBoundCond_windStress_v(:,:) ! over ice
 
+      atmos_fluxes%stress_y(:,:) = p_as%topBoundCond_windStress_v(:,:) ! over ice
+      !$ACC END KERNELS
     CASE(wind_stress_type_noocean) ! no ocean velocities
       !-----------------------------------------------------------------------
       !  Calculate oceanic wind stress according to:
       !   Gill (Atmosphere-Ocean Dynamics, 1982, Academic Press) (see also Smith, 1980, J. Phys
       !   Oceanogr., 10, 709-726)
       !-----------------------------------------------------------------------
-
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       wspeed(:,:) = SQRT( p_as%u**2 + p_as%v**2 )
+
       C_ao(:,:)   = MIN( 2._wp, MAX(1.1_wp, 0.61_wp+0.063_wp*wspeed ) )*1e-3_wp
+
       atmos_fluxes%stress_xw(:,:) = C_ao(:,:)*rhoair(:,:)*wspeed(:,:)*p_as%u(:,:)! over water
+
       atmos_fluxes%stress_yw(:,:) = C_ao(:,:)*rhoair(:,:)*wspeed(:,:)*p_as%v(:,:)! over water
 
       atmos_fluxes%stress_x(:,:) = Cd_ia     *rhoair(:,:)*wspeed(:,:)*p_as%u(:,:)! over ice
-      atmos_fluxes%stress_y(:,:) = Cd_ia     *rhoair(:,:)*wspeed(:,:)*p_as%v(:,:)! over ice
 
+      atmos_fluxes%stress_y(:,:) = Cd_ia     *rhoair(:,:)*wspeed(:,:)*p_as%v(:,:)! over ice
+      !$ACC END KERNELS
     CASE(wind_stress_type_ocean) ! with ocean/sea ice velocities
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       u_for_stress = p_as%u - p_os%p_diag%u(:,1,:)
+
       v_for_stress = p_as%v - p_os%p_diag%v(:,1,:)
 
       wspeed(:,:) = SQRT( u_for_stress**2 + v_for_stress**2 )
+
       C_ao(:,:)   = MIN( 2._wp, MAX(1.1_wp, 0.61_wp+0.063_wp*wspeed ) )*1e-3_wp
+
       atmos_fluxes%stress_xw(:,:) = C_ao(:,:)*rhoair(:,:)*wspeed(:,:)*u_for_stress(:,:)! over water
+
       atmos_fluxes%stress_yw(:,:) = C_ao(:,:)*rhoair(:,:)*wspeed(:,:)*v_for_stress(:,:)! over water
+      !$ACC END KERNELS
 
 !     calculate wind stress over ice with sea ice velocity
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       WHERE (p_patch_3d%wet_c(:,1,:) .GT. 0.5_wp)
         u_for_stress = p_as%u - p_ice%u(:,:)
         v_for_stress = p_as%v - p_ice%v(:,:)
@@ -1074,13 +1273,20 @@ CONTAINS
         u_for_stress = p_as%u
         v_for_stress = p_as%v
       END WHERE
+      !$ACC END KERNELS
+
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       atmos_fluxes%stress_x(:,:) = Cd_ia     *rhoair(:,:)*wspeed(:,:)*u_for_stress(:,:)! over ice
+
       atmos_fluxes%stress_y(:,:) = Cd_ia     *rhoair(:,:)*wspeed(:,:)*v_for_stress(:,:)! over ice
+      !$ACC END KERNELS
 
     CASE default
       CALL finish("surface_stress", "unknown wind_stress_type")
 
     END SELECT
+
+    !$ACC END DATA
 
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     idt_src=4  ! output print level (1-5          , fix)
@@ -1122,13 +1328,14 @@ CONTAINS
   ! difference of ice and ocean velocities determines ocean stress below sea ice
   ! resulting stress on ocean surface is stored in atmos_fluxes%topBoundCond_windStress_u
 
-  SUBROUTINE update_ocean_surface_stress(p_patch_3D, p_ice, p_os, atmos_fluxes, p_oce_sfc)
+  SUBROUTINE update_ocean_surface_stress(p_patch_3D, p_ice, p_os, atmos_fluxes, p_oce_sfc, use_acc)
 
     TYPE(t_patch_3d),TARGET,  INTENT(IN)    :: p_patch_3D
     TYPE(t_sea_ice),          INTENT(IN)    :: p_ice
     TYPE(t_hydro_ocean_state),INTENT(IN)    :: p_os
     TYPE (t_atmos_fluxes),    INTENT(IN)    :: atmos_fluxes
-    TYPE (t_ocean_surface),   INTENT(INOUT)   :: p_oce_sfc
+    TYPE (t_ocean_surface),   INTENT(INOUT) :: p_oce_sfc
+    LOGICAL, INTENT(IN), OPTIONAL           :: use_acc
 
  !  INPUT variables:
  !  p_ice%u(:,:),               : zonal ice velocity on centre                  [m/s]
@@ -1155,6 +1362,13 @@ CONTAINS
     TYPE(t_subset_range), POINTER :: all_cells
     ! Indexing
     INTEGER  :: i_startidx_c, i_endidx_c, jc, jb
+    LOGICAL  :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
 !--------------------------------------------------------------------------------------------------
     patch_2D         => p_patch_3D%p_patch_2D(1)
@@ -1173,6 +1387,7 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc, delu, delv, delabs) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(delu, delv, delabs) IF(lacc)
         DO jc = i_startidx_c, i_endidx_c
           delu = p_ice%u(jc,jb) - p_os%p_diag%u(jc,1,jb)
           delv = p_ice%v(jc,jb) - p_os%p_diag%v(jc,1,jb)
@@ -1183,14 +1398,17 @@ CONTAINS
           p_oce_sfc%TopBC_WindStress_v(jc,jb) = atmos_fluxes%stress_yw(jc,jb)*( 1._wp - p_ice%concSum(jc,jb) )   &
             &                                       + drag_coeff*delabs*delv * p_ice%concSum(jc,jb)
         ENDDO
+        !$ACC END PARALLEL LOOP
       ENDDO
 !ICON_OMP_END_PARALLEL_DO
 
     ELSE   !  sea ice is off
 
       ! apply wind stress directly
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
       p_oce_sfc%TopBC_WindStress_u(:,:) = atmos_fluxes%stress_xw(:,:)
       p_oce_sfc%TopBC_WindStress_v(:,:) = atmos_fluxes%stress_yw(:,:)
+      !$ACC END KERNELS
 
     ENDIF
 
@@ -1200,6 +1418,7 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jc = i_startidx_c, i_endidx_c
         IF(p_patch_3D%lsm_c(jc,1,jb) <= sea_boundary)THEN
           CALL gvec2cvec(  p_oce_sfc%TopBC_WindStress_u(jc,jb),&
@@ -1216,6 +1435,7 @@ CONTAINS
           p_oce_sfc%TopBC_WindStress_cc(jc,jb)%x      = 0.0_wp
         ENDIF
       END DO
+      !$ACC END PARALLEL LOOP
     END DO
 !ICON_OMP_END_PARALLEL_DO
 
@@ -1243,12 +1463,13 @@ CONTAINS
   !! Initial revision by Stephan Lorenz, MPI (2013-04)
   !!
   !!
-  SUBROUTINE balance_elevation (p_patch_3D, h_old,p_oce_sfc,p_ice)
+  SUBROUTINE balance_elevation (p_patch_3D, h_old, p_oce_sfc, p_ice, use_acc)
 
     TYPE(t_patch_3D ),TARGET, INTENT(IN)    :: p_patch_3D
     REAL(wp), INTENT(INOUT)                 :: h_old(1:nproma,1:p_patch_3D%p_patch_2D(1)%alloc_cell_blocks)
     TYPE(t_ocean_surface) , INTENT(INOUT)   :: p_oce_sfc
     TYPE(t_sea_ice),INTENT(IN)              :: p_ice
+    LOGICAL, INTENT(IN), OPTIONAL           :: use_acc
 
     TYPE(t_patch), POINTER                  :: patch_2D
     TYPE(t_subset_range), POINTER           :: all_cells, owned_cells
@@ -1257,13 +1478,24 @@ CONTAINS
     INTEGER  :: jc, jb 
     REAL(wp) :: ocean_are, glob_slev, corr_slev , hold_b,hnew_a
     REAL(wp) :: h_mean, h_total
+    LOGICAL  :: lacc
 
-    patch_2D         => p_patch_3D%p_patch_2D(1)
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    patch_2D        => p_patch_3D%p_patch_2D(1)
     all_cells       => patch_2D%cells%all
     owned_cells     => patch_2D%cells%owned
  
     ! parallelize correctly
     ocean_are = p_patch_3D%p_patch_1D(1)%ocean_area(1)
+    ! global_sum_array function does not currently works for G2G communication
+    !$ACC UPDATE HOST(patch_2D%cells%area) IF(lacc .and. acc_is_present(patch_2D%cells%area))
+    !$ACC UPDATE HOST(h_old) IF(lacc .and. acc_is_present(h_old))
+    !$ACC UPDATE HOST(p_patch_3D%wet_halo_zero_c) IF(lacc .and. acc_is_present(p_patch_3D%wet_halo_zero_c))
     glob_slev = global_sum_array(patch_2D%cells%area(:,:)*h_old(:,:)*p_patch_3D%wet_halo_zero_c(:,1,:))
     corr_slev = glob_slev/ocean_are
 
@@ -1273,6 +1505,7 @@ CONTAINS
 
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(hold_b, hnew_a) IF(lacc)
       DO jc =  i_startidx_c, i_endidx_c
         IF ( p_patch_3D%lsm_c(jc,1,jb) <= sea_boundary ) THEN
           ! subtract or scale?
@@ -1287,6 +1520,7 @@ CONTAINS
           !h_old(jc,jb) = h_old(jc,jb) - h_old(jc,jb)*corr_slev
         END IF
       END DO
+      !$ACC END PARALLEL LOOP
     END DO
 
     IF (check_total_volume) THEN
@@ -1306,13 +1540,13 @@ CONTAINS
   !!
   !! Adapted for zstar
   !!
-  SUBROUTINE balance_elevation_zstar (p_patch_3D, eta_c, p_oce_sfc, stretch_c)
+  SUBROUTINE balance_elevation_zstar (p_patch_3D, eta_c, p_oce_sfc, stretch_c, use_acc)
 
     TYPE(t_patch_3D ),TARGET, INTENT(IN)    :: p_patch_3D
     REAL(wp), INTENT(INOUT) :: eta_c(nproma, p_patch_3d%p_patch_2d(1)%alloc_cell_blocks) !! sfc ht 
     TYPE(t_ocean_surface) , INTENT(INOUT)   :: p_oce_sfc
     REAL(wp), INTENT(IN) :: stretch_c(nproma, p_patch_3d%p_patch_2d(1)%alloc_cell_blocks) !! sfc ht 
-
+    LOGICAL, INTENT(IN), OPTIONAL           :: use_acc
 
     TYPE(t_patch), POINTER                  :: p_patch
     TYPE(t_subset_range), POINTER           :: all_cells
@@ -1320,13 +1554,25 @@ CONTAINS
     INTEGER  :: i_startidx_c, i_endidx_c
     INTEGER  :: jc, jb, bt_lev
     REAL(wp) :: ocean_are, glob_slev, corr_slev, temp_stretch, d_c
-    INTEGER  :: idt_src       
+    INTEGER  :: idt_src
+    LOGICAL  :: lacc
+    CHARACTER(len=*), PARAMETER :: routine = 'balance_elevation_zstar'
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     p_patch         => p_patch_3D%p_patch_2D(1)
     all_cells       => p_patch%cells%all
- 
+
     ! parallelize correctly
     ocean_are = p_patch_3D%p_patch_1D(1)%ocean_area(1)
+    ! global_sum_array function does not currently works for G2G communication
+    !$ACC UPDATE HOST(p_patch%cells%area) IF(lacc .and. acc_is_present(p_patch%cells%area))
+    !$ACC UPDATE HOST(eta_c) IF(lacc .and. acc_is_present(eta_c))
+    !$ACC UPDATE HOST(p_patch_3D%wet_halo_zero_c) IF(lacc .and. acc_is_present(p_patch_3D%wet_halo_zero_c))
     glob_slev = global_sum_array(p_patch%cells%area(:,:)*eta_c(:,:)*p_patch_3D%wet_halo_zero_c(:,1,:))
     corr_slev = glob_slev/ocean_are
 
@@ -1336,6 +1582,7 @@ CONTAINS
 
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(d_c, temp_stretch) IF(lacc)
       DO jc =  i_startidx_c, i_endidx_c
         IF ( p_patch_3D%lsm_c(jc,1,jb) <= sea_boundary ) THEN
           ! subtract or scale?
@@ -1351,6 +1598,7 @@ CONTAINS
 
         END IF
       END DO
+      !$ACC END PARALLEL LOOP
     END DO
 
   END SUBROUTINE balance_elevation_zstar

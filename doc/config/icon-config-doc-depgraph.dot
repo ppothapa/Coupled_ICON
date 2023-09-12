@@ -1,25 +1,31 @@
 digraph ICON {
 
-	node [style=filled; shape=oval; fontname="italic"; fillcolor="#79C547"];
+	node [style=filled; shape=oval; fillcolor="#79C547"];
 
 	subgraph clusterMain {
 
 		graph [peripheries=0];
 
 		"ICON" [shape=box; fillcolor=white; fontsize=20; penwidth=2.0];
-		"ICON" -> {"STDC++"; "CUDA"; "CUB"; "MPI"; "NetCDF-Fortran"; "RTE+RRTMGP";
-			       "ECRAD"; "RTTOV"; "SCT"; "YAXT"; "CDI"; "SERIALBOX";
-			       "MTIME"; "BLAS"; "LAPACK"; "YAC"; "ICON-TIXI";
-			       "ECCODES"; "HDF5"; "ZLIB"};
+		"ICON" -> {"STDC++"; "CUDA"; "ROCm"; "MPI"; "ZLIB"; "HDF5";
+			       "NetCDF-Fortran"; "RTE+RRTMGP"; "ECRAD"; "BLAS";
+			       "LAPACK"; "RTTOV"; "SCT"; "YAXT"; "ECCODES";
+			       "CDI"; "SERIALBOX"; "MTIME"; "YAC"; "ICON-TIXI"};
 
 		"STDC++";
 
 		"CUDA";
+		"CUDA" -> {"STDC++"};
 
-		"CUB" [shape=box];
-		"CUB" -> {"CUDA"; "STDC++"};
+		"ROCm";
+		"ROCm" -> {"STDC++"; "CUDA"};
 
 		"MPI";
+
+		"ZLIB";
+
+		"HDF5";
+		"HDF5" -> {"MPI"; "ZLIB"; "AEC / SZIP"};
 
 		"NetCDF-Fortran" [shape=oval; fillcolor="#47A1F1"]
 		"NetCDF-Fortran" -> {"NetCDF-C"};
@@ -29,8 +35,13 @@ digraph ICON {
 		"ECRAD" [shape=box];
 		"ECRAD" -> {"NetCDF-Fortran"};
 
+		"BLAS" [fillcolor="#47A1F1"];
+
+		"LAPACK" [fillcolor="#47A1F1"];
+		"LAPACK" -> {"BLAS"};
+
 		"RTTOV";
-		"RTTOV" -> {"NetCDF-Fortran"; "LAPACK"; "HDF5"};
+		"RTTOV" -> {"HDF5"; "NetCDF-Fortran"; "LAPACK"};
 
 		"SCT" [shape=box];
 		"SCT" -> {"MPI"; "HDF5"};
@@ -38,41 +49,34 @@ digraph ICON {
 		"YAXT" [shape=box];
 		"YAXT" -> {"MPI"};
 
-		"CDI" [shape=box; fillcolor="#47A1F1"];
-		"CDI" -> {"MPI"; "YAXT"; "PPM"; "ECCODES"; "NetCDF-C"; "AEC / SZIP"};
+		"ECCODES";
+		"ECCODES" -> {"AEC / SZIP"};
 
-		"PPM" [shape=box; fillcolor="#DEF1D1"];
-		"PPM" -> {"MPI"};
+		"CDI" [shape=box; fillcolor="#47A1F1"];
+		"CDI" -> {"MPI"; "YAXT"; "ECCODES"; "AEC / SZIP"; "NetCDF-C"; "PPM"};
 
 		"SERIALBOX";
 		"SERIALBOX" -> {"STDC++"; "NetCDF-C"};
 
 		"MTIME" [shape=box; fillcolor="#47A1F1"];
 
-		"BLAS" [fillcolor="#47A1F1"];
-
-		"LAPACK" [fillcolor="#47A1F1"];
-		"LAPACK" -> {"BLAS"};
-
 		"YAC" [shape=box];
-		"YAC" -> {"MPI"; "YAXT"; "MTIME"; "LAPACK"; "NetCDF-C"; "XML2"};
+		"YAC" -> {"MPI"; "LAPACK"; "YAXT"; "MTIME"; "NetCDF-C"; "FYAML"};
 
 		"ICON-TIXI" [shape=box];
 		"ICON-TIXI" -> {"XML2"};
 
-		"ECCODES";
-		"ECCODES" -> {"AEC / SZIP"};
-
-		"HDF5";
-		"HDF5" -> {"MPI"; "ZLIB"; "AEC / SZIP"};
-
-		"ZLIB";
-
-		"NetCDF-C" [fillcolor="#D1E8FC"];
-		"NetCDF-C" -> {"HDF5"; "ZLIB"};
-
 		"AEC / SZIP" [fillcolor="#DEF1D1"];
 		"AEC / SZIP";
+
+		"NetCDF-C" [fillcolor="#D1E8FC"];
+		"NetCDF-C" -> {"ZLIB"; "HDF5"};
+
+		"PPM" [shape=box; fillcolor="#DEF1D1"];
+		"PPM" -> {"MPI"; "NetCDF-Fortran"};
+
+		"FYAML" [fillcolor="#D1E8FC"];
+		"FYAML";
 
 		"XML2" [fillcolor="#D1E8FC"];
 		"XML2" -> {"ZLIB"};

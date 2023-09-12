@@ -47,10 +47,19 @@ CONTAINS
   END SUBROUTINE lhs_primal_flip_flop_construct
 
 ! apply operator to vector x
-  SUBROUTINE lhs_primal_flip_flop_wp(this, x, ax)
+  SUBROUTINE lhs_primal_flip_flop_wp(this, x, ax, use_acc)
     CLASS(t_primal_flip_flop_lhs), INTENT(INOUT) :: this
     REAL(KIND=wp), INTENT(IN) :: x(:,:)
     REAL(KIND=wp), INTENT(OUT) ::ax(:,:)
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+      CALL finish("lhs_primal_flip_flop_wp()", "OpenACC version not implemented yet")
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     IF(.NOT.this%is_init .OR. this%jk .EQ. solve_invalid) &
       CALL finish("lhs_primal_flip_flop_wp()", "not correctly initialized")

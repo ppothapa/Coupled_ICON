@@ -29,7 +29,10 @@ MODULE mo_ocean_ab_timestepping
   USE mo_ocean_physics_types,            ONLY: t_ho_params
   USE mo_ocean_types,                    ONLY: t_hydro_ocean_state, t_operator_coeff, t_solverCoeff_singlePrecision
   USE mo_exception,                      ONLY: finish!, message_text
-  
+#ifdef _OPENACC
+  USE mo_mpi,                            ONLY: i_am_accel_node
+#endif
+
 IMPLICIT NONE
 
 PRIVATE
@@ -65,7 +68,7 @@ CONTAINS
     TYPE(t_operator_coeff), INTENT(IN), TARGET :: op_coeffs
     TYPE(t_solverCoeff_singlePrecision), INTENT(in), TARGET :: solverCoeff_sp
     INTEGER :: return_status
-    
+
     IF(discretization_scheme==MIMETIC_TYPE)THEN
 
       CALL solve_free_sfc_ab_mimetic( patch_3D, ocean_state, external_data, p_as, p_oce_sfc, &
@@ -87,18 +90,26 @@ CONTAINS
   !!
 !<Optimize:inUse>
   SUBROUTINE calc_normal_velocity_ab(patch_3D, ocean_state, operators_coefficients, &
-    & solverCoeff_sp, external_data, physics_parameters)
+    & solverCoeff_sp, external_data, physics_parameters, use_acc)
     TYPE(t_patch_3D ),TARGET, INTENT(IN) :: patch_3D
     TYPE(t_hydro_ocean_state), TARGET    :: ocean_state
     TYPE(t_operator_coeff), INTENT(IN) :: operators_coefficients
     TYPE(t_solverCoeff_singlePrecision), INTENT(in) :: solverCoeff_sp
     TYPE(t_external_data), TARGET        :: external_data
     TYPE (t_ho_params)                   :: physics_parameters
+
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
     !-----------------------------------------------------------------------
     IF(discretization_scheme==MIMETIC_TYPE)THEN
-
-      CALL calc_normal_velocity_ab_mimetic(patch_3D, ocean_state, operators_coefficients)
-
+      CALL calc_normal_velocity_ab_mimetic(patch_3D, ocean_state, operators_coefficients, use_acc = lacc)
     ELSE
       CALL finish ('calc_normal_velocity_ab: ',' Discreization type not supported !!')
     ENDIF
@@ -119,20 +130,29 @@ CONTAINS
   !! Developed  by  Peter Korn,   MPI-M (2006).
   !!
 !<Optimize:inUse>
-  SUBROUTINE calc_vert_velocity(patch_3D, ocean_state, operators_coefficients)
+  SUBROUTINE calc_vert_velocity(patch_3D, ocean_state, operators_coefficients, use_acc)
     TYPE(t_patch_3D ),TARGET, INTENT(IN) :: patch_3D
     TYPE(t_hydro_ocean_state)            :: ocean_state
     TYPE(t_operator_coeff), INTENT(IN) :: operators_coefficients
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
+    LOGICAL :: lacc
      !-----------------------------------------------------------------------
 
     !Store current vertical velocity before the new one is calculated
     ocean_state%p_diag%w_old = ocean_state%p_diag%w
 
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
     IF(discretization_scheme==MIMETIC_TYPE)THEN
 
-      CALL calc_vert_velocity_mim_bottomup( patch_3D,     &
-                                  & ocean_state,                   &
-                                  & operators_coefficients )
+      CALL calc_vert_velocity_mim_bottomup( patch_3D,       &
+                                  & ocean_state,            &
+                                  & operators_coefficients, &
+                                  & use_acc = lacc )
 
     ELSE
       CALL finish ('calc_vert_velocity: ',' Discretization type not supported !!')

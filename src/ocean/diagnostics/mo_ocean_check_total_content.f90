@@ -184,7 +184,7 @@ CONTAINS
 
   !-------------------------------------------------------------------------
  SUBROUTINE calc_total_salt_content(so, patch_2d, h, thickness, ice, im, &
-                  total_salt, total_saltinseaice, total_saltinliquidwater)
+                  total_salt, total_saltinseaice, total_saltinliquidwater, use_acc)
 
     TYPE(t_patch), TARGET, INTENT(IN)                                 :: patch_2d
     REAL(wp),DIMENSION(nproma,patch_2d%alloc_cell_blocks),INTENT(IN) :: h
@@ -195,15 +195,27 @@ CONTAINS
     REAL(wp)                                              :: total_salt
     REAL(wp)                                              :: total_saltinseaice
     REAL(wp)                                              :: total_saltinliquidwater
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
 
     REAL(wp), DIMENSION(nproma,patch_2d%alloc_cell_blocks) :: salt
     REAL(wp), DIMENSION(nproma,patch_2d%alloc_cell_blocks) :: saltinseaice
     REAL(wp), DIMENSION(nproma,patch_2d%alloc_cell_blocks) :: saltinliquidwater
 
     INTEGER :: im 
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    !$ACC DATA COPY(salt, saltinseaice, saltinliquidwater) IF(lacc)
 
     CALL calc_salt_content(so, patch_2d, h, thickness, ice, im , &
-                           salt, saltinseaice, saltinliquidwater )
+                           salt, saltinseaice, saltinliquidwater, use_acc=lacc )
+
+    !$ACC END DATA
 
     total_salt = global_sum_array(salt)
     total_saltinseaice = global_sum_array(saltinseaice)
@@ -214,37 +226,49 @@ CONTAINS
   
   !-------------------------------------------------------------------------
   SUBROUTINE calc_salt_content(so, patch_2d, h, thickness, ice, im, &
-            salt, saltinseaice, saltinliquidwater)
+            salt, saltinseaice, saltinliquidwater, use_acc)
     TYPE(t_patch), TARGET, INTENT(IN)                                 :: patch_2d
     REAL(wp),DIMENSION(nproma,patch_2d%alloc_cell_blocks),INTENT(IN) :: h
     REAL(wp),DIMENSION(nproma,n_zlev,patch_2d%alloc_cell_blocks),INTENT(IN) :: thickness
     REAL(wp),DIMENSION(nproma,n_zlev,patch_2d%alloc_cell_blocks),INTENT(IN) :: so !salinity
     TYPE (t_sea_ice),       INTENT(IN)                    :: ice
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
 
     ! locals
-    REAL(wp), DIMENSION(nproma,patch_2d%alloc_cell_blocks) :: salt
-    REAL(wp), DIMENSION(nproma,patch_2d%alloc_cell_blocks) :: saltinseaice
-    REAL(wp), DIMENSION(nproma,patch_2d%alloc_cell_blocks) :: saltinliquidwater
+    REAL(wp), INTENT(INOUT), DIMENSION(nproma,patch_2d%alloc_cell_blocks) :: salt
+    REAL(wp), INTENT(INOUT), DIMENSION(nproma,patch_2d%alloc_cell_blocks) :: saltinseaice
+    REAL(wp), INTENT(INOUT), DIMENSION(nproma,patch_2d%alloc_cell_blocks) :: saltinliquidwater
 
     REAL(wp) :: rhoicwa,rhosnwa,draftave
+    LOGICAL :: lacc
 
  
     TYPE(t_subset_range), POINTER                         :: subset
     INTEGER                                               :: block, cell, cellStart,cellEnd, level
     INTEGER                                               :: im
 
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
     IF(no_tracer<=1)RETURN
 
-    salt         = 0.0_wp
-    saltinseaice = 0.0_wp
-    saltinliquidwater = 0.0_wp
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    salt(:,:)              = 0.0_wp
+    saltinseaice(:,:)      = 0.0_wp
+    saltinliquidwater(:,:) = 0.0_wp
+    !$ACC END KERNELS
 
     rhoicwa = rhoi / rho_ref
     rhosnwa = rhos / rho_ref
 
     subset => patch_2d%cells%owned
+
     DO block = subset%start_block, subset%end_block
       CALL get_index_range(subset, block, cellStart, cellEnd)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO cell = cellStart, cellEnd
         IF (subset%vertical_levels(cell,block) < 1) CYCLE
 
@@ -272,6 +296,7 @@ CONTAINS
              &                    * (thickness(cell,1,BLOCK)+h(cell,BLOCK)-draftave) &
              &                    * patch_2d%cells%area(cell,BLOCK)
 
+        !$ACC LOOP SEQ
         DO level=2,subset%vertical_levels(cell,BLOCK)
           saltinliquidwater(cell,BLOCK) = saltinliquidwater(cell,BLOCK) + so(cell,level,BLOCK) &
             &                    * thickness(cell,level,block) &
@@ -282,7 +307,9 @@ CONTAINS
 
         ! rest of the underwater world
       END DO ! cell
+      !$ACC END PARALLEL LOOP
     END DO !block
+
   END SUBROUTINE calc_salt_content
   !-------------------------------------------------------------------------
 
@@ -453,7 +480,7 @@ CONTAINS
 
   
   SUBROUTINE calc_total_salt_content_zstar(so, patch_2d, stretch, thickness, ice, &
-      & total_salt, total_saltinseaice, total_saltinliquidwater)
+      & total_salt, total_saltinseaice, total_saltinliquidwater, use_acc)
 
     TYPE(t_patch), TARGET, INTENT(IN)                                 :: patch_2d
     REAL(wp),DIMENSION(nproma,patch_2d%alloc_cell_blocks),INTENT(IN)  :: stretch
@@ -464,14 +491,25 @@ CONTAINS
     REAL(wp), INTENT(OUT)                                 :: total_salt
     REAL(wp), INTENT(OUT)                                 :: total_saltinseaice
     REAL(wp), INTENT(OUT)                                 :: total_saltinliquidwater
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
 
     REAL(wp), DIMENSION(nproma,patch_2d%alloc_cell_blocks) :: salt
     REAL(wp), DIMENSION(nproma,patch_2d%alloc_cell_blocks) :: saltinseaice
     REAL(wp), DIMENSION(nproma,patch_2d%alloc_cell_blocks) :: saltinliquidwater
+    LOGICAL :: lacc
 
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    !$ACC DATA COPY(salt, saltinseaice, saltinliquidwater) IF(lacc)
 
     CALL calc_salt_content_zstar(so, patch_2d, stretch, thickness, ice, &
-                           salt, saltinseaice, saltinliquidwater )
+                           salt, saltinseaice, saltinliquidwater, use_acc=lacc )
+
+    !$ACC END DATA
 
     total_salt = global_sum_array(salt)
     total_saltinseaice = global_sum_array(saltinseaice)
@@ -481,12 +519,13 @@ CONTAINS
  
   
   SUBROUTINE calc_salt_content_zstar(so, patch_2d, stretch, thickness, ice, &
-            salt, saltinseaice, saltinliquidwater)
+            salt, saltinseaice, saltinliquidwater, use_acc)
     TYPE(t_patch), TARGET, INTENT(IN)                                 :: patch_2d
     REAL(wp),DIMENSION(nproma,patch_2d%alloc_cell_blocks),INTENT(IN)  :: stretch
     REAL(wp),DIMENSION(nproma,n_zlev,patch_2d%alloc_cell_blocks),INTENT(IN) :: thickness
     REAL(wp),DIMENSION(nproma,n_zlev,patch_2d%alloc_cell_blocks),INTENT(IN) :: so !salinity
     TYPE (t_sea_ice),       INTENT(IN)                    :: ice
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
 
     ! locals
     REAL(wp), DIMENSION(nproma,patch_2d%alloc_cell_blocks) :: salt
@@ -494,10 +533,17 @@ CONTAINS
     REAL(wp), DIMENSION(nproma,patch_2d%alloc_cell_blocks) :: saltinliquidwater
 
     REAL(wp) :: rhoicwa,rhosnwa,draftave
+    LOGICAL :: lacc
 
  
     TYPE(t_subset_range), POINTER                         :: subset
     INTEGER                                               :: block, cell, cellStart,cellEnd, level
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     IF(no_tracer<=1)RETURN
 
@@ -509,8 +555,10 @@ CONTAINS
     rhosnwa = rhos / rho_ref
 
     subset => patch_2d%cells%owned
+
     DO block = subset%start_block, subset%end_block
       CALL get_index_range(subset, block, cellStart, cellEnd)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO cell = cellStart, cellEnd
         IF (subset%vertical_levels(cell,block) < 1) CYCLE
 
@@ -519,6 +567,7 @@ CONTAINS
              &                         * SUM(ice%hi(cell,:,BLOCK)*ice%conc(cell,:,BLOCK)) &
              &                         * patch_2d%cells%area(cell,BLOCK)
 
+        !$ACC LOOP SEQ
         DO level=1,subset%vertical_levels(cell,BLOCK)
           saltinliquidwater(cell,BLOCK) = saltinliquidwater(cell,BLOCK) + so(cell,level,BLOCK) &
             &   * stretch(cell, block) * thickness(cell,level,block) &
@@ -529,7 +578,9 @@ CONTAINS
 
         ! rest of the underwater world
       END DO ! cell
+      !$ACC END PARALLEL LOOP
     END DO !block
+
   END SUBROUTINE calc_salt_content_zstar
 
 

@@ -1,12 +1,7 @@
-# sourced from ...
-
-# for check-scripts, the experiment name might be altered
-# this special name is only used to find output, data is 
-# always stored according to the real experiment name `probtest_exp`
-base_exp="${base_exp:-${probtest_exp}}"
+# sourced from pp.refgen_* scripts
 
 builder=$(echo "${BB_NAME}" | tr '[:upper:]' '[:lower:]')
-model_output_dir="${basedir}/experiments/${base_exp}"
+model_output_dir="${basedir:?undefined}/experiments/${base_exp:?undefined}"
 
 # make sure the resulting data and directories are global readable
 umask 0022
@@ -26,9 +21,9 @@ store_model_output()
     origin=${origin##*/} # cut off all except icon-xyz.git
     origin=${origin%%.*} # cut off .git
 
-    reference_dir="${icon_data_rootFolder}/buildbot_data/ref/${date_str}.${origin}.${git_commit:0:12}/${builder}"
+    reference_dir="${icon_data_rootFolder:?undefined}/buildbot_data/ref/${date_str}.${origin}.${git_commit:0:12}/${builder}"
     # experiments carry over the "_base" extension if available
-    fake_output_dir="${reference_dir}/${probtest_exp}/experiments/${base_exp}"
+    fake_output_dir="${reference_dir}/experiments/${base_exp}"
     mkdir -p "${fake_output_dir}"
 
     status=0

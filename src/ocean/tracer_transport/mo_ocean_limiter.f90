@@ -327,6 +327,7 @@ CONTAINS
         END DO  ! end loop over edges
       END DO  ! end loop over levels
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     END DO  ! end loop over blocks
     !$ACC END DATA
 !ICON_OMP_END_DO
@@ -347,6 +348,7 @@ CONTAINS
       z_tracer_max(:,:,blockNo)        = 0.0_wp
       z_tracer_min(:,:,blockNo)        = 0.0_wp
       !$ACC END KERNELS
+      !$ACC WAIT(1)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR
@@ -418,15 +420,19 @@ CONTAINS
         ENDDO
       ENDDO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
       
       ! precalculate local maximum/minimum of current tracer value and low order
       ! updated value
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       z_tracer_max(:,:,blockNo) =            &
         & MAX(          tracer(:,:,blockNo), &
         &     z_tracer_new_low(:,:,blockNo))
       z_tracer_min(:,:,blockNo) =            &
         & MIN(          tracer(:,:,blockNo), &
         &     z_tracer_new_low(:,:,blockNo))
+      !$ACC END KERNELS
+      !$ACC WAIT(1)
 
 !      write(0,*) blockNo, ":", z_tracer_max(start_index:end_index,start_level:end_level,blockNo)
 !      write(0,*) blockNo, ":", z_tracer_min(start_index:end_index,start_level:end_level,blockNo)
@@ -521,6 +527,7 @@ CONTAINS
         ENDDO
       ENDDO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     ENDDO
     !$ACC END DATA
 !ICON_OMP_END_DO
@@ -549,9 +556,10 @@ CONTAINS
 
     DO blockNo = edges_start_block, edges_end_block
       CALL get_index_range(edges_in_domain, blockNo, start_index, end_index)
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       flx_tracer_final(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
+      !$ACC WAIT(1)
       
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR
@@ -587,8 +595,8 @@ CONTAINS
         END DO
       END DO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     ENDDO
-    !$ACC WAIT(1)
     !$ACC END DATA
 !ICON_OMP_END_DO NOWAIT
 !ICON_OMP_END_PARALLEL
@@ -707,6 +715,7 @@ CONTAINS
     r_m(:,:,:)          = 0.0_wp
     r_p(:,:,:)          = 0.0_wp
     !$ACC END KERNELS
+    !$ACC WAIT(1)
 #endif
  
   IF (p_test_run) THEN
@@ -716,6 +725,7 @@ CONTAINS
     r_m(:,:,:)          = 0.0_wp
     r_p(:,:,:)          = 0.0_wp
     !$ACC END KERNELS
+    !$ACC WAIT(1)
   ENDIF
  
 !ICON_OMP_PARALLEL
@@ -737,6 +747,7 @@ CONTAINS
         END DO  ! end loop over edges
       END DO  ! end loop over levels
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     END DO  ! end loop over blocks
 !ICON_OMP_END_DO
 
@@ -857,6 +868,7 @@ CONTAINS
         ENDDO
       ENDDO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
       
       ! precalculate local maximum/minimum of current tracer value and low order
       ! updated value
@@ -1002,6 +1014,7 @@ CONTAINS
         ENDDO
       ENDDO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     ENDDO
 !ICON_OMP_END_DO
 !ICON_OMP_END_PARALLEL
@@ -1027,9 +1040,10 @@ CONTAINS
     DO blockNo = edges_start_block, edges_end_block
       CALL get_index_range(edges_in_domain, blockNo, start_index, end_index)
 
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       flx_tracer_final(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
+      !$ACC WAIT(1)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR
@@ -1065,8 +1079,8 @@ CONTAINS
         END DO
       END DO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     ENDDO
-    !$ACC WAIT(1)
 !ICON_OMP_END_DO_PARALLEL
 ! !ICON_OMP_END_PARALLEL
 
@@ -1127,6 +1141,8 @@ CONTAINS
     INTEGER, DIMENSION(:,:,:), POINTER ::  cellOfEdge_idx, cellOfEdge_blk
     INTEGER, DIMENSION(:,:,:), POINTER :: neighbor_cell_idx, neighbor_cell_blk
     INTEGER, DIMENSION(:,:,:), POINTER :: edge_of_cell_idx, edge_of_cell_blk
+    INTEGER, DIMENSION(:,:,:), POINTER :: edges_SeaBoundaryLevel
+    REAL(wp), DIMENSION(:,:,:,:), POINTER :: div_coeff
     INTEGER :: start_level !, end_level            
     INTEGER :: start_index, end_index, nidx, nblk, max_dolic_c, max_dolic_e
     INTEGER :: edge_index, level, blockNo, jc,  cell_connect, sum_lsm_quad_edge, ctr
@@ -1149,6 +1165,8 @@ CONTAINS
     edge_of_cell_blk  => patch_2d%cells%edge_blk
     neighbor_cell_idx => patch_2d%cells%neighbor_idx
     neighbor_cell_blk => patch_2d%cells%neighbor_blk
+    div_coeff => operators_coefficients%div_coeff
+    edges_SeaBoundaryLevel => operators_coefficients%edges_SeaBoundaryLevel
 
     IF (PRESENT(use_acc)) THEN
       lacc = use_acc
@@ -1157,15 +1175,15 @@ CONTAINS
     END IF
 
     !$ACC DATA PRESENT(patch_3d%p_patch_2d(1)%nblks_e, patch_3d%p_patch_2d(1)%alloc_cell_blocks) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_e, patch_3d%p_patch_1d(1)%dolic_c) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%prism_thick_flat_sfc_c, patch_3d%p_patch_1d(1)%inv_prism_thick_c) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%del_zlev_m, div_coeff) &
+    !$ACC   COPYIN(cellOfEdge_idx, cellOfEdge_blk, edge_of_cell_idx, edge_of_cell_blk) &
+    !$ACC   COPYIN(neighbor_cell_idx, neighbor_cell_blk, edges_SeaBoundaryLevel) &
+    !$ACC   COPYIN(tracer, flx_tracer_low, flx_tracer_high, div_adv_flux_vert, h_old, h_new) &
     !$ACC   CREATE(z_mflx_anti1, z_mflx_anti2, z_mflx_anti3, z_fluxdiv_c, z_anti) &
     !$ACC   CREATE(z_tracer_new_low, z_tracer_max, z_tracer_min, r_p, r_m, z_tracer_update_horz) &
     !$ACC   CREATE(z_min, z_max, p_p, p_m, inv_prism_thick_new, delta_z_new, delta_z) &
-    !$ACC   COPYIN(edges_in_domain%start_block, edges_in_domain%end_block, cells_in_domain%start_block) &
-    !$ACC   COPYIN(cells_in_domain%end_block, patch_3d%p_patch_1d(1)%dolic_e, patch_3d%p_patch_1d(1)%dolic_c) &
-    !$ACC   COPYIN(patch_3d%p_patch_1D(1)%prism_thick_flat_sfc_c, patch_3d%p_patch_1d(1)%inv_prism_thick_c) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%del_zlev_m, operators_coefficients%div_coeff) &
-    !$ACC   COPYIN(operators_coefficients%edges_SeaBoundaryLevel) &
-    !$ACC   COPYIN(tracer, flx_tracer_low, flx_tracer_high, div_adv_flux_vert, h_old, h_new) &
     !$ACC   COPY(flx_tracer_final) IF(lacc)
 
 #ifdef NAGFOR
@@ -1192,6 +1210,7 @@ CONTAINS
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       z_anti(:,:,blockNo)     = 0.0_wp       
       !$ACC END KERNELS
+      !$ACC WAIT(1)
 
       max_dolic_e = -1
       !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) REDUCTION(MAX: max_dolic_e) IF(lacc)
@@ -1199,6 +1218,7 @@ CONTAINS
         max_dolic_e = MAX(max_dolic_e, patch_3d%p_patch_1d(1)%dolic_e(edge_index,blockNo))
       END DO
       !$ACC END PARALLEL LOOP
+      !$ACC WAIT(1)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
@@ -1211,6 +1231,7 @@ CONTAINS
         END DO  ! end loop over edges
       END DO  ! end loop over levels
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     END DO  ! end loop over blocks
 !ICON_OMP_END_DO
 
@@ -1232,11 +1253,11 @@ CONTAINS
         !  compute divergence of low order fluxes
         z_fluxdiv_c(jc) = &
             & flx_tracer_low(edge_of_cell_idx(jc,blockNo,1),level,edge_of_cell_blk(jc,blockNo,1)) * &
-            & operators_coefficients%div_coeff(jc,level,blockNo,1) + & 
+            & div_coeff(jc,level,blockNo,1) + & 
             & flx_tracer_low(edge_of_cell_idx(jc,blockNo,2),level,edge_of_cell_blk(jc,blockNo,2)) * &
-            & operators_coefficients%div_coeff(jc,level,blockNo,2) + & 
+            & div_coeff(jc,level,blockNo,2) + & 
             & flx_tracer_low(edge_of_cell_idx(jc,blockNo,3),level,edge_of_cell_blk(jc,blockNo,3)) * &
-            & operators_coefficients%div_coeff(jc,level,blockNo,3) 
+            & div_coeff(jc,level,blockNo,3) 
             
        
         delta_z(jc) = patch_3d%p_patch_1D(1)%prism_thick_flat_sfc_c(jc,level,blockNo)&
@@ -1259,6 +1280,7 @@ CONTAINS
           &     z_tracer_new_low(jc,level,blockNo))
       ENDDO      
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     ENDDO
 !ICON_OMP_END_DO
          
@@ -1274,6 +1296,7 @@ CONTAINS
         max_dolic_c = MAX(max_dolic_c, patch_3d%p_patch_1d(1)%dolic_c(jc,blockNo))
       END DO
       !$ACC END PARALLEL LOOP
+      !$ACC WAIT(1)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
@@ -1283,11 +1306,11 @@ CONTAINS
           !  compute divergence of low order fluxes
           z_fluxdiv_c(jc) = &
             & flx_tracer_low(edge_of_cell_idx(jc,blockNo,1),level,edge_of_cell_blk(jc,blockNo,1)) * &
-            & operators_coefficients%div_coeff(jc,level,blockNo,1) + & 
+            & div_coeff(jc,level,blockNo,1) + & 
             & flx_tracer_low(edge_of_cell_idx(jc,blockNo,2),level,edge_of_cell_blk(jc,blockNo,2)) * &
-            & operators_coefficients%div_coeff(jc,level,blockNo,2) + & 
+            & div_coeff(jc,level,blockNo,2) + & 
             & flx_tracer_low(edge_of_cell_idx(jc,blockNo,3),level,edge_of_cell_blk(jc,blockNo,3)) * &
-            & operators_coefficients%div_coeff(jc,level,blockNo,3) 
+            & div_coeff(jc,level,blockNo,3) 
          
           delta_z(jc)     = patch_3d%p_patch_1D(1)%prism_thick_flat_sfc_c(jc,level,blockNo)
           delta_z_new(jc) = patch_3d%p_patch_1D(1)%prism_thick_flat_sfc_c(jc,level,blockNo)
@@ -1305,6 +1328,7 @@ CONTAINS
         ENDDO
       ENDDO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     ENDDO
 !ICON_OMP_END_DO
 !ICON_OMP_END_PARALLEL
@@ -1328,6 +1352,7 @@ CONTAINS
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       inv_prism_thick_new(:,:) = patch_3D%p_patch_1d(1)%inv_prism_thick_c(:,:,blockNo)
       !$ACC END KERNELS
+      !$ACC WAIT(1)
 
       !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       DO jc = start_index, end_index
@@ -1335,6 +1360,7 @@ CONTAINS
           inv_prism_thick_new(jc, start_level) = 1.0_wp / (patch_3d%p_patch_1d(1)%del_zlev_m(start_level)+ h_new(jc,blockNo))
       ENDDO
       !$ACC END PARALLEL LOOP
+      !$ACC WAIT(1)
 
       max_dolic_c = -1
       !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) REDUCTION(MAX: max_dolic_c) IF(lacc)
@@ -1342,6 +1368,7 @@ CONTAINS
         max_dolic_c = MAX(max_dolic_c, patch_3d%p_patch_1d(1)%dolic_c(jc,blockNo))
       END DO
       !$ACC END PARALLEL LOOP
+      !$ACC WAIT(1)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
@@ -1357,13 +1384,13 @@ CONTAINS
           !    this sign convention is related to the definition of the divergence operator.
                     
           z_mflx_anti1(jc) =                                                        &
-            & dtime * operators_coefficients%div_coeff(jc,level,blockNo,1) * inv_prism_thick_new(jc, level)  &
+            & dtime * div_coeff(jc,level,blockNo,1) * inv_prism_thick_new(jc, level)  &
             & * z_anti(edge_of_cell_idx(jc,blockNo,1),level,edge_of_cell_blk(jc,blockNo,1))
           z_mflx_anti2(jc) =                                                        &
-            & dtime * operators_coefficients%div_coeff(jc,level,blockNo,2) * inv_prism_thick_new(jc, level)  &
+            & dtime * div_coeff(jc,level,blockNo,2) * inv_prism_thick_new(jc, level)  &
             & * z_anti(edge_of_cell_idx(jc,blockNo,2),level,edge_of_cell_blk(jc,blockNo,2))
           z_mflx_anti3(jc) =                                                        &
-            & dtime * operators_coefficients%div_coeff(jc,level,blockNo,3) * inv_prism_thick_new(jc, level)  &
+            & dtime * div_coeff(jc,level,blockNo,3) * inv_prism_thick_new(jc, level)  &
             & * z_anti(edge_of_cell_idx(jc,blockNo,3),level,edge_of_cell_blk(jc,blockNo,3))
                   
           z_max(jc) = z_tracer_max(jc,level,blockNo)
@@ -1431,6 +1458,7 @@ CONTAINS
         ENDDO
       ENDDO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     ENDDO
 !ICON_OMP_END_DO
 !ICON_OMP_END_PARALLEL
@@ -1448,6 +1476,7 @@ CONTAINS
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       flx_tracer_final(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
+      !$ACC WAIT(1)
 
       max_dolic_e = -1
       !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) REDUCTION(MAX: max_dolic_e) IF(lacc)
@@ -1455,6 +1484,7 @@ CONTAINS
         max_dolic_e = MAX(max_dolic_e, patch_3d%p_patch_1d(1)%dolic_e(edge_index,blockNo))
       END DO
       !$ACC END PARALLEL LOOP
+      !$ACC WAIT(1)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(z_signum, r_frac)
@@ -1462,7 +1492,7 @@ CONTAINS
         DO edge_index = start_index, end_index
           IF (patch_3d%p_patch_1d(1)%dolic_e(edge_index,blockNo) < level) CYCLE
  
-          IF( operators_coefficients%edges_SeaBoundaryLevel(edge_index,level,blockNo) > -2)THEN! edge < 2nd order boundary
+          IF( edges_SeaBoundaryLevel(edge_index,level,blockNo) > -2)THEN! edge < 2nd order boundary
           
             flx_tracer_final(edge_index,level,blockNo) = flx_tracer_low(edge_index,level,blockNo)
             
@@ -1491,10 +1521,10 @@ CONTAINS
         END DO
       ENDDO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     ENDDO
 !ICON_OMP_END_DO_PARALLEL
 ! !ICON_OMP_END_PARALLEL
-     !$ACC WAIT(1)
      !$ACC END DATA
   END SUBROUTINE limiter_ocean_zalesak_horizontal_onTriangles_lvector
   !-------------------------------------------------------------------------
@@ -1598,6 +1628,7 @@ CONTAINS
     END DO
 #ifdef _OPENACC
     !$ACC END PARALLEL
+    !$ACC WAIT(1)
 #endif
 
   END SUBROUTINE v_ppm_slimiter_mo_onBlock

@@ -130,7 +130,6 @@ USE mo_aes_phy_cleanup,     ONLY: cleanup_aes_phy
   USE mo_jsb_model_init,    ONLY: jsbach_init_after_restart
 #endif
 ! Needed for upper atmosphere configuration
-USE mo_dynamics_config,     ONLY: ldeepatmo
 USE mo_sleve_config,        ONLY: flat_height
 USE mo_io_units,            ONLY: filename_max
 USE mo_vertical_coord_table,ONLY: vct_a
@@ -383,12 +382,12 @@ CONTAINS
     model_base_dir = getModelBaseDir()
     lrestart       = isRestart()
 
-    CALL configure_upatmo( n_dom_start, n_dom, p_patch(n_dom_start:), isRestart(), ldeepatmo,                            &
-      &                    atm_phy_nwp_config(:)%lupatmo_phy, init_mode, iforcing, time_config%tc_exp_startdate,         &
-      &                    time_config%tc_exp_stopdate, start_time(:), end_time(:), dtime, atm_phy_nwp_config(:)%dt_rad, &
-      &                    ndyn_substeps, flat_height, aes_rad_config(:)%l_orbvsop87, aes_rad_config(:)%cecc,            &
-      &                    aes_rad_config(:)%cobld, aes_rad_config(:)%clonp, aes_rad_config(:)%lyr_perp,                 & 
-      &                    aes_rad_config(:)%yr_perp, model_base_dir, msg_level, vct_a )
+    CALL configure_upatmo( n_dom_start, n_dom, p_patch(n_dom_start:), isRestart(), atm_phy_nwp_config(:)%lupatmo_phy,      &
+      &                    init_mode, iforcing, time_config%tc_exp_startdate, time_config%tc_exp_stopdate, start_time(:),  & 
+      &                    end_time(:), dtime, atm_phy_nwp_config(:)%dt_rad, ndyn_substeps, flat_height,                   &
+      &                    aes_rad_config(:)%l_orbvsop87, aes_rad_config(:)%cecc, aes_rad_config(:)%cobld,                 & 
+      &                    aes_rad_config(:)%clonp, aes_rad_config(:)%lyr_perp, aes_rad_config(:)%yr_perp, model_base_dir, &
+      &                    msg_level, vct_a )
 
 #ifndef __NO_ICON_UPATMO__
 ! Create state only if enabled

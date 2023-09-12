@@ -50,7 +50,7 @@ definitions:
 #%- endif
 
 timestep_unit: ISO_format
-calendar: proleptic-gregorian
+calendar: %{calendar}
 coupling:
   - <<: [ *atm2oce, *hcsbb_interp_stack ]
     mapping_side: source

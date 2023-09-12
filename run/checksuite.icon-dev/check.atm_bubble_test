@@ -12,7 +12,7 @@
 # file run/exp.<EXPNAME>. EXPNAME is used also for:
 # - the output directory name: experiments/<EXPNAME>
 # - the output  file names: <EXPNAME>_<TYPE>_<DATE>.nc
-# - the restart file names:
+# - the restart file names: 
 #
 export EXPERIMENT='aes_bubble_test'
 

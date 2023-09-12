@@ -1,4 +1,3 @@
-#!/bin/ksh
 #=============================================================================
 #
 # This section of the run script prepares and starts the model integration. 
@@ -271,7 +270,7 @@ done
 # For several domains, $jsbach_namelist is only the basename for each domain's jsbach namelist;
 #   the actual namelist files are appended by suffixes '_d1', '_d2', etc.
 
-if [[ $run_jsbach == @(yes|true) ]]; then
+if [[ $run_jsbach == yes  ]] || [[ $run_jsbach == true ]]; then
   cat >> $master_namelist << EOF
 &jsb_control_nml
  is_standalone      = .${run_jsbach_standalone:=false}.
@@ -331,11 +330,16 @@ ldd ${MODEL}
 # start experiment
 #
 
+# Combine START and MODEL if START_MODEL is not already set.
+# START_MODEL is used to ease the execution of a machine that uses a complex
+# mpirun command with multiple binaries
+START_MODEL="${START_MODEL:=$START $MODEL}"
+
 rm -f finish.status
 #
 date
 set -x
-${START} ${MODEL} || exit 1
+${START_MODEL} || exit 1
 set +x
 date
 #

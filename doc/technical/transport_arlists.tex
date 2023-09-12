@@ -28,6 +28,7 @@ Name  & ICOHAM & ICONAM &    ICOHAM & ICONAM   & & description  \\
 
 $p\_patch$              &   --                            &   --                          &  --             &  --                   &  IN       &  patch on which computation is performed\\
 $p\_int\_state$         &   --                            &   --                          &  --             &  --                   &  IN       &  interpolation state\\
+$p\_metrics$            &   --                            &   --                          &  --             &  --                   &  IN       &  metrics\\
 $p\_dtime$              &  $\Delta t$                     &  $\Delta t$                   &  $s$            &  $s$                  &  IN       &  time step\\
 $k\_step$               &  --                             &  --                           &  $1$            &  $1$                  &  IN       &  time step counter\\
 $p\_tracer\_now$        &  $\overline{q}^{n}_{k}$         &  $\overline{q}^{n}_{k}$       &  $kg\,kg^{-1}$  &  $kg\,kg^{-1}$        &  IN       &  4D tracer array\\
@@ -44,6 +45,7 @@ $p\_grf\_tend\_tracer$  &  $\Delta t\frac{\partial q}{\partial t}$&  $\Delta t\f
 $p\_tracer\_new$        &  $\overline{q}^{n+1}_{k}$       & $\overline{q}^{n+1}_{k}$      &  $kg\,kg^{-1}$  &  $kg\,kg^{-1}$        &  INOUT    &  updated 4D tracer array\\
 $p\_mflx\_tracer\_h$    &  $F^{n}_{i}$                    &  $F^{n}_{i}$                  &  $kg\,s^{-3}$   &  $kg\,m^{-1}\,s^{-1}$ &  INOUT    &  horizontal tracer mass flux at edge midpoints\\
 $p\_mflx\_tracer\_v$    &  $F^{n}_{k-1/2}$                &  $F^{n}_{k-1/2}$              &  $Pa\,s^{-1}$   &  $kg\,m^{-2}\,s^{-1}$ &  INOUT    &  vertical tracer mass flux at half level centers\\
+$ldeepatmo$             &  --                             &  --                         &  --             &  --                 &  IN       &  switch for deep atmosphere\\
 $opt\_rho\_ic$          &  --                             &  $\rho_{k-1/2}^{n+1/2}$       &  --             &  $kg\,m^{-3}$         &  OPT IN   &  half level density (NH-core only)\\
 $opt\_topflx\_tra$      &  --                             &  $F^{n}_{1/2}$                &  $Pa\,s^{-1}$   &  $kg\,m^{-2}\,s^{-1}$ &  OPT IN   &  vertical tracer flux at upper boundary (NH-core only)\\
 $opt\_q\_int$           &  --                             &  $\overline{q}^{n}_{1/2}$     &  --             &  $kg\,kg^{-1}$        &  OPT OUT  &  tracer value at upper boundary of child nest (NH-core only)\\

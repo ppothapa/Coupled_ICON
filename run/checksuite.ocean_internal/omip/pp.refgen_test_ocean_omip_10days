@@ -1,11 +1,10 @@
 #!/bin/bash
 
 # set experiment specific variables
-exp=test_ocean_omip_10days
+base_exp=test_ocean_omip_10days
 
 . ./add_refgen_routines
 
-# execute probtest
 store_model_output
 
 status=$?

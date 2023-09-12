@@ -48,8 +48,6 @@ MODULE mo_upatmo_impl_const
   PUBLIC :: iUpatmoTracerId
   PUBLIC :: startHeightDef
   PUBLIC :: iThermdynCoupling
-  ! Dynamics:
-  PUBLIC :: idamtr
 
   !-------------------------------------------------------------------------------
   !-------------------------------------------------------------------------------
@@ -527,80 +525,5 @@ MODULE mo_upatmo_impl_const
     &                                                                              3, &  !iThermdynCoupling%entropic
     !
     &                                                                              3  )  !iThermdynCoupling%nitem
-
-  !-------------------------------------------------------------------------------
-  !-------------------------------------------------------------------------------
-  !                          Upper-atmosphere dynamics
-  !-------------------------------------------------------------------------------
-  !-------------------------------------------------------------------------------
-
-  !-----------------------------------------------------
-  !            Metrical modification factors
-  !-----------------------------------------------------
-
-  !
-  ! 1) Full levels, index order (jk, jtype)
-  !
-  TYPE t_idamtr_idxlist_type_1_mc
-    INTEGER :: gradh     ! Horizontal derivatives 
-    INTEGER :: divh      ! Horizontal part of divergence
-    INTEGER :: vol       ! Cell volume
-    INTEGER :: invr      ! = 1 / ( a + z )
-    INTEGER :: centri    ! Centrifugal acceleration
-    ! 
-    INTEGER :: nitem     ! Number of identifiers
-  END TYPE t_idamtr_idxlist_type_1_mc
-  !
-  ! 2) Half levels, index order (jk, jtype)
-  !
-  TYPE t_idamtr_idxlist_type_1_ifc
-    INTEGER :: gradh     ! Horizontal derivatives 
-    INTEGER :: invr      ! = 1 / ( a + z )   
-    INTEGER :: centri    ! Centrifugal acceleration
-    ! 
-    INTEGER :: nitem     ! Number of identifiers
-  END TYPE t_idamtr_idxlist_type_1_ifc
-  !
-  ! 3) Full levels, index order (jtype, jk)
-  !
-  TYPE t_idamtr_idxlist_type_2_mc
-    INTEGER :: divzU     ! Vertical part of divergence (Upper interface of cell)
-    INTEGER :: divzL     ! Vertical part of divergence (Lower interface of cell)
-    !
-    INTEGER :: nitem     ! Number of identifiers
-  END TYPE t_idamtr_idxlist_type_2_mc
-  !
-  ! Collector
-  !
-  TYPE t_idamtr
-    TYPE(t_idamtr_idxlist_type_1_mc)  :: t1mc
-    TYPE(t_idamtr_idxlist_type_1_ifc) :: t1ifc
-    TYPE(t_idamtr_idxlist_type_2_mc)  :: t2mc
-  END TYPE t_idamtr
-  !
-  ! Assign values 
-  ! (Please, update the 'nitem', if you modify the identifier lists. Thank you!) 
-  !
-  TYPE(t_idamtr), PARAMETER :: idamtr = t_idamtr(  &
-    &                                   t_idamtr_idxlist_type_1_mc(  1,     &  ! idamtr%t1mc%gradh
-    &                                                                2,     &  ! idamtr%t1mc%divh 
-    &                                                                3,     &  ! idamtr%t1mc%vol 
-    &                                                                4,     &  ! idamtr%t1mc%invr 
-    &                                                                5,     &  ! idamtr%t1mc%centri 
-    !
-    &                                                                5  ),  &  ! idamtr%t1mc%nitem
-    !-------------------------------------------------------------------------------
-    &                                   t_idamtr_idxlist_type_1_ifc( 1,     &  ! idamtr%t1ifc%gradh
-    &                                                                2,     &  ! idamtr%t1ifc%invr
-    &                                                                3,     &  ! idamtr%t1ifc%centri
-    !
-    &                                                                3  ),  &  ! idamtr%t1ifc%nitem 
-    !-------------------------------------------------------------------------------
-    &                                   t_idamtr_idxlist_type_2_mc(  1,     &  ! idamtr%t2mc%divzU 
-    &                                                                2,     &  ! idamtr%t2mc%divzL 
-    !
-    &                                                                2  )   &  ! idamtr%t2mc%nitem
-    &                                              )  
-
 
 END MODULE mo_upatmo_impl_const

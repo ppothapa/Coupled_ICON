@@ -581,6 +581,7 @@ CONTAINS
         max_dolic_e = MAX(max_dolic_e, dolic_e(edge_index,blockNo))
       END DO
       !$ACC END PARALLEL LOOP
+      !$ACC WAIT(1)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
@@ -631,6 +632,7 @@ CONTAINS
         ENDDO       
       END DO  ! end loop over levels
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
     END DO  ! end loop over blocks
 !ICON_OMP_END_PARALLEL_DO
     

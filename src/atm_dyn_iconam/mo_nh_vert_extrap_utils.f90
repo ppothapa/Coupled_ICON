@@ -39,6 +39,7 @@ MODULE mo_nh_vert_extrap_utils
   USE mo_exception,              ONLY: finish, message, message_text
   USE mo_run_config,             ONLY: msg_level
   USE mo_grid_config,            ONLY: grid_sphere_radius, n_dom_start
+  USE mo_dynamics_config,        ONLY: ldeepatmo
   USE mo_upatmo_config,          ONLY: upatmo_exp_config, upatmo_config
   USE mo_parallel_config,        ONLY: nproma
   USE mo_vertical_coord_table,   ONLY: vct_a
@@ -62,7 +63,7 @@ MODULE mo_nh_vert_extrap_utils
     &                                  get_my_mpi_work_communicator, &
     &                                  p_bcast
   USE mo_sync,                   ONLY: global_max
-  USE mo_upatmo_impl_const,      ONLY: iUpatmoStat, imsg_thr, itmr_thr, idamtr
+  USE mo_upatmo_impl_const,      ONLY: iUpatmoStat, imsg_thr, itmr_thr
 
   IMPLICIT NONE
 
@@ -904,8 +905,6 @@ CONTAINS  !.....................................................................
     REAL(wp) :: z_hgpot, z_dzgpot
     REAL(wp) :: vn_cfl
 
-    REAL(wp), DIMENSION(:), POINTER :: deepatmo_gradh
-
     INTEGER :: jg, jb, jk, jc, je, nexpollev
     INTEGER :: i_startblk, i_endblk, i_startidx, i_endidx 
     INTEGER :: rl_start, rl_end    
@@ -1076,10 +1075,7 @@ CONTAINS  !.....................................................................
     CALL grad_fd_tang(z_dexner_v, p_patch, z_dexnerdt_e, opt_slev=1, opt_elev=nexpollev) 
 
     ! 3rd Compute geostrophic wind
-    !-----------------------------   
-
-    ! Metrical deep-atmosphere modification factor is required
-    deepatmo_gradh => p_metrics%deepatmo_t1mc(:,idamtr%t1mc%gradh)
+    !-----------------------------
 
 !$OMP PARALLEL PRIVATE (rl_start,rl_end,i_startblk,i_endblk)
     
@@ -1120,7 +1116,7 @@ CONTAINS  !.....................................................................
           ! Geostrophic wind 
           ! (with deep-atmosphere modification of horizontal gradient 'z_dexnerdt_e')
           expolstate%right%vn(je,jk,jb) = z_theta_e(je,jk,jb) * z_dexnerdt_e(je,jk,jb)  & 
-            &                           * z_latfac(je) * deepatmo_gradh(jk)
+            &                           * z_latfac(je) * p_metrics%deepatmo_gradh_mc(jk)
         ENDDO  !je
       ENDDO  !jk
     ENDDO  !jb
@@ -1171,8 +1167,6 @@ CONTAINS  !.....................................................................
       &         z_decayfac_zgpot, &
       &         STAT=istat        )
     IF (istat /= SUCCESS) CALL finish(routine, 'Deallocation failed')
-
-    deepatmo_gradh => NULL()
     
     IF (upatmo_exp_config(jg)%lexpol_sanitycheck .AND. .NOT. expolstate%latbcmode) THEN
       
@@ -1290,7 +1284,7 @@ CONTAINS  !.....................................................................
     nexpollev = upatmo_config(jg)%exp%nexpollev
 
     ! Transformation factor
-    IF (upatmo_config(jg)%dyn%l_constgrav) THEN 
+    IF (.NOT. ldeepatmo) THEN 
       ! Constant gravitational acceleration: 
       ! geopotential height coincides with geometric height
       z_trafo = 0._wp

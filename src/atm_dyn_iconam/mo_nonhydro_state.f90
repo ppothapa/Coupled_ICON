@@ -56,7 +56,7 @@ MODULE mo_nonhydro_state
   USE mo_grid_config,          ONLY: n_dom, l_limited_area, ifeedback_type
   USE mo_nonhydrostatic_config,ONLY: itime_scheme, igradp_method, ndyn_substeps_max, &
     &                                lcalc_dpsdt
-  USE mo_dynamics_config,      ONLY: nsav1, nsav2, ldeepatmo
+  USE mo_dynamics_config,      ONLY: nsav1, nsav2
   USE mo_parallel_config,      ONLY: nproma
   USE mo_run_config,           ONLY: iforcing, ntracer, iqm_max, iqt,           &
     &                                iqv, iqc, iqi, iqr, iqs, iqtvar,           &
@@ -98,8 +98,6 @@ MODULE mo_nonhydro_state
   USE mo_cdi,                  ONLY: DATATYPE_FLT32, DATATYPE_FLT64,                 &
     &                                DATATYPE_PACK16, DATATYPE_PACK24,               &
     &                                DATATYPE_INT, TSTEP_CONSTANT, GRID_UNSTRUCTURED
-  USE mo_upatmo_config,        ONLY: upatmo_dyn_config
-  USE mo_upatmo_impl_const,    ONLY: idamtr
   USE mo_aes_vdf_config,       ONLY: aes_vdf_config
   USE mo_turb_vdiff_params,    ONLY: VDIFF_TURB_3DSMAGORINSKY
   USE mo_loopindices,          ONLY: get_indices_c
@@ -1662,9 +1660,6 @@ MODULE mo_nonhydro_state
     &       p_diag%ddt_vn_phd, &
     &       p_diag%ddt_ua_phd, &
     &       p_diag%ddt_va_phd, &
-    &       p_diag%ddt_vn_cen, &
-    &       p_diag%ddt_ua_cen, &
-    &       p_diag%ddt_va_cen, &
     &       p_diag%ddt_vn_iau, &
     &       p_diag%ddt_ua_iau, &
     &       p_diag%ddt_va_iau, &
@@ -2170,55 +2165,6 @@ MODULE mo_nonhydro_state
       __acc_attach(p_diag%ddt_va_phd)
       p_diag%ddt_va_phd_is_associated=.TRUE.
       !$ACC UPDATE DEVICE(p_diag%ddt_va_phd_is_associated)
-    END IF
-
-
-    IF (var_in_output%ddt_vn_cen .OR. var_in_output%ddt_ua_cen .OR. var_in_output%ddt_va_cen) THEN
-      ! ddt_vn_cen   p_diag%ddt_vn_cen(nproma,nlev,nblks_e)
-      cf_desc    = t_cf_var('normal_wind_tendency_by_centrifugal_acceleration', 'm s-2', &
-        &                   'normal wind tendency by centrifugal acceleration', datatype_flt)
-      grib2_desc = grib2_var( 0, 2, 227, ibits, GRID_UNSTRUCTURED, GRID_EDGE)
-      CALL add_var( p_diag_list, 'ddt_vn_cen', p_diag%ddt_vn_cen,                &
-                  & GRID_UNSTRUCTURED_EDGE, ZA_REFERENCE,                        &
-                  & cf_desc, grib2_desc,                                         &
-                  & ldims=shape3d_e ,                                            &
-                  & lrestart=.FALSE., loutput=.TRUE.,                            &
-                  & lopenacc = .TRUE.                                            )
-      __acc_attach(p_diag%ddt_vn_cen)
-      p_diag%ddt_vn_cen_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_vn_cen_is_associated)
-    END IF
-
-    IF (var_in_output%ddt_ua_cen .OR. var_in_output%ddt_va_cen) THEN
-      ! ddt_ua_cen   p_diag%ddt_ua_cen(nproma,nlev,nblks_c)
-      cf_desc    = t_cf_var('zonal_wind_tendency_by_centrifugal_acceleration', 'm s-2', &
-        &                   'zonal wind tendency by centrifugal acceleration', datatype_flt)
-      grib2_desc = grib2_var( 0, 2, 237, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_diag_list, 'ddt_ua_cen', p_diag%ddt_ua_cen,                &
-                  & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                        &
-                  & cf_desc, grib2_desc,                                         &
-                  & ldims=shape3d_c ,                                            &
-                  & lrestart=.FALSE., loutput=.TRUE.,                            &
-                  & lopenacc = .TRUE.                                            )
-      __acc_attach(p_diag%ddt_ua_cen)
-      p_diag%ddt_ua_cen_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_ua_cen_is_associated)
-    END IF
-
-    IF (var_in_output%ddt_ua_cen .OR. var_in_output%ddt_va_cen) THEN
-      ! ddt_va_cen   p_diag%ddt_va_cen(nproma,nlev,nblks_c)
-      cf_desc    = t_cf_var('meridional_wind_tendency_by_centrifugal_acceleration', 'm s-2', &
-        &                   'meridional wind tendency by centrifugal acceleration', datatype_flt)
-      grib2_desc = grib2_var( 0, 2, 247, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_diag_list, 'ddt_va_cen', p_diag%ddt_va_cen,                &
-                  & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                        &
-                  & cf_desc, grib2_desc,                                         &
-                  & ldims=shape3d_c ,                                            &
-                  & lrestart=.FALSE., loutput=.TRUE.,                            &
-                  & lopenacc = .TRUE.                                            )
-      __acc_attach(p_diag%ddt_va_cen)
-      p_diag%ddt_va_cen_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_va_cen_is_associated)
     END IF
 
 
@@ -3912,14 +3858,16 @@ MODULE mo_nonhydro_state
     &       p_metrics%bdy_mflx_e_blk, &
     &       p_metrics%nudgecoeff_vert, &
     &       p_metrics%mask_prog_halo_c, &
-    &       p_metrics%zgpot_ifc, &
-    &       p_metrics%zgpot_mc, &
-    &       p_metrics%dzgpot_mc, &
     &       p_metrics%mask_mtnpoints, &
     &       p_metrics%mask_mtnpoints_g, &
-    &       p_metrics%deepatmo_t1mc, &
-    &       p_metrics%deepatmo_t1ifc, &
-    &       p_metrics%deepatmo_t2mc)
+    &       p_metrics%deepatmo_gradh_mc, &
+    &       p_metrics%deepatmo_divh_mc, &
+    &       p_metrics%deepatmo_vol_mc, &
+    &       p_metrics%deepatmo_invr_mc, &
+    &       p_metrics%deepatmo_divzU_mc, &
+    &       p_metrics%deepatmo_divzL_mc, &
+    &       p_metrics%deepatmo_gradh_ifc, &
+    &       p_metrics%deepatmo_invr_ifc)
 
 
     !
@@ -4861,106 +4809,90 @@ MODULE mo_nonhydro_state
 
     !----------------------------------------------------------------------------
 
-    ! Upper atmosphere/deep atmosphere
+    !--------------------------------------------------------
+    ! metrical modification factors for the deep-atmosphere:
+    !--------------------------------------------------------
 
-    IF (.NOT. upatmo_dyn_config(jg)%lset) THEN 
-      ! this happens early in the program sequence, 
-      ! so to be on a somewhat safer side, we check, if the upper atmosphere 
-      ! has been configured
-      CALL finish(routine, 'upper/deep atmosphere: information required is not yet available')
-    ELSEIF (ldeepatmo .AND. (.NOT. upatmo_dyn_config(jg)%lconstgrav)) THEN
-      ! gravitational acceleration varies vertically, 
-      ! so the following fields are required
-      
-      ! geopotential height of cell interfaces
-      ! p_metrics%zgpot_ifc(nproma,nlevp1,nblks_c)
-      !
-      cf_desc    = t_cf_var('geopotential_height_at_half_level_center', 'm',          &
-        &                   'geopotential height at half level center', datatype_flt)
-      grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_metrics_list, 'zgpot_ifc', p_metrics%zgpot_ifc,                 &
-        &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE_HALF, cf_desc, grib2_desc,   &
-        &           ldims=shape3d_chalf, loutput=.FALSE.,                             &
-        &           isteptype=TSTEP_CONSTANT,                                         &
-        &           lopenacc = .TRUE. )
-      __acc_attach(p_metrics%zgpot_ifc)
-      
-      ! geopotential height of cell centers 
-      ! p_metrics%zgpot_mc(nproma,nlev,nblks_c)
-      !
-      cf_desc    = t_cf_var('geopotential_height_at_full_level_center', 'm',          &
-        &                   'geopotential height at full level center', datatype_flt)
-      grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_metrics_list, 'zgpot_mc', p_metrics%zgpot_mc,                   &
-        &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,        &
-        &           ldims=shape3d_c, loutput=.FALSE.,                                 &
-        &           isteptype=TSTEP_CONSTANT,                                         &
-        &           lopenacc = .TRUE. )
-      __acc_attach(p_metrics%zgpot_mc)
-      
-      ! geopotential layer thickness 
-      ! p_metrics%dzgpot_mc(nproma,nlev,nblks_c)   
-      !
-      cf_desc    = t_cf_var('geopotential_layer_thickness_at_full_level_center', 'm',          &
-        &                   'geopotential layer thickness at full level center', datatype_flt)
-      grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( p_metrics_list, 'dzgpot_mc', p_metrics%dzgpot_mc,                          &
-        &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,                 &
-        &           ldims=shape3d_c, loutput=.FALSE.,                                          &
-        &           isteptype=TSTEP_CONSTANT,                                                  &
-        &           lopenacc = .TRUE.  )
-      __acc_attach(p_metrics%dzgpot_mc)
-    ENDIF  !IF (.NOT. upatmo_config(jg)%l_status(istatus%configured))
-
-    ! metrical modification factors for the deep-atmosphere equations 
-    ! p_metrics%deepatmo_t1mc
-    !
-    cf_desc    = t_cf_var('deepatmo_t1mc', '-',                                              &
-         &                'metrical modification factors for the deep-atmosphere equations ' , datatype_flt)
+    ! p_metrics%deepatmo_gradh_mc(nlev):
+    ! metrical modification factor for horizontal gradient at full levels
+    cf_desc    = t_cf_var('deepatmo_gradh_mc', '-',                                                       &
+      &                   'deep-atmosphere metrical modification factor for horizontal gradient', datatype_flt)
     grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-    CALL add_var( p_metrics_list, 'deepatmo_t1mc', p_metrics%deepatmo_t1mc,                  &
-         &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,              &
-         &           ldims = (/nlev, idamtr%t1mc%nitem/), lopenacc = .TRUE.)
-    __acc_attach(p_metrics%deepatmo_t1mc)
+    CALL add_var( this_list=p_metrics_list, varname='deepatmo_gradh_mc', ptr=p_metrics%deepatmo_gradh_mc, &
+      &           hgrid=GRID_UNSTRUCTURED_CELL, vgrid=ZA_REFERENCE, cf=cf_desc, grib2=grib2_desc,         &
+      &           ldims=shape1d_c, initval=1._wp, loutput=.FALSE., lopenacc = .TRUE.)
+    __acc_attach(p_metrics%deepatmo_gradh_mc)
 
-    p_metrics%deepatmo_t1mc(:,idamtr%t1mc%gradh)    = 1._wp
-    p_metrics%deepatmo_t1mc(:,idamtr%t1mc%divh)     = 1._wp
-    p_metrics%deepatmo_t1mc(:,idamtr%t1mc%vol)      = 1._wp
-    p_metrics%deepatmo_t1mc(:,idamtr%t1mc%invr)     = 0._wp  ! here 0 means shallow atmosphere
-    p_metrics%deepatmo_t1mc(:,idamtr%t1mc%centri)   = 0._wp  ! here 0 means shallow atmosphere
-
-    
-    ! Missing description
-    ! p_metrics%deepatmo_t1ifc
-    !
-    cf_desc    = t_cf_var('deepatmo_t1ifc', '-',                                             &
-         &                'Missing description' , datatype_flt)
+    ! p_metrics%deepatmo_divh_mc(nlev):
+    ! metrical modification factor for horizontal part of divergence at full levels
+    cf_desc    = t_cf_var('deepatmo_divh_mc', '-',                                                      &
+      &                   'deep-atmosphere metrical modification factor for horizontal part of divergence', datatype_flt)
     grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-    CALL add_var( p_metrics_list, 'deepatmo_t1ifc', p_metrics%deepatmo_t1ifc,                &
-         &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,              &
-         &           ldims = (/nlevp1, idamtr%t1ifc%nitem/), lopenacc = .TRUE. )
-    __acc_attach(p_metrics%deepatmo_t1ifc)
+    CALL add_var( this_list=p_metrics_list, varname='deepatmo_divh_mc', ptr=p_metrics%deepatmo_divh_mc, &
+      &           hgrid=GRID_UNSTRUCTURED_CELL, vgrid=ZA_REFERENCE, cf=cf_desc, grib2=grib2_desc,       &
+      &           ldims=shape1d_c, initval=1._wp, loutput=.FALSE., lopenacc = .TRUE.)
+    __acc_attach(p_metrics%deepatmo_divh_mc)
 
-    p_metrics%deepatmo_t1ifc(:,idamtr%t1ifc%gradh)  = 1._wp
-    p_metrics%deepatmo_t1ifc(:,idamtr%t1ifc%invr)   = 0._wp  ! here 0 means shallow atmosphere
-    p_metrics%deepatmo_t1ifc(:,idamtr%t1ifc%centri) = 0._wp  ! here 0 means shallow atmosphere
-   
-    
-    ! Missing description
-    ! p_metrics%deepatmo_t2mc
-    !
-    cf_desc    = t_cf_var('deepatmo_t2mc', '-',                                             &
-         &                'Missing description' , datatype_flt)
+    ! p_metrics%deepatmo_vol_mc(nlev):
+    ! metrical modification factor for cell volume at full levels
+    cf_desc    = t_cf_var('deepatmo_vol_mc', '-',                                                     &
+      &                   'deep-atmosphere metrical modification factor for cell volume', datatype_flt)
     grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-    CALL add_var( p_metrics_list, 'deepatmo_t2mc', p_metrics%deepatmo_t2mc,                &
-         &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,              &
-         &           ldims = (/idamtr%t2mc%nitem, nlev/), lopenacc = .TRUE. )
-    __acc_attach(p_metrics%deepatmo_t2mc)
+    CALL add_var( this_list=p_metrics_list, varname='deepatmo_vol_mc', ptr=p_metrics%deepatmo_vol_mc, &
+      &           hgrid=GRID_UNSTRUCTURED_CELL, vgrid=ZA_REFERENCE, cf=cf_desc, grib2=grib2_desc,     &
+      &           ldims=shape1d_c, initval=1._wp, loutput=.FALSE., lopenacc = .TRUE.)
+    __acc_attach(p_metrics%deepatmo_vol_mc)
 
+    ! p_metrics%deepatmo_invr_mc(nlev):
+    ! metrical modification factor: inverse of radial distance of full levels from center of Earth
+    cf_desc    = t_cf_var('deepatmo_invr_mc', 'm-1',                                                    &
+      &                   'deep-atmosphere metrical modification factor -- inverse radial distance from Earth center', datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( this_list=p_metrics_list, varname='deepatmo_invr_mc', ptr=p_metrics%deepatmo_invr_mc, &
+      &           hgrid=GRID_UNSTRUCTURED_CELL, vgrid=ZA_REFERENCE, cf=cf_desc, grib2=grib2_desc,       &
+      &           ldims=shape1d_c, initval=0._wp, loutput=.FALSE., lopenacc = .TRUE.)
+    __acc_attach(p_metrics%deepatmo_invr_mc)
 
-    p_metrics%deepatmo_t2mc(idamtr%t2mc%divzU,:)    = 1._wp
-    p_metrics%deepatmo_t2mc(idamtr%t2mc%divzL,:)    = 1._wp
-    
+    ! p_metrics%deepatmo_divzU_mc(nlev):
+    ! metrical modification factor for vertical part of divergence at full levels
+    cf_desc    = t_cf_var('deepatmo_divzU_mc', '-',                                                       &
+      &                   'deep-atmosphere metrical modification factor for vertical part of divergence', datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( this_list=p_metrics_list, varname='deepatmo_divzU_mc', ptr=p_metrics%deepatmo_divzU_mc, &
+      &           hgrid=GRID_UNSTRUCTURED_CELL, vgrid=ZA_REFERENCE, cf=cf_desc, grib2=grib2_desc,         &
+      &           ldims=shape1d_c, initval=1._wp, loutput=.FALSE., lopenacc = .TRUE.)
+    __acc_attach(p_metrics%deepatmo_divzU_mc)
+
+    ! p_metrics%deepatmo_divzL_mc(nlev):
+    ! metrical modification factor for vertical part of divergence at full levels
+    cf_desc    = t_cf_var('deepatmo_divzL_mc', '-',                                                       &
+      &                   'deep-atmosphere metrical modification factor for vertical part of divergence', datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( this_list=p_metrics_list, varname='deepatmo_divzL_mc', ptr=p_metrics%deepatmo_divzL_mc, &
+      &           hgrid=GRID_UNSTRUCTURED_CELL, vgrid=ZA_REFERENCE, cf=cf_desc, grib2=grib2_desc,         &
+      &           ldims=shape1d_c, initval=1._wp, loutput=.FALSE., lopenacc = .TRUE.)
+    __acc_attach(p_metrics%deepatmo_divzL_mc)
+
+    ! p_metrics%deepatmo_gradh_ifc(nlevp1):
+    ! metrical modification factor for horizontal gradient at half levels
+    cf_desc    = t_cf_var('deepatmo_gradh_ifc', '-',                                                        &
+      &                   'deep-atmosphere metrical modification factor for horizontal gradient', datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( this_list=p_metrics_list, varname='deepatmo_gradh_ifc', ptr=p_metrics%deepatmo_gradh_ifc, &
+      &           hgrid=GRID_UNSTRUCTURED_CELL, vgrid=ZA_REFERENCE_HALF, cf=cf_desc, grib2=grib2_desc,      &
+      &           ldims=shape1d_chalf, initval=1._wp, loutput=.FALSE., lopenacc = .TRUE.)
+    __acc_attach(p_metrics%deepatmo_gradh_ifc)
+
+    ! p_metrics%deepatmo_invr_ifc(nlevp1):
+    ! metrical modification factor: inverse radius from center of Earth of half levels
+    cf_desc    = t_cf_var('deepatmo_invr_ifc', 'm-1',                                                     &
+      &                   'deep-atmosphere metrical modification factor -- inverse radial distance from Earth center', datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( this_list=p_metrics_list, varname='deepatmo_invr_ifc', ptr=p_metrics%deepatmo_invr_ifc, &
+      &           hgrid=GRID_UNSTRUCTURED_CELL, vgrid=ZA_REFERENCE_HALF, cf=cf_desc, grib2=grib2_desc,    &
+      &           ldims=shape1d_chalf, initval=0._wp, loutput=.FALSE., lopenacc = .TRUE.)
+    __acc_attach(p_metrics%deepatmo_invr_ifc)
+
   END SUBROUTINE new_nh_metrics_list
 
   

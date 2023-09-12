@@ -250,11 +250,8 @@ MODULE mo_nwp_rad_interface
       ! globally fixed albedo value for SCM and RCEMIP applications
       CALL sfc_albedo_scm(pt_patch, albedo_fixed, prm_diag, lzacc)
     ELSE
-#ifdef _OPENACC
-      IF (lzacc) CALL finish('nwp_radiation','sfc_albedo not ported to gpu')
-#endif
       ! albedo based on tabulated bare soil values
-      CALL sfc_albedo(pt_patch, ext_data, lnd_prog, wtr_prog, lnd_diag, prm_diag)
+      CALL sfc_albedo(pt_patch, ext_data, lnd_prog, wtr_prog, lnd_diag, prm_diag, lzacc)
     ENDIF
 
     IF (timers_level > 6) CALL timer_stop(timer_preradiaton)

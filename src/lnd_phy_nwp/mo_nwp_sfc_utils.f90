@@ -35,7 +35,7 @@ MODULE mo_nwp_sfc_utils
   USE mo_model_domain,        ONLY: t_patch
   USE mo_physical_constants,  ONLY: tmelt, tf_salt, grav, salinity_fac, rhoh2o
   USE mo_math_constants,      ONLY: dbl_eps, rad2deg
-  USE mo_impl_constants,      ONLY: min_rlcell_int, min_rlcell, &
+  USE mo_impl_constants,      ONLY: min_rlcell_int, min_rlcell, LSS_JSBACH, &
     &                               MODE_IAU, ALB_SI_MISSVAL, MAX_CHAR_LENGTH
   USE mo_impl_constants_grf,  ONLY: grf_bdywidth_c
   USE sfc_flake_data,         ONLY: tpl_T_r, C_T_min, rflk_depth_bs_ref
@@ -44,6 +44,7 @@ MODULE mo_nwp_sfc_utils
   USE mo_ext_data_init,       ONLY: diagnose_ext_aggr, interpol_monthly_mean, vege_clim
   USE mo_nwp_lnd_types,       ONLY: t_lnd_prog, t_wtr_prog, t_lnd_diag, t_lnd_state
   USE mo_nwp_phy_types,       ONLY: t_nwp_phy_diag
+  USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config
   USE mo_parallel_config,     ONLY: nproma
   USE mo_grid_config,         ONLY: l_limited_area, n_dom
   USe mo_extpar_config,       ONLY: itopo, itype_vegetation_cycle
@@ -3630,7 +3631,7 @@ CONTAINS
     CALL message('', TRIM(message_text))
 
     ! set frice_thrhld depending on tile usage
-    IF ( ntiles_total == 1 ) THEN  ! no tile approach
+    IF ( ntiles_total == 1 .AND. atm_phy_nwp_config(jg)%inwp_surface /= LSS_JSBACH ) THEN  ! no tile approach
       zfrice_thrhld = 0.5_wp
     ELSE
       zfrice_thrhld = frsi_min

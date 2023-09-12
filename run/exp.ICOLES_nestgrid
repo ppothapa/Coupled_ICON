@@ -201,8 +201,7 @@ rbf_vec_scale_v   = 0.07, 0.07, 0.025
 rbf_vec_scale_e   = 0.15, 0.15,  0.05
 /
 &gridref_nml
-! grf_intmethod_ct = 1
- grf_intmethod_e  = 5
+ grf_intmethod_e  = 6
  grf_scalfbk      = 1
  grf_tracfbk      = 1
  denom_diffu_v    = 150.

@@ -63,7 +63,6 @@ MODULE mo_nh_init_nest_utils
   USE mo_intp_rbf,              ONLY: rbf_vec_interpol_cell
   USE mo_nwp_sfc_interp,        ONLY: smi_to_wsoil, wsoil_to_smi
   USE sfc_flake,                ONLY: flake_coldinit
-  USE mo_upatmo_config,         ONLY: upatmo_config
   USE mo_input_instructions,    ONLY: t_readInstructionListPtr, kStateFailedFetch, &
     &                                 kInputSourceAnaI, kInputSourceFgAnaI, kInputSourceAna, kInputSourceBoth
 
@@ -825,7 +824,7 @@ MODULE mo_nh_init_nest_utils
 
     CALL diagnose_pres_temp(p_child_metrics, p_child_prog, p_child_prog_rcf, p_child_diag, &
                             p_patch(jgc), opt_calc_temp=.TRUE., opt_calc_pres=.TRUE.,      &
-                            lnd_prog=p_child_lprog, opt_lconstgrav=upatmo_config(jgc)%dyn%l_constgrav)
+                            lnd_prog=p_child_lprog)
 
 
     DEALLOCATE(thv_pr_par, rho_pr_par, lndvars_par, wtrvars_par, phdiag_par, lndvars_chi, &
