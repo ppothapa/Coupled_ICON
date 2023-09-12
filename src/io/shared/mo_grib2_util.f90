@@ -18,13 +18,12 @@ MODULE mo_grib2_util
 
   USE mo_impl_constants,     ONLY: MAX_CHAR_LENGTH
   USE mo_exception,          ONLY: finish
-  USE mo_cdi,                ONLY: streamInqVlist, vlistInqVarTypeOfGeneratingProcess,  &
-                                 & vlistInqVarTsteptype, vlistInqTaxis, taxisInqTunit,  &
-                                 & TSTEP_CONSTANT, TSTEP_AVG, TSTEP_ACCUM, TSTEP_MAX,   &
-                                 & TSTEP_MIN, TUNIT_SECOND, TUNIT_MINUTE, TUNIT_HOUR,   &
-                                 & vlistDefVarProductDefinitionTemplate,                &
-                                 & vlistDefVarTypeOfGeneratingProcess,                  &
-                                 & vlistDefVarIntKey
+  USE mo_cdi,                ONLY: streamInqVlist, cdiInqKeyInt, cdiDefKeyInt,          &
+    &                              vlistInqVarTsteptype, vlistInqTaxis, taxisInqTunit,  &
+    &                              TSTEP_CONSTANT, TSTEP_AVG, TSTEP_ACCUM, TSTEP_MAX,   &
+    &                              TSTEP_MIN, TUNIT_SECOND, TUNIT_MINUTE, TUNIT_HOUR,   &
+    &                              vlistDefVarIntKey, CDI_KEY_TYPEOFGENERATINGPROCESS,  &
+    &                              CDI_KEY_PRODUCTDEFINITIONTEMPLATE, CDI_NOERR
   USE mo_gribout_config,     ONLY: t_gribout_config
   USE mo_var_metadata_types, ONLY: t_var_metadata, CLASS_TILE, CLASS_SYNSAT, &
     &                              CLASS_CHEM, CLASS_TILE_LAND,              &
@@ -69,7 +68,8 @@ CONTAINS
     !
     ! Local
     INTEGER :: steptype
-
+    INTEGER :: res
+    CHARACTER(len=*), PARAMETER :: routine = 'set_GRIB2_additional_keys'
 
     ! inquire steptype (needed below)
     steptype = vlistInqVarTsteptype(vlistID, varID)
@@ -116,15 +116,19 @@ CONTAINS
       ! Use special date for invariant and climatological fields
       !
       IF ( steptype == TSTEP_CONSTANT ) THEN
-        ! invariant data 
-        CALL vlistDefVarTypeOfGeneratingProcess(vlistID, varID, 196)
+        ! invariant data
+        res = cdiDefKeyInt(vlistID, varID, CDI_KEY_TYPEOFGENERATINGPROCESS, 196)
       ELSE
-        CALL vlistDefVarTypeOfGeneratingProcess(vlistID, varID, grib_conf%typeOfGeneratingProcess)
+        res = cdiDefKeyInt(vlistID, varID, CDI_KEY_TYPEOFGENERATINGPROCESS, grib_conf%typeOfGeneratingProcess)
       ENDIF
     ELSE
       ! no special treatment of invariant and climatological fields
       !
-      CALL vlistDefVarTypeOfGeneratingProcess(vlistID, varID, grib_conf%typeOfGeneratingProcess)
+      res = cdiDefKeyInt(vlistID, varID, CDI_KEY_TYPEOFGENERATINGPROCESS, grib_conf%typeOfGeneratingProcess)
+    ENDIF
+    !
+    IF (res/=CDI_NOERR) THEN
+      CALL finish(routine, "error when defining typeOfGeneratingProcess")
     ENDIF
 
   END SUBROUTINE set_GRIB2_additional_keys
@@ -227,14 +231,18 @@ CONTAINS
     TYPE(t_gribout_config), INTENT(IN) :: grib_conf
 
     ! Local
-    INTEGER  :: typeOfGeneratingProcess 
+    INTEGER :: typeOfGeneratingProcess
+    INTEGER :: res
+    CHARACTER(len=*), PARAMETER :: routine = 'set_GRIB2_ensemble_keys'
   !----------------------------------------------------------------
 
     ! get typeOfGeneratingProcess
     ! We do not make use of grib_conf%typeOfGeneratingProcess, since 
     ! typeOfGeneratingProcess is modified for invariant fields.
-    typeOfGeneratingProcess = vlistInqVarTypeOfGeneratingProcess(vlistID, varID)
-
+    res = cdiInqKeyInt(vlistID, varID, CDI_KEY_TYPEOFGENERATINGPROCESS, typeOfGeneratingProcess)
+    IF (res/=CDI_NOERR) THEN
+      CALL finish(routine, "error when inquiring typeOfGeneratingProcess")
+    ENDIF
 
     IF (typeOfGeneratingProcess == 4) THEN  ! Ensemble forecast
 
@@ -268,25 +276,33 @@ CONTAINS
     TYPE (t_var_metadata),  INTENT(IN) :: info
 
     ! Local
-    INTEGER  :: typeOfGeneratingProcess 
-    
+    INTEGER :: typeOfGeneratingProcess
+    INTEGER :: res
+    CHARACTER(len=*), PARAMETER :: routine = 'set_GRIB2_synsat_keys'
     ! ----------------------------------------------------------------
-    
+
     ! Skip inapplicable fields
     IF ( info%var_class /= CLASS_SYNSAT ) RETURN
 
     ! get typeOfGeneratingProcess
-    typeOfGeneratingProcess = vlistInqVarTypeOfGeneratingProcess(vlistID, varID)
+    res = cdiInqKeyInt(vlistID, varID, CDI_KEY_TYPEOFGENERATINGPROCESS, typeOfGeneratingProcess)
+    IF (res/=CDI_NOERR) THEN
+      CALL finish(routine, "error when inquiring typeOfGeneratingProcess")
+    ENDIF
 
-    ! change product definition template    
-    IF (typeOfGeneratingProcess == 4) THEN  
+    ! change product definition template
+    IF (typeOfGeneratingProcess == 4) THEN
       ! Ensemble forecast
-      CALL vlistDefVarProductDefinitionTemplate(vlistID, varID, 33)
+      res = cdiDefKeyInt(vlistID, varID, CDI_KEY_PRODUCTDEFINITIONTEMPLATE, 33)
     ELSE
       ! Deterministic forecast
-      CALL vlistDefVarProductDefinitionTemplate(vlistID, varID, 32)
+      res = cdiDefKeyInt(vlistID, varID, CDI_KEY_PRODUCTDEFINITIONTEMPLATE, 32)
     END IF
-    
+    !
+    IF (res/=CDI_NOERR) THEN
+      CALL finish(routine, "error when defining productDefinitionTemplate")
+    ENDIF
+
   END SUBROUTINE set_GRIB2_synsat_keys
 
 
@@ -309,7 +325,8 @@ CONTAINS
     ! Local
     INTEGER :: typeOfGeneratingProcess
     INTEGER :: productDefinitionTemplate     ! template number
-
+    INTEGER :: res
+    CHARACTER(len=*), PARAMETER :: routine = 'set_GRIB2_chem_keys'
     ! ----------------------------------------------------------------
     
     SELECT CASE (info%var_class)
@@ -329,15 +346,21 @@ CONTAINS
     END SELECT
 
     ! get typeOfGeneratingProcess
-    typeOfGeneratingProcess = vlistInqVarTypeOfGeneratingProcess(vlistID, varID)
+    res = cdiInqKeyInt(vlistID, varID, CDI_KEY_TYPEOFGENERATINGPROCESS, typeOfGeneratingProcess)
+    IF (res/=CDI_NOERR) THEN
+      CALL finish(routine, "error when inquiring typeOfGeneratingProcess")
+    ENDIF
 
     ! change product definition template in case of ensemble run
     IF (typeOfGeneratingProcess == 4)  &
       &  productDefinitionTemplate = productDefinitionTemplate + 1
 
     ! set product definition template
-    CALL vlistDefVarProductDefinitionTemplate(vlistID, varID, productDefinitionTemplate)
-    
+    res = cdiDefKeyInt(vlistID, varID, CDI_KEY_PRODUCTDEFINITIONTEMPLATE, productDefinitionTemplate)
+    IF (res/=CDI_NOERR) THEN
+      CALL finish(routine, "error when defining productDefinitionTemplate")
+    ENDIF
+
   END SUBROUTINE set_GRIB2_chem_keys
 
 
@@ -362,16 +385,21 @@ CONTAINS
 
 #ifndef __NO_ICON_ATMO__
     ! local
+    INTEGER                   :: res
     INTEGER                   :: typeOfGeneratingProcess
     INTEGER                   :: productDefinitionTemplate        ! Tile template number 
     INTEGER                   :: natt
     TYPE(t_tileinfo_grb2)     :: tileinfo_grb2
+    CHARACTER(len=*), PARAMETER :: routine = 'set_GRIB2_tile_keys'
   !----------------------------------------------------------------
 
     ! Skip inapplicable fields
     IF ( ALL((/CLASS_TILE,CLASS_TILE_LAND/) /= info%var_class) ) RETURN
 
-    typeOfGeneratingProcess = vlistInqVarTypeOfGeneratingProcess(vlistID, varID)
+    res = cdiInqKeyInt(vlistID, varID, CDI_KEY_TYPEOFGENERATINGPROCESS, typeOfGeneratingProcess)
+    IF (res/=CDI_NOERR) THEN
+      CALL finish(routine, "error when inquiring typeOfGeneratingProcess")
+    ENDIF
 
     ! change product definition template
     !
@@ -402,7 +430,10 @@ CONTAINS
 !!$      ENDIF
 !!$    ENDIF
 
-    CALL vlistDefVarProductDefinitionTemplate(vlistID, varID, productDefinitionTemplate)
+    res = cdiDefKeyInt(vlistID, varID, CDI_KEY_PRODUCTDEFINITIONTEMPLATE, productDefinitionTemplate)
+    IF (res/=CDI_NOERR) THEN
+      CALL finish(routine, "error when defining productDefinitionTemplate")
+    ENDIF
 
     ! Set tile classification
     CALL vlistDefVarIntKey(vlistID, varID, TRIM(grib2_template_tile%keys%tileClassification), i_lctype)
