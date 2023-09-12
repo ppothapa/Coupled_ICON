@@ -10,10 +10,7 @@ make_and_change_to_experiment_dir # function in ../add_run_routines
 START_MODEL="${START_MODEL:=$START $MODEL}"
 
 # set icon_data_poolFolder
-icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}"
-if [[ -d "$icon_data_poolFolder/buildbot_data/nwp" ]]; then
-  icon_data_poolFolder="$icon_data_poolFolder/buildbot_data/nwp"
-fi
+icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/buildbot_data/nwp"
 
 export PATH=${PATH}:~routfor/routfox/bin
 
@@ -26,10 +23,8 @@ EXP="NWP"    # experiment identifier
 # root directory for input data
 DATAROOT="${icon_data_poolFolder}/Checksuite_data"
 
-GRIDDIR=/hpc/rwork0/routfor/routfox/icon/grids/public/edzw # grid directory
-if [[ ! -d "$GRIDDIR" ]]; then
-  GRIDDIR="$icon_data_poolFolder/grids/public/edzw"
-fi
+GRIDDIR="${icon_data_poolFolder}/grids/public/edzw"
+# GRIDDIR links to /hpc/rwork0/routfor/routfox/icon/grids/public/edzw on RCL
 EXTPDIR="$GRIDDIR" # external parameter directory
 
 # absolute path to input directory - for the time being

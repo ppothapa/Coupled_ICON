@@ -55,7 +55,7 @@ ICONDIR=${PBS_O_WORKDIR}/..
 # base directory
 
 # ROUTINE PATHS>>>
-GRIDDIR=/hpc/rwork0/routfor/test/icon/Checksuite_data/${EXPNAME}
+GRIDDIR=/hpc/rwork0/routfor/test/icon/buildbot_data/nwp/Checksuite_data/${EXPNAME}
 INITDIR=${GRIDDIR}
 MODEL=${ICONDIR}/vector/bin/icon
 MODEL_SCAL=${ICONDIR}/host/bin/icon
