@@ -5580,9 +5580,9 @@ ENDDO
     !$ACC UPDATE WAIT(acc_async_queue) HOST(ivend)
     DO i = ivstart, ivend
 
-!     IF (ABS(t_s_now(i)-t_s_new(i)) > 15.0_wp .or. ABS(t_sk_now(i)-t_sk_new(i)) > 15.0_wp) THEN
-!     consistent to the first debug output, we ask for a specific grid point
-     IF (i== mvid .AND. iblock == mbid .AND. my_cart_id == mcid) THEN
+     IF (ABS(t_s_now(i)-t_s_new(i)) > 15.0_wp .or. ABS(t_sk_now(i)-t_sk_new(i)) > 15.0_wp) THEN
+!     the setting below was only useful in the frame of the COSMO model
+!     IF (i== mvid .AND. iblock == mbid .AND. my_cart_id == mcid) THEN
 
         WRITE(*,'(A        )') '                                '
         WRITE(*,'(A,2I5)'  ) 'SFC-DIAGNOSIS terra output:  iblock = ', iblock, i

@@ -1818,7 +1818,7 @@ MODULE mo_initicon
 !NEC$ ivdep
             DO ic = 1, ext_data(jg)%atm%lp_count_t(jb,jt)
               jc = ext_data(jg)%atm%idx_lst_lp_t(ic,jb,jt)
-              ist = ext_data(jg)%atm%soiltyp(jc,jb)
+              ist = ext_data(jg)%atm%soiltyp_t(jc,jb,jt)
               SELECT CASE(ist)
                 CASE (3,4,5,6,7,8) ! soil types with non-zero water content
                 IF (lnd_prog_now%w_so_t(jc,jk,jb,jt) <= dzsoil_icon(jk)*cpwp(ist)) THEN
@@ -1834,7 +1834,7 @@ MODULE mo_initicon
 !NEC$ ivdep
             DO ic = 1, ext_data(jg)%atm%lp_count_t(jb,jt)
               jc  = ext_data(jg)%atm%idx_lst_lp_t(ic,jb,jt)
-              ist = ext_data(jg)%atm%soiltyp(jc,jb)
+              ist = ext_data(jg)%atm%soiltyp_t(jc,jb,jt)
 
               IF (lnd_prog_now%w_so_t(jc,jk,jb,jt) <= 1.e-10_wp .AND. cporv(ist) > 1.e-9_wp) THEN
                 ! This should only happen for a tile coldstart; in this case,
@@ -2070,7 +2070,7 @@ MODULE mo_initicon
 !NEC$ ivdep
                 DO ic = 1, ext_data(jg)%atm%lp_count_t(jb,jt)
                   jc = ext_data(jg)%atm%idx_lst_lp_t(ic,jb,jt)
-                  ist = ext_data(jg)%atm%soiltyp(jc,jb)
+                  ist = ext_data(jg)%atm%soiltyp_t(jc,jb,jt)
                   SELECT CASE(ist)
                     CASE (3,4,5,6,7,8) ! soil types with non-zero water content
                     smival = dzsoil_icon(jk)*(0.75_wp*cpwp(ist)+0.25_wp*cfcap(ist)) ! corresponds to SMI = 0.25
@@ -2322,7 +2322,7 @@ MODULE mo_initicon
             IF (l_limited_area .AND. jg == 1 .AND. .NOT. lread_ana) THEN
 
               DO jc = i_startidx, i_endidx
-                ist = ext_data(jg)%atm%soiltyp(jc,jb)
+                ist = ext_data(jg)%atm%soiltyp_t(jc,jb,jt)
                 SELECT CASE(ist)
                 CASE (3,4,5,6,7,8) ! soil types with non-zero water content
                 p_lnd_state(jg)%prog_lnd(nnow_rcf(jg))%w_so_t(jc,jk,jb,jt) = MIN(dzsoil_icon(jk)*cporv(ist),    &
