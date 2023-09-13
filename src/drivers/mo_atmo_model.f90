@@ -97,8 +97,7 @@ MODULE mo_atmo_model
   USE mo_advection_utils,         ONLY: init_tracer_settings
 
   ! horizontal grid, domain decomposition, memory
-  USE mo_grid_config,             ONLY: n_dom, n_dom_start,                                   &
-    &                                   dynamics_parent_grid_id, n_phys_dom, l_scm_mode
+  USE mo_grid_config,             ONLY: n_dom, n_dom_start, n_phys_dom, l_scm_mode
   USE mo_model_domain,            ONLY: p_patch, p_patch_local_parent
   USE mo_build_decomposition,     ONLY: build_decomposition
   USE mo_complete_subdivision,    ONLY: setup_phys_patches

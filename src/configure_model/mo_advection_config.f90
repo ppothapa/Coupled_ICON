@@ -25,8 +25,8 @@ MODULE mo_advection_config
     &                                     MIURA_MCYCL, MIURA3_MCYCL, FFSL_MCYCL,   &
     &                                     FFSL_HYB_MCYCL, ippm_v, ipsm_v,          &
     &                                     ino_flx, iparent_flx, inwp,              &
-    &                                     iaes, TRACER_ONLY, SUCCESS, VNAME_LEN,   &
-    &                                     NO_HADV, NO_VADV, UP, vlname_len
+    &                                     iaes, SUCCESS, VNAME_LEN, NO_HADV,       &
+    &                                     NO_VADV, UP, vlname_len
   USE mo_exception,                 ONLY: message, message_text, finish
   USE mo_mpi,                       ONLY: my_process_is_stdio
   USE mo_grid_config,               ONLY: n_dom
@@ -214,11 +214,6 @@ MODULE mo_advection_config
                                  !< circumvent CFL instability in the
                                  !< stratopause region).
 
-    LOGICAL  :: lfull_comp       !< .TRUE. : the full set of setup computations
-                                 !<          is executed in prepare_tracer
-                                 !< .FALSE.: the majority of setup computations
-                                 !<          is performed in the dycore.
-
     TYPE(t_trList) ::       &    !< tracer sublist containing all tracer fields of
       &  trHydroMass             !< type hydroMass.
     TYPE(t_trList) ::       &    !< tracer sublist containing all tracer fields
@@ -294,9 +289,8 @@ CONTAINS
   !!
   SUBROUTINE configure_advection( jg, nlev, nlev_1, iforcing, iqc, iqt,                &
     &                             kstart_moist, kend_qvsubstep, lvert_nest,            &
-    &                             ntracer, idiv_method, itime_scheme,                  &
-    &                             p_nh_state_list, lextract_tracer_list,               &
-    &                             kstart_tracer )
+    &                             ntracer, p_nh_state_list,                            &
+    &                             lextract_tracer_list, kstart_tracer )
     !
     INTEGER, INTENT(IN) :: jg           !< patch
     INTEGER, INTENT(IN) :: nlev         !< number of vertical levels
@@ -306,8 +300,6 @@ CONTAINS
     INTEGER, INTENT(IN) :: kstart_moist
     INTEGER, INTENT(IN) :: kend_qvsubstep
     INTEGER, INTENT(IN) :: ntracer      !< total number of tracers
-    INTEGER, INTENT(IN) :: idiv_method
-    INTEGER, INTENT(IN) :: itime_scheme
     LOGICAL, INTENT(IN) :: lvert_nest
     TYPE(t_nh_state_lists), INTENT(INOUT) :: p_nh_state_list
     LOGICAL, INTENT(IN) :: lextract_tracer_list
@@ -364,18 +356,6 @@ CONTAINS
     ! set transport variables/model components, which depend on
     ! the transport namelist and potentially other namelsists.
     !
-
-    ! The full set of setup computations is NOT executed in prepare_tracer
-    ! when the tracer advection is running together with the dynamical core
-    ! (solve_nh) and only standard namelist settings are chosen (i.e.
-    ! idiv_method = 1)
-    !
-    IF ( idiv_method == 2 .OR. itime_scheme == TRACER_ONLY ) THEN
-      advection_config(jg)%lfull_comp = .TRUE.
-    ELSE
-      advection_config(jg)%lfull_comp = .FALSE. ! do not perform full set of computations in prepare_tracer
-    ENDIF
-
 
     !
     ! set vertical start level for each patch and each tracer

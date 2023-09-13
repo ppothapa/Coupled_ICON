@@ -209,7 +209,6 @@ izenith                     =                          3         ! zenith angle 
 ! dynamics_nml: dynamical core -----------------------------------------------
 &dynamics_nml
  iequations                  =                         3         ! 3: non-hydrostatic atmosphere
- idiv_method                 =                         1         ! Method for divergence computation
  lcoriolis                   =                    .TRUE.         ! Coriolis Force
 /
 

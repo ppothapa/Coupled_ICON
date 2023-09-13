@@ -548,15 +548,21 @@ from ...mpi\_phy... to ...echam\_phy... because programmers felt that the acrony
   \end{itemize}
 \end{changeitem}
 
-\begin{changeitem}{gridref\_nml}{2023-08-14}{icon-nwp:master xxx}
+\begin{changeitem}{gridref\_nml}{2023-08-14}{icon-nwp:master 62819ba6}
   \begin{itemize}
    \item Remove optional mass conservation correction in incremental feedback routine \texttt{l\_mass\_consvcorr=TRUE/FALSE}.
   \end{itemize}
 \end{changeitem}
 
-\begin{changeitem}{nonhydrostatic\_nml}{2023-08-14}{icon-nwp:master xxx}
+\begin{changeitem}{nonhydrostatic\_nml}{2023-08-14}{icon-nwp:master 62819ba6}
   \begin{itemize}
    \item Remove optional mass conservation correction for nested domains \texttt{l\_masscorr\_nest=TRUE/FALSE}.
+  \end{itemize}
+\end{changeitem}
+
+\begin{changeitem}{nonhydrostatic\_nml}{2023-09-08}{icon-nwp:master xxx}
+  \begin{itemize}
+   \item Removed Namelist switch \texttt{idiv\_method} which allowed to select different methods for horizontal divergence computations. The possibility of divergence averaging has been removed. For divergence computation we now make unconditional use of the standard Gaussian integral in combination with averaged normal components of horizontal velocity.).
   \end{itemize}
 \end{changeitem}
 % --------------------------------------------------------------------------------------------

@@ -388,7 +388,6 @@ cat > ${atmo_namelist} << EOF
 /
 &dynamics_nml
  divavg_cntrwgt = 0.50
- idiv_method    = 1
  iequations     = 3
  lcoriolis      = .true.
 /

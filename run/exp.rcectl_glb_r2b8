@@ -136,7 +136,6 @@ cat >> ${atmo_namelist} << EOF
 /
 &dynamics_nml
  iequations     = 3       ! equation system
- idiv_method    = 1
  divavg_cntrwgt = 0.50
  lcoriolis      = .TRUE.
 /

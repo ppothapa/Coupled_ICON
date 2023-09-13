@@ -362,7 +362,6 @@ cat > NAMELIST_${EXPNAME} << EOF
 
 &dynamics_nml
  iequations                   = 3
- idiv_method                  = 1
  divavg_cntrwgt               = 0.50
  lcoriolis                    = .TRUE.   ! SCM attention: .TRUE. distroys U-profile!!
 /

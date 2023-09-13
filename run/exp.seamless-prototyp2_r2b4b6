@@ -445,7 +445,6 @@ cat > ${atm_namelist} << EOF
 &dynamics_nml
  iequations              = ${atmo_model_equations}
  lcoriolis               = .TRUE.
- idiv_method             = 1
  divavg_cntrwgt          = 0.50
 /
 &diffusion_nml

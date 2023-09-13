@@ -38,7 +38,7 @@ MODULE mo_nh_stepping
     &                                    divdamp_fac, divdamp_fac_o2, ih_clch, ih_clcm, kstart_moist, &
     &                                    ndyn_substeps, ndyn_substeps_var, ndyn_substeps_max, vcfl_threshold
   USE mo_diffusion_config,         ONLY: diffusion_config
-  USE mo_dynamics_config,          ONLY: nnow,nnew, nnow_rcf, nnew_rcf, nsav1, nsav2, idiv_method, ldeepatmo
+  USE mo_dynamics_config,          ONLY: nnow, nnew, nnow_rcf, nnew_rcf, nsav1, nsav2, ldeepatmo
   USE mo_io_config,                ONLY: is_totint_time, n_diag, var_in_output, checkpoint_on_demand
   USE mo_parallel_config,          ONLY: nproma, num_prefetch_proc, proc0_offloading
   USE mo_run_config,               ONLY: ltestcase, dtime, nsteps, ldynamics, ltransport,   &
@@ -84,7 +84,7 @@ MODULE mo_nh_stepping
   USE mo_solve_nonhydro,           ONLY: solve_nh
   USE mo_update_dyn_scm,           ONLY: add_slowphys_scm
   USE mo_advection_stepping,       ONLY: step_advection
-  USE mo_nh_dtp_interface,         ONLY: prepare_tracer, compute_airmass
+  USE mo_prepadv_util,             ONLY: prepare_tracer
   USE mo_nh_diffusion,             ONLY: diffusion
   USE mo_memory_log,               ONLY: memory_log_add
   USE mo_mpi,                      ONLY: proc_split, push_glob_comm, pop_glob_comm, &
@@ -125,7 +125,7 @@ MODULE mo_nh_stepping
   USE mo_interface_iconam_aes,     ONLY: interface_iconam_aes
 #endif
   USE mo_phys_nest_utilities,      ONLY: interpol_phys_grf, feedback_phys_diag, interpol_rrg_grf, copy_rrg_ubc
-  USE mo_nh_diagnose_pres_temp,    ONLY: diagnose_pres_temp
+  USE mo_nh_diagnose_pres_temp,    ONLY: diagnose_pres_temp, compute_airmass
   USE mo_nh_held_suarez_interface, ONLY: held_suarez_nh_interface
   USE mo_master_config,            ONLY: isRestart, getModelBaseDir
   USE mo_restart_nml_and_att,      ONLY: getAttributesForRestarting
@@ -1863,16 +1863,19 @@ MODULE mo_nh_stepping
             &                         jstep_adv(jg)%marchuk_order  )  !in
         ENDIF
 
-        ! Diagnose some velocity-related quantities for the tracer
-        ! transport scheme
-        CALL prepare_tracer( p_patch(jg), p_nh_state(jg)%prog(nnow(jg)),  &! in
-          &         p_nh_state(jg)%prog(nnew(jg)),                        &! in
-          &         p_nh_state(jg)%metrics, p_int_state(jg),              &! in
-          &         ndyn_substeps_var(jg), .TRUE., .TRUE.,                &! in
-          &         advection_config(jg)%lfull_comp,                      &! in
-          &         p_nh_state(jg)%diag,                                  &! inout
-          &         prep_adv(jg)%vn_traj, prep_adv(jg)%mass_flx_me,       &! inout
-          &         prep_adv(jg)%mass_flx_ic                              )! inout
+
+        ! prepare mass fluxes and velocities for tracer transport
+        !
+        CALL prepare_tracer( p_patch       = p_patch(jg),                    &! in
+          &                  p_now         = p_nh_state(jg)%prog(nnow(jg)),  &! in
+          &                  p_new         = p_nh_state(jg)%prog(nnew(jg)),  &! in
+          &                  p_metrics     = p_nh_state(jg)%metrics,         &! in
+          &                  p_nh_diag     = p_nh_state(jg)%diag,            &! in
+          &                  p_vn_traj     = prep_adv(jg)%vn_traj,           &! inout
+          &                  p_mass_flx_me = prep_adv(jg)%mass_flx_me,       &! inout
+          &                  p_mass_flx_ic = prep_adv(jg)%mass_flx_ic,       &! inout
+          &                  lacc          = .TRUE.                          )
+
 
         ! airmass_now
         CALL compute_airmass(p_patch   = p_patch(jg),                       & !in
@@ -2661,7 +2664,7 @@ MODULE mo_nh_stepping
     LOGICAL                  :: lsave_mflx
     LOGICAL                  :: lprep_adv         !.TRUE.: do computations for preparing tracer advection in solve_nh
     LOGICAL                  :: llast             !.TRUE.: this is the last substep
-    TYPE(timeDelta) :: time_diff
+    TYPE(timeDelta)          :: time_diff
     !-------------------------------------------------------------------------
 
     ! get domain ID
@@ -2670,7 +2673,7 @@ MODULE mo_nh_stepping
     ! compute dynamics timestep
     dt_dyn = dt_phy/ndyn_substeps_var(jg)
 
-    IF ( idiv_method == 1 .AND. (ltransport .OR. p_patch%n_childdom > 0 .AND. grf_intmethod_e == 6)) THEN
+    IF ( ltransport .OR. p_patch%n_childdom > 0 .AND. grf_intmethod_e == 6 ) THEN
       lprep_adv = .TRUE. ! do computations for preparing tracer advection in solve_nh
     ELSE
       lprep_adv = .FALSE.
@@ -2736,18 +2739,6 @@ MODULE mo_nh_stepping
 
       ! now reset linit_dyn to .FALSE.
       linit_dyn(jg) = .FALSE.
-
-
-      IF (advection_config(jg)%lfull_comp) &
-
-        CALL prepare_tracer( p_patch, p_nh_state%prog(nnow(jg)),        &! in
-          &                  p_nh_state%prog(nnew(jg)),                 &! in
-          &                  p_nh_state%metrics, p_int_state,           &! in
-          &                  ndyn_substeps_var(jg), llast, lclean_mflx, &! in
-          &                  advection_config(jg)%lfull_comp,           &! in
-          &                  p_nh_state%diag,                           &! inout
-          &                  prep_adv%vn_traj, prep_adv%mass_flx_me,    &! inout
-          &                  prep_adv%mass_flx_ic                       )! inout
 
 
       ! Finally, switch between time levels now and new for next iteration

@@ -24,7 +24,6 @@
 MODULE mo_nwp_sfc_interface
 
   USE mo_kind,                ONLY: wp
-  USE mo_math_constants,      ONLY: dbl_eps
   USE mo_exception,           ONLY: message, message_text, finish
   USE mo_model_domain,        ONLY: t_patch
   USE mo_impl_constants,      ONLY: min_rlcell_int, iedmf, icosmo, max_dom
@@ -152,7 +151,7 @@ CONTAINS
 
     REAL(wp) :: sso_sigma_t(nproma)
     INTEGER  :: lc_class_t (nproma)
-    INTEGER  :: cond (nproma), init_list_tmp (nproma), i_count_init_tmp, ic_tot
+    INTEGER  :: cond (nproma), init_list_tmp (nproma), i_count_init_tmp
 
     REAL(wp) :: t_snow_now_t (nproma)
     REAL(wp) :: t_snow_new_t (nproma)
@@ -400,7 +399,7 @@ CONTAINS
 !$OMP   wliq_snow_new_t,wtot_snow_new_t,dzh_snow_new_t,w_so_new_t,w_so_ice_new_t,lhfl_pl_t,                 &
 !$OMP   shfl_soil_t,lhfl_soil_t,shfl_snow_t,lhfl_snow_t,t_snow_new_t,graupel_gsp_rate,prg_gsp_t,            &
 !$OMP   snow_melt_flux_t,h_snow_gp_t,conv_frac,t_sk_now_t,t_sk_new_t,skinc_t,tsnred,plevap_t,z0_t,laifac_t, &
-!$OMP   cond,init_list_tmp,ic_tot,i_count_init_tmp,heatcond_fac,heatcap_fac,                                &
+!$OMP   cond,init_list_tmp,i_count_init_tmp,heatcond_fac,heatcap_fac,                                       &
 !$OMP   qsat1,dqsdt1,qsat2,dqsdt2,sntunefac,sntunefac2,snowfrac_lcu_t) ICON_OMP_GUIDED_SCHEDULE
 
     DO jb = i_startblk, i_endblk

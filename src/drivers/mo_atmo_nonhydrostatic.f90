@@ -51,7 +51,7 @@ USE mo_ls_forcing,           ONLY: init_ls_forcing
 USE mo_turbulent_diagnostic, ONLY: init_les_turbulent_output, close_les_turbulent_output
 USE mo_nh_vert_interp_les,   ONLY: init_vertical_grid_for_les
 #endif
-USE mo_dynamics_config,      ONLY: nnow, nnew, nnow_rcf, idiv_method
+USE mo_dynamics_config,      ONLY: nnow, nnew, nnow_rcf
 ! Horizontal grid
 USE mo_model_domain,         ONLY: p_patch, p_patch_local_parent
 USE mo_grid_config,          ONLY: n_dom, n_dom_start, start_time, end_time, &
@@ -65,7 +65,7 @@ USE mo_vertical_grid,        ONLY: set_nh_metrics
 USE mo_nh_nest_utilities,    ONLY: complete_nesting_setup
 ! NH-namelist state
 USE mo_nonhydrostatic_config,ONLY: configure_nonhydrostatic, kstart_moist, kend_qvsubstep, &
-  &                                itime_scheme, kstart_tracer, ndyn_substeps
+  &                                kstart_tracer, ndyn_substeps
 
 ! NH-Model states
 USE mo_nonhydro_state,       ONLY: p_nh_state, p_nh_state_lists,               &
@@ -409,9 +409,8 @@ CONTAINS
         &                        p_patch(1)%nlev, iforcing, iqc, iqt,    &
         &                        kstart_moist(jg), kend_qvsubstep(jg),   &
         &                        lvert_nest, ntracer,                    &
-        &                        idiv_method, itime_scheme,              &
-        &                        p_nh_state_lists(jg),                   &
-        &                        .TRUE., kstart_tracer(jg,:) )
+        &                        p_nh_state_lists(jg), .TRUE.,           &
+        &                        kstart_tracer(jg,:) )
     ENDDO
 
     IF (ldass_lhn) THEN

@@ -1,4 +1,4 @@
-!! Contains utilities for diagnose pressure and temperature in nh model
+!! Contains utilities for diagnose pressure, temperature and air mass in nh model
 !!
 !!
 !! @par Revision History
@@ -50,6 +50,7 @@ MODULE mo_nh_diagnose_pres_temp
   PUBLIC :: diag_temp
   PUBLIC :: diag_pres
   PUBLIC :: calc_qsum
+  PUBLIC :: compute_airmass
 
   CONTAINS
 
@@ -440,6 +441,68 @@ MODULE mo_nh_diagnose_pres_temp
 
 
   END SUBROUTINE calc_qsum
+
+
+  !>
+  !! Compute air mass within grid cell
+  !!
+  !! Compute air mass within grid cell. Note that here, the air mass is defined
+  !! as \rho*\Delta z [kg m-2]. Computing the true grid cell air mass 
+  !! requires an additional multiplication with the grid cell area.
+  !!
+  !! @par Revision History
+  !! Initial revision by Daniel Reinert, DWD (2020-01-29)
+  !!
+  SUBROUTINE compute_airmass (p_patch, p_metrics, rho, airmass)
+
+    TYPE(t_patch),      INTENT(IN   ) :: p_patch
+    TYPE(t_nh_metrics), INTENT(IN   ) :: p_metrics
+    REAL(wp),           INTENT(IN   ) :: rho(:,:,:)      ! air density [kg m-3]
+    REAL(wp),           INTENT(INOUT) :: airmass(:,:,:)  ! air mass    [kg m-2]
+
+    INTEGER :: nlev                  ! number of vertical levels
+    INTEGER :: i_rlstart, i_rlend, i_startblk, i_endblk
+    INTEGER :: i_startidx, i_endidx
+    INTEGER :: jc,jk,jb
+  !---------------------------------------------------------!
+
+    ! number of vertical levels
+    nlev = p_patch%nlev
+
+    ! halo points must be included !
+    i_rlstart  = 1
+    i_rlend    = min_rlcell
+    i_startblk = p_patch%cells%start_block(i_rlstart)
+    i_endblk   = p_patch%cells%end_block(i_rlend)
+
+
+    !$ACC DATA PRESENT(rho, airmass, p_metrics%ddqz_z_full, p_metrics%deepatmo_vol_mc) IF(i_am_accel_node)
+
+!$OMP PARALLEL
+!$OMP DO PRIVATE(jc,jk,jb,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
+    DO jb = i_startblk, i_endblk
+
+      CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,           &
+        &                 i_startidx, i_endidx, i_rlstart, i_rlend)
+
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      DO jk = 1, nlev
+        DO jc = i_startidx, i_endidx
+          airmass(jc,jk,jb) = rho(jc,jk,jb)*p_metrics%ddqz_z_full(jc,jk,jb)*p_metrics%deepatmo_vol_mc(jk)
+        ENDDO  ! jc
+      ENDDO  ! jk
+      !$ACC END PARALLEL
+
+    ENDDO ! jb
+!$OMP ENDDO NOWAIT
+!$OMP END PARALLEL
+
+    !$ACC WAIT(1)
+    !$ACC END DATA
+
+  END SUBROUTINE compute_airmass
+
 
   !>
   !! Deep-atmosphere variant of diag_pres (for use within block loop)

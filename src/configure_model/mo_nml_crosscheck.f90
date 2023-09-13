@@ -40,7 +40,7 @@ MODULE mo_nml_crosscheck
     &                                    ltransport, ltestcase, ltimer,                    &
     &                                    activate_sync_timers, timers_level, lart,         &
     &                                    msg_level, luse_radarfwo
-  USE mo_dynamics_config,          ONLY: iequations, idiv_method, ldeepatmo
+  USE mo_dynamics_config,          ONLY: iequations, ldeepatmo
   USE mo_advection_config,         ONLY: advection_config
   USE mo_nonhydrostatic_config,    ONLY: itime_scheme_nh => itime_scheme,                  &
     &                                    rayleigh_type, ivctype, iadv_rhotheta
@@ -278,8 +278,6 @@ CONTAINS
         CALL finish(routine, 'Deep-atmosphere configuration is incompatible with plane or torus modes')
       ELSEIF (iadv_rhotheta /= 2) THEN
         CALL finish(routine, 'Deep-atmosphere configuration requires iadv_rhotheta = 2')
-      ELSEIF (idiv_method /= 1) THEN
-        CALL finish(routine, 'Deep-atmosphere configuration requires idiv_method = 1')
       ENDIF
     ENDIF ! IF (ldeepatmo)
 
