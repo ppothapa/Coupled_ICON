@@ -1273,7 +1273,7 @@ MODULE mo_nh_testcases
      ! to virtual potential temperature inside init_nh_state_rce_tprescr_glb.
     DO jg = 1, n_dom
       nlev   = p_patch(jg)%nlev
-       write(0,*) 'before init_nh_state_rce_tprescr_glb'
+      CALL message(TRIM(routine),'before init_nh_state_rce_tprescr_glb')
       CALL init_nh_state_rce_tprescr_glb ( p_patch(jg), p_nh_state(jg)%prog(nnow(jg)), p_nh_state(jg)%ref,  &
                       & p_nh_state(jg)%diag, p_nh_state(jg)%metrics )
       
@@ -1288,14 +1288,14 @@ MODULE mo_nh_testcases
      ! u,v,w are initialized to zero.  initialize with temperature profile, add bubble to T and q
     DO jg = 1, n_dom
        nlev   = p_patch(jg)%nlev
-       write(0,*) 'before init_aes_bubble'
+      CALL message(TRIM(routine),'before init_aes_bubble')
       CALL init_aes_bubble ( p_patch(jg), p_nh_state(jg)%prog(nnow(jg)), p_nh_state(jg)%ref,  &
                       & p_nh_state(jg)%diag, p_nh_state(jg)%metrics )
       
       
       CALL duplicate_prog_state(p_nh_state(jg)%prog(nnow(jg)),p_nh_state(jg)%prog(nnew(jg)))
 !
-      CALL message(TRIM(routine),'End setup '//nh_test_name//' test')
+      CALL message(TRIM(routine),'End setup '//TRIM(nh_test_name)//' test')
     END DO !jg
     
 

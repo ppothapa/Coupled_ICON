@@ -45,9 +45,7 @@ MODULE mo_ocean_velocity_advection
     & map_scalar_prismtop2center_onBlock, map_vector_center2prismtop_onBlock
   USE mo_operator_ocean_coeff_3d, ONLY: t_operator_coeff
   USE mo_grid_subset,         ONLY: t_subset_range, get_index_range
-#ifdef _OPENACC
-  USE mo_mpi, ONLY: i_am_accel_node, my_process_is_work
-#endif
+
   IMPLICIT NONE
 
   PRIVATE
@@ -244,7 +242,7 @@ CONTAINS
     & veloc_adv_horz_e,&
     & ocean_coefficients,&
     & use_acc)
-    
+
     TYPE(t_patch_3D ), POINTER, INTENT(IN)   :: patch_3D
     REAL(wp), POINTER, INTENT(inout)  :: vn(:,:,:)
     TYPE(t_hydro_ocean_diag) :: p_diag
@@ -290,15 +288,15 @@ CONTAINS
 !     !Diagnostic potential vorticity at cells: !This work currently only for triangles
 !     DO blockNo = all_cells%start_block, all_cells%end_block
 !       CALL get_index_range(all_cells, blockNo, start_cell_index, end_cell_index)
-! 
+!
 !       DO cell_index =  start_cell_index, end_cell_index
 !         DO level = startLevel, patch_3d%p_patch_1d(1)%dolic_c(cell_index,blockNo)
-! 
+!
 !         p_diag%potential_vort_c(cell_index, level, blockNo)&
 !         &=(p_diag%potential_vort_e(edge_of_cell_idx(cell_index,blockNo,1),level,edge_of_cell_blk(cell_index,blockNo,1))&
 !         &+p_diag%potential_vort_e(edge_of_cell_idx(cell_index,blockNo,2),level,edge_of_cell_blk(cell_index,blockNo,2))&
 !         &+p_diag%potential_vort_e(edge_of_cell_idx(cell_index,blockNo,3),level,edge_of_cell_blk(cell_index,blockNo,3)))/3.0_wp
-! 
+!
 !         END DO
 !       END DO
 !     END DO
@@ -476,7 +474,7 @@ CONTAINS
 
         DO jk = 1, edge_levels(je,blockNo)
           !calculation of tangential velocity
-          veloc_tangential= dot_product( & 
+          veloc_tangential= dot_product( &
             &   p_diag%p_vn(c1_idx,jk,c1_blk)%x * ocean_coefficients%averageCellsToEdges(je,blockNo,1)  &
             &  +p_diag%p_vn(c2_idx,jk,c2_blk)%x * ocean_coefficients%averageCellsToEdges(je,blockNo,2), &
             &   patch_2D%edges%dual_cart_normal(je,blockNo)%x)
@@ -910,8 +908,7 @@ ENDDO
 
     vertical_velocity => p_diag%w
 
-    !$ACC DATA COPYIN(vertical_velocity) &
-    !$ACC   CREATE(z_adv_u_i, z_adv_u_m) IF(lacc)
+    !$ACC DATA CREATE(z_adv_u_i, z_adv_u_m) IF(lacc)
 
     !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
     z_adv_u_m(1:nproma,1:n_zlev,1:patch_2D%alloc_cell_blocks)%x(1) = 0.0_wp
@@ -1002,12 +999,12 @@ ENDDO
   !! Developed  by  Peter Korn, MPI-M (2010).
   !!
 !   SUBROUTINE veloc_adv_vert_mimetic_rot_old( patch_3D, p_diag,ocean_coefficients, veloc_adv_vert_e)
-! 
+!
 !     TYPE(t_patch_3D ),TARGET, INTENT(IN)   :: patch_3D
-!     TYPE(t_hydro_ocean_diag)          :: p_diag    
+!     TYPE(t_hydro_ocean_diag)          :: p_diag
 !     TYPE(t_operator_coeff),INTENT(in) :: ocean_coefficients
 !     REAL(wp), INTENT(inout)           :: veloc_adv_vert_e(1:nproma,1:n_zlev,1:patch_3D%p_patch_2D(1)%nblks_e)
-! 
+!
 !     !local variables
 !     INTEGER :: start_level     ! vertical start and end level
 !     INTEGER :: jc, jk, blockNo
@@ -1024,53 +1021,53 @@ ENDDO
 !     all_cells => patch_2D%cells%all
 !    !-----------------------------------------------------------------------
 !     start_level = 1
-! 
+!
 !     z_adv_u_m(1:nproma,1:n_zlev,1:patch_2D%alloc_cell_blocks)%x(1) = 0.0_wp
 !     z_adv_u_m(1:nproma,1:n_zlev,1:patch_2D%alloc_cell_blocks)%x(2) = 0.0_wp
 !     z_adv_u_m(1:nproma,1:n_zlev,1:patch_2D%alloc_cell_blocks)%x(3) = 0.0_wp
-!     
+!
 !     z_adv_u_i(1:nproma,1:n_zlev)%x(1) = 0.0_wp
 !     z_adv_u_i(1:nproma,1:n_zlev)%x(2) = 0.0_wp
 !     z_adv_u_i(1:nproma,1:n_zlev)%x(3) = 0.0_wp
-!     
+!
 !     vert_veloc =>p_diag%w
-! 
-! 
+!
+!
 ! !ICON_OMP_PARALLEL_DO PRIVATE(start_index,end_index,jc, jk, end_level,prism_center_distance, &
 ! !ICON_OMP z_adv_u_i) ICON_OMP_DEFAULT_SCHEDULE
 !     DO blockNo = all_cells%start_block, all_cells%end_block
 !       CALL get_index_range(all_cells, blockNo, start_index, end_index)
-!       
+!
 !       prism_center_distance => patch_3D%p_patch_1D(1)%prism_center_dist_c(:,:,blockNo)
 !       prism_thick           => patch_3D%p_patch_1D(1)%prism_thick_flat_sfc_c(:,:,blockNo)
-! 
-!       
+!
+!
 !       !Step 1: multiply vertical velocity with vertical derivative of horizontal velocity
 !       DO jc = start_index, end_index
 !         end_level = patch_3D%p_patch_1D(1)%dolic_c(jc,blockNo)
-! 
+!
 !         IF(end_level >= min_dolic) THEN
-!         
+!
 !           !1a) ocean surface: vertical derivative times vertical velocity.
 !           !This form is consistent with energy conservation
-!           
+!
 !           z_adv_u_i(jc,start_level)%x =               &
 !             & -vert_veloc(jc,start_level,blockNo)*p_diag%p_vn(jc,start_level+1,blockNo)%x &
 !             & / prism_center_distance(jc,start_level)
-! 
+!
 !           ! 1b) ocean interior
 !           DO jk = start_level+1, end_level-1
 !             z_adv_u_i(jc,jk)%x                  &
-!              & = vert_veloc(jc,jk,blockNo)* & 
+!              & = vert_veloc(jc,jk,blockNo)* &
 !              &   (p_diag%p_vn(jc,jk-1,blockNo)%x - p_diag%p_vn(jc,jk,blockNo)%x) &
 !              &    / prism_center_distance(jc,jk)
 !           END DO
 !           z_adv_u_i(jc,end_level)%x = 0.0_wp
-!           
+!
 !         ENDIF
-!       END DO      
+!       END DO
 !       !----------------------------------------------------------------------------------
-! 
+!
 !       ! Step 2: Map product of vertical velocity & vertical derivative from top of prism to mid position.
 !        DO jc = start_index, end_index
 !         end_level = patch_3D%p_patch_1D(1)%dolic_c(jc,blockNo)
@@ -1081,18 +1078,18 @@ ENDDO
 !           & / (2.0_wp*prism_thick(jc,jk))!(prism_center_distance(jc,jk+1) + prism_center_distance(jc,jk))
 !         END DO
 !       END DO
-!       
+!
 !     END DO
 ! !ICON_OMP_END_PARALLEL_DO
 !     ! ! Step 3: Map result of previous calculations from cell centers to edges (for all vertical layers)
 !     CALL map_cell2edges_3D( patch_3D, z_adv_u_m, veloc_adv_vert_e,ocean_coefficients)
-! 
+!
 !     !---------Debug Diagnostics-------------------------------------------
 !     idt_src=3  ! output print level (1-5, fix)
 !     CALL dbg_print('VertMimRot: V.Adv. Final'    ,veloc_adv_vert_e         ,str_module,idt_src, &
 !           patch_2D%edges%owned )
 !     !---------------------------------------------------------------------
-! 
+!
 !   END SUBROUTINE veloc_adv_vert_mimetic_rot_old
   !-------------------------------------------------------------------------
 

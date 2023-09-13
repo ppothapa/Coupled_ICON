@@ -521,7 +521,7 @@ CONTAINS
       WRITE (*,*) REPEAT('*', 80)
     END IF
 
-    CALL finish(TRIM(loc_name), TRIM(loc_err), ierrorcode)
+    CALL finish(TRIM(loc_name), TRIM(loc_err))
 
   END SUBROUTINE abort_run
 

@@ -37,7 +37,6 @@ TYPES="$TYPES ddt_u_turb_ml    ddt_v_turb_ml    ddt_temp_turb_ml  \
 # to be checked.
 #
 export DATES=''
-DATES="$DATES 19790101T000000Z"                                    # date  of initialization
 DATES="$DATES 19790101T000100Z 19790101T000200Z 19790101T000300Z \
               19790101T000400Z 19790101T000500Z 19790101T000600Z"  # dates of time steps
 

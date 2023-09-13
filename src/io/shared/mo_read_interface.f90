@@ -33,7 +33,7 @@
 MODULE mo_read_interface
 
   USE mo_kind
-  USE mo_exception,          ONLY: finish, message_text, message, em_warn
+  USE mo_exception,          ONLY: finish, message_text, message
   USE mo_io_config,         ONLY:  read_netcdf_broadcast_method, &
     & read_netcdf_distribute_method,  default_read_method
   USE mo_read_netcdf_broadcast_2, ONLY: netcdf_open_input, netcdf_close, &

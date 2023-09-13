@@ -1,4 +1,3 @@
 #!/bin/bash
 
 ./config/cscs/balfrin.gpu.nvidia
-

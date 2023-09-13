@@ -102,7 +102,7 @@ MODULE mo_ocean_cvmix_tke
     & za_depth_below_sea, za_depth_below_sea_half, za_surface
   USE mo_grid_subset,         ONLY: t_subset_range, get_index_range
   USE mo_sync,                ONLY: sync_c, sync_e, sync_v, sync_patch_array, global_max, sync_patch_array_mult
-  USE  mo_ocean_thermodyn,    ONLY: calculate_density_onColumn, calculate_density_onColumn_gpu
+  USE  mo_ocean_thermodyn,    ONLY: calculate_density_onColumn, calculate_density_onColumn_elem
   USE mo_ocean_math_operators,ONLY: div_oce_3d
   USE mo_timer,               ONLY: ltimer, timer_start, timer_stop, &
     & timer_extra10, timer_extra11
@@ -363,20 +363,27 @@ CONTAINS
           Ssqr(jc,:) = 0.0_wp
 
           ! wind stress for tke surface forcing (reduced under sea ice)
-          tau_abs = (1.0_wp - concsum(jc,blockNo)) &
-               &    * SQRT((atmos_fluxes%stress_xw(jc,blockNo))**2 &
-               &    + (atmos_fluxes%stress_yw(jc,blockNo))**2 )
+          IF (use_reduced_mixing_under_ice) THEN
+            tau_abs = (1.0_wp - concsum(jc,blockNo))**2 &
+                 &    * SQRT((atmos_fluxes%stress_xw(jc,blockNo))**2 &
+                 &    + (atmos_fluxes%stress_yw(jc,blockNo))**2 )
+          ELSE
+            tau_abs = (1.0_wp - concsum(jc,blockNo)) &
+                 &    * SQRT((atmos_fluxes%stress_xw(jc,blockNo))**2 &
+                 &    + (atmos_fluxes%stress_yw(jc,blockNo))**2 )
+          ENDIF
+
           forc_tke_surf_2D(jc,blockNo) = tau_abs / OceanReferenceDensity
 
           ! calculate N2
           DO level = 1,levels-1
-            CALL calculate_density_onColumn_gpu(temp(jc,level,blockNo), salt(jc,level,blockNo), &
-                                                pressure(jc,level+1), rho_up(jc,level))
+            rho_up(jc,level) = calculate_density_onColumn_elem(temp(jc,level,blockNo), salt(jc,level,blockNo), &
+                                                pressure(jc,level+1))
           END DO
 
           DO level = 2,levels
-            CALL calculate_density_onColumn_gpu(temp(jc,level,blockNo), salt(jc,level,blockNo), &
-                                                pressure(jc,level), rho_down(jc,level))
+            rho_down(jc,level) = calculate_density_onColumn_elem(temp(jc,level,blockNo), salt(jc,level,blockNo), &
+                                                pressure(jc,level))
           END DO
 
           DO jk = 2, levels
@@ -661,6 +668,8 @@ CONTAINS
     REAL(wp) :: bottom_fric_2D(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
     REAL(wp) :: tau_abs
 
+!    REAL(wp) :: minmaxmean(3)
+
     REAL(wp) :: dummy_zeros(n_zlev+1)
     dummy_zeros = 0.0
 
@@ -731,6 +740,9 @@ CONTAINS
     !write(*,*) "TKE before:"
     !write(*,*) tke(8,:,10)
 
+!    minmaxmean(:) = global_minmaxmean(values=concsum(:,:), in_subset=all_cells)
+!    CALL debug_print_MaxMinMean('concsum',   minmaxmean, 'calc_tke', 1)
+
 !ICON_OMP_PARALLEL PRIVATE(pressure)
 
     pressure(1) = 1.0_wp
@@ -754,9 +766,17 @@ CONTAINS
           Ssqr(:) = 0.0_wp
 
           ! wind stress for tke surface forcing (reduced under sea ice)
-          tau_abs = (1.0_wp - concsum(jc,blockNo)) &
-               &    * SQRT((atmos_fluxes%stress_xw(jc,blockNo))**2 &
-               &    + (atmos_fluxes%stress_yw(jc,blockNo))**2 )
+
+          IF (use_reduced_mixing_under_ice) THEN
+            tau_abs = (1.0_wp - concsum(jc,blockNo))**2 &
+                 &    * SQRT((atmos_fluxes%stress_xw(jc,blockNo))**2 &
+                 &    + (atmos_fluxes%stress_yw(jc,blockNo))**2 )
+          ELSE
+            tau_abs = (1.0_wp - concsum(jc,blockNo)) &
+                 &    * SQRT((atmos_fluxes%stress_xw(jc,blockNo))**2 &
+                 &    + (atmos_fluxes%stress_yw(jc,blockNo))**2 )
+          ENDIF
+
           forc_tke_surf_2D(jc,blockNo) = tau_abs / OceanReferenceDensity
 
           ! calculate N2

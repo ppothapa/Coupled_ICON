@@ -180,36 +180,37 @@ recommended (topologically sorted) order for the `LIBS` argument is presented in
 
 | Linking order | Package | Dependency condition<sup><a name="f1-back" href="#f1">1</a></sup> | Required flags<sup><a href="#f1">1</a></sup> |
 | :---: | :---: | :---: | :---: |
-|  1 | [ICON-TIXI](https://gitlab.dkrz.de/icon-libraries/libtixi) (a modified version of [TIXI](https://github.com/DLR-SC/tixi)) | `--enable-art --with-external-tixi` | `FCFLAGS='-I/path/to/tixi/include' LDFLAGS='-L/path/to/tixi/lib' LIBS='-licon_tixi'` |
-|  2 | [XML2](http://www.xmlsoft.org/) |  `--enable-art`<sup><a name="f2-back" href="#f2">2</a></sup>| `CPPFLAGS='-I/path/to/libxml2/include/libxml2' LDFLAGS='-L/path/to/libxml2/lib' LIBS='-lxml2'` |
-|  3 | [YAC](https://doc.redmine.dkrz.de/YAC/html/) | `--enable-coupling --with-external-yac` | `FCFLAGS='-I/path/to/yac/include' LDFLAGS='-L/path/to/yac/lib' LIBS='-lyac'` |
-|  4 | [FYAML](https://github.com/pantoniou/libfyaml) | `--enable-coupling`<sup><a name="f3-back" href="#f3">3</a></sup> | `CPPFLAGS='-I/path/to/libxml2/include/libfyaml' LDFLAGS='-L/path/to/libfyaml/lib' LIBS='-lfyaml'` |
-|  5 | [MTIME](https://gitlab.dkrz.de/icon-libraries/libmtime) (Fortran interface) | `--with-external-mtime`<sup><a name="f4-back" href="#f4">4</a></sup> | `FCFLAGS='-I/path/to/mtime/include' LDFLAGS='-L/path/to/mtime/lib' LIBS='-lmtime'` |
-|  6 | [MTIME](https://gitlab.dkrz.de/icon-libraries/libmtime) (C interface) | `--enable-coupling --without-external-yac --with-external-mtime` | `CPPFLAGS='-I/path/to/mtime/include' LDFLAGS='-L/path/to/mtime/lib' LIBS='-lmtime'` |
-|  7 | [SERIALBOX](https://github.com/GridTools/serialbox) | `--enable-serialization` | `FCFLAGS='-I/path/to/serialbox2/include' LDFLAGS='-L/path/to/serialbox2/lib' LIBS='-lSerialboxFortran'` |
-|  8 | [CDI](https://code.mpimet.mpg.de/projects/cdi/) | `--with-external-cdi` | `FCFLAGS='-I/path/to/libcdi/include' LDFLAGS='-L/path/to/libcdi/lib' LIBS='-lcdi_f2003 -lcdi'` (or `LIBS='-lcdi_f2003 -lcdipio -lcdi'`) |
-|  9 | [PPM](https://gitlab.dkrz.de/jahns/ppm) (C interface) | `--enable-cdi-pio --with-external-ppm --without-external-cdi` |  `CPPFLAGS='-I/path/to/ppm/include' LDFLAGS='-L/path/to/ppm/lib' LIBS='-lscalesppmcore'` |
-| 10 | [ECCODES](https://confluence.ecmwf.int/display/ECC) (Fortran interface) | `--enable-emvorado` | `FCFLAGS='-I/path/to/eccodes/include' LDFLAGS='-L/path/to/eccodes/lib' LIBS='-leccodes_f90'` |
-| 11 | [ECCODES](https://confluence.ecmwf.int/display/ECC) or [GRIB-API](https://www.ecmwf.int/en/newsletter/152/news/end-road-grib-api)<sup><a name="f5-back" href="#f5">5</a></sup> (C interface) | `--enable-grib2 --without-external-cdi` | `CPPFLAGS='-I/path/to/eccodes/include' LDFLAGS='-L/path/to/eccodes/lib' LIBS='-leccodes'` (or `LIBS='-lgrib_api'`) |
-| 12 | [YAXT](https://gitlab.dkrz.de/dkrz-sw/yaxt) (Fortran interface) | `--enable-yaxt --with-external-yaxt` or `--enable-cdi-pio --with-external-yaxt`<sup><a name="f6-back" href="#f6">6</a></sup> | `FCFLAGS='-I/path/to/yaxt/include' LDFLAGS='-L/path/to/yaxt/lib' LIBS='-lyaxt'` |
-| 13 | [YAXT](https://gitlab.dkrz.de/dkrz-sw/yaxt) (C interface) | `--enable-cdi-pio --without-external-cdi --with-external-yaxt` or `--enable-coupling --with-external-yaxt`<sup><a name="f7-back" href="#f7">7</a>, <a name="f8-back" href="#f8">8</a></sup> | `CPPFLAGS='-I/path/to/yaxt/include' LDFLAGS='-L/path/to/yaxt/lib' LIBS='-lyaxt_c'` |
-| 14 | [SCT](https://gitlab.dkrz.de/dkrz-sw/sct) (Fortran interface) | `--enable-sct --with-external-sct` | `FCFLAGS='-I/path/to/sct/include' LDFLAGS='-L/path/to/sct/lib' LIBS='-lsct'` |
-| 15 | [RTTOV](https://www.nwpsaf.eu/site/software/rttov/) | `--enable-rttov` | `FCFLAGS='-I/path/to/rttov/include -I/path/to/rttov/mod' LDFLAGS='-L/path/to/rttov/lib' LIBS='-lrttov_other -lrttov_emis_atlas -lrttov_brdf_atlas -lrttov_parallel -lrttov_coef_io -lrttov_hdf -lrttov_main'` |
-| 16 | [LAPACK](http://www.netlib.org/lapack/) (or analogue) | mandatory | `LDFLAGS='-L/path/to/lapack/lib' LIBS='-llapack'` (depends on the implementation) |
-| 17 | [BLAS](http://www.netlib.org/blas/) (or analogue) | mandatory | `LDFLAGS='-L/path/to/blas/lib' LIBS='-lblas'` (depends on the implementation) |
-| 18 | [ECRAD](https://confluence.ecmwf.int/display/ECRAD/ECMWF+Radiation+Scheme+Home) | `--enable-ecrad --with-external-ecrad` | `FCFLAGS='-I/path/to/ecrad/include' LDFLAGS='-L/path/to/ecrad/lib' LIBS='-lradiation -lifsrrtm -lutilities -lifsaux'` |
-| 19 | [RTE+RRTMGP](https://github.com/earth-system-radiation/rte-rrtmgp) | `--enable-rte-rrtmgp --with-external-rte-rrtmgp` | `FCFLAGS='-I/path/to/rte-rrtmgp/include' LDFLAGS='-L/path/to/rte-rrtmgp/lib' LIBS='-lrrtmgp -lrte'` |
-| 20 | [NetCDF-Fortran](https://www.unidata.ucar.edu/software/netcdf/docs-fortran/) | mandatory | `FCFLAGS='-I/path/to/netcdf-fortran/include' LDFLAGS='-L/path/to/netcdf-fortran/lib' LIBS='-lnetcdff'` |
-| 21 | [NetCDF-C](https://www.unidata.ucar.edu/software/netcdf/docs/) | `--without-external-cdi` or `--enable-coupling`<sup><a name="f9-back" href="#f9">9</a></sup> | `CPPFLAGS='-I/path/to/netcdf/include' LDFLAGS='-L/path/to/netcdf/lib' LIBS='-lnetcdf'` |
-| 22 | [HDF5](https://support.hdfgroup.org/HDF5/) (low- and high-level Fortran interfaces) | `--enable-emvorado` or `--enable-rttov`<sup><a name="f10-back" href="#f10">10</a></sup> | `FCFLAGS='-I/path/to/hdf5/include' LDFLAGS='-L/path/to/hdf5/lib' LIBS='-lhdf5_hl_fortran -lhdf5_fortran'` |
-| 23 | [HDF5](https://support.hdfgroup.org/HDF5/) (low-level C interface) | `--enable-sct --without-external-sct` | `CPPFLAGS='-I/path/to/hdf5/include' LDFLAGS='-L/path/to/hdf5/lib' LIBS='-lhdf5'` |
-| 24 | [ZLIB](https://zlib.net/) | `--enable-emvorado` | `LDFLAGS='-L/path/to/zlib/lib' LIBS='-lz'`<sup><a name="f11-back" href="#f11">11</a></sup> |
-| 25 | [AEC](https://gitlab.dkrz.de/k202009/libaec) or [SZIP](https://support.hdfgroup.org/doc_resource/SZIP/) | static linking | `LDFLAGS='-L/path/to/aec/lib' LIBS='-laec'` (or `LIBS='-lsz'`) |
-| 26 | [MPI](https://www.mpi-forum.org/) (Fortran interface) | `--enable-mpi`<sup><a name="f12-back" href="#f12">12</a></sup> or `--enable-yaxt` or `--enable-cdi-pio --without-external-cdi --without-external-yaxt` or `--enable-coupling --without-external-yac` | `FC='/path/to/mpi/bin/mpif90'` or `FCFLAGS='-I/path/to/mpi/include' LDFLAGS='-L/path/to/mpi/lib' LIBS='-lmpifort -lmpi'` (depends on the implementation) |
-| 27 | [MPI](https://www.mpi-forum.org/) (C interface) | `--enable-coupling`<sup><a name="f13-back" href="#f13">13</a></sup> or `--enable-yaxt --without-external-yaxt` or `--enable-mpi --enable-sct --without-external-sct` or `--enable-cdi-pio --without-external-cdi` | `CC=/path/to/mpi/bin/mpicc` or `CPPFLAGS='-I/path/to/mpi/include' LDFLAGS='-L/path/to/mpi/lib' LIBS='-lmpi'` (depends on the implementation) |
-| 28 | [ROCm](https://www.amd.com/en/graphics/servers-solutions-rocm) | `--enable-gpu=openacc+hip` | `LDFLAGS='-L/path/to/rocm/lib' LIBS='-lamdhip64'` (depends on the platform) |
-| 29 | [CUDA](https://developer.nvidia.com/cuda-zone) | `--enable-gpu=openacc+cuda` | `LDFLAGS='-L/path/to/cuda/lib' LIBS='-lcudart'` |
-| 30 | [STDC++](https://isocpp.org/)<sup><a name="f14-back" href="#f14">14</a></sup> | `--enable-gpu=openacc+cuda` or `--enable-gpu=openacc+hip` | `LDFLAGS='-L/path/to/gcc/used/by/CUDACXX-or-HIPCXX/lib' LIBS='-lstdc++'` (depends on the implementation) |
+|  1 | [FORTRAN-SUPPORT](https://gitlab.dkrz.de/icon-libraries/libfortran-support) | `--with-external-fortran-support` | `FCFLAGS='-I/path/to/fortran-support/include' LDFLAGS='-L/path/to/fortran-support/lib' LIBS='-lfortran-support'` |
+|  2 | [ICON-TIXI](https://gitlab.dkrz.de/icon-libraries/libtixi) (a modified version of [TIXI](https://github.com/DLR-SC/tixi)) | `--enable-art --with-external-tixi` | `FCFLAGS='-I/path/to/tixi/include' LDFLAGS='-L/path/to/tixi/lib' LIBS='-licon_tixi'` |
+|  3 | [XML2](http://www.xmlsoft.org/) |  `--enable-art`<sup><a name="f2-back" href="#f2">2</a></sup>| `CPPFLAGS='-I/path/to/libxml2/include/libxml2' LDFLAGS='-L/path/to/libxml2/lib' LIBS='-lxml2'` |
+|  4 | [YAC](https://doc.redmine.dkrz.de/YAC/html/) | `--enable-coupling --with-external-yac` | `FCFLAGS='-I/path/to/yac/include' LDFLAGS='-L/path/to/yac/lib' LIBS='-lyac'` |
+|  5 | [FYAML](https://github.com/pantoniou/libfyaml) | `--enable-coupling`<sup><a name="f3-back" href="#f3">3</a></sup> | `CPPFLAGS='-I/path/to/libxml2/include/libfyaml' LDFLAGS='-L/path/to/libfyaml/lib' LIBS='-lfyaml'` |
+|  6 | [MTIME](https://gitlab.dkrz.de/icon-libraries/libmtime) (Fortran interface) | `--with-external-mtime`<sup><a name="f4-back" href="#f4">4</a></sup> | `FCFLAGS='-I/path/to/mtime/include' LDFLAGS='-L/path/to/mtime/lib' LIBS='-lmtime'` |
+|  7 | [MTIME](https://gitlab.dkrz.de/icon-libraries/libmtime) (C interface) | `--enable-coupling --without-external-yac --with-external-mtime` | `CPPFLAGS='-I/path/to/mtime/include' LDFLAGS='-L/path/to/mtime/lib' LIBS='-lmtime'` |
+|  8 | [SERIALBOX](https://github.com/GridTools/serialbox) | `--enable-serialization` | `FCFLAGS='-I/path/to/serialbox2/include' LDFLAGS='-L/path/to/serialbox2/lib' LIBS='-lSerialboxFortran'` |
+|  9 | [CDI](https://code.mpimet.mpg.de/projects/cdi/) | `--with-external-cdi` | `FCFLAGS='-I/path/to/libcdi/include' LDFLAGS='-L/path/to/libcdi/lib' LIBS='-lcdi_f2003 -lcdi'` (or `LIBS='-lcdi_f2003 -lcdipio -lcdi'`) |
+| 10 | [PPM](https://gitlab.dkrz.de/jahns/ppm) (C interface) | `--enable-cdi-pio --with-external-ppm --without-external-cdi` |  `CPPFLAGS='-I/path/to/ppm/include' LDFLAGS='-L/path/to/ppm/lib' LIBS='-lscalesppmcore'` |
+| 11 | [ECCODES](https://confluence.ecmwf.int/display/ECC) (Fortran interface) | `--enable-emvorado` | `FCFLAGS='-I/path/to/eccodes/include' LDFLAGS='-L/path/to/eccodes/lib' LIBS='-leccodes_f90'` |
+| 12 | [ECCODES](https://confluence.ecmwf.int/display/ECC) or [GRIB-API](https://www.ecmwf.int/en/newsletter/152/news/end-road-grib-api)<sup><a name="f5-back" href="#f5">5</a></sup> (C interface) | `--enable-grib2 --without-external-cdi` | `CPPFLAGS='-I/path/to/eccodes/include' LDFLAGS='-L/path/to/eccodes/lib' LIBS='-leccodes'` (or `LIBS='-lgrib_api'`) |
+| 13 | [YAXT](https://gitlab.dkrz.de/dkrz-sw/yaxt) (Fortran interface) | `--enable-yaxt --with-external-yaxt` or `--enable-cdi-pio --with-external-yaxt`<sup><a name="f6-back" href="#f6">6</a></sup> | `FCFLAGS='-I/path/to/yaxt/include' LDFLAGS='-L/path/to/yaxt/lib' LIBS='-lyaxt'` |
+| 14 | [YAXT](https://gitlab.dkrz.de/dkrz-sw/yaxt) (C interface) | `--enable-cdi-pio --without-external-cdi --with-external-yaxt` or `--enable-coupling --with-external-yaxt`<sup><a name="f7-back" href="#f7">7</a>, <a name="f8-back" href="#f8">8</a></sup> | `CPPFLAGS='-I/path/to/yaxt/include' LDFLAGS='-L/path/to/yaxt/lib' LIBS='-lyaxt_c'` |
+| 15 | [SCT](https://gitlab.dkrz.de/dkrz-sw/sct) (Fortran interface) | `--enable-sct --with-external-sct` | `FCFLAGS='-I/path/to/sct/include' LDFLAGS='-L/path/to/sct/lib' LIBS='-lsct'` |
+| 16 | [RTTOV](https://www.nwpsaf.eu/site/software/rttov/) | `--enable-rttov` | `FCFLAGS='-I/path/to/rttov/include -I/path/to/rttov/mod' LDFLAGS='-L/path/to/rttov/lib' LIBS='-lrttov_other -lrttov_emis_atlas -lrttov_brdf_atlas -lrttov_parallel -lrttov_coef_io -lrttov_hdf -lrttov_main'` |
+| 17 | [LAPACK](http://www.netlib.org/lapack/) (or analogue) | mandatory | `LDFLAGS='-L/path/to/lapack/lib' LIBS='-llapack'` (depends on the implementation) |
+| 18 | [BLAS](http://www.netlib.org/blas/) (or analogue) | mandatory | `LDFLAGS='-L/path/to/blas/lib' LIBS='-lblas'` (depends on the implementation) |
+| 19 | [ECRAD](https://confluence.ecmwf.int/display/ECRAD/ECMWF+Radiation+Scheme+Home) | `--enable-ecrad --with-external-ecrad` | `FCFLAGS='-I/path/to/ecrad/include' LDFLAGS='-L/path/to/ecrad/lib' LIBS='-lradiation -lifsrrtm -lutilities -lifsaux'` |
+| 20 | [RTE+RRTMGP](https://github.com/earth-system-radiation/rte-rrtmgp) | `--enable-rte-rrtmgp --with-external-rte-rrtmgp` | `FCFLAGS='-I/path/to/rte-rrtmgp/include' LDFLAGS='-L/path/to/rte-rrtmgp/lib' LIBS='-lrrtmgp -lrte'` |
+| 21 | [NetCDF-Fortran](https://www.unidata.ucar.edu/software/netcdf/docs-fortran/) | mandatory | `FCFLAGS='-I/path/to/netcdf-fortran/include' LDFLAGS='-L/path/to/netcdf-fortran/lib' LIBS='-lnetcdff'` |
+| 22 | [NetCDF-C](https://www.unidata.ucar.edu/software/netcdf/docs/) | `--without-external-cdi` or `--enable-coupling`<sup><a name="f9-back" href="#f9">9</a></sup> | `CPPFLAGS='-I/path/to/netcdf/include' LDFLAGS='-L/path/to/netcdf/lib' LIBS='-lnetcdf'` |
+| 23 | [HDF5](https://support.hdfgroup.org/HDF5/) (low- and high-level Fortran interfaces) | `--enable-emvorado` or `--enable-rttov`<sup><a name="f10-back" href="#f10">10</a></sup> | `FCFLAGS='-I/path/to/hdf5/include' LDFLAGS='-L/path/to/hdf5/lib' LIBS='-lhdf5_hl_fortran -lhdf5_fortran'` |
+| 24 | [HDF5](https://support.hdfgroup.org/HDF5/) (low-level C interface) | `--enable-sct --without-external-sct` | `CPPFLAGS='-I/path/to/hdf5/include' LDFLAGS='-L/path/to/hdf5/lib' LIBS='-lhdf5'` |
+| 25 | [ZLIB](https://zlib.net/) | `--enable-emvorado` | `LDFLAGS='-L/path/to/zlib/lib' LIBS='-lz'`<sup><a name="f11-back" href="#f11">11</a></sup> |
+| 26 | [AEC](https://gitlab.dkrz.de/k202009/libaec) or [SZIP](https://support.hdfgroup.org/doc_resource/SZIP/) | static linking | `LDFLAGS='-L/path/to/aec/lib' LIBS='-laec'` (or `LIBS='-lsz'`)<sup><a name="f12-back" href="#f12">12</a></sup> |
+| 27 | [MPI](https://www.mpi-forum.org/) (Fortran interface) | `--enable-mpi`<sup><a name="f13-back" href="#f13">13</a></sup> or `--enable-yaxt` or `--enable-cdi-pio --without-external-cdi --without-external-yaxt` or `--enable-coupling --without-external-yac` | `FC='/path/to/mpi/bin/mpif90'` or `FCFLAGS='-I/path/to/mpi/include' LDFLAGS='-L/path/to/mpi/lib' LIBS='-lmpifort -lmpi'` (depends on the implementation) |
+| 28 | [MPI](https://www.mpi-forum.org/) (C interface) | `--enable-coupling`<sup><a name="f14-back" href="#f14">14</a></sup> or `--enable-yaxt --without-external-yaxt` or `--enable-mpi --enable-sct --without-external-sct` or `--enable-cdi-pio --without-external-cdi` | `CC=/path/to/mpi/bin/mpicc` or `CPPFLAGS='-I/path/to/mpi/include' LDFLAGS='-L/path/to/mpi/lib' LIBS='-lmpi'` (depends on the implementation) |
+| 29 | [ROCm](https://www.amd.com/en/graphics/servers-solutions-rocm) | `--enable-gpu=openacc+hip` | `LDFLAGS='-L/path/to/rocm/lib' LIBS='-lamdhip64'` (depends on the platform) |
+| 30 | [CUDA](https://developer.nvidia.com/cuda-zone) | `--enable-gpu=openacc+cuda` | `LDFLAGS='-L/path/to/cuda/lib' LIBS='-lcudart'` |
+| 31 | [STDC++](https://isocpp.org/)<sup><a name="f15-back" href="#f15">15</a></sup> | `--enable-gpu=openacc+cuda` or `--enable-gpu=openacc+hip` | `LDFLAGS='-L/path/to/gcc/used/by/CUDACXX-or-HIPCXX/lib' LIBS='-lstdc++'` (depends on the implementation) |
 
 1. <a name="f1"/> The dependency conditions and required flags are specified
 assuming that the shared versions of the libraries containing `RPATH` entries
@@ -258,15 +259,28 @@ explicitly when usage of the radiative transfer model for TOVS is enabled
 (`--enable-rttov`). [↩](#f10-back)
 11. <a name="f11"/> ZLIB is used via the `ISO_C_BINDING` interface and does not
 require additional preprocessor flags. [↩](#f11-back)
-12. <a name="f12"/> When usage of the parallel features of CDI is enabled
+12. <a name="f12"/> It is strongly recommended to avoid having both AEC and SZIP
+among the dependencies at the same time to avoid compilation and linking
+problems. That is because AEC provides an extra set of header and library files
+that allow packages that require the SZIP interface to use AEC transparently.
+The only case when both AEC and SZIP can coexist in the dependency graph is
+when all packages that require the SZIP interface are built against the SZIP
+package. In that situation, the linker flags must be set so that `-lsz` is
+resolved with the library file of the SZIP package and not with the one from
+AEC, i.e. `LDFLAGS='-L/path/to/szip/lib -L/path/to/aec/lib'`. Additionally, it
+makes sense to set `-laec` before `-lsz` in the `LIBS` argument. A successful
+static linking in that case indicates that all symbols from `libsz.a` are
+resolved without any symbols from `libaec.a`, i.e. the correct version of
+`libsz.a` is used. [↩](#f12-back)
+13. <a name="f13"/> When usage of the parallel features of CDI is enabled
 (`--enable-cdi-pio`), MPI (parallelization) support (`--enable-mpi`) is
-mandatory. [↩](#f12-back)
-13. <a name="f13"/> There is no shared version of YAC library, which could link
+mandatory. [↩](#f13-back)
+14. <a name="f14"/> There is no shared version of YAC library, which could link
 MPI (C interface) library implicitly, therefore, the latter needs to be linked
 explicitly, regardless of whether an external or the bundled version of YAC is
-used. [↩](#f13-back)
-14. <a name="f14"/> The provided standard C++ library must be compatible with
-the code generated by the host compiler of `CUDACXX` or `HIPCXX`. [↩](#f14-back)
+used. [↩](#f14-back)
+15. <a name="f15"/> The provided standard C++ library must be compatible with
+the code generated by the host compiler of `CUDACXX` or `HIPCXX`. [↩](#f15-back)
 
 ## Bundled libraries
 

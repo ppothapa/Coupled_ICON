@@ -308,8 +308,6 @@ MODULE mo_rte_rrtmgp_radiation
     & xv_ozn         ,&!< out ozone volume mixing ratio [mol/mol]
     !
     & cdnc           ,&!< in  cloud droplet number concentration
-    & cld_frc        ,&!< in  cloud fraction
-    & cld_cvr        ,&!< out cloud cover in a column
     !
     & lw_dnw_clr     ,&!< out clear-sky downward longwave  at all levels
     & lw_upw_clr     ,&!< out clear-sky upward   longwave  at all levels
@@ -364,15 +362,10 @@ MODULE mo_rte_rrtmgp_radiation
     & tk_fl(:,:),       & !< Temperature on full levels [K]
     & xm_air(:,:),      & !< air mass in layer [kg/m2]
     & xq_trc(:,:,:),    & !< tracer mass fraction [kg/kg]
-    & cdnc(:,:),        & !< Cloud drop number concentration
-    & cld_frc(:,:)        !< Cloud fraction
+    & cdnc(:,:)           !< Cloud drop number concentration
     REAL(wp), INTENT(OUT) :: &
     & xv_ozn(:,:)         !< ozone volume mixing ratio  [mol/mol]
 
-    ! OUT
-    REAL(wp), INTENT(INOUT)   :: &
-    & cld_cvr(:)               !< Cloud cover in a column
-    
     REAL(wp), TARGET, INTENT(INOUT)   :: &
     & lw_dnw_clr(:,:),& !< Clear-sky downward longwave  at all levels
     & lw_upw_clr(:,:),& !< Clear-sky upward   longwave  at all levels
@@ -447,9 +440,8 @@ MODULE mo_rte_rrtmgp_radiation
     !$ACC END PARALLEL LOOP
 
     CALL cloud_profiles ( jg,           jcs,            jce,              &
-         &                klev,         xq_trc, xm_air, cld_frc,          &
-         &                xm_liq,       xm_ice,         xc_frc,           &
-         &                cld_cvr                                         )
+         &                klev,         xq_trc, xm_air,                   &
+         &                xm_liq,       xm_ice,         xc_frc            )
 
     CALL rte_rrtmgp_interface(jg, jb, jcs, jce, nproma, klev             ,&
       aes_rad_config(jg)%irad_aero, aes_rad_config(jg)%lrad_yac          ,&

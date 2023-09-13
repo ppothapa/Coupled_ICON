@@ -20,7 +20,7 @@
 MODULE mo_read_netcdf_distributed
 
   USE mo_kind, ONLY: wp, sp
-  USE mo_exception, ONLY: finish, message, em_warn
+  USE mo_exception, ONLY: finish, message
   USE mo_mpi, ONLY: p_n_work, p_pe_work, p_bcast, p_comm_work, p_max
   USE ppm_extents, ONLY: extent
   USE mo_decomposition_tools, ONLY: t_grid_domain_decomp_info, &

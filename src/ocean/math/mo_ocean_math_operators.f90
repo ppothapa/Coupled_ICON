@@ -2325,7 +2325,7 @@ CONTAINS
     INTEGER :: thislevel, levelabove, levelbelow, level2below, cell_levels
     LOGICAL :: lacc
 
-    INTEGER :: il_c1, ib_c1, il_c2, ib_c2
+    INTEGER :: il_c1, ib_c1, il_c2, ib_c2, max_level
     REAL(wp)           :: z_dist_e_c1, z_dist_e_c2
     TYPE(t_subset_range), POINTER :: all_cells, all_edges, edges_in_domain
     TYPE(t_patch), POINTER :: patch_2D
@@ -2425,17 +2425,18 @@ CONTAINS
 
             patch_3D%p_patch_1d(1)%depth_cellmiddle(jc,1,blockNo) = cell_thickness(jc,1,blockNo) * 0.5_wp
             patch_3D%p_patch_1d(1)%depth_cellinterface(jc,2,blockNo) = cell_thickness(jc,1,blockNo)
-#if defined(__LVECTOR__) && !defined(__LVEC_BITID__)
+#ifdef __LVECTOR__
           ENDIF
         END DO
         !$ACC END PARALLEL
 
+        max_level = MAXVAL(patch_3D%p_patch_1d(1)%dolic_c(cell_StartIndex:cell_EndIndex,blockNo))
         !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
         !$ACC LOOP SEQ
-        DO level=2, MAXVAL(patch_3D%p_patch_1d(1)%dolic_c(cell_StartIndex:cell_EndIndex,blockNo))
+        DO level=2, max_level
           !$ACC LOOP GANG VECTOR
           DO jc = cell_StartIndex, cell_EndIndex
-            IF ( patch_3D%p_patch_1d(1)%dolic_c(jc,blockNo) > level) CYCLE
+            IF ( level > patch_3D%p_patch_1d(1)%dolic_c(jc,blockNo)) CYCLE
             IF ( patch_3D%p_patch_1d(1)%dolic_c(jc,blockNo) > 0 ) THEN
 #else
             !$ACC LOOP SEQ
@@ -2445,7 +2446,7 @@ CONTAINS
                 & patch_3D%p_patch_1d(1)%depth_cellinterface(jc,level,blockNo) + cell_thickness(jc,level,blockNo) * 0.5_wp
               patch_3D%p_patch_1d(1)%depth_cellinterface(jc,level+1,blockNo) = &
                 & patch_3D%p_patch_1d(1)%depth_cellinterface(jc,level,blockNo) + cell_thickness(jc,level,blockNo)
-#if defined(__LVECTOR__) && !defined(__LVEC_BITID__)
+#ifdef __LVECTOR__
             ENDIF
           ENDDO     ! jc
         END DO      ! jc or level

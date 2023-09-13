@@ -67,7 +67,7 @@ USE mo_kind,               ONLY: wp, i4, i8
 
 USE mo_parallel_config,    ONLY: nproma
 
-USE mo_exception,          ONLY: message, message_text, finish, print_value, open_log, close_log
+USE mo_exception,          ONLY: message, message_text, finish, print_value, warning
 
 USE mo_physical_constants, ONLY: r_v   => rv    , & !> gas constant for water vapour
                                rvd_m_o => vtmpc1, & !! rv/rd-1._wp
@@ -2298,7 +2298,7 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
 
 #if !defined(__SX__) && !defined(_OPENACC)
         WRITE(message_text, '(a,f8.4,i6)') 'lhn_pr_ana w unvalid : ', w, ip
-        CALL message('',message_text,level=2)
+        CALL warning('', message_text)
 #endif
         CYCLE
       ELSE

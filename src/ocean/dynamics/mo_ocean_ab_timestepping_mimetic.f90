@@ -80,9 +80,6 @@ MODULE mo_ocean_ab_timestepping_mimetic
    & solve_trans_scatter, solve_trans_compact, solve_cell, solve_edge, solve_invalid
   USE mo_primal_flip_flop_lhs, ONLY: t_primal_flip_flop_lhs
   USE mo_surface_height_lhs, ONLY: t_surface_height_lhs
-#ifdef _OPENACC
-  USE mo_mpi, ONLY: i_am_accel_node, my_process_is_work
-#endif
 
   IMPLICIT NONE
   PRIVATE
@@ -126,15 +123,23 @@ CONTAINS
     CALL inv_mm_solver_trans%destruct()
   END SUBROUTINE clear_ocean_ab_timestepping_mimetic
 
-  SUBROUTINE init_free_sfc_ab_mimetic(patch_3d, ocean_state, op_coeffs, solverCoeff_sp)
+  SUBROUTINE init_free_sfc_ab_mimetic(patch_3d, ocean_state, op_coeffs, solverCoeff_sp, use_acc)
     TYPE(t_patch_3d ),POINTER, INTENT(in) :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET, INTENT(INOUT) :: ocean_state
     TYPE(t_operator_coeff), INTENT(IN), TARGET :: op_coeffs
     TYPE(t_solverCoeff_singlePrecision), INTENT(in), TARGET :: solverCoeff_sp
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
     TYPE(t_patch), POINTER :: patch_2D
     TYPE(t_ocean_solve_parm) :: par, par_sp
     INTEGER :: trans_mode, sol_type
+    LOGICAL :: lacc
     CHARACTER(len=*), PARAMETER :: method_name='mo_ocean_ab_timestepping_mimetic:init_free_sfc_ab_mimetic'
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     IF (free_sfc_solver%is_init) RETURN
     patch_2D => patch_3d%p_patch_2d(1)
@@ -185,11 +190,11 @@ CONTAINS
     SELECT CASE(select_transfer)
     CASE(0) ! all ocean workers are involved in solving (input is just copied to internal arrays)
       CALL free_sfc_solver_trans_triv%construct(solve_cell, patch_2D) ! solve only on a subset of workers
-      CALL free_sfc_solver%construct(sol_type, par, par_sp, free_sfc_solver_lhs, free_sfc_solver_trans_triv)
+      CALL free_sfc_solver%construct(sol_type, par, par_sp, free_sfc_solver_lhs, free_sfc_solver_trans_triv, use_acc=lacc)
     CASE DEFAULT ! solve only on a subset of workers
       trans_mode = MERGE(solve_trans_compact, solve_trans_scatter, select_transfer .GT. 0)
       CALL free_sfc_solver_trans_sub%construct(solve_cell, patch_2D, ABS(select_transfer), trans_mode)
-      CALL free_sfc_solver%construct(sol_type, par, par_sp, free_sfc_solver_lhs, free_sfc_solver_trans_sub)
+      CALL free_sfc_solver%construct(sol_type, par, par_sp, free_sfc_solver_lhs, free_sfc_solver_trans_sub, use_acc=lacc)
     END SELECT
 ! alloc and init solver object
     IF (l_solver_compare) THEN
@@ -199,6 +204,7 @@ CONTAINS
       CALL free_sfc_solver_comp%construct(solve_legacy_gmres, par, par_sp, &
         & free_sfc_solver_lhs, free_sfc_solver_trans_triv)
     END IF
+    !$ACC ENTER DATA COPYIN(free_sfc_solver, free_sfc_solver%x_loc_wp) IF(lacc)
   END SUBROUTINE init_free_sfc_ab_mimetic
 
   !-------------------------------------------------------------------------
@@ -207,7 +213,7 @@ CONTAINS
   !! @par Revision History
   !! Developed  by  Peter Korn, MPI-M (2010).
   SUBROUTINE solve_free_sfc_ab_mimetic(patch_3d, ocean_state, p_ext_data, p_as, p_oce_sfc, &
-    & p_phys_param, timestep, op_coeffs, solverCoeff_sp, ret_status)
+    & p_phys_param, timestep, op_coeffs, solverCoeff_sp, ret_status, use_acc)
     TYPE(t_patch_3d ),POINTER, INTENT(in) :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET, INTENT(INOUT) :: ocean_state
     TYPE(t_external_data), TARGET, INTENT(in) :: p_ext_data
@@ -226,17 +232,25 @@ CONTAINS
     CHARACTER(len=*), PARAMETER :: method_name='mo_ocean_ab_timestepping_mimetic:solve_free_sfc_ab_mimetic'
     INTEGER :: jc, blockNo
     INTEGER :: StartIndex, EndIndex
-    LOGICAL :: lacc
     TYPE(t_subset_range), POINTER :: all_cells
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     l_is_compare_step = .false.
     patch_2D => patch_3d%p_patch_2d(1)
     owned_cells => patch_2D%cells%owned
     owned_edges => patch_2D%edges%owned
     all_cells   => patch_2D%cells%ALL
+
 ! init sfc solver related objects, if necessary
     IF (.NOT.free_sfc_solver%is_init) &
-      & CALL init_free_sfc_ab_mimetic(patch_3d, ocean_state, op_coeffs, solverCoeff_sp)
+      & CALL init_free_sfc_ab_mimetic(patch_3d, ocean_state, op_coeffs, solverCoeff_sp, use_acc=lacc)
 ! decide on how often solver is called (max), only relevant if GMRES-restart-alikes are chosen
     ret_status = 0
       !---------DEBUG DIAGNOSTICS-------------------------------------------
@@ -246,67 +260,6 @@ CONTAINS
     CALL dbg_print('on entry: vn-new'               ,ocean_state%p_prog(nnew(1))%vn,str_module, 2, in_subset=owned_edges)
 
     ! Apply windstress
-#ifdef _OPENACC
-    i_am_accel_node = my_process_is_work()       ! Activate GPUs
-    lacc = .TRUE.
-#endif
-
-    !$ACC DATA COPYIN(patch_3d, patch_3d%p_patch_2d, patch_3d%p_patch_2d(1)%verts, patch_3d%p_patch_2d(1)%edges) &
-    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%nblks_v, patch_3d%p_patch_2d(1)%nblks_e) &
-    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%verts%f_v) &
-    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%verts%edge_idx, patch_3d%p_patch_2d(1)%verts%edge_blk) &
-    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%vertex_idx, patch_3d%p_patch_2d(1)%edges%vertex_blk) &
-    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%cell_idx, patch_3d%p_patch_2d(1)%edges%cell_blk) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%vertex_bottomLevel, patch_3d%p_patch_2d(1)%verts%num_edges) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_e, patch_3d%p_patch_1d(1)%prism_thick_e) &
-    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%primal_edge_length, patch_3d%lsm_e) &
-    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%alloc_cell_blocks) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%constantPrismCenters_Zdistance) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_c, nold) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%prism_thick_flat_sfc_c) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%constantPrismCenters_invZdistance) &
-    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%cells%edge_idx, patch_3d%p_patch_2d(1)%cells%edge_blk) &
-    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%cells%all, patch_3d%p_patch_2d(1)%edges%tangent_orientation) &
-    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%inv_primal_edge_length) &
-    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%inv_dual_edge_length) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%prism_thick_flat_sfc_e) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%inv_prism_thick_e) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%inv_prism_center_dist_e) &
-    !$ACC   COPYIN(patch_3d%lsm_c) &
-    !$ACC   COPYIN(op_coeffs, op_coeffs%vertex_bnd_edge_idx, op_coeffs%vertex_bnd_edge_blk) &
-    !$ACC   COPYIN(op_coeffs%rot_coeff, op_coeffs%grad_coeff) &
-    !$ACC   COPYIN(op_coeffs%edge2vert_coeff_cc_t, op_coeffs%edge2edge_viavert_coeff) &
-    !$ACC   COPYIN(op_coeffs%bnd_edges_per_vertex, op_coeffs%boundaryEdge_Coefficient_Index) &
-    !$ACC   COPYIN(op_coeffs%edge2cell_coeff_cc_t) &
-    !$ACC   COPYIN(op_coeffs%div_coeff) &
-    !$ACC   COPY(ocean_state, ocean_state%p_diag) &
-    !$ACC   COPY(ocean_state%p_diag%p_vn_dual, ocean_state%p_diag%kin) &
-    !$ACC   COPY(ocean_state%p_diag%veloc_adv_horz, ocean_state%p_diag%vort) &
-    !$ACC   COPY(ocean_state%p_diag%rho) &
-    !$ACC   COPY(ocean_state%p_diag%press_hyd) &
-    !$ACC   COPY(ocean_state%p_diag%p_vn, ocean_state%p_diag%w) &
-    !$ACC   COPY(ocean_state%p_diag%veloc_adv_vert) &
-    !$ACC   COPY(ocean_state%p_diag%laplacian_horz) &
-    !$ACC   COPY(ocean_state%p_diag%press_grad) &
-    !$ACC   COPY(ocean_state%p_diag%grad) &
-    !$ACC   COPY(ocean_state%p_diag%vn_pred) &
-    !$ACC   COPY(ocean_state%p_diag%thick_c) &
-    !$ACC   COPY(ocean_state%p_prog, ocean_state%p_prog(nold(1))%vn, ocean_state%p_prog(nnew(1))%vn) &
-    !$ACC   COPY(ocean_state%p_prog(nold(1))%h) &
-    !$ACC   COPY(ocean_state%p_aux, ocean_state%p_aux%bc_total_top_potential) &
-    !$ACC   COPY(ocean_state%p_aux%g_n) &
-    !$ACC   COPY(ocean_state%p_aux%g_nm1) &
-    !$ACC   COPY(ocean_state%p_aux%g_nimd) &
-    !$ACC   COPY(ocean_state%p_aux%bc_bot_vn) &
-    !$ACC   COPY(ocean_state%p_aux%bc_top_vn) &
-    !$ACC   COPY(ocean_state%p_aux%bc_top_u) &
-    !$ACC   COPY(ocean_state%p_aux%bc_top_v) &
-    !$ACC   COPY(ocean_state%p_aux%bc_top_veloc_cc) &
-    !$ACC   COPY(p_phys_param, p_phys_param%a_veloc_v, p_phys_param%HarmonicViscosity_coeff) &
-    !$ACC   COPYIN(p_oce_sfc, p_oce_sfc%TopBC_WindStress_cc) &
-    !$ACC   COPYIN(p_oce_sfc%TopBC_WindStress_u, p_oce_sfc%TopBC_WindStress_v) &
-    !$ACC   IF(lacc)
-
     CALL top_bound_cond_horz_veloc(patch_3d, ocean_state, op_coeffs, p_oce_sfc, use_acc=lacc)
 
     start_timer(timer_ab_expl,3)
@@ -314,31 +267,7 @@ CONTAINS
       & is_initial_timestep(timestep), op_coeffs, p_as, use_acc=lacc)
     stop_timer(timer_ab_expl,3)
 
-    !$ACC END DATA
-
-#ifdef _OPENACC
-    i_am_accel_node = .FALSE.
-    lacc = .FALSE.
-#endif
-
     IF(.NOT.l_rigid_lid)THEN
-#ifdef _OPENACC
-      i_am_accel_node = my_process_is_work()       ! Activate GPUs
-      lacc = .TRUE.
-#endif
-
-      !$ACC DATA COPYIN(patch_3d%p_patch_2d(1)%edges%in_domain) &
-      !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_e, nold) &
-      !$ACC   COPYIN(patch_3d%p_patch_1d(1)%prism_thick_e) &
-      !$ACC   COPYIN(op_coeffs, op_coeffs%edge2edge_viacell_coeff, op_coeffs%div_coeff) &
-      !$ACC   COPY(ocean_state, ocean_state%p_diag, ocean_state%p_diag%vn_pred) &
-      !$ACC   COPY(ocean_state%p_diag%thick_e) &
-      !$ACC   COPY(ocean_state%p_prog, ocean_state%p_prog(nold(1))%vn) &
-      !$ACC   COPY(ocean_state%p_prog(nold(1))%h) &
-      !$ACC   COPY(ocean_state%p_aux, ocean_state%p_aux%p_rhs_sfc_eq) &
-      !$ACC   COPY(free_sfc_solver, free_sfc_solver%x_loc_wp) &
-      !$ACC   IF(lacc)
-
       ! Calculate RHS of surface equation
       start_detail_timer(timer_ab_rhs4sfc,5)
       CALL fill_rhs4surface_eq_ab(patch_3d, ocean_state, op_coeffs, use_acc=lacc)
@@ -370,12 +299,6 @@ CONTAINS
         END DO
       END SELECT
 
-      !$ACC END DATA
-#ifdef _OPENACC
-      lacc = .FALSE.
-      i_am_accel_node = .FALSE.                    ! Deactivate GPUs
-#endif
-
       free_sfc_solver%b_loc_wp => ocean_state%p_aux%p_rhs_sfc_eq
       IF (l_solver_compare) THEN
         IF (istep .EQ. 0) l_is_compare_step = .true.
@@ -390,9 +313,12 @@ CONTAINS
       END IF
       CALL dbg_print('bef ocean_solve('//TRIM(free_sfc_solver%sol_type_name)//'): h-old',ocean_state%p_prog(nold(1))%h(:,:) , &
         & str_module,idt_src,in_subset=owned_cells)
+
 ! call solver
       CALL free_sfc_solver%solve(n_it, n_it_sp)
       rn = MERGE(free_sfc_solver%res_loc_wp(1), 0._wp, n_it .NE. 0)
+
+
       ! output of sum of iterations every timestep
       IF (idbg_mxmn >= 0) THEN
         IF (n_it_sp .NE. -2) THEN
@@ -406,61 +332,68 @@ CONTAINS
         END IF
         CALL message('ocean_solve('//TRIM(free_sfc_solver%sol_type_name)//'): surface height',TRIM(string))
       ENDIF
-      IF (rn > solver_tolerance) THEN
-        ret_status = 2
-        CALL warning(method_name, "NOT YET CONVERGED !!")
-        RETURN
-      ENDIF
-      !!ICON_OMP PARALLEL WORKSHARE
-      ocean_state%p_prog(nnew(1))%h(:,:) = free_sfc_solver%x_loc_wp(:,:)
-      !!ICON_OMP END PARALLEL WORKSHARE
+      IF (rn <= solver_tolerance) THEN
+          !!ICON_OMP PARALLEL WORKSHARE
+          DO blockNo = all_cells%start_block, all_cells%end_block
+            CALL get_index_range(all_cells, blockNo, StartIndex, EndIndex)
+            !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+            DO jc = StartIndex, EndIndex
+              ocean_state%p_prog(nnew(1))%h(jc,blockNo) = free_sfc_solver%x_loc_wp(jc,blockNo)
+            END DO
+            !$ACC END PARALLEL LOOP
+          END DO
+          !!ICON_OMP END PARALLEL WORKSHARE
 
-      IF (l_is_compare_step) THEN
-        CALL free_sfc_solver_comp%solve(n_it, n_it_sp)
-        rn = MERGE(free_sfc_solver_comp%res_loc_wp(1), 0._wp, n_it .NE. 0)
-        WRITE(string,'(a,i4,a,e28.20)') &
-          & 'SUM of ocean_solve iteration =', n_it-1,', residual =', rn
-        CALL message('ocean_solve('//TRIM(free_sfc_solver_comp%sol_type_name)//'): surface height',TRIM(string))
-        free_sfc_solver_comp%x_loc_wp(:,:) = free_sfc_solver%x_loc_wp(:,:) - free_sfc_solver_comp%x_loc_wp(:,:)
-        minmaxmean(:) = global_minmaxmean(values=free_sfc_solver_comp%x_loc_wp(:,:), in_subset=owned_cells)
-        WRITE(string,"(a,3(e12.3,'  '))") "comparison of solutions: (min/max/mean)", minmaxmean(:)
-        CALL message('ocean_solve('//TRIM(free_sfc_solver_comp%sol_type_name)//'): surface height',TRIM(string))
-        free_sfc_solver_comp%x_loc_wp(:,:) = free_sfc_solver_comp%x_loc_wp(:,:) * free_sfc_solver_comp%x_loc_wp(:,:)
-        minmaxmean(:) = global_minmaxmean(values=free_sfc_solver_comp%x_loc_wp(:,:), in_subset=owned_cells)
-        WRITE(string,"(a,3(e12.3,'  '))") "comparison of solutions (squared): (min/max/mean)", SQRT(minmaxmean(:))
-        CALL message('ocean_solve('//TRIM(free_sfc_solver_comp%sol_type_name)//'): surface height',TRIM(string))
-      END IF
+          IF (l_is_compare_step) THEN
+            CALL free_sfc_solver_comp%solve(n_it, n_it_sp)
+            rn = MERGE(free_sfc_solver_comp%res_loc_wp(1), 0._wp, n_it .NE. 0)
+            WRITE(string,'(a,i4,a,e28.20)') &
+              & 'SUM of ocean_solve iteration =', n_it-1,', residual =', rn
+            CALL message('ocean_solve('//TRIM(free_sfc_solver_comp%sol_type_name)//'): surface height',TRIM(string))
+            free_sfc_solver_comp%x_loc_wp(:,:) = free_sfc_solver%x_loc_wp(:,:) - free_sfc_solver_comp%x_loc_wp(:,:)
+            minmaxmean(:) = global_minmaxmean(values=free_sfc_solver_comp%x_loc_wp(:,:), in_subset=owned_cells)
+            WRITE(string,"(a,3(e12.3,'  '))") "comparison of solutions: (min/max/mean)", minmaxmean(:)
+            CALL message('ocean_solve('//TRIM(free_sfc_solver_comp%sol_type_name)//'): surface height',TRIM(string))
+            free_sfc_solver_comp%x_loc_wp(:,:) = free_sfc_solver_comp%x_loc_wp(:,:) * free_sfc_solver_comp%x_loc_wp(:,:)
+            minmaxmean(:) = global_minmaxmean(values=free_sfc_solver_comp%x_loc_wp(:,:), in_subset=owned_cells)
+            WRITE(string,"(a,3(e12.3,'  '))") "comparison of solutions (squared): (min/max/mean)", SQRT(minmaxmean(:))
+            CALL message('ocean_solve('//TRIM(free_sfc_solver_comp%sol_type_name)//'): surface height',TRIM(string))
+          END IF
 
-      IF (createSolverMatrix) CALL free_sfc_solver%dump_matrix(timestep)
-!        CALL createSolverMatrix_onTheFly(solve%lhs, ocean_state%p_aux%p_rhs_sfc_eq, timestep)
+          IF (createSolverMatrix) CALL free_sfc_solver%dump_matrix(timestep)
+    !        CALL createSolverMatrix_onTheFly(solve%lhs, ocean_state%p_aux%p_rhs_sfc_eq, timestep)
 
-      !-------- end of solver ---------------
-      CALL sync_patch_array(sync_c, patch_2D, ocean_state%p_prog(nnew(1))%h)
-      !---------DEBUG DIAGNOSTICS-------------------------------------------
-      ! idt_src=2  ! output print level (1-5, fix)
-      !     z_h_c = lhs_surface_height( ocean_state%p_prog(nnew(1))%h, &
-      !         & ocean_state%p_prog(nold(1))%h, &
-      !         & patch_3d,             &
-      !         & z_implcoeff,            &
-      !         & ocean_state%p_diag%thick_e,    &
-      !         & ocean_state%p_diag%thick_c,    &
-      !         & op_coeffs)             &
-      !         & -ocean_state%p_aux%p_rhs_sfc_eq
-      !     CALL dbg_print('SolvSfc: residual h-res'    ,z_h_c                  ,str_module,idt_src)
-!      vol_h(:,:) = patch_3d%p_patch_2d(n_dom)%cells%area(:,:) * ocean_state%p_prog(nnew(1))%h(:,:)
-!      CALL dbg_print('after ocean_solve: vol_h(:,:)',vol_h ,str_module,idt_src, in_subset=owned_cells)
-      !---------------------------------------------------------------------
-      CALL dbg_print('vn-new',ocean_state%p_prog(nnew(1))%vn,str_module, 2,in_subset=owned_edges)
-      minmaxmean(:) = global_minmaxmean(values=ocean_state%p_prog(nnew(1))%h(:,:), in_subset=owned_cells)
-      CALL debug_print_MaxMinMean('h-new after ocean solver', minmaxmean, str_module, 1)
-      IF (minmaxmean(1) + patch_3D%p_patch_1D(1)%del_zlev_m(1) <= min_top_height) THEN
-!          CALL finish(method_name, "height below min_top_height")
-        CALL warning(method_name, "height below min_top_height")
-        CALL print_value_location(ocean_state%p_prog(nnew(1))%h(:,:), minmaxmean(1), owned_cells)
-        CALL print_value_location(ocean_state%p_prog(nnew(2))%h(:,:), minmaxmean(1), owned_cells)
-        CALL work_mpi_barrier()
-        ret_status = 1
-        RETURN
+          !-------- end of solver ---------------
+          CALL sync_patch_array(sync_c, patch_2D, ocean_state%p_prog(nnew(1))%h)
+          !---------DEBUG DIAGNOSTICS-------------------------------------------
+          ! idt_src=2  ! output print level (1-5, fix)
+          !     z_h_c = lhs_surface_height( ocean_state%p_prog(nnew(1))%h, &
+          !         & ocean_state%p_prog(nold(1))%h, &
+          !         & patch_3d,             &
+          !         & z_implcoeff,            &
+          !         & ocean_state%p_diag%thick_e,    &
+          !         & ocean_state%p_diag%thick_c,    &
+          !         & op_coeffs)             &
+          !         & -ocean_state%p_aux%p_rhs_sfc_eq
+          !     CALL dbg_print('SolvSfc: residual h-res'    ,z_h_c                  ,str_module,idt_src)
+    !      vol_h(:,:) = patch_3d%p_patch_2d(n_dom)%cells%area(:,:) * ocean_state%p_prog(nnew(1))%h(:,:)
+    !      CALL dbg_print('after ocean_solve: vol_h(:,:)',vol_h ,str_module,idt_src, in_subset=owned_cells)
+          !---------------------------------------------------------------------
+          CALL dbg_print('vn-new',ocean_state%p_prog(nnew(1))%vn,str_module, 2,in_subset=owned_edges)
+          minmaxmean(:) = global_minmaxmean(values=ocean_state%p_prog(nnew(1))%h(:,:), in_subset=owned_cells)
+          CALL debug_print_MaxMinMean('h-new after ocean solver', minmaxmean, str_module, 1)
+          IF (minmaxmean(1) + patch_3D%p_patch_1D(1)%del_zlev_m(1) <= min_top_height) THEN
+    !          CALL finish(method_name, "height below min_top_height")
+            CALL warning(method_name, "height below min_top_height")
+            !$ACC UPDATE SELF(ocean_state%p_prog(nnew(1))%h, ocean_state%p_prog(nnew(2))%h)
+            CALL print_value_location(ocean_state%p_prog(nnew(1))%h(:,:), minmaxmean(1), owned_cells)
+            CALL print_value_location(ocean_state%p_prog(nnew(2))%h(:,:), minmaxmean(1), owned_cells)
+            CALL work_mpi_barrier()
+            ret_status = 1
+          ENDIF
+      ELSE
+          ret_status = 2
+          CALL warning(method_name, "NOT YET CONVERGED !!")
       ENDIF
     ENDIF  ! l_rigid_lid
   END SUBROUTINE solve_free_sfc_ab_mimetic
@@ -1286,6 +1219,7 @@ CONTAINS
     !$ACC END DATA
 
     !---------DEBUG DIAGNOSTICS-------------------------------------------
+#ifndef _OPENACC
     idt_src=3  ! output print level (1-5, fix)
     CALL dbg_print('NormVel: vn_old'            ,ocean_state%p_prog(nold(1))%vn     ,str_module,idt_src, in_subset=owned_edges )
     CALL dbg_print('NormVel: vn_pred'           ,ocean_state%p_diag%vn_pred         ,str_module,idt_src, in_subset=owned_edges)
@@ -1294,6 +1228,7 @@ CONTAINS
       & ocean_state%p_prog(nold(1))%vn     ,str_module,idt_src, in_subset=owned_edges)
     idt_src=2  ! outputm print level (1-5, fix)
     CALL dbg_print('NormVel: vn_new'            ,ocean_state%p_prog(nnew(1))%vn     ,str_module,idt_src, in_subset=owned_edges)
+#endif
   END SUBROUTINE calc_normal_velocity_ab_mimetic
   !-------------------------------------------------------------------------
 
@@ -1354,6 +1289,18 @@ CONTAINS
     ELSE
       lacc = .FALSE.
     END IF
+
+    !Store current vertical velocity before the new one is calculated
+    DO blockNo = cells_in_domain%start_block, cells_in_domain%end_block
+      CALL get_index_range(cells_in_domain, blockNo, start_index, end_index)
+      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+      DO jk = 1,n_zlev
+        DO jc = start_index, end_index
+          ocean_state%p_diag%w_old(jc,jk,blockNo) = ocean_state%p_diag%w(jc,jk,blockNo)
+        END DO
+      END DO
+      !$ACC END PARALLEL LOOP
+    END DO
 
     ! due to nag -nan compiler-option:
     !------------------------------------------------------------------

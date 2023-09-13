@@ -531,7 +531,7 @@ if [[ "$output_phy_3d" == "yes" ]]; then
                     'tend_ua_vdf'  ,
                     'tend_va_phy'  ,
                     'tend_va_vdf'  ,
-                    'tend_qhus_phy',
+                    'tend_hus_phy',
 /
 EOF
 fi

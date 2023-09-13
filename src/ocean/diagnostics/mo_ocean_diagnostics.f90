@@ -911,7 +911,7 @@ CONTAINS
           ) THEN
 
         CALL calc_eddydiag(patch_3d, p_diag%u, p_diag%v, p_diag%w, p_diag%w_prismcenter  &
-               ,tracers(:,:,:,1), tracers(:,:,:,2),p_diag%rhopot &
+               ,tracers(:,:,:,1), tracers(:,:,:,2),p_diag%rho &  ! use in-situ density in the eddy products
                ,p_diag%uT, p_diag%uS, p_diag%uR, p_diag%uu    &
                ,p_diag%vT, p_diag%vS, p_diag%vR, p_diag%vv    &
                ,p_diag%wT, p_diag%wS, p_diag%wR, p_diag%ww    &
@@ -926,16 +926,16 @@ CONTAINS
       IF (isRegistered('mld')) THEN
 
         CALL calc_mld(patch_3d, ocean_state%p_diag%mld, &
-             ocean_state%p_diag%zgrad_rho,0.125_wp, use_acc=lacc)
+             ocean_state%p_diag%zgrad_rho,1,0.125_wp, use_acc=lacc)
 
         CALL dbg_print('Diag: mld',ocean_state%p_diag%mld, &
              str_module,4,in_subset=owned_cells)
       ENDIF
 
-      IF (isRegistered('mlotst') .or. isRegistered('mlotstsq') ) THEN
+      IF (isRegistered('mlotst') .OR. isRegistered('mlotstsq') ) THEN
 
         CALL calc_mld(patch_3d, ocean_state%p_diag%mlotst, &
-             ocean_state%p_diag%zgrad_rho,0.03_wp, use_acc=lacc)
+             ocean_state%p_diag%zgrad_rho,1,0.03_wp, use_acc=lacc)
 
         CALL dbg_print('Diag: mlotst',ocean_state%p_diag%mlotst, &
              str_module,4,in_subset=owned_cells)
@@ -953,6 +953,27 @@ CONTAINS
 
       ENDIF
 
+      IF (isRegistered('mlotst10') .OR. isRegistered('mlotst10sq') ) THEN
+
+        CALL calc_mld(patch_3d, ocean_state%p_diag%mlotst10, &
+             ocean_state%p_diag%zgrad_rho,get_level_index_by_depth(patch_3d, 10.0_wp),0.03_wp, use_acc=lacc)
+
+        CALL dbg_print('Diag: mlotst10',ocean_state%p_diag%mlotst10, &
+             str_module,4,in_subset=owned_cells)
+
+        IF (isRegistered('mlotst10sq')) THEN
+
+          !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+          ocean_state%p_diag%mlotst10sq= &
+               ocean_state%p_diag%mlotst10*ocean_state%p_diag%mlotst10
+          !$ACC END KERNELS
+
+          CALL dbg_print('Diag: mlotst10sq',ocean_state%p_diag%mlotst10sq, &
+               str_module,4,in_subset=owned_cells)
+        ENDIF
+
+      ENDIF
+
       IF (isRegistered('condep')) THEN
 
         CALL calc_condep(patch_3d, ocean_state%p_diag%condep, &
@@ -962,6 +983,17 @@ CONTAINS
              in_subset=owned_cells)
       ENDIF
 
+      IF (isRegistered('ssh')) THEN
+        IF (vert_cor_type .EQ. 1) THEN
+          !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+          p_diag%ssh = sea_surface_height + ice%draftave
+          !$ACC END KERNELS
+        ELSE
+          !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+          p_diag%ssh = sea_surface_height
+          !$ACC END KERNELS
+        ENDIF
+      ENDIF
 
       CALL dbg_print('Diag: mld',p_diag%mld,str_module,4,in_subset=owned_cells)
 
@@ -2078,11 +2110,12 @@ CONTAINS
     condep = max0(maxcondep,condep)
   END FUNCTION calc_max_condep
 !<Optimize:inUse>
-  FUNCTION calc_mixed_layer_depth(vertical_density_gradient,critical_value,max_lev,thickness, depth_of_first_layer) &
+  FUNCTION calc_mixed_layer_depth(vertical_density_gradient,critical_value,min_lev,max_lev,thickness, depth_of_first_layer) &
     & result(mixed_layer_depth)
     !$ACC ROUTINE SEQ
     REAL(wp), TARGET :: vertical_density_gradient(n_zlev)
     REAL(wp), INTENT(in)  :: critical_value
+    INTEGER,  INTENT(in)  :: min_lev
     INTEGER,  INTENT(in)  :: max_lev
     REAL(wp), INTENT(in)  :: thickness(n_zlev)
     REAL(wp), INTENT(in)  :: depth_of_first_layer
@@ -2106,7 +2139,7 @@ CONTAINS
     ! stabio(k) = insitu density gradient
     ! sigh = remaining density difference
 
-    DO jk = 2, max_lev
+    DO jk = MAX(2,min_lev), max_lev
       IF (sigh .GT. 1.e-6_wp) THEN
         zzz               = MIN(sigh/(ABS(masked_vertical_density_gradient(jk))+1.0E-19_wp),thickness(jk))
         sigh              = MAX(0._wp, sigh-zzz*masked_vertical_density_gradient(jk))
@@ -2167,7 +2200,7 @@ CONTAINS
         DO cell = cellStart, cellEnd
 
           delta_ice(cell,blk) = SUM(ice%hi(cell,:,blk)*ice%conc(cell,:,blk))
-          delta_snow(cell,blk) = SUM(ice%hi(cell,:,blk)*ice%hs(cell,:,blk))
+          delta_snow(cell,blk) = SUM(ice%hs(cell,:,blk)*ice%conc(cell,:,blk))
 
           !$ACC LOOP SEQ
           DO level = 1,subset%vertical_levels(cell,blk)
@@ -2199,7 +2232,7 @@ CONTAINS
                - ( sithk * entmel )) * dti
 
           ! tendency of equivalent thickness of snow
-          snthk = SUM(ice%hi(cell,:,blk)*ice%hs(cell,:,blk)) - delta_snow(cell,blk)
+          snthk = SUM(ice%hs(cell,:,blk)*ice%conc(cell,:,blk)) - delta_snow(cell,blk)
 
           ! converted to heat content
           delta_snow(cell,blk) = (( rhosnwa * clw * OceanReferenceDensity * snthk          &
@@ -2537,11 +2570,12 @@ CONTAINS
 
   END SUBROUTINE calc_condep
 
-  SUBROUTINE calc_mld(patch_3d, mld, zgrad_rho, sigcrit, use_acc)
+  SUBROUTINE calc_mld(patch_3d, mld, zgrad_rho, min_lev,sigcrit, use_acc)
 
     TYPE(t_patch_3d), TARGET, INTENT(in)     :: patch_3d
     REAL(wp), TARGET, Intent(inout)          :: mld(:,:)
     REAL(wp), TARGET, Intent(in)             :: zgrad_rho(:,:,:)
+    INTEGER,  INTENT(in)                     :: min_lev
     REAL(wp)                                 :: sigcrit
     LOGICAL, INTENT(IN), OPTIONAL :: use_acc
 
@@ -2572,9 +2606,10 @@ CONTAINS
 
          mld(jc,blockNo) = calc_mixed_layer_depth(zgrad_rho(jc,:,blockNo),&
              sigcrit, &
+             min_lev, &
              patch_3d%p_patch_1d(1)%dolic_c(jc,blockNo), &
              patch_3d%p_patch_1d(1)%prism_thick_c(jc,:,blockNo), &
-             patch_3d%p_patch_1d(1)%zlev_m(1))
+             patch_3d%p_patch_1d(1)%zlev_m(min_lev))
 
       ENDDO
       !$ACC END PARALLEL LOOP

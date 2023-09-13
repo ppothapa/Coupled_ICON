@@ -73,7 +73,7 @@ CONTAINS
     CALL timer_start(timer_extra10)
     DO l=1,10000
       rho_EOS3 = calculate_density_jmdwfg06_onColumn( &
-        & temperature_column,  salinity_column, pressure_column, columnn_size)
+        & temperature_column,  salinity_column, pressure_column)
     ENDDO 
     CALL timer_stop(timer_extra10)
 
@@ -81,7 +81,7 @@ CONTAINS
     CALL timer_start(timer_extra11)
     DO l=1,10000
       rho_MPIOM = calculate_density_mpiom_onColumn( &
-        & temperature_column,  salinity_column, pressure_column, columnn_size)
+        & temperature_column,  salinity_column, pressure_column)
     ENDDO
     CALL timer_stop(timer_extra11)
 
@@ -102,11 +102,11 @@ CONTAINS
 
         pressure_column = depth(p) !* ReferencePressureIndbars
         rho_EOS3 = calculate_density_jmdwfg06_onColumn( &
-          & temperature_column,  salinity_column, pressure_column, columnn_size)
+          & temperature_column,  salinity_column, pressure_column)
 
         pressure_column = depth(p) / 10.0_wp !* OceanReferenceDensity * sitodbar
         rho_MPIOM = calculate_density_mpiom_onColumn( &
-          & temperature_column,  salinity_column, pressure_column, columnn_size)
+          & temperature_column,  salinity_column, pressure_column)
 
         
 

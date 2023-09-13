@@ -42,11 +42,12 @@ MODULE mo_setup_subdivision
   USE mo_sync,               ONLY: global_max, global_min, global_sum
   USE mo_kind,               ONLY: wp
   USE mo_util_string,        ONLY: int2string
+  USE mo_util_file,          ONLY: get_filename_noext
   USE mo_impl_constants,     ONLY: min_rlcell, max_rlcell,  &
     & min_rledge, max_rledge, min_rlvert, max_rlvert, max_phys_dom,  &
     & min_rlcell_int, min_rledge_int, min_rlvert_int, max_hw
   USE mo_math_constants,     ONLY: pi
-  USE mo_exception,          ONLY: finish, message, get_filename_noext, warning
+  USE mo_exception,          ONLY: finish, message, warning
 
   USE mo_run_config,         ONLY: msg_level
   USE mo_io_units,           ONLY: filename_max

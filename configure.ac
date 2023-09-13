@@ -128,6 +128,9 @@ AC_ARG_ENABLE([jsbach-hd],
      [enable_jsbach_hd=yes])],
   [enable_jsbach_hd=auto])
 
+AS_VAR_IF([enable_jsbach_hd], [auto],
+  [AS_VAR_COPY([enable_jsbach_hd], [enable_jsbach])])
+
 AC_ARG_ENABLE([waves],
   [AS_HELP_STRING([--enable-waves],
      [enable the ocean surface wave component of ICON @<:@default=no@:>@])],
@@ -255,6 +258,7 @@ AC_ARG_ENABLE([gpu],
 --enable-gpu='$enableval'; valid values are 'openacc+cuda', 'openacc+hip', dnl
 'openacc' (same as 'openacc+cuda'), 'yes' (same as 'openacc+cuda'), 'no'])])],
 [enable_gpu=no])
+
 AS_CASE([$enable_gpu],
   [openacc+*], [icon_gpu_primary=openacc],
   [icon_gpu_primary=no])
@@ -526,17 +530,17 @@ AS_IF([test -n "$ICON_FCGROUP_ASSIGNMENTS"],
 
 dnl Optional Packages:
 
-AC_ARG_WITH([external-ecrad],
-  [AS_HELP_STRING([--with-external-ecrad],
-     [use external ECRAD library @<:@default=no@:>@])],
-  [AS_IF([test x"$withval" != xno], [with_external_ecrad=yes])],
-  [with_external_ecrad=no])
-
 AC_ARG_WITH([external-rte-rrtmgp],
      [AS_HELP_STRING([--with-external-rte-rrtmgp],
         [use external RTE+RRTMGP library @<:@default=no@:>@])],
   [AS_IF([test x"$withval" != xno], [with_external_rte_rrtmgp=yes])],
   [with_external_rte_rrtmgp=no])
+
+AC_ARG_WITH([external-ecrad],
+  [AS_HELP_STRING([--with-external-ecrad],
+     [use external ECRAD library @<:@default=no@:>@])],
+  [AS_IF([test x"$withval" != xno], [with_external_ecrad=yes])],
+  [with_external_ecrad=no])
 
 AC_ARG_WITH([external-sct],
   [AS_HELP_STRING([--with-external-sct],
@@ -580,20 +584,12 @@ AC_ARG_WITH([external-tixi],
   [AS_IF([test x"$withval" != xno], [with_external_tixi=yes])],
   [with_external_tixi=no])
 
-############################# OPTIONS CROSSCHECKS ##############################
-
-AS_CASE([$enable_jsbach_hd],
-  [yes], [AS_VAR_IF([enable_jsbach], [no],
-            [AC_MSG_ERROR([dnl
-you are trying to configure with the JSBACH HD scheme but the
-land component JSBACH is disabled. Either disable the hydrological discharge
-scheme of the JSBACH land component (--disable-jsbach-hd) or enable the land
-component JSBACH (--enable-jsbach).])])],
-  [no], [],
-  [auto], [AS_VAR_IF([enable_jsbach], [yes],
-             [enable_jsbach_hd=yes],
-             [enable_jsbach_hd=no])])
-
+AC_ARG_WITH([external-fortran-support],
+  [AS_HELP_STRING([--with-external-fortran-support],
+     [use external FORTRAN-SUPPORT library @<:@default=no@:>@])],
+  [AS_IF([test x"$withval" != xno],
+     [with_external_fortran_support=yes])],
+  [with_external_fortran_support=no])
 
 ############################# CODEBASE EXTENSIONS ##############################
 
@@ -763,8 +759,7 @@ ACX_FC_ATTRIBUTE_CONTIGUOUS(
   [AS_VAR_APPEND([FCFLAGS],
   [" ${FC_PP_DEF}HAVE_FC_ATTRIBUTE_CONTIGUOUS"])], [:])
 
-AS_VAR_APPEND([FCFLAGS],
-  [" ${FC_PP_DEF}__ICON__"])
+AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__ICON__"])
 
 AS_VAR_IF([enable_atmo], [no],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_ICON_ATMO__"])])
@@ -785,7 +780,13 @@ AS_VAR_IF([enable_jsbach], [no],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_JSBACH__"])])
 
 AS_VAR_IF([enable_jsbach_hd], [no],
-  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_JSBACH_HD__"])])
+  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_JSBACH_HD__"])],
+  [AS_VAR_IF([enable_jsbach], [no],
+     [AC_MSG_ERROR([unsupported combination of the configure options: you dnl
+are trying to configure with the JSBACH HD scheme but the land component dnl
+JSBACH is disabled: either disable the hydrological discharge scheme of the dnl
+JSBACH land component (--disable-jsbach-hd) or enable the land component dnl
+JSBACH (--enable-jsbach)])])])
 
 AS_VAR_IF([enable_waves], [no],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_ICON_WAVES__"])])
@@ -940,25 +941,10 @@ dnl AC_PROG_CC, AC_PROG_CC_C99, and AC_INCLUDES_DEFAULT do check for some of the
 dnl following header files but the actual list of files they check for might
 dnl vary from version to version. Therefore, we check for all the headers that
 dnl are used in the code unconditionally:
-AC_CHECK_HEADERS([stdlib.h stdio.h math.h time.h ctype.h string.h signal.h ]dnl
-  [limits.h errno.h assert.h stdbool.h unistd.h fcntl.h pwd.h stdint.h ]dnl
-  [sys/types.h sys/stat.h sys/param.h sys/resource.h sys/utsname.h ]dnl
-  [sys/time.h sys/times.h dirent.h],
+AC_CHECK_HEADERS([stdlib.h stdio.h math.h time.h ctype.h string.h assert.h ]dnl
+  [stdbool.h dirent.h errno.h fcntl.h sys/stat.h sys/types.h unistd.h],
   [], [AC_MSG_FAILURE([unable to find header file $ac_header])],
   [[// override default includes]])
-
-dnl Check for headers that are protected with HAVE_* macros in the code:
-AC_CHECK_HEADERS([execinfo.h ucontext.h link.h],
-  [], [], [[// override default includes]])
-
-dnl Other header files that are protected in the code but not with the HAVE_*
-dnl macros:
-dnl support/util_hash.c: endian.h
-dnl support/util_sysinfo.c: mcheck.h sys/systemcfg.h
-dnl support/util_timer.c: sys/systemcfg.h asm/msr.h
-
-dnl Header files that are included from non-mandatory files
-dnl support/util_signal.c: features.h strings.h fenv.h fptrap.h
 
 ######################## C++ COMPILER COMMAND AND FLAGS ########################
 
@@ -973,6 +959,9 @@ dnl Therefore we simply declare the following variables to document them in the
 dnl help message:
 AC_ARG_VAR([CXX], [C++ compiler command])dnl
 AC_ARG_VAR([CXXFLAGS], [C++ compiler flags])dnl
+dnl Make sure that the bundled libraries pick up the same CXX if not set by the
+dnl user on the command line:
+export CXX
 
 AC_ARG_VAR([ICON_BUNDLED_CXXFLAGS],
   [C++ compiler flags to be appended to CXXFLAGS when configuring the bundled
@@ -2266,6 +2255,67 @@ switch the secondary GPU compiler (e.g. dnl
      [[// override default includes]])
    ACX_LANG_POP_HIP])
 
+AS_VAR_IF([with_external_fortran_support], [yes],
+  [AC_CACHE_CHECK([whether Fortran support library is available],
+     [icon_cv_have_fortran_support],
+     [icon_cv_have_fortran_support=no
+      AC_LINK_IFELSE([AC_LANG_PROGRAM([], [[
+      use mo_util_backtrace, only: ftn_util_backtrace
+      implicit none
+      call ftn_util_backtrace()]])],
+        [icon_cv_have_fortran_support=yes])])
+   AS_VAR_IF([icon_cv_have_fortran_support], [no],
+     [AC_MSG_FAILURE([unable to link a test program using Fortran support dnl
+library: either use the bundled version of FORTRAN-SUPPORT dnl
+(--without-external-fortran-support) or set FCFLAGS, LDFLAGS and LIBS dnl
+accordingly])])],
+dnl
+  [icon_subdir_srcdir="$srcdir/externals/fortran-support"
+   icon_subdir_unique_file="src/mo_util_backtrace.f90"
+   AS_IF([test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"],
+     [AC_MSG_ERROR([unable to find sources of the bundled version of dnl
+FORTRAN-SUPPORT library ($icon_subdir_unique_file) in '$icon_subdir_srcdir': dnl
+provide an external version of FORTRAN-SUPPORT library dnl
+(--with-external-fortran-support) by setting FCFLAGS, LDFLAGS and LIBS dnl
+accordingly])])
+   AC_ARG_VAR([ICON_FORTRAN_SUPPORT_FCFLAGS],
+     [Fortran compiler flags to be appended to FCFLAGS when configuring the
+bundled version of FORTRAN-SUPPORT library
+@<:@default=$ICON_BUNDLED_FCFLAGS@:>@])dnl
+ICON_FORTRAN_SUPPORT_FCFLAGS=dnl
+${ICON_FORTRAN_SUPPORT_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
+   AC_ARG_VAR([ICON_FORTRAN_SUPPORT_CFLAGS],
+     [Fortran compiler flags to be appended to CFLAGS when configuring the
+bundled version of FORTRAN-SUPPORT library
+@<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
+   ICON_FORTRAN_SUPPORT_CFLAGS=dnl
+${ICON_FORTRAN_SUPPORT_CFLAGS-$ICON_BUNDLED_CFLAGS}
+   ACX_SUBDIR_INIT_CMAKE([externals/fortran-support],
+     [no-run no-adjust-compilers], [],
+     [AS_ESCAPE(["${CMAKE}"])])
+   ACX_SUBDIR_REMOVE_ARGS([externals/fortran-support],
+dnl C and Fortran compiler flags are replaced below:
+     [-DCMAKE_C_FLAGS=*|-DCMAKE_Fortran_FLAGS=*],
+dnl C++ compiler is used for tests only, which we currently disable:
+     [-DCMAKE_CXX_*=*],
+dnl We build static libraries only:
+     [-DCMAKE_SHARED_LINKER_FLAGS=*|-DCMAKE_MODULE_LINKER_FLAGS=*],
+dnl The interprocedural optimization is not enabled in the project:
+     [-DCMAKE_*_COMPILER_AR=*|-DCMAKE_*_COMPILER_RANLIB=*])
+   ACX_SUBDIR_APPEND_ARGS([externals/fortran-support],
+dnl Extend C and Fortran compiler flags:
+     [-DCMAKE_C_FLAGS=dnl
+"$subdir_CFLAGS $ICON_FORTRAN_SUPPORT_CFLAGS $subdir_CPPFLAGS"],
+     [-DCMAKE_Fortran_FLAGS="$subdir_FCFLAGS $ICON_FORTRAN_SUPPORT_FCFLAGS"],
+dnl Build the static version of the library and disable the tests:
+     [-DBUILD_SHARED_LIBS:BOOL=OFF], [-DBUILD_TESTING:BOOL=OFF],
+dnl Set non-existing build type to avoid extra compiler flags:
+     [-DCMAKE_BUILD_TYPE:STRING=NOEXTRAFLAGS])
+   AS_VAR_APPEND([bundled_includes],
+     ["${FC_MOD_IN}externals/fortran-support/build/src/mod "])
+   BUNDLED_LIBFILES=dnl
+"externals/fortran-support/build/src/libfortran-support.a $BUNDLED_LIBFILES"])
+
 dnl Prepend the include search flags to FCFLAGS:
 AS_IF([test -n "$bundled_includes"], [FCFLAGS="${bundled_includes}${FCFLAGS}"])
 
@@ -2291,7 +2341,7 @@ AS_VAR_IF([enable_delayed_config], [yes],
   [dnl
 dnl Make sure that the bundled libraries pick up the same FC and CC if not set
 dnl by the user on the command line when configuring ICON:
-   ICON_DELAYED_CONFIG_RULES="export FC CC$as_nl$as_nl"
+   ICON_DELAYED_CONFIG_RULES="export FC CC CXX$as_nl$as_nl"
    icon_rule_sep=''
    for icon_bundled_srcdir in $extra_src_subdirs; do
      ACX_SUBDIR_GET_BUILD_DIR([icon_bundled_builddir], [$icon_bundled_srcdir])

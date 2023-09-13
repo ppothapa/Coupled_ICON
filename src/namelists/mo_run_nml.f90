@@ -46,8 +46,7 @@ MODULE mo_run_nml
   USE radar_data_namelist, ONLY: radar_config_radarnmlfile => radarnmlfile
 #endif
   USE mo_kind,           ONLY: wp
-  USE mo_exception,      ONLY: finish,  &
-    &                      config_msg_timestamp   => msg_timestamp
+  USE mo_exception,      ONLY: finish, set_msg_timestamp
   USE mo_impl_constants, ONLY: max_dom, max_ntracer, inoforcing, IHELDSUAREZ,     &
                                INWP,iaes,ILDF_ECHAM,IMPIOM,INOFORCING,ILDF_DRY, &
                                MAX_CHAR_LENGTH
@@ -285,7 +284,7 @@ CONTAINS
     config_logmaxrss       = logmaxrss
     config_logmaxrss_all   = logmaxrss_all
     config_msg_level       = msg_level
-    config_msg_timestamp   = msg_timestamp
+    CALL set_msg_timestamp(msg_timestamp)
     config_test_mode    = test_mode
     config_debug_check_level = debug_check_level
 

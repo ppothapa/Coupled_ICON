@@ -45,9 +45,7 @@ MODULE mo_ocean_boundcond
   USE mo_grid_subset,        ONLY: t_subset_range, get_index_range
   USE mo_sync,               ONLY: SYNC_E, sync_patch_array
   USE mo_master_config,      ONLY: isRestart
-#ifdef _OPENACC
-  USE mo_mpi, ONLY: i_am_accel_node, my_process_is_work
-#endif
+
   IMPLICIT NONE
   
   PRIVATE
@@ -253,19 +251,19 @@ CONTAINS
       !z_scale(:,:) = v_base%del_zlev_m(1)*OceanReferenceDensity
       !z_scale(:,:) = OceanReferenceDensity*patch_3D%p_patch_1D(1)%prism_thick_flat_sfc_c(:,1,:)
 !ICON_OMP_DO ICON_OMP_DEFAULT_SCHEDULE
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jb = all_cells%start_block, all_cells%end_block
+        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
         z_scale(:,jb) = 1.0_wp / (OceanReferenceDensity*ocean_state%p_diag%thick_c(:,jb))
+        !$ACC END KERNELS
       ENDDO
-      !$ACC END PARALLEL LOOP
 !ICON_OMP_END_DO
     ELSEIF(iswm_oce /= 1)THEN
 !ICON_OMP_DO ICON_OMP_DEFAULT_SCHEDULE
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jb = all_cells%start_block, all_cells%end_block
+        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
         z_scale(:,jb) = 1.0_wp / OceanReferenceDensity
+        !$ACC END KERNELS
       ENDDO
-      !$ACC END PARALLEL LOOP
 !ICON_OMP_END_DO
     ENDIF
 

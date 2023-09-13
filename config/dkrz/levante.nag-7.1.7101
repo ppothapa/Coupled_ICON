@@ -156,9 +156,7 @@ LIBS=$(echo "${LIBS}" | sed 's/\([ ]\|^\)-l/\1-Wl,-l/g')
 
 MPI_LAUNCH="${MPI_ROOT}/bin/mpiexec"
 
-EXTRA_CONFIG_ARGS='--enable-parallel-netcdf --enable-ecrad --enable-grib2 --enable-yaxt --enable-fcgroup-DACE --enable-fcgroup-EMVORADO --enable-fcgroup-WORKAROUND1 --enable-art'
-# as long as all openmpi released have an error we need to disable mpi checking
-EXTRA_CONFIG_ARGS="${EXTRA_CONFIG_ARGS} --disable-mpi-checks --disable-openmp"
+EXTRA_CONFIG_ARGS='--enable-parallel-netcdf --enable-ecrad --enable-grib2 --enable-yaxt --enable-fcgroup-DACE --enable-fcgroup-EMVORADO --enable-fcgroup-WORKAROUND1 --enable-art --disable-openmp'
 
 ################################################################################
 

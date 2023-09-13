@@ -600,7 +600,7 @@ CONTAINS
     TYPE(t_ocean_surface)                            :: ocean_surface
     TYPE (t_ho_params)                               :: physics_parameters
     TYPE (t_sea_ice),         INTENT(inout)          :: ocean_ice
-    TYPE(t_operator_coeff),   INTENT(in)          :: operators_coefficients
+    TYPE(t_operator_coeff),   INTENT(inout)          :: operators_coefficients
     
     ! local variables
     TYPE (t_hamocc_state)        :: hamocc_State
@@ -656,7 +656,7 @@ CONTAINS
       END DO
     END DO
 
-    CALL transfer_ocean_state(patch_3d, .TRUE.)
+    CALL transfer_ocean_state(patch_3d, operators_coefficients, .TRUE.)
     !------------------------------------------------------------------
     DO jstep = (jstep0+1), (jstep0+nsteps)
       

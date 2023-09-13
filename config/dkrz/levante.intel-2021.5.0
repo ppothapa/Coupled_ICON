@@ -102,9 +102,6 @@ MPI_LAUNCH="${MPI_ROOT}/bin/mpiexec"
 EXTRA_CONFIG_ARGS='--enable-intel-consistency --enable-vectorized-lrtm --enable-parallel-netcdf --enable-grib2 --enable-fcgroup-OCEAN=src/hamocc:src/ocean:src/sea_ice'
 EXTRA_CONFIG_ARGS="${EXTRA_CONFIG_ARGS} --enable-yaxt --enable-art --enable-ecrad"
 
-# as long as all openmpi released have an error we need to disable mpi checking
-EXTRA_CONFIG_ARGS="${EXTRA_CONFIG_ARGS} --disable-mpi-checks"
-
 ICON_BUNDLED_CFLAGS='-O2 -ftz -fPIC'
 ICON_YAC_CFLAGS=$ICON_BUNDLED_CFLAGS
 ICON_CDI_CFLAGS=$ICON_BUNDLED_CFLAGS

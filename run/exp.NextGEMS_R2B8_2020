@@ -235,7 +235,6 @@ cat > ${atmo_namelist} << EOF
 /
 &aes_cov_nml
  aes_cov_config(1)%cqx        = 1.e-6
- aes_cov_config(1)%icov       = 3
 /
 &aes_cop_nml
  aes_cop_config(1)%cinhomi  = 1.0

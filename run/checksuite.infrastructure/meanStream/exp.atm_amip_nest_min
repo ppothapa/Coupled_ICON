@@ -921,9 +921,9 @@ if [[ "$output_phy_3d" == "yes" ]]; then
                     'tend_va_phy'  ,
                     'tend_va_vdf'  , 'tend_va_gwd'  , 'tend_va_sso'  ,
                     'tend_va_cnv'  ,
-                    'tend_qhus_phy',
-                    'tend_qhus_cld', 'tend_qhus_cnv', 'tend_qhus_vdf',
-                    !'tend_qhus_mox'
+                    'tend_hus_phy',
+                    'tend_hus_cld', 'tend_hus_cnv', 'tend_hus_vdf',
+                    !'tend_hus_mox'
 /
 &output_nml
  output_filename  = "${EXPNAME}_phy_3d_min1TS"
@@ -948,9 +948,9 @@ if [[ "$output_phy_3d" == "yes" ]]; then
                     'tend_va_phy'  ,
                     'tend_va_vdf'  , 'tend_va_gwd'  , 'tend_va_sso'  ,
                     'tend_va_cnv'  ,
-                    'tend_qhus_phy',
-                    'tend_qhus_cld', 'tend_qhus_cnv', 'tend_qhus_vdf',
-                    !'tend_qhus_mox'
+                    'tend_hus_phy',
+                    'tend_hus_cld', 'tend_hus_cnv', 'tend_hus_vdf',
+                    !'tend_hus_mox'
 /
 &output_nml
  output_filename  = "${EXPNAME}_phy_3d_min2TS"
@@ -975,9 +975,9 @@ if [[ "$output_phy_3d" == "yes" ]]; then
                     'tend_va_phy'  ,
                     'tend_va_vdf'  , 'tend_va_gwd'  , 'tend_va_sso'  ,
                     'tend_va_cnv'  ,
-                    'tend_qhus_phy',
-                    'tend_qhus_cld', 'tend_qhus_cnv', 'tend_qhus_vdf',
-                    !'tend_qhus_mox'
+                    'tend_hus_phy',
+                    'tend_hus_cld', 'tend_hus_cnv', 'tend_hus_vdf',
+                    !'tend_hus_mox'
 /
 &output_nml
  output_filename  = "${EXPNAME}_phy_3d_min3TS"
@@ -1002,9 +1002,9 @@ if [[ "$output_phy_3d" == "yes" ]]; then
                     'tend_va_phy'  ,
                     'tend_va_vdf'  , 'tend_va_gwd'  , 'tend_va_sso'  ,
                     'tend_va_cnv'  ,
-                    'tend_qhus_phy',
-                    'tend_qhus_cld', 'tend_qhus_cnv', 'tend_qhus_vdf',
-                    !'tend_qhus_mox'
+                    'tend_hus_phy',
+                    'tend_hus_cld', 'tend_hus_cnv', 'tend_hus_vdf',
+                    !'tend_hus_mox'
 /
 &output_nml
  output_filename  = "${EXPNAME}_phy_3d_min4TS"
@@ -1029,9 +1029,9 @@ if [[ "$output_phy_3d" == "yes" ]]; then
                     'tend_va_phy'  ,
                     'tend_va_vdf'  , 'tend_va_gwd'  , 'tend_va_sso'  ,
                     'tend_va_cnv'  ,
-                    'tend_qhus_phy',
-                    'tend_qhus_cld', 'tend_qhus_cnv', 'tend_qhus_vdf',
-                    !'tend_qhus_mox'
+                    'tend_hus_phy',
+                    'tend_hus_cld', 'tend_hus_cnv', 'tend_hus_vdf',
+                    !'tend_hus_mox'
 /
 EOF
 fi

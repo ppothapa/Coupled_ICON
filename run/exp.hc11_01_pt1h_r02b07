@@ -166,7 +166,6 @@ cat > ${atmo_namelist} << EOF
  aes_phy_config(1)%iqneg_p2d  = 2     ! after physics : set neg. humidity to 0
 /
 &aes_cov_nml
- aes_cov_config(1)%icov       = 3     ! 0/1 scheme based on cloud condensate
  aes_cov_config(1)%cqx        = 1.e-6
 /
 &aes_cop_nml
@@ -452,9 +451,9 @@ done
 
 # time mean variables on all levels
 # ---------------------------------
-for var in tend_ta_dyn   tend_ua_dyn   tend_va_dyn   tend_qhus_dyn \
-           tend_ta_vdf   tend_ua_vdf   tend_va_vdf   tend_qhus_vdf \
-           tend_ta_mig                               tend_qhus_mig \
+for var in tend_ta_dyn   tend_ua_dyn   tend_va_dyn   tend_hus_dyn  \
+           tend_ta_vdf   tend_ua_vdf   tend_va_vdf   tend_hus_vdf  \
+           tend_ta_mig                               tend_hus_mig  \
            tend_ta_rlw                                             \
 	   tend_ta_rsw
 do
@@ -478,9 +477,9 @@ done
 
 # time mean variables on specified levels
 # ---------------------------------------
-for var in tend_qclw_dyn tend_qcli_dyn \
-           tend_qclw_vdf tend_qcli_vdf \
-           tend_qclw_mig tend_qcli_mig
+for var in tend_clw_dyn  tend_cli_dyn  \
+           tend_clw_vdf  tend_cli_vdf  \
+           tend_clw_mig  tend_cli_mig
 do
   cat >> ${atmo_namelist} << EOF
 &output_nml

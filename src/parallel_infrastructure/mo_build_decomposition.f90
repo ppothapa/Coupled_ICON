@@ -32,7 +32,7 @@ MODULE mo_build_decomposition
     &                                import_pre_patches, complete_patches, set_parent_loc_idx
   USE mo_parallel_config,      ONLY: p_test_run, l_test_openmp, num_io_procs, division_method
   USE mo_impl_constants,       ONLY: success, max_dom, min_rlcell_int
-  USE mo_exception,            ONLY: finish, message, message_text, get_filename_noext
+  USE mo_exception,            ONLY: finish, message, message_text
   USE mo_communication,        ONLY: blk_no, idx_no, idx_1d
   USE mo_util_string,          ONLY: int2string
 

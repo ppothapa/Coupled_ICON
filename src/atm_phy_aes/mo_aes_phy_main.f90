@@ -49,7 +49,8 @@ MODULE mo_aes_phy_main
   USE mo_var_list_gpu        ,ONLY: gpu_update_var_list
 #endif
 
-  USE mo_interface_aes_cov   ,ONLY: interface_aes_cov
+  USE mo_diagnose_cov        ,ONLY: diagnose_cov
+
   USE mo_interface_aes_wmo   ,ONLY: interface_aes_wmo
   USE mo_interface_aes_rad   ,ONLY: interface_aes_rad
   USE mo_interface_aes_rht   ,ONLY: interface_aes_rht
@@ -96,7 +97,6 @@ CONTAINS
     CALL omp_block_loop_cell(patch, initialize)        ! initialize q_phy and q_phy_vi
     CALL omp_block_loop_cell(patch, cpair_cvair_qconv) ! cp, cv and W/m2 -> K/s
     CALL omp_block_loop_cell(patch, surface_fractions) ! surface fractions
-    CALL omp_block_loop_cell(patch, interface_aes_cov) ! cloud cover after transport
 
     !-------------------------------------------------------------------
     ! single moment cloud microphysics "Graupel" (mig)
@@ -112,8 +112,6 @@ CONTAINS
             &                      aes_phy_tc(jg)%is_active_mig)
        !
        CALL omp_block_loop_cell(patch, interface_cloud_mig)
-       !
-       CALL omp_block_loop_cell(patch, interface_aes_cov) ! cloud cover after cloud microphysics
        !
     END IF
 
@@ -136,8 +134,6 @@ CONTAINS
             &                      aes_phy_tc(jg)%is_active_two)
        !
        CALL omp_block_loop_cell(patch, interface_cloud_two)
-       !
-       CALL omp_block_loop_cell(patch, interface_aes_cov) ! cloud cover after cloud microphysics
        !
 #if defined( _OPENACC )
        CALL warning('GPU:aes_art_main','GPU device synchronization should be removed when port is done!')
@@ -175,8 +171,6 @@ CONTAINS
        ! radiative heating
        CALL omp_block_loop_cell(patch, interface_aes_rht)
        !
-       CALL omp_block_loop_cell(patch, interface_aes_cov) ! cloud cover after radiation
-       !
     END IF
 
     !-------------------------------------------------------------------
@@ -192,9 +186,9 @@ CONTAINS
             &                      aes_phy_tc(jg)%is_in_sd_ed_interval_vdf, &
             &                      aes_phy_tc(jg)%is_active_vdf)
        !
-       CALL interface_aes_vdf(patch)
+       CALL omp_block_loop_cell(patch, diagnose_cov) ! cloud cover before turbulent diffusion
        !
-       CALL omp_block_loop_cell(patch, interface_aes_cov) ! cloud cover after turbulent diffusion
+       CALL interface_aes_vdf(patch)
        !
     END IF
 
@@ -203,11 +197,6 @@ CONTAINS
     !-------------------------------------------------------------------
     !
     IF ( aes_phy_tc(jg)%dt_car > dt_zero ) THEN
-#if defined( _OPENACC )
-       CALL warning('GPU:aes_car_main','GPU host synchronization should be removed when port is done!')
-       CALL gpu_update_var_list('prm_field_D', .false., jg, lacc=.TRUE.)
-       CALL gpu_update_var_list('prm_tend_D' , .false., jg, lacc=.TRUE.)
-#endif
        !
        aes_phy_tc(jg)%is_in_sd_ed_interval_car = (aes_phy_tc(jg)%sd_car <= datetime) .AND. (aes_phy_tc(jg)%ed_car > datetime)
        aes_phy_tc(jg)%is_active_car            = isCurrentEventActive(aes_phy_tc(jg)%ev_car, datetime)
@@ -218,11 +207,6 @@ CONTAINS
        !
        CALL omp_block_loop_cell(patch, interface_aes_car)
        !
-#if defined( _OPENACC )
-       CALL warning('GPU:aes_car_main','GPU device synchronization should be removed when port is done!')
-       CALL gpu_update_var_list('prm_field_D', .true., jg, lacc=.TRUE.)
-       CALL gpu_update_var_list('prm_tend_D' , .true., jg, lacc=.TRUE.)
-#endif
     END IF
 
     !-------------------------------------------------------------------
@@ -267,6 +251,7 @@ CONTAINS
     ! Output diagnostics
     !-------------------------------------------------------------------
     !
+    CALL omp_block_loop_cell(patch, diagnose_cov)      ! cloud cover
     CALL omp_block_loop_cell(patch, interface_aes_wmo) ! WMO tropopause height
     CALL aes_global_diagnostics(patch)                 ! global mean diagnostics
 

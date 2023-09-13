@@ -44,7 +44,7 @@ MODULE mo_statistics
   PRIVATE
 #define VerticalDim_Position 2
 
-  !-------------------------------------------------------------------------  
+  !-------------------------------------------------------------------------
   ! NOTE: in order to get correct results make sure you provide the proper in_subset (ie, owned)!
   PUBLIC :: global_minmaxmean, subset_sum, add_fields_3d
   PUBLIC :: add_fields
@@ -301,7 +301,7 @@ CONTAINS
 !     IF (in_subset%no_of_holes > 0) CALL warning(module_name, "there are holes in the subset")
 
     ! get lon, lat
-    SELECT CASE (in_subset%entity_location)    
+    SELECT CASE (in_subset%entity_location)
     CASE(on_cells)
       geocoordinates => in_subset%patch%cells%center
     CASE(on_edges)
@@ -357,7 +357,7 @@ CONTAINS
       & CALL finish(method_name, "start_vertical > end_vertical")
 
     ! get lon, lat
-    SELECT CASE (in_subset%entity_location)    
+    SELECT CASE (in_subset%entity_location)
     CASE(on_cells)
       geocoordinates => in_subset%patch%cells%center
     CASE(on_edges)
@@ -368,7 +368,7 @@ CONTAINS
       CALL finish(method_name, "unknown subset%entity_location")
     END SELECT
 
-    ! init the min, max values    
+    ! init the min, max values
     IF (ASSOCIATED(in_subset%vertical_levels)) THEN
       DO block = in_subset%start_block, in_subset%end_block
         CALL get_index_range(in_subset, block, start_index, end_index)
@@ -436,7 +436,7 @@ CONTAINS
     sumOfSquares = 0._wp
 
     IF (ASSOCIATED(in_subset%vertical_levels)) THEN
-!ICON_OMP_PARALLEL_DO PRIVATE(block, start_index, end_index, idx), reduction(+:sumOfSquares) 
+!ICON_OMP_PARALLEL_DO PRIVATE(block, start_index, end_index, idx), reduction(+:sumOfSquares)
       DO block = in_subset%start_block, in_subset%end_block
         CALL get_index_range(in_subset, block, start_index, end_index)
         DO idx = start_index, end_index
@@ -472,13 +472,21 @@ CONTAINS
   !-----------------------------------------------------------------------
   !>
   ! Returns the min max mean in a 2D array in a given range subset
-  FUNCTION MinMaxMean_2D_InRange(values, in_subset) result(minmaxmean)
+  FUNCTION MinMaxMean_2D_InRange(values, in_subset, use_acc) result(minmaxmean)
     REAL(wp), INTENT(in) :: values(:,:)
     TYPE(t_subset_range), INTENT(in) :: in_subset
     REAL(wp) :: minmaxmean(3)
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
+    LOGICAL :: lacc
 
     REAL(wp) :: min_in_block, max_in_block, min_value, max_value, sum_value
     INTEGER :: block, start_index, end_index, number_of_values, idx
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     IF (in_subset%no_of_holes > 0) CALL warning(module_name, "there are holes in the subset")
     ! init the min, max values
@@ -491,6 +499,10 @@ CONTAINS
 !ICON_OMP reduction(MIN:min_value) reduction(MAX:max_value)
       DO block = in_subset%start_block, in_subset%end_block
         CALL get_index_range(in_subset, block, start_index, end_index)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) &
+        !$ACC   REDUCTION(+: sum_value, number_of_values) &
+        !$ACC   REDUCTION(MAX: max_value) &
+        !$ACC   REDUCTION(MIN: min_value) IF(lacc)
         DO idx = start_index, end_index
           IF (in_subset%vertical_levels(idx,block) > 0) THEN
             min_value    = MIN(min_value, values(idx, block))
@@ -500,10 +512,15 @@ CONTAINS
             ! write(*,*) "number of values=", number_of_values, " value=", values(idx, block), " sum=", sum_value
           ENDIF
         ENDDO
+        !$ACC END PARALLEL LOOP
       ENDDO
 !ICON_OMP_END_PARALLEL_DO
 
     ELSE ! no in_subset%vertical_levels
+
+#ifdef _OPENACC
+        IF (lacc) CALL finish("MinMaxMean_2D_InRange", "OpenACC version not implemented for global_minmaxmean with no subset")
+#endif
 
 !ICON_OMP_PARALLEL_DO PRIVATE(block, start_index, end_index, min_in_block, max_in_block) &
 !ICON_OMP  reduction(MIN:min_value) reduction(MAX:max_value) reduction(+:sum_value)
@@ -906,7 +923,7 @@ CONTAINS
       ENDDO
       !$ACC END PARALLEL
     ENDIF
-    
+
     !$ACC WAIT(1)
     !$ACC END DATA
 
@@ -1203,7 +1220,7 @@ CONTAINS
     ENDIF
 
     !$ACC DATA CREATE(sumLevels) IF(lzopenacc)
-    
+
     CALL LevelHorizontalSum_3D_InRange_3Dweights(values=values, weights=weights, in_subset=in_subset, &
       & total_sum=sumLevels, start_level=start_level, end_level=end_level, mean=mean, sumLevelWeights=sumLevelWeights, &
       & lopenacc=lzopenacc)
@@ -1215,7 +1232,7 @@ CONTAINS
 
   !-----------------------------------------------------------------------
   !>
-  REAL(wp)  FUNCTION Sum_2D_InRange(values, in_subset, mean, lopenacc) 
+  REAL(wp)  FUNCTION Sum_2D_InRange(values, in_subset, mean, lopenacc)
     REAL(wp), INTENT(in) :: values(:,:)
     TYPE(t_subset_range), INTENT(in) :: in_subset
     REAL(wp), OPTIONAL, INTENT(out)   :: mean
@@ -1321,7 +1338,7 @@ CONTAINS
   !-----------------------------------------------------------------------
   !-----------------------------------------------------------------------
   !>
-  REAL(wp)  FUNCTION Sum_2D_2Dweights_InRange(values, weights, in_subset, mean, lopenacc) 
+  REAL(wp)  FUNCTION Sum_2D_2Dweights_InRange(values, weights, in_subset, mean, lopenacc)
     REAL(wp), INTENT(in) :: values(:,:)
     REAL(wp), INTENT(in) :: weights(:,:)
     TYPE(t_subset_range), INTENT(in) :: in_subset
@@ -1484,7 +1501,7 @@ CONTAINS
 
     IF (my_process_is_mpi_parallel()) THEN
       communicator = get_my_mpi_work_communicator()
-      minmaxmean(1) = p_min( min_value,  comm=communicator ) !  mpi_all_reduce 
+      minmaxmean(1) = p_min( min_value,  comm=communicator ) !  mpi_all_reduce
       minmaxmean(2) = p_max( max_value,  comm=communicator )
 
       ! these are avaliable to all processes
@@ -2137,9 +2154,9 @@ CONTAINS
     INTEGER,INTENT(in),OPTIONAL :: levels
     LOGICAL, INTENT(IN), OPTIONAL :: has_missvals
     REAL(wp), INTENT(IN), OPTIONAL :: missval
-    
+
     INTEGER :: idx,block,level,start_index,end_index
-    
+
     INTEGER :: mylevels
     LOGICAL :: my_force_level, my_has_missvals
     REAL(wp) :: my_miss
@@ -2169,14 +2186,14 @@ CONTAINS
 !ICON_OMP_END_PARALLEL_DO
 
   END SUBROUTINE add_fields_3d_sp
-  
+
   SUBROUTINE add_fields_2d_sp(sum_field,field,subset,has_missvals, missval)
     REAL(wp),INTENT(inout)          :: sum_field(:,:)
     REAL(sp),INTENT(in)             :: field(:,:)
     TYPE(t_subset_range),INTENT(in) :: subset
     LOGICAL, INTENT(IN), OPTIONAL :: has_missvals
     REAL(wp), INTENT(IN), OPTIONAL :: missval
-    
+
     INTEGER :: jb,jc,start_index,end_index
     LOGICAL :: my_has_missvals
     REAL(wp) :: my_miss
@@ -2185,7 +2202,7 @@ CONTAINS
     my_miss = 0.0_wp
     IF (PRESENT(has_missvals)) my_has_missvals = has_missvals
     IF (PRESENT(missval)) my_miss = missval
-    
+
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index, jc) SCHEDULE(dynamic)
     DO jb = subset%start_block, subset%end_block
       CALL get_index_range(subset, jb, start_index, end_index)
@@ -2368,7 +2385,7 @@ CONTAINS
         CALL get_index_range(subset, block, start_index, end_index)
         DO idx = start_index, end_index
           DO level = 1, subset%vertical_levels(idx,block)
-            vint_field_acc(idx,block) = vint_field_acc(idx,block) + field_3D(idx,level,block) 
+            vint_field_acc(idx,block) = vint_field_acc(idx,block) + field_3D(idx,level,block)
           END DO
         END DO
       END DO
@@ -2383,7 +2400,7 @@ CONTAINS
         CALL get_index_range(subset, block, start_index, end_index)
         DO idx = start_index, end_index
           DO level = 1, mylevels
-            vint_field_acc(idx,block) = vint_field_acc(idx,block) + field_3D(idx,level,block) 
+            vint_field_acc(idx,block) = vint_field_acc(idx,block) + field_3D(idx,level,block)
           END DO
         END DO
       END DO
@@ -2400,7 +2417,7 @@ CONTAINS
   !! Computes updated time average for a particular field
   !!
   !! @Literature
-  !! Based on proposal found in 
+  !! Based on proposal found in
   !! Jochen Froehlich, 2006:Large Eddy Simulation turbulenter Stroemungen, Teubner,
   !! page 273
   !!

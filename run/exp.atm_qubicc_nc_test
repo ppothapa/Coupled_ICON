@@ -275,7 +275,6 @@ cat >> ${atmo_namelist} << EOF
  aes_phy_config(1)%iqneg_p2d  = 2     ! after physics : set neg. humidity to 0
 /
 &aes_cov_nml ! grid(1)
- aes_cov_config(1)%icov       = 3     ! 0/1 scheme based on cloud condensate
  aes_cov_config(1)%cqx        = 1.e-6
 /
 &aes_cop_nml ! grid(1)
@@ -713,8 +712,8 @@ if [ ${ldynamics}  = .TRUE. ] ; then varlist="${varlist}                        
 #
 if [ ${iforcing} -eq 2 ] ; then
 if [ x${dt_rad} != x ] ; then varlist="${varlist} 'tend_ta_rlw' 'tend_ta_rsw'"  ; fi
-if [ x${dt_vdf} != x ] ; then varlist="${varlist} 'tend_ua_vdf' 'tend_va_vdf' 'tend_ta_vdf' 'tend_qhus_vdf'"; fi
-if [ x${dt_mig} != x ] ; then varlist="${varlist} 'tend_ta_mig' 'tend_qhus_mig'"; fi
+if [ x${dt_vdf} != x ] ; then varlist="${varlist} 'tend_ua_vdf' 'tend_va_vdf' 'tend_ta_vdf' 'tend_hus_vdf'"; fi
+if [ x${dt_mig} != x ] ; then varlist="${varlist} 'tend_ta_mig' 'tend_hus_mig'"; fi
 fi # ${iforcing}
 #
 for var in ${varlist}
@@ -743,8 +742,8 @@ done
 varlist=''
 #
 if [ ${iforcing} -eq 2 ] ; then
-if [ x${dt_vdf} != x ] ; then varlist="${varlist} 'tend_qclw_vdf' 'tend_qcli_vdf'"; fi
-if [ x${dt_mig} != x ] ; then varlist="${varlist} 'tend_qclw_mig' 'tend_qcli_mig'"; fi
+if [ x${dt_vdf} != x ] ; then varlist="${varlist} 'tend_clw_vdf' 'tend_cli_vdf'"; fi
+if [ x${dt_mig} != x ] ; then varlist="${varlist} 'tend_clw_mig' 'tend_cli_mig'"; fi
 fi # iforcing
 #
 for var in ${varlist}

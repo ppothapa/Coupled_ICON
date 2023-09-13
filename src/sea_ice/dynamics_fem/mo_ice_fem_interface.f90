@@ -291,35 +291,56 @@ CONTAINS
   !! @par Revision History
   !! Developed by Einar Olason, MPI-M (2013-08-05)
   !
-  SUBROUTINE ice_fem_update_vel_restart(p_patch, p_ice)
+  SUBROUTINE ice_fem_update_vel_restart(p_patch, p_ice, use_acc)
     USE mo_ice_fem_types,       ONLY: u_ice, v_ice
 
     TYPE(t_patch), TARGET, INTENT(in)       :: p_patch
     TYPE(t_sea_ice),       INTENT(inout)    :: p_ice
+    LOGICAL, INTENT(IN), OPTIONAL           :: use_acc
 
     ! Local variables
     ! Patch and ranges
     TYPE(t_subset_range), POINTER :: all_verts
     ! Indexing
     INTEGER :: i_startidx_v, i_endidx_v
+    INTEGER :: i_startidx_v_1, i_endidx_v_1
     INTEGER :: jk, jb, jv
+    LOGICAL :: lacc
 
   !-------------------------------------------------------------------------
 
-    all_verts => p_patch%verts%all
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
-    jk=0
+    all_verts => p_patch%verts%all
+    i_startidx_v_1 = 0
+    i_endidx_v_1   = 0
+
+    !$ACC DATA COPYIN(all_verts, all_verts%start_block) &
+    !$ACC   COPY(p_ice, p_ice%u_prog, p_ice%v_prog, u_ice, v_ice) IF(lacc)
+
     DO jb = all_verts%start_block, all_verts%end_block
       CALL get_index_range(all_verts, jb, i_startidx_v, i_endidx_v)
+      IF (jb > all_verts%start_block) &
+          CALL get_index_range(all_verts, jb-1, i_startidx_v_1, i_endidx_v_1)
+
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
       DO jv = i_startidx_v, i_endidx_v
-        jk=jk+1
-!        ! Strictly speaking p_ice%u_prog and p_ice%v_prog are only used by the restart files now,
-!        ! so this does not need to be done every timestep, only before restart file is written.
+        jk = jv-i_startidx_v+1 + &
+            (jb-all_verts%start_block) * (i_endidx_v_1-i_startidx_v_1+1)
+        ! Strictly speaking p_ice%u_prog and p_ice%v_prog are only used by the restart files now,
+        ! so this does not need to be done every timestep, only before restart file is written.
         p_ice%u_prog(jv,jb) = u_ice(jk)
         p_ice%v_prog(jv,jb) = v_ice(jk)
 
       END DO
+      !$ACC END PARALLEL LOOP
     END DO
+
+    !$ACC END DATA
 
   END SUBROUTINE ice_fem_update_vel_restart
 

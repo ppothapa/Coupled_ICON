@@ -84,6 +84,7 @@ MODULE mo_ocean_state
 
   USE mo_ocean_tracer_transport_types
   USE mo_var_list_gpu,        ONLY: gpu_update_var_list
+  USE mo_ocean_types,              ONLY: t_operator_coeff
 
   IMPLICIT NONE
   PRIVATE
@@ -1289,9 +1290,16 @@ CONTAINS
        & grib2_var(255, 255, 255, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
        & ldims=(/nproma,n_zlev+1,alloc_cell_blocks/),in_group=groups("oce_diag","oce_default"), &
        & lrestart_cont=.TRUE.)
+
     ENDIF
 
-    
+    CALL add_var(ocean_default_list, 'ssh', ocean_state_diag%ssh , &
+         & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,    &
+         & t_cf_var('ssh', 'm', 'surface elevation at cell center', DATATYPE_FLT),&
+         & grib2_var(10, 3, 1, DATATYPE_PACK16, GRID_UNSTRUCTURED, grid_cell),&
+         & ldims=(/nproma,alloc_cell_blocks/), &
+         & in_group=groups("oce_default"))
+
     ! somehow these are passed to the moc calculation
     ! tendency of snow
       CALL add_var(ocean_default_list, 'delta_snow', ocean_state_diag%delta_snow , &
@@ -1706,6 +1714,17 @@ CONTAINS
     ! CMIP6
     CALL add_var(ocean_default_list, 'mlotstsq', ocean_state_diag%mlotstsq , grid_unstructured_cell,za_surface, &
       &          t_cf_var('mlotstsq', 'm', 'square_of_ocean_mixed_layer_thickness_defined_by_sigma_t', datatype_flt),&
+      &          dflt_g2_decl_cell,&
+      &          ldims=(/nproma,alloc_cell_blocks/),in_group=groups_oce_dde)
+
+    ! EERIE
+    CALL add_var(ocean_default_list, 'mlotst10', ocean_state_diag%mlotst10 , grid_unstructured_cell,za_surface, &
+      &          t_cf_var('mlotst10', 'm', 'ocean_mixed_layer_thickness_defined_by_sigma_t_10m', datatype_flt),&
+      &          dflt_g2_decl_cell,&
+      &          ldims=(/nproma,alloc_cell_blocks/),in_group=groups_oce_dde)
+    ! EERIE
+    CALL add_var(ocean_default_list, 'mlotst10sq', ocean_state_diag%mlotst10sq , grid_unstructured_cell,za_surface, &
+      &          t_cf_var('mlotst10sq','m','square_of_ocean_mixed_layer_thickness_defined_by_sigma_t_10m', datatype_flt),&
       &          dflt_g2_decl_cell,&
       &          ldims=(/nproma,alloc_cell_blocks/),in_group=groups_oce_dde)
 
@@ -3077,23 +3096,51 @@ CONTAINS
     oce_config%tracer_codes(2)      = ISHFT(10,16)+ISHFT(4,8)+21
   END SUBROUTINE setup_tracer_info
 
-  SUBROUTINE transfer_ocean_state( patch_3d, host_to_device )
+  SUBROUTINE transfer_ocean_state( patch_3d, operators_coefficients, host_to_device )
 
     TYPE(t_patch_3d), POINTER, INTENT(in) :: patch_3d
+    TYPE(t_operator_coeff),   INTENT(inout), TARGET :: operators_coefficients
     LOGICAL,                   INTENT(IN) :: host_to_device   !   .TRUE. : h2d   .FALSE. : d2h
+    INTEGER :: blockNo
 
     !$ACC ENTER DATA COPYIN(patch_3d, patch_3d%p_patch_1d, patch_3d%p_patch_2d) &
     !$ACC   COPYIN(patch_3D%p_patch_1D(1)%dolic_c) &
     !$ACC   COPYIN(patch_3D%p_patch_1d(1)%prism_thick_flat_sfc_c) &
-    !$ACC   COPYIN(patch_3d%p_patch_1D(1)%prism_thick_flat_sfc_c, patch_3d%p_patch_1d(1)%del_zlev_m) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_c, patch_3d%p_patch_1d(1)%dolic_e) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%del_zlev_m) &
+    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_e) &
     !$ACC   COPYIN(patch_3d%p_patch_2d(1)%alloc_cell_blocks, patch_3d%p_patch_2D(1)%nblks_e) &
     !$ACC   COPYIN(patch_3d%p_patch_2d(1)%cells, patch_3d%p_patch_2d(1)%edges) &
+    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%cell_idx, patch_3d%p_patch_2d(1)%edges%cell_blk) &
+    !$ACC   COPYIN(patch_3D%p_patch_2d(1)%edges%area_edge) &
+    !$ACC   COPYIN(patch_3D%p_patch_2D(1)%edges%vertex_idx) &
+    !$ACC   COPYIN(patch_3D%p_patch_2D(1)%edges%vertex_blk) &
+    !$ACC   COPYIN(patch_3D%p_patch_2D(1)%edges%primal_cart_normal) &
+    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%inv_dual_edge_length) &
     !$ACC   COPYIN(patch_3d%p_patch_2d(1)%cells%edge_idx, patch_3d%p_patch_2d(1)%cells%edge_blk) &
-    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%cell_idx, patch_3d%p_patch_2d(1)%edges%cell_blk) &
     !$ACC   COPYIN(patch_3d%p_patch_2d(1)%cells%neighbor_idx, patch_3d%p_patch_2d(1)%cells%neighbor_blk) &
-    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%cell_idx, patch_3d%p_patch_2d(1)%edges%cell_blk) &
-    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%edges%inv_dual_edge_length)
+    !$ACC   COPYIN(patch_3D%p_patch_2D(1)%cells%center) &
+    !$ACC   COPYIN(patch_3D%p_patch_2D(1)%cells%owned, patch_3D%p_patch_2D(1)%cells%owned%vertical_levels) &
+    !$ACC   COPYIN(patch_3D%p_patch_2D(1)%cells%all) &
+    !$ACC   COPYIN(patch_3D%p_patch_2D(1)%cells%all%vertical_levels, patch_3D%p_patch_2D(1)%cells%area) &
+    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%cells%in_domain) &
+    !$ACC   COPYIN(patch_3d%p_patch_2d(1)%cells%in_domain%vertical_levels) &
+    !$ACC   COPYIN(patch_3D%p_patch_2D(1)%verts, patch_3D%p_patch_2D(1)%verts%cell_idx) &
+    !$ACC   COPYIN(patch_3D%p_patch_2D(1)%verts%cell_blk, patch_3D%p_patch_2D(1)%verts%num_edges) &
+    !$ACC   COPYIN(patch_3D%p_patch_2D(1)%verts%edge_idx, patch_3D%p_patch_2D(1)%verts%edge_blk) &
+    !$ACC   COPYIN(patch_3D%p_patch_2D(1)%verts%all)
+
+    !$ACC ENTER DATA COPYIN(operators_coefficients, operators_coefficients%verticaladvectionppmcoeffs)
+    DO blockNo = patch_3D%p_patch_2D(1)%cells%ALL%start_block, patch_3D%p_patch_2D(1)%cells%ALL%end_block
+      !$ACC ENTER DATA COPYIN(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_this_tobelow) &
+      !$ACC   COPYIN(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_this_tothisbelow) &
+      !$ACC   COPYIN(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheight_2xbelow_x_ratiothis_tothisbelow) &
+      !$ACC   COPYIN(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_this_tothisabovebelow) &
+      !$ACC   COPYIN(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_2xaboveplusthis_tothisbelow) &
+      !$ACC   COPYIN(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_2xbelowplusthis_tothisabove) &
+      !$ACC   COPYIN(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_thisabove_to2xthisplusbelow) &
+      !$ACC   COPYIN(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_thisbelow_to2xthisplusabove) &
+      !$ACC   COPYIN(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheight_inv_thisabovebelow2below)
+    END DO
 
   END SUBROUTINE transfer_ocean_state
 
