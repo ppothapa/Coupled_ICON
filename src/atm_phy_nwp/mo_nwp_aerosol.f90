@@ -299,7 +299,7 @@ CONTAINS
 !---------------------------------------------------------------------------------------
       CASE(iRadAeroConstKinne, iRadAeroKinne, iRadAeroVolc, iRadAeroKinneVolc, iRadAeroKinneVolcSP, iRadAeroKinneSP)
 
-        rl_start   = grf_bdywidth_c+1
+        rl_start   = grf_bdywidth_c-1
         rl_end     = min_rlcell_int
         i_startblk = pt_patch%cells%start_block(rl_start)
         i_endblk   = pt_patch%cells%end_block(rl_end)

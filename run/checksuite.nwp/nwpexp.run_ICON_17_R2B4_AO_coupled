@@ -725,7 +725,7 @@ rbf_scale_mode_ll        = 2
 /
 &radiation_nml
  irad_o3                 = 79
- irad_aero               = 6                ! 6: default, 12: Kinne aerosols (Trang)
+ irad_aero               = 12               ! 6: default, 12: Kinne aerosols (Trang)
  izenith                 = 4                ! 4: NWP default, 3: no annual cycle
  albedo_type             = 2                ! Modis albedo
                          ! values for 2012    values for 1850 CE

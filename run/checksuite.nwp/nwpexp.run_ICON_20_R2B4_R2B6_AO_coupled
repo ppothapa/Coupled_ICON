@@ -413,14 +413,14 @@ add_link_file ${basedir}/data/rrtmg_lw.nc .
 
 ecRad_data_path=${basedir}'/externals/ecrad/data'
 
-# Kinne background aerosols for the year 1850 (irad_aero=12, filename without year)
-
-# datadir=${DATAROOT}    # /hpc/uwork/icon-sml/Aerosol/Kinne_interpolated/R2B4_${atmos_gridID}
-# add_link_file ${datadir}/R2B4_aeropt_kinne_lw_b16_coa.nc      bc_aeropt_kinne_lw_b16_coa.nc
-# add_link_file ${datadir}/R2B4_aeropt_kinne_sw_b14_coa.nc      bc_aeropt_kinne_sw_b14_coa.nc
+# Kinne background aerosols for the year 1850:
+datadir="${icon_data_poolFolder}/Checksuite_data/ICON-seamless"
+add_link_file ${datadir}/bc_aeropt_kinne_lw_b16_coa.nc      bc_aeropt_kinne_lw_b16_coa.nc
+add_link_file ${datadir}/bc_aeropt_kinne_sw_b14_coa.nc      bc_aeropt_kinne_sw_b14_coa.nc
 # 
-# # use exclusively Kinne background aerosols for the year 1850, filename without year (irad_aero=12)
-# add_link_file ${datadir}/R2B4_aeropt_kinne_sw_b14_fin_1850.nc bc_aeropt_kinne_sw_b14_fin.nc
+# use time-dependent Kinne fine-mode aerosol  (irad_aero=13):
+add_link_file ${datadir}/bc_aeropt_kinne_sw_b14_fin_1978.nc bc_aeropt_kinne_sw_b14_fin_1978.nc
+add_link_file ${datadir}/bc_aeropt_kinne_sw_b14_fin_1979.nc bc_aeropt_kinne_sw_b14_fin_1979.nc
 
 #-----------------------------------------------------------------------------
 
@@ -742,7 +742,7 @@ rbf_scale_mode_ll        = 2
 /
 &radiation_nml
  irad_o3                 = 79
- irad_aero               = 6                ! 6: default, 12: Kinne aerosols (Trang)
+ irad_aero               = 13               ! 6: default, 13: Kinne aerosol, time-dependent
  izenith                 = 4                ! 4: NWP default, 3: no annual cycle
  isolrad                 = 1                ! 1: Coddington Scaling correction (default NWP)
  albedo_type             = 2                ! Modis albedo
