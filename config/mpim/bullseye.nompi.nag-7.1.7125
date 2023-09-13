@@ -6,8 +6,8 @@ unset CDPATH
 script_dir=$(cd "$(dirname "$0")"; pwd)
 icon_dir=$(cd "${script_dir}/../.."; pwd)
 
-modules='oneapi/2022.1.0'
-sw_root='/sw/bullseye-x64/views/icon/mpich/oneapi-2022.1.0'
+modules='nag/7.1.7125'
+sw_root='/sw/bullseye-x64/views/icon/nompi/nag-7.1.7125'
 
 if test -r "${sw_root}/lib/librttov_main.a"; then
   RTTOV_LIBS='-lrttov_other -lrttov_emis_atlas -lrttov_brdf_atlas -lrttov_parallel -lrttov_coef_io -lrttov_hdf -lrttov_main'
@@ -32,49 +32,64 @@ fi
 
 BUILD_ENV=". \"${ENV}\";. \"${script_dir}/module_switcher\"; switch_for_module ${modules}; export PATH=\"${sw_root}/bin:\${PATH-}\"; export LD_LIBRARY_PATH=\"${sw_root}/lib:\${LD_LIBRARY_PATH-}\"; export PYTHONPATH=\"${sw_root}/python/pp_ser:\${PYTHONPATH-}\";"
 
-CC='mpicc'
-CFLAGS='-g -march=native -pc64 -ftz -fma -qno-opt-dynamic-align'
+CC='/usr/bin/gcc'
+CFLAGS='-g -march=native -mpc64'
 ICON_CFLAGS='-O3'
 ICON_BUNDLED_CFLAGS='-O2'
 
-CXX=$(eval "${BUILD_ENV}" >/dev/null; mpicxx -show | sed 's: .*$::')
-CXXFLAGS='-g -march=native -pc64 -ftz -fma -qno-opt-dynamic-align -O2'
+CXX='/usr/bin/g++'
+CXXFLAGS='-g -march=native -mpc64 -O2'
 
 CPPFLAGS="-I${sw_root}/include -I${sw_root}/include/libxml2"
 
-# YAC test 'test_lat_clipping.x' fails if the library is compiled with '-O2' and
-# without '-fp-model precise'. This should be fixed in YAC 2.6.2.
-ICON_YAC_CFLAGS="${ICON_BUNDLED_CFLAGS} -fp-model precise"
+FC='nagfor'
+FCFLAGS="-I${sw_root}/include ${RTTOV_FCFLAGS-} -f2008 -colour -w=uep -g -gline -O0 -float-store -nan"
 
-FC='mpif90'
-FCFLAGS="-I${sw_root}/include ${RTTOV_FCFLAGS-} -g -march=native -pc64 -fp-model source"
+# Fortran compiler flags that cannot be handled by vanilla libtool scripts:
+non_libtool_FCFLAGS='-Wc,-g -Wc,-pipe -Wc,--param,max-vartrack-size=200000000 -Wc,-mno-fma'
 
-common_ICON_FCFLAGS='-ftz -qoverride-limits -assume realloc_lhs -align array64byte -fma'
+# Fortran compiler flags allowing for acceptable argument mismatches when
+# calling NetCDF-Fortran API:
+mismatch_FCFLAGS='-wmismatch=nf_def_var,nf_get_att_double,nf_get_att_int,nf_put_att_double,nf_put_att_int,nf_put_vara_double,nf_put_vara_int'
 
-ICON_FCFLAGS="-O3 ${common_ICON_FCFLAGS}"
+ICON_FCFLAGS="${non_libtool_FCFLAGS} ${mismatch_FCFLAGS} -C=all"
 
-ICON_OCEAN_FCFLAGS='-O3 -assume norealloc_lhs -reentrancy threaded -DOCE_SOLVE_OMP'
-ICON_OCEAN_PATH='src/hamocc:src/ocean:src/sea_ice'
+# Prevent the compiler crash, which happens when the MPI support is disabled
+# (--disable-mpi) or the usage of the parallel features of NetCDF is enabled
+# (--enable-parallel-netcdf), i.e. when the Fortran 77 interface of NetCDF is
+# used directly by including 'netcdf.inc':
+#   * NAG 6.2.6252 is not affected;
+#   * NAG 7.1.7101 is affected if '-C=calls' is combined with '-C=dangling'
+#     and/or '-C=pointer';
+#   * NAG 7.1.7125 is affected if '-C=dangling' and/or '-C=pointer' are
+#     specified at all.
+ICON_WORKAROUND1_FCFLAGS="${non_libtool_FCFLAGS} ${mismatch_FCFLAGS} -C=alias -C=array -C=bits -C=calls -C=do -C=intovf -C=present -C=recursion"
+ICON_WORKAROUND1_PATH='src/shr_horizontal/mo_model_domimp_patches.f90'
 
-# The compiler has significant problems when processing some of the EMVORADO
-# source files with optimization level other than -O0:
-ICON_WORKAROUND1_FCFLAGS="-O0 ${common_ICON_FCFLAGS}"
-ICON_WORKAROUND1_PATH='externals/emvorado/src_emvorado/radar_namelist_read.f90:externals/emvorado/src_emvorado/radar_obs_meta_list.f90:externals/emvorado/src_emvorado/radar_obs_meta_read.f90'
+# Compile the bundled libraries with no tolerance to argument mismatches:
+ICON_BUNDLED_FCFLAGS="${non_libtool_FCFLAGS} -C=all"
 
-ICON_ECRAD_FCFLAGS='-qno-opt-dynamic-align -no-fma -fpe0'  # no optimization?
+# Do not pass Fortran compiler flags that cannot be handled by the libtool
+# scripts of the bundled MTIME and SCT:
+ICON_MTIME_FCFLAGS='-C=all'
+ICON_SCT_FCFLAGS='-C=all'
 
-LDFLAGS="-L${sw_root}/lib ${RTTOV_LDFLAGS-} -Wl,--disable-new-dtags"
-LIBS="-Wl,--as-needed -lxml2 -lfyaml -lSerialboxFortran -leccodes_f90 -leccodes ${RTTOV_LIBS-} -llapack -lblas -lnetcdff -lnetcdf -lhdf5_hl_fortran -lhdf5_fortran -lhdf5 -lz"
+LDFLAGS="-L${sw_root}/lib ${RTTOV_LDFLAGS-}"
+# We put '-Wl,-Wl,,--disable-new-dtags' not to LDFLAGS or LIBS, which are used
+# by both Fortran and C compilers (the latter is used for linking by the bundled
+# libraries) but to ICON_LDFLAGS. We also do not add '-Wl,-Wl,,--as-needed'
+# because NAG puts it before the '-l' flags when calling GCC and the workaround
+# that we usually use, which is to prepend each '-l' flag with '-Wl,', does not
+# work with the Debian-provided GCC (e.g. the building of the CDI tests fails):
+ICON_LDFLAGS='-Wl,-Wl,,--disable-new-dtags'
 
-AR='xiar'
-MPI_LAUNCH='mpiexec'
+LIBS="-lxml2 -lSerialboxFortran -leccodes_f90 -leccodes ${RTTOV_LIBS-} -llapack -lblas -lnetcdff -lnetcdf -lhdf5_hl_fortran -lhdf5_fortran -lhdf5 -lz"
 
-EXTRA_CONFIG_ARGS='--enable-grib2 --enable-fcgroup-OCEAN --enable-fcgroup-WORKAROUND1'
+EXTRA_CONFIG_ARGS='--disable-mpi --disable-coupling --enable-grib2 --enable-fcgroup-WORKAROUND1'
 
 ################################################################################
 
 "${icon_dir}/configure" \
-AR="${AR}" \
 BUILD_ENV="${BUILD_ENV}" \
 CC="${CC}" \
 CFLAGS="${CFLAGS}" \
@@ -84,17 +99,16 @@ CXXFLAGS="${CXXFLAGS}" \
 FC="${FC}" \
 FCFLAGS="${FCFLAGS}" \
 ICON_BUNDLED_CFLAGS="${ICON_BUNDLED_CFLAGS}" \
+ICON_BUNDLED_FCFLAGS="${ICON_BUNDLED_FCFLAGS}" \
 ICON_CFLAGS="${ICON_CFLAGS}" \
-ICON_ECRAD_FCFLAGS="${ICON_ECRAD_FCFLAGS}" \
 ICON_FCFLAGS="${ICON_FCFLAGS}" \
-ICON_OCEAN_FCFLAGS="${ICON_OCEAN_FCFLAGS}" \
-ICON_OCEAN_PATH="${ICON_OCEAN_PATH}" \
+ICON_LDFLAGS="${ICON_LDFLAGS}" \
+ICON_MTIME_FCFLAGS="${ICON_MTIME_FCFLAGS}" \
+ICON_SCT_FCFLAGS="${ICON_SCT_FCFLAGS}" \
 ICON_WORKAROUND1_FCFLAGS="${ICON_WORKAROUND1_FCFLAGS}" \
 ICON_WORKAROUND1_PATH="${ICON_WORKAROUND1_PATH}" \
-ICON_YAC_CFLAGS="${ICON_YAC_CFLAGS}" \
 LDFLAGS="${LDFLAGS}" \
 LIBS="${LIBS}" \
-MPI_LAUNCH="${MPI_LAUNCH}" \
 ${EXTRA_CONFIG_ARGS} \
 "$@"
 

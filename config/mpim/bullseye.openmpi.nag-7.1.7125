@@ -6,7 +6,7 @@ unset CDPATH
 script_dir=$(cd "$(dirname "$0")"; pwd)
 icon_dir=$(cd "${script_dir}/../.."; pwd)
 
-sw_root='/sw/bullseye-x64/views/icon/mpich/nag-7.1'
+sw_root='/sw/bullseye-x64/views/icon/openmpi/nag-7.1.7125'
 
 if test -r "${sw_root}/lib/librttov_main.a"; then
   RTTOV_LIBS='-lrttov_other -lrttov_emis_atlas -lrttov_brdf_atlas -lrttov_parallel -lrttov_coef_io -lrttov_hdf -lrttov_main'
@@ -65,14 +65,10 @@ ICON_FCFLAGS="${non_libtool_FCFLAGS} ${mismatch_FCFLAGS} -C=all"
 ICON_WORKAROUND1_FCFLAGS="${non_libtool_FCFLAGS} ${mismatch_FCFLAGS} -C=alias -C=array -C=bits -C=calls -C=do -C=intovf -C=present -C=recursion"
 ICON_WORKAROUND1_PATH='src/shr_horizontal/mo_model_domimp_patches.f90'
 
-# MPICH 4.1.1 declares MPI_Alloc_mem in the MPI module but not for TYPE(c_ptr)
-# argument (-wmismatch=mpi_alloc_mem is not enough):
-ICON_WORKAROUND2_FCFLAGS="${non_libtool_FCFLAGS} -mismatch -C=alias -C=array -C=bits -C=dangling -C=do -C=intovf -C=present -C=pointer -C=recursion"
-ICON_WORKAROUND2_PATH='src/io/shared/mo_name_list_output_init.f90:src/io/shared/mo_name_list_output_metadata.f90:src/io/restart/mo_async_restart_comm_data.f90:src/io/restart/mo_multifile_restart_collector.f90'
-
-# NAG detects a number of inconsistencies in the interface declarations of the
-# p_bcast_derivedtype subroutine (-wmismatch=p_bcast_derivedtype is not enough):
-ICON_DACE_FCFLAGS="${non_libtool_FCFLAGS} -mismatch -C=alias -C=array -C=bits -C=dangling -C=do -C=intovf -C=present -C=pointer -C=recursion"
+# Tolerate all argument mismatches in DACE (setting the function-specific
+# -wmismatch=p_bcast_derivedtype flag does not work due to what seems to be a
+# compiler bug):
+ICON_DACE_FCFLAGS="${non_libtool_FCFLAGS} -mismatch -C=all"
 ICON_DACE_PATH='externals/dace_icon'
 
 # Enable recognition of non-standard double precision complex intrinsic
@@ -99,9 +95,9 @@ ICON_LDFLAGS='-Wl,-Wl,,--disable-new-dtags'
 
 LIBS="-lxml2 -lfyaml -lSerialboxFortran -leccodes_f90 -leccodes ${RTTOV_LIBS-} -llapack -lblas -lnetcdff -lnetcdf -lhdf5_hl_fortran -lhdf5_fortran -lhdf5 -lz"
 
-MPI_LAUNCH='mpiexec'
+MPI_LAUNCH='mpiexec --oversubscribe'
 
-EXTRA_CONFIG_ARGS='--enable-grib2 --enable-fcgroup-WORKAROUND1 --enable-fcgroup-WORKAROUND2 --enable-fcgroup-DACE --enable-fcgroup-EMVORADO'
+EXTRA_CONFIG_ARGS='--enable-grib2 --enable-fcgroup-WORKAROUND1 --enable-fcgroup-DACE --enable-fcgroup-EMVORADO'
 
 ################################################################################
 
@@ -127,8 +123,6 @@ ICON_MTIME_FCFLAGS="${ICON_MTIME_FCFLAGS}" \
 ICON_SCT_FCFLAGS="${ICON_SCT_FCFLAGS}" \
 ICON_WORKAROUND1_FCFLAGS="${ICON_WORKAROUND1_FCFLAGS}" \
 ICON_WORKAROUND1_PATH="${ICON_WORKAROUND1_PATH}" \
-ICON_WORKAROUND2_FCFLAGS="${ICON_WORKAROUND2_FCFLAGS}" \
-ICON_WORKAROUND2_PATH="${ICON_WORKAROUND2_PATH}" \
 LDFLAGS="${LDFLAGS}" \
 LIBS="${LIBS}" \
 MPI_LAUNCH="${MPI_LAUNCH}" \

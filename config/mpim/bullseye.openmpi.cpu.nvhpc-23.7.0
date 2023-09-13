@@ -6,7 +6,7 @@ unset CDPATH
 script_dir=$(cd "$(dirname "$0")"; pwd)
 icon_dir=$(cd "${script_dir}/../.."; pwd)
 
-sw_root='/sw/bullseye-x64/views/icon/mpich/nvhpc-22.3'
+sw_root='/sw/bullseye-x64/views/icon/openmpi/nvhpc-23.7'
 
 if test -r "${sw_root}/lib/librttov_main.a"; then
   RTTOV_LIBS='-lrttov_other -lrttov_emis_atlas -lrttov_brdf_atlas -lrttov_parallel -lrttov_coef_io -lrttov_hdf -lrttov_main'
@@ -40,14 +40,7 @@ CXXFLAGS='-g -O2'
 CPPFLAGS="-I${sw_root}/include -I${sw_root}/include/libxml2"
 
 FC='mpif90'
-FCFLAGS="-I${sw_root}/include ${RTTOV_FCFLAGS-} -Mrecursive -Mallocatable=03 -Mstack_arrays -Minfo=accel,inline -acc=gpu,verystrict"
-
-# Also generate parallel CPU code to make the executable runnable on machines
-# that do not have GPUs (note that in order to run the CPU code, you might need
-# to set the NVCOMPILER_ACC_DEVICE_TYPE environment variable to MULTICORE before
-# running ICON, additionally, it make sense to limit the number of parallel
-# threads per MPI process with the ACC_NUM_CORES environment variable):
-FCFLAGS+=' -acc=multicore'
+FCFLAGS="-I${sw_root}/include ${RTTOV_FCFLAGS-} -g -Mrecursive -Mallocatable=03 -Mstack_arrays -Minfo=inline"
 
 ICON_FCFLAGS='-O2'
 
@@ -56,14 +49,7 @@ ICON_FCFLAGS='-O2'
 ICON_WORKAROUND1_FCFLAGS='-O1'
 ICON_WORKAROUND1_PATH='externals/dace_icon/src_for_icon/mo_rad.f90:src/data_assimilation/interfaces/radar_interface.f90'
 
-# CUDA compiler must be from the same prefix as the Fortran compiler:
-CUDACXX="$(dirname "$(eval "${BUILD_ENV}" >/dev/null; $FC -show | sed 's: .*$::')")/nvcc"
-CUDAFLAGS='-g -O3'
-
-# Make FC and CUDACXX agree on the CUDA version (installation) to use:
-BUILD_ENV+=" export CUDA_HOME=\"$(cd "$(dirname "${CUDACXX}")/../../cuda"; pwd)\";"
-
-LDFLAGS="-c++libs -cuda -L${sw_root}/lib ${RTTOV_LDFLAGS-}"
+LDFLAGS="-L${sw_root}/lib ${RTTOV_LDFLAGS-}"
 # The configure scripts of some of the bundled libraries (e.g. SCT) are
 # generated using original (non-patched) Libtool macros, which are not aware of
 # NVidia HPC compilers. As a result, their libtool scripts do not keep the
@@ -73,20 +59,15 @@ LDFLAGS="-c++libs -cuda -L${sw_root}/lib ${RTTOV_LDFLAGS-}"
 # are meant for the linker only via ICON_LDFLAGS so that they are not passed to
 # any libtool script:
 ICON_LDFLAGS='-Wl,--disable-new-dtags -Wl,--as-needed'
-
 LIBS="-lxml2 -lfyaml -lSerialboxFortran -leccodes_f90 -leccodes ${RTTOV_LIBS-} -llapack -lblas -lnetcdff -lnetcdf -lhdf5_hl_fortran -lhdf5_fortran -lhdf5 -lz"
 
-MPI_LAUNCH='mpiexec'
+MPI_LAUNCH='mpiexec --oversubscribe'
 
-EXTRA_CONFIG_ARGS='--enable-gpu --enable-dim-swap --enable-grib2 --enable-fcgroup-WORKAROUND1'
+EXTRA_CONFIG_ARGS='--enable-loop-exchange --enable-grib2 --enable-fcgroup-WORKAROUND1'
 
 # The compiler fails one of the YAC configure-time tests, which we suppress and
 # hope for the best:
 EXTRA_CONFIG_ARGS+=' yac_cv_fc_is_contiguous_works=yes'
-
-# NVHPC 23.3 and older are even worse in detecting whether an array is
-# contiguous. Therefore, we have to disable the run-time checks too:
-ICON_YAC_FCFLAGS="${ICON_FCFLAGS} -D'is_contiguous(arg)=.TRUE.'"
 
 ################################################################################
 
@@ -95,8 +76,6 @@ BUILD_ENV="${BUILD_ENV}" \
 CC="${CC}" \
 CFLAGS="${CFLAGS}" \
 CPPFLAGS="${CPPFLAGS}" \
-CUDACXX="${CUDACXX}" \
-CUDAFLAGS="${CUDAFLAGS}" \
 CXX="${CXX}" \
 CXXFLAGS="${CXXFLAGS}" \
 FC="${FC}" \
@@ -105,7 +84,6 @@ ICON_FCFLAGS="${ICON_FCFLAGS}" \
 ICON_LDFLAGS="${ICON_LDFLAGS}" \
 ICON_WORKAROUND1_FCFLAGS="${ICON_WORKAROUND1_FCFLAGS}" \
 ICON_WORKAROUND1_PATH="${ICON_WORKAROUND1_PATH}" \
-ICON_YAC_FCFLAGS="${ICON_YAC_FCFLAGS}" \
 LDFLAGS="${LDFLAGS}" \
 LIBS="${LIBS}" \
 MPI_LAUNCH="${MPI_LAUNCH}" \

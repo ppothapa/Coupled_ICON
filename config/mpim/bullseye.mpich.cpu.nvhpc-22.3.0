@@ -73,10 +73,6 @@ EXTRA_CONFIG_ARGS+=' yac_cv_fc_is_contiguous_works=yes'
 # contiguous. Therefore, we have to disable the run-time checks too:
 ICON_YAC_FCFLAGS="${ICON_FCFLAGS} -D'is_contiguous(arg)=.TRUE.'"
 
-# MPICH 3.4.3 fails one of the YAC configure-time tests, which we disable and
-# hope for the best:
-EXTRA_CONFIG_ARGS+=' --disable-mpi-checks'
-
 ################################################################################
 
 "${icon_dir}/configure" \
