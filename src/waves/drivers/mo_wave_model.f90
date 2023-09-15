@@ -67,6 +67,12 @@ MODULE mo_wave_model
   USE mo_interpol_config,         ONLY: configure_interpolation
   USE mo_complete_subdivision,    ONLY: setup_phys_patches
 
+  ! coupling
+#ifdef YAC_coupling
+  USE mo_coupling_config,         ONLY: is_coupled_to_atmo
+  USE mo_wave_atmo_coupling_frame,ONLY: construct_wave_atmo_coupling
+#endif
+
 
   PUBLIC :: wave_model
 
@@ -83,6 +89,14 @@ CONTAINS
     !---------------------------------------------------------------------
     ! construct the wave model
     CALL construct_wave_model(wave_namelist_filename,shr_namelist_filename)
+
+    !---------------------------------------------------------------------
+    ! construct the coupler
+#ifdef YAC_coupling
+    IF (is_coupled_to_atmo()) THEN
+      CALL construct_wave_atmo_coupling(p_patch(1:))
+    END IF
+#endif
 
     CALL wave()
 

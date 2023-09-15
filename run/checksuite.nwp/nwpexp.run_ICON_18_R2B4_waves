@@ -104,7 +104,7 @@ EOF
 
 cat > ${wave_namelist} << EOF
 &coupling_mode_nml
- coupled_mode         = .false.
+ coupled_to_atmo = .FALSE.
 /
 &run_nml
  num_lev              = 1
@@ -153,7 +153,7 @@ cat > ${wave_namelist} << EOF
  include_last            =                      .TRUE.        ! flag whether to include the last time step
  output_filename         =                      'WAVE'        ! file name base
  output_grid             =                      .TRUE.        ! flag whether grid information is added to output.
- ml_varlist              = 'process_id','bathymetry_c',
+ ml_varlist              = 'bathymetry_c',
                            'group:wave_forcing',
                            'group:wave_phy','group:wave_short',
                            'q112_010_004','q1_001_001','fl_020_010','fl_025_001'

@@ -44,7 +44,7 @@ MODULE mo_nwp_phy_types
 
   USE mo_kind,                ONLY: wp, vp
   USE mo_fortran_tools,       ONLY: t_ptr_2d3d,t_ptr_tracer
-  
+
   USE mo_nwp_vdiff_types, ONLY: t_nwp_vdiff_state
 
   IMPLICIT NONE
@@ -336,6 +336,7 @@ MODULE mo_nwp_phy_types
       rlamh_fac_t(:,:,:),  & !! tuning factor for laminar transfer resistance (rlam_heat)
       gz0(:,:),            & !! roughness length * g of the vertically not
                              !! resolved canopy                               (m2/s2)
+      z0_waves(:,:),       & !! wave-dependent roughness length               (  m  )
       tkvm(:,:,:),         & !! turbulent diffusion coefficients for momentum (m/s2 )
       tkvh(:,:,:),         & !! turbulent diffusion coefficients for heat     (m/s2 )
       t_2m(:,:)       ,    & !! temperature in 2m                             (  K  )

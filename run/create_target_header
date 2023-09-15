@@ -2250,6 +2250,18 @@ create_target_header()
                     ;;
             esac
             ;;
+        *run_ICON_23_R2B4_atmo_waves_coupled*)
+            case $use_target in
+                daint*)
+                    use_nodes=10
+                    ;;
+                rcl)
+                    use_nodes=4
+                    use_venum_lhost=2
+                    use_cpunum_job=3
+                    ;;
+            esac
+	    ;;
         *atm_nwp_jsbach_test*)
             use_memory="18gb"
             ;;

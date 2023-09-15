@@ -99,7 +99,7 @@ MODULE mo_ext_data_init
   USE mo_util_mtime,         ONLY: assumePrevMidnight
   USE mo_bcs_time_interpolation, ONLY: t_time_interpolation_weights,         &
     &                                  calculate_time_interpolation_weights
-  USE mo_coupling_config,    ONLY: is_coupled_run
+  USE mo_coupling_config,    ONLY: is_coupled_to_ocean
   USE mo_grid_config,        ONLY: l_scm_mode
   USE mo_scm_nml,            ONLY: i_scm_netcdf
   USE mo_nh_torus_exp,       ONLY: read_ext_scm_nc
@@ -1031,7 +1031,7 @@ CONTAINS
     END IF
 
     ! If ocean coupling is used, then read the land sea masks
-    IF ( is_coupled_run() ) THEN
+    IF ( is_coupled_to_ocean() ) THEN
       DO jg = 1,n_dom
         IF ( iforcing == inwp ) THEN
 
@@ -1212,7 +1212,7 @@ CONTAINS
 
         ! If ocean coupling is used, then read the land sea masks
 
-        IF ( is_coupled_run() ) THEN
+        IF ( is_coupled_to_ocean() ) THEN
 
           ! --- option NWP grids for coupling: Read fraction of land (land-sea mask) from
           ! interpolated ocean grid (ocean: integer 0/1 lsm). lsm_ctr_c is the fraction of land.
@@ -1416,7 +1416,7 @@ CONTAINS
 
         ! adjust atmo LSM to ocean LSM for coupled simulation and initialize new land points
 
-        IF ( is_coupled_run() ) THEN
+        IF ( is_coupled_to_ocean() ) THEN
           CALL lsm_ocean_atmo ( p_patch(jg), ext_data(jg) )
         ENDIF
 

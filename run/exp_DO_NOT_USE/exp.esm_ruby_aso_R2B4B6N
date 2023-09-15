@@ -590,7 +590,7 @@ add_required_file ${basedir}/externals/yac/input/coupling.xsd  ./coupling.xsd
 cat > ${atm_namelist} << EOF
 !
 &coupling_mode_nml
-  coupled_mode     = .TRUE.
+ coupled_to_ocean  = .TRUE.
 /
 &parallel_nml
  nproma            = ${nproma_atm}
@@ -1230,7 +1230,7 @@ ocean_grid="icon_grid_${ocean_gridID}_modsills_${ocean_refinement}_O.nc"    #  n
 cat > ${oce_namelist} << EOF
 !
 &coupling_mode_nml
-  coupled_mode               = .TRUE.
+ coupled_to_atmo             = .TRUE.
 /
 &parallel_nml
  nproma                      = ${nproma_oce}

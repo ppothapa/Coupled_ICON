@@ -33,7 +33,7 @@ MODULE mo_lnd_nwp_config
   USE mo_io_units,           ONLY: filename_max
   USE mo_nwp_sfc_tiles,      ONLY: t_tile_list, setup_tile_list
   USE mo_exception,          ONLY: message, message_text, finish
-  USE mo_coupling_config,    ONLY: is_coupled_run
+  USE mo_coupling_config,    ONLY: is_coupled_to_ocean
 
 
   IMPLICIT NONE
@@ -200,7 +200,7 @@ CONTAINS
     CALL message(TRIM(routine),message_text)
 
     ! seaice fraction limit
-    IF ( is_coupled_run() ) THEN
+    IF ( is_coupled_to_ocean() ) THEN
        frsi_min = 1.0E-10_wp  ! ICON coupled with ocean, epsilon because ICON-O determines seaice fraction
     ELSE
        frsi_min = 0.015_wp    ! ICON uncoupled, limit at 1.5% seaice fraction (Dmitrii Mironov)

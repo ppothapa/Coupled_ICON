@@ -140,7 +140,7 @@ MODULE sfc_seaice
                                  & csalb              , &  !< solar albedo for different soil types
                                  & ist_seaice              !< ID of soiltype "sea ice"
 
-  USE mo_coupling_config,    ONLY: is_coupled_run
+  USE mo_coupling_config,    ONLY: is_coupled_to_ocean
 
   IMPLICIT NONE
 
@@ -604,7 +604,7 @@ CONTAINS
     r_dtime = 1._wp/dtime
 
     ! for vectorisation
-    lis_coupled_run = is_coupled_run()
+    lis_coupled_run = is_coupled_to_ocean()
     !$ACC DATA CREATE(dticedt, dhicedt, dtsnowdt, dhsnowdt) &
     !$ACC   PRESENT(qsen, qlat, qlwrnet, qsolnet, snow_rate, rain_rate, tice_p, hice_p, tsnow_p, hsnow_p) &
     !$ACC   PRESENT(albsi_p, tice_n, hice_n, tsnow_n, hsnow_n, condhf, albsi_n)

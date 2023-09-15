@@ -332,7 +332,7 @@ EOF
 #  
 cat > $atmo_namelist << EOF
 &coupling_mode_nml
-  coupled_mode = .TRUE.
+ coupled_to_ocean = .TRUE.
 /
 &parallel_nml
  nproma         = ${nproma}
@@ -580,7 +580,7 @@ ocean_model_equations=-1 # equation system
 cat > ${ocean_namelist} << EOF
 !
 &coupling_mode_nml
-  coupled_mode = .TRUE.
+ coupled_to_atmo = .TRUE.
 /
 &parallel_nml
  nproma         = ${nproma}

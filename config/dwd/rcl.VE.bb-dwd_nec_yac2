@@ -31,6 +31,7 @@
 "$(dirname -- "${BASH_SOURCE[0]}")"/rcl.VE.nfort-4.0.0_mpi-2.22_art_oper \
   --disable-openmp \
   --enable-ocean \
+  --enable-waves \
   --enable-ecrad \
   --enable-coupling \
   --enable-yaxt \

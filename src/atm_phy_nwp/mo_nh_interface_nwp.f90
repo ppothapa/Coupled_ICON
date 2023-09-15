@@ -62,7 +62,7 @@ MODULE mo_nh_interface_nwp
   USE mo_nwp_lnd_types,           ONLY: t_lnd_prog, t_wtr_prog, t_lnd_diag
   USE mo_ext_data_types,          ONLY: t_external_data
   USE mo_nwp_phy_types,           ONLY: t_nwp_phy_diag, t_nwp_phy_tend, t_nwp_phy_stochconv
-  USE mo_coupling_config,         ONLY: is_coupled_run
+  USE mo_coupling_config,         ONLY: is_coupled_to_ocean, is_coupled_to_waves
   USE mo_parallel_config,         ONLY: nproma, p_test_run, use_physics_barrier
   USE mo_diffusion_config,        ONLY: diffusion_config
   USE mo_initicon_config,         ONLY: is_iau_active
@@ -95,6 +95,9 @@ MODULE mo_nh_interface_nwp
   USE mo_nwp_ocean_interface,     ONLY: nwp_couple_ocean
   USE mo_sync,                    ONLY: sync_patch_array, sync_patch_array_mult, SYNC_E,      &
                                         SYNC_C, SYNC_C1
+#ifdef YAC_coupling
+  USE mo_atmo_wave_coupling,      ONLY: couple_atmo_to_wave
+#endif
   USE mo_mpi,                     ONLY: my_process_is_mpi_all_parallel, work_mpi_barrier
   USE mo_nwp_diagnosis,           ONLY: nwp_statistics, nwp_opt_diagnostics_2, &
                                     &   nwp_diag_output_1, nwp_diag_output_2
@@ -752,7 +755,7 @@ CONTAINS
             & prm_nwp_tend, initialize=linit, lacc=lzacc &
           )
 
-        IF (is_coupled_run()) THEN
+        IF (is_coupled_to_ocean()) THEN
           ! Sea-ice cover might change if ocean passed back new values.
 
           CALL nwp_vdiff_update_seaice ( &
@@ -1557,7 +1560,7 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL
 
-        IF (atm_phy_nwp_config(jg)%inwp_surface >= 1 .OR. is_coupled_run()) THEN
+        IF (atm_phy_nwp_config(jg)%inwp_surface >= 1 .OR. is_coupled_to_ocean()) THEN
 
 #ifdef __PGI_WORKAROUND
           !$ACC DATA CREATE(gp_count_t) IF(lzacc)
@@ -1760,10 +1763,36 @@ CONTAINS
 
 
     !-------------------------------------------------------------------------
+    !> Waves coupling: if coupling time step
+    !-------------------------------------------------------------------------
+
+    IF ( is_coupled_to_waves() .AND. (.NOT. linit) ) THEN
+
+#ifdef YAC_coupling
+      IF (ltimer) CALL timer_start(timer_coupling)
+#ifdef _OPENACC
+      CALL finish('mo_nh_interface_nwp', 'nwp_couple_waves is not available on GPU')
+#endif
+
+      CALL couple_atmo_to_wave(p_patch   = pt_patch,           & !in
+        &                      u10m      = prm_diag%u_10m,     & !in
+        &                      v10m      = prm_diag%v_10m,     & !in
+        &                      fr_seaice = lnd_diag%fr_seaice, & !in
+        &                      z0_waves  = prm_diag%z0_waves,  & !out
+        &                      lacc      = lzacc               ) !in
+
+      IF (ltimer) CALL timer_stop(timer_coupling)
+#endif
+
+    END IF
+
+
+    !-------------------------------------------------------------------------
     !> Ocean coupling: if coupling time step (VDIFF calls this internally)
     !-------------------------------------------------------------------------
 
-    IF ( is_coupled_run() .AND. (.NOT. linit) .AND. atm_phy_nwp_config(jg)%inwp_turb /= ivdiff) THEN
+    IF ( is_coupled_to_ocean() .AND. (.NOT. linit) &
+      & .AND. atm_phy_nwp_config(jg)%inwp_turb /= ivdiff) THEN
 
       IF (ltimer) CALL timer_start(timer_coupling)
 #ifdef _OPENACC

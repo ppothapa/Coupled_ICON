@@ -107,7 +107,7 @@ EOF
 
 cat > ${wave_namelist} << EOF
 &coupling_mode_nml
- coupled_mode         = .false.
+ coupled_to_atmo      = .FALSE.
 /
 &run_nml
  num_lev              = 1

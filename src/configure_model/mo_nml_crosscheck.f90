@@ -81,7 +81,7 @@ MODULE mo_nml_crosscheck
   USE mo_nudging_nml,              ONLY: check_nudging
   USE mo_upatmo_config,            ONLY: check_upatmo
   USE mo_name_list_output_config,  ONLY: is_variable_in_output_dom
-  USE mo_coupling_config,          ONLY: is_coupled_run
+  USE mo_coupling_config,          ONLY: is_coupled_to_ocean, is_coupled_to_waves
 
   USE mo_assimilation_config,      ONLY: assimilation_config
   USE mo_scm_nml,                  ONLY: i_scm_netcdf, scm_sfc_temp, scm_sfc_qv, scm_sfc_mom
@@ -856,14 +856,24 @@ CONTAINS
 
     CHARACTER(len=*), PARAMETER :: routine =  modname//'::coupled_crosscheck'
 
-    IF ( ntiles_lnd == 1 .AND. is_coupled_run() .AND. .NOT. &
+    IF ( ntiles_lnd == 1 .AND. is_coupled_to_ocean() .AND. .NOT. &
         & (iforcing == inwp .AND. ALL(atm_phy_nwp_config(1:n_dom)%inwp_turb == ivdiff)) ) THEN
        CALL finish(routine, "Coupled atm/ocean runs not supported with ntiles=1 when not using VDIFF")
     ENDIF
 
-    IF ( sstice_mode /= 1 .AND. is_coupled_run() ) THEN
+    IF ( sstice_mode /= 1 .AND. is_coupled_to_ocean() ) THEN
        CALL finish(routine, "Coupled atm/ocean runs only supported with sstice_mode=1 named SSTICE_ANA")
     ENDIF
+
+#ifdef _OPENACC
+    IF ( is_coupled_to_waves() ) THEN
+      CALL finish(routine, "Coupled atm/wave runs are not available on GPU")
+    END IF
+
+    IF ( is_coupled_to_ocean() ) THEN
+      CALL finish(routine, "Coupled atm/ocean runs are not available on GPU")
+    END IF
+#endif
 
   END SUBROUTINE coupled_crosscheck
   !---------------------------------------------------------------------------------------

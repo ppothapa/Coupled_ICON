@@ -2,4 +2,9 @@
 #
 # configure wrapper which is used for buildbot builder dwd_nec_yac2 (VH)
 #
-"$(dirname -- "${BASH_SOURCE[0]}")"/rcl.VH.gcc-11.2.0_mpi-2.22_art_oper --enable-ocean --enable-ecrad --enable-coupling "$@"
+"$(dirname -- "${BASH_SOURCE[0]}")"/rcl.VH.gcc-11.2.0_mpi-2.22_art_oper \
+  --enable-ocean \
+  --enable-waves \
+  --enable-ecrad \
+  --enable-coupling \
+  "$@"

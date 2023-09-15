@@ -88,7 +88,7 @@ MODULE mo_initicon
   USE mo_util_uuid_types,     ONLY: t_uuid
   USE mo_nwp_sfc_utils,       ONLY: seaice_albedo_coldstart
   USE mo_fortran_tools,       ONLY: init
-  USE mo_coupling_config,     ONLY: is_coupled_run
+  USE mo_coupling_config,     ONLY: is_coupled_to_ocean
 
 
   IMPLICIT NONE
@@ -635,7 +635,7 @@ MODULE mo_initicon
 
     ! for coupled ocean-atmosphere run define w_so and t_so for new land points
 
-    IF ( iforcing == inwp .AND. is_coupled_run() .AND. lcouple_ocean_coldstart ) THEN
+    IF ( iforcing == inwp .AND. is_coupled_to_ocean() .AND. lcouple_ocean_coldstart ) THEN
 
       CALL new_land_from_ocean(p_patch, p_nh_state, p_lnd_state, ext_data)
 

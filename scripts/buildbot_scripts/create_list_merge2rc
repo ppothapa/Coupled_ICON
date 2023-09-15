@@ -66,8 +66,9 @@ $addexp "checksuite.les/exp.ac3_les_20210211.run" --builders "levante_intel_hybr
 # DWD wave model test on levante
 $addexp "checksuite.nwp/nwpexp.run_ICON_18_R2B4_waves"             --builders "levante_intel_hybrid levante_nag"  --list $listname
 $addexp "checksuite.nwp/nwpexp.run_ICON_21_R2B4_waves_standalone"  --builders "levante_intel_hybrid levante_nag"  --list $listname
-# DWD couplied test on levante
+# DWD coupled tests on levante
 $addexp "checksuite.infrastructure/coupling/exp.run_ICON_17_R2B4_AO_coupled_LEVANTE.run" --builders "levante_gcc levante_intel_hybrid" --list $listname
+$addexp "checksuite.nwp/nwpexp.run_ICON_23_R2B4_atmo_waves_coupled" --builders "levante_gcc levante_intel" --list $listname --runflags "queue=compute"
 
 # add bubble test
 #off#$addexp "checksuite.icon-dev/check.atm_2mom_bubble_rceTorus"               --list $listname
@@ -177,17 +178,18 @@ $addexp checksuite.nwp/nwpexp.run_ICON-ART_01_R3B08_lam_initmode7_pollen       -
 $addexp checksuite.nwp/nwpexp.run_ICON_17_R2B4_AO_coupled                      --builders DWD_nec_yac2 --list $listname
 ## Prototype 2
 $addexp checksuite.nwp/nwpexp.run_ICON_20_R2B4_R2B6_AO_coupled                 --builders DWD_nec_yac2 --list $listname
-
+# atmo-wave coupled test
+$addexp checksuite.nwp/nwpexp.run_ICON_23_R2B4_atmo_waves_coupled              --builders DWD_nec_yac2 --list $listname
 
 # DWD_nec_hybrid
-$addexp checksuite.nwp/nwpexp.run_ICON_11_R3B08_lam_initmode7_restarttest --builders DWD_nec_hybrid --list $listname
-$addexp checksuite.nwp/nwpexp.run_ICON_14_R2B6N7_oper_IAU_and_restarttest --builders DWD_nec_hybrid --list $listname
-$addexp checksuite.nwp/nwpexp.run_ICON_19_R2B4_cmip_forcing               --builders DWD_nec_hybrid --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_11_R3B08_lam_initmode7_restarttest      --builders DWD_nec_hybrid --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_14_R2B6N7_oper_IAU_and_restarttest      --builders DWD_nec_hybrid --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_19_R2B4_cmip_forcing                    --builders DWD_nec_hybrid --list $listname
 # wave tests
-$addexp "checksuite.nwp/nwpexp.run_ICON_18_R2B4_waves"             --builders "DWD_nec_hybrid"   --list $listname
-$addexp "checksuite.nwp/nwpexp.run_ICON_21_R2B4_waves_standalone"  --builders "DWD_nec_hybrid"   --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_18_R2B4_waves                           --builders DWD_nec_hybrid   --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_21_R2B4_waves_standalone                --builders DWD_nec_hybrid   --list $listname
 # clm tests
-$addexp checksuite.clm/clmexp.ICON_CLM                                    --builders DWD_nec_hybrid --list $listname
+$addexp checksuite.clm/clmexp.ICON_CLM                                         --builders DWD_nec_hybrid --list $listname
 
 # JSBACH-NWP test, has to be down here because the GPU builders get deactivated at the top and activated later.
 jsbach_nwp_builders='DWD_nec DWD_nec_hybrid levante_gcc levante_intel levante_gpu_nvhpc'

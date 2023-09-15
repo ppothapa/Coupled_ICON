@@ -82,10 +82,10 @@ MODULE mo_wave_config
 
     CHARACTER(LEN=filename_max) :: forc_file_prefix ! prefix of forcing file name
                                            ! the real file name will be constructed as:
-                                           ! forc_file_prefix+'_wind' for U and V 10 meter wind (m/s)
-                                           ! forc_file_prefix+'_ice'  for sea ice concentration (fraction of 1)
-                                           ! forc_file_prefix+'_slh'  for sea level height (m)
-                                           ! forc_file_prefix+'_osc'  for U and V ocean surface currents (m/s)
+                                           ! forc_file_prefix+'_wind.nc' for U and V 10 meter wind (m/s)
+                                           ! forc_file_prefix+'_ice.nc'  for sea ice concentration (fraction of 1)
+                                           ! forc_file_prefix+'_slh.nc'  for sea level height (m)
+                                           ! forc_file_prefix+'_osc.nc'  for U and V ocean surface currents (m/s)
 
     LOGICAL :: linput_sf1      ! if .TRUE., calculate wind input source function term, first call
     LOGICAL :: linput_sf2      ! if .TRUE., calculate wind input source function term, second call

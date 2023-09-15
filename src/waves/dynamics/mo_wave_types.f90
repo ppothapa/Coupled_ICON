@@ -41,7 +41,6 @@ MODULE mo_wave_types
   ! diagnostic variables state vector
   TYPE t_wave_diag
     REAL(wp), POINTER, CONTIGUOUS :: &
-      &  process_id(:,:),         &
       &  gv_c(:,:,:),         & ! group velocity                    (nproma,nblks_c,nfreqs)  (m/s)
       &  gv_e(:,:,:),         & ! group velocity                    (nproma,nblks_e,nfreqs)  (m/s)
       &  gvn_e(:,:,:),        & ! orthogonal normal group velocity  (nproma,nblks_e,nfreqs)  (m/s)

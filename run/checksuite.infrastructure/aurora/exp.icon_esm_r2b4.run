@@ -450,7 +450,7 @@ add_required_file ${basedir}/run/coupling_${EXPNAME}.yaml         ./coupling.yam
 cat > ${atm_namelist} << EOF
 !
 &coupling_mode_nml
-  coupled_mode     = .TRUE.
+ coupled_to_ocean  = .TRUE.
 /
 &parallel_nml
  nproma            = ${nproma_atm}
@@ -1242,7 +1242,7 @@ ocean_data_InputFolder="${icon_data_poolFolder}/${ocean_gridID}/ocean"
 cat > ${oce_namelist} << EOF
 !
 &coupling_mode_nml
-  coupled_mode               = .TRUE.
+ coupled_to_atmo             = .TRUE.
 /
 &parallel_nml
  nproma                      = ${nproma_oce}

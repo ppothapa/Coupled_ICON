@@ -54,7 +54,7 @@ MODULE mo_nwp_sfc_utils
     &                               itype_interception, lterra_urb, l2lay_rho_snow, lprog_albsi, itype_trvg, &
                                     itype_snowevap, zml_soil, dzsoil, frsi_min, hice_min
   USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config
-  USE mo_coupling_config,     ONLY: is_coupled_run
+  USE mo_coupling_config,     ONLY: is_coupled_to_ocean
   USE mo_nwp_tuning_config,   ONLY: tune_minsnowfrac
   USE mo_initicon_config,     ONLY: init_mode_soil, ltile_coldstart, init_mode, lanaread_tseasfc, use_lakeiceana
   USE mo_run_config,          ONLY: msg_level
@@ -2411,7 +2411,7 @@ CONTAINS
     IF (msg_level >= 13) CALL message('update_idx_lists_sea', &
       'One or more seaice cells melted -> List update required.')
 
-    lis_coupled_run = is_coupled_run() ! store result for vectorisation
+    lis_coupled_run = is_coupled_to_ocean() ! store result for vectorisation
 
     !$ACC DATA PRESENT(condhf) IF(lis_coupled_run)
     !$ACC DATA CREATE(list_seaice_idx_old) &

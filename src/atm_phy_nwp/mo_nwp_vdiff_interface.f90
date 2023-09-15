@@ -23,7 +23,7 @@ MODULE mo_nwp_vdiff_interface
       & CCYCLE_MODE_NONE, CCYCLE_MODE_INTERACTIVE, CCYCLE_MODE_PRESCRIBED, CCYCLE_CO2CONC_CONST, &
       & CCYCLE_CO2CONC_FROMFILE, t_ccycle_config
   USE mo_convect_tables, ONLY: init_convect_tables
-  USE mo_coupling_config, ONLY: is_coupled_run
+  USE mo_coupling_config, ONLY: is_coupled_to_ocean
   USE mo_aes_convect_tables, ONLY: init_aes_convect_tables => init_convect_tables
   USE mo_exception, ONLY: finish, message
   USE mo_ext_data_types, ONLY: t_external_data
@@ -1260,7 +1260,7 @@ CONTAINS
     !$ACC EXIT DATA ASYNC(1) &
     !$ACC   DETACH(ocean_u, ocean_v, p_graupel_gsp_rate, p_ice_gsp_rate, p_hail_gsp_rate)
 
-    IF (is_coupled_run() .AND. .NOT. linit) THEN
+    IF (is_coupled_to_ocean() .AND. .NOT. linit) THEN
       CALL sea_model_couple_ocean (&
           & patch=patch, &
           & list_sea=ext_data%atm%list_sea, &

@@ -141,8 +141,6 @@ CONTAINS
             p_wave_state_lists(jg)%diag_list, &
             listname)
 
-       p_wave_state(jg)%diag%process_id(:,:) = get_my_mpi_work_id()
-
     END DO
 
     CALL message (routine, 'wave state construction completed')
@@ -344,12 +342,6 @@ CONTAINS
     ENDIF
 
     CALL vlr_add(p_diag_list, TRIM(listname), patch_id=p_patch%id, lrestart=.TRUE. )
-
-    cf_desc    = t_cf_var('process_id', 'i','process ID', datatype_flt)
-    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-    CALL add_var(p_diag_list, 'process_id', p_diag%process_id,    &
-         GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc, &
-         ldims=shape2d_c)
 
     !wave group velocity
     cf_desc    = t_cf_var('gv_c', 'm s-1', 'group velocity at cells', datatype_flt)

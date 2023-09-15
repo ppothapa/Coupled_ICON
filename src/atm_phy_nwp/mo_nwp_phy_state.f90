@@ -134,6 +134,7 @@ USE mtime,                   ONLY: max_timedelta_str_len, getPTStringFromMS
 USE mo_name_list_output_config, ONLY: is_variable_in_output
 USE mo_util_string,          ONLY: real2string
 USE mo_sbm_storage,          ONLY: construct_sbm_storage, destruct_sbm_storage
+USE mo_coupling_config,      ONLY: is_coupled_to_waves
 
 #include "add_var_acc_macro.inc"
 
@@ -3061,6 +3062,18 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
       &                 "mode_iniana","iau_restore_vars"),                &
       & initval=0.01_wp, lopenacc=.TRUE. )
     __acc_attach(diag%gz0)
+
+
+    IF (is_coupled_to_waves()) THEN
+      ! &      diag%z0_waves(nproma,nblks_c)
+      cf_desc     = t_cf_var('z0_waves', 'm','wave-dependent roughness length', datatype_flt)
+      grib2_desc = grib2_var(10, 0, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( diag_list, 'z0_waves', diag%z0_waves,                   &
+        & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,          &
+        & ldims=shape2d, loutput=.TRUE.,                                    &
+        & lopenacc=.FALSE. )
+    END IF
+
 
     ! &      diag%t_2m(nproma,nblks_c)
     IF (icpl_da_sfcevap == 1 .OR. icpl_da_sfcevap == 2) THEN

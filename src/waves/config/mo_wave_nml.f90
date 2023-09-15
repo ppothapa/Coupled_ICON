@@ -85,6 +85,8 @@ CONTAINS
 
     INTEGER :: jtot_tauhf          ! dimension of wave_config%wtauhf. it must be odd !!!
 
+    INTEGER :: dt_wave             ! PROPAGATION TIMESTEP !@waves: add units, s?
+
     CHARACTER(LEN=filename_max) :: forc_file_prefix ! prefix of forcing file name
                                            ! the real file name will be constructed as:
                                            ! forc_file_prefix+'_wind' for U and V 10 meter wind (m/s)
@@ -148,6 +150,8 @@ CONTAINS
     XKAPPA     = 0.40_wp        !! VON KARMAN CONSTANT.
     XNLEV      = 10.0_wp        !! WINDSPEED REF. LEVEL.
 
+    dt_wave    = 600            !! PROPAGATION TIMESTEP, s
+
     forc_file_prefix = ''
 
     linput_sf1 =       .TRUE. !< if .TRUE., calculate wind input source function term, first call
@@ -158,6 +162,7 @@ CONTAINS
     lwave_stress1  =   .TRUE. !< if .TRUE., calculate wave stress, first call
     lwave_stress2  =   .TRUE. !< if .TRUE., calculate wave stress, second call
     lgrid_refr =       .TRUE. !< if .TRUE., calculate grid refraction
+
 
 
     !------------------------------------------------------------------
@@ -207,40 +212,42 @@ CONTAINS
     !----------------------------------------------------
 
     DO jg=1,max_dom
-      wave_config(jg)%ndirs            = ndirs
-      wave_config(jg)%nfreqs           = nfreqs
-      wave_config(jg)%fr1              = fr1
-      wave_config(jg)%CO               = CO
-      wave_config(jg)%IREF             = IREF
-      wave_config(jg)%ALPHA            = ALPHA
-      wave_config(jg)%FM               = FM
-      wave_config(jg)%GAMMA_wave       = GAMMA_wave
-      wave_config(jg)%SIGMA_A          = SIGMA_A
-      wave_config(jg)%SIGMA_B          = SIGMA_B
-      wave_config(jg)%FETCH            = FETCH
-      wave_config(jg)%roair            = roair
-      wave_config(jg)%RNUAIR           = RNUAIR
-      wave_config(jg)%RNUAIRM          = RNUAIRM
-      wave_config(jg)%ROWATER          = ROWATER
-      wave_config(jg)%XEPS             = XEPS
-      wave_config(jg)%XINVEPS          = XINVEPS
-      wave_config(jg)%XKAPPA           = XKAPPA
-      wave_config(jg)%XNLEV            = XNLEV
-      wave_config(jg)%BETAMAX          = BETAMAX
-      wave_config(jg)%ZALP             = ZALP
-      wave_config(jg)%jtot_tauhf       = jtot_tauhf
-      wave_config(jg)%ALPHA_CH         = ALPHA_CH
-      wave_config(jg)%depth            = depth
-      wave_config(jg)%niter_smooth     = niter_smooth
-      wave_config(jg)%forc_file_prefix = forc_file_prefix
-      wave_config(jg)%linput_sf1       = linput_sf1
-      wave_config(jg)%linput_sf2       = linput_sf2
-      wave_config(jg)%ldissip_sf       = ldissip_sf
-      wave_config(jg)%lnon_linear_sf   = lnon_linear_sf
-      wave_config(jg)%lbottom_fric_sf  = lbottom_fric_sf
-      wave_config(jg)%lwave_stress1    = lwave_stress1
-      wave_config(jg)%lwave_stress2    = lwave_stress2
-      wave_config(jg)%lgrid_refr       = lgrid_refr
+
+      wave_config(jg)%ndirs             = ndirs
+      wave_config(jg)%nfreqs            = nfreqs
+      wave_config(jg)%fr1               = fr1
+      wave_config(jg)%CO                = CO
+      wave_config(jg)%IREF              = IREF
+      wave_config(jg)%ALPHA             = ALPHA
+      wave_config(jg)%FM                = FM
+      wave_config(jg)%GAMMA_wave        = GAMMA_wave
+      wave_config(jg)%SIGMA_A           = SIGMA_A
+      wave_config(jg)%SIGMA_B           = SIGMA_B
+      wave_config(jg)%FETCH             = FETCH
+      wave_config(jg)%roair             = roair
+      wave_config(jg)%RNUAIR            = RNUAIR
+      wave_config(jg)%RNUAIRM           = RNUAIRM
+      wave_config(jg)%ROWATER           = ROWATER
+      wave_config(jg)%XEPS              = XEPS
+      wave_config(jg)%XINVEPS           = XINVEPS
+      wave_config(jg)%XKAPPA            = XKAPPA
+      wave_config(jg)%XNLEV             = XNLEV
+      wave_config(jg)%BETAMAX           = BETAMAX
+      wave_config(jg)%ZALP              = ZALP
+      wave_config(jg)%jtot_tauhf        = jtot_tauhf
+      wave_config(jg)%ALPHA_CH          = ALPHA_CH
+      wave_config(jg)%depth             = depth
+      wave_config(jg)%niter_smooth      = niter_smooth
+      wave_config(jg)%forc_file_prefix  = forc_file_prefix
+      wave_config(jg)%linput_sf1        = linput_sf1
+      wave_config(jg)%linput_sf2        = linput_sf2
+      wave_config(jg)%ldissip_sf        = ldissip_sf
+      wave_config(jg)%lnon_linear_sf    = lnon_linear_sf
+      wave_config(jg)%lbottom_fric_sf   = lbottom_fric_sf
+      wave_config(jg)%lwave_stress1     = lwave_stress1
+      wave_config(jg)%lwave_stress2     = lwave_stress2
+      wave_config(jg)%lgrid_refr        = lgrid_refr
+
     ENDDO
 
 

@@ -1209,11 +1209,41 @@ The parameterization of cloud microphysics 'graupel' for the AES physics is conf
 \begin{longtab}
 
 %\hline
-coupled\_mode &
+coupled\_to\_ocean &
 L &
 .FALSE. &  &
-.TRUE.: if yac coupling routines have to be called. Required for
-coupled ocean-atmosphere similations. &
+.TRUE.: Required for coupled ocean-atmosphere or ocean-wave similations. \newline
+        Indicates the coupling of the model component at hand (e.g. atmo, wave) to the ocean model. Yac coupling routines have to be called.&
+\tabularnewline
+
+%\hline
+coupled\_to\_waves &
+L &
+.FALSE. &  &
+.TRUE.: Required for coupled wave-atmosphere or wave-ocean similations. \newline 
+        Indicates the coupling of the model component at hand (e.g. atmo, ocean) to the wave model. Yac coupling routines have to be called.&
+\tabularnewline
+
+%\hline
+coupled\_to\_atmo &
+L &
+.FALSE. &  &
+.TRUE.: Required for coupled atmosphere-ocean or atmosphere-wave similations. \newline 
+        Indicates the coupling of the model at hand (e.g. ocean, wave) to the atmosphere model. Yac coupling routines have to be called.&
+\tabularnewline
+
+%\hline
+use\_sens\_heat\_flux\_hack &
+L &
+.FALSE. &  &
+.TRUE.: ?? &
+\tabularnewline
+
+%\hline
+suppress\_sens\_heat\_flux\_hack\_over\_ice &
+L &
+.FALSE. &  &
+.TRUE.: ?? &
 \tabularnewline
 
 \end{longtab}
