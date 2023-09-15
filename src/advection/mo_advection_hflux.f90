@@ -14,12 +14,9 @@
 !! flux divergence in the conservative transport formula.
 !!
 !! Possible options for horizontal tracer flux computation include
-!! - first order Godunov method (UP1)
-!! - second order MUSCL method
-!! - MIURA with second order accurate reconstruction
-!! - MIURA with third order accurate reconstruction
+!! - MIURA with linear, quadratic, or cubic reconstruction
+!! - FFSL with linear, quadratic, or cubic reconstruction
 !!
-!! For MUSCL the piecewise linear approximation is used:
 !! See e.g. Lin et al. (1994), Mon. Wea. Rev., 122, 1575-1593
 !! An improved, fully 2D version without splitting error is
 !! implemeted, too.
@@ -70,9 +67,9 @@ MODULE mo_advection_hflux
 
   USE mo_kind,                ONLY: wp, vp
   USE mo_exception,           ONLY: finish, message, message_text
-  USE mo_impl_constants,      ONLY: SUCCESS,                   &
-    &                               min_rledge_int, min_rlcell_int,             &
-    &                               UP, MIURA, MIURA3, FFSL, FFSL_HYB, MCYCL,   &
+  USE mo_impl_constants,      ONLY: SUCCESS,                                    &
+    &                               min_rledge_int, min_rlcell_int, NO_HADV,    &
+    &                               MIURA, MIURA3, FFSL, FFSL_HYB, MCYCL,       &
     &                               MIURA_MCYCL, MIURA3_MCYCL, FFSL_MCYCL,      &
     &                               FFSL_HYB_MCYCL, ifluxl_m, ifluxl_sm
   USE mo_model_domain,        ONLY: t_patch
@@ -117,7 +114,6 @@ MODULE mo_advection_hflux
 
 
   PUBLIC :: hor_upwind_flux
-  PUBLIC :: upwind_hflux_up
   PUBLIC :: upwind_hflux_miura
   PUBLIC :: upwind_hflux_miura3
 
@@ -136,7 +132,6 @@ CONTAINS
   !!
   !! Calculation of horizontal upwind flux at triangle edges on half levels
   !! using either
-  !! - the first order Godunov method (UP1)
   !! - the MIURA method with linear reconstruction (essentially 2D)
   !! - the MIURA method with linear reconstruction and internal subcycling
   !! - the MIURA method with quadr/cubic reconstruction (essentially 2D)
@@ -164,7 +159,7 @@ CONTAINS
     CHARACTER(len=*), PARAMETER ::  &
       &  routine = modname//':hor_upwind_flux'
 
-    TYPE(t_patch), TARGET, INTENT(INOUT) ::  &     !< patch on which computation is performed
+    TYPE(t_patch), TARGET, INTENT(IN) ::  &     !< patch on which computation is performed
       &  p_patch
 
     TYPE(t_int_state), TARGET, INTENT(IN) ::  & !< pointer to data structure for interpolation
@@ -262,7 +257,7 @@ CONTAINS
     ! routines. The resulting tangential velocity field is then passed to
     ! the flux routines.
 
-    IF ( ANY(advconf%ihadv_tracer(:)/= UP) ) THEN
+    IF ( ANY(advconf%ihadv_tracer(:)/= NO_HADV) ) THEN
 
       i_rlend_vt = MIN(i_rlend, min_rledge_int - 1)
 
@@ -341,19 +336,6 @@ CONTAINS
 
       ! Select desired flux calculation method
       SELECT CASE( advconf%ihadv_tracer(jt) )
-
-      CASE( UP )      ! ihadv_tracer = 1
-        ! CALL first order upwind
-        ! DA: this routine is not (yet) async
-        !$ACC WAIT
-        CALL upwind_hflux_up(                             &
-          &         p_patch      = p_patch,               & !in
-          &         p_cc         = p_cc(:,:,:,jt),        & !in
-          &         p_mass_flx_e = p_mass_flx_e,          & !in
-          &         p_upflux     = p_upflux(:,:,:,jt),    & !inout
-          &         opt_slev     = advconf%iadv_slev(jt), & !in
-          &         opt_rlend    = i_rlend                ) !in
-
 
       CASE( MIURA )   ! ihadv_tracer = 2
 
@@ -699,148 +681,6 @@ CONTAINS
   END SUBROUTINE hor_upwind_flux
 
 
-
-
-  !-----------------------------------------------------------------------
-  !>
-  !! The first order Godunov scheme
-  !!
-  !! Calculation of time averaged horizontal tracer fluxes using the first
-  !! order Godunov method.
-  !!
-  !! @par Revision History
-  !! Developed by L.Bonaventura  (2004).
-  !! Adapted to new grid structure by L. Bonaventura, MPI-M, August 2005.
-  !! Modification by Daniel Reinert, DWD (2010-02-09)
-  !! - transferred to separate subroutine
-  !!
-  SUBROUTINE upwind_hflux_up( p_patch, p_cc, p_mass_flx_e, p_upflux, &
-    &                       opt_rlstart, opt_rlend, opt_slev, opt_elev )
-
-    TYPE(t_patch), TARGET, INTENT(IN) ::  &    !< patch on which computation is performed
-      &  p_patch
-
-    REAL(wp), INTENT(IN) ::     &  !< advected cell centered variable
-      &  p_cc(:,:,:)               !< dim: (nproma,nlev,nblks_c)
-
-    REAL(wp), INTENT(IN) ::     &  !< contravariant horizontal mass flux
-      &  p_mass_flx_e(:,:,:)       !< dim: (nproma,nlev,nblks_e)
-
-    REAL(wp), INTENT(INOUT) ::  &  !< variable in which the upwind flux is stored
-      &  p_upflux(:,:,:)           !< dim: (nproma,nlev,nblks_e)
-
-    INTEGER, INTENT(IN), OPTIONAL :: & !< optional: refinement control start level
-     &  opt_rlstart                    !< only valid for calculation of 'edge value'
-
-    INTEGER, INTENT(IN), OPTIONAL :: & !< optional: refinement control end level
-     &  opt_rlend                      !< (to avoid calculation of halo points)
-
-    INTEGER, INTENT(IN), OPTIONAL ::  & !< optional vertical start level
-      &  opt_slev
-
-    INTEGER, INTENT(IN), OPTIONAL ::  & !< optional vertical end level
-      &  opt_elev
-
-    INTEGER, DIMENSION(:,:,:), POINTER :: &  !< Pointer to line and block indices (array)
-      &  iilc, iibc
-    INTEGER  :: slev, elev           !< vertical start and end level
-    INTEGER  :: i_startblk, i_endblk, i_startidx, i_endidx
-    INTEGER  :: i_rlstart, i_rlend, i_nchdom
-    INTEGER  :: je, jk, jb         !< index of edge, vert level, block
-
-    !-----------------------------------------------------------------------
-
-    ! check optional arguments
-    IF ( PRESENT(opt_slev) ) THEN
-      slev = opt_slev
-    ELSE
-      slev = 1
-    END IF
-    IF ( PRESENT(opt_elev) ) THEN
-      elev = opt_elev
-    ELSE
-      elev = p_patch%nlev
-    END IF
-
-    IF ( PRESENT(opt_rlstart) ) THEN
-      i_rlstart = opt_rlstart
-    ELSE
-      i_rlstart = 2
-    ENDIF
-
-    IF ( PRESENT(opt_rlend) ) THEN
-      i_rlend = opt_rlend
-    ELSE
-      i_rlend = min_rledge_int - 1
-    ENDIF
-
-    ! number of child domains
-    i_nchdom = MAX(1,p_patch%n_childdom)
-
-    !
-    ! advection is done with 1st order upwind scheme,
-    ! i.e. a picewise constant approx. of the cell centered values
-    ! is used.
-    !
-
-    i_startblk = p_patch%edges%start_blk(i_rlstart,1)
-    i_endblk   = p_patch%edges%end_blk(i_rlend,i_nchdom)
-
-    ! line and block indices of two neighboring cells
-    iilc => p_patch%edges%cell_idx
-    iibc => p_patch%edges%cell_blk
-
-    ! loop through all patch edges (and blocks)
-
-    !$ACC DATA PRESENT(p_cc, p_mass_flx_e) PRESENT(p_upflux) &
-    !$ACC   PRESENT(iilc, iibc) IF(i_am_accel_node)
-
-!$OMP PARALLEL
-!$OMP DO PRIVATE(jb,je,jk,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
-    DO jb = i_startblk, i_endblk
-
-      CALL get_indices_e(p_patch, jb, i_startblk, i_endblk,   &
-        &                i_startidx, i_endidx, i_rlstart, i_rlend)
-
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
-#ifdef __LOOP_EXCHANGE
-      DO je = i_startidx, i_endidx
-        DO jk = slev, elev
-#else
-      DO jk = slev, elev
-        DO je = i_startidx, i_endidx
-#endif
-          !
-          ! compute the first order upwind flux; notice
-          ! that only the p_cc*p_mass_flx_e value at cell edge is computed
-          ! multiplication by edge length is avoided to
-          ! compute final conservative update using the discrete
-          ! div operator
-          !
-          IF ( p_mass_flx_e(je,jk,jb) .GE. 0.0_wp ) THEN
-            p_upflux(je,jk,jb) = p_mass_flx_e(je,jk,jb) * p_cc(iilc(je,jb,2),jk,iibc(je,jb,2))
-          ELSE
-            p_upflux(je,jk,jb) = p_mass_flx_e(je,jk,jb) * p_cc(iilc(je,jb,1),jk,iibc(je,jb,1))
-          ENDIF
-
-        END DO  ! end loop over edges
-
-      END DO  ! end loop over levels
-      !$ACC END PARALLEL
-
-    END DO  ! end loop over blocks
-    !$ACC WAIT(1)
-
-!$OMP END DO NOWAIT
-!$OMP END PARALLEL
-
-    !$ACC END DATA
-
-  END SUBROUTINE upwind_hflux_up
-
-
-
   !-------------------------------------------------------------------------
   !>
   !! The second order MIURA scheme
@@ -880,7 +720,7 @@ CONTAINS
     CHARACTER(len=*), PARAMETER ::  &
       &  routine = modname//':upwind_hflux_miura'
 
-    TYPE(t_patch), TARGET, INTENT(INOUT) ::  &   !< patch on which computation is performed
+    TYPE(t_patch), TARGET, INTENT(IN) ::  &   !< patch on which computation is performed
       &  p_patch
 
     TYPE(t_int_state), TARGET, INTENT(IN) ::  &  !< pointer to data structure for interpolation
@@ -1268,7 +1108,7 @@ CONTAINS
     CHARACTER(len=*), PARAMETER ::  &
       &  routine = modname//':upwind_hflux_miura_cycl'
 
-    TYPE(t_patch), TARGET, INTENT(INOUT) ::  &   !< patch on which computation is performed
+    TYPE(t_patch), TARGET, INTENT(IN) ::  &   !< patch on which computation is performed
       &  p_patch
 
     TYPE(t_int_state), TARGET, INTENT(IN) ::  &  !< pointer to data structure for interpolation
@@ -1772,7 +1612,7 @@ CONTAINS
     CHARACTER(len=*), PARAMETER ::  &
       &  routine = modname//':upwind_hflux_miura3'
 
-    TYPE(t_patch), INTENT(INOUT) ::  &  !< patch on which computation is performed
+    TYPE(t_patch), INTENT(IN) ::  &  !< patch on which computation is performed
       &  p_patch
 
     TYPE(t_int_state), TARGET, INTENT(IN) ::  &  !< pointer to data structure for interpolation
@@ -2267,7 +2107,7 @@ CONTAINS
     CHARACTER(len=*), PARAMETER ::  &
       &  routine = modname//':upwind_hflux_ffsl'
 
-    TYPE(t_patch), INTENT(INOUT) ::  &  !< patch on which computation is performed
+    TYPE(t_patch), INTENT(IN) ::  &  !< patch on which computation is performed
       &  p_patch
 
     TYPE(t_int_state), TARGET, INTENT(IN) ::  &  !< pointer to data structure for interpolation
@@ -2789,7 +2629,7 @@ CONTAINS
     CHARACTER(len=*), PARAMETER ::  &
       &  routine = modname//':upwind_hflux_hybrid'
 
-    TYPE(t_patch), INTENT(INOUT) ::  &  !< patch on which computation is performed
+    TYPE(t_patch), INTENT(IN) ::  &  !< patch on which computation is performed
       &  p_patch
 
     TYPE(t_int_state), TARGET, INTENT(IN) ::  &  !< pointer to data structure for interpolation

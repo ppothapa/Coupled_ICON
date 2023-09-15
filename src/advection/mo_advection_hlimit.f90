@@ -96,7 +96,7 @@ CONTAINS
     &                         p_mflx_tracer_h, slev, elev, opt_beta_fct,    &
     &                         opt_rlstart, opt_rlend )
 
-    TYPE(t_patch), TARGET, INTENT(inout) ::  &   !< patch on which computation is performed
+    TYPE(t_patch), TARGET, INTENT(IN) ::  &   !< patch on which computation is performed
       &  ptr_patch
 
     TYPE(t_int_state), TARGET, INTENT(IN) :: & !< pointer to data structure for
@@ -245,7 +245,6 @@ CONTAINS
     !
     ! 1. Calculate low (first) order fluxes using the standard upwind scheme and the
     !    antidiffusive fluxes
-    !    (not allowed to call upwind_hflux_up directly, due to circular dependency)
 
     ! loop through all patch edges (and blocks)
 
@@ -580,7 +579,7 @@ CONTAINS
     &                         p_rhodz_now, p_mflx_tracer_h, slev, elev, &
     &                         opt_rlstart, opt_rlend, opt_acc_async )
 
-    TYPE(t_patch), TARGET, INTENT(INOUT) ::  &   !< patch on which computation is performed
+    TYPE(t_patch), TARGET, INTENT(IN) ::  &   !< patch on which computation is performed
       &  ptr_patch
 
     TYPE(t_int_state), TARGET, INTENT(IN) ::  &  !< pointer to data structure for

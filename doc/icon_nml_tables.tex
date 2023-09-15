@@ -8227,8 +8227,9 @@ C& ' ' & & Comma-separated list of initialization formulas for additional passiv
 %\hline
 igrad\_c\_miura&
 I& 1& & Method for gradient reconstruction at cell center for 2nd order miura scheme& \tabularnewline
-& & & & 1: Least-squares (linear, non-consv)& ihadv\_tracer=2\tabularnewline
-& & & & 2: Green-Gauss&
+& & & & 1: Least-squares (linear, non-consv)& ihadv\_tracer=2, 20\tabularnewline
+& & & & 2: Green-Gauss& \tabularnewline
+& & & & 3: based on shape function derivatives for a three-node triangular element (Fish. J and T. Belytschko, 2007) &
 \tabularnewline
 
 %\hline

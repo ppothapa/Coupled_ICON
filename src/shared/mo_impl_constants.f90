@@ -357,7 +357,6 @@ MODULE mo_impl_constants
   !
   ! identifier for horizontal transport scheme
   INTEGER, PARAMETER :: NO_HADV = 0
-  INTEGER, PARAMETER :: UP      = 1
   INTEGER, PARAMETER :: MIURA   = 2
   INTEGER, PARAMETER :: MIURA3  = 3
   INTEGER, PARAMETER :: FFSL    = 4

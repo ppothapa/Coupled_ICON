@@ -26,7 +26,7 @@ MODULE mo_advection_config
     &                                     FFSL_HYB_MCYCL, ippm_v, ipsm_v,          &
     &                                     ino_flx, iparent_flx, inwp,              &
     &                                     iaes, SUCCESS, VNAME_LEN, NO_HADV,       &
-    &                                     NO_VADV, UP, vlname_len
+    &                                     NO_VADV, vlname_len
   USE mo_exception,                 ONLY: message, message_text, finish
   USE mo_mpi,                       ONLY: my_process_is_stdio
   USE mo_grid_config,               ONLY: n_dom
@@ -316,7 +316,7 @@ CONTAINS
     INTEGER, PARAMETER :: n_timelevels = 2
     INTEGER, PARAMETER :: itime = 1    !< tracer_list time level
                                        !< here it does not matter if we use 1 or 2
-    INTEGER :: z_go_tri(11)  ! for crosscheck
+    INTEGER :: z_go_tri(10)  ! for crosscheck
     CHARACTER(len=vlname_len) :: listname
 
     ! Build tracer list from the prognostic state for time levels `now` and `new`
@@ -340,13 +340,13 @@ CONTAINS
     !--------------------------------------------------------------------
 
     ! Flux computation methods - consistency check
-    z_go_tri(1:11)=(/NO_HADV,UP,MIURA,MIURA3,FFSL,FFSL_HYB,MCYCL,       &
+    z_go_tri(1:10)=(/NO_HADV,MIURA,MIURA3,FFSL,FFSL_HYB,MCYCL,       &
       &              MIURA_MCYCL,MIURA3_MCYCL,FFSL_MCYCL,FFSL_HYB_MCYCL/)
     DO jt=1,ntracer
       IF ( ALL(z_go_tri /= advection_config(jg)%ihadv_tracer(jt)) ) THEN
         CALL finish( routine,                                       &
           &  'incorrect settings for TRI-C grid ihadv_tracer. Must be '// &
-          &  '0,1,2,3,4,5,6,20,22,32,42 or 52 ')
+          &  '0,2,3,4,5,6,20,22,32,42 or 52 ')
       ENDIF
     ENDDO
 
