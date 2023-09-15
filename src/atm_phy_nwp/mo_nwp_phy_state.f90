@@ -35,6 +35,7 @@ MODULE mo_nwp_phy_state
 !! infrastructure by Kristina Froehlich (MPI-M, 2011-04-27)
 !! Added clch, clcm, clcl, hbas_con, htop_con by Helmut Frank (DWD, 2013-01-17)
 !! Added hzerocl, gust10                      by Helmut Frank (DWD, 2013-03-13)
+!! Added z_pbl for common ICON runs           by Michael Haller (DWD, 2022-02-22)
 !!
 !! @par Copyright and License
 !!
@@ -1235,6 +1236,27 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
                 &    hor_intp_type=HINTP_TYPE_LONLAT_NNB ),                    &
                 & lopenacc=.TRUE.  )
     __acc_attach(diag%snowlmt)
+
+
+    ! &      diag%hpbl(nproma,nblks_c)
+    ! height of bdl for use in non-LES simulations
+
+    IF ( var_in_output%hpbl ) THEN
+
+#ifdef _OPENACC
+      CALL finish ('mo_nwp_phy_state:new_nwp_phy_diag_list', &
+        'hpbl calculation not ported to GPU')
+#endif
+
+      cf_desc    = t_cf_var('hpbl', 'm', 'boundary layer height above sea level', &
+           &                datatype_flt)
+      grib2_desc = grib2_var(0, 3, 18, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( diag_list, 'hpbl', diag%hpbl,                             &
+        & GRID_UNSTRUCTURED_CELL, ZA_CLOUD_TOP, cf_desc, grib2_desc,            &
+        & ldims=shape2d, lrestart=.FALSE. )
+
+    ENDIF
+
 
 
     ! &      diag%clc(nproma,nlev,nblks_c)
@@ -3900,12 +3922,13 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
 
     !Anurag Dipankar, MPI (7 Oct 2013)
     !Diagnostics for LES physics
+
     IF ( atm_phy_nwp_config(k_jg)%is_les_phy ) THEN
 
       ! &      diag%z_pbl(nproma,nblks_c)
       cf_desc    = t_cf_var('z_pbl', 'm', 'boundary layer height above sea level', &
            &                datatype_flt)
-      grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      grib2_desc = grib2_var(0, 3, 18, ibits, GRID_UNSTRUCTURED, GRID_CELL)
       CALL add_var( diag_list, 'z_pbl', diag%z_pbl,                             &
         & GRID_UNSTRUCTURED_CELL, ZA_CLOUD_TOP, cf_desc, grib2_desc,            &
         & ldims=shape2d, lrestart=.FALSE. )

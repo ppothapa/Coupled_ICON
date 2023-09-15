@@ -394,7 +394,7 @@ MODULE mo_nwp_phy_types
 
     !> Diagnostics for LES turbulence
     REAL(wp), POINTER, CONTIGUOUS :: &
-      z_pbl(:,:)     ,     & !> Boundary layer height  (m)
+      z_pbl(:,:)     ,     & !> Boundary layer height  (m) (LES)
       bruvais(:,:,:) ,     & !> Brunt Vaisala Frequency
       mech_prod(:,:,:),    & !> Mechanical production/loss term in TKE equation
       t_cbase(:,:),        & !>cloud base temperature
@@ -499,7 +499,8 @@ MODULE mo_nwp_phy_types
       cape_3km (:,:),      & !! convective available energy of mean surface layer parcel with endpoint 3km.
       cin_3km(:,:),        & !! convective inhibition of mean surface layer parcel with endpoint 3km.
       cloudtop(:,:),       & !! Cloud Top
-      srh(:,:,:)             !< Storm relative helicity with right-moving storm motion after Bunkers et al. (2000)
+      srh(:,:,:),          & !< Storm relative helicity with right-moving storm motion after Bunkers et al. (2000)
+      hpbl(:,:)              !! Boundary layer height  (m)
 
     ! Buffer field needed when vertical nesting is combined with a reduced radiation
     ! grid and latm_above_top = .TRUE.

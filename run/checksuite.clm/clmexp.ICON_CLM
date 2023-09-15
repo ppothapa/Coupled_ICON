@@ -180,7 +180,7 @@ cat > NAMELIST_${EXPID} << EOF
 	  output_filename              = '${OUTDIR}/out01_${EXPID}'
 	  filename_format              = '<output_filename>_<datetime2>'
        operation                    = ""
-         ml_varlist                   = 'alb_si','fr_seaice','t_g' ! reduced list for buildbot
+         ml_varlist                   = 'alb_si','fr_seaice','t_g','hpbl' ! reduced list for buildbot
 	 output_grid                  =  .TRUE.
 !	 stream_partitions_ml         =  2
 	/
