@@ -398,19 +398,25 @@ CONTAINS
     CALL messy_init_memory(n_dom)
 #endif
 
-    ! Due to the required ability to overwrite advection-Namelist settings
-    ! via add_ref/add_tracer_ref for ICON-ART, configure_advection is called
-    ! AFTER the nh_state is created. Otherwise, potential modifications of the
-    ! advection-Namelist can not be taken into account properly.
-    ! Unfortunately this conflicts with our trying to call the config-routines
-    ! as early as possible.
+    ! Due to the requirement for ICON-ART to overwrite advection-Namelist settings
+    ! via add_ref/add_tracer_ref, configure_advection is called AFTER the nh_state
+    ! is created. Otherwise, potential modifications of the advection-Namelist
+    ! can not be taken into account properly. Unfortunately this conflicts with
+    ! our policy to call the config-routines as early as possible.
     DO jg =1,n_dom
-       CALL configure_advection( jg, p_patch(jg)%nlev,                   &
-        &                        p_patch(1)%nlev, iforcing, iqc, iqt,    &
-        &                        kstart_moist(jg), kend_qvsubstep(jg),   &
-        &                        lvert_nest, ntracer,                    &
-        &                        p_nh_state_lists(jg), .TRUE.,           &
-        &                        kstart_tracer(jg,:) )
+      CALL configure_advection( jg             = jg,                                  & !in
+        &                       nlev           = p_patch(jg)%nlev,                    & !in
+        &                       nlev_1         = p_patch(1)%nlev,                     & !in
+        &                       iforcing       = iforcing,                            & !in
+        &                       iqc            = iqc,                                 & !in
+        &                       iqt            = iqt,                                 & !in
+        &                       kstart_moist   = kstart_moist(jg),                    & !in
+        &                       kend_qvsubstep = kend_qvsubstep(jg),                  & !in
+        &                       lvert_nest     = lvert_nest,                          & !in
+        &                       ntracer        = ntracer,                             & !in
+        &                       prog_list      = p_nh_state_lists(jg)%prog_list(:),   & !in
+        &                       tracer_list    = p_nh_state_lists(jg)%tracer_list(:), & !inout
+        &                       kstart_tracer  = kstart_tracer(jg,:) )                  !in
     ENDDO
 
     IF (ldass_lhn) THEN
