@@ -5,6 +5,15 @@
 ###                   VECTOR ENGINE                            ###
 ##################################################################
 
+# This configure wrapper requires RH_VERSION=8
+# We check, if the current login node runs the required OS version
+#
+if ((RH_VERSION != 8)); then
+ echo "The OS version of this login node is RH_VERSION=$RH_VERSION, but the configure wrapper requires RH_VERSION=8"
+ exit 1
+fi
+
+#
 set -eu
 
 SCRIPT_DIR=$(cd "$(dirname "$0")">/dev/null; pwd)

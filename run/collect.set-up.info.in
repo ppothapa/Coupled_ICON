@@ -24,6 +24,7 @@ use_num_io_procs
 use_mpi_root
 use_mpi_startrun
 use_openmp
+use_queue
 use_shell
 use_srcdir
 use_submit
@@ -165,6 +166,11 @@ case "$use_site" in
         use_target='rcl'
         use_shell='/bin/bash'
         use_mpi_startrun='@MPI_LAUNCH@'
+        if ((RH_VERSION != 8)); then
+          use_queue='sx_norm'
+        else
+          use_queue='sx_norm_rh8'
+        fi
       ;;
       xc*)
         use_submit='qsub'
