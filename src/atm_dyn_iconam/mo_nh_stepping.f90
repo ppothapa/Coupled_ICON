@@ -38,7 +38,8 @@ MODULE mo_nh_stepping
     &                                    divdamp_fac, divdamp_fac_o2, ih_clch, ih_clcm, kstart_moist, &
     &                                    ndyn_substeps, ndyn_substeps_var, ndyn_substeps_max, vcfl_threshold
   USE mo_diffusion_config,         ONLY: diffusion_config
-  USE mo_dynamics_config,          ONLY: nnow,nnew, nnow_rcf, nnew_rcf, nsav1, nsav2, idiv_method, ldeepatmo
+  USE mo_dynamics_config,          ONLY: nnow,nnew, nnow_rcf, nnew_rcf, nsav1, nsav2, idiv_method, &
+    &                                    lmoist_thdyn, ldeepatmo
   USE mo_io_config,                ONLY: is_totint_time, n_diag, var_in_output, checkpoint_on_demand
   USE mo_parallel_config,          ONLY: nproma, num_prefetch_proc, proc0_offloading
   USE mo_run_config,               ONLY: ltestcase, dtime, nsteps, ldynamics, ltransport,   &
@@ -84,7 +85,7 @@ MODULE mo_nh_stepping
   USE mo_solve_nonhydro,           ONLY: solve_nh
   USE mo_update_dyn_scm,           ONLY: add_slowphys_scm
   USE mo_advection_stepping,       ONLY: step_advection
-  USE mo_nh_dtp_interface,         ONLY: prepare_tracer, compute_airmass
+  USE mo_nh_dtp_interface,         ONLY: prepare_tracer, compute_airmass, prepare_thermo_src_term
   USE mo_nh_diffusion,             ONLY: diffusion
   USE mo_memory_log,               ONLY: memory_log_add
   USE mo_mpi,                      ONLY: proc_split, push_glob_comm, pop_glob_comm, &
@@ -2691,7 +2692,8 @@ MODULE mo_nh_stepping
       &                  rho       = p_nh_state%prog(nnow(jg))%rho, & !in
       &                  airmass   = p_nh_state%diag%airmass_now    ) !inout
 
-
+    ! get moisture term for thermodynamic equation 
+    IF (lmoist_thdyn) CALL prepare_thermo_src_term(p_patch)
 
     ! perform dynamics substepping
     !

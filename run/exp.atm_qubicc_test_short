@@ -214,6 +214,9 @@ cat >> ${atmo_namelist} << EOF
  thhgtd_zdiffu      = 125.
  htop_moist_proc    = ${htop_cloudy}
 /
+&dynamics_nml
+ lmoist_thdyn   = .TRUE.
+/
 &diffusion_nml
  hdiff_order        = 5
  hdiff_efdt_ratio   = 24.0        ! change from default 36.0 to 24.0

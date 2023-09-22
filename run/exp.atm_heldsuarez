@@ -92,6 +92,9 @@ cat > ${atmo_namelist} << EOF
  lhs_nh_vn_ptb    = .FALSE.     ! do not use random normal wind perturbation in initial state
  lhs_fric_heat    = .FALSE.     ! do not apply frictional heating
 /
+&dynamics_nml
+ lmoist_thdyn     = .FALSE.
+/
 &nonhydrostatic_nml
  ndyn_substeps    = 5           ! dtime/dt_dyn
  damp_height      = 50000.      ! [m]
