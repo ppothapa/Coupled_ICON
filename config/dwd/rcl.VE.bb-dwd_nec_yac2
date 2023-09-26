@@ -41,7 +41,7 @@ if ((RH_VERSION !=8 )); then
     acx_cv_fc_c_compatible_mpi=yes \
     "$@"
 else
-  "$(dirname -- "${BASH_SOURCE[0]}")"/rcl.VE.nfort-4.0.0_mpi-2.22_art_oper_RH8 \
+  "$(dirname -- "${BASH_SOURCE[0]}")"/rcl.VE.nfort-4.0.0_mpi-3.3_art_oper_RH8 \
     --disable-openmp \
     --enable-ocean \
     --enable-waves \
