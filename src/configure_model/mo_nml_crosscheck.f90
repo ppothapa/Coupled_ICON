@@ -49,6 +49,7 @@ MODULE mo_nml_crosscheck
   USE mo_aes_phy_config,           ONLY: aes_phy_config
   USE mo_radiation_config,         ONLY: irad_aero, iRadAeroNone, iRadAeroConst,           &
     &                                    iRadAeroTegen, iRadAeroART, iRadAeroConstKinne,   &
+    &                                    iRadAeroCAMSclim,                                 &
     &                                    iRadAeroKinne, iRadAeroVolc, iRadAeroKinneVolc,   &
     &                                    iRadAeroKinneVolcSP, iRadAeroKinneSP,             &
     &                                    irad_o3, irad_h2o, irad_co2, irad_ch4,            &
@@ -407,8 +408,8 @@ CONTAINS
               &  CALL finish(routine,'For inwp_radiation = 4, irad_cfc11 has to be 0, 2 or 4')
             IF (.NOT. ANY( irad_cfc12   == (/0,2,4/)       ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, irad_cfc12 has to be 0, 2 or 4')
-            IF (.NOT. ANY( irad_aero    == (/iRadAeroNone, iRadAeroConst, iRadAeroTegen, iRadAeroART, &
-              &                              iRadAeroConstKinne, iRadAeroKinne, iRadAeroVolc,         &
+            IF (.NOT. ANY( irad_aero    == (/iRadAeroNone, iRadAeroConst, iRadAeroTegen, iRadAeroART,           &
+              &                              iRadAeroConstKinne, iRadAeroKinne, iRadAeroVolc, iRadAeroCAMSclim, &
               &                              iRadAeroKinneVolc, iRadAeroKinneVolcSP, iRadAeroKinneSP/) ) ) THEN
               WRITE(message_text,'(a,i2,a)') 'irad_aero = ', irad_aero,' is invalid for inwp_radiation=4'
               CALL finish(routine,message_text)
@@ -549,6 +550,11 @@ CONTAINS
       ENDDO
     END IF
 
+#ifdef _OPENACC
+    IF ( irad_aero == iRadAeroCAMSclim) THEN
+        CALL finish(routine,'CAMS 3D climatology irad_aero=7 is currently not supported on GPU.')
+    END IF
+#endif
 
     !--------------------------------------------------------------------
     ! Tracers and diabatic forcing

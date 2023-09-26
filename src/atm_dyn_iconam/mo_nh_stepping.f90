@@ -51,6 +51,7 @@ MODULE mo_nh_stepping
     &                                    timer_integrate_nh, timer_nh_diagnostics,        &
     &                                    timer_iconam_aes, timer_dace_coupling
   USE mo_ext_data_state,           ONLY: ext_data
+  USE mo_radiation_config,         ONLY: irad_aero, iRadAeroCAMSclim
   USE mo_limarea_config,           ONLY: latbc_config
   USE mo_model_domain,             ONLY: p_patch, t_patch, p_patch_local_parent
   USE mo_time_config,              ONLY: t_time_config
@@ -119,6 +120,7 @@ MODULE mo_nh_stepping
   USE mo_advection_aerosols,       ONLY: aerosol_2D_advection, setup_aerosol_advection
   USE mo_aerosol_util,             ONLY: aerosol_2D_diffusion
   USE mo_ensemble_pert_config,     ONLY: compute_ensemble_pert, use_ensemble_pert
+  USE mo_nwp_aerosol,              ONLY: cams_reader, cams_intp    
 #endif
   USE mo_iau,                      ONLY: compute_iau_wgt
 #ifndef __NO_AES__
@@ -149,6 +151,7 @@ MODULE mo_nh_stepping
 #endif
 
   USE mo_reader_sst_sic,           ONLY: t_sst_sic_reader
+  USE mo_reader_cams,              ONLY: t_cams_reader
   USE mo_interpolate_time,         ONLY: t_time_intp
   USE mo_nh_init_nest_utils,       ONLY: initialize_nest
   USE mo_hydro_adjust,             ONLY: hydro_adjust_const_thetav
@@ -345,6 +348,10 @@ MODULE mo_nh_stepping
       ENDDO
     END IF
 
+    IF (irad_aero == iRadAeroCAMSclim) THEN
+      ALLOCATE(cams_reader(n_dom))
+      ALLOCATE(cams_intp(n_dom))
+    END IF
 
     IF (sstice_mode == SSTICE_INST) THEN
       ALLOCATE(sst_reader(n_dom))
@@ -720,6 +727,8 @@ MODULE mo_nh_stepping
   IF (ALLOCATED(sic_reader)) DEALLOCATE(sic_reader)
   IF (ALLOCATED(sst_intp)) DEALLOCATE(sst_intp)
   IF (ALLOCATED(sic_intp)) DEALLOCATE(sic_intp)
+  IF (ALLOCATED(cams_reader)) DEALLOCATE(cams_reader)
+  IF (ALLOCATED(cams_intp)) DEALLOCATE(cams_intp)
 #endif
   END SUBROUTINE perform_nh_stepping
   !-------------------------------------------------------------------------
@@ -3316,6 +3325,11 @@ MODULE mo_nh_stepping
   IF (ALLOCATED(sic_reader)) THEN
     DO jg = 1, n_dom
       CALL sic_reader(jg)%deinit
+    ENDDO
+  ENDIF
+  IF (ALLOCATED(cams_reader)) THEN
+    DO jg = 1, n_dom
+      CALL cams_reader(jg)%deinit
     ENDDO
   ENDIF
 #endif

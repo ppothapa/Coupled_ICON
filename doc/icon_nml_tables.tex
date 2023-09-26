@@ -7363,6 +7363,7 @@ Aerosols\\
 2: global constant\\
 3: externally specified\\
 6: Tegen aerosol climatology {\color{red}for run\_nml/iforcing = 3 (NWP) .AND. itopo =1 }\\
+7: CAMS 3D aerosol climatology, the filename can be specified via cams\_clim\_filename in \&radiation\_nml\\
 9: ART online aerosol radiation interaction, uses Tegen for aerosols not chosen to be represented in ART {\color{red}for run\_nml/iforcing = 3 (NWP) .AND. itopo =1 .AND. lart=TRUE .AND. iart\_ari=1}\\
 12: tropospheric 'Kinne' aerosols, constant in time\\
 13: total tropospheric 'Kinne' aerosols, time dependent from file \\
@@ -7394,6 +7395,19 @@ C&
 &
 Path to the folder containing ecRad optical properties files. 
 & inwp\_radiation=4 (ecRad)
+\tabularnewline
+
+%\hline
+cams\_clim\_filename &
+C&
+"CAMS\_clim\_ \\
+R<nroot0>B<jlev>\_ \\
+DOM<idom>.nc"&
+&
+Path to the file containing CAMS 3D climatology data\\
+Data can be prepared using the script scripts/preprocessing/ \\ make\_camsclim\_onICONgrid.sh 
+& inwp\_radiation=4 (ecRad)\\
+irad\_aero=7 (CAMS 3D climatology)
 \tabularnewline
 
 %\hline

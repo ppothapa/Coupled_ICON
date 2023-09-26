@@ -5,6 +5,8 @@ MODULE mo_interpolate_time
 
   USE mo_kind,              ONLY: wp
   USE mo_exception,         ONLY: message, message_text, finish
+  USE mo_bcs_time_interpolation, ONLY: t_time_interpolation_weights, &
+       &                               calculate_time_interpolation_weights
   USE mo_parallel_config,   ONLY: nproma
   USE mo_impl_constants,    ONLY: MAX_CHAR_LENGTH
   USE mtime,                ONLY: datetime, max_datetime_str_len,             &
@@ -52,9 +54,10 @@ MODULE mo_interpolate_time
     procedure :: intp => time_intp_intp
   END TYPE t_time_intp
 
-  INTEGER, PARAMETER :: intModeConstant    = 0
-  INTEGER, PARAMETER :: intModeLinear      = 1
-  INTEGER, PARAMETER :: intModeLinearWeird = 11
+  INTEGER, PARAMETER :: intModeConstant          = 0
+  INTEGER, PARAMETER :: intModeLinear            = 1
+  INTEGER, PARAMETER :: intModeLinearMonthlyClim = 2
+  INTEGER, PARAMETER :: intModeLinearWeird       = 11
 
   CHARACTER(len=*), PARAMETER :: modname = 'mo_interpolate_time'
 
@@ -68,7 +71,8 @@ CONTAINS
     INTEGER,                OPTIONAL, INTENT(in   ) :: int_mode
 
     INTEGER :: ntimes
-    INTEGER :: i
+    INTEGER :: i, tlev2
+    TYPE(t_time_interpolation_weights) :: tiw
 
     CHARACTER(len=max_datetime_str_len)      :: date_str1, date_str2
 
@@ -86,65 +90,81 @@ CONTAINS
       this%interpolation_mode = intModeLinear
     ENDIF
 
-    CALL this%reader%get_times(this%times)
+    IF (this%interpolation_mode == intModeLinearMonthlyClim) THEN
 
-    CALL getJulianDayFromDatetime(local_time, current_jd)
-    CALL datetimetostring(local_time, date_str2)
+      tiw = calculate_time_interpolation_weights(local_time)
 
-    ntimes = SIZE(this%times)
-    this%tidx = -1
-    DO i = 1,ntimes
-      CALL getDatetimeFromJulianDay(this%times(i), current_dt)
+      this%tidx = tiw%month1
+      tlev2     = tiw%month2
+
+      WRITE(message_text,'(a,i6,a,i6)') 'Loading new data for month ', this%tidx, ' and month ', tlev2
+      CALL message(routine, message_text)
+
+    ELSE
+
+      CALL this%reader%get_times(this%times)
+
+      CALL getJulianDayFromDatetime(local_time, current_jd)
+      CALL datetimetostring(local_time, date_str2)
+
+      ntimes = SIZE(this%times)
+      this%tidx = -1
+      DO i = 1,ntimes
+        CALL getDatetimeFromJulianDay(this%times(i), current_dt)
+        CALL datetimetostring(current_dt, date_str1)
+        IF (current_jd >= this%times(i)) THEN
+          this%tidx = i
+        ENDIF
+      ENDDO
+
+      IF (this%tidx ==  -1) THEN
+        CALL datetimetostring(local_time, date_str1)
+        CALL finish(routine,"Time to interpolate for "//trim(date_str1)//" not covered by boundary condition data file")
+      ENDIF
+
+      CALL getDatetimeFromJulianDay(this%times(this%tidx), current_dt)
       CALL datetimetostring(current_dt, date_str1)
-      IF (current_jd >= this%times(i)) THEN
-        this%tidx = i
-      ENDIF
-    ENDDO
 
-    IF (this%tidx ==  -1) THEN
-      CALL datetimetostring(local_time, date_str1)
-      CALL finish(routine,"Time to interpolate for "//trim(date_str1)//" not covered by boundary condition data file")
-    ENDIF
+      check_for_time_coverage: BLOCK
+        TYPE(datetime) :: first_time_in_file, last_time_in_file
 
-    CALL getDatetimeFromJulianDay(this%times(this%tidx), current_dt)
-    CALL datetimetostring(current_dt, date_str1)
+        CALL getDatetimeFromJulianDay(this%times(1), first_time_in_file)
+        CALL getDatetimeFromJulianDay(this%times(ntimes), last_time_in_file)
 
-    check_for_time_coverage: BLOCK
-      TYPE(datetime) :: first_time_in_file, last_time_in_file
+        IF (time_config%tc_startdate < first_time_in_file) THEN
+          CALL datetimetostring(time_config%tc_startdate, date_str1)
+          CALL datetimetostring(first_time_in_file, date_str2)
+          CALL finish(routine, "Start of run ("//TRIM(date_str1)//") before start of data ("//TRIM(date_str2)//") to be read")
+        ENDIF
+        CALL getDatetimeFromJulianDay(this%times(ntimes), last_time_in_file)
+        IF (time_config%tc_stopdate > last_time_in_file) THEN
+          CALL datetimetostring(time_config%tc_stopdate, date_str1)
+          CALL datetimetostring(last_time_in_file, date_str2)
+          CALL finish(routine, "End of run ("//TRIM(date_str1)//") after end of data ("//TRIM(date_str2)//") to be read")
+        ENDIF
 
-      CALL getDatetimeFromJulianDay(this%times(1), first_time_in_file)
-      CALL getDatetimeFromJulianDay(this%times(ntimes), last_time_in_file)
+      END BLOCK check_for_time_coverage
 
-      IF (time_config%tc_startdate < first_time_in_file) THEN
-        CALL datetimetostring(time_config%tc_startdate, date_str1)
-        CALL datetimetostring(first_time_in_file, date_str2)
-        CALL finish(routine, "Start of run ("//TRIM(date_str1)//") before start of data ("//TRIM(date_str2)//") to be read")
-      ENDIF
-      CALL getDatetimeFromJulianDay(this%times(ntimes), last_time_in_file)
-      IF (time_config%tc_stopdate > last_time_in_file) THEN
-        CALL datetimetostring(time_config%tc_stopdate, date_str1)
-        CALL datetimetostring(last_time_in_file, date_str2)
-        CALL finish(routine, "End of run ("//TRIM(date_str1)//") after end of data ("//TRIM(date_str2)//") to be read")
-      ENDIF
+      log_output: BLOCK
+        TYPE(datetime) :: load_time_in_file, load_next_time_in_file
 
-    END BLOCK check_for_time_coverage
+        CALL getDatetimeFromJulianDay(this%times(this%tidx), load_time_in_file)
+        CALL datetimetostring(load_time_in_file, date_str1)
+        CALL getDatetimeFromJulianDay(this%times(this%tidx+1), load_next_time_in_file)
+        CALL datetimetostring(load_next_time_in_file, date_str2)
+        WRITE(message_text,'(a,i0,a,i0,a)') &
+             &         " loading data for "//TRIM(date_str1)//" (", this%tidx, &
+             &                     ") and "//TRIM(date_str2)//" (", this%tidx+1, ")"
+        CALL message(TRIM(routine),message_text)
+      END BLOCK log_output
 
-    log_output: BLOCK
-      TYPE(datetime) :: load_time_in_file, load_next_time_in_file
+      tlev2 = this%tidx+1
 
-      CALL getDatetimeFromJulianDay(this%times(this%tidx), load_time_in_file)
-      CALL datetimetostring(load_time_in_file, date_str1)
-      CALL getDatetimeFromJulianDay(this%times(this%tidx+1), load_next_time_in_file)
-      CALL datetimetostring(load_next_time_in_file, date_str2)
-      WRITE(message_text,'(a,i0,a,i0,a)') &
-           &         " loading data for "//TRIM(date_str1)//" (", this%tidx, &
-           &                     ") and "//TRIM(date_str2)//" (", this%tidx+1, ")"
-      CALL message(TRIM(routine),message_text)
-    END BLOCK log_output
+    END IF
 
-    CALL reader%get_one_timelev(this%tidx,   this%var_name, this%dataa)
+    CALL reader%get_one_timelev(this%tidx, this%var_name, this%dataa)
     this%dataold => this%dataa
-    CALL reader%get_one_timelev(this%tidx+1, this%var_name, this%datab)
+    CALL reader%get_one_timelev(tlev2, this%var_name, this%datab)
     this%datanew => this%datab
 
   END SUBROUTINE time_intp_init
@@ -156,27 +176,51 @@ CONTAINS
 
     TYPE(julianday)                     :: current_jd
     TYPE(juliandelta)                   :: delta_1, delta_2
+    TYPE(t_time_interpolation_weights)  :: tiw
+
     REAL(wp)                            :: ds1, ds2, weight
-    INTEGER                             :: jc,jk,jb,jw
+    INTEGER                             :: jc,jk,jb,jw, tlev2
     INTEGER                             :: nlen, nblks, npromz, nlev
     CHARACTER(len=max_datetime_str_len) :: date_str
+    LOGICAL                             :: lnew_dataset
 
     CHARACTER(*), PARAMETER :: routine = modname//"::time_intp_intp"
 
-    CALL getJulianDayFromDatetime(local_time, current_jd)
+    lnew_dataset=.false.
 
-    IF (current_jd > this%times(this%tidx+1)) THEN
-      this%tidx    = this%tidx + 1
+    IF (this%interpolation_mode == intModeLinearMonthlyClim) THEN
 
-      log_output: BLOCK
-        TYPE(datetime) :: time_in_file
+      tiw = calculate_time_interpolation_weights(local_time)
+      IF (tiw%month1 /= this%tidx) THEN
+        lnew_dataset = .true.
+        this%tidx    = tiw%month1
+        tlev2        = tiw%month2
 
-        CALL getDatetimeFromJulianDay(this%times(this%tidx+1), time_in_file)
-        CALL datetimetostring(time_in_file, date_str)
-        WRITE(message_text,'(a,i0,a)') " loading new data, with tidx :", this%tidx+1, " ("//TRIM(date_str)//")"
-        CALL message(TRIM(routine),message_text)
-      END BLOCK log_output
+        WRITE(message_text,'(a,i6,a,i6)') 'Loading new data for month ', this%tidx, ' and month ', tlev2
+        CALL message(routine, message_text)
+      ENDIF
 
+    ELSE
+
+      CALL getJulianDayFromDatetime(local_time, current_jd)
+
+      IF (current_jd > this%times(this%tidx+1)) THEN
+        lnew_dataset = .true.
+        this%tidx    = this%tidx + 1
+        tlev2        = this%tidx + 1
+
+        log_output: BLOCK
+          TYPE(datetime) :: time_in_file
+
+          CALL getDatetimeFromJulianDay(this%times(this%tidx+1), time_in_file)
+          CALL datetimetostring(time_in_file, date_str)
+          WRITE(message_text,'(a,i0,a)') " loading new data, with tidx :", this%tidx+1, " ("//TRIM(date_str)//")"
+          CALL message(TRIM(routine),message_text)
+        END BLOCK log_output
+      ENDIF
+    ENDIF
+
+    IF (lnew_dataset) THEN
       ! FORTRAN!?!1! this should look like:
       ! DEALLOCATE(this%dataold)
       ! this%dataold => this%datanew
@@ -186,11 +230,11 @@ CONTAINS
       ! behind the pointer.
       IF(ASSOCIATED(this%dataold, this%dataa)) THEN
         this%dataold => this%datab
-        CALL this%reader%get_one_timelev(this%tidx+1, this%var_name, this%dataa)
+        CALL this%reader%get_one_timelev(tlev2, this%var_name, this%dataa)
         this%datanew => this%dataa
       ELSE
         this%dataold => this%dataa
-        CALL this%reader%get_one_timelev(this%tidx+1, this%var_name, this%datab)
+        CALL this%reader%get_one_timelev(tlev2, this%var_name, this%datab)
         this%datanew => this%datab
       ENDIF
     ENDIF
@@ -204,6 +248,8 @@ CONTAINS
       ds1 = 1.0e-3_wp * (no_of_ms_in_a_day * delta_1%day + delta_1%ms)
       ds2 = 1.0e-3_wp * (no_of_ms_in_a_day * delta_2%day + delta_2%ms)
       weight = ds1/ds2
+    ELSE IF (this%interpolation_mode == intModeLinearMonthlyClim) THEN
+      weight = tiw%weight2
     ELSE IF (this%interpolation_mode == intModeLinearWeird) THEN
       ! This should
       ! a) be renamed. (But what is this?)

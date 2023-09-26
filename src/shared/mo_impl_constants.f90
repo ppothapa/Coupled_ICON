@@ -340,6 +340,9 @@ MODULE mo_impl_constants
   INTEGER, PARAMETER :: idu   =  5
   INTEGER, PARAMETER :: nclass_aero = 5
 
+  ! Number of CAMS aerosols 
+  INTEGER, PARAMETER :: n_camsaermr = 11
+
   ! external parameter for radiation
 
   INTEGER, PARAMETER :: io3_interact =  1

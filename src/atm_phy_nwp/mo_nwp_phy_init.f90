@@ -59,6 +59,7 @@ MODULE mo_nwp_phy_init
     &                               ssi_radt, tsi_radt,irad_o3, rad_csalbw,           &
     &                               ghg_filename, irad_co2, irad_cfc11, irad_cfc12,   &
     &                               irad_n2o, irad_ch4, isolrad
+  USE mo_nwp_aerosol,         ONLY: nwp_aerosol_init
   USE mo_srtm_config,         ONLY: setup_srtm, ssi_amip, ssi_coddington
   USE mo_aerosol_util,        ONLY: init_aerosol_props_tegen_rrtm,                  &
     &                               zaea_rrtm, zaes_rrtm, zaeg_rrtm
@@ -1074,6 +1075,9 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
           l_filename_year = .FALSE.
           CALL read_bc_aeropt_kinne(ini_date, p_patch, l_filename_year, ecrad_conf%n_bands_lw, ecrad_conf%n_bands_sw)
         ENDIF
+
+        CALL nwp_aerosol_init(ini_date, p_patch)
+
         IF (ANY( irad_aero == (/iRadAeroKinne,iRadAeroKinneVolc/) )) THEN
           ! Transient Kinne aerosol:
           l_filename_year = .TRUE.

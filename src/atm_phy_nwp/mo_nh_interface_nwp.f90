@@ -80,7 +80,7 @@ MODULE mo_nh_interface_nwp
   USE mo_satad,                   ONLY: satad_v_3D, satad_v_3D_gpu, latent_heat_sublimation
   USE mo_aerosol_util,            ONLY: prog_aerosol_2D
   USE mo_radiation,               ONLY: radheat, pre_radiation_nwp
-  USE mo_radiation_config,        ONLY: irad_aero, iRadAeroTegen, iRadAeroART
+  USE mo_radiation_config,        ONLY: irad_aero, iRadAeroTegen, iRadAeroCAMSclim, iRadAeroART
   USE mo_nwp_gw_interface,        ONLY: nwp_gwdrag
   USE mo_nwp_gscp_interface,      ONLY: nwp_microphysics
   USE mo_nwp_turbtrans_interface, ONLY: nwp_turbtrans
@@ -1260,8 +1260,9 @@ CONTAINS
       ! Pressure has already been updated at the end of the fast physics part
       lpres = .FALSE.
 
-      ! Temperature at interface levels is needed if irad_aero = 6 or 9
-      IF ( lcall_phy_jg(itrad) .AND. ( irad_aero == iRadAeroTegen .OR. irad_aero == iRadAeroART ) ) THEN
+      ! Temperature at interface levels is needed if irad_aero = 6/7/9
+      IF ( lcall_phy_jg(itrad) .AND.  &
+        & ( irad_aero == iRadAeroTegen .OR. irad_aero == iRadAeroCAMSclim .OR. irad_aero == iRadAeroART ) ) THEN
         ltemp_ifc = .TRUE.
       ELSE
         ltemp_ifc = .FALSE.

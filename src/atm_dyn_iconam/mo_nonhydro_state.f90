@@ -34,7 +34,7 @@ MODULE mo_nonhydro_state
 
   USE mo_kind,                 ONLY: wp
   USE mo_impl_constants,       ONLY: SUCCESS, vname_len, vlname_len,                 &
-    &                                INWP, iaes,                                   &
+    &                                INWP, iaes, n_camsaermr,                        &
     &                                VINTP_METHOD_VN,                                &
     &                                VINTP_METHOD_QV, VINTP_METHOD_PRES,             &
     &                                VINTP_METHOD_LIN,                               &
@@ -67,6 +67,7 @@ MODULE mo_nonhydro_state
     &                                iqtke, ltestcase, lart,                    &
     &                                iqbin, iqb_i, iqb_e, iqb_s            
   USE mo_coupling_config,      ONLY: is_coupled_to_ocean
+  USE mo_radiation_config,     ONLY: irad_aero, iRadAeroCAMSclim
   USE mo_io_config,            ONLY: inextra_2d, inextra_3d, lnetcdf_flt64_output, &
     &                                t_var_in_output
   USE mo_limarea_config,       ONLY: latbc_config
@@ -1566,7 +1567,7 @@ MODULE mo_nonhydro_state
       &        shape3d_ehalf(3), shape4d_chalf(4), shape4d_e(4),   &
       &        shape4d_entl(4), shape4d_chalfntl(4), shape4d_c(4), &
       &        shape2d_extra(3), shape3d_extra(4), shape3d_ubcc(3),&
-      &        shape3d_ubcp2(3)
+      &        shape3d_ubcp2(3), shape4d_cams(4)
  
     INTEGER :: ibits         !< "entropy" of horizontal slice
     INTEGER :: DATATYPE_PACK_VAR  !< variable "entropy" for some thermodynamic fields
@@ -1624,6 +1625,7 @@ MODULE mo_nonhydro_state
     shape3d_ubcp2 = (/nproma, nblks_c, ndyn_substeps_max+2 /)
     shape3d_ubcc  = (/nproma, nblks_c, 2  /)
     shape3d_extra = (/nproma, nlev   , nblks_c, inextra_3d  /)
+    shape4d_cams  = (/nproma, nlev   , nblks_c, n_camsaermr /)
     shape4d_c     = (/nproma, nlev   , nblks_c, ntracer     /)
     shape4d_chalf = (/nproma, nlevp1 , nblks_c, ntracer     /)
     shape4d_e     = (/nproma, nlev   , nblks_e, ntracer     /)
@@ -1737,7 +1739,8 @@ MODULE mo_nonhydro_state
     &       p_diag%rhons_incr, &
     &       p_diag%rhong_incr, &
     &       p_diag%rhonh_incr, &
-    &       p_diag%extra_2d, &
+    &       p_diag%camsaermr,  &
+    &       p_diag%extra_2d,   &
     &       p_diag%extra_3d)
 
 
@@ -1788,6 +1791,15 @@ MODULE mo_nonhydro_state
                 &                 "mode_iniana","icon_lbc_vars"),               &
                 & lopenacc = .TRUE. )
     __acc_attach(p_diag%v)
+
+    IF (irad_aero == iRadAeroCAMSclim) THEN
+      cf_desc    = t_cf_var('CAMS_aerosols', 'kg kg-1', 'CAMS aerosols mixing ratios', datatype_flt)
+      grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_diag_list, 'camsaermr', p_diag%camsaermr,                   &
+                  & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,    &
+                  & initval=0._wp,                                                &
+                  & lcontainer=.TRUE., ldims=shape4d_cams, lrestart=.FALSE.)
+    END IF
 
     ! vt           p_diag%vt(nproma,nlev,nblks_e)
     ! *** needs to be saved for restart ***
