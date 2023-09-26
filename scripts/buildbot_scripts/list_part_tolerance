@@ -94,7 +94,7 @@ if [[ -n "$SINGLE_EXPERIMENT" ]]; then
   add_tolerance_exp "$SINGLE_EXPERIMENT" "$BB_NAME"
 
   pp=tolerance/pp.collect_tolerance_hashes
-  ./addexp "$pp" --builders "$BB_NAME" --list "$listname" --runflags "tolerance_experiments=$SINGLE_EXPERIMENT update_hash_file=yes"
+  ./addexp "$pp" --builders "$BB_NAME" --list "$listname" --runflags "tolerance_experiments=$SINGLE_EXPERIMENT generate_hash_file=no"
   ./adddep --from-experiment "$pp" --to-experiment "${pp_gentol_experiments[$builder]}" --builders "$BB_NAME" --list "$listname"
 
 else

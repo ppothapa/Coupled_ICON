@@ -840,7 +840,7 @@ set_run_target_gpnl()
 
     if [[ "$use_mpi" == "yes" ]]
     then
-        set_default use_mpi_procs_pernode 4
+        set_default use_mpi_procs_pernode 8
         set_default use_num_io_procs 3
     fi
 
@@ -854,7 +854,7 @@ set_run_target_gpnl()
 set +x
 ulimit -Sv unlimited
 
-export ECCODES_DEFINITION_PATH="/hpc/sw/eccodes/definitions/release/2.23.0-5/definitions.edzw:/hpc/sw/eccodes/definitions/release/2.23.0-5/definitions"
+export ECCODES_DEFINITION_PATH="/hpc/sw/eccodes/definitions/release/2.28.0-2/definitions.edzw:/hpc/sw/eccodes/definitions/release/2.28.0-2/definitions"
 EOF
     if [[ "$use_gpu" == "yes" ]]
     then

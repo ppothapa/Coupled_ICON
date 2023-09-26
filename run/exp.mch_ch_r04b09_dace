@@ -70,8 +70,7 @@ add_required_file ${latbc_path}/igfff00030000_lbc.nc .
 
 # dictionary file for output variable names
 dict_file="dict.${EXPNAME}"
-cat dict.iconam.mpim  > ${dict_file}
-add_required_file ${basedir}/run/${dict_file}                           ./
+add_required_file ${basedir}/run/dict.iconam.mpim ${dict_file}
 
 # start and end date+time
 start_date=${start_date:="2018-09-21T00:00:00Z"}
@@ -94,7 +93,7 @@ lnd_namelist=NAMELIST_${EXPNAME}_lnd
 # create ICON master namelist
 # ----------------------------------------------------------------------------
 
-cat > icon_master.namelist << EOF
+cat > ${basedir}/run/icon_master.namelist << EOF
 
 ! master_nml: ----------------------------------------------------------------
 &master_nml
@@ -124,7 +123,7 @@ EOF
 # ----------------------------------------------------------------------
 
 
-cat > ${atmo_namelist} << EOF
+cat > ${basedir}/run/${atmo_namelist} << EOF
 ! parallel_nml: MPI parallelization -------------------------------------------
 &parallel_nml
  nproma                      =                   ${nproma}        ! loop chunk length

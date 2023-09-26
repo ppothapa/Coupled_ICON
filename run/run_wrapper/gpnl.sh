@@ -14,15 +14,14 @@ trap kill_nvsmi ERR
 trap kill_nvsmi EXIT
 
 lrank=$OMPI_COMM_WORLD_RANK
-mpi_total_procs=$OMPI_COMM_WORLD_SIZE
-# need to check in run script that the variables make sense and are
-# exported!
-# (( compute_tasks = mpi_total_procs - io_tasks ))
-compute_tasks=$mpi_total_procs
+compute_tasks=$OMPI_COMM_WORLD_SIZE
 
 echo compute_tasks: $compute_tasks, lrank: $lrank
 
-# Local Task 0 runs always the nvidia-smi logger 
+# Local Task 0 runs always the nvidia-smi logger
+# To enable logging of nvidia-smi by setting the following in your run script
+# (either directly or via create_target_header)
+#     export ENABLE_NVIDIA_SMI_LOGGER=yes
 if [[ "$lrank" == 0 ]] && [[ ${ENABLE_NVIDIA_SMI_LOGGER:-"no"} == "yes" ]]
 then
     set +x
@@ -38,13 +37,10 @@ then
     set -x
 fi
 
-# numanode=(3 1 7 5)
-# nics=(mlx5_4 mlx5_5 mlx5_0 mlx5_1 mlx5_10 mlx5_11 mlx5_7 mlx5_8)
-# reorder=(0 1 2 3 4 5 6 7)
+# Put GPU 0 last to use it primarily for IO-Procs as GPU0 is some times used by other users.
+gpus=(1 2 3 4 5 6 7 0)
 
-gpus=(0 1 2 3 4 5 6 7)
-
-# splitted the blocks for later use of gpnl nodes as I/O server
+# split the blocks for later use of gpnl nodes as I/O server
 if (( lrank < compute_tasks ))
 then
     echo Compute process $OMPI_COMM_WORLD_RANK on $(hostname)

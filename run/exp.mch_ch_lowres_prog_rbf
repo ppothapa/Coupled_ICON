@@ -121,7 +121,7 @@ atmo_namelist=NAMELIST_${EXPNAME}_atm
 # ----------------------------------------------------------------------
 
 
-cat > ${atmo_namelist} << EOF
+cat > ${basedir}/run/${atmo_namelist} << EOF
 ! parallel_nml: MPI parallelization -------------------------------------------
 &parallel_nml
  nproma                      =                   64        ! loop chunk length
