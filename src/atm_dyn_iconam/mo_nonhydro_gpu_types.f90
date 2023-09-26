@@ -52,6 +52,10 @@ MODULE mo_nonhydro_gpu_types
   USE mo_grf_intp_data_strc,   ONLY: t_gridref_single_state, t_gridref_state
   USE mo_var_list_gpu,         ONLY: gpu_update_var_list
   USE mo_run_config,           ONLY: ltestcase, num_lev
+
+  USE mo_intp_lonlat_types,   ONLY: lonlat_grids
+  USE mo_interpol_config,     ONLY: support_baryctr_intp
+  USE mo_grid_config,         ONLY: n_dom
   IMPLICIT NONE
   PRIVATE 
 
@@ -84,6 +88,8 @@ CONTAINS
 
     CALL transfer_int_state( p_int_state, .TRUE. )
     CALL transfer_int_state( p_int_state_local_parent, .TRUE. )
+
+    CALL transfer_lonlat_grids(.TRUE.)
 
     CALL transfer_patch( p_patch, .TRUE. )
     CALL transfer_patch( p_patch_local_parent, .TRUE. )
@@ -120,11 +126,13 @@ CONTAINS
     ! Delete all data on GPU
     !
     CALL assert_acc_device_only("d2h_icon", lacc)
+    !$ACC WAIT
 
     CALL transfer_nh_state( p_nh_state, .FALSE. )
     CALL transfer_prep_adv( prep_adv, .FALSE. )
     CALL transfer_patch( p_patch, .FALSE. )
     CALL transfer_patch( p_patch_local_parent, .FALSE. )
+    CALL transfer_lonlat_grids(.FALSE.)    
     CALL transfer_int_state( p_int_state, .FALSE. )
     CALL transfer_int_state( p_int_state_local_parent, .FALSE. )
     CALL transfer_advection_config( advection_config, .FALSE. )
@@ -474,6 +482,59 @@ CONTAINS
 
     END SUBROUTINE devcpy_grf_single_state
 
+
+    SUBROUTINE transfer_lonlat_grids(l_h2d)
+      LOGICAL, INTENT(IN) :: l_h2d    ! true host-to-device, false device-to-host
+      INTEGER :: jg, i
+
+      ! The derived type components are (de)allocated and created/deleted on
+      ! the device in their *init/*finalize routines
+
+      IF (l_h2d) THEN
+
+        DO jg=1,n_dom
+          DO i=1, lonlat_grids%ngrids
+            IF (lonlat_grids%list(i)%l_dom(jg) .AND. lonlat_grids%list(i)%intp(jg)%l_initialized) THEN
+              !$ACC ENTER DATA CREATE(lonlat_grids%list(i)%intp(jg:jg))
+              !$ACC UPDATE &
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%rbf_vec%stencil) &
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%rbf_vec%idx) &
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%rbf_vec%blk) &
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%rbf_vec%coeff) &
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%rbf_c2l%stencil) &
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%rbf_c2l%idx) &
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%rbf_c2l%blk) &
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%rbf_c2l%coeff) &
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%rbf_c2l%l_cutoff) &
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%nnb%stencil) &
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%nnb%idx) &
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%nnb%blk) &
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%nnb%coeff) &
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%nnb%l_cutoff)
+
+              IF (support_baryctr_intp) THEN
+                !$ACC UPDATE &
+                !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%baryctr%stencil) &
+                !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%baryctr%idx) &
+                !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%baryctr%blk) &
+                !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%baryctr%coeff) &
+                !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%baryctr%l_cutoff)
+              ENDIF
+            ENDIF
+          ENDDO
+        ENDDO
+      ELSE
+        DO jg=1,n_dom
+          DO i=1, lonlat_grids%ngrids
+            IF (lonlat_grids%list(i)%l_dom(jg) .AND. lonlat_grids%list(i)%intp(jg)%l_initialized) THEN
+              !ptr_int_lonlat => lonlat_grids%list(i)%intp(jg)%rbf_c2l
+              !$ACC EXIT DATA DELETE(lonlat_grids%list(i)%intp(jg:jg))
+            ENDIF
+          ENDDO
+        ENDDO
+      ENDIF
+
+    END SUBROUTINE transfer_lonlat_grids
 #endif
 
 

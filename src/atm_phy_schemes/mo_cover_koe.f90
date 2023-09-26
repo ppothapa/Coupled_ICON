@@ -58,7 +58,7 @@ MODULE mo_cover_koe
 
   USE mo_impl_constants,      ONLY: max_dom
 
-  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device, assert_acc_host_only
 
   IMPLICIT NONE
 
@@ -71,6 +71,10 @@ MODULE mo_cover_koe
 !  Cloud cover derived type with physics configuration options
    
   TYPE t_cover_koe_config
+    ! NOTE: Currently, all components of this type are statically allocated.
+    !       If you want to introduce dynamically allocated components, please
+    !       adjust the `$ACC UPDATE DEVICE(cover_koe_config(jg:jg))` in mo_nwp_phy_init.
+    !
     INTEGER(KIND=i4)        ::     icldscheme    ! cloud cover option
     LOGICAL                 ::     lsgs_cond     ! subgrid-scale condensation 
     INTEGER(KIND=i4)        ::     inwp_turb     ! turbulence scheme number
@@ -521,6 +525,8 @@ CASE( 1 )
 
 
   IF (cover_koe_config%inwp_turb == iedmf) THEN
+    CALL assert_acc_host_only("cover_koe cover_koe_config%inwp_turb == iedmf", lacc)
+
     DO jk = kstart,klev
       DO jl = kidia,kfdia
 !       IF (SQRT(qtvar(jl,jk)) / MAX(qv(jl,jk)+qc(jl,jk)+qi(jl,jk),0.000001_wp) > 0.01_wp) THEN

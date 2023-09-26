@@ -94,7 +94,7 @@ MODULE mo_intp_lonlat_types
   !
   TYPE, EXTENDS(t_intp_coeff) :: t_intp_vec_coeff
     REAL(wp), ALLOCATABLE  :: coeff(:,:,:,:)      ! array containing interpolation 
-                                                  ! weights (stencilsize,nproma,nblks_lonlat)
+                                                  ! weights (stencilsize,2,nproma,nblks_lonlat)
   
   CONTAINS
     PROCEDURE, PUBLIC :: init     => t_intp_vec_coeff_init

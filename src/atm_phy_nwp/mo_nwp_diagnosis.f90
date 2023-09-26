@@ -935,7 +935,7 @@ CONTAINS
 
           !$ACC DATA CREATE(alpha)
           !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-          !$ACC LOOP GANG VECTOR
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = i_startidx, i_endidx
 
             ! Calculate latitude-dependent decorrelation length scale based on
@@ -954,7 +954,7 @@ CONTAINS
           !$ACC LOOP SEQ
           DO jk = kstart_moist+1, nlev
 !DIR$ IVDEP
-            !$ACC LOOP GANG VECTOR PRIVATE(ccmax, ccran)
+            !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(ccmax, ccran)
             DO jc = i_startidx, i_endidx   ! total cloud cover
               ccmax = MAX( prm_diag%clc(jc,jk,jb),  prm_diag%clct(jc,jb) )
               ccran =      prm_diag%clc(jc,jk,jb) + prm_diag%clct(jc,jb) - &
@@ -964,7 +964,7 @@ CONTAINS
               prm_diag%clct(jc,jb) = alpha(jc,jk) * ccmax + (1._wp-alpha(jc,jk)) * ccran
             ENDDO
 
-            !$ACC LOOP GANG VECTOR PRIVATE(ccmax, ccran)
+            !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(ccmax, ccran)
             DO jc = i_startidx, i_endidx
               IF (jk <= prm_diag%k400(jc,jb)-1) THEN    ! high cloud cover
                 ccmax = MAX( prm_diag%clc(jc,jk,jb),  prm_diag%clch(jc,jb) )
@@ -1032,7 +1032,7 @@ CONTAINS
 
       ! pre-computation of rho * \Delta z
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-      !$ACC LOOP COLLAPSE(2)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlev
         DO jc = i_startidx, i_endidx 
           rhodz(jc,jk) = p_metrics%ddqz_z_full(jc,jk,jb) * pt_prog%rho(jc,jk,jb) & 

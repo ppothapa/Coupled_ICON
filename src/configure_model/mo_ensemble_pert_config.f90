@@ -870,7 +870,7 @@ MODULE mo_ensemble_pert_config
           phy_params(jg)%gkdrag_enh  = tune_gkdrag_enh(jg)
           phy_params(jg)%gkwake      = tune_gkwake(jg)
           phy_params(jg)%gfrcrit     = tune_gfrcrit(jg)
-          !$ACC UPDATE DEVICE(phy_params(jg)) ! phy_params contains only statically allocated (scalar) components
+          !$ACC UPDATE DEVICE(phy_params(jg:jg)) ! phy_params contains only statically allocated (scalar) components
         ENDDO
         ! in addition, GWD and microphysics parameters need to be updated
         gfluxlaun = tune_gfluxlaun

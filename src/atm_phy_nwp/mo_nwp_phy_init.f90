@@ -986,8 +986,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   cover_koe_config(jg)%lsgs_cond   = atm_phy_nwp_config(jg)%lsgs_cond
 
   !$ACC ENTER DATA CREATE(cover_koe_config(jg:jg))
-  !$ACC ENTER DATA CREATE(cover_koe_config(jg)%lsgs_cond)
-  !$ACC UPDATE DEVICE(cover_koe_config(jg)%lsgs_cond)
+  !$ACC UPDATE DEVICE(cover_koe_config(jg:jg)) ! This updates all components of cover_koe_config as they are statically allocated
 
   ! Initiate parameters for reff calculations
   IF (atm_phy_nwp_config(jg)%icalc_reff > 0) THEN

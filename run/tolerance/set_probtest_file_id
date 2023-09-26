@@ -126,7 +126,7 @@ case $EXPERIMENT in
         --file-id NetCDF "*atm_3d*.nc"
         )
         ;;
-    *dwd_run_ICON_*)
+    *dwd_run_ICON_09_R2B4N5_EPS_prog_rbf*)
         probtest_file_id=(
         --file-id NetCDF "*atm_3d_DOM01_ml*.nc"
         --file-id NetCDF "*atm_3d_DOM02_ml*.nc"
@@ -135,6 +135,25 @@ case $EXPERIMENT in
         --file-id latlon "*atm_3d_ll_DOM01_ml*.nc"
         --file-id latlon "*atm_3d_ll_DOM02_ml*.nc"
         --file-id meteogram "Meteogram*.nc"
+        )
+        ;;
+    *dwd_run_ICON_09_R2B4N5_EPS*)
+        probtest_file_id=(
+        --file-id NetCDF "*atm_3d_DOM01_ml*.nc"
+        --file-id NetCDF "*atm_3d_DOM02_ml*.nc"
+        --file-id NetCDF "*atm_3d_DOM02_hl*.nc"
+        --file-id NetCDF "*atm_3d_DOM02_pl*.nc"
+        --file-id latlon "*atm_3d_ll_DOM01_ml*.nc"
+        --file-id latlon "*atm_3d_ll_DOM02_ml*.nc"
+        --file-id meteogram "Meteogram*.nc"
+        --file-id NetCDF "iga_fg_DOM01_ML_0000000.nc"
+        --file-id NetCDF "iga_fg_DOM01_ML_tiles_0000000.nc"
+        --file-id NetCDF "iga_fg_DOM02_ML_0000000.nc"
+        --file-id NetCDF "iga_fg_DOM02_ML_tiles_0000000.nc"
+        --file-id NetCDF "iglo_fc_DOM01_0001.nc"
+        --file-id NetCDF "iglo_fc_DOM02_0001.nc"
+        --file-id latlon "iga_fg_latlon_DOM01_ML_0000000.nc"
+        --file-id latlon "iga_fg_latlon_DOM01_PL_0000000.nc"
         )
         ;;
     *)
