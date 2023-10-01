@@ -3200,10 +3200,14 @@ CONTAINS
       auxs_buf(:,:),auxr_buf(:,:)
 
     INTEGER :: i, j, k, ik, jb, jl, n, np, irs, ire, iss, ise, &
-      npats, isum, ioffset, isum1, n4d, pid, num_send, num_recv, &
+      isum, ioffset, isum1, n4d, pid, num_send, num_recv, &
       comm_size, idx_1d_i, accum, accum2
     INTEGER, ALLOCATABLE :: pelist_send(:), pelist_recv(:)
-
+#ifdef __SX__
+    INTEGER, PARAMETER :: npats = 4 ! needed for vectorization
+#else
+    INTEGER :: npats
+#endif
     TYPE(t_p_comm_pattern_orig), POINTER :: p_pat(:)
 #ifdef _OPENACC
     LOGICAL :: lzacc, use_g2g, use_staging
@@ -3239,9 +3243,11 @@ CONTAINS
     ENDIF
 
     start_sync_timer(timer_exch_data)
-
+#ifdef __SX__
+    IF (npats /= SIZE(p_pat))       CALL finish('exchange_data_grf', 'invalid number of comm patterns')
+#else
     npats = SIZE(p_pat)  ! Number of communication patterns provided on input
-
+#endif
     !-----------------------------------------------------------------------
 
     ! some adjustmens to the standard communication patterns in order to make
@@ -3285,9 +3291,7 @@ CONTAINS
         ise = p_pat(n)%p%send_limits(np+1)
         IF(ise >= iss) THEN
           num_send = num_send + 1
-          DO j = 1, npats
-            pelist_send(num_send) = np
-          ENDDO
+          pelist_send(num_send) = np
           EXIT ! count each processor only once
         ENDIF
       ENDDO
@@ -3297,9 +3301,7 @@ CONTAINS
         ire = p_pat(n)%p%recv_limits(np+1)
         IF(ire >= irs) THEN
           num_recv = num_recv + 1
-          DO j = 1, npats
-            pelist_recv(num_recv) = np
-          ENDDO
+          pelist_recv(num_recv) = np
           EXIT ! count each processor only once
         ENDIF
       ENDDO
@@ -3407,7 +3409,6 @@ CONTAINS
       DO n = 1, nfields
         !$ACC LOOP SEQ
         DO np = 1, npats
-!$NEC novector
           !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
           DO k = 1, ndim2(n)
             DO i = 1, n_send(np)
@@ -3627,7 +3628,6 @@ CONTAINS
       DO n = 1, nfields
         !$ACC LOOP SEQ
         DO np = 1, npats
-!$NEC novector
           !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
           DO k = 1, ndim2(n)
             DO i = 1, n_pnts(np)
