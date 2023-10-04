@@ -55,6 +55,7 @@ MODULE mo_initicon_nml
     & config_icpl_da_snowalb     => icpl_da_snowalb,     &
     & config_icpl_da_sfcfric     => icpl_da_sfcfric,     &
     & config_icpl_da_tkhmin      => icpl_da_tkhmin,      &
+    & config_icpl_da_seaice      => icpl_da_seaice,      &
     & config_dt_ana              => dt_ana,              &
     & config_adjust_tso_tsnow    => adjust_tso_tsnow,    &
     & config_filetype            => filetype,            &
@@ -149,6 +150,8 @@ CONTAINS
 
   INTEGER  :: icpl_da_tkhmin   ! Coupling between data assimilation and near-surface profiles of minimum vertical diffusion
 
+  INTEGER  :: icpl_da_seaice   ! Coupling between data assimilation and sea ice
+
   REAL(wp) :: dt_ana           ! Time interval of assimilation cycle [s] (relevant for icpl_da_sfcevap >= 2)
 
   LOGICAL  :: adjust_tso_tsnow ! Apply T increments for lowest model level also to snow and upper soil layers
@@ -237,7 +240,7 @@ CONTAINS
                           pinit_amplitude, icpl_da_sfcevap, dt_ana,         &
                           icpl_da_skinc, icpl_da_snowalb, adjust_tso_tsnow, &
                           icpl_da_sfcfric, lcouple_ocean_coldstart,         &
-                          icpl_da_tkhmin
+                          icpl_da_tkhmin, icpl_da_seaice
 
   !------------------------------------------------------------
   ! 2.0 set up the default values for initicon
@@ -314,6 +317,9 @@ CONTAINS
 
   icpl_da_tkhmin   = 0  ! Coupling between data assimilation and near-surface profile of minimum vertical diffusion for heat
                         ! 0: off, 1:on
+
+  icpl_da_seaice   = 0  ! Coupling between data assimilation and sea ice
+                        ! 0: off, 1:adjustment of t_seaice to filtered DA increment, 2: 1+ adaptive tuning of bottom heat flux
 
   adjust_tso_tsnow = .FALSE. ! If .TRUE., apply T increments for lowest model level also to snow and upper soil layers
 
@@ -392,7 +398,11 @@ CONTAINS
 
   ! this is needed because the I/O of the filtered T increment is controlled via icpl_da_sfcevap >= 3
   IF (icpl_da_snowalb >= 1 .AND. icpl_da_sfcevap < 3) THEN
-    WRITE(message_text,'(a)') 'icpl_da_snowalb = 1 must be combined with icpl_da_sfcevap >= 3'
+    WRITE(message_text,'(a)') 'icpl_da_snowalb >= 1 must be combined with icpl_da_sfcevap >= 3'
+    CALL finish(TRIM(routine),message_text)
+  ENDIF
+  IF (icpl_da_seaice >= 1 .AND. icpl_da_sfcevap < 3) THEN
+    WRITE(message_text,'(a)') 'icpl_da_seaice >= 1 must be combined with icpl_da_sfcevap >= 3'
     CALL finish(TRIM(routine),message_text)
   ENDIF
 
@@ -447,6 +457,7 @@ CONTAINS
   config_icpl_da_snowalb     = icpl_da_snowalb
   config_icpl_da_sfcfric     = icpl_da_sfcfric
   config_icpl_da_tkhmin      = icpl_da_tkhmin
+  config_icpl_da_seaice      = icpl_da_seaice
   config_dt_ana              = dt_ana
   config_adjust_tso_tsnow    = adjust_tso_tsnow
   config_lvert_remap_fg      = lvert_remap_fg

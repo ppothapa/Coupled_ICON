@@ -2508,6 +2508,14 @@ Coupling between temperature bias inferred from data assimilation and snow albed
 init\_mode=5; icpl\_da\_sfcevap=3
 \tabularnewline
 
+icpl\_da\_seaice&
+I & 0 & &
+Coupling between temperature bias inferred from data assimilation and seaice scheme\\
+0: off \\
+1: add filtered T increment to initial seaice temperature \\
+2: as above, and additional adaptive tuning of bottom heat flux if lbottom\_hflux = true &
+init\_mode=5; icpl\_da\_sfcevap=3
+\tabularnewline
 
 icpl\_da\_skinc&
 I & 0 & &
@@ -4089,6 +4097,15 @@ L&
 &
 If .TRUE., sea-ice albedo is computed prognostically & lseaice=.TRUE.
 \tabularnewline
+
+%\hline
+lbottom\_hflux &
+L&
+.FALSE.&
+&
+If .TRUE., use parameterization for bottom heat flux in seaice scheme & lseaice=.TRUE.
+\tabularnewline
+
 
 %\hline
 \textbf{llake} &

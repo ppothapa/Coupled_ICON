@@ -48,7 +48,7 @@ MODULE mo_lnd_nwp_config
   ! VARIABLES
   PUBLIC :: dzsoil, zml_soil, nlev_soil, nlev_snow, ibot_w_so, ntiles_total, ntiles_lnd, ntiles_water
   PUBLIC :: frlnd_thrhld, frlndtile_thrhld, frlake_thrhld, frsea_thrhld, frsi_min, hice_min, hice_max
-  PUBLIC :: lseaice, lprog_albsi, llake, lmelt, lmelt_var, lmulti_snow, lsnowtile, max_toplaydepth
+  PUBLIC :: lseaice, lprog_albsi, lbottom_hflux, llake, lmelt, lmelt_var, lmulti_snow, lsnowtile, max_toplaydepth
   PUBLIC :: itype_trvg, itype_evsl, itype_lndtbl, l2lay_rho_snow
   PUBLIC :: itype_root, itype_heatcond, itype_interception, &
             itype_hydbound, idiag_snowfrac, itype_snowevap, cwimax_ml, c_soil, c_soil_urb, cr_bsmin
@@ -79,6 +79,7 @@ MODULE mo_lnd_nwp_config
   REAL(wp)::  frsi_min           !< minimum sea-ice fraction  [-]
   REAL(wp)::  hice_min           !< minimum sea-ice thickness [m]
   REAL(wp)::  hice_max           !< maximum sea-ice thickness [m]
+  LOGICAL ::  lbottom_hflux      !< use simple parameterization for heat flux through sea ice bottom
   INTEGER ::  itype_trvg         !< type of vegetation transpiration parameterization
   INTEGER ::  itype_evsl         !< type of parameterization of bare soil evaporation (see Schulz and Vogel 2020)
   INTEGER ::  itype_lndtbl       !< choice of table for associating surface parameters to land-cover classes

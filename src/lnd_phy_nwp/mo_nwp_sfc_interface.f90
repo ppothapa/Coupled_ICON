@@ -45,7 +45,7 @@ MODULE mo_nwp_sfc_interface
     &                               lprog_albsi, itype_trvg, lterra_urb,              &
     &                               itype_snowevap, zml_soil
   USE mo_extpar_config,       ONLY: itype_vegetation_cycle
-  USE mo_initicon_config,     ONLY: icpl_da_sfcevap, dt_ana, icpl_da_skinc
+  USE mo_initicon_config,     ONLY: icpl_da_sfcevap, dt_ana, icpl_da_skinc, icpl_da_seaice
   USE mo_coupling_config,     ONLY: is_coupled_to_ocean
   USE mo_ensemble_pert_config,ONLY: sst_pert_corrfac
   USE mo_satad,               ONLY: sat_pres_water, sat_pres_ice, spec_humi, dqsatdT_ice
@@ -1831,6 +1831,7 @@ CONTAINS
     REAL(wp) :: tsnow_new(nproma)   ! temperature of snow upper surface at new time      [K]
     REAL(wp) :: hsnow_new(nproma)   ! snow thickness at new time level                   [m]
     REAL(wp) :: albsi_new(nproma)   ! sea-ice albedo at new time level                   [-]
+    REAL(wp) :: fhflx    (nproma)   ! tuning factor for bottom heat flux                 [-]
 
     ! Local array bounds:
     !
@@ -1865,13 +1866,13 @@ CONTAINS
     ENDIF
 
     !$ACC DATA CREATE(shfl_s, lhfl_s, lwflxsfc, swflxsfc, condhf_i, snow_rate, rain_rate, tice_now, hice_now) &
-    !$ACC   CREATE(tsnow_now, hsnow_now, albsi_now, tice_new, hice_new, tsnow_new, hsnow_new, albsi_new) &
+    !$ACC   CREATE(tsnow_now, hsnow_now, albsi_now, tice_new, hice_new, tsnow_new, hsnow_new, albsi_new, fhflx) &
     !$ACC   PRESENT(ext_data, p_lnd_diag, prm_diag, p_prog_wtr_now, lnd_prog_new, p_prog_wtr_new, p_diag)
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,i_count,ic,jc,shfl_s,lhfl_s,lwflxsfc,swflxsfc,snow_rate,rain_rate, &
 !$OMP            tice_now, hice_now,tsnow_now,hsnow_now,tice_new,hice_new,tsnow_new,   &
-!$OMP            hsnow_new,albsi_now,albsi_new,condhf_i) ICON_OMP_GUIDED_SCHEDULE
+!$OMP            hsnow_new,albsi_now,albsi_new,condhf_i,fhflx) ICON_OMP_GUIDED_SCHEDULE
     DO jb = i_startblk, i_endblk
 
       !
@@ -1900,6 +1901,11 @@ CONTAINS
         tsnow_now(ic) = p_prog_wtr_now%t_snow_si(jc,jb)
         hsnow_now(ic) = p_prog_wtr_now%h_snow_si(jc,jb)
         albsi_now(ic) = p_prog_wtr_now%alb_si(jc,jb)             ! sea-ice albedo [-]
+        IF (icpl_da_seaice >= 2) THEN ! adaptive parameter tuning for bottom heat flux
+          fhflx(ic) = MIN(1._wp,MAX(0._wp,-8._wp*p_diag%t_avginc(jc,jb)))
+        ELSE
+          fhflx(ic) = 0._wp
+        ENDIF
       ENDDO  ! ic
       !$ACC END PARALLEL
 
@@ -1914,6 +1920,7 @@ CONTAINS
                             &   qsolnet = swflxsfc(:),         & !in
                             &   snow_rate = snow_rate(:),      & !in
                             &   rain_rate = rain_rate(:),      & !in
+                            &   fac_bottom_hflx = fhflx(:),    & !in
                             &   tice_p  = tice_now(:),         & !in
                             &   hice_p  = hice_now(:),         & !in
                             &   tsnow_p = tsnow_now(:),        & !in    ! DUMMY: not used yet
