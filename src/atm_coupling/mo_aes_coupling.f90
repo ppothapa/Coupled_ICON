@@ -37,7 +37,7 @@ MODULE mo_aes_coupling
 
   USE mo_sync                ,ONLY: sync_c, sync_patch_array
 
-  USE mo_bc_greenhouse_gases ,ONLY: ghg_co2mmr
+  USE mo_bc_greenhouse_gases ,ONLY: ghg_co2vmr
 
   USE mo_parallel_config     ,ONLY: nproma
 
@@ -597,10 +597,10 @@ CONTAINS
                 DO n = 1, nlen
                    buffer(nn+n,1) =              1.0e6_wp * ccycle_config(jg)%vmr_co2
                 END DO
-             CASE (4) ! transient co2 concentration, ghg_co2mmr in kg/kg
+             CASE (4) ! transient co2 concentration, ghg_co2vmr in m3/m3
                 !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COPYOUT(buffer(nn+1:nn+nlen, 1))
                 DO n = 1, nlen
-                   buffer(nn+n,1) =  amd/amco2 * 1.0e6_wp * ghg_co2mmr
+                   buffer(nn+n,1) =              1.0e6_wp * ghg_co2vmr
                 END DO
              END SELECT
           END SELECT

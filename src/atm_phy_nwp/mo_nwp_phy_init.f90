@@ -129,7 +129,7 @@ MODULE mo_nwp_phy_init
     &                                  calculate_time_interpolation_weights
   USE mo_timer,               ONLY: timers_level, timer_start, timer_stop,   &
     &                               timer_init_nwp_phy, timer_phys_reff, timer_upatmo
-  USE mo_bc_greenhouse_gases, ONLY: read_bc_greenhouse_gases
+  USE mo_bc_greenhouse_gases, ONLY: read_bc_greenhouse_gases, bc_greenhouse_gases_time_interpolation
   USE mo_nwp_reff_interface,  ONLY: init_reff
   USE mo_upatmo_config,       ONLY: upatmo_config
   USE mo_upatmo_impl_const,   ONLY: iUpatmoPrcStat, iUpatmoStat
@@ -1898,8 +1898,8 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   IF(ANY((/irad_co2,irad_cfc11,irad_cfc12,irad_n2o,irad_ch4/) == 4)) THEN
     ! read annual means
     CALL read_bc_greenhouse_gases(ghg_filename)
+    CALL bc_greenhouse_gases_time_interpolation(ini_date, print_report=(msg_level >= 5))
     ! interpolation to the current date and time takes place in the radiation interface
-      
   ENDIF
 
 #ifndef __NO_ICON_UPATMO__

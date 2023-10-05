@@ -26,7 +26,7 @@ MODULE mo_cloud_gas_profiles
   USE mo_parallel_config,      ONLY: nproma
   USE mo_aes_rad_config,       ONLY: aes_rad_config
   USE mo_run_config,           ONLY: iqv, iqc, iqi, ico2, io3
-  USE mo_bc_greenhouse_gases,  ONLY: ghg_co2mmr, ghg_ch4mmr, ghg_n2ommr, ghg_cfcmmr
+  USE mo_bc_greenhouse_gases,  ONLY: ghg_co2vmr, ghg_ch4vmr, ghg_n2ovmr, ghg_cfcvmr
   USE mo_bc_ozone,             ONLY: ext_ozone
   USE mo_o3_util,              ONLY: o3_pl2ml, o3_timeint
   USE mo_physical_constants,   ONLY: amd, amw, amco2, amch4, amn2o, amo2, amo3, amc11, amc12
@@ -190,33 +190,33 @@ CONTAINS
 
     TYPE (t_gas),POINTER:: dom_gas(:) !< gas(:,jg)
 
-    REAL(wp)            :: ghg_cfcmmr1, ghg_cfcmmr2
+    REAL(wp)            :: ghg_cfcvmr1, ghg_cfcvmr2
 
 !   Remark: the order of gases is relevant for this subroutine only.
 
 ! general settings (do not depend on time, but on the domain)
     dom_gas => gas(:,jg)
-        
+
     !$ACC DATA PRESENT(xvmr_vap, xvmr_co2, xvmr_ch4, xvmr_o2, xvmr_o3, xvmr_n2o, xvmr_cfc) &
     !$ACC   PRESENT(xq_trc, dom_gas) &
     !$ACC   CREATE(gas_profile)
 
 ! settings depending on time
 
-    ! Pass ghg_cfcmmr as kernel parameters, without explicit copying
-    ghg_cfcmmr1 = ghg_cfcmmr(1)
-    ghg_cfcmmr2 = ghg_cfcmmr(2)
+    ! Pass ghg_cfcvmr as kernel parameters, without explicit copying
+    ghg_cfcvmr1 = ghg_cfcvmr(1)
+    ghg_cfcvmr2 = ghg_cfcvmr(2)
     !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
 !   CO2
-    dom_gas(2)%vmr_scenario = ghg_co2mmr
+    dom_gas(2)%vmr_scenario = ghg_co2vmr
 !   CH4
-    dom_gas(3)%vmr_scenario = ghg_ch4mmr
+    dom_gas(3)%vmr_scenario = ghg_ch4vmr
 !   N2O
-    dom_gas(6)%vmr_scenario = ghg_n2ommr
+    dom_gas(6)%vmr_scenario = ghg_n2ovmr
 !   CFC11
-    dom_gas(7)%vmr_scenario = ghg_cfcmmr1
+    dom_gas(7)%vmr_scenario = ghg_cfcvmr1
 !   CFC12
-    dom_gas(8)%vmr_scenario = ghg_cfcmmr2
+    dom_gas(8)%vmr_scenario = ghg_cfcvmr2
     !$ACC END KERNELS
 
     DO igas=1,ngases

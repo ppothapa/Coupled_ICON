@@ -63,6 +63,7 @@ MODULE mo_nwp_rad_interface
   USE mo_o3_util,              ONLY: o3_interface
   USE mo_nwp_aerosol,          ONLY: nwp_aerosol_interface, nwp_aerosol_cleanup
   USE mo_fortran_tools,        ONLY: set_acc_host_or_device
+  USE mo_run_config,           ONLY: msg_level
 
   IMPLICIT NONE
 
@@ -137,6 +138,9 @@ MODULE mo_nwp_rad_interface
     REAL(wp):: zsct                    ! solar constant (at time of year)
     REAL(wp):: dsec                    ! [s] time increment of radiative transfer wrt. datetime
 
+    LOGICAL :: is_new_day
+    LOGICAL :: is_new_month
+
     !-------------------------------------------------
 
     wavenum1_sw => NULL()
@@ -156,7 +160,10 @@ MODULE mo_nwp_rad_interface
     td_dt_rad => newTimedelta('-',0,0,0,0,0, second=NINT(atm_phy_nwp_config(jg)%dt_rad), ms=0)
     prev_radtime => newDatetime(mtime_datetime + td_dt_rad)
 
-    IF (prev_radtime%date%day /= mtime_datetime%date%day) THEN
+    is_new_day = prev_radtime%date%day /= mtime_datetime%date%day
+    is_new_month = is_new_day .AND. prev_radtime%date%month /= mtime_datetime%date%month
+
+    IF (is_new_day) THEN
       IF (isolrad == 2) CALL read_bc_solar_irradiance(mtime_datetime%date%year,.TRUE.)
     END IF
 
@@ -193,13 +200,18 @@ MODULE mo_nwp_rad_interface
     CALL o3_interface(mtime_datetime, p_sim_time, pt_patch, pt_diag, &
       &               ext_data%atm%o3, prm_diag, atm_phy_nwp_config(jg)%dt_rad, lacc=lzacc)
 
-    IF(ANY((/irad_co2,irad_cfc11,irad_cfc12,irad_n2o,irad_ch4/) == 4)) THEN 
-      ! Interpolate greenhouse gas concentrations to the current date and time, 
+    IF(ANY((/irad_co2,irad_cfc11,irad_cfc12,irad_n2o,irad_ch4/) == 4)) THEN
+      ! Interpolate greenhouse gas concentrations to the current date and time,
       !   placing the annual means at the mid points of the current and preceding or following year,
       !   if the current date is in the 1st or 2nd half of the year, respectively.
-      ! The data file containing the greenhouse gas concentration is read in the initialisation 
+      ! The data file containing the greenhouse gas concentration is read in the initialisation
       !   of the NWP physics
-      CALL bc_greenhouse_gases_time_interpolation(mtime_datetime)
+      CALL bc_greenhouse_gases_time_interpolation( &
+          & mtime_datetime, &
+          & print_report=( &
+          &     (msg_level >= 11 .AND. is_new_day) .OR. &
+          &     (msg_level >= 5 .AND. is_new_month)) &
+        )
     END IF
 
 
