@@ -133,7 +133,7 @@ CONTAINS
 
     !sea ice
     cf_desc    = t_cf_var('sea_ice_c', 'frac','sea ice fraction at cells', datatype_flt)
-    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    grib2_desc = grib2_var(10, 2, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( p_forcing_list, 'sea_ice_c', p_forcing%sea_ice_c,              &
          &        GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,       &
          &        ldims=shape2d_c, in_group=groups("wave_forcing") )

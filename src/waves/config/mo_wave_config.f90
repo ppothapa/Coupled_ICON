@@ -253,6 +253,23 @@ CONTAINS
 
     CHARACTER(*), PARAMETER :: routine = modname//'::configure_waves'
 
+    CALL message (' ','')
+    CALL message ('!','')
+    CALL message ('!!','')
+    CALL message ('!!!!','')
+    CALL message ('!!!!!!','')
+    CALL message ('!!!!!!!!','')
+    CALL message ('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!','')
+    CALL message ('!     ICON-WAVES IS STILL UNDER DEVELOPMENT                    !','')
+    CALL message ('!     THIS CODE IS FOR TECHNICAL TESTING ONLY                  !','')
+    CALL message ('!     THE IMPLEMENTATION OF WAVE PHYSICS IS NOT YET COMPLETED  !','')
+    CALL message ('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!','')
+    CALL message ('!!!!!!!!','')
+    CALL message ('!!!!!!','')
+    CALL message ('!!!!','')
+    CALL message ('!!','')
+    CALL message ('!','')
+    CALL message (' ','')
 
     DO jg=1,n_dom
 

@@ -37,7 +37,7 @@ MODULE mo_wave_stepping
   USE mo_wave_state,               ONLY: p_wave_state
   USE mo_wave_ext_data_state,      ONLY: wave_ext_data
   USE mo_wave_forcing_state,       ONLY: wave_forcing_state
-  USE mo_wave_diagnostics,         ONLY: significant_wave_height
+  USE mo_wave_diagnostics,         ONLY: calculate_output_diagnostics
   USE mo_wave_physics,             ONLY: new_spectrum, total_energy, mean_frequency_energy, &
        &                                 air_sea, input_source_function, last_prog_freq_ind, &
        &                                 impose_high_freq_tail, tm1_period, wave_stress, &
@@ -217,10 +217,12 @@ CONTAINS
            p_wave_state(jg)%diag%tm1, &  ! OUT
            p_wave_state(jg)%diag%f1mean) ! OUT
 
-        ! Calculate output
-      CALL significant_wave_height(p_patch = p_patch(jg), &
-           &                       emean   = p_wave_state(jg)%diag%emean(:,:), &
-           &                       hs      = p_wave_state(jg)%diag%hs(:,:))
+      ! Calculation of diagnistic output parameters
+      CALL calculate_output_diagnostics(p_patch = p_patch(jg), &
+           &                      wave_config = wave_config(jg), &
+           &                           tracer = p_wave_state(jg)%prog(n_now)%tracer, &
+           &                            depth = wave_ext_data(jg)%bathymetry_c, &
+           &                           p_diag = p_wave_state(jg)%diag)
 
     END DO
 
@@ -516,11 +518,12 @@ CONTAINS
              p_wave_state(jg)%diag%femean, & ! OUT
              p_wave_state(jg)%diag%femeanws) ! OUT
 
-        !Calculation of diagnistic output parameters
-        CALL significant_wave_height(p_patch = p_patch(jg), &
-             &                       emean   = p_wave_state(jg)%diag%emean(:,:), &
-             &                       hs      = p_wave_state(jg)%diag%hs(:,:)) ! OUT
-
+        ! Calculation of diagnistic output parameters
+        CALL calculate_output_diagnostics(p_patch = p_patch(jg), &
+             &                      wave_config = wave_config(jg), &
+             &                           tracer = p_wave_state(jg)%prog(n_now)%tracer, &
+             &                            depth = wave_ext_data(jg)%bathymetry_c, &
+             &                           p_diag = p_wave_state(jg)%diag)
 
         ! switch between time levels now and new for next time step
         CALL swap(nnow(jg), nnew(jg))

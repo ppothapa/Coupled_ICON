@@ -47,6 +47,8 @@ MODULE mo_wave_state
        &                             t_wave_state, t_wave_state_lists
   USE mo_wave_config,          ONLY: t_wave_config, wave_config
 
+  USE mo_name_list_output_config, ONLY: is_variable_in_output
+
   IMPLICIT NONE
 
   PRIVATE
@@ -263,7 +265,7 @@ CONTAINS
        CALL add_ref( p_prog_list, tracer_container_name,                          &
             & TRIM(tracer_name), p_prog%tracer_ptr(jt)%p_3d,                      &
             & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                                 &
-            & t_cf_var(TRIM(tracer_name), '-','spectral bin '//TRIM(tracer_name), &
+            & t_cf_var(TRIM(tracer_name), '-','spectral bin of wave energy',      &
             & datatype_flt),                                                      &
             & grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL),      &
             & ref_idx=jt,                                                         &
@@ -366,7 +368,7 @@ CONTAINS
       CALL add_ref(p_diag_list, 'gv_c_freq',                                &
            & TRIM(out_name), p_diag%freq_ptr(jf)%p_2d,                      &
            & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                            &
-           & t_cf_var(TRIM(out_name), 'm/s',TRIM(out_name),                 &
+           & t_cf_var(TRIM(out_name), 'm s-1','group velocity at cells',    &
            & datatype_flt),                                                 &
            & grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL), &
            & ref_idx=jf, ldims=shape2d_c, loutput=.TRUE.,                   &
@@ -376,7 +378,7 @@ CONTAINS
       CALL add_ref(p_diag_list, 'gv_e_freq',                                &
            & TRIM(out_name), p_diag%freq_ptr(jf)%p_2d,                      &
            & GRID_UNSTRUCTURED_EDGE, ZA_SURFACE,                            &
-           & t_cf_var(TRIM(out_name), 'm/s',TRIM(out_name),                 &
+           & t_cf_var(TRIM(out_name), 'm s-1','group velocity at edges',    &
            & datatype_flt),                                                 &
            & grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_EDGE), &
            & ref_idx=jf, ldims=shape2d_e, loutput=.TRUE.,                   &
@@ -442,14 +444,14 @@ CONTAINS
       CALL add_ref(p_diag_list, 'wave_num_c',                               &
            & TRIM(out_name), p_diag%wave_num_c_ptr(jf)%p_2d,                &
            & GRID_UNSTRUCTURED_CELL, ZA_SURFACE,                            &
-           & t_cf_var(TRIM(out_name), '1/m',TRIM(out_name),                 &
+           & t_cf_var(TRIM(out_name), 'm-1','wave number at cell center',   &
            & datatype_flt),                                                 &
            & grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL), &
            & ref_idx=jf, ldims=shape2d_c, lrestart=.TRUE., loutput=.TRUE.)
     END DO
 
 
-    cf_desc    = t_cf_var('wave_num_e', '1/m', 'wave number at edge midpoint', datatype_flt)
+    cf_desc    = t_cf_var('wave_num_e', 'm-1', 'wave number at edge midpoint', datatype_flt)
     grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_EDGE)
     CALL add_var(p_diag_list, 'wave_num_e', p_diag%wave_num_e,      &
          & GRID_UNSTRUCTURED_EDGE, ZA_SURFACE, cf_desc, grib2_desc, &
@@ -464,7 +466,7 @@ CONTAINS
       CALL add_ref(p_diag_list, 'wave_num_e',                               &
            & TRIM(out_name), p_diag%wave_num_e_ptr(jf)%p_2d,                &
            & GRID_UNSTRUCTURED_EDGE, ZA_SURFACE,                            &
-           & t_cf_var(TRIM(out_name), '1/m',TRIM(out_name),                 &
+           & t_cf_var(TRIM(out_name), 'm-1','wave number at edge midpoint', &
            & datatype_flt),                                                 &
            & grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_EDGE), &
            & ref_idx=jf, ldims=shape2d_e, lrestart=.TRUE., loutput=.TRUE.)
@@ -737,17 +739,30 @@ CONTAINS
          & ldims=shape1d_freq_p4)
 
     ! wave output group
-    cf_desc    = t_cf_var('Hs', 'm', 'Significant height of combined wind waves and swell', datatype_flt)
+    cf_desc    = t_cf_var('hs', 'm', 'Significant height of combined wind waves and swell', datatype_flt)
     grib2_desc = grib2_var(10, 0, 3, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-    CALL add_var(p_diag_list, 'Hs', p_diag%Hs,                      &
+    CALL add_var(p_diag_list, 'hs', p_diag%hs,                      &
          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc, &
          & ldims=shape2d_c, in_group=groups("wave_short"))
 
-    cf_desc    = t_cf_var('Hs_dir', 'deg', 'Primary wave direction', datatype_flt)
+    cf_desc    = t_cf_var('hs_dir', 'deg', 'Primary wave direction', datatype_flt)
     grib2_desc = grib2_var(10, 0, 10, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-    CALL add_var(p_diag_list, 'Hs_dir', p_diag%Hs_dir,              &
+    CALL add_var(p_diag_list, 'hs_dir', p_diag%hs_dir,              &
          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc, &
          & ldims=shape2d_c, in_group=groups("wave_short"))
+
+    cf_desc    = t_cf_var('u_stokes', 'ms-1', 'U-component surface Stokes drift', datatype_flt)
+    grib2_desc = grib2_var(10, 0, 21, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var(p_diag_list, 'u_stokes', p_diag%u_stokes,          &
+         & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc, &
+         & ldims=shape2d_c)
+
+    cf_desc    = t_cf_var('v_stokes', 'ms-1', 'V-component surface Stokes drift', datatype_flt)
+    grib2_desc = grib2_var(10, 0, 22, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var(p_diag_list, 'v_stokes', p_diag%v_stokes,               &
+         & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc, &
+         & ldims=shape2d_c)
+
 
   END SUBROUTINE new_wave_state_diag_list
 

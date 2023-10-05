@@ -78,7 +78,9 @@ MODULE mo_wave_types
       &  enh(:,:),            & ! nonlinear transfer function coefficients for shallow water
       &  AF11(:),             & ! for discrete approximation of nonlinear transfer
       &  FKLAP(:), FKLAP1(:), & ! --//--
-      &  FKLAM(:), FKLAM1(:)  & ! --//--
+      &  FKLAM(:), FKLAM1(:), & ! --//--
+      &  u_stokes(:,:),       & ! U-component of surface Stokes drift
+      &  v_stokes(:,:)        & ! V-component of surface Stokes drift
       &  => NULL()
 
     REAL(vp), POINTER, CONTIGUOUS :: &
