@@ -652,10 +652,9 @@ set_run_target_rcl()
     add_free_var NMPI_SEPSELECT "3"
     add_free_var GMON_OUT_PREFIX "scal_prof"
     add_free_var VE_FPE_ENABLE "DIV,FOF,INV"
-
     add_free_var GFORTRAN_UNBUFFERED_PRECONNECTED "y"
-
     add_free_var NMPI_EXPORT "GFORTRAN_UNBUFFERED_PRECONNECTED"
+    add_free_var NMPI_SWAP_ON_HOLD "OFF"
 
     # try to guess the location of the Vector Host binary
     #
