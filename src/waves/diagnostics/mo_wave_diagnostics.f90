@@ -170,7 +170,7 @@ CONTAINS
 
       freqs:DO jf = 1,wc%nfreqs
         DO jd = 1, wc%ndirs
-          jt =  wc%get_tracer_id(jd,jf)
+          jt =  wc%tracer_ind(jd,jf)
           DO jc = i_startidx, i_endidx
             si(jc) = si(jc) + tracer(jc,jk,jb,jt) * SIN(wc%dirs(jd))
             ci(jc) = ci(jc) + tracer(jc,jk,jb,jt) * COS(wc%dirs(jd))
