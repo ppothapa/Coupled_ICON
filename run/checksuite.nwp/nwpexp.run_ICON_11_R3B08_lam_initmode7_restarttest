@@ -9,7 +9,7 @@ if [ ${BB_NAME} = 'DWD_nec_hybrid' ]; then
   OMP_NUM_THREADS=2
   let PPN=${CPE}*${NE}/${OMP_NUM_THREADS}         # no. of MPI procs. per NQS job
   let NE1=${NE}-1
-  echo "PPN etc. $NN $NE $CPE $PPN"
+  echo "NE CPE PPN: $NE $CPE $PPN"
 fi
 
 # Combine START and MODEL if START_MODEL is not already set.
@@ -443,6 +443,11 @@ cat > NAMELIST_NWP << EOF
 EOF
 
 
+
+#
+# configure START_MODEL_function
+#
+ICON_COMPONENT1_VH_procs=$((num_restart_procs + num_io_procs + num_prefetch_proc + num_io_procs_radar))
 
 # ----------------------------------------------------------------------
 # run the model!

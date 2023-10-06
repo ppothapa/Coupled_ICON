@@ -1183,14 +1183,17 @@ cat > namelist << end_input_MEC
 end_input_MEC
 
 
+#
+# configure START_MODEL_function
+#
+ICON_COMPONENT1_VH_procs=$((num_restart_procs + num_io_procs + num_prefetch_proc + num_io_procs_radar))
+
 # ----------------------------------------------------------------------
 # run the model!
 # ----------------------------------------------------------------------
 
 ls -l $MODEL
 
-# 1 I/O process on VH 0 and the rest (4) I/O processes on VH 1
-VH_DISTRIBUTION="1,:"
 $START_MODEL
 EXIT_STATUS=$?
 

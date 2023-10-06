@@ -580,7 +580,7 @@ fi
 # ----------------------------------------------------------------------------
 
 # run everything on vector engines
-VH_OFFLOADING=no $START_MODEL
+proc0_shift=0 $START_MODEL
 
 SCRIPT_STATUS=$?
 

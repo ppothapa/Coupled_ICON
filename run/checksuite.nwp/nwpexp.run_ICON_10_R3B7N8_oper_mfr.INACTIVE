@@ -1030,12 +1030,15 @@ cat > map_file.fc << EOF3
   z0                GZ0
 EOF3
 
+#
+# configure START_MODEL_function
+#
+ICON_COMPONENT1_VH_procs=$((num_restart_procs + num_io_procs + num_prefetch_proc + num_io_procs_radar))
+
 # ----------------------------------------------------------------------
 # run the model!
 # ----------------------------------------------------------------------
 
-# 3 I/O processes on each VH 0 to 3.
-VH_DISTRIBUTION="3,3,3,3"
 $START_MODEL
 EXIT_STATUS=$?
 

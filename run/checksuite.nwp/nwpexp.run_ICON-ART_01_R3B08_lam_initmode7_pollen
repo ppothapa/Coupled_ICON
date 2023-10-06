@@ -548,6 +548,11 @@ EOF
 
 ls -l ${MODEL}
 
+#
+# configure START_MODEL_function
+#
+ICON_COMPONENT1_VH_procs=$((num_restart_procs + num_io_procs + num_prefetch_proc + num_io_procs_radar))
+
 ###  BEGIN: special environment  ###
  set -x
  export NMPI_FPE_ENABLE="(DIV,FOF,INV)"

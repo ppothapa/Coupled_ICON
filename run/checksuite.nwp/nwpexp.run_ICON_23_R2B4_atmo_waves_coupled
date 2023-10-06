@@ -28,10 +28,7 @@ make_and_change_to_experiment_dir # function in ../add_run_routines
 START_MODEL="${START_MODEL:=$START $MODEL}"
 
 # set icon_data_poolFolder
-icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}"
-if [[ -d "$icon_data_poolFolder/buildbot_data/nwp" ]]; then
-  icon_data_poolFolder="$icon_data_poolFolder/buildbot_data/nwp"
-fi
+icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/buildbot_data/nwp"
 
 # environment variables for the experiment and the target system
 # --------------------------------------------------------------
@@ -89,10 +86,6 @@ mpi_total_procs=${PPN}
 # default: half of requested nodes for ocean
 
 mpi_waves_procs=8    # optimal: 8/16 for NE=4/8 dt=600/dt_rad=3600, 12 dt=450/dt_rad=3600, 8 dt=360/dt_rad=1800
-mpi_oce_procs=$mpi_waves_procs    # temporary hack, since START_MODEL_function expects mpi_oce_procs
-((mpi_atm_procs=PPN-mpi_waves_procs))
-
-echo "mpi procs: total=$mpi_total_procs atmo=${mpi_atm_procs} waves=${mpi_waves_procs}"
 
 nproma_atm=$nproma
 nproma_wave=$nproma
@@ -102,7 +95,8 @@ nproma_wave=$nproma
 
 # Note that "mpi_atm_io_procs" must match the number of output files
 mpi_atm_io_procs=1      # >0 for atmosphere plus land (not working for monitoring)
-mpi_oce_io_procs=0      # ? >0 for waves is not working yet
+mpi_waves_io_procs=0      # ? >0 for waves is not working yet
+ICON_COMPONENT2_proc0_shift=0 # proc0_shift does not work yet with WAVES
 
 #=============================================================================
 
@@ -240,13 +234,13 @@ fi
 
 # I.1 Split the number of total procs and assign to each component
 # ----------------------------------------------------------------
-wave_min_rank=`expr ${mpi_total_procs} - ${mpi_waves_procs} + ${mpi_atm_io_procs} + 1`
-wave_max_rank=`expr ${wave_min_rank} + ${mpi_waves_procs} - 1`
-wave_inc_rank=1
 atm_min_rank=0
-atm_max_rank=`expr ${wave_min_rank} - 1`
+atm_max_rank=$(( mpi_total_procs - mpi_waves_procs + mpi_atm_io_procs + proc0_shift - 1 ))
 atm_inc_rank=1
-
+wave_min_rank=$(( atm_max_rank + 1 ))
+wave_max_rank=$(( wave_min_rank + mpi_waves_procs + mpi_waves_io_procs + ICON_COMPONENT2_proc0_shift - 1 ))
+wave_inc_rank=1
+#
 echo " atm_min_rank="$atm_min_rank "  atm_max_rank="$atm_max_rank
 echo "wave_min_rank="$wave_min_rank "wave_max_rank="$wave_max_rank
 
@@ -408,12 +402,6 @@ dynamics_parent_grid_id="${dynamics_parent_grid_id},"
 # For a complete list see Namelist_overview and Namelist_overview.pdf
 #
 
-# Variables to configure the mpirun command on the RCL
-num_io_procs=${mpi_atm_io_procs}
-num_restart_procs=0
-num_prefetch_proc=0
-num_io_procs_radar=0
-
 cat > ${atm_namelist} << EOF
 !
 &coupling_mode_nml
@@ -425,10 +413,10 @@ cat > ${atm_namelist} << EOF
  p_test_run              = .false.
  l_test_openmp           = .false.
  l_log_checks            = .true.
- num_io_procs            = ${num_io_procs}
- num_restart_procs       = ${num_restart_procs}
- num_prefetch_proc       = ${num_prefetch_proc}
- num_io_procs_radar      = ${num_io_procs_radar}
+ num_io_procs            = ${mpi_atm_io_procs}
+ num_restart_procs       = 0
+ num_prefetch_proc       = 0
+ num_io_procs_radar      = 0
  iorder_sendrecv         = 3
  proc0_shift             = ${proc0_shift}
  use_omp_input           = .true.
@@ -726,11 +714,11 @@ cat > ${wave_namelist} <<EOF
   p_test_run           = .false.
   l_test_openmp        = .false.
   l_log_checks         = .false.
-  num_io_procs         = ${mpi_oce_io_procs}
+  num_io_procs         = ${mpi_waves_io_procs}
   num_restart_procs    = 0  ! number of restart processors
   num_prefetch_proc    = 0  ! number of processors for LBC prefetching
   num_io_procs_radar   = 0
-  proc0_shift          = 0
+  proc0_shift          = ${ICON_COMPONENT2_proc0_shift}
   num_dist_array_replicas = 4
   iorder_sendrecv      = 1
  /
@@ -1021,6 +1009,14 @@ do
 done
 
 
+#
+# configure START_MODEL_function
+#
+ICON_COMPONENT2_VE_procs=$mpi_waves_procs    # START_MODEL_function expects ICON_COMPONENT2_VE_procs
+ICON_COMPONENT1_VH_procs=$mpi_atm_io_procs
+ICON_COMPONENT2_VH_procs=$mpi_waves_io_procs
+echo "mpi procs: total=$mpi_total_procs waves=${ICON_COMPONENT2_VE_procs} atmo=total-waves (will be computed implicitly)"
+
 # ----------------------------------------------------------------------
 # run the model!
 # ----------------------------------------------------------------------
@@ -1028,8 +1024,7 @@ done
 rm -f finish.status
 date
 
-# this appears to be unnecessary and even causes a runtime error when linking the MPI library dynamically
-# export LD_LIBRARY_PATH=/hpc/sw/intel/compilers_and_libraries_2020.0.166/linux/mkl/lib/intel64_lin:/hpc/sw/gcc-9.1.0/VH/lib64:/opt/nec/ve/mpi/2.6.0/lib/vh/gnu/9.1.0:/hpc/sw/grib_api-1.23.1/VH/lib:/hpc/sw/hdf5/1.10.5/VH/gnu/lib:/hpc/sw/netcdf4/4.7.3/VH/gnu/lib:$LD_LIBRARY_PATH
+
 echo "START_MODEL: ${START_MODEL}"
 # ----------------------------------------------------------------------
 # run the model!
@@ -1042,22 +1037,6 @@ if [ "$EXIT_STATUS" -ne "0" ]; then
   echo "ICON EXIT_STATUS: $EXIT_STATUS"
   exit $EXIT_STATUS
 fi
-
-# (MJ 2022-05-24: The following comment seems outdated, if mpi_oce_procs == 8)
-# NE=4, CPE=8, cpunum_job=3
-# geometry: ID of MPI processes (see ranks below, oce_min_rank, etc)
-# MPI process ID   node   VH/VE    info
-# 0                0      VH       ICON initialization process
-# 1-16             0-3    VE       ICON atmosphere
-# 17-18            0      VH       IO   atmosphere
-# 19-34            0-3    VE       ICON ocean
-
-# debug output: each processor with separate output in EXPDIR
-
-#mpirun -v -vh     -node 0        -np 1                    -env OMP_NUM_THREADS 1 /opt/nec/ve/bin/mpisep.sh ${MODEL_SCAL} : \
-#          -venode -node 0-${NE1} -np ${mpi_atm_procs}     -env OMP_NUM_THREADS 1 /opt/nec/ve/bin/mpisep.sh ${MODEL} : \
-#          -vh     -node 0        -np ${mpi_atm_io_procs}  -env OMP_NUM_THREADS 1 /opt/nec/ve/bin/mpisep.sh ${MODEL_SCAL} : \
-#          -venode -node 0-${NE1} -np ${mpi_wave_procs}    -env OMP_NUM_THREADS 1 /opt/nec/ve/bin/mpisep.sh ${MODEL}
 
 date
 

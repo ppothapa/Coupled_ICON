@@ -399,6 +399,11 @@ cat > NAMELIST_${EXPID} << EOF
         /
 EOF
 
+#
+# configure START_MODEL_function
+#
+ICON_COMPONENT1_VH_procs=$((num_restart_procs + num_io_procs + num_prefetch_proc + num_io_procs_radar))
+
 # ----------------------------------------------------------------------
 # run the model!
 # ----------------------------------------------------------------------
