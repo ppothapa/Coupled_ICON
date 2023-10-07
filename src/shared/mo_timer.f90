@@ -173,6 +173,7 @@ MODULE mo_timer
   PUBLIC :: timer_nesting
   PUBLIC :: timer_nudging
   PUBLIC :: timer_bdy_interp
+  PUBLIC :: timer_rrg_interp
   PUBLIC :: timer_feedback
 
   PUBLIC :: timer_global_nudging
@@ -391,7 +392,7 @@ MODULE mo_timer
   ! Timer IDs for boundary interpolation, feedback & nudging
   INTEGER :: timer_nesting
   INTEGER :: timer_nudging
-  INTEGER :: timer_bdy_interp
+  INTEGER :: timer_bdy_interp, timer_rrg_interp
   INTEGER :: timer_feedback
 
   INTEGER :: timer_global_nudging
@@ -777,6 +778,7 @@ CONTAINS
     timer_nesting    = new_timer("nesting")
     timer_nudging    = new_timer("nesting.nudging")
     timer_bdy_interp = new_timer("nesting.bdy_interp")
+    timer_rrg_interp = new_timer("nesting.rrg_interp")
     timer_feedback   = new_timer("nesting.feedback")
 
     timer_global_nudging = new_timer("global_nudging")

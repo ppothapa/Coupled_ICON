@@ -45,11 +45,11 @@ MODULE mo_nh_stepping
     &                                    ntracer, iforcing, msg_level, test_mode,           &
     &                                    output_mode, lart, luse_radarfwo, ldass_lhn
   USE mo_advection_config,         ONLY: advection_config
-  USE mo_timer,                    ONLY: ltimer, timers_level, timer_start, timer_stop,   &
-    &                                    timer_total, timer_model_init, timer_nudging,    &
-    &                                    timer_bdy_interp, timer_feedback, timer_nesting, &
-    &                                    timer_integrate_nh, timer_nh_diagnostics,        &
-    &                                    timer_iconam_aes, timer_dace_coupling
+  USE mo_timer,                    ONLY: ltimer, timers_level, timer_start, timer_stop,        &
+    &                                    timer_total, timer_model_init, timer_nudging,         &
+    &                                    timer_bdy_interp, timer_feedback, timer_nesting,      &
+    &                                    timer_integrate_nh, timer_nh_diagnostics,             &
+    &                                    timer_iconam_aes, timer_dace_coupling, timer_rrg_interp
   USE mo_ext_data_state,           ONLY: ext_data
   USE mo_radiation_config,         ONLY: irad_aero, iRadAeroCAMSclim
   USE mo_limarea_config,           ONLY: latbc_config
@@ -2181,8 +2181,10 @@ MODULE mo_nh_stepping
 
           ! Boundary interpolation of land state variables entering into radiation computation
           ! if a reduced grid is used in the child domain(s)
-          IF (ltimer)            CALL timer_start(timer_nesting)
-          IF (timers_level >= 2) CALL timer_start(timer_bdy_interp)
+          IF (p_patch(jg)%n_childdom > 0) THEN
+            IF (ltimer)            CALL timer_start(timer_nesting)
+            IF (timers_level >= 2) CALL timer_start(timer_rrg_interp)
+          ENDIF
           DO jn = 1, p_patch(jg)%n_childdom
 
             jgc = p_patch(jg)%child_id(jn)
@@ -2219,8 +2221,10 @@ MODULE mo_nh_stepping
             ENDIF
 
           ENDDO
-          IF (timers_level >= 2) CALL timer_stop(timer_bdy_interp)
-          IF (ltimer)            CALL timer_stop(timer_nesting)
+          IF (p_patch(jg)%n_childdom > 0) THEN
+            IF (timers_level >= 2) CALL timer_stop(timer_rrg_interp)
+            IF (ltimer)            CALL timer_stop(timer_nesting)
+          ENDIF
 
         ENDIF !iforcing
 
@@ -2436,7 +2440,7 @@ MODULE mo_nh_stepping
         ! clean up
         CALL deallocateTimedelta(mtime_dt_sub)
 
-        IF (ltimer)            CALL timer_start(timer_nesting)
+        IF (ltimer .AND. p_patch(jg)%n_childdom > 0) CALL timer_start(timer_nesting)
         DO jn = 1, p_patch(jg)%n_childdom
 
           ! Call feedback to copy averaged prognostic variables from refined mesh back
@@ -2475,7 +2479,7 @@ MODULE mo_nh_stepping
             IF (timers_level >= 2) CALL timer_stop(timer_feedback)
           ENDIF
         ENDDO
-        IF (ltimer)            CALL timer_stop(timer_nesting)
+        IF (ltimer .AND. p_patch(jg)%n_childdom > 0) CALL timer_stop(timer_nesting)
 
       ENDIF
 
