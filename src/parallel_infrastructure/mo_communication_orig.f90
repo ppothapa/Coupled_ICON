@@ -745,6 +745,7 @@ CONTAINS
 
     CLASS(t_comm_pattern_orig), TARGET, INTENT(INOUT) :: p_pat
 
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(p_pat%send_src_idx, p_pat%send_src_blk) &
     !$ACC   DELETE(p_pat%recv_dst_idx, p_pat%recv_dst_blk) &
     !$ACC   DELETE(p_pat%recv_src)
@@ -1086,9 +1087,8 @@ CONTAINS
 #endif
     ENDIF
 
-    !$ACC UPDATE HOST(send_buf) WAIT(get_comm_acc_queue()) IF(use_staging)
-
     ! Send our data
+    !$ACC UPDATE HOST(send_buf) WAIT(get_comm_acc_queue()) IF(use_staging)
     CALL acc_wait_comms(get_comm_acc_queue())
     IF (iorder_sendrecv == 1) THEN
       DO np = 1, p_pat%np_send ! loop over PEs where to send the data
@@ -1348,9 +1348,8 @@ CONTAINS
 #endif
     ENDIF
 
-    !$ACC UPDATE HOST(send_buf) WAIT(get_comm_acc_queue()) IF(use_staging)
-
     ! Send our data
+    !$ACC UPDATE HOST(send_buf) WAIT(get_comm_acc_queue()) IF(use_staging)
     CALL acc_wait_comms(get_comm_acc_queue())
     IF (iorder_sendrecv == 1) THEN
       DO np = 1, p_pat%np_send ! loop over PEs where to send the data
@@ -1774,7 +1773,6 @@ CONTAINS
         send_buf(1,i) = send_ptr(send_src_idx(i),1,send_src_blk(i))
       ENDDO
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
     ELSE
 #if defined( __SX__ ) || defined( _OPENACC )
 !$NEC outerloop_unroll(4)
@@ -1786,7 +1784,6 @@ CONTAINS
         ENDDO
       ENDDO
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
 #else
 #ifdef __OMPPAR_COPY__
 !$OMP PARALLEL DO
@@ -1800,8 +1797,9 @@ CONTAINS
 #endif
     ENDIF
 
-    !$ACC UPDATE HOST(send_buf) IF(use_staging)
     ! Send our data
+    !$ACC UPDATE HOST(send_buf) WAIT(1) IF(use_staging)
+    !$ACC WAIT(1)
     IF (iorder_sendrecv == 1) THEN
       DO np = 1, p_pat%np_send ! loop over PEs where to send the data
 
@@ -1843,7 +1841,7 @@ CONTAINS
     ! Wait for all outstanding requests to finish
     start_sync_timer(timer_exch_data_wait)
     CALL p_wait
-    !$ACC UPDATE DEVICE(recv_buf) IF(use_staging)
+    !$ACC UPDATE DEVICE(recv_buf) WAIT(1) IF(use_staging)
     stop_sync_timer(timer_exch_data_wait)
 
     IF (itype_exch_barrier == 2 .OR. itype_exch_barrier == 3) THEN
@@ -1864,7 +1862,6 @@ CONTAINS
             recv_buf(k,recv_src(i)) + add(recv_dst_idx(i),k,recv_dst_blk(i))
         ENDDO
         !$ACC END PARALLEL
-        !$ACC WAIT(1)
       ELSE
 #if defined( __SX__ ) || defined( _OPENACC )
         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
@@ -1877,7 +1874,6 @@ CONTAINS
           ENDDO
         ENDDO
         !$ACC END PARALLEL
-        !$ACC WAIT(1)
 #else
 #ifdef __OMPPAR_COPY__
 !$OMP PARALLEL DO
@@ -1900,7 +1896,6 @@ CONTAINS
           recv(recv_dst_idx(i),k,recv_dst_blk(i)) = recv_buf(k,recv_src(i))
         ENDDO
         !$ACC END PARALLEL
-        !$ACC WAIT(1)
       ELSE
 #if defined( __SX__ ) || defined( _OPENACC )
         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
@@ -1912,7 +1907,6 @@ CONTAINS
           ENDDO
         ENDDO
         !$ACC END PARALLEL
-        !$ACC WAIT(1)
 #else
 #ifdef __OMPPAR_COPY__
 !$OMP PARALLEL DO
@@ -1927,6 +1921,7 @@ CONTAINS
       ENDIF
     ENDIF
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     stop_sync_timer(timer_exch_data)
@@ -2112,17 +2107,16 @@ CONTAINS
     ENDIF
 
     IF (ndim2 == 1) THEN
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(get_comm_acc_queue()) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO i = 1, p_pat%n_send
         send_buf(1,i) = send_ptr(send_src_idx(i),1,send_src_blk(i))
       ENDDO
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
     ELSE
 #if defined( __SX__ ) || defined( _OPENACC )
 !$NEC outerloop_unroll(4)
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(get_comm_acc_queue()) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k = 1, ndim2
         DO i = 1, p_pat%n_send
@@ -2130,7 +2124,6 @@ CONTAINS
         ENDDO
       ENDDO
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
 #else
 #ifdef __OMPPAR_COPY__
 !$OMP PARALLEL DO
@@ -2144,8 +2137,9 @@ CONTAINS
 #endif
     ENDIF
 
-    !$ACC UPDATE HOST(send_buf) IF(use_staging)
     ! Send our data
+    !$ACC UPDATE HOST(send_buf) WAIT(get_comm_acc_queue()) IF(use_staging)
+    CALL acc_wait_comms(get_comm_acc_queue())
     IF (iorder_sendrecv == 1) THEN
       DO np = 1, p_pat%np_send ! loop over PEs where to send the data
 
@@ -2187,7 +2181,7 @@ CONTAINS
     ! Wait for all outstanding requests to finish
     start_sync_timer(timer_exch_data_wait)
     CALL p_wait
-    !$ACC UPDATE DEVICE(recv_buf) IF(use_staging)
+    !$ACC UPDATE DEVICE(recv_buf) WAIT(get_comm_acc_queue()) IF(use_staging)
     stop_sync_timer(timer_exch_data_wait)
 
     IF (itype_exch_barrier == 2 .OR. itype_exch_barrier == 3) THEN
@@ -2200,16 +2194,15 @@ CONTAINS
 
     IF (ndim2 == 1) THEN
       k = 1
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(get_comm_acc_queue()) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO i = 1, p_pat%n_pnts
         recv(recv_dst_idx(i),k,recv_dst_blk(i)) = recv_buf(k,recv_src(i))
       ENDDO
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
     ELSE
 #if defined( __SX__ ) || defined( _OPENACC )
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(get_comm_acc_queue()) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 !$NEC outerloop_unroll(4)
       DO k = 1, ndim2
@@ -2218,7 +2211,6 @@ CONTAINS
         ENDDO
       ENDDO
       !$ACC END PARALLEL
-      !$AC WAIT(1)
 #else
 #ifdef __OMPPAR_COPY__
 !$OMP PARALLEL DO
@@ -2232,6 +2224,7 @@ CONTAINS
 #endif
     ENDIF
 
+    CALL acc_wait_comms(get_comm_acc_queue())
     !$ACC END DATA
 
     stop_sync_timer(timer_exch_data)
@@ -2416,8 +2409,8 @@ CONTAINS
 #endif
 #endif
 
-    !$ACC UPDATE HOST(send_buf) WAIT(get_comm_acc_queue()) IF(use_staging)
     ! Send our data
+    !$ACC UPDATE HOST(send_buf) WAIT(get_comm_acc_queue()) IF(use_staging)
     CALL acc_wait_comms(get_comm_acc_queue())
     IF (iorder_sendrecv == 1) THEN
       DO np = 1, p_pat%np_send ! loop over PEs where to send the data
@@ -2781,9 +2774,9 @@ CONTAINS
 #endif
 #endif
 
+    ! Send our data
     !$ACC UPDATE HOST(send_buf_sp, send_buf_dp) WAIT(get_comm_acc_queue()) IF(use_staging)
     CALL acc_wait_comms(get_comm_acc_queue())
-    ! Send our data
     IF (iorder_sendrecv == 1) THEN
       DO np = 1, p_pat%np_send ! loop over PEs where to send the data
 
@@ -3058,15 +3051,15 @@ CONTAINS
       ENDIF
     ENDDO
     !$ACC END PARALLEL
-    !$ACC WAIT(1)
 
 #if defined( __OMPPAR_COPY__ ) && !defined( _OPENACC )
 !$OMP END PARALLEL DO
 #endif
 #endif
 
-    !$ACC UPDATE HOST(send_buf) IF(use_staging)
     ! Send our data
+    !$ACC UPDATE HOST(send_buf) WAIT(1) IF(use_staging)
+    !$ACC WAIT(1)
     IF (iorder_sendrecv == 1) THEN
       DO np = 1, p_pat%np_send ! loop over PEs where to send the data
 
@@ -3151,10 +3144,10 @@ CONTAINS
 !$OMP END PARALLEL DO
 #else
     !$ACC END PARALLEL
-    !$ACC WAIT(1)
 #endif
 #endif
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     stop_sync_timer(timer_exch_data)
@@ -3461,15 +3454,16 @@ CONTAINS
             ise = p_pat(n)%p%send_limits(pid+1) + ioffset_s(n)
             isum1 = ise - iss + 1
             IF (isum1 > 0) THEN
-            !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
 !
 !  TODO:  Makes sure this is set up correctly
+              !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
               auxs_buf(:,isum+1:isum+isum1) = send_buf(:,iss:ise)
               !$ACC END KERNELS
               isum = isum+isum1
             ENDIF
           ENDDO
 
+          !$ACC WAIT(1)
           !$ACC UPDATE HOST(auxs_buf(:,ioffset+1:ioffset+isum)) IF(use_staging)
 
           IF(isum > ioffset) CALL p_send(auxs_buf(1,ioffset+1), pid, 1, &
@@ -3490,13 +3484,14 @@ CONTAINS
             ise = p_pat(n)%p%send_limits(pid+1) + ioffset_s(n)
             isum1 = ise - iss + 1
             IF (isum1 > 0) THEN
-              !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
+              !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
               auxs_buf(:,isum+1:isum+isum1) = send_buf(:,iss:ise)
               !$ACC END KERNELS
               isum = isum+isum1
             ENDIF
           ENDDO
 
+          !$ACC WAIT(1)
           !$ACC UPDATE HOST(auxs_buf(:,ioffset+1:ioffset+isum)) IF(use_staging)
 
           IF(isum > ioffset) CALL p_isend(auxs_buf(1,ioffset+1), pid, 1, &
@@ -3541,7 +3536,7 @@ CONTAINS
 #ifdef __OMPPAR_COPY__
 !$OMP DO
 #endif
-              !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
+              !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
               DO i = 1, isum1
                 auxs_buf(:,isum+i) = send_buf(:,iss-1+i)
               ENDDO
@@ -3553,6 +3548,7 @@ CONTAINS
             ENDIF
           ENDDO
 
+          !$ACC WAIT(1)
           !$ACC UPDATE HOST(auxs_buf(:,ioffset+1:ioffset+isum)) IF(use_staging)
 !$OMP MASTER
           IF(isum > ioffset) CALL p_isend(auxs_buf(1,ioffset+1), pid, 1, &
@@ -3668,6 +3664,7 @@ CONTAINS
     ENDIF  ! .NOT. my_process_is_mpi_seq()
 
 #ifdef _OPENACC
+    !$ACC WAIT(1)
     DO n = 1, nfields
       !$ACC EXIT DATA DETACH(recv(n)%p, send(n)%p) IF(lzacc)
     ENDDO

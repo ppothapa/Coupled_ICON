@@ -47,6 +47,7 @@ MODULE mo_ser_debug
 #if defined(_OPENACC)
     !$ser verbatim IF(.NOT. lcpu_only) THEN
     !$ser verbatim   CALL warning('GPU:mo_ser_debug:debug-output','GPU HOST synchronization forced by serialization!')
+    !$ser verbatim   !$ACC WAIT(1)
     !$ser verbatim   !$ACC UPDATE HOST(r1d1) IF (PRESENT(r1d1))
     !$ser verbatim   !$ACC UPDATE HOST(r1d2) IF (PRESENT(r1d2))
     !$ser verbatim   !$ACC UPDATE HOST(r1d3) IF (PRESENT(r1d3))

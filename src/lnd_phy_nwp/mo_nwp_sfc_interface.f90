@@ -84,8 +84,10 @@ TYPE(c_ptr) :: lnd_prog_now_cache(max_dom*2) = C_NULL_PTR
 LOGICAL :: graph_captured
 INTEGER :: cur_graph_id, ig
 LOGICAL, PARAMETER :: multi_queue_processing = .TRUE.
+LOGICAL, PARAMETER :: using_cuda_graph = .TRUE.
 #else
 LOGICAL, PARAMETER :: multi_queue_processing = .FALSE.
+LOGICAL, PARAMETER :: using_cuda_graph = .FALSE.
 #endif
 INTEGER :: acc_async_queue = 1
 
@@ -2003,7 +2005,9 @@ CONTAINS
 !$OMP END DO
 !$OMP END PARALLEL
 
-    !$ACC WAIT
+    IF (.NOT. using_cuda_graph) THEN
+      !$ACC WAIT(1)
+    END IF
     !$ACC END DATA
 
   END SUBROUTINE nwp_seaice
@@ -2255,12 +2259,11 @@ CONTAINS
       !$ACC END PARALLEL
 
     ENDDO  !jb
-    !$ACC WAIT(1)
 !$OMP END DO
 !$OMP END PARALLEL
 
-! remove local variables from gpu
-!$ACC END DATA
+    ! remove local variables from gpu
+    !$ACC END DATA
   END SUBROUTINE nwp_lake
 
 END MODULE mo_nwp_sfc_interface

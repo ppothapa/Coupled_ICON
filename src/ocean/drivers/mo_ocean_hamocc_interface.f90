@@ -263,6 +263,7 @@ CONTAINS
     TYPE(t_ocean_to_hamocc_state), POINTER           :: ocean_to_hamocc_state
     TYPE(t_hamocc_to_ocean_state), POINTER           :: hamocc_to_ocean_state
 
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(ocean_state%p_diag%swr_frac)
 
     ocean_to_hamocc_state => hamocc_ocean_state%ocean_to_hamocc_state

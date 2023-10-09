@@ -407,6 +407,7 @@ CONTAINS
     ENDIF
     __acc_attach(csalb)
 
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(config_decorr_pole, config_decorr_equator)
 
     !-----------------------------------------------------

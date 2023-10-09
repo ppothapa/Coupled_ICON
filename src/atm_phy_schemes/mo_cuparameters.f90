@@ -938,6 +938,7 @@ CONTAINS
     rkappa=rd/rcpd
     retv=rv/rd-1._jprb
     
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(r, rmd, rmv, rmo3, rd, rv, rcpd, rcvd, rcpv, rcvv, rkappa, retv)
 
     !     ------------------------------------------------------------------
@@ -1543,6 +1544,7 @@ IF (lhook) CALL dr_hook('SUCUMF',1,zhook_handle)
     rtwat_rtice_r=1._jprb/(rtwat-rtice)
     rtwat_rticecu_r=1._jprb/(rtwat-rticecu)
 
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(rtice, rtwat, rtwat_rtice_r)
     !$ACC UPDATE DEVICE(rticecu, rtwat_rticecu_r)
     !$ACC UPDATE DEVICE(r2es, r3les, rtt, r4les, r3ies, r4ies)
@@ -1780,6 +1782,7 @@ IF (lhook) CALL dr_hook('SUCUMF',1,zhook_handle)
 !    PRINT*, 'SUPHLI', rlptrc
     !RETURN
 
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(lphylin, lhook, rlptrc, rlpal1, rlpal2)
 
   END SUBROUTINE suphli

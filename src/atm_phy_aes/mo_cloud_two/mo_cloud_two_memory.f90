@@ -143,6 +143,7 @@ CONTAINS
        END IF
     END DO
 
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(cloud_two_input, cloud_two_output)
 
     DEALLOCATE( cloud_two_list, STAT=ist )

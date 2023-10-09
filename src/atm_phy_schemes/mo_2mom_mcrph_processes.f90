@@ -5218,6 +5218,7 @@ CONTAINS
     kstart = ik_slice(3)
     kend   = ik_slice(4)
     
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DETACH(tab%ltable, tab%x1, tab%x2, tab%x3, tab%x4) FINALIZE
     !$ACC ENTER DATA ATTACH(tab%ltable, tab%x1, tab%x2, tab%x3, tab%x4)
 

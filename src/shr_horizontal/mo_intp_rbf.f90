@@ -431,7 +431,7 @@ i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
 
 IF (ptr_patch%id > 1) THEN
 #ifdef _OPENACC
-  !$ACC KERNELS IF(i_am_accel_node)
+  !$ACC KERNELS ASYNC(1) IF(i_am_accel_node)
   grad_x(:,:,1:i_startblk) = 0._wp
   grad_y(:,:,1:i_startblk) = 0._wp
   !$ACC END KERNELS

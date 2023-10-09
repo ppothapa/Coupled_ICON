@@ -410,7 +410,7 @@ CONTAINS
         ELSE
           nlen = p_patch%npromz_c
         END IF
-        !$ACC PARALLEL LOOP DEFAULT(PRESENT) COPYOUT(buffer(nn+1:nn+nlen, 1:4))
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COPYOUT(buffer(nn+1:nn+nlen, 1:4))
         DO n = 1, nlen
           buffer(nn+n,1) = prm_field(jg)%swflxsfc_tile(n,i_blk,iwtr)
           buffer(nn+n,2) = prm_field(jg)%lwflxsfc_tile(n,i_blk,iwtr)
@@ -430,7 +430,7 @@ CONTAINS
         ELSE
           nlen = p_patch%npromz_c
         END IF
-        !$ACC PARALLEL LOOP DEFAULT(PRESENT) COPYOUT(buffer(nn+1:nn+nlen, 1:4))
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COPYOUT(buffer(nn+1:nn+nlen, 1:4))
         DO n = 1, nlen
           buffer(nn+n,1) = prm_field(jg)%swflxsfc_tile(n,i_blk,iwtr)
           buffer(nn+n,2) = prm_field(jg)%lwflxsfc_tile(n,i_blk,iwtr)
@@ -441,6 +441,7 @@ CONTAINS
 !ICON_OMP_END_PARALLEL_DO
 
     ENDIF ! config_use_sens_heat_flux_hack
+    !$ACC WAIT(1)
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
 
@@ -939,6 +940,7 @@ CONTAINS
       CALL dbg_print('AESOce: ocv         ',prm_field(jg)%ocv         ,str_module,4,in_subset=p_patch%cells%owned)
 
       ! Fraction of tiles:
+      !$ACC WAIT(1)
       !$ACC UPDATE HOST(frac_oce)
       CALL dbg_print('AESOce: frac_oce     ',frac_oce                 ,str_module,3,in_subset=p_patch%cells%owned)
       scr(:,:) = prm_field(jg)%frac_tile(:,:,iwtr)

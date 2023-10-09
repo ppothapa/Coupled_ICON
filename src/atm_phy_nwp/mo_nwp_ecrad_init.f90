@@ -392,6 +392,7 @@ CONTAINS
       &  nweight_par_ecrad, iband_par_ecrad, weight_par_ecrad, &
       &  'photosynthetically active radiation, PAR')
 
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(iband_nir_ecrad, weight_nir_ecrad)
     !$ACC UPDATE DEVICE(iband_vis_ecrad, weight_vis_ecrad)
     !$ACC UPDATE DEVICE(iband_par_ecrad, weight_par_ecrad)

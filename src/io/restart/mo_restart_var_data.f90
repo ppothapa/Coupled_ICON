@@ -93,6 +93,7 @@ CONTAINS
       CALL finish(routine, "lopenacc and acc_is_present are inconsistent for '"//TRIM(vd%info%NAME)//"'")
     endif
 #endif
+    !$ACC WAIT(1)
     !$ACC UPDATE HOST(r_ptr_3d) IF(i_am_accel_node .AND. vd%info%lopenacc)
   END SUBROUTINE get_var_3d_ptr_dp
 
@@ -143,6 +144,7 @@ CONTAINS
       CALL finish(routine, "lopenacc and acc_is_present are inconsistent for '"//TRIM(vd%info%NAME)//"'")
     endif
 #endif
+    !$ACC WAIT(1)
     !$ACC UPDATE HOST(s_ptr_3d) IF(i_am_accel_node .AND. vd%info%lopenacc)
   END SUBROUTINE get_var_3d_ptr_sp
 
@@ -193,6 +195,7 @@ CONTAINS
       CALL finish(routine, "lopenacc and acc_is_present are inconsistent for '"//TRIM(vd%info%NAME)//"'")
     endif
 #endif
+    !$ACC WAIT(1)
     !$ACC UPDATE HOST(i_ptr_3d) IF(i_am_accel_node .AND. vd%info%lopenacc)
   END SUBROUTINE get_var_3d_ptr_int
 

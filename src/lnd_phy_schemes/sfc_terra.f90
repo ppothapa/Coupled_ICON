@@ -159,6 +159,11 @@ PUBLIC :: terra
 ! Public variables
 !------------------------------------------------------------------------------
 
+#ifdef ICON_USE_CUDA_GRAPH
+  LOGICAL, PARAMETER :: using_cuda_graph = .TRUE.
+#else
+  LOGICAL, PARAMETER :: using_cuda_graph = .FALSE.
+#endif
 
 !------------------------------------------------------------------------------
 ! Parameters and variables which are global in this module
@@ -5566,6 +5571,10 @@ ENDDO
     !$ACC END PARALLEL
   ENDIF
 
+  IF (.NOT. using_cuda_graph) THEN
+    !$ACC WAIT(acc_async_queue)
+  END IF
+
 ! for optional fields related to soil water budget
   !$ACC END DATA
 
@@ -5577,7 +5586,10 @@ ENDDO
   !$ACC END DATA
 
   IF (msg_level >= 19) THEN
-    !$ACC UPDATE WAIT(acc_async_queue) HOST(ivend)
+    !$ACC UPDATE HOST(ivend) ASYNC(acc_async_queue)
+    IF (.NOT. using_cuda_graph) THEN
+      !$ACC WAIT(acc_async_queue)
+    END IF
     DO i = ivstart, ivend
 
      IF (ABS(t_s_now(i)-t_s_new(i)) > 15.0_wp .or. ABS(t_sk_now(i)-t_sk_new(i)) > 15.0_wp) THEN

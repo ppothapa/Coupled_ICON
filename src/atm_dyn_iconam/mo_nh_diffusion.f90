@@ -675,7 +675,7 @@ MODULE mo_nh_diffusion
       ENDIF
 
       IF (p_test_run) THEN
-        !$ACC KERNELS IF(i_am_accel_node) ASYNC(1)
+        !$ACC KERNELS ASYNC(1) IF(i_am_accel_node)
         z_nabla2_e = 0._wp
         !$ACC END KERNELS
       ENDIF
@@ -855,7 +855,7 @@ MODULE mo_nh_diffusion
       ! Interpolate nabla2(v) to vertices in order to compute nabla2(nabla2(v))
 
       IF (p_test_run) THEN
-        !$ACC KERNELS IF(i_am_accel_node)
+        !$ACC KERNELS ASYNC(1) IF(i_am_accel_node)
         u_vert = 0._wp
         v_vert = 0._wp
         !$ACC END KERNELS

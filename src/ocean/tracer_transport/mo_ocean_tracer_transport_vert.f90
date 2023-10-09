@@ -303,7 +303,7 @@ CONTAINS
 
     ! 2. Calculate monotonized slope
     !
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     z_slope(:, :) = 0._wp
     z_face(:, :)  = 0.0_wp
     !$ACC END KERNELS
@@ -476,7 +476,7 @@ CONTAINS
 
     ENDIF  !  p_ityp_vlimit
 
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     upward_tracer_flux(:,:) = 0.0_wp
     !$ACC END KERNELS
 

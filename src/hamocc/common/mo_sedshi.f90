@@ -167,7 +167,7 @@ SUBROUTINE sedshi(local_bgc_mem, local_sediment_mem, start_idx, end_idx, use_acc
   ! then, successively, the following layers are filled upwards.
   ! if there is not enough solid matter to fill the column, add clay. 
 
-  !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+  !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
   fulsed(:) = 0._wp
   !$ACC END KERNELS
 

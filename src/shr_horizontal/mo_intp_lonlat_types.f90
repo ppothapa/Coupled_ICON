@@ -231,6 +231,7 @@ CONTAINS
     this%idx(:,:,:)   = -1
     this%blk(:,:,:)   = -1
 
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(this%stencil)
     !$ACC UPDATE DEVICE(this%idx)
     !$ACC UPDATE DEVICE(this%blk)
@@ -247,6 +248,7 @@ CONTAINS
     CHARACTER(*), PARAMETER :: routine = modname//"::t_intp_coeff_finalize"
     INTEGER :: ist
 
+    !$ACC WAIT(1)
     IF (ALLOCATED(this%idx)) THEN
       DEALLOCATE (this%idx, STAT=ist)
       IF (ist /= SUCCESS)  CALL finish (routine, 'deallocation for barycentric stencil indices failed')
@@ -296,6 +298,7 @@ CONTAINS
     IF (ierr /= SUCCESS)  CALL finish (routine, 'Allocation for coeffs failed!')
     !$ACC ENTER DATA CREATE(this%coeff)
     this%coeff(:,:,:) = 0._wp
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(this%coeff)
 
     this%l_cutoff = l_cutoff
@@ -349,6 +352,7 @@ CONTAINS
     IF (ierr /= SUCCESS)  CALL finish (routine, 'Allocation for coeffs failed!')
     !$ACC ENTER DATA CREATE(this%coeff)
     this%coeff(:,:,:,:) = 0._wp
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(this%coeff)
   END SUBROUTINE t_intp_vec_coeff_init
 
@@ -410,6 +414,7 @@ CONTAINS
 
     DEALLOCATE (this%global_idx, STAT=ist )
     IF (ist /= SUCCESS)  CALL finish (routine, 'deallocation for lon-lat coefficients failed')
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(this%global_idx)
     ! -- deallocate rbf_vec data structure
     CALL this%rbf_vec%finalize()
@@ -473,6 +478,7 @@ CONTAINS
     IF (errstat /= SUCCESS) CALL finish (routine, 'ALLOCATE failed')
     !$ACC ENTER DATA CREATE(tmp_global_idx)
     tmp_global_idx(1:nlocal_pts) = this%global_idx(1:nlocal_pts)
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(tmp_global_idx)
 ! Note: IF_PRESENT not allowed in EXIT DATA, but global_idx should be on DEVICE
     !$ACC EXIT DATA DELETE(this%global_idx)

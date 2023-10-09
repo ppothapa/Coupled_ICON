@@ -108,6 +108,7 @@ CONTAINS
     IF (ASSOCIATED(this%p)) THEN
       IF (ALLOCATED(this%p%vl)) THEN
         n = SIZE(this%p%vl)
+        !$ACC WAIT(1)
         DO i = 1, n
           IF (ASSOCIATED(this%p%vl(i)%p)) THEN
             IF (this%p%vl(i)%p%info%allocated) THEN
@@ -361,6 +362,7 @@ CONTAINS
       !ICON_OMP PARALLEL
       CALL init_contiguous_dp(new_elem%r_ptr, PRODUCT(d(1:5)), ivals%rval)
       !ICON_OMP END PARALLEL
+      !$ACC WAIT(1)
       !$ACC UPDATE DEVICE(new_elem%r_ptr) IF(new_elem%info%lopenacc)
     CASE(SINGLE_T)
       IF (referenced) THEN
@@ -374,6 +376,7 @@ CONTAINS
       !ICON_OMP PARALLEL
       CALL init_contiguous_sp(new_elem%s_ptr, PRODUCT(d(1:5)), ivals%sval)
       !ICON_OMP END PARALLEL
+      !$ACC WAIT(1)
       !$ACC UPDATE DEVICE(new_elem%s_ptr) IF(new_elem%info%lopenacc)
     CASE(INT_T)
       IF (referenced) THEN
@@ -387,6 +390,7 @@ CONTAINS
       !ICON_OMP PARALLEL
       CALL init_contiguous_i4(new_elem%i_ptr, PRODUCT(d(1:5)), ivals%ival)
       !ICON_OMP END PARALLEL
+      !$ACC WAIT(1)
       !$ACC UPDATE DEVICE(new_elem%i_ptr) IF(new_elem%info%lopenacc)
     CASE(BOOL_T)
       IF (referenced) THEN
@@ -400,6 +404,7 @@ CONTAINS
       !ICON_OMP PARALLEL
       CALL init_contiguous_l(new_elem%l_ptr, PRODUCT(d(1:5)), ivals%lval)
       !ICON_OMP END PARALLEL
+      !$ACC WAIT(1)
       !$ACC UPDATE DEVICE(new_elem%l_ptr) IF(new_elem%info%lopenacc)
     END SELECT
     CALL register_list_element(list, new_elem)

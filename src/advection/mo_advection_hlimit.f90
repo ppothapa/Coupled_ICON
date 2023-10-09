@@ -577,7 +577,7 @@ CONTAINS
   !!
   SUBROUTINE hflx_limiter_pd( ptr_patch, ptr_int, p_dtime, p_cc,        &
     &                         p_rhodz_now, p_mflx_tracer_h, slev, elev, &
-    &                         opt_rlstart, opt_rlend, opt_acc_async )
+    &                         opt_rlstart, opt_rlend )
 
     TYPE(t_patch), TARGET, INTENT(IN) ::  &   !< patch on which computation is performed
       &  ptr_patch
@@ -610,9 +610,6 @@ CONTAINS
 
     INTEGER, INTENT(IN), OPTIONAL :: & !< optional: refinement control end level
      &  opt_rlend                      !< (to avoid calculation of halo points)
-
-    LOGICAL, INTENT(IN), OPTIONAL :: & !< optional async OpenACC
-     &  opt_acc_async 
 
 #if defined(__INTEL_COMPILER) || defined(__SX__) || defined(_OPENACC)
     REAL(wp) :: z_mflx1,  z_mflx2, z_mflx3
@@ -857,16 +854,9 @@ CONTAINS
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
+    !$ACC WAIT
     !$ACC END DATA
     !$ACC EXIT DATA DELETE(r_m)
-
-    IF ( PRESENT(opt_acc_async) ) THEN
-      IF ( .NOT. opt_acc_async ) THEN
-        !$ACC WAIT
-      END IF
-    ELSE
-      !$ACC WAIT
-    END IF
 
   END SUBROUTINE hflx_limiter_pd
 

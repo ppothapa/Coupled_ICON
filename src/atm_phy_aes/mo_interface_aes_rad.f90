@@ -182,7 +182,7 @@ CONTAINS
        ELSE
           !
           ! LW
-          !$ACC KERNELS DEFAULT(PRESENT)
+          !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
           field%rldcs_rt(:,:,:)  = 0.0_wp !< out  Clear-sky net longwave  at all levels
           field%rlucs_rt(:,:,:)  = 0.0_wp !< out  Clear-sky net longwave  at all levels
           field%rld_rt  (:,:,:)  = 0.0_wp !< out  All-sky net longwave  at all levels

@@ -190,7 +190,7 @@ CONTAINS
       !$ACC ENTER DATA CREATE(scm_center) IF(lacc)
       DO jb = 1,pt_patch%nblks_c
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
-        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         scm_center(1:ie,jb)%lat = lat_scm * pi/180.
         scm_center(1:ie,jb)%lon = lon_scm * pi/180.
         !$ACC END KERNELS
@@ -247,7 +247,7 @@ CONTAINS
 
       !$ACC DATA CREATE(n_cosmu0pos, z_cosmu0) COPYOUT(zsmu0) IF(lacc)
 
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       zsmu0(:,:)=0.0_wp
       n_cosmu0pos(:,:) = 0
       !$ACC END KERNELS
@@ -273,7 +273,7 @@ CONTAINS
         DO jb = 1, pt_patch%nblks_c
           ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
 
-          !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+          !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
           z_cosmu0(1:ie,jb) = -COS( ptr_center(1:ie,jb)%lat ) &
             & *COS( ptr_center(1:ie,jb)%lon                &
             &      +zstunde/24._wp* 2._wp*pi )
@@ -321,7 +321,7 @@ CONTAINS
       !$ACC DATA CREATE(n_cosmu0pos, z_cosmu0, zsinphi, zcosphi, zeitrad) COPYOUT(zsmu0) PRESENT(ptr_center) IF(lacc)
 
       zsct_h = 0.0_wp
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       zsmu0(:,:)=0.0_wp
       n_cosmu0pos(:,:) = 0
       !$ACC END KERNELS
@@ -459,6 +459,7 @@ CONTAINS
 
     IF (l_scm_mode) THEN
       DEALLOCATE(scm_center)
+      !$ACC WAIT(1)
       !$ACC EXIT DATA DELETE(scm_center)
     ENDIF
 

@@ -1132,6 +1132,7 @@ CONTAINS
       IF (proc0_offloading) CALL p_bcast(lcall_phy, p_io, p_comm_work)
     ENDIF
 
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(lcall_phy)
 
     ! debug output

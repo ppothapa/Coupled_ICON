@@ -377,6 +377,7 @@ CONTAINS
     si = dest%info%subset%start_index
     ei = dest%info%subset%end_index
     ni = SIZE(dest%r_ptr, 1)
+    !$ACC WAIT(1)
     IF (ASSOCIATED(sd5d)) THEN
       !$ACC UPDATE HOST(src%r_ptr) IF(src%info%lopenacc .AND. i_am_accel_node)
       tmp1 => sd5d

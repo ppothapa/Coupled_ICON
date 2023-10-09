@@ -265,6 +265,7 @@ CONTAINS
 
     IF (ALLOCATED(interpolated)) THEN
       IF (.NOT. ALL( SHAPE(interpolated) .EQ. SHAPE(this%dataa) )) THEN
+        !$ACC WAIT(1)
         !$ACC EXIT DATA DELETE(interpolated)
         DEALLOCATE(interpolated)
       END IF
@@ -278,7 +279,7 @@ CONTAINS
     ! ACCWA (NVHPC 22.7): The original copying at allocation time in time_intp_init lead to a crash because of the way that the fields in this were accessed
     !$ACC DATA COPYIN(interpolated, this)
     !$ACC DATA COPYIN(this%dataold, this%datanew)
-    !$ACC KERNELS DEFAULT(NONE) IF(i_am_accel_node)
+    !$ACC KERNELS DEFAULT(NONE) ASYNC(1) IF(i_am_accel_node)
     interpolated(:,:,:,:) = 0.0_wp
     !$ACC END KERNELS
 

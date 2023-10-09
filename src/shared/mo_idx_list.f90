@@ -153,6 +153,7 @@ CONTAINS
     CALL DO_DEALLOCATE(obj%idx)
     obj%ncount = 0
 
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(obj%idx, obj%ncount) IF(obj%lopenacc)
 
   END SUBROUTINE idx_list1D__finalize
@@ -253,6 +254,7 @@ CONTAINS
     CALL DO_DEALLOCATE(obj%idx)
     CALL DO_DEALLOCATE(obj%ncount)
 
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(obj%idx, obj%ncount) IF(obj%lopenacc)
 
   END SUBROUTINE idx_list_blocked__finalize

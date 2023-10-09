@@ -29,6 +29,7 @@ module mo_simple_dump
 
             if (do_copy) backup = array
 
+            !$ACC WAIT(1)
             !$ACC UPDATE HOST(array)
             open(17, file=name)
             write (17, *) array
@@ -50,6 +51,7 @@ module mo_simple_dump
 
             if (do_copy) backup = array
 
+            !$ACC WAIT(1)
             !$ACC UPDATE HOST(array)
             open(17, file=name)
             write (17, *) array
@@ -71,6 +73,7 @@ module mo_simple_dump
 
             if (do_copy) backup = array
 
+            !$ACC WAIT(1)
             !$ACC UPDATE HOST(array)
             open(17, file=name)
             write (17, *) array

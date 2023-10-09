@@ -119,6 +119,7 @@ CONTAINS
 
     ghg_base_year = ghg_years(1)
 
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(ghg_years, ghg_co2, ghg_ch4, ghg_n2o, ghg_cfc)
 
   END SUBROUTINE read_bc_greenhouse_gases
@@ -219,11 +220,13 @@ CONTAINS
       END IF
     END IF
 
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(ghg_cfcvmr, ghg_cfcmmr)
 
   END SUBROUTINE bc_greenhouse_gases_time_interpolation
 
   SUBROUTINE cleanup_greenhouse_gases
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(ghg_years) IF(ALLOCATED(ghg_years))
     !$ACC EXIT DATA DELETE(ghg_co2) IF(ALLOCATED(ghg_co2))
     !$ACC EXIT DATA DELETE(ghg_ch4) IF(ALLOCATED(ghg_ch4))

@@ -340,7 +340,6 @@ CONTAINS
       CASE( MIURA )   ! ihadv_tracer = 2
 
         ! CALL MIURA with second order accurate reconstruction
-        ! DA: this routine IS async, no wait.
         CALL upwind_hflux_miura(                                &
           &         p_patch         = p_patch,                  & !in
           &         p_cc            = p_cc(:,:,:,jt),           & !in
@@ -363,8 +362,6 @@ CONTAINS
         iadv_min_slev = advconf%miura3_h%iadv_min_slev
 
         ! CALL MIURA with third order accurate reconstruction
-        ! DA: this routine is not (yet) async
-        !$ACC WAIT
         CALL upwind_hflux_miura3( p_patch, p_cc(:,:,:,jt), p_mass_flx_e, &! in
           &                p_vn, z_real_vt, p_dtime, p_int,              &! in
           &                lcompute%miura3_h(jt), lcleanup%miura3_h(jt), &! in
@@ -385,6 +382,7 @@ CONTAINS
 ! NOTE: this is only for testing; use upwind_hflux_miura/miura3 for performance
         WRITE(message_text,'(a)') 'GPU mode: performing upwind_hflux_ffsl on host; for performance use upwind_hflux_miura'
         CALL message(routine,message_text)
+        !$ACC WAIT(1)
         !$ACC UPDATE HOST(p_cc(:,:,:,jt), p_mass_flx_e, p_vn, p_rhodz_now, p_rhodz_new, z_real_vt) &
         !$ACC   IF(i_am_accel_node)
         save_i_am_accel_node = i_am_accel_node
@@ -408,6 +406,7 @@ CONTAINS
 
 #ifdef _OPENACC
         i_am_accel_node =  save_i_am_accel_node    ! reactivate GPUs if appropriate
+        !$ACC WAIT(1)
         !$ACC UPDATE DEVICE(p_upflux(:,:,:,jt)) IF(i_am_accel_node)
 #endif
 
@@ -417,8 +416,6 @@ CONTAINS
 
         ! CALL hybrid FFSL/miura3 scheme (i.e. if a prescribed CFL threshold
         ! is exceeded, the scheme switches from MIURA3 to FFSL
-        ! DA: this routine is not (yet) async
-        !$ACC WAIT
         CALL hflux_ffsl_hybrid( p_patch, p_cc(:,:,:,jt),            &! in
           &                 p_rhodz_now, p_rhodz_new, p_mass_flx_e, &! in
           &                 p_vn, z_real_vt, p_dtime, p_int,        &! in
@@ -434,8 +431,6 @@ CONTAINS
       CASE ( MCYCL )   ! ihadv_tracer = 20
 
         ! CALL MIURA with second order accurate reconstruction and subcycling
-        ! DA: this routine is not (yet) async
-        !$ACC WAIT
         CALL upwind_hflux_miura_cycl(                           &
           &         p_patch         = p_patch,                  & !in
           &         p_cc            = p_cc(:,:,:,jt),           & !in
@@ -486,8 +481,6 @@ CONTAINS
         ! with substepping. This prevents us from computing the backward
         ! trajectories multiple times when combining the substepping scheme with
         ! different other schemes.
-        ! DA: this routine is not (yet) async
-        !$ACC WAIT
         CALL upwind_hflux_miura_cycl(                           &
           &         p_patch         = p_patch,                  & !in
           &         p_cc            = p_cc(:,:,:,jt),           & !in
@@ -513,8 +506,6 @@ CONTAINS
 
         ! CALL standard MIURA3 for lower atmosphere and the subcycling version of
         ! MIURA for upper atmosphere
-        ! DA: this routine is not (yet) async
-        !$ACC WAIT
         CALL upwind_hflux_miura3( p_patch, p_cc(:,:,:,jt), p_mass_flx_e, &! in
           &              p_vn, z_real_vt, p_dtime, p_int,                &! in
           &              lcompute%miura3_h(jt), lcleanup%miura3_h(jt),   &! in
@@ -534,8 +525,6 @@ CONTAINS
         ! with substepping. This prevents us from computing the backward
         ! trajectories multiple times when combining the substepping scheme with
         ! different other schemes.
-        ! DA: this routine is not (yet) async
-        !$ACC WAIT
         CALL upwind_hflux_miura_cycl(                           &
           &         p_patch         = p_patch,                  & !in
           &         p_cc            = p_cc(:,:,:,jt),           & !in
@@ -564,6 +553,7 @@ CONTAINS
 ! NOTE: this is only for testing; use upwind_hflux_miura/miura3 for performance
         WRITE(message_text,'(a)') 'GPU mode: performing upwind_hflux_ffsl on host; for performance use upwind_hflux_miura'
         CALL message(routine,message_text)
+        !$ACC WAIT(1)
         !$ACC UPDATE HOST(p_cc(:,:,:,jt), p_mass_flx_e, p_vn, p_rhodz_now, p_rhodz_new, z_real_vt) &
         !$ACC   IF(i_am_accel_node)
         save_i_am_accel_node = i_am_accel_node
@@ -589,6 +579,7 @@ CONTAINS
 
 #ifdef _OPENACC
         i_am_accel_node =  save_i_am_accel_node    ! reactivate GPUs if appropriate
+        !$ACC WAIT(1)
         !$ACC UPDATE DEVICE(p_upflux(:,:,:,jt)) IF(i_am_accel_node)
 #endif
 
@@ -598,8 +589,6 @@ CONTAINS
         ! with substepping. This prevents us from computing the backward
         ! trajectories multiple times when combining the substepping scheme with
         ! different other schemes.
-        ! DA: this routine is not (yet) async
-        !$ACC WAIT
         CALL upwind_hflux_miura_cycl(                           &
           &         p_patch         = p_patch,                  & !in
           &         p_cc            = p_cc(:,:,:,jt),           & !in
@@ -625,8 +614,6 @@ CONTAINS
 
         ! CALL hybrid FFSL/MIURA3 for lower atmosphere and the subcycling
         ! version of MIURA for upper atmosphere
-        ! DA: this routine is not (yet) async
-        !$ACC WAIT
         CALL hflux_ffsl_hybrid( p_patch, p_cc(:,:,:,jt),            &! in
           &                 p_rhodz_now, p_rhodz_new, p_mass_flx_e, &! in
           &                 p_vn, z_real_vt, p_dtime, p_int,        &! in
@@ -647,8 +634,6 @@ CONTAINS
         ! with substepping. This prevents us from computing the backward
         ! trajectories multiple times when combining the substepping scheme with
         ! different other schemes.
-        ! DA: this routine is not (yet) async
-        !$ACC WAIT
         CALL upwind_hflux_miura_cycl(                           &
           &         p_patch         = p_patch,                  & !in
           &         p_cc            = p_cc(:,:,:,jt),           & !in
@@ -906,16 +891,12 @@ CONTAINS
 
     ELSE IF (p_igrad_c_miura == 2) THEN
       ! Green-Gauss method
-      ! DA: this routine is not (yet) async
-      !$ACC WAIT
       CALL grad_green_gauss_cell( p_cc, p_patch, p_int, z_grad, opt_slev=slev, &
         &                         opt_elev=elev, opt_rlend=i_rlend_c )
 
 
     ELSE IF (p_igrad_c_miura == 3) THEN
       ! gradient based on three-node triangular element
-      ! DA: this routine is not (yet) async
-      !$ACC WAIT
       CALL grad_fe_cell( p_cc, p_patch, p_int, z_grad, opt_slev=slev, &
         &                opt_elev=elev, opt_rlend=i_rlend_c )
 
@@ -1414,8 +1395,7 @@ CONTAINS
           &                   z_tracer(:,:,:,nnow)             , & !in
           &                   z_rho(:,:,:,nnow)                , & !in
           &                   z_tracer_mflx(:,:,:,nsub)        , & !inout
-          &                   slev, elev, opt_rlend=i_rlend    , & !in
-          &                   opt_acc_async=.TRUE.               ) !in
+          &                   slev, elev, opt_rlend=i_rlend      )
       ENDIF
 
 
@@ -1776,7 +1756,7 @@ CONTAINS
     !$ACC DATA PRESENT(opt_rhodz_new) IF(PRESENT(opt_rhodz_new) .AND. i_am_accel_node)
 
     IF (p_test_run) THEN
-      !$ACC KERNELS IF(i_am_accel_node)
+      !$ACC KERNELS ASYNC(1) IF(i_am_accel_node)
       z_lsq_coeff(:,:,:,:) = 0._wp
       !$ACC END KERNELS
     ENDIF
@@ -2058,6 +2038,7 @@ CONTAINS
       ! deallocate temporary arrays for quadrature, departure region and
       ! upwind cell indices
 
+      !$ACC WAIT(1)
       !$ACC EXIT DATA DELETE(z_quad_vector_sum, z_dreg_area, z_cell_idx, z_cell_blk) &
       !$ACC   IF(i_am_accel_node)
 
@@ -2070,6 +2051,7 @@ CONTAINS
       ENDIF
     END IF
 
+    !$ACC WAIT(1)
     !$ACC END DATA
     !$ACC END DATA
     !$ACC END DATA
@@ -2815,7 +2797,7 @@ CONTAINS
     !$ACC   CREATE(z_lsq_coeff, dreg_patch0) IF(i_am_accel_node)
 
     IF (p_test_run) THEN
-      !$ACC KERNELS IF(i_am_accel_node)
+      !$ACC KERNELS ASYNC(1) IF(i_am_accel_node)
       z_lsq_coeff(:,:,:,:) = 0._wp
       !$ACC END KERNELS
     ENDIF
@@ -2953,6 +2935,7 @@ CONTAINS
 
       ENDIF
 
+      !$ACC WAIT(1)
       !$ACC EXIT DATA DELETE(dreg_patch1, dreg_patch2) &
       !$ACC   IF(i_am_accel_node)
       DEALLOCATE(dreg_patch1, dreg_patch2)
@@ -3158,7 +3141,6 @@ CONTAINS
     !    to limit computed fluxes.
     !    The flux limiter is based on work by Zalesak (1979)
     !
-    !$ACC WAIT
     IF (.NOT. l_out_edgeval .AND. p_itype_hlimit == ifluxl_m) THEN
       CALL hflx_limiter_mo( p_patch, p_int, p_dtime, p_cc,              & !in
         &                   p_rhodz_now, p_rhodz_new, p_mass_flx_e,     & !in

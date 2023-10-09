@@ -152,7 +152,7 @@ CONTAINS
          ENDDO
          !$ACC END PARALLEL
        ELSE
-         !$ACC KERNELS DEFAULT(PRESENT)
+         !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
          z_ekin(:,:) = 0._wp
          !$ACC END KERNELS
        ENDIF

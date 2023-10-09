@@ -769,7 +769,7 @@ CONTAINS
 
     ! set height-dependent decorrelation length scale
     !$ACC DATA CREATE(zprof, rhodz, zdecorr) IF(lzacc)
-    !$ACC KERNELS IF(lzacc)
+    !$ACC KERNELS ASYNC(1) IF(lzacc)
     zprof(:) = 1._wp
     !$ACC END KERNELS
     IF (lcalib_clcov) THEN
@@ -800,7 +800,7 @@ CONTAINS
         ! if cloud cover is called, vertical integration of cloud content
         ! (for iqv, iqc, iqi)
 
-        !$ACC KERNELS IF(lzacc)
+        !$ACC KERNELS ASYNC(1) IF(lzacc)
         prm_diag%tot_cld_vi(i_startidx:i_endidx,jb,1:3) = 0.0_wp
         !$ACC END KERNELS
 

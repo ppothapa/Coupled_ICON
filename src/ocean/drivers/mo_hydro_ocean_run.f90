@@ -623,6 +623,7 @@ CONTAINS
         CALL update_ho_params(patch_3d, ocean_state(jg), p_as%fu10, sea_ice%concsum, p_phys_param, operators_coefficients, &
                               p_atm_f, p_oce_sfc, use_acc=lacc)
 
+        !$ACC WAIT(1)
         DO blockNo = patch_3D%p_patch_2D(1)%cells%ALL%start_block, patch_3D%p_patch_2D(1)%cells%ALL%end_block
           !$ACC EXIT DATA COPYOUT(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_this_tobelow) &
           !$ACC   COPYOUT(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_this_tothisbelow) &
@@ -810,6 +811,7 @@ CONTAINS
         CALL tracer_transport(patch_3d, ocean_state(jg), p_as, sea_ice, p_oce_sfc, &
           & p_phys_param, operators_coefficients, current_time, use_acc=lacc)
 
+        !$ACC WAIT(1)
         DO i = 1, ocean_state(jg)%p_prog(nold(1))%tracer_collection%no_of_tracers
           !$ACC EXIT DATA COPYOUT(ocean_state(jg)%p_prog(nold(1))%tracer_collection%tracer(i)%concentration) IF(lacc)
           !$ACC EXIT DATA COPYOUT(ocean_state(jg)%p_prog(nnew(1))%tracer_collection%tracer(i)%concentration) IF(lacc)
@@ -1370,6 +1372,7 @@ CONTAINS
           & ocean_state(jg)%p_prog(nold(1))%stretch_c, stretch_e, ocean_state(jg)%p_prog(nnew(1))%stretch_c, &
           & use_acc=lacc)
 
+        !$ACC WAIT(1)
         DO i = 1, ocean_state(jg)%p_prog(nold(1))%tracer_collection%no_of_tracers
           !$ACC EXIT DATA COPYOUT(ocean_state(jg)%p_prog(nold(1))%tracer_collection%tracer(i)%concentration) IF(lacc)
           !$ACC EXIT DATA COPYOUT(ocean_state(jg)%p_prog(nnew(1))%tracer_collection%tracer(i)%concentration) IF(lacc)

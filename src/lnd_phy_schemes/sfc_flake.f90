@@ -341,6 +341,12 @@ MODULE sfc_flake
          &  flake_init          , & ! procedure (initialization)
          &  flake_interface         ! procedure (time stepping)
 
+#ifdef ICON_USE_CUDA_GRAPH
+  LOGICAL, PARAMETER :: using_cuda_graph = .TRUE.
+#else
+  LOGICAL, PARAMETER :: using_cuda_graph = .FALSE.
+#endif
+
 !234567890023456789002345678900234567890023456789002345678900234567890023456789002345678900234567890
 
 CONTAINS
@@ -1639,7 +1645,6 @@ CONTAINS
         !$ACC END KERNELS
       ENDIF
     ENDIF
-    !$ACC WAIT(1)
 
   
 
@@ -1647,6 +1652,9 @@ CONTAINS
     !  End calculations
     !===============================================================================================
 
+    IF (.NOT. using_cuda_graph) THEN
+      !$ACC WAIT(1)
+    END IF
     !$ACC END DATA
 
 END SUBROUTINE flake_interface

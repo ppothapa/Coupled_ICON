@@ -138,6 +138,7 @@ SUBROUTINE t_upscale_fields_destruct(me)
   INTEGER      :: i
   me%nlev_rg = 0
   me%ntot    = 0
+  !$ACC WAIT(1)
   do i=1,nfieldp_max
     !$ACC EXIT DATA DETACH(me%field(i)%p) IF(ASSOCIATED(me%field(i)%p) .AND. me%lopenacc)
     !$ACC EXIT DATA DETACH(me%field(i)%p2) IF(ASSOCIATED(me%field(i)%p2) .AND. me%lopenacc)

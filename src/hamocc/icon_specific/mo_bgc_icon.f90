@@ -193,7 +193,7 @@ IF (test_memory_copies /= bgc_memory_copies) &
         CALL get_index_range(all_cells, jb, start_index, end_index)
         !  tracer 1: potential temperature
         !  tracer 2: salinity
-        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         levels(start_index:end_index) = p_patch_3D%p_patch_1d(1)%dolic_c(start_index:end_index,jb)
         !$ACC END KERNELS
 

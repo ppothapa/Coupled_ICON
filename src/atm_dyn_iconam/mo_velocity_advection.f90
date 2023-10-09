@@ -904,6 +904,7 @@ MODULE mo_velocity_advection
        vt_tmp              => p_diag%vt
        vn_ie_tmp           => p_diag%vn_ie
        w_concorr_c_tmp     => p_diag%w_concorr_c
+       !$ACC WAIT(1)
        !$ACC UPDATE DEVICE(vn_tmp, w_tmp, vt_tmp, vn_ie_tmp, w_concorr_c_tmp, z_w_concorr_me, z_kin_hor_e, z_vt_ie)
 
        ddt_vn_apc_pc_tmp   => p_diag%ddt_vn_apc_pc
@@ -931,6 +932,7 @@ MODULE mo_velocity_advection
        vt_tmp              => p_diag%vt
        vn_ie_tmp           => p_diag%vn_ie
        w_concorr_c_tmp     => p_diag%w_concorr_c
+       !$ACC WAIT(1)
        !$ACC UPDATE HOST(z_kin_hor_e, z_vt_ie, z_w_concorr_me, vt_tmp, vn_ie_tmp, w_concorr_c_tmp) IF(istep==1)
 
        ddt_vn_apc_pc_tmp   => p_diag%ddt_vn_apc_pc

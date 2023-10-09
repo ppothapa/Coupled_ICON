@@ -418,6 +418,7 @@ CONTAINS
       var_in_output(jg)%ddt_va_grf    = is_variable_in_output_dom(var_name="ddt_va_grf", jg=jg)
     END DO
 
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(var_in_output)
 
   END SUBROUTINE init_var_in_output

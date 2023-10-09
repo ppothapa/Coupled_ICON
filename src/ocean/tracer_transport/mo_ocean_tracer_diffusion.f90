@@ -117,7 +117,7 @@ CONTAINS
     !$ACC DATA COPYIN(k_t) IF(lacc)
     DO blockNo = start_block, end_block
       CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       diff_flx(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
 
@@ -156,7 +156,7 @@ CONTAINS
 !ICON_OMP il_c1, ib_c1, il_c2, ib_c2) ICON_OMP_DEFAULT_SCHEDULE
     DO blockNo = start_block, end_block
       CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       diff_flx(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
 

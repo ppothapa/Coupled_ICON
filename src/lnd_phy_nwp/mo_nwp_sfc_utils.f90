@@ -103,6 +103,12 @@ INTEGER, PARAMETER :: nlsoil= 8
   PUBLIC :: copy_lnd_prog_now2new
   PUBLIC :: seaice_albedo_coldstart
 
+#ifdef ICON_USE_CUDA_GRAPH
+  LOGICAL, PARAMETER :: using_cuda_graph = .TRUE.
+#else
+  LOGICAL, PARAMETER :: using_cuda_graph = .FALSE.
+#endif
+
 
 
 CONTAINS
@@ -2151,6 +2157,9 @@ CONTAINS
       ENDIF
     END SELECT
     !$ACC END PARALLEL
+    IF (.NOT. using_cuda_graph) THEN
+      !$ACC WAIT(acc_async_queue)
+    END IF
     !$ACC END DATA
   END SUBROUTINE diag_snowfrac_tg
 
@@ -2405,7 +2414,9 @@ CONTAINS
       IF ( hice_n(jc) < hice_min ) l_update_required = .TRUE.
     ENDDO
     !$ACC END PARALLEL
-    !$ACC WAIT
+    IF (.NOT. using_cuda_graph) THEN
+      !$ACC WAIT(1)
+    END IF
     IF (.NOT. l_update_required) RETURN
 
     IF (msg_level >= 13) CALL message('update_idx_lists_sea', &
@@ -2587,7 +2598,9 @@ CONTAINS
 
     ENDIF  ! IF ( ntiles_total == 1 )
     !$ACC UPDATE ASYNC(1) HOST(list_seawtr_count, list_seaice_count) ! also update index lists?
-    !$ACC WAIT
+    IF (.NOT. using_cuda_graph) THEN
+      !$ACC WAIT(1)
+    END IF
     !$ACC END DATA
     !$ACC END DATA
 

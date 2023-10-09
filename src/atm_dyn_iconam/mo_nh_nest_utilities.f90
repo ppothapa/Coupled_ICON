@@ -787,7 +787,7 @@ CONTAINS
     IF (l_child_vertnest) THEN
 
       IF (p_test_run) THEN
-        !$ACC KERNELS IF(i_am_accel_node)
+        !$ACC KERNELS ASYNC(1) IF(i_am_accel_node)
         aux3dp = 0._wp
         aux3dc = 0._wp
         !$ACC END KERNELS

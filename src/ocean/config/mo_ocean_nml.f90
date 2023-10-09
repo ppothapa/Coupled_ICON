@@ -1355,6 +1355,7 @@ MODULE mo_ocean_nml
       CALL finish(method_name, 'wrong laplacian_form parameter')
     ENDIF
       
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(n_zlev)
     IF( n_zlev < 1 ) &
       & CALL finish(method_name,  'n_zlev < 1')

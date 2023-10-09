@@ -312,7 +312,7 @@ CONTAINS
     DO blockNo = edges_start_block, edges_end_block
       CALL get_index_range(edges_in_domain, blockNo, start_index, end_index)
       
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       z_anti(:,:,blockNo)     = 0.0_wp
       !$ACC END KERNELS
 
@@ -462,7 +462,7 @@ CONTAINS
 
       ! this is only needed for the parallel test setups
       ! it will try  tocheck the uninitialized (land) parts
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       r_m(:,:,blockNo) = 0.0_wp
       r_p(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
@@ -733,7 +733,7 @@ CONTAINS
     DO blockNo = edges_start_block, edges_end_block
       CALL get_index_range(edges_in_domain, blockNo, start_index, end_index)
       
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       z_anti(:,:,blockNo)     = 0.0_wp       
       !$ACC END KERNELS
 
@@ -1187,7 +1187,7 @@ CONTAINS
     !$ACC   COPY(flx_tracer_final) IF(lacc)
 
 #ifdef NAGFOR
-   !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+   !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
    z_tracer_max(:,:,:) = 0.0_wp
    z_tracer_min(:,:,:) = 0.0_wp
    r_m(:,:,:)          = 0.0_wp

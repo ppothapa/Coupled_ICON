@@ -24,6 +24,7 @@ MODULE mo_emvorado_gpu_util
     LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
     CALL assert_acc_device_only("radar_d2h_hydrometeors", lacc)
+    !$ACC WAIT(1)
     !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqv:iqv))
     !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqc:iqc))
     !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqr:iqr))
@@ -79,6 +80,7 @@ MODULE mo_emvorado_gpu_util
 
     CALL assert_acc_device_only("radar_d2h_model_variables", lacc)
 
+    !$ACC WAIT(1)
     !$ACC UPDATE HOST(p_nh_state(idom)%metrics%z_ifc)
     !$ACC UPDATE HOST(p_nh_state(idom)%metrics%z_mc)
     !$ACC UPDATE HOST(p_nh_state(idom)%diag%u)

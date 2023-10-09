@@ -113,7 +113,7 @@ CONTAINS
         &                 i_startidx, i_endidx, i_rlstart_e, i_rlend_e )
 
       ! reset mass fluxes and trajectory-velocities to start new integration sweep
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       p_vn_traj    (:,:,jb) = 0._wp
       p_mass_flx_me(:,:,jb) = 0._wp
       !$ACC END KERNELS
@@ -155,7 +155,7 @@ CONTAINS
         &                 i_startidx, i_endidx, i_rlstart_c, i_rlend_c )
 
       ! reset mass fluxes and trajectory-velocities to start new integration sweep
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       p_mass_flx_ic(:,:,jb) = 0._wp
       !$ACC END KERNELS
 

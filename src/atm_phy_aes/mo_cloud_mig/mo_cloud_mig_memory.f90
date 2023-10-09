@@ -144,6 +144,7 @@ CONTAINS
        END IF
     END DO
     
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(cloud_mig_input, cloud_mig_output)
 
     DEALLOCATE( cloud_mig_list, STAT=ist )

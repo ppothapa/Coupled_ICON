@@ -1174,7 +1174,7 @@ CONTAINS
 
       CALL get_indices_e(p_patch(jgp), jb, i_startblk, i_endblk, i_startidx, i_endidx, 1, i_rlend_e)
 
-      !$ACC KERNELS IF(i_am_accel_node)
+      !$ACC KERNELS ASYNC(1) IF(i_am_accel_node)
       diff_vn(:,:,jb) = 0._wp
       !$ACC END KERNELS
 

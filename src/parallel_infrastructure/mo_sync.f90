@@ -669,10 +669,11 @@ SUBROUTINE check_patch_array_sp(typ, p_patch, arr, opt_varname)
    REAL(wp) :: arr_wp(SIZE(arr,1),SIZE(arr,2),SIZE(arr,3))
 
    !$ACC DATA CREATE(arr_wp) IF(i_am_accel_node)
-   !$ACC KERNELS IF(i_am_accel_node)
+   !$ACC KERNELS ASYNC(1) IF(i_am_accel_node)
    arr_wp(:,:,:) = REAL(arr(:,:,:),wp)
    !$ACC END KERNELS
    CALL check_patch_array_3(typ, p_patch, arr_wp, opt_varname)
+   !$ACC WAIT(1)
    !$ACC END DATA
 
 END SUBROUTINE check_patch_array_sp
@@ -740,6 +741,7 @@ SUBROUTINE check_patch_array_3(typ, p_patch, arr, opt_varname)
    ndim3 = UBOUND(arr,3)
 
    !$ACC DATA PRESENT(arr) IF(i_am_accel_node)
+   !$ACC WAIT(1) IF(i_am_accel_node)
    !$ACC UPDATE HOST(arr) IF(i_am_accel_node)
 
    IF(typ == SYNC_C .OR. typ == SYNC_C1) THEN

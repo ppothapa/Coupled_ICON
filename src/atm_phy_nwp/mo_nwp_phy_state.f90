@@ -265,6 +265,7 @@ SUBROUTINE destruct_nwp_phy_state()
     routine = 'mo_nwp_phy_state:destruct_nwp_phy_state'
   CALL message(routine, 'start to destruct 3D state vector')
 
+  !$ACC WAIT(1)
   DO jg = 1,n_dom
     CALL vlr_del(prm_nwp_diag_list(jg))
     CALL vlr_del(prm_nwp_tend_list(jg))

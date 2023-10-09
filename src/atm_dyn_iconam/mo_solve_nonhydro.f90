@@ -2969,6 +2969,7 @@ MODULE mo_solve_nonhydro
        theta_v_tmp         => p_nh%prog(nnow)%theta_v 
        vn_tmp              => p_nh%prog(nnow)%vn
        w_tmp               => p_nh%prog(nnow)%w
+       !$ACC WAIT(1)
        !$ACC UPDATE DEVICE(exner_tmp, rho_tmp, theta_v_tmp, vn_tmp, w_tmp)
 
 ! p_nh%diag:
@@ -3082,6 +3083,7 @@ MODULE mo_solve_nonhydro
        theta_v_tmp         => p_nh%prog(nnew)%theta_v
        vn_tmp              => p_nh%prog(nnew)%vn
        w_tmp               => p_nh%prog(nnew)%w
+       !$ACC WAIT(1)
        !$ACC UPDATE HOST(exner_tmp, rho_tmp, theta_v_tmp, vn_tmp, w_tmp)
 
        vt_tmp              => p_nh%diag%vt

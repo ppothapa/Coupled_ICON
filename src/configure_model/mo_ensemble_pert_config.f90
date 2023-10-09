@@ -695,6 +695,7 @@ MODULE mo_ensemble_pert_config
     DO jg = 1, n_dom
       ! atm_phy_nwp_config is copied onto the device in an early phase so that it is present while this
       ! routine is still called with lacc=.FALSE.. Thus IF_PRESENT is used in the following UPDATE.
+      !$ACC WAIT(1)
       !$ACC UPDATE DEVICE(atm_phy_nwp_config(jg)%rain_n0_factor) IF_PRESENT
 
       !$ACC UPDATE IF(lacc) &
@@ -870,6 +871,7 @@ MODULE mo_ensemble_pert_config
           phy_params(jg)%gkdrag_enh  = tune_gkdrag_enh(jg)
           phy_params(jg)%gkwake      = tune_gkwake(jg)
           phy_params(jg)%gfrcrit     = tune_gfrcrit(jg)
+          !$ACC WAIT(1)
           !$ACC UPDATE DEVICE(phy_params(jg:jg)) ! phy_params contains only statically allocated (scalar) components
         ENDDO
         ! in addition, GWD and microphysics parameters need to be updated

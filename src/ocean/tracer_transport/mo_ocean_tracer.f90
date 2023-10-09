@@ -335,7 +335,7 @@ CONTAINS
     !---------------------------------------------------------------------
     
     !Shallow water is done with horizontal advection
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     div_adv_flux_horz   (1:nproma,1:n_zlev,1:alloc_cell_blocks) = 0.0_wp
     div_adv_flux_vert   (1:nproma,1:n_zlev,1:alloc_cell_blocks) = 0.0_wp
     ! div_diff_flux_horz  (1:nproma,1:n_zlev,1:alloc_cell_blocks) = 0.0_wp
@@ -479,7 +479,7 @@ CONTAINS
 
     !---------------------------------------------------------------------
 #ifndef _OPENACC
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     ! these are probably not necessary
     div_adv_flux_vert = 0.0_wp
     div_adv_flux_horz = 0.0_wp

@@ -240,6 +240,11 @@ MODULE sfc_seaice
          &  seaice_timestep_nwp      , & ! procedure
          &  alb_seaice_equil
 
+#ifdef ICON_USE_CUDA_GRAPH
+  LOGICAL, PARAMETER :: using_cuda_graph = .TRUE.
+#else
+  LOGICAL, PARAMETER :: using_cuda_graph = .FALSE.
+#endif
 
 !234567890023456789002345678900234567890023456789002345678900234567890023456789002345678900234567890
 
@@ -889,7 +894,9 @@ CONTAINS
       ENDIF
     ENDIF
  
-    !$ACC WAIT
+    IF (.NOT. using_cuda_graph) THEN
+      !$ACC WAIT(1)
+    END IF
     !$ACC END DATA
     !$ACC END DATA
     !-----------------------------------------------------------------------------------------------

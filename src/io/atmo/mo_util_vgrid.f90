@@ -234,6 +234,7 @@ CONTAINS
       END DO
 
     END IF
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(vct_a)
 
   END SUBROUTINE construct_vertical_grid

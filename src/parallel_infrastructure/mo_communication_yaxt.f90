@@ -953,6 +953,7 @@ SUBROUTINE delete_comm_pattern(p_pat)
 
    IF (ALLOCATED(p_pat%dst_mask)) THEN
      dst_mask => p_pat%dst_mask(:)
+     !$ACC WAIT(1)
      !$ACC EXIT DATA DELETE(dst_mask)
    END IF
 #endif
@@ -1057,6 +1058,7 @@ SUBROUTINE exchange_data_r3d(p_pat, recv, send, add)
     lzacc = i_am_accel_node
 #else
     lzacc = .FALSE.
+    !$ACC WAIT(1)
     !$ACC UPDATE HOST(recv) IF(i_am_accel_node)
     !$ACC UPDATE HOST(send) IF((i_am_accel_node) .AND. PRESENT(send))
     !$ACC UPDATE HOST(add) IF((i_am_accel_node) .AND. PRESENT(add))
@@ -1174,7 +1176,7 @@ CONTAINS
     REAL(dp), TARGET :: send(n)
 
     !$ACC DATA CREATE(send) IF(lzacc)
-    !$ACC KERNELS IF(lzacc)
+    !$ACC KERNELS ASYNC(1) IF(lzacc)
     send = recv
     !$ACC END KERNELS
 #ifdef _OPENACC
@@ -1187,6 +1189,7 @@ CONTAINS
 #ifdef _OPENACC
     END IF
 #endif
+    !$ACC WAIT(1)
     !$ACC END DATA
 
   END SUBROUTINE xt_redist_s_exchange1_contiguous_copy
@@ -1225,6 +1228,7 @@ SUBROUTINE exchange_data_s3d(p_pat, recv, send, add)
     lzacc = i_am_accel_node
 #else
     lzacc = .FALSE.
+    !$ACC WAIT(1)
     !$ACC UPDATE HOST(recv) IF(i_am_accel_node)
     !$ACC UPDATE HOST(send) IF((i_am_accel_node) .AND. PRESENT(send))
     !$ACC UPDATE HOST(add) IF((i_am_accel_node) .AND. PRESENT(add))
@@ -1343,7 +1347,7 @@ CONTAINS
     REAL(sp), TARGET :: send(n)
 
     !$ACC DATA CREATE(send) IF(lzacc)
-    !$ACC KERNELS IF(lzacc)
+    !$ACC KERNELS ASYNC(1) IF(lzacc)
     send = recv
     !$ACC END KERNELS
 #ifdef _OPENACC
@@ -1356,6 +1360,7 @@ CONTAINS
 #ifdef _OPENACC
     END IF
 #endif
+    !$ACC WAIT(1)
     !$ACC END DATA
 
   END SUBROUTINE xt_redist_s_exchange1_contiguous_copy
@@ -1397,6 +1402,7 @@ SUBROUTINE exchange_data_i3d(p_pat, recv, send, add)
     lzacc = i_am_accel_node
 #else
     lzacc = .FALSE.
+    !$ACC WAIT(1)
     !$ACC UPDATE HOST(recv) IF(i_am_accel_node)
     !$ACC UPDATE HOST(send) IF((i_am_accel_node) .AND. PRESENT(send))
     !$ACC UPDATE HOST(add) IF((i_am_accel_node) .AND. PRESENT(add))
@@ -1514,7 +1520,7 @@ CONTAINS
     INTEGER, TARGET :: send(n)
 
     !$ACC DATA CREATE(send) IF(lzacc)
-    !$ACC KERNELS IF(lzacc)
+    !$ACC KERNELS ASYNC(1) IF(lzacc)
     send = recv
     !$ACC END KERNELS
 #ifdef _OPENACC
@@ -1527,6 +1533,7 @@ CONTAINS
 #ifdef _OPENACC
     END IF
 #endif
+    !$ACC WAIT(1)
     !$ACC END DATA
 
   END SUBROUTINE xt_redist_s_exchange1_contiguous_copy
@@ -1566,6 +1573,7 @@ SUBROUTINE exchange_data_l3d(p_pat, recv, send)
     lzacc = i_am_accel_node
 #else
     lzacc = .FALSE.
+    !$ACC WAIT(1)
     !$ACC UPDATE HOST(recv) IF(i_am_accel_node)
     !$ACC UPDATE HOST(send) IF((i_am_accel_node) .AND. PRESENT(send))
 #endif
@@ -1659,7 +1667,7 @@ CONTAINS
     CALL xt_slice_c_loc(recv, recv_ptr)
 
     !$ACC DATA CREATE(send) IF(lzacc)
-    !$ACC KERNELS IF(lzacc)
+    !$ACC KERNELS ASYNC(1) IF(lzacc)
     send = recv
     !$ACC END KERNELS
 #ifdef _OPENACC
@@ -1672,6 +1680,7 @@ CONTAINS
 #ifdef _OPENACC
     END IF
 #endif
+    !$ACC WAIT(1)
     !$ACC END DATA
 
   END SUBROUTINE xt_redist_s_exchange1_contiguous_copy
@@ -1842,6 +1851,7 @@ END SUBROUTINE exchange_data_mult_dp_top
           CYCLE
 #else
           p_recv => recv(i)%p
+          !$ACC WAIT(1)
           !$ACC UPDATE HOST(p_recv) IF(lzacc)
 #endif
         END IF
@@ -1874,6 +1884,7 @@ END SUBROUTINE exchange_data_mult_dp_top
             CYCLE
 #else
             p_send => send(i)%p
+            !$ACC WAIT(1)
             !$ACC UPDATE HOST(p_send) IF(lzacc)
 #endif
           END IF
@@ -1911,7 +1922,7 @@ END SUBROUTINE exchange_data_mult_dp_top
           device_cpy = acc_malloc(INT(nproma * nl * nblk, c_size_t) * &
                                   INT(p_real_dp_byte, c_size_t))
           CALL acc_map_data(cpy, device_cpy, nproma * nl * nblk)
-          !$ACC KERNELS PRESENT(cpy, p_recv)
+          !$ACC KERNELS PRESENT(cpy, p_recv) ASYNC(1)
           cpy(:, :, :) = p_recv
           !$ACC END KERNELS
           src_data_cptr(i) = device_cpy
@@ -1964,6 +1975,7 @@ END SUBROUTINE exchange_data_mult_dp_top
     IF (lzacc) THEN
       DO i = 1, nfields
         p_recv => recv(i)%p
+        !$ACC WAIT(1)
         !$ACC UPDATE DEVICE(p_recv) IF(lzacc)
       END DO
     END IF
@@ -2119,6 +2131,7 @@ END SUBROUTINE exchange_data_mult_sp
           CYCLE
 #else
           p_recv => recv(i)%p
+          !$ACC WAIT(1)
           !$ACC UPDATE HOST(p_recv) IF(lzacc)
 #endif
         END IF
@@ -2151,6 +2164,7 @@ END SUBROUTINE exchange_data_mult_sp
             CYCLE
 #else
             p_send => send(i)%p
+            !$ACC WAIT(1)
             !$ACC UPDATE HOST(p_send) IF(lzacc)
 #endif
           END IF
@@ -2188,7 +2202,7 @@ END SUBROUTINE exchange_data_mult_sp
           device_cpy = acc_malloc(INT(nproma * nl * nblk, c_size_t) * &
                                   INT(p_real_sp_byte, c_size_t))
           CALL acc_map_data(cpy, device_cpy, nproma * nl * nblk)
-          !$ACC KERNELS PRESENT(cpy, p_recv)
+          !$ACC KERNELS PRESENT(cpy, p_recv) ASYNC(1)
           cpy(:, :, :) = p_recv
           !$ACC END KERNELS
           src_data_cptr(i) = device_cpy
@@ -2241,6 +2255,7 @@ END SUBROUTINE exchange_data_mult_sp
     IF (lzacc) THEN
       DO i = 1, nfields
         p_recv => recv(i)%p
+        !$ACC WAIT(1)
         !$ACC UPDATE DEVICE(p_recv) IF(lzacc)
       END DO
     END IF
@@ -2321,6 +2336,7 @@ SUBROUTINE exchange_data_4de1(p_pat, nfields, ndim2tot, recv, send)
 #else
     lzacc = .FALSE.
     IF (i_am_accel_node) THEN
+      !$ACC WAIT(1)
       !$ACC UPDATE HOST(recv)
       !$ACC UPDATE HOST(send) IF(PRESENT(send))
     END IF
@@ -2454,6 +2470,7 @@ SUBROUTINE exchange_data_4de1(p_pat, nfields, ndim2tot, recv, send)
 
 #if defined(_OPENACC) && ! defined(__USE_G2G)
    IF (i_am_accel_node) THEN
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(recv) IF(i_am_accel_node)
    END IF
 #endif
@@ -2505,7 +2522,7 @@ CONTAINS
     REAL(dp), TARGET :: send(n)
 
     !$ACC DATA CREATE(send) IF(lzacc)
-    !$ACC KERNELS IF(lzacc)
+    !$ACC KERNELS ASYNC(1) IF(lzacc)
     send = recv
     !$ACC END KERNELS
 #ifdef _OPENACC
@@ -2518,6 +2535,7 @@ CONTAINS
 #ifdef _OPENACC
     END IF
 #endif
+    !$ACC WAIT(1)
     !$ACC END DATA
 
   END SUBROUTINE xt_redist_s_exchange1_contiguous_copy
@@ -2562,6 +2580,7 @@ SUBROUTINE exchange_data_grf(p_pat_coll, nfields, ndim2tot, recv, send)
 #else
     lzacc = .FALSE.
     IF (i_am_accel_node) THEN
+      !$ACC WAIT(1)
       DO i = 1, nfields
         p => recv(i)%p
         !$ACC UPDATE HOST(p)
@@ -2610,6 +2629,7 @@ SUBROUTINE exchange_data_grf(p_pat_coll, nfields, ndim2tot, recv, send)
 
 #if defined(_OPENACC) && ! defined(__USE_G2G)
     IF (i_am_accel_node) THEN
+      !$ACC WAIT(1)
       DO i = 1, nfields
         p => recv(i)%p
         !$ACC UPDATE DEVICE(p)

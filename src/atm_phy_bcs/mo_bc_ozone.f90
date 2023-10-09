@@ -458,6 +458,7 @@ CONTAINS
         END SELECT
 
       END IF
+      !$ACC WAIT(1)
       !$ACC UPDATE DEVICE(ext_ozone(jg)%o3_plev)
 
       pre_year(jg) = year
@@ -473,6 +474,7 @@ CONTAINS
 
       ext_ozone(jg)% nplev_o3 = nplev_o3
 
+      !$ACC WAIT(1)
       !$ACC EXIT DATA DELETE(ext_ozone(jg)%plev_full_o3) IF(ALLOCATED(ext_ozone(jg)%plev_full_o3))
       !$ACC EXIT DATA DELETE(ext_ozone(jg)%plev_half_o3) IF(ALLOCATED(ext_ozone(jg)%plev_half_o3))
       IF(ALLOCATED(ext_ozone(jg)% plev_full_o3)) DEALLOCATE(ext_ozone(jg)% plev_full_o3)

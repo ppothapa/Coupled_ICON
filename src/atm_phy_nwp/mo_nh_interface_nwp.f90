@@ -465,7 +465,7 @@ CONTAINS
 
       CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk,  &
                          i_startidx, i_endidx, rl_start, rl_end)
-      !$ACC KERNELS IF(lzacc)
+      !$ACC KERNELS ASYNC(1) IF(lzacc)
       z_exner_sv(i_startidx:i_endidx,:,jb) = pt_prog%exner(i_startidx:i_endidx,:,jb)
       !$ACC END KERNELS
     ENDDO
@@ -544,7 +544,7 @@ CONTAINS
 
 
       ! Save Exner pressure field (this is needed for a correction to reduce sound-wave generation by latent heating)
-      !$ACC KERNELS IF(lzacc)
+      !$ACC KERNELS ASYNC(1) IF(lzacc)
       z_exner_sv(i_startidx:i_endidx,:,jb) = pt_prog%exner(i_startidx:i_endidx,:,jb)
       !$ACC END KERNELS
 
@@ -567,7 +567,7 @@ CONTAINS
 
         ! initialize tt_lheat to be in used LHN
         IF (lcompute_tt_lheat) THEN
-          !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
+          !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           prm_diag%tt_lheat (:,:,jb) = - pt_diag%temp   (:,:,jb)
           !$ACC END KERNELS
         ENDIF
@@ -1937,7 +1937,7 @@ CONTAINS
     IF( l_any_slowphys .OR. lcall_phy_jg(itradheat) ) THEN
 #endif
       IF (p_test_run) THEN
-        !$ACC KERNELS IF(lzacc)
+        !$ACC KERNELS ASYNC(1) IF(lzacc)
         z_ddt_u_tot = 0._wp
         z_ddt_v_tot = 0._wp
         !$ACC END KERNELS
@@ -1990,7 +1990,7 @@ CONTAINS
           ENDDO
           !$ACC END PARALLEL
         ELSE
-          !$ACC KERNELS IF(lzacc)
+          !$ACC KERNELS ASYNC(1) IF(lzacc)
           zddt_u_raylfric(:,:) = 0._wp
           zddt_v_raylfric(:,:) = 0._wp
           !$ACC END KERNELS

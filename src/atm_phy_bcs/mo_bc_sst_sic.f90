@@ -136,6 +136,7 @@ CONTAINS
     
     IF (jg==n_dom) current_year = year
 
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(ext_sea(jg)%sst, ext_sea(jg)%sic)
 
   END SUBROUTINE read_bc_sst_sic

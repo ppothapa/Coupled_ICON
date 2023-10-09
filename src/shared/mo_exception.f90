@@ -175,6 +175,7 @@ CONTAINS
 
 #if defined(_OPENACC) && defined(__NVCOMPILER)
     ! This directive triggers a taceback in Nvfortan as `unassigned_p` is unassigned.
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(unassigned_p%component) IF_PRESENT
 #endif
 

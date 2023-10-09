@@ -1128,6 +1128,7 @@ LOGICAL :: lzacc
       ivtp(n)=sca
     END IF
   END DO
+  !$ACC WAIT(1)
   !$ACC UPDATE DEVICE(tinc, ivtp) IF(lzacc)
 
   IF (l3dturb .AND..NOT. (PRESENT(tkhm) .AND. PRESENT(tkhh))) THEN

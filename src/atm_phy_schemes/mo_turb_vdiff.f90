@@ -1283,6 +1283,7 @@ CONTAINS
 
     INTEGER :: ist
 
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(matrix_idx, ibtmoffset_mtrx, ibtmoffset_var)
     DEALLOCATE( matrix_idx,ibtmoffset_mtrx,ibtmoffset_var, STAT=ist)
     IF (ist/=SUCCESS) CALL finish('cleanup_vdiff_solver','Deallocation failed')

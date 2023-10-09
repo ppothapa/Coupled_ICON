@@ -349,6 +349,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   CALL init_sea_lists(p_patch, lseaice, p_diag_lnd%fr_seaice(:,:), ext_data)
   IF (atm_phy_nwp_config(p_patch%id)%inwp_turb == ivdiff) THEN
     ! TODO: move this to a more appropriate place.
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(p_diag_lnd%fr_seaice)
     CALL nwp_vdiff_update_seaice_list ( &
         & p_patch, p_diag_lnd%fr_seaice(:,:), ext_data%atm%list_sea, ext_data%atm%list_seaice, &
@@ -987,6 +988,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   cover_koe_config(jg)%lsgs_cond   = atm_phy_nwp_config(jg)%lsgs_cond
 
   !$ACC ENTER DATA CREATE(cover_koe_config(jg:jg))
+  !$ACC WAIT(1)
   !$ACC UPDATE DEVICE(cover_koe_config(jg:jg)) ! This updates all components of cover_koe_config as they are statically allocated
 
   ! Initiate parameters for reff calculations
@@ -1553,6 +1555,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
     END DO
     impl_weight(nlevp1) = impl_s
     ! impl_weight is never changed
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(turbdiff_config(jg)%impl_weight)
 
 ! computing l_pat: cannot be done in mo_ext_data_init, because it seems we do not have

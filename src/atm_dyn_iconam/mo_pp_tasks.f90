@@ -610,7 +610,6 @@ CONTAINS
 
     ! clean up
     IF (ALLOCATED(tmp_var)) THEN
-      !$ACC WAIT IF(i_am_accel_node)
       !$ACC EXIT DATA DELETE(tmp_var) IF(i_am_accel_node)
       DEALLOCATE(tmp_var, STAT=ierrstat)
       IF (ierrstat /= SUCCESS)  CALL finish (routine, 'deallocation of tmp_var failed')

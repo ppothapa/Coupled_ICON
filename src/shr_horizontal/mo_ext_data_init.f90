@@ -1136,6 +1136,7 @@ CONTAINS
           ENDDO
         ENDIF
 
+        !$ACC WAIT(1)
         !$ACC UPDATE &
         !$ACC   DEVICE(ext_data(jg)%atm%i_lc_snow_ice) &
         !$ACC   DEVICE(ext_data(jg)%atm%i_lc_water) &
@@ -2377,6 +2378,7 @@ CONTAINS
 
       DEALLOCATE(icount_falseglac)
 
+      !$ACC WAIT(1)
       !$ACC UPDATE DEVICE(ext_data(jg)%atm%list_sea%idx, ext_data(jg)%atm%list_sea%ncount)
     END DO  !jg
 
