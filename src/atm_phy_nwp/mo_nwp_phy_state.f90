@@ -3214,6 +3214,8 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
     CALL add_var( diag_list, 'td_2m', diag%td_2m,                         &
       & GRID_UNSTRUCTURED_CELL, ZA_HEIGHT_2M, cf_desc, grib2_desc,        &
       & ldims=shape2d, lrestart=.FALSE., in_group=groups("pbl_vars","dwd_fg_atm_vars"), &
+      & hor_interp=create_hor_interp_metadata(hor_intp_type=HINTP_TYPE_LONLAT_BCTR, &
+      &                                       fallback_type=HINTP_TYPE_LONLAT_RBF), &
       & lopenacc=.TRUE. )
     __acc_attach(diag%td_2m)
 
