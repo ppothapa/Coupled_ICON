@@ -259,25 +259,23 @@ CONTAINS
                 &                         g_sw_art_vr(:,:,:))                  !< OUT: Assymetry parameter SW
 
 
-              DO jc = i_startidx, i_endidx
-                DO jk = 1, pt_patch%nlev
-                  jk_vr = pt_patch%nlev+1-jk
+              DO jk = 1, pt_patch%nlev
+                jk_vr = pt_patch%nlev+1-jk
 ! LONGWAVE
-!NEC$ nointerchange
-!NEC$ nounroll
-                  DO jband = 1, nbands_lw
+                DO jband = 1, nbands_lw
+                  DO jc = i_startidx, i_endidx
                     od_lw(jc,jk,jb,jband) = od_lw_art_vr(jc,jk_vr,jband)
-                  ENDDO
+                  ENDDO !jc
+                ENDDO !jband
 ! SHORTWAVE
-!NEC$ nointerchange
-!NEC$ nounroll
-                  DO jband = 1, nbands_sw
+                DO jband = 1, nbands_sw
+                  DO jc = i_startidx, i_endidx
                     od_sw(jc,jk,jb,jband) = od_sw_art_vr(jc,jk_vr,jband)
                     ssa_sw(jc,jk,jb,jband) = ssa_sw_art_vr(jc,jk_vr,jband)
                     g_sw(jc,jk,jb,jband) = g_sw_art_vr(jc,jk_vr,jband)
-                  ENDDO !jband
-                ENDDO !jk
-              ENDDO !jc
+                  ENDDO !jc
+                ENDDO !jband
+              ENDDO !jk
             ENDDO !jb
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
