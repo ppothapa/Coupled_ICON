@@ -654,6 +654,7 @@ INTEGER :: my_cart_id, my_thrd_id
       tinc(n)=dt_var    !time increment multiplication for tendencies
     END IF
   END DO
+  !$ACC WAIT(1)
   !$ACC UPDATE DEVICE(tinc)
 
 !--------------------------------------------------

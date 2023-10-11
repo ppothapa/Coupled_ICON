@@ -57,7 +57,7 @@ MODULE mo_initicon_config
   PUBLIC :: ltile_coldstart
   PUBLIC :: ltile_init
   PUBLIC :: icpl_da_sfcevap, icpl_da_skinc, icpl_da_snowalb, icpl_da_sfcfric, icpl_da_tkhmin, dt_ana
-  PUBLIC :: adjust_tso_tsnow
+  PUBLIC :: adjust_tso_tsnow, icpl_da_seaice
   PUBLIC :: lvert_remap_fg
   PUBLIC :: ifs2icon_filename
   PUBLIC :: dwdfg_filename
@@ -139,6 +139,8 @@ MODULE mo_initicon_config
   INTEGER  :: icpl_da_sfcfric  ! Coupling between data assimilation and surface friction (roughness length and SSO blocking)
 
   INTEGER  :: icpl_da_tkhmin   ! Coupling between data assimilation and near-surface profiles of minimum vertical diffusion
+
+  INTEGER  :: icpl_da_seaice   ! Coupling between data assimilation and sea ice
 
   REAL(wp) :: dt_ana           ! Time interval of assimilation cycle [s] (relevant for icpl_da_sfcevap >= 2)
 

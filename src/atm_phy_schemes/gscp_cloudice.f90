@@ -574,12 +574,12 @@ SUBROUTINE cloudice (                &
 
   ! save input arrays for final tendency calculation
   IF (lldiag_ttend) THEN
-    !$ACC KERNELS DEFAULT(PRESENT)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
     t_in  = t
     !$ACC END KERNELS
   ENDIF
   IF (lldiag_qtend) THEN
-    !$ACC KERNELS DEFAULT(PRESENT)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
     qv_in = qv
     qc_in = qc
     qi_in = qi
@@ -607,6 +607,7 @@ SUBROUTINE cloudice (                &
 #if defined( _OPENACC )
     CALL message('gscp_cloudice','GPU-info : update host before cloudice')
 #endif
+    !$ACC WAIT(1)
     !$ACC UPDATE HOST(dz, t, p, rho, qv, qc, qi, qr, qs)
     WRITE (message_text,'(A,2E10.3)') '      MAX/MIN dz  = ',MAXVAL(dz),MINVAL(dz)
     CALL message('',message_text)
@@ -1449,6 +1450,7 @@ llqi =  zqik > zqmin
 #ifdef _OPENACC
    CALL message('gscp_cloudice', 'GPU-info : update host after cloudice')
 #endif
+   !$ACC WAIT(1)
    !$ACC UPDATE HOST(t, qv, qc, qi, qr, qs)
    CALL message('gscp_cloudice', 'UPDATED VARIABLES')
    WRITE(message_text,'(A,2E20.9)') 'cloudice  T= ',&

@@ -352,14 +352,8 @@ CONTAINS
 
     CALL assert_acc_device_only("ecrad_set_clouds", lacc)
 
-    IF (decorr_pole .eq. decorr_equator) THEN
-      ! Use globally constant decorrelation length-scale value - does run on GPU
-      CALL ecrad_cloud%set_overlap_param(ecrad_thermodynamics, decorr_pole, istartcol=i_startidx, iendcol=i_endidx)
-    ELSE
-      ! Use latitude-dependent array of decorrelation length-scale values - does not run on GPU
-      CALL ecrad_cloud%set_overlap_param(ecrad_thermodynamics, zdecorr, istartcol=i_startidx, iendcol=i_endidx)
-    ENDIF
-        
+    ! Use latitude-dependent array of decorrelation length-scale values
+    CALL ecrad_cloud%set_overlap_param(ecrad_thermodynamics, zdecorr, istartcol=i_startidx, iendcol=i_endidx)
 
     !$ACC DATA PRESENT(ecrad_cloud, qc, qi, clc, temp, pres, acdnc, fr_land, fr_glac, reff_frz, reff_liq)
     !$ACC DATA PRESENT(ecrad_cloud%q_liq, ecrad_cloud%q_ice, ecrad_cloud%re_liq, ecrad_cloud%re_ice)

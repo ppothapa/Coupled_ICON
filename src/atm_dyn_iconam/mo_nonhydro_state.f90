@@ -34,7 +34,7 @@ MODULE mo_nonhydro_state
 
   USE mo_kind,                 ONLY: wp
   USE mo_impl_constants,       ONLY: SUCCESS, vname_len, vlname_len,                 &
-    &                                INWP, iaes,                                   &
+    &                                INWP, iaes, n_camsaermr,                        &
     &                                VINTP_METHOD_VN,                                &
     &                                VINTP_METHOD_QV, VINTP_METHOD_PRES,             &
     &                                VINTP_METHOD_LIN,                               &
@@ -66,7 +66,8 @@ MODULE mo_nonhydro_state
     &                                iqgl, iqhl,                                &
     &                                iqtke, ltestcase, lart,                    &
     &                                iqbin, iqb_i, iqb_e, iqb_s            
-  USE mo_coupling_config,      ONLY: is_coupled_run
+  USE mo_coupling_config,      ONLY: is_coupled_to_ocean
+  USE mo_radiation_config,     ONLY: irad_aero, iRadAeroCAMSclim
   USE mo_io_config,            ONLY: inextra_2d, inextra_3d, lnetcdf_flt64_output, &
     &                                t_var_in_output
   USE mo_limarea_config,       ONLY: latbc_config
@@ -307,6 +308,7 @@ MODULE mo_nonhydro_state
     CALL message(routine, 'Destruction of NH state started')
 
 
+    !$ACC WAIT(1)
     DO jg = 1, n_dom
 
       ntl_prog = SIZE(p_nh_state(jg)%prog(:))
@@ -1566,7 +1568,7 @@ MODULE mo_nonhydro_state
       &        shape3d_ehalf(3), shape4d_chalf(4), shape4d_e(4),   &
       &        shape4d_entl(4), shape4d_chalfntl(4), shape4d_c(4), &
       &        shape2d_extra(3), shape3d_extra(4), shape3d_ubcc(3),&
-      &        shape3d_ubcp2(3)
+      &        shape3d_ubcp2(3), shape4d_cams(4)
  
     INTEGER :: ibits         !< "entropy" of horizontal slice
     INTEGER :: DATATYPE_PACK_VAR  !< variable "entropy" for some thermodynamic fields
@@ -1624,6 +1626,7 @@ MODULE mo_nonhydro_state
     shape3d_ubcp2 = (/nproma, nblks_c, ndyn_substeps_max+2 /)
     shape3d_ubcc  = (/nproma, nblks_c, 2  /)
     shape3d_extra = (/nproma, nlev   , nblks_c, inextra_3d  /)
+    shape4d_cams  = (/nproma, nlev   , nblks_c, n_camsaermr /)
     shape4d_c     = (/nproma, nlev   , nblks_c, ntracer     /)
     shape4d_chalf = (/nproma, nlevp1 , nblks_c, ntracer     /)
     shape4d_e     = (/nproma, nlev   , nblks_e, ntracer     /)
@@ -1737,7 +1740,8 @@ MODULE mo_nonhydro_state
     &       p_diag%rhons_incr, &
     &       p_diag%rhong_incr, &
     &       p_diag%rhonh_incr, &
-    &       p_diag%extra_2d, &
+    &       p_diag%camsaermr,  &
+    &       p_diag%extra_2d,   &
     &       p_diag%extra_3d)
 
 
@@ -1789,6 +1793,15 @@ MODULE mo_nonhydro_state
                 & lopenacc = .TRUE. )
     __acc_attach(p_diag%v)
 
+    IF (irad_aero == iRadAeroCAMSclim) THEN
+      cf_desc    = t_cf_var('CAMS_aerosols', 'kg kg-1', 'CAMS aerosols mixing ratios', datatype_flt)
+      grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_diag_list, 'camsaermr', p_diag%camsaermr,                   &
+                  & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,    &
+                  & initval=0._wp,                                                &
+                  & lcontainer=.TRUE., ldims=shape4d_cams, lrestart=.FALSE.)
+    END IF
+
     ! vt           p_diag%vt(nproma,nlev,nblks_e)
     ! *** needs to be saved for restart ***
     cf_desc    = t_cf_var('tangential_wind', 'm s-1', 'tangential-component of wind', &
@@ -1838,7 +1851,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_vn_dyn)
       p_diag%ddt_vn_dyn_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_vn_dyn_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_vn_dyn_is_associated) ASYNC(1)
     END IF
 
     IF (var_in_output%ddt_ua_dyn .OR. var_in_output%ddt_va_dyn) THEN
@@ -1854,7 +1867,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_ua_dyn)
       p_diag%ddt_ua_dyn_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_ua_dyn_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_ua_dyn_is_associated) ASYNC(1)
     END IF
 
     IF (var_in_output%ddt_ua_dyn .OR. var_in_output%ddt_va_dyn) THEN
@@ -1870,7 +1883,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_va_dyn)
       p_diag%ddt_va_dyn_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_va_dyn_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_va_dyn_is_associated) ASYNC(1)
     END IF
 
 
@@ -1887,7 +1900,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_vn_dmp)
       p_diag%ddt_vn_dmp_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_vn_dmp_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_vn_dmp_is_associated) ASYNC(1)
     END IF
 
     IF (var_in_output%ddt_ua_dmp .OR. var_in_output%ddt_va_dmp) THEN
@@ -1903,7 +1916,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_ua_dmp)
       p_diag%ddt_ua_dmp_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_ua_dmp_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_ua_dmp_is_associated) ASYNC(1)
     END IF
 
     IF (var_in_output%ddt_ua_dmp .OR. var_in_output%ddt_va_dmp) THEN
@@ -1919,7 +1932,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_va_dmp)
       p_diag%ddt_va_dmp_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_va_dmp_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_va_dmp_is_associated) ASYNC(1)
     END IF
 
 
@@ -1936,7 +1949,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_vn_hdf)
       p_diag%ddt_vn_hdf_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_vn_hdf_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_vn_hdf_is_associated) ASYNC(1)
     END IF
 
     IF (var_in_output%ddt_ua_hdf .OR. var_in_output%ddt_va_hdf) THEN
@@ -1952,7 +1965,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_ua_hdf)
       p_diag%ddt_ua_hdf_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_ua_hdf_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_ua_hdf_is_associated) ASYNC(1)
     END IF
 
     IF (var_in_output%ddt_ua_hdf .OR. var_in_output%ddt_va_hdf) THEN
@@ -1968,7 +1981,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_va_hdf)
       p_diag%ddt_va_hdf_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_va_hdf_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_va_hdf_is_associated) ASYNC(1)
     END IF
 
 
@@ -1985,7 +1998,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_vn_adv)
       p_diag%ddt_vn_adv_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_vn_adv_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_vn_adv_is_associated) ASYNC(1)
     END IF
 
     IF (var_in_output%ddt_ua_adv .OR. var_in_output%ddt_va_adv) THEN
@@ -2001,7 +2014,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_ua_adv)
       p_diag%ddt_ua_adv_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_ua_adv_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_ua_adv_is_associated) ASYNC(1)
     END IF
 
     IF (var_in_output%ddt_ua_adv .OR. var_in_output%ddt_va_adv) THEN
@@ -2017,7 +2030,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_va_adv)
       p_diag%ddt_va_adv_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_va_adv_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_va_adv_is_associated) ASYNC(1)
     END IF
 
 
@@ -2034,7 +2047,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_vn_cor)
       p_diag%ddt_vn_cor_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_vn_cor_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_vn_cor_is_associated) ASYNC(1)
     END IF
 
     IF (var_in_output%ddt_ua_cor .OR. var_in_output%ddt_va_cor) THEN
@@ -2050,7 +2063,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_ua_cor)
       p_diag%ddt_ua_cor_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_ua_cor_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_ua_cor_is_associated) ASYNC(1)
     END IF
 
     IF (var_in_output%ddt_ua_cor .OR. var_in_output%ddt_va_cor) THEN
@@ -2066,7 +2079,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_va_cor)
       p_diag%ddt_va_cor_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_va_cor_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_va_cor_is_associated) ASYNC(1)
     END IF
 
 
@@ -2083,7 +2096,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_vn_pgr)
       p_diag%ddt_vn_pgr_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_vn_pgr_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_vn_pgr_is_associated) ASYNC(1)
     END IF
 
     IF (var_in_output%ddt_ua_pgr .OR. var_in_output%ddt_va_pgr) THEN
@@ -2099,7 +2112,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_ua_pgr)
       p_diag%ddt_ua_pgr_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_ua_pgr_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_ua_pgr_is_associated) ASYNC(1)
     END IF
 
     IF (var_in_output%ddt_ua_pgr .OR. var_in_output%ddt_va_pgr) THEN
@@ -2115,7 +2128,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_va_pgr)
       p_diag%ddt_va_pgr_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_va_pgr_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_va_pgr_is_associated) ASYNC(1)
     END IF
 
 
@@ -2132,7 +2145,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_vn_phd)
       p_diag%ddt_vn_phd_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_vn_phd_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_vn_phd_is_associated) ASYNC(1)
     END IF
 
     IF (var_in_output%ddt_ua_phd .OR. var_in_output%ddt_va_phd) THEN
@@ -2148,7 +2161,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_ua_phd)
       p_diag%ddt_ua_phd_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_ua_phd_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_ua_phd_is_associated) ASYNC(1)
     END IF
 
     IF (var_in_output%ddt_ua_phd .OR. var_in_output%ddt_va_phd) THEN
@@ -2164,7 +2177,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_va_phd)
       p_diag%ddt_va_phd_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_va_phd_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_va_phd_is_associated) ASYNC(1)
     END IF
 
 
@@ -2181,7 +2194,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_vn_iau)
       p_diag%ddt_vn_iau_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_vn_iau_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_vn_iau_is_associated) ASYNC(1)
     END IF
 
     IF (var_in_output%ddt_ua_iau .OR. var_in_output%ddt_va_iau) THEN
@@ -2197,7 +2210,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_ua_iau)
       p_diag%ddt_ua_iau_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_ua_iau_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_ua_iau_is_associated) ASYNC(1)
     END IF
 
     IF (var_in_output%ddt_ua_iau .OR. var_in_output%ddt_va_iau) THEN
@@ -2213,7 +2226,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_va_iau)
       p_diag%ddt_va_iau_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_va_iau_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_va_iau_is_associated) ASYNC(1)
     END IF
 
 
@@ -2230,7 +2243,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_vn_ray)
       p_diag%ddt_vn_ray_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_vn_ray_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_vn_ray_is_associated) ASYNC(1)
     END IF
 
     IF (var_in_output%ddt_ua_ray .OR. var_in_output%ddt_va_ray) THEN
@@ -2246,7 +2259,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_ua_ray)
       p_diag%ddt_ua_ray_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_ua_ray_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_ua_ray_is_associated) ASYNC(1)
     END IF
 
     IF (var_in_output%ddt_ua_ray .OR. var_in_output%ddt_va_ray) THEN
@@ -2262,7 +2275,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_va_ray)
       p_diag%ddt_va_ray_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_va_ray_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_va_ray_is_associated) ASYNC(1)
     END IF
 
 
@@ -2279,7 +2292,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_vn_grf)
       p_diag%ddt_vn_grf_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_vn_grf_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_vn_grf_is_associated) ASYNC(1)
     END IF
 
     IF (var_in_output%ddt_ua_grf .OR. var_in_output%ddt_va_grf) THEN
@@ -2295,7 +2308,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_ua_grf)
       p_diag%ddt_ua_grf_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_ua_grf_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_ua_grf_is_associated) ASYNC(1)
     END IF
 
     IF (var_in_output%ddt_ua_grf .OR. var_in_output%ddt_va_grf) THEN
@@ -2311,7 +2324,7 @@ MODULE mo_nonhydro_state
                   & lopenacc = .TRUE.                                            )
       __acc_attach(p_diag%ddt_va_grf)
       p_diag%ddt_va_grf_is_associated=.TRUE.
-      !$ACC UPDATE DEVICE(p_diag%ddt_va_grf_is_associated)
+      !$ACC UPDATE DEVICE(p_diag%ddt_va_grf_is_associated) ASYNC(1)
     END IF
 
 
@@ -3462,7 +3475,7 @@ MODULE mo_nonhydro_state
     ! Note: This task is registered for the post-processing scheduler
     !        which takes care of the regular update.
     !
-    IF (var_in_output%pres_msl .OR. is_coupled_run()) THEN
+    IF (var_in_output%pres_msl .OR. is_coupled_to_ocean()) THEN
       cf_desc    = t_cf_var('mean sea level pressure', 'Pa', &
         &                   'mean sea level pressure', datatype_flt)
       grib2_desc = grib2_var(0, 3, 1, ibits, GRID_UNSTRUCTURED, GRID_CELL)
@@ -3749,7 +3762,7 @@ MODULE mo_nonhydro_state
       ENDDO
     ENDDO
     p_metrics%bdy_halo_c_dim = ic
-    !$ACC UPDATE DEVICE(p_metrics%bdy_halo_c_dim)
+    !$ACC UPDATE DEVICE(p_metrics%bdy_halo_c_dim) ASYNC(1)
 
 
     ! predefined array shapes
@@ -3805,7 +3818,6 @@ MODULE mo_nonhydro_state
     &       p_metrics%wgtfac_v, &
     &       p_metrics%mixing_length_sq, &
     &       p_metrics%rho_ref_corr, &
-    &       p_metrics%fbk_dom_volume, &
     &       p_metrics%ddxn_z_full, &
     &       p_metrics%ddxn_z_full_c, &
     &       p_metrics%ddxn_z_full_v, &

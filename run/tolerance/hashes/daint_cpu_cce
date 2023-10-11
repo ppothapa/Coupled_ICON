@@ -1,6 +1,9 @@
 --- # ICON probtest tolerance data
+# This file can be parsed using yaml
 # Data is stored in <icon_data_rootFolder>/buildbot_data/ref/<experiment_hash>
 icon_data_rootFolder: /users/icontest/pool/data/ICON
 builder: daint_cpu_cce
 # The list below maps each experiment to its current experiment_hash
 "atm_qubicc_nc_test": c8882d1a2b5bc798546c7775ade44c0792c19cc1
+# nwp-master
+#"atm_qubicc_nc_test": 97a68013d4e7a18974cc59e82528ad825a33e30b

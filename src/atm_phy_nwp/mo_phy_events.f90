@@ -554,13 +554,18 @@ CONTAINS
     TYPE(datetime) :: nextActive
     TYPE(datetime) :: timeFrameEnd
     INTEGER        :: ierr
+    LOGICAL        :: lret
   !-----------------------------------------------------------------
 
+    IF (.NOT. proc0_offloading .OR. my_process_is_stdio()) THEN
+      CALL getTriggerNextEventAtDateTime(phyProc%ev_ptr, mtime_current, nextActive, ierr)
+      timeFrameEnd = mtime_current + slack
+      lret = nextActive <= timeFrameEnd
+    ENDIF
 
-    CALL getTriggerNextEventAtDateTime(phyProc%ev_ptr, mtime_current, nextActive, ierr)
+    IF (proc0_offloading) CALL p_bcast(lret, p_io, p_comm_work)
 
-    timeFrameEnd = mtime_current + slack
-    phyProcBase_isNextTriggerTimeInRange_nobcast = (nextActive <= timeFrameEnd)
+    phyProcBase_isNextTriggerTimeInRange_nobcast = lret
 
   END FUNCTION phyProcBase_isNextTriggerTimeInRange_nobcast
 
@@ -1127,6 +1132,7 @@ CONTAINS
       IF (proc0_offloading) CALL p_bcast(lcall_phy, p_io, p_comm_work)
     ENDIF
 
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(lcall_phy)
 
     ! debug output

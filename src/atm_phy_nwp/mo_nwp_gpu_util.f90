@@ -328,6 +328,7 @@ MODULE mo_nwp_gpu_util
 
     CALL assert_acc_device_only("hostcpy_nwp", lacc)
 
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(kstart_moist, kstart_tracer)
 
   END SUBROUTINE hostcpy_nwp
@@ -342,6 +343,8 @@ MODULE mo_nwp_gpu_util
     lqr = iqr > 0
     lqs = iqs > 0
     lqg = iqg > 0
+
+    !$ACC WAIT(1)
 
     !$ACC UPDATE HOST(p_nh_state(jg)%diag%pres_sfc)
     !$ACC UPDATE HOST(p_nh_state(jg)%diag%pres)
@@ -392,8 +395,6 @@ MODULE mo_nwp_gpu_util
 #ifdef _OPENACC
     CALL gpu_update_var_list('nh_state_prog_of_domain_', .false., domain=jg, substr='_and_timelev_', timelev=nnow(jg), lacc=.TRUE.)
 #endif
-
-    !$ACC WAIT
 
   END SUBROUTINE gpu_d2h_dace
 

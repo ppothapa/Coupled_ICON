@@ -44,7 +44,7 @@ MODULE mo_nwp_phy_types
 
   USE mo_kind,                ONLY: wp, vp
   USE mo_fortran_tools,       ONLY: t_ptr_2d3d,t_ptr_tracer
-  
+
   USE mo_nwp_vdiff_types, ONLY: t_nwp_vdiff_state
 
   IMPLICIT NONE
@@ -336,6 +336,7 @@ MODULE mo_nwp_phy_types
       rlamh_fac_t(:,:,:),  & !! tuning factor for laminar transfer resistance (rlam_heat)
       gz0(:,:),            & !! roughness length * g of the vertically not
                              !! resolved canopy                               (m2/s2)
+      z0_waves(:,:),       & !! wave-dependent roughness length               (  m  )
       tkvm(:,:,:),         & !! turbulent diffusion coefficients for momentum (m/s2 )
       tkvh(:,:,:),         & !! turbulent diffusion coefficients for heat     (m/s2 )
       t_2m(:,:)       ,    & !! temperature in 2m                             (  K  )
@@ -393,7 +394,7 @@ MODULE mo_nwp_phy_types
 
     !> Diagnostics for LES turbulence
     REAL(wp), POINTER, CONTIGUOUS :: &
-      z_pbl(:,:)     ,     & !> Boundary layer height  (m)
+      z_pbl(:,:)     ,     & !> Boundary layer height  (m) (LES)
       bruvais(:,:,:) ,     & !> Brunt Vaisala Frequency
       mech_prod(:,:,:),    & !> Mechanical production/loss term in TKE equation
       t_cbase(:,:),        & !>cloud base temperature
@@ -498,7 +499,8 @@ MODULE mo_nwp_phy_types
       cape_3km (:,:),      & !! convective available energy of mean surface layer parcel with endpoint 3km.
       cin_3km(:,:),        & !! convective inhibition of mean surface layer parcel with endpoint 3km.
       cloudtop(:,:),       & !! Cloud Top
-      srh(:,:,:)             !< Storm relative helicity with right-moving storm motion after Bunkers et al. (2000)
+      srh(:,:,:),          & !< Storm relative helicity with right-moving storm motion after Bunkers et al. (2000)
+      hpbl(:,:)              !! Boundary layer height  (m)
 
     ! Buffer field needed when vertical nesting is combined with a reduced radiation
     ! grid and latm_above_top = .TRUE.

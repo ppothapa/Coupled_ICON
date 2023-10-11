@@ -118,6 +118,7 @@ CONTAINS
           CALL finish (TRIM(routine), 'reading vct_a and vct_b failed')
        ENDIF
     END DO
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(vct_a)
 
     CALL message(TRIM(routine), 'vertical coordinate table file successfully read')

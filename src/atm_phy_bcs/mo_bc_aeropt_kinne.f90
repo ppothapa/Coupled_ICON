@@ -178,6 +178,7 @@ SUBROUTINE su_bc_aeropt_kinne(p_patch, nbndlw, nbndsw, opt_from_yac)
   ext_aeropt_kinne(jg)% z_km_aer_c_mo(:,:,:,:) = 0._wp
   ext_aeropt_kinne(jg)% z_km_aer_f_mo(:,:,:,:) = 0._wp
 
+  !$ACC WAIT(1)
   !$ACC UPDATE DEVICE(ext_aeropt_kinne(jg)%aod_c_s, ext_aeropt_kinne(jg)%aod_f_s) &
   !$ACC   DEVICE(ext_aeropt_kinne(jg)%ssa_c_s, ext_aeropt_kinne(jg)%ssa_f_s) &
   !$ACC   DEVICE(ext_aeropt_kinne(jg)%asy_c_s, ext_aeropt_kinne(jg)%asy_f_s) &
@@ -442,6 +443,7 @@ SUBROUTINE read_bc_aeropt_kinne(mtime_current, p_patch, l_filename_year, nbndlw,
        END DO
     END IF
 
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(ext_aeropt_kinne(jg)%aod_c_s, ext_aeropt_kinne(jg)%aod_f_s) &
     !$ACC   DEVICE(ext_aeropt_kinne(jg)%ssa_c_s, ext_aeropt_kinne(jg)%ssa_f_s) &
     !$ACC   DEVICE(ext_aeropt_kinne(jg)%asy_c_s, ext_aeropt_kinne(jg)%asy_f_s) &
@@ -538,6 +540,7 @@ SUBROUTINE read_bc_aeropt_kinne(mtime_current, p_patch, l_filename_year, nbndlw,
     pre_year(jg) = mtime_current%date%year
     is_transient(jg) = l_filename_year
 
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(ext_aeropt_kinne(jg)%aod_c_s, ext_aeropt_kinne(jg)%aod_f_s) &
     !$ACC   DEVICE(ext_aeropt_kinne(jg)%ssa_c_s, ext_aeropt_kinne(jg)%ssa_f_s) &
     !$ACC   DEVICE(ext_aeropt_kinne(jg)%asy_c_s, ext_aeropt_kinne(jg)%asy_f_s) &

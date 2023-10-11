@@ -37,7 +37,7 @@ MODULE mo_wave_stepping
   USE mo_wave_state,               ONLY: p_wave_state
   USE mo_wave_ext_data_state,      ONLY: wave_ext_data
   USE mo_wave_forcing_state,       ONLY: wave_forcing_state
-  USE mo_wave_diagnostics,         ONLY: significant_wave_height
+  USE mo_wave_diagnostics,         ONLY: calculate_output_diagnostics
   USE mo_wave_physics,             ONLY: new_spectrum, total_energy, mean_frequency_energy, &
        &                                 air_sea, input_source_function, last_prog_freq_ind, &
        &                                 impose_high_freq_tail, tm1_period, wave_stress, &
@@ -48,8 +48,13 @@ MODULE mo_wave_stepping
   USE mo_wave_forcing_state,       ONLY: wave_forcing_state
   USE mo_wave_forcing,             ONLY: t_read_wave_forcing
   USE mo_wave_events,              ONLY: create_wave_events, dummyWaveEvent
-  USE mo_wave_td_update,           ONLY: update_bathymetry_gradient
-  USE mo_coupling_config,          ONLY: is_coupled_run
+  USE mo_wave_td_update,           ONLY: update_bathymetry_gradient, update_wind_speed_and_direction, &
+    &                                    update_ice_free_mask
+  USE mo_coupling_config,          ONLY: is_coupled_to_atmo
+
+#ifdef YAC_coupling
+  USE mo_wave_atmo_coupling,       ONLY: couple_wave_to_atmo
+#endif
 
   IMPLICIT NONE
 
@@ -110,10 +115,10 @@ CONTAINS
       END DO
     ENDIF
 
-    IF (is_coupled_run()) THEN
-
-      CALL finish(routine,'coupled run: work in progress...')
-
+    IF (is_coupled_to_atmo()) THEN
+#ifdef YAC_coupling
+      CALL message(routine,'coupled waves<->atmo run: work in progress...')
+#endif
     ELSE
       CALL message(routine,'standalone run: forcing data are read from file...')
 
@@ -212,10 +217,12 @@ CONTAINS
            p_wave_state(jg)%diag%tm1, &  ! OUT
            p_wave_state(jg)%diag%f1mean) ! OUT
 
-        ! Calculate output
-      CALL significant_wave_height(p_patch = p_patch(jg), &
-           &                       emean   = p_wave_state(jg)%diag%emean(:,:), &
-           &                       hs      = p_wave_state(jg)%diag%hs(:,:))
+      ! Calculation of diagnistic output parameters
+      CALL calculate_output_diagnostics(p_patch = p_patch(jg), &
+           &                      wave_config = wave_config(jg), &
+           &                           tracer = p_wave_state(jg)%prog(n_now)%tracer, &
+           &                            depth = wave_ext_data(jg)%bathymetry_c, &
+           &                           p_diag = p_wave_state(jg)%diag)
 
     END DO
 
@@ -248,7 +255,7 @@ CONTAINS
         CALL message('','')
 
         WRITE(message_text,'(a,i8,a,i0,a,5(i2.2,a),i3.3,a,a)') &
-          &             'Time step: ', jstep, ', model time: ',                              &
+          &             'Time step waves: ', jstep, ', model time: ',                              &
           &             mtime_current%date%year,   '-', mtime_current%date%month,    '-',    &
           &             mtime_current%date%day,    ' ', mtime_current%time%hour,     ':',    &
           &             mtime_current%time%minute, ':', mtime_current%time%second,   '.',    &
@@ -270,9 +277,28 @@ CONTAINS
         n_now  = nnow(jg)
         n_new  = nnew(jg)
 
-        IF (is_coupled_run()) THEN
-          ! get new forcing data from coupled atmosphere
+        IF (is_coupled_to_atmo()) THEN
+#ifdef YAC_coupling
+          ! send and receive coupling fields
+          !
+          CALL couple_wave_to_atmo(p_patch   = p_patch(jg),                     & ! IN
+            &                      z0        = p_wave_state(jg)%diag%z0,        & ! IN
+            &                      u10m      = wave_forcing_state(jg)%u10m,     & ! OUT
+            &                      v10m      = wave_forcing_state(jg)%v10m,     & ! OUT
+            &                      sea_ice_c = wave_forcing_state(jg)%sea_ice_c ) ! OUT
+#endif
+          ! update forcing state
+          ! update wind speed and direction
+          CALL update_wind_speed_and_direction(p_patch = p_patch(jg),                & ! IN
+            &                               u10     = wave_forcing_state(jg)%u10m,   & ! IN
+            &                               v10     = wave_forcing_state(jg)%v10m,   & ! IN
+            &                               wsp     = wave_forcing_state(jg)%sp10m,  & ! OUT
+            &                               wdir    = wave_forcing_state(jg)%dir10m)   ! OUT
 
+          ! update ice-free mask
+          CALL update_ice_free_mask(p_patch    = p_patch(jg),                          & ! IN
+            &                    sea_ice_c     = wave_forcing_state(jg)%sea_ice_c,     & ! IN
+            &                    ice_free_mask = wave_forcing_state(jg)%ice_free_mask_c) ! OUT
         ELSE
           ! get new forcing data (read from file and copy to forcing state vector)
           IF (wave_config(jg)%lread_forcing) THEN
@@ -288,7 +314,7 @@ CONTAINS
               &                vosc             = wave_forcing_state(jg)%vsoce_c,       & !out
               &                ice_free_mask_c  = wave_forcing_state(jg)%ice_free_mask_c) !out
           END IF
-        END IF ! is_coupled_run()
+        END IF ! is_coupled_to_atmo()
 
 !!!
 !!!  CALL ADVECTION
@@ -492,11 +518,12 @@ CONTAINS
              p_wave_state(jg)%diag%femean, & ! OUT
              p_wave_state(jg)%diag%femeanws) ! OUT
 
-        !Calculation of diagnistic output parameters
-        CALL significant_wave_height(p_patch = p_patch(jg), &
-             &                       emean   = p_wave_state(jg)%diag%emean(:,:), &
-             &                       hs      = p_wave_state(jg)%diag%hs(:,:)) ! OUT
-
+        ! Calculation of diagnistic output parameters
+        CALL calculate_output_diagnostics(p_patch = p_patch(jg), &
+             &                      wave_config = wave_config(jg), &
+             &                           tracer = p_wave_state(jg)%prog(n_now)%tracer, &
+             &                            depth = wave_ext_data(jg)%bathymetry_c, &
+             &                           p_diag = p_wave_state(jg)%diag)
 
         ! switch between time levels now and new for next time step
         CALL swap(nnow(jg), nnew(jg))

@@ -136,7 +136,8 @@ MODULE mo_nonhydro_types
     !
     ! e) optional diagnostics
     &  pres_msl(:,:),       & ! diagnosed mean sea level pressure (nproma,nblks_c)  [Pa]
-    &  omega(:,:,:)         & ! vertical velocity ( omega=dp/dt )           [Pa/s]
+    &  omega(:,:,:),        & ! vertical velocity ( omega=dp/dt )           [Pa/s]
+    &  camsaermr(:,:,:,:)   & ! CAMS Mixing Ratios [kg/kg]
     &  => NULL()
 
     ! d) variables that are in single precision when "__MIXED_PRECISION" is defined
@@ -264,6 +265,7 @@ MODULE mo_nonhydro_types
       &  vfl_trc_ptr    (:),   &  !< pointer array: one pointer for each tracer
       &  ddt_trc_adv_ptr(:),   &  !< pointer array: one pointer for each tracer
       &  tracer_vi_ptr  (:),   &  !< pointer array: one pointer for each tracer
+      &  camsaermr_ptr  (:),   &  !< pointer array: for CAMS aermr fields
       &  extra_2d_ptr   (:),   &
       &  extra_3d_ptr   (:)
 
@@ -333,9 +335,7 @@ MODULE mo_nonhydro_types
      mask_mtnpoints_g(:,:) , & ! 
      ! slope angle and azimuth (used for slope-dependent radiation)
      slope_angle(:,:)  , & ! [rad]
-     slope_azimuth(:,:), & ! [rad]; zero means south-facing slope
-     ! Area of subdomain for which feedback is performed; dim: (nlev)
-     fbk_dom_volume(:)       &
+     slope_azimuth(:,:) & ! [rad]; zero means south-facing slope
      => NULL()
 
     ! Variables that are in single precision when "__MIXED_PRECISION" is defined

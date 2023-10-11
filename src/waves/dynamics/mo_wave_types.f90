@@ -41,7 +41,6 @@ MODULE mo_wave_types
   ! diagnostic variables state vector
   TYPE t_wave_diag
     REAL(wp), POINTER, CONTIGUOUS :: &
-      &  process_id(:,:),         &
       &  gv_c(:,:,:),         & ! group velocity                    (nproma,nblks_c,nfreqs)  (m/s)
       &  gv_e(:,:,:),         & ! group velocity                    (nproma,nblks_e,nfreqs)  (m/s)
       &  gvn_e(:,:,:),        & ! orthogonal normal group velocity  (nproma,nblks_e,nfreqs)  (m/s)
@@ -79,7 +78,9 @@ MODULE mo_wave_types
       &  enh(:,:),            & ! nonlinear transfer function coefficients for shallow water
       &  AF11(:),             & ! for discrete approximation of nonlinear transfer
       &  FKLAP(:), FKLAP1(:), & ! --//--
-      &  FKLAM(:), FKLAM1(:)  & ! --//--
+      &  FKLAM(:), FKLAM1(:), & ! --//--
+      &  u_stokes(:,:),       & ! U-component of surface Stokes drift
+      &  v_stokes(:,:)        & ! V-component of surface Stokes drift
       &  => NULL()
 
     REAL(vp), POINTER, CONTIGUOUS :: &

@@ -54,7 +54,7 @@ MODULE mo_nwp_sfc_utils
     &                               itype_interception, lterra_urb, l2lay_rho_snow, lprog_albsi, itype_trvg, &
                                     itype_snowevap, zml_soil, dzsoil, frsi_min, hice_min
   USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config
-  USE mo_coupling_config,     ONLY: is_coupled_run
+  USE mo_coupling_config,     ONLY: is_coupled_to_ocean
   USE mo_nwp_tuning_config,   ONLY: tune_minsnowfrac
   USE mo_initicon_config,     ONLY: init_mode_soil, ltile_coldstart, init_mode, lanaread_tseasfc, use_lakeiceana
   USE mo_run_config,          ONLY: msg_level
@@ -102,6 +102,12 @@ INTEGER, PARAMETER :: nlsoil= 8
   PUBLIC :: init_sea_lists
   PUBLIC :: copy_lnd_prog_now2new
   PUBLIC :: seaice_albedo_coldstart
+
+#ifdef ICON_USE_CUDA_GRAPH
+  LOGICAL, PARAMETER :: using_cuda_graph = .TRUE.
+#else
+  LOGICAL, PARAMETER :: using_cuda_graph = .FALSE.
+#endif
 
 
 
@@ -2151,6 +2157,9 @@ CONTAINS
       ENDIF
     END SELECT
     !$ACC END PARALLEL
+    IF (.NOT. using_cuda_graph) THEN
+      !$ACC WAIT(acc_async_queue)
+    END IF
     !$ACC END DATA
   END SUBROUTINE diag_snowfrac_tg
 
@@ -2405,13 +2414,15 @@ CONTAINS
       IF ( hice_n(jc) < hice_min ) l_update_required = .TRUE.
     ENDDO
     !$ACC END PARALLEL
-    !$ACC WAIT
+    IF (.NOT. using_cuda_graph) THEN
+      !$ACC WAIT(1)
+    END IF
     IF (.NOT. l_update_required) RETURN
 
     IF (msg_level >= 13) CALL message('update_idx_lists_sea', &
       'One or more seaice cells melted -> List update required.')
 
-    lis_coupled_run = is_coupled_run() ! store result for vectorisation
+    lis_coupled_run = is_coupled_to_ocean() ! store result for vectorisation
 
     !$ACC DATA PRESENT(condhf) IF(lis_coupled_run)
     !$ACC DATA CREATE(list_seaice_idx_old) &
@@ -2587,7 +2598,9 @@ CONTAINS
 
     ENDIF  ! IF ( ntiles_total == 1 )
     !$ACC UPDATE ASYNC(1) HOST(list_seawtr_count, list_seaice_count) ! also update index lists?
-    !$ACC WAIT
+    IF (.NOT. using_cuda_graph) THEN
+      !$ACC WAIT(1)
+    END IF
     !$ACC END DATA
     !$ACC END DATA
 

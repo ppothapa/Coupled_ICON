@@ -32,7 +32,6 @@ MODULE mo_gridref_nml
     &                            config_grf_intmethod_c    => grf_intmethod_c,&
     &                            config_grf_intmethod_e    => grf_intmethod_e,&
     &                            config_grf_intmethod_ct   => grf_intmethod_ct,&
-    &                            config_l_mass_consvcorr   => l_mass_consvcorr,&
     &                            config_l_density_nudging  => l_density_nudging,&
     &                            config_denom_diffu_v      => denom_diffu_v,&
     &                            config_denom_diffu_t      => denom_diffu_t,&
@@ -69,7 +68,6 @@ MODULE mo_gridref_nml
                              ! 1 = area-weighted averaging
                              ! 2 = bilinear interpolation
 
-  LOGICAL  :: l_mass_consvcorr  ! .true.: apply mass conservation correction
   LOGICAL  :: l_density_nudging ! .true.: apply density nudging near lateral nest boundaries if feedback is turned on
                                 ! (in case of one-way nesting, all prognostic variables are nudged irrespective of this switch)
 
@@ -83,7 +81,7 @@ MODULE mo_gridref_nml
     &                    grf_velfbk, grf_scalfbk, grf_tracfbk,                  &
     &                    grf_intmethod_c, grf_intmethod_e,                      &
     &                    grf_intmethod_ct, denom_diffu_v, denom_diffu_t,        &
-    &                    l_mass_consvcorr, l_density_nudging, fbk_relax_timescale
+    &                    l_density_nudging, fbk_relax_timescale
 
 CONTAINS
   !-------------------------------------------------------------------------
@@ -143,9 +141,6 @@ CONTAINS
 
     ! Denominator for velocity boundary diffusion
     denom_diffu_v = 200._wp
-
-    ! Mass conservation correction turned off by default
-    l_mass_consvcorr = .FALSE. 
 
     ! Density nudging near nest boundaries turned off by default
     ! only applicable for grf_intmethod_e == 2 or 4
@@ -208,7 +203,6 @@ CONTAINS
       config_grf_intmethod_ct = grf_intmethod_ct
       config_denom_diffu_v = denom_diffu_v
       config_denom_diffu_t = denom_diffu_t
-      config_l_mass_consvcorr = l_mass_consvcorr
       config_l_density_nudging = l_density_nudging
       config_fbk_relax_timescale = fbk_relax_timescale
 

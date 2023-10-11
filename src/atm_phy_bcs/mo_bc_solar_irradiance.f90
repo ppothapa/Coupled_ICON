@@ -105,6 +105,7 @@ CONTAINS
     CALL nf_check(p_nf_inq_varid (ncid, 'TSI', nvarid))
     start(1) = idx
     cnt(1) = 14
+    !$ACC WAIT(1)
     IF (lradt) THEN
        CALL nf_check(p_nf_get_vara_double(ncid, nvarid, start, cnt, tsi_radt_m))
        CALL nf_check(p_nf_inq_varid (ncid, 'SSI', nvarid))
@@ -151,6 +152,7 @@ CONTAINS
         IF (msg_level >= 11) CALL message('','Interpolated total solar irradiance and spectral ' &
           &          //'bands for radiation transfer, tsi= '//ctsi)
         !$ACC ENTER DATA PCREATE(ssi)
+        !$ACC WAIT(1)
         !$ACC UPDATE DEVICE(ssi)
       END IF
     ELSE

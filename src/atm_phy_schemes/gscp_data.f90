@@ -436,6 +436,8 @@ END SUBROUTINE gscp_set_coefficients
       RETURN
     END IF
 
+    ! Init values
+    N0 = -1.0_wp
     ! Default values
     x_min           = reff_calc%x_min
     x_max           = reff_calc%x_max

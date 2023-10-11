@@ -411,13 +411,13 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
       ENDIF
 
       !should be dependent on location in future!
-      !$ACC KERNELS DEFAULT(PRESENT)
+      !$ACC KERNELS ASYNC(1) DEFAULT(PRESENT)
       l_hori(i_startidx:i_endidx)=phy_params(jg)%mean_charlen
       !$ACC END KERNELS
 
       nzprv = 1
 
-      !$ACC KERNELS DEFAULT(PRESENT)
+      !$ACC KERNELS ASYNC(1) DEFAULT(PRESENT)
       ut_sso(:,:)=REAL(prm_nwp_tend%ddt_u_sso(:,:,jb), wp)
       vt_sso(:,:)=REAL(prm_nwp_tend%ddt_v_sso(:,:,jb), wp)
       !$ACC END KERNELS

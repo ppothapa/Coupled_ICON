@@ -100,7 +100,7 @@ AR="$($CC -show | sed 's: .*$::;s:/[^/]*$::')/xiar"
 MPI_LAUNCH="${MPI_ROOT}/bin/mpiexec"
 
 EXTRA_CONFIG_ARGS='--enable-intel-consistency --enable-vectorized-lrtm --enable-parallel-netcdf --enable-grib2 --enable-fcgroup-OCEAN=src/hamocc:src/ocean:src/sea_ice'
-EXTRA_CONFIG_ARGS="${EXTRA_CONFIG_ARGS} --enable-yaxt --enable-art --enable-ecrad"
+EXTRA_CONFIG_ARGS="${EXTRA_CONFIG_ARGS} --enable-yaxt --enable-art --enable-ecrad --enable-waves"
 
 ICON_BUNDLED_CFLAGS='-O2 -ftz -fPIC'
 ICON_YAC_CFLAGS=$ICON_BUNDLED_CFLAGS

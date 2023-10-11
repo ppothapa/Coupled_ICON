@@ -117,13 +117,16 @@ CONTAINS
     TYPE(t_nh_metrics), INTENT(in)        :: p_metrics
     TYPE(t_nwp_phy_diag)   , INTENT(inout):: prm_diag
 
+
     REAL(wp), PARAMETER :: qc_min = 1.e-8_wp
     REAL(wp), PARAMETER :: grav_o_cpd = grav/cpd
     REAL(wp), PARAMETER :: zundef = -999._wp   ! undefined value for 0 deg C level
 
     REAL(wp):: zbuoy, zqsat, zcond
-    REAL(wp):: ri_no
+    REAL(wp):: ri_no(nproma,p_patch%nlev)
     REAL(wp):: ztp(nproma), zqp(nproma)
+
+    REAL(wp), PARAMETER :: missing_value_z_pbl  = 0.0_wp ! in case no z_pbl can be defined
 
     LOGICAL :: found_cltop, found_clbas
     INTEGER :: nlev
@@ -203,20 +206,32 @@ CONTAINS
 
 !  -included calculation of boundary layer height (Anurag Dipankar, MPI Octo 2013).
 !   using Bulk richardson number approach. 
-       DO jc = i_startidx, i_endidx           
-         DO jk = nlev-1, kstart_moist, -1
 
-            ri_no = (grav/p_prog%theta_v(jc,nlev,jb)) * &
-                    ( p_prog%theta_v(jc,jk,jb)-p_prog%theta_v(jc,nlev,jb) ) *  &
-                    ( p_metrics%z_mc(jc,jk,jb)-p_metrics%z_mc(jc,nlev,jb) ) /  &
-                    MAX( 1.e-6_wp,(p_diag%u(jc,jk,jb)**2+p_diag%v(jc,jk,jb)**2) )
+       DO jc = i_startidx, i_endidx
+         ri_no(jc,nlev) = missing_value_z_pbl
+        ENDDO
 
-            IF(ri_no > 0.28_wp)THEN
-               prm_diag%z_pbl(jc,jb) = p_metrics%z_mc(jc,jk,jb)
-               EXIT
-            END IF
-         END DO 
-       ENDDO
+
+       DO jk = nlev-1, kstart_moist, -1
+         DO jc = i_startidx, i_endidx
+
+            ri_no(jc,jk) = (grav/p_prog%theta_v(jc,nlev,jb)) * &
+              &      ( p_prog%theta_v(jc,jk,jb)-p_prog%theta_v(jc,nlev,jb) ) *  &
+              &      ( p_metrics%z_mc(jc,jk,jb)-p_metrics%z_mc(jc,nlev,jb) ) /  &
+              &      MAX( 1.e-6_wp,(p_diag%u(jc,jk,jb)**2+p_diag%v(jc,jk,jb)**2) ) 
+       
+            IF (ri_no(jc,jk) > 0.28_wp) THEN
+              IF (ri_no(jc,jk+1) <= 0.28_wp) THEN
+                prm_diag%z_pbl(jc,jb) = p_metrics%z_mc(jc,jk,jb)
+              ENDIF
+            ENDIF
+            IF ((jk == kstart_moist) .AND. (ri_no(jc,jk) <= 0.28_wp)) THEN
+              prm_diag%z_pbl(jc,jb) = missing_value_z_pbl
+            ENDIF
+
+         END DO
+       END DO
+
        !
        ! height of ccloud base and top: hbas_con, htop_con
        ! 

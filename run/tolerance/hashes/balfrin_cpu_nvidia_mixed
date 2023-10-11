@@ -1,17 +1,20 @@
 --- # ICON probtest tolerance data
+# This file can be parsed using yaml
 # Data is stored in <icon_data_rootFolder>/buildbot_data/ref/<experiment_hash>
 icon_data_rootFolder: /scratch/e1000/meteoswiss/scratch/jenkins/icon/pool/data/ICON
 builder: balfrin_cpu_nvidia_mixed
 # The list below maps each experiment to its current experiment_hash
-"mch_bench_r19b07_dev_sppt": 20dca1be2b1e396b3937d29d439f8a7c3f7cbd74
-"mch_ch_lowres": 37db97012d9037cb3e30b4c34f9779204729a49f
-"mch_opr_r04b07": eb2ce4358d813d3474355c744cc4a7c325987be6
-"mch_opr_r04b07_lhn_00": f6281d5c4234d0f745cc6477ed1e2c42d87d2d5a
-"mch_opr_r04b07_lhn_12_emvorado": 5f27c6cdb60d8de71a61b0d3394f803d7dbcef9d
-"mch_opr_r04b07_nest": 4bc575819195ec9b9de4e633db72203e38afc40a
-"mch_opr_r19b07_2m": c530ba1ed34d3a10afb8cbca31382a51b7b12bb4
-"mch_opr_r19b07_2m_gscp5": 63983548774a3965c59aa54d47b1e2e0abddb01c
-"mch_opr_r19b07_lpi": 1be6033263491ee00e3568901621bbf829b2c243
-"mch_opr_r19b07_midnight": fb14895513f4c93cd87a43c60d2b13bedc099d2b
-"mch_opr_r19b07_turb": e94c8cdb6cf9e3d3a0ac2316d3028499e33f48d4
-"mch_pollen_test": e0f632992cad9e8855d1da639a241a5d17be5a4a
+"mch_bench_r19b07_dev_sppt": 82102e39c49926bb479fc1cb45f82e0eda1fa116
+"mch_ch_lowres": 18606c32023a35ee8fa78280bcb985b73e569803
+"mch_kenda-ch1_small": ed2f895055a381d0f0da3821a1fa1088df2100cd
+"mch_opr_r04b07": e0e1f9c95aeacf7e55b52db229262c8e6fac094a
+"mch_opr_r04b07_lhn_00": 59f5c5a60806a740c83b455623709a3459d32a3a
+"mch_opr_r04b07_lhn_12_emvorado": 4c2a1c9d24678647f5993189cad0c17a58978c7b
+"mch_opr_r04b07_nest": 59c02782fd5a3a93da8e70dcaa1df924f84b1615
+"mch_opr_r04b07_sstice_inst": 8127dc7541a94a66fe52919ef83685c16636eedf
+"mch_opr_r19b07_2m": 2d9430b80e2c183c1286ca4e2773af0f32fabb1f
+"mch_opr_r19b07_2m_gscp5": 18d51a1db77ad69a70298152c7d1b2d215512fa9
+"mch_opr_r19b07_lpi": ec94d9afa88d60c4370ceba76823c9e9343c1293
+"mch_opr_r19b07_midnight": b08d539843c1eafc9141900a275e120fd46c918e
+"mch_opr_r19b07_turb": 49887eada25ddd3cbb766e2c0b237a9666a62a77
+"mch_pollen_test": 702b11254cd2ed87018e93d5b48cb390d98905ba

@@ -195,6 +195,7 @@ CONTAINS
       CALL vlr_del( prm_radiation_forcing_list(jg) )
     ENDDO
 
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(prm_radiation_forcing)
 
     DEALLOCATE( prm_radiation_forcing_list, STAT=ist )

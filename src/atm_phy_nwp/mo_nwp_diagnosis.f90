@@ -769,7 +769,7 @@ CONTAINS
 
     ! set height-dependent decorrelation length scale
     !$ACC DATA CREATE(zprof, rhodz, zdecorr) IF(lzacc)
-    !$ACC KERNELS IF(lzacc)
+    !$ACC KERNELS ASYNC(1) IF(lzacc)
     zprof(:) = 1._wp
     !$ACC END KERNELS
     IF (lcalib_clcov) THEN
@@ -800,7 +800,7 @@ CONTAINS
         ! if cloud cover is called, vertical integration of cloud content
         ! (for iqv, iqc, iqi)
 
-        !$ACC KERNELS IF(lzacc)
+        !$ACC KERNELS ASYNC(1) IF(lzacc)
         prm_diag%tot_cld_vi(i_startidx:i_endidx,jb,1:3) = 0.0_wp
         !$ACC END KERNELS
 
@@ -935,7 +935,7 @@ CONTAINS
 
           !$ACC DATA CREATE(alpha)
           !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-          !$ACC LOOP GANG VECTOR
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = i_startidx, i_endidx
 
             ! Calculate latitude-dependent decorrelation length scale based on
@@ -954,7 +954,7 @@ CONTAINS
           !$ACC LOOP SEQ
           DO jk = kstart_moist+1, nlev
 !DIR$ IVDEP
-            !$ACC LOOP GANG VECTOR PRIVATE(ccmax, ccran)
+            !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(ccmax, ccran)
             DO jc = i_startidx, i_endidx   ! total cloud cover
               ccmax = MAX( prm_diag%clc(jc,jk,jb),  prm_diag%clct(jc,jb) )
               ccran =      prm_diag%clc(jc,jk,jb) + prm_diag%clct(jc,jb) - &
@@ -964,7 +964,7 @@ CONTAINS
               prm_diag%clct(jc,jb) = alpha(jc,jk) * ccmax + (1._wp-alpha(jc,jk)) * ccran
             ENDDO
 
-            !$ACC LOOP GANG VECTOR PRIVATE(ccmax, ccran)
+            !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(ccmax, ccran)
             DO jc = i_startidx, i_endidx
               IF (jk <= prm_diag%k400(jc,jb)-1) THEN    ! high cloud cover
                 ccmax = MAX( prm_diag%clc(jc,jk,jb),  prm_diag%clch(jc,jb) )
@@ -1032,7 +1032,7 @@ CONTAINS
 
       ! pre-computation of rho * \Delta z
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-      !$ACC LOOP COLLAPSE(2)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlev
         DO jc = i_startidx, i_endidx 
           rhodz(jc,jk) = p_metrics%ddqz_z_full(jc,jk,jb) * pt_prog%rho(jc,jk,jb) & 
@@ -1113,7 +1113,7 @@ CONTAINS
                             & ext_data,                   & !in
                             & prm_diag,                   & !inout
                             & lacc                        ) !in
-              
+
     TYPE(datetime),   POINTER     :: mtime_current     ! current datetime (mtime)
     INTEGER,         INTENT(IN)   :: kstart_moist
     INTEGER,         INTENT(IN)   :: ih_clch, ih_clcm
@@ -1143,17 +1143,22 @@ CONTAINS
     INTEGER :: i_nchdom                !< domain index
 
     REAL(wp):: zbuoy, zqsat, zcond
+    REAL(wp) :: ri_no(nproma,pt_patch%nlev)     ! Richardson number for hpbl calculation     
+
     INTEGER :: mtop_min
     REAL(wp):: ztp(nproma), zqp(nproma)
     INTEGER :: mlab(nproma)
 
     REAL(wp), PARAMETER :: grav_o_cpd = grav/cpd
 
+    REAL(wp), PARAMETER :: missing_value_hpbl  = 0.0_wp ! in case no hpbl can be defined
+
     REAL(wp), PARAMETER :: zundef = -999._wp   ! undefined value for 0 deg C level
 
     TYPE(timeDelta), POINTER :: time_diff
     LOGICAL :: lzacc ! non-optional version of lacc
 
+    CHARACTER(len=*), PARAMETER :: routine = modname//': nwp_diag_for_output '
   !-----------------------------------------------------------------
 
     CALL set_acc_host_or_device(lzacc, lacc)
@@ -1195,7 +1200,7 @@ CONTAINS
     time_diff =  getTimeDeltaFromDateTime(mtime_current, ww_datetime(jg))
 
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jc,jk,i_startidx,i_endidx,mlab,ztp,zqp,zbuoy,zqsat,zcond) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP DO PRIVATE(jb,jc,jk,i_startidx,i_endidx,mlab,ztp,zqp,zbuoy,zqsat,zcond,ri_no) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
       !
       CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
@@ -1412,6 +1417,46 @@ CONTAINS
          prm_diag%drag_v_grid(jc,jb) = pt_diag%pres_ifc(jc,nlevp1,jb) * ext_data%atm%grad_topo(2,jc,jb)
       ENDDO
       !$ACC END PARALLEL LOOP
+
+
+      !  calculation of boundary layer height (Anurag Dipankar, MPI Octo 2013)
+      !  using Bulk richardson number approach. 
+      !  In LES mode, the PBL diagnosis is performed not here, but in subroutine les_cloud_diag in 
+      !  atm_phy_les/mo_turbulent_diagnostic.f90
+
+       IF (var_in_output(jg)%hpbl) THEN
+
+#ifdef _OPENACC
+         CALL finish(routine, 'PBL diagnosis not ported to GPU.')
+#endif
+
+        DO jc = i_startidx, i_endidx
+         ri_no(jc,nlev) = missing_value_hpbl
+        ENDDO
+
+
+        DO jk = nlev-1, kstart_moist, -1
+         DO jc = i_startidx, i_endidx
+
+            ri_no(jc,jk) = (grav/pt_prog%theta_v(jc,nlev,jb)) * &
+              &      ( pt_prog%theta_v(jc,jk,jb)-pt_prog%theta_v(jc,nlev,jb) ) *  &
+              &      ( p_metrics%z_mc(jc,jk,jb)-p_metrics%z_mc(jc,nlev,jb) ) /  &
+              &      MAX( 1.e-6_wp,(pt_diag%u(jc,jk,jb)**2+pt_diag%v(jc,jk,jb)**2) ) 
+       
+            IF (ri_no(jc,jk) > 0.28_wp) THEN
+              IF (ri_no(jc,jk+1) <= 0.28_wp) THEN
+                prm_diag%hpbl(jc,jb) = p_metrics%z_mc(jc,jk,jb) - ext_data%atm%topography_c(jc,jb)
+              ENDIF
+            ENDIF
+            IF ((jk == kstart_moist) .AND. (ri_no(jc,jk) <= 0.28_wp)) THEN
+              prm_diag%hpbl(jc,jb) = missing_value_hpbl
+            ENDIF
+
+          END DO
+        END DO
+
+      ENDIF
+
 
       IF (atm_phy_nwp_config(jg)%inwp_gscp > 0 ) THEN
 

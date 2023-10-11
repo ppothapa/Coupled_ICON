@@ -842,6 +842,7 @@ CONTAINS
     CHARACTER(*), PARAMETER :: routine = modname//":vcoeff_lin_deallocate"
     INTEGER :: ierrstat
 
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(vcoeff_lin%wfac_lin, vcoeff_lin%idx0_lin, vcoeff_lin%bot_idx_lin) &
     !$ACC   DELETE(vcoeff_lin%wfacpbl1, vcoeff_lin%wfacpbl2, vcoeff_lin%kpbl1) &
     !$ACC   DELETE(vcoeff_lin%kpbl2, vcoeff_lin%zextrap)
@@ -870,6 +871,7 @@ CONTAINS
     CHARACTER(*), PARAMETER :: routine = modname//":vcoeff_cub_deallocate"
     INTEGER :: ierrstat
 
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(vcoeff_cub%coef1, vcoeff_cub%coef2, vcoeff_cub%coef3) &
     !$ACC   DELETE(vcoeff_cub%idx0_cub, vcoeff_cub%bot_idx_cub)
 

@@ -159,7 +159,7 @@ contains
     this%radice_upr = radice_upr
 
     ! Load LUT coefficients
-    !$ACC KERNELS
+    !$ACC KERNELS ASYNC(1)
     this%lut_extliq = lut_extliq
     this%lut_ssaliq = lut_ssaliq
     this%lut_asyliq = lut_asyliq
@@ -282,7 +282,7 @@ contains
     !
     ! Load data
     !
-    !$ACC KERNELS
+    !$ACC KERNELS ASYNC(1)
     this%pade_extliq = pade_extliq
     this%pade_ssaliq = pade_ssaliq
     this%pade_asyliq = pade_asyliq
@@ -317,6 +317,7 @@ contains
     ! Lookup table cloud optics coefficients
     if(allocated(this%lut_extliq)) then
 
+      !$ACC WAIT(1)
       !$ACC EXIT DATA DELETE(this%lut_extliq, this%lut_ssaliq, this%lut_asyliq) &
       !$ACC   DELETE(this%lut_extice, this%lut_ssaice, this%lut_asyice)
       !$ACC EXIT DATA DELETE(this)
@@ -333,6 +334,7 @@ contains
     ! Pade cloud optics coefficients
     if(allocated(this%pade_extliq)) then
 
+      !$ACC WAIT(1)
       !$ACC EXIT DATA DELETE(this%pade_extliq, this%pade_ssaliq, this%pade_asyliq) &
       !$ACC   DELETE(this%pade_extice, this%pade_ssaice, this%pade_asyice) &
       !$ACC   DELETE(this%pade_sizreg_extliq, this%pade_sizreg_ssaliq, this%pade_sizreg_asyliq) &

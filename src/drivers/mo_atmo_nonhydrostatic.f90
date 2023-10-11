@@ -51,21 +51,21 @@ USE mo_ls_forcing,           ONLY: init_ls_forcing
 USE mo_turbulent_diagnostic, ONLY: init_les_turbulent_output, close_les_turbulent_output
 USE mo_nh_vert_interp_les,   ONLY: init_vertical_grid_for_les
 #endif
-USE mo_dynamics_config,      ONLY: nnow, nnew, nnow_rcf, idiv_method
+USE mo_dynamics_config,      ONLY: nnow, nnew, nnow_rcf
 ! Horizontal grid
-USE mo_model_domain,         ONLY: p_patch
+USE mo_model_domain,         ONLY: p_patch, p_patch_local_parent
 USE mo_grid_config,          ONLY: n_dom, n_dom_start, start_time, end_time, &
      &                             is_plane_torus, l_limited_area, l_scm_mode
 USE mo_intp_data_strc,       ONLY: p_int_state
 USE mo_intp_lonlat_types,    ONLY: lonlat_grids
-USE mo_grf_intp_data_strc,   ONLY: p_grf_state
+USE mo_grf_intp_data_strc,   ONLY: p_grf_state, p_grf_state_local_parent
 ! Vertical grid
 USE mo_vertical_grid,        ONLY: set_nh_metrics
 ! Grid nesting
 USE mo_nh_nest_utilities,    ONLY: complete_nesting_setup
 ! NH-namelist state
 USE mo_nonhydrostatic_config,ONLY: configure_nonhydrostatic, kstart_moist, kend_qvsubstep, &
-  &                                itime_scheme, kstart_tracer, ndyn_substeps
+  &                                kstart_tracer, ndyn_substeps
 
 ! NH-Model states
 USE mo_nonhydro_state,       ONLY: p_nh_state, p_nh_state_lists,               &
@@ -398,20 +398,25 @@ CONTAINS
     CALL messy_init_memory(n_dom)
 #endif
 
-    ! Due to the required ability to overwrite advection-Namelist settings
-    ! via add_ref/add_tracer_ref for ICON-ART, configure_advection is called
-    ! AFTER the nh_state is created. Otherwise, potential modifications of the
-    ! advection-Namelist can not be taken into account properly.
-    ! Unfortunately this conflicts with our trying to call the config-routines
-    ! as early as possible.
+    ! Due to the requirement for ICON-ART to overwrite advection-Namelist settings
+    ! via add_ref/add_tracer_ref, configure_advection is called AFTER the nh_state
+    ! is created. Otherwise, potential modifications of the advection-Namelist
+    ! can not be taken into account properly. Unfortunately this conflicts with
+    ! our policy to call the config-routines as early as possible.
     DO jg =1,n_dom
-       CALL configure_advection( jg, p_patch(jg)%nlev,                   &
-        &                        p_patch(1)%nlev, iforcing, iqc, iqt,    &
-        &                        kstart_moist(jg), kend_qvsubstep(jg),   &
-        &                        lvert_nest, ntracer,                    &
-        &                        idiv_method, itime_scheme,              &
-        &                        p_nh_state_lists(jg),                   &
-        &                        .TRUE., kstart_tracer(jg,:) )
+      CALL configure_advection( jg             = jg,                                  & !in
+        &                       nlev           = p_patch(jg)%nlev,                    & !in
+        &                       nlev_1         = p_patch(1)%nlev,                     & !in
+        &                       iforcing       = iforcing,                            & !in
+        &                       iqc            = iqc,                                 & !in
+        &                       iqt            = iqt,                                 & !in
+        &                       kstart_moist   = kstart_moist(jg),                    & !in
+        &                       kend_qvsubstep = kend_qvsubstep(jg),                  & !in
+        &                       lvert_nest     = lvert_nest,                          & !in
+        &                       ntracer        = ntracer,                             & !in
+        &                       prog_list      = p_nh_state_lists(jg)%prog_list(:),   & !in
+        &                       tracer_list    = p_nh_state_lists(jg)%tracer_list(:), & !inout
+        &                       kstart_tracer  = kstart_tracer(jg,:) )                  !in
     ENDDO
 
     IF (ldass_lhn) THEN
@@ -437,7 +442,8 @@ CONTAINS
          &              ext_data        )
 
     IF (n_dom > 1) THEN
-      CALL complete_nesting_setup()
+      CALL complete_nesting_setup(p_patch(1:), p_patch_local_parent(n_dom_start+1:), &
+        &                         p_grf_state_local_parent(n_dom_start+1:), p_nh_state(1:))
     END IF
 
     ! Initialize DACE routines

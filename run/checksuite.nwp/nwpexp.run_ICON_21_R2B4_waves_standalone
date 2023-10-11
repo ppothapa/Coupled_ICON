@@ -17,10 +17,7 @@ make_and_change_to_experiment_dir # function in ../add_run_routines
 START_MODEL="${START_MODEL:=$START $MODEL}"
 
 # set icon_data_poolFolder
-icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}"
-if [[ -d "$icon_data_poolFolder/buildbot_data/nwp" ]]; then
-          icon_data_poolFolder="$icon_data_poolFolder/buildbot_data/nwp"
-fi
+icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/buildbot_data/nwp"
 
 # base directory for ICON sources, binary and auxilary data:
 ICONDIR="${basedir}" # basedir can be set with create_target_header
@@ -70,10 +67,11 @@ for gridfile in ${wave_grid}; do
   dynamics_grid_filename="${dynamics_grid_filename} '${gridfile}',"
 done
 
-num_io_procs=1
+num_io_procs=2
 num_restart_procs=0
 num_prefetch_proc=0
 num_io_procs_radar=0
+proc0_shift=0 # proc0_shift does not work yet with WAVES
 
 #spectral resolution
 nd=12          # NUMBER OF DIRECTIONS
@@ -110,7 +108,7 @@ EOF
 
 cat > ${wave_namelist} << EOF
 &coupling_mode_nml
- coupled_mode         = .false.
+ coupled_to_atmo      = .FALSE.
 /
 &run_nml
  num_lev              = 1
@@ -133,7 +131,7 @@ cat > ${wave_namelist} << EOF
  num_restart_procs       = ${num_restart_procs}  ! number of restart processors
  num_prefetch_proc       = ${num_prefetch_proc}  ! number of processors for LBC prefetching
  num_io_procs_radar      = ${num_io_procs_radar} ! number of EMVORADO I/O processors
- proc0_shift             = 0
+ proc0_shift             = ${proc0_shift}
  num_dist_array_replicas = 4
  iorder_sendrecv         = 1
 /
@@ -156,16 +154,40 @@ cat > ${wave_namelist} << EOF
  steps_per_file          =                       1000         ! number of output steps in one output file
  mode                    =                          1         ! 1: forecast mode (relative t-axis), 2: climate mode (absolute t-axis)
  include_last            =                      .TRUE.        ! flag whether to include the last time step
- output_filename         =                      'WAVE'        ! file name base
+ output_filename         =                      'wave'        ! file name base
  output_grid             =                      .TRUE.        ! flag whether grid information is added to output.
- ml_varlist              = 'process_id','bathymetry_c',
-                           'group:wave_forcing',
-                           'group:wave_phy','group:wave_short',
-                           'q112_010_004','q1_001_001','fl_020_010','fl_025_001'
+ ml_varlist              = 'group:wave_short'
+/
+&output_nml
+ filetype                =                          2         ! output format: 2=GRIB2, 4=NETCDFv2
+ dom                     =                         -1         ! write all domains
+ output_bounds           =        0., 10000000., 3600         ! output: start, end, increment
+ steps_per_file          =                       1000         ! number of output steps in one output file
+ mode                    =                          1         ! 1: forecast mode (relative t-axis), 2: climate mode (absolute t-axis)
+ include_last            =                      .TRUE.        ! flag whether to include the last time step
+ output_filename         =              'wave_forcing'        ! file name base
+ output_grid             =                      .TRUE.        ! flag whether grid information is added to output.
+ ml_varlist              = 'group:wave_forcing'
+/
+&output_nml
+ filetype                =                          4         ! output format: 2=GRIB2, 4=NETCDFv2
+ dom                     =                         -1         ! write all domains
+ output_bounds           =        0., 10000000., 3600         ! output: start, end, increment
+ steps_per_file          =                       1000         ! number of output steps in one output file
+ mode                    =                          1         ! 1: forecast mode (relative t-axis), 2: climate mode (absolute t-axis)
+ include_last            =                      .TRUE.        ! flag whether to include the last time step
+ output_filename         =                'wave2ocean'        ! file name base
+ output_grid             =                      .TRUE.        ! flag whether grid information is added to output.
+ ml_varlist              = 'u_stokes','v_stokes'
 /
 EOF
 
 
+
+#
+# configure START_MODEL_function
+#
+ICON_COMPONENT1_VH_procs=$((num_restart_procs + num_io_procs + num_prefetch_proc + num_io_procs_radar))
 
 # ----------------------------------------------------------------------------
 # run the model!

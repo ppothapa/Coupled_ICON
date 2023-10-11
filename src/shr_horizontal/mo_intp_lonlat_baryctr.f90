@@ -1055,12 +1055,6 @@
       END IF
 #endif
 
-    !$ACC UPDATE DEVICE(ptr_int_lonlat%baryctr%idx) &
-    !$ACC   DEVICE(ptr_int_lonlat%baryctr%blk) &
-    !$ACC   DEVICE(ptr_int_lonlat%baryctr%coeff) &
-    !$ACC   DEVICE(ptr_int_lonlat%baryctr%stencil) &
-    !$ACC   DEVICE(ptr_int_lonlat%baryctr%v)
-
     END SUBROUTINE compute_barycentric_coordinates
 
 

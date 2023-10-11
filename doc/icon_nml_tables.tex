@@ -1056,6 +1056,7 @@ L&
 .FALSE.&
 &
 Invoke DACE for model equivalents of observations &
+Requires initicon\_nml\%iterate\_iau=.T. if initicon\_nml\%init\_mode == MODE\_IAU (5)
 \tabularnewline
 
 %\hline
@@ -1145,11 +1146,41 @@ The parameterization of cloud microphysics 'graupel' for the AES physics is conf
 \begin{longtab}
 
 %\hline
-coupled\_mode &
+coupled\_to\_ocean &
 L &
 .FALSE. &  &
-.TRUE.: if yac coupling routines have to be called. Required for
-coupled ocean-atmosphere similations. &
+.TRUE.: Required for coupled ocean-atmosphere or ocean-wave similations. \newline
+        Indicates the coupling of the model component at hand (e.g. atmo, wave) to the ocean model. Yac coupling routines have to be called.&
+\tabularnewline
+
+%\hline
+coupled\_to\_waves &
+L &
+.FALSE. &  &
+.TRUE.: Required for coupled wave-atmosphere or wave-ocean similations. \newline 
+        Indicates the coupling of the model component at hand (e.g. atmo, ocean) to the wave model. Yac coupling routines have to be called.&
+\tabularnewline
+
+%\hline
+coupled\_to\_atmo &
+L &
+.FALSE. &  &
+.TRUE.: Required for coupled atmosphere-ocean or atmosphere-wave similations. \newline 
+        Indicates the coupling of the model at hand (e.g. ocean, wave) to the atmosphere model. Yac coupling routines have to be called.&
+\tabularnewline
+
+%\hline
+use\_sens\_heat\_flux\_hack &
+L &
+.FALSE. &  &
+.TRUE.: ?? &
+\tabularnewline
+
+%\hline
+suppress\_sens\_heat\_flux\_hack\_over\_ice &
+L &
+.FALSE. &  &
+.TRUE.: ?? &
 \tabularnewline
 
 \end{longtab}
@@ -1336,21 +1367,9 @@ and negative indices for the ocean.&\tabularnewline
 
 
 %\hline
-idiv\_method &
-I& 1& &
-Method for divergence computation:&
-\tabularnewline
-& & & & 1: Standard Gaussian integral. \\
-Hydrostatic atm.~model: for unaveraged normal components\\
-Non-hydrostatic atm.~model: for averaged normal components &
-\tabularnewline
-& & & & 2: bilinear averaging of divergence& \tabularnewline
-
-%\hline
 divavg\_cntrwgt&
 R& 0.5& &
 Weight of central cell for divergence averaging&
-idiv\_method= 2
 \tabularnewline
 
 %\hline
@@ -2240,18 +2259,12 @@ Deniminator for lateral boundary diffusion of velocity&
 n\_dom$>$1\tabularnewline
 
 %\hline
-l\_mass\_consvcorr&
-L& .FALSE.& &
-.TRUE.: Apply mass conservation correction in feedback routine &
-n\_dom$>$1\tabularnewline
-
-%\hline
 l\_density\_nudging &
 L& .FALSE.& &
 .TRUE.: Apply density nudging near lateral nest boundary if grf\_intmethod\_e $\in$ \{2,4\}&
 n\_dom$>$1 .AND. lfeedback = .TRUE. \tabularnewline
 
-\hline
+%\hline
 fbk\_relax\_timescale &
 R & 10800& &
 Relaxation time scale for feedback &
@@ -2432,6 +2445,14 @@ Coupling between temperature bias inferred from data assimilation and snow albed
 init\_mode=5; icpl\_da\_sfcevap=3
 \tabularnewline
 
+icpl\_da\_seaice&
+I & 0 & &
+Coupling between temperature bias inferred from data assimilation and seaice scheme\\
+0: off \\
+1: add filtered T increment to initial seaice temperature \\
+2: as above, and additional adaptive tuning of bottom heat flux if lbottom\_hflux = true &
+init\_mode=5; icpl\_da\_sfcevap=3
+\tabularnewline
 
 icpl\_da\_skinc&
 I & 0 & &
@@ -4015,6 +4036,15 @@ If .TRUE., sea-ice albedo is computed prognostically & lseaice=.TRUE.
 \tabularnewline
 
 %\hline
+lbottom\_hflux &
+L&
+.FALSE.&
+&
+If .TRUE., use parameterization for bottom heat flux in seaice scheme & lseaice=.TRUE.
+\tabularnewline
+
+
+%\hline
 \textbf{llake} &
 L&
 .TRUE.&
@@ -4623,12 +4653,6 @@ divdamp\_trans\_end&
 R & 17500. & &
 Upper bound of transition zone between 2D and 3D divergence damping  &
 divdamp\_type = 32
-\tabularnewline
-
-%\hline
-l\_masscorr\_nest&
-L& .FALSE.& &
-.TRUE.: Apply mass conservation correction also in nested domain & ifeedback\_type=1
 \tabularnewline
 
 %\hline
@@ -7293,6 +7317,7 @@ Aerosols\\
 2: global constant\\
 3: externally specified\\
 6: Tegen aerosol climatology {\color{red}for run\_nml/iforcing = 3 (NWP) .AND. itopo =1 }\\
+7: CAMS 3D aerosol climatology, the filename can be specified via cams\_clim\_filename in \&radiation\_nml\\
 9: ART online aerosol radiation interaction, uses Tegen for aerosols not chosen to be represented in ART {\color{red}for run\_nml/iforcing = 3 (NWP) .AND. itopo =1 .AND. lart=TRUE .AND. iart\_ari=1}\\
 12: tropospheric 'Kinne' aerosols, constant in time\\
 13: total tropospheric 'Kinne' aerosols, time dependent from file \\
@@ -7324,6 +7349,19 @@ C&
 &
 Path to the folder containing ecRad optical properties files. 
 & inwp\_radiation=4 (ecRad)
+\tabularnewline
+
+%\hline
+cams\_clim\_filename &
+C&
+"CAMS\_clim\_ \\
+R<nroot0>B<jlev>\_ \\
+DOM<idom>.nc"&
+&
+Path to the file containing CAMS 3D climatology data\\
+Data can be prepared using the script scripts/preprocessing/ \\ make\_camsclim\_onICONgrid.sh 
+& inwp\_radiation=4 (ecRad)\\
+irad\_aero=7 (CAMS 3D climatology)
 \tabularnewline
 
 %\hline
@@ -7389,10 +7427,10 @@ I&
 &
 Optical properties for ice cloud scattering. \\
 Different options depending on ecrad\_use\_general\_cloud\_optics (eugco) \\
-0: Fu et al. (1996) (both) \\
+0: Fu et al. (1996) (eugco = .FALSE.) \textbackslash Rough from Muskatel et al. (2021) (eugco = .TRUE.) \\
 1: Baran et al. (2016) (eugco=.FALSE.) \\
 2: Yi (2013) (eugco=.FALSE.) \\
-10: Rough Fu (eugco=.TRUE.) \\
+10: Smooth from Muskatel et al. (2021) (eugco=.TRUE.) \\
 11: Baum (eugco=.TRUE.)
 & inwp\_radiation=4 (ecRad) 
 \tabularnewline
@@ -7404,10 +7442,36 @@ I&
 &
 Optical properties for snow scattering. \\
 -1: No explicit snow in radiation. \\
-0: Fu et al. (1996) \\
-10: Rough Fu 
+0: Rough from Muskatel et al. (2021) \\
+10: Smooth from Muskatel et al. (2021)
 & inwp\_radiation=4 (ecRad) \\
-ecrad\_use\_general\_cloud\_optics = .TRUE.
+\squeezeme{ecrad\_use\_general\_cloud\_optics = .TRUE.}
+\tabularnewline
+
+%\hline
+ecrad\_irain\_scat &
+I&
+-1&
+&
+Optical properties for rain  scattering. \\
+-1: No explicit rain in radiation. \\
+0: Mie-rain 
+& inwp\_radiation=4 (ecRad) \\
+\squeezeme{ecrad\_use\_general\_cloud\_optics = .TRUE.}
+\tabularnewline
+
+
+%\hline
+ecrad\_igraupel\_scat &
+I&
+-1&
+&
+Optical properties for graupel scattering. \\
+-1: No explicit graupel in radiation. \\
+0: Rough from Muskatel et al. (2021) \\
+10: Smooth from Muskatel et al. (2021)
+& inwp\_radiation=4 (ecRad) \\
+\squeezeme{ecrad\_use\_general\_cloud\_optics = .TRUE.}
 \tabularnewline
 
 %\hline
@@ -7426,32 +7490,6 @@ R&
 m&
 Decorrelation length scale at equator \\
 & inwp\_radiation=4 (ecRad)
-\tabularnewline
-
-%\hline
-ecrad\_irain\_scat &
-I&
--1&
-&
-Optical properties for rain  scattering. \\
--1: No explicit rain in radiation. \\
-0: Mie-rain 
-& inwp\_radiation=4 (ecRad) \\
-ecrad\_use\_general\_cloud\_optics = .TRUE.
-\tabularnewline
-
-
-%\hline
-ecrad\_igraupel\_scat &
-I&
--1&
-&
-Optical properties for graupel scattering. \\
--1: No explicit graupel in radiation. \\
-0: Fu et al. (1996) \\
-10: Rough Fu 
-& inwp\_radiation=4 (ecRad) \\
-ecrad\_use\_general\_cloud\_optics = .TRUE.
 \tabularnewline
 
 %\hline
@@ -8187,8 +8225,9 @@ C& ' ' & & Comma-separated list of initialization formulas for additional passiv
 %\hline
 igrad\_c\_miura&
 I& 1& & Method for gradient reconstruction at cell center for 2nd order miura scheme& \tabularnewline
-& & & & 1: Least-squares (linear, non-consv)& ihadv\_tracer=2\tabularnewline
-& & & & 2: Green-Gauss&
+& & & & 1: Least-squares (linear, non-consv)& ihadv\_tracer=2, 20\tabularnewline
+& & & & 2: Green-Gauss& \tabularnewline
+& & & & 3: based on shape function derivatives for a three-node triangular element (Fish. J and T. Belytschko, 2007) &
 \tabularnewline
 
 %\hline

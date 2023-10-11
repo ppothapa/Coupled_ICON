@@ -294,6 +294,7 @@ MODULE mo_reff_main
 
       END IF
 
+      !$ACC WAIT(1)
       !$ACC UPDATE DEVICE(reff_calc%reff_coeff)
     
   END SUBROUTINE init_reff_calc

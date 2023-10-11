@@ -1,21 +1,39 @@
 --- # ICON probtest tolerance data
+# This file can be parsed using yaml
 # Data is stored in <icon_data_rootFolder>/buildbot_data/ref/<experiment_hash>
 icon_data_rootFolder: /users/icontest/pool/data/ICON
 builder: daint_cpu_nvidia
 # The list below maps each experiment to its current experiment_hash
-"atm_qubicc_nc_test": ee7c82e8986e063e255214df8a9a8eaa6eab5b91
-"dwd_run_ICON_09_R2B4N5_EPS": 8e72c9332b4d8f92a1990f6d1b20d99ac5fd409d
-"exclaim_ape_R02B04": 0afa876ca3f05a4c5c45cf5dcb2684b9b0d58ab9
-"mch_bench_r19b07_dev_sppt": c6dc07593cd21f96eee7376eb811332d1d240fa4
-"mch_ch_lowres": a25146eb9ce7f4d2653a4d067e97baa6eaeecda8
+# HEAD
+#"atm_qubicc_nc_test": ee7c82e8986e063e255214df8a9a8eaa6eab5b91
+#"dwd_run_ICON_09_R2B4N5_EPS": 8e72c9332b4d8f92a1990f6d1b20d99ac5fd409d
+#"exclaim_ape_R02B04": 0afa876ca3f05a4c5c45cf5dcb2684b9b0d58ab9
+#"mch_bench_r19b07_dev_sppt": c6dc07593cd21f96eee7376eb811332d1d240fa4
+#"mch_ch_lowres": a25146eb9ce7f4d2653a4d067e97baa6eaeecda8
+#"mch_ch_r04b09_dace": 1204fd179fce0a17815220b8555ae439946444b2
+#"mch_ch_r04b09_dace_synsat": d72d3a3a13ec5b3ea0938d9fa2f50b0a39c0ec8b
+#"mch_opr_r04b07": 9e1905f6e950b2b95f0aa11f0072a468e45e36e1
+#"mch_opr_r04b07_lhn_00": d77756caf685271d5913b53bd411775970f961f8
+#"mch_opr_r04b07_nest": 1ad5bed33572c0becc4b03845233ce4fea7efde8
+#"mch_opr_r04b07_sstice_inst": 519c281557c80ff118d792c49e688090e4b87483
+#"mch_opr_r19b07_2m": dd30f2b4ffb6b4f4b33e86ad8d10117c29322f59
+#"mch_opr_r19b07_2m_gscp5": c02e76c930a912bb792782ec46a178616d9b8428
+#"mch_opr_r19b07_lpi": e4ba66abfac0c5e40a5ff7cafef658c45f5f5cd3
+#"mch_opr_r19b07_midnight": 394f96081263f2e67b431e63976f8eb686280841
+#"mch_opr_r19b07_turb": abce1ffa8fc361e3210fa5c8de88c393f4737999
+"atm_qubicc_nc_test": 8b61b843dcdb374e2e1d3346f42998ea7aaba002
+"dwd_run_ICON_09_R2B4N5_EPS": c910aca338ec5d8b5c74a587be4095bc93c003e2
+"exclaim_ape_R02B04": 35b232840582ec5579ecda3f64d5ff0b0c8ea4a5
+"mch_bench_r19b07_dev_sppt": 8a0f16ec178972ec2d81b9ef71b099702d76d79a
+"mch_ch_lowres": 730c3b94e81cdfad0cdfbdce5510023a483b953e
 "mch_ch_r04b09_dace": 1204fd179fce0a17815220b8555ae439946444b2
-"mch_ch_r04b09_dace_synsat": d72d3a3a13ec5b3ea0938d9fa2f50b0a39c0ec8b
-"mch_opr_r04b07": 9e1905f6e950b2b95f0aa11f0072a468e45e36e1
-"mch_opr_r04b07_lhn_00": d77756caf685271d5913b53bd411775970f961f8
-"mch_opr_r04b07_nest": 1ad5bed33572c0becc4b03845233ce4fea7efde8
-"mch_opr_r04b07_sstice_inst": 519c281557c80ff118d792c49e688090e4b87483
-"mch_opr_r19b07_2m": dd30f2b4ffb6b4f4b33e86ad8d10117c29322f59
-"mch_opr_r19b07_2m_gscp5": c02e76c930a912bb792782ec46a178616d9b8428
-"mch_opr_r19b07_lpi": e4ba66abfac0c5e40a5ff7cafef658c45f5f5cd3
-"mch_opr_r19b07_midnight": 394f96081263f2e67b431e63976f8eb686280841
-"mch_opr_r19b07_turb": abce1ffa8fc361e3210fa5c8de88c393f4737999
+"mch_ch_r04b09_dace_synsat": 311335d51a62fcb757637ab8fdcd83fbb095c7e8
+"mch_opr_r04b07": 842176432ca9013f04bb3fa1d2df56ced4c0fb23
+"mch_opr_r04b07_lhn_00": ded7877f08178b56273043274c16379d4c02256c
+"mch_opr_r04b07_nest": 3c380009a12c956c65b1e0d3a6a16fc574b8b22f
+"mch_opr_r04b07_sstice_inst": 0d45ca47d4dd8c267613454b17a04dc96f8db24b
+"mch_opr_r19b07_2m": 8f1a5d76d76bd1380860036e9f1099765b8cbbb6
+"mch_opr_r19b07_2m_gscp5": 3e37874729c05f0dfcc7b63c006c2edd674b3898
+"mch_opr_r19b07_lpi": 1358c8ee9ad1096d227679c282a54229a2f753a0
+"mch_opr_r19b07_midnight": 3be8ce736dbfd43301e49e976bab6a005c8ee02c
+"mch_opr_r19b07_turb": e0637a5ee101fb7842fabb22fa79cf9b69be3151

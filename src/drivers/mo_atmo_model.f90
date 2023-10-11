@@ -97,8 +97,7 @@ MODULE mo_atmo_model
   USE mo_advection_utils,         ONLY: init_tracer_settings
 
   ! horizontal grid, domain decomposition, memory
-  USE mo_grid_config,             ONLY: n_dom, n_dom_start,                                   &
-    &                                   dynamics_parent_grid_id, n_phys_dom, l_scm_mode
+  USE mo_grid_config,             ONLY: n_dom, n_dom_start, n_phys_dom, l_scm_mode
   USE mo_model_domain,            ONLY: p_patch, p_patch_local_parent
   USE mo_build_decomposition,     ONLY: build_decomposition
   USE mo_complete_subdivision,    ONLY: setup_phys_patches
@@ -130,8 +129,9 @@ MODULE mo_atmo_model
 
   ! coupling
 #ifdef YAC_coupling
-  USE mo_coupling_config,         ONLY: is_coupled_run
-  USE mo_atmo_coupling_frame,     ONLY: construct_atmo_coupling
+  USE mo_coupling_config,           ONLY: is_coupled_to_ocean, is_coupled_to_waves
+  USE mo_atmo_coupling_frame,       ONLY: construct_atmo_coupling
+  USE mo_atmo_wave_coupling_frame,  ONLY: construct_atmo_wave_coupling
 #endif
 
   ! I/O
@@ -199,8 +199,10 @@ CONTAINS
     ! construct the coupler
     !
 #ifdef YAC_coupling
-    IF ( is_coupled_run() ) THEN
-      CALL construct_atmo_coupling(p_patch(1:))
+    IF ( is_coupled_to_ocean() ) THEN
+      CALL construct_atmo_coupling(p_patch(1:)) ! atmo-ocean
+    ELSEIF ( is_coupled_to_waves() ) THEN
+      CALL construct_atmo_wave_coupling(p_patch(1:)) ! atmo-wave
     ENDIF
 #endif
 

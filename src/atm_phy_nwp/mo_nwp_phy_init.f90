@@ -59,6 +59,7 @@ MODULE mo_nwp_phy_init
     &                               ssi_radt, tsi_radt,irad_o3, rad_csalbw,           &
     &                               ghg_filename, irad_co2, irad_cfc11, irad_cfc12,   &
     &                               irad_n2o, irad_ch4, isolrad
+  USE mo_nwp_aerosol,         ONLY: nwp_aerosol_init
   USE mo_srtm_config,         ONLY: setup_srtm, ssi_amip, ssi_coddington
   USE mo_aerosol_util,        ONLY: init_aerosol_props_tegen_rrtm,                  &
     &                               zaea_rrtm, zaes_rrtm, zaeg_rrtm
@@ -128,7 +129,7 @@ MODULE mo_nwp_phy_init
     &                                  calculate_time_interpolation_weights
   USE mo_timer,               ONLY: timers_level, timer_start, timer_stop,   &
     &                               timer_init_nwp_phy, timer_phys_reff, timer_upatmo
-  USE mo_bc_greenhouse_gases, ONLY: read_bc_greenhouse_gases
+  USE mo_bc_greenhouse_gases, ONLY: read_bc_greenhouse_gases, bc_greenhouse_gases_time_interpolation
   USE mo_nwp_reff_interface,  ONLY: init_reff
   USE mo_upatmo_config,       ONLY: upatmo_config
   USE mo_upatmo_impl_const,   ONLY: iUpatmoPrcStat, iUpatmoStat
@@ -348,6 +349,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   CALL init_sea_lists(p_patch, lseaice, p_diag_lnd%fr_seaice(:,:), ext_data)
   IF (atm_phy_nwp_config(p_patch%id)%inwp_turb == ivdiff) THEN
     ! TODO: move this to a more appropriate place.
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(p_diag_lnd%fr_seaice)
     CALL nwp_vdiff_update_seaice_list ( &
         & p_patch, p_diag_lnd%fr_seaice(:,:), ext_data%atm%list_sea, ext_data%atm%list_seaice, &
@@ -986,8 +988,8 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   cover_koe_config(jg)%lsgs_cond   = atm_phy_nwp_config(jg)%lsgs_cond
 
   !$ACC ENTER DATA CREATE(cover_koe_config(jg:jg))
-  !$ACC ENTER DATA CREATE(cover_koe_config(jg)%lsgs_cond)
-  !$ACC UPDATE DEVICE(cover_koe_config(jg)%lsgs_cond)
+  !$ACC WAIT(1)
+  !$ACC UPDATE DEVICE(cover_koe_config(jg:jg)) ! This updates all components of cover_koe_config as they are statically allocated
 
   ! Initiate parameters for reff calculations
   IF (atm_phy_nwp_config(jg)%icalc_reff > 0) THEN
@@ -1075,6 +1077,9 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
           l_filename_year = .FALSE.
           CALL read_bc_aeropt_kinne(ini_date, p_patch, l_filename_year, ecrad_conf%n_bands_lw, ecrad_conf%n_bands_sw)
         ENDIF
+
+        CALL nwp_aerosol_init(ini_date, p_patch)
+
         IF (ANY( irad_aero == (/iRadAeroKinne,iRadAeroKinneVolc/) )) THEN
           ! Transient Kinne aerosol:
           l_filename_year = .TRUE.
@@ -1550,6 +1555,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
     END DO
     impl_weight(nlevp1) = impl_s
     ! impl_weight is never changed
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(turbdiff_config(jg)%impl_weight)
 
 ! computing l_pat: cannot be done in mo_ext_data_init, because it seems we do not have
@@ -1895,8 +1901,8 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   IF(ANY((/irad_co2,irad_cfc11,irad_cfc12,irad_n2o,irad_ch4/) == 4)) THEN
     ! read annual means
     CALL read_bc_greenhouse_gases(ghg_filename)
+    CALL bc_greenhouse_gases_time_interpolation(ini_date, print_report=(msg_level >= 5))
     ! interpolation to the current date and time takes place in the radiation interface
-      
   ENDIF
 
 #ifndef __NO_ICON_UPATMO__

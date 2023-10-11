@@ -289,6 +289,8 @@ IF (test_memory_copies /= bgc_memory_copies) &
 
     IF (i_settling /= 2) CALL print_wpoc(bgc_local_memory(0)%wpoc)
 
+    !$ACC WAIT(1)
+
     !$ACC UPDATE DEVICE(local_bgc_memory%atm, local_bgc_memory%satn2, local_bgc_memory%satn2o) &
     !$ACC   DEVICE(local_bgc_memory%solco2, local_bgc_memory%bgctra, local_bgc_memory%hi, local_bgc_memory%co3) &
     !$ACC   DEVICE(local_bgc_memory%aksp, local_bgc_memory%ak13, local_bgc_memory%ak23, local_bgc_memory%akb3) &

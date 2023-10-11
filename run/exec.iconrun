@@ -326,6 +326,15 @@ check_error $? "${MODEL} does not exist?"
 ldd ${MODEL}
 #
 #-----------------------------------------------------------------------------
+
+#
+# configure START_MODEL_function
+#
+# TODO: be less atmospheric centric, i.e. do not assume that atmosphere is always component 1
+ICON_COMPONENT1_VH_procs=$(( ${num_restart_procs:-0} + ${num_io_procs:-0} + ${num_prefetch_proc:-0} + ${num_io_procs_radar:-0}))
+ICON_COMPONENT2_VE_procs=0 # Note: probably one has to substrace $proc0_shift here if proc0_shift is used for the second component.
+ICON_COMPONENT2_VH_procs=0 # TODO: use information about coupled processes to fill this
+
 #
 # start experiment
 #
@@ -334,6 +343,7 @@ ldd ${MODEL}
 # START_MODEL is used to ease the execution of a machine that uses a complex
 # mpirun command with multiple binaries
 START_MODEL="${START_MODEL:=$START $MODEL}"
+
 
 rm -f finish.status
 #

@@ -46,7 +46,7 @@
 
 MODULE mo_nwp_ocean_interface
 
-  USE mo_bc_greenhouse_gases ,ONLY: ghg_co2mmr
+  USE mo_bc_greenhouse_gases ,ONLY: ghg_co2vmr
   USE mo_ccycle_config       ,ONLY: ccycle_config,                          &
        & CCYCLE_MODE_NONE, CCYCLE_MODE_PRESCRIBED, CCYCLE_MODE_INTERACTIVE, &
        & CCYCLE_CO2CONC_CONST, CCYCLE_CO2CONC_FROMFILE
@@ -580,7 +580,7 @@ CONTAINS
         CASE (CCYCLE_CO2CONC_CONST)
           co2conc = 1e6_wp * ccycle_config(jg)%vmr_co2
         CASE (CCYCLE_CO2CONC_FROMFILE)
-          co2conc = 1e6_wp * ghg_co2mmr / vmr_to_mmr_co2
+          co2conc = 1e6_wp * ghg_co2vmr
         CASE DEFAULT
           co2conc = 0._wp
           CALL finish('nwp_couple_ocean', 'unknown value of ccycle_config(jg)%ico2conc')

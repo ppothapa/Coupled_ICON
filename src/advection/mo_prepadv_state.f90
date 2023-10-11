@@ -117,6 +117,7 @@ CONTAINS
       CALL vlr_del(prep_adv_list(jg))
     ENDDO
 
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(prep_adv)
 
     DEALLOCATE(prep_adv, prep_adv_list, STAT=ist)

@@ -316,6 +316,7 @@ CONTAINS
     END DO
 
     !$ACC ENTER DATA COPYIN(tlucu, tlucuw)
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(tlucua)
 
   END SUBROUTINE init_convect_tables
@@ -687,6 +688,7 @@ CONTAINS
       ! mixed case, must build store index
       iw = jcs    ! store indices with temp < tmelt at iw (iw = jcs:jcs+nphase-1)
       inw = size  ! store indices with temp >= tmelt at inw (inw = jcs+nphase : size)
+      !$ACC WAIT(1)
       !$ACC UPDATE HOST(iphase)
       DO jl = jcs,size
         tmpidx(iw)  = jl  ! lower part of tmpidx() filled with cond = .true.
@@ -1018,13 +1020,13 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
         END DO
       END IF
 
+      !$ACC WAIT(1)
       IF ( PRESENT(opt_need_host_nphase) ) THEN
         IF ( opt_need_host_nphase ) THEN
-          !$ACC UPDATE WAIT SELF(nphase)
+          !$ACC UPDATE SELF(nphase)
         END IF
       END IF
 
-      !$ACC WAIT
       !$ACC END DATA
 
     ELSE
@@ -1057,6 +1059,7 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
     ! if one index was out of bounds -> print error and exit
     IF (zoutofbounds > 0) THEN
       IF ( PRESENT(kblock) .AND. PRESENT(kblock_size) ) THEN
+        !$ACC WAIT(1)
         !$ACC UPDATE HOST(temp)
         ! tied to patch(1), does not yet work for nested grids
         DO batch = 1,batch_size

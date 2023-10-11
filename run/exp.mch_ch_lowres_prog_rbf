@@ -121,7 +121,7 @@ atmo_namelist=NAMELIST_${EXPNAME}_atm
 # ----------------------------------------------------------------------
 
 
-cat > ${atmo_namelist} << EOF
+cat > ${basedir}/run/${atmo_namelist} << EOF
 ! parallel_nml: MPI parallelization -------------------------------------------
 &parallel_nml
  nproma                      =                   64        ! loop chunk length
@@ -164,7 +164,6 @@ cat > ${atmo_namelist} << EOF
 ! dynamics_nml: dynamical core -----------------------------------------------
 &dynamics_nml
  iequations                  =                          3         ! type of equations and prognostic variables
- idiv_method                 =                          1         ! method for divergence computation
  divavg_cntrwgt              =                          0.50      ! weight of central cell for divergence averaging
  lcoriolis                   =                      .TRUE.        ! Coriolis force
 /

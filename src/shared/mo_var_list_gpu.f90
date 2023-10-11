@@ -71,6 +71,7 @@ CONTAINS
 
     SUBROUTINE upd_dev()
 
+      !$ACC WAIT(1)
       SELECT CASE(info%data_type)
       CASE (REAL_T)
         !$ACC UPDATE DEVICE(element%r_ptr) IF(info%lopenacc)
@@ -85,6 +86,7 @@ CONTAINS
 
     SUBROUTINE upd_host()
       
+      !$ACC WAIT(1)
       SELECT CASE(info%data_type)
       CASE (REAL_T)
         !$ACC UPDATE HOST(element%r_ptr) IF(info%lopenacc)

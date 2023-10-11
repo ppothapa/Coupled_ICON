@@ -174,6 +174,7 @@ CONTAINS
     i_settling        = 0             ! constant sinking
 
     hion_solver       = 0             ! standard solver
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(hion_solver)
    
     isac = 1       ! no sediment acceleration

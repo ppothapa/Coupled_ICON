@@ -292,6 +292,7 @@
          CALL init(latbc%latbc_data(tlev)%atm%qs(:,:,:))
 !$OMP END PARALLEL
 
+        !$ACC WAIT(1)
         !$ACC UPDATE DEVICE(latbc%latbc_data(tlev)%atm%pres, latbc%latbc_data(tlev)%atm%temp) &
         !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%vn) &
         !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%theta_v, latbc%latbc_data(tlev)%atm%rho) &
@@ -505,6 +506,7 @@
         ! set validity Datetime
         latbc%latbc_data(prev_latbc_tlev)%vDateTime = time_config%tc_current_date
 
+        !$ACC WAIT(1)
         !$ACC UPDATE DEVICE(latbc%latbc_data(prev_latbc_tlev)%atm%pres, latbc%latbc_data(prev_latbc_tlev)%atm%temp) &
         !$ACC   DEVICE(latbc%latbc_data(prev_latbc_tlev)%atm%vn) &
         !$ACC   DEVICE(latbc%latbc_data(prev_latbc_tlev)%atm%theta_v, latbc%latbc_data(prev_latbc_tlev)%atm%rho) &
@@ -526,6 +528,7 @@
         CALL read_latbc_data(latbc, p_patch(1), p_nh_state, p_int_state, timelev, read_params, latbc_dict)
       ENDIF
 
+      !$ACC WAIT(1)
       !$ACC UPDATE DEVICE(latbc%latbc_data(timelev)%atm%pres, latbc%latbc_data(timelev)%atm%temp) &
       !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%vn) &
       !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%theta_v, latbc%latbc_data(timelev)%atm%rho) &
@@ -612,6 +615,7 @@
 
       CALL read_latbc_data(latbc, p_patch(1), p_nh_state, p_int_state, timelev, read_params, latbc_dict)
 
+      !$ACC WAIT(1)
       !$ACC UPDATE DEVICE(latbc%latbc_data(timelev)%atm%pres, latbc%latbc_data(timelev)%atm%temp) &
       !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%vn) &
       !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%theta_v, latbc%latbc_data(timelev)%atm%rho) &
@@ -1308,6 +1312,7 @@
       ! copy values needed from the GPU to the CPU
 #ifdef _OPENACC
       CALL message('mo_asyc_latbc_utils', 'Device to host copy of values needed in recv_latbc_data. This needs to be removed once port is finished!')
+      !$ACC WAIT(1)
       !$ACC UPDATE HOST(p_nh_state%diag%grf_tend_tracer)
       !$ACC UPDATE HOST(p_nh_state%diag%grf_tend_vn)
       !$ACC UPDATE HOST(p_nh_state%diag%grf_tend_rho)
@@ -1346,6 +1351,7 @@
       read_params(iedge)%imode_asy = iedge
       CALL read_latbc_data(latbc, p_patch(1), p_nh_state, p_int, tlev, read_params)
 
+      !$ACC WAIT(1)
       !$ACC UPDATE DEVICE(latbc%latbc_data(tlev)%atm%pres, latbc%latbc_data(tlev)%atm%temp) &
       !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%vn) &
       !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%theta_v, latbc%latbc_data(tlev)%atm%rho) &
@@ -1379,6 +1385,7 @@
       ! copy changed values form CPU to GPU
 #ifdef _OPENACC
         CALL message('mo_nh_stepping', 'Host to device copy of values changed in recv_latbc_data. This needs to be removed once port is finished!')
+        !$ACC WAIT(1)
         !$ACC UPDATE DEVICE(p_nh_state%diag%grf_tend_vn)
         !$ACC UPDATE DEVICE(p_nh_state%diag%grf_tend_rho)
         !$ACC UPDATE DEVICE(p_nh_state%diag%grf_tend_thv)

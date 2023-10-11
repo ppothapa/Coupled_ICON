@@ -280,8 +280,8 @@ CONTAINS
 
     ! deallocate radar_data array
     IF(allocated(radar_data)) THEN
-      !$ACC EXIT DATA DELETE(radar_data) ASYNC(1)
-      !$ACC WAIT
+      !$ACC WAIT(1)
+      !$ACC EXIT DATA DELETE(radar_data)
       DEALLOCATE(radar_data, STAT=ist)
       IF (ist /= SUCCESS) THEN
         CALL finish(routine, 'deallocation of radar_data for LHN')
@@ -989,6 +989,7 @@ CONTAINS
       CALL vlr_del(lhn_fields_list(jg))
     ENDDO
 
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(lhn_fields)
 
     DEALLOCATE(lhn_fields, lhn_fields_list, STAT=ist)

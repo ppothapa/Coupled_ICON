@@ -899,6 +899,7 @@ CONTAINS
 
     IF (zinbounds == 0._wp) THEN
 
+      !$ACC WAIT(1)
       !$ACC UPDATE HOST(temp)
       IF ( PRESENT(kblock) .AND. PRESENT(kblock_size) .AND. PRESENT(klev) ) THEN
 

@@ -58,7 +58,6 @@ MODULE mo_nonhydrostatic_nml
                                     & config_iadv_rhotheta    => iadv_rhotheta    , &
                                     & config_igradp_method    => igradp_method    , &
                                     & config_exner_expol      => exner_expol      , &
-                                    & config_l_masscorr_nest  => l_masscorr_nest  , &
                                     & config_l_zdiffu_t       => l_zdiffu_t       , &
                                     & config_thslp_zdiffu     => thslp_zdiffu     , &
                                     & config_thhgtd_zdiffu    => thhgtd_zdiffu
@@ -147,8 +146,6 @@ CONTAINS
     ! horizontal pressure gradient
     LOGICAL :: l_open_ubc              ! .true.: open upper boundary condition (w=0 otherwise)
 
-    LOGICAL :: l_masscorr_nest         ! Apply mass conservation correction also to nested domain
-
     LOGICAL :: l_zdiffu_t              ! .true.: apply truly horizontal temperature diffusion
     !         over steep slopes
     REAL(wp):: thslp_zdiffu            ! threshold slope above which temperature diffusion is applied
@@ -161,8 +158,7 @@ CONTAINS
          & rayleigh_coeff, vwind_offctr, iadv_rhotheta, lhdiff_rcf,  &
          & divdamp_fac, divdamp_fac2, divdamp_fac3, divdamp_fac4,    &
          & divdamp_z, divdamp_z2, divdamp_z3, divdamp_z4,            &
-         & igradp_method, exner_expol, l_open_ubc,                   &
-         & l_masscorr_nest, l_zdiffu_t,                              &
+         & igradp_method, exner_expol, l_open_ubc, l_zdiffu_t,       &
          & thslp_zdiffu, thhgtd_zdiffu, divdamp_order, divdamp_type, &
          & rhotheta_offctr, lextra_diffu, veladv_offctr,             &
          & divdamp_trans_start, divdamp_trans_end, htop_aero_proc,   &
@@ -256,8 +252,6 @@ CONTAINS
 #endif
     ! TRUE: use the open upper boundary condition
     l_open_ubc        = .FALSE.
-    ! TRUE: apply mass conservation correction computed for feedback in the nested domain, too
-    l_masscorr_nest   = .FALSE.
 
     ! dummy values for nested domains; will be reset to value of domain 1 
     ! if not specified explicitly in the namelist
@@ -406,7 +400,6 @@ CONTAINS
        config_l_zdiffu_t        = l_zdiffu_t
        config_thslp_zdiffu      = thslp_zdiffu
        config_thhgtd_zdiffu     = thhgtd_zdiffu
-       config_l_masscorr_nest   = l_masscorr_nest
        config_htop_moist_proc   = htop_moist_proc
        config_hbot_qvsubstep    = hbot_qvsubstep
        config_htop_aero_proc    = htop_aero_proc

@@ -93,7 +93,6 @@ MODULE mo_nonhydrostatic_config
     INTEGER :: igradp_method    ! Method for computing the horizontal presure gradient
     REAL(wp):: exner_expol      ! Temporal extrapolation of Exner for computation of
                                 ! horizontal pressure gradient
-    LOGICAL :: l_masscorr_nest  ! Apply mass conservation correction also to nested domain
     LOGICAL :: l_zdiffu_t       ! .true.: apply truly horizontal temperature diffusion 
                                 ! over steep slopes
     REAL(wp):: thslp_zdiffu     ! threshold slope above which temperature diffusion is applied

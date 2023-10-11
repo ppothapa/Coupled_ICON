@@ -160,6 +160,7 @@ CONTAINS
 
     IF (ASSOCIATED(obj%cell_idx)) THEN
 
+      !$ACC WAIT(1)
       !$ACC EXIT DATA DELETE(obj%cell_idx, obj%cell_blk, obj%distv_bary) IF(i_am_accel_node)
       !$ACC EXIT DATA DELETE(obj) IF(i_am_accel_node)
 
@@ -547,7 +548,7 @@ CONTAINS
     !$ACC   IF(i_am_accel_node)
 
     IF (llist_gen) THEN
-      !$ACC KERNELS IF(i_am_accel_node)
+      !$ACC KERNELS ASYNC(1) IF(i_am_accel_node)
       opt_falist%len(:) = 0
       !$ACC END KERNELS
     ENDIF
@@ -658,8 +659,7 @@ CONTAINS
 
         ! Default code path
         ! store list dimension
-        !$ACC WAIT(1)
-        !$ACC KERNELS COPYIN(ie)
+        !$ACC KERNELS ASYNC(1) COPYIN(ie)
         opt_falist%len(jb) = ie
         !$ACC END KERNELS
 #else

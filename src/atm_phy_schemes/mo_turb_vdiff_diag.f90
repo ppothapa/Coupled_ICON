@@ -798,7 +798,8 @@ CONTAINS
     !$ACC END PARALLEL LOOP
 
     CALL generate_index_list_batched(pfrc_test(:,:), loidx, jcs, kproma, is, 1)
-    !$ACC UPDATE WAIT(1) SELF(is)
+    !$ACC WAIT(1)
+    !$ACC UPDATE SELF(is)
 
     DO jsfc = 1,ksfc_type
 

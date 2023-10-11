@@ -123,7 +123,6 @@ cat > ${atmo_namelist} << EOF
 &dynamics_nml
  iequations  = ${atmo_model_equations}       ! 1: hydrost. atmosphere
  lcoriolis   = .TRUE.
- idiv_method     = 1
  divavg_cntrwgt  = 0.50
 /
 &limarea_nml

@@ -1401,6 +1401,7 @@ CONTAINS
 
     
 
+    !$ACC WAIT(1)
     IF      (ASSOCIATED(r_ptr_5d)) THEN
       !$ACC UPDATE HOST(r_ptr) IF(i_am_accel_node .AND. acc_is_present(r_ptr))
     ELSE IF (ASSOCIATED(s_ptr_5d)) THEN

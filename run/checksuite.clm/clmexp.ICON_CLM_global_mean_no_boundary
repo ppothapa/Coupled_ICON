@@ -391,7 +391,6 @@ cat > NAMELIST_${EXPNAME} << EOF
 	/
 	&dynamics_nml
 	  iequations     = 3
-	  idiv_method    = 1
 	  divavg_cntrwgt = 0.50
 	  lcoriolis      = .true.
 	/
@@ -442,6 +441,7 @@ EOF
 # run ICON
 # ----------------------------------------------------------------------------
 
+ICON_COMPONENT1_VH_procs=$(( num_restart_procs + num_io_procs + num_prefetch_proc + num_io_procs_radar))
 $START_MODEL
 EXIT_STATUS=$?
 

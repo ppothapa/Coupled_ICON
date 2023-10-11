@@ -581,6 +581,7 @@ CONTAINS
     config_tune_dursun_scaling   = tune_dursun_scaling
     config_tune_sbmccn           = tune_sbmccn
 
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(config_tune_gust_factor, config_itune_gust_diag, config_tune_gustsso_lim)
 
     !-----------------------------------------------------

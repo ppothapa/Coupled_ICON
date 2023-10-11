@@ -194,11 +194,11 @@ then
 
     [[ $debug -eq $TRUE ]] && set -x
     ${this_folder}/run/make_target_runscript \
-        in_folder=${in_folder} \
-        in_script=exp.${name}\
+        "in_folder=${in_folder}" \
+        "in_script=exp.${name}" \
         in_script=exec.iconrun \
-        out_script=exp.${name}.run \
-        EXPNAME=${name} \
+        "out_script=exp.${name}.run" \
+        "EXPNAME=${name}" \
         memory_model="large" \
         $secondary_build_dir_option
     set +x
@@ -222,10 +222,10 @@ then
 
     [[ $debug -eq $TRUE ]] && set -x
     ${this_folder}/run/make_target_runscript \
-        in_folder=${in_folder} \
-        in_script=nwpexp.${name}\
-        out_script=nwpexp.${name}.run \
-        EXPNAME=${name} \
+        "in_folder=${in_folder}" \
+        "in_script=nwpexp.${name}" \
+        "out_script=nwpexp.${name}.run" \
+        "EXPNAME=${name}" \
         memory_model="large" \
         $secondary_build_dir_option \
         omp_stacksize="200M"
@@ -250,10 +250,10 @@ then
 
     [[ $debug -eq $TRUE ]] && set -x
     ${this_folder}/run/make_target_runscript \
-        in_folder=${in_folder} \
-        in_script=clmexp.${name}\
-        out_script=clmexp.${name}.run \
-        EXPNAME=${name} \
+        "in_folder=${in_folder}" \
+        "in_script=clmexp.${name}" \
+        "out_script=clmexp.${name}.run" \
+        "EXPNAME=${name}" \
         memory_model="large" \
         $secondary_build_dir_option \
         omp_stacksize="200M"
@@ -278,11 +278,11 @@ then
 
     [[ $debug -eq $TRUE ]] && set -x
     ${this_folder}/run/make_target_runscript \
-        in_folder=${in_folder} \
-        in_script=post.${name} \
-        out_script=post.${name}.run \
+        "in_folder=${in_folder}" \
+        "in_script=post.${name}" \
+        "out_script=post.${name}.run" \
         $secondary_build_dir_option \
-        EXPNAME=${name} \
+        "EXPNAME=${name}" \
         with_mpi="no" \
         with_openmp="no" \
         queue="express"
@@ -294,22 +294,27 @@ fi
 
 if [[ "${name}" == "--all" ]]
 then
-    all_experiments=$( (cd "${this_folder}/${in_folder}" && ls -1 exp.* | egrep -v ".run$" | egrep -v ".status$") || true )
-    for experiment in $all_experiments
-    do
-        name=${experiment##exp.}
-        ${this_folder}/make_runscripts "$name" -r "$in_folder" -s "$secondary_build_dir"
-    done
 
-    nwp_experiments=$( cd "${this_folder}"; find "./${in_folder}" -type f -name "nwpexp.*" -not -name "*.run" -not -name "*.status" | sort )
-    for experiment in $nwp_experiments
+    # all exp.* in $in_folder
+    while IFS= read -r -d $'\0' experiment
     do
-        echo "$experiment"
+        name="$(basename "$experiment")"
+        name=${name##exp.}
+        rundir="$(dirname "$experiment")" # the same as in_folder because of `-maxdepth 1`
+        ${this_folder}/make_runscripts "$name" -r "$rundir" -s "$secondary_build_dir"
+    done < <(cd "${this_folder}"; find "./${in_folder}" -maxdepth 1 -type f -name "exp.*" -not -name "*.run" -not -name "*.status" -print0 | sort -z)
+    # find prints the file names followed by a null character to allow for spaces and other script-hostile characters.
+    # See also https://stackoverflow.com/q/23356779
+
+    # all nwpexp.* and clmexp.* in $in_folder and it's subfolders
+    while IFS= read -r -d $'\0' experiment
+    do
         name="$(basename "$experiment")"
         name=${name##nwpexp.}
+        name=${name##clmexp.}
         rundir="$(dirname "$experiment")"
         ${this_folder}/make_runscripts "$name" -r "$rundir" -s "$secondary_build_dir"
-    done
+    done < <(cd "${this_folder}"; find "./${in_folder}" -type f \( -name "nwpexp.*" -o -name "clmexp.*" \)  -not -name "*.run" -not -name "*.status" -print0 | sort -z)
 else
     # error message if nothing found
     if [[ "$name_found" = "no" ]]
@@ -318,6 +323,7 @@ else
         echo "ERROR: Cannot find "
         echo "    'exp.${name}' or "
         echo "    'nwpexp.${name}' or "
+        echo "    'clmexp.${name}' or "
         echo "    'post.${name}'"
         echo "in '${this_folder}/${in_folder}' !"
         echo_usage

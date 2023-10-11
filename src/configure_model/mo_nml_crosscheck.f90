@@ -40,7 +40,7 @@ MODULE mo_nml_crosscheck
     &                                    ltransport, ltestcase, ltimer,                    &
     &                                    activate_sync_timers, timers_level, lart,         &
     &                                    msg_level, luse_radarfwo
-  USE mo_dynamics_config,          ONLY: iequations, idiv_method, ldeepatmo
+  USE mo_dynamics_config,          ONLY: iequations, ldeepatmo
   USE mo_advection_config,         ONLY: advection_config
   USE mo_nonhydrostatic_config,    ONLY: itime_scheme_nh => itime_scheme,                  &
     &                                    rayleigh_type, ivctype, iadv_rhotheta
@@ -49,6 +49,7 @@ MODULE mo_nml_crosscheck
   USE mo_aes_phy_config,           ONLY: aes_phy_config
   USE mo_radiation_config,         ONLY: irad_aero, iRadAeroNone, iRadAeroConst,           &
     &                                    iRadAeroTegen, iRadAeroART, iRadAeroConstKinne,   &
+    &                                    iRadAeroCAMSclim,                                 &
     &                                    iRadAeroKinne, iRadAeroVolc, iRadAeroKinneVolc,   &
     &                                    iRadAeroKinneVolcSP, iRadAeroKinneSP,             &
     &                                    irad_o3, irad_h2o, irad_co2, irad_ch4,            &
@@ -61,7 +62,7 @@ MODULE mo_nml_crosscheck
     &                                    ecrad_use_general_cloud_optics
   USE mo_turbdiff_config,          ONLY: turbdiff_config
   USE mo_initicon_config,          ONLY: init_mode, dt_iau, ltile_coldstart, timeshift,    &
-    &                                    itype_vert_expol
+    &                                    itype_vert_expol, iterate_iau
   USE mo_nh_testcases_nml,         ONLY: nh_test_name, layer_thickness
   USE mo_meteogram_config,         ONLY: meteogram_output_config, check_meteogram_configuration
   USE mo_grid_config,              ONLY: lplane, n_dom, l_limited_area, start_time,        &
@@ -81,8 +82,9 @@ MODULE mo_nml_crosscheck
   USE mo_nudging_nml,              ONLY: check_nudging
   USE mo_upatmo_config,            ONLY: check_upatmo
   USE mo_name_list_output_config,  ONLY: is_variable_in_output_dom
-  USE mo_coupling_config,          ONLY: is_coupled_run
+  USE mo_coupling_config,          ONLY: is_coupled_to_ocean, is_coupled_to_waves
 
+  USE mo_assimilation_config,      ONLY: assimilation_config
   USE mo_scm_nml,                  ONLY: i_scm_netcdf, scm_sfc_temp, scm_sfc_qv, scm_sfc_mom
 #ifndef __NO_ICON_LES__
   USE mo_ls_forcing_nml,           ONLY: is_ls_forcing
@@ -277,8 +279,6 @@ CONTAINS
         CALL finish(routine, 'Deep-atmosphere configuration is incompatible with plane or torus modes')
       ELSEIF (iadv_rhotheta /= 2) THEN
         CALL finish(routine, 'Deep-atmosphere configuration requires iadv_rhotheta = 2')
-      ELSEIF (idiv_method /= 1) THEN
-        CALL finish(routine, 'Deep-atmosphere configuration requires idiv_method = 1')
       ENDIF
     ENDIF ! IF (ldeepatmo)
 
@@ -340,10 +340,9 @@ CONTAINS
         ENDIF
 
         IF ( (atm_phy_nwp_config(jg)%icpl_rad_reff == 2)  .AND.  & 
-             ( (atm_phy_nwp_config(jg)%inwp_radiation/= 4)  .OR.  &  
-             (ecrad_igas_model /=1) ) ) THEN
+              (atm_phy_nwp_config(jg)%inwp_radiation/= 4) ) THEN
           CALL finish( routine, 'Wrong value for: icpl_rad_reff. Coupling effective radius for all '//  &  
-                                 'hydrometeors only works with ECRAD and ECCKD gas model!')
+                                 'hydrometeors only works with ECRAD!')
         ENDIF
 
 
@@ -409,8 +408,8 @@ CONTAINS
               &  CALL finish(routine,'For inwp_radiation = 4, irad_cfc11 has to be 0, 2 or 4')
             IF (.NOT. ANY( irad_cfc12   == (/0,2,4/)       ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, irad_cfc12 has to be 0, 2 or 4')
-            IF (.NOT. ANY( irad_aero    == (/iRadAeroNone, iRadAeroConst, iRadAeroTegen, iRadAeroART, &
-              &                              iRadAeroConstKinne, iRadAeroKinne, iRadAeroVolc,         &
+            IF (.NOT. ANY( irad_aero    == (/iRadAeroNone, iRadAeroConst, iRadAeroTegen, iRadAeroART,           &
+              &                              iRadAeroConstKinne, iRadAeroKinne, iRadAeroVolc, iRadAeroCAMSclim, &
               &                              iRadAeroKinneVolc, iRadAeroKinneVolcSP, iRadAeroKinneSP/) ) ) THEN
               WRITE(message_text,'(a,i2,a)') 'irad_aero = ', irad_aero,' is invalid for inwp_radiation=4'
               CALL finish(routine,message_text)
@@ -551,6 +550,11 @@ CONTAINS
       ENDDO
     END IF
 
+#ifdef _OPENACC
+    IF ( irad_aero == iRadAeroCAMSclim) THEN
+        CALL finish(routine,'CAMS 3D climatology irad_aero=7 is currently not supported on GPU.')
+    END IF
+#endif
 
     !--------------------------------------------------------------------
     ! Tracers and diabatic forcing
@@ -784,6 +788,20 @@ CONTAINS
       &                l_limited_area, ivctype, flat_height, itype_vert_expol, init_mode, &
       &                atm_phy_nwp_config(:)%inwp_turb, atm_phy_nwp_config(:)%inwp_radiation)
 
+    !--------------------------------------------------------------------
+    ! assimiliation
+    !--------------------------------------------------------------------
+    IF ( MODE_IAU == init_mode ) THEN
+      IF( ANY(assimilation_config(:)%dace_coupling) .AND. .NOT. iterate_iau ) THEN 
+        ! The MEC in dace_coupling needs the fully initialized state to compute the
+        ! model equivalents for vv=0.
+        CALL finish(routine,                                        &
+        &  'assimilation: dace_coupling requires iterate_iau')
+        ! One might loosen this check slightly by allowing non-iterative IAU if
+        ! dace_time_ctrl(0) > 0. However this case should be tested before
+        ! modifying this crosscheck.
+      ENDIF
+    ENDIF
 
     ! ********************************************************************************
     !
@@ -842,14 +860,24 @@ CONTAINS
 
     CHARACTER(len=*), PARAMETER :: routine =  modname//'::coupled_crosscheck'
 
-    IF ( ntiles_lnd == 1 .AND. is_coupled_run() .AND. .NOT. &
+    IF ( ntiles_lnd == 1 .AND. is_coupled_to_ocean() .AND. .NOT. &
         & (iforcing == inwp .AND. ALL(atm_phy_nwp_config(1:n_dom)%inwp_turb == ivdiff)) ) THEN
        CALL finish(routine, "Coupled atm/ocean runs not supported with ntiles=1 when not using VDIFF")
     ENDIF
 
-    IF ( sstice_mode /= 1 .AND. is_coupled_run() ) THEN
+    IF ( sstice_mode /= 1 .AND. is_coupled_to_ocean() ) THEN
        CALL finish(routine, "Coupled atm/ocean runs only supported with sstice_mode=1 named SSTICE_ANA")
     ENDIF
+
+#ifdef _OPENACC
+    IF ( is_coupled_to_waves() ) THEN
+      CALL finish(routine, "Coupled atm/wave runs are not available on GPU")
+    END IF
+
+    IF ( is_coupled_to_ocean() ) THEN
+      CALL finish(routine, "Coupled atm/ocean runs are not available on GPU")
+    END IF
+#endif
 
   END SUBROUTINE coupled_crosscheck
   !---------------------------------------------------------------------------------------

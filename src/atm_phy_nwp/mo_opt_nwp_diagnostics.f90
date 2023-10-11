@@ -5817,18 +5817,13 @@ CONTAINS
   SUBROUTINE compute_field_visibility(ptr_patch,p_prog,p_diag,prm_diag, jg, vis_out)
 
     TYPE(t_patch),        INTENT(IN)     :: ptr_patch        
-    TYPE(t_nh_prog)      , INTENT(IN)    :: p_prog                 !< nonhydrostatic state
-    TYPE(t_nh_diag),      INTENT(IN)     :: p_diag   ! diagnostic va  !!   The extinction coefficient for each water species present is
+    TYPE(t_nh_prog),      INTENT(IN)     :: p_prog                 !< nonhydrostatic state
+    TYPE(t_nh_diag),      INTENT(IN)     :: p_diag   
     
     REAL(WP), INTENT(OUT)   :: vis_out(:,:) ! output variable
 
     INTEGER, INTENT(IN)                  :: jg  ! domain ID of the grid
-  !!   calculated, and then all applicable betas are summed to yield
-  !!   a single beta. Then the following relationship is used to
-  !!   determine visibility (in km), where epsilon is the threshhold
-  !!   of contrast, usually taken to be .02:
-  !!
-  !!      vis = -ln(epsilon)/beta      [found in Kunkel (1984)]riables
+
     TYPE(t_nwp_phy_diag), INTENT(INOUT)  :: prm_diag ! physics variables
 
     !local variables
@@ -5838,7 +5833,7 @@ CONTAINS
     REAL(wp),POINTER ::   qr(:,:,:)  ! cloud water (subgrid) 
     REAL(wp),POINTER ::   qs(:,:,:)  ! cloud water (subgrid) 
     REAL(wp),POINTER ::   qg(:,:,:)  ! cloud water (subgrid) 
-    REAL(wp),POINTER ::   rho(:,:,:)  ! total density (inkluding hydrometeors)
+    REAL(wp),POINTER ::   rho(:,:,:) ! total density (inkluding hydrometeors)
 
     ! specific tracer concentrations
     REAL(wp) :: Ccmax, Cimax, Crmax, Csmax, Cgmax
@@ -5846,7 +5841,7 @@ CONTAINS
     ! parameters for vis parametrization
     REAL(wp), parameter :: a_c = 144.7_wp, b_c = 0.88_wp  
     REAL(wp), parameter :: a_i = 327.8_wp, b_i = 1.0_wp  
-    REAL(wp), parameter :: a_r = 2.24_wp, b_r = 0.75_wp  
+    REAL(wp), parameter :: a_r = 2.24_wp,  b_r = 0.75_wp  
     REAL(wp), parameter :: a_s_wet = 6.0_wp, a_s_dry = 10.0_wp, b_s = 1.0_wp  
     REAL(wp), parameter :: a_g = 4.0_wp, b_g = 0.75_wp  
     REAL(WP)            :: a_s, temp_fac, beta
@@ -5863,27 +5858,14 @@ CONTAINS
     INTEGER :: i_startidx, i_endidx
     INTEGER :: jc,  jk, jb,  nlev
 
-    LOGICAL :: use_subgrid_clouds,  use_visrh
-    INTEGER :: which_visrh
-
-    use_subgrid_clouds = .True.
-    use_visrh          = .True.
-    which_visrh        = 0 ! 0: AIRS, 1: old WRF
-
     ! local pointers
     rho => p_prog%rho
-    if (use_subgrid_clouds) then
-      qv  => prm_diag%tot_ptr(iqv)%p_3d
-      qc  => prm_diag%tot_ptr(iqc)%p_3d
-      qi  => prm_diag%tot_ptr(iqi)%p_3d
-    else
-      qv  => p_prog%tracer_ptr(iqv)%p_3d
-      qc  => p_prog%tracer_ptr(iqc)%p_3d
-      qi  => p_prog%tracer_ptr(iqi)%p_3d
-    end if
+    qv  => prm_diag%tot_ptr(iqv)%p_3d
+    qc  => prm_diag%tot_ptr(iqc)%p_3d
+    qi  => prm_diag%tot_ptr(iqi)%p_3d
     qr  => p_prog%tracer_ptr(iqr)%p_3d
     qs  => p_prog%tracer_ptr(iqs)%p_3d
-    if(atm_phy_nwp_config(jg)%lhave_graupel)  qg => p_prog%tracer_ptr(iqg)%p_3d
+    IF(atm_phy_nwp_config(jg)%lhave_graupel)  qg => p_prog%tracer_ptr(iqg)%p_3d
 
     ! some parameters
     nlev = size(qv,2)
@@ -5904,139 +5886,132 @@ CONTAINS
 
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
-
       DO jc = i_startidx, i_endidx
 
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         !!!  I) VIS due to relative humidity   !!!!!!!!!!
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!       
-	  
+
         ! compute RH in lowest 'top_level' levels
         DO jk = nlev, nlev-top_lev+1, -1   
-	  pvsat = esat_water(p_diag%temp(jc,jk,jb))
-	  pv = p_diag%pres(jc,jk,jb)*qv(jc,jk,jb)/( rdv + o_m_rdv * qv(jc,jk,jb) )
-	  rh(jk) = 100.0_wp* MIN(1.0_wp,pv/pvsat)
+	      pvsat  = esat_water(p_diag%temp(jc,jk,jb))
+	      pv     = p_diag%pres(jc,jk,jb)*qv(jc,jk,jb)/( rdv + o_m_rdv * qv(jc,jk,jb) )
+	      rh(jk) = 100.0_wp* MIN(1.0_wp,pv/pvsat)
         END DO
 
-	! maximum lower two levels
-	rhmax = max(rh(nlev), rh(nlev-1) )
+	    ! maximum lower two levels
+	    rhmax = max(rh(nlev), rh(nlev-1) )
 
-	SELECT CASE(which_visrh)
-	CASE(0) ! AIRS
-	  ! empirical relation for depence of vis on rh,
-	  ! vis_airs in table 2 of Gultepe (2009). doi: 10.1175/2008BAMS2354.1
-	  visrh = 0.5_wp * (-0.0177_wp*rhmax**2 + 1.462_wp*rhmax + 30.8_wp)
+        ! vis due to haze parametrized as function of rh only, form found via fit to
+        ! SYNOP station data over Germany from 11/2021
+        IF (rhmax <= 40.0_wp) THEN
+          visrh =  88950.37269485_wp - 327.73380915_wp*rhmax
+        ELSE IF (rhmax <= 98.2_wp) THEN
+          visrh =  2.74158753e-04_wp*rhmax**5 -8.04508715e-02_wp*rhmax**4 &
+            &   + 9.4148139_wp*rhmax**3 -5.78127237e+02_wp*rhmax**2       &
+		    &   + 1.82682914e+04_wp*rhmax - 1.54588988e+05_wp 
+        ELSE  
+          visrh =  -1171.04931497_wp*rhmax + 117111.72541055_wp 
+        END IF
+        visrh = visrh/1000.0_wp !convert to units of km
 
-	CASE(1)	
-          !  tobias goecke (DWD) 20211118 ?
-          qrh =   MAX(0.0_wp,    MIN( 1.0_wp  , ( rhmax-15.0_wp )/80.0_wp  )  )
-          visrh = 60.0_wp * EXP(-2.5_wp*qrh)
+        ! clip below X km
+        visrh = MAX(visrh,visrh_clip)  
 
-	END SELECT
-
-	visrh = MAX(visrh,visrh_clip) ! clip below X km 
-
-	!  -- add term to increase RH vis term for
-        !     low-level wind shear increasing from 4 to 6 ms-1
-        !     (using Evan Kuchera's paper as a guideline)
-
-        ! -- calculate term for shear in the lowest about 15 mb
-	
-	! 15mb about 120 meters, so try lev nlev-2
-	shear = sqrt(  (p_diag%u(jc,nlev-2,jb) - p_diag%u(jc,nlev,jb))**2        &
-	         &     + (p_diag%v(jc,nlev-2,jb) - p_diag%v(jc,nlev,jb))**2  )
-
+        ! add term to increase RH vis term for
+        ! low-level wind shear increasing from 4 to 6 ms-1
+        ! (using Evan Kuchera's paper as a guideline)
+        ! calculate term for shear in the lowest about 15 mb
+        ! 15mb about 120 meters, so try lev nlev-2
+        shear     = sqrt(  (p_diag%u(jc,nlev-2,jb) - p_diag%u(jc,nlev,jb))**2 &
+          &       + (p_diag%v(jc,nlev-2,jb) - p_diag%v(jc,nlev,jb))**2  )
         shear_fac = MIN( 1.0_wp, MAX(0.0_wp,(shear-4.0_wp)/2.0_wp) )
-
         IF (visrh < 10.0_wp) visrh = visrh + (10.0_wp-visrh) * shear_fac
 
 
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	!!!  II) VIS due to hydrometeors       !!!!!!!!!!
-	!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-          !!   The routine uses the following
-          !!   expressions for extinction coefficient, beta (in km**-1),
-          !!   with C being the mass concentration (in g/m**3):
-          !!
-          !!      cloud water:  beta = 144.7 * C ** (0.8800)
-          !!      rain water:   beta =  2.24 * C ** (0.7500)
-          !!      cloud ice:    beta = 327.8 * C ** (1.0000)
-          !!      snow:         beta = 10.36 * C ** (0.7776)
-          !!      graupel:      beta =  8.0  * C ** (0.7500)
-          !!
-          !!   These expressions were obtained from the following sources:
-          !!
-          !!      for cloud water: from Kunkel (1984)
-          !!      for rainwater: from M-P dist'n, with N0=8e6 m**-4 and
-          !!         rho_w=1000 kg/m**3
-          !!      for cloud ice: assume randomly oriented plates which follow
-          !!         mass-diameter relationship from Rutledge and Hobbs (1983)
-          !!      for snow: from Stallabrass (1985), assuming beta = -ln(.02)/vis
-          !!      for graupel: guestimate by John Brown and Stan Benjamin,
-          !!         similar to snow, but a smaller extinction coef seemed
-          !!         reasonable.  27 Aug 99
-          !!
-          !!   The extinction coefficient for each water species present is
-          !!   calculated, and then all applicable betas are summed to yield
-          !!   a single beta. Then the following relationship is used to
-          !!   determine visibility (in km), where epsilon is the threshhold
-          !!   of contrast, usually taken to be .02:
-          !!
-          !!      vis = -ln(epsilon)/beta      [found in Kunkel (1984)]
-          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        !!!  II) VIS due to hydrometeors       !!!!!!!!!!
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        !!   The routine uses the following
+        !!   expressions for extinction coefficient, beta (in km**-1),
+        !!   with C being the mass concentration (in g/m**3):
+        !!
+        !!      cloud water:  beta = 144.7 * C ** (0.8800)
+        !!      rain water:   beta =  2.24 * C ** (0.7500)
+        !!      cloud ice:    beta = 327.8 * C ** (1.0000)
+        !!      snow:         beta = 10.36 * C ** (0.7776)
+        !!      graupel:      beta =  8.0  * C ** (0.7500)
+        !!
+        !!   These expressions were obtained from the following sources:
+        !!
+        !!      for cloud water: from Kunkel (1984)
+        !!      for rainwater: from M-P dist'n, with N0=8e6 m**-4 and
+        !!         rho_w=1000 kg/m**3
+        !!      for cloud ice: assume randomly oriented plates which follow
+        !!         mass-diameter relationship from Rutledge and Hobbs (1983)
+        !!      for snow: from Stallabrass (1985), assuming beta = -ln(.02)/vis
+        !!      for graupel: guestimate by John Brown and Stan Benjamin,
+        !!         similar to snow, but a smaller extinction coef seemed
+        !!         reasonable.  27 Aug 99
+        !!
+        !!   The extinction coefficient for each water species present is
+        !!   calculated, and then all applicable betas are summed to yield
+        !!   a single beta. Then the following relationship is used to
+        !!   determine visibility (in km), where epsilon is the threshhold
+        !!   of contrast, usually taken to be .02:
+        !!
+        !!      vis = -ln(epsilon)/beta      [found in Kunkel (1984)]
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-	!conversion to volumetric conentration.
+        ! conversion to volumetric conentration.
         ! rho = V/m_tot (V is given by the grid anyway
         ! specific quantities q_k = m_k/m_tot -> C_k = q_k * rho  	
-	!maximize hydrometeors over lowest 'top_lev' levels, final unit= g/m^3
-	Ccmax = maxval(qc(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
-	Cimax = maxval(qi(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
-	Crmax = maxval(qr(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
-	Csmax = maxval(qs(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
-	if(atm_phy_nwp_config(jg)%lhave_graupel) then
-	  Cgmax = maxval(qg(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
-	else
+        ! maximize hydrometeors over lowest 'top_lev' levels, final unit= g/m^3
+        Ccmax = maxval(qc(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
+        Cimax = maxval(qi(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
+        Crmax = maxval(qr(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
+        Csmax = maxval(qs(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
+        IF (atm_phy_nwp_config(jg)%lhave_graupel) THEN
+          Cgmax = maxval(qg(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
+        ELSE
           Cgmax = 0.0_wp
-	end if
+        END IF
 
-	! snow coefficient temperature dependent
+        ! snow coefficient temperature dependent
         temp_fac  = MIN( 1.0_wp, MAX((p_diag%temp(jc,nlev,jb)-271.15_wp),0.0_wp) )
-        a_s = a_s_dry * (1.0_wp-temp_fac) + a_s_wet * temp_fac
+        a_s        = a_s_dry * (1.0_wp-temp_fac) + a_s_wet * temp_fac
 
         ! calculate extinction coefficient  
- 	beta = a_c * Ccmax**b_c & ! cloud water	
-	     + a_i * Cimax**b_i & ! cloud ice
-             + a_r * Crmax**b_r & ! rain
-             + a_s * Csmax**b_s	& ! snow
-	     + a_g * Cgmax**b_g & ! graupel   
-	     + 1.0e-10_wp         ! small offsett to prevent zero division
+        beta = a_c * Ccmax**b_c & ! cloud water	
+          &  + a_i * Cimax**b_i & ! cloud ice
+          &  + a_r * Crmax**b_r & ! rain
+          &  + a_s * Csmax**b_s & ! snow
+          &  + a_g * Cgmax**b_g & ! graupel   
+          &  + 1.0e-10_wp         ! small offsett to prevent zero division
 
         ! vis after koschmieder formula with 2 percent of initial beam intensity
-	vis = min(90.0_wp, -log(0.02)/beta)
+        vis = min(90.0_wp, -log(0.02)/beta)
 
-	! zenith angle
-	czen = prm_diag%cosmu0(jc,jb)
- 
-   	! -- Dec 2003 - Roy Rasmussen (NCAR) expression for night vs. day vis
-        !   1.609 factor is number of km in mile.
-	vis_night = 1.69_wp *  ( (vis/1.609_wp)**0.86_wp ) * 1.609_wp
-        zen_fac = MIN( 0.1_wp, MAX(czen, 0.0_wp) ) /  0.1_wp
-        vis = zen_fac * vis + (1.0_wp-zen_fac) * vis_night
+        ! zenith angle
+        czen = prm_diag%cosmu0(jc,jb)
 
-        if (use_visrh) then
-          ! take minumum from vis and visrh
-	  vis = min(vis, visrh) 
-	end if
+        ! Dec 2003 - Roy Rasmussen (NCAR) expression for night vs. day vis
+        ! 1.609 factor is number of km in mile.
+        vis_night = 1.69_wp *  ( (vis/1.609_wp)**0.86_wp ) * 1.609_wp
+        zen_fac   = MIN( 0.1_wp, MAX(czen, 0.0_wp) ) /  0.1_wp
+        vis       = zen_fac * vis + (1.0_wp-zen_fac) * vis_night
 
-	! convert to meter
+        ! take minumum from vis and visrh
+        vis = min(vis, visrh) 
+
+        ! convert to meter
         vis = vis * 1000.0_wp
 
-	! write to diagnostic field
-	vis_out(jc,jb) = vis
+        ! write to diagnostic field
+        vis_out(jc,jb) = vis
 
-      END DO! jc
-      
-    END DO! jb
+      END DO ! jc
+    END DO ! jb
 !$OMP END DO NOWAIT    
 !$OMP END PARALLEL
 

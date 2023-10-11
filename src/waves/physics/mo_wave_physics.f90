@@ -29,7 +29,6 @@ MODULE mo_wave_physics
   USE mo_run_config,          ONLY: dtime
   USE mo_physical_constants,  ONLY: grav
   USE mo_math_constants,      ONLY: deg2rad, dbl_eps, pi, pi2
-  USE mo_idx_list,            ONLY: t_idx_list1D
   USE mo_fortran_tools,       ONLY: init
 
   USE mo_wave_types,          ONLY: t_wave_diag
@@ -236,7 +235,7 @@ CONTAINS
         &                 i_startidx, i_endidx, i_rlstart, i_rlend)
       DO jf = 1, nfreqs
         DO jd = 1, ndirs
-          jt = p_config%get_tracer_id(jd,jf)
+          jt = p_config%tracer_ind(jd,jf)
           DO je = i_startidx, i_endidx
             gvu = gv_e(je,jb,jf) * SIN(p_config%dirs(jd))
             gvv = gv_e(je,jb,jf) * COS(p_config%dirs(jd))
@@ -352,7 +351,7 @@ CONTAINS
         ! deep water group velocity
         gv = grav / (2.0_wp * pi2 * p_config%freqs(jf))
         DO jd = 1, ndirs
-          jt = p_config%get_tracer_id(jd,jf)
+          jt = p_config%tracer_ind(jd,jf)
 !$NEC ivdep
           DO ic = 1, cnt
             jje = ile(ic)
@@ -604,7 +603,6 @@ CONTAINS
     INTEGER :: jc,jb,jf,jk
     INTEGER :: jt                       !< tracer index
     INTEGER :: n                        !< loop index
-    TYPE(t_idx_list1D) :: list_tr       !< list of tracer ids
 
     REAL(wp) :: temp(nproma,wave_config%nfreqs), temp_1(nproma,wave_config%nfreqs)
     TYPE(t_wave_config), POINTER :: wc => NULL()
@@ -618,25 +616,22 @@ CONTAINS
     ! save some paperwork
     wc => wave_config
 
-    CALL list_tr%construct(SIZE(wc%freq_ind))
 
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jc,jf,n,jt,i_startidx,i_endidx,temp,temp_1,list_tr) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP DO PRIVATE(jb,jc,jf,n,jt,i_startidx,i_endidx,temp,temp_1) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
       CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,           &
         &                 i_startidx, i_endidx, i_rlstart, i_rlend)
 
       DO jf = 1,wc%nfreqs
 
-        CALL wc%get_tracer_ids_freq(jf,list_tr)
-
         DO jc = i_startidx, i_endidx
           temp(jc,jf)   = 0._wp
           temp_1(jc,jf) = 0._wp
         ENDDO
 
-        DO n=1,list_tr%ncount
-          jt = list_tr%idx(n)
+        DO n=1,SIZE(wc%list_tr(jf)%p)
+          jt = wc%list_tr(jf)%p(n)
           DO jc = i_startidx, i_endidx
             temp(jc,jf) = temp(jc,jf) + tracer(jc,jk,jb,jt)
             IF (llws(jc,jb,jt)==1) THEN
@@ -666,8 +661,6 @@ CONTAINS
     END DO
 !$OMP ENDDO NOWAIT
 !$OMP END PARALLEL
-
-    CALL list_tr%finalize()
 
   END SUBROUTINE mean_frequency_energy
 
@@ -704,7 +697,6 @@ CONTAINS
     INTEGER :: jc,jb,jf,jk
     INTEGER :: jt                       !< tracer index
     INTEGER :: n                        !< loop index
-    TYPE(t_idx_list1D) :: list_tr       !< list of tracer ids
 
     REAL(wp):: sum1(nproma,wave_config%nfreqs), sum2(nproma,wave_config%nfreqs)
     TYPE(t_wave_config), POINTER :: wc => NULL()
@@ -718,10 +710,9 @@ CONTAINS
     ! save some paperwork
     wc => wave_config
 
-    CALL list_tr%construct(SIZE(wc%freq_ind))
 
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jc,jf,jt,n,i_startidx,i_endidx,sum1,sum2,list_tr) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP DO PRIVATE(jb,jc,jf,jt,n,i_startidx,i_endidx,sum1,sum2) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
       CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,           &
         &                 i_startidx, i_endidx, i_rlstart, i_rlend)
@@ -730,16 +721,14 @@ CONTAINS
       ! compute sum of all tracers that match a specific frequency
       DO jf = 1,wc%nfreqs
 
-        CALL wc%get_tracer_ids_freq(jf, list_tr)
-
         ! initialization
         DO jc = i_startidx, i_endidx
           sum1(jc,jf) = 0._wp
           sum2(jc,jf) = 0._wp
         ENDDO
 
-        DO n=1,list_tr%ncount
-          jt = list_tr%idx(n)
+        DO n=1,SIZE(wc%list_tr(jf)%p)
+          jt = wc%list_tr(jf)%p(n)
           DO jc = i_startidx, i_endidx
             sum1(jc,jf) = sum1(jc,jf) + tracer(jc,jk,jb,jt)
             IF (llws(jc,jb,jt) == 1) THEN
@@ -772,8 +761,6 @@ CONTAINS
     END DO
 !$OMP ENDDO NOWAIT
 !$OMP END PARALLEL
-
-    CALL list_tr%finalize()
 
   END SUBROUTINE total_energy
 
@@ -886,7 +873,7 @@ CONTAINS
         END DO
 
         DO jd = 1, wc%ndirs
-          jtd =  wc%get_tracer_id(jd,jf)
+          jtd = wc%tracer_ind(jd,jf)
           DO jc = i_startidx, i_endidx
             sinplus = MAX(p_diag%sl(jc,jb,jtd),0._wp)
             sumt(jc) = sumt(jc) + sinplus
@@ -916,9 +903,7 @@ CONTAINS
 
       DO jd = 1, wc%ndirs
         DO jc = i_startidx, i_endidx
-!!! Manual inlining of wc%get_tracer_id
-!!!          jtd = wc%get_tracer_id(jd,p_diag%last_prog_freq_ind(jc,jb))
-          jtd = (p_diag%last_prog_freq_ind(jc,jb)-1) * wc%ndirs + jd
+          jtd = wc%tracer_ind(jd,p_diag%last_prog_freq_ind(jc,jb))
 
           cosw = MAX(COS(wc%dirs(jd)-dir10m(jc,jb)*deg2rad),0.0_wp)
           temp1(jc) = temp1(jc) + tracer(jc,jk,jb,jtd) * cosw**3
@@ -1077,7 +1062,6 @@ CONTAINS
     INTEGER :: n                        !< loop index
     REAL(wp):: temp(nproma,wave_config%nfreqs)
 
-    TYPE(t_idx_list1D) :: list_tr       !< list of tracer ids
     TYPE(t_wave_config), POINTER :: wc => NULL()
 
     i_rlstart  = 1
@@ -1089,25 +1073,21 @@ CONTAINS
     ! save some paperwork
     wc => wave_config
 
-    CALL list_tr%construct(SIZE(wc%freq_ind))
-
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jc,jf,jt,n,i_startidx,i_endidx,temp,list_tr) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP DO PRIVATE(jb,jc,jf,jt,n,i_startidx,i_endidx,temp) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
       CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,           &
            &                 i_startidx, i_endidx, i_rlstart, i_rlend)
       ! compute sum of all tracers that match a specific frequency
       DO jf = 1,wc%nfreqs
 
-        CALL wc%get_tracer_ids_freq(jf, list_tr)
-
         ! initialization
         DO jc = i_startidx, i_endidx
           temp(jc,jf) = 0._wp
         END DO
 
-        DO n=1,list_tr%ncount
-          jt = list_tr%idx(n)
+        DO n=1,SIZE(wc%list_tr(jf)%p)
+          jt = wc%list_tr(jf)%p(n)
           DO jc = i_startidx, i_endidx
             temp(jc,jf) = temp(jc,jf) + tracer(jc,jk,jb,jt)
           END DO
@@ -1139,8 +1119,6 @@ CONTAINS
     END DO
 !$OMP ENDDO NOWAIT
 !$OMP END PARALLEL
-
-    CALL list_tr%finalize()
 
   END SUBROUTINE tm1_period
 
@@ -1193,7 +1171,7 @@ CONTAINS
       DO jf = 1,wc%nfreqs
         DO jd = 1,wc%ndirs
           !
-          jt = wc%get_tracer_id(jd,jf)
+          jt = wc%tracer_ind(jd,jf)
           !
           DO jc = i_startidx, i_endidx
             delfl = 5.0E-07_wp * grav / wc%freqs(jf)**4 * dtime
@@ -1315,8 +1293,9 @@ CONTAINS
     INTEGER :: i_startidx, i_endidx
     INTEGER :: jb,jf,jc,jd,jt,jtl,jk
 
-    REAL(wp) :: gh, ak, akd, tcgond, akm1, tfac
+    REAL(wp) :: gh, ak, akd, tcgond, akm1
     REAL(wp) :: temp(nproma, wave_config%nfreqs)
+    REAL(wp) :: tfac(nproma)
 
     wc => wave_config
     gh = grav / (4.0_wp * pi)
@@ -1354,18 +1333,22 @@ CONTAINS
         END DO
       END DO
 
-      DO jf = 1, wc%nfreqs
-        DO jd = 1, wc%ndirs
-          jt = wc%get_tracer_id(jd,jf)
+      DO jd = 1, wc%ndirs
+        DO jc = i_startidx, i_endidx
+          jtl = wc%tracer_ind(jd,last_prog_freq_ind(jc,jb))
+          tfac(jc) = tracer(jc,jk,jb,jtl)
+        ENDDO
+        !
+        DO jf = 1, wc%nfreqs
+          jt = wc%tracer_ind(jd,jf)
           DO jc = i_startidx, i_endidx
             IF (jf >=last_prog_freq_ind(jc,jb)+1) THEN
-              jtl = wc%get_tracer_id(jd,last_prog_freq_ind(jc,jb))
-              tfac = tracer(jc,jk,jb,jtl)
-              tracer(jc,jk,jb,jt) = temp(jc,jf) * tfac
+              tracer(jc,jk,jb,jt) = temp(jc,jf) * tfac(jc)
             END IF
-          END DO
-        END DO
-      END DO
+          END DO  !jc
+        END DO  !jf
+      END DO  !jd
+
     END DO
 !$OMP ENDDO NOWAIT
 !$OMP END PARALLEL
@@ -1430,7 +1413,7 @@ CONTAINS
         const = fac * wc%xeps * wc%betamax / (wc%xkappa*wc%xkappa)
 
         DIR:DO jd = 1,wc%ndirs
-          jt = wc%get_tracer_id(jd,jf)
+          jt = wc%tracer_ind(jd,jf)
 
           DO jc = i_startidx, i_endidx
             xk = p_diag%wave_num_c(jc,jb,jf)
@@ -1497,7 +1480,6 @@ CONTAINS
     REAL(wp),                    INTENT(INOUT) :: akmean(:,:)   !< mean wavenumber based on SQRT(1/K)-moment, wm1
     REAL(wp),                    INTENT(INOUT) :: xkmean(:,:)   !< mean wavenumber based on SQRT(K)-moment, wm2
 
-    TYPE(t_idx_list1D) :: list_tr       !< list of tracer ids
     TYPE(t_wave_config), POINTER :: wc => NULL()
 
     INTEGER :: i_rlstart, i_rlend, i_startblk, i_endblk
@@ -1510,8 +1492,6 @@ CONTAINS
 
     wc => wave_config
 
-    CALL list_tr%construct(SIZE(wc%freq_ind))
-
     i_rlstart  = 1
     i_rlend    = min_rlcell
     i_startblk = p_patch%cells%start_block(i_rlstart)
@@ -1519,13 +1499,12 @@ CONTAINS
     jk         = p_patch%nlev
 
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jc,jb,jf,jt,i_startidx,i_endidx,temp,temp2,list_tr) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP DO PRIVATE(jc,jb,jf,jt,i_startidx,i_endidx,temp,temp2) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
       CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,           &
            &                 i_startidx, i_endidx, i_rlstart, i_rlend)
 
       DO jf = 1,wc%nfreqs
-        CALL wc%get_tracer_ids_freq(jf,list_tr)
 
         DO jc = i_startidx, i_endidx
           temp(jc,jf) = 0._wp
@@ -1533,8 +1512,8 @@ CONTAINS
         ENDDO
         !
         ! sum
-        DO n=1,list_tr%ncount
-          jt = list_tr%idx(n)
+        DO n=1,SIZE(wc%list_tr(jf)%p)
+          jt = wc%list_tr(jf)%p(n)
           DO jc = i_startidx, i_endidx
             temp(jc,jf) = temp(jc,jf) + tracer(jc,jk,jb,jt)
           END DO
@@ -1567,8 +1546,6 @@ CONTAINS
     END DO
 !$OMP ENDDO NOWAIT
 !$OMP END PARALLEL
-
-    CALL list_tr%finalize()
 
   END SUBROUTINE wm1_wm2_wavenumber
 
@@ -1883,7 +1860,7 @@ CONTAINS
            &                 i_startidx, i_endidx, i_rlstart, i_rlend)
       DO jf = 1,wc%nfreqs
         DO jd = 1, wc%ndirs
-          jt = wc%get_tracer_id(jd,jf)
+          jt = wc%tracer_ind(jd,jf)
           DO jc = i_startidx, i_endidx
 
             sds = CONSS * p_diag%f1mean(jc,jb) * p_diag%emean(jc,jb)**2 * p_diag%xkmean(jc,jb)**4
@@ -1939,7 +1916,7 @@ CONTAINS
       DO jf = 1,wc%nfreqs
         DO jd = 1,wc%ndirs
           !
-          jt = wc%get_tracer_id(jd,jf)
+          jt = wc%tracer_ind(jd,jf)
           !
           DO jc = i_startidx, i_endidx
             tracer(jc,jk,jb,jt) = MAX(tracer(jc,jk,jb,jt),EMIN)
@@ -2008,7 +1985,7 @@ CONTAINS
            &                 i_startidx, i_endidx, i_rlstart, i_rlend)
       DO jf = 1,wc%nfreqs
         DO jd = 1, wc%ndirs
-          jt = wc%get_tracer_id(jd,jf)
+          jt = wc%tracer_ind(jd,jf)
           DO jc = i_startidx, i_endidx
             sbo = MIN(2.0_wp * depth(jc,jb) * wave_num_c(jc,jb,jf),50.0_wp)
             sbo = const * wave_num_c(jc,jb,jf) / SINH(sbo)
@@ -2550,9 +2527,9 @@ CONTAINS
           sm = DELTH0 * (SIN(wc%dirs(jd)) + SIN(wc%dirs(wc%dir_neig_ind(1,jd)))) !index of direction - 1
           sp = DELTH0 * (SIN(wc%dirs(jd)) + SIN(wc%dirs(wc%dir_neig_ind(2,jd)))) !index of direction + 1
 
-          jt = wc%get_tracer_id(jd,jf)
-          jtm1 = wc%get_tracer_id(wc%dir_neig_ind(1,jd),jf)
-          jtp1 = wc%get_tracer_id(wc%dir_neig_ind(2,jd),jf)
+          jt   = wc%tracer_ind(jd,jf)
+          jtm1 = wc%tracer_ind(wc%dir_neig_ind(1,jd),jf)
+          jtp1 = wc%tracer_ind(wc%dir_neig_ind(2,jd),jf)
 
           DO jc = i_startidx, i_endidx
 
@@ -2574,7 +2551,7 @@ CONTAINS
 
       DO jf = 1,wc%nfreqs
         DO jd = 1,wc%ndirs
-          jt = wc%get_tracer_id(jd,jf)
+          jt = wc%tracer_ind(jd,jf)
           DO jc = i_startidx, i_endidx
             tracer(jc,jk,jb,jt) = tracer(jc,jk,jb,jt) + delta_ref(jc,jt)
           END DO !jc

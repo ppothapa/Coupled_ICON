@@ -325,7 +325,8 @@ CONTAINS
     !$ACC END PARALLEL LOOP
 
     CALL generate_index_list_batched(pfrc_test(:,:), loidx, jcs, kproma, is, 1)
-    !$ACC UPDATE WAIT(1) SELF(is)
+    !$ACC WAIT(1)
+    !$ACC UPDATE SELF(is)
 
     ! Compute factor for conversion temperature to dry static energy
     !DO jsfc=1,ksfc_type
@@ -571,6 +572,7 @@ CONTAINS
 
 #if defined(SERIALIZE) && (defined(SERIALIZE_JSBACH) || defined(SERIALIZE_ALL))
 
+       !$ACC WAIT(1)
        !$ACC UPDATE HOST(ztsfc_lnd, ztsfc_lnd_eff, qsat_lnd, qsat_lwtr, qsat_lice) &
        !$ACC   HOST(zcpt_lnd, zcpt_lwtr, zcpt_lice) &
        !$ACC   HOST(pcair, pcsat, zevap_lnd, zlhflx_lnd) &
@@ -665,6 +667,7 @@ CONTAINS
 
 
 #if defined(SERILIAZE) && (defined(SERIALIZE_JSBACH) || defined(SERIALIZE_ALL))
+        !$ACC WAIT(1)
         !$ACC UPDATE HOST(ztsfc_lnd, ztsfc_lnd_eff, qsat_lnd) &
         !$ACC   HOST(zcpt_lnd, pcair, pcsat, zevap_lnd, zlhflx_lnd) &
         !$ACC   HOST(zshflx_lnd, zgrnd_hflx, zgrnd_hcap, z0h_lnd, z0m_tile) &

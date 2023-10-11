@@ -256,6 +256,7 @@ CONTAINS
 #ifdef _OPENACC
         CALL warning('mo_rte_rrtmgp_interface/rte_rrtmgp_interface','Stenchikov aerosols ACC not implemented')
 #endif
+        !$ACC WAIT(1)
         !$ACC UPDATE HOST(aer_tau_lw, aer_tau_sw, aer_ssa_sw, aer_asy_sw, dz, pp_fl)
         CALL add_bc_aeropt_stenchikov(this_datetime,    jg,               &
               & jcs, nproma,      nproma,                 klev,       &
@@ -287,6 +288,7 @@ CONTAINS
 #ifdef _OPENACC
         CALL warning('mo_rte_rrtmgp_interface/rte_rrtmgp_interface','Plumes ACC not implemented')
 #endif
+        !$ACC WAIT(1)
         !$ACC UPDATE HOST(aer_tau_lw, aer_tau_sw, aer_ssa_sw, aer_asy_sw, zf, dz, zh(:,klev+1))
         CALL add_bc_aeropt_splumes(                                      &
               & jg,          jcs,         nproma,        nproma,         & 
@@ -1160,7 +1162,7 @@ CONTAINS
 
     ! hack inhom implementation by scaling the liquid water path
     ! it's important to run this AFTER the longwave
-    !$ACC KERNELS DEFAULT(PRESENT)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
     zlwp(:,:) = zlwp(:,:) * inhoml
     ziwp(:,:) = ziwp(:,:) * inhomi
     !$ACC END KERNELS
@@ -1562,6 +1564,7 @@ CONTAINS
   sw_dnw_clr     (jcs:jce,:) = s_sw_dnw_clr     (1:ncol,:)
   !$ACC END KERNELS
 
+  !$ACC WAIT(1)
   !$ACC EXIT DATA DELETE(s_aer_tau_lw, s_aer_tau_sw, s_aer_ssa_sw, s_aer_asy_sw) IF(lneed_aerosols)
   !$ACC END DATA
 END SUBROUTINE shift_and_call_rte_rrtmgp_interface_onBlock

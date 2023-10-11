@@ -1356,6 +1356,7 @@ CONTAINS
           & ocean_state(jg)%p_prog(nold(1))%stretch_c, stretch_e, ocean_state(jg)%p_prog(nnew(1))%stretch_c, &
           & use_acc=lacc)
 
+        !$ACC WAIT(1)
         DO i = 1, ocean_state(jg)%p_prog(nold(1))%tracer_collection%no_of_tracers
           !$ACC EXIT DATA COPYOUT(ocean_state(jg)%p_prog(nold(1))%tracer_collection%tracer(i)%concentration) IF(lacc)
           !$ACC EXIT DATA COPYOUT(ocean_state(jg)%p_prog(nnew(1))%tracer_collection%tracer(i)%concentration) IF(lacc)

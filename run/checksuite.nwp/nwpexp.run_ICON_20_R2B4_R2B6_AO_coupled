@@ -30,10 +30,7 @@ make_and_change_to_experiment_dir # function in ../add_run_routines
 START_MODEL="${START_MODEL:=$START $MODEL}"
 
 # set icon_data_poolFolder
-icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}"
-if [[ -d "$icon_data_poolFolder/buildbot_data/nwp" ]]; then
-  icon_data_poolFolder="$icon_data_poolFolder/buildbot_data/nwp"
-fi
+icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/buildbot_data/nwp"
 
 # environment variables for the experiment and the target system
 # --------------------------------------------------------------
@@ -118,6 +115,7 @@ nproma_oce=$nproma
 # Note that "mpi_atm_io_procs" must match the number of output files
 mpi_atm_io_procs=2      # >0 for atmosphere plus land (not working for monitoring)
 mpi_oce_io_procs=0      # >0 for ocean is not working yet
+ICON_COMPONENT2_proc0_shift=0 # proc0_shift is not working yet for ocean.
 
 #=============================================================================
 
@@ -263,12 +261,12 @@ fi
 
 # I.1 Split the number of total procs and assign to each component
 # ----------------------------------------------------------------
-oce_min_rank=`expr ${mpi_total_procs} - ${mpi_oce_procs} + ${mpi_atm_io_procs} + 1`
-oce_max_rank=`expr ${oce_min_rank} + ${mpi_oce_procs} - 1`
-oce_inc_rank=1
 atm_min_rank=0
-atm_max_rank=`expr ${oce_min_rank} - 1`
+atm_max_rank=$(( mpi_total_procs - mpi_oce_procs + mpi_atm_io_procs + proc0_shift - 1 ))
 atm_inc_rank=1
+oce_min_rank=$(( atm_max_rank + 1 ))
+oce_max_rank=$(( oce_min_rank + mpi_oce_procs + mpi_oce_io_procs + ICON_COMPONENT2_proc0_shift - 1 ))
+oce_inc_rank=1
 #
 # I.2 Fill model list
 # -------------------
@@ -416,14 +414,14 @@ add_link_file ${basedir}/data/rrtmg_lw.nc .
 
 ecRad_data_path=${basedir}'/externals/ecrad/data'
 
-# Kinne background aerosols for the year 1850 (irad_aero=12, filename without year)
-
-# datadir=${DATAROOT}    # /hpc/uwork/icon-sml/Aerosol/Kinne_interpolated/R2B4_${atmos_gridID}
-# add_link_file ${datadir}/R2B4_aeropt_kinne_lw_b16_coa.nc      bc_aeropt_kinne_lw_b16_coa.nc
-# add_link_file ${datadir}/R2B4_aeropt_kinne_sw_b14_coa.nc      bc_aeropt_kinne_sw_b14_coa.nc
+# Kinne background aerosols for the year 1850:
+datadir="${icon_data_poolFolder}/Checksuite_data/ICON-seamless"
+add_link_file ${datadir}/bc_aeropt_kinne_lw_b16_coa.nc      bc_aeropt_kinne_lw_b16_coa.nc
+add_link_file ${datadir}/bc_aeropt_kinne_sw_b14_coa.nc      bc_aeropt_kinne_sw_b14_coa.nc
 # 
-# # use exclusively Kinne background aerosols for the year 1850, filename without year (irad_aero=12)
-# add_link_file ${datadir}/R2B4_aeropt_kinne_sw_b14_fin_1850.nc bc_aeropt_kinne_sw_b14_fin.nc
+# use time-dependent Kinne fine-mode aerosol  (irad_aero=13):
+add_link_file ${datadir}/bc_aeropt_kinne_sw_b14_fin_1978.nc bc_aeropt_kinne_sw_b14_fin_1978.nc
+add_link_file ${datadir}/bc_aeropt_kinne_sw_b14_fin_1979.nc bc_aeropt_kinne_sw_b14_fin_1979.nc
 
 #-----------------------------------------------------------------------------
 
@@ -454,16 +452,10 @@ fi
 # For a complete list see Namelist_overview and Namelist_overview.pdf
 #
 
-# Variables to configure the mpirun command on the RCL
-num_io_procs=${mpi_atm_io_procs}
-num_restart_procs=0
-num_prefetch_proc=0
-num_io_procs_radar=0
-
 cat > ${atm_namelist} << EOF
 !
 &coupling_mode_nml
- coupled_mode            = .TRUE.
+ coupled_to_ocean        = .TRUE.
 /
 !
 &parallel_nml
@@ -472,10 +464,8 @@ cat > ${atm_namelist} << EOF
  p_test_run              = .false.
  l_test_openmp           = .false.
  l_log_checks            = .true.
- num_io_procs            = ${num_io_procs}
- num_restart_procs       = ${num_restart_procs}
- num_prefetch_proc       = ${num_prefetch_proc}
- num_io_procs_radar      = ${num_io_procs_radar}
+ num_io_procs            = ${mpi_atm_io_procs}
+ num_restart_procs       = 0
  iorder_sendrecv         = 3
  proc0_shift             = ${proc0_shift}
  use_omp_input           = .true.
@@ -510,7 +500,6 @@ cat > ${atm_namelist} << EOF
 &dynamics_nml
  iequations              = ${atmo_model_equations}
  lcoriolis               = .TRUE.
- idiv_method             = 1
  divavg_cntrwgt          = 0.50
 /
 &diffusion_nml
@@ -745,7 +734,7 @@ rbf_scale_mode_ll        = 2
 /
 &radiation_nml
  irad_o3                 = 79
- irad_aero               = 6                ! 6: default, 12: Kinne aerosols (Trang)
+ irad_aero               = 13               ! 6: default, 13: Kinne aerosol, time-dependent
  izenith                 = 4                ! 4: NWP default, 3: no annual cycle
  isolrad                 = 1                ! 1: Coddington Scaling correction (default NWP)
  albedo_type             = 2                ! Modis albedo
@@ -932,7 +921,7 @@ fi
 cat > ${oce_namelist} << EOF
 !
 &coupling_mode_nml
-  coupled_mode               = .TRUE.
+  coupled_to_atmo            = .TRUE.
 /
 &parallel_nml
  nproma                      = ${nproma_oce}
@@ -941,6 +930,7 @@ cat > ${oce_namelist} << EOF
  pio_type                    = 0
  p_test_run                  = .FALSE.
  l_fast_sum                  = .TRUE.
+ proc0_shift                 = ${ICON_COMPONENT2_proc0_shift}
 /
 &grid_nml
  dynamics_grid_filename      = "${ocean_grid_target}"
@@ -1660,6 +1650,12 @@ do
   j=`expr ${j} + 1`
 done
 
+#
+# configure START_MODEL_function
+#
+ICON_COMPONENT1_VH_procs=$mpi_atm_io_procs
+ICON_COMPONENT2_VE_procs=$mpi_oce_procs
+ICON_COMPONENT2_VH_procs=$mpi_oce_io_procs
 
 # ----------------------------------------------------------------------
 # run the model!
@@ -1668,8 +1664,6 @@ done
 rm -f finish.status
 date
 
-#export LD_LIBRARY_PATH=/hpc/sw/intel/compilers_and_libraries_2020.0.166/linux/mkl/lib/intel64_lin:/hpc/sw/gcc-9.1.0/VH/lib64:/opt/nec/ve/mpi/2.6.0/lib/vh/gnu/9.1.0:/hpc/sw/grib_api-1.23.1/VH/lib:/hpc/sw/hdf5/1.10.5/VH/gnu/lib:/hpc/sw/netcdf4/4.7.3/VH/gnu/lib:$LD_LIBRARY_PATH
-
 $START_MODEL
 EXIT_STATUS=$?
 
@@ -1677,22 +1671,6 @@ if [ "$EXIT_STATUS" -ne "0" ]; then
   echo "ICON EXIT_STATUS: $EXIT_STATUS"
   exit $EXIT_STATUS
 fi
-
-# (MJ 2022-05-24: The following comment seems outdated, if mpi_oce_procs == 8)
-# NE=4, CPE=8, cpunum_job=3
-# geometry: ID of MPI processes (see ranks below, oce_min_rank, etc)
-# MPI process ID   node   VH/VE    info
-# 0                0      VH       ICON initialization process
-# 1-16             0-3    VE       ICON atmosphere
-# 17-18            0      VH       IO   atmosphere
-# 19-34            0-3    VE       ICON ocean
-
-# debug output: each processor with separate output in EXPDIR
-
-#mpirun -v -vh     -node 0        -np 1                    -env OMP_NUM_THREADS 1 /opt/nec/ve/bin/mpisep.sh ${MODEL_SCAL} : \
-#          -venode -node 0-${NE1} -np ${mpi_atm_procs}     -env OMP_NUM_THREADS 1 /opt/nec/ve/bin/mpisep.sh ${MODEL} : \
-#          -vh     -node 0        -np ${mpi_atm_io_procs}  -env OMP_NUM_THREADS 1 /opt/nec/ve/bin/mpisep.sh ${MODEL_SCAL} : \
-#          -venode -node 0-${NE1} -np ${mpi_oce_procs}     -env OMP_NUM_THREADS 1 /opt/nec/ve/bin/mpisep.sh ${MODEL}
 
 date
 

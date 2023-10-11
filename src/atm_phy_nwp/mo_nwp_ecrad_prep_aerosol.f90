@@ -25,7 +25,8 @@ MODULE mo_nwp_ecrad_prep_aerosol
 
   USE mo_kind,                   ONLY: wp
   USE mo_exception,              ONLY: finish
-  USE mo_fortran_tools,          ONLY: assert_acc_host_only, assert_acc_device_only
+  USE mo_fortran_tools,          ONLY: assert_acc_host_only, assert_acc_device_only,t_ptr_2d
+  USE mo_impl_constants,         ONLY: n_camsaermr
 #ifdef __ECRAD
   USE mo_ecrad,                  ONLY: t_ecrad_aerosol_type, t_ecrad_conf, t_opt_ptrs
   USE mo_aerosol_util,           ONLY: get_nbands_lw_aerosol, get_nbands_sw_aerosol,   &
@@ -46,6 +47,7 @@ INTERFACE nwp_ecrad_prep_aerosol
   MODULE PROCEDURE nwp_ecrad_prep_aerosol_constant
   MODULE PROCEDURE nwp_ecrad_prep_aerosol_tegen
   MODULE PROCEDURE nwp_ecrad_prep_aerosol_td
+  MODULE PROCEDURE nwp_ecrad_prep_aerosol_CAMS
 END INTERFACE nwp_ecrad_prep_aerosol
   
   
@@ -330,5 +332,30 @@ CONTAINS
   END SUBROUTINE nwp_ecrad_prep_aerosol_td
   !---------------------------------------------------------------------------------------
 
+  SUBROUTINE nwp_ecrad_prep_aerosol_CAMS ( slev, nlev, i_startidx, i_endidx, &
+    &                                      ecrad_aerosol, ptr_camsaermr)
+
+    INTEGER, INTENT(in)                      :: &
+      &  slev, nlev,            & !< Start and end index of vertical loop
+      &  i_startidx, i_endidx     !< Start and end index of horizontal loop
+    TYPE(t_ptr_2d), INTENT(in)               :: &
+      &  ptr_camsaermr(11)
+    TYPE(t_ecrad_aerosol_type),INTENT(inout) :: &
+      &  ecrad_aerosol            !< ecRad aerosol information (input)
+    ! Local variables
+    CHARACTER(len=*), PARAMETER :: &
+      &  routine = modname//'::nwp_ecrad_prep_aerosol_CAMS' 
+    INTEGER                  :: &
+      &  jc, jk, js              !< Loop indices
+
+    DO js = 1, n_camsaermr
+      DO jk = slev, nlev
+        DO jc = i_startidx, i_endidx
+          ecrad_aerosol%mixing_ratio(jc,jk,js)= ptr_camsaermr(js)%p(jc,jk)
+        ENDDO
+      ENDDO
+    ENDDO    
+
+  END SUBROUTINE nwp_ecrad_prep_aerosol_CAMS
 #endif
 END MODULE mo_nwp_ecrad_prep_aerosol

@@ -41,7 +41,7 @@ MODULE mo_initicon
     &                               niter_divdamp, niter_diffu, lanaread_tseasfc, qcana_mode, qiana_mode, &
     &                               qrsgana_mode, fgFilename, anaFilename, ana_varnames_map_file,         &
     &                               icpl_da_sfcevap, dt_ana, icpl_da_skinc, adjust_tso_tsnow, icpl_da_sfcfric, &
-    &                               lcouple_ocean_coldstart
+    &                               lcouple_ocean_coldstart, icpl_da_seaice
   USE mo_limarea_config,      ONLY: latbc_config
   USE mo_advection_config,    ONLY: advection_config
   USE mo_nwp_tuning_config,   ONLY: max_freshsnow_inc
@@ -88,7 +88,7 @@ MODULE mo_initicon
   USE mo_util_uuid_types,     ONLY: t_uuid
   USE mo_nwp_sfc_utils,       ONLY: seaice_albedo_coldstart
   USE mo_fortran_tools,       ONLY: init
-  USE mo_coupling_config,     ONLY: is_coupled_run
+  USE mo_coupling_config,     ONLY: is_coupled_to_ocean
 
 
   IMPLICIT NONE
@@ -635,7 +635,7 @@ MODULE mo_initicon
 
     ! for coupled ocean-atmosphere run define w_so and t_so for new land points
 
-    IF ( iforcing == inwp .AND. is_coupled_run() .AND. lcouple_ocean_coldstart ) THEN
+    IF ( iforcing == inwp .AND. is_coupled_to_ocean() .AND. lcouple_ocean_coldstart ) THEN
 
       CALL new_land_from_ocean(p_patch, p_nh_state, p_lnd_state, ext_data)
 
@@ -1818,7 +1818,7 @@ MODULE mo_initicon
 !NEC$ ivdep
             DO ic = 1, ext_data(jg)%atm%lp_count_t(jb,jt)
               jc = ext_data(jg)%atm%idx_lst_lp_t(ic,jb,jt)
-              ist = ext_data(jg)%atm%soiltyp(jc,jb)
+              ist = ext_data(jg)%atm%soiltyp_t(jc,jb,jt)
               SELECT CASE(ist)
                 CASE (3,4,5,6,7,8) ! soil types with non-zero water content
                 IF (lnd_prog_now%w_so_t(jc,jk,jb,jt) <= dzsoil_icon(jk)*cpwp(ist)) THEN
@@ -1834,7 +1834,7 @@ MODULE mo_initicon
 !NEC$ ivdep
             DO ic = 1, ext_data(jg)%atm%lp_count_t(jb,jt)
               jc  = ext_data(jg)%atm%idx_lst_lp_t(ic,jb,jt)
-              ist = ext_data(jg)%atm%soiltyp(jc,jb)
+              ist = ext_data(jg)%atm%soiltyp_t(jc,jb,jt)
 
               IF (lnd_prog_now%w_so_t(jc,jk,jb,jt) <= 1.e-10_wp .AND. cporv(ist) > 1.e-9_wp) THEN
                 ! This should only happen for a tile coldstart; in this case,
@@ -2017,30 +2017,6 @@ MODULE mo_initicon
             ENDDO
           ENDIF
 
-          IF (adjust_tso_tsnow) THEN
-            ! Apply T assimilation increment at lowest model level also to t_so and t_snow in order to improve the
-            ! adaptation of the near-surface air temperatures
-            DO jt = 1, ntiles_lnd
-!NEC$ ivdep
-              DO ic = 1, ext_data(jg)%atm%lp_count_t(jb,jt)
-                jc = ext_data(jg)%atm%idx_lst_lp_t(ic,jb,jt)
-                IF (lnd_diag%snowfrac_lc_t(jc,jb,jt) < 1._wp) THEN
-                  lnd_prog_now%t_so_t(jc,1:3,jb,jt) = lnd_prog_now%t_so_t(jc,1:3,jb,jt) + initicon(jg)%atm_inc%temp(jc,nlev,jb) ! 0-3 cm
-                  lnd_prog_now%t_so_t(jc,4,jb,jt) = lnd_prog_now%t_so_t(jc,4,jb,jt) + 0.5_wp*initicon(jg)%atm_inc%temp(jc,nlev,jb) ! 3-9 cm
-                ENDIF
-              ENDDO
-            ENDDO
-
-            DO jt = ntiles_lnd+1,ntiles_total
-!NEC$ ivdep
-              DO ic = 1, ext_data(jg)%atm%lp_count_t(jb,jt)
-                jc = ext_data(jg)%atm%idx_lst_lp_t(ic,jb,jt)
-                IF (lnd_diag%snowfrac_lc_t(jc,jb,jt) > 0._wp) THEN
-                  lnd_prog_now%t_snow_t(jc,jb,jt) = MIN(tmelt, lnd_prog_now%t_snow_t(jc,jb,jt) + initicon(jg)%atm_inc%temp(jc,nlev,jb))
-                ENDIF
-              ENDDO
-            ENDDO
-          ENDIF
 
           IF (icpl_da_sfcevap >= 2) THEN
             ! Calculate time-filtered RH assimilation increment at lowest model level (time scale 2.5 days);
@@ -2070,7 +2046,7 @@ MODULE mo_initicon
 !NEC$ ivdep
                 DO ic = 1, ext_data(jg)%atm%lp_count_t(jb,jt)
                   jc = ext_data(jg)%atm%idx_lst_lp_t(ic,jb,jt)
-                  ist = ext_data(jg)%atm%soiltyp(jc,jb)
+                  ist = ext_data(jg)%atm%soiltyp_t(jc,jb,jt)
                   SELECT CASE(ist)
                     CASE (3,4,5,6,7,8) ! soil types with non-zero water content
                     smival = dzsoil_icon(jk)*(0.75_wp*cpwp(ist)+0.25_wp*cfcap(ist)) ! corresponds to SMI = 0.25
@@ -2085,6 +2061,41 @@ MODULE mo_initicon
               ENDDO
             ENDDO
           ENDIF  ! icpl_da_sfcevap
+
+          IF (adjust_tso_tsnow) THEN
+            ! Apply T assimilation increment at lowest model level also to t_so and t_snow in order to improve the
+            ! adaptation of the near-surface air temperatures
+            DO jt = 1, ntiles_lnd
+!NEC$ ivdep
+              DO ic = 1, ext_data(jg)%atm%lp_count_t(jb,jt)
+                jc = ext_data(jg)%atm%idx_lst_lp_t(ic,jb,jt)
+                IF (lnd_diag%snowfrac_lc_t(jc,jb,jt) < 1._wp) THEN
+                  lnd_prog_now%t_so_t(jc,1:3,jb,jt) = lnd_prog_now%t_so_t(jc,1:3,jb,jt) + initicon(jg)%atm_inc%temp(jc,nlev,jb) ! 0-3 cm
+                  lnd_prog_now%t_so_t(jc,4,jb,jt) = lnd_prog_now%t_so_t(jc,4,jb,jt) + 0.5_wp*initicon(jg)%atm_inc%temp(jc,nlev,jb) ! 3-9 cm
+                ENDIF
+              ENDDO
+            ENDDO
+
+            DO jt = ntiles_lnd+1,ntiles_total
+!NEC$ ivdep
+              DO ic = 1, ext_data(jg)%atm%lp_count_t(jb,jt)
+                jc = ext_data(jg)%atm%idx_lst_lp_t(ic,jb,jt)
+                IF (lnd_diag%snowfrac_lc_t(jc,jb,jt) > 0._wp) THEN
+                  lnd_prog_now%t_snow_t(jc,jb,jt) = MIN(tmelt, lnd_prog_now%t_snow_t(jc,jb,jt) + initicon(jg)%atm_inc%temp(jc,nlev,jb))
+                ENDIF
+              ENDDO
+            ENDDO
+          ENDIF
+
+          ! Adjust the sea ice temperature to the filtered temperature increment. Using the instantaneous
+          ! increments turned out to be disadvantaegous when the diurnal temperature cycle is underestimated along coastlines
+          ! on mixed land-water (sea ice) points.
+          IF (icpl_da_seaice >= 1) THEN
+            DO jc = i_startidx, i_endidx
+              IF (p_lnd_state(jg)%prog_wtr(nnow_rcf(jg))%h_ice(jc,jb) > 0.0_wp) p_lnd_state(jg)%prog_wtr(nnow_rcf(jg))%t_ice(jc,jb) = &
+                MIN(tmelt, p_lnd_state(jg)%prog_wtr(nnow_rcf(jg))%t_ice(jc,jb) + p_diag%t_avginc(jc,jb))
+            ENDDO
+          ENDIF
 
         ENDIF  ! MODE_IAU
 
@@ -2322,7 +2333,7 @@ MODULE mo_initicon
             IF (l_limited_area .AND. jg == 1 .AND. .NOT. lread_ana) THEN
 
               DO jc = i_startidx, i_endidx
-                ist = ext_data(jg)%atm%soiltyp(jc,jb)
+                ist = ext_data(jg)%atm%soiltyp_t(jc,jb,jt)
                 SELECT CASE(ist)
                 CASE (3,4,5,6,7,8) ! soil types with non-zero water content
                 p_lnd_state(jg)%prog_lnd(nnow_rcf(jg))%w_so_t(jc,jk,jb,jt) = MIN(dzsoil_icon(jk)*cporv(ist),    &

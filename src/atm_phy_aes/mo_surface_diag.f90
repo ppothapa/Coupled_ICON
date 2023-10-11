@@ -485,7 +485,8 @@ CONTAINS
     !$ACC END PARALLEL LOOP
 
     CALL generate_index_list_batched(icond(:,:), loidx(jcs:,:), jcs, kproma, is, 1)
-    !$ACC UPDATE WAIT SELF(is)
+    !$ACC WAIT(1)
+    !$ACC UPDATE SELF(is)
     is(:) = is(:) + jcs - 1
 
     !

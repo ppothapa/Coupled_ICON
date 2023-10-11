@@ -326,7 +326,7 @@ MODULE mo_sppt_core
   !!
   !!<-------------------------------------------------------------------
 
-  SUBROUTINE apply_tend(pt_patch, sppt, pt_prog_rcf, lacc)
+  SUBROUTINE apply_tend(pt_patch, sppt, pt_prog_rcf, dt, lacc)
 
     ! Subroutine Arguments ((in/out/inout)
     TYPE(t_patch),   INTENT(IN)        :: pt_patch       !< grid/patch info
@@ -334,6 +334,8 @@ MODULE mo_sppt_core
     TYPE(t_sppt),    INTENT(IN)        :: sppt
 
     TYPE(t_nh_prog), INTENT(INOUT)     :: pt_prog_rcf
+
+    REAL(wp),        INTENT(IN)        :: dt             !< (advective) time step applicable to local grid level
 
     LOGICAL, INTENT(IN), OPTIONAL      :: lacc 
 
@@ -360,7 +362,7 @@ MODULE mo_sppt_core
     i_endblk   = pt_patch%cells%end_block(rl_end)
 
     !<---------------------------------------------------------------------
-    ! Calculate tendencies
+    ! Apply tracer tendencies
     !>---------------------------------------------------------------------
 
 !$OMP PARALLEL
@@ -375,14 +377,14 @@ MODULE mo_sppt_core
       DO jk = kstart_moist(jg), nlev
         DO jc = i_startidx, i_endidx
 
-          pt_prog_rcf%tracer(jc,jk,jb,iqv) = sppt%ddt_qv(jc,jk,jb) + pt_prog_rcf%tracer (jc,jk,jb,iqv) ! water vapor
-          pt_prog_rcf%tracer(jc,jk,jb,iqi) = sppt%ddt_qi(jc,jk,jb) + pt_prog_rcf%tracer (jc,jk,jb,iqi) ! ice
-          pt_prog_rcf%tracer(jc,jk,jb,iqr) = sppt%ddt_qr(jc,jk,jb) + pt_prog_rcf%tracer (jc,jk,jb,iqr) ! rain
-          pt_prog_rcf%tracer(jc,jk,jb,iqs) = sppt%ddt_qs(jc,jk,jb) + pt_prog_rcf%tracer (jc,jk,jb,iqs) ! snow
-          pt_prog_rcf%tracer(jc,jk,jb,iqc) = sppt%ddt_qc(jc,jk,jb) + pt_prog_rcf%tracer (jc,jk,jb,iqc) ! cloud ice
+          pt_prog_rcf%tracer(jc,jk,jb,iqv) = sppt%ddt_qv(jc,jk,jb)*dt + pt_prog_rcf%tracer (jc,jk,jb,iqv) ! water vapor
+          pt_prog_rcf%tracer(jc,jk,jb,iqi) = sppt%ddt_qi(jc,jk,jb)*dt + pt_prog_rcf%tracer (jc,jk,jb,iqi) ! ice
+          pt_prog_rcf%tracer(jc,jk,jb,iqr) = sppt%ddt_qr(jc,jk,jb)*dt + pt_prog_rcf%tracer (jc,jk,jb,iqr) ! rain
+          pt_prog_rcf%tracer(jc,jk,jb,iqs) = sppt%ddt_qs(jc,jk,jb)*dt + pt_prog_rcf%tracer (jc,jk,jb,iqs) ! snow
+          pt_prog_rcf%tracer(jc,jk,jb,iqc) = sppt%ddt_qc(jc,jk,jb)*dt + pt_prog_rcf%tracer (jc,jk,jb,iqc) ! cloud ice
 
           IF ( iqg /= 0 ) THEN
-            pt_prog_rcf%tracer(jc,jk,jb,iqg) = sppt%ddt_qg(jc,jk,jb) + pt_prog_rcf%tracer (jc,jk,jb,iqg) ! graupel
+            pt_prog_rcf%tracer(jc,jk,jb,iqg) = sppt%ddt_qg(jc,jk,jb)*dt + pt_prog_rcf%tracer (jc,jk,jb,iqg) ! graupel
           ENDIF
 
         ENDDO ! jc

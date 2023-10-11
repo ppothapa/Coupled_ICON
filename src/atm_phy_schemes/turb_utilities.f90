@@ -311,6 +311,12 @@ REAL (KIND=wp), PARAMETER :: &
     z1d2 = z1/z2 , &
     z1d3 = z1/z3
 
+#ifdef ICON_USE_CUDA_GRAPH
+  LOGICAL, PARAMETER :: using_cuda_graph = .TRUE.
+#else
+  LOGICAL, PARAMETER :: using_cuda_graph = .FALSE.
+#endif
+
 !==============================================================================
 
 CONTAINS
@@ -445,6 +451,7 @@ LOGICAL, INTENT(IN), OPTIONAL :: lacc ! flag for using GPU code
     ! h_can is a primary external parameter. The initial values of h_can are 0.
     ! If we don't change this, no canopy will be resolved in the vertical direction.
 
+    !$ACC WAIT(1)
     !$ACC UPDATE HOST(hhl, h_can)
 
     kcm=ke
@@ -783,7 +790,10 @@ INTEGER :: i,k
        tur_rcpl=0.0_wp
      END IF
 
-   !$ACC END DATA
+     IF (.NOT. using_cuda_graph) THEN
+       !$ACC WAIT(acc_async_queue)
+     END IF
+     !$ACC END DATA
 
 END SUBROUTINE turb_setup
 
@@ -1219,6 +1229,9 @@ INTEGER :: &
 
    END IF
    !$ACC END PARALLEL
+   IF (.NOT. using_cuda_graph) THEN
+      !$ACC WAIT(acc_async_queue)
+   END IF
    !$ACC END DATA
    !$ACC END DATA
 
@@ -2182,6 +2195,9 @@ LOGICAL ::  &
 
   END DO
   !$ACC END PARALLEL
+  IF (.NOT. using_cuda_graph) THEN
+    !$ACC WAIT(acc_async_queue)
+  END IF
   !$ACC END DATA
 
 END SUBROUTINE turb_cloud
@@ -3337,11 +3353,13 @@ LOGICAL :: ldepth, lrpdep, lauxil
       !$ACC END PARALLEL
    END IF
 
+   IF (.NOT. using_cuda_graph) THEN
+     !$ACC WAIT(1)
+   END IF
    ! See comment above
    DO n=1,nvars
 #ifdef _PGI_LEGACY_WAR
       IF(lzacc) THEN 
-         !$ACC WAIT(1)
          CALL acc_detach(pvar(n)%bl)
          CALL acc_detach(pvar(n)%ml)
       END IF
@@ -3350,7 +3368,6 @@ LOGICAL :: ldepth, lrpdep, lauxil
 #endif
    END DO
 
-   !$ACC WAIT
    !$ACC END DATA
 
 END SUBROUTINE bound_level_interp

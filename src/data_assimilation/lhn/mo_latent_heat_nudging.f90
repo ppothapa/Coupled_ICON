@@ -459,7 +459,8 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
   lvalid_data = .NOT. ltoold
   IF (.NOT. (ltoold.OR.ltoyoung)) THEN
 
-    !$ACC UPDATE HOST(wobs_space) ASYNC(1) IF(.NOT. assimilation_config(jg)%lhn_diag .AND. ltlhnverif)
+    !$ACC WAIT(1)
+    !$ACC UPDATE HOST(wobs_space) IF(.NOT. assimilation_config(jg)%lhn_diag .AND. ltlhnverif)
 
 
 !-------------------------------------------------------------------------------
@@ -562,7 +563,7 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
 !$OMP END DO 
 !$OMP END PARALLEL
 
-    !$ACC UPDATE HOST(zprmod) ASYNC(1) IF(ltlhnverif)
+    !$ACC UPDATE HOST(zprmod) IF(ltlhnverif)
 
 ! ------------------------------------------------------------------------------
 ! Section 4: get reference precipition for comparison of radar and model
@@ -1060,6 +1061,7 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
 
     IF (datetime_current%time%minute  == 0) THEN
       IF (ltlhnverif) THEN
+        !$ACC WAIT(1)
         !$ACC UPDATE HOST(lhn_fields%pr_obs_sum, lhn_fields%pr_mod_sum, lhn_fields%pr_ref_sum)
         CALL lhn_verification( 'HR', pt_patch, radar_data, lhn_fields, p_sim_time/3600._wp, wobs_space, &
                                lhn_fields%pr_mod_sum, lhn_fields%pr_ref_sum, lhn_fields%pr_obs_sum )
@@ -1892,6 +1894,7 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,lhn_fields,pr_obs,hzerocl, &
 
 
   IF ( assimilation_config(jg)%lhn_diag ) THEN
+    !$ACC WAIT(1)
     !$ACC UPDATE HOST(num_t_obs, wobs_space, radar_data%radar_ct%blacklist)
     diag_out(:) = 0
     DO jb = i_startblk, i_endblk
@@ -2215,7 +2218,7 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
   !$ACC   PRESENT(assimilation_config(jg:jg))
 
 ! set temperature increments to be determined to zero
-  !$ACC KERNELS DEFAULT(PRESENT)
+  !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
   ttend_lhn(:,:) = 0.0_wp
   !$ACC END KERNELS
 

@@ -23,7 +23,7 @@ MODULE mo_nwp_vdiff_interface
       & CCYCLE_MODE_NONE, CCYCLE_MODE_INTERACTIVE, CCYCLE_MODE_PRESCRIBED, CCYCLE_CO2CONC_CONST, &
       & CCYCLE_CO2CONC_FROMFILE, t_ccycle_config
   USE mo_convect_tables, ONLY: init_convect_tables
-  USE mo_coupling_config, ONLY: is_coupled_run
+  USE mo_coupling_config, ONLY: is_coupled_to_ocean
   USE mo_aes_convect_tables, ONLY: init_aes_convect_tables => init_convect_tables
   USE mo_exception, ONLY: finish, message
   USE mo_ext_data_types, ONLY: t_external_data
@@ -1257,10 +1257,11 @@ CONTAINS
         )
     END IF
 
-    !$ACC EXIT DATA ASYNC(1) &
+    !$ACC WAIT(1)
+    !$ACC EXIT DATA &
     !$ACC   DETACH(ocean_u, ocean_v, p_graupel_gsp_rate, p_ice_gsp_rate, p_hail_gsp_rate)
 
-    IF (is_coupled_run() .AND. .NOT. linit) THEN
+    IF (is_coupled_to_ocean() .AND. .NOT. linit) THEN
       CALL sea_model_couple_ocean (&
           & patch=patch, &
           & list_sea=ext_data%atm%list_sea, &
@@ -1286,7 +1287,8 @@ CONTAINS
         )
     END IF
 
-    !$ACC EXIT DATA ASYNC(1) &
+    !$ACC WAIT(1)
+    !$ACC EXIT DATA &
     !$ACC   DELETE(LIST_CREATE1) &
     !$ACC   DELETE(LIST_CREATE2) &
     !$ACC   DELETE(LIST_CREATE3) &
@@ -1990,7 +1992,8 @@ CONTAINS
     END DO
     !$OMP END PARALLEL
 
-    !$ACC EXIT DATA DELETE(qtvar) ASYNC(1)
+    !$ACC WAIT(1)
+    !$ACC EXIT DATA DELETE(qtvar)
 
   END SUBROUTINE get_stddev_saturation_deficit
 
@@ -2067,7 +2070,8 @@ CONTAINS
             & x_sfc=v_sfc(:), &
             & flx=vmfl_sft(:,isft) &
           )
-      !$ACC EXIT DATA ASYNC(1) DETACH(u_sfc, v_sfc)
+      !$ACC WAIT(1)
+      !$ACC EXIT DATA DETACH(u_sfc, v_sfc)
     END DO
 
   END SUBROUTINE get_surface_stress
@@ -2132,7 +2136,8 @@ CONTAINS
       !$ACC ENTER DATA ATTACH(p_runoff, p_drainage) ASYNC(1)
         CALL copy(p_runoff(:,:), diag_lnd%runoff_s_inst_t(:,:,1), opt_acc_async=.TRUE.)
         CALL copy(p_drainage(:,:), diag_lnd%runoff_g_inst_t(:,:,1), opt_acc_async=.TRUE.)
-      !$ACC EXIT DATA DETACH(p_runoff, p_drainage) ASYNC(1)
+      !$ACC WAIT(1)
+      !$ACC EXIT DATA DETACH(p_runoff, p_drainage)
 
       ! Convert runoff rate [kg/(m**2 s)] to the amount of runoff in the current time step
       ! [kg/m**2].
@@ -2404,7 +2409,8 @@ CONTAINS
     END DO
     !$OMP END PARALLEL
 
-    !$ACC EXIT DATA DELETE(nonnegative) ASYNC(1)
+    !$ACC WAIT(1)
+    !$ACC EXIT DATA DELETE(nonnegative)
 
   END SUBROUTINE add_tendencies_to_state
 

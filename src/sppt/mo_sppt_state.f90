@@ -115,6 +115,7 @@ MODULE mo_sppt_state
       CALL vlr_del(sppt_list(jg))
     ENDDO
 
+    !$ACC WAIT(1)
     DO jg = 1, n_dom
       !$ACC EXIT DATA DELETE(sppt_config(jg)%taper)
       DEALLOCATE(sppt_config(jg)%taper, STAT=ist)

@@ -279,6 +279,7 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     call is_close(ref, cur, abs_threshold, rel_threshold, rel_diff, abs_diff, out)
@@ -290,7 +291,7 @@ MODULE mo_ser_common
 
     IF (n_fail > 0) THEN
       !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
-      !$ACC KERNELS COPYOUT(cur_cpy) IF(lopenacc)
+      !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
       report_idx(1) = "(REAL(wp) scalar)"
@@ -300,6 +301,7 @@ MODULE mo_ser_common
       report_ref(1) = ref
     END IF
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     call report(name, report_rel_diff, report_abs_diff, report_cur, report_ref, report_idx, n_fail, 1)
@@ -325,6 +327,7 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(1) REDUCTION(+: n_fail)
@@ -341,7 +344,7 @@ MODULE mo_ser_common
     IF (n_fail > 0) THEN
       !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
       mask = .TRUE.
-      !$ACC KERNELS COPYOUT(cur_cpy) IF(lopenacc)
+      !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
       DO z=1,ser_nreport
@@ -356,6 +359,7 @@ MODULE mo_ser_common
       END DO
     END IF
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     call report(name, report_rel_diff, report_abs_diff, report_cur, report_ref, report_idx, n_fail, size(cur))
@@ -381,6 +385,7 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) REDUCTION(+: n_fail)
@@ -399,7 +404,7 @@ MODULE mo_ser_common
     IF (n_fail > 0) THEN
       !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
       mask = .TRUE.
-      !$ACC KERNELS COPYOUT(cur_cpy) IF(lopenacc)
+      !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
       DO z=1,ser_nreport
@@ -415,6 +420,7 @@ MODULE mo_ser_common
       END DO
     END IF
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     call report(name, report_rel_diff, report_abs_diff, report_cur, report_ref, report_idx, n_fail, size(cur))
@@ -440,6 +446,7 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(3) REDUCTION(+: n_fail)
@@ -460,7 +467,7 @@ MODULE mo_ser_common
     IF (n_fail > 0) THEN
       !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
       mask = .TRUE.
-      !$ACC KERNELS COPYOUT(cur_cpy) IF(lopenacc)
+      !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
       DO z=1,ser_nreport
@@ -477,6 +484,7 @@ MODULE mo_ser_common
       END DO
     END IF
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     call report(name, report_rel_diff, report_abs_diff, report_cur, report_ref, report_idx, n_fail, size(cur))
@@ -502,6 +510,7 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(4) REDUCTION(+: n_fail)
@@ -524,7 +533,7 @@ MODULE mo_ser_common
     IF (n_fail > 0) THEN
       !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
       mask = .TRUE.
-      !$ACC KERNELS COPYOUT(cur_cpy) IF(lopenacc)
+      !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
       DO z=1,ser_nreport
@@ -542,6 +551,7 @@ MODULE mo_ser_common
       END DO
     END IF
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     call report(name, report_rel_diff, report_abs_diff, report_cur, report_ref, report_idx, n_fail, size(cur))
@@ -565,6 +575,7 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     call is_close(ref, cur, abs_threshold, rel_threshold, rel_diff, abs_diff, out)
@@ -576,7 +587,7 @@ MODULE mo_ser_common
 
     IF (n_fail > 0) THEN
       !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
-      !$ACC KERNELS COPYOUT(cur_cpy) IF(lopenacc)
+      !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
       report_idx(1) = "(REAL(sp) scalar)"
@@ -586,6 +597,7 @@ MODULE mo_ser_common
       report_ref(1) = ref
     END IF
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     call report(name, report_rel_diff, report_abs_diff, report_cur, report_ref, report_idx, n_fail, 1)
@@ -611,6 +623,7 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(1) REDUCTION(+: n_fail)
@@ -627,7 +640,7 @@ MODULE mo_ser_common
     IF (n_fail > 0) THEN
       !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
       mask = .TRUE.
-      !$ACC KERNELS COPYOUT(cur_cpy) IF(lopenacc)
+      !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
       DO z=1,ser_nreport
@@ -642,6 +655,7 @@ MODULE mo_ser_common
       END DO
     END IF
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     call report(name, report_rel_diff, report_abs_diff, report_cur, report_ref, report_idx, n_fail, size(cur))
@@ -667,6 +681,7 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) REDUCTION(+: n_fail)
@@ -685,7 +700,7 @@ MODULE mo_ser_common
     IF (n_fail > 0) THEN
       !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
       mask = .TRUE.
-      !$ACC KERNELS COPYOUT(cur_cpy) IF(lopenacc)
+      !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
       DO z=1,ser_nreport
@@ -701,6 +716,7 @@ MODULE mo_ser_common
       END DO
     END IF
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     call report(name, report_rel_diff, report_abs_diff, report_cur, report_ref, report_idx, n_fail, size(cur))
@@ -726,6 +742,7 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(3) REDUCTION(+: n_fail)
@@ -746,7 +763,7 @@ MODULE mo_ser_common
     IF (n_fail > 0) THEN
       !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
       mask = .TRUE.
-      !$ACC KERNELS COPYOUT(cur_cpy) IF(lopenacc)
+      !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
       DO z=1,ser_nreport
@@ -763,6 +780,7 @@ MODULE mo_ser_common
       END DO
     END IF
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     call report(name, report_rel_diff, report_abs_diff, report_cur, report_ref, report_idx, n_fail, size(cur))
@@ -788,6 +806,7 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(4) REDUCTION(+: n_fail)
@@ -810,7 +829,7 @@ MODULE mo_ser_common
     IF (n_fail > 0) THEN
       !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
       mask = .TRUE.
-      !$ACC KERNELS COPYOUT(cur_cpy) IF(lopenacc)
+      !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
       DO z=1,ser_nreport
@@ -828,6 +847,7 @@ MODULE mo_ser_common
       END DO
     END IF
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     call report(name, report_rel_diff, report_abs_diff, report_cur, report_ref, report_idx, n_fail, size(cur))
@@ -852,6 +872,7 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     call is_close(ref, cur, abs_threshold, rel_threshold, rel_diff, abs_diff, out)
@@ -863,7 +884,7 @@ MODULE mo_ser_common
 
     IF (n_fail > 0) THEN
       !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
-      !$ACC KERNELS COPYOUT(cur_cpy) IF(lopenacc)
+      !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
       report_idx(1) = "(INTEGER scalar)"
@@ -873,6 +894,7 @@ MODULE mo_ser_common
       report_ref(1) = ref
     END IF
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     call report(name, report_rel_diff, REAL(report_abs_diff, wp), REAL(report_cur, wp), REAL(report_ref, wp), report_idx, n_fail, 1)
@@ -900,6 +922,7 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(1) REDUCTION(+: n_fail)
@@ -916,7 +939,7 @@ MODULE mo_ser_common
     IF (n_fail > 0) THEN
       !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
       mask = .TRUE.
-      !$ACC KERNELS COPYOUT(cur_cpy) IF(lopenacc)
+      !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
       DO z=1,ser_nreport
@@ -931,6 +954,7 @@ MODULE mo_ser_common
       END DO
     END IF
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     call report(name, report_rel_diff, REAL(report_abs_diff, wp), REAL(report_cur, wp), REAL(report_ref, wp), report_idx, n_fail, size(cur))
@@ -958,6 +982,7 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) REDUCTION(+: n_fail)
@@ -976,7 +1001,7 @@ MODULE mo_ser_common
     IF (n_fail > 0) THEN
       !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
       mask = .TRUE.
-      !$ACC KERNELS COPYOUT(cur_cpy) IF(lopenacc)
+      !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
       DO z=1,ser_nreport
@@ -992,6 +1017,7 @@ MODULE mo_ser_common
       END DO
     END IF
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     call report(name, report_rel_diff, REAL(report_abs_diff, wp), REAL(report_cur, wp), REAL(report_ref, wp), report_idx, n_fail, size(cur))
@@ -1019,6 +1045,7 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(3) REDUCTION(+: n_fail)
@@ -1039,7 +1066,7 @@ MODULE mo_ser_common
     IF (n_fail > 0) THEN
       !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
       mask = .TRUE.
-      !$ACC KERNELS COPYOUT(cur_cpy) IF(lopenacc)
+      !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
       DO z=1,ser_nreport
@@ -1056,6 +1083,7 @@ MODULE mo_ser_common
       END DO
     END IF
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     call report(name, report_rel_diff, REAL(report_abs_diff, wp), REAL(report_cur, wp), REAL(report_ref, wp), report_idx, n_fail, size(cur))
@@ -1083,6 +1111,7 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(4) REDUCTION(+: n_fail)
@@ -1105,7 +1134,7 @@ MODULE mo_ser_common
     IF (n_fail > 0) THEN
       !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
       mask = .TRUE.
-      !$ACC KERNELS COPYOUT(cur_cpy) IF(lopenacc)
+      !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
       DO z=1,ser_nreport
@@ -1123,6 +1152,7 @@ MODULE mo_ser_common
       END DO
     END IF
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     call report(name, report_rel_diff, REAL(report_abs_diff, wp), REAL(report_cur, wp), REAL(report_ref, wp), report_idx, n_fail, size(cur))
@@ -1144,6 +1174,7 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(ref) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     IF (ref .NEQV. cur) THEN
@@ -1153,7 +1184,7 @@ MODULE mo_ser_common
     !$ACC WAIT(1)
 
     IF (n_fail > 0) THEN
-      !$ACC KERNELS COPYOUT(cur_cpy) IF(lopenacc)
+      !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
       report_idx(1) = "(LOGICAL scalar)"
@@ -1163,6 +1194,7 @@ MODULE mo_ser_common
       report_ref(1) = MERGE(1._wp, 0._wp, ref)
     END IF
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     call report(name, report_rel_diff, report_abs_diff, report_cur, report_ref, report_idx, n_fail, 1)
@@ -1185,7 +1217,7 @@ MODULE mo_ser_common
     n_fail = 0
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
-    !$ACC KERNELS COPYOUT(cur_cpy) IF(lopenacc)
+    !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
     cur_cpy = cur
     !$ACC END KERNELS
 
@@ -1222,7 +1254,7 @@ MODULE mo_ser_common
     n_fail = 0
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
-    !$ACC KERNELS COPYOUT(cur_cpy) IF(lopenacc)
+    !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
     cur_cpy = cur
     !$ACC END KERNELS
 
@@ -1261,7 +1293,7 @@ MODULE mo_ser_common
     n_fail = 0
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
-    !$ACC KERNELS COPYOUT(cur_cpy) IF(lopenacc)
+    !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
     cur_cpy = cur
     !$ACC END KERNELS
 
@@ -1302,7 +1334,7 @@ MODULE mo_ser_common
     n_fail = 0
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
-    !$ACC KERNELS COPYOUT(cur_cpy) IF(lopenacc)
+    !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
     cur_cpy = cur
     !$ACC END KERNELS
 
@@ -1338,6 +1370,7 @@ MODULE mo_ser_common
 
     pp => p ! we have to pass a pointer to ppser_*
 
+    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
         !$ACC UPDATE HOST(p) IF(o%lupdate_cpu)
@@ -1365,6 +1398,7 @@ MODULE mo_ser_common
 
     pp => p ! we have to pass a pointer to ppser_*
 
+    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
         !$ACC UPDATE HOST(p) IF(o%lupdate_cpu)
@@ -1392,6 +1426,7 @@ MODULE mo_ser_common
 
     pp => p ! we have to pass a pointer to ppser_*
 
+    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
         !$ACC UPDATE HOST(p) IF(o%lupdate_cpu)
@@ -1419,6 +1454,7 @@ MODULE mo_ser_common
 
     pp => p ! we have to pass a pointer to ppser_*
 
+    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
         !$ACC UPDATE HOST(p) IF(o%lupdate_cpu)
@@ -1446,6 +1482,7 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
+    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
         !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
@@ -1473,6 +1510,7 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
+    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
         !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
@@ -1500,6 +1538,7 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
+    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
         !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
@@ -1527,6 +1566,7 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
+    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
         !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
@@ -1554,6 +1594,7 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
+    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
         !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
@@ -1581,6 +1622,7 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
+    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
         !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
@@ -1608,6 +1650,7 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
+    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
         !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
@@ -1635,6 +1678,7 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
+    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
         !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
@@ -1662,6 +1706,7 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
+    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
         !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
@@ -1689,6 +1734,7 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
+    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
         !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
@@ -1716,6 +1762,7 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
+    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
         !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
@@ -1743,6 +1790,7 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
+    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
         !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
@@ -1770,6 +1818,7 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
+    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
         !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
@@ -1797,6 +1846,7 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
+    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
         !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
@@ -1824,6 +1874,7 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
+    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
         !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
@@ -1851,6 +1902,7 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
+    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
         !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)

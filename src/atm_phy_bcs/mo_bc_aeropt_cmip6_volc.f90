@@ -186,6 +186,7 @@ CONTAINS
 
     DEALLOCATE(zalt, zlat)
 
+    !$ACC WAIT(1)
     !$ACC UPDATE DEVICE(aod_v_s, ext_v_s, ssa_v_s, asy_v_s, aod_v_t, ext_v_t, ssa_v_t) &
     !$ACC   DEVICE(r_alt_clim, r_lat_clim)
 
@@ -297,6 +298,7 @@ CONTAINS
 
       pre_year = mtime_current%date%year
 
+      !$ACC WAIT(1)
       !$ACC UPDATE DEVICE(aod_v_s, ext_v_s, ssa_v_s, asy_v_s, aod_v_t, ext_v_t, ssa_v_t) &
       !$ACC   DEVICE(r_alt_clim, r_lat_clim)
 
