@@ -12,7 +12,7 @@ builder: daint_cpu_nvidia_mixed
 #"mch_opr_r04b07_sstice_inst": d9f4abf950631c1bfe415ca80c7c066626cee1c5
 #"mch_opr_r19b07_lpi": 168013cd28f8e9feab897e8fc865a8b9b05ec666
 #"mch_opr_r19b07_midnight": 28bfa1970c67cec49730780a9a712bea7b6f4265
-"atm_qubicc_nc_test": f627c99f6e7d9b289735f370d89c940357bceb56
+"atm_qubicc_nc_test": fe8243ac04291736213f5a02f79a5cb6d7510f37
 "mch_bench_r19b07_dev_sppt": 05c042a15e9939a3777f827877ed30529298a7f1
 "mch_opr_r04b07": 867f9d30e20e0ad80f05b628805693a2d79e53db
 "mch_opr_r04b07_lhn_00": f771fe4f5ebe62f9238e5a75fc0d51142de12bb5

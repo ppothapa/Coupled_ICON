@@ -21,7 +21,7 @@ builder: daint_cpu_nvidia
 #"mch_opr_r19b07_lpi": e4ba66abfac0c5e40a5ff7cafef658c45f5f5cd3
 #"mch_opr_r19b07_midnight": 394f96081263f2e67b431e63976f8eb686280841
 #"mch_opr_r19b07_turb": abce1ffa8fc361e3210fa5c8de88c393f4737999
-"atm_qubicc_nc_test": 8b61b843dcdb374e2e1d3346f42998ea7aaba002
+"atm_qubicc_nc_test": 4261d96c4dfd36b207a321555f12ff256ec8f88d
 "dwd_run_ICON_09_R2B4N5_EPS": c910aca338ec5d8b5c74a587be4095bc93c003e2
 "exclaim_ape_R02B04": 35b232840582ec5579ecda3f64d5ff0b0c8ea4a5
 "mch_bench_r19b07_dev_sppt": 8a0f16ec178972ec2d81b9ef71b099702d76d79a
