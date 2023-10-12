@@ -145,6 +145,7 @@ cat > ${atmo_namelist} << EOF
 /
 &dynamics_nml
  lcoriolis      = .FALSE.
+ lmoist_thdyn   = .TRUE.
 /
 &aes_phy_nml
 !

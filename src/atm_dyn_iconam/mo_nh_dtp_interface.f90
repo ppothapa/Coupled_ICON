@@ -31,13 +31,19 @@
 MODULE mo_nh_dtp_interface
 
   USE mo_kind,               ONLY: wp
+  USE mo_physical_constants, ONLY: cpd, cvd, cpv, cvv, ci, clw
+  USE mo_run_config,         ONLY: ntracer, iqv, iqc, iqr, iqi, iqs, iqg, iqh, iqgl, iqhl
   USE mo_dynamics_config,    ONLY: idiv_method
   USE mo_parallel_config,    ONLY: nproma, p_test_run
+  USE mo_dynamics_config ,   ONLY: nnow_rcf
+  USE mo_nonhydrostatic_config,ONLY: kstart_moist
   USE mo_model_domain,       ONLY: t_patch
+  USE mo_nonhydro_state  ,   ONLY: p_nh_state
   USE mo_nonhydro_types,     ONLY: t_nh_prog, t_nh_diag, t_nh_metrics
   USE mo_intp_data_strc,     ONLY: t_int_state
   USE mo_loopindices,        ONLY: get_indices_c, get_indices_e
   USE mo_impl_constants,     ONLY: min_rledge_int, min_rlcell_int, min_rlcell
+  USE mo_impl_constants_grf, ONLY: grf_bdywidth_c
   USE mo_timer,              ONLY: timers_level, timer_start, timer_stop, timer_prep_tracer
   USE mo_fortran_tools,      ONLY: init
 #ifdef _OPENACC
@@ -50,6 +56,7 @@ MODULE mo_nh_dtp_interface
 
   PUBLIC :: prepare_tracer
   PUBLIC :: compute_airmass
+  PUBLIC :: prepare_thermo_src_term
 
 CONTAINS
 
@@ -459,6 +466,111 @@ CONTAINS
     !$ACC END DATA
 
   END SUBROUTINE compute_airmass
+  !>
+  !! Interface for calling diangose condensate
+  !!
+  !! @par Revision History
+  !! Bjorn Stevens (2023-08-29)
+  !!
+  SUBROUTINE prepare_thermo_src_term(p_patch)
+
+    TYPE(t_patch), TARGET, INTENT(INOUT) :: p_patch
+
+    INTEGER :: i_startidx, i_endidx, jc, jk, jt, jb, nlev
+    INTEGER :: i_rlstart , i_rlend , i_startblk, i_endblk
+    INTEGER :: nn, jg
+
+    REAL(wp), POINTER :: p_csum(:,:)
+
+    REAL(wp), TARGET :: qsum_liq(nproma,p_patch%nlev), qsum_ice(nproma,p_patch%nlev)
+    REAL(wp) :: z_a, z_b
+
+
+    jg = p_patch%id
+    nn = nnow_rcf(jg)
+
+    ! number of vertical levels
+    nlev = p_patch%nlev
+
+    ! boundary zone and halo points are not needed
+    i_rlstart  = grf_bdywidth_c + 1
+    i_rlend    = min_rlcell_int
+    i_startblk = p_patch%cells%start_block(i_rlstart)
+    i_endblk   = p_patch%cells%end_block(i_rlend)
+
+    !$ACC DATA CREATE(qsum_liq, qsum_ice) &
+    !$ACC   COPYIN(kstart_moist) &
+    !$ACC   IF(i_am_accel_node)
+
+
+!$OMP PARALLEL
+!$OMP DO PRIVATE(jc,jk,jt,jb,i_startidx,i_endidx,p_csum,z_a,z_b,qsum_liq,qsum_ice) ICON_OMP_DEFAULT_SCHEDULE
+    DO jb = i_startblk, i_endblk
+
+      CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,       &
+      &                   i_startidx, i_endidx, i_rlstart, i_rlend )
+
+      !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      DO jk = 1, nlev
+        DO jc = i_startidx, i_endidx
+
+          qsum_liq(jc,jk) = 0.0_wp
+          qsum_ice(jc,jk) = 0.0_wp
+     
+        END DO ! jc
+      END DO ! jk
+      !$ACC END PARALLEL
+
+      DO jt = 1, ntracer
+
+        IF (ANY((/iqc,iqr,iqhl,iqgl/)==jt)) THEN 
+          p_csum => qsum_liq
+        ELSE IF (ANY((/iqi,iqs,iqg,iqh/)==jt)) THEN
+          p_csum => qsum_ice
+        ELSE
+          CYCLE
+        END IF
+
+        !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
+         DO jk = kstart_moist(jg),nlev
+           DO jc = i_startidx, i_endidx
+
+             p_csum(jc,jk) = p_csum(jc,jk) + p_nh_state(jg)%prog(nn)%tracer(jc,jk,jb,jt)
+
+           END DO ! jc
+         END DO ! jk
+        !$ACC END PARALLEL
+
+      END DO ! jt
+
+      !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(z_a, z_b)
+      DO jk = kstart_moist(jg),nlev
+        DO jc = i_startidx, i_endidx
+           
+          z_a = 1._wp - ( p_nh_state(jg)%prog(nn)%tracer(jc,jk,jb,iqv) &
+                          + qsum_liq(jc,jk) + qsum_ice(jc,jk) )
+
+          z_b = clw * qsum_liq(jc,jk) + ci * qsum_ice(jc,jk)
+
+          p_nh_state(jg)%diag%chi_q(jc,jk,jb) = 1._wp - (                                   &
+              ( z_a + ( z_b  + cpv * p_nh_state(jg)%prog(nn)%tracer(jc,jk,jb,iqv) ) / cpd ) &
+            / ( z_a + ( z_b  + cvv * p_nh_state(jg)%prog(nn)%tracer(jc,jk,jb,iqv) ) / cvd ) )
+
+        END DO ! jc
+      END DO ! jk
+      !$ACC END PARALLEL
+      
+    END DO ! jb
+!$OMP ENDDO NOWAIT
+!$OMP END PARALLEL
+
+    !$ACC WAIT(1)
+    !$ACC END DATA
+   
+  END SUBROUTINE prepare_thermo_src_term
 
 END MODULE mo_nh_dtp_interface
 

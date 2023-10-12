@@ -59,7 +59,7 @@ MODULE mo_atmo_model
   USE mo_initicon_config,         ONLY: configure_initicon
   USE mo_io_config,               ONLY: restartWritingParameters
   USE mo_lnd_nwp_config,          ONLY: configure_lnd_nwp
-  USE mo_dynamics_config,         ONLY: configure_dynamics, iequations
+  USE mo_dynamics_config,         ONLY: configure_dynamics, iequations, lmoist_thdyn
   USE mo_run_config,              ONLY: configure_run,                                        &
     &                                   ltimer, ltestcase,                                    &
     &                                   ldynamics, ltransport,                                &
@@ -663,6 +663,10 @@ CONTAINS
       &                       iqtke, iqm_max, ntracer, nqtendphy,          &
       &                       atm_phy_nwp_config(:)%nclass_gscp,           &
       &                       iqbin, iqb_i, iqb_e, iqb_s)
+
+    IF (lmoist_thdyn .AND. .NOT.(iqv>0)) THEN
+      CALL finish( routine, 'Trying to run moist thermodynamics without moisture')
+    ENDIF
 
 #ifdef __ICON_ART
     !------------------------------------------------------------------

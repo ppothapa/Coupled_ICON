@@ -19,6 +19,7 @@ MODULE mo_dynamics_nml
                                   & config_idiv_method    => idiv_method,    &
                                   & config_divavg_cntrwgt => divavg_cntrwgt, &
                                   & config_lcoriolis      => lcoriolis,      &
+                                  & config_lmoist_thdyn   => lmoist_thdyn,   &
                                   & config_ldeepatmo      => ldeepatmo
 
   USE mo_kind,                ONLY: wp
@@ -61,12 +62,14 @@ MODULE mo_dynamics_nml
 
   LOGICAL  :: lcoriolis      ! if .TRUE.,  the Coriolis force is switched on
 
+  LOGICAL  :: lmoist_thdyn   ! if .TRUE., moisture terms included in first law
+
   LOGICAL  :: ldeepatmo      ! if .TRUE., deep-atmosphere modification is applied 
                              ! to the governing equations, on which the dynamical core is based
 
   NAMELIST/dynamics_nml/ iequations,                  &
                          idiv_method, divavg_cntrwgt, &
-                         lcoriolis, ldeepatmo
+                         lcoriolis, lmoist_thdyn, ldeepatmo
 
 CONTAINS
   !>
@@ -85,6 +88,7 @@ CONTAINS
     idiv_method    = 1
     divavg_cntrwgt = 0.5_wp
     lcoriolis      = .TRUE.
+    lmoist_thdyn   = .FALSE.
     ldeepatmo      = .FALSE.
  
     !------------------------------------------------------------------------
@@ -144,6 +148,7 @@ CONTAINS
     config_idiv_method    = idiv_method
     config_divavg_cntrwgt = divavg_cntrwgt
     config_lcoriolis      = lcoriolis
+    config_lmoist_thdyn   = lmoist_thdyn
     config_ldeepatmo      = ldeepatmo
 
   END SUBROUTINE read_dynamics_namelist
