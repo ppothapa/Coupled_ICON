@@ -1232,7 +1232,7 @@ CONTAINS
               DO jl = jcs, jce
                 field%       ua(jl,jk,jb)      = field%       ua(jl,jk,jb)      + tend_ua_vdf  (jl,jk,jb)     *pdtime
                 field%       va(jl,jk,jb)      = field%       va(jl,jk,jb)      + tend_va_vdf  (jl,jk,jb)     *pdtime
-                field%       wa(jl,jk,jb)      = field%       wa(jl,jk,jb)      + tend_wa_vdf  (jl,jk,jb)     *pdtime
+            !    field%       wa(jl,jk,jb)      = field%       wa(jl,jk,jb)      + tend_wa_vdf  (jl,jk,jb)     *pdtime
                 field%       ta(jl,jk,jb)      = field%       ta(jl,jk,jb)      + tend_ta_vdf  (jl,jk,jb)     *pdtime
                 field% qtrc_phy(jl,jk,jb,iqv)  = field% qtrc_phy(jl,jk,jb,iqv)  + tend_qtrc_vdf(jl,jk,jb,iqv) *pdtime
                 field% qtrc_phy(jl,jk,jb,iqc)  = field% qtrc_phy(jl,jk,jb,iqc)  + tend_qtrc_vdf(jl,jk,jb,iqc) *pdtime
@@ -1247,7 +1247,7 @@ CONTAINS
               DO jl = jcs, jce
                 field%       ua(jl,jk,jb)      = field%       ua(jl,jk,jb)      + tend_ua_vdf  (jl,jk,jb)     *pdtime
                 field%       va(jl,jk,jb)      = field%       va(jl,jk,jb)      + tend_va_vdf  (jl,jk,jb)     *pdtime
-                field%       wa(jl,jk,jb)      = field%       wa(jl,jk,jb)      + tend_wa_vdf  (jl,jk,jb)     *pdtime
+            !    field%       wa(jl,jk,jb)      = field%       wa(jl,jk,jb)      + tend_wa_vdf  (jl,jk,jb)     *pdtime
                 field%       ta(jl,jk,jb)      = field%       ta(jl,jk,jb)      + tend_ta_vdf  (jl,jk,jb)     *pdtime
                 field% qtrc_phy(jl,jk,jb,iqv)  = field% qtrc_phy(jl,jk,jb,iqv)  + tend_qtrc_vdf(jl,jk,jb,iqv) *pdtime
                 field% qtrc_phy(jl,jk,jb,iqc)  = field% qtrc_phy(jl,jk,jb,iqc)  + tend_qtrc_vdf(jl,jk,jb,iqc) *pdtime
