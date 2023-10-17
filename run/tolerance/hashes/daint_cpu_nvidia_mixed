@@ -4,18 +4,10 @@
 icon_data_rootFolder: /users/icontest/pool/data/ICON
 builder: daint_cpu_nvidia_mixed
 # The list below maps each experiment to its current experiment_hash
-# HEAD
-#"atm_qubicc_nc_test": 5d9c0c49c808facb81e5ff35832aeba8c4bc6e24
-#"mch_bench_r19b07_dev_sppt": 046b68771edabe6a264a8b29bf548b0834b5e673
-#"mch_opr_r04b07": a62fcebadaffc2d1ea5ce12bdba61c889ad595ab
-#"mch_opr_r04b07_lhn_00": d5d711a767badbf0f51429b6cc76bbdb2b1b320d
-#"mch_opr_r04b07_sstice_inst": d9f4abf950631c1bfe415ca80c7c066626cee1c5
-#"mch_opr_r19b07_lpi": 168013cd28f8e9feab897e8fc865a8b9b05ec666
-#"mch_opr_r19b07_midnight": 28bfa1970c67cec49730780a9a712bea7b6f4265
-"atm_qubicc_nc_test": fe8243ac04291736213f5a02f79a5cb6d7510f37
+"atm_qubicc_nc_test": b3cd8308ece7c0202420808bebc6b5bb6c67e6a4
 "mch_bench_r19b07_dev_sppt": 05c042a15e9939a3777f827877ed30529298a7f1
 "mch_opr_r04b07": 867f9d30e20e0ad80f05b628805693a2d79e53db
-"mch_opr_r04b07_lhn_00": f771fe4f5ebe62f9238e5a75fc0d51142de12bb5
-"mch_opr_r04b07_sstice_inst": 2eb1cd30aa089e6ab9934c5d9d2d4fde1f24385f
+"mch_opr_r04b07_lhn_00": efde8e3cb3bc7cc59e6d8657bf591460fc33143f
+"mch_opr_r04b07_sstice_inst": 1abd622f8fd92a3a6fe8b1a8c00ea71f95552c39
 "mch_opr_r19b07_lpi": d20dc4dfde8f7d8dd7c51c1b062125d3f3d00b3d
 "mch_opr_r19b07_midnight": 62ee0caf18df03ff3d66b7d06396e48810d49700
