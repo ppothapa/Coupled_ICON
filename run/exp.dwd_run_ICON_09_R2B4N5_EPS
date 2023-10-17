@@ -796,13 +796,8 @@ cat >> ${atmo_namelist} << EOF
  ml_varlist           = 'CEILING',
  output_grid          = .false.
 /
-EOF
-  # this is still in side of the if [ "$iter" -eq 1 ]
 
-  # need for big GPU memory
-  # the following outputs from the operational setup require more than 30 GB of GPU memory.
-  if [ "$(nvidia-smi --format=csv,nounits,noheader --query-gpu=memory.total --id=0)" -gt 33000 ] ; then
-    cat >> ${atmo_namelist} << EOF
+
 ! //// ICON Global Forecast in Routine - Start //// !
 ! // Grib is currently not checked with probtest // !
 &output_nml
@@ -848,8 +843,8 @@ EOF
  !pe_placement_ml      = 1
  ml_varlist           = 'DEPTH_LK', 'FR_LAKE', 'FR_LAND', 'HHL', 'HSURF',
                         'LAI', 'PLCOV', 'ROOTDP', 'SOILTYP',
- reg_lon_def          = 0.,0.25,359.755
- reg_lat_def          = -90.,0.25,90.
+ reg_lon_def          = 0.,2.5,359.755
+ reg_lat_def          = -90.,2.5,90.
  output_grid          = .true.
 /
 &output_nml
@@ -1033,8 +1028,8 @@ EOF
                         45000, 50000, 55000, 60000, 65000, 70000, 75000, 77500,
                         80000, 82500, 85000, 87500, 90000, 92500, 95000, 97500,
                         100000
- reg_lon_def          = 0.,0.25,359.755
- reg_lat_def          = -90.,0.25,90.
+ reg_lon_def          = 0.,2.5,359.755
+ reg_lat_def          = -90.,2.5,90.
  output_grid          = .false.
 /
 &output_nml
@@ -1057,8 +1052,8 @@ EOF
  !pe_placement_pl      = 10
  pl_varlist           = 'FI', 'T', 'U', 'V'
  p_levels             =    10,   100,   200,
- reg_lon_def          = 0.,0.25,359.755
- reg_lat_def          = -90.,0.25,90.
+ reg_lon_def          = 0.,2.5,359.755
+ reg_lat_def          = -90.,2.5,90.
  output_grid          = .false.
 /
 &output_nml
@@ -1082,8 +1077,8 @@ EOF
  !stream_partitions_ml = 1
  !pe_placement_ml      = 0
  ml_varlist           = 'U_10M', 'VMAX_10M', 'V_10M',
- reg_lon_def          = 0.,0.25,359.755
- reg_lat_def          = -90.,0.25,90.
+ reg_lon_def          = 0.,2.5,359.755
+ reg_lat_def          = -90.,2.5,90.
  output_grid          = .false.
 /
 &output_nml
@@ -1131,8 +1126,8 @@ EOF
  ml_varlist           = 'DEPTH_LK', 'FR_LAKE', 'FR_LAND', 'HHL', 'HSURF',
                         'LAI', 'PLCOV', 'ROOTDP', 'SOILTYP',
 !pl_varlist           =
- reg_lon_def          = -23.5,0.0625,62.5
- reg_lat_def          = 29.5,0.0625,70.5
+ reg_lon_def          = -23.5,2.5,62.5
+ reg_lat_def          = 29.5,2.5,70.5
  output_grid          = .true.
 /
 &output_nml
@@ -1280,8 +1275,8 @@ EOF
                         45000, 50000, 55000, 60000, 65000, 70000, 75000, 77500,
                         80000, 82500, 85000, 87500, 90000, 92500, 95000, 97500,
                         100000
- reg_lon_def          = -23.5,0.0625,62.5
- reg_lat_def          = 29.5,0.0625,70.5
+ reg_lon_def          = -23.5,2.5,62.5
+ reg_lat_def          = 29.5,2.5,70.5
  output_grid          = .false.
 /
 &output_nml
@@ -1303,8 +1298,8 @@ EOF
  !stream_partitions_ml = 1
  !pe_placement_ml      = 6   ! 11
  ml_varlist           = 'LPI_CON_MAX',
- reg_lon_def          = -23.5,0.0625,62.5
- reg_lat_def          = 29.5,0.0625,70.5
+ reg_lon_def          = -23.5,2.5,62.5
+ reg_lat_def          = 29.5,2.5,70.5
  output_grid          = .false.
 /
 &output_nml
@@ -1329,8 +1324,8 @@ EOF
  !pe_placement_ml      = 0
  ml_varlist           = 'U_10M', 'VMAX_10M', 'V_10M',
                         'ASWDIFD_S', 'ASWDIR_S',
- reg_lon_def          = -23.5,0.0625,62.5
- reg_lat_def          = 29.5,0.0625,70.5
+ reg_lon_def          = -23.5,2.5,62.5
+ reg_lat_def          = 29.5,2.5,70.5
  output_grid          = .false.
 /
 &output_nml
@@ -1396,13 +1391,13 @@ EOF
  !pe_placement_pl      = 10
  pl_varlist           = 'FI', 'T', 'U', 'V', 'RELHUM', 'CLC'
  p_levels             =  7500,
- reg_lon_def          = 0.,0.25,359.755
- reg_lat_def          = -90.,0.25,90.
+ reg_lon_def          = 0.,2.5,359.755
+ reg_lat_def          = -90.,2.5,90.
  output_grid          = .false.
 /
 ! //// ICON Global Forecast in Routine - End //// !
 EOF
-  fi # [ big GPU memory ]
+
 fi # [ "$iter" -eq 1 ]
 
 cat >> ${atmo_namelist} << EOF

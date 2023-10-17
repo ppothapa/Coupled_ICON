@@ -117,7 +117,7 @@ else
   add_tolerance_exp atm_qubicc_nc_test "DAINT_CPU_nvidia DAINT_CPU_cce DAINT_CPU_nvidia_mixed"
   #add_tolerance_exp atm_ape_test "DAINT_CPU_nvidia DAINT_CPU_cce DAINT_CPU_nvidia_mixed"
   add_tolerance_exp exclaim_ape_R02B04 "DAINT_CPU_nvidia"
-  add_tolerance_exp dwd_run_ICON_09_R2B4N5_EPS "balfrin_cpu_nvidia DAINT_CPU_nvidia"
+  add_tolerance_exp dwd_run_ICON_09_R2B4N5_EPS "balfrin_cpu_nvidia"
 
   for builder in "${!pp_gentol_experiments[@]}"
   do

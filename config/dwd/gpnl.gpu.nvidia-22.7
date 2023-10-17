@@ -132,7 +132,7 @@ LIBS+=" ${ZLIB_LIBS}"
 EXTRA_CONFIG_ARGS='--host=none --enable-gpu --without-external-yac --disable-rttov '
 EXTRA_CONFIG_ARGS+='  --with-external-cub'
 EXTRA_CONFIG_ARGS+=' --enable-emvorado --enable-dace --enable-fcgroup-WORKAROUND1'
-EXTRA_CONFIG_ARGS+=' --disable-loop-exchange --disable-coupling --disable-yaxt'
+EXTRA_CONFIG_ARGS+=' --disable-loop-exchange --disable-coupling --disable-yaxt --enable-mixed-precision'
 EXTRA_CONFIG_ARGS+=' --enable-ecrad --enable-grib2 --disable-rte-rrtmgp --enable-serialization=read'
 # --disable-openmp
 # --enable-claw
@@ -175,7 +175,7 @@ done
 # Copy runscript-related files when building out-of-source:
 if test $(pwd) != $(cd "${ICON_DIR}"; pwd); then
   echo "Copying runscript input files from the source directory..."
-  rsync -uavz ${ICON_DIR}/run . --exclude='*in' --exclude='.*'
+  rsync -uavz ${ICON_DIR}/run . --exclude='*.in' --exclude='.*'
   rsync -uavz ${ICON_DIR}/externals . --exclude='.git' --exclude='*.f90' --exclude='*.F90' --exclude='*.c' --exclude='*.h' --exclude='*.Po' --exclude='tests' --exclude='*.mod' --exclude='*.o'
   rsync -uavz ${ICON_DIR}/make_runscripts .
   ln -sf ${ICON_DIR}/data

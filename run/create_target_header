@@ -794,8 +794,8 @@ set_run_target_gpnl()
     icon_data_rootFolder=${icon_data_rootFolder:="/hpc/rwork0/routfor/test/icon"}
 
     # Use same nproma for GPU and CPU for development purposes
-    set_default use_nproma 40000
-    set_default use_nproma_sub 8000
+    set_default use_nproma 4000
+    set_default use_nproma_sub 800
     set_default use_nblocks_c 0
     set_default use_ecrad_isolver 2 # McICA for OpenACC
     use_nodes=1
@@ -1956,14 +1956,7 @@ create_target_header()
                 ;;
             esac
             ;;
-        *dwd_run_ICON_09_R2B4N5_EPS*)
-            case $use_target in
-                daint_gpu*)
-                    # This experiment needs at least 4 V100 GPUs to have enought memory
-                    use_nodes=4
-                    ;;
-            esac
-            ;;
+
         *run_ICON_01_R3B9_lam*)
             case $use_target in
                 daint*)
