@@ -52,7 +52,6 @@ MODULE mo_ocean_diagnostics_types
     REAL(wp), POINTER :: sst_global(:)
     REAL(wp), POINTER :: sss_global(:)
     REAL(wp), POINTER :: potential_enstrophy(:)
-    REAL(wp), POINTER :: absolute_vertical_velocity(:)
     REAL(wp), POINTER :: HeatFlux_ShortWave(:)
     REAL(wp), POINTER :: HeatFlux_LongWave(:)
     REAL(wp), POINTER :: HeatFlux_Sensible(:)
@@ -95,11 +94,6 @@ MODULE mo_ocean_diagnostics_types
     REAL(wp), POINTER :: agulhas_longer(:)
     REAL(wp), POINTER :: florida_strait(:)
     ! }}}
-    REAL(wp), POINTER :: t_mean_na_200m(:) !                                                        [degC]
-    REAL(wp), POINTER :: t_mean_na_800m(:) !                                                        [degC]
-    REAL(wp), POINTER :: ice_ocean_heat_budget(:)
-    REAL(wp), POINTER :: ice_ocean_salinity_budget(:)
-    REAL(wp), POINTER :: ice_ocean_volume_budget(:)
     REAL(wp), ALLOCATABLE :: tracer_content(:)
   END TYPE t_ocean_monitor
 

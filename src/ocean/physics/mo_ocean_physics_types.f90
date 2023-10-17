@@ -274,25 +274,37 @@ CONTAINS
     nblks_e = patch_2D%nblks_e
 
     IF (VelocityDiffusion_order == 1 .OR. VelocityDiffusion_order == 21) THEN
+! cfname: difmxylo2d, m2 s-1, ocean_momentum_xy_laplacian_diffusivity
       CALL add_var(ocean_params_list, 'HarmonicViscosity_BasisCoeff', &
         & params_oce%HarmonicViscosity_BasisCoeff , grid_unstructured_edge,&
         & za_surface, &
-        & t_cf_var('HarmonicViscosity_BasisCoeff', 'kg/kg', 'horizontal velocity diffusion', datatype_flt),&
-        & grib2_var(255, 255, 255, datatype_pack16, GRID_UNSTRUCTURED, grid_edge),&
-        & ldims=(/nproma,nblks_e/),in_group=groups("oce_physics"))
-    ENDIF
-    IF (VelocityDiffusion_order == 2 .OR. VelocityDiffusion_order == 21) THEN
-      CALL add_var(ocean_params_list, 'BiharmonicViscosity_BasisCoeff', &
-        & params_oce%BiharmonicViscosity_BasisCoeff , grid_unstructured_edge,&
-        & za_surface, &
-        & t_cf_var('BiharmonicViscosity_BasisCoeff', 'kg/kg', 'horizontal velocity diffusion', datatype_flt),&
+        & t_cf_var('HarmonicViscosity_BasisCoeff', 'm2 s-1', 'ocean_momentum_xy_laplacian_diffusivity', datatype_flt),&
         & grib2_var(255, 255, 255, datatype_pack16, GRID_UNSTRUCTURED, grid_edge),&
         & ldims=(/nproma,nblks_e/),in_group=groups("oce_physics"))
 
+! cfname: difmxylo, m2 s-1, ocean_momentum_xy_laplacian_diffusivity
+      CALL add_var(ocean_params_list, 'HarmonicViscosity_coeff', &
+        & params_oce%HarmonicViscosity_coeff , grid_unstructured_edge,&
+        & za_depth_below_sea, &
+        & t_cf_var('HarmonicViscosity_coeff', 'm2 s-1', 'ocean_momentum_xy_laplacian_diffusivity', datatype_flt),&
+        & grib2_var(255, 255, 255, datatype_pack16, GRID_UNSTRUCTURED, grid_edge),&
+        & ldims=(/nproma,n_zlev,nblks_e/),in_group=groups("oce_physics"))
+    ENDIF
+
+    IF (VelocityDiffusion_order == 2 .OR. VelocityDiffusion_order == 21) THEN
+!cfname: difmxybo2d, m4 s-1, ocean_momentum_xy_biharmonic_diffusivity
+      CALL add_var(ocean_params_list, 'BiharmonicViscosity_BasisCoeff', &
+        & params_oce%BiharmonicViscosity_BasisCoeff , grid_unstructured_edge,&
+        & za_surface, &
+        & t_cf_var('BiharmonicViscosity_BasisCoeff', 'm4 s-1', 'ocean_momentum_xy_biharmonic_diffusivity', datatype_flt),&
+        & grib2_var(255, 255, 255, datatype_pack16, GRID_UNSTRUCTURED, grid_edge),&
+        & ldims=(/nproma,nblks_e/),in_group=groups("oce_physics"))
+
+! cfname: difmxybo, m4 s-1, ocean_momentum_xy_biharmonic_diffusivity
       CALL add_var(ocean_params_list, 'BiharmonicViscosity_coeff', &
         & params_oce%BiharmonicViscosity_coeff , grid_unstructured_edge,&
         & za_depth_below_sea, &
-        & t_cf_var('BiharmonicViscosity_coeff', 'kg/kg', 'horizontal velocity diffusion', datatype_flt),&
+        & t_cf_var('BiharmonicViscosity_coeff', 'm4 s-1', 'ocean_momentum_xy_biharmonic_diffusivity', datatype_flt),&
         & grib2_var(255, 255, 255, datatype_pack16, GRID_UNSTRUCTURED, grid_edge),&
         & ldims=(/nproma,n_zlev,nblks_e/),in_group=groups("oce_physics"))
    ENDIF
@@ -301,7 +313,7 @@ CONTAINS
       CALL add_var(ocean_params_list, 'LeithHarmonicViscosity_BasisCoeff', &
         & params_oce%LeithHarmonicViscosity_BasisCoeff , grid_unstructured_edge,&
         & za_surface, &
-        & t_cf_var('LeithHarmonicViscosity_BasisCoeff', 'kg/kg', 'horizontal velocity diffusion', datatype_flt),&
+        & t_cf_var('LeithHarmonicViscosity_BasisCoeff', 'm2 s-1', 'horizontal velocity diffusion', datatype_flt),&
         & grib2_var(255, 255, 255, datatype_pack16, GRID_UNSTRUCTURED, grid_edge),&
         & ldims=(/nproma,nblks_e/),in_group=groups("oce_physics"))
     ENDIF
@@ -309,29 +321,20 @@ CONTAINS
       CALL add_var(ocean_params_list, 'LeithBiharmonicViscosity_BasisCoeff', &
         & params_oce%LeithBiharmonicViscosity_BasisCoeff , grid_unstructured_edge,&
         & za_surface, &
-        & t_cf_var('LeithBiharmonicViscosity_BasisCoeff', 'kg/kg', 'horizontal velocity diffusion', datatype_flt),&
+        & t_cf_var('LeithBiharmonicViscosity_BasisCoeff', 'm4 s-1', 'horizontal velocity diffusion', datatype_flt),&
         & grib2_var(255, 255, 255, datatype_pack16, GRID_UNSTRUCTURED, grid_edge),&
         & ldims=(/nproma,nblks_e/),in_group=groups("oce_physics"))
     ENDIF
 
-    IF (VelocityDiffusion_order == 1 .OR. VelocityDiffusion_order == 21 ) THEN
-      CALL add_var(ocean_params_list, 'HarmonicViscosity_coeff', &
-        & params_oce%HarmonicViscosity_coeff , grid_unstructured_edge,&
-        & za_depth_below_sea, &
-        & t_cf_var('HarmonicViscosity_coeff', 'kg/kg', 'horizontal velocity diffusion', datatype_flt),&
-        & grib2_var(255, 255, 255, datatype_pack16, GRID_UNSTRUCTURED, grid_edge),&
-        & ldims=(/nproma,n_zlev,nblks_e/),in_group=groups("oce_physics"))
-    ENDIF
-
     CALL add_var(ocean_params_list, 'A_veloc_v', params_oce%a_veloc_v , grid_unstructured_edge,&
       & za_depth_below_sea_half, &
-      & t_cf_var('A_veloc_v', 'kg/kg', 'vertical velocity diffusion', datatype_flt),&
+      & t_cf_var('ocean_vertical_momentum_diffusivity', 'm2 s-1', 'vertical velocity diffusion', datatype_flt),&
       & grib2_var(255, 255, 255, datatype_pack16, GRID_UNSTRUCTURED, grid_edge),&
       & ldims=(/nproma,n_zlev+1,nblks_e/),in_group=groups("oce_physics","oce_diag"))
 
     CALL add_var(ocean_params_list, 'velocity_windMixing', params_oce%velocity_windMixing , grid_unstructured_edge,&
       & za_depth_below_sea_half, &
-      & t_cf_var('velocity_windMixing', '', 'velocity_windMixing', datatype_flt),&
+      & t_cf_var('velocity_windMixing', 'm2 s-1', 'vertical velocity windMixing', datatype_flt),&
       & grib2_var(255, 255, 255, datatype_pack16, GRID_UNSTRUCTURED, grid_edge),&
       & ldims=(/nproma,n_zlev+1,nblks_e/),in_group=groups("oce_physics","oce_diag"))
 
@@ -341,21 +344,21 @@ CONTAINS
     IF (vert_mix_type .EQ. vmix_tke .or. vert_mix_type .EQ.  vmix_idemix_tke) THEN
     CALL add_var(ocean_params_list, 'cvmix_dummy_1', params_oce%cvmix_params%cvmix_dummy_1, &
        & grid_unstructured_cell, za_depth_below_sea_half, &
-       & t_cf_var('cvmix_dummy_1', '', 'cvmix_dummy_1', datatype_flt),&
+       & t_cf_var('cvmix_dummy_1', 'fixme', 'cvmix_dummy_1', datatype_flt),&
        & grib2_var(255, 255, 255, datatype_pack16, GRID_UNSTRUCTURED, grid_cell),&
        & ldims=(/nproma,n_zlev+1,alloc_cell_blocks/), &
        & in_group=groups("oce_cvmix_tke"))
 
     CALL add_var(ocean_params_list, 'cvmix_dummy_2', params_oce%cvmix_params%cvmix_dummy_2, &
        & grid_unstructured_cell, za_depth_below_sea_half, &
-       & t_cf_var('cvmix_dummy_2', '', 'cvmix_dummy_2', datatype_flt),&
+       & t_cf_var('cvmix_dummy_2', 'fixme', 'cvmix_dummy_2', datatype_flt),&
        & grib2_var(255, 255, 255, datatype_pack16, GRID_UNSTRUCTURED, grid_cell),&
        & ldims=(/nproma,n_zlev+1,alloc_cell_blocks/), &
        & in_group=groups("oce_cvmix_tke"))
 
     CALL add_var(ocean_params_list, 'cvmix_dummy_3', params_oce%cvmix_params%cvmix_dummy_3, &
        & grid_unstructured_cell, za_depth_below_sea_half, &
-       & t_cf_var('cvmix_dummy_3', '', 'cvmix_dummy_3', datatype_flt),&
+       & t_cf_var('cvmix_dummy_3', 'fixme', 'cvmix_dummy_3', datatype_flt),&
        & grib2_var(255, 255, 255, datatype_pack16, GRID_UNSTRUCTURED, grid_cell),&
        & ldims=(/nproma,n_zlev+1,alloc_cell_blocks/), &
        & in_group=groups("oce_cvmix_tke"))
@@ -363,7 +366,7 @@ CONTAINS
     ! --- TKE variables
     CALL add_var(ocean_restart_list, 'tke', params_oce%cvmix_params%tke, &
         & grid_unstructured_cell, za_depth_below_sea_half, &
-        & t_cf_var('tke', 'm2 s-2', 'turbulent kinetic energy', datatype_flt),&
+        & t_cf_var('specific_turbulent_kinetic_energy_of_sea_water', 'm2 s-2', 'turbulent kinetic energy', datatype_flt),&
         & grib2_var(255, 255, 255, datatype_pack16, GRID_UNSTRUCTURED, grid_cell),&
         & ldims=(/nproma,n_zlev+1,alloc_cell_blocks/), &
         & lrestart_cont=.TRUE., in_group=groups("oce_cvmix_tke"))
