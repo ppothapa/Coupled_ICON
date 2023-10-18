@@ -239,13 +239,13 @@ CONTAINS
     !
     ! dynamic pointers to the "new" time slice of the prognostic state
     f%rho      => dyn_new%rho
-    f%wa       => dyn_new%w
     f%qtrc_dyn => adv_new%tracer
     !
     ! dynamic pointers to the "now" time slice of the prognostic state,
     ! used here to provide work space for internal updating in physics
     f%qtrc_phy => adv_now%tracer
     f%ta       => dyn_now%theta_v ! in physics, otherwise => diag%temp
+    f%wa       => dyn_now%w
     !
     ! static pointers to diagnostics
     ! f%pfull  => diag%pres
@@ -318,8 +318,22 @@ CONTAINS
           ! reset physics tendencies
           t%ua_phy(jc,jk,jb) = 0.0_wp
           t%va_phy(jc,jk,jb) = 0.0_wp
-          t%wa_phy(jc,jk,jb) = 0.0_wp
           t%ta_phy(jc,jk,jb) = 0.0_wp
+          !
+        END DO !jc
+      END DO !jk
+      !$ACC END PARALLEL
+      !
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      DO jk = 1,nlev+1
+        DO jc = jcs, jce
+          !
+          ! copy vertical velocity for in/out work
+          f%wa    (jc,jk,jb) = dyn_new%w(jc,jk,jb)
+          !
+          ! reset physics tendencies
+          t%wa_phy(jc,jk,jb) = 0.0_wp
           !
         END DO !jc
       END DO !jk
@@ -381,7 +395,7 @@ CONTAINS
       !
       ! interpolate vn -> (u,v)
       CALL rbf_vec_interpol_cell(dyn_new%vn, patch, int_state,       &! in
-        &                        diag%u, diag%v,                     &! out
+        &                        f%ua, f%va,                         &! out
         &                        opt_rlstart=rls_c, opt_rlend=rle_c, &! in
         &                        opt_acc_async=.TRUE.)                ! in
       !
