@@ -25,7 +25,6 @@ MODULE mo_wave_model
        &                                timer_domain_decomp, print_timer
   USE mo_master_config,           ONLY: isRestart
   USE mo_master_control,          ONLY: wave_process
-  USE mo_intp_lonlat_types,       ONLY: lonlat_grids
   USE mo_impl_constants,          ONLY: success, pio_type_async, pio_type_cdipio
   USE mo_dynamics_config,         ONLY: configure_dynamics
   USE mo_run_config,              ONLY: configure_run, ldynamics, ltransport,    &
@@ -60,12 +59,15 @@ MODULE mo_wave_model
   USE mo_wave_ext_data_init,      ONLY: init_wave_ext_data
 
   USE mo_alloc_patches,           ONLY: destruct_patches
+  USE mo_icon_comm_interface,     ONLY: construct_icon_communication, destruct_icon_communication
+  USE mo_complete_subdivision,    ONLY: setup_phys_patches
+
+  ! horizontal interpolation
+  USE mo_interpol_config,         ONLY: configure_interpolation
   USE mo_intp_data_strc,          ONLY: p_int_state
   USE mo_intp_state,              ONLY: construct_2d_interpol_state, destruct_2d_interpol_state
-
-  USE mo_icon_comm_interface,     ONLY: construct_icon_communication, destruct_icon_communication
-  USE mo_interpol_config,         ONLY: configure_interpolation
-  USE mo_complete_subdivision,    ONLY: setup_phys_patches
+  USE mo_intp_lonlat_types,       ONLY: lonlat_grids
+  USE mo_intp_lonlat,             ONLY: compute_lonlat_intp_coeffs
 
   ! coupling
 #ifdef YAC_coupling
@@ -209,9 +211,15 @@ CONTAINS
     CALL construct_icon_communication(p_patch, n_dom)
 
     !------------------------------------------------------------------
-    ! Setup the information for the physical patches
+    ! 7. Setup the information for the physical patches
     !------------------------------------------------------------------
     CALL setup_phys_patches
+
+    !-------------------------------------------------------------------
+    ! 8. Constructing data for lon-lat interpolation
+    !-------------------------------------------------------------------
+    CALL compute_lonlat_intp_coeffs(p_patch(1:), p_int_state(1:))
+
 
     CALL configure_dynamics (n_dom, ldynamics, ltransport)
 

@@ -18,7 +18,7 @@ MODULE mo_wave_stepping
   USE mo_exception,                ONLY: message, message_text, finish
   USE mo_impl_constants,           ONLY: SUCCESS
   USE mo_run_config,               ONLY: output_mode, ltestcase
-  USE mo_name_list_output,         ONLY: write_name_list_output
+  USE mo_name_list_output,         ONLY: write_name_list_output, istime4name_list_output
   USE mo_parallel_config,          ONLY: proc0_offloading
   USE mo_time_config,              ONLY: t_time_config
   USE mtime,                       ONLY: datetime, timedelta, &
@@ -31,8 +31,10 @@ MODULE mo_wave_stepping
   USE mo_dynamics_config,          ONLY: nnow, nnew
   USE mo_fortran_tools,            ONLY: swap
   USE mo_intp_data_strc,           ONLY: p_int_state
+  USE mo_pp_scheduler,             ONLY: new_simulation_status, pp_scheduler_process
+  USE mo_pp_tasks,                 ONLY: t_simulation_status
 
-  USE mo_wave_adv_exp,             ONLY: init_wind_adv_test,init_ice_adv_test
+  USE mo_wave_adv_exp,             ONLY: init_wind_adv_test, init_ice_adv_test
   USE mo_init_wave_physics,        ONLY: init_wave_phy
   USE mo_wave_state,               ONLY: p_wave_state
   USE mo_wave_ext_data_state,      ONLY: wave_ext_data
@@ -91,6 +93,8 @@ CONTAINS
     LOGICAL                  :: lprint_timestep             !< print current datetime information
     INTEGER                  :: jg, jlev
     INTEGER                  :: ierrstat
+    TYPE(t_simulation_status):: simulation_status
+    LOGICAL                  :: l_nml_output                !< TRUE, if output is due at current timestep
 
     ! Time levels
     INTEGER :: n_new, n_now
@@ -238,6 +242,16 @@ CONTAINS
 
     ! initialize time step counter
     jstep = 0
+
+
+    !--------------------------------------------------------------------------
+    ! loop over the list of internal post-processing tasks, e.g.
+    ! interpolate selected fields to lat-lon
+    simulation_status = new_simulation_status(l_first_step   = .TRUE.,                  &
+      &                                       l_output_step  = .TRUE.,                  &
+      &                                       l_dom_active   = p_patch(1:)%ldom_active, &
+      &                                       i_timelevel_dyn= nnow, i_timelevel_phy= nnow)
+    CALL pp_scheduler_process(simulation_status, lacc=.TRUE.)
 
     ! output at initial time
     IF (output_mode%l_nml) THEN
@@ -529,6 +543,16 @@ CONTAINS
         CALL swap(nnow(jg), nnew(jg))
 
       END DO
+
+      l_nml_output = output_mode%l_nml .AND. jstep >= 0 .AND. istime4name_list_output(jstep)
+      simulation_status = new_simulation_status(l_output_step  = l_nml_output,             &
+        &                                       l_last_step    = (mtime_current >= time_config%tc_stopdate), &
+        &                                       l_accumulation_step = .FALSE.,             &
+        &                                       l_dom_active   = p_patch(1:)%ldom_active,  &
+        &                                       i_timelevel_dyn= nnow,                     &
+        &                                       i_timelevel_phy= nnow)
+      CALL pp_scheduler_process(simulation_status, lacc=.TRUE.)
+
 
       IF (output_mode%l_nml) THEN
         CALL write_name_list_output(jstep=jstep)

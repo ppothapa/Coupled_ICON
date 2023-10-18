@@ -22,7 +22,8 @@ MODULE mo_wave_state
   USE mo_parallel_config,      ONLY: nproma
   USE mo_model_domain,         ONLY: t_patch
   USE mo_grid_config,          ONLY: n_dom, l_limited_area, ifeedback_type
-  USE mo_impl_constants,       ONLY: success, max_char_length, VNAME_LEN, TLEV_NNOW_RCF
+  USE mo_impl_constants,       ONLY: success, max_char_length, VNAME_LEN, TLEV_NNOW_RCF, &
+    &                                HINTP_TYPE_LONLAT_NNB, HINTP_TYPE_LONLAT_BCTR
   USE mo_var_list,             ONLY: add_var, add_ref, t_var_list_ptr
   USE mo_var_list_register,    ONLY: vlr_add, vlr_del
   USE mo_var_list_register_utils, ONLY: vlr_add_vref
@@ -35,10 +36,9 @@ MODULE mo_wave_state
   USE mo_cf_convention,        ONLY: t_cf_var
   USE mo_grib2,                ONLY: t_grib2_var, grib2_var
   USE mo_io_config,            ONLY: lnetcdf_flt64_output
-  USE mo_mpi,                  ONLY: get_my_mpi_work_id
   USE mo_run_config,           ONLY: ntracer
 
-  USE mo_var_metadata,         ONLY: get_timelevel_string
+  USE mo_var_metadata,         ONLY: get_timelevel_string, create_hor_interp_metadata
   USE mo_var_metadata_types,   ONLY: t_var_metadata,t_var_metadata_dynamic
   USE mo_advection_config,     ONLY: t_advection_config, advection_config
   USE mo_tracer_metadata,      ONLY: create_tracer_metadata
@@ -743,6 +743,9 @@ CONTAINS
     grib2_desc = grib2_var(10, 0, 3, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var(p_diag_list, 'hs', p_diag%hs,                      &
          & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc, &
+         & hor_interp=create_hor_interp_metadata(                   &
+         &    hor_intp_type=HINTP_TYPE_LONLAT_BCTR,                 &
+         &    fallback_type=HINTP_TYPE_LONLAT_NNB),                 &
          & ldims=shape2d_c, in_group=groups("wave_short"))
 
     cf_desc    = t_cf_var('hs_dir', 'deg', 'Primary wave direction', datatype_flt)

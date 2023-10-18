@@ -159,6 +159,20 @@ cat > ${wave_namelist} << EOF
  ml_varlist              = 'group:wave_short'
 /
 &output_nml
+ filetype                =                          4         ! output format: 2=GRIB2, 4=NETCDFv2
+ dom                     =                         -1         ! write all domains
+ output_bounds           =        0., 10000000., 7200         ! output: start, end, increment
+ steps_per_file          =                       1000         ! number of output steps in one output file
+ mode                    =                          1         ! 1: forecast mode (relative t-axis), 2: climate mode (absolute t-axis)
+ include_last            =                      .TRUE.        ! flag whether to include the last time step
+ output_filename         =                   'wave_ll'        ! file name base
+ output_grid             =                      .TRUE.        ! flag whether grid information is added to output.
+ remap                   =                          1         ! output on regular lat-lon grid
+ reg_lon_def             =                 0., 1, 360.
+ reg_lat_def             =                 -90.,1.,90.
+ ml_varlist              = 'group:wave_short'
+/
+&output_nml
  filetype                =                          2         ! output format: 2=GRIB2, 4=NETCDFv2
  dom                     =                         -1         ! write all domains
  output_bounds           =        0., 10000000., 3600         ! output: start, end, increment
