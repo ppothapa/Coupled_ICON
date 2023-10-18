@@ -1335,7 +1335,7 @@ EOF
 #=============================================================================
 set_run_target_balfrin_gpu()
 {
-    rootFolder_prefix=/scratch/e1000/meteoswiss/scratch/jenkins/icon
+    rootFolder_prefix=/scratch/mch/jenkins/icon
     icon_data_rootFolder=${icon_data_rootFolder:=${rootFolder_prefix}/pool/data/ICON}
 
     set_default use_nodes 1
@@ -1415,7 +1415,7 @@ EOF
 #=============================================================================
 set_run_target_balfrin_cpu()
 {
-    rootFolder_prefix=/scratch/e1000/meteoswiss/scratch/jenkins/icon
+    rootFolder_prefix=/scratch/mch/jenkins/icon
     icon_data_rootFolder=${icon_data_rootFolder:=${rootFolder_prefix}/pool/data/ICON}
 
     set_default use_nproma 16
