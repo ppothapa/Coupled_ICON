@@ -1,4 +1,6 @@
 #!/bin/ksh
+ mkdir -p runscripts
+
  source ./support.sh
 
  read_configure

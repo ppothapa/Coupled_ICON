@@ -16,7 +16,6 @@ COMPILER_NAME="intel"
 COMPILER_VERSION="2022.0.2"
 MPI_NAME="openmpi"
 MPI_VERSION="4.0"
-ECCODES_VERSION="2.25.0"
 NETCDF_VERSION="4.9"
 NETCDFF_VERSION="4.5"
 HDF5_VERSION="1.12"
@@ -28,8 +27,9 @@ MODULES=(
     lib/netcdf/${NETCDF_VERSION}_serial
     lib/hdf5/${HDF5_VERSION}_serial
     lib/netcdf-fortran/${NETCDFF_VERSION}_serial
-    lib/eccodes/${ECCODES_VERSION}
     numlib/mkl/${MKL_VERSION}
+    eccodes-2.31.0_i22_ompi40
+    libfyaml
 )
 module purge
 module add "${MODULES[@]}"
@@ -84,6 +84,10 @@ XML2_ROOT='/usr'
 XML2_INCL="${XML2_ROOT}/include/libxml2"
 XML2_LIBS='-lxml2'
 
+# libfyaml config
+FYAML_ROOT='/software/community/ICON/libfyaml'
+FYAML_LIBS='-lfyaml'
+
 # Debug config
 C_DEBUG_FLAGS="-g"
 CXX_DEBUG_FLAGS="-g"
@@ -118,7 +122,7 @@ CXXFLAGS='-O2 -xCORE-AVX2 -pc64'
 if [[ "${USE_DEBUG}" == true ]]; then
     CXXFLAGS+=" ${CXX_DEBUG_FLAGS}"
 fi
-CPPFLAGS="-I${HDF5_INCL} -I${NETCDF_INCL} -I${GRIBAPI_INCL} -I${XML2_INCL}"
+CPPFLAGS="-I${HDF5_INCL} -I${NETCDF_INCL} -I${GRIBAPI_INCL} -I${XML2_INCL} -I${FYAML_ROOT}/include"
 
 FC_SEARCH_FLAGS="-I${NETCDFF_INCL}"
 FCFLAGS="${FC_SEARCH_FLAGS} -pc64 -fp-model source ${MKL_FCFLAGS}"
@@ -129,8 +133,8 @@ if [[ "${USE_DEBUG}" == true ]]; then
     FCFLAGS+=" ${FC_DEBUG_FLAGS}"
 fi
 
-LDFLAGS="-L${HDF5_LIB} -L${NETCDF_LIB} -L${NETCDFF_LIB} -L${GRIBAPI_LIB} ${MKL_LDFLAGS}"
-LIBS="${XML2_LIBS} ${GRIBAPI_LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS} ${HDF5_LIBS} "
+LDFLAGS="-L${HDF5_LIB} -L${NETCDF_LIB} -L${NETCDFF_LIB} -L${GRIBAPI_LIB} ${MKL_LDFLAGS} -L${FYAML_ROOT}/lib"
+LIBS="-Wl,--as-needed ${XML2_LIBS} ${FYAML_LIBS} ${GRIBAPI_LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS} ${HDF5_LIBS} "
 
 EXTRA_CONFIG_ARGS='--disable-rpaths --enable-grib2'
 # as long as all openmpi released have an error we need to disable mpi checking
