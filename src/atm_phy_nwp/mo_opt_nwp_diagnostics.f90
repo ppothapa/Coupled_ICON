@@ -73,9 +73,11 @@ MODULE mo_opt_nwp_diagnostics
   USE mo_util_phys,             ONLY: inversion_height_index  
   USE mo_nwp_tuning_config,     ONLY: tune_dursun_scaling
 #ifdef HAVE_RADARFWO
-  USE radar_data_mie,             ONLY: ldebug_dbz
+  USE radar_data_mie,             ONLY: ldebug_dbz, T0C_emvorado => T0C_fwo
   USE radar_interface,            ONLY: initialize_tmax_atomic_1mom, &
     &                                   initialize_tmax_atomic_2mom, &
+    &                                   initialize_tmin_atomic_1mom, &
+    &                                   initialize_tmin_atomic_2mom, &
     &                                   init_1mom_types, init_2mom_types      
   USE radar_mie_iface_cosmo_1mom, ONLY: radar_mie_1mom_vec, &
     &                                   radar_rayleigh_oguchi_1mom_vec
@@ -3928,9 +3930,9 @@ CONTAINS
     INTEGER  :: i_rlstart, i_rlend, i_startblk, i_endblk, i_startidx, i_endidx, i_startidx_1, i_endidx_2, &
          &      jc, jk, jb, ilow, iup, jlow, jup, klow, kup, itype_gscp_emvo
 
-    REAL(wp), ALLOCATABLE, DIMENSION(:,:) :: Tmax_i, Tmax_s, Tmax_g, Tmax_h
+    REAL(wp), ALLOCATABLE, DIMENSION(:,:) :: Tmax_i, Tmax_s, Tmax_g, Tmax_h, Tmin_g, Tmin_h
     REAL(wp), ALLOCATABLE, DIMENSION(:,:,:), TARGET :: dummy0
-    REAL(wp), POINTER, DIMENSION(:,:,:)   :: t, rho_tot, qc, qr, qi, qs, qg, qh, qnc, qnr, qni, qns, qng, qnh, qgl, qhl
+    REAL(wp), POINTER, DIMENSION(:,:,:)   :: t, p, rho_tot, qc, qr, qi, qs, qg, qh, qnc, qnr, qni, qns, qng, qnh, qgl, qhl
 
     LOGICAL :: lzacc             ! OpenACC flag
     CALL set_acc_host_or_device(lzacc, lacc)
@@ -4150,6 +4152,7 @@ CONTAINS
       CASE ( 1, 2, 3 )
 
         t   => p_diag%temp(:,:,:)
+        p   => p_diag%pres(:,:,:)
         rho_tot => p_prog%rho(:,:,:)
         qc  => p_prog_rcf%tracer(:,:,:,iqc)
         qr  => p_prog_rcf%tracer(:,:,:,iqr)
@@ -4163,6 +4166,13 @@ CONTAINS
           qg => dummy0(:,:,:)
         END IF
 
+        IF (atm_phy_nwp_config(jg)%inwp_gscp == 1) THEN
+          itype_gscp_emvo = 140 ! "140" is the corresponding itype_gscp in COSMO and EMVORADO
+        ELSE
+          itype_gscp_emvo = 150 ! "150" is the corresponding itype_gscp in COSMO and EMVORADO
+        END IF
+        CALL init_1mom_types(itype_gscp_loc=itype_gscp_emvo, rho_w=rhoh2o)
+
         ALLOCATE (Tmax_i(nproma,ptr_patch%nblks_c), Tmax_s(nproma,ptr_patch%nblks_c), Tmax_g(nproma,ptr_patch%nblks_c))
         CALL initialize_tmax_atomic_1mom(qx=qi, t=t, neigh=0.0_wp, qthresh=synradar_meta%qthresh_i, &
              &                           Tmax_min=synradar_meta%Tmax_min_i, Tmax_max=synradar_meta%Tmax_max_i, Tmax_x=Tmax_i)
@@ -4171,12 +4181,13 @@ CONTAINS
         CALL initialize_tmax_atomic_1mom(qx=qg, t=t, neigh=0.0_wp, qthresh=synradar_meta%qthresh_g, &
              &                           Tmax_min=synradar_meta%Tmax_min_g, Tmax_max=synradar_meta%Tmax_max_g, Tmax_x=Tmax_g)
 
-        IF (atm_phy_nwp_config(jg)%inwp_gscp == 1) THEN
-          itype_gscp_emvo = 140 ! "140" is the corresponding itype_gscp in COSMO and EMVORADO
+        ALLOCATE (Tmin_g(nproma,ptr_patch%nblks_c))
+        IF (synradar_meta%ldynamic_wetgrowth_gh .AND. synradar_meta%Tmeltbegin_g < T0C_emvorado) THEN
+          CALL initialize_tmin_atomic_1mom(hydrotype='graupel', qx=qg, t=t, p=p, ql=qc+qr, qf=qi+qs, rho=rho_tot, &
+                                           Tmin_min=synradar_meta%Tmeltbegin_g, Tmin_x=Tmin_g)
         ELSE
-          itype_gscp_emvo = 150 ! "150" is the corresponding itype_gscp in COSMO and EMVORADO
+          Tmin_g = synradar_meta%Tmeltbegin_g
         END IF
-        CALL init_1mom_types(itype_gscp_loc=itype_gscp_emvo, rho_w=rhoh2o)
 
         SELECT CASE ( synradar_meta%itype_refl )
         CASE ( 1, 5, 6 )
@@ -4200,6 +4211,7 @@ CONTAINS
                ctype_wetsnow        = synradar_meta%ctype_wetsnow_mie, &
                ctype_drygraupel     = synradar_meta%ctype_drygraupel_mie, &
                ctype_wetgraupel     = synradar_meta%ctype_wetgraupel_mie, &
+               ldynamic_wetgrowth_gh= synradar_meta%ldynamic_wetgrowth_gh, &
                Tmeltbegin_i         = synradar_meta%Tmeltbegin_i, &
                meltdegTmin_i        = synradar_meta%meltdegTmin_i, &
                Tmax_min_i           = synradar_meta%Tmax_min_i, &
@@ -4226,6 +4238,7 @@ CONTAINS
                Tmax_i               = Tmax_i(:,:), &
                Tmax_s               = Tmax_s(:,:), &
                Tmax_g               = Tmax_g(:,:), &
+               Tmin_g               = Tmin_g(:,:), &
                ilow=ilow, iup=iup, jlow=jlow, jup=jup, klow=klow, kup=kup, &
                lalloc_qi            = .TRUE., &
                lalloc_qs            = .TRUE., &
@@ -4266,6 +4279,7 @@ CONTAINS
                Tmax_i         = Tmax_i(:,:), &
                Tmax_s         = Tmax_s(:,:), &
                Tmax_g         = Tmax_g(:,:), &
+               Tmin_g         = Tmin_g(:,:), &
                ilow=ilow, iup=iup, jlow=jlow, jup=jup, klow=klow, kup=kup, &
                lalloc_qi      = .TRUE., &
                lalloc_qs      = .TRUE., &
@@ -4281,12 +4295,13 @@ CONTAINS
 
         END SELECT
 
-        DEALLOCATE (Tmax_i, Tmax_s, Tmax_g)
+        DEALLOCATE (Tmax_i, Tmax_s, Tmax_g, Tmin_g)
         IF (ALLOCATED(dummy0)) DEALLOCATE(dummy0)
 
       CASE ( 4, 5, 6, 7, 8)
 
         t   => p_diag%temp(:,:,:)
+        p   => p_diag%pres(:,:,:)
         rho_tot => p_prog%rho(:,:,:)
         qc  => p_prog_rcf%tracer(:,:,:,iqc)
         qr  => p_prog_rcf%tracer(:,:,:,iqr)
@@ -4310,6 +4325,8 @@ CONTAINS
           qhl => dummy0(:,:,:)
         END IF
 
+        CALL init_2mom_types()
+
         ALLOCATE ( Tmax_i(nproma,ptr_patch%nblks_c), Tmax_s(nproma,ptr_patch%nblks_c), &
              Tmax_g(nproma,ptr_patch%nblks_c), Tmax_h(nproma,ptr_patch%nblks_c) )
         CALL initialize_tmax_atomic_2mom( qx=qi, qnx=qni, t=t, neigh=0.0_wp, &
@@ -4318,14 +4335,26 @@ CONTAINS
         CALL initialize_tmax_atomic_2mom( qx=qs, qnx=qns, t=t, neigh=0.0_wp, &
              &                            qthresh=synradar_meta%qthresh_s, qnthresh=synradar_meta%qnthresh_s, &
              &                            Tmax_min=synradar_meta%Tmax_min_s, Tmax_max=synradar_meta%Tmax_max_s, Tmax_x=Tmax_s )
-        CALL initialize_tmax_atomic_2mom( qx=qg, qnx=qng, t=t, neigh=0.0_wp, &
+        CALL initialize_tmax_atomic_2mom( qx=qg+qgl, qnx=qng, t=t, neigh=0.0_wp, &
              &                            qthresh=synradar_meta%qthresh_g, qnthresh=synradar_meta%qnthresh_g, &
              &                            Tmax_min=synradar_meta%Tmax_min_g, Tmax_max=synradar_meta%Tmax_max_g, Tmax_x=Tmax_g )
-        CALL initialize_tmax_atomic_2mom( qx=qh, qnx=qnh, t=t, neigh=0.0_wp, &
+        CALL initialize_tmax_atomic_2mom( qx=qh+qhl, qnx=qnh, t=t, neigh=0.0_wp, &
              &                            qthresh=synradar_meta%qthresh_h, qnthresh=synradar_meta%qnthresh_h, &
              &                            Tmax_min=synradar_meta%Tmax_min_h, Tmax_max=synradar_meta%Tmax_max_h, Tmax_x=Tmax_h )
 
-        CALL init_2mom_types()
+        ALLOCATE (Tmin_g(nproma,ptr_patch%nblks_c), Tmin_h(nproma,ptr_patch%nblks_c))
+        IF (synradar_meta%ldynamic_wetgrowth_gh .AND. synradar_meta%Tmeltbegin_g < T0C_emvorado) THEN
+          CALL initialize_tmin_atomic_2mom(hydrotype='graupel', qx=qg+qgl, qnx=qng, t=t, p=p, ql=qc+qr, qf=qi+qs, rho=rho_tot, &
+                                           Tmin_min=synradar_meta%Tmeltbegin_g, Tmin_x=Tmin_g)
+        ELSE
+          Tmin_g = synradar_meta%Tmeltbegin_g
+        END IF
+        IF (synradar_meta%ldynamic_wetgrowth_gh .AND. synradar_meta%Tmeltbegin_h < T0C_emvorado) THEN
+          CALL initialize_tmin_atomic_2mom(hydrotype='hail', qx=qh+qhl, qnx=qnh, t=t, p=p, ql=qc+qr, qf=qi+qs, rho=rho_tot, &
+                                           Tmin_min=synradar_meta%Tmeltbegin_h, Tmin_x=Tmin_h)
+        ELSE
+          Tmin_h = synradar_meta%Tmeltbegin_h
+        END IF
 
         SELECT CASE ( synradar_meta%itype_refl )
         CASE ( 1, 5, 6 )
@@ -4350,6 +4379,7 @@ CONTAINS
                ctype_wetgraupel  = synradar_meta%ctype_wetgraupel_mie, &
                ctype_dryhail     = synradar_meta%ctype_dryhail_mie, &
                ctype_wethail     = synradar_meta%ctype_wethail_mie, &
+               ldynamic_wetgrowth_gh= synradar_meta%ldynamic_wetgrowth_gh, &
                Tmeltbegin_i      = synradar_meta%Tmeltbegin_i, &
                meltdegTmin_i     = synradar_meta%meltdegTmin_i, &
                Tmax_min_i        = synradar_meta%Tmax_min_i, &
@@ -4391,6 +4421,8 @@ CONTAINS
                Tmax_s            = Tmax_s(:,:), &
                Tmax_g            = Tmax_g(:,:), &
                Tmax_h            = Tmax_h(:,:), &
+               Tmin_g            = Tmin_g(:,:), &
+               Tmin_h            = Tmin_h(:,:), &
                ilow=ilow, iup=iup, jlow=jlow, jup=jup, klow=klow, kup=kup, &
                lalloc_qi         = .TRUE., &
                lalloc_qs         = .TRUE., &
@@ -4443,6 +4475,8 @@ CONTAINS
                Tmax_s         = Tmax_s(:,:), &
                Tmax_g         = Tmax_g(:,:), &
                Tmax_h         = Tmax_h(:,:), &
+               Tmin_g         = Tmin_g(:,:), &
+               Tmin_h         = Tmin_h(:,:), &
                ilow=ilow, iup=iup, jlow=jlow, jup=jup, klow=klow, kup=kup, &
                lalloc_qi      = .TRUE., &
                lalloc_qs      = .TRUE., &
@@ -4460,7 +4494,7 @@ CONTAINS
 
         END SELECT
 
-        DEALLOCATE (Tmax_i, Tmax_s, Tmax_g, Tmax_h)
+        DEALLOCATE (Tmax_i, Tmax_s, Tmax_g, Tmax_h, Tmin_g, Tmin_h)
         IF (ALLOCATED(dummy0)) DEALLOCATE(dummy0)
 
       CASE DEFAULT

@@ -484,9 +484,9 @@ MODULE mo_nh_stepping
       CALL init_slowphysics (mtime_current, 1, dtime, lacc=.TRUE.)
 
 #ifdef HAVE_RADARFWO
-      IF ( .NOT.my_process_is_mpi_test() .AND. ANY(luse_radarfwo(1:n_dom)) ) THEN
+      IF ( .NOT.my_process_is_mpi_test() .AND. ANY(luse_radarfwo(1:n_dom)) .AND. iau_iter /= 1) THEN
         ! Radar forward operator EMVORADO: radar simulation in the first timestep for each
-        !  radar-active model domain:
+        !  radar-active model domain. In case of iterate_iau, do this only in the second iau_iter:
         CALL emvorado_radarfwo (mtime_current, nnow(1:n_dom), nnow_rcf(1:n_dom), n_dom, luse_radarfwo(1:n_dom), 0, nsteps)
       END IF
 #endif
@@ -1202,11 +1202,11 @@ MODULE mo_nh_stepping
     ! --------------------------------------------------------------------------------
     !
     ! Radar forward operator EMVORADO: radar simulation in each timestep for each
-    ! radar-active model domain
+    ! radar-active model domain. In case of iterate_iau, do output only in the second round:
     !
 #ifdef HAVE_RADARFWO
     IF (iforcing == inwp) THEN
-      IF (.NOT.my_process_is_mpi_test() .AND. ANY(luse_radarfwo(1:n_dom)) .AND. .NOT.iau_iter==1) THEN
+      IF (.NOT.my_process_is_mpi_test() .AND. ANY(luse_radarfwo(1:n_dom)) .AND. iau_iter/=1) THEN
         CALL emvorado_radarfwo (mtime_current, nnow(1:n_dom), nnow_rcf(1:n_dom), n_dom, &
                                 luse_radarfwo(1:n_dom), jstep, nsteps+jstep0)
       END IF
