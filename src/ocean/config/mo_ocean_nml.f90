@@ -1355,8 +1355,8 @@ MODULE mo_ocean_nml
       CALL finish(method_name, 'wrong laplacian_form parameter')
     ENDIF
       
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(n_zlev)
+    !$ACC UPDATE DEVICE(n_zlev) ASYNC(1)
+    !$ACC WAIT(1) ! can be removed when all ACC compute regions are ASYNC(1)
     IF( n_zlev < 1 ) &
       & CALL finish(method_name,  'n_zlev < 1')
     IF( iswm_oce == 1 .AND. n_zlev > 1 ) THEN
@@ -1545,10 +1545,13 @@ MODULE mo_ocean_nml
        if(lbgcadv) nbgcadv =  ntraad
     endif
 
-    !$ACC UPDATE DEVICE(eos_type)
-    !$ACC UPDATE DEVICE(OceanReferenceDensity)
-    !$ACC UPDATE DEVICE(LinearThermoExpansionCoefficient)
-    !$ACC UPDATE DEVICE(LinearHalineContractionCoefficient)
+    !$ACC UPDATE &
+    !$ACC   DEVICE(eos_type) &
+    !$ACC   DEVICE(OceanReferenceDensity) &
+    !$ACC   DEVICE(LinearThermoExpansionCoefficient) &
+    !$ACC   DEVICE(LinearHalineContractionCoefficient) &
+    !$ACC   ASYNC(1)
+    !$ACC WAIT(1) ! can be removed when all ACC compute regions are ASYNC(1)
 
 END SUBROUTINE read_ocean_namelist
 

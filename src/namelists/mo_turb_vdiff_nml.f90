@@ -270,8 +270,7 @@ CONTAINS
     CALL vdiff_config_update(vdiff_config(:))
     CALL vdiff_config_check(vdiff_config(:))
 
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(vdiff_config)
+    !$ACC UPDATE DEVICE(vdiff_config) ASYNC(1)
 
     !-----------------------------------------------------
     ! 6. Store the namelist for restart

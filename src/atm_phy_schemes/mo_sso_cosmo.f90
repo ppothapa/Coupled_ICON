@@ -512,7 +512,7 @@ SUBROUTINE sso (                                                       &
       IF (ldebug) THEN
       !$ACC UPDATE HOST(pfis, psso_stdh, psso_gamma, psso_theta, psso_sigma) ASYNC(1) IF(lzacc)
       !$ACC UPDATE HOST(pph, ppf, pu, pv, pt, pfif, pdu_sso, pdv_sso) ASYNC(1) IF(lzacc)
-      !$ACC WAIT IF(lzacc)
+      !$ACC WAIT(1) IF(lzacc)
         DO j1=istart,iend
           IF (j1.EQ.55) THEN
             PRINT *, ' '

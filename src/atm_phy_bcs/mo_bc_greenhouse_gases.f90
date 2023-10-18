@@ -119,8 +119,7 @@ CONTAINS
 
     ghg_base_year = ghg_years(1)
 
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(ghg_years, ghg_co2, ghg_ch4, ghg_n2o, ghg_cfc)
+    !$ACC UPDATE DEVICE(ghg_years, ghg_co2, ghg_ch4, ghg_n2o, ghg_cfc) ASYNC(1)
 
   END SUBROUTINE read_bc_greenhouse_gases
 
@@ -220,8 +219,7 @@ CONTAINS
       END IF
     END IF
 
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(ghg_cfcvmr, ghg_cfcmmr)
+    !$ACC UPDATE DEVICE(ghg_cfcvmr, ghg_cfcmmr) ASYNC(1)
 
   END SUBROUTINE bc_greenhouse_gases_time_interpolation
 

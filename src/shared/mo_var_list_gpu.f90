@@ -71,32 +71,32 @@ CONTAINS
 
     SUBROUTINE upd_dev()
 
-      !$ACC WAIT(1)
       SELECT CASE(info%data_type)
       CASE (REAL_T)
-        !$ACC UPDATE DEVICE(element%r_ptr) IF(info%lopenacc)
+        !$ACC UPDATE DEVICE(element%r_ptr) ASYNC(1) IF(info%lopenacc)
       CASE (SINGLE_T)
-        !$ACC UPDATE DEVICE(element%s_ptr) IF(info%lopenacc)
+        !$ACC UPDATE DEVICE(element%s_ptr) ASYNC(1) IF(info%lopenacc)
       CASE (INT_T)
-        !$ACC UPDATE DEVICE(element%i_ptr) IF(info%lopenacc)
+        !$ACC UPDATE DEVICE(element%i_ptr) ASYNC(1) IF(info%lopenacc)
       CASE (BOOL_T)
-        !$ACC UPDATE DEVICE(element%l_ptr) IF(info%lopenacc)
+        !$ACC UPDATE DEVICE(element%l_ptr) ASYNC(1) IF(info%lopenacc)
       END SELECT
     END SUBROUTINE upd_dev
 
     SUBROUTINE upd_host()
       
-      !$ACC WAIT(1)
       SELECT CASE(info%data_type)
       CASE (REAL_T)
-        !$ACC UPDATE HOST(element%r_ptr) IF(info%lopenacc)
+        !$ACC UPDATE HOST(element%r_ptr) ASYNC(1) IF(info%lopenacc)
       CASE (SINGLE_T)
-        !$ACC UPDATE HOST(element%s_ptr) IF(info%lopenacc)
+        !$ACC UPDATE HOST(element%s_ptr) ASYNC(1) IF(info%lopenacc)
       CASE (INT_T)
-        !$ACC UPDATE HOST(element%i_ptr) IF(info%lopenacc)
+        !$ACC UPDATE HOST(element%i_ptr) ASYNC(1) IF(info%lopenacc)
       CASE (BOOL_T)
-        !$ACC UPDATE HOST(element%l_ptr) IF(info%lopenacc)
+        !$ACC UPDATE HOST(element%l_ptr) ASYNC(1) IF(info%lopenacc)
       END SELECT
+      !$ACC WAIT(1)
+
     END SUBROUTINE upd_host
   END SUBROUTINE gpu_update_var_list
 

@@ -357,8 +357,8 @@ CONTAINS
         WRITE(message_text,'(a,i2)') 'executing CUDA graph id ', cur_graph_id
         IF (msg_level >= 14) CALL message('mo_nwp_sfc_interface: ', message_text)
         CALL accx_graph_exec(graphs(cur_graph_id), 1)
+        !$ACC UPDATE HOST(ext_data%atm%gp_count_t(:,1:ntiles_total)) ASYNC(1)
         !$ACC WAIT(1)
-        !$ACC UPDATE HOST(ext_data%atm%gp_count_t(:,1:ntiles_total))
         RETURN
       ELSE
         WRITE(message_text,'(a,i2)') 'starting to capture CUDA graph, id ', cur_graph_id
@@ -1777,8 +1777,8 @@ CONTAINS
       CALL accx_graph_exec(graphs(cur_graph_id), 1)
     END IF
 #endif
-    !$ACC WAIT(1)
-    !$ACC UPDATE HOST(ext_data%atm%gp_count_t(:,1:ntiles_total)) IF(lzacc)
+    !$ACC UPDATE HOST(ext_data%atm%gp_count_t(:,1:ntiles_total)) ASYNC(1) IF(lzacc)
+    !$ACC WAIT(1) IF(lzacc)
 
   END SUBROUTINE nwp_surface
 

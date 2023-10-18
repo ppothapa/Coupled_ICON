@@ -2969,84 +2969,86 @@ MODULE mo_solve_nonhydro
        theta_v_tmp         => p_nh%prog(nnow)%theta_v 
        vn_tmp              => p_nh%prog(nnow)%vn
        w_tmp               => p_nh%prog(nnow)%w
-       !$ACC WAIT(1)
-       !$ACC UPDATE DEVICE(exner_tmp, rho_tmp, theta_v_tmp, vn_tmp, w_tmp)
+       !$ACC UPDATE DEVICE(exner_tmp, rho_tmp, theta_v_tmp, vn_tmp, w_tmp) ASYNC(1)
 
 ! p_nh%diag:
 
        rho_ic_tmp          => p_nh%diag%rho_ic
        theta_v_ic_tmp      => p_nh%diag%theta_v_ic
-       !$ACC UPDATE DEVICE(rho_ic_tmp, theta_v_ic_tmp)
+       !$ACC UPDATE DEVICE(rho_ic_tmp, theta_v_ic_tmp) ASYNC(1)
 
        vt_tmp              => p_nh%diag%vt
        vn_ie_tmp           => p_nh%diag%vn_ie
        w_concorr_c_tmp     => p_nh%diag%w_concorr_c
-       !$ACC UPDATE DEVICE(vt_tmp, vn_ie_tmp, w_concorr_c_tmp)
+       !$ACC UPDATE DEVICE(vt_tmp, vn_ie_tmp, w_concorr_c_tmp) ASYNC(1)
 
        mass_fl_e_tmp       => p_nh%diag%mass_fl_e
        exner_pr_tmp        => p_nh%diag%exner_pr
        exner_dyn_incr_tmp  => p_nh%diag%exner_dyn_incr
-       !$ACC UPDATE DEVICE(mass_fl_e_tmp, exner_pr_tmp, exner_dyn_incr_tmp)
+       !$ACC UPDATE DEVICE(mass_fl_e_tmp, exner_pr_tmp, exner_dyn_incr_tmp) ASYNC(1)
 
 ! WS: I do not think these are necessary, but adding for completeness
        ddt_vn_apc_pc_tmp   => p_nh%diag%ddt_vn_apc_pc
        ddt_w_adv_pc_tmp    => p_nh%diag%ddt_w_adv_pc
-       !$ACC UPDATE DEVICE(ddt_vn_apc_pc_tmp, ddt_w_adv_pc_tmp)
+       !$ACC UPDATE DEVICE(ddt_vn_apc_pc_tmp, ddt_w_adv_pc_tmp) ASYNC(1)
        IF (p_nh%diag%ddt_vn_adv_is_associated .OR. p_nh%diag%ddt_vn_cor_is_associated) THEN
           ddt_vn_cor_pc_tmp   => p_nh%diag%ddt_vn_cor_pc
-          !$ACC UPDATE DEVICE(ddt_vn_cor_pc_tmp)
+          !$ACC UPDATE DEVICE(ddt_vn_cor_pc_tmp) ASYNC(1)
        END IF
 
 ! MAG: For completeness
        ddt_vn_dyn_tmp      => p_nh%diag%ddt_vn_dyn
-       !$ACC UPDATE DEVICE(ddt_vn_dyn_tmp) IF(p_nh%diag%ddt_vn_dyn_is_associated)
+       !$ACC UPDATE DEVICE(ddt_vn_dyn_tmp) ASYNC(1) IF(p_nh%diag%ddt_vn_dyn_is_associated)
        ddt_vn_dmp_tmp      => p_nh%diag%ddt_vn_dmp
-       !$ACC UPDATE DEVICE(ddt_vn_dmp_tmp) IF(p_nh%diag%ddt_vn_dmp_is_associated)
+       !$ACC UPDATE DEVICE(ddt_vn_dmp_tmp) ASYNC(1) IF(p_nh%diag%ddt_vn_dmp_is_associated)
        ddt_vn_adv_tmp      => p_nh%diag%ddt_vn_adv
-       !$ACC UPDATE DEVICE(ddt_vn_adv_tmp) IF(p_nh%diag%ddt_vn_adv_is_associated)
+       !$ACC UPDATE DEVICE(ddt_vn_adv_tmp) ASYNC(1) IF(p_nh%diag%ddt_vn_adv_is_associated)
        ddt_vn_cor_tmp      => p_nh%diag%ddt_vn_cor
-       !$ACC UPDATE DEVICE(ddt_vn_cor_tmp) IF(p_nh%diag%ddt_vn_cor_is_associated)
+       !$ACC UPDATE DEVICE(ddt_vn_cor_tmp) ASYNC(1) IF(p_nh%diag%ddt_vn_cor_is_associated)
        ddt_vn_pgr_tmp      => p_nh%diag%ddt_vn_pgr
-       !$ACC UPDATE DEVICE(ddt_vn_pgr_tmp) IF(p_nh%diag%ddt_vn_pgr_is_associated)
+       !$ACC UPDATE DEVICE(ddt_vn_pgr_tmp) ASYNC(1) IF(p_nh%diag%ddt_vn_pgr_is_associated)
        ddt_vn_phd_tmp      => p_nh%diag%ddt_vn_phd
-       !$ACC UPDATE DEVICE(ddt_vn_phd_tmp) IF(p_nh%diag%ddt_vn_phd_is_associated)
+       !$ACC UPDATE DEVICE(ddt_vn_phd_tmp) ASYNC(1) IF(p_nh%diag%ddt_vn_phd_is_associated)
        ddt_vn_iau_tmp      => p_nh%diag%ddt_vn_iau
-       !$ACC UPDATE DEVICE(ddt_vn_iau_tmp) IF(p_nh%diag%ddt_vn_iau_is_associated)
+       !$ACC UPDATE DEVICE(ddt_vn_iau_tmp) ASYNC(1) IF(p_nh%diag%ddt_vn_iau_is_associated)
        ddt_vn_ray_tmp      => p_nh%diag%ddt_vn_ray
-       !$ACC UPDATE DEVICE(ddt_vn_ray_tmp) IF(p_nh%diag%ddt_vn_ray_is_associated)
+       !$ACC UPDATE DEVICE(ddt_vn_ray_tmp) ASYNC(1) IF(p_nh%diag%ddt_vn_ray_is_associated)
        ddt_vn_grf_tmp      => p_nh%diag%ddt_vn_grf
-       !$ACC UPDATE DEVICE(ddt_vn_grf_tmp) IF(p_nh%diag%ddt_vn_grf_is_associated)
+       !$ACC UPDATE DEVICE(ddt_vn_grf_tmp) ASYNC(1) IF(p_nh%diag%ddt_vn_grf_is_associated)
 
        mflx_ic_ubc_tmp     => p_nh%diag%mflx_ic_ubc
        vn_ie_ubc_tmp       => p_nh%diag%vn_ie_ubc
        theta_v_ic_ubc_tmp  => p_nh%diag%theta_v_ic_ubc
        rho_ic_ubc_tmp      => p_nh%diag%rho_ic_ubc
        w_ubc_tmp           => p_nh%diag%w_ubc
-       !$ACC UPDATE DEVICE(mflx_ic_ubc_tmp, vn_ie_ubc_tmp, theta_v_ic_ubc_tmp, rho_ic_ubc_tmp, w_ubc_tmp) IF(l_vert_nested)
+       !$ACC UPDATE &
+       !$ACC   DEVICE(mflx_ic_ubc_tmp, vn_ie_ubc_tmp) &
+       !$ACC   DEVICE(theta_v_ic_ubc_tmp, rho_ic_ubc_tmp, w_ubc_tmp) &
+       !$ACC   ASYNC(1) IF(l_vert_nested)
 
        ddt_exner_phy_tmp   => p_nh%diag%ddt_exner_phy
        ddt_vn_phy_tmp      => p_nh%diag%ddt_vn_phy
-       !$ACC UPDATE DEVICE(ddt_exner_phy_tmp, ddt_vn_phy_tmp)
+       !$ACC UPDATE DEVICE(ddt_exner_phy_tmp, ddt_vn_phy_tmp) ASYNC(1)
 
        rho_incr_tmp        => p_nh%diag%rho_incr
        exner_incr_tmp      => p_nh%diag%exner_incr
-       !$ACC UPDATE DEVICE(rho_incr_tmp, exner_incr_tmp)
+       !$ACC UPDATE DEVICE(rho_incr_tmp, exner_incr_tmp) ASYNC(1)
 
        grf_bdy_mflx_tmp   => p_nh%diag%grf_bdy_mflx
-       !$ACC UPDATE DEVICE(grf_bdy_mflx_tmp) IF((jg > 1) .AND. (grf_intmethod_e == 6) .AND. (jstep == 0))
+       !$ACC UPDATE DEVICE(grf_bdy_mflx_tmp) ASYNC(1) IF((jg > 1) .AND. (grf_intmethod_e == 6) .AND. (jstep == 0))
 
 ! prep_adv:
 
        vn_traj_tmp       => prep_adv%vn_traj
        mass_flx_me_tmp   => prep_adv%mass_flx_me
        mass_flx_ic_tmp   => prep_adv%mass_flx_ic
-       !$ACC UPDATE DEVICE(vn_traj_tmp, mass_flx_me_tmp, mass_flx_ic_tmp) IF(lprep_adv)
+       !$ACC UPDATE DEVICE(vn_traj_tmp, mass_flx_me_tmp, mass_flx_ic_tmp) ASYNC(1) IF(lprep_adv)
 
 ! p_nh%ref:
 
        vn_ref_tmp          => p_nh%ref%vn_ref
        w_ref_tmp           => p_nh%ref%w_ref
-       !$ACC UPDATE DEVICE(vn_ref_tmp, w_ref_tmp)
+       !$ACC UPDATE DEVICE(vn_ref_tmp, w_ref_tmp) ASYNC(1)
 
      END SUBROUTINE h2d_solve_nonhydro
 
@@ -3083,68 +3085,69 @@ MODULE mo_solve_nonhydro
        theta_v_tmp         => p_nh%prog(nnew)%theta_v
        vn_tmp              => p_nh%prog(nnew)%vn
        w_tmp               => p_nh%prog(nnew)%w
-       !$ACC WAIT(1)
-       !$ACC UPDATE HOST(exner_tmp, rho_tmp, theta_v_tmp, vn_tmp, w_tmp)
+       !$ACC UPDATE HOST(exner_tmp, rho_tmp, theta_v_tmp, vn_tmp, w_tmp) ASYNC(1)
 
        vt_tmp              => p_nh%diag%vt
        vn_ie_tmp           => p_nh%diag%vn_ie
        rho_ic_tmp          => p_nh%diag%rho_ic
        theta_v_ic_tmp      => p_nh%diag%theta_v_ic
        exner_pr_tmp        => p_nh%diag%exner_pr
-       !$ACC UPDATE HOST(vt_tmp, vn_ie_tmp, rho_ic_tmp, theta_v_ic_tmp, exner_pr_tmp)
+       !$ACC UPDATE HOST(vt_tmp, vn_ie_tmp, rho_ic_tmp, theta_v_ic_tmp, exner_pr_tmp) ASYNC(1)
 
        w_concorr_c_tmp     => p_nh%diag%w_concorr_c
        mass_fl_e_tmp       => p_nh%diag%mass_fl_e
        exner_dyn_incr_tmp  => p_nh%diag%exner_dyn_incr
-       !$ACC UPDATE HOST(w_concorr_c_tmp, mass_fl_e_tmp, exner_dyn_incr_tmp)
+       !$ACC UPDATE HOST(w_concorr_c_tmp, mass_fl_e_tmp, exner_dyn_incr_tmp) ASYNC(1)
 
        ddt_vn_apc_pc_tmp   => p_nh%diag%ddt_vn_apc_pc
        ddt_w_adv_pc_tmp    => p_nh%diag%ddt_w_adv_pc
-       !$ACC UPDATE HOST(ddt_vn_apc_pc_tmp, ddt_w_adv_pc_tmp)
+       !$ACC UPDATE HOST(ddt_vn_apc_pc_tmp, ddt_w_adv_pc_tmp) ASYNC(1)
        IF (p_nh%diag%ddt_vn_adv_is_associated .OR. p_nh%diag%ddt_vn_cor_is_associated) THEN
           ddt_vn_cor_pc_tmp   => p_nh%diag%ddt_vn_cor_pc
-          !$ACC UPDATE HOST(ddt_vn_cor_pc_tmp)
+          !$ACC UPDATE HOST(ddt_vn_cor_pc_tmp) ASYNC(1)
        END IF
 
 ! MAG: For completeness
        ddt_vn_dyn_tmp      => p_nh%diag%ddt_vn_dyn
-       !$ACC UPDATE HOST(ddt_vn_dyn_tmp) IF(p_nh%diag%ddt_vn_dyn_is_associated)
+       !$ACC UPDATE HOST(ddt_vn_dyn_tmp) ASYNC(1) IF(p_nh%diag%ddt_vn_dyn_is_associated)
        ddt_vn_dmp_tmp      => p_nh%diag%ddt_vn_dmp
-       !$ACC UPDATE HOST(ddt_vn_dmp_tmp) IF(p_nh%diag%ddt_vn_dmp_is_associated)
+       !$ACC UPDATE HOST(ddt_vn_dmp_tmp) ASYNC(1) IF(p_nh%diag%ddt_vn_dmp_is_associated)
        ddt_vn_adv_tmp      => p_nh%diag%ddt_vn_adv
-       !$ACC UPDATE HOST(ddt_vn_adv_tmp) IF(p_nh%diag%ddt_vn_adv_is_associated)
+       !$ACC UPDATE HOST(ddt_vn_adv_tmp) ASYNC(1) IF(p_nh%diag%ddt_vn_adv_is_associated)
        ddt_vn_cor_tmp      => p_nh%diag%ddt_vn_cor
-       !$ACC UPDATE HOST(ddt_vn_cor_tmp) IF(p_nh%diag%ddt_vn_cor_is_associated)
+       !$ACC UPDATE HOST(ddt_vn_cor_tmp) ASYNC(1) IF(p_nh%diag%ddt_vn_cor_is_associated)
        ddt_vn_pgr_tmp      => p_nh%diag%ddt_vn_pgr
-       !$ACC UPDATE HOST(ddt_vn_pgr_tmp) IF(p_nh%diag%ddt_vn_pgr_is_associated)
+       !$ACC UPDATE HOST(ddt_vn_pgr_tmp) ASYNC(1) IF(p_nh%diag%ddt_vn_pgr_is_associated)
        ddt_vn_phd_tmp      => p_nh%diag%ddt_vn_phd
-       !$ACC UPDATE HOST(ddt_vn_phd_tmp) IF(p_nh%diag%ddt_vn_phd_is_associated)
+       !$ACC UPDATE HOST(ddt_vn_phd_tmp) ASYNC(1) IF(p_nh%diag%ddt_vn_phd_is_associated)
        ddt_vn_iau_tmp      => p_nh%diag%ddt_vn_iau
-       !$ACC UPDATE HOST(ddt_vn_iau_tmp) IF(p_nh%diag%ddt_vn_iau_is_associated)
+       !$ACC UPDATE HOST(ddt_vn_iau_tmp) ASYNC(1) IF(p_nh%diag%ddt_vn_iau_is_associated)
        ddt_vn_ray_tmp      => p_nh%diag%ddt_vn_ray
-       !$ACC UPDATE HOST(ddt_vn_ray_tmp) IF(p_nh%diag%ddt_vn_ray_is_associated)
+       !$ACC UPDATE HOST(ddt_vn_ray_tmp) ASYNC(1) IF(p_nh%diag%ddt_vn_ray_is_associated)
        ddt_vn_grf_tmp      => p_nh%diag%ddt_vn_grf
-       !$ACC UPDATE HOST(ddt_vn_grf_tmp) IF(p_nh%diag%ddt_vn_grf_is_associated)
+       !$ACC UPDATE HOST(ddt_vn_grf_tmp) ASYNC(1) IF(p_nh%diag%ddt_vn_grf_is_associated)
 
        mass_fl_e_sv_tmp    => p_nh%diag%mass_fl_e_sv
-       !$ACC UPDATE HOST(mass_fl_e_sv_tmp) IF(lsave_mflx)
+       !$ACC UPDATE HOST(mass_fl_e_sv_tmp) ASYNC(1) IF(lsave_mflx)
 
        w_int_tmp           => p_nh%diag%w_int
        mflx_ic_int_tmp     => p_nh%diag%mflx_ic_int
        theta_v_ic_int_tmp  => p_nh%diag%theta_v_ic_int
        rho_ic_int_tmp      => p_nh%diag%rho_ic_int
-       !$ACC UPDATE HOST(w_int_tmp, mflx_ic_int_tmp, theta_v_ic_int_tmp, rho_ic_int_tmp) IF(l_child_vertnest)
+       !$ACC UPDATE HOST(w_int_tmp, mflx_ic_int_tmp, theta_v_ic_int_tmp, rho_ic_int_tmp) ASYNC(1) IF(l_child_vertnest)
 
       vn_ie_int_tmp      => p_nh%diag%vn_ie_int
-      !$ACC UPDATE HOST(vn_ie_int_tmp) IF(idyn_timestep == 1 .AND. l_child_vertnest)
+      !$ACC UPDATE HOST(vn_ie_int_tmp) ASYNC(1) IF(idyn_timestep == 1 .AND. l_child_vertnest)
 
       grf_bdy_mflx_tmp    => p_nh%diag%grf_bdy_mflx
-      !$ACC UPDATE HOST(grf_bdy_mflx_tmp) IF((jg > 1) .AND. (grf_intmethod_e == 6) .AND. (jstep == 0))
+      !$ACC UPDATE HOST(grf_bdy_mflx_tmp) ASYNC(1) IF((jg > 1) .AND. (grf_intmethod_e == 6) .AND. (jstep == 0))
 
       vn_traj_tmp         => prep_adv%vn_traj
       mass_flx_me_tmp     => prep_adv%mass_flx_me
       mass_flx_ic_tmp     => prep_adv%mass_flx_ic
-      !$ACC UPDATE HOST(vn_traj_tmp, mass_flx_me_tmp, mass_flx_ic_tmp) IF(lprep_adv)
+      !$ACC UPDATE HOST(vn_traj_tmp, mass_flx_me_tmp, mass_flx_ic_tmp) ASYNC(1) IF(lprep_adv)
+
+      !$ACC WAIT(1)
 
      END SUBROUTINE d2h_solve_nonhydro
 

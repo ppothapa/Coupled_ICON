@@ -1493,9 +1493,10 @@ CONTAINS
     ! parallelize correctly
     ocean_are = p_patch_3D%p_patch_1D(1)%ocean_area(1)
     ! global_sum_array function does not currently works for G2G communication
-    !$ACC UPDATE HOST(patch_2D%cells%area) IF(lacc .and. acc_is_present(patch_2D%cells%area))
-    !$ACC UPDATE HOST(h_old) IF(lacc .and. acc_is_present(h_old))
-    !$ACC UPDATE HOST(p_patch_3D%wet_halo_zero_c) IF(lacc .and. acc_is_present(p_patch_3D%wet_halo_zero_c))
+    !$ACC UPDATE HOST(patch_2D%cells%area) ASYNC(1) IF(lacc .and. acc_is_present(patch_2D%cells%area))
+    !$ACC UPDATE HOST(h_old) ASYNC(1) IF(lacc .and. acc_is_present(h_old))
+    !$ACC UPDATE HOST(p_patch_3D%wet_halo_zero_c) ASYNC(1) IF(lacc .and. acc_is_present(p_patch_3D%wet_halo_zero_c))
+    !$ACC WAIT(1) IF(lacc)
     glob_slev = global_sum_array(patch_2D%cells%area(:,:)*h_old(:,:)*p_patch_3D%wet_halo_zero_c(:,1,:))
     corr_slev = glob_slev/ocean_are
 
@@ -1570,9 +1571,10 @@ CONTAINS
     ! parallelize correctly
     ocean_are = p_patch_3D%p_patch_1D(1)%ocean_area(1)
     ! global_sum_array function does not currently works for G2G communication
-    !$ACC UPDATE HOST(p_patch%cells%area) IF(lacc .and. acc_is_present(p_patch%cells%area))
-    !$ACC UPDATE HOST(eta_c) IF(lacc .and. acc_is_present(eta_c))
-    !$ACC UPDATE HOST(p_patch_3D%wet_halo_zero_c) IF(lacc .and. acc_is_present(p_patch_3D%wet_halo_zero_c))
+    !$ACC UPDATE HOST(p_patch%cells%area) ASYNC(1) IF(lacc .and. acc_is_present(p_patch%cells%area))
+    !$ACC UPDATE HOST(eta_c) ASYNC(1) IF(lacc .and. acc_is_present(eta_c))
+    !$ACC UPDATE HOST(p_patch_3D%wet_halo_zero_c) ASYNC(1) IF(lacc .and. acc_is_present(p_patch_3D%wet_halo_zero_c))
+    !$ACC WAIT(1) IF(lacc)
     glob_slev = global_sum_array(p_patch%cells%area(:,:)*eta_c(:,:)*p_patch_3D%wet_halo_zero_c(:,1,:))
     corr_slev = glob_slev/ocean_are
 

@@ -1152,8 +1152,8 @@ CONTAINS
 #else
       CALL generate_index_list_batched(conditions, indices, 1, falist%len(jb), nvalid, 1, .false.)
 #endif
-      !$ACC WAIT
-      !$ACC UPDATE HOST(nvalid) IF(i_am_accel_node)
+      !$ACC UPDATE HOST(nvalid) ASYNC(1) IF(i_am_accel_node)
+      !$ACC WAIT(1) IF(i_am_accel_node)
       icnt_c1 = nvalid(1)
       icnt_c2p = nvalid(2)
       icnt_c2m = nvalid(3)
@@ -1254,8 +1254,8 @@ CONTAINS
 #else
       CALL generate_index_list_batched(conditions, indices, 1, icnt_rem, nvalid, 1, .false.)
 #endif
-      !$ACC WAIT
-      !$ACC UPDATE HOST(nvalid) IF(i_am_accel_node)
+      !$ACC UPDATE HOST(nvalid) ASYNC(1) IF(i_am_accel_node)
+      !$ACC WAIT(1) IF(i_am_accel_node)
       icnt_c3p = nvalid(1)
       icnt_c3m = nvalid(2)
       icnt_vn0 = nvalid(3)
@@ -1300,8 +1300,8 @@ CONTAINS
       icnt_vn0 = icnt_vn0 + icnt_err
 
       IF ( icnt_err>0 ) THEN
-        !$ACC WAIT
-        !$ACC UPDATE HOST(idxlist_err, levlist_err, p_vn, p_vt) IF(i_am_accel_node)
+        !$ACC UPDATE HOST(idxlist_err, levlist_err, p_vn, p_vt) ASYNC(1) IF(i_am_accel_node)
+        !$ACC WAIT(1) IF(i_am_accel_node)
         ! Check for unassigned grid points (i.e. collected in list_Err) because of CFL violation
         DO jl = 1, icnt_err
 

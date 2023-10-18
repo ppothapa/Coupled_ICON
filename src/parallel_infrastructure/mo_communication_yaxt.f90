@@ -1058,10 +1058,10 @@ SUBROUTINE exchange_data_r3d(p_pat, recv, send, add)
     lzacc = i_am_accel_node
 #else
     lzacc = .FALSE.
+    !$ACC UPDATE HOST(recv) ASYNC(1) IF(i_am_accel_node)
+    !$ACC UPDATE HOST(send) ASYNC(1) IF((i_am_accel_node) .AND. PRESENT(send))
+    !$ACC UPDATE HOST(add) ASYNC(1) IF((i_am_accel_node) .AND. PRESENT(add))
     !$ACC WAIT(1)
-    !$ACC UPDATE HOST(recv) IF(i_am_accel_node)
-    !$ACC UPDATE HOST(send) IF((i_am_accel_node) .AND. PRESENT(send))
-    !$ACC UPDATE HOST(add) IF((i_am_accel_node) .AND. PRESENT(add))
 #endif
 #endif
 
@@ -1122,10 +1122,9 @@ SUBROUTINE exchange_data_r3d(p_pat, recv, send, add)
 
      END IF
    END IF
-   !$ACC WAIT(1)
 
 #if defined(_OPENACC) && ! defined(__USE_G2G)
-   !$ACC UPDATE DEVICE(recv) IF(i_am_accel_node)
+   !$ACC UPDATE DEVICE(recv) ASYNC(1) IF(i_am_accel_node)
 #endif
 
    stop_sync_timer(timer_exch_data)
@@ -1228,10 +1227,10 @@ SUBROUTINE exchange_data_s3d(p_pat, recv, send, add)
     lzacc = i_am_accel_node
 #else
     lzacc = .FALSE.
+    !$ACC UPDATE HOST(recv) ASYNC(1) IF(i_am_accel_node)
+    !$ACC UPDATE HOST(send) ASYNC(1) IF((i_am_accel_node) .AND. PRESENT(send))
+    !$ACC UPDATE HOST(add) ASYNC(1) IF((i_am_accel_node) .AND. PRESENT(add))
     !$ACC WAIT(1)
-    !$ACC UPDATE HOST(recv) IF(i_am_accel_node)
-    !$ACC UPDATE HOST(send) IF((i_am_accel_node) .AND. PRESENT(send))
-    !$ACC UPDATE HOST(add) IF((i_am_accel_node) .AND. PRESENT(add))
 #endif
 #endif
 
@@ -1293,10 +1292,9 @@ SUBROUTINE exchange_data_s3d(p_pat, recv, send, add)
 
      END IF
    END IF
-   !$ACC WAIT(1)
 
 #if defined(_OPENACC) && ! defined(__USE_G2G)
-   !$ACC UPDATE DEVICE(recv) IF(i_am_accel_node)
+   !$ACC UPDATE DEVICE(recv) ASYNC(1) IF(i_am_accel_node)
 #endif
 
    stop_sync_timer(timer_exch_data)
@@ -1402,10 +1400,10 @@ SUBROUTINE exchange_data_i3d(p_pat, recv, send, add)
     lzacc = i_am_accel_node
 #else
     lzacc = .FALSE.
+    !$ACC UPDATE HOST(recv) ASYNC(1) IF(i_am_accel_node)
+    !$ACC UPDATE HOST(send) ASYNC(1) IF((i_am_accel_node) .AND. PRESENT(send))
+    !$ACC UPDATE HOST(add) ASYNC(1) IF((i_am_accel_node) .AND. PRESENT(add))
     !$ACC WAIT(1)
-    !$ACC UPDATE HOST(recv) IF(i_am_accel_node)
-    !$ACC UPDATE HOST(send) IF((i_am_accel_node) .AND. PRESENT(send))
-    !$ACC UPDATE HOST(add) IF((i_am_accel_node) .AND. PRESENT(add))
 #endif
 #endif
 
@@ -1466,10 +1464,9 @@ SUBROUTINE exchange_data_i3d(p_pat, recv, send, add)
 
      END IF
    END IF
-   !$ACC WAIT(1)
 
 #if defined(_OPENACC) && ! defined(__USE_G2G)
-   !$ACC UPDATE DEVICE(recv) IF(i_am_accel_node)
+   !$ACC UPDATE DEVICE(recv) ASYNC(1) IF(i_am_accel_node)
 #endif
 
    stop_sync_timer(timer_exch_data)
@@ -1573,9 +1570,9 @@ SUBROUTINE exchange_data_l3d(p_pat, recv, send)
     lzacc = i_am_accel_node
 #else
     lzacc = .FALSE.
+    !$ACC UPDATE HOST(recv) ASYNC(1) IF(i_am_accel_node)
+    !$ACC UPDATE HOST(send) ASYNC(1) IF((i_am_accel_node) .AND. PRESENT(send))
     !$ACC WAIT(1)
-    !$ACC UPDATE HOST(recv) IF(i_am_accel_node)
-    !$ACC UPDATE HOST(send) IF((i_am_accel_node) .AND. PRESENT(send))
 #endif
 #endif
 
@@ -1605,7 +1602,7 @@ SUBROUTINE exchange_data_l3d(p_pat, recv, send)
    ENDIF
 
 #if defined(_OPENACC) && ! defined(__USE_G2G)
-   !$ACC UPDATE DEVICE(recv) IF(i_am_accel_node)
+   !$ACC UPDATE DEVICE(recv) ASYNC(1) IF(i_am_accel_node)
 #endif
 
    stop_sync_timer(timer_exch_data)
@@ -1851,8 +1848,7 @@ END SUBROUTINE exchange_data_mult_dp_top
           CYCLE
 #else
           p_recv => recv(i)%p
-          !$ACC WAIT(1)
-          !$ACC UPDATE HOST(p_recv) IF(lzacc)
+          !$ACC UPDATE HOST(p_recv) ASYNC(1) IF(lzacc)
 #endif
         END IF
 #endif
@@ -1884,8 +1880,7 @@ END SUBROUTINE exchange_data_mult_dp_top
             CYCLE
 #else
             p_send => send(i)%p
-            !$ACC WAIT(1)
-            !$ACC UPDATE HOST(p_send) IF(lzacc)
+            !$ACC UPDATE HOST(p_send) ASYNC(1) IF(lzacc)
 #endif
           END IF
 #endif
@@ -1908,6 +1903,7 @@ END SUBROUTINE exchange_data_mult_dp_top
         END IF
       END DO
     ELSE IF (cpy_recv) THEN
+      !$ACC WAIT(1) IF(lzacc) !GV: UPDATE HOST(p_recv) finished
       DO i = 1, nfields
         nblk = SIZE(recv(i)%p, 3)
         ofs = cpy_psum + 1
@@ -1975,8 +1971,7 @@ END SUBROUTINE exchange_data_mult_dp_top
     IF (lzacc) THEN
       DO i = 1, nfields
         p_recv => recv(i)%p
-        !$ACC WAIT(1)
-        !$ACC UPDATE DEVICE(p_recv) IF(lzacc)
+        !$ACC UPDATE DEVICE(p_recv) ASYNC(1) IF(lzacc)
       END DO
     END IF
 #endif
@@ -2131,8 +2126,7 @@ END SUBROUTINE exchange_data_mult_sp
           CYCLE
 #else
           p_recv => recv(i)%p
-          !$ACC WAIT(1)
-          !$ACC UPDATE HOST(p_recv) IF(lzacc)
+          !$ACC UPDATE HOST(p_recv) ASYNC(1) IF(lzacc)
 #endif
         END IF
 #endif
@@ -2164,8 +2158,7 @@ END SUBROUTINE exchange_data_mult_sp
             CYCLE
 #else
             p_send => send(i)%p
-            !$ACC WAIT(1)
-            !$ACC UPDATE HOST(p_send) IF(lzacc)
+            !$ACC UPDATE HOST(p_send) ASYNC(1) IF(lzacc)
 #endif
           END IF
 #endif
@@ -2188,6 +2181,7 @@ END SUBROUTINE exchange_data_mult_sp
         END IF
       END DO
     ELSE IF (cpy_recv) THEN
+      !$ACC WAIT(1) IF(lzacc) !GV: UPDATE HOST(p_recv) finished
       DO i = 1, nfields
         nblk = SIZE(recv(i)%p, 3)
         ofs = cpy_psum + 1
@@ -2255,8 +2249,7 @@ END SUBROUTINE exchange_data_mult_sp
     IF (lzacc) THEN
       DO i = 1, nfields
         p_recv => recv(i)%p
-        !$ACC WAIT(1)
-        !$ACC UPDATE DEVICE(p_recv) IF(lzacc)
+        !$ACC UPDATE DEVICE(p_recv) ASYNC(1) IF(lzacc)
       END DO
     END IF
 #endif
@@ -2336,9 +2329,9 @@ SUBROUTINE exchange_data_4de1(p_pat, nfields, ndim2tot, recv, send)
 #else
     lzacc = .FALSE.
     IF (i_am_accel_node) THEN
+      !$ACC UPDATE HOST(recv) ASYNC(1)
+      !$ACC UPDATE HOST(send) ASYNC(1) IF(PRESENT(send))
       !$ACC WAIT(1)
-      !$ACC UPDATE HOST(recv)
-      !$ACC UPDATE HOST(send) IF(PRESENT(send))
     END IF
 #endif
 #endif
@@ -2432,7 +2425,7 @@ SUBROUTINE exchange_data_4de1(p_pat, nfields, ndim2tot, recv, send)
      DEALLOCATE(recv_buffer)
 #if defined(_OPENACC) && ! defined(__USE_G2G)
      IF (i_am_accel_node) THEN
-      !$ACC UPDATE DEVICE(recv) IF(i_am_accel_node)
+      !$ACC UPDATE DEVICE(recv) ASYNC(1) IF(i_am_accel_node)
      END IF
 #endif
      RETURN
@@ -2470,8 +2463,7 @@ SUBROUTINE exchange_data_4de1(p_pat, nfields, ndim2tot, recv, send)
 
 #if defined(_OPENACC) && ! defined(__USE_G2G)
    IF (i_am_accel_node) THEN
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(recv) IF(i_am_accel_node)
+    !$ACC UPDATE DEVICE(recv) ASYNC(1) IF(i_am_accel_node)
    END IF
 #endif
 
@@ -2580,12 +2572,13 @@ SUBROUTINE exchange_data_grf(p_pat_coll, nfields, ndim2tot, recv, send)
 #else
     lzacc = .FALSE.
     IF (i_am_accel_node) THEN
-      !$ACC WAIT(1)
       DO i = 1, nfields
         p => recv(i)%p
-        !$ACC UPDATE HOST(p)
+        !$ACC UPDATE HOST(p) ASYNC(1)
+        !$ACC WAIT(1)
         p => send(i)%p
-        !$ACC UPDATE HOST(p)
+        !$ACC UPDATE HOST(p) ASYNC(1)
+        !$ACC WAIT(1)
       END DO
     END IF
 #endif
@@ -2629,12 +2622,13 @@ SUBROUTINE exchange_data_grf(p_pat_coll, nfields, ndim2tot, recv, send)
 
 #if defined(_OPENACC) && ! defined(__USE_G2G)
     IF (i_am_accel_node) THEN
-      !$ACC WAIT(1)
       DO i = 1, nfields
         p => recv(i)%p
-        !$ACC UPDATE DEVICE(p)
+        !$ACC UPDATE DEVICE(p) ASYNC(1)
+        !$ACC WAIT(1)
         p => send(i)%p
-        !$ACC UPDATE DEVICE(p)
+        !$ACC UPDATE DEVICE(p) ASYNC(1)
+        !$ACC WAIT(1)
       END DO
     END IF
 #endif

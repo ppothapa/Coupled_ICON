@@ -263,8 +263,8 @@ CONTAINS
     TYPE(t_ocean_to_hamocc_state), POINTER           :: ocean_to_hamocc_state
     TYPE(t_hamocc_to_ocean_state), POINTER           :: hamocc_to_ocean_state
 
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(ocean_state%p_diag%swr_frac)
+    !$ACC UPDATE DEVICE(ocean_state%p_diag%swr_frac) ASYNC(1)
+    !$ACC WAIT(1) ! can be removed when all ACC compute regions are ASYNC(1)
 
     ocean_to_hamocc_state => hamocc_ocean_state%ocean_to_hamocc_state
     hamocc_to_ocean_state => hamocc_ocean_state%hamocc_to_ocean_state

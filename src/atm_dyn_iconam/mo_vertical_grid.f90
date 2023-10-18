@@ -674,8 +674,7 @@ MODULE mo_vertical_grid
         ENDDO
       ENDDO
       p_nh(jg)%metrics%nudge_c_dim = ic
-      !$ACC WAIT(1)
-      !$ACC UPDATE DEVICE(p_nh(jg)%metrics%nudge_c_dim)
+      !$ACC UPDATE DEVICE(p_nh(jg)%metrics%nudge_c_dim) ASYNC(1)
 
       IF ( ic == 0 ) THEN
          ALLOCATE(p_nh(jg)%metrics%nudge_c_idx(0:0),p_nh(jg)%metrics%nudge_c_blk(0:0))
@@ -714,8 +713,7 @@ MODULE mo_vertical_grid
         ENDDO
       ENDDO
       p_nh(jg)%metrics%nudge_e_dim = ic
-      !$ACC WAIT(1)
-      !$ACC UPDATE DEVICE(p_nh(jg)%metrics%nudge_e_dim)
+      !$ACC UPDATE DEVICE(p_nh(jg)%metrics%nudge_e_dim) ASYNC(1)
 
       IF ( ic == 0 ) THEN
          ALLOCATE(p_nh(jg)%metrics%nudge_e_idx(0:0),p_nh(jg)%metrics%nudge_e_blk(0:0))
@@ -800,8 +798,7 @@ MODULE mo_vertical_grid
         ENDDO
       ENDDO
       p_nh(jg)%metrics%bdy_mflx_e_dim = ic
-      !$ACC WAIT(1)
-      !$ACC UPDATE DEVICE(p_nh(jg)%metrics%bdy_mflx_e_dim)
+      !$ACC UPDATE DEVICE(p_nh(jg)%metrics%bdy_mflx_e_dim) ASYNC(1)
 
       ! Allocate index lists and storage field for boundary mass flux
       IF ( ic == 0 ) THEN
@@ -1666,8 +1663,7 @@ MODULE mo_vertical_grid
         ! Generate index list for grid points requiring downward extrapolation of the pressure gradient
         icount_total = SUM(icount(i_startblk:nblks_e))
         p_nh(jg)%metrics%pg_listdim = icount_total
-        !$ACC WAIT(1)
-        !$ACC UPDATE DEVICE(p_nh(jg)%metrics%pg_listdim)
+        !$ACC UPDATE DEVICE(p_nh(jg)%metrics%pg_listdim) ASYNC(1)
         ic = 0
 
         ALLOCATE (p_nh(jg)%metrics%pg_edgeidx(icount_total),&
@@ -2035,8 +2031,7 @@ MODULE mo_vertical_grid
     CALL new_zd_metrics(p_nh%metrics, p_nh_metrics_list , numpoints)
     
     p_nh%metrics%zd_listdim = numpoints
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(p_nh%metrics%zd_listdim)
+    !$ACC UPDATE DEVICE(p_nh%metrics%zd_listdim) ASYNC(1)
 
     ! Fill index lists
     ji1 = 0

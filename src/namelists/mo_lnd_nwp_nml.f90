@@ -437,8 +437,7 @@ CONTAINS
     config_ci_td_filename     = ci_td_filename
     config_nlev_soil          = nlev_soil
     config_czbot_w_so         = czbot_w_so
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(config_itype_interception)
+    !$ACC UPDATE DEVICE(config_itype_interception) ASYNC(1)
 
     !-----------------------------------------------------
     ! 6. Store the namelist for restart

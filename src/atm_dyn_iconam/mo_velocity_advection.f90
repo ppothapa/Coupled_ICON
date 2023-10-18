@@ -904,15 +904,17 @@ MODULE mo_velocity_advection
        vt_tmp              => p_diag%vt
        vn_ie_tmp           => p_diag%vn_ie
        w_concorr_c_tmp     => p_diag%w_concorr_c
-       !$ACC WAIT(1)
-       !$ACC UPDATE DEVICE(vn_tmp, w_tmp, vt_tmp, vn_ie_tmp, w_concorr_c_tmp, z_w_concorr_me, z_kin_hor_e, z_vt_ie)
+       !$ACC UPDATE &
+       !$ACC   DEVICE(vn_tmp, w_tmp, vt_tmp, vn_ie_tmp, w_concorr_c_tmp) &
+       !$ACC   DEVICE(z_w_concorr_me, z_kin_hor_e, z_vt_ie) &
+       !$ACC   ASYNC(1)
 
        ddt_vn_apc_pc_tmp   => p_diag%ddt_vn_apc_pc
        ddt_w_adv_pc_tmp    => p_diag%ddt_w_adv_pc
-       !$ACC UPDATE DEVICE(ddt_vn_apc_pc_tmp(:,:,:,ntnd), ddt_w_adv_pc_tmp(:,:,:,ntnd))
+       !$ACC UPDATE DEVICE(ddt_vn_apc_pc_tmp(:,:,:,ntnd), ddt_w_adv_pc_tmp(:,:,:,ntnd)) ASYNC(1)
        IF (p_diag%ddt_vn_adv_is_associated .OR. p_diag%ddt_vn_cor_is_associated) THEN
           ddt_vn_cor_pc_tmp   => p_diag%ddt_vn_cor_pc
-       !$ACC UPDATE DEVICE(ddt_vn_cor_pc_tmp(:,:,:,ntnd))
+       !$ACC UPDATE DEVICE(ddt_vn_cor_pc_tmp(:,:,:,ntnd)) ASYNC(1)
        END IF
 
      END SUBROUTINE h2d_velocity_tendencies
@@ -932,16 +934,19 @@ MODULE mo_velocity_advection
        vt_tmp              => p_diag%vt
        vn_ie_tmp           => p_diag%vn_ie
        w_concorr_c_tmp     => p_diag%w_concorr_c
-       !$ACC WAIT(1)
-       !$ACC UPDATE HOST(z_kin_hor_e, z_vt_ie, z_w_concorr_me, vt_tmp, vn_ie_tmp, w_concorr_c_tmp) IF(istep==1)
+       !$ACC UPDATE &
+       !$ACC   HOST(z_kin_hor_e, z_vt_ie, z_w_concorr_me, vt_tmp, vn_ie_tmp, w_concorr_c_tmp) &
+       !$ACC   ASYNC(1) IF(istep==1)
 
        ddt_vn_apc_pc_tmp   => p_diag%ddt_vn_apc_pc
        ddt_w_adv_pc_tmp    => p_diag%ddt_w_adv_pc
-       !$ACC UPDATE HOST(ddt_vn_apc_pc_tmp(:,:,:,ntnd), ddt_w_adv_pc_tmp(:,:,:,ntnd))
+       !$ACC UPDATE HOST(ddt_vn_apc_pc_tmp(:,:,:,ntnd), ddt_w_adv_pc_tmp(:,:,:,ntnd)) ASYNC(1)
        IF (p_diag%ddt_vn_adv_is_associated .OR. p_diag%ddt_vn_cor_is_associated) THEN
           ddt_vn_cor_pc_tmp   => p_diag%ddt_vn_cor_pc
-       !$ACC UPDATE HOST(ddt_vn_cor_pc_tmp(:,:,:,ntnd))
+       !$ACC UPDATE HOST(ddt_vn_cor_pc_tmp(:,:,:,ntnd)) ASYNC(1)
        END IF
+
+       !$ACC WAIT(1)
 
      END SUBROUTINE d2h_velocity_tendencies
 #endif

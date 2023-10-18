@@ -325,8 +325,7 @@ CONTAINS
     !$ACC END PARALLEL LOOP
 
     CALL generate_index_list_batched(pfrc_test(:,:), loidx, jcs, kproma, is, 1)
-    !$ACC WAIT(1)
-    !$ACC UPDATE SELF(is)
+    !$ACC UPDATE HOST(is) ASYNC(1)
 
     ! Compute factor for conversion temperature to dry static energy
     !DO jsfc=1,ksfc_type
@@ -572,7 +571,6 @@ CONTAINS
 
 #if defined(SERIALIZE) && (defined(SERIALIZE_JSBACH) || defined(SERIALIZE_ALL))
 
-       !$ACC WAIT(1)
        !$ACC UPDATE HOST(ztsfc_lnd, ztsfc_lnd_eff, qsat_lnd, qsat_lwtr, qsat_lice) &
        !$ACC   HOST(zcpt_lnd, zcpt_lwtr, zcpt_lice) &
        !$ACC   HOST(pcair, pcsat, zevap_lnd, zlhflx_lnd) &
@@ -581,7 +579,9 @@ CONTAINS
        !$ACC   HOST(albnirdif_tile, ztsfc_lwtr, zevap_lwtr, zlhflx_lwtr) &
        !$ACC   HOST(zshflx_lwtr, zalbedo_lwtr, ztsfc_lice, zevap_lice) &
        !$ACC   HOST(zlhflx_lice, zshflx_lice, zalbedo_lice, lake_ice_frc) &
-       !$ACC   HOST(pco2_flux_tile)
+       !$ACC   HOST(pco2_flux_tile) &
+       !$ACC   ASYNC(1)
+       !$ACC WAIT(1)
 
        call fs_create_savepoint('jsb_interface_output1', ppser_savepoint)
        call fs_write_field(ppser_serializer, ppser_savepoint, 't_eff_srf', ztsfc_lnd_eff(jcs:kproma))
@@ -667,12 +667,13 @@ CONTAINS
 
 
 #if defined(SERILIAZE) && (defined(SERIALIZE_JSBACH) || defined(SERIALIZE_ALL))
-        !$ACC WAIT(1)
         !$ACC UPDATE HOST(ztsfc_lnd, ztsfc_lnd_eff, qsat_lnd) &
         !$ACC   HOST(zcpt_lnd, pcair, pcsat, zevap_lnd, zlhflx_lnd) &
         !$ACC   HOST(zshflx_lnd, zgrnd_hflx, zgrnd_hcap, z0h_lnd, z0m_tile) &
         !$ACC   HOST(q_snocpymlt, albvisdir_tile, albnirdir_tile, albvisdif_tile) &
-        !$ACC   HOST(albnirdif_tile, pco2_flux_tile)
+        !$ACC   HOST(albnirdif_tile, pco2_flux_tile) &
+        !$ACC   ASYNC(1)
+        !$ACC WAIT(1)
 
         call fs_create_savepoint('jsb_interface_output1', ppser_savepoint)
         call fs_write_field(ppser_serializer, ppser_savepoint, 't_srf', ztsfc_lnd(jcs:kproma))

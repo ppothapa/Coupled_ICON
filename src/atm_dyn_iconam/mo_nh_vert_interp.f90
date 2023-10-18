@@ -961,7 +961,7 @@ CONTAINS
           ! Write extra debug output before finishing
           WRITE(0,*) 'prepare_lin_intp',jb,jk,nlevs_out,jk_start,jk1,nlevs_in
           !$ACC UPDATE HOST(l_found, z3d_in, z3d_in, z3d_out) ASYNC(1) IF(lzacc)
-          !$ACC WAIT
+          !$ACC WAIT(1)
           DO jc = 1, nlen
             IF(.NOT.l_found(jc)) THEN
               WRITE(0,*)'prepare_lin_intp',z3d_in(jc,jk_start:jk1,jb),&

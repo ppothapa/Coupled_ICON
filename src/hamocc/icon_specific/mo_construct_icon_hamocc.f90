@@ -289,8 +289,6 @@ IF (test_memory_copies /= bgc_memory_copies) &
 
     IF (i_settling /= 2) CALL print_wpoc(bgc_local_memory(0)%wpoc)
 
-    !$ACC WAIT(1)
-
     !$ACC UPDATE DEVICE(local_bgc_memory%atm, local_bgc_memory%satn2, local_bgc_memory%satn2o) &
     !$ACC   DEVICE(local_bgc_memory%solco2, local_bgc_memory%bgctra, local_bgc_memory%hi, local_bgc_memory%co3) &
     !$ACC   DEVICE(local_bgc_memory%aksp, local_bgc_memory%ak13, local_bgc_memory%ak23, local_bgc_memory%akb3) &
@@ -299,14 +297,16 @@ IF (test_memory_copies /= bgc_memory_copies) &
     !$ACC   DEVICE(local_bgc_memory%bgctend, local_bgc_memory%kbo, local_bgc_memory%bolay, local_bgc_memory%strahl) &
     !$ACC   DEVICE(local_bgc_memory%swr_frac, local_bgc_memory%meanswr, local_bgc_memory%bgcflux, local_bgc_memory%aksurf) &
     !$ACC   DEVICE(local_bgc_memory%wpoc, local_bgc_memory%wcal, local_bgc_memory%wopal, local_bgc_memory%wdust) &
-    !$ACC   DEVICE(local_bgc_memory%sedfluxo)
+    !$ACC   DEVICE(local_bgc_memory%sedfluxo) &
+    !$ACC   ASYNC(1)
 
     !$ACC UPDATE DEVICE(local_sediment_memory%silpro, local_sediment_memory%produs) &
     !$ACC   DEVICE(local_sediment_memory%prcaca, local_sediment_memory%prorca, local_sediment_memory%burial) &
     !$ACC   DEVICE(local_sediment_memory%sedlay, local_sediment_memory%powtra, local_sediment_memory%sedhpl) &
-    !$ACC   DEVICE(local_sediment_memory%powh2obud, local_sediment_memory%pown2bud, local_sediment_memory%sedtend)
+    !$ACC   DEVICE(local_sediment_memory%powh2obud, local_sediment_memory%pown2bud, local_sediment_memory%sedtend) &
+    !$ACC   ASYNC(1)
 
-    !$ACC UPDATE DEVICE(local_aggregate_memory%aggdiag)
+    !$ACC UPDATE DEVICE(local_aggregate_memory%aggdiag) ASYNC(1)
 
     call gpu_update_var_list('hamocc_aggregate_list', .true., lacc=.true.)
     call gpu_update_var_list('hamocc_tendency_list' , .true., lacc=.true.)

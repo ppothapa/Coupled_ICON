@@ -815,8 +815,8 @@ CONTAINS
       !$ACC END PARALLEL
     END DO    ! loop over blocks
 
-    !$ACC WAIT
-    !$ACC UPDATE HOST(opt_falist%len) IF(i_am_accel_node .AND. llist_gen)
+    !$ACC UPDATE HOST(opt_falist%len) ASYNC(1) IF(i_am_accel_node .AND. llist_gen)
+    !$ACC WAIT(1) IF(i_am_accel_node)
     !$ACC END DATA
 
 !$OMP END DO NOWAIT

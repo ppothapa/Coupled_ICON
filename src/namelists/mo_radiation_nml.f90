@@ -407,8 +407,7 @@ CONTAINS
     ENDIF
     __acc_attach(csalb)
 
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(config_decorr_pole, config_decorr_equator)
+    !$ACC UPDATE DEVICE(config_decorr_pole, config_decorr_equator) ASYNC(1)
 
     !-----------------------------------------------------
     ! 5. Store the namelist for restart

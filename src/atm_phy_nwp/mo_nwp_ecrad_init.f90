@@ -392,10 +392,9 @@ CONTAINS
       &  nweight_par_ecrad, iband_par_ecrad, weight_par_ecrad, &
       &  'photosynthetically active radiation, PAR')
 
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(iband_nir_ecrad, weight_nir_ecrad)
-    !$ACC UPDATE DEVICE(iband_vis_ecrad, weight_vis_ecrad)
-    !$ACC UPDATE DEVICE(iband_par_ecrad, weight_par_ecrad)
+    !$ACC UPDATE DEVICE(iband_nir_ecrad, weight_nir_ecrad) ASYNC(1)
+    !$ACC UPDATE DEVICE(iband_vis_ecrad, weight_vis_ecrad) ASYNC(1)
+    !$ACC UPDATE DEVICE(iband_par_ecrad, weight_par_ecrad) ASYNC(1)
 
     ! ICON external parameters have SW albedo for two different wavelength bands, visible and near infrared. The following call to
     ! ecrad_conf%define_sw_albedo_intervals tells ecrad about the two bands and the wavelength bound which is at 700 nm (according

@@ -276,9 +276,8 @@ MODULE mo_sppt_config
       sppt_config(jg)%coarse_nlat = ceiling((sppt_config(jg)%bbmax_lat - sppt_config(jg)%bbmin_lat) &
         &                           /sppt_config(jg)%dlat_rn)+1
 
-      !$ACC WAIT(1)
-      !$ACC UPDATE DEVICE(sppt_config(jg:jg))
-      !$ACC ENTER DATA COPYIN(sppt_config(jg)%taper)
+      !$ACC UPDATE DEVICE(sppt_config(jg:jg)) ASYNC(1)
+      !$ACC ENTER DATA COPYIN(sppt_config(jg)%taper) ASYNC(1)
 
     ENDDO  ! jg
 

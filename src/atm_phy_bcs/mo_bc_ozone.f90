@@ -458,8 +458,7 @@ CONTAINS
         END SELECT
 
       END IF
-      !$ACC WAIT(1)
-      !$ACC UPDATE DEVICE(ext_ozone(jg)%o3_plev)
+      !$ACC UPDATE DEVICE(ext_ozone(jg)%o3_plev) ASYNC(1)
 
       pre_year(jg) = year
 
@@ -505,7 +504,7 @@ CONTAINS
       l_first = .FALSE.
 
       ! Set pointer for OpenACC
-      !$ACC UPDATE DEVICE(ext_ozone(jg)%plev_half_o3, ext_ozone(jg)%plev_full_o3)
+      !$ACC UPDATE DEVICE(ext_ozone(jg)%plev_half_o3, ext_ozone(jg)%plev_full_o3) ASYNC(1)
 
     END IF
 

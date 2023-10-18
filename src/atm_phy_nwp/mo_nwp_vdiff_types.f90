@@ -553,6 +553,7 @@ CONTAINS
     !$ACC   HOST(self%wstar_sfc) &
     !$ACC   HOST(self%z0m_sfc) &
     !$ACC   HOST(self%z0h_land)
+    !$ACC WAIT(1)
 
   END SUBROUTINE nwp_vdiff_state_d2h
 
@@ -647,6 +648,7 @@ CONTAINS
     !$ACC   HOST(self%alb_vis_dif) &
     !$ACC   HOST(self%alb_vis_dir) &
     !$ACC   HOST(self%lw_emissivity)
+    !$ACC WAIT(1)
 
   END SUBROUTINE nwp_vdiff_albedos_d2h
 
@@ -924,6 +926,8 @@ CONTAINS
     !$ACC   HOST(self%flx_co2_natural_sea) &
     !$ACC   HOST(self%ocean_u) &
     !$ACC   HOST(self%ocean_v)
+
+    !$ACC WAIT(1)
 
   END SUBROUTINE nwp_vdiff_sea_state_d2h
 

@@ -105,7 +105,6 @@ CONTAINS
     CALL nf_check(p_nf_inq_varid (ncid, 'TSI', nvarid))
     start(1) = idx
     cnt(1) = 14
-    !$ACC WAIT(1)
     IF (lradt) THEN
        CALL nf_check(p_nf_get_vara_double(ncid, nvarid, start, cnt, tsi_radt_m))
        CALL nf_check(p_nf_inq_varid (ncid, 'SSI', nvarid))
@@ -114,12 +113,12 @@ CONTAINS
        CALL nf_check(p_nf_get_vara_double (ncid, nvarid, start, cnt, ssi_radt_m))
        lread_solar_radt=.FALSE.
        last_year_radt=year
-       !$ACC UPDATE DEVICE(tsi_radt_m, ssi_radt_m)
+       !$ACC UPDATE DEVICE(tsi_radt_m, ssi_radt_m) ASYNC(1)
     ELSE
        CALL nf_check(p_nf_get_vara_double(ncid, nvarid, start, cnt, tsi_m))
        lread_solar=.FALSE.
        last_year=year
-       !$ACC UPDATE DEVICE(tsi_m)
+       !$ACC UPDATE DEVICE(tsi_m) ASYNC(1)
     END IF
 
     CALL nf_check(p_nf_close(ncid))
@@ -152,8 +151,7 @@ CONTAINS
         IF (msg_level >= 11) CALL message('','Interpolated total solar irradiance and spectral ' &
           &          //'bands for radiation transfer, tsi= '//ctsi)
         !$ACC ENTER DATA PCREATE(ssi)
-        !$ACC WAIT(1)
-        !$ACC UPDATE DEVICE(ssi)
+        !$ACC UPDATE DEVICE(ssi) ASYNC(1)
       END IF
     ELSE
       IF (PRESENT(ssi)) THEN

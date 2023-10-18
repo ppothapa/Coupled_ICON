@@ -281,7 +281,8 @@ MODULE mo_nwp_rad_interface
       CALL message('mo_nh_interface_nwp', &
         &  'Device to host copy before nwp_rrtm_radiation. This needs to be removed once port is finished!')
       CALL gpu_d2h_nh_nwp(jg, ext_data=ext_data, lacc=lzacc)
-      !$ACC UPDATE HOST(zaeq1, zaeq2, zaeq3, zaeq4, zaeq5) IF(lzacc)
+      !$ACC UPDATE HOST(zaeq1, zaeq2, zaeq3, zaeq4, zaeq5) ASYNC(1) IF(lzacc)
+      !$ACC WAIT(1)
       i_am_accel_node = .FALSE. ! still needed for communication
     ENDIF
 #endif

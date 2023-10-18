@@ -93,8 +93,8 @@ CONTAINS
       CALL finish(routine, "lopenacc and acc_is_present are inconsistent for '"//TRIM(vd%info%NAME)//"'")
     endif
 #endif
-    !$ACC WAIT(1)
-    !$ACC UPDATE HOST(r_ptr_3d) IF(i_am_accel_node .AND. vd%info%lopenacc)
+    !$ACC UPDATE HOST(r_ptr_3d) ASYNC(1) IF(i_am_accel_node .AND. vd%info%lopenacc)
+    !$ACC WAIT(1) IF(i_am_accel_node)
   END SUBROUTINE get_var_3d_ptr_dp
 
   SUBROUTINE get_var_3d_ptr_sp(vd, s_ptr_3d)
@@ -144,8 +144,8 @@ CONTAINS
       CALL finish(routine, "lopenacc and acc_is_present are inconsistent for '"//TRIM(vd%info%NAME)//"'")
     endif
 #endif
-    !$ACC WAIT(1)
-    !$ACC UPDATE HOST(s_ptr_3d) IF(i_am_accel_node .AND. vd%info%lopenacc)
+    !$ACC UPDATE HOST(s_ptr_3d) ASYNC(1) IF(i_am_accel_node .AND. vd%info%lopenacc)
+    !$ACC WAIT(1) IF(i_am_accel_node)
   END SUBROUTINE get_var_3d_ptr_sp
 
   SUBROUTINE get_var_3d_ptr_int(vd, i_ptr_3d)
@@ -195,8 +195,8 @@ CONTAINS
       CALL finish(routine, "lopenacc and acc_is_present are inconsistent for '"//TRIM(vd%info%NAME)//"'")
     endif
 #endif
-    !$ACC WAIT(1)
-    !$ACC UPDATE HOST(i_ptr_3d) IF(i_am_accel_node .AND. vd%info%lopenacc)
+    !$ACC UPDATE HOST(i_ptr_3d) ASYNC(1) IF(i_am_accel_node .AND. vd%info%lopenacc)
+    !$ACC WAIT(1) IF(i_am_accel_node)
   END SUBROUTINE get_var_3d_ptr_int
 
   ! Returns true, if the time level of the given field is valid, else false.

@@ -1088,7 +1088,8 @@ CONTAINS
     ENDIF
 
     ! Send our data
-    !$ACC UPDATE HOST(send_buf) WAIT(get_comm_acc_queue()) IF(use_staging)
+    !$ACC UPDATE HOST(send_buf) ASYNC(get_comm_acc_queue()) IF(use_staging)
+    !$ACC WAIT(get_comm_acc_queue())
     CALL acc_wait_comms(get_comm_acc_queue())
     IF (iorder_sendrecv == 1) THEN
       DO np = 1, p_pat%np_send ! loop over PEs where to send the data
@@ -1133,7 +1134,7 @@ CONTAINS
 
     IF (lzacc .and. .not. use_staging) CALL comm_group_end()
 
-    !$ACC UPDATE DEVICE(recv_buf) WAIT(get_comm_acc_queue()) IF(use_staging)
+    !$ACC UPDATE DEVICE(recv_buf) ASYNC(get_comm_acc_queue()) IF(use_staging)
     stop_sync_timer(timer_exch_data_wait)
 
     IF (itype_exch_barrier == 2 .OR. itype_exch_barrier == 3) THEN
@@ -1349,7 +1350,8 @@ CONTAINS
     ENDIF
 
     ! Send our data
-    !$ACC UPDATE HOST(send_buf) WAIT(get_comm_acc_queue()) IF(use_staging)
+    !$ACC UPDATE HOST(send_buf) ASYNC(get_comm_acc_queue()) IF(use_staging)
+    !$ACC WAIT(get_comm_acc_queue())
     CALL acc_wait_comms(get_comm_acc_queue())
     IF (iorder_sendrecv == 1) THEN
       DO np = 1, p_pat%np_send ! loop over PEs where to send the data
@@ -1395,7 +1397,7 @@ CONTAINS
 
     IF (lzacc .and. .not. use_staging) CALL comm_group_end()
 
-    !$ACC UPDATE DEVICE(recv_buf) WAIT(get_comm_acc_queue()) IF(use_staging)
+    !$ACC UPDATE DEVICE(recv_buf) ASYNC(get_comm_acc_queue()) IF(use_staging)
     stop_sync_timer(timer_exch_data_wait)
 
     IF (itype_exch_barrier == 2 .OR. itype_exch_barrier == 3) THEN
@@ -1798,7 +1800,7 @@ CONTAINS
     ENDIF
 
     ! Send our data
-    !$ACC UPDATE HOST(send_buf) WAIT(1) IF(use_staging)
+    !$ACC UPDATE HOST(send_buf) ASYNC(1) IF(use_staging)
     !$ACC WAIT(1)
     IF (iorder_sendrecv == 1) THEN
       DO np = 1, p_pat%np_send ! loop over PEs where to send the data
@@ -1841,7 +1843,7 @@ CONTAINS
     ! Wait for all outstanding requests to finish
     start_sync_timer(timer_exch_data_wait)
     CALL p_wait
-    !$ACC UPDATE DEVICE(recv_buf) WAIT(1) IF(use_staging)
+    !$ACC UPDATE DEVICE(recv_buf) ASYNC(1) IF(use_staging)
     stop_sync_timer(timer_exch_data_wait)
 
     IF (itype_exch_barrier == 2 .OR. itype_exch_barrier == 3) THEN
@@ -2138,7 +2140,8 @@ CONTAINS
     ENDIF
 
     ! Send our data
-    !$ACC UPDATE HOST(send_buf) WAIT(get_comm_acc_queue()) IF(use_staging)
+    !$ACC UPDATE HOST(send_buf) ASYNC(get_comm_acc_queue()) IF(use_staging)
+    !$ACC WAIT(get_comm_acc_queue())
     CALL acc_wait_comms(get_comm_acc_queue())
     IF (iorder_sendrecv == 1) THEN
       DO np = 1, p_pat%np_send ! loop over PEs where to send the data
@@ -2181,7 +2184,7 @@ CONTAINS
     ! Wait for all outstanding requests to finish
     start_sync_timer(timer_exch_data_wait)
     CALL p_wait
-    !$ACC UPDATE DEVICE(recv_buf) WAIT(get_comm_acc_queue()) IF(use_staging)
+    !$ACC UPDATE DEVICE(recv_buf) ASYNC(get_comm_acc_queue()) IF(use_staging)
     stop_sync_timer(timer_exch_data_wait)
 
     IF (itype_exch_barrier == 2 .OR. itype_exch_barrier == 3) THEN
@@ -2410,7 +2413,8 @@ CONTAINS
 #endif
 
     ! Send our data
-    !$ACC UPDATE HOST(send_buf) WAIT(get_comm_acc_queue()) IF(use_staging)
+    !$ACC UPDATE HOST(send_buf) ASYNC(get_comm_acc_queue()) IF(use_staging)
+    !$ACC WAIT(get_comm_acc_queue())
     CALL acc_wait_comms(get_comm_acc_queue())
     IF (iorder_sendrecv == 1) THEN
       DO np = 1, p_pat%np_send ! loop over PEs where to send the data
@@ -2453,7 +2457,7 @@ CONTAINS
     ! Wait for all outstanding requests to finish
     start_sync_timer(timer_exch_data_wait)
     CALL p_wait
-    !$ACC UPDATE DEVICE(recv_buf) WAIT(get_comm_acc_queue()) IF(use_staging)
+    !$ACC UPDATE DEVICE(recv_buf) ASYNC(get_comm_acc_queue()) IF(use_staging)
     stop_sync_timer(timer_exch_data_wait)
 
     IF (lzacc .and. .not. use_staging) CALL comm_group_end()
@@ -2775,7 +2779,8 @@ CONTAINS
 #endif
 
     ! Send our data
-    !$ACC UPDATE HOST(send_buf_sp, send_buf_dp) WAIT(get_comm_acc_queue()) IF(use_staging)
+    !$ACC UPDATE HOST(send_buf_sp, send_buf_dp) ASYNC(get_comm_acc_queue()) IF(use_staging)
+    !$ACC WAIT(get_comm_acc_queue())
     CALL acc_wait_comms(get_comm_acc_queue())
     IF (iorder_sendrecv == 1) THEN
       DO np = 1, p_pat%np_send ! loop over PEs where to send the data
@@ -2827,7 +2832,7 @@ CONTAINS
     ! Wait for all outstanding requests to finish
     start_sync_timer(timer_exch_data_wait)
     CALL p_wait
-    !$ACC UPDATE DEVICE(recv_buf_sp, recv_buf_dp) WAIT(get_comm_acc_queue()) IF(use_staging)
+    !$ACC UPDATE DEVICE(recv_buf_sp, recv_buf_dp) ASYNC(get_comm_acc_queue()) IF(use_staging)
     stop_sync_timer(timer_exch_data_wait)
 
     IF (lzacc .and. .not. use_staging) CALL comm_group_end()
@@ -3058,7 +3063,7 @@ CONTAINS
 #endif
 
     ! Send our data
-    !$ACC UPDATE HOST(send_buf) WAIT(1) IF(use_staging)
+    !$ACC UPDATE HOST(send_buf) ASYNC(1) IF(use_staging)
     !$ACC WAIT(1)
     IF (iorder_sendrecv == 1) THEN
       DO np = 1, p_pat%np_send ! loop over PEs where to send the data
@@ -3103,7 +3108,7 @@ CONTAINS
     CALL p_wait
     stop_sync_timer(timer_exch_data_wait)
 
-    !$ACC UPDATE DEVICE(recv_buf) IF(use_staging)
+    !$ACC UPDATE DEVICE(recv_buf) ASYNC(1) IF(use_staging)
 
     IF (itype_exch_barrier == 2 .OR. itype_exch_barrier == 3) THEN
       start_sync_timer(timer_barrier)
@@ -3463,8 +3468,8 @@ CONTAINS
             ENDIF
           ENDDO
 
+          !$ACC UPDATE HOST(auxs_buf(:,ioffset+1:ioffset+isum)) ASYNC(1) IF(use_staging)
           !$ACC WAIT(1)
-          !$ACC UPDATE HOST(auxs_buf(:,ioffset+1:ioffset+isum)) IF(use_staging)
 
           IF(isum > ioffset) CALL p_send(auxs_buf(1,ioffset+1), pid, 1, &
             p_count=(isum-ioffset)*ndim2tot, comm=p_pat_coll%patterns(1)%p%comm, use_g2g=use_g2g)
@@ -3491,8 +3496,8 @@ CONTAINS
             ENDIF
           ENDDO
 
+          !$ACC UPDATE HOST(auxs_buf(:,ioffset+1:ioffset+isum)) ASYNC(1) IF(use_staging)
           !$ACC WAIT(1)
-          !$ACC UPDATE HOST(auxs_buf(:,ioffset+1:ioffset+isum)) IF(use_staging)
 
           IF(isum > ioffset) CALL p_isend(auxs_buf(1,ioffset+1), pid, 1, &
             p_count=(isum-ioffset)*ndim2tot, comm=p_pat_coll%patterns(1)%p%comm, use_g2g=use_g2g)
@@ -3548,8 +3553,8 @@ CONTAINS
             ENDIF
           ENDDO
 
+          !$ACC UPDATE HOST(auxs_buf(:,ioffset+1:ioffset+isum)) ASYNC(1) IF(use_staging)
           !$ACC WAIT(1)
-          !$ACC UPDATE HOST(auxs_buf(:,ioffset+1:ioffset+isum)) IF(use_staging)
 !$OMP MASTER
           IF(isum > ioffset) CALL p_isend(auxs_buf(1,ioffset+1), pid, 1, &
             p_count=(isum-ioffset)*ndim2tot, comm=p_pat_coll%patterns(1)%p%comm, use_g2g=use_g2g)
@@ -3574,7 +3579,7 @@ CONTAINS
         stop_sync_timer(timer_barrier)
       ENDIF
 
-      !$ACC UPDATE DEVICE(auxr_buf) IF(use_staging)
+      !$ACC UPDATE DEVICE(auxr_buf) ASYNC(1) IF(use_staging)
 
       ! Copy exchanged data back to receive buffer
 

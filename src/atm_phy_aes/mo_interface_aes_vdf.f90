@@ -252,8 +252,7 @@ CONTAINS
 
     !$NOser verbatim zaa = 0._wp
     !$NOser verbatim zbb = 0._wp
-    !$NOser verbatim !$ACC WAIT(1)
-    !$NOser verbatim !$ACC UPDATE DEVICE( zaa, zbb )
+    !$NOser verbatim !$ACC UPDATE DEVICE( zaa, zbb ) ASYNC(1)
 
 !!$    ! Emission of aerosols or other tracers (not implemented yet)
 !!$    IF (ntrac>0) THEN

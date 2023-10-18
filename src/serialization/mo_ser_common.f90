@@ -279,21 +279,20 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(ref) IF(lopenacc)
+    !$ACC UPDATE DEVICE(ref) ASYNC(1) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     call is_close(ref, cur, abs_threshold, rel_threshold, rel_diff, abs_diff, out)
     IF (.NOT. out) THEN
       n_fail = 1
     ENDIF
     !$ACC END PARALLEL
-    !$ACC WAIT(1)
 
     IF (n_fail > 0) THEN
-      !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
+      !$ACC UPDATE HOST(rel_diff, abs_diff) ASYNC(1) IF(lopenacc)
       !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
+      !$ACC WAIT(1) IF(lopenacc)
       report_idx(1) = "(REAL(wp) scalar)"
       report_abs_diff(1) = abs_diff
       report_rel_diff(1) = rel_diff
@@ -327,8 +326,7 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(ref) IF(lopenacc)
+    !$ACC UPDATE DEVICE(ref) ASYNC(1) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(1) REDUCTION(+: n_fail)
     DO i=1,size(cur, 1)
@@ -338,15 +336,15 @@ MODULE mo_ser_common
       ENDIF
     END DO
     !$ACC END PARALLEL
-    !$ACC WAIT(1)
 
     ! compute additional info on CPU
     IF (n_fail > 0) THEN
-      !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
+      !$ACC UPDATE HOST(rel_diff, abs_diff) ASYNC(1) IF(lopenacc)
       mask = .TRUE.
       !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
+      !$ACC WAIT(1) IF(lopenacc)
       DO z=1,ser_nreport
         idx(:) = MAXLOC(rel_diff, mask)
         i = idx(1)
@@ -385,8 +383,7 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(ref) IF(lopenacc)
+    !$ACC UPDATE DEVICE(ref) ASYNC(1) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) REDUCTION(+: n_fail)
     DO i=1,size(cur, 1)
@@ -398,15 +395,15 @@ MODULE mo_ser_common
       END DO
     END DO
     !$ACC END PARALLEL
-    !$ACC WAIT(1)
 
     ! compute additional info on CPU
     IF (n_fail > 0) THEN
-      !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
+      !$ACC UPDATE HOST(rel_diff, abs_diff) ASYNC(1) IF(lopenacc)
       mask = .TRUE.
       !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
+      !$ACC WAIT(1) IF(lopenacc)
       DO z=1,ser_nreport
         idx(:) = MAXLOC(rel_diff, mask)
         i = idx(1)
@@ -446,8 +443,7 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(ref) IF(lopenacc)
+    !$ACC UPDATE DEVICE(ref) ASYNC(1) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(3) REDUCTION(+: n_fail)
     DO i=1,size(cur, 1)
@@ -461,15 +457,15 @@ MODULE mo_ser_common
       END DO
     END DO
     !$ACC END PARALLEL
-    !$ACC WAIT(1)
 
     ! compute additional info on CPU
     IF (n_fail > 0) THEN
-      !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
+      !$ACC UPDATE HOST(rel_diff, abs_diff) ASYNC(1) IF(lopenacc)
       mask = .TRUE.
       !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
+      !$ACC WAIT(1) IF(lopenacc)
       DO z=1,ser_nreport
         idx(:) = MAXLOC(rel_diff, mask)
         i = idx(1)
@@ -510,8 +506,7 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(ref) IF(lopenacc)
+    !$ACC UPDATE DEVICE(ref) ASYNC(1) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(4) REDUCTION(+: n_fail)
     DO i=1,size(cur, 1)
@@ -527,15 +522,15 @@ MODULE mo_ser_common
       END DO
     END DO
     !$ACC END PARALLEL
-    !$ACC WAIT(1)
 
     ! compute additional info on CPU
     IF (n_fail > 0) THEN
-      !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
+      !$ACC UPDATE HOST(rel_diff, abs_diff) ASYNC(1) IF(lopenacc)
       mask = .TRUE.
       !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
+      !$ACC WAIT(1) IF(lopenacc)
       DO z=1,ser_nreport
         idx(:) = MAXLOC(rel_diff, mask)
         i = idx(1)
@@ -575,21 +570,20 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(ref) IF(lopenacc)
+    !$ACC UPDATE DEVICE(ref) ASYNC(1) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     call is_close(ref, cur, abs_threshold, rel_threshold, rel_diff, abs_diff, out)
     IF (.NOT. out) THEN
       n_fail = 1
     ENDIF
     !$ACC END PARALLEL
-    !$ACC WAIT(1)
 
     IF (n_fail > 0) THEN
-      !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
+      !$ACC UPDATE HOST(rel_diff, abs_diff) ASYNC(1) IF(lopenacc)
       !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
+      !$ACC WAIT(1) IF(lopenacc)
       report_idx(1) = "(REAL(sp) scalar)"
       report_abs_diff(1) = REAL(abs_diff, wp)
       report_rel_diff(1) = REAL(rel_diff, wp)
@@ -623,8 +617,7 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(ref) IF(lopenacc)
+    !$ACC UPDATE DEVICE(ref) ASYNC(1) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(1) REDUCTION(+: n_fail)
     DO i=1,size(cur, 1)
@@ -634,15 +627,15 @@ MODULE mo_ser_common
       ENDIF
     END DO
     !$ACC END PARALLEL
-    !$ACC WAIT(1)
 
     ! compute additional info on CPU
     IF (n_fail > 0) THEN
-      !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
+      !$ACC UPDATE HOST(rel_diff, abs_diff) ASYNC(1) IF(lopenacc)
       mask = .TRUE.
       !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
+      !$ACC WAIT(1) IF(lopenacc)
       DO z=1,ser_nreport
         idx(:) = MAXLOC(rel_diff, mask)
         i = idx(1)
@@ -681,8 +674,7 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(ref) IF(lopenacc)
+    !$ACC UPDATE DEVICE(ref) ASYNC(1) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) REDUCTION(+: n_fail)
     DO i=1,size(cur, 1)
@@ -694,15 +686,15 @@ MODULE mo_ser_common
       END DO
     END DO
     !$ACC END PARALLEL
-    !$ACC WAIT(1)
 
     ! compute additional info on CPU
     IF (n_fail > 0) THEN
-      !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
+      !$ACC UPDATE HOST(rel_diff, abs_diff) ASYNC(1) IF(lopenacc)
       mask = .TRUE.
       !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
+      !$ACC WAIT(1) IF(lopenacc)
       DO z=1,ser_nreport
         idx(:) = MAXLOC(rel_diff, mask)
         i = idx(1)
@@ -742,8 +734,7 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(ref) IF(lopenacc)
+    !$ACC UPDATE DEVICE(ref) ASYNC(1) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(3) REDUCTION(+: n_fail)
     DO i=1,size(cur, 1)
@@ -757,15 +748,15 @@ MODULE mo_ser_common
       END DO
     END DO
     !$ACC END PARALLEL
-    !$ACC WAIT(1)
 
     ! compute additional info on CPU
     IF (n_fail > 0) THEN
-      !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
+      !$ACC UPDATE HOST(rel_diff, abs_diff) ASYNC(1) IF(lopenacc)
       mask = .TRUE.
       !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
+      !$ACC WAIT(1) IF(lopenacc)
       DO z=1,ser_nreport
         idx(:) = MAXLOC(rel_diff, mask)
         i = idx(1)
@@ -806,8 +797,7 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(ref) IF(lopenacc)
+    !$ACC UPDATE DEVICE(ref) ASYNC(1) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(4) REDUCTION(+: n_fail)
     DO i=1,size(cur, 1)
@@ -823,15 +813,15 @@ MODULE mo_ser_common
       END DO
     END DO
     !$ACC END PARALLEL
-    !$ACC WAIT(1)
 
     ! compute additional info on CPU
     IF (n_fail > 0) THEN
-      !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
+      !$ACC UPDATE HOST(rel_diff, abs_diff) ASYNC(1) IF(lopenacc)
       mask = .TRUE.
       !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
+      !$ACC WAIT(1) IF(lopenacc)
       DO z=1,ser_nreport
         idx(:) = MAXLOC(rel_diff, mask)
         i = idx(1)
@@ -872,21 +862,20 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(ref) IF(lopenacc)
+    !$ACC UPDATE DEVICE(ref) ASYNC(1) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     call is_close(ref, cur, abs_threshold, rel_threshold, rel_diff, abs_diff, out)
     IF (.NOT. out) THEN
       n_fail = 1
     ENDIF
     !$ACC END PARALLEL
-    !$ACC WAIT(1)
 
     IF (n_fail > 0) THEN
-      !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
+      !$ACC UPDATE HOST(rel_diff, abs_diff) ASYNC(1) IF(lopenacc)
       !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
+      !$ACC WAIT(1) IF(lopenacc)
       report_idx(1) = "(INTEGER scalar)"
       report_abs_diff(1) = abs_diff
       report_rel_diff(1) = rel_diff
@@ -922,8 +911,7 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(ref) IF(lopenacc)
+    !$ACC UPDATE DEVICE(ref) ASYNC(1) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(1) REDUCTION(+: n_fail)
     DO i=1,size(cur, 1)
@@ -933,15 +921,15 @@ MODULE mo_ser_common
       ENDIF
     END DO
     !$ACC END PARALLEL
-    !$ACC WAIT(1)
 
     ! compute additional info on CPU
     IF (n_fail > 0) THEN
-      !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
+      !$ACC UPDATE HOST(rel_diff, abs_diff) ASYNC(1) IF(lopenacc)
       mask = .TRUE.
       !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
+      !$ACC WAIT(1) IF(lopenacc)
       DO z=1,ser_nreport
         idx(:) = MAXLOC(rel_diff, mask)
         i = idx(1)
@@ -982,8 +970,7 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(ref) IF(lopenacc)
+    !$ACC UPDATE DEVICE(ref) ASYNC(1) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) REDUCTION(+: n_fail)
     DO i=1,size(cur, 1)
@@ -995,15 +982,15 @@ MODULE mo_ser_common
       END DO
     END DO
     !$ACC END PARALLEL
-    !$ACC WAIT(1)
 
     ! compute additional info on CPU
     IF (n_fail > 0) THEN
-      !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
+      !$ACC UPDATE HOST(rel_diff, abs_diff) ASYNC(1) IF(lopenacc)
       mask = .TRUE.
       !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
+      !$ACC WAIT(1) IF(lopenacc)
       DO z=1,ser_nreport
         idx(:) = MAXLOC(rel_diff, mask)
         i = idx(1)
@@ -1045,8 +1032,7 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(ref) IF(lopenacc)
+    !$ACC UPDATE DEVICE(ref) ASYNC(1) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(3) REDUCTION(+: n_fail)
     DO i=1,size(cur, 1)
@@ -1060,15 +1046,15 @@ MODULE mo_ser_common
       END DO
     END DO
     !$ACC END PARALLEL
-    !$ACC WAIT(1)
 
     ! compute additional info on CPU
     IF (n_fail > 0) THEN
-      !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
+      !$ACC UPDATE HOST(rel_diff, abs_diff) ASYNC(1) IF(lopenacc)
       mask = .TRUE.
       !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
+      !$ACC WAIT(1) IF(lopenacc)
       DO z=1,ser_nreport
         idx(:) = MAXLOC(rel_diff, mask)
         i = idx(1)
@@ -1111,8 +1097,7 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref, rel_diff, abs_diff) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(ref) IF(lopenacc)
+    !$ACC UPDATE DEVICE(ref) ASYNC(1) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(4) REDUCTION(+: n_fail)
     DO i=1,size(cur, 1)
@@ -1128,15 +1113,15 @@ MODULE mo_ser_common
       END DO
     END DO
     !$ACC END PARALLEL
-    !$ACC WAIT(1)
 
     ! compute additional info on CPU
     IF (n_fail > 0) THEN
-      !$ACC UPDATE HOST(rel_diff, abs_diff) IF(lopenacc)
+      !$ACC UPDATE HOST(rel_diff, abs_diff) ASYNC(1) IF(lopenacc)
       mask = .TRUE.
       !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
       cur_cpy = cur
       !$ACC END KERNELS
+      !$ACC WAIT(1) IF(lopenacc)
       DO z=1,ser_nreport
         idx(:) = MAXLOC(rel_diff, mask)
         i = idx(1)
@@ -1174,14 +1159,12 @@ MODULE mo_ser_common
     !$ACC DATA CREATE(ref) PRESENT(cur) IF(lopenacc)
 
     call fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name), ref)
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(ref) IF(lopenacc)
+    !$ACC UPDATE DEVICE(ref) ASYNC(1) IF(lopenacc)
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lopenacc)
     IF (ref .NEQV. cur) THEN
       n_fail = 1
     ENDIF
     !$ACC END PARALLEL
-    !$ACC WAIT(1)
 
     IF (n_fail > 0) THEN
       !$ACC KERNELS COPYOUT(cur_cpy) ASYNC(1) IF(lopenacc)
@@ -1370,19 +1353,20 @@ MODULE mo_ser_common
 
     pp => p ! we have to pass a pointer to ppser_*
 
-    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
-        !$ACC UPDATE HOST(p) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(p) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL fs_write_field(ppser_serializer, ppser_savepoint, name, pp)
       CASE(1) ! read
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, name,  pp)
-        !$ACC UPDATE DEVICE(p) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(p) ASYNC(1) IF(o%lopenacc)
       CASE(2) ! read perturb
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, name,  pp,  ppser_zrperturb)
-        !$ACC UPDATE DEVICE(p) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(p) ASYNC(1) IF(o%lopenacc)
       CASE(3) ! compare
-        !$ACC UPDATE HOST(p) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(p) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL compare(name,  p, o%lopenacc, o%abs_threshold, o%rel_threshold)
       CASE DEFAULT
         CALL finish('mo_ser_manually:ser_scalar_d', 'Internal error. Unknown ser_mode.')
@@ -1398,19 +1382,20 @@ MODULE mo_ser_common
 
     pp => p ! we have to pass a pointer to ppser_*
 
-    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
-        !$ACC UPDATE HOST(p) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(p) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL fs_write_field(ppser_serializer, ppser_savepoint, name, pp)
       CASE(1) ! read
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, name,  pp)
-        !$ACC UPDATE DEVICE(p) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(p) ASYNC(1) IF(o%lopenacc)
       CASE(2) ! read perturb
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, name,  pp,  ppser_zrperturb)
-        !$ACC UPDATE DEVICE(p) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(p) ASYNC(1) IF(o%lopenacc)
       CASE(3) ! compare
-        !$ACC UPDATE HOST(p) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(p) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL compare(name,  p, o%lopenacc, o%abs_threshold, o%rel_threshold)
       CASE DEFAULT
         CALL finish('mo_ser_manually:ser_scalar_s', 'Internal error. Unknown ser_mode.')
@@ -1426,19 +1411,20 @@ MODULE mo_ser_common
 
     pp => p ! we have to pass a pointer to ppser_*
 
-    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
-        !$ACC UPDATE HOST(p) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(p) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL fs_write_field(ppser_serializer, ppser_savepoint, name, pp)
       CASE(1) ! read
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, name,  pp)
-        !$ACC UPDATE DEVICE(p) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(p) ASYNC(1) IF(o%lopenacc)
       CASE(2) ! read perturb
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, name,  pp,  ppser_zrperturb)
-        !$ACC UPDATE DEVICE(p) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(p) ASYNC(1) IF(o%lopenacc)
       CASE(3) ! compare
-        !$ACC UPDATE HOST(p) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(p) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL compare(name,  p, o%lopenacc, o%abs_threshold, o%rel_threshold)
       CASE DEFAULT
         CALL finish('mo_ser_manually:ser_scalar_i', 'Internal error. Unknown ser_mode.')
@@ -1454,19 +1440,20 @@ MODULE mo_ser_common
 
     pp => p ! we have to pass a pointer to ppser_*
 
-    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
-        !$ACC UPDATE HOST(p) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(p) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL fs_write_field(ppser_serializer, ppser_savepoint, name, pp)
       CASE(1) ! read
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, name,  pp)
-        !$ACC UPDATE DEVICE(p) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(p) ASYNC(1) IF(o%lopenacc)
       CASE(2) ! read perturb
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, name,  pp,  ppser_zrperturb)
-        !$ACC UPDATE DEVICE(p) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(p) ASYNC(1) IF(o%lopenacc)
       CASE(3) ! compare
-        !$ACC UPDATE HOST(p) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(p) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL compare(name,  p, o%lopenacc)
       CASE DEFAULT
         CALL finish('mo_ser_manually:ser_scalar_l', 'Internal error. Unknown ser_mode.')
@@ -1482,19 +1469,20 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
-    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL fs_write_field(ppser_serializer, ppser_savepoint, TRIM(name//c), ptr(:))
       CASE(1) ! read
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:))
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(2) ! read perturb
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:), ppser_zrperturb)
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(3) ! compare
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL compare(TRIM(name//c), ptr(:), o%lopenacc, o%abs_threshold, o%rel_threshold)
       CASE DEFAULT
         CALL finish('mo_ser_manually:ser_array_d_1d', 'Internal error. Unknown ser_mode.')
@@ -1510,19 +1498,20 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
-    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL fs_write_field(ppser_serializer, ppser_savepoint, TRIM(name//c), ptr(:,:))
       CASE(1) ! read
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:,:))
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(2) ! read perturb
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:,:), ppser_zrperturb)
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(3) ! compare
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL compare(TRIM(name//c), ptr(:,:), o%lopenacc, o%abs_threshold, o%rel_threshold)
       CASE DEFAULT
         CALL finish('mo_ser_manually:ser_array_d_2d', 'Internal error. Unknown ser_mode.')
@@ -1538,19 +1527,20 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
-    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL fs_write_field(ppser_serializer, ppser_savepoint, TRIM(name//c), ptr(:,:,:))
       CASE(1) ! read
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:,:,:))
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(2) ! read perturb
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:,:,:), ppser_zrperturb)
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(3) ! compare
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL compare(TRIM(name//c), ptr(:,:,:), o%lopenacc, o%abs_threshold, o%rel_threshold)
       CASE DEFAULT
         CALL finish('mo_ser_manually:ser_array_d_3d', 'Internal error. Unknown ser_mode.')
@@ -1566,19 +1556,20 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
-    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL fs_write_field(ppser_serializer, ppser_savepoint, TRIM(name//c), ptr(:,:,:,:))
       CASE(1) ! read
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:,:,:,:))
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(2) ! read perturb
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:,:,:,:), ppser_zrperturb)
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(3) ! compare
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL compare(TRIM(name//c), ptr(:,:,:,:), o%lopenacc, o%abs_threshold, o%rel_threshold)
       CASE DEFAULT
         CALL finish('mo_ser_manually:ser_array_d_4d', 'Internal error. Unknown ser_mode.')
@@ -1594,19 +1585,20 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
-    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL fs_write_field(ppser_serializer, ppser_savepoint, TRIM(name//c), ptr(:))
       CASE(1) ! read
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:))
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(2) ! read perturb
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:), ppser_zrperturb)
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(3) ! compare
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL compare(TRIM(name//c), ptr(:), o%lopenacc, o%abs_threshold, o%rel_threshold)
       CASE DEFAULT
         CALL finish('mo_ser_manually:ser_array_s_1d', 'Internal error. Unknown ser_mode.')
@@ -1622,19 +1614,20 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
-    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL fs_write_field(ppser_serializer, ppser_savepoint, TRIM(name//c), ptr(:,:))
       CASE(1) ! read
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:,:))
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(2) ! read perturb
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:,:), ppser_zrperturb)
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(3) ! compare
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL compare(TRIM(name//c), ptr(:,:), o%lopenacc, o%abs_threshold, o%rel_threshold)
       CASE DEFAULT
         CALL finish('mo_ser_manually:ser_array_s_2d', 'Internal error. Unknown ser_mode.')
@@ -1650,19 +1643,20 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
-    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL fs_write_field(ppser_serializer, ppser_savepoint, TRIM(name//c), ptr(:,:,:))
       CASE(1) ! read
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:,:,:))
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(2) ! read perturb
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:,:,:), ppser_zrperturb)
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(3) ! compare
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL compare(TRIM(name//c), ptr(:,:,:), o%lopenacc, o%abs_threshold, o%rel_threshold)
       CASE DEFAULT
         CALL finish('mo_ser_manually:ser_array_s_3d', 'Internal error. Unknown ser_mode.')
@@ -1678,19 +1672,20 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
-    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL fs_write_field(ppser_serializer, ppser_savepoint, TRIM(name//c), ptr(:,:,:,:))
       CASE(1) ! read
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:,:,:,:))
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(2) ! read perturb
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:,:,:,:), ppser_zrperturb)
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(3) ! compare
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL compare(TRIM(name//c), ptr(:,:,:,:), o%lopenacc, o%abs_threshold, o%rel_threshold)
       CASE DEFAULT
         CALL finish('mo_ser_manually:ser_array_s_4d', 'Internal error. Unknown ser_mode.')
@@ -1706,19 +1701,20 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
-    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL fs_write_field(ppser_serializer, ppser_savepoint, TRIM(name//c), ptr(:))
       CASE(1) ! read
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:))
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(2) ! read perturb
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:), ppser_zrperturb)
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(3) ! compare
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL compare(TRIM(name//c), ptr(:), o%lopenacc, o%abs_threshold, o%rel_threshold)
       CASE DEFAULT
         CALL finish('mo_ser_manually:ser_array_i_1d', 'Internal error. Unknown ser_mode.')
@@ -1734,19 +1730,20 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
-    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL fs_write_field(ppser_serializer, ppser_savepoint, TRIM(name//c), ptr(:,:))
       CASE(1) ! read
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:,:))
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(2) ! read perturb
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:,:), ppser_zrperturb)
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(3) ! compare
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL compare(TRIM(name//c), ptr(:,:), o%lopenacc, o%abs_threshold, o%rel_threshold)
       CASE DEFAULT
         CALL finish('mo_ser_manually:ser_array_i_2d', 'Internal error. Unknown ser_mode.')
@@ -1762,19 +1759,20 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
-    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL fs_write_field(ppser_serializer, ppser_savepoint, TRIM(name//c), ptr(:,:,:))
       CASE(1) ! read
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:,:,:))
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(2) ! read perturb
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:,:,:), ppser_zrperturb)
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(3) ! compare
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL compare(TRIM(name//c), ptr(:,:,:), o%lopenacc, o%abs_threshold, o%rel_threshold)
       CASE DEFAULT
         CALL finish('mo_ser_manually:ser_array_i_3d', 'Internal error. Unknown ser_mode.')
@@ -1790,19 +1788,20 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
-    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL fs_write_field(ppser_serializer, ppser_savepoint, TRIM(name//c), ptr(:,:,:,:))
       CASE(1) ! read
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:,:,:,:))
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(2) ! read perturb
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:,:,:,:), ppser_zrperturb)
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(3) ! compare
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL compare(TRIM(name//c), ptr(:,:,:,:), o%lopenacc, o%abs_threshold, o%rel_threshold)
       CASE DEFAULT
         CALL finish('mo_ser_manually:ser_array_i_4d', 'Internal error. Unknown ser_mode.')
@@ -1818,19 +1817,20 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
-    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL fs_write_field(ppser_serializer, ppser_savepoint, TRIM(name//c), ptr(:))
       CASE(1) ! read
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:))
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(2) ! read perturb
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:), ppser_zrperturb)
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(3) ! compare
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL compare(TRIM(name//c), ptr(:), o%lopenacc)
       CASE DEFAULT
         CALL finish('mo_ser_manually:ser_array_l_1d', 'Internal error. Unknown ser_mode.')
@@ -1846,19 +1846,20 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
-    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL fs_write_field(ppser_serializer, ppser_savepoint, TRIM(name//c), ptr(:,:))
       CASE(1) ! read
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:,:))
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(2) ! read perturb
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:,:), ppser_zrperturb)
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(3) ! compare
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL compare(TRIM(name//c), ptr(:,:), o%lopenacc)
       CASE DEFAULT
         CALL finish('mo_ser_manually:ser_array_l_2d', 'Internal error. Unknown ser_mode.')
@@ -1874,19 +1875,20 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
-    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL fs_write_field(ppser_serializer, ppser_savepoint, TRIM(name//c), ptr(:,:,:))
       CASE(1) ! read
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:,:,:))
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(2) ! read perturb
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:,:,:), ppser_zrperturb)
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(3) ! compare
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL compare(TRIM(name//c), ptr(:,:,:), o%lopenacc)
       CASE DEFAULT
         CALL finish('mo_ser_manually:ser_array_l_3d', 'Internal error. Unknown ser_mode.')
@@ -1902,19 +1904,20 @@ MODULE mo_ser_common
 
     IF(o%domain >= 0) WRITE(c, '("_",i2.2)') o%domain
 
-    !$ACC WAIT(1)
     SELECT CASE ( o%ser_mode )
       CASE(0) ! write
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL fs_write_field(ppser_serializer, ppser_savepoint, TRIM(name//c), ptr(:,:,:,:))
       CASE(1) ! read
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:,:,:,:))
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(2) ! read perturb
         CALL fs_read_field(ppser_serializer_ref, ppser_savepoint, TRIM(name//c), ptr(:,:,:,:), ppser_zrperturb)
-        !$ACC UPDATE DEVICE(ptr) IF(o%lopenacc)
+        !$ACC UPDATE DEVICE(ptr) ASYNC(1) IF(o%lopenacc)
       CASE(3) ! compare
-        !$ACC UPDATE HOST(ptr) IF(o%lupdate_cpu)
+        !$ACC UPDATE HOST(ptr) ASYNC(1) IF(o%lupdate_cpu)
+        !$ACC WAIT(1) IF(o%lupdate_cpu)
         CALL compare(TRIM(name//c), ptr(:,:,:,:), o%lopenacc)
       CASE DEFAULT
         CALL finish('mo_ser_manually:ser_array_l_4d', 'Internal error. Unknown ser_mode.')

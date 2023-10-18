@@ -362,8 +362,7 @@ CONTAINS
       !ICON_OMP PARALLEL
       CALL init_contiguous_dp(new_elem%r_ptr, PRODUCT(d(1:5)), ivals%rval)
       !ICON_OMP END PARALLEL
-      !$ACC WAIT(1)
-      !$ACC UPDATE DEVICE(new_elem%r_ptr) IF(new_elem%info%lopenacc)
+      !$ACC UPDATE DEVICE(new_elem%r_ptr) ASYNC(1) IF(new_elem%info%lopenacc)
     CASE(SINGLE_T)
       IF (referenced) THEN
         new_elem%s_ptr => p5_s
@@ -376,8 +375,7 @@ CONTAINS
       !ICON_OMP PARALLEL
       CALL init_contiguous_sp(new_elem%s_ptr, PRODUCT(d(1:5)), ivals%sval)
       !ICON_OMP END PARALLEL
-      !$ACC WAIT(1)
-      !$ACC UPDATE DEVICE(new_elem%s_ptr) IF(new_elem%info%lopenacc)
+      !$ACC UPDATE DEVICE(new_elem%s_ptr) ASYNC(1) IF(new_elem%info%lopenacc)
     CASE(INT_T)
       IF (referenced) THEN
         new_elem%i_ptr => p5_i
@@ -390,8 +388,7 @@ CONTAINS
       !ICON_OMP PARALLEL
       CALL init_contiguous_i4(new_elem%i_ptr, PRODUCT(d(1:5)), ivals%ival)
       !ICON_OMP END PARALLEL
-      !$ACC WAIT(1)
-      !$ACC UPDATE DEVICE(new_elem%i_ptr) IF(new_elem%info%lopenacc)
+      !$ACC UPDATE DEVICE(new_elem%i_ptr) ASYNC(1) IF(new_elem%info%lopenacc)
     CASE(BOOL_T)
       IF (referenced) THEN
         new_elem%l_ptr => p5_l
@@ -404,8 +401,7 @@ CONTAINS
       !ICON_OMP PARALLEL
       CALL init_contiguous_l(new_elem%l_ptr, PRODUCT(d(1:5)), ivals%lval)
       !ICON_OMP END PARALLEL
-      !$ACC WAIT(1)
-      !$ACC UPDATE DEVICE(new_elem%l_ptr) IF(new_elem%info%lopenacc)
+      !$ACC UPDATE DEVICE(new_elem%l_ptr) ASYNC(1) IF(new_elem%info%lopenacc)
     END SELECT
     CALL register_list_element(list, new_elem)
     IF (.NOT.referenced) list%p%memory_used = list%p%memory_used + &

@@ -1556,8 +1556,8 @@ CONTAINS
       lzopenacc = .FALSE.
     ENDIF
 
-    !$ACC WAIT(1)
-    !$ACC UPDATE HOST(sum_1, sum_2) IF(lzopenacc)
+    !$ACC UPDATE HOST(sum_1, sum_2) ASYNC(1) IF(lzopenacc)
+    !$ACC WAIT(1) IF(lzopenacc)
 
     size_of_sum_1 = SIZE(sum_1(:))
     size_of_sum_2 = SIZE(sum_2(:))
@@ -1580,7 +1580,7 @@ CONTAINS
 
     DEALLOCATE(concat_input_sum, concat_output_sum)
 
-    !$ACC UPDATE DEVICE(sum_1, sum_2) IF(lzopenacc)
+    !$ACC UPDATE DEVICE(sum_1, sum_2) ASYNC(1) IF(lzopenacc)
 
   END SUBROUTINE gather_sums_1D
   !-----------------------------------------------------------------------

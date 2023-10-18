@@ -178,7 +178,8 @@ CONTAINS
     END DO ! blkNo
 !ICON_OMP_END_PARALLEL_DO
     IF (debug_check_level > 20) THEN
-      !$ACC UPDATE SELF(lhs) IF(lacc)
+      !$ACC UPDATE HOST(lhs) ASYNC(1) IF(lacc)
+      !$ACC WAIT(1) IF(lacc)
       DO blkNo = cells_in_domain%start_block, cells_in_domain%end_block
         CALL get_index_range(cells_in_domain, blkNo, start_index, end_index)
         DO jc = start_index, end_index

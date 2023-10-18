@@ -385,7 +385,8 @@ CONTAINS
           IF (minmaxmean(1) + patch_3D%p_patch_1D(1)%del_zlev_m(1) <= min_top_height) THEN
     !          CALL finish(method_name, "height below min_top_height")
             CALL warning(method_name, "height below min_top_height")
-            !$ACC UPDATE SELF(ocean_state%p_prog(nnew(1))%h, ocean_state%p_prog(nnew(2))%h)
+            !$ACC UPDATE HOST(ocean_state%p_prog(nnew(1))%h, ocean_state%p_prog(nnew(2))%h) ASYNC(1)
+            !$ACC WAIT(1)
             CALL print_value_location(ocean_state%p_prog(nnew(1))%h(:,:), minmaxmean(1), owned_cells)
             CALL print_value_location(ocean_state%p_prog(nnew(2))%h(:,:), minmaxmean(1), owned_cells)
             CALL work_mpi_barrier()

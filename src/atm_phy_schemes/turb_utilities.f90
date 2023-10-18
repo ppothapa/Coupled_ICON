@@ -451,8 +451,8 @@ LOGICAL, INTENT(IN), OPTIONAL :: lacc ! flag for using GPU code
     ! h_can is a primary external parameter. The initial values of h_can are 0.
     ! If we don't change this, no canopy will be resolved in the vertical direction.
 
+    !$ACC UPDATE HOST(hhl, h_can) ASYNC(1)
     !$ACC WAIT(1)
-    !$ACC UPDATE HOST(hhl, h_can)
 
     kcm=ke
     DO k = ke, 1, -1

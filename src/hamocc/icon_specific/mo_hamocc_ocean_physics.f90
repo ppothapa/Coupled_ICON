@@ -238,11 +238,11 @@
     !------------------------------------------------------------------------
 
     ! Update on the host the ocean variables modified inside HAMOCC
-    !$ACC WAIT(1)
-    !$ACC UPDATE HOST(hamocc_to_ocean_state%swr_fraction, hamocc_to_ocean_state%co2_flux)
+    !$ACC UPDATE HOST(hamocc_to_ocean_state%swr_fraction, hamocc_to_ocean_state%co2_flux) ASYNC(1)
 
      CALL get_monitoring( hamocc_state, hamocc_state%p_prog(nnew(1))%tracer, ssh_new, pddpo_new, patch_3d)
     !------------------------------------------------------------------------
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     END SUBROUTINE tracer_biochemistry_transport

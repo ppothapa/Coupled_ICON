@@ -256,15 +256,15 @@ CONTAINS
 #ifdef _OPENACC
         CALL warning('mo_rte_rrtmgp_interface/rte_rrtmgp_interface','Stenchikov aerosols ACC not implemented')
 #endif
+        !$ACC UPDATE HOST(aer_tau_lw, aer_tau_sw, aer_ssa_sw, aer_asy_sw, dz, pp_fl) ASYNC(1)
         !$ACC WAIT(1)
-        !$ACC UPDATE HOST(aer_tau_lw, aer_tau_sw, aer_ssa_sw, aer_asy_sw, dz, pp_fl)
         CALL add_bc_aeropt_stenchikov(this_datetime,    jg,               &
               & jcs, nproma,      nproma,                 klev,       &
               & jb,               nbndsw,                nbndlw,           &
               & dz,               pp_fl,                                   &
               & aer_tau_sw,    aer_ssa_sw,         aer_asy_sw,     &
               & aer_tau_lw                                              )
-        !$ACC UPDATE DEVICE(aer_tau_lw, aer_tau_sw, aer_ssa_sw, aer_asy_sw)
+        !$ACC UPDATE DEVICE(aer_tau_lw, aer_tau_sw, aer_ssa_sw, aer_asy_sw) ASYNC(1)
       END IF
       !!$    IF (irad_aero==16) THEN
       !!$      CALL add_aop_volc_ham( &
@@ -288,15 +288,15 @@ CONTAINS
 #ifdef _OPENACC
         CALL warning('mo_rte_rrtmgp_interface/rte_rrtmgp_interface','Plumes ACC not implemented')
 #endif
+        !$ACC UPDATE HOST(aer_tau_lw, aer_tau_sw, aer_ssa_sw, aer_asy_sw, zf, dz, zh(:,klev+1)) ASYNC(1)
         !$ACC WAIT(1)
-        !$ACC UPDATE HOST(aer_tau_lw, aer_tau_sw, aer_ssa_sw, aer_asy_sw, zf, dz, zh(:,klev+1))
         CALL add_bc_aeropt_splumes(                                      &
               & jg,          jcs,         nproma,        nproma,         & 
               & klev,        jb,          nbndsw,        this_datetime,  &
               & zf,          dz,          zh(:,klev+1),  wavenum1,       &
               & wavenum2,    aer_tau_sw,  aer_ssa_sw,    aer_asy_sw,     &
               & x_cdnc                                                   )
-        !$ACC UPDATE DEVICE(aer_tau_sw, aer_ssa_sw, aer_asy_sw)
+        !$ACC UPDATE DEVICE(aer_tau_sw, aer_ssa_sw, aer_asy_sw) ASYNC(1)
       END IF
 
       ! this should be decativated in the concurrent version and make the aer_* global variables for output

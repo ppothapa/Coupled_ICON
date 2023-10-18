@@ -940,8 +940,8 @@ CONTAINS
       CALL dbg_print('AESOce: ocv         ',prm_field(jg)%ocv         ,str_module,4,in_subset=p_patch%cells%owned)
 
       ! Fraction of tiles:
+      !$ACC UPDATE HOST(frac_oce) ASYNC(1)
       !$ACC WAIT(1)
-      !$ACC UPDATE HOST(frac_oce)
       CALL dbg_print('AESOce: frac_oce     ',frac_oce                 ,str_module,3,in_subset=p_patch%cells%owned)
       scr(:,:) = prm_field(jg)%frac_tile(:,:,iwtr)
       CALL dbg_print('AESOce: frac_tile.wtr',scr                      ,str_module,3,in_subset=p_patch%cells%owned)

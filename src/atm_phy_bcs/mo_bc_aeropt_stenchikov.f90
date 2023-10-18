@@ -89,9 +89,9 @@ SUBROUTINE su_bc_aeropt_stenchikov
   ext_v_t(:,:,:,:) = 0._wp
   ssa_v_t(:,:,:,:) = 0._wp
   p_lim_clim(lev_clim+1) = 0._wp
-  !$ACC WAIT(1)
   !$ACC UPDATE DEVICE(aod_v_s, ext_v_s, ssa_v_s, asy_v_s, aod_v_t, ext_v_t, ssa_v_t) &
-  !$ACC   DEVICE(p_lim_clim)
+  !$ACC   DEVICE(p_lim_clim) &
+  !$ACC   ASYNC(1)
 END SUBROUTINE su_bc_aeropt_stenchikov
 
   !> SUBROUTINE shift_months_bc_aeropt_stenchikov -- shifts months in order to read a new one.
@@ -174,9 +174,9 @@ SUBROUTINE read_bc_aeropt_stenchikov(current_date, p_patch)
     END DO
 
   ENDIF
-  !$ACC WAIT(1)
   !$ACC UPDATE DEVICE(aod_v_s, ext_v_s, ssa_v_s, asy_v_s, aod_v_t, ext_v_t, ssa_v_t) &
-  !$ACC   DEVICE(p_lim_clim, r_lat_clim)
+  !$ACC   DEVICE(p_lim_clim, r_lat_clim) &
+  !$ACC   ASYNC(1)
 
 END SUBROUTINE read_bc_aeropt_stenchikov
 !-------------------------------------------------------------------------

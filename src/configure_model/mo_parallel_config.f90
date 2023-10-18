@@ -294,8 +294,7 @@ CONTAINS
     INTEGER, INTENT(IN) :: new_nproma
 
     nproma = new_nproma
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(nproma) IF_PRESENT
+    !$ACC UPDATE DEVICE(nproma) ASYNC(1) IF_PRESENT
 
   END SUBROUTINE set_nproma
   !-------------------------------------------------------------------------

@@ -411,8 +411,7 @@ CONTAINS
       ! do nothing
     END SELECT
 
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(p_lnd_state%diag_lnd%t_seasfc, p_lnd_state%diag_lnd%fr_seaice)
+    !$ACC UPDATE DEVICE(p_lnd_state%diag_lnd%t_seasfc, p_lnd_state%diag_lnd%fr_seaice) ASYNC(1)
 
   END SUBROUTINE set_sst_and_seaice
 !-----------------------------------------------------------------------

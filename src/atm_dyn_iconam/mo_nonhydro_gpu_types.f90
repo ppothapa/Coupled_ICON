@@ -507,7 +507,6 @@ CONTAINS
           DO i=1, lonlat_grids%ngrids
             IF (lonlat_grids%list(i)%l_dom(jg) .AND. lonlat_grids%list(i)%intp(jg)%l_initialized) THEN
               !$ACC ENTER DATA CREATE(lonlat_grids%list(i)%intp(jg:jg))
-              !$ACC WAIT(1)
               !$ACC UPDATE &
               !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%rbf_vec%stencil) &
               !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%rbf_vec%idx) &
@@ -522,16 +521,17 @@ CONTAINS
               !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%nnb%idx) &
               !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%nnb%blk) &
               !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%nnb%coeff) &
-              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%nnb%l_cutoff)
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%nnb%l_cutoff) &
+              !$ACC   ASYNC(1)
 
               IF (support_baryctr_intp) THEN
-                !$ACC WAIT(1)
                 !$ACC UPDATE &
                 !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%baryctr%stencil) &
                 !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%baryctr%idx) &
                 !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%baryctr%blk) &
                 !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%baryctr%coeff) &
-                !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%baryctr%l_cutoff)
+                !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%baryctr%l_cutoff) &
+                !$ACC   ASYNC(1)
               ENDIF
             ENDIF
           ENDDO

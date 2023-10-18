@@ -382,9 +382,9 @@ CONTAINS
 ! NOTE: this is only for testing; use upwind_hflux_miura/miura3 for performance
         WRITE(message_text,'(a)') 'GPU mode: performing upwind_hflux_ffsl on host; for performance use upwind_hflux_miura'
         CALL message(routine,message_text)
-        !$ACC WAIT(1)
         !$ACC UPDATE HOST(p_cc(:,:,:,jt), p_mass_flx_e, p_vn, p_rhodz_now, p_rhodz_new, z_real_vt) &
-        !$ACC   IF(i_am_accel_node)
+        !$ACC   ASYNC(1) IF(i_am_accel_node)
+        !$ACC WAIT(1) IF(i_am_accel_node)
         save_i_am_accel_node = i_am_accel_node
         i_am_accel_node = .FALSE.     ! deactivate GPUs throughout upwind_hflux_ffsl
 #endif
@@ -392,7 +392,6 @@ CONTAINS
         ! CALL Flux form semi Lagrangian scheme (extension of MIURA3-scheme)
         ! with second or third order accurate reconstruction
         ! DA: this routine is not (yet) async
-        !$ACC WAIT
         CALL upwind_hflux_ffsl( p_patch, p_cc(:,:,:,jt),              &! in
           &                 p_rhodz_now, p_rhodz_new, p_mass_flx_e,   &! in
           &                 p_vn, z_real_vt, p_dtime, p_int,          &! in
@@ -406,8 +405,7 @@ CONTAINS
 
 #ifdef _OPENACC
         i_am_accel_node =  save_i_am_accel_node    ! reactivate GPUs if appropriate
-        !$ACC WAIT(1)
-        !$ACC UPDATE DEVICE(p_upflux(:,:,:,jt)) IF(i_am_accel_node)
+        !$ACC UPDATE DEVICE(p_upflux(:,:,:,jt)) ASYNC(1) IF(i_am_accel_node)
 #endif
 
       CASE( FFSL_HYB )  ! ihadv_tracer = 5
@@ -553,9 +551,9 @@ CONTAINS
 ! NOTE: this is only for testing; use upwind_hflux_miura/miura3 for performance
         WRITE(message_text,'(a)') 'GPU mode: performing upwind_hflux_ffsl on host; for performance use upwind_hflux_miura'
         CALL message(routine,message_text)
-        !$ACC WAIT(1)
         !$ACC UPDATE HOST(p_cc(:,:,:,jt), p_mass_flx_e, p_vn, p_rhodz_now, p_rhodz_new, z_real_vt) &
-        !$ACC   IF(i_am_accel_node)
+        !$ACC   ASYNC(1) IF(i_am_accel_node)
+        !$ACC WAIT(1) IF(i_am_accel_node)
         save_i_am_accel_node = i_am_accel_node
         i_am_accel_node = .FALSE.     ! deactivate GPUs throughout hflux_ffsl
 #endif
@@ -563,7 +561,6 @@ CONTAINS
         ! CALL standard FFSL for lower atmosphere and the subcycling version of
         ! MIURA for upper atmosphere
         ! DA: this routine is not (yet) async
-        !$ACC WAIT
         CALL upwind_hflux_ffsl( p_patch, p_cc(:,:,:,jt),              &! in
           &                 p_rhodz_now, p_rhodz_new, p_mass_flx_e,   &! in
           &                 p_vn, z_real_vt, p_dtime, p_int,          &! in
@@ -579,8 +576,7 @@ CONTAINS
 
 #ifdef _OPENACC
         i_am_accel_node =  save_i_am_accel_node    ! reactivate GPUs if appropriate
-        !$ACC WAIT(1)
-        !$ACC UPDATE DEVICE(p_upflux(:,:,:,jt)) IF(i_am_accel_node)
+        !$ACC UPDATE DEVICE(p_upflux(:,:,:,jt)) ASYNC(1) IF(i_am_accel_node)
 #endif
 
         IF (qvsubstep_elev > 0) THEN

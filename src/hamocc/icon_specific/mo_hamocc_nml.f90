@@ -174,8 +174,7 @@ CONTAINS
     i_settling        = 0             ! constant sinking
 
     hion_solver       = 0             ! standard solver
-    !$ACC WAIT(1)
-    !$ACC UPDATE DEVICE(hion_solver)
+    !$ACC UPDATE DEVICE(hion_solver) ASYNC(1)
    
     isac = 1       ! no sediment acceleration
     l_cyadyn = .TRUE.
@@ -240,7 +239,7 @@ CONTAINS
    drempoc = 0.026_wp
    dremopal = 0.01_wp
    dremcalc = 0.075_wp
-   !$ACC UPDATE DEVICE(dremcalc)
+   !$ACC UPDATE DEVICE(dremcalc) ASYNC(1)
 
    ! total denitrification rate is a fraction of aerob remineralisation rate drempoc
    denitrification =  1.82e-3_wp   ! 1/d

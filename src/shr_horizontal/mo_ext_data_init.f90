@@ -1136,7 +1136,6 @@ CONTAINS
           ENDDO
         ENDIF
 
-        !$ACC WAIT(1)
         !$ACC UPDATE &
         !$ACC   DEVICE(ext_data(jg)%atm%i_lc_snow_ice) &
         !$ACC   DEVICE(ext_data(jg)%atm%i_lc_water) &
@@ -1159,7 +1158,8 @@ CONTAINS
         !$ACC   DEVICE(ext_data(jg)%atm%i_lc_shrub_mos) &
         !$ACC   DEVICE(ext_data(jg)%atm%i_lc_forest_rf) &
         !$ACC   DEVICE(ext_data(jg)%atm%i_lc_forest_pf) &
-        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_grass_rf)
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_grass_rf) &
+        !$ACC   ASYNC(1)
 
         ! Urban canopy parameters
         DO ilu = 1, num_lcc
@@ -2378,8 +2378,7 @@ CONTAINS
 
       DEALLOCATE(icount_falseglac)
 
-      !$ACC WAIT(1)
-      !$ACC UPDATE DEVICE(ext_data(jg)%atm%list_sea%idx, ext_data(jg)%atm%list_sea%ncount)
+      !$ACC UPDATE DEVICE(ext_data(jg)%atm%list_sea%idx, ext_data(jg)%atm%list_sea%ncount) ASYNC(1)
     END DO  !jg
 
   END SUBROUTINE init_index_lists
