@@ -37,7 +37,7 @@ MODULE mo_aes_coupling
 
   USE mo_sync                ,ONLY: sync_c, sync_patch_array
 
-  USE mo_bc_greenhouse_gases ,ONLY: ghg_co2mmr
+  USE mo_bc_greenhouse_gases ,ONLY: ghg_co2vmr
 
   USE mo_parallel_config     ,ONLY: nproma
 
@@ -410,7 +410,7 @@ CONTAINS
         ELSE
           nlen = p_patch%npromz_c
         END IF
-        !$ACC PARALLEL LOOP DEFAULT(PRESENT) COPYOUT(buffer(nn+1:nn+nlen, 1:4))
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COPYOUT(buffer(nn+1:nn+nlen, 1:4))
         DO n = 1, nlen
           buffer(nn+n,1) = prm_field(jg)%swflxsfc_tile(n,i_blk,iwtr)
           buffer(nn+n,2) = prm_field(jg)%lwflxsfc_tile(n,i_blk,iwtr)
@@ -430,7 +430,7 @@ CONTAINS
         ELSE
           nlen = p_patch%npromz_c
         END IF
-        !$ACC PARALLEL LOOP DEFAULT(PRESENT) COPYOUT(buffer(nn+1:nn+nlen, 1:4))
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COPYOUT(buffer(nn+1:nn+nlen, 1:4))
         DO n = 1, nlen
           buffer(nn+n,1) = prm_field(jg)%swflxsfc_tile(n,i_blk,iwtr)
           buffer(nn+n,2) = prm_field(jg)%lwflxsfc_tile(n,i_blk,iwtr)
@@ -441,6 +441,7 @@ CONTAINS
 !ICON_OMP_END_PARALLEL_DO
 
     ENDIF ! config_use_sens_heat_flux_hack
+    !$ACC WAIT(1)
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
 
@@ -597,10 +598,10 @@ CONTAINS
                 DO n = 1, nlen
                    buffer(nn+n,1) =              1.0e6_wp * ccycle_config(jg)%vmr_co2
                 END DO
-             CASE (4) ! transient co2 concentration, ghg_co2mmr in kg/kg
+             CASE (4) ! transient co2 concentration, ghg_co2vmr in m3/m3
                 !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COPYOUT(buffer(nn+1:nn+nlen, 1))
                 DO n = 1, nlen
-                   buffer(nn+n,1) =  amd/amco2 * 1.0e6_wp * ghg_co2mmr
+                   buffer(nn+n,1) =              1.0e6_wp * ghg_co2vmr
                 END DO
              END SELECT
           END SELECT
@@ -939,7 +940,8 @@ CONTAINS
       CALL dbg_print('AESOce: ocv         ',prm_field(jg)%ocv         ,str_module,4,in_subset=p_patch%cells%owned)
 
       ! Fraction of tiles:
-      !$ACC UPDATE HOST(frac_oce)
+      !$ACC UPDATE HOST(frac_oce) ASYNC(1)
+      !$ACC WAIT(1)
       CALL dbg_print('AESOce: frac_oce     ',frac_oce                 ,str_module,3,in_subset=p_patch%cells%owned)
       scr(:,:) = prm_field(jg)%frac_tile(:,:,iwtr)
       CALL dbg_print('AESOce: frac_tile.wtr',scr                      ,str_module,3,in_subset=p_patch%cells%owned)

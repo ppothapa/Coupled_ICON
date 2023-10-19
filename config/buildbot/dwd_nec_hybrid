@@ -40,7 +40,8 @@ mv -v run/set-up.info.vector run/set-up.info
 
 # Link a temporary directory with lots of space into the experiments subdir. Reruns
 # /etc/profile to get a new directory
-ksh -c '. /etc/profile && ln -s "$TMPDIR" experiments'
+echo "Link a temporary directory with lots of space into the experiments subdir"
+ksh -c '. /etc/profile && echo "TMPDIR: $TMPDIR" && chmod -R go+rx "$TMPDIR" && ln -s "$TMPDIR" experiments'
 ls -l "${PWD}/experiments"
 
 # Copy the vector binary to the place, that is stored as builddir in set-up.info.

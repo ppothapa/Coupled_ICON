@@ -10,10 +10,7 @@ make_and_change_to_experiment_dir # function in ../add_run_routines
 START_MODEL="${START_MODEL:=$START $MODEL}"
 
 # set icon_data_poolFolder
-icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}"
-if [[ -d "$icon_data_poolFolder/buildbot_data/nwp" ]]; then
-  icon_data_poolFolder="$icon_data_poolFolder/buildbot_data/nwp"
-fi
+icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/buildbot_data/nwp"
 
 export PATH=${PATH}:~routfor/routfox/bin
 
@@ -26,10 +23,8 @@ EXP="NWP"    # experiment identifier
 # root directory for input data
 DATAROOT="${icon_data_poolFolder}/Checksuite_data"
 
-GRIDDIR=/hpc/rwork0/routfor/routfox/icon/grids/public/edzw # grid directory
-if [[ ! -d "$GRIDDIR" ]]; then
-  GRIDDIR="$icon_data_poolFolder/grids/public/edzw"
-fi
+GRIDDIR="${icon_data_poolFolder}/grids/public/edzw"
+# GRIDDIR links to /hpc/rwork0/routfor/routfox/icon/grids/public/edzw on RCL
 EXTPDIR="$GRIDDIR" # external parameter directory
 
 # absolute path to input directory - for the time being
@@ -317,7 +312,6 @@ a_hshr       = 2.0
 /
 &dynamics_nml
  iequations     = 3
- idiv_method    = 1
  divavg_cntrwgt = 0.50
  lcoriolis      = .TRUE.
 /
@@ -852,7 +846,10 @@ cat > map_file.fc << EOF3
   z0                GZ0
 EOF3
 
-
+#
+# configure START_MODEL_function
+#
+ICON_COMPONENT1_VH_procs=$((num_restart_procs + num_io_procs + num_prefetch_proc + num_io_procs_radar))
 
 # ----------------------------------------------------------------------
 # run the model!
@@ -874,50 +871,40 @@ fi
 
 refdir="${DATAROOT}/ref_data_exp09/c1aea4e1"
 
+module unload eccodes sx ; module load x86 eccodes/2.28.0-x86-python
 
-bash << EOFSCRIPT
-
-. ${MODULESHOME}/init/sh
-
-set -e
-
-module load eccodes
-ECCODES_DIR=/hpc/sw/eccodes/definitions/release/\$ECCODES_VERSION
-export ECCODES_DEFINITION_PATH="\$ECCODES_DIR/definitions.edzw:\$ECCODES_DIR/definitions"
-
-. "${DATAROOT}/checksuite_rcnl_miniconda3/etc/profile.d/conda.sh"
-conda activate pyn_env
+EXIT_STATUS=0
 
 for this_file in igfrf02000000ML.grb 
 do
 
-# run Python script for comparison of GRIB2 meta-data and values:
-$ICONDIR/run/checksuite.nwp/ICON_09_R2B6N7_oper_EPS.check.py \
---datafile=\$this_file --reffile=$refdir/\$this_file -g
+  # run Python script for comparison of GRIB2 meta-data and values:
+  "$ICONDIR/run/checksuite.nwp/ICON_09_R2B6N7_oper_EPS.check.py" \
+    --datafile="$this_file" --reffile="$refdir/$this_file" -g
+  ((EXIT_STATUS = EXIT_STATUS + $?))
 
 done
 
 for this_file in iefff02000000MLv01.grb
 do
 
-# run Python script for comparison of GRIB2 meta-data and values:
-$ICONDIR/run/checksuite.nwp/ICON_09_R2B6N7_oper_EPS.check.py \
---datafile=\$this_file --reffile=$refdir/\$this_file
+  # run Python script for comparison of GRIB2 meta-data and values:
+  "$ICONDIR/run/checksuite.nwp/ICON_09_R2B6N7_oper_EPS.check.py" \
+    --datafile="$this_file" --reffile="$refdir/$this_file"
+  ((EXIT_STATUS = EXIT_STATUS + $?))
 
 done
 
-# Test one time step for unphysical 0 K entries
+# Test one time step for nonphysical 0 K entries
 for this_file in *00000000*.grb
 do
 
-# run Python script for to check for unphysical 0 K temperatures.:
-$ICONDIR/run/checksuite.nwp/ICON_09_R2B6N7_oper_EPS.check.py \
---datafile=\$this_file --check_0K
+  # run Python script for to check for unphysical 0 K temperatures.:
+  "$ICONDIR/run/checksuite.nwp/ICON_09_R2B6N7_oper_EPS.check.py" \
+    --datafile="$this_file" --check_0K
+  ((EXIT_STATUS = EXIT_STATUS + $?))
 
 done
 
-EOFSCRIPT
-EXIT_STATUS=$?
-
-echo 'python EXIT_STATUS: '$EXIT_STATUS
+echo "summed EXIT_STATUS: $EXIT_STATUS"
 exit $EXIT_STATUS

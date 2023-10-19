@@ -1384,7 +1384,7 @@ CONTAINS
     no_of_threads = OMP_GET_NUM_THREADS()
 #endif
 !ICON_OMP_END_SINGLE NOWAIT
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lzopenacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzopenacc)
     sum_value(myThreadNo) = 0.0_wp
     sum_weight(myThreadNo) = 0.0_wp
     !$ACC END KERNELS
@@ -1556,7 +1556,8 @@ CONTAINS
       lzopenacc = .FALSE.
     ENDIF
 
-    !$ACC UPDATE HOST(sum_1, sum_2) IF(lzopenacc)
+    !$ACC UPDATE HOST(sum_1, sum_2) ASYNC(1) IF(lzopenacc)
+    !$ACC WAIT(1) IF(lzopenacc)
 
     size_of_sum_1 = SIZE(sum_1(:))
     size_of_sum_2 = SIZE(sum_2(:))
@@ -1579,7 +1580,7 @@ CONTAINS
 
     DEALLOCATE(concat_input_sum, concat_output_sum)
 
-    !$ACC UPDATE DEVICE(sum_1, sum_2) IF(lzopenacc)
+    !$ACC UPDATE DEVICE(sum_1, sum_2) ASYNC(1) IF(lzopenacc)
 
   END SUBROUTINE gather_sums_1D
   !-----------------------------------------------------------------------
@@ -1600,16 +1601,17 @@ CONTAINS
 
     !$ACC DATA CREATE(array_sum_1, array_sum_2) IF(lzopenacc)
 
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lzopenacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzopenacc)
     array_sum_1(1) = sum_1
     array_sum_2(1) = sum_2
     !$ACC END KERNELS
     CALL gather_sums(array_sum_1, array_sum_2, lopenacc=lzopenacc)
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lzopenacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzopenacc)
     sum_1 = array_sum_1(1)
     sum_2 = array_sum_2(1)
     !$ACC END KERNELS
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
   END SUBROUTINE gather_sums_0D

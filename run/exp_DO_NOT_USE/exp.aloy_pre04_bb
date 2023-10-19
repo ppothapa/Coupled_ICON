@@ -183,7 +183,7 @@ fi
 
 cat > ${atm_namelist} << EOF
 &coupling_mode_nml
-  coupled_mode = .TRUE.
+ coupled_to_ocean = .TRUE.
 /
 &parallel_nml
  nproma           = ${nproma}
@@ -688,7 +688,7 @@ fi
 
 cat > ${oce_namelist} << EOF
 &coupling_mode_nml
-  coupled_mode = .TRUE.
+ coupled_to_atmo = .TRUE.
 /
 &parallel_nml
  nproma        = ${nproma}

@@ -1402,12 +1402,13 @@ CONTAINS
     
 
     IF      (ASSOCIATED(r_ptr_5d)) THEN
-      !$ACC UPDATE HOST(r_ptr) IF(i_am_accel_node .AND. acc_is_present(r_ptr))
+      !$ACC UPDATE HOST(r_ptr) ASYNC(1) IF(i_am_accel_node .AND. acc_is_present(r_ptr))
     ELSE IF (ASSOCIATED(s_ptr_5d)) THEN
-      !$ACC UPDATE HOST(s_ptr) IF(i_am_accel_node .AND. acc_is_present(s_ptr))
+      !$ACC UPDATE HOST(s_ptr) ASYNC(1) IF(i_am_accel_node .AND. acc_is_present(s_ptr))
     ELSE IF (ASSOCIATED(i_ptr_5d)) THEN
-      !$ACC UPDATE HOST(i_ptr) IF(i_am_accel_node .AND. acc_is_present(i_ptr))
+      !$ACC UPDATE HOST(i_ptr) ASYNC(1) IF(i_am_accel_node .AND. acc_is_present(i_ptr))
     ENDIF
+    !$ACC WAIT(1) IF(i_am_accel_node)
 
     RETURN
 999 CALL finish(routine,message_text)

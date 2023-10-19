@@ -39,6 +39,9 @@ dt_gwd=`expr 4 \* $atmTimeStep`
 
 # EXPNAME                       = name of exp. in 'exp.<name>'
 # basedir                       = base directory, where src/, run/ etc exist
+# icon_data_poolFolder          = base directory, where grids/, input/ and setup/ exist
+
+icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}"
 
 #--------------------------------------------------------------------------------------------------
 
@@ -47,8 +50,8 @@ dt_gwd=`expr 4 \* $atmTimeStep`
 
 # horizontal grid(s)
 # ------------------
-atmo_grid_folder=/users/icontest/pool/data/ICON/grids/public/mpim/${atmos_gridID}
-atmo_dyn_grid=${atmo_grid_folder}/icon_grid_${atmos_gridID}_${atmos_refinement}_G.nc
+atmo_grid_folder=${icon_data_poolFolder}/buildbot_data/nwp/grids/public/edzw/
+atmo_dyn_grid=${atmo_grid_folder}/icon_grid_${atmos_gridID}_${atmos_refinement}_R.nc
 
 
 ###  Inorder to avoid path issues the radiation and atmosphere grid are the same. 
@@ -91,7 +94,7 @@ add_link_file ${basedir}/externals/ecrad/data ecrad_data
 #-----------------------------------------------------------------------------
 
 
-cat > ${atmo_namelist} << EOF
+cat > ${basedir}/run/${atmo_namelist} << EOF
 ! parallel_nml: MPI parallelization ------------------------------------------
 &parallel_nml
  nproma                      =                   ${nproma}        ! loop chunk length
@@ -209,7 +212,6 @@ izenith                     =                          3         ! zenith angle 
 ! dynamics_nml: dynamical core -----------------------------------------------
 &dynamics_nml
  iequations                  =                         3         ! 3: non-hydrostatic atmosphere
- idiv_method                 =                         1         ! Method for divergence computation
  lcoriolis                   =                    .TRUE.         ! Coriolis Force
 /
 

@@ -247,6 +247,7 @@ CONTAINS
   SUBROUTINE rttov_finalize()
     CHARACTER(LEN=*), PARAMETER    :: routine = modname//"::rttov_finalize"
     INTEGER :: ierrstat
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(lsynsat_product)
 
     DEALLOCATE(lsynsat_product, lsynsat_chan, chan_idx, chan_rtidx, STAT=ierrstat)
@@ -424,8 +425,7 @@ SUBROUTINE rttov_driver (jg, jgp, nnow, lacc)
     !$ACC UPDATE ASYNC(1) &
     !$ACC   HOST(pres, temp, qv, rg_t2m, rg_qv2m, rg_psfc, rg_hsfc, rg_u10m) &
     !$ACC   HOST(rg_v10m, rg_tsfc, rg_stype, rg_wtype, rg_cosmu0, cld, clc)
-
-    !$ACC WAIT
+    !$ACC WAIT(1)
 
     CALL rtifc_fill_input(                                &
          istatus,                                         &

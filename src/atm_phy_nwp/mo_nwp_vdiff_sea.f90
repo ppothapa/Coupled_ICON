@@ -527,7 +527,8 @@ CONTAINS
       END DO
     !$ACC END PARALLEL
 
-    !$ACC EXIT DATA ASYNC(1) DELETE(LIST_CREATE)
+    !$ACC WAIT(1)
+    !$ACC EXIT DATA DELETE(LIST_CREATE)
 #   undef LIST_CREATE
 
   END SUBROUTINE sea_model
@@ -1016,13 +1017,13 @@ CONTAINS
       CALL message ('nwp_vdiff_update_seaice_list', message_text)
     END IF
 
-    !$ACC EXIT DATA ASYNC(1) DELETE(oldice_idx) IF(lzacc)
-
     ! Copy index lists to CPU. Depending on context, the CPU copy may be used.
-    !$ACC UPDATE SELF(seaice_list%idx, seaice_list%ncount) ASYNC(1) IF(lzacc)
-    !$ACC UPDATE SELF(new_ice_list%idx, new_ice_list%ncount) ASYNC(1) &
+    !$ACC UPDATE HOST(seaice_list%idx, seaice_list%ncount) ASYNC(1) IF(lzacc)
+    !$ACC UPDATE HOST(new_ice_list%idx, new_ice_list%ncount) ASYNC(1) &
     !$ACC   IF(lzacc .AND. have_new_ice_list)
+
     !$ACC WAIT(1) IF(lzacc)
+    !$ACC EXIT DATA DELETE(oldice_idx) IF(lzacc)
 
   END SUBROUTINE nwp_vdiff_update_seaice_list
 
@@ -1092,21 +1093,21 @@ CONTAINS
         IF (i_count == 0) CYCLE
 
         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-          !$ACC LOOP GANG VECTOR PRIVATE(jc)
-          DO ic = 1, new_ice_list%ncount(iblk)
-            jc = new_ice_list%idx(ic,iblk)
+        !$ACC LOOP GANG VECTOR PRIVATE(jc)
+        DO ic = 1, new_ice_list%ncount(iblk)
+          jc = new_ice_list%idx(ic,iblk)
 
-            frsi(ic) = fr_seaice(jc, iblk)
-            tice_p(ic) = prog_wtr%t_ice(jc, iblk)
-            hice_p(ic) = prog_wtr%h_ice(jc, iblk)
-            tsnow_p(ic) = prog_wtr%t_snow_si(jc, iblk)
-            hsnow_p(ic) = prog_wtr%h_snow_si(jc, iblk)
-            albsi_p(ic) = prog_wtr%alb_si(jc, iblk)
-          END DO
+          frsi(ic) = fr_seaice(jc, iblk)
+          tice_p(ic) = prog_wtr%t_ice(jc, iblk)
+          hice_p(ic) = prog_wtr%h_ice(jc, iblk)
+          tsnow_p(ic) = prog_wtr%t_snow_si(jc, iblk)
+          hsnow_p(ic) = prog_wtr%h_snow_si(jc, iblk)
+          albsi_p(ic) = prog_wtr%alb_si(jc, iblk)
+        END DO
         !$ACC END PARALLEL
 
-        !$ACC UPDATE ASYNC(1) SELF(frsi, tice_p, hice_p, tsnow_p, hsnow_p, albsi_p) IF(lzacc)
-        !$ACC WAIT(1) IF(lzacc)
+        !$ACC UPDATE HOST(frsi, tice_p, hice_p, tsnow_p, hsnow_p, albsi_p) ASYNC(1) IF(lzacc)
+        !$ACC WAIT(1)
 
         tice_n(1:i_count) = tice_p(1:i_count)
         hice_n(1:i_count) = hice_p(1:i_count)
@@ -1120,7 +1121,7 @@ CONTAINS
             & tice_n(:), hice_n(:), tsnow_n(:), hsnow_n(:), albsi_n(:) &
           )
 
-        !$ACC UPDATE ASYNC(1) DEVICE(tice_p, hice_p, tsnow_p, hsnow_p, albsi_p) IF(lzacc)
+        !$ACC UPDATE DEVICE(tice_p, hice_p, tsnow_p, hsnow_p, albsi_p) ASYNC(1) IF(lzacc)
 
         !NEC$ ivdep
         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
@@ -1138,7 +1139,8 @@ CONTAINS
       END DO
     !$OMP END PARALLEL
 
-    !$ACC EXIT DATA ASYNC(1) DELETE(LIST_CREATE) IF(lzacc)
+    !$ACC WAIT(1)
+    !$ACC EXIT DATA DELETE(LIST_CREATE) IF(lzacc)
 
   END SUBROUTINE nwp_vdiff_update_seaice_vars
 

@@ -450,7 +450,7 @@ add_required_file ${basedir}/run/coupling_${EXPNAME}.yaml         ./coupling.yam
 cat > ${atm_namelist} << EOF
 !
 &coupling_mode_nml
-  coupled_mode     = .TRUE.
+ coupled_to_ocean  = .TRUE.
 /
 &parallel_nml
  nproma            = ${nproma_atm}
@@ -492,7 +492,6 @@ cat > ${atm_namelist} << EOF
   vwind_offctr    = 0.2
   damp_height     = 44000.
   rayleigh_coeff  = 1
-  lhdiff_rcf      = .true.
   divdamp_order   = 24 ! 2 ass, 24 fc
   divdamp_type    = 32  ! optional: 2 assimilation cycle, 32 forecast
   divdamp_fac     = 0.004   ! 0.004 for R2B6; recommendation for R3B7: 0.003
@@ -1242,7 +1241,7 @@ ocean_data_InputFolder="${icon_data_poolFolder}/${ocean_gridID}/ocean"
 cat > ${oce_namelist} << EOF
 !
 &coupling_mode_nml
-  coupled_mode               = .TRUE.
+ coupled_to_atmo             = .TRUE.
 /
 &parallel_nml
  nproma                      = ${nproma_oce}

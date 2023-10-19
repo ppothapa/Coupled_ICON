@@ -35,6 +35,7 @@ MODULE mo_nwp_phy_state
 !! infrastructure by Kristina Froehlich (MPI-M, 2011-04-27)
 !! Added clch, clcm, clcl, hbas_con, htop_con by Helmut Frank (DWD, 2013-01-17)
 !! Added hzerocl, gust10                      by Helmut Frank (DWD, 2013-03-13)
+!! Added z_pbl for common ICON runs           by Michael Haller (DWD, 2022-02-22)
 !!
 !! @par Copyright and License
 !!
@@ -134,6 +135,7 @@ USE mtime,                   ONLY: max_timedelta_str_len, getPTStringFromMS
 USE mo_name_list_output_config, ONLY: is_variable_in_output
 USE mo_util_string,          ONLY: real2string
 USE mo_sbm_storage,          ONLY: construct_sbm_storage, destruct_sbm_storage
+USE mo_coupling_config,      ONLY: is_coupled_to_waves
 
 #include "add_var_acc_macro.inc"
 
@@ -263,6 +265,7 @@ SUBROUTINE destruct_nwp_phy_state()
     routine = 'mo_nwp_phy_state:destruct_nwp_phy_state'
   CALL message(routine, 'start to destruct 3D state vector')
 
+  !$ACC WAIT(1)
   DO jg = 1,n_dom
     CALL vlr_del(prm_nwp_diag_list(jg))
     CALL vlr_del(prm_nwp_tend_list(jg))
@@ -1234,6 +1237,27 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
                 &    hor_intp_type=HINTP_TYPE_LONLAT_NNB ),                    &
                 & lopenacc=.TRUE.  )
     __acc_attach(diag%snowlmt)
+
+
+    ! &      diag%hpbl(nproma,nblks_c)
+    ! height of bdl for use in non-LES simulations
+
+    IF ( var_in_output%hpbl ) THEN
+
+#ifdef _OPENACC
+      CALL finish ('mo_nwp_phy_state:new_nwp_phy_diag_list', &
+        'hpbl calculation not ported to GPU')
+#endif
+
+      cf_desc    = t_cf_var('hpbl', 'm', 'boundary layer height above sea level', &
+           &                datatype_flt)
+      grib2_desc = grib2_var(0, 3, 18, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( diag_list, 'hpbl', diag%hpbl,                             &
+        & GRID_UNSTRUCTURED_CELL, ZA_CLOUD_TOP, cf_desc, grib2_desc,            &
+        & ldims=shape2d, lrestart=.FALSE. )
+
+    ENDIF
+
 
 
     ! &      diag%clc(nproma,nlev,nblks_c)
@@ -3062,6 +3086,18 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
       & initval=0.01_wp, lopenacc=.TRUE. )
     __acc_attach(diag%gz0)
 
+
+    IF (is_coupled_to_waves()) THEN
+      ! &      diag%z0_waves(nproma,nblks_c)
+      cf_desc     = t_cf_var('z0_waves', 'm','wave-dependent roughness length', datatype_flt)
+      grib2_desc = grib2_var(10, 0, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( diag_list, 'z0_waves', diag%z0_waves,                   &
+        & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,          &
+        & ldims=shape2d, loutput=.TRUE.,                                    &
+        & lopenacc=.FALSE. )
+    END IF
+
+
     ! &      diag%t_2m(nproma,nblks_c)
     IF (icpl_da_sfcevap == 1 .OR. icpl_da_sfcevap == 2) THEN
       in_group = groups("pbl_vars","dwd_fg_atm_vars","mode_iau_ana_in")
@@ -3178,6 +3214,8 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
     CALL add_var( diag_list, 'td_2m', diag%td_2m,                         &
       & GRID_UNSTRUCTURED_CELL, ZA_HEIGHT_2M, cf_desc, grib2_desc,        &
       & ldims=shape2d, lrestart=.FALSE., in_group=groups("pbl_vars","dwd_fg_atm_vars"), &
+      & hor_interp=create_hor_interp_metadata(hor_intp_type=HINTP_TYPE_LONLAT_BCTR, &
+      &                                       fallback_type=HINTP_TYPE_LONLAT_RBF), &
       & lopenacc=.TRUE. )
     __acc_attach(diag%td_2m)
 
@@ -3887,12 +3925,13 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
 
     !Anurag Dipankar, MPI (7 Oct 2013)
     !Diagnostics for LES physics
+
     IF ( atm_phy_nwp_config(k_jg)%is_les_phy ) THEN
 
       ! &      diag%z_pbl(nproma,nblks_c)
       cf_desc    = t_cf_var('z_pbl', 'm', 'boundary layer height above sea level', &
            &                datatype_flt)
-      grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      grib2_desc = grib2_var(0, 3, 18, ibits, GRID_UNSTRUCTURED, GRID_CELL)
       CALL add_var( diag_list, 'z_pbl', diag%z_pbl,                             &
         & GRID_UNSTRUCTURED_CELL, ZA_CLOUD_TOP, cf_desc, grib2_desc,            &
         & ldims=shape2d, lrestart=.FALSE. )

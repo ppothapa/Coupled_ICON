@@ -669,10 +669,11 @@ SUBROUTINE check_patch_array_sp(typ, p_patch, arr, opt_varname)
    REAL(wp) :: arr_wp(SIZE(arr,1),SIZE(arr,2),SIZE(arr,3))
 
    !$ACC DATA CREATE(arr_wp) IF(i_am_accel_node)
-   !$ACC KERNELS IF(i_am_accel_node)
+   !$ACC KERNELS ASYNC(1) IF(i_am_accel_node)
    arr_wp(:,:,:) = REAL(arr(:,:,:),wp)
    !$ACC END KERNELS
    CALL check_patch_array_3(typ, p_patch, arr_wp, opt_varname)
+   !$ACC WAIT(1)
    !$ACC END DATA
 
 END SUBROUTINE check_patch_array_sp
@@ -740,7 +741,7 @@ SUBROUTINE check_patch_array_3(typ, p_patch, arr, opt_varname)
    ndim3 = UBOUND(arr,3)
 
    !$ACC DATA PRESENT(arr) IF(i_am_accel_node)
-   !$ACC UPDATE HOST(arr) IF(i_am_accel_node)
+   !$ACC UPDATE HOST(arr) ASYNC(1) IF(i_am_accel_node)
 
    IF(typ == SYNC_C .OR. typ == SYNC_C1) THEN
       ndim   = p_patch%n_patch_cells
@@ -801,6 +802,7 @@ SUBROUTINE check_patch_array_3(typ, p_patch, arr, opt_varname)
    nblks_g = (ndim_g-1)/nproma+1
 
    l_my_process_is_mpi_test = my_process_is_mpi_test()
+   !$ACC WAIT(1) !GV: UPDATE HOST(arr) finished
    IF (num_test_procs > 1) THEN
      shape_recv = SHAPE(arr)
      ALLOCATE(arr_g(shape_recv(1),shape_recv(2),shape_recv(3)))

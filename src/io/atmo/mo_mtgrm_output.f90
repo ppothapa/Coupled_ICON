@@ -2806,7 +2806,7 @@ CONTAINS
     DO ivar=1,SIZE(mtgrm(jg)%sfc_var_info)
       !$ACC UPDATE HOST(mtgrm(jg)%out_buf%sfc_vars(ivar)%a) ASYNC(1) IF(lzacc)
     END DO
-    !$ACC WAIT
+    !$ACC WAIT(1)
 
     ! In "non-distributed" mode, station data is gathered by PE #0
     ! which writes a single file:

@@ -193,7 +193,7 @@ CONTAINS
       DO jf = 1,wave_config%nfreqs
         DO jd = 1,wave_config%ndirs
           !
-          jt = wave_config%get_tracer_id(jd,jf)
+          jt = wave_config%tracer_ind(jd,jf)
           !
         DO jc = i_startidx, i_endidx
             st = rpi_2*MAX(0._wp, COS(wave_config%dirs(jd)-p_forcing%dir10m(jc,jb)*deg2rad) )**2
@@ -403,7 +403,7 @@ CONTAINS
     INTEGER :: nfreqs, ndirs
     INTEGER :: klp1, ic, kh, klh, k, ks, icl1, icl2, isg, k1, k11, k2, k21
     INTEGER :: m, ikn, i, ie
-    INTEGER :: mc,im,im1,ip,ip1,mm,mm1,mp,mp1
+    INTEGER :: mc,im,im1,ip,ip1,mm,mm1,mp,mp1,mct
 
     REAL(wp) :: alamd, con, delphi1, delphi2
     REAL(wp) :: deltha, cl1, cl2, al11, al12, ch, cl1h, cl2h
@@ -560,6 +560,13 @@ CONTAINS
           END IF
         END IF
       END IF
+      
+      MCT = MC
+      IF (MCT.GT.nfreqs) MCT  = nfreqs
+      IF (MM.GT.nfreqs)  MM  = nfreqs
+      IF (MM1.GT.nfreqs) MM1 = nfreqs
+      IF (MP.GT.nfreqs)  MP  = nfreqs
+      IF (MP1.GT.nfreqs) MP1 = nfreqs
 
       !     2.1.1   ANGULAR LOOP.                                     !
       DIR2: DO K = 1,ndirs !DIR2
@@ -570,24 +577,24 @@ CONTAINS
           K11 = p_diag%K11W(K,KH)
           K21 = p_diag%K21W(K,KH)
 
-          p_diag%non_lin_tr_ind( 1,MC,KH,K) = wc%get_tracer_id(K1,IP)
-          p_diag%non_lin_tr_ind( 2,MC,KH,K) = wc%get_tracer_id(K11,IP)
-          p_diag%non_lin_tr_ind( 3,MC,KH,K) = wc%get_tracer_id(K1,IP1)
-          p_diag%non_lin_tr_ind( 4,MC,KH,K) = wc%get_tracer_id(K11,IP1)
-          p_diag%non_lin_tr_ind( 5,MC,KH,K) = wc%get_tracer_id(K2,IM)
-          p_diag%non_lin_tr_ind( 6,MC,KH,K) = wc%get_tracer_id(K21,IM)
-          p_diag%non_lin_tr_ind( 7,MC,KH,K) = wc%get_tracer_id(K2,IM1)
-          p_diag%non_lin_tr_ind( 8,MC,KH,K) = wc%get_tracer_id(K21,IM1)
-          p_diag%non_lin_tr_ind( 9,MC,KH,K) = wc%get_tracer_id(K,IC)
-          p_diag%non_lin_tr_ind(10,MC,KH,K) = wc%get_tracer_id(K2 ,MM)
-          p_diag%non_lin_tr_ind(11,MC,KH,K) = wc%get_tracer_id(K21,MM)
-          p_diag%non_lin_tr_ind(12,MC,KH,K) = wc%get_tracer_id(K2 ,MM1)
-          p_diag%non_lin_tr_ind(13,MC,KH,K) = wc%get_tracer_id(K21,MM1)
-          p_diag%non_lin_tr_ind(14,MC,KH,K) = wc%get_tracer_id(K  ,MC)
-          p_diag%non_lin_tr_ind(15,MC,KH,K) = wc%get_tracer_id(K1 ,MP)
-          p_diag%non_lin_tr_ind(16,MC,KH,K) = wc%get_tracer_id(K11,MP)
-          p_diag%non_lin_tr_ind(17,MC,KH,K) = wc%get_tracer_id(K1 ,MP1)
-          p_diag%non_lin_tr_ind(18,MC,KH,K) = wc%get_tracer_id(K11,MP1)
+          p_diag%non_lin_tr_ind( 1,MC,KH,K) = wc%tracer_ind(K1,IP)
+          p_diag%non_lin_tr_ind( 2,MC,KH,K) = wc%tracer_ind(K11,IP)
+          p_diag%non_lin_tr_ind( 3,MC,KH,K) = wc%tracer_ind(K1,IP1)
+          p_diag%non_lin_tr_ind( 4,MC,KH,K) = wc%tracer_ind(K11,IP1)
+          p_diag%non_lin_tr_ind( 5,MC,KH,K) = wc%tracer_ind(K2,IM)
+          p_diag%non_lin_tr_ind( 6,MC,KH,K) = wc%tracer_ind(K21,IM)
+          p_diag%non_lin_tr_ind( 7,MC,KH,K) = wc%tracer_ind(K2,IM1)
+          p_diag%non_lin_tr_ind( 8,MC,KH,K) = wc%tracer_ind(K21,IM1)
+          p_diag%non_lin_tr_ind( 9,MC,KH,K) = wc%tracer_ind(K,IC)
+          p_diag%non_lin_tr_ind(10,MC,KH,K) = wc%tracer_ind(K2 ,MM)
+          p_diag%non_lin_tr_ind(11,MC,KH,K) = wc%tracer_ind(K21,MM)
+          p_diag%non_lin_tr_ind(12,MC,KH,K) = wc%tracer_ind(K2 ,MM1)
+          p_diag%non_lin_tr_ind(13,MC,KH,K) = wc%tracer_ind(K21,MM1)
+          p_diag%non_lin_tr_ind(14,MC,KH,K) = wc%tracer_ind(K  ,MCT)
+          p_diag%non_lin_tr_ind(15,MC,KH,K) = wc%tracer_ind(K1 ,MP)
+          p_diag%non_lin_tr_ind(16,MC,KH,K) = wc%tracer_ind(K11,MP)
+          p_diag%non_lin_tr_ind(17,MC,KH,K) = wc%tracer_ind(K1 ,MP1)
+          p_diag%non_lin_tr_ind(18,MC,KH,K) = wc%tracer_ind(K11,MP1)
         END DO MIR2
       END DO DIR2
     END DO FRE4

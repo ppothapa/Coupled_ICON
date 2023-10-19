@@ -558,7 +558,6 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
       END IF
 
     END DO
-    !$ACC WAIT(1)
 !$OMP END DO 
 !$OMP END PARALLEL
 
@@ -832,8 +831,8 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
         !$ACC END PARALLEL
 
       END DO
+      !$ACC UPDATE HOST(zprmod_ref, zprrad, zprmod_ref_f, zprrad_f) ASYNC(1)
       !$ACC WAIT(1)
-      !$ACC UPDATE HOST(zprmod_ref, zprrad, zprmod_ref_f, zprrad_f)
 !$OMP END DO
 !$OMP END PARALLEL
       CALL lhn_verification( 'SW', pt_patch, radar_data, lhn_fields, p_sim_time, wobs_space, &
@@ -1060,7 +1059,8 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
 
     IF (datetime_current%time%minute  == 0) THEN
       IF (ltlhnverif) THEN
-        !$ACC UPDATE HOST(lhn_fields%pr_obs_sum, lhn_fields%pr_mod_sum, lhn_fields%pr_ref_sum)
+        !$ACC UPDATE HOST(lhn_fields%pr_obs_sum, lhn_fields%pr_mod_sum, lhn_fields%pr_ref_sum) ASYNC(1)
+        !$ACC WAIT(1)
         CALL lhn_verification( 'HR', pt_patch, radar_data, lhn_fields, p_sim_time/3600._wp, wobs_space, &
                                lhn_fields%pr_mod_sum, lhn_fields%pr_ref_sum, lhn_fields%pr_obs_sum )
       END IF
@@ -1892,7 +1892,8 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,lhn_fields,pr_obs,hzerocl, &
 
 
   IF ( assimilation_config(jg)%lhn_diag ) THEN
-    !$ACC UPDATE HOST(num_t_obs, wobs_space, radar_data%radar_ct%blacklist)
+    !$ACC UPDATE HOST(num_t_obs, wobs_space, radar_data%radar_ct%blacklist) ASYNC(1)
+    !$ACC WAIT(1)
     diag_out(:) = 0
     DO jb = i_startblk, i_endblk
       CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
@@ -2039,12 +2040,12 @@ SUBROUTINE detect_bright_band(pt_patch,radar_data,lhn_fields,sumrad,bbllim,hzero
       !$ACC END PARALLEL
 
    ENDDO
-   !$ACC WAIT(1)
 !$OMP END DO 
 !$OMP END PARALLEL
 
    IF ( assimilation_config(jg)%lhn_diag ) THEN
-     !$ACC UPDATE HOST(lhn_fields%brightband)
+     !$ACC UPDATE HOST(lhn_fields%brightband) ASYNC(1)
+     !$ACC WAIT(1)
      nbright=COUNT(lhn_fields%brightband)
      nbrightg=global_sum(nbright,opt_iroot=p_io)
      IF (my_process_is_stdio()) &
@@ -2215,7 +2216,7 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
   !$ACC   PRESENT(assimilation_config(jg:jg))
 
 ! set temperature increments to be determined to zero
-  !$ACC KERNELS DEFAULT(PRESENT)
+  !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
   ttend_lhn(:,:) = 0.0_wp
   !$ACC END KERNELS
 

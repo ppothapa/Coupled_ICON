@@ -267,6 +267,7 @@ MODULE mo_nwp_lnd_state
     CALL message (TRIM(routine), 'Destruction of nwp land state started')
 
     ! Deallocate fields with information about soil levels and layers
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(zzhls, zdzhs, zdzms)
     DEALLOCATE (zzhls, zdzhs, zdzms)
     

@@ -25,12 +25,13 @@ MODULE mo_wave_model
        &                                timer_domain_decomp, print_timer
   USE mo_master_config,           ONLY: isRestart
   USE mo_master_control,          ONLY: wave_process
-  USE mo_intp_lonlat_types,       ONLY: lonlat_grids
   USE mo_impl_constants,          ONLY: success, pio_type_async, pio_type_cdipio
   USE mo_dynamics_config,         ONLY: configure_dynamics
-  USE mo_run_config,              ONLY: configure_run, ldynamics, ltransport,  &
-       &                                ntracer, ltimer, dtime,                &
-       &                                nshift, num_lev, output_mode, msg_level
+  USE mo_run_config,              ONLY: configure_run, ldynamics, ltransport,    &
+       &                                ntracer, ltimer, dtime,                  &
+       &                                nshift, num_lev, output_mode, msg_level, &
+       &                                grid_generatingcenter, grid_generatingsubcenter
+  USE mo_gribout_config,          ONLY: configure_gribout
   USE mo_time_config,             ONLY: time_config
   USE mo_io_config,               ONLY: restartWritingParameters, configure_io
   USE mo_load_restart,            ONLY: read_restart_header
@@ -58,12 +59,21 @@ MODULE mo_wave_model
   USE mo_wave_ext_data_init,      ONLY: init_wave_ext_data
 
   USE mo_alloc_patches,           ONLY: destruct_patches
+  USE mo_icon_comm_interface,     ONLY: construct_icon_communication, destruct_icon_communication
+  USE mo_complete_subdivision,    ONLY: setup_phys_patches
+
+  ! horizontal interpolation
+  USE mo_interpol_config,         ONLY: configure_interpolation
   USE mo_intp_data_strc,          ONLY: p_int_state
   USE mo_intp_state,              ONLY: construct_2d_interpol_state, destruct_2d_interpol_state
+  USE mo_intp_lonlat_types,       ONLY: lonlat_grids
+  USE mo_intp_lonlat,             ONLY: compute_lonlat_intp_coeffs
 
-  USE mo_icon_comm_interface,     ONLY: construct_icon_communication, destruct_icon_communication
-  USE mo_interpol_config,         ONLY: configure_interpolation
-  USE mo_complete_subdivision,    ONLY: setup_phys_patches
+  ! coupling
+#ifdef YAC_coupling
+  USE mo_coupling_config,         ONLY: is_coupled_to_atmo
+  USE mo_wave_atmo_coupling_frame,ONLY: construct_wave_atmo_coupling
+#endif
 
 
   PUBLIC :: wave_model
@@ -81,6 +91,14 @@ CONTAINS
     !---------------------------------------------------------------------
     ! construct the wave model
     CALL construct_wave_model(wave_namelist_filename,shr_namelist_filename)
+
+    !---------------------------------------------------------------------
+    ! construct the coupler
+#ifdef YAC_coupling
+    IF (is_coupled_to_atmo()) THEN
+      CALL construct_wave_atmo_coupling(p_patch(1:))
+    END IF
+#endif
 
     CALL wave()
 
@@ -171,6 +189,8 @@ CONTAINS
 
     CALL init_io_processes()
 
+    CALL configure_gribout(grid_generatingcenter, grid_generatingsubcenter, n_dom)
+
     !--------------------------------------------------------------------------------
     ! 6. Construct interpolation state, compute interpolation coefficients.
     !--------------------------------------------------------------------------------
@@ -191,9 +211,15 @@ CONTAINS
     CALL construct_icon_communication(p_patch, n_dom)
 
     !------------------------------------------------------------------
-    ! Setup the information for the physical patches
+    ! 7. Setup the information for the physical patches
     !------------------------------------------------------------------
     CALL setup_phys_patches
+
+    !-------------------------------------------------------------------
+    ! 8. Constructing data for lon-lat interpolation
+    !-------------------------------------------------------------------
+    CALL compute_lonlat_intp_coeffs(p_patch(1:), p_int_state(1:))
+
 
     CALL configure_dynamics (n_dom, ldynamics, ltransport)
 

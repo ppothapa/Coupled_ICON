@@ -77,8 +77,8 @@ CONTAINS
 
     REAL(wp) :: tcorr1(nproma),tcorr2(nproma),wfac,wfac_vintp(nlev_soil-1),wfac_snow,snowdep
 
-    ! Soil layer depths in IFS
-    REAL(wp), PARAMETER :: zsoil_ifs(4)=(/ 0.07_wp,0.21_wp,0.72_wp,1.89_wp/)
+    ! Soil layer center depths in IFS
+    REAL(wp), PARAMETER :: zsoil_ifs(4)=(/ 0.035_wp,0.175_wp,0.64_wp,1.945_wp/)
 
 !-------------------------------------------------------------------------
 

@@ -62,7 +62,7 @@ MODULE mo_nh_interface_nwp
   USE mo_nwp_lnd_types,           ONLY: t_lnd_prog, t_wtr_prog, t_lnd_diag
   USE mo_ext_data_types,          ONLY: t_external_data
   USE mo_nwp_phy_types,           ONLY: t_nwp_phy_diag, t_nwp_phy_tend, t_nwp_phy_stochconv
-  USE mo_coupling_config,         ONLY: is_coupled_run
+  USE mo_coupling_config,         ONLY: is_coupled_to_ocean, is_coupled_to_waves
   USE mo_parallel_config,         ONLY: nproma, p_test_run, use_physics_barrier
   USE mo_diffusion_config,        ONLY: diffusion_config
   USE mo_initicon_config,         ONLY: is_iau_active
@@ -80,7 +80,7 @@ MODULE mo_nh_interface_nwp
   USE mo_satad,                   ONLY: satad_v_3D, satad_v_3D_gpu, latent_heat_sublimation
   USE mo_aerosol_util,            ONLY: prog_aerosol_2D
   USE mo_radiation,               ONLY: radheat, pre_radiation_nwp
-  USE mo_radiation_config,        ONLY: irad_aero, iRadAeroTegen, iRadAeroART
+  USE mo_radiation_config,        ONLY: irad_aero, iRadAeroTegen, iRadAeroCAMSclim, iRadAeroART
   USE mo_nwp_gw_interface,        ONLY: nwp_gwdrag
   USE mo_nwp_gscp_interface,      ONLY: nwp_microphysics
   USE mo_nwp_turbtrans_interface, ONLY: nwp_turbtrans
@@ -95,6 +95,9 @@ MODULE mo_nh_interface_nwp
   USE mo_nwp_ocean_interface,     ONLY: nwp_couple_ocean
   USE mo_sync,                    ONLY: sync_patch_array, sync_patch_array_mult, SYNC_E,      &
                                         SYNC_C, SYNC_C1
+#ifdef YAC_coupling
+  USE mo_atmo_wave_coupling,      ONLY: couple_atmo_to_wave
+#endif
   USE mo_mpi,                     ONLY: my_process_is_mpi_all_parallel, work_mpi_barrier
   USE mo_nwp_diagnosis,           ONLY: nwp_statistics, nwp_opt_diagnostics_2, &
                                     &   nwp_diag_output_1, nwp_diag_output_2
@@ -462,7 +465,7 @@ CONTAINS
 
       CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk,  &
                          i_startidx, i_endidx, rl_start, rl_end)
-      !$ACC KERNELS IF(lzacc)
+      !$ACC KERNELS ASYNC(1) IF(lzacc)
       z_exner_sv(i_startidx:i_endidx,:,jb) = pt_prog%exner(i_startidx:i_endidx,:,jb)
       !$ACC END KERNELS
     ENDDO
@@ -541,7 +544,7 @@ CONTAINS
 
 
       ! Save Exner pressure field (this is needed for a correction to reduce sound-wave generation by latent heating)
-      !$ACC KERNELS IF(lzacc)
+      !$ACC KERNELS ASYNC(1) IF(lzacc)
       z_exner_sv(i_startidx:i_endidx,:,jb) = pt_prog%exner(i_startidx:i_endidx,:,jb)
       !$ACC END KERNELS
 
@@ -564,7 +567,7 @@ CONTAINS
 
         ! initialize tt_lheat to be in used LHN
         IF (lcompute_tt_lheat) THEN
-          !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
+          !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           prm_diag%tt_lheat (:,:,jb) = - pt_diag%temp   (:,:,jb)
           !$ACC END KERNELS
         ENDIF
@@ -752,7 +755,7 @@ CONTAINS
             & prm_nwp_tend, initialize=linit, lacc=lzacc &
           )
 
-        IF (is_coupled_run()) THEN
+        IF (is_coupled_to_ocean()) THEN
           ! Sea-ice cover might change if ocean passed back new values.
 
           CALL nwp_vdiff_update_seaice ( &
@@ -1257,8 +1260,9 @@ CONTAINS
       ! Pressure has already been updated at the end of the fast physics part
       lpres = .FALSE.
 
-      ! Temperature at interface levels is needed if irad_aero = 6 or 9
-      IF ( lcall_phy_jg(itrad) .AND. ( irad_aero == iRadAeroTegen .OR. irad_aero == iRadAeroART ) ) THEN
+      ! Temperature at interface levels is needed if irad_aero = 6/7/9
+      IF ( lcall_phy_jg(itrad) .AND.  &
+        & ( irad_aero == iRadAeroTegen .OR. irad_aero == iRadAeroCAMSclim .OR. irad_aero == iRadAeroART ) ) THEN
         ltemp_ifc = .TRUE.
       ELSE
         ltemp_ifc = .FALSE.
@@ -1557,7 +1561,7 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL
 
-        IF (atm_phy_nwp_config(jg)%inwp_surface >= 1 .OR. is_coupled_run()) THEN
+        IF (atm_phy_nwp_config(jg)%inwp_surface >= 1 .OR. is_coupled_to_ocean()) THEN
 
 #ifdef __PGI_WORKAROUND
           !$ACC DATA CREATE(gp_count_t) IF(lzacc)
@@ -1760,10 +1764,36 @@ CONTAINS
 
 
     !-------------------------------------------------------------------------
+    !> Waves coupling: if coupling time step
+    !-------------------------------------------------------------------------
+
+    IF ( is_coupled_to_waves() .AND. (.NOT. linit) ) THEN
+
+#ifdef YAC_coupling
+      IF (ltimer) CALL timer_start(timer_coupling)
+#ifdef _OPENACC
+      CALL finish('mo_nh_interface_nwp', 'nwp_couple_waves is not available on GPU')
+#endif
+
+      CALL couple_atmo_to_wave(p_patch   = pt_patch,           & !in
+        &                      u10m      = prm_diag%u_10m,     & !in
+        &                      v10m      = prm_diag%v_10m,     & !in
+        &                      fr_seaice = lnd_diag%fr_seaice, & !in
+        &                      z0_waves  = prm_diag%z0_waves,  & !out
+        &                      lacc      = lzacc               ) !in
+
+      IF (ltimer) CALL timer_stop(timer_coupling)
+#endif
+
+    END IF
+
+
+    !-------------------------------------------------------------------------
     !> Ocean coupling: if coupling time step (VDIFF calls this internally)
     !-------------------------------------------------------------------------
 
-    IF ( is_coupled_run() .AND. (.NOT. linit) .AND. atm_phy_nwp_config(jg)%inwp_turb /= ivdiff) THEN
+    IF ( is_coupled_to_ocean() .AND. (.NOT. linit) &
+      & .AND. atm_phy_nwp_config(jg)%inwp_turb /= ivdiff) THEN
 
       IF (ltimer) CALL timer_start(timer_coupling)
 #ifdef _OPENACC
@@ -1907,7 +1937,7 @@ CONTAINS
     IF( l_any_slowphys .OR. lcall_phy_jg(itradheat) ) THEN
 #endif
       IF (p_test_run) THEN
-        !$ACC KERNELS IF(lzacc)
+        !$ACC KERNELS ASYNC(1) IF(lzacc)
         z_ddt_u_tot = 0._wp
         z_ddt_v_tot = 0._wp
         !$ACC END KERNELS
@@ -1960,7 +1990,7 @@ CONTAINS
           ENDDO
           !$ACC END PARALLEL
         ELSE
-          !$ACC KERNELS IF(lzacc)
+          !$ACC KERNELS ASYNC(1) IF(lzacc)
           zddt_u_raylfric(:,:) = 0._wp
           zddt_v_raylfric(:,:) = 0._wp
           !$ACC END KERNELS
@@ -2207,7 +2237,7 @@ CONTAINS
     ! Add only perturbed tendencies of tracers to the corresponding variable.
     ! Adding tendencies was taking care of during fast physics already.
     IF (sppt_config(jg)%lsppt .AND. .NOT. linit) THEN
-      CALL apply_tend(pt_patch,sppt(jg), pt_prog_rcf, lacc=lzacc)
+      CALL apply_tend(pt_patch,sppt(jg), pt_prog_rcf, dt_loc, lacc=lzacc)
     ENDIF ! end of lsppt
 
     !--------------------------------------------------------

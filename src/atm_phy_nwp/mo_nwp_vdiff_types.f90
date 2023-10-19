@@ -22,7 +22,7 @@ MODULE mo_nwp_vdiff_types
       & TSTEP_INSTANT
   USE mo_cdi_constants, ONLY: GRID_CELL, GRID_UNSTRUCTURED_CELL
   USE mo_cf_convention, ONLY: t_cf_var
-  USE mo_coupling_config, ONLY: is_coupled_run
+  USE mo_coupling_config, ONLY: is_coupled_to_ocean
   USE mo_grib2, ONLY: t_grib2_var, grib2_var
   USE mo_io_config, ONLY: lnetcdf_flt64_output
   USE mo_kind, ONLY: wp
@@ -553,6 +553,7 @@ CONTAINS
     !$ACC   HOST(self%wstar_sfc) &
     !$ACC   HOST(self%z0m_sfc) &
     !$ACC   HOST(self%z0h_land)
+    !$ACC WAIT(1)
 
   END SUBROUTINE nwp_vdiff_state_d2h
 
@@ -647,6 +648,7 @@ CONTAINS
     !$ACC   HOST(self%alb_vis_dif) &
     !$ACC   HOST(self%alb_vis_dir) &
     !$ACC   HOST(self%lw_emissivity)
+    !$ACC WAIT(1)
 
   END SUBROUTINE nwp_vdiff_albedos_d2h
 
@@ -871,7 +873,7 @@ CONTAINS
         )
     END DO
 
-    IF (is_coupled_run()) THEN
+    IF (is_coupled_to_ocean()) THEN
       cf_desc = t_cf_var('flx_co2_natural_sea', 'kg m-2 s-1', 'Natural sea surface CO2 flux', &
           & datatype_flt)
       grib2_desc = grib2_var(255, 255, 255, grib2_bits, GRID_UNSTRUCTURED, GRID_CELL)
@@ -924,6 +926,8 @@ CONTAINS
     !$ACC   HOST(self%flx_co2_natural_sea) &
     !$ACC   HOST(self%ocean_u) &
     !$ACC   HOST(self%ocean_v)
+
+    !$ACC WAIT(1)
 
   END SUBROUTINE nwp_vdiff_sea_state_d2h
 

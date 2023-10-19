@@ -899,7 +899,8 @@ CONTAINS
 
     IF (zinbounds == 0._wp) THEN
 
-      !$ACC UPDATE HOST(temp)
+      !$ACC UPDATE HOST(temp) ASYNC(1)
+      !$ACC WAIT(1)
       IF ( PRESENT(kblock) .AND. PRESENT(kblock_size) .AND. PRESENT(klev) ) THEN
 
         ! tied to patch(1), does not yet work for nested grids
@@ -1092,13 +1093,13 @@ CONTAINS
       zinbounds = FSEL(ztt-ztmax,0.0_wp,zinbounds)
     END DO
     !$ACC END PARALLEL
-    !$ACC WAIT(1)
 
     ! if one index was out of bounds -> print error and exit
     IF (zinbounds == 0.0_wp) THEN
 
       IF ( PRESENT(error_reporter) ) THEN
-        !$ACC UPDATE HOST(temp)
+        !$ACC UPDATE HOST(temp) ASYNC(1)
+        !$ACC WAIT(1)
         DO nl = 1, kidx
           jl = list(nl)
 
@@ -1113,6 +1114,7 @@ CONTAINS
     END IF
 
     CALL fetch_ua_spline(1,kidx, idx, zalpha, tlucu, ua, dua)
+    !$ACC WAIT(1)
     !$ACC END DATA
     !$ACC END DATA
     !$ACC END DATA

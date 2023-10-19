@@ -24,46 +24,51 @@ MODULE mo_emvorado_gpu_util
     LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
     CALL assert_acc_device_only("radar_d2h_hydrometeors", lacc)
-    !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqv:iqv))
-    !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqc:iqc))
-    !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqr:iqr))
-    !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqi:iqi))
-    !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqnh:iqnh))
-    !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqs:iqs))
+
+    !$ACC UPDATE &
+    !$ACC   HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqv:iqv)) &
+    !$ACC   HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqc:iqc)) &
+    !$ACC   HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqr:iqr)) &
+    !$ACC   HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqi:iqi)) &
+    !$ACC   HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqnh:iqnh)) &
+    !$ACC   HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqs:iqs)) &
+    !$ACC   ASYNC(1)
 
     IF (iqg > 0 .AND. iqg <= ntracer) THEN
-      !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqg:iqg))
+      !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqg:iqg)) ASYNC(1)
     END IF
     
     IF (iqh > 0 .AND. iqh <= ntracer) THEN
-      !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqh:iqh))
+      !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqh:iqh)) ASYNC(1)
     END IF
     IF (iqnc > 0 .AND. iqnc <= ntracer) THEN
-      !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqnc:iqnc))
+      !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqnc:iqnc)) ASYNC(1)
     END IF
     IF (iqnr > 0 .AND. iqnr <= ntracer) THEN
-      !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqnr:iqnr))
+      !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqnr:iqnr)) ASYNC(1)
     END IF
     IF (iqni > 0 .AND. iqni <= ntracer) THEN
-      !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqni:iqni))
+      !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqni:iqni)) ASYNC(1)
     END IF
     IF (iqns > 0 .AND. iqns <= ntracer) THEN
-      !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqns:iqns))
+      !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqns:iqns)) ASYNC(1)
     END IF
     IF (iqng > 0 .AND. iqng <= ntracer) THEN
-      !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqng:iqng))
+      !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqng:iqng)) ASYNC(1)
     END IF
     IF (iqnh > 0 .AND. iqnh <= ntracer) THEN
-      !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqnh:iqnh))
+      !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqnh:iqnh)) ASYNC(1)
     END IF
     IF (iqgl > 0 .AND. iqgl <= ntracer) THEN
       ! 2mom scheme with liquid water fraction of graupel qgl:
-      !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqgl:iqgl))
+      !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqgl:iqgl)) ASYNC(1)
     END IF
     IF (iqhl > 0 .AND. iqhl <= ntracer) THEN
       ! 2mom scheme with liquid water fraction of hail qhl:
-      !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqhl:iqhl))
+      !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev)%tracer(:,:,:,iqhl:iqhl)) ASYNC(1)
     END IF
+
+    !$ACC WAIT(1)
 
   END SUBROUTINE radar_d2h_hydrometeors
 
@@ -79,14 +84,18 @@ MODULE mo_emvorado_gpu_util
 
     CALL assert_acc_device_only("radar_d2h_model_variables", lacc)
 
-    !$ACC UPDATE HOST(p_nh_state(idom)%metrics%z_ifc)
-    !$ACC UPDATE HOST(p_nh_state(idom)%metrics%z_mc)
-    !$ACC UPDATE HOST(p_nh_state(idom)%diag%u)
-    !$ACC UPDATE HOST(p_nh_state(idom)%diag%v)
-    !$ACC UPDATE HOST(p_nh_state(idom)%diag%temp)
-    !$ACC UPDATE HOST(p_nh_state(idom)%diag%pres)
-    !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev_dyn)%w)
-    !$ACC UPDATE HOST(p_nh_state(idom)%prog(ntlev_dyn)%rho)
+    !$ACC UPDATE &
+    !$ACC   HOST(p_nh_state(idom)%metrics%z_ifc) &
+    !$ACC   HOST(p_nh_state(idom)%metrics%z_mc) &
+    !$ACC   HOST(p_nh_state(idom)%diag%u) &
+    !$ACC   HOST(p_nh_state(idom)%diag%v) &
+    !$ACC   HOST(p_nh_state(idom)%diag%temp) &
+    !$ACC   HOST(p_nh_state(idom)%diag%pres) &
+    !$ACC   HOST(p_nh_state(idom)%prog(ntlev_dyn)%w) &
+    !$ACC   HOST(p_nh_state(idom)%prog(ntlev_dyn)%rho) &
+    !$ACC   ASYNC(1)
+
+    !$ACC WAIT(1)
 
   END SUBROUTINE radar_d2h_model_variables
 

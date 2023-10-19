@@ -695,7 +695,7 @@ MODULE mo_ensemble_pert_config
     DO jg = 1, n_dom
       ! atm_phy_nwp_config is copied onto the device in an early phase so that it is present while this
       ! routine is still called with lacc=.FALSE.. Thus IF_PRESENT is used in the following UPDATE.
-      !$ACC UPDATE DEVICE(atm_phy_nwp_config(jg)%rain_n0_factor) IF_PRESENT
+      !$ACC UPDATE DEVICE(atm_phy_nwp_config(jg)%rain_n0_factor) ASYNC(1) IF_PRESENT
 
       !$ACC UPDATE IF(lacc) &
       !$ACC   DEVICE(turbdiff_config(jg)%tkhmin) &
@@ -711,13 +711,15 @@ MODULE mo_ensemble_pert_config
       !$ACC   DEVICE(turbdiff_config(jg)%q_crit) &
       !$ACC   DEVICE(turbdiff_config(jg)%alpha0) &
       !$ACC   DEVICE(turbdiff_config(jg)%alpha0_max) &
-      !$ACC   DEVICE(turbdiff_config(jg)%alpha0_pert)
+      !$ACC   DEVICE(turbdiff_config(jg)%alpha0_pert) &
+      !$ACC   ASYNC(1)
 
       !$ACC UPDATE IF(ldass_lhn .AND. lacc) &
       !$ACC   DEVICE(assimilation_config(jg)%lhn_coef) &
       !$ACC   DEVICE(assimilation_config(jg)%fac_lhn_artif_tune) &
       !$ACC   DEVICE(assimilation_config(jg)%fac_lhn_down) &
-      !$ACC   DEVICE(assimilation_config(jg)%fac_lhn_up)
+      !$ACC   DEVICE(assimilation_config(jg)%fac_lhn_up) &
+      !$ACC   ASYNC(1)
     ENDDO
 #endif
 
@@ -870,7 +872,7 @@ MODULE mo_ensemble_pert_config
           phy_params(jg)%gkdrag_enh  = tune_gkdrag_enh(jg)
           phy_params(jg)%gkwake      = tune_gkwake(jg)
           phy_params(jg)%gfrcrit     = tune_gfrcrit(jg)
-          !$ACC UPDATE DEVICE(phy_params(jg)) ! phy_params contains only statically allocated (scalar) components
+          !$ACC UPDATE DEVICE(phy_params(jg:jg)) ASYNC(1) ! phy_params contains only statically allocated (scalar) components
         ENDDO
         ! in addition, GWD and microphysics parameters need to be updated
         gfluxlaun = tune_gfluxlaun

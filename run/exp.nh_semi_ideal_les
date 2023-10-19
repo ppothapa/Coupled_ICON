@@ -158,7 +158,6 @@ const_z0  = 0.449291
 /
 &dynamics_nml
  iequations     = ${atmo_model_equations}       ! equation system
- idiv_method    = 1
  lcoriolis      = .TRUE.
 /
 &output_nml

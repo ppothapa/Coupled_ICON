@@ -174,6 +174,7 @@ CONTAINS
 
   SUBROUTINE del(this)
     TYPE(ty_icon_fluxes_sw), INTENT(INOUT) :: this
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(this%frc_par, this%frc_vis, this%band_weight)
     !$ACC EXIT DATA DELETE(this)
   END SUBROUTINE del

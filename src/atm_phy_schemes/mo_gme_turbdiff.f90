@@ -26,6 +26,12 @@ MODULE mo_gme_turbdiff
 
   PUBLIC :: partura, parturs, progimp_turb, nearsfc
 
+#ifdef ICON_USE_CUDA_GRAPH
+  LOGICAL, PARAMETER :: using_cuda_graph = .TRUE.
+#else
+  LOGICAL, PARAMETER :: using_cuda_graph = .FALSE.
+#endif
+
   CONTAINS
 
 SUBROUTINE partura( zh  , zf , u  , v  , t   ,  &
@@ -674,6 +680,9 @@ SUBROUTINE parturs( zsurf, z1  , u1   , v1     , t1   , qv1  ,    &
       END DO
       !$ACC END PARALLEL
 
+      IF (.NOT. using_cuda_graph) THEN
+        !$ACC WAIT(1)
+      END IF
       !$ACC END DATA ! zvpb, zx, ztcm, ztch, zdfip, zris, zgz0m, zgz0h, lo_ice
 
   END SUBROUTINE parturs
@@ -1568,6 +1577,9 @@ Water_or_Land: IF( fr_land(j1) < 0.5_wp ) THEN
       ENDDO
       !$ACC END PARALLEL
 
+      IF (.NOT. using_cuda_graph) THEN
+        !$ACC WAIT(1)
+      END IF
       !$ACC END DATA ! zv, zcm, zch, zgz0
 
   END SUBROUTINE nearsfc

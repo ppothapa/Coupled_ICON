@@ -436,10 +436,6 @@
 
      END IF
 
-    !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_c2l%idx)
-    !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_c2l%blk)
-    !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_c2l%stencil)
-
     END SUBROUTINE rbf_c2l_index
 
 
@@ -685,8 +681,6 @@
       IF (ist /= SUCCESS)  CALL finish (routine, 'deallocation for working arrays failed')
 !$OMP END PARALLEL
 
-      !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_vec%coeff)
-
     END SUBROUTINE rbf_compute_coeff_vec
 
 
@@ -860,8 +854,6 @@
       DEALLOCATE( z_rbfmat, z_diag, z_rbfval, STAT=ist )
       IF (ist /= SUCCESS)  CALL finish (routine, 'deallocation for working arrays failed')
 !$OMP END PARALLEL
-
-      !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_c2l%coeff)
 
     END SUBROUTINE rbf_compute_coeff_c2l
 
@@ -1041,10 +1033,6 @@
 !$OMP END PARALLEL DO
 
         END IF
-
-        !$ACC UPDATE DEVICE(ptr_intp%blk)
-        !$ACC UPDATE DEVICE(ptr_intp%idx)
-        !$ACC UPDATE DEVICE(ptr_intp%coeff)
 
       END DO  
       IF (dbg_level > 1)  CALL message(routine, "done.")
@@ -1427,11 +1415,6 @@
       END DO
 !$OMP END PARALLEL DO
 
-      !$ACC UPDATE DEVICE(ptr_int_lonlat%nnb%stencil)
-      !$ACC UPDATE DEVICE(ptr_int_lonlat%nnb%coeff)
-      !$ACC UPDATE DEVICE(ptr_int_lonlat%nnb%idx)
-      !$ACC UPDATE DEVICE(ptr_int_lonlat%nnb%idx)
-
     END SUBROUTINE nnb_setup_interpol_lonlat_grid
 
 
@@ -1488,10 +1471,6 @@
       ENDDO
 !$OMP END DO
 !$OMP END PARALLEL
-      
-      !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_vec%stencil)
-      !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_vec%idx)
-      !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_vec%blk)
 
       IF (dbg_level > 1) CALL message(routine, "compute lon-lat interpolation coefficients")
 

@@ -160,10 +160,12 @@ MODULE radar_interface
   !      e.g., radar_sb_mie_vec(), ..., in radar_mie_iface_cosmo.f90:
   USE radar_data_mie, ONLY : &
        ilow_modelgrid, iup_modelgrid, jlow_modelgrid, jup_modelgrid, klow_modelgrid, kup_modelgrid, &
-       rain, cloud, snow, ice, graupel, hail, rain_coeffs, &
+       particle_emvo => particle, rain, cloud, snow, ice, graupel, hail, rain_coeffs, &
+       Tmin_g_modelgrid, Tmin_h_modelgrid, &
        Tmax_i_modelgrid, Tmax_s_modelgrid, Tmax_g_modelgrid, Tmax_h_modelgrid, &
        q_crit_radar, n_crit_radar, &
-       lgsp_fwo, itype_gscp_fwo, luse_muD_relation_rain_fwo, T0C_fwo, pi6 => pi6_dp
+       lgsp_fwo, itype_gscp_fwo, luse_muD_relation_rain_fwo, T0C_fwo, pi6 => pi6_dp, &
+       lookupt_4d, look_Dmin_wg_graupel, look_Dmin_wg_hail
 
   USE radar_parallel_utilities, ONLY :  &
        global_values_radar, distribute_values_radar, distribute_path_radar
@@ -184,6 +186,10 @@ MODULE radar_interface
        init_vari
 
   USE radar_data_io, ONLY : t_grib2_modelspec
+  
+  USE radar_mie_utils, ONLY : mean_mass_diameter, D_average_1M_exp
+  
+  USE radar_dmin_wetgrowth, ONLY : init_dmin_wetgrowth_table, dmin_wetgrowth_ltab
   
 #endif
 
@@ -386,7 +392,8 @@ MODULE radar_interface
             get_fdbk_metadata, get_composite_metadata,                                 &
             set_testpattern_hydrometeors_mg, initialize_tmax_1mom_vec_par, finalize_tmax,&
             initialize_tmax_2mom_vec_par, initialize_tmax_atomic_1mom,                 &
-            initialize_tmax_atomic_2mom,                                               &
+            initialize_tmax_atomic_2mom,  initialize_tmin_atomic_1mom,                 &
+            initialize_tmin_atomic_2mom,                                               &
             get_obstime_ind_of_currtime, get_obstime_ind_of_modtime,                   &
             get_obs_time_tolerance,                                                    &
             check_obstime_within_forecast, check_obstime_within_modelrun,              &
@@ -677,7 +684,7 @@ CONTAINS
     IF (ASSOCIATED(qnc_s)) NULLIFY(qnc_s)
     
     IF (ALLOCATED(p_nh_state)) THEN  
-
+      
 #ifdef _OPENACC
       CALL timer_start(timer_radar_acc_data_copies)
       CALL radar_d2h_hydrometeors(ntlev, idom, .TRUE.)
@@ -1003,6 +1010,9 @@ CONTAINS
 
 #endif
 
+    CALL init_dmin_wetgrowth_table (graupel, look_Dmin_wg_graupel)
+    CALL init_dmin_wetgrowth_table (hail,    look_Dmin_wg_hail   )
+
   END SUBROUTINE init_2mom_types
 
 !----------------------------------------------------------------------------------------
@@ -1165,6 +1175,8 @@ CONTAINS
     hail%a_ven = miss_value             !.a_ven..Koeff. Ventilation
     hail%b_ven = miss_value             !.b_ven..Koeff. Ventilation
 
+    IF (lalloc_qg) CALL init_dmin_wetgrowth_table (graupel, look_Dmin_wg_graupel)
+
   END SUBROUTINE init_1mom_types
 
   !============================================================================
@@ -1254,8 +1266,10 @@ CONTAINS
 
     ELSE
 
-      IF (.NOT. ASSOCIATED(dum_dom(idom)%dummy0)) ALLOCATE(dum_dom(idom)%dummy0(ni,nkp1,nj))
-      dum_dom(idom)%dummy0 = 0.0_wp
+      IF (.NOT. ASSOCIATED(dum_dom(idom)%dummy0)) THEN
+        ALLOCATE(dum_dom(idom)%dummy0(ni,nkp1,nj))
+        dum_dom(idom)%dummy0 = 0.0_wp
+      END IF
       hhl  => dum_dom(idom)%dummy0(:,1:nkp1,:)
       hfl  => dum_dom(idom)%dummy0(:,1:nk,:)
       u    => dum_dom(idom)%dummy0(:,1:nk,:)
@@ -1412,8 +1426,6 @@ CONTAINS
        t_in, rho_in, qc_in, qr_in, qi_in, qs_in, qg_in, qh_in,          &
        qnc_in, qnr_in, qni_in, qns_in, qng_in, qnh_in, qgl_in, qhl_in,  &
        z_radar )
-
-!!$ qgl, qhl implementieren
     
     INTEGER , INTENT(in)                    :: ni, nj, nk
     INTEGER , INTENT(in)                    :: itype_gscp_model_in
@@ -3067,7 +3079,7 @@ CONTAINS
       fdbk_meta_container(idom)%hverend  = hverend
     END IF
 
-    IF (num_radar > 1 .AND. num_radario > 0) THEN
+    IF (num_radar > 1) THEN
       CALL distribute_values_radar (fdbk_meta_container(idom)%ie_tot            , 1, 0, icomm_radar, ierr)
       CALL distribute_values_radar (fdbk_meta_container(idom)%je_tot            , 1, 0, icomm_radar, ierr)
       CALL distribute_values_radar (fdbk_meta_container(idom)%ke_tot            , 1, 0, icomm_radar, ierr)
@@ -3261,9 +3273,32 @@ CONTAINS
   !=======================================================================================
   !
   ! Functions to initialize the Tmax-parameter (2D (i,j) on model grid) for the
-  !  the degree-of-melting parameterization. Tmax is the maximum value in each grid column,
-  !  without any neighbourhood search.
-  ! Needed by "calc_dbz_vec()" and "calc_fallspeed_vec()" from module "radar_mie_iface_cosmo":
+  !  the degree-of-melting parameterization.
+  !  Tmax is the highest temperature of a grid column within a possible
+  !  neighbourhood (neigh) of the point im, jm, 
+  !  where liquid-water-content is still above a small threshold (qthresh).
+  !  Due to this, there is a strong dependency on the parameterization of melting applied in cloud physic package.
+  !
+  ! The neighborhood is taken in to account in the COSMO-model, but not in ICON.
+  !
+  ! Arguments:
+  !
+  !  INPUT :
+  !          qx(ni,nk,nj)  - mass fraction of target hydrometeor type [kg/kg]
+  !          qnx(ni,nk,nj) - number concentration of target hydrometeor type [1/kg]
+  !          t(ni,nk,nj)   - temperature [K]
+  !          neigh         - neighborhood radius for Tmax-detection for COSMO [m]
+  !          qthresh       - qx threshold above which qx is rated as "present"  [kg/kg]
+  !          Tmax_min      - lower safety limit for the output Tmax [K]
+  !          Tmax_max      - upper safety limit for the output Tmax [K]
+  !
+  !  OUTPUT:
+  !          Tmax_x(ni,nj) - output Tmax parameter for each grid colum (i,j) [K]
+  !
+  !  Note that the notation of the indices in the routine is different:
+  !          ni -> im=1...ni horizontal index (nproma)
+  !          nj -> k =1...nk horizontal index (nblock)
+  !          nk -> jm=1...nj vertical index (vertical level)
   !
   !=======================================================================================
 
@@ -3284,10 +3319,6 @@ CONTAINS
     nj = SIZE(qx,dim=2)   ! vertical level
     nk = SIZE(qx,dim=3)   ! block
     
-    ! Tmax is the highest temperature of a point within a neighbourhood (neigh) of the point im, jm, 
-    ! where liquid-water-content is still above a small threshold (qthresh).
-    ! Due to this, there is a strong dependency on the parameterization of melting applied in cloud physic package.
-
     ! Compute max. temperature where hydrometeors are present within each vertical column:
 
     ! Initial (minimal) value of Tmax_x: 
@@ -3340,11 +3371,10 @@ CONTAINS
 
     ! Compute max. temperature where hydrometeors are present within each vertical column:
 
-    ! Initial (minimal) value of Tmax_x: 
+    ! Initial (maximal) value of Tmin_x: 
     CALL init_vari(Tmax_x, Tmax_min)
 
     DO jm=1,nj   ! vertical index in case of ICON
-!!$omp parallel do collapse(2) private(im,k)
 !$omp parallel do private(im,k)
       DO k=1,nk
         DO im=1,ni
@@ -3367,6 +3397,184 @@ CONTAINS
 
   END SUBROUTINE initialize_tmax_atomic_2mom
 
+
+  !=======================================================================================
+  !
+  ! Functions to initialize the Tmin-parameter (2D (i,j) on model grid) for the
+  !  the degree-of-melting parameterization. Tmin is the lowest temperature in the column
+  !  where the conditions for wet growth are met for the mean mass diameter of the actual PSD.
+  !  Without any neighborhood-search, but the neigh-argument (length scale) is kept for
+  !  consistency with the offline emvorado version.
+  !
+  !  Search is not within a region, but only in the actual column.
+  !  This is chosen because wet growth can only happen in strong updrafts,
+  !  which usually do not exhibit a strong tilting angle.
+  !
+  ! Arguments:
+  !
+  !  INPUT :
+  !          hydrotype     - Flag for target hydrometeor type, 'graupel' or 'hail' (1-moment only 'graupel') 
+  !          qx(ni,nk,nj)  - mass fraction of target hydrometeor type [kg/kg]
+  !          qnx(ni,nk,nj) - number concentration of target hydrometeor type [1/kg]
+  !          t(ni,nk,nj)   - temperature [K]
+  !          p(ni,nk,nj)   - pressure [Pa]
+  !          ql(ni,nk,nj)  - sum of liquid water hydrometeors (cloud + rain) [kg/kg]
+  !          qf(ni,nk,nj)  - sum of frozen hydrometeors which are not the target hydrometeor [kg/kg]
+  !          rho(ni,nk,nj) - total density [kg/m3]
+  !          Tmin_min      - lower safety limit for the output Tmin [K]
+  !
+  !  OUTPUT:
+  !          Tmin_x(ni,nj) - output Tmin parameter for each grid colum (i,j) [K]
+  !
+  !  Note that the notation of the indices in the routine is different:
+  !          ni -> im=1...ni horizontal index (nproma)
+  !          nj -> k =1...nk horizontal index (nblock)
+  !          nk -> jm=1...nj vertical index (vertical level)
+  !
+  !=======================================================================================
+  
+  SUBROUTINE initialize_tmin_atomic_1mom(hydrotype, qx, t, p, ql, qf, rho, Tmin_min, Tmin_x)
+
+    IMPLICIT NONE
+    
+    CHARACTER(len=*), INTENT(in) :: hydrotype
+    REAL(kind=dp), INTENT(in)    :: qx(:,:,:), t(:,:,:), p(:,:,:), ql(:,:,:), qf(:,:,:), rho(:,:,:) 
+    REAL(KIND=dp), INTENT(in)    :: Tmin_min  ! Tmin=Tmeltbegin, Tmax=T0C_fwo
+    REAL(kind=dp), INTENT(inout) :: Tmin_x(:,:)
+    
+    INTEGER :: ni, nj, nk, im, jm, k
+    REAL(kind=dp)                :: qw_a, p_a, T_a, qi_a, d_m, d_wg
+    TYPE(particle_emvo), POINTER :: ptr
+    TYPE(lookupt_4d),    POINTER :: lut_dmin
+
+    ! .. Choose particle type based on hydrotype. Have to do it this way to allow calling
+    !    this routine from within ICON and using emvorado's own internal particle types:
+    SELECT CASE (TRIM(hydrotype))
+    CASE ('graupel')
+      ptr      => graupel
+      lut_dmin => look_Dmin_wg_graupel
+    CASE default
+      CALL abort_run(my_radar_id, 3777, &
+           'ERROR radar_interface::initialize_tmin_atomic_1mom: dynamic Tmin for hydrotype "'//TRIM(hydrotype)//'" not implemented!', &
+           'radar_interface')
+    END SELECT
+    
+    ni = SIZE(qx,dim=1)   ! nproma
+    nj = SIZE(qx,dim=2)   ! vertical level
+    nk = SIZE(qx,dim=3)   ! block
+    
+    ! Dynamic value of Tmin for wet growth:
+    !
+    ! Initial (minimal) value of Tmin_x: 
+    CALL init_vari(Tmin_x, T0C_fwo)
+
+    DO jm=nj,1,-1   ! vertical index in case of ICON
+!$omp parallel do private(im,k,qw_a,p_a,T_a,qi_a,d_m,d_wg)
+      DO k=1,nk
+        DO im=1,ni
+          
+          qw_a = rho(im,jm,k)*ql(im,jm,k)  ! kg/m^3
+              
+          IF ( t(im,jm,k) >= Tmin_min .AND. t(im,jm,k) < T0C_fwo .AND. &
+               qw_a >= lut_dmin%x3(1) ) THEN
+            
+            p_a  = p(im,jm,k)  ! Pa
+            T_a  = t(im,jm,k) - T0C_fwo       ! deg C
+            qi_a = rho(im,jm,k)*qf(im,jm,k)  ! kg/m^3
+              
+            d_m  = D_average_1M_exp(qx(im,jm,k), ptr, ptr%n0_const)
+            d_wg = dmin_wetgrowth_ltab(p_a,T_a,qw_a,qi_a,lut_dmin)
+            
+            IF (d_m >= d_wg) THEN
+              Tmin_x(im,k) = MIN(Tmin_x(im,k), t(im,jm,k))
+            END IF
+              
+          END IF
+
+        END DO
+      END DO
+!$omp end parallel do
+    END DO
+    
+  END SUBROUTINE initialize_tmin_atomic_1mom
+
+  SUBROUTINE initialize_tmin_atomic_2mom(hydrotype, qx, qnx, t, p, ql, qf, rho, Tmin_min, Tmin_x)
+
+    IMPLICIT NONE
+    
+    CHARACTER(len=*), INTENT(in) :: hydrotype
+    REAL(kind=dp), INTENT(in)    :: qx(:,:,:), qnx(:,:,:), t(:,:,:), p(:,:,:), ql(:,:,:), qf(:,:,:), rho(:,:,:)
+    REAL(KIND=dp), INTENT(in)    :: Tmin_min  ! Tmin=Tmeltbegin, Tmax=T0C_fwo
+    REAL(kind=dp), INTENT(inout) :: Tmin_x(:,:)
+    
+    INTEGER :: ni, nj, nk, im, jm, k
+    REAL(kind=dp)                :: qw_a, p_a, T_a, qi_a, d_m, d_wg
+    TYPE(particle_emvo), POINTER :: ptr
+    TYPE(lookupt_4d),    POINTER :: lut_dmin
+
+    ! .. Choose particle type based on hydrotype. Have to do it this way to allow calling
+    !    this routine from within ICON and using emvorado's own internal particle types:
+    SELECT CASE (TRIM(hydrotype))
+    CASE ('graupel')
+      ptr      => graupel
+      lut_dmin => look_Dmin_wg_graupel
+    CASE ('hail')
+      ptr      => hail
+      lut_dmin => look_Dmin_wg_hail
+    CASE default
+      CALL abort_run(my_radar_id, 3776, &
+           'ERROR radar_interface::initialize_tmin_atomic_2mom: dynamic Tmin for hydrotype "'//TRIM(hydrotype)//'" not implemented!', &
+           'radar_interface')
+    END SELECT
+    
+    ni = SIZE(qx,dim=1)   ! nproma
+    nj = SIZE(qx,dim=2)   ! vertical level
+    nk = SIZE(qx,dim=3)   ! block
+
+    ! Dynamic value of Tmin for wet growth:
+    !
+    ! Initial (maximal) value of Tmin_x: 
+    CALL init_vari(Tmin_x, T0C_fwo)
+
+    DO jm=nj,1,-1   ! vertical index in case of ICON
+!$omp parallel do private(im,k,qw_a,p_a,T_a,qi_a,d_m,d_wg)
+      DO k=1,nk
+        DO im=1,ni
+          
+          qw_a = rho(im,jm,k)*ql(im,jm,k)  ! kg/m^3
+              
+          IF ( t(im,jm,k) >= Tmin_min .AND. t(im,jm,k) < T0C_fwo .AND. &
+               qw_a >= lut_dmin%x3(1) ) THEN
+            
+            p_a  = p(im,jm,k)  ! Pa
+            T_a  = t(im,jm,k) - T0C_fwo       ! deg C
+            qi_a = rho(im,jm,k)*qf(im,jm,k)  ! kg/m^3
+              
+            d_m  = mean_mass_diameter(ptr, qx(im,jm,k), qnx(im,jm,k))
+            d_wg = dmin_wetgrowth_ltab(p_a,T_a,qw_a,qi_a,lut_dmin)
+            
+            IF (d_m >= d_wg) THEN
+              Tmin_x(im,k) = MIN(Tmin_x(im,k), t(im,jm,k))
+            END IF
+              
+          END IF
+
+        END DO
+      END DO
+!$omp end parallel do
+    END DO
+
+  END SUBROUTINE initialize_tmin_atomic_2mom
+
+
+  !=======================================================================================
+  !
+  ! Wrapper functions for Tmax_XX / Tmin_XX.
+  !
+  ! These are called by "calc_dbz_vec()" and "calc_fallspeed_vec()" from module "radar_mie_iface_cosmo"
+  !
+  !=======================================================================================
+  
   SUBROUTINE initialize_tmax_1mom_vec_par(neigh,namlist,do_always)
 
     IMPLICIT NONE
@@ -3404,6 +3612,15 @@ CONTAINS
 
       CALL initialize_tmax_atomic_1mom(qg, t, neigh, namlist%qthresh_g, &
                                        namlist%Tmax_min_g, namlist%Tmax_max_g, Tmax_g_modelgrid)
+              
+      ALLOCATE(Tmin_g_modelgrid(ie_fwo,ke_fwo))
+
+      IF (namlist%ldynamic_wetgrowth_gh .AND. namlist%Tmeltbegin_g < T0C_fwo) THEN
+        CALL initialize_tmin_atomic_1mom('graupel', qg, t, p, qc+qr, qi+qs, rho, &
+                                         namlist%Tmeltbegin_g, Tmin_g_modelgrid)
+      ELSE
+        Tmin_g_modelgrid = namlist%Tmeltbegin_g
+      END IF
       
     END IF
 
@@ -3429,21 +3646,39 @@ CONTAINS
     CALL initialize_tmax_atomic_2mom(qs, qns, t, neigh, namlist%qthresh_s, namlist%qnthresh_s, &
                                      namlist%Tmax_min_s, namlist%Tmax_max_s, Tmax_s_modelgrid)
 
-    CALL initialize_tmax_atomic_2mom(qg, qng, t, neigh, namlist%qthresh_g, namlist%qnthresh_g, &
+    CALL initialize_tmax_atomic_2mom(qg+qgl, qng, t, neigh, namlist%qthresh_g, namlist%qnthresh_g, &
                                      namlist%Tmax_min_g, namlist%Tmax_max_g, Tmax_g_modelgrid)
    
+    ALLOCATE(Tmin_g_modelgrid(ie_fwo,ke_fwo))
+
+    IF (namlist%ldynamic_wetgrowth_gh .AND. namlist%Tmeltbegin_g < T0C_fwo) THEN
+      CALL initialize_tmin_atomic_2mom('graupel', qg+qgl, qng, t, p, qc+qr, qi+qs, rho, &
+                                       namlist%Tmeltbegin_g, Tmin_g_modelgrid)
+    ELSE
+      Tmin_g_modelgrid = namlist%Tmeltbegin_g
+    END IF
+
     IF (lalloc_qh .OR. do_all) THEN
 
       ALLOCATE(Tmax_h_modelgrid(ie_fwo,ke_fwo))
 
-      CALL initialize_tmax_atomic_2mom(qh, qnh, t, neigh, namlist%qthresh_h, namlist%qnthresh_h, &
-                                     namlist%Tmax_min_h, namlist%Tmax_max_h, Tmax_h_modelgrid)
+      CALL initialize_tmax_atomic_2mom(qh+qhl, qnh, t, neigh, namlist%qthresh_h, namlist%qnthresh_h, &
+                                       namlist%Tmax_min_h, namlist%Tmax_max_h, Tmax_h_modelgrid)
+      
+      ALLOCATE(Tmin_h_modelgrid(ie_fwo,ke_fwo))
+
+      IF (namlist%ldynamic_wetgrowth_gh .AND. namlist%Tmeltbegin_h < T0C_fwo) THEN
+        CALL initialize_tmin_atomic_2mom('hail', qh+qhl, qnh, t, p, qc+qr, qi+qs, rho, &
+                                         namlist%Tmeltbegin_h, Tmin_h_modelgrid)
+      ELSE
+        Tmin_h_modelgrid = namlist%Tmeltbegin_h
+      END IF
 
     END IF
 
   END SUBROUTINE initialize_tmax_2mom_vec_par
 
-  ! Clean-up of Tmax_XX:
+  ! Clean-up of Tmax_XX and Tmin_XX:
   SUBROUTINE finalize_tmax()
 
     IMPLICIT NONE
@@ -3452,6 +3687,9 @@ CONTAINS
     IF (ALLOCATED(Tmax_s_modelgrid)) DEALLOCATE(Tmax_s_modelgrid)
     IF (ALLOCATED(Tmax_g_modelgrid)) DEALLOCATE(Tmax_g_modelgrid)
     IF (ALLOCATED(Tmax_h_modelgrid)) DEALLOCATE(Tmax_h_modelgrid)
+
+    IF (ALLOCATED(Tmin_g_modelgrid)) DEALLOCATE(Tmin_g_modelgrid)
+    IF (ALLOCATED(Tmin_h_modelgrid)) DEALLOCATE(Tmin_h_modelgrid)
 
     RETURN
   END SUBROUTINE finalize_tmax
@@ -5064,7 +5302,7 @@ CONTAINS
       endlat_s   = endlat_s   + cart_width_deg
     END IF
 
-    IF (num_radar > 1 .AND. num_radario > 0) THEN
+    IF (num_radar > 1) THEN
       CALL distribute_values_radar (pollon_s  , 1, 0, icomm_radar, ierr)
       CALL distribute_values_radar (pollat_s  , 1, 0, icomm_radar, ierr)
       CALL distribute_values_radar (polgam_s  , 1, 0, icomm_radar, ierr)

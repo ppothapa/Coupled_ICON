@@ -159,6 +159,11 @@ PUBLIC :: terra
 ! Public variables
 !------------------------------------------------------------------------------
 
+#ifdef ICON_USE_CUDA_GRAPH
+  LOGICAL, PARAMETER :: using_cuda_graph = .TRUE.
+#else
+  LOGICAL, PARAMETER :: using_cuda_graph = .FALSE.
+#endif
 
 !------------------------------------------------------------------------------
 ! Parameters and variables which are global in this module
@@ -4229,8 +4234,9 @@ ENDDO
     !$ACC END PARALLEL
 
     IF (msg_level >= 20) THEN
-      !$ACC UPDATE ASYNC(acc_async_queue) HOST(soiltyp_subs, zshfl_s, zlhfl_s, zrhoch, zth_low, t)
-      !$ACC UPDATE ASYNC(acc_async_queue) HOST(zts_pm, zverbo, zf_snow, qv, qv_s, tch, tcm, zts)
+      !$ACC UPDATE HOST(soiltyp_subs, zshfl_s, zlhfl_s, zrhoch, zth_low, t) ASYNC(acc_async_queue)
+      !$ACC UPDATE HOST(zts_pm, zverbo, zf_snow, qv, qv_s, tch, tcm, zts) ASYNC(acc_async_queue)
+      !$ACC WAIT(acc_async_queue)
       DO i = ivstart, ivend
         IF (soiltyp_subs(i) == 1) THEN  !1=glacier and Greenland
           IF ( ABS( zshfl_s(i) )  >  500.0_wp  .OR. &
@@ -4717,9 +4723,10 @@ ENDDO
   !$ACC END PARALLEL
 
   IF (msg_level >= 20) THEN
-    !$ACC UPDATE ASYNC(acc_async_queue) HOST(zshfl_s, zlhfl_s, zf_snow, zrhoch, t, zts, zts_pm, zverbo, qv, qv_s)
-    !$ACC UPDATE ASYNC(acc_async_queue) HOST(zshfl_snow, zlhfl_snow, zth_low, ztsnow)
-    !$ACC UPDATE ASYNC(acc_async_queue) HOST(zwsnow, zrr, zrs, zdwsndt)
+    !$ACC UPDATE HOST(zshfl_s, zlhfl_s, zf_snow, zrhoch, t, zts, zts_pm, zverbo, qv, qv_s) ASYNC(acc_async_queue)
+    !$ACC UPDATE HOST(zshfl_snow, zlhfl_snow, zth_low, ztsnow) ASYNC(acc_async_queue)
+    !$ACC UPDATE HOST(zwsnow, zrr, zrs, zdwsndt) ASYNC(acc_async_queue)
+    !$ACC WAIT(acc_async_queue)
     DO i = ivstart, ivend
 !     IF (soiltyp_subs(i) == 1) THEN  !1=glacier and Greenland
       IF ( ABS( zshfl_s(i)    * (1.0_wp-zf_snow(i)) )  >  700.0_wp .OR. &
@@ -5566,6 +5573,10 @@ ENDDO
     !$ACC END PARALLEL
   ENDIF
 
+  IF (.NOT. using_cuda_graph) THEN
+    !$ACC WAIT(acc_async_queue)
+  END IF
+
 ! for optional fields related to soil water budget
   !$ACC END DATA
 
@@ -5577,12 +5588,15 @@ ENDDO
   !$ACC END DATA
 
   IF (msg_level >= 19) THEN
-    !$ACC UPDATE WAIT(acc_async_queue) HOST(ivend)
+    !$ACC UPDATE HOST(ivend) ASYNC(acc_async_queue)
+    IF (.NOT. using_cuda_graph) THEN
+      !$ACC WAIT(acc_async_queue)
+    END IF
     DO i = ivstart, ivend
 
-!     IF (ABS(t_s_now(i)-t_s_new(i)) > 15.0_wp .or. ABS(t_sk_now(i)-t_sk_new(i)) > 15.0_wp) THEN
-!     consistent to the first debug output, we ask for a specific grid point
-     IF (i== mvid .AND. iblock == mbid .AND. my_cart_id == mcid) THEN
+     IF (ABS(t_s_now(i)-t_s_new(i)) > 15.0_wp .or. ABS(t_sk_now(i)-t_sk_new(i)) > 15.0_wp) THEN
+!     the setting below was only useful in the frame of the COSMO model
+!     IF (i== mvid .AND. iblock == mbid .AND. my_cart_id == mcid) THEN
 
         WRITE(*,'(A        )') '                                '
         WRITE(*,'(A,2I5)'  ) 'SFC-DIAGNOSIS terra output:  iblock = ', iblock, i
@@ -5723,4 +5737,3 @@ END FUNCTION watrdiff_RT
 !------------------------------------------------------------------------------
 
 END MODULE sfc_terra
-

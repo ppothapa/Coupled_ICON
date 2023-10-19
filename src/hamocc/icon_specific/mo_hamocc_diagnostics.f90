@@ -986,7 +986,8 @@ INTEGER:: jk
 REAL(wp) :: ptmp
 TYPE(t_patch), POINTER :: patch_2d
 
-!$ACC UPDATE HOST(pfield3d) IF(i_am_accel_node .AND. acc_is_present(pfield3d))
+!$ACC UPDATE HOST(pfield3d) ASYNC(1) IF(i_am_accel_node .AND. acc_is_present(pfield3d))
+!$ACC WAIT(1)
 
 patch_2d => patch3D%p_patch_2d(1)
 
@@ -1032,7 +1033,8 @@ INTEGER:: jk
 TYPE(t_patch), POINTER :: patch_2d
 REAL(wp) :: ptmp
 
-!$ACC UPDATE HOST(pfield3d) IF(i_am_accel_node .AND. acc_is_present(pfield3d))
+!$ACC UPDATE HOST(pfield3d) ASYNC(1) IF(i_am_accel_node .AND. acc_is_present(pfield3d))
+!$ACC WAIT(1)
 
 patch_2d => patch3D%p_patch_2d(1)
 
@@ -1065,7 +1067,8 @@ INTEGER,  OPTIONAL :: jk
 TYPE(t_patch), POINTER :: patch_2d
 INTEGER :: ik
 
-!$ACC UPDATE HOST(pfield2d) IF(i_am_accel_node .AND. acc_is_present(pfield2d))
+!$ACC UPDATE HOST(pfield2d) ASYNC(1) IF(i_am_accel_node .AND. acc_is_present(pfield2d))
+!$ACC WAIT(1)
 
 patch_2d => patch3D%p_patch_2d(1)
 

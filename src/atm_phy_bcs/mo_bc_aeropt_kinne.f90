@@ -183,7 +183,8 @@ SUBROUTINE su_bc_aeropt_kinne(p_patch, nbndlw, nbndsw, opt_from_yac)
   !$ACC   DEVICE(ext_aeropt_kinne(jg)%asy_c_s, ext_aeropt_kinne(jg)%asy_f_s) &
   !$ACC   DEVICE(ext_aeropt_kinne(jg)%aod_c_f, ext_aeropt_kinne(jg)%ssa_c_f) &
   !$ACC   DEVICE(ext_aeropt_kinne(jg)%asy_c_f, ext_aeropt_kinne(jg)%z_km_aer_c_mo) &
-  !$ACC   DEVICE(ext_aeropt_kinne(jg)%z_km_aer_f_mo)
+  !$ACC   DEVICE(ext_aeropt_kinne(jg)%z_km_aer_f_mo) &
+  !$ACC   ASYNC(1)
 
 END SUBROUTINE su_bc_aeropt_kinne
 
@@ -447,7 +448,8 @@ SUBROUTINE read_bc_aeropt_kinne(mtime_current, p_patch, l_filename_year, nbndlw,
     !$ACC   DEVICE(ext_aeropt_kinne(jg)%asy_c_s, ext_aeropt_kinne(jg)%asy_f_s) &
     !$ACC   DEVICE(ext_aeropt_kinne(jg)%aod_c_f, ext_aeropt_kinne(jg)%ssa_c_f) &
     !$ACC   DEVICE(ext_aeropt_kinne(jg)%asy_c_f, ext_aeropt_kinne(jg)%z_km_aer_c_mo) &
-    !$ACC   DEVICE(ext_aeropt_kinne(jg)%z_km_aer_f_mo)
+    !$ACC   DEVICE(ext_aeropt_kinne(jg)%z_km_aer_f_mo) &
+    !$ACC   ASYNC(1)
 
     RETURN
 
@@ -543,7 +545,8 @@ SUBROUTINE read_bc_aeropt_kinne(mtime_current, p_patch, l_filename_year, nbndlw,
     !$ACC   DEVICE(ext_aeropt_kinne(jg)%asy_c_s, ext_aeropt_kinne(jg)%asy_f_s) &
     !$ACC   DEVICE(ext_aeropt_kinne(jg)%aod_c_f, ext_aeropt_kinne(jg)%ssa_c_f) &
     !$ACC   DEVICE(ext_aeropt_kinne(jg)%asy_c_f, ext_aeropt_kinne(jg)%z_km_aer_c_mo) &
-    !$ACC   DEVICE(ext_aeropt_kinne(jg)%z_km_aer_f_mo)
+    !$ACC   DEVICE(ext_aeropt_kinne(jg)%z_km_aer_f_mo) &
+    !$ACC   ASYNC(1)
 
   END IF    
 END SUBROUTINE read_bc_aeropt_kinne

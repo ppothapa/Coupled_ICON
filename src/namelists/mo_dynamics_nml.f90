@@ -16,13 +16,12 @@
 MODULE mo_dynamics_nml
 
   USE mo_dynamics_config,     ONLY: config_iequations     => iequations,     &
-                                  & config_idiv_method    => idiv_method,    &
                                   & config_divavg_cntrwgt => divavg_cntrwgt, &
                                   & config_lcoriolis      => lcoriolis,      &
                                   & config_ldeepatmo      => ldeepatmo
 
   USE mo_kind,                ONLY: wp
-  USE mo_exception,           ONLY: finish
+  USE mo_exception,           ONLY: finish, message, message_text
   USE mo_impl_constants,      ONLY: INH_ATMOSPHERE
   USE mo_physical_constants,  ONLY: grav
   USE mo_io_units,            ONLY: nnml, nnml_output
@@ -47,7 +46,8 @@ MODULE mo_dynamics_nml
 
   ! way of computing the divergence operator in the triangular model -------------
 
-  INTEGER  :: idiv_method    ! 1: Hydrostatic atmospheric model: 
+  INTEGER  :: idiv_method    ! !!! OBSOLETE !!!
+                             ! 1: Hydrostatic atmospheric model: 
                              !    Gauss integral with original normal 
                              !    velocity components
                              ! 1: Non-Hydrostatic atmospheric model: 
@@ -82,7 +82,7 @@ CONTAINS
     ! Set up the default values
     !------------------------------------------------------------
     iequations     = INH_ATMOSPHERE
-    idiv_method    = 1
+    idiv_method    = 1   !!! OBSOLETE !!!
     divavg_cntrwgt = 0.5_wp
     lcoriolis      = .TRUE.
     ldeepatmo      = .FALSE.
@@ -120,9 +120,10 @@ CONTAINS
     ! Sanity check
     !-----------------------------------------------------
 
-    IF (idiv_method > 2 .OR. idiv_method < 1 )THEN
-      CALL finish(TRIM(routine),'Error: idiv_method must be 1 or 2 !')
-    ENDIF
+    WRITE(message_text,'(a)') &
+      &  'Namelist switch idiv_method is obsolete and will soon be removed!'
+    CALL message("WARNING",message_text)
+
 
     !-----------------------------------------------------
     ! 4. Store the namelist for restart
@@ -132,7 +133,7 @@ CONTAINS
       WRITE(funit,NML=dynamics_nml)
       CALL store_and_close_namelist(funit, 'dynamics_nml')
     ENDIF
-    
+
     ! write the contents of the namelist to an ASCII file
     IF(my_process_is_stdio()) WRITE(nnml_output,nml=dynamics_nml)
 
@@ -141,7 +142,6 @@ CONTAINS
     !-----------------------------------------------------
 
     config_iequations     = iequations
-    config_idiv_method    = idiv_method
     config_divavg_cntrwgt = divavg_cntrwgt
     config_lcoriolis      = lcoriolis
     config_ldeepatmo      = ldeepatmo

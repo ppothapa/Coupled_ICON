@@ -1715,9 +1715,11 @@ CONTAINS
     allmocs(4,12,:) = pacind_sltbasin(1,:)
     !$ACC END KERNELS
 
-    !$ACC UPDATE SELF(allmocs) IF(lacc)
+    !$ACC UPDATE HOST(allmocs) ASYNC(1) IF(lacc)
+    !$ACC WAIT(1) IF(lacc)
     allmocs = p_sum(allmocs,mpi_comm)
-    !$ACC UPDATE DEVICE(allmocs) IF(lacc)
+    !$ACC UPDATE DEVICE(allmocs) ASYNC(1) IF(lacc)
+    !$ACC WAIT(1) IF(lacc) ! can be removed when all ACC compute regions are ASYNC(1)
 
 
     !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
@@ -1759,11 +1761,13 @@ CONTAINS
       !$ACC END KERNELS
     END DO
 
-    !$ACC UPDATE SELF(atlant_moc) IF(lacc)
+    !$ACC UPDATE HOST(atlant_moc) ASYNC(1) IF(lacc)
+    !$ACC WAIT(1) IF(lacc)
     !find atlantic moc at 26n , depth=1000m
     factor_to_sv=1.0_wp/OceanReferenceDensity*1e-6_wp
     amoc26n(1)=atlant_moc(get_level_index_by_depth(patch_3d, 1000.0_wp),116)*factor_to_sv
-    !$ACC UPDATE DEVICE(amoc26n) IF(lacc)
+    !$ACC UPDATE DEVICE(amoc26n) ASYNC(1) IF(lacc)
+    !$ACC WAIT(1) IF(lacc) ! can be removed when all ACC compute regions are ASYNC(1)
 
     ! calculate ocean heat transport as residual from the tendency in heat content (dH/dt)
     ! minus the integral of surface heat flux
@@ -2262,7 +2266,9 @@ CONTAINS
       END DO ! blk
 
     ENDIF
-    !$ACC UPDATE SELF(delta_ice, delta_snow, delta_so, delta_thetao) IF(lacc)
+    !$ACC UPDATE HOST(delta_ice, delta_snow, delta_so, delta_thetao) &
+    !$ACC   ASYNC(1) IF(lacc)
+    !$ACC WAIT(1) IF(lacc)
 
   END SUBROUTINE diag_heat_salt_tendency
 
@@ -2363,7 +2369,9 @@ CONTAINS
     END DO !block
     ! 2023-07 psam-DKRZ: The following UPDATE SELF directive is necessary as the updated arrays are required elsewhere
     ! for CPU-operations. This should not be necessary, I guess, when all subroutines are ported to GPU
-    !$ACC UPDATE SELF(heat_content_liquid_water, heat_content_seaice, heat_content_snow, heat_content_total) IF(lacc)
+    !$ACC UPDATE HOST(heat_content_liquid_water, heat_content_seaice, heat_content_snow, heat_content_total) &
+    !$ACC   ASYNC(1) IF(lacc)
+    !$ACC WAIT(1) IF(lacc)
 
   END SUBROUTINE calc_heat_content
 

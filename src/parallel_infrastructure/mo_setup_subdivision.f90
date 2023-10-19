@@ -1771,7 +1771,7 @@ CONTAINS
       END IF
       write(message_text,'(i7)') nproma_sub
       CALL message('Secondary nproma (nproma_sub): ', message_text)
-      !$ACC UPDATE DEVICE(nproma_sub)
+      !$ACC UPDATE DEVICE(nproma_sub) ASYNC(1)
 
       wrk_p_patch%n_patch_edges = n_patch_edges
       wrk_p_patch%n_patch_verts = n_patch_verts

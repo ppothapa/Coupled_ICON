@@ -61,7 +61,6 @@ MODULE mo_advection_nml
 
   INTEGER :: &                     !< selects horizontal transport scheme
     &  ihadv_tracer(max_ntracer)   !< 0:  no horizontal advection
-                                   !< 1:  1st order upwind
                                    !< 2:  2nd order miura
                                    !< 3:  3rd order miura with quadr./cubic reconstr.
                                    !< 4:  Flux form semi lagrange (FFSL)

@@ -316,7 +316,7 @@ CONTAINS
     END DO
 
     !$ACC ENTER DATA COPYIN(tlucu, tlucuw)
-    !$ACC UPDATE DEVICE(tlucua)
+    !$ACC UPDATE DEVICE(tlucua) ASYNC(1)
 
   END SUBROUTINE init_convect_tables
   !----------------------------------------------------------------------------
@@ -687,14 +687,15 @@ CONTAINS
       ! mixed case, must build store index
       iw = jcs    ! store indices with temp < tmelt at iw (iw = jcs:jcs+nphase-1)
       inw = size  ! store indices with temp >= tmelt at inw (inw = jcs+nphase : size)
-      !$ACC UPDATE HOST(iphase)
+      !$ACC UPDATE HOST(iphase) ASYNC(1)
+      !$ACC WAIT(1)
       DO jl = jcs,size
         tmpidx(iw)  = jl  ! lower part of tmpidx() filled with cond = .true.
         tmpidx(inw) = jl  ! upper part of tmpidx() filled with cond = .false.
         iw = iw + iphase(jl)          ! iphase(jl)=1 if temp(jl) < tmelt, =0 if temp .ge. tmelt
         inw = inw - (1 - iphase(jl))
       END DO
-      !$ACC UPDATE DEVICE(tmpidx)
+      !$ACC UPDATE DEVICE(tmpidx) ASYNC(1)
       iw = iw - 1
 
       IF (PRESENT(dua)) THEN
@@ -884,13 +885,13 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
       END DO
       !$ACC END PARALLEL
     END IF
-    !$ACC WAIT(1)
 
 #ifndef _OPENACC
     ! if one index was out of bounds -> print error and exit
     IF (zinbounds == 0.0_wp) THEN
       IF ( PRESENT(kblock) .AND. PRESENT(kblock_size) .AND. PRESENT(klev) ) THEN
-        !$ACC UPDATE HOST(temp)
+        !$ACC UPDATE HOST(temp) ASYNC(1)
+        !$ACC WAIT(1)
         ! tied to patch(1), does not yet work for nested grids
         DO jl = 1, size
           ztt = rsdeltat*temp(jl)
@@ -909,6 +910,7 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
     END IF
 #endif
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
   END SUBROUTINE prepare_ua_index_spline
@@ -1020,11 +1022,11 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
 
       IF ( PRESENT(opt_need_host_nphase) ) THEN
         IF ( opt_need_host_nphase ) THEN
-          !$ACC UPDATE WAIT SELF(nphase)
+          !$ACC UPDATE HOST(nphase) ASYNC(1)
+          !$ACC WAIT(1)
         END IF
       END IF
 
-      !$ACC WAIT
       !$ACC END DATA
 
     ELSE
@@ -1057,7 +1059,8 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
     ! if one index was out of bounds -> print error and exit
     IF (zoutofbounds > 0) THEN
       IF ( PRESENT(kblock) .AND. PRESENT(kblock_size) ) THEN
-        !$ACC UPDATE HOST(temp)
+        !$ACC UPDATE HOST(temp) ASYNC(1)
+        !$ACC WAIT(1)
         ! tied to patch(1), does not yet work for nested grids
         DO batch = 1,batch_size
           DO jl = jcs, jce
@@ -1184,8 +1187,8 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
     IF (zinbounds == 0.0_wp) THEN
       IF ( PRESENT(kblock) .AND. PRESENT(kblock_size) .AND. PRESENT(klev) ) THEN
         ! tied to patch(1), does not yet work for nested grids
+        !$ACC UPDATE HOST(temp) ASYNC(1)
         !$ACC WAIT(1)
-        !$ACC UPDATE HOST(temp)
         DO jl = 1, size
           ztt = rsdeltat*temp(jl)
           IF ( ztt <= ztmin .OR. ztt >= ztmax ) THEN

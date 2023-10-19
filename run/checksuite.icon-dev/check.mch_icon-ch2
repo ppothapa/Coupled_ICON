@@ -14,7 +14,7 @@
 # - the output  file names: <EXPNAME>_<TYPE>_<DATE>.nc
 # - the restart file names: 
 #
-export EXPERIMENT='mch_bench_r19b08_kenda1'
+export EXPERIMENT='mch_icon-ch2'
 
 # set parameters to avoid crash of icon-dev.checksuite
 export TYPES="void"

@@ -890,27 +890,54 @@ CONTAINS
 
 
     REAL(wp) ::       &   !< coordinates of arrival points. The origin
-      &  arrival_pts(falist%npoints,2,2)
                           !< of the coordinate system is at the circumcenter of
                           !< the upwind cell. Unit vectors point to local East
                           !< and North. (geographical coordinates)
+#ifdef _OPENACC
+      &  arrival_pts(nproma*p_patch%nlev,2,2) ! ACCWA (nvhpc 23.3): allocation with the fixed size
+                                              ! nproma*p_patch%nlev is required to avoid reaching
+                                              ! the memory limit, which then triggers the error
+                                              ! CUDA_ERROR_ALREADY_MAPPED (with the dynamic size
+                                              ! falist%npoints, OpenACC only deallocates the arrays
+                                              ! when approaching the memory limit)
+#else
+      &  arrival_pts(falist%npoints,2,2)
+#endif
 
     REAL(wp) ::    &   !< coordinates of departure points. The origin
-      &  depart_pts(falist%npoints,2,2)
                        !< of the coordinate system is at the circumcenter of
                        !< the upwind cell. Unit vectors point to local East
                        !< and North. (geographical coordinates)
+#ifdef _OPENACC
+      &  depart_pts(nproma*p_patch%nlev,2,2)
+#else
+      &  depart_pts(falist%npoints,2,2)
+#endif
 
     TYPE(t_line) ::                  & !< departure-line segment
+#ifdef _OPENACC
+      &  fl_line(nproma*p_patch%nlev)
+#else
       &  fl_line(falist%npoints)
+#endif
 
     TYPE(t_line) ::             & !< departure area edges
+#ifdef _OPENACC
+      &  fl_e1(nproma*p_patch%nlev), & !< edge 1
+      &  fl_e2(nproma*p_patch%nlev)    !< edge 2
+#else
       &  fl_e1(falist%npoints), & !< edge 1
       &  fl_e2(falist%npoints)    !< edge 2
+#endif
 
     TYPE(t_line) ::                 & !< triangle edge
+#ifdef _OPENACC
+      &  tri_line1(nproma*p_patch%nlev), &
+      &  tri_line2(nproma*p_patch%nlev)
+#else
       &  tri_line1(falist%npoints), &
       &  tri_line2(falist%npoints)
+#endif
 
     TYPE(t_geographical_coordinates), POINTER :: & !< pointer to coordinates of vertex3
       &  ptr_v3(:,:,:)
@@ -938,6 +965,16 @@ CONTAINS
     INTEGER :: icnt_rem, icnt_err, icnt_vn0
 
     INTEGER ::           &         !< ie index list
+#ifdef _OPENACC
+      &  ielist_c1 (nproma*p_patch%nlev), &
+      &  ielist_c2p(nproma*p_patch%nlev), &
+      &  ielist_c3p(nproma*p_patch%nlev), &
+      &  ielist_c2m(nproma*p_patch%nlev), &
+      &  ielist_c3m(nproma*p_patch%nlev), &
+      &  ielist_rem(nproma*p_patch%nlev), &
+      &  ielist_vn0(nproma*p_patch%nlev), &
+      &  ielist_err(nproma*p_patch%nlev)
+#else
       &  ielist_c1 (falist%npoints), &
       &  ielist_c2p(falist%npoints), &
       &  ielist_c3p(falist%npoints), &
@@ -946,8 +983,19 @@ CONTAINS
       &  ielist_rem(falist%npoints), &
       &  ielist_vn0(falist%npoints), &
       &  ielist_err(falist%npoints)
+#endif
 
     INTEGER ::           &         !< je index list
+#ifdef _OPENACC
+      &  idxlist_c1 (nproma*p_patch%nlev), &
+      &  idxlist_c2p(nproma*p_patch%nlev), &
+      &  idxlist_c3p(nproma*p_patch%nlev), &
+      &  idxlist_c2m(nproma*p_patch%nlev), &
+      &  idxlist_c3m(nproma*p_patch%nlev), &
+      &  idxlist_rem(nproma*p_patch%nlev), &
+      &  idxlist_vn0(nproma*p_patch%nlev), &
+      &  idxlist_err(nproma*p_patch%nlev)
+#else
       &  idxlist_c1 (falist%npoints), &
       &  idxlist_c2p(falist%npoints), &
       &  idxlist_c3p(falist%npoints), &
@@ -956,9 +1004,20 @@ CONTAINS
       &  idxlist_rem(falist%npoints), &
       &  idxlist_vn0(falist%npoints), &
       &  idxlist_err(falist%npoints)
+#endif
 
 
     INTEGER ::           &         !< jk index list
+#ifdef _OPENACC
+      &  levlist_c1 (nproma*p_patch%nlev), &
+      &  levlist_c2p(nproma*p_patch%nlev), &
+      &  levlist_c3p(nproma*p_patch%nlev), &
+      &  levlist_c2m(nproma*p_patch%nlev), &
+      &  levlist_c3m(nproma*p_patch%nlev), &
+      &  levlist_rem(nproma*p_patch%nlev), &
+      &  levlist_vn0(nproma*p_patch%nlev), &
+      &  levlist_err(nproma*p_patch%nlev)
+#else
       &  levlist_c1 (falist%npoints), &
       &  levlist_c2p(falist%npoints), &
       &  levlist_c3p(falist%npoints), &
@@ -967,10 +1026,16 @@ CONTAINS
       &  levlist_rem(falist%npoints), &
       &  levlist_vn0(falist%npoints), &
       &  levlist_err(falist%npoints)
+#endif
 
     INTEGER ::           &
+#ifdef _OPENACC
+      &  conditions(nproma*p_patch%nlev,4),&
+      &  indices   (nproma*p_patch%nlev,4)
+#else
       &  conditions(falist%npoints,4),&
       &  indices   (falist%npoints,4)
+#endif
     INTEGER :: nvalid(4)
 
     CHARACTER(len=*), PARAMETER ::  &
@@ -1152,8 +1217,8 @@ CONTAINS
 #else
       CALL generate_index_list_batched(conditions, indices, 1, falist%len(jb), nvalid, 1, .false.)
 #endif
-      !$ACC WAIT
-      !$ACC UPDATE HOST(nvalid) IF(i_am_accel_node)
+      !$ACC UPDATE HOST(nvalid) ASYNC(1) IF(i_am_accel_node)
+      !$ACC WAIT(1) IF(i_am_accel_node)
       icnt_c1 = nvalid(1)
       icnt_c2p = nvalid(2)
       icnt_c2m = nvalid(3)
@@ -1254,8 +1319,8 @@ CONTAINS
 #else
       CALL generate_index_list_batched(conditions, indices, 1, icnt_rem, nvalid, 1, .false.)
 #endif
-      !$ACC WAIT
-      !$ACC UPDATE HOST(nvalid) IF(i_am_accel_node)
+      !$ACC UPDATE HOST(nvalid) ASYNC(1) IF(i_am_accel_node)
+      !$ACC WAIT(1) IF(i_am_accel_node)
       icnt_c3p = nvalid(1)
       icnt_c3m = nvalid(2)
       icnt_vn0 = nvalid(3)
@@ -1300,8 +1365,8 @@ CONTAINS
       icnt_vn0 = icnt_vn0 + icnt_err
 
       IF ( icnt_err>0 ) THEN
-        !$ACC WAIT
-        !$ACC UPDATE HOST(idxlist_err, levlist_err, p_vn, p_vt) IF(i_am_accel_node)
+        !$ACC UPDATE HOST(idxlist_err, levlist_err, p_vn, p_vt) ASYNC(1) IF(i_am_accel_node)
+        !$ACC WAIT(1) IF(i_am_accel_node)
         ! Check for unassigned grid points (i.e. collected in list_Err) because of CFL violation
         DO jl = 1, icnt_err
 

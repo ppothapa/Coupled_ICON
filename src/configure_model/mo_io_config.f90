@@ -171,6 +171,7 @@ MODULE mo_io_config
     LOGICAL :: swiss00      = .FALSE. !< Flag. TRUE if computation of SWISS00 is desired
     LOGICAL :: cape_mu      = .FALSE. !< Flag. TRUE if computation of most unstable CAPE is desired
     LOGICAL :: cin_mu       = .FALSE. !< Flag. TRUE if computation of most unstable convective inhibition MU is desired
+    LOGICAL :: hpbl         = .FALSE. !< Flag. TRUE if computation of boundary layer height is desired
     LOGICAL :: cape_3km     = .FALSE. !< Flag. TRUE if computation of CAPE 3KM is desired
     LOGICAL :: lfc_ml       = .FALSE. !< Flag. TRUE if computation of the Level of Free Convection is desired
     LOGICAL :: lcl_ml       = .FALSE. !< Flag. TRUE if computation of the Lifted Condensation Level is desired
@@ -350,6 +351,8 @@ CONTAINS
         var_in_output(jg)%swiss12     = is_variable_in_output_dom(var_name="swiss12", jg=jg)
         var_in_output(jg)%swiss00     = is_variable_in_output_dom(var_name="swiss00", jg=jg)
         var_in_output(jg)%cloudtop    = is_variable_in_output_dom(var_name="cloudtop", jg=jg)
+        var_in_output(jg)%hpbl        = is_variable_in_output_dom(var_name="hpbl", jg=jg)
+
         ! add vars for global mean claclulations
         var_in_output(jg)%tas_gmean   = is_variable_in_output_dom(var_name="tas_gmean", jg=jg)
         var_in_output(jg)%rsdt_gmean  = is_variable_in_output_dom(var_name="rsdt_gmean", jg=jg)
@@ -415,7 +418,7 @@ CONTAINS
       var_in_output(jg)%ddt_va_grf    = is_variable_in_output_dom(var_name="ddt_va_grf", jg=jg)
     END DO
 
-    !$ACC UPDATE DEVICE(var_in_output)
+    !$ACC UPDATE DEVICE(var_in_output) ASYNC(1)
 
   END SUBROUTINE init_var_in_output
 

@@ -97,6 +97,14 @@ MODULE mo_physical_constants
 
   !> Conversion factor from CO2 volume to mass mixing ratio [kg(CO2)/kg(Air)/(mol(CO2)/mol(Air))].
   REAL(wp), PARAMETER :: vmr_to_mmr_co2 = amco2 / amd
+  !> Conversion factor from CH4 volume to mass mixing ratio [kg(CH4)/kg(Air)/(mol(CH4)/mol(Air))].
+  REAL(wp), PARAMETER :: vmr_to_mmr_ch4 = amch4 / amd
+  !> Conversion factor from N2O volume to mass mixing ratio [kg(N2O)/kg(Air)/(mol(N2O)/mol(Air))].
+  REAL(wp), PARAMETER :: vmr_to_mmr_n2o = amn2o / amd
+  !> Conversion factor from CFC11 volume to mass mixing ratio [kg(CFC11)/kg(Air)/(mol(CFC11)/mol(Air))].
+  REAL(wp), PARAMETER :: vmr_to_mmr_c11 = amc11 / amd
+  !> Conversion factor from CFC12 volume to mass mixing ratio [kg(CFC12)/kg(Air)/(mol(CFC12)/mol(Air))].
+  REAL(wp), PARAMETER :: vmr_to_mmr_c12 = amc12 / amd
 
   !> Earth and Earth orbit constants
   !! -------------------------------

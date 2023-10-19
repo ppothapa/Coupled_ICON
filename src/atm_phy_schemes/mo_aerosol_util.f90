@@ -308,7 +308,7 @@ CONTAINS
      &0.1310_wp,0.1906_wp,0.2625_wp,0.3154_wp,0.3869_wp,0.4787_wp,0.5279_wp,0.6272_wp,&     ! SB
      &0.6941_wp,0.7286_wp,0.7358_wp,0.7177_wp,0.6955_wp,0.0616_wp/),(/jpsw+jpband,5/))      ! SB
 
-    !$ACC UPDATE DEVICE(zaea_rrtm, zaes_rrtm, zaeg_rrtm)
+    !$ACC UPDATE DEVICE(zaea_rrtm, zaes_rrtm, zaeg_rrtm) ASYNC(1)
 
   END SUBROUTINE init_aerosol_props_tegen_rrtm
 
@@ -359,7 +359,8 @@ CONTAINS
       tegen_scal_factors%scattering(:,:) = tegen_scal_factors_rrtm%scattering(:,:)
       tegen_scal_factors%asymmetry (:,:) = tegen_scal_factors_rrtm%asymmetry (:,:)
       !$ACC UPDATE DEVICE(tegen_scal_factors%absorption) &
-      !$ACC   DEVICE(tegen_scal_factors%scattering, tegen_scal_factors%asymmetry)
+      !$ACC   DEVICE(tegen_scal_factors%scattering, tegen_scal_factors%asymmetry) &
+      !$ACC   ASYNC(1)
 
     ELSE ! ECCKD gas optics, variable number of bands/g-points
 
@@ -419,7 +420,8 @@ CONTAINS
       tegen_scal_factors%scattering(:,:) = tegen_scal_factors_mod%scattering(:,:)
       tegen_scal_factors%asymmetry (:,:) = tegen_scal_factors_mod%asymmetry (:,:)
       !$ACC UPDATE DEVICE(tegen_scal_factors%absorption) &
-      !$ACC   DEVICE(tegen_scal_factors%scattering, tegen_scal_factors%asymmetry)
+      !$ACC   DEVICE(tegen_scal_factors%scattering, tegen_scal_factors%asymmetry) &
+      !$ACC   ASYNC(1)
       CALL tegen_scal_factors_mod%finalize()
 
     ENDIF
@@ -469,6 +471,7 @@ CONTAINS
 
     this%n_bands = 0
 
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(this%absorption) IF(ALLOCATED(this%absorption))
     IF (ALLOCATED(this%absorption)) &
       DEALLOCATE(this%absorption)

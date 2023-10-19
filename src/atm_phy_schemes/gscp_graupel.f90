@@ -653,7 +653,8 @@ SUBROUTINE graupel     (             &
 #if defined( _OPENACC )
     CALL message('gscp_graupel','GPU-info : update host before graupel')
 #endif
-    !$ACC UPDATE HOST(dz, t, p, rho, qv, qc, qi, qr, qs, qg)
+    !$ACC UPDATE HOST(dz, t, p, rho, qv, qc, qi, qr, qs, qg) ASYNC(1)
+    !$ACC WAIT(1)
     WRITE (message_text,'(A,2E10.3)') '      MAX/MIN dz  = ',MAXVAL(dz),MINVAL(dz)
     CALL message('',message_text)
     WRITE (message_text,'(A,2E10.3)') '      MAX/MIN T   = ',MAXVAL(t),MINVAL(t)
@@ -1605,7 +1606,8 @@ SUBROUTINE graupel     (             &
 #ifdef _OPENACC
    CALL message('gscp_graupel', 'GPU-info : update host after graupel')
 #endif
-   !$ACC UPDATE HOST(t, qv, qc, qi, qr, qs, qg)
+   !$ACC UPDATE HOST(t, qv, qc, qi, qr, qs, qg) ASYNC(1)
+   !$ACC WAIT(1)
    CALL message('gscp_graupel', 'UPDATED VARIABLES')
    WRITE(message_text,'(A,2E20.9)') 'graupel  T= ',&
     MAXVAL( t(:,:)), MINVAL(t(:,:) )

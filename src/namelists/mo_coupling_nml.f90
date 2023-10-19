@@ -1,7 +1,7 @@
 !>
 !!        Contains the variables to set up the coupling.
 !!
-!!        
+!!
 !! @par Revision History
 !!   Created by Rene Redler (2011-03-22)
 !!
@@ -28,9 +28,9 @@ MODULE mo_coupling_nml
   USE mo_io_units,        ONLY: nnml
   USE mo_namelist,        ONLY: open_nml, close_nml, position_nml, POSITIONED
   USE mo_exception,       ONLY: finish
-  USE mo_coupling_config, ONLY: config_coupled_mode
-  USE mo_coupling_config, ONLY: config_use_sens_heat_flux_hack
-  USE mo_coupling_config, ONLY: config_suppress_sens_heat_flux_hack_over_ice
+  USE mo_coupling_config, ONLY: config_coupled_to_ocean, config_coupled_to_waves,       &
+    &                           config_coupled_to_atmo, config_use_sens_heat_flux_hack, &
+    &                           config_suppress_sens_heat_flux_hack_over_ice
   USE mo_coupling,        ONLY: coupler_config_files_exist
 
   IMPLICIT NONE
@@ -58,7 +58,7 @@ CONTAINS
     !
     ! Local variables
     !
-
+    LOGICAL :: coupled_to_ocean, coupled_to_waves, coupled_to_atmo
     LOGICAL :: coupled_mode
     LOGICAL :: use_sens_heat_flux_hack
     LOGICAL :: suppress_sens_heat_flux_hack_over_ice
@@ -67,14 +67,16 @@ CONTAINS
     CHARACTER(len=max_char_length), PARAMETER :: &
          &   routine = 'mo_coupling_nml:read_coupling_namelist'
 
-    NAMELIST /coupling_mode_nml/ coupled_mode, use_sens_heat_flux_hack, &
-        suppress_sens_heat_flux_hack_over_ice
+    NAMELIST /coupling_mode_nml/ coupled_to_ocean, coupled_to_waves, coupled_to_atmo, &
+         use_sens_heat_flux_hack, suppress_sens_heat_flux_hack_over_ice
 
     !--------------------------------------------------------------------
     ! 1. Set default values
     !--------------------------------------------------------------------
 
-    coupled_mode  = .FALSE.
+    coupled_to_ocean = .FALSE.
+    coupled_to_waves = .FALSE.
+    coupled_to_atmo  = .FALSE.
     use_sens_heat_flux_hack = .FALSE.
     suppress_sens_heat_flux_hack_over_ice = .FALSE.
 
@@ -85,7 +87,7 @@ CONTAINS
 #ifdef YAC_coupling
 
     CALL open_nml (TRIM(namelist_filename))
-    
+
     CALL position_nml('coupling_mode_nml',STATUS=istat)
     IF (istat==POSITIONED) THEN
       READ (nnml, coupling_mode_nml)
@@ -95,15 +97,24 @@ CONTAINS
 
 #endif
 
-    config_coupled_mode = coupled_mode
+    config_coupled_to_ocean = coupled_to_ocean
+    config_coupled_to_waves = coupled_to_waves
+    config_coupled_to_atmo  = coupled_to_atmo
     config_use_sens_heat_flux_hack = use_sens_heat_flux_hack
     config_suppress_sens_heat_flux_hack_over_ice = suppress_sens_heat_flux_hack_over_ice
 
-  IF ( coupled_mode .AND. .NOT. coupler_config_files_exist()) THEN
-    CALL finish( &
-      routine, &
-      'run is configured to be coupled, but coupler configuration files are not available')
-  END IF
+
+    !----------------------------------------------------
+    ! 3. Sanity checks
+    !----------------------------------------------------
+
+    coupled_mode = ANY((/coupled_to_ocean,coupled_to_waves,coupled_to_atmo/))
+
+    IF (coupled_mode .AND. .NOT. coupler_config_files_exist()) THEN
+      CALL finish( &
+        routine, &
+        'run is configured to be coupled, but coupler configuration files are not available')
+    END IF
 
   END SUBROUTINE read_coupling_namelist
 

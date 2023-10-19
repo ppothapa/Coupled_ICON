@@ -418,7 +418,8 @@ CONTAINS
              & prm_field(jg)%cosmu0,      prm_field(jg)%daylght_frc,          &
              & prm_field(jg)%cosmu0_rt,   prm_field(jg)%daylght_frc_rt        )
         !$ACC UPDATE DEVICE(prm_field(jg)%cosmu0, prm_field(jg)%cosmu0_rt) &
-        !$ACC   DEVICE(prm_field(jg)%daylght_frc, prm_field(jg)%daylght_frc_rt)
+        !$ACC   DEVICE(prm_field(jg)%daylght_frc, prm_field(jg)%daylght_frc_rt) &
+        !$ACC   ASYNC(1)
       END IF
 #endif
 

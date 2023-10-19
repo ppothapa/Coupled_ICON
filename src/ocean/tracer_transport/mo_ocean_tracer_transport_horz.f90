@@ -273,7 +273,7 @@ CONTAINS
 
       
     ELSE ! no l_with_horz_tracer_advection
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       div_advflux_horz (:,:,:) = 0.0_wp
       z_adv_flux_h(:,:,:) = 0.0_wp
       !$ACC END KERNELS
@@ -286,6 +286,7 @@ CONTAINS
     CALL dbg_print('TracAdvHorz: div adv_flux_h' ,div_advflux_horz,str_module,idt_src,cells_in_domain)
     !---------------------------------------------------------------------
 
+    !$ACC WAIT(1)
     !$ACC END DATA
   END SUBROUTINE advect_cell_based
   !-------------------------------------------------------------------------------
@@ -429,7 +430,7 @@ CONTAINS
 
     !$ACC DATA CREATE(z_adv_flux_high, z_adv_flux_low) IF(lacc)
 
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     z_adv_flux_high = 0.0_wp
     z_adv_flux_low  = 0.0_wp 
     !$ACC END KERNELS
@@ -494,6 +495,7 @@ CONTAINS
     CASE DEFAULT
      CALL finish('TRIM(flux_corr_transport_h)',"This limiter_type option is not supported")
     END SELECT
+    !$ACC WAIT(1)
     !$ACC END DATA
   END SUBROUTINE flux_corr_transport_cell
   !-------------------------------------------------------------------------------

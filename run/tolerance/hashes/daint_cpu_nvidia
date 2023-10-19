@@ -1,21 +1,21 @@
 --- # ICON probtest tolerance data
+# This file can be parsed using yaml
 # Data is stored in <icon_data_rootFolder>/buildbot_data/ref/<experiment_hash>
 icon_data_rootFolder: /users/icontest/pool/data/ICON
 builder: daint_cpu_nvidia
 # The list below maps each experiment to its current experiment_hash
-"atm_qubicc_nc_test": ee7c82e8986e063e255214df8a9a8eaa6eab5b91
-"dwd_run_ICON_09_R2B4N5_EPS": 8e72c9332b4d8f92a1990f6d1b20d99ac5fd409d
-"exclaim_ape_R02B04": 0afa876ca3f05a4c5c45cf5dcb2684b9b0d58ab9
-"mch_bench_r19b07_dev_sppt": c6dc07593cd21f96eee7376eb811332d1d240fa4
-"mch_ch_lowres": a25146eb9ce7f4d2653a4d067e97baa6eaeecda8
+"atm_qubicc_nc_test": 9d4d0041b8dd9eeacd97e3c216739f6cfe38bc42
+"exclaim_ape_R02B04": 35b232840582ec5579ecda3f64d5ff0b0c8ea4a5
+"mch_bench_r19b07_dev_sppt": 4f29f06da744f6a2f3849444078658f4b63a4911
+"mch_ch_lowres": 398b800dbeae7ef7fff6832673b774f576faf8c2
 "mch_ch_r04b09_dace": 1204fd179fce0a17815220b8555ae439946444b2
-"mch_ch_r04b09_dace_synsat": d72d3a3a13ec5b3ea0938d9fa2f50b0a39c0ec8b
-"mch_opr_r04b07": 9e1905f6e950b2b95f0aa11f0072a468e45e36e1
-"mch_opr_r04b07_lhn_00": d77756caf685271d5913b53bd411775970f961f8
-"mch_opr_r04b07_nest": 1ad5bed33572c0becc4b03845233ce4fea7efde8
-"mch_opr_r04b07_sstice_inst": 519c281557c80ff118d792c49e688090e4b87483
-"mch_opr_r19b07_2m": dd30f2b4ffb6b4f4b33e86ad8d10117c29322f59
-"mch_opr_r19b07_2m_gscp5": c02e76c930a912bb792782ec46a178616d9b8428
-"mch_opr_r19b07_lpi": e4ba66abfac0c5e40a5ff7cafef658c45f5f5cd3
-"mch_opr_r19b07_midnight": 394f96081263f2e67b431e63976f8eb686280841
-"mch_opr_r19b07_turb": abce1ffa8fc361e3210fa5c8de88c393f4737999
+"mch_ch_r04b09_dace_synsat": 8e458130c34211e6e0c9105bc98deb01c07c4bdb
+"mch_opr_r04b07": 060b5667fbe4f526c4d5785626a98e18a54cd836
+"mch_opr_r04b07_lhn_00": 5e167cab1c16fb829385ef81bb4e882137cc02e9
+"mch_opr_r04b07_nest": 3c380009a12c956c65b1e0d3a6a16fc574b8b22f
+"mch_opr_r04b07_sstice_inst": 3990dfc18a5fcc1bf53ae8da1ebeb9c686bd2767
+"mch_opr_r19b07_2m": dd1ed02b341b212b607bcc871ea9fdf80998231f
+"mch_opr_r19b07_2m_gscp5": af80350bba7f7289976f9eb53bca2924aba38130
+"mch_opr_r19b07_lpi": 6bb85087561a142b34c4abc3e5f4950f15365056
+"mch_opr_r19b07_midnight": 66957e2abd925ea1930cfc64aeb0ed815e804582
+"mch_opr_r19b07_turb": ca2c929bc11cd8e5bce5a148e58d0190af17e71f

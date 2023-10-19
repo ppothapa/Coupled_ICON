@@ -155,7 +155,7 @@ MODULE mo_assimilation_config
 
 
     IF (ANY((/MODE_IAU,MODE_IAU_OLD/)==init_mode)) THEN
-       idt_shift=INT(timeshift%dt_shift/dtime)
+       idt_shift=timeshift%dt_shift
     ELSE
        idt_shift=0
     ENDIF
@@ -209,10 +209,10 @@ MODULE mo_assimilation_config
 
 
     nt_end = MAX(assimilation_config(jg)%nlhn_end,assimilation_config(jg)%nlhnverif_end)
-    nt_end = MIN(nt_end,nsteps-idt_shift)
+    nt_end = MIN(nt_end,INT(REAL(nsteps,wp)*dtime-idt_shift))
     nt_start = MIN(assimilation_config(jg)%nlhn_start,assimilation_config(jg)%nlhnverif_start)
     nt_start = MIN(nt_end - 1,nt_start)
-    nobs = NINT((REAL(nt_end-nt_start)+3600._wp)/60._wp/assimilation_config(jg)%lhn_dt_obs) ! consider one hour more to be safe
+    nobs = NINT((REAL(nt_end-nt_start,wp)+3600._wp)/(assimilation_config(jg)%lhn_dt_obs*60._wp)) ! consider one hour more to be safe
     IF (nobs > 0) THEN
       assimilation_config(jg)%nobs_times = nobs
     ELSE
@@ -224,8 +224,8 @@ MODULE mo_assimilation_config
 
     if (assimilation_config(jg)%llhnverif) assimilation_config(jg)%lhn_diag=.true.
 
-    assimilation_config(jg)%nlhn_start      = INT(dt_ass)*NINT(REAL(assimilation_config(jg)%nlhn_start/dt_ass))
-    assimilation_config(jg)%nlhnverif_start = INT(dt_ass)*NINT(REAL(assimilation_config(jg)%nlhnverif_start/dt_ass))
+    assimilation_config(jg)%nlhn_start      = INT(dt_ass)*NINT(REAL(assimilation_config(jg)%nlhn_start,wp)/dt_ass)
+    assimilation_config(jg)%nlhnverif_start = INT(dt_ass)*NINT(REAL(assimilation_config(jg)%nlhnverif_start,wp)/dt_ass)
 
     ! LHN event
 

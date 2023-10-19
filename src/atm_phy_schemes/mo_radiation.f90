@@ -56,15 +56,15 @@ MODULE mo_radiation
   USE mo_math_types,           ONLY: t_geographical_coordinates
   USE mo_physical_constants,   ONLY: grav,  rd,    avo,   amd,  amw,  &
     &                                amco2, amch4, amn2o, amo3, amo2, &
-    &                                stbo
+    &                                amc11, amc12, stbo
   USE mo_time_config,          ONLY: time_config
   USE mo_radiation_config,     ONLY: tsi_radt,   ssi_radt,            &
     &                                irad_co2,   mmr_co2,             &
     &                                irad_ch4,   mmr_ch4,   vpp_ch4,  &
     &                                irad_n2o,   mmr_n2o,   vpp_n2o,  &
     &                                irad_o2,    mmr_o2,              &
-    &                                irad_cfc11, vmr_cfc11,           &
-    &                                irad_cfc12, vmr_cfc12,           &
+    &                                irad_cfc11, mmr_cfc11,           &
+    &                                irad_cfc12, mmr_cfc12,           &
     &                                isolrad, izenith,                &
     &                                cos_zenith_fixed, islope_rad,    &
     &                                irad_aero, iRadAeroNone,         &
@@ -190,7 +190,7 @@ CONTAINS
       !$ACC ENTER DATA CREATE(scm_center) IF(lacc)
       DO jb = 1,pt_patch%nblks_c
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
-        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         scm_center(1:ie,jb)%lat = lat_scm * pi/180.
         scm_center(1:ie,jb)%lon = lon_scm * pi/180.
         !$ACC END KERNELS
@@ -247,7 +247,7 @@ CONTAINS
 
       !$ACC DATA CREATE(n_cosmu0pos, z_cosmu0) COPYOUT(zsmu0) IF(lacc)
 
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       zsmu0(:,:)=0.0_wp
       n_cosmu0pos(:,:) = 0
       !$ACC END KERNELS
@@ -273,7 +273,7 @@ CONTAINS
         DO jb = 1, pt_patch%nblks_c
           ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
 
-          !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+          !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
           z_cosmu0(1:ie,jb) = -COS( ptr_center(1:ie,jb)%lat ) &
             & *COS( ptr_center(1:ie,jb)%lon                &
             &      +zstunde/24._wp* 2._wp*pi )
@@ -321,7 +321,7 @@ CONTAINS
       !$ACC DATA CREATE(n_cosmu0pos, z_cosmu0, zsinphi, zcosphi, zeitrad) COPYOUT(zsmu0) PRESENT(ptr_center) IF(lacc)
 
       zsct_h = 0.0_wp
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       zsmu0(:,:)=0.0_wp
       n_cosmu0pos(:,:) = 0
       !$ACC END KERNELS
@@ -459,6 +459,7 @@ CONTAINS
 
     IF (l_scm_mode) THEN
       DEALLOCATE(scm_center)
+      !$ACC WAIT(1)
       !$ACC EXIT DATA DELETE(scm_center)
     ENDIF
 
@@ -1083,17 +1084,17 @@ CONTAINS
       &                              mmr_gas = mmr_o2            )
 #ifdef __SX__
     xm_cfc11 (1:jce,:) = gas_profile(jce, klev, irad_cfc11,        &
-      &                              mmr_gas = REAL(vmr_cfc11,wp), &
+      &                              mmr_gas = REAL(mmr_cfc11,wp), &
       &                              gas_scenario = ghg_cfcmmr(1)  )
     xm_cfc12 (1:jce,:) = gas_profile(jce, klev, irad_cfc12,        &
-      &                              mmr_gas = REAL(vmr_cfc12,wp), &
+      &                              mmr_gas = REAL(mmr_cfc12,wp), &
       &                              gas_scenario = ghg_cfcmmr(2)  )
 #else
     xm_cfc11 (1:jce,:) = gas_profile(jce, klev, irad_cfc11,        &
-      &                              mmr_gas = vmr_cfc11 ,         &
+      &                              mmr_gas = mmr_cfc11 ,         &
       &                              gas_scenario = ghg_cfcmmr(1)  ) 
     xm_cfc12 (1:jce,:) = gas_profile(jce, klev, irad_cfc12,        &
-      &                              mmr_gas = vmr_cfc12,          &
+      &                              mmr_gas = mmr_cfc12,          &
       &                              gas_scenario = ghg_cfcmmr(2)  )
 #endif
     !
@@ -1326,8 +1327,8 @@ CONTAINS
       &  xm_co2(kbdim,klev),              & !< co2 mass mixing ratio
       &  xm_ch4(kbdim,klev),              & !< ch4 mass mixing ratio
       &  xm_n2o(kbdim,klev),              & !< n2o mass mixing ratio
-      &  xm_cfc11(kbdim,klev),            & !< cfc 11 volume mixing ratio
-      &  xm_cfc12(kbdim,klev),            & !< cfc 12 volume mixing ratio
+      &  xm_cfc11(kbdim,klev),            & !< cfc 11 mass mixing ratio
+      &  xm_cfc12(kbdim,klev),            & !< cfc 12 mass mixing ratio
       &  xm_o2(kbdim,klev),               & !< o2  mass mixing ratio
       &  zaeq1(kbdim,klev),               & !< aerosol continental
       &  zaeq2(kbdim,klev),               & !< aerosol maritime
@@ -1552,8 +1553,8 @@ CONTAINS
         !
         ! --- alternate treatment for cfcs
         !
-        wx_vr(jl,2,jk) = col_dry_vr(jl,jk)*xm_cfc11(jl,jkb)*1.e-20_wp
-        wx_vr(jl,3,jk) = col_dry_vr(jl,jk)*xm_cfc12(jl,jkb)*1.e-20_wp
+        wx_vr(jl,2,jk) = col_dry_vr(jl,jk)*xm_cfc11(jl,jkb)*amd/amc11*1.e-20_wp
+        wx_vr(jl,3,jk) = col_dry_vr(jl,jk)*xm_cfc12(jl,jkb)*amd/amc12*1.e-20_wp
       END DO
         !
         ! --- extra cloud properties for rad coupling

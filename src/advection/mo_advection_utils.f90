@@ -504,7 +504,7 @@ CONTAINS
             advection_config(jg)%tracer_names(iqbin(iqb)) = qbinname(iqb)
           ENDDO
         END DO
-        !$ACC UPDATE DEVICE(iqbin)
+        !$ACC UPDATE DEVICE(iqbin) ASYNC(1)
 
         iqni    = 7+iqb_e+1 ; advection_config(:)%tracer_names(iqni)    = 'qni'
         iqnr    = 7+iqb_e+2 ; advection_config(:)%tracer_names(iqnr)    = 'qnr'

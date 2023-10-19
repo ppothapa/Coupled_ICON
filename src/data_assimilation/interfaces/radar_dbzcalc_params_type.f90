@@ -111,12 +111,15 @@ MODULE radar_dbzcalc_params_type
     INTEGER                    :: isnow_type         ! type of (dry&wet) snow particle model for Mie/Tmat Scattering
     INTEGER                    :: igraupel_type      ! type of melting graupel particle model for Mie/Tmat Scattering
     INTEGER                    :: itype_Dref_fmelt   ! type of defining the Dref reference diameter for the melting degree parameterization
+    INTEGER                    :: idummy1            ! dummy for later use, workaraound for effects of memory padding in MPI transfers
 
     ! Flags for only using certain hydrometeor types for dbz-caldulation:
     !  Order: elem(1) = cloud, (2) = rain, (3) = ice, (4) = snow, (5) = graupel, (6) = hail
     LOGICAL                    :: lhydrom_choice_testing(6) = .TRUE.
     ! Flag for using Mie lookup tables:
     LOGICAL                    :: llookup_mie
+    ! if dynamic adaptation of Tmeltbegin_g/h and meltdegTmin_g/h should be applied within grid colums:
+    LOGICAL                    :: ldynamic_wetgrowth_gh
 
     ! strings for defining the effective refractive index of hydrometeors:
     CHARACTER (LEN=12)         :: ctype_dryice_mie     ! dry ice, for Mie/Tmat calculations
@@ -149,32 +152,32 @@ MODULE radar_dbzcalc_params_type
   !   from radar_mie_lm_vec.f90:
   TYPE(t_dbzcalc_params), PARAMETER  :: dbz_namlst_d = t_dbzcalc_params ( &
        0.055_wpfwo    , & ! %lambda_radar         [m]
-       273.16_wpfwo   , & ! %Tmeltbegin_i         [K]
+       273.15_wpfwo   , & ! %Tmeltbegin_i         [K]
        !T0C_fwo        , & ! %Tmin_i               [K]
        0.0_wpfwo      , & ! %meltdegTmin_i        [-]
-       275.16_wpfwo   , & ! %Tmax_min_i           [K]
-       278.16_wpfwo   , & ! %Tmax_max_i           [K]
+       275.15_wpfwo   , & ! %Tmax_min_i           [K]
+       278.15_wpfwo   , & ! %Tmax_max_i           [K]
        1e-8_wpfwo     , & ! %qthresh_i            [kg/kg]
        1e0_wpfwo      , & ! %qnthresh_i           [#/kg]
-       273.16_wpfwo   , & ! %Tmeltbegin_s         [K]
+       273.15_wpfwo   , & ! %Tmeltbegin_s         [K]
        !T0C_fwo        , & ! %Tmin_s               [K]
        0.0_wpfwo      , & ! %meltdegTmin_s        [-]
-       276.16_wpfwo   , & ! %Tmax_min_s           [K]
-       283.16_wpfwo   , & ! %Tmax_max_s           [K]
+       276.15_wpfwo   , & ! %Tmax_min_s           [K]
+       283.15_wpfwo   , & ! %Tmax_max_s           [K]
        1e-8_wpfwo     , & ! %qthresh_s            [kg/kg]
        1e0_wpfwo      , & ! %qnthresh_s           [#/kg]
-       263.16_wpfwo   , & ! %Tmeltbegin_g         [K]
+       263.15_wpfwo   , & ! %Tmeltbegin_g         [K]
        !T0C_fwo        , & ! %Tmin_g               [K]
        0.2_wpfwo      , & ! %meltdegTmin_g        [-]
-       276.16_wpfwo   , & ! %Tmax_min_g           [K]
-       288.16_wpfwo   , & ! %Tmax_max_g           [K]
+       276.15_wpfwo   , & ! %Tmax_min_g           [K]
+       288.15_wpfwo   , & ! %Tmax_max_g           [K]
        1e-8_wpfwo     , & ! %qthresh_g            [kg/kg]
        1e-3_wpfwo     , & ! %qnthresh_g           [#/kg]
-       263.16_wpfwo   , & ! %Tmeltbegin_h         [K]
+       263.15_wpfwo   , & ! %Tmeltbegin_h         [K]
        !T0C_fwo        , & ! %Tmin_h               [K]
        0.2_wpfwo      , & ! %meltdegTmin_h        [-]
-       278.16_wpfwo   , & ! %Tmax_min_h           [K]
-       303.16_wpfwo   , & ! %Tmax_max_h           [K]
+       278.15_wpfwo   , & ! %Tmax_min_h           [K]
+       303.15_wpfwo   , & ! %Tmax_max_h           [K]
        1e-8_wpfwo     , & ! %qthresh_h            [kg/kg]
        1e-3_wpfwo     , & ! %qnthresh_h           [#/kg]
        999999         , & ! %station_id           [6-digit number]
@@ -182,6 +185,7 @@ MODULE radar_dbzcalc_params_type
        1              , & ! %isnow_type           [1 or 2]
        1              , & ! %igraupel_type        [1, 2, or 3]
        1              , & ! %itype_Dref_fmelt     [1, or 2]
+       0              , & ! %idummy1
        (/ .TRUE.      , & ! %lhydrom_choice_testing(1) = cloud drops
           .TRUE.      , & ! %lhydrom_choice_testing(2) = rain
           .TRUE.      , & ! %lhydrom_choice_testing(3) = cloud ice
@@ -189,6 +193,7 @@ MODULE radar_dbzcalc_params_type
           .TRUE.      , & ! %lhydrom_choice_testing(5) = graupel
           .TRUE.  /)  , & ! %lhydrom_choice_testing(6) = hail
        .TRUE.         , & ! llookup_mie
+       .FALSE.        , & ! ldynamic_wetgrowth_gh
        'mis         ' , & ! %ctype_dryice_mie     [12-char string]
        'mawsms      ' , & ! %ctype_wetice_mie     [12-char string]
        'masmas      ' , & ! %ctype_drysnow_mie    [12-char string]

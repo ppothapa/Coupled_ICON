@@ -87,9 +87,11 @@ SUBROUTINE ocean_solve_cg_cal_wp(this)
     !$ACC END KERNELS
 
 ! compute initial residual and auxiliary vectors
-    !$ACC UPDATE SELF(x) IF(lacc)
+    !$ACC UPDATE HOST(x) ASYNC(1) IF(lacc)
+    !$ACC WAIT(1)
     CALL this%trans%sync(x)
-    !$ACC UPDATE DEVICE(x) IF(lacc)
+    !$ACC UPDATE DEVICE(x) ASYNC(1) IF(lacc)
+    !$ACC WAIT(1) ! can be removed when all ACC compute regions are ASYNC(1)
 
     CALL this%lhs%apply(x, z, use_acc=lacc)
 
@@ -107,7 +109,8 @@ SUBROUTINE ocean_solve_cg_cal_wp(this)
     END DO
 !ICON_OMP END PARALLEL DO
 
-    !$ACC UPDATE SELF(r2) IF(lacc)
+    !$ACC UPDATE HOST(r2) ASYNC(1) IF(lacc)
+    !$ACC WAIT(1)
     CALL this%trans%global_sum(r2, rn)
 
     ! tolerance
@@ -164,7 +167,8 @@ SUBROUTINE ocean_solve_cg_cal_wp(this)
       r2(nidx_e+1:, nblk) = 0._wp
       !$ACC END KERNELS
 
-      !$ACC UPDATE SELF(r2) IF(lacc)
+      !$ACC UPDATE HOST(r2) ASYNC(1) IF(lacc)
+      !$ACC WAIT(1)
       CALL this%trans%global_sum(r2, dz_glob)
       alpha = rn / dz_glob
 ! update guess and residuum
@@ -183,7 +187,8 @@ SUBROUTINE ocean_solve_cg_cal_wp(this)
 ! save old and compute new residual norm
       rn_last = rn
 
-      !$ACC UPDATE SELF(r2) IF(lacc)
+      !$ACC UPDATE HOST(r2) ASYNC(1) IF(lacc)
+      !$ACC WAIT(1)
       CALL this%trans%global_sum(r2, rn)
     END DO
     this%niter_cal(1) = k_final

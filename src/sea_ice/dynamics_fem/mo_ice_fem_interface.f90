@@ -122,7 +122,8 @@ CONTAINS
     p_patch   => p_patch_3D%p_patch_2D(1)
     all_cells => p_patch_3d%p_patch_2d(1)%cells%all
 
-    !$ACC UPDATE SELF(p_ice%draftave) IF(lacc .AND. acc_is_present(p_ice%draftave))
+    !$ACC UPDATE HOST(p_ice%draftave) ASYNC(1) IF(lacc .AND. acc_is_present(p_ice%draftave))
+    !$ACC WAIT(1)
     ALLOCATE(ssh(SIZE(p_ice%draftave(:,:),1),SIZE(p_ice%draftave(:,:),2)))
 
     !$ACC DATA COPYIN(coord_nod2D, rot_mat_3D, c2v_wgt) &

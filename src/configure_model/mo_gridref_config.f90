@@ -36,7 +36,7 @@ MODULE mo_gridref_config
     &                    grf_velfbk, grf_scalfbk, grf_tracfbk,                  &
     &                    grf_intmethod_c, grf_intmethod_e,                      &
     &                    grf_intmethod_ct, denom_diffu_v, denom_diffu_t,        &
-    &                    l_mass_consvcorr, l_density_nudging, fbk_relax_timescale
+    &                    l_density_nudging, fbk_relax_timescale
 
   PUBLIC :: configure_gridref
 
@@ -69,7 +69,6 @@ MODULE mo_gridref_config
     ! Denominators of normalized diffusion coefficients for boundary diffusion
     REAL(wp) :: denom_diffu_v, denom_diffu_t
 
-    LOGICAL  :: l_mass_consvcorr  ! .true.: apply mass conservation correction
     LOGICAL  :: l_density_nudging ! .true.: apply density nudging near lateral nest boundaries if feedback is turned on
                                   ! (in case of one-way nesting, all prognostic variables are nudged irrespective of this switch)
 

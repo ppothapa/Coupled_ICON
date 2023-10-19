@@ -650,7 +650,7 @@ CONTAINS
     ! o3clim_tuned = o3clim*(1.+fac_ozone*shapefunc_ozone)
     DO jg = 1, n_dom
       atm_phy_nwp_config(jg)%ozone_maxinc = tune_ozone_maxinc
-      !$ACC UPDATE DEVICE(atm_phy_nwp_config(jg)%ozone_maxinc)
+      !$ACC UPDATE DEVICE(atm_phy_nwp_config(jg)%ozone_maxinc) ASYNC(1)
       ALLOCATE(atm_phy_nwp_config(jg)%fac_ozone(p_patch(jg)%nlev), &
                atm_phy_nwp_config(jg)%shapefunc_ozone(nproma,p_patch(jg)%nblks_c) )
       ! Vertical profile function
@@ -1358,6 +1358,7 @@ CONTAINS
     CHARACTER(LEN=*), PARAMETER :: routine = modname//":t_atm_phy_nwp_config_finalize"
   !-----------------------------------------------------------------
 
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(me%lcall_phy) IF(ALLOCATED(me%lcall_phy))
     !$ACC EXIT DATA DELETE(me%fac_ozone) IF(ALLOCATED(me%fac_ozone))
     !$ACC EXIT DATA DELETE(me%shapefunc_ozone) IF(ALLOCATED(me%shapefunc_ozone))

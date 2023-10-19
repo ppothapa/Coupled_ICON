@@ -437,7 +437,8 @@ CONTAINS
     !$ACC END PARALLEL LOOP
 
     CALL generate_index_list_batched(pfrc_test, loidx, i_startidx, i_endidx, is, 1)
-    !$ACC UPDATE WAIT(1) SELF(is)
+    !$ACC UPDATE HOST(is) ASYNC(1)
+    !$ACC WAIT(1)
 
     DO jsfc = 1, ksfc_type
       CALL compute_qsat( kbdim, is(jsfc), loidx(:,jsfc), ppsfc(:,jb), ptsfc(:,jb,jsfc), pqsat_tile(:,jb,jsfc) )

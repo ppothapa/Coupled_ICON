@@ -964,7 +964,7 @@ CONTAINS
       lacc = .FALSE.
     END IF
 
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     div_vec_c(:) = 0.0_wp
     !$ACC END KERNELS
 

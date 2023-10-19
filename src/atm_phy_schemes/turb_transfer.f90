@@ -374,6 +374,11 @@ REAL (KIND=wp), PARAMETER :: &
     z2d3=z2/z3     ,&
     z3d2=z3/z2
 
+#ifdef ICON_USE_CUDA_GRAPH
+  LOGICAL, PARAMETER :: using_cuda_graph = .TRUE.
+#else
+  LOGICAL, PARAMETER :: using_cuda_graph = .FALSE.
+#endif
 
 !===============================================================================
 
@@ -1980,7 +1985,8 @@ my_thrd_id = omp_get_thread_num()
       CALL diag_level_gpu(ivstart, ivend, z2m_2d, k_2d, hk_2d, hk1_2d, &
          lacc=lzacc, opt_acc_async_queue=acc_async_queue)
 #else
-      CALL diag_level(ivstart, ivend, z2m_2d, k_2d, hk_2d, hk1_2d)
+      CALL diag_level(ivstart, ivend, z2m_2d, k_2d, hk_2d, hk1_2d, &
+         lacc=lzacc, opt_acc_async_queue=acc_async_queue)
 #endif
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
@@ -2254,7 +2260,8 @@ my_thrd_id = omp_get_thread_num()
          CALL diag_level_gpu(ivstart, ivend, z10m_2d, k_2d, hk_2d, hk1_2d, &
             lacc=lzacc, opt_acc_async_queue=acc_async_queue)
 #else
-         CALL diag_level(ivstart, ivend, z10m_2d, k_2d, hk_2d, hk1_2d)
+         CALL diag_level(ivstart, ivend, z10m_2d, k_2d, hk_2d, hk1_2d, &
+            lacc=lzacc, opt_acc_async_queue=acc_async_queue)
 #endif
 
 !DIR$ IVDEP
@@ -2427,7 +2434,7 @@ CONTAINS
 !+ Module procedure diag_level for computing the upper level index
 !+ used for near surface diganostics
 
-SUBROUTINE diag_level (i_st, i_en, zdia_2d, k_2d, hk_2d, hk1_2d, lacc)
+SUBROUTINE diag_level (i_st, i_en, zdia_2d, k_2d, hk_2d, hk1_2d, lacc, opt_acc_async_queue)
    INTEGER, INTENT(IN) :: &
 !
       i_st, i_en  !start end end indices of horizontal domain
@@ -2447,13 +2454,22 @@ SUBROUTINE diag_level (i_st, i_en, zdia_2d, k_2d, hk_2d, hk1_2d, lacc)
      hk1_2d(:)    !mid level height above ground of the previous layer (below)
 
    LOGICAL, OPTIONAL, INTENT(IN) :: lacc ! If true, use openacc
+   INTEGER, OPTIONAL, INTENT(IN) :: opt_acc_async_queue
+
    LOGICAL :: lzacc ! non-optional version of lacc
+   INTEGER :: acc_async_queue
 
    INTEGER :: i
 
    LOGICAL :: lcheck
 
    CALL set_acc_host_or_device(lzacc, lacc)
+
+   IF(PRESENT(opt_acc_async_queue)) THEN
+       acc_async_queue = opt_acc_async_queue
+   ELSE
+       acc_async_queue = 1
+   ENDIF
 
    lcheck=.TRUE. !check whether a diagnostic level is above the current layer
 
@@ -2463,12 +2479,12 @@ SUBROUTINE diag_level (i_st, i_en, zdia_2d, k_2d, hk_2d, hk1_2d, lacc)
       lcheck=.FALSE. !check next layer ony, if diagnostic level is at least once
                      !above the current layer
 
-      !$ACC PARALLEL ASYNC(1) PRESENT(hhl, zdia_2d, k_2d, hk_2d, hk1_2d) IF(lzacc)
+      !$ACC PARALLEL ASYNC(acc_async_queue) PRESENT(hhl, zdia_2d, k_2d, hk_2d, hk1_2d) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO i=i_st,i_en
-         IF (hk_2d(i)<zdia_2d(i) .AND. k_2d(i)>1) THEN !diagnostic level is above current layer
-           !            lcheck=lcheck .OR. .TRUE. !for this point or any previous one the
-           !$ACC ATOMIC WRITE
+          IF (hk_2d(i)<zdia_2d(i) .AND. k_2d(i)>1) THEN !diagnostic level is above current layer
+            !            lcheck=lcheck .OR. .TRUE. !for this point or any previous one the
+            !$ACC ATOMIC WRITE
             lcheck=.TRUE.             !for this point or any previous one the
                                       !diagnostic level is above the current layer
             !$ACC END ATOMIC
@@ -2545,7 +2561,6 @@ SUBROUTINE diag_level_gpu (i_st, i_en, zdia_2d, k_2d, hk_2d, hk1_2d, lacc, opt_a
          END IF
       END DO
    END DO
-   !$ACC END PARALLEL LOOP
    !$ACC END DATA
    
 END SUBROUTINE diag_level_gpu

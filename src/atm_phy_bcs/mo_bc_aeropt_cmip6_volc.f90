@@ -187,7 +187,8 @@ CONTAINS
     DEALLOCATE(zalt, zlat)
 
     !$ACC UPDATE DEVICE(aod_v_s, ext_v_s, ssa_v_s, asy_v_s, aod_v_t, ext_v_t, ssa_v_t) &
-    !$ACC   DEVICE(r_alt_clim, r_lat_clim)
+    !$ACC   DEVICE(r_alt_clim, r_lat_clim) &
+    !$ACC   ASYNC(1)
 
   END SUBROUTINE su_bc_aeropt_cmip6_volc
 
@@ -298,7 +299,8 @@ CONTAINS
       pre_year = mtime_current%date%year
 
       !$ACC UPDATE DEVICE(aod_v_s, ext_v_s, ssa_v_s, asy_v_s, aod_v_t, ext_v_t, ssa_v_t) &
-      !$ACC   DEVICE(r_alt_clim, r_lat_clim)
+      !$ACC   DEVICE(r_alt_clim, r_lat_clim) &
+      !$ACC   ASYNC(1)
 
     END IF ! iyear > pre_year
   END SUBROUTINE read_bc_aeropt_cmip6_volc

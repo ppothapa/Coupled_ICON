@@ -234,7 +234,7 @@ CONTAINS
       END DO
 
     END IF
-    !$ACC UPDATE DEVICE(vct_a)
+    !$ACC UPDATE DEVICE(vct_a) ASYNC(1)
 
   END SUBROUTINE construct_vertical_grid
 

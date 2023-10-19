@@ -10,10 +10,7 @@ make_and_change_to_experiment_dir # function in ../add_run_routines
 START_MODEL="${START_MODEL:=$START $MODEL}"
 
 # set icon_data_poolFolder
-icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}"
-if [[ -d "$icon_data_poolFolder/buildbot_data/nwp" ]]; then
-  icon_data_poolFolder="$icon_data_poolFolder/buildbot_data/nwp"
-fi
+icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/buildbot_data/nwp"
 
 # base directory for ICON sources, binary and auxilary data:
 ICONDIR="${basedir}" # basedir can be set with create_target_header
@@ -25,10 +22,8 @@ EXP="ICON-D2"    # experiment identifier
 DATAROOT="${icon_data_poolFolder}/Checksuite_data"
 
 # directory for grid and extpar files
-GRIDDIR=/hpc/rwork0/routfor/routfox/icon/grids/public/edzw/ # grid directory
-if [[ ! -d "$GRIDDIR" ]]; then
-  GRIDDIR="$icon_data_poolFolder/grids/public/edzw"
-fi
+GRIDDIR="${icon_data_poolFolder}/grids/public/edzw"
+# GRIDDIR links to /hpc/rwork0/routfor/routfox/icon/grids/public/edzw on RCL
 EXTPDIR="$GRIDDIR" # external parameter directory
 
 # absolute path to input directory - for the time being
@@ -369,7 +364,6 @@ cat > ${atmo_namelist} << EOF
 /
 &dynamics_nml
  divavg_cntrwgt = 0.50
- idiv_method    = 1
  iequations     = 3
  lcoriolis      = .true.
 /
@@ -1101,10 +1095,6 @@ end_input_radarsim
 #
 # Model Equivalent Calculator
 #
-data=/hpc/rhome/routfor/routfox/3dvar/const
-if [[ ! -d "$data" ]]; then
-  data = "${DATADIR}/const"
-fi
 cat > namelist  << end_input_MEC
  !===================
  ! general parameters
@@ -1112,7 +1102,7 @@ cat > namelist  << end_input_MEC
  &run
    method         = 'MEC'               ! Model Equivalent Calculator
    model          = 'ICON'              ! forecast model
-   data           = '${data}'
+   data           = '${DATADIR}/const'
    input          = "../input"          ! input data path (lff files)
    obsinput       = './'                ! observation input data (CDFIN-files, blacklist)
    output         = "./."               ! output directory (ver,mof-files)
@@ -1170,20 +1160,17 @@ cat > namelist  << end_input_MEC
 end_input_MEC
 
 
+#
+# configure START_MODEL_function
+#
+ICON_COMPONENT1_VH_procs=$((num_restart_procs + num_io_procs + num_prefetch_proc + num_io_procs_radar))
+
 # ----------------------------------------------------------------------
 # run the model!
 # ----------------------------------------------------------------------
 
 ls -l $MODEL
 
-
-# base directory for GRIB library and definition files:
-# GRIBDIR=/hpc/sw/grib_api-1.23.1
-
-# export GRIB_DEFINITION_PATH=${GRIBDIR}/definitions/definitions.edzw-1.23.1:${GRIBDIR}/VE/share/grib_api/definitions
-
-# 1 I/O process on VH 0 and the rest (4) I/O processes on VH 1
-VH_DISTRIBUTION="1,:"
 $START_MODEL
 EXIT_STATUS=$?
 

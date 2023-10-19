@@ -275,7 +275,7 @@ CONTAINS
   calcon = 1.03e-2_wp
 
   rrrcl = salchl * 1.025_wp * bor1 * bor2
-  !$ACC UPDATE DEVICE(rrrcl)
+  !$ACC UPDATE DEVICE(rrrcl) ASYNC(1)
 
   END SUBROUTINE SET_PARAMETERS_BGC
 
@@ -332,7 +332,7 @@ CONTAINS
     dremopal = dremopal * dtb  ! 1/d      
     dremn2o  = dremn2o * dtb      ! 1/d
     dremcalc = dremcalc *dtb    ! 
-    !$ACC UPDATE DEVICE(dremcalc)
+    !$ACC UPDATE DEVICE(dremcalc) ASYNC(1)
     denitrification = denitrification *dtb 
     denit_sed = denit_sed *dtb    ! sediment denitrification rate
     sred_sed = sred_sed *dtb    ! sediment sulfate reduction rate

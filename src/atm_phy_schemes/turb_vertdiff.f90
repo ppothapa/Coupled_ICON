@@ -654,7 +654,7 @@ INTEGER :: my_cart_id, my_thrd_id
       tinc(n)=dt_var    !time increment multiplication for tendencies
     END IF
   END DO
-  !$ACC UPDATE DEVICE(tinc)
+  !$ACC UPDATE DEVICE(tinc) ASYNC(1)
 
 !--------------------------------------------------
   IF ((ldovardif .OR. ldogrdcor) .AND. iini.NE.1) THEN !Vertikaldiffusion wird hier berechnet

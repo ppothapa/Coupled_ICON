@@ -377,7 +377,7 @@ add_required_file ${basedir}/run/coupling_${EXPNAME}.yaml ./coupling.yaml
 cat > ${atm_namelist} << EOF
 !
 &coupling_mode_nml
-  coupled_mode     = .TRUE.
+  coupled_to_ocean = .TRUE.
 /
 &parallel_nml
  nproma            = ${nproma_atm}
@@ -987,7 +987,7 @@ ocean_grid="icon_grid_${ocean_gridID}_modsills_${ocean_refinement}_O.nc"    #  n
 cat > ${oce_namelist} << EOF
 !
 &coupling_mode_nml
-  coupled_mode               = .TRUE.
+  coupled_to_atmo            = .TRUE.
 /
 &parallel_nml
  nproma                      = ${nproma_oce}

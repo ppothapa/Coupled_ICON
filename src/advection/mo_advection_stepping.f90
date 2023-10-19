@@ -141,7 +141,7 @@ CONTAINS
     &                        q_ubc, q_int,                                                   &
     &                        opt_ddt_tracer_adv                                              )
   !
-    TYPE(t_patch), TARGET, INTENT(INOUT) ::  &  !< patch on which computation
+    TYPE(t_patch), TARGET, INTENT(IN) ::  &  !< patch on which computation
       &  p_patch                             !< is performed
                                              
     TYPE(t_int_state), INTENT(IN) :: &  !< interpolation state
@@ -891,7 +891,7 @@ CONTAINS
     &                 rhodz_now, rhodz_new, tracer_now, tracer_new,         &
     &                 p_mflx_tracer_h, deepatmo_divh_mc, i_rlstart, i_rlend )
 
-    TYPE(t_patch), TARGET, INTENT(INOUT)  ::  & !< compute patch
+    TYPE(t_patch), TARGET, INTENT(IN)  ::  & !< compute patch
       &  p_patch
 
     TYPE(t_int_state), INTENT(IN)  ::  & !< interpolation state 

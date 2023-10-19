@@ -117,9 +117,8 @@ INTERFACE grad_green_gauss_cell
 END INTERFACE
 
 INTERFACE grad_fe_cell
-  MODULE PROCEDURE grad_fe_cell_adv
-  MODULE PROCEDURE grad_fe_cell_adv_2d
-  MODULE PROCEDURE grad_fe_cell_dycore
+  MODULE PROCEDURE grad_fe_cell_3d
+  MODULE PROCEDURE grad_fe_cell_2d
 END INTERFACE
 
 CONTAINS
@@ -430,16 +429,19 @@ END SUBROUTINE grad_fd_tang
 !!
 !! The gradient is computed by taking the derivative of the shape functions
 !! for a three-node triangular element (Finite Element thinking).
+!! The triangular element is spanned by the cell circumcenters of the three
+!! direct neighbours. In contrast to the Green-Gauss approach, this
+!! approach does not involve the cell center value of the central triangle.
 !!
 !! @par Revision History
 !!  Initial revision by Daniel Reinert, DWD (2013-11-07)
 !!
 !! LITERATURE:
 !! Fish. J and T. Belytschko, 2007: A first course in finite elements,
-!!                                  John Wiley and Sons
+!!                                  John Wiley and Sons, Sec. 7.2, 7.6
 !!
 !!
-SUBROUTINE grad_fe_cell_adv( p_cc, ptr_patch, ptr_int, p_grad, &
+SUBROUTINE grad_fe_cell_3d( p_cc, ptr_patch, ptr_int, p_grad, &
   &                      opt_slev, opt_elev, opt_rlstart,  &
   &                      opt_rlend                         )
 !
@@ -450,7 +452,7 @@ TYPE(t_patch), TARGET, INTENT(in)     :: ptr_patch
 !
 !  data structure for interpolation
 !
-TYPE(t_int_state), TARGET, INTENT(in) :: ptr_int
+TYPE(t_int_state), INTENT(in) :: ptr_int
 
 !
 !  cell centered variable
@@ -475,9 +477,9 @@ REAL(vp), INTENT(inout) ::  &
 INTEGER :: slev, elev     ! vertical start and end level
 INTEGER :: jc, jk, jb
 INTEGER :: rl_start, rl_end
-INTEGER :: i_startblk, i_endblk, i_startidx, i_endidx, i_nchdom
+INTEGER :: i_startblk, i_endblk, i_startidx, i_endidx
 
-INTEGER,  DIMENSION(:,:,:),   POINTER :: iidx, iblk
+INTEGER, POINTER, CONTIGUOUS :: iidx(:,:,:), iblk(:,:,:)
 
 !-----------------------------------------------------------------------
 
@@ -507,9 +509,6 @@ END IF
 iidx => ptr_patch%cells%neighbor_idx
 iblk => ptr_patch%cells%neighbor_blk
 
-i_nchdom = MAX(1,ptr_patch%n_childdom)
-
-
 !
 ! 2. reconstruction of cell based geographical gradient
 !
@@ -518,8 +517,8 @@ i_nchdom = MAX(1,ptr_patch%n_childdom)
 
 !$OMP PARALLEL PRIVATE(i_startblk,i_endblk)
 
-  i_startblk = ptr_patch%cells%start_blk(rl_start,1)
-  i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
+  i_startblk = ptr_patch%cells%start_block(rl_start)
+  i_endblk   = ptr_patch%cells%end_block(rl_end)
 
   IF (ptr_patch%id > 1) THEN
   ! Fill nest boundaries with zero to avoid trouble with MPI synchronization
@@ -583,7 +582,7 @@ i_nchdom = MAX(1,ptr_patch%n_childdom)
   !$ACC END DATA
 
 
-END SUBROUTINE grad_fe_cell_adv
+END SUBROUTINE grad_fe_cell_3d
 
 
 
@@ -596,6 +595,10 @@ END SUBROUTINE grad_fe_cell_adv
 !!
 !! The gradient is computed by taking the derivative of the shape functions
 !! for a three-node triangular element (Finite Element thinking).
+!! The triangular element is spanned by the cell circumcenters of the three
+!! direct neighbours. In contrast to the Green-Gauss approach, this
+!! approach does not involve the cell center value of the central triangle.
+!!
 !! 2D version, i.e. for a single vertical level
 !!
 !! @par Revision History
@@ -603,11 +606,11 @@ END SUBROUTINE grad_fe_cell_adv
 !!
 !! LITERATURE:
 !! Fish. J and T. Belytschko, 2007: A first course in finite elements,
-!!                                  John Wiley and Sons
+!!                                  John Wiley and Sons, Sec. 7.2, 7.6
 !!
 !!
-SUBROUTINE grad_fe_cell_adv_2d( p_cc, ptr_patch, ptr_int, p_grad, &
-  &                             opt_rlstart, opt_rlend            )
+SUBROUTINE grad_fe_cell_2d( p_cc, ptr_patch, ptr_int, p_grad, &
+  &                         opt_rlstart, opt_rlend            )
 !
 !
 !  patch on which computation is performed
@@ -616,7 +619,7 @@ TYPE(t_patch), TARGET, INTENT(in)     :: ptr_patch
 !
 !  data structure for interpolation
 !
-TYPE(t_int_state), TARGET, INTENT(in) :: ptr_int
+TYPE(t_int_state), INTENT(in) :: ptr_int
 
 !
 !  cell centered variable
@@ -634,9 +637,9 @@ REAL(wp), INTENT(inout) ::  &
 
 INTEGER :: jc, jb
 INTEGER :: rl_start, rl_end
-INTEGER :: i_startblk, i_endblk, i_startidx, i_endidx, i_nchdom
+INTEGER :: i_startblk, i_endblk, i_startidx, i_endidx
 
-INTEGER,  DIMENSION(:,:,:),   POINTER :: iidx, iblk
+INTEGER, POINTER, CONTIGUOUS :: iidx(:,:,:), iblk(:,:,:)
 
 !-----------------------------------------------------------------------
 
@@ -656,16 +659,13 @@ END IF
 iidx => ptr_patch%cells%neighbor_idx
 iblk => ptr_patch%cells%neighbor_blk
 
-i_nchdom = MAX(1,ptr_patch%n_childdom)
-
-
 !
 ! 2. reconstruction of cell based geographical gradient
 !
 !$OMP PARALLEL PRIVATE(i_startblk,i_endblk)
 
-  i_startblk = ptr_patch%cells%start_blk(rl_start,1)
-  i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
+  i_startblk = ptr_patch%cells%start_block(rl_start)
+  i_endblk   = ptr_patch%cells%end_block(rl_end)
 
   IF (ptr_patch%id > 1) THEN
   ! Fill nest boundaries with zero to avoid trouble with MPI synchronization
@@ -707,169 +707,7 @@ i_nchdom = MAX(1,ptr_patch%n_childdom)
 !$OMP END PARALLEL
 
 
-END SUBROUTINE grad_fe_cell_adv_2d
-
-
-
-!-------------------------------------------------------------------------
-!
-!
-!>
-!! Computes the cell centered gradient in geographical coordinates.
-!!
-!! The gradient is computed by taking the derivative of the shape functions
-!! for a three-node triangular element (Finite Element thinking).
-!! Special dycore version, which handles two fields at a time.
-!!
-!! @par Revision History
-!!  Initial revision by Daniel Reinert, DWD (2013-11-07)
-!!
-!! LITERATURE:
-!! Fish. J and T. Belytschko, 2007: A first course in finite elements,
-!!                                  John Wiley and Sons
-!!
-!!
-SUBROUTINE grad_fe_cell_dycore( p_ccpr, ptr_patch, ptr_int, p_grad, &
-  &                      opt_slev, opt_elev, opt_rlstart,  &
-  &                      opt_rlend                         )
-!
-!
-!  patch on which computation is performed
-!
-TYPE(t_patch), TARGET, INTENT(in)     :: ptr_patch
-!
-!  data structure for interpolation
-!
-TYPE(t_int_state), TARGET, INTENT(in) :: ptr_int
-
-REAL(vp), INTENT(in) ::  & ! perturbation fields passed from dycore (nproma,2,nlev,nblks_c)
-  &  p_ccpr(:,:,:,:)
-
-INTEGER, INTENT(in), OPTIONAL ::  &
-  &  opt_slev    ! optional vertical start level
-
-INTEGER, INTENT(in), OPTIONAL ::  &
-  &  opt_elev    ! optional vertical end level
-
-INTEGER, INTENT(in), OPTIONAL ::  &
-  &  opt_rlstart, opt_rlend   ! start and end values of refin_ctrl flag
-!
-! cell based Green-Gauss reconstructed geographical gradient vector
-!
-REAL(vp), INTENT(inout) ::  &
-  &  p_grad(:,:,:,:)      ! dim:(4,nproma,nlev,nblks_c)
-
-INTEGER :: slev, elev     ! vertical start and end level
-INTEGER :: jc, jk, jb
-INTEGER :: rl_start, rl_end
-INTEGER :: i_startblk, i_endblk, i_startidx, i_endidx, i_nchdom
-
-INTEGER,  DIMENSION(:,:,:),   POINTER :: iidx, iblk
-
-!-----------------------------------------------------------------------
-
-! check optional arguments
-IF ( PRESENT(opt_slev) ) THEN
-  slev = opt_slev
-ELSE
-  slev = 1
-END IF
-IF ( PRESENT(opt_elev) ) THEN
-  elev = opt_elev
-ELSE
-  elev = UBOUND(p_ccpr,3)
-END IF
-IF ( PRESENT(opt_rlstart) ) THEN
-  rl_start = opt_rlstart
-ELSE
-  rl_start = 2
-END IF
-IF ( PRESENT(opt_rlend) ) THEN
-  rl_end = opt_rlend
-ELSE
-  rl_end = min_rlcell
-END IF
-
-
-iidx => ptr_patch%cells%neighbor_idx
-iblk => ptr_patch%cells%neighbor_blk
-
-i_nchdom = MAX(1,ptr_patch%n_childdom)
-
-
-!
-! 2. reconstruction of cell based geographical gradient
-!
-
-  !$ACC DATA PRESENT(p_ccpr, p_grad, ptr_int%gradc_bmat, iidx, iblk) IF(i_am_accel_node)
-
-!$OMP PARALLEL PRIVATE(i_startblk,i_endblk)
-
-  i_startblk = ptr_patch%cells%start_blk(rl_start,1)
-  i_endblk   = ptr_patch%cells%end_blk(rl_end,i_nchdom)
-
-
-!$OMP DO PRIVATE(jb,jc,jk,i_startidx,i_endidx), ICON_OMP_RUNTIME_SCHEDULE
-  DO jb = i_startblk, i_endblk
-
-    CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk, &
-                       i_startidx, i_endidx, rl_start, rl_end)
-
-    !$ACC PARALLEL ASYNC(1) IF(i_am_accel_node)
-#ifdef __LOOP_EXCHANGE
-    !$ACC LOOP GANG
-    DO jc = i_startidx, i_endidx
-!DIR$ IVDEP
-      !$ACC LOOP VECTOR
-      DO jk = slev, elev
-#else
-    !$ACC LOOP GANG
-    DO jk = slev, elev
-      !$ACC LOOP VECTOR
-      DO jc = i_startidx, i_endidx
-#endif
-
-        ! We do not make use of the intrinsic function DOT_PRODUCT on purpose,
-        ! since it is extremely slow on the SX9, when combined with indirect
-        ! addressing.
-
-        ! multiply cell-based input values with shape function derivatives
-
-        ! zonal(u)-component of gradient, field 1
-        p_grad(1,jc,jk,jb) = &
-          &    ptr_int%gradc_bmat(jc,1,1,jb)*p_ccpr(1,iidx(jc,jb,1),jk,iblk(jc,jb,1))  &
-          &  + ptr_int%gradc_bmat(jc,1,2,jb)*p_ccpr(1,iidx(jc,jb,2),jk,iblk(jc,jb,2))  &
-          &  + ptr_int%gradc_bmat(jc,1,3,jb)*p_ccpr(1,iidx(jc,jb,3),jk,iblk(jc,jb,3))
-
-        ! meridional(v)-component of gradient, field 1
-        p_grad(2,jc,jk,jb) =  &
-          &    ptr_int%gradc_bmat(jc,2,1,jb)*p_ccpr(1,iidx(jc,jb,1),jk,iblk(jc,jb,1))  &
-          &  + ptr_int%gradc_bmat(jc,2,2,jb)*p_ccpr(1,iidx(jc,jb,2),jk,iblk(jc,jb,2))  &
-          &  + ptr_int%gradc_bmat(jc,2,3,jb)*p_ccpr(1,iidx(jc,jb,3),jk,iblk(jc,jb,3))
-
-        ! zonal(u)-component of gradient, field 2
-        p_grad(3,jc,jk,jb) = &
-          &    ptr_int%gradc_bmat(jc,1,1,jb)*p_ccpr(2,iidx(jc,jb,1),jk,iblk(jc,jb,1))  &
-          &  + ptr_int%gradc_bmat(jc,1,2,jb)*p_ccpr(2,iidx(jc,jb,2),jk,iblk(jc,jb,2))  &
-          &  + ptr_int%gradc_bmat(jc,1,3,jb)*p_ccpr(2,iidx(jc,jb,3),jk,iblk(jc,jb,3))
-
-        ! meridional(v)-component of gradient, field 2
-        p_grad(4,jc,jk,jb) =  &
-          &    ptr_int%gradc_bmat(jc,2,1,jb)*p_ccpr(2,iidx(jc,jb,1),jk,iblk(jc,jb,1))  &
-          &  + ptr_int%gradc_bmat(jc,2,2,jb)*p_ccpr(2,iidx(jc,jb,2),jk,iblk(jc,jb,2))  &
-          &  + ptr_int%gradc_bmat(jc,2,3,jb)*p_ccpr(2,iidx(jc,jb,3),jk,iblk(jc,jb,3))
-
-      END DO ! end loop over cells
-    END DO ! end loop over vertical levels
-    !$ACC END PARALLEL
-
-  END DO ! end loop over blocks
-!$OMP END DO NOWAIT
-!$OMP END PARALLEL
-
-  !$ACC END DATA
-
-END SUBROUTINE grad_fe_cell_dycore
+END SUBROUTINE grad_fe_cell_2d
 
 
 !-------------------------------------------------------------------------

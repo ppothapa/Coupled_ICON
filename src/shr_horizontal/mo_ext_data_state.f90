@@ -1890,6 +1890,7 @@ CONTAINS
       ENDDO
     END IF
 
+    !$ACC WAIT(1)
     DO jg = 1,n_dom
       !$ACC EXIT DATA DELETE(ext_data(jg)%atm%z0_lcc, ext_data(jg)%atm%z0_lcc_min, ext_data(jg)%atm%plcovmax_lcc) &
       !$ACC   DELETE(ext_data(jg)%atm%laimax_lcc, ext_data(jg)%atm%rootdmax_lcc, ext_data(jg)%atm%stomresmin_lcc) &

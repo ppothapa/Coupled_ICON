@@ -284,14 +284,11 @@ CONTAINS
       IF (ierror /= 0) CALL finish(routine, "mpi_win_free failed!")
     END IF
     IF (lprint_dbg) CALL p_barrier(comm=p_comm_work_pref) ! make sure all are here
-    IF  ((msg_level >= 15) .OR. lprint_dbg)  CALL message(routine, "Free MPI window memory")
+    IF  ((msg_level >= 15) .OR. lprint_dbg)  CALL message(routine, "Nullify MPI window pointer")
     IF (ASSOCIATED(patch_data%mem_win%mem_ptr_sp)) THEN
-      c_mem_ptr = TRANSFER(patch_data%mem_win%f_mem_ptr, c_mem_ptr)
-      CALL C_F_POINTER(c_mem_ptr, baseptr)
-      CALL mpi_free_mem(baseptr, ierror)
-      IF (ierror /= 0) CALL finish(routine, "mpi_free_mem failed!")
+      NULLIFY(patch_data%mem_win%mem_ptr_sp)
     END IF
-        IF (lprint_dbg) CALL p_barrier(comm=p_comm_work_pref) ! make sure all are here
+    IF (lprint_dbg) CALL p_barrier(comm=p_comm_work_pref) ! make sure all are here
     IF  ((msg_level >= 15) .OR. lprint_dbg)  CALL message(routine, "done.")
 #endif
   END SUBROUTINE t_patch_data_finalize

@@ -392,12 +392,12 @@ CONTAINS
       !$ACC END PARALLEL
 
     ENDDO
-    !$ACC WAIT(1)
 !$OMP END DO
 !$OMP END PARALLEL
 
     IF ( lmessage_light .OR. lmessage_full ) THEN
-      !$ACC UPDATE HOST(z_radar) IF(lzacc)
+      !$ACC UPDATE HOST(z_radar) ASYNC(1) IF(lzacc)
+      !$ACC WAIT(1)
       zdebug = MAXVAL(z10olog10 * LOG(z_radar + eps))
       message_text(:) = ' '
       WRITE (message_text, '(a,i4,a,1x,f6.1)') 'reflectivity statistics on proc ',my_id_for_message, &
@@ -405,6 +405,7 @@ CONTAINS
       CALL message (TRIM(routine), TRIM(message_text), all_print=.TRUE.)
     ENDIF
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
   END SUBROUTINE compute_field_dbz_1mom
@@ -687,12 +688,12 @@ CONTAINS
       !$ACC END PARALLEL
 
     END DO
-    !$ACC WAIT(1)
 !$OMP END DO
 !$OMP END PARALLEL
 
     IF (lmessage_light .OR. lmessage_full ) THEN
-      !$ACC UPDATE HOST(z_radar) IF(lzacc)
+      !$ACC UPDATE HOST(z_radar) ASYNC(1) IF(lzacc)
+      !$ACC WAIT(1)
       message_text(:) = ' '
       WRITE (message_text, '(A,i4,2(A,F10.1))') 'on proc ',my_id_for_message,': '// &
            'MAX dBZ = ', &
@@ -702,6 +703,7 @@ CONTAINS
       CALL message(TRIM(routine), TRIM(message_text), all_print=.TRUE.)
     END IF
 
+    !$ACC WAIT(1)
     !$ACC END DATA
   
   END SUBROUTINE compute_field_dbz_2mom

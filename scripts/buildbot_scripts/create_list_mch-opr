@@ -21,9 +21,9 @@ machine=balfrin
 
 
 # add bench experiments
-./addexp "checksuite.icon-dev/check.mch_bench_r19b07_icon2"  --builders "balfrin_gpu_nvidia_mixed" --list $listname --runflags "cpu_time=01:20:00"
-./addexp "checksuite.icon-dev/check.mch_bench_r19b08_icon1"  --builders "balfrin_gpu_nvidia_mixed" --list $listname --runflags "cpu_time=01:20:00"
-./addexp "checksuite.icon-dev/check.mch_bench_r19b08_kenda1" --builders "balfrin_gpu_nvidia_mixed" --list $listname --runflags "cpu_time=00:20:00"
+./addexp "checksuite.icon-dev/check.mch_icon-ch2"  --builders "balfrin_gpu_nvidia_mixed" --list $listname --runflags "cpu_time=01:20:00"
+./addexp "checksuite.icon-dev/check.mch_icon-ch1"  --builders "balfrin_gpu_nvidia_mixed" --list $listname --runflags "cpu_time=01:20:00"
+./addexp "checksuite.icon-dev/check.mch_kenda-ch1" --builders "balfrin_gpu_nvidia_mixed" --list $listname --runflags "cpu_time=00:20:00"
 
 add_store_performance_exp () {
     exp=$1
@@ -33,9 +33,9 @@ add_store_performance_exp () {
 }
 
 # create a store script for each experiment and add the exp and dep
-add_store_performance_exp "mch_bench_r19b07_icon2"
-add_store_performance_exp "mch_bench_r19b08_icon1"
-add_store_performance_exp "mch_bench_r19b08_kenda1"
+add_store_performance_exp "mch_icon-ch2"
+add_store_performance_exp "mch_icon-ch1"
+add_store_performance_exp "mch_kenda-ch1"
 
 #lets see the list
 ./lslist $listname

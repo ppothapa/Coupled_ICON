@@ -94,7 +94,7 @@ MODULE mo_intp_lonlat_types
   !
   TYPE, EXTENDS(t_intp_coeff) :: t_intp_vec_coeff
     REAL(wp), ALLOCATABLE  :: coeff(:,:,:,:)      ! array containing interpolation 
-                                                  ! weights (stencilsize,nproma,nblks_lonlat)
+                                                  ! weights (stencilsize,2,nproma,nblks_lonlat)
   
   CONTAINS
     PROCEDURE, PUBLIC :: init     => t_intp_vec_coeff_init
@@ -231,9 +231,9 @@ CONTAINS
     this%idx(:,:,:)   = -1
     this%blk(:,:,:)   = -1
 
-    !$ACC UPDATE DEVICE(this%stencil)
-    !$ACC UPDATE DEVICE(this%idx)
-    !$ACC UPDATE DEVICE(this%blk)
+    !$ACC UPDATE DEVICE(this%stencil) ASYNC(1)
+    !$ACC UPDATE DEVICE(this%idx) ASYNC(1)
+    !$ACC UPDATE DEVICE(this%blk) ASYNC(1)
 
   END SUBROUTINE t_intp_coeff_init
 
@@ -247,6 +247,7 @@ CONTAINS
     CHARACTER(*), PARAMETER :: routine = modname//"::t_intp_coeff_finalize"
     INTEGER :: ist
 
+    !$ACC WAIT(1)
     IF (ALLOCATED(this%idx)) THEN
       DEALLOCATE (this%idx, STAT=ist)
       IF (ist /= SUCCESS)  CALL finish (routine, 'deallocation for barycentric stencil indices failed')
@@ -296,7 +297,7 @@ CONTAINS
     IF (ierr /= SUCCESS)  CALL finish (routine, 'Allocation for coeffs failed!')
     !$ACC ENTER DATA CREATE(this%coeff)
     this%coeff(:,:,:) = 0._wp
-    !$ACC UPDATE DEVICE(this%coeff)
+    !$ACC UPDATE DEVICE(this%coeff) ASYNC(1)
 
     this%l_cutoff = l_cutoff
 
@@ -305,7 +306,7 @@ CONTAINS
       IF (ierr /= SUCCESS)  CALL finish (routine, 'Allocation for coeffs failed!')
       !$ACC ENTER DATA CREATE(this%v)
       this%v(:,:,:,:) = 0._wp
-      !$ACC UPDATE DEVICE(this%v)
+      !$ACC UPDATE DEVICE(this%v) ASYNC(1)
     END IF
   END SUBROUTINE t_intp_scalar_coeff_init
 
@@ -349,7 +350,7 @@ CONTAINS
     IF (ierr /= SUCCESS)  CALL finish (routine, 'Allocation for coeffs failed!')
     !$ACC ENTER DATA CREATE(this%coeff)
     this%coeff(:,:,:,:) = 0._wp
-    !$ACC UPDATE DEVICE(this%coeff)
+    !$ACC UPDATE DEVICE(this%coeff) ASYNC(1)
   END SUBROUTINE t_intp_vec_coeff_init
 
 
@@ -410,6 +411,7 @@ CONTAINS
 
     DEALLOCATE (this%global_idx, STAT=ist )
     IF (ist /= SUCCESS)  CALL finish (routine, 'deallocation for lon-lat coefficients failed')
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(this%global_idx)
     ! -- deallocate rbf_vec data structure
     CALL this%rbf_vec%finalize()
@@ -473,8 +475,9 @@ CONTAINS
     IF (errstat /= SUCCESS) CALL finish (routine, 'ALLOCATE failed')
     !$ACC ENTER DATA CREATE(tmp_global_idx)
     tmp_global_idx(1:nlocal_pts) = this%global_idx(1:nlocal_pts)
-    !$ACC UPDATE DEVICE(tmp_global_idx)
+    !$ACC UPDATE DEVICE(tmp_global_idx) ASYNC(1)
 ! Note: IF_PRESENT not allowed in EXIT DATA, but global_idx should be on DEVICE
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(this%global_idx)
     CALL MOVE_ALLOC(tmp_global_idx, this%global_idx)
   END SUBROUTINE t_lon_lat_intp_contract

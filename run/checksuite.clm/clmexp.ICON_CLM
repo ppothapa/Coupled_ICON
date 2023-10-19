@@ -19,11 +19,7 @@ make_and_change_to_experiment_dir # function in ../add_run_routines
 START_MODEL="${START_MODEL:=$START $MODEL}"
 
 # set icon_data_poolFolder
-icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}"
-icon_data_poolFolder_clm=$icon_data_poolFolder/buildbot_data/clm
-if [[ -d "$icon_data_poolFolder_clm" ]]; then
-  icon_data_poolFolder="$icon_data_poolFolder_clm"
-fi
+icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/buildbot_data/clm"
 
 EXPID="icon-clm-exp001"  # working directory
 
@@ -180,7 +176,7 @@ cat > NAMELIST_${EXPID} << EOF
 	  output_filename              = '${OUTDIR}/out01_${EXPID}'
 	  filename_format              = '<output_filename>_<datetime2>'
        operation                    = ""
-         ml_varlist                   = 'alb_si','fr_seaice','t_g' ! reduced list for buildbot
+         ml_varlist                   = 'alb_si','fr_seaice','t_g','hpbl' ! reduced list for buildbot
 	 output_grid                  =  .TRUE.
 !	 stream_partitions_ml         =  2
 	/
@@ -462,7 +458,6 @@ cat > NAMELIST_${EXPID} << EOF
 	/
 	&dynamics_nml
 	  iequations     = 3
-	  idiv_method    = 1
 	  divavg_cntrwgt = 0.50
 	  lcoriolis      = .true.
 	/
@@ -513,6 +508,7 @@ EOF
 # run ICON
 # ----------------------------------------------------------------------------
 
+ICON_COMPONENT1_VH_procs=$(( num_restart_procs + num_io_procs + num_prefetch_proc + num_io_procs_radar))
 $START_MODEL
 EXIT_STATUS=$?
 

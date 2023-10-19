@@ -340,6 +340,9 @@ MODULE mo_impl_constants
   INTEGER, PARAMETER :: idu   =  5
   INTEGER, PARAMETER :: nclass_aero = 5
 
+  ! Number of CAMS aerosols 
+  INTEGER, PARAMETER :: n_camsaermr = 11
+
   ! external parameter for radiation
 
   INTEGER, PARAMETER :: io3_interact =  1
@@ -357,7 +360,6 @@ MODULE mo_impl_constants
   !
   ! identifier for horizontal transport scheme
   INTEGER, PARAMETER :: NO_HADV = 0
-  INTEGER, PARAMETER :: UP      = 1
   INTEGER, PARAMETER :: MIURA   = 2
   INTEGER, PARAMETER :: MIURA3  = 3
   INTEGER, PARAMETER :: FFSL    = 4

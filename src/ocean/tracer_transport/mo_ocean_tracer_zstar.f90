@@ -798,7 +798,7 @@ CONTAINS
     !---------------------------------------------------------------------
 
     ! these are probably not necessary
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     div_adv_flux_vert  = 0.0_wp
     div_adv_flux_horz  = 0.0_wp
     div_diff_flux_horz = 0.0_wp
@@ -828,14 +828,14 @@ CONTAINS
       & transport_state%mass_flux_e,         &
       & z_adv_flux_h, use_acc=lacc )
 
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     z_adv_low = z_adv_flux_h
     !$ACC END KERNELS
 
     call map_edges2edges_sc_zstar( patch_3d, transport_state%vn, old_tracer_concentration, &
       & operators_coefficients, stretch_e, z_adv_flux_h, use_acc=lacc )
 
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     z_adv_high = z_adv_flux_h
     !$ACC END KERNELS
 

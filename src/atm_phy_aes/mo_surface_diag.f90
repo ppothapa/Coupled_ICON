@@ -449,7 +449,7 @@ CONTAINS
     !$ACC   PRESENT(psfcWind_gbm, psfcWind_tile, ptas_gbm, ptas_tile) &
     !$ACC   PRESENT(pdew2_gbm, pdew2_tile, puas_gbm, puas_tile, pvas_gbm) &
     !$ACC   PRESENT(pvas_tile) &
-    !$ACC   PCREATE(zrh2m, zaph2m, zfrac, ua, is, loidx, icond)
+    !$ACC   CREATE(zrh2m, zaph2m, zfrac, ua, is, loidx, icond)
 
     !CONSTANTS
     zhuv          =  10._wp ! 10m
@@ -485,7 +485,8 @@ CONTAINS
     !$ACC END PARALLEL LOOP
 
     CALL generate_index_list_batched(icond(:,:), loidx(jcs:,:), jcs, kproma, is, 1)
-    !$ACC UPDATE WAIT SELF(is)
+    !$ACC UPDATE HOST(is) ASYNC(1)
+    !$ACC WAIT(1)
     is(:) = is(:) + jcs - 1
 
     !

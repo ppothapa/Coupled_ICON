@@ -1355,15 +1355,16 @@ CONTAINS
     ! For the IO PEs the amount of memory needed is 0 - allocate at least 1 word there:
     alloc_size = MAX(mem_size, 1_MPI_ADDRESS_KIND)
     mem_bytes = alloc_size*INT(nbytes_real,mpi_address_kind)
-    CALL mpi_alloc_mem(mem_bytes, MPI_INFO_NULL, mem_win%f_mem_ptr, ierror)
+
+    ! Allocate memory and create window for communication
+    CALL MPI_Win_allocate(mem_bytes, nbytes_real, MPI_INFO_NULL, &
+       & p_comm_work_pref,  mem_win%f_mem_ptr, mem_win%mpi_win, ierror)
+    IF (ierror /= 0) CALL finish(routine, "MPI error!")
+
+    ! Make memory accessible as Fortran single precision float array
     c_mem_ptr = TRANSFER(mem_win%f_mem_ptr, c_mem_ptr)
     CALL C_F_POINTER(c_mem_ptr, mem_win%mem_ptr_sp, (/ alloc_size /) )
     mem_win%mem_ptr_sp(:) = 0._sp
-    ! Create memory window for communication
-    CALL MPI_Win_create(mem_win%mem_ptr_sp, mem_bytes, nbytes_real, &
-      &                 MPI_INFO_NULL, p_comm_work_pref, mem_win%mpi_win, &
-      &                 ierror )
-    IF (ierror /= 0) CALL finish(routine, "MPI error!")
     IF (mem_size <= 0) NULLIFY(mem_win%mem_ptr_sp)
   END SUBROUTINE create_win
 #endif

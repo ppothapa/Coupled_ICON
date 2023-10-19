@@ -175,6 +175,7 @@ CONTAINS
   SUBROUTINE t_reff_calc_destruct (me)
     CLASS(t_reff_calc), INTENT(INOUT)     :: me
 
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(me%reff_coeff)
     IF (ALLOCATED(  me%reff_coeff ))  DEALLOCATE ( me%reff_coeff )         
     IF (ALLOCATED(  me%ncn_coeff  ))  DEALLOCATE ( me%ncn_coeff )
@@ -201,6 +202,7 @@ CONTAINS
       CALL me%reff_calc_arr(i)%destruct()
     END DO
 
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(me)
 
   END SUBROUTINE t_reff_calc_dom_destruct
