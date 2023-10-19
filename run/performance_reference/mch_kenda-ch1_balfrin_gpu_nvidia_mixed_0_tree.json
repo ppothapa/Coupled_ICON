@@ -9,6 +9,24 @@
       ],
       "children": [
         {
+          "name": "wrt_output",
+          "ancestry": [
+            "root",
+            "total"
+          ],
+          "children": [
+            {
+              "name": "wait_for_async_io",
+              "ancestry": [
+                "root",
+                "total",
+                "wrt_output"
+              ],
+              "children": []
+            }
+          ]
+        },
+        {
           "name": "integrate_nh",
           "ancestry": [
             "root",
@@ -182,6 +200,22 @@
               ]
             }
           ]
+        },
+        {
+          "name": "dace_coupling",
+          "ancestry": [
+            "root",
+            "total"
+          ],
+          "children": []
+        },
+        {
+          "name": "optional_diagnostics_atmosphere",
+          "ancestry": [
+            "root",
+            "total"
+          ],
+          "children": []
         }
       ]
     },
@@ -214,22 +248,6 @@
         "root"
       ],
       "children": []
-    },
-    {
-      "name": "wrt_output",
-      "ancestry": [
-        "root"
-      ],
-      "children": [
-        {
-          "name": "wait_for_async_io",
-          "ancestry": [
-            "root",
-            "wrt_output"
-          ],
-          "children": []
-        }
-      ]
     },
     {
       "name": "physics",
@@ -387,6 +405,13 @@
       "children": []
     },
     {
+      "name": "iau_save_restore",
+      "ancestry": [
+        "root"
+      ],
+      "children": []
+    },
+    {
       "name": "model_init",
       "ancestry": [
         "root"
@@ -487,23 +512,8 @@
             "write_restart"
           ],
           "children": []
-        },
-        {
-          "name": "write_restart_communication",
-          "ancestry": [
-            "root",
-            "write_restart"
-          ],
-          "children": []
         }
       ]
-    },
-    {
-      "name": "dace_coupling",
-      "ancestry": [
-        "root"
-      ],
-      "children": []
     }
   ]
 }

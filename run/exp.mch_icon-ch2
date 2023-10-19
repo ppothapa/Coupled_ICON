@@ -2,7 +2,7 @@
 
 # ===========================================================================
 # 
-# Name: exp.mch_bench_r19b07_icon2.run
+# Name: exp.mch_icon-ch2.run
 #
 # Purpose: Run script for ICON on the R19B07 grid (ICON-2) on 
 #          the full ICON-2 domain covering Switzerland and a large surrounding
@@ -43,7 +43,8 @@ icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/mch"
 grids_folder=${icon_data_poolFolder}/grids/icon-2
 
 # Folder containing lateral boundary conditions
-latbc_path=${icon_data_poolFolder}/input/icon-2
+lat_grid=${icon_data_poolFolder}/input/icon-2
+latbc_path=${icon_data_poolFolder}/input/icon-2/icon-ch2/input/
 
 dynamics_grid_filename=icon_grid_0002_R19B07_mch.nc
 atmo_dyn_grids="'${dynamics_grid_filename}',"
@@ -52,8 +53,8 @@ radiation_grid_filename=icon_grid_0002_R19B07_mch.parent.nc
 atmo_rad_grids="'${radiation_grid_filename}',"
 
 # start and end date+time
-start_date=${start_date:="2022-03-30T12:00:00Z"}
-  end_date=${end_date:="2022-04-04T12:00:00Z"}
+start_date=${start_date:="2023-09-13T00:00:00Z"}
+  end_date=${end_date:="2023-09-18T00:00:00Z"}
 
 # output intervals
 output_bounds="0.,10000000.,3600."
@@ -71,8 +72,6 @@ add_required_file "${grids_folder}/${extpar_filename}" ./
 
 # files needed for radiation
 add_link_file ${basedir}/externals/ecrad/data ecrad_data
-add_required_file ${basedir}/data/ECHAM6_CldOptProps.nc rrtm_cldopt.nc
-add_required_file ${basedir}/data/rrtmg_lw.nc .
 
 # Dictionary for the mapping: DWD GRIB2 names <-> ICON internal names
 add_required_file ${basedir}/run/ana_varnames_map_file.txt map_file.ana
@@ -81,11 +80,11 @@ add_required_file ${basedir}/run/ana_varnames_map_file.txt map_file.ana
 add_required_file ${latbc_path}/map_file.latbc map_file.latbc
 
 # initial data
-laf_file_name=laf2022033012
+laf_file_name=laf2023091300
 add_link_file ${latbc_path}/${laf_file_name} .
 
 # lateral boundary grid
-add_required_file ${latbc_path}/lateral_boundary.grid.nc lateral_boundary.grid.nc
+add_required_file ${lat_grid}/lateral_boundary.grid.nc lateral_boundary.grid.nc
 
 # lateral boundary data
 add_link_file ${latbc_path}/lbff00000000.nc .
@@ -174,7 +173,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
 &parallel_nml
  nproma                      =                   ${nproma}        ! loop chunk length
  nblocks_c                   =                ${nblocks_c}        ! number of blocks
- nproma_sub                  =                       17757        ! size of subblocks
+ nproma_sub                  =               ${nproma_sub}        ! size of subblocks
  p_test_run                  =                     .FALSE.        ! .TRUE. means verification run for MPI parallelization
  num_io_procs                =                          1         ! number of I/O processors
  num_restart_procs           =                          0         ! number of restart processors
@@ -197,6 +196,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  timers_level                =                         10         ! performance timer granularity
  check_uuid_gracefully       =                      .FALSE.        ! give only warnings for non-matching uuids
  output                      =                        "nml"       ! main switch for enabling/disabling components of the model output
+ ldass_lhn                   =                       .TRUE.
 /
 
 ! diffusion_nml: horizontal (numerical) diffusion ----------------------------
@@ -214,6 +214,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
 ! dynamics_nml: dynamical core -----------------------------------------------
 &dynamics_nml
  iequations                  =                          3         ! type of equations and prognostic variables
+ idiv_method                 =                          1
  divavg_cntrwgt              =                          0.50      ! weight of central cell for divergence averaging
  lcoriolis                   =                      .TRUE.        ! Coriolis force
 /
@@ -222,9 +223,9 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
 &extpar_nml
  itopo                       =                          1         ! topography (0:analytical)
  extpar_filename             =        "${extpar_filename}"        ! filename of external parameter input file
- n_iter_smooth_topo          =                        1,1         ! iterations of topography smoother
- hgtdiff_max_smooth_topo     =                   750.,750.        ! see Namelist doc
- heightdiff_threshold        =                 2250.,1500.
+ n_iter_smooth_topo          =                        1           ! iterations of topography smoother
+ hgtdiff_max_smooth_topo     =                       750.         ! see Namelist doc
+ heightdiff_threshold        =                      2250.
  itype_vegetation_cycle      =                          2         ! gdm orig. 1 tweaks the annual cycle of LAI
  itype_lwemiss               =                          2
 /
@@ -296,7 +297,8 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  latbc_path                  =              "${latbc_path}"       ! Absolute path to boundary data
  latbc_varnames_map_file     =            'map_file.latbc'
  latbc_filename              =         'lbff<ddhhmmss>.nc'        ! boundary data input filename
- init_latbc_from_fg          =                     .FALSE.        ! .TRUE.: take lbc for initial time from first guess
+ init_latbc_from_fg          =                     .TRUE.         ! .TRUE.: take lbc for initial time from first guess
+ nretries                    =                          6
 /
 
 ! lnd_nml: land scheme switches -----------------------------------------------
@@ -310,7 +312,6 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  itype_heatcond              =                          3         ! type of soil heat conductivity
  itype_lndtbl                =                          4         ! table for associating surface parameters
  itype_evsl                  =                          4         ! type of bare soil evaporation
- itype_root                  =                          2         ! root density distribution
  cwimax_ml                   =                      5.e-4         ! scaling parameter for max. interception storage
  c_soil                      =                       1.25         ! surface area density of the evaporative soil surface
  c_soil_urb                  =                        0.5         ! same for urban areas
@@ -328,13 +329,14 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  ivctype                     =                          2         ! type of vertical coordinate
  itime_scheme                =                          4         ! time integration scheme
  ndyn_substeps               =                          5         ! number of dynamics steps per fast-physics step
- exner_expol                 =                          0.333     ! temporal extrapolation of Exner function
+ exner_expol                 =                          0.6       ! temporal extrapolation of Exner function
  vwind_offctr                =                          0.2       ! off-centering in vertical wind solver
  damp_height                 =                      12250.0       ! height at which Rayleigh damping of vertical wind starts
  rayleigh_coeff              =                          5.0       ! Rayleigh damping coefficient
  divdamp_order               =                         24         ! order of divergence damping 
  divdamp_type                =                         32         ! gdm default: 3 type of divergence damping
  divdamp_fac                 =                          0.004     ! scaling factor for divergence damping
+ l_open_ubc                  =                      .FALSE.
  igradp_method               =                          3         ! discretization of horizontal pressure gradient
  l_zdiffu_t                  =                      .TRUE.        ! specifies computation of Smagorinsky temperature diffusion
  thslp_zdiffu                =                          0.02      ! slope threshold (temperature diffusion)
@@ -363,8 +365,6 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  icapdcycl                   =                          3         ! apply CAPE modification to improve diurnalcycle over tropical land
  icpl_aero_conv              =                          1         ! coupling between autoconversion and Tegen aerosol climatology
  icpl_aero_gscp              =                          0         ! coupling between autoconversion and Tegen aerosol climatology
- lrtm_filename               =                'rrtmg_lw.nc'       ! longwave absorption coefficients for RRTM_LW
- cldopt_filename             =             'rrtm_cldopt.nc'       ! RRTM cloud optical properties
  mu_rain                     =                         0.5        ! shap parameter in gamma distribution for rain
  rain_n0_factor              =                         0.1        ! tuning factor for intercept parameter of raindrop size distr.
  dt_rad                      =                         600.       ! time step for radiation in s
@@ -375,6 +375,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
 
 ! nwp_tuning_nml: additional tuning parameters ----------------------------------
 &nwp_tuning_nml
+ tune_dursun_scaling         =                        0.6
  tune_v0snow                 =                        25
  tune_rcucov                 =                        0.075
  tune_rhebc_land             =                        0.825
@@ -401,9 +402,9 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
     preset                      = 'ensemble' 
     localdefinitionnumber       = 253
     typeofensembleforecast      = 192
-    localtypeofensembleforecast = 11
-    numberofforecastsinensemble = 11
-    perturbationnumber          = 1
+    localtypeofensembleforecast = 1
+    numberofforecastsinensemble = 21
+    perturbationnumber          = 3
     generatingProcessIdentifier = 142          ! waa set 141 with center 215 defined by external parameter file
 /
 
@@ -417,6 +418,7 @@ if [[ "$output_opr_nml" == "yes" ]]; then
 cat >> ${basedir}/run/${atmo_namelist} << EOF
 ! constant fields - only written once
 &output_nml
+ ready_file           = 'ready<ddhhmmss>'
  output_filename      = "lfff"
  filename_format      = '<output_filename><ddhhmmss>c'             ! file name base
  filename_extn        = ''                ! no .grb or .nc at the end of the file name
@@ -425,7 +427,7 @@ cat >> ${basedir}/run/${atmo_namelist} << EOF
  output_grid          = .TRUE.
  output_time_unit     = 1                 ! 1: seconds
  stream_partitions_ml = 1                 ! needs to be adapted if num_io_procs is increased
- output_bounds        = 0,0,10000000      ! start, end, increment
+ output_bounds        = 0,0,1             ! start, end, increment
  steps_per_file       = ${steps_per_file}
  mode                 = 1                 ! 1: forecast mode (relative t-axis), 2: climate mode (absolute t-axis)
  remap                = 0
@@ -439,6 +441,7 @@ cat >> ${basedir}/run/${atmo_namelist} << EOF
 
 ! pressure and height levels
 &output_nml
+ ready_file           = 'ready<ddhhmmss>'
  output_filename      = "lfff"
  filename_format      = '<output_filename><ddhhmmss>p'             ! file name base
  filename_extn        = ''                ! no .grb or .nc at the end of the file name
@@ -454,12 +457,14 @@ cat >> ${basedir}/run/${atmo_namelist} << EOF
  north_pole           = -170.0,47.0
  reg_lon_def          = -6.7,0.01,4.7
  reg_lat_def          = -4.3,0.01,3.2
- p_levels             = 30000,40000,50000,60000,70000,75000,80000,85000,90000,92500,95000
- pl_varlist           = 'temp','u','v','geopot','rh','omega'
+ p_levels             = 20000, 30000, 40000, 50000, 60000, 70000, 75000, 80000, 85000,
+                        90000, 92500, 95000, 100000
+ pl_varlist           = 'qv', 'temp','u','v','geopot','rh','omega'
 /
 
 
 &output_nml
+ ready_file           = 'ready<ddhhmmss>'
  output_filename      = "lfff"
  filename_format      = '<output_filename><ddhhmmss>z'             ! file name base
  filename_extn        = ''                ! no .grb or .nc at the end of the file name
@@ -472,42 +477,8 @@ cat >> ${basedir}/run/${atmo_namelist} << EOF
  steps_per_file       = ${steps_per_file}
  mode                 = 1                 ! 1: forecast mode (relative t-axis), 2: climate mode (absolute t-axis)
  remap                = 0
- north_pole           = -170.0,47.0
- reg_lon_def          = -6.7,0.01,4.7
- reg_lat_def          = -4.3,0.01,3.2
  h_levels             = 500, 750, 1000, 2000, 3000, 4000, 5000, 8500, 10500
  hl_varlist           = 'temp','u','v','p','qv'
-/
-
-! Model levels
-&output_nml
- output_filename      = "lfff"
- filename_format      = '<output_filename><ddhhmmss>'              ! file name base
- filename_extn        = ''                ! no .grb or .nc at the end of the file name
- filetype             = 2                 ! output format: 2=GRIB2, 4=NETCDFv2
- dom                  = 1
- output_grid          = .false.
- output_time_unit     = 1                 ! 1: seconds
- remap                = 0
- stream_partitions_ml = 1                 ! needs to be adapted if num_io_procs is increased
- output_bounds        = ${output_bounds}  ! start, end, increment
- steps_per_file       = ${steps_per_file}
- mode                 = 1                 ! 1: forecast mode (relative t-axis), 2: climate mode (absolute t-axis)
- ml_varlist           = 'ALB_DIF', 'alhfl_s','athb_s','athd_s','athu_s','ashfl_s',
-                        'asob_s','aswdifd_s','aswdifu_s','aswdir_s','aumfl_s','avmfl_s',
-                        'CLC', 'CLCH', 'CLCL', 'CLCM', 'CLCT',
-                        'CAPE','CAPE_ML','CIN_ML','DBZ_CMAX','DBZ_CTMAX','DBZ_850','DURSUN_M','DURSUN',
-                        'C_T_LK', 'CEILING', 'FRESHSNW', 'GRAUPEL_GSP', 'gz0',
-                        'H_ML_LK', 'H_SNOW', 'HTOP_SC', 'HBAS_SC', 'HZEROCL',
-                        'LPI', 'LPI_MAX', 'PFULL', 'PMSL', 'PS', 'QV', 'QC', 'QI',
-                        'RAIN_CON', 'RAIN_GSP', 'RHO_SNOW',
-                        'SNOW_GSP', 'SNOWLMT', 'SNOWC', 'SDI2', 'SMI', 'TKE',
-                        'T_2M', 'TD_2M', 'TA', 'TQV', 'TQC', 'TQI', 'TQR', 'TQS', 'TQG',
-                        'T_BOT_LK', 'T_G', 'T_MNW_LK', 'T_SEA',
-                        'T_SNOW', 'T_SO', 'T_WML_LK', 'TOT_PREC','TMAX_2M','TMIN_2M',
-                        'U', 'U_10M', 'V', 'V_10M', 'VMAX_10M','TWATER',
-                        'W_I', 'W_SNOW', 'W_SO', 'W_SO_ICE', 'W','RUNOFF_G','RUNOFF_S',
-                        'ddt_temp_radlw','ddt_temp_radsw'
 /
 EOF
 fi
@@ -517,31 +488,36 @@ if [[ "$output_test_nml" == "yes" ]]; then
 cat >> ${basedir}/run/${atmo_namelist} << EOF
 
 &output_nml
+ ready_file       = "ready<ddhhmmss>"
  output_filename  = "${EXPNAME}_atm_3d"
  filename_format  = "<output_filename>_<levtype_l>_<datetime2>"
- filetype         = 5
+ filename_extn    = ''
+ filetype         = 2
+ dom              = 1
+ output_grid      = .FALSE.
+ output_time_unit = 1
  remap            = 0
- output_grid      = .TRUE.
+ stream_partitions_ml = 1
  output_bounds    = ${output_bounds}        ! start, end, increment
  steps_per_file   = ${steps_per_file}
- include_last     = .FALSE.
+ mode             = 1
  ml_varlist       =
-  'u','v','vt','qc','qi','qr','qs','qv','rho','theta_v','tke','vn','w',
-  'ddt_vn_phy','ddt_exner_phy','ddt_temp_dyn','exner_pr','exner_dyn_incr',
-  'pres_sfc','ddt_pres_sfc','temp','tempv','temp_ifc','pres','pres_ifc','dpres_mc',
-  'omega','div','div_ic','hdef_ic','dwdx','dwdy','vor','mass_fl_e',
-  'rho_ic','w_concorr_c','theta_v_ic','vn_ie','tqv','tqc','tqi','tqr','tqs','rain_gsp_rate','rain_gsp',
-  'tot_prec','cape','cape_ml','cin_ml','gust10','dyn_gust','clct_mod','cldepth',
-  'tot_qv_dia','tot_qc_dia','tot_qi_dia','tqv_dia','tqc_dia','tqi_dia',
-  'tsfctrad','thbclr_s','thb_t','thb_s','thu_s','lwflxall','t_s','t_sk','t_so','runoff_s',
-  'lwflx_up','lwflx_dn','lwflx_up_clr','lwflx_dn_clr','shfl_s','lhfl_s','lhfl_bs','lhfl_pl','qhfl_s','qcfl_s',
-  't_2m','qv_2m','rh_2m','td_2m','u_10m','v_10m','sp_10m','umfl_s','vmfl_s','str_u_sso',
-  'str_v_sso','drag_u_grid','ddt_temp_radlw','ddt_temp_turb','ddt_temp_drag',
-  'ddt_temp_pconv','ddt_u_turb','ddt_u_sso','ddt_u_pconv','ddt_v_turb','ddt_v_sso',
-  'ddt_qv_turb','ddt_qc_turb','ddt_qv_conv','ddt_qc_conv','ddt_tke','ddt_tke_pconv','ddt_tke_hsh','qv_s',
-  'runoff_g','plantevap','t_snow','rho_snow','h_snow','freshsnow','ddt_vn_adv','ddt_vn_pgr','exner'
-
-
+                'ALB_DIF', 'alhfl_s', 'athb_s', 'athd_s', 'athu_s', 'ashfl_s',
+                 'asob_s', 'aswdifd_s', 'aswdifu_s', 'aswdir_s', 'aumfl_s',
+                 'avmfl_s', 'CLC', 'CLCH', 'CLCL', 'CLCM', 'CLCT', 'CAPE_MU',
+                 'CAPE_3KM', 'CIN_MU', 'CAPE_ML', 'CIN_ML', 'CLOUDTOP',
+                 'DURSUN_M', 'DURSUN', 'C_T_LK', 'CEILING', 'DBZ_CMAX',
+                 'FRESHSNW', 'GRAUPEL_GSP', 'gz0', 'H_ML_LK', 'H_SNOW',
+                 'HTOP_SC', 'HBAS_SC', 'HZEROCL', 'LCL_ML', 'LFC_ML', 'LPI',
+                 'LPI_MAX', 'PFULL', 'PMSL', 'PS', 'QV', 'QC', 'QI', 'QR',
+                 'QS', 'QG', 'RAIN_GSP', 'RHO_SNOW', 'SNOW_GSP', 'SNOWLMT',
+                 'SNOWC', 'SDI2', 'SLI', 'SMI', 'SWISS12', 'T_2M', 'TD_2M',
+                 'TA', 'TKE', 'TQV', 'TQC', 'TQI', 'TQR', 'TQS', 'TQG',
+                 'T_BOT_LK', 'T_G', 'T_MNW_LK', 'T_SEA', 'T_SNOW', 'T_SO',
+                 'T_WML_LK', 'TOT_PREC', 'TMAX_2M', 'TMIN_2M', 'U', 'U_10M',
+                 'V', 'V_10M', 'VMAX_10M', 'TWATER', 'W_I', 'W_SNOW', 'W_SO',
+                 'W_SO_ICE', 'W', 'RUNOFF_G', 'RUNOFF_S', 'asod_s', 'asod_t',
+                 'ALB_RAD', 'tot_prec_rate', 'rn_3d'
 /
 EOF
 fi
@@ -586,6 +562,43 @@ cat >> ${basedir}/run/${atmo_namelist} << EOF
 /
 
 ! turbdiff_nml: turbulent diffusion -------------------------------------------
+
+&assimilation_nml
+    dace_coupling   = .false.
+    dace_debug      = 1
+    dace_time_ctrl  = 0, 3600, 1800
+    nlhn_start      = 0
+    nlhnverif_start = 0
+    nlhn_end        = 7200
+    nlhnverif_end   = 7200
+    radar_in        = './obs/'
+    radardata_file  = 'radardata_2023091300.grib'
+    lhn_diag        = .true.
+    lhn_hum_adj     = .true.
+    lhn_no_ttend    = .false.
+    lhn_artif       = .true.
+    lhn_artif_only  = .false.
+    tt_artif_max    = 0.009
+    zlev_artif_max  = 3000.0
+    std_artif_max   = 4.0
+    abs_lhn_lim     = 0.035
+    lhn_incloud     = .true.
+    lhn_filt        = .true.
+    lhn_limit       = .true.
+    lhn_relax       = .true.
+    nlhn_relax      = 2
+    fac_lhn_up      = 1.1
+    fac_lhn_down    = 0.7
+    rqrsgmax        = 0.01
+    rttend          = 0.0
+    lhn_coef        = 2.0
+    start_fadeout   = 1.0
+    lhn_qrs         = .true.
+    lhn_logscale    = .true.
+    lhn_spqual      = .true.
+    lhn_black       = .false.
+    lhn_bright      = .false.
+/
 &turbdiff_nml
  tkhmin                      =                          0.5       ! scaling factor for minimum vertical diffusion coefficient
  tkmmin                      =                          0.75      ! scaling factor for minimum vertical diffusion coefficient

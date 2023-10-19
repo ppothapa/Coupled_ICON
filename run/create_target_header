@@ -1905,27 +1905,30 @@ create_target_header()
                 ;;
             esac
             ;;
-        *mch_bench_r19b08_icon1.run)
+        *mch_icon-ch1.run)
             case $use_target in
                 balfrin_gpu*)
                     use_nodes=2
                     use_mpi_procs_pernode=5
+                    use_nproma_sub=6054
                 ;;
             esac
             ;;
-        *mch_bench_r19b08_kenda1.run)
+        *mch_kenda-ch1.run)
             case $use_target in
                 balfrin_gpu*)
                     use_nodes=1
                     use_mpi_procs_pernode=6
+                    use_nproma_sub=1128
                 ;;
             esac
             ;;
-        *mch_bench_r19b07_icon2.run)
+        *mch_icon-ch2.run)
             case $use_target in
                 balfrin_gpu*)
                     use_nodes=1
                     use_mpi_procs_pernode=6
+                    use_nproma_sub=17757
                 ;;
             esac
             ;;
