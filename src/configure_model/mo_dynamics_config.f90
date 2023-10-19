@@ -33,6 +33,7 @@ MODULE mo_dynamics_config
   PRIVATE
   PUBLIC :: iequations, divavg_cntrwgt
   PUBLIC :: lcoriolis
+  PUBLIC :: lmoist_thdyn
   PUBLIC :: ldeepatmo
   PUBLIC :: nold, nnow, nnew, nsav1, nsav2, nnow_rcf, nnew_rcf
   PUBLIC :: configure_dynamics
@@ -47,6 +48,7 @@ MODULE mo_dynamics_config
     INTEGER  :: iequations      !< Choice of governing equation set
     REAL(wp) :: divavg_cntrwgt  !< Weight of central cell for divergence averaging
     LOGICAL  :: lcoriolis       !< if .TRUE., Coriolis force is switched on   
+    LOGICAL  :: lmoist_thdyn    !< if .TRUE., include moisture terms in first law
     LOGICAL  :: ldeepatmo       !< if .TRUE., dynamical core assumes a deep atmosphere
                                 !< instead of a shallow atmosphere
 

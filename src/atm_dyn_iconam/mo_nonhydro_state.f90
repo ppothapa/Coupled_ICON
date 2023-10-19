@@ -56,7 +56,7 @@ MODULE mo_nonhydro_state
   USE mo_grid_config,          ONLY: n_dom, l_limited_area, ifeedback_type
   USE mo_nonhydrostatic_config,ONLY: itime_scheme, igradp_method, ndyn_substeps_max, &
     &                                lcalc_dpsdt
-  USE mo_dynamics_config,      ONLY: nsav1, nsav2
+  USE mo_dynamics_config,      ONLY: nsav1, nsav2, lmoist_thdyn
   USE mo_parallel_config,      ONLY: nproma
   USE mo_run_config,           ONLY: iforcing, ntracer, iqm_max, iqt,           &
     &                                iqv, iqc, iqi, iqr, iqs, iqtvar,           &
@@ -2435,6 +2435,22 @@ MODULE mo_nonhydro_state
                 & lopenacc = .TRUE. )
     __acc_attach(p_diag%temp)
 
+
+    IF (lmoist_thdyn) THEN
+      ! chi_q        p_diag%chi_q(nproma,nlev,nblks_c)
+      !
+      cf_desc    = t_cf_var('chi_q', '1', 'moist specific heat ratios', datatype_flt)
+      grib2_desc = grib2_var(0, 0, 1, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_diag_list, 'chi_q', p_diag%chi_q,                     &
+                  & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc,    &
+                  & ldims=shape3d_c, lrestart=.FALSE.,                            &
+                  & vert_interp=create_vert_interp_metadata(                      &
+                  &             vert_intp_type=vintp_types("P","Z","I"),          &
+                  &             vert_intp_method=VINTP_METHOD_LIN ),              &
+                  & lopenacc = .TRUE., initval=2.5e-7_wp )
+      __acc_attach(p_diag%chi_q)
+    ENDIF 
+
     ! tempv        p_diag%tempv(nproma,nlev,nblks_c)
     !
     cf_desc    = t_cf_var('virtual_temperature', 'K', 'Virtual temperature', datatype_flt)
@@ -2447,7 +2463,6 @@ MODULE mo_nonhydro_state
                 &             vert_intp_method=VINTP_METHOD_LIN ),              &
                 & lopenacc = .TRUE. )
     __acc_attach(p_diag%tempv)
-
 
     ! temp_ifc     p_diag%temp_ifc(nproma,nlevp1,nblks_c)
     !
