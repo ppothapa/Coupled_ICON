@@ -73,9 +73,6 @@ EXTRA_CONFIG_ARGS+=' yac_cv_fc_is_contiguous_works=yes'
 # contiguous. Therefore, we have to disable the run-time checks too:
 ICON_YAC_FCFLAGS="${ICON_FCFLAGS} -D'is_contiguous(arg)=.TRUE.'"
 
-# The compiler cannot build YAC yet:
-EXTRA_CONFIG_ARGS+=' --disable-coupling'
-
 ################################################################################
 
 "${icon_dir}/configure" \
