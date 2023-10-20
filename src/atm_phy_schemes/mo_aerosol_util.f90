@@ -39,9 +39,14 @@ MODULE mo_aerosol_util
   USE mo_srtm_config,            ONLY: jpsw
   USE mo_lnd_nwp_config,         ONLY: ntiles_lnd, dzsoil, isub_water
   USE mo_nwp_tuning_config,      ONLY: tune_dust_abs
+  USE mo_advection_config,       ONLY: advection_config
+  USE mo_nwp_phy_state,          ONLY: phy_params
   USE mo_aerosol_sources_types,  ONLY: p_dust_source_const
-  USE mo_aerosol_sources,        ONLY: aerosol_dust_aod_source, aerosol_ssa_aod_source
+  USE mo_aerosol_sources,        ONLY: aerosol_dust_aod_source, aerosol_ssa_aod_source, &
+                                   &   calc_anthro_aod, calc_so4_nucleation
   USE mo_math_laplace,           ONLY: nabla2_scalar
+  USE mo_util_phys,              ONLY: rel_hum
+  USE mtime,                     ONLY: datetime
 #ifdef __ECRAD
   USE mo_ecrad,                  ONLY: t_ecrad_conf
 #endif
@@ -180,8 +185,6 @@ CONTAINS
     ! -------------
     REAL (wp), PARAMETER  ::  &
       zhss = 8434.0_wp/1000.0_wp ,  & !
-      zhsl = 8434.0_wp/1000.0_wp ,  & !
-      zhsu = 8434.0_wp/1000.0_wp ,  & !
       zhsd = 8434.0_wp/3000.0_wp      !
 
     INTEGER :: jc,jk
@@ -524,17 +527,21 @@ CONTAINS
 
   ! Very simple parameterization of source and sink terms for prognostic 2D aerosol fields
   !
-  SUBROUTINE prog_aerosol_2D (jcs, jce, jg, dtime, iprog_aero, aerosol,               &
+  SUBROUTINE prog_aerosol_2D (jcs, jce, jg, nproma, nlev, dtime, iprog_aero, aerosol, &
     &                         aercl_ss,aercl_or,aercl_bc,aercl_su,aercl_du,           &
-    &                         rr_gsp,sr_gsp,rr_con,sr_con,                            &
+    &                         exner, temp, qv, cosmu0, rr_gsp,sr_gsp,rr_con,sr_con,   &
     &                         soiltype,plcov_t,frac_t,w_so_t, w_so_ice_t, h_snow_t,   &
-    &                         t_seasfc, lc_class_t, rho, tcm_t, u, v, sp_10m,         &
+    &                         t_seasfc, lc_class_t, rho, tcm_t, u, v, sp_10m, emi_bc, &
+    &                         emi_oc, emi_so2, bcfire, ocfire, so2fire,               &
     &                         idx_lst_t, gp_count_t , i_count_sea, idx_sea)
     REAL(wp), INTENT(in)            :: &
       &  dtime,                        & !< Time step (s)
       &  aercl_ss(:), aercl_or(:),     & !< AOD climatology (sea salt, organic)
       &  aercl_bc(:), aercl_su(:),     & !< AOD climatology (black carbon, sulfate)
       &  aercl_du(:),                  & !< AOD climatology (dust)
+      &  exner(:,:),                   & !< Exner pressure
+      &  temp(:,:), qv(:,:),           & !< Air temperature, specific humidity
+      &  cosmu0(:),                    & !< Cosine of solar zenith angle
       &  rr_gsp(:),sr_gsp(:),          & !< Grid-scale rain & snow rate
       &  rr_con(:),sr_con(:),          & !< Convective rain & snow rate
       &  plcov_t(:,:),                 & !< Plant cover (tiled)
@@ -545,8 +552,15 @@ CONTAINS
       &  rho(:),                       & !< Air density
       &  tcm_t(:,:),                   & !< Transfer coefficient for momentum
       &  u(:), v(:),                   & !< Wind vector components
-      &  sp_10m(:)                       !< Wind speed in 10m
+      &  sp_10m(:),                    & !< Wind speed in 10m
+      &  emi_bc(:),                    & !< Precursor for anthropogenic emissions (black carbon)
+      &  emi_oc(:),                    & !< Precursor for anthropogenic emissions (organic carbon)
+      &  emi_so2(:),                   & !< Precursor for anthropogenic emissions (SO2)
+      &  bcfire(:),                    & !< Precursor for wildfire emissions (black carbon)
+      &  ocfire(:),                    & !< Precursor for wildfire emissions (organic carbon)
+      &  so2fire(:)                      !< Precursor for wildfire emissions (SO2)
     INTEGER,  INTENT(in) :: &
+      &  nproma, nlev,      & !< Array dimensions
       &  jcs, jce,          & !< Start and end index of nproma loop
       &  jg,                & !< Domain index
       &  iprog_aero,        & !< Prognostic aerosol mode: 1 only dust, 2 all
@@ -560,38 +574,40 @@ CONTAINS
       &  aerosol(:,:)         !< Aerosol Optical Depth (AOD)
     ! Local variables
     REAL(wp) ::                 &
-      &  relax_scale(2),        & !< Target values for relaxation
-      &  relax_fac(2),          & !< Relaxation time scales
-      &  od_clim(nclass_aero),  & !< AOD offsets for climatology-based source terms
-      &  minfrac,               & !< minimum allowed fraction of climatological AOD
-      &  ts_orgsrc,             & !< Time scales for sources
-      &  ts_bcsrc, ts_susrc,    & !< Time scales for sources
-      &  washout, washout_scale,& !< Washout and washout scale for dust
-      &  dust_flux,             & !< Flux of dust
-      &  aod_flux                 !< Source function for aerosol optical depth
+      &  relhum(nproma,nlev)      !< Relative humidity (0 - 1)
+    REAL(wp) ::                           &
+      &  relax_bc,  relax_oc,             & !< Relaxation time scales black & organic carbon
+      &  relax_so4, relax_du,             & !< Relaxation time scales sulphate & dust
+      &  relax_ss,                        & !< Relaxation time scale sea salt
+      &  minfrac,                         & !< minimum allowed fraction of climatological AOD
+      &  washout, washout_scale,          & !< Washout and washout scale for dust
+      &  aod_flux,                        & !< Source function for aerosol optical depth
+      &  tunefac_bc_ant, tunefac_org_ant, & !< Conversion factor anthr. bc/oc emission to bc/oc AOD emission
+      &  tunefac_so4_ant, tunefac_bc_wf,  & !< Conversion factor anthr. so2/wildfire bc emission to so4/bc AOD emission
+      &  tunefac_org_wf,  tunefac_so4_wf    !< Conversion factor wildfire oc/so2 emission to oc/so4 AOD emission
     INTEGER ::              &
-      &  jc, jt, jcl,       & !< Loop indices
+      &  jc, jt, jcl, jk,   & !< Loop indices
       &  i_count_lnd          !< Number of land grid points in current block
 
-    relax_scale(1) = 0.7_wp ! tuned to approximately balance 
-                            ! the source terms for non-dust aerosol classes
-    relax_scale(2) = 1._wp
-    relax_fac(1)   = 1._wp/(3._wp*86400._wp)  ! 3 days for aerosols with shallow vertical extent
-    relax_fac(2)   = 1._wp/(8._wp*86400._wp)  ! 8 days for aerosols with deep vertical extent (dust)
-    ts_orgsrc      = 1._wp/(2.5_wp*86400._wp) ! 2.5  days for organic aerosol
-    ts_bcsrc       = 1._wp/(2.5_wp*86400._wp) ! 2.5  days for black carbon
-    ts_susrc       = 1._wp/(2.5_wp*86400._wp) ! 2.5  days for sulfate aerosol
-    washout_scale  = 1._wp/7.5_wp             ! e-folding scale 7.5 mm WE precipitation
+    relax_ss       = 1._wp/(3._wp*86400._wp)  ! 3 days
+    relax_du       = 1._wp/(8._wp*86400._wp)  ! 8 days
+    relax_so4      = 1._wp/(7._wp*86400._wp)  ! 7 days
+    relax_bc       = 1._wp/(10._wp*86400._wp) ! 10 days
+    relax_oc       = 1._wp/(14._wp*86400._wp) ! 14 days
+    washout_scale  = 1._wp/5._wp             ! e-folding scale 7.5 mm WE precipitation
     minfrac        = 0.025_wp
-    od_clim(iorg)  = 0.015_wp
-    od_clim(ibc)   = 0.002_wp
-    od_clim(iso4)  = 0.015_wp
+    tunefac_bc_ant = 5.e3_wp
+    tunefac_org_ant= 2.e4_wp
+    tunefac_so4_ant= 3.e3_wp
+    tunefac_bc_wf  = 3.e4_wp
+    tunefac_org_wf = 2.e4_wp
+    tunefac_so4_wf = 5.e3_wp
 
     ! Prediction of mineral dust; other aerosol classes are treated prognostically only if iprog_aero=2
 
     ! Relaxation to scaled climatology
     DO jc = jcs, jce
-      aerosol(jc,idu)  = aerosol(jc,idu)  + dtime*relax_fac(2)*(relax_scale(2)*aercl_du(jc)-aerosol(jc,idu))
+      aerosol(jc,idu)  = aerosol(jc,idu)  + dtime*relax_du*(aercl_du(jc)-aerosol(jc,idu))
     ENDDO
 
     DO jt = 1, ntiles_lnd
@@ -600,44 +616,57 @@ CONTAINS
 !$NEC ivdep
       DO jcl = 1, i_count_lnd
         jc = idx_lst_t(jcl,jt)
-        ! dust_flux is not used here, but could be used for more sophisticated aerosol modules
         CALL aerosol_dust_aod_source (p_dust_source_const(jg), dzsoil(1), w_so_t(jc,jt), h_snow_t(jc,jt), &
           &                           w_so_ice_t(jc,jt), soiltype(jc), plcov_t(jc,jt), lc_class_t(jc,jt), &
-          &                           rho(jc), tcm_t(jc,jt), u(jc), v(jc), aod_flux, dust_flux)
+          &                           rho(jc), tcm_t(jc,jt), u(jc), v(jc), aod_flux)
         ! Update AOD field with tendency from aod_flux
         aerosol(jc,idu) = aerosol(jc,idu) + aod_flux * frac_t(jc,jt) * dtime
       ENDDO ! jcl
     ENDDO !jt
 
     DO jc = jcs, jce
-      ! Calculate washout everywhere (not only above land)
-      washout = dtime*washout_scale*(rr_gsp(jc)+sr_gsp(jc)+0.5_wp*(rr_con(jc)+sr_con(jc)))*aerosol(jc,idu)
+      ! Washout using scale-dependent convective area fraction rcucov from convection param.
+      washout = dtime*washout_scale*(rr_gsp(jc)+sr_gsp(jc)+phy_params(jg)%rcucov*(rr_con(jc)+sr_con(jc)))*aerosol(jc,idu)
       aerosol(jc,idu)  = aerosol(jc,idu) - washout
       ! Ensure that the aerosol optical depth does not fall below 2.5% of the climatological value
       aerosol(jc,idu)  = MAX(aerosol(jc,idu),  minfrac*aercl_du(jc))
     ENDDO
 
-    IF (iprog_aero == 2) THEN
+    IF (iprog_aero >= 2) THEN
 
-      ! Relaxation to scaled climatology
-      DO jc = jcs, jce
-        aerosol(jc,iss)  = aerosol(jc,iss)  + dtime*relax_fac(1)*(relax_scale(2)*aercl_ss(jc)-aerosol(jc,iss))
-        aerosol(jc,iorg) = aerosol(jc,iorg) + dtime*relax_fac(1)*(relax_scale(1)*aercl_or(jc)-aerosol(jc,iorg))
-        aerosol(jc,ibc)  = aerosol(jc,ibc)  + dtime*relax_fac(1)*(relax_scale(1)*aercl_bc(jc)-aerosol(jc,ibc))
-        aerosol(jc,iso4) = aerosol(jc,iso4) + dtime*relax_fac(1)*(relax_scale(1)*aercl_su(jc)-aerosol(jc,iso4))
+      ! Calculate relative humidity for nucleation
+      DO jk = advection_config(jg)%kstart_aero(1), advection_config(jg)%kend_aero(1)
+        DO jc = jcs, jce
+          relhum(jc,jk)    = rel_hum(temp(jc,jk), qv(jc,jk), exner(jc,jk)) /100._wp
+        ENDDO
       ENDDO
 
-      ! Sources are specified where either the climatological value exceeds the global average
-      ! sources of sea salt and black carbon are restricted to water and land surfaces, respectively
       DO jc = jcs, jce
-        aerosol(jc,iso4) = aerosol(jc,iso4) + dtime*ts_susrc*MAX(0._wp,aercl_su(jc)-MAX(od_clim(iso4),0.3_wp*aerosol(jc,iso4)))
-        aerosol(jc,iorg) = aerosol(jc,iorg) + dtime*ts_orgsrc*MAX(0._wp,aercl_or(jc)-MAX(od_clim(iorg),0.3_wp*aerosol(jc,iorg)))
-        IF (soiltype(jc) /= 9) THEN ! land
-          aerosol(jc,ibc)  = aerosol(jc,ibc)  + dtime*ts_bcsrc* MAX(0._wp,aercl_bc(jc)-od_clim(ibc))
-        ENDIF
+        ! Relaxation to scaled climatology
+        aerosol(jc,iss)  = aerosol(jc,iss)  + dtime*relax_ss *(aercl_ss(jc)-aerosol(jc,iss))
+        aerosol(jc,iorg) = aerosol(jc,iorg) + dtime*relax_oc *(aercl_or(jc)-aerosol(jc,iorg))
+        aerosol(jc,ibc)  = aerosol(jc,ibc)  + dtime*relax_bc *(aercl_bc(jc)-aerosol(jc,ibc))
+        aerosol(jc,iso4) = aerosol(jc,iso4) + dtime*relax_so4*(aercl_su(jc)-aerosol(jc,iso4))
+        ! Sources based on anthropogenic emission datasets
+        aerosol(jc,ibc)  = aerosol(jc,ibc)  + dtime * calc_anthro_aod( emi_bc(jc),  tunefac_bc_ant )
+        aerosol(jc,iorg) = aerosol(jc,iorg) + dtime * calc_anthro_aod( emi_oc(jc),  tunefac_org_ant )
+        aerosol(jc,iso4) = aerosol(jc,iso4) + dtime * calc_anthro_aod( emi_so2(jc), tunefac_so4_ant )
       ENDDO
-      
-      ! New SSA source
+
+      IF (iprog_aero > 2) THEN
+        ! Sources based on wildfire emission datasets
+        DO jc = jcs, jce
+          aerosol(jc,ibc)  = aerosol(jc,ibc)  + dtime * calc_anthro_aod( bcfire(jc),  tunefac_bc_wf )
+          aerosol(jc,iorg) = aerosol(jc,iorg) + dtime * calc_anthro_aod( ocfire(jc),  tunefac_org_wf )
+          aerosol(jc,iso4) = aerosol(jc,iso4) + dtime * calc_anthro_aod( so2fire(jc), tunefac_so4_wf )
+        ENDDO
+      ENDIF
+
+      ! Source based on nucleation
+      CALL calc_so4_nucleation(jcs, jce, advection_config(jg)%kstart_aero(1), advection_config(jg)%kend_aero(1), &
+        &                      temp(:,:), relhum(:,:), cosmu0(:), aerosol(:,iso4))
+
+      ! Sea salt aerosol source
 !$NEC ivdep
       DO jcl = 1, i_count_sea
         jc = idx_sea(jcl)
@@ -646,9 +675,15 @@ CONTAINS
       ENDDO
 
       DO jc = jcs, jce
-        ! Washout (for seasalt only)
-        washout = dtime*washout_scale*(rr_gsp(jc)+sr_gsp(jc)+0.5_wp*(rr_con(jc)+sr_con(jc)))*aerosol(jc,iss)
-        aerosol(jc,iss)  = aerosol(jc,iss) - washout
+        ! Washout using scale-dependent convective area fraction rcucov from convection param.
+        washout = dtime*washout_scale*(rr_gsp(jc)+sr_gsp(jc)+phy_params(jg)%rcucov*(rr_con(jc)+sr_con(jc)))*aerosol(jc,iss)
+        aerosol(jc,iss)   = aerosol(jc,iss)  - washout
+        washout = dtime*washout_scale*(rr_gsp(jc)+sr_gsp(jc)+phy_params(jg)%rcucov*(rr_con(jc)+sr_con(jc)))*aerosol(jc,ibc)
+        aerosol(jc,ibc)   = aerosol(jc,ibc)  - washout
+        washout = dtime*washout_scale*(rr_gsp(jc)+sr_gsp(jc)+phy_params(jg)%rcucov*(rr_con(jc)+sr_con(jc)))*aerosol(jc,iorg)
+        aerosol(jc,iorg)  = aerosol(jc,iorg) - washout
+        washout = dtime*washout_scale*(rr_gsp(jc)+sr_gsp(jc)+phy_params(jg)%rcucov*(rr_con(jc)+sr_con(jc)))*aerosol(jc,iso4)
+        aerosol(jc,iso4)  = aerosol(jc,iso4) - washout
         ! Ensure that the aerosol optical depth does not fall below 2.5% of the climatological value
         aerosol(jc,iss)  = MAX(aerosol(jc,iss),  minfrac*aercl_ss(jc))
         aerosol(jc,iorg) = MAX(aerosol(jc,iorg), minfrac*aercl_or(jc))
@@ -696,7 +731,8 @@ CONTAINS
       &  aerosol(:,:,:)                !< Aerosol container
     ! Local variables
     REAL(wp)                      :: &
-      &  diff_coeff,                 & !< Diffusion coefficient
+      &  diff_coeff, diff_coeff_so4, & !< Diffusion coefficients general and so4)
+      &  diff_coeff_dust,            & !< Diffusion coefficient dust
       &  nabla2_aero(nproma,nclass_aero,p_patch%nblks_c) !< Laplacian of aerosol(:,:,:)
     INTEGER                       :: &
       &  jb, jc,                     &
@@ -704,7 +740,9 @@ CONTAINS
       &  i_startblk, i_endblk,       & 
       &  i_startidx, i_endidx
 
-    diff_coeff = 0.125_wp
+    diff_coeff      = 0.1_wp
+    diff_coeff_so4  = 0.05_wp
+    diff_coeff_dust = 0.05_wp
 
     CALL nabla2_scalar(aerosol(:,:,:),          &
       &                p_patch, p_int_state,    &
@@ -722,10 +760,16 @@ CONTAINS
       CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
                          i_startidx, i_endidx, i_rlstart, i_rlend)
       DO jc = i_startidx, i_endidx
-        aerosol(jc,idu,jb) = MAX(0.0_wp, aerosol(jc,idu,jb) + diff_coeff *           &
-                                 p_patch%cells%area(jc,jb) * nabla2_aero(jc,idu,jb))
-        aerosol(jc,iss,jb) = MAX(0.0_wp, aerosol(jc,iss,jb) + diff_coeff *           &
-                                 p_patch%cells%area(jc,jb) * nabla2_aero(jc,iss,jb))
+        aerosol(jc,idu,jb)  = MAX(0.0_wp, aerosol(jc,idu,jb)  + diff_coeff_dust*       &
+                                  p_patch%cells%area(jc,jb) * nabla2_aero(jc,idu,jb))
+        aerosol(jc,iss,jb)  = MAX(0.0_wp, aerosol(jc,iss,jb)  + diff_coeff     *       &
+                                  p_patch%cells%area(jc,jb) * nabla2_aero(jc,iss,jb))
+        aerosol(jc,iorg,jb) = MAX(0.0_wp, aerosol(jc,iorg,jb) + diff_coeff     *       &
+                                  p_patch%cells%area(jc,jb) * nabla2_aero(jc,iorg,jb))
+        aerosol(jc,ibc,jb)  = MAX(0.0_wp, aerosol(jc,ibc,jb)  + diff_coeff     *       &
+                                  p_patch%cells%area(jc,jb) * nabla2_aero(jc,ibc,jb))
+        aerosol(jc,iso4,jb) = MAX(0.0_wp, aerosol(jc,iso4,jb) + diff_coeff_so4 *       &
+                                  p_patch%cells%area(jc,jb) * nabla2_aero(jc,iso4,jb))
       ENDDO !jc
     ENDDO !jb
 !$OMP END DO NOWAIT

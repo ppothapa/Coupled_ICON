@@ -858,7 +858,7 @@ CONTAINS
           aercl_du(jc)     = aer_dust_mo1(jc) + ( aer_dust_mo2(jc) - aer_dust_mo1(jc) ) * time_weight
         ENDDO
         !$ACC END PARALLEL
-      CASE(2) ! Simple prognostic for all species
+      CASE(2,3) ! Simple prognostic for all species
         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO jc = istart, iend

@@ -69,7 +69,8 @@ MODULE mo_initicon_nml
     & config_ana_varnames_map_file => ana_varnames_map_file, &
     & config_pinit_seed          => pinit_seed,          &
     & config_pinit_amplitude     => pinit_amplitude,     &
-    & config_lcouple_ocean_coldstart => lcouple_ocean_coldstart
+    & config_lcouple_ocean_coldstart => lcouple_ocean_coldstart, &
+    & config_fire2d_filename     => fire2d_filename
 
   USE mo_nml_annotate,       ONLY: temp_defaults, temp_settings
 
@@ -225,6 +226,9 @@ CONTAINS
   INTEGER(i8) :: pinit_seed = 0_i8
   REAL(wp) :: pinit_amplitude = 0._wp
 
+  CHARACTER(LEN=filename_max) :: & !< Filename that contains wildfire precursor emissions (2d-aerosol, iprog_aero=3)
+    &  fire2d_filename             !< Allowed keywords: <species>, <gridfile>, <nroot>, <nroot0>, <jlev>, <idom>, <yyyymmdd>
+
   NAMELIST /initicon_nml/ init_mode, zpbl1, zpbl2, l_coarse2fine_mode,      &
                           nlevsoil_in, l_sst_in, lread_ana,                 &
                           lconsistency_checks,                              &
@@ -240,7 +244,7 @@ CONTAINS
                           pinit_amplitude, icpl_da_sfcevap, dt_ana,         &
                           icpl_da_skinc, icpl_da_snowalb, adjust_tso_tsnow, &
                           icpl_da_sfcfric, lcouple_ocean_coldstart,         &
-                          icpl_da_tkhmin, icpl_da_seaice
+                          icpl_da_tkhmin, icpl_da_seaice, fire2d_filename
 
   !------------------------------------------------------------
   ! 2.0 set up the default values for initicon
@@ -327,6 +331,8 @@ CONTAINS
 
   pinit_seed        = 0_i8        ! <0: do not perturb initial data. >0: perturb initial data with this as seed
   pinit_amplitude   = 0._wp       ! amplitude of the initial perturbation for numerical tolerance test
+
+  fire2d_filename = 'gfas2d_emi_<species>_<gridfile>_<yyyymmdd>.nc'
 
   !------------------------------------------------------------
   ! 3.0 Read the initicon namelist.
@@ -473,6 +479,7 @@ CONTAINS
   config_pinit_seed            = pinit_seed
   config_pinit_amplitude       = pinit_amplitude
   config_lcouple_ocean_coldstart = lcouple_ocean_coldstart
+  config_fire2d_filename       = TRIM(fire2d_filename)
 
   DO jg=1,max_dom
     initicon_config(jg)%ana_checklist = check_ana(jg)%list

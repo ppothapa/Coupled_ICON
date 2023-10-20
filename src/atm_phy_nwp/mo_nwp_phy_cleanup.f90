@@ -27,7 +27,7 @@ MODULE mo_nwp_phy_cleanup
   USE mo_atm_phy_nwp_config,   ONLY: atm_phy_nwp_config, iprog_aero
   USE mo_lnd_nwp_config,       ONLY: tile_list
   USE mo_grid_config,          ONLY: n_dom
-  USE mo_aerosol_sources_types,ONLY: p_dust_source_const
+  USE mo_aerosol_sources_types,ONLY: p_dust_source_const, p_fire_source_info
   USE mo_aerosol_util,         ONLY: tegen_scal_factors
 
   IMPLICIT NONE
@@ -68,6 +68,7 @@ CONTAINS
       CALL atm_phy_nwp_config(jg)%finalize()
       
       IF ( iprog_aero > 0 ) CALL p_dust_source_const(jg)%finalize()
+      IF ( iprog_aero > 2 ) CALL p_fire_source_info(jg)%finalize()
     ENDDO
     
     CALL tegen_scal_factors%finalize()

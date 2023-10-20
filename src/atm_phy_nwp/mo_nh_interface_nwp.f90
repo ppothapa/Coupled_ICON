@@ -1139,9 +1139,11 @@ CONTAINS
 #ifdef _OPENACC
         CALL finish('mo_nh_interface_nwp:','prog_aerosol_2D not available on GPU')
 #endif
-        CALL prog_aerosol_2D (i_startidx,i_endidx,jg,dt_loc,iprog_aero,                                  &
+        CALL prog_aerosol_2D (i_startidx, i_endidx, jg, nproma, nlev, dt_loc, iprog_aero,                &
           &                   prm_diag%aerosol(:,:,jb),prm_diag%aercl_ss(:,jb),prm_diag%aercl_or(:,jb),  &
           &                   prm_diag%aercl_bc(:,jb),prm_diag%aercl_su(:,jb),prm_diag%aercl_du(:,jb),   &
+          &                   pt_prog%exner(:,:,jb),pt_diag%temp(:,:,jb),pt_prog_rcf%tracer(:,:,jb,iqv), &
+          &                   prm_diag%cosmu0(:,jb),                                                     &
           &                   prm_diag%rain_gsp_rate(:,jb),prm_diag%snow_gsp_rate(:,jb),                 &
           &                   prm_diag%rain_con_rate(:,jb),prm_diag%snow_con_rate(:,jb),                 &
           &                   ext_data%atm%soiltyp(:,jb), ext_data%atm%plcov_t(:,jb,:),                  &
@@ -1151,6 +1153,9 @@ CONTAINS
           &                   ext_data%atm%lc_class_t(:,jb,:),                                           &
           &                   pt_prog%rho(:,nlev,jb), prm_diag%tcm_t(:,jb,:),                            &
           &                   pt_diag%u(:,nlev,jb), pt_diag%v(:,nlev,jb), prm_diag%sp_10m(:,jb),         &
+          &                   ext_data%atm%emi_bc(:,jb), ext_data%atm%emi_oc(:,jb),                      &
+          &                   ext_data%atm%emi_so2(:,jb), ext_data%atm%bcfire(:,jb),                     &
+          &                   ext_data%atm%ocfire(:,jb), ext_data%atm%so2fire(:,jb),                     &
           &                   ext_data%atm%idx_lst_t(:,jb,:),                                            &
           &                   ext_data%atm%gp_count_t(jb,:), ext_data%atm%list_seawtr%ncount(jb),        &
           &                   ext_data%atm%list_seawtr%idx(:,jb))

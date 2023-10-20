@@ -69,6 +69,7 @@ CONTAINS
     zend(2)   = 6000._wp
 
     ! Compute corresponding level indices
+!$NEC novector
     DO jk = nlev, 1, -1
       jk1 = jk + p_patch%nshift_total
       zf = 0.5_wp*(vct_a(jk1)+vct_a(jk1+1))
@@ -147,7 +148,7 @@ CONTAINS
     INTEGER  :: i_startblk, i_startidx, i_endblk, i_endidx
     INTEGER  :: i_rlstart, i_rlend, jtstart, jtend, jtstep
 
-    ! Mapping array between 5 aerosol types and 2 layer thickness classes
+    ! Mapping array between 5 aerosol types and 2 layer thickness classes (iss,iorg,ibc,iso4,idu)
     INTEGER, PARAMETER :: ji(nclass_aero) = (/1,1,1,1,2/)
 
     ! Pointer to index fields
