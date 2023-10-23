@@ -25,7 +25,7 @@ MODULE mo_atmo_coupling_frame
 
   USE mo_parallel_config     ,ONLY: nproma
 
-  USE mo_run_config          ,ONLY: iforcing, ltimer, modelTimeStep
+  USE mo_run_config          ,ONLY: iforcing, ltimer
   USE mo_timer,               ONLY: timer_start, timer_stop, timer_coupling_init
 
   USE mo_impl_constants      ,ONLY: MAX_CHAR_LENGTH, inwp, iaes
@@ -55,7 +55,8 @@ MODULE mo_atmo_coupling_frame
     &                               YAC_LOCATION_CELL, YAC_TIME_UNIT_ISO_FORMAT, &
     &                               yac_fget_field_collection_size
 
-  USE mtime                  ,ONLY: datetimeToString, MAX_DATETIME_STR_LEN
+  USE mtime                  ,ONLY: datetimeToString, MAX_DATETIME_STR_LEN, &
+    &                               timedeltaToString, MAX_TIMEDELTA_STR_LEN
 
   IMPLICIT NONE
 
@@ -142,6 +143,7 @@ CONTAINS
 
     CHARACTER(LEN=MAX_DATETIME_STR_LEN) :: startdatestring
     CHARACTER(LEN=MAX_DATETIME_STR_LEN) :: stopdatestring
+    CHARACTER(LEN=MAX_TIMEDELTA_STR_LEN) :: timestepstring
 
     CHARACTER(len=40), ALLOCATABLE :: field_name(:)
     INTEGER :: collection_size(max_no_of_fields)
@@ -214,6 +216,7 @@ CONTAINS
     ! Overwrite job start and end date with component data
     CALL datetimeToString(time_config%tc_startdate, startdatestring)
     CALL datetimeToString(time_config%tc_stopdate, stopdatestring)
+    CALL timedeltaToString(time_config%tc_dt_model, timestepstring)
 
     CALL yac_fdef_datetime ( start_datetime = TRIM(startdatestring), &
          &                   end_datetime   = TRIM(stopdatestring)   )
@@ -444,7 +447,7 @@ CONTAINS
         & cell_mask_ids(1),      &
         & 1,                     &
         & collection_size(jc),   &
-        & modelTimeStep,         &
+        & timestepstring,         &
         & YAC_TIME_UNIT_ISO_FORMAT, &
         & field_id(jc) )
     ENDDO
