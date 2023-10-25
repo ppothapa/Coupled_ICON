@@ -1,7 +1,7 @@
 --- # ICON probtest tolerance data
 # This file can be parsed using yaml
 # Data is stored in <icon_data_rootFolder>/buildbot_data/ref/<experiment_hash>
-icon_data_rootFolder: /scratch/e1000/meteoswiss/scratch/jenkins/icon/pool/data/ICON
+icon_data_rootFolder: /scratch/mch/jenkins/icon/pool/data/ICON
 builder: balfrin_cpu_nvidia_mixed
 # The list below maps each experiment to its current experiment_hash
 "mch_bench_r19b07_dev_sppt": 82102e39c49926bb479fc1cb45f82e0eda1fa116
