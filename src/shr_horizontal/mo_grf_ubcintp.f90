@@ -1,23 +1,19 @@
-!>
-!! Contains the interpolation routines needed for grid refinement.
-!!
-!! These had originally been included in mo_grf_interpolation but then were
-!! packed into a separate module to clean up the code
-!!
-!! @par Revision History
-!! Created by Guenther Zaengl, DWD (2009-02-09)
-!! Modification by Guenther Zaengl, DWD (2009-06-22)
-!! - preparation for generalized grid refinement (affects all subroutines)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Contains the interpolation routines needed for grid refinement.
+!
+! These had originally been included in mo_grf_interpolation but then were
+! packed into a separate module to clean up the code
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -55,10 +51,6 @@ CONTAINS
 !>
 !! Performs RBF-based interpolation from parent edges to child edges
 !! for the upper boundary condition needed for vertical nesting
-!!
-!!
-!! @par Revision History
-!! Developed  by Guenther Zaengl, DWD (2011-03-14)
 !!
 SUBROUTINE interpol_vec_ubc(p_pp, p_pc, p_grf, p_vn_in, p_vn_out)
   !
@@ -184,12 +176,8 @@ END SUBROUTINE interpol_vec_ubc
 
 !-------------------------------------------------------------------------
 !
-!>
 !! Performs interpolation of scalar upper boundary condition fields from parent 
 !! cells to child cells using the 2D gradient at the cell center.
-!!
-!! @par Revision History
-!! Developed  by Guenther Zaengl, DWD (2011-03-16)
 !!
 SUBROUTINE interpol_scal_ubc(p_pc, p_grf, nfields, f3din, f3dout, llimit_nneg)
 

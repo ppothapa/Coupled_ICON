@@ -1,14 +1,23 @@
-!>
-!! @file chemcon.f90
-!! @brief T, S dependencies of chemical constants used in the inorganic carbon cycle.
-!!
-!! Computes chemical constants in the surface layer (aksurf)
-!! and in the water column (ak13, ak23, akb3, aksp, ak1p3, ak2p3, ak3p3
-!! aks3,akf3,aksi3,akw3)
-!! Parametrizations follow Dickson 2007, 2010 (Guides to best practise for CO2
-!! measurements, OA research)
-!! Constant parameter values can be found in mo_bgc_constants.f90
-!!
+! @file chemcon.f90
+! @brief T, S dependencies of chemical constants used in the inorganic carbon cycle.
+!
+! Computes chemical constants in the surface layer (aksurf)
+! and in the water column (ak13, ak23, akb3, aksp, ak1p3, ak2p3, ak3p3
+! aks3,akf3,aksi3,akw3)
+! Parametrizations follow Dickson 2007, 2010 (Guides to best practise for CO2
+! measurements, OA research)
+! Constant parameter values can be found in mo_bgc_constants.f90
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_chemcon
 

@@ -1,20 +1,18 @@
-!>
-!! This module contains the I/O routines for initicon
-!!
-!! @author Guenther Zaengl, DWD
-!!
-!!
-!! @par Revision History
-!! First version by Guenther Zaengl, DWD (2011-07-13)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! This module contains the I/O routines for initicon
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -110,10 +108,6 @@ MODULE mo_initicon
   !>
   !! SUBROUTINE init_icon
   !! ICON initialization routine: Reads in either DWD or external (IFS/COSMO) analysis
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-14)
-  !!
   !!
   SUBROUTINE init_icon (p_patch,  p_int_state, p_grf_state, p_nh_state, &
     &                   ext_data, prm_diag, prm_nwp_stochconv, p_lnd_state)
@@ -686,9 +680,6 @@ MODULE mo_initicon
   !! to O(10E-7). Similarly the error in pres_incr went down from O(1) to
   !! O(1E-1).
   !!
-  !! @par Revision History
-  !! Initial version by Daniel Reinert, DWD(2012-12-18)
-  !!
   SUBROUTINE create_dwdana_atm (p_patch, p_nh_state, p_int_state)
 
     TYPE(t_patch),    TARGET, INTENT(INOUT) :: p_patch(:)
@@ -1079,12 +1070,6 @@ MODULE mo_initicon
   !! system into increments of ICON's prognostic variables. 
   !! I.e. the increment state vector (u,v,p,T,qv) is transformed 
   !! into the increment state vector (vn, rho, exner (or rho*theta_v), rho*qv).
-  !!
-  !! @par Revision History
-  !! Initial version by Daniel Reinert, DWD (2014-01-28)
-  !! Modification by Daniel Reinert, DWD, 2018-04-23
-  !! - introduce computation of rho*qv increment
-  !! - cleanup
   !!
   SUBROUTINE transform_dwdana_increment_atm (p_patch, p_nh_state, p_int_state)
 
@@ -1741,10 +1726,6 @@ MODULE mo_initicon
   !! Additioanl sanity checks are performed for
   !! W_SO, H_SNOW, FRESHSNW, RHO_SNOW
   !!
-  !! @par Revision History
-  !! Initial version by D. Reinert, DWD (2014-07-17)
-  !!
-  !!
   !-------------------------------------------------------------------------
   SUBROUTINE create_iau_sfc (p_patch, p_nh_state, p_lnd_state, ext_data, inputInstructions)
 
@@ -2115,12 +2096,6 @@ MODULE mo_initicon
   !!
   !! Required input: patch, lnd_state
   !! Output is written on fields of NH state
-  !!
-  !! @par Revision History
-  !! Initial version by P. Ripodas, DWD(2013-05)
-  !! Modification by Daniel Reinert, DWD (2013-11-20)
-  !! - add consistency checks for rho_snow and w_so
-  !!
   !!
   !-------------------------------------------------------------------------
   SUBROUTINE create_dwdana_sfc (p_patch, p_lnd_state, ext_data, inputInstructions)

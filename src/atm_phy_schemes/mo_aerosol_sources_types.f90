@@ -1,26 +1,22 @@
-!>
-!! This module provides derived types for mo_aerosol_source which is used
-!! to calculate source terms for different aerosol species.
-!!
-!! Implemented up to now:
-!! - Mineral dust look-up tables for the clay content of different soil types
-!!   and the bare soil fraction of different land use classes
-!!
-!! @author Daniel Rieger, DWD
-!!
-!!
-!! @par Revision History
-!! Initial Revision by Daniel Rieger, DWD (2021-06-29)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! This module provides derived types for mo_aerosol_source which is used
+! to calculate source terms for different aerosol species.
+!
+! Implemented up to now:
+! - Mineral dust look-up tables for the clay content of different soil types
+!   and the bare soil fraction of different land use classes
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_aerosol_sources_types
 
   USE mo_kind,                          ONLY: wp
@@ -58,9 +54,6 @@ CONTAINS
   !! * Allocates and initializes several arrays needed for mineral dust emission
   !!   which are constant in time.
   !! * Provide emission scaling factors for different soil types and land use classes
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, DWD (2019-08-09)
   !!
   SUBROUTINE init_aerosol_dust_aod_source (this_source,                             &
     &                                      i_lc_shrub_eg,  i_lc_shrub,  i_lc_grass, & 
@@ -136,9 +129,6 @@ CONTAINS
   !! SUBROUTINE finalize_aerosol_dust_aod_source
   !!
   !! * Cleanup for the dust source constant fields
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, DWD (2021-07-26)
   !!
   SUBROUTINE finalize_aerosol_dust_aod_source(this_source)
 

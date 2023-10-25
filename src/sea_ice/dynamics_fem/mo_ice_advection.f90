@@ -1,18 +1,17 @@
-!>
-!! Contains sea ice advection routines (on ICON grid).
-!!
-!! @par Revision History
-!! Developed  by Einar Olason (2013)
-!! Modified   by Vladimir Lapin (2015)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Contains sea ice advection routines (on ICON grid).
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -55,9 +54,6 @@ CONTAINS
   !! This uses the upwind_hflux_ice routine and the ocean's div_oce_3D routine to do upwind
   !! advection of the relevant variables.
   !!
-  !! @par Revision History
-  !! Developed by Vladimir Lapin, MPI-M (2015-06-04)
-  !
   SUBROUTINE ice_advection_upwind( p_patch_3D, p_op_coeff, p_ice, use_acc )
     TYPE(t_patch_3D), TARGET, INTENT(IN)    :: p_patch_3D
     TYPE(t_operator_coeff),   INTENT(IN)    :: p_op_coeff
@@ -181,9 +177,6 @@ CONTAINS
   !! This uses the upwind_hflux_ice routine and the ocean's div_oce_3D routine to do upwind
   !! advection of the relevant variables.
   !!
-  !! @par Revision History
-  !! Developed by Einar Olason, MPI-M (2013-08-05)
-  !
   SUBROUTINE ice_advection_upwind_einar( p_patch_3D, p_op_coeff, p_ice )
     TYPE(t_patch_3D), TARGET, INTENT(IN)    :: p_patch_3D
     TYPE(t_operator_coeff),   INTENT(IN)    :: p_op_coeff
@@ -275,16 +268,6 @@ CONTAINS
   !!
   !! Calculation of horizontal tracer fluxes using the first
   !! order Godunov method.
-  !!
-  !! @par Revision History
-  !! Developed by L.Bonaventura  (2004).
-  !! Adapted to new grid structure by L. Bonaventura, MPI-M, August 2005.
-  !! Modification by Daniel Reinert, DWD (2010-02-09)
-  !! - transferred to separate subroutine
-  !! Modification by Stephan Lorenz, MPI (2010-09-06)
-  !! - adapted to hydrostatic ocean core
-  !! Modification by Einar Olason, MPI (2013-07-30)
-  !! - adapted for the FEM ice model
   !!
   SUBROUTINE upwind_hflux_ice( p_patch_3D, pvar_c, pvn_e, pupflux_e, opt_slev, opt_elev, use_acc )
 

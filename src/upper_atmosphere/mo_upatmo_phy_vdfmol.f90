@@ -1,57 +1,56 @@
-!>
-!! Computation of molecular diffusion of momentum, heat and amount of water vapor
-!!
-!! vdf_mol calculates the temperature, humidity, u-wind, and v-wind
-!! tendencies due to molecular conductivity and viscosity.  It also
-!! calculates frictional heating in a physically meaningful way.
-!!
-!! Method:
-!!
-!! A semi-implicit scheme is employed to solve 
-!!                              _             _
-!!     F(t+dt)-F(t-dt)      d  |          dF*  |
-!!     --------------- =  g -- | g mu rho --   |
-!!          2 dt            wp |          wp   |
-!!                              -             -
-!!
-!! where F* is alpha*F(t+dt) + (1-alpha)*F(t-dt) and mu is the
-!! dynamic (not kinematic!) viscosity.
-!!
-!! The boundary conditions are: 1) zero flux at the model top;
-!!                              2) zero flux at the model surface.
-!!
-!! This means solving a tridiagonal matrix system.
-!!
-!! @author 
-!!
-!! M. Charron - MPI - September 6 2001.
-!!
-!! @par Revision History
-!!
-!! Modifications: H. Schmidt - MPI - 20020418
-!! - setting of tri-diag matrix cleaned                    
-!! H. Schmidt - MPI - 20020702
-!! - bug fix: msis variable index counts from bottom to top
-!! Th. Schoenemeyer/H. Schmidt - NEC/MPI - 20020708 
-!! - optimized for vector architecture
-!!
-!! Rewrote for ICON by Guidi Zhou, MPI, 03.06.2016
-!!
-!! Modification by Guidi Zhou, MPI-M, 2016-06-20
-!! - make use of vertically-varying gravity
-!! Modification by Guidi Zhou, MPI-M, 2016-08-17
-!! - seperated frictional heating to mo_upatmo_fric
-!! Modification by Guidi Zhou, MPI-M (2017-03-07)
-!! - added the ability to compute molecular diffusion only above a certain altitude for performance
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Computation of molecular diffusion of momentum, heat and amount of water vapor
+!
+! vdf_mol calculates the temperature, humidity, u-wind, and v-wind
+! tendencies due to molecular conductivity and viscosity.  It also
+! calculates frictional heating in a physically meaningful way.
+!
+! Method:
+!
+! A semi-implicit scheme is employed to solve
+!                              _             _
+!     F(t+dt)-F(t-dt)      d  |          dF*  |
+!     --------------- =  g -- | g mu rho --   |
+!          2 dt            wp |          wp   |
+!                              -             -
+!
+! where F* is alpha*F(t+dt) + (1-alpha)*F(t-dt) and mu is the
+! dynamic (not kinematic!) viscosity.
+!
+! The boundary conditions are: 1) zero flux at the model top;
+!                              2) zero flux at the model surface.
+!
+! This means solving a tridiagonal matrix system.
+!
+! M. Charron - MPI - September 6 2001.
+!
+! Modifications: H. Schmidt - MPI - 20020418
+! - setting of tri-diag matrix cleaned
+! H. Schmidt - MPI - 20020702
+! - bug fix: msis variable index counts from bottom to top
+! Th. Schoenemeyer/H. Schmidt - NEC/MPI - 20020708
+! - optimized for vector architecture
+!
+! Rewrote for ICON by Guidi Zhou, MPI, 03.06.2016
+!
+! Modification by Guidi Zhou, MPI-M, 2016-06-20
+! - make use of vertically-varying gravity
+! Modification by Guidi Zhou, MPI-M, 2016-08-17
+! - seperated frictional heating to mo_upatmo_fric
+! Modification by Guidi Zhou, MPI-M (2017-03-07)
+! - added the ability to compute molecular diffusion only above a certain altitude for performance
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_upatmo_phy_vdfmol
 
   USE mo_kind,                 ONLY: wp

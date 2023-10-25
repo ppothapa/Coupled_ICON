@@ -1,20 +1,19 @@
-!>
-!!               This module provides the communication routines.
-!!
-!!               This module provides the communication routines
-!! for parallel runs
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! This module provides the communication routines
+! for parallel runs
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+!
+!
 ! (GZ, 2013-08-30): So far, the Cray compiler is the only one for which an OpenMP parallelization
 ! of copying data into / back from the MPI-buffer seems to give a benefit. Further compilers may
 ! be added here once the OpenMP implementation is sufficiently efficient
@@ -389,14 +388,8 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !
-  !>
   !! Deletes a communication pattern, i.e. deallocates all arrays
   !! and sets all other members to 0
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Oct 2011
-  !!
   !
   SUBROUTINE delete_comm_pattern(p_pat)
 
@@ -560,14 +553,7 @@ CONTAINS
 
   END SUBROUTINE exchange_data_l3d
 
-  !>
   !! Does data exchange according to a communication pattern (in p_pat).
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
-  !! Optimized version by Guenther Zaengl to process a 4D field whose extra dimension
-  !! is on the first index
   !!
   SUBROUTINE exchange_data_4de1(p_pat, nfields, ndim2tot, recv, send)
 
@@ -582,14 +568,7 @@ CONTAINS
   END SUBROUTINE exchange_data_4de1
 
 
-  !>
   !! Does data exchange according to a communication pattern (in p_pat).
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
-  !! Optimized version by Guenther Zaengl to process up to two 4D fields or up to six 3D fields
-  !! for an array-sized communication pattern (as needed for boundary interpolation) in one step
   !!
   SUBROUTINE exchange_data_grf(p_pat_coll, nfields, ndim2tot, recv1, send1, &
     recv2, send2, recv3, send3, recv4, send4, &
@@ -724,14 +703,7 @@ CONTAINS
 
   END SUBROUTINE exchange_data_l2d
 
-  !>
   !! Does data exchange according to a communication pattern (in p_pat).
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
-  !! Optimized version by Guenther Zaengl to process 4D fields or up to seven 3D fields
-  !! in one step
   !!
   SUBROUTINE exchange_data_mult(p_pat, nfields, ndim2tot, recv1, send1, recv2, send2,   &
     recv3, send3, recv4, send4,  recv5, send5, recv6, send6, recv7, send7,              &
@@ -834,14 +806,7 @@ CONTAINS
 
 
 
-  !>
   !! Does data exchange according to a communication pattern (in p_pat).
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
-  !! Optimized version by Guenther Zaengl to process 4D fields and 3D fields with either single
-  !! precision or double precision
   !!
   SUBROUTINE exchange_data_mult_mixprec(p_pat, nfields_dp, ndim2tot_dp, nfields_sp, ndim2tot_sp,        &
     recv1_dp, send1_dp, recv2_dp, send2_dp, recv3_dp, send3_dp, recv4_dp, send4_dp, recv5_dp, send5_dp, &

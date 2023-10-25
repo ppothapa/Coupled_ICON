@@ -1,26 +1,23 @@
-!>
-!!               This module provides wrappers for netcdf functions.
-!!
-!!               This module provides wrappers for netcdf functions
-!! for reading a NetCDF file in a parallel run.
-!! These wrappers have the same interface as the corresponding
-!! NetCDF routines, but only one processor actually reads the file
-!! and broadcasts the data to the others.
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! Added p_comm_input_bcast by Rainer Johanni, Oct 2010
-!! CLeanup and adjustment to most recent mpi driving policy by Luis Kornblueh, Mar 2013
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! This module provides wrappers for netcdf functions.
+!
+! This module provides wrappers for netcdf functions
+! for reading a NetCDF file in a parallel run.
+! These wrappers have the same interface as the corresponding
+! NetCDF routines, but only one processor actually reads the file
+! and broadcasts the data to the others.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_netcdf_parallel
 !-------------------------------------------------------------------------
 !
@@ -82,13 +79,7 @@ END INTERFACE
 CONTAINS
 
 !-------------------------------------------------------------------------
-!>
-!!               Wrapper for nf_open.
-!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! Added p_comm_input_bcast by Rainer Johanni, Oct 2010
+!! Wrapper for nf_open.
 !!
 INTEGER FUNCTION p_nf_open(path, omode, ncid)
 
@@ -112,13 +103,7 @@ INTEGER FUNCTION p_nf_open(path, omode, ncid)
 END FUNCTION p_nf_open
 
 !-------------------------------------------------------------------------
-!>
-!!               Wrapper for nf_close.
-!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! Added p_comm_input_bcast by Rainer Johanni, Oct 2010
+!! Wrapper for nf_close.
 !!
 INTEGER FUNCTION p_nf_close(ncid)
 
@@ -140,13 +125,7 @@ END FUNCTION p_nf_close
 !
 !
 
-!>
-!!               Wrapper for nf_inq_dimid.
-!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! Added p_comm_input_bcast by Rainer Johanni, Oct 2010
+!! Wrapper for nf_inq_dimid.
 !!
 INTEGER FUNCTION p_nf_inq_dimid(ncid, name, dimid)
 
@@ -169,13 +148,8 @@ INTEGER FUNCTION p_nf_inq_dimid(ncid, name, dimid)
 END FUNCTION p_nf_inq_dimid
 
 !-------------------------------------------------------------------------
-!>
-!!               Wrapper for nf_inq_dimlen.
-!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! Added p_comm_input_bcast by Rainer Johanni, Oct 2010
+
+!! Wrapper for nf_inq_dimlen.
 !!
 INTEGER FUNCTION p_nf_inq_dimlen(ncid, dimid, len)
 
@@ -200,13 +174,7 @@ INTEGER FUNCTION p_nf_inq_dimlen(ncid, dimid, len)
 END FUNCTION p_nf_inq_dimlen
 
 !-------------------------------------------------------------------------
-!>
-!!               Wrapper for nf_inq_varid.
-!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! Added p_comm_input_bcast by Rainer Johanni, Oct 2010
+!! Wrapper for nf_inq_varid.
 !!
 INTEGER FUNCTION p_nf_inq_varid(ncid, name, varid)
 
@@ -230,12 +198,7 @@ INTEGER FUNCTION p_nf_inq_varid(ncid, name, varid)
 END FUNCTION p_nf_inq_varid
 
 !-------------------------------------------------------------------------
-!>
-!!               Wrapper for nf_get_att_text.
-!!
-!!
-!! @par Revision History
-!! Initial version by Luis Kornblueh, Jan 2011
+!! Wrapper for nf_get_att_text.
 !!
 INTEGER FUNCTION p_nf_get_att_text(ncid, varid, name, tval)
   INTEGER,          INTENT(in)  :: ncid, varid
@@ -261,11 +224,7 @@ END FUNCTION p_nf_get_att_text
 !-----------------------------------------------------------
 
 !-----------------------------------------------------------
-!>
-!!               Wrapper for nf_get_att_double
-!!
-!! @par Revision History
-!! Initial version by Leonidas Linardakis, May 2012
+!! Wrapper for nf_get_att_double
 !!
 INTEGER FUNCTION p_nf_get_att_double_single(ncid, varid, name, dvalue)
 
@@ -289,11 +248,7 @@ END FUNCTION p_nf_get_att_double_single
 !-----------------------------------------------------------------------
 
 !-----------------------------------------------------------
-!>
-!!               Wrapper for nf_get_att_double
-!!
-!! @par Revision History
-!! Initial version by Leonidas Linardakis, May 2012
+!! Wrapper for nf_get_att_double
 !!
 INTEGER FUNCTION p_nf_get_att_double_array(ncid, varid, name, dvalue)
 
@@ -317,13 +272,7 @@ END FUNCTION p_nf_get_att_double_array
 !-----------------------------------------------------------------------
 
 !-----------------------------------------------------------------------
-!>
-!!               Wrapper for nf_get_att_int.
-!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! Added p_comm_input_bcast by Rainer Johanni, Oct 2010
+!! Wrapper for nf_get_att_int.
 !!
 INTEGER FUNCTION p_nf_inq_attid(ncid, varid, name, ivals)
 
@@ -346,13 +295,7 @@ INTEGER FUNCTION p_nf_inq_attid(ncid, varid, name, ivals)
 END FUNCTION p_nf_inq_attid
 
 !-----------------------------------------------------------------------
-!>
-!!               Wrapper for nf_get_att_int.
-!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! Added p_comm_input_bcast by Rainer Johanni, Oct 2010
+!! Wrapper for nf_get_att_int.
 !!
 INTEGER FUNCTION p_nf_get_att_int_0(ncid, varid, name, ivals)
 
@@ -378,13 +321,7 @@ END FUNCTION p_nf_get_att_int_0
 
 
 !-------------------------------------------------------------------------
-!>
-!!               Wrapper for nf_get_att_int.
-!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! Added p_comm_input_bcast by Rainer Johanni, Oct 2010
+!! Wrapper for nf_get_att_int.
 !!
 INTEGER FUNCTION p_nf_get_att_int_1(ncid, varid, name, ivals)
 
@@ -420,13 +357,7 @@ INTEGER FUNCTION p_nf_get_att_int_1(ncid, varid, name, ivals)
 END FUNCTION p_nf_get_att_int_1
 
 !-------------------------------------------------------------------------
-!>
-!!               Wrapper for nf_get_var_int.
-!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! Added p_comm_input_bcast by Rainer Johanni, Oct 2010
+!! Wrapper for nf_get_var_int.
 !!
 INTEGER FUNCTION p_nf_get_var_int(ncid, varid, ivals)
 
@@ -473,13 +404,7 @@ INTEGER FUNCTION p_nf_get_var_int(ncid, varid, ivals)
 END FUNCTION p_nf_get_var_int
 
 !-------------------------------------------------------------------------
-!>
-!!               Wrapper for nf_get_var_double.
-!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! Added p_comm_input_bcast by Rainer Johanni, Oct 2010
+!! Wrapper for nf_get_var_double.
 !!
 INTEGER FUNCTION p_nf_get_var_double(ncid, varid, dvals)
 
@@ -526,12 +451,7 @@ INTEGER FUNCTION p_nf_get_var_double(ncid, varid, dvals)
 END FUNCTION p_nf_get_var_double
 
 !-------------------------------------------------------------------------
-!>
-!!               Wrapper for nf_get_vara_text.
-!!
-!!
-!! @par Revision History
-!! Adapted from p_nf_get_vara_int, G.Hime 2019
+!! Wrapper for nf_get_vara_text.
 !!
 INTEGER FUNCTION p_nf_get_vara_text(ncid, varid, start, count, vals)
 
@@ -590,13 +510,7 @@ END FUNCTION p_nf_get_vara_text
 
 
 !-------------------------------------------------------------------------
-!>
-!!               Wrapper for nf_get_vara_int.
-!!
-!!
-!! @par Revision History
-!! Initial version by Marco Giorgetta, Sept 2010
-!! Added p_comm_input_bcast by Rainer Johanni, Oct 2010
+!! Wrapper for nf_get_vara_int.
 !!
 INTEGER FUNCTION p_nf_get_vara_int(ncid, varid, start, count, ivals)
 
@@ -679,13 +593,7 @@ END FUNCTION p_nf_get_vara_int
 
 
 !-------------------------------------------------------------------------
-!>
-!!               Wrapper for nf_get_vara_double.
-!!
-!!
-!! @par Revision History
-!! Initial version by Marco Giorgetta, Sept 2010
-!! Added p_comm_input_bcast by Rainer Johanni, Oct 2010
+!! Wrapper for nf_get_vara_double.
 !!
 INTEGER FUNCTION p_nf_get_vara_double_(ncid, varid, start, count, dvals)
 
@@ -767,13 +675,7 @@ INTEGER FUNCTION p_nf_get_vara_double_(ncid, varid, start, count, dvals)
 END FUNCTION p_nf_get_vara_double_
 
 !-------------------------------------------------------------------------
-!>
-!!               Wrapper for nf_get_vara_double.
-!!
-!!
-!! @par Revision History
-!! Initial version by Marco Giorgetta, Sept 2010
-!! Added p_comm_input_bcast by Rainer Johanni, Oct 2010
+!! Wrapper for nf_get_vara_double.
 !!
 INTEGER FUNCTION p_nf_get_vara_double(ncid, varid, start, count, dvals)
 

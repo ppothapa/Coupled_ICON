@@ -1,23 +1,22 @@
-!>
-!! @brief The subroutine omp_block_loop_cell provides an OpenMP parallelized
-!! loop over all data blocks on the patch. For each data block, indices are
-!! computed for cells in the data block belonging to the domain, and the
-!! routine passed as argument is called with these indices to work on these
-!! cells.
-!!
-!! @author Marco Giorgetta, MPI-M
-!!
-!! @par Revision History
-!!  Original version 2017-12
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! The subroutine omp_block_loop_cell provides an OpenMP parallelized
+! loop over all data blocks on the patch. For each data block, indices are
+! computed for cells in the data block belonging to the domain, and the
+! routine passed as argument is called with these indices to work on these
+! cells.
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"

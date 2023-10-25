@@ -1,19 +1,20 @@
 !NEC$ options "-finline-max-depth=3 -finline-max-function-size=1000"
-!>
-!! Routines for optional diagnostic output variables in NWP
-!! (formerly located in mo_util_phys)
-!!
-!! @par Revision History
-!!  Initial revision  :  G. Zaengl, DWD (2020-02-17)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Routines for optional diagnostic output variables in NWP
+! (formerly located in mo_util_phys)
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -147,10 +148,6 @@ CONTAINS
   !!   the lowest model level (ke) and linearly interpolated to the height where
   !!   the wet bulb temperature is >= wbl (=+1.3C after P. Haechler, MeteoSwiss).
   !!   A flag (-999) is set to indicate that no snowlmt was found.
-  !!
-  !! @par Revision History
-  !! Inherited from COSMO 5.0 by Daniel Reinert, DWD (2015-03-27)
-  !! 
   !!
   SUBROUTINE calsnowlmt ( snowlmt, temp, pres, qv, hhl, hhlr, istart, iend, wbl, lacc)
 
@@ -294,8 +291,6 @@ CONTAINS
 
   !> computation of vertical velocity (dp/dt)
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2014-03-28) 
   SUBROUTINE compute_field_omega(ptr_patch, p_prog, out_var, &
     &                            opt_slev, opt_elev, opt_rlstart, opt_rlend, lacc)
 
@@ -370,9 +365,6 @@ CONTAINS
   !!
   !! Conversion of soil moisture into soil moisture index
   !! smi = (soil moisture - wilting point) / (field capacity - wilting point)
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-05-03) 
   !!
   SUBROUTINE compute_field_smi(ptr_patch, diag_lnd, ext_data, out_var, &
     &                            opt_rlstart, opt_rlend, lacc)
@@ -679,9 +671,6 @@ CONTAINS
   !!   Wicker L, J. Kain, S. Weiss and D. Bright, A Brief Description of the
   !!          Supercell Detection Index, (available from
   !!   http://www.spc.noaa.gov/exper/Spring_2005/SDI-docs.pdf)
-  !!
-  !! @par Revision History
-  !! Initial revision by Michael Baldauf, DWD (2019-05-13) 
   !!
   SUBROUTINE compute_field_sdi( ptr_patch, jg, ptr_patch_local_parent, p_int,    &
                                 p_metrics, p_prog, p_diag,                 &
@@ -1107,9 +1096,6 @@ CONTAINS
   !!       - B. Lynn, Y. Yair, 2010: Prediction of lightning flash density with the WRF model,
   !!           Adv. Geosci., 23, 11-16
   !! adapted from the COSMO-implementation by Uli Blahak.
-  !!
-  !! @par Revision History
-  !! Initial revision by Michael Baldauf, DWD (2019-05-27) 
   !!
   SUBROUTINE compute_field_lpi( ptr_patch, jg, ptr_patch_local_parent, p_int,   &
                                 p_metrics, p_prog, p_prog_rcf, p_diag,          &
@@ -1539,9 +1525,6 @@ CONTAINS
   !! Do a maximization step for the calculation of the LPI_MAX.
   !!
   !!
-  !! @par Revision History
-  !! Initial revision by Michael Baldauf, DWD (2019-09-17) 
-  !!
   SUBROUTINE maximize_field_lpi( ptr_patch, jg, ptr_patch_local_parent, p_int,   &
                                 p_metrics, p_prog, p_prog_rcf, p_diag,           &
                                 lpi_max, lacc )
@@ -1605,9 +1588,6 @@ CONTAINS
   !>
   !! Calculate the ceiling height
   !! = height above MSL, for which cloud coverage > 4/8
-  !!
-  !! @par Revision History
-  !! Initial revision by Michael Baldauf, DWD (2019-10-21) 
   !!
   SUBROUTINE compute_field_ceiling( ptr_patch, jg,    &
                                 p_metrics, prm_diag,  &
@@ -1684,9 +1664,6 @@ CONTAINS
   !!
   !! This subroutine is quite similar to compute_field_htop_sc.
   !!
-  !! @par Revision History
-  !! Initial revision by Michael Baldauf, DWD (2019-10-22) 
-  !!
   SUBROUTINE compute_field_hbas_sc( ptr_patch,        &
                                 p_metrics, prm_diag,  &
                                 hbas_sc, lacc)
@@ -1753,9 +1730,6 @@ CONTAINS
   !!
   !! This subroutine is quite similar to compute_field_hbas_sc.
   !!
-  !! @par Revision History
-  !! Initial revision by Michael Baldauf, DWD (2019-10-22) 
-  !!
   SUBROUTINE compute_field_htop_sc( ptr_patch,        &
                                 p_metrics, prm_diag,  &
                                 htop_sc, lacc)
@@ -1818,10 +1792,6 @@ CONTAINS
 
   !>
   !! Calculate total column integrated water in kg m-2 (twater)
-  !!
-  !! @par Revision History
-  !! Initial revision by Michael Baldauf, DWD (2019-10-23)
-  !! Rewrite which uses a water tracer index list by Daniel Reinert, DWD (2022-11-16)
   !!
   SUBROUTINE compute_field_twater( p_patch, ddqz_z_full, rho, tracer,  &
                                    idx_list_condensate, twater, opt_slev, lacc )
@@ -1934,9 +1904,6 @@ CONTAINS
   !>
   !! Calculate specific content of precipitation particles
   !!
-  !! @par Revision History
-  !! Initial revision by Michael Baldauf, DWD (2019-10-23) 
-  !!
   SUBROUTINE compute_field_q_sedim( ptr_patch, jg, p_prog_rcf, q_sedim, lacc )
 
     IMPLICIT NONE
@@ -2022,9 +1989,6 @@ CONTAINS
   !! Here, compute columnwise amximum of these input fields and the newly computed fields.
   !! 
   !! Implementation analogous to those of Uli Blahak in COSMO.
-  !!
-  !! @par Revision History
-  !! Initial revision by Michael Baldauf, DWD (2019-10-23) 
   !!
   SUBROUTINE compute_field_tcond_max( ptr_patch, jg,                      &
                                    p_metrics, p_prog, p_prog_rcf, p_diag, &
@@ -2186,11 +2150,6 @@ CONTAINS
   !!
   !! Implementation analogous to those of Uli Blahak in COSMO.
   !!
-  !! @par Revision History
-  !! Initial revision by Michael Baldauf, DWD (2019-10-23) 
-  !! Inserted variable boundaries for vertical integration, Vera Maurer, DWD (2021-03-10)
-  !! Vertical integration changed by Uli Blahak, DWD (2021-03-20)
-  !!
   SUBROUTINE compute_field_uh_max( ptr_patch,                 &
                                    p_metrics, p_prog, p_diag, &
                                    zmin_in, zmax_in,          &
@@ -2290,10 +2249,6 @@ CONTAINS
   !!
   !! Implementation analogous to those of Uli Blahak in COSMO.
   !!
-  !! @par Revision History
-  !! Initial revision by Michael Baldauf, DWD (2019-10-23)
-  !! Vertical integration changed by Uli Blahak, DWD (2021-03-20)
-  !!
   SUBROUTINE compute_field_vorw_ctmax( ptr_patch,          &
                                        p_metrics, p_diag,  &
                                        vorw_ctmax, lacc )
@@ -2379,9 +2334,6 @@ CONTAINS
   !! Calculate W_CTMAX (Maximum updraft track during the last hour)
   !!
   !! Implementation analogous to those of Uli Blahak in COSMO.
-  !!
-  !! @par Revision History
-  !! Initial revision by Michael Baldauf, DWD (2019-10-23) 
   !!
   SUBROUTINE compute_field_w_ctmax( ptr_patch,             &
                                     p_metrics, p_prog,     &
@@ -2670,10 +2622,6 @@ CONTAINS
   !!  certain height z_limit AGL (usually 3000.0 m) and use this model
   !!  level as starting height for the test parcel.
   !!
-  !! @par Revision History
-  !! Initial revision by Ulrich Blahak, DWD (2022-04-06) 
-  !!
-  
   SUBROUTINE cal_cape_cin_mu(i_startidx, i_endidx, kmoist, z_limit, te, qve, prs, hhl,  &
                              cape_mu, cin_mu, lacc )
 
@@ -3330,15 +3278,6 @@ CONTAINS
     !!    Preprints, 21st Conf. On Severe Local Storms, San Antonio, Amer. Meteor. Soc.
     !!    http://members.cox.net/jondavies1/LLthermo.PDF
     !!
-    !! @par Revision History
-    !! Inherited from COSMO by Helmut Frank, DWD (2015-05-13)
-    !! Corrected formula for specific humid at saturation (U. Blahak, 2022-04-12)
-    !! Split routine into two:
-    !!    1) Computation of starting values Tstart, pstart in a prior subroutine,
-    !!        e.g. cal_cape_cin() or cal_cape_cin_mu()
-    !!    2) Ascent based on these starting values (this routine)
-    !!
-    !!
 
     ! Input data
     !----------- 
@@ -3908,9 +3847,6 @@ CONTAINS
   !> Wrapper routine to get the 3D radar reflectivity field depending on the microphysics scheme
   !!  and store it in p_diag%dbz3d(:,:,:)
   !!
-  !! @par Revision History
-  !! Initial revision  :  U. Blahak, DWD (2020-01-20)
-  
   SUBROUTINE compute_field_dbz3d_lin(jg, ptr_patch, p_prog,  p_prog_rcf, p_diag, prm_diag, dbz3d_lin, lacc)
 
     INTEGER, INTENT(in)  :: jg
@@ -4513,9 +4449,6 @@ CONTAINS
   !>
   !! Compute column maximum reflectivity from dbz3d_lin
   !!
-  !! @par Revision History
-  !! Initial revision by Ulrich Blahak, DWD (2020-01-23) 
-  !!
   SUBROUTINE compute_field_dbzcmax( ptr_patch, jg, dbz3d_lin, dbz_cmax, lacc )
 
     IMPLICIT NONE
@@ -4581,9 +4514,6 @@ CONTAINS
   !>
   !! Compute column maximum radar reflectivity from dbz3d_lin and maximize over time
   !!
-  !! @par Revision History
-  !! Initial revision by Ulrich Blahak, DWD (2020-01-23) 
-  !!
   SUBROUTINE maximize_field_dbzctmax( ptr_patch, jg, dbz3d_lin, dbz_ctmax, lacc )
 
     IMPLICIT NONE
@@ -4643,9 +4573,6 @@ CONTAINS
 
   !>
   !! Compute radar reflectivity around approx 850 hPa from dbz3d_lin.
-  !!
-  !! @par Revision History
-  !! Initial revision by Ulrich Blahak, DWD (2020-01-23) 
   !!
   SUBROUTINE compute_field_dbz850( ptr_patch, k850, dbz3d_lin, dbz_850, lacc )
 
@@ -4717,9 +4644,6 @@ CONTAINS
   !! each location is sampled by at least 2 radar stations, and measuring heights vary between about
   !! 500 m AGL and 2500 m AGL, depending on the station height, the elevation angle used for
   !! the composite, and the local orography.
-  !!
-  !! @par Revision History
-  !! Initial revision by Ulrich Blahak, DWD (2020-08-10) 
   !!
   SUBROUTINE compute_field_dbzlmx( ptr_patch, jg, z_agl_low, z_agl_up, p_metrics, dbz3d_lin, dbzlmx, lacc )
 
@@ -4794,9 +4718,6 @@ CONTAINS
 
   !>
   !! Compute ECHOTOPs in Pa from linear dbz3d_lin
-  !!
-  !! @par Revision History
-  !! Initial revision by Ulrich Blahak, DWD (2020-01-23) 
   !!
   SUBROUTINE compute_field_echotop( ptr_patch, jg, p_diag, dbz3d_lin, echotop_p, lacc )
 
@@ -4906,9 +4827,6 @@ CONTAINS
 
   !>
   !! Compute ECHOTOPs in m MSL from linear dbz3d_lin
-  !!
-  !! @par Revision History
-  !! Initial revision by Ulrich Blahak, DWD (2020-01-23) 
   !!
   SUBROUTINE compute_field_echotopinm( ptr_patch, jg, p_metrics, dbz3d_lin, echotop_z, lacc )
 
@@ -5039,10 +4957,6 @@ CONTAINS
   !!
   !! Note: use dursun_thresh=120.0_wp and dursun_thresh_width=0.01_wp to
   !!       reproduce original behaviour, according to WMO
-  !!
-  !! @par Revision History
-  !! Initial revision by Burkhardt Rockel, Hereon (2021-06-17) 
-  !! More sunshine duration fields by Guy de Morsier, MeteoSwiss (2021-11-02)
   !!
   SUBROUTINE compute_field_dursun( pt_patch, dt_phy, dursun,                    &
     &                              swflxsfc, swflx_up_sfc, swflx_dn_sfc_diff,   &
@@ -5336,9 +5250,6 @@ CONTAINS
   !! Compute vertical wind shear of either u or v component as the difference between a height AGL and the lowest model level.
   !! This is done for a number of heights and is stored in a pseudo 3D field.
   !!
-  !! @par Revision History
-  !! Initial revision by Ulrich Blahak, DWD (2022-04-06) 
-  !!
   SUBROUTINE compute_field_wshear( ptr_patch, p_metrics, u_or_v, wshear_heights, wshear )
 
     IMPLICIT NONE
@@ -5402,9 +5313,6 @@ CONTAINS
   !! Compute the temperature lapse rate between two pressure levels:
   !!
   !!   dTdz = T(pu) - T(pl)
-  !!
-  !! @par Revision History
-  !! Initial revision by Ulrich Blahak, DWD (2022-04-06) 
   !!
   SUBROUTINE compute_field_lapserate( ptr_patch, p_metrics, p_diag, pu, pl, lapserate )
 
@@ -5527,9 +5435,6 @@ CONTAINS
   !!    lower layer = [z_low_shear-dz_shear/2 , z_low_shear+dz_shear/2 ] (m AGL)
   !!    upper layer = [z_up_shear -dz_shear/2 , z_up_shear +dz_shear/2 ] (m AGL)
   !!  The upper limit for SRH integration is z_up_srh (m AGL).
-  !!
-  !! @par Revision History
-  !! Initial revision by Ulrich Blahak, DWD (2022-04-13) 
   !!
   SUBROUTINE compute_field_srh( ptr_patch, p_metrics, p_diag, &
        z_up_srh, z_up_meanwind, z_low_shear, z_up_shear, dz_shear, &
@@ -5726,9 +5631,6 @@ CONTAINS
   !!  full layer thickness in case one or both layers are below the surface or above the model top.
   !!  Re-scaling means that voids are filled with the average of the present heights in the integral.
   !!
-  !! @par Revision History
-  !! Initial revision by Ulrich Blahak, DWD (2022-04-13) 
-  !!
   
   SUBROUTINE vert_integral_vec_1d (istart, iend, kstart, hhl, f, zlow, zup, fint, &
                                    l_agl, l_calc_mean, l_rescale_to_full_thickness)
@@ -5799,18 +5701,10 @@ CONTAINS
   !>
   !! compute near surface visibility
   !!
-  !! @par Revision History
-  !! Initial revision by Tobias Goecke, DWD (2022-03-29) 
-  !!
   !! Description:
   !!  This routine computes horizontal visibility [km] at the
   !!   surface or lowest model layer from qv, qc, qr, qi, qs, and qg.
   !! 
-  !! 
-  !! It was adapted to ICON by Tobias Goecke (DWD).
-  !! Before thatiIt was adapted for COSMO by Jochen Foerstner (DWD) for the Brazilian Navy
-  !! Original Code: CALVIS_GSD.f (part of the post-processing package of WRF)
-  !!
   !!------------------------------------------------------------------------------
   !!
   !! SUBPROGRAM:    CALVIS      CALCULATE HORIZONTAL VISIBILITY
@@ -6055,9 +5949,6 @@ CONTAINS
   !! It follows Van Wevweberg et al. Month Weath. Rev. 2021
   !! This function just produces the variable for output
   !! The calculations are done in compute_field_inversion_height
-  !>
-  !  !! @par Revision History
-  !! Initial revision by Alberto de Lozar, DWD (2023-01-18) 
 
   SUBROUTINE compute_field_inversion_height(ptr_patch,jg,p_metrics,p_prog,p_diag,prm_diag,inv_height)
 

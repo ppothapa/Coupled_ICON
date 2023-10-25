@@ -1,24 +1,21 @@
-!>
-!! Contains the definition of coefficients used for div-grad-curl and reconstruction/scalar product.
-!! All coefficients are three-dimensional arrays including the number of vertical levels. This is necessary
-!! if one has coefficients that vary within the vertical level but not in time such that one can precompute the
-!! coefficients. This is in the ocean model where the land-sea mask is different at each level and therefore
-!! the expansion coefficients associated with land and boundary vary with the vertical level but are constant in time.
-!!
-!!
-!! @par Revision History
-!! Developed  by Peter Korn (2012)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Contains the definition of coefficients used for div-grad-curl and reconstruction/scalar product.
+! All coefficients are three-dimensional arrays including the number of vertical levels. This is necessary
+! if one has coefficients that vary within the vertical level but not in time such that one can precompute the
+! coefficients. This is in the ocean model where the land-sea mask is different at each level and therefore
+! the expansion coefficients associated with land and boundary vary with the vertical level but are constant in time.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------

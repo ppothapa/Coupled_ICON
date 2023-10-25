@@ -1,69 +1,65 @@
-!>
-!! Module for efficient promixity queries / nearest neighbor search
-!! with "geometric near-neighbor access trees" (GNATs), i.e.
-!! a tree structure based on generalized hyperplanes.
-!!
-!! This algorithm is divided into two parts: In the first phase we
-!! build a search tree containing the cell centers, which is then in a
-!! second phase traversed while searching for cells in the vicinity of
-!! a given search point.
-!!
-!! Both the tree construction and the point query can be performed
-!! with in multiple threads.
-!!
-!! See
-!! Brin, Sergey: "Near Neighbor Search in Large Metric Spaces"
-!! VLDB '95 : Proceedings of the 21st International Conference on
-!!            Very Large Data Bases,
-!! Zurich Switzerland, Sept. 11--15, 1995, pp. 574-584,
-!! Morgan Kaufmann Publishers, 1995.
-!!
-!! @author F. Prill, DWD
-!!
-!! Basic usage example:
-!!
-!!    ! data structure
-!!    type(t_gnat) :: gnat
-!!
-!!    ! build fast search tree for proximity queries in unstructured triangular grid
-!!    ! (at the beginning of the program)
-!!    CALL gnat_init_grid(gnat, p_patch, .TRUE., 1, nblks_c)
-!!
-!!    ! perform a search of a single point
-!!    min_node_idx(1:2) = 0
-!!    vmin_dist         = MAX_RANGE
-!!    v                 = (/ plam * pi_180, pphi * pi_180 /)        ! search point
-!!    r                 = gnat_std_radius(gnat)                     ! search radius
-!!    CALL gnat_query(gnat, v, r, vmin_dist, min_node_idx)
-!!    jc = min_node_idx(1)
-!!    jb = min_node_idx(2)
-!!
-!!    ! finish (at the end of the program)
-!!    CALL gnat_destroy(grid%gnat)
-!!
-!!
-!! @par Revision History
-!! Initial implementation  by  F. Prill, DWD (2011-08-15)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!! @todo On different platforms: test for beneficiary effects of NOT using REAL(wp)
-!!       for distance measurements.
-!!
-!! @note Load balancing issues:
-!!
-!!       When searching for the cells containing the points of a lon-lat
-!!       grid the meridian convergence affects this second phase only: The
-!!       MPI process which covers the pole region must handle a larger
-!!       number of search operations.
-!!
-!! -----------------------------------------------------------------------------------
+! Module for efficient promixity queries / nearest neighbor search
+! with "geometric near-neighbor access trees" (GNATs), i.e.
+! a tree structure based on generalized hyperplanes.
+!
+! This algorithm is divided into two parts: In the first phase we
+! build a search tree containing the cell centers, which is then in a
+! second phase traversed while searching for cells in the vicinity of
+! a given search point.
+!
+! Both the tree construction and the point query can be performed
+! with in multiple threads.
+!
+! See
+! Brin, Sergey: "Near Neighbor Search in Large Metric Spaces"
+! VLDB '95 : Proceedings of the 21st International Conference on
+!            Very Large Data Bases,
+! Zurich Switzerland, Sept. 11--15, 1995, pp. 574-584,
+! Morgan Kaufmann Publishers, 1995.
+!
+! Basic usage example:
+!
+!    ! data structure
+!    type(t_gnat) :: gnat
+!
+!    ! build fast search tree for proximity queries in unstructured triangular grid
+!    ! (at the beginning of the program)
+!    CALL gnat_init_grid(gnat, p_patch, .TRUE., 1, nblks_c)
+!
+!    ! perform a search of a single point
+!    min_node_idx(1:2) = 0
+!    vmin_dist         = MAX_RANGE
+!    v                 = (/ plam * pi_180, pphi * pi_180 /)        ! search point
+!    r                 = gnat_std_radius(gnat)                     ! search radius
+!    CALL gnat_query(gnat, v, r, vmin_dist, min_node_idx)
+!    jc = min_node_idx(1)
+!    jb = min_node_idx(2)
+!
+!    ! finish (at the end of the program)
+!    CALL gnat_destroy(grid%gnat)
+!
+! @todo On different platforms: test for beneficiary effects of NOT using REAL(wp)
+!       for distance measurements.
+!
+! @note Load balancing issues:
+!
+!       When searching for the cells containing the points of a lon-lat
+!       grid the meridian convergence affects this second phase only: The
+!       MPI process which covers the pole region must handle a larger
+!       number of search operations.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_gnat_gridsearch
 
 #ifdef _OPENMP

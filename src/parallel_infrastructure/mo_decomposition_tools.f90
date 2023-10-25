@@ -1,20 +1,18 @@
-!-------------------------------------------------------------------------------------
-!>
-!! Set of methods for grid decomposition.
-!!  It runs only on a single process
-!!
-!! @author Leonidas Linardakis, MPI-M
-!!
-!! @par Revision History
-!!   First implementation by Leonidas Linardakis, MPI-M, 20011-12-6
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+! Set of methods for grid decomposition.
+! It runs only on a single process
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !-------------------------------------------------------------------------------------
 #define d_norma_3d(v) SQRT(DOT_PRODUCT(v%x,v%x))
 #define d_normalize(v) v%x=v%x/d_norma_3d(v)
@@ -155,11 +153,7 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !>
   !! Actually divides geometrically by location on cpu_a .. cpu_b
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
   !!
   RECURSIVE SUBROUTINE divide_cells_by_location(n_cells,cell_desc,cpu_a,cpu_b)
 

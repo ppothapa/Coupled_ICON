@@ -1,32 +1,17 @@
-!>
-!! Computation of frictional heating in a physically meaningful way.
-!!
-!! @author M. Charron - MPI - September 6 2001.
-!!
-!!
-!! @par Revision History
-!! Modifications: H. Schmidt - MPI - 20020418
-!! - setting of tri-diag matrix cleaned                    
-!!   H. Schmidt - MPI - 20020702
-!! - bug fix: msis variable index counts from bottom to top
-!!   Th. Schoenemeyer/H. Schmidt - NEC/MPI - 20020708 
-!! - optimized for vector architecture
-!!
-!! Rewrote for ICON by Guidi Zhou, MPI, 03.06.2016
-!!
-!! Modification by Guidi Zhou, MPI-M, 2016-08-17
-!! - seperated from vdiff_mol
-!! Modification by Guidi Zhou, MPI-M (2017-03-06)
-!! - added the ability to compute frictional heating only above a certain altitude for performance
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Computation of frictional heating in a physically meaningful way.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_upatmo_phy_fric
 
   USE mo_kind,               ONLY: wp

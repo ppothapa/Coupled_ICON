@@ -1,7 +1,5 @@
 ! This code is part of RRTM for GCM Applications - Parallel (RRTMGP)
 !
-! Contacts: Robert Pincus and Eli Mlawer
-! email:  rrtmgp@aer.com
 !
 ! Copyright 2015-2018,  Atmospheric and Environmental Research and
 ! Regents of the University of Colorado.  All right reserved.
@@ -15,7 +13,19 @@
 !    local environment. This module provides a straight-forward implementation of reading the data
 !    and calling gas_optics%load().
 !
-! -------------------------------------------------------------------------------------------------
+! -------------------------------------------------------------------------------------------------!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 module mo_load_coefficients
   !
   ! Modules for working with rte and rrtmgp

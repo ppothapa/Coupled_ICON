@@ -1,18 +1,20 @@
-!>
-!! @brief Contains surface type (tile) indices used by the 
-!! turbulent mixing parameterization.
-!!
-!! @brief Contains subroutines for initializing the AES physics package
-!!
-!! First version by Hui Wan, 2010-09-21
-!!
-!! @par Copyright and License
-!!
-!! Copyright 2022 Max Planck Institute for Meteorology
-!! 
-!! Code subject to BSD-3-C, SPDX short identifier: BSD-3-Clause, see file
-!! BSD-3-C-license.pdf in the license-directory
-!!
+!
+! Contains surface type (tile) indices used by the turbulent mixing parameterization.
+!
+! Contains subroutines for initializing the AES physics package
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_aes_sfc_indices
 
   USE mo_exception, ONLY: message, message_text

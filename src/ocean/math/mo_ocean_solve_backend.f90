@@ -1,8 +1,18 @@
-#include "icon_definitions.inc"
-
 ! contains abstact type for actual solver backends
 ! this is an abstract interposer layer,
 ! in order to use a single interface for all backend solvers
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+#include "icon_definitions.inc"
 
 MODULE mo_ocean_solve_backend
   !-------------------------------------------------------------------------

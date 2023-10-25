@@ -1,26 +1,20 @@
-!>
-!! mo_solve_nonhydro
-!!
-!! This module contains the nonhydrostatic dynamical core for the triangular version
-!! Its routines were previously contained in mo_divergent_modes and mo_vector_operations
-!! but have been extracted for better memory efficiency
-!!
-!! @author Guenther Zaengl, DWD
-!!
-!! @par Revision History
-!! Initial release by Guenther Zaengl (2010-10-13) based on earlier work
-!! by Almut Gassmann, MPI-M
-!! Modification by William Sawyer, CSCS (2015-02-06)
-!! - OpenACC implementation
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! This module contains the nonhydrostatic dynamical core for the triangular version
+! Its routines were previously contained in mo_divergent_modes and mo_vector_operations
+! but have been extracted for better memory efficiency
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -104,9 +98,6 @@ MODULE mo_solve_nonhydro
   !! solve_nh
   !!
   !! Main solver routine for nonhydrostatic dynamical core
-  !!
-  !! @par Revision History
-  !! Development started by Guenther Zaengl on 2010-02-03
   !!
   SUBROUTINE solve_nh (p_nh, p_patch, p_int, prep_adv, nnow, nnew, l_init, l_recompute, lsave_mflx, &
                        lprep_adv, lclean_mflx, idyn_timestep, jstep, dtime)

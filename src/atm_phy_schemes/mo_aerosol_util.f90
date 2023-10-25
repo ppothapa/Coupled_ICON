@@ -1,26 +1,15 @@
-!>
-!! <Short description of module for listings and indices>
-!!
-!! <Describe the concepts of the procedures and algorithms used in the module.>
-!! <Details of procedures are documented below with their definitions.>
-!! <Include any applicable external references inline as module::procedure,>
-!! <external_procedure(), or by using @see.>
-!! <Don't forget references to literature.>
-!!
-!! @author Thorsten Reinhardt, AGeoBw, Offenbach
-!!
-!!
-!! @par Revision History
-!! Initial release by Thorsten Reinhardt, AGeoBw, Offenbach (2011-09-06)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -116,9 +105,6 @@ CONTAINS
 
   !!  Subroutine aerdis is simplified version from COSMO model (version 4.16).
   !!
-  !! @par Revision History
-  !! Initial Release by Thorsten Reinhardt, AGeoBw, Offenbach (2011-02-28)
-  !! Transferred to mo_aerosol_util Sophia Schaefer, DWD (2021-06-21)
    
   SUBROUTINE aerdis ( klevp1, kbdim, jcs, jce, petah,  pvdaes, pvdael, pvdaeu, pvdaed, lacc )
     
@@ -321,9 +307,6 @@ CONTAINS
   !! In case the RRTM gas model is chosen, the previously used lookup tables are copied
   !! into the new data structure.
   !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2021-10-20)
-  !!
   !---------------------------------------------------------------------------------------
   SUBROUTINE init_aerosol_props_tegen_ecrad(ecrad_conf, l_rrtm_gas_model)
     TYPE(t_ecrad_conf),  INTENT(inout) :: &
@@ -437,9 +420,6 @@ CONTAINS
   !! SUBROUTINE init_tegen_scal_factors
   !! Constructor for t_tegen_scal_factors
   !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2021-10-20)
-  !!
   !---------------------------------------------------------------------------------------
   SUBROUTINE init_tegen_scal_factors(this, n_bands)
     CLASS(t_tegen_scal_factors), INTENT(inout) :: &
@@ -460,9 +440,6 @@ CONTAINS
   !>
   !! SUBROUTINE finalize_tegen_scal_factors
   !! Destructor for t_tegen_scal_factors
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2021-10-20)
   !!
   !---------------------------------------------------------------------------------------
   SUBROUTINE finalize_tegen_scal_factors(this)

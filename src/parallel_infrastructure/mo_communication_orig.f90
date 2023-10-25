@@ -1,20 +1,22 @@
-!>
-!!               This module provides the communication routines for parallel runs
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-! (GZ, 2013-08-30): So far, the Cray compiler is the only one for which an OpenMP parallelization
-! of copying data into / back from the MPI-buffer seems to give a benefit. Further compilers may
-! be added here once the OpenMP implementation is sufficiently efficient
+! This module provides the communication routines for parallel runs
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+!
+!
+! (GZ, 2013-08-30): So far, the Cray compiler is the only one for
+! which an OpenMP parallelization of copying data into / back from the
+! MPI-buffer seems to give a benefit. Further compilers may be added
+! here once the OpenMP implementation is sufficiently efficient
 #if ((defined(_CRAYFTN) && !defined(_OPENACC)) || defined(__INTEL_COMPILER))
 #define __OMPPAR_COPY__
 #endif
@@ -211,9 +213,6 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !
-  !
-
-  !>
   !! Sets up a communication pattern for exchanging data.
   !!
   !! Note: This setup routine works only for the trivial communication
@@ -245,9 +244,6 @@ CONTAINS
   !!                    faster if inplace == true
   !!
   !! send_decomp_info domain decomposition information for the SENDER array
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
   !!
   SUBROUTINE setup_comm_pattern(p_pat, dst_n_points, dst_owner, &
                                 dst_global_index, send_glb2loc_index, &
@@ -732,14 +728,8 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !
-  !>
   !! Deletes a communication pattern, i.e. deallocates all arrays
   !! and sets all other members to 0
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Oct 2011
-  !!
   !
   SUBROUTINE delete_comm_pattern(p_pat)
 
@@ -807,9 +797,6 @@ CONTAINS
   !> Consistency check of communication pattern.
   !! Sends pattern info to working PE 0, which checks this data
   !! for consistency wrt. send/receive counts.
-  !!
-  !! @par Revision History
-  !! Initial implementation  by  F. Prill, DWD (2012-01-20)
   !!
   SUBROUTINE check_comm_pattern(p_pat)
     CLASS(t_comm_pattern_orig), INTENT(INOUT) :: p_pat
@@ -961,14 +948,7 @@ CONTAINS
   
   !-------------------------------------------------------------------------
   !
-  !
-  !>
   !! Does data exchange according to a communication pattern (in p_pat).
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
-  !! Modified by Guenther Zaengl for vectorization
   !!
   !================================================================================================
   ! REAL SECTION ----------------------------------------------------------------------------------
@@ -1224,14 +1204,7 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !
-  !
-  !>
   !! Does data exchange according to a communication pattern (in p_pat).
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
-  !! Modified by Guenther Zaengl for vectorization
   !!
   !================================================================================================
   ! REAL SECTION ----------------------------------------------------------------------------------
@@ -2234,14 +2207,7 @@ CONTAINS
 
   END SUBROUTINE exchange_data_l3d
 
-  !>
   !! Does data exchange according to a communication pattern (in p_pat).
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
-  !! Optimized version by Guenther Zaengl to process 4D fields or up to seven 3D fields
-  !! in one step
   !!
   SUBROUTINE exchange_data_mult(p_pat, ndim2tot, &
        recv, send, nshift)
@@ -2514,14 +2480,7 @@ CONTAINS
 
   END SUBROUTINE exchange_data_mult
 
-  !>
   !! Does data exchange according to a communication pattern (in p_pat).
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
-  !! Optimized version by Guenther Zaengl to process 4D fields and 3D fields with either single
-  !! precision or double precision
   !!
   SUBROUTINE exchange_data_mult_mixprec(p_pat, nfields_dp, ndim2tot_dp, &
        nfields_sp, ndim2tot_sp, recv_dp, send_dp, recv_sp, send_sp, nshift)
@@ -2910,14 +2869,7 @@ CONTAINS
   END SUBROUTINE exchange_data_mult_mixprec
 
 
-  !>
   !! Does data exchange according to a communication pattern (in p_pat).
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
-  !! Optimized version by Guenther Zaengl to process a 4D field whose extra dimension
-  !! is on the first index
   !!
   SUBROUTINE exchange_data_4de1(p_pat, nfields, ndim2tot, recv, send)
 
@@ -3160,14 +3112,7 @@ CONTAINS
   END SUBROUTINE exchange_data_4de1
 
 
-  !>
   !! Does data exchange according to a communication pattern (in p_pat).
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
-  !! Optimized version by Guenther Zaengl to process up to two 4D fields or up to six 3D fields
-  !! for an array-sized communication pattern (as needed for boundary interpolation) in one step
   !!
   SUBROUTINE exchange_data_grf(p_pat_coll, nfields, ndim2tot, recv, send)
 
@@ -3689,15 +3634,9 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !
-  !
-  !>
   !! Interface for 2D arrays for exchange_data.
   !!
   !! Just reshapes the arrays and calls exchange_data.
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
-  !!
   !================================================================================================
   ! REAL SECTION ----------------------------------------------------------------------------------
   !
@@ -3747,15 +3686,9 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !
-  !
-  !>
   !! Interface for 2D arrays for exchange_data.
   !!
   !! Just reshapes the arrays and calls exchange_data.
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
-  !!
   !================================================================================================
   ! REAL SECTION ----------------------------------------------------------------------------------
   !

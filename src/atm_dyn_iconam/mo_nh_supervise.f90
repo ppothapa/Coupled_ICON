@@ -1,19 +1,18 @@
-!>
-!! Computes total integrals and maxwinds in the nonhydrostatic model.
-!!
-!!
-!! @par Revision History
-!! Initial release by Almut Gassmann, MPI-M (2009-02-06)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+!
+! Computes total integrals and maxwinds in the nonhydrostatic model.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -112,16 +111,8 @@ CONTAINS
   
 
   !-----------------------------------------------------------------------------
-  !>
   !! supervise_total_integrals_nh
-  !!
-  !! @par Revision History
-  !! Initial release by Almut Gassmann (2009-06-03)
-  !! Modification by Daniel Reinert, DWD (2010-04-30):
-  !! - computation of tracer mass error
-  !! Modification by Daniel Reinert, DWD (2016-04-20):
-  !! - computation of total dry mass
-  !!
+  
   SUBROUTINE supervise_total_integrals_nh( k_step, patch, nh_state, int_state, ntimlev, ntimlev_rcf, l_last_step, lacc)
 
     INTEGER,                  INTENT(IN) :: k_step            ! actual time step
@@ -615,9 +606,6 @@ CONTAINS
   !! Computation of maximum horizontal and vertical wind speed for runtime diagnostics
   !! Was included in mo_nh_stepping before
   !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD (2013-01-07)
-  !!
   SUBROUTINE print_maxwinds(patch, vn, w, lacc)
 
     TYPE(t_patch), INTENT(IN) :: patch    ! Patch
@@ -678,9 +666,6 @@ CONTAINS
   !>
   !! Computation of maximum horizontal and vertical wind speed for runtime diagnostics
   !! Was included in mo_nh_stepping before
-  !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD (2013-01-07)
   !!
   SUBROUTINE calculate_maxwinds(patch, vn, w,   &
         & max_vn, max_vn_level, max_vn_process, &
@@ -850,10 +835,6 @@ CONTAINS
   !! a spacial average is computed for the domain given 
   !! and written to the log file. 
   !! 
-  !!
-  !! @par Revision History
-  !! Moved here from the physics interfaces by Daniel Reinert, DWD (2017-09-19)
-  !!
   SUBROUTINE compute_dpsdt (pt_patch, dt, pt_diag, lacc)
 
     TYPE(t_patch),       INTENT(IN)    :: pt_patch     !< grid/patch info

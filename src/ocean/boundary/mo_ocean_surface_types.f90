@@ -1,24 +1,19 @@
-!>
-!! This module provides definition of ocean surface module types that describe:
-!!  1) ocean surface fluxes : t_ocean_surface
-!!  2) OMIP fluxes          : t_atmos_fluxes
-!! ----------------------------------------------------------------------------------------
-!!
-!!
-!! @author Stephan Lorenz, MPI
-!!
-!! @par Revision History
-!!  Initial release by Stephan Lorenz, MPI-M (2015-04)
-!!  Modified        by Vladimir Lapin, MPI-M (2017-04)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! This module provides definition of ocean surface module types that describe:
+!  1) ocean surface fluxes : t_ocean_surface
+!  2) OMIP fluxes          : t_atmos_fluxes
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_ocean_surface_types
   USE mo_kind,                ONLY: wp
   USE mo_math_types,          ONLY: t_cartesian_coordinates

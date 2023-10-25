@@ -1,7 +1,3 @@
- module cvmix_shear
-
-!BOP
-!\newpage
 ! !MODULE: cvmix_shear
 !
 ! !AUTHOR:
@@ -10,18 +6,30 @@
 ! !DESCRIPTION:
 !  This module contains routines to initialize the derived types needed for
 !  shear mixing, and to set the viscosity and diffusivity coefficients.
-!\\
-!\\
-!  References:\\
+!
+!
+!  References:
 !  * RC Pacanowski and SGH Philander.
 !  Parameterizations of Vertical Mixing in Numerical Models of Tropical Oceans.
-!  Journal of Physical Oceanography, 1981.\\
+!  Journal of Physical Oceanography, 1981.
 !  * WG Large, JC McWilliams, and SC Doney.
 !  Oceanic Vertical Mixing: A Review and a Model with a Nonlocal Boundary Layer
 !  Parameterization.
 !  Review of Geophysics, 1994.
-!\\
-!\\
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
+MODULE cvmix_shear
 
 ! !USES:
 

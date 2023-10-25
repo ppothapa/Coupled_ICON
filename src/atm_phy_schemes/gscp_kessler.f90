@@ -1,74 +1,36 @@
-!>
-!! cloud microphysics
-!!
-!! !------------------------------------------------------------------------------
-!!
-!! @par Description of *gscp_kessler*:
-!!   This module procedure calculates the rates of change of temperature, cloud
-!!   water, water vapor and rain due to cloud microphysical processes related 
-!!   to the formation of grid scale precipitation. This includes the sedimentation 
-!!   of rain and snow. 
-!!   The precipitation fluxes at the surface are also calculated here.
-!!
-!! Method:
-!!   Prognostic one-moment bulk microphysical parameterization.
-!!   The sedimentation of rain and snow is computed implicitly.
-!!
-!! Current Code Owner: DWD, A. Seifert
-!!    phone: +49-69-8062-2729,  fax:   +49-69-8062-3721
-!!    email: Axel.Seifert@dwd.de
-!!
-!! @author Guenther Doms
-!! @author Axel Seifert
-!!
-!! @par reference   This is an adaption of subroutine kessler in file src_gscp.f90
-!!  of the COSMO-Model. Equation numbers refer to
-!!  Doms, Foerstner, Heise, Herzog, Raschendorfer, Schrodin, Reinhardt, Vogel
-!!    (September 2005): "A Description of the Nonhydrostatic Regional Model LM",
-!!
+!
+! Description of *gscp_kessler*:
+!   This module procedure calculates the rates of change of temperature, cloud
+!   water, water vapor and rain due to cloud microphysical processes related
+!   to the formation of grid scale precipitation. This includes the sedimentation
+!   of rain and snow.
+!   The precipitation fluxes at the surface are also calculated here.
+!
+! Method:
+!   Prognostic one-moment bulk microphysical parameterization.
+!   The sedimentation of rain and snow is computed implicitly.
+!
+! Reference   This is an adaption of subroutine kessler in file src_gscp.f90
+!  of the COSMO-Model. Equation numbers refer to
+!  Doms, Foerstner, Heise, Herzog, Raschendorfer, Schrodin, Reinhardt, Vogel
+!    (September 2005): "A Description of the Nonhydrostatic Regional Model LM",
+!
 !------------------------------------------------------------------------------
-!!
-!! $Id: n/a$
-!!
-!! @par Copyright
-!! 2002-2009 by DWD and MPI-M
-!! This software is provided for non-commercial use only.
-!! See the LICENSE and the WARRANTY conditions.
-!!
-!! @par License
-!! The use of ICON is hereby granted free of charge for an unlimited time,
-!! provided the following rules are accepted and applied:
-!! <ol>
-!! <li> You may use or modify this code for your own non commercial and non
-!!    violent purposes.
-!! <li> The code may not be re-distributed without the consent of the authors.
-!! <li> The copyright notice and statement of authorship must appear in all
-!!    copies.
-!! <li> You accept the warranty conditions (see WARRANTY).
-!! <li> In case you intend to use the code commercially, we oblige you to sign
-!!    an according license agreement with DWD and MPI-M.
-!! </ol>
-!!
-!! @par Warranty
-!! This code has been tested up to a certain level. Defects and weaknesses,
-!! which may be included in the code, do not establish any warranties by the
-!! authors.
-!! The authors do not make any warranty, express or implied, or assume any
-!! liability or responsibility for the use, acquisition or application of this
-!! software.
-!!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE gscp_kessler
 
 !------------------------------------------------------------------------------
-!>
-!! Description:
-!!
-!!   The subroutine in this module calculates the rates of change of
-!!   temperature, cloud condensate and water vapor due to cloud microphysical
-!!   processes related to the formation of grid scale clouds and precipitation.
-!!
-!==============================================================================
 !
 ! Declarations:
 !

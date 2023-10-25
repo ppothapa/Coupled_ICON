@@ -1,6 +1,17 @@
+! abstract type for lhs-matrix generators
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 MODULE mo_ocean_solve_lhs_type
 
-! abstract type for lhs-matrix generators
   IMPLICIT NONE
 
   PRIVATE

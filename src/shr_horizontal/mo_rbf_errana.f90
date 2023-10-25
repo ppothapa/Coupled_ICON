@@ -1,23 +1,20 @@
-!>
-!! Estimate floating point error in RBF interpolation. This module
-!! helps to decide whether Cholesky applied to the RBF matrices will
-!! succeed in floating point arithmetic and gives a qualtiy measure
-!! for the chosen shape parameter.
-!!
-!! @author F. Prill, DWD
-!!
-!! @par Revision History
-!! Initial implementation  by  F. Prill, DWD (2012-12-05)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!! -----------------------------------------------------------------------------------
+! Estimate floating point error in RBF interpolation. This module
+! helps to decide whether Cholesky applied to the RBF matrices will
+! succeed in floating point arithmetic and gives a qualtiy measure
+! for the chosen shape parameter.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_rbf_errana
 
   USE mo_kind,                 ONLY: wp
@@ -46,9 +43,6 @@ CONTAINS
   !!
   !! @f$\phi(r)=e^{-r^2}@f$
   !!
-  !! @par Revision History
-  !! Developed by L. Bonaventura  (2004).
-  !!
   FUNCTION gaussi (p_x, p_scale)  RESULT (p_rbf_val)
     REAL(wp) , INTENT(in) :: p_x             ! radial distance
     REAL(wp) , INTENT(in) :: p_scale         ! scale parameter
@@ -64,8 +58,6 @@ CONTAINS
   !
   ! Estimate numerical error and interpolation error for radial
   ! basis functions (RBF).
-  !
-  ! @author: 2013-10-14, F. Prill (DWD)
   !
   ! INPUT:
   ! e     : RBF shape parameter
@@ -313,7 +305,6 @@ CONTAINS
   ! estimate (extrapolate) the shape parameter which fulfils a given
   ! stability threshold tol_c1.
   !
-  ! Initial revision: 2013-10-14, F. Prill (DWD)
   ! ----------------------------------------------------------------------------
   SUBROUTINE estimate_rbf_parameter(dst_nblks_c, dst_npromz_c, center,                    &
     &                              intp_data_iidx, intp_data_iblk, intp_data_nstencil,    &

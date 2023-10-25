@@ -1,43 +1,33 @@
+! Computation of orbital parameters for use in radiative transfer
+! calculation (among other things)
+!
+!
+! @par Description
+!   Module provides routines, thorugh to calculate the distance to, right
+!   ascension and declination of the sun.  Two orbital models are provided:
+!   <ol>
+!     <li> orbit_vsop87 : standard and accurate model
+!     <li> orbit_kepler : simple model, appropriate for idealized work 
+!   </ol>
+! as well as an inquiry function for the declination (if it has been
+! calculated).
+!  
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 #ifdef __xlC__
 @PROCESS STRICT
 #endif
-!>
-!! @par Copyright
-!! This code is subject to the MPI-M-Software - License - Agreement in it's most recent form.
-!! Please see URL http://www.mpimet.mpg.de/en/science/models/model-distribution.html and the
-!! file COPYING in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the headers of the routines.
-!!
-!! @brief Computation of orbital parameters for use in radiative transfer
-!! calculation (among other things)
-!!
-!! @par Description
-!!   Module provides routines, thorugh to calculate the distance to, right
-!!   ascension and declination of the sun.  Two orbital models are provided:
-!!   <ol>
-!!     <li> orbit_vsop87 : standard and accurate model
-!!     <li> orbit_kepler : simple model, appropriate for idealized work 
-!!   </ol>
-!! as well as an inquiry function for the declination (if it has been
-!! calculated).
-!!
-!! @author Sebastian Rast, MPI-M, Hamburg (2015-02-17)
-!!
-!! $ID: n/a$
-!!
-!! @par Origin
-!!   Adaption of code of echam6.3 to ICON.
-!!   Rewrite and synthesis of ECHAM5 code, merging old ECHAM5 modules
-!!   mo_orbit and mo_vsop87.  Many subroutines restructured and converted to 
-!!   pure functions.  Interface function "orbit" was removed and declination
-!!   now only available through inquiry.  Added bounds checking for input
-!!   time of orbit_vsop87 to insure reasonable output.
-!! 
-!! @par Code modified from original source written or modified by S.J. Lorenz,
-!!   Uni Bremen, (1996-07, 1998-07); U. Schlese, DKRZ, (1998-09)  L. Kornblueh,
-!!   MPI-M  (1998-12, 2003-02), Bjorn Stevens, (2009-09-19).
-!!
-!
+
 MODULE mo_orbit
 
   USE mo_kind,           ONLY : wp, i8

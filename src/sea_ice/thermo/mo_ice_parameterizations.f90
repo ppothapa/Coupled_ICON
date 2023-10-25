@@ -1,23 +1,17 @@
-!>
-!! Provide an implementation of various sea ice parametrizations.
-!!
-!! @author Dirk Notz, MPI
-!! @author Vladimir Lapin, MPI
-!!
-!! @par Revision History
-!!  Original version by Dirk Notz, MPI-M (2009)
-!!  Restructured     by Vladimir Lapin, MPI-M (2017-04)
-!! 
-!! @par Revision History
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Provide an implementation of various sea ice parametrizations.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -56,10 +50,6 @@ CONTAINS
   !-------------------------------------------------------------------------------
   !>
   !! ! set_ice_albedo: set ice albedo
-  !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2010-07). Originally code written by
-  !! Dirk Notz, following MPI-OM. Code transfered to ICON.
   !!
   SUBROUTINE set_ice_albedo(i_startidx_c, i_endidx_c, nbdim, kice, Tsurf, hi, hs, &
       & albvisdir, albvisdif, albnirdir, albnirdif, use_acc)
@@ -302,9 +292,6 @@ SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice, use_acc)
   !! decreases more than ice thickness by rhoi/rhos ( analogue to old growth.f90 sea-ice model )
   !! Salt content of snow ice is equal to that of normal ice, salt is removed from the ocean
   !!
-  !! @par Revision History
-  !! Initial release by Vladimir Lapin, MPI-M (2016-11)
-  !!
   SUBROUTINE ice_draft_and_flooding (p_patch, ice, use_acc)
 
     TYPE(t_patch),      INTENT(IN), TARGET  :: p_patch
@@ -379,9 +366,6 @@ SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice, use_acc)
   !>
   !! ! ice_cut_off: Fix overshoots in concentration that appear due to ice convergence
   !! NB: currently ONLY for the one-ice-class case, kice=1
-  !!
-  !! @par Revision History
-  !! Initial release by Vladimir Lapin, MPI-M (2016-11)
   !!
   SUBROUTINE ice_cut_off (p_patch, p_ice, use_acc)
 

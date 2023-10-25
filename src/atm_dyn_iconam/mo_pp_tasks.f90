@@ -1,23 +1,22 @@
-!>
-!! Tasks for internal post-processing.
-!!
-!! The subroutines in this module can be inserted into a dynamic "job queue".
-!! See module "mo_pp_scheduler" for detailed info.
-!!
-!! @author F. Prill, DWD
-!!
-!! @par Revision History
-!! Initial implementation  by  F. Prill, DWD (2012-03-01)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!! -----------------------------------------------------------------------------------
+!
+! Tasks for internal post-processing.
+!
+! The subroutines in this module can be inserted into a dynamic "job queue".
+! See module "mo_pp_scheduler" for detailed info.
+!
+! -----------------------------------------------------------------------------------
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_pp_tasks
 
   USE mo_kind,                    ONLY: wp

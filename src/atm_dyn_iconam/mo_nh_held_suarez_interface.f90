@@ -1,22 +1,18 @@
-!>
-!! This module contains the interface between ICONAM dynamics and Held-Suarez forcing
-!!
-!!
-!! @author Pilar Ripodas, DWD
-!!  based in mo_held_suarez_interface from Hui Wan for the Hydrostatic core
-!!
-!!
-!! @par Revision History
-!! First version for non-hydrostatic core by Pilar Ripodas, DWD (2010-09-14)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! This module contains the interface between ICONAM dynamics and Held-Suarez forcing
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -53,10 +49,6 @@ CONTAINS
   !>
   !! SUBROUTINE held_suarez_nh_interface -- interface between ICONAN dynamics
   !! and Held-Suarez forcing
-  !!
-  !!
-  !! @par Revision History
-  !! fisrt release by Pilar Ripodas, DWD (2010-09-14)
   !!
   SUBROUTINE held_suarez_nh_interface (p_nh_prog,p_patch,p_int_state,p_metrics,p_nh_diag)
 

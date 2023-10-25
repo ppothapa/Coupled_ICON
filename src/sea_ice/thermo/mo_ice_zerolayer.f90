@@ -1,21 +1,18 @@
-!>
-!! Provide an implementation of the zero-layer sea ice thermodynamics (Semtner, 1976).
-!! Used by both the atmopshere and ocean models.
-!!
-!! @author Achim Randelhoff
-!! 
-!! @par Revision History
-!!  Initial release by Achim Randelhoff, MPI-M (2014-04)
-!!  Modified        by Vladimir Lapin, MPI-M (2017-04)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Provide an implementation of the zero-layer sea ice thermodynamics (Semtner, 1976).
+! Used by both the atmopshere and ocean models.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -58,10 +55,6 @@ CONTAINS
   !!
   !! The counterpart to the ice_growth subroutine in MPIOM.
   !!
-  !! @par Revision History
-  !! Initial release by Achim Randelhoff
-  !! Modified        by Vladimir Lapin, MPI (2016-11)
-  !
   SUBROUTINE ice_growth_zerolayer(p_patch, ice, use_acc)
     TYPE(t_patch),             INTENT(IN), TARGET    :: p_patch
     TYPE(t_sea_ice),           INTENT(INOUT)         :: ice
@@ -229,11 +222,6 @@ CONTAINS
   !! ice % Tsurf    the new surface temperature for each ice category       [C]
   !! ice % Qbot     heat flux available for freezing/melting at ice bottom  [W/m^2]
   !! ice % Qtop     heat flux available for melting at ice surface          [W/m^2]
-  !!
-  !! @par Revision History
-  !! Initial release by Achim Randelhoff
-  !! Modified        by Stephan Lorenz, MPI (2015-07)
-  !! Modified        by Vladimir Lapin, MPI (2016-11)
   !!
   !! Routines set_ice_temp_zero_nogradients is now a part of set_ice_temp_zerolayer.
   !! Switching between nogradients and full version is controlled by nfg_flag.

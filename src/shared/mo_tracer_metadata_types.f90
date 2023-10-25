@@ -1,23 +1,19 @@
-!>
-!! Description: 
-!! This module contains types for polymorphic tracer metadata. Additionally,
-!! a type bound procedure (TBP) is given as a constructor for the base type 
-!! t_tracer_meta. This procedure is private and may only be adressed as TBP. 
-!!
-!! @author Daniel Rieger, KIT
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Rieger, KIT (2016-01-29)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! This module contains types for polymorphic tracer metadata. Additionally,
+! a type bound procedure (TBP) is given as a constructor for the base type
+! t_tracer_meta. This procedure is private and may only be adressed as TBP.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_tracer_metadata_types
 
   USE mo_kind,            ONLY: wp

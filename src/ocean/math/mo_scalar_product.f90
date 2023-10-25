@@ -1,26 +1,22 @@
-!>
-!!               The module <i>mo_scalar_product</i>
-!! implements discrete scalar products which depend on the grid geometry only
-!! are used to formulate the primitive equations in weak form.
-!! The coefficients used for projections from triangular edges to cell centers
-!! and vice versa are contained in the ocean part of the model domain and
-!! are calculated in <i>mo_ocean_topo</i>.
-!!
-!! @par Revision History
-!! Initial version  by Peter Korn and Stephan Lorenz,  MPI-M, Hamburg, October 2010
-!! Modification by Stephan Lorenz, MPI-M, (2010-11-02)
-!! - initial primal_flip_flop divided into basic parts of primal_map_e2c and c2e
-!! Modification by Stephan Lorenz, MPI-M, (2010-11-16)
-!! - implementation as primal_map_e2c, primal_map_e2c_no_edge_height, primal_map_c2e
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! The module <i>mo_scalar_product</i>
+! implements discrete scalar products which depend on the grid geometry only
+! are used to formulate the primitive equations in weak form.
+! The coefficients used for projections from triangular edges to cell centers
+! and vice versa are contained in the ocean part of the model domain and
+! are calculated in <i>mo_ocean_topo</i>.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 #include "icon_definitions.inc"

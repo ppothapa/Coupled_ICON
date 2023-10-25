@@ -1,26 +1,21 @@
-!>
-!! Contains subroutines to calculate ozone climatology depending on day of the year.
-!! Taken from DWD's GME.
-!!
-!! Also routines overtaken from ECHAM providing vertical interpolation between
-!! obs-data and model levels (another time interpolation will be added later)
-!!
-!! @author Thorsten Reinhardt, AGeoBw, Offenbach
-!! @author  M.A. Giorgetta, MPI, May  2000
-!!
-!! @par Revision History
-!! Initial Release by Thorsten Reinhardt, AGeoBw, Offenbach (2011-01-31)
-!! ECHAM routine implemented by Kristina Froehlich, MPI-M (2011-08-17)
-!! MACC data added by Martin Koehler, DWD (2015-05-12)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Contains subroutines to calculate ozone climatology depending on day of the year.
+! Taken from DWD's GME.
+!
+! Also routines overtaken from ECHAM providing vertical interpolation between
+! obs-data and model levels (another time interpolation will be added later)
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -501,8 +496,6 @@ CONTAINS
     !! NH-model 
     !! The verical interpolation routines from mo_nh_vert_intp are used
 
-    !!  @author Kristina Froehlich, MPI-M (2011-09-06)
-
     ! Input dimension parameters
     INTEGER , INTENT(IN) :: nblks      ! Number of blocks
     INTEGER , INTENT(IN) :: npromz     ! Length of last block
@@ -733,28 +726,6 @@ CONTAINS
 
 !=======================================================================
 !
-! Current Code Owner: DWD, B. Ritter
-!    phone: +49-69-8062-2703, fax: +49-69-8062-3721
-!    email: bodo.ritter@dwd.de
-!
-!=======================================================================
-!
-!
-! History:
-! Version    Date       Name
-! ---------- ---------- ----
-! 1.1        2000/01/28 B. Ritter   based on J.F.Geleyn
-!  Initial Release
-! 1.14       2002/01/16 Helmut P. Frank
-!  Introduce KIND-notation for all reals with real2kind.pl
-! V2_24        2010/04/28 Michael Gertz
-!  Adaptions to SVN
-!
-! Code Description:
-! Language: Fortran 90.
-! Software Standards: "European Standards for Writing and
-! Documenting Exchangeable Fortran 90 Code".
-!=======================================================================
 !     The routine needs to be called only once per radiation time step,
 !     but is called from the radiation interface routine *parrad* each
 !     time this interface routine is called.
@@ -977,20 +948,6 @@ CONTAINS
 !
 !=======================================================================
 !
-! Current Code Owner: DWD, B. Ritter
-!    phone: +49-69-8062-2703, fax: +49-69-8062-3721
-!    email: bodo.ritter@dwd.de
-!
-!=======================================================================
-!
-! History:
-! Version      Date       Name
-! ------------ ---------- ----
-! V2_16        2008/06/23 J.-O. Beismann, D. Liermann, H. Frank
-!  Initial release
-! V2_24        2010/04/28 Michael Gertz
-!  Adaptions to SVN
-!
 !     PURPOSE.
 !     --------
 !
@@ -1105,9 +1062,6 @@ CONTAINS
   !>
   !! Calculates GEMS ozone climatology.
   !! Taken and adapted from ECMWF's IFS (37r2).
-  !!
-  !! @par Revision History
-  !! Initial Release by Thorsten Reinhardt, AGeoBw, Offenbach (2011-10-18)
   !!
   SUBROUTINE calc_o3_gems(pt_patch,mtime_datetime,p_diag,prm_diag,o3,use_acc)
 
@@ -1585,9 +1539,9 @@ CONTAINS
               & .AND. p_diag%pres_ifc(jc,jk+1,jb) < RCLPR(jkk+1)) THEN
               zint=(p_diag%pres_ifc(jc,jk+1,jb)-RCLPR(jkk))/(RCLPR(jkk+1)-RCLPR(jkk)) 
               IF (jkk >= 3 .AND. jkk <= nlev_gems-3) THEN
-	        ! use spline-like interpolation in the interior part in order to avoid steps in the
-		! interpolated ozone profile if the vertical model resolution is significantly higher than 
-		! the resolution of the ozone climatology
+                ! use spline-like interpolation in the interior part in order to avoid steps in the
+                ! interpolated ozone profile if the vertical model resolution is significantly higher than 
+                ! the resolution of the ozone climatology
                 z1 = 0.25_wp*zo3(jc,jkk)   + 0.75_wp*zo3(jc,jkk+1)
                 z2 = 0.25_wp*zo3(jc,jkk+2) + 0.75_wp*zo3(jc,jkk+1)
                 zgrad = z1 + zint*(3._wp*zo3(jc,jkk+1)-2._wp*z1-z2) + zint**2*(-2._wp*zo3(jc,jkk+1)+z1+z2)

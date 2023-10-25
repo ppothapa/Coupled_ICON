@@ -1,3 +1,18 @@
+! Contains the implementation of interpolation onto regular grids
+! with barycentric interpolation.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------  
+
 #ifdef __xlC__
   @PROCESS smp=noopt
   @PROCESS noopt
@@ -6,21 +21,6 @@
   !pgi$g opt=1
 #endif
 
-!>
-!! Contains the implementation of interpolation onto regular grids
-!! with barycentric interpolation.
-!!
-!! @par Revision History
-!! Moved from mo_intp_lonlat : 2015-05-29, F. Prill (DWD)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
   MODULE mo_intp_lonlat_baryctr
     !-------------------------------------------------------------------------
     !
@@ -409,10 +409,7 @@
 
 
     !-------------------------------------------------------------------------
-    !> Compute Delaunay triangulation of mass points.
-    !
-    ! @par Revision History
-    !      Initial implementation  by  F. Prill, DWD (2015-04)
+    ! Compute Delaunay triangulation of mass points.
     !
     SUBROUTINE compute_triangulation_local_partition (ptr_patch, tri, p_global)
       ! data structure containing grid info:
@@ -1117,11 +1114,8 @@
 
 
     !-------------------------------------------------------------------------
-    !> Setup routine for barycentric interpolation at lon-lat grid
-    !  points for an arbitrary grid.
-    !
-    ! @par Revision History
-    !      Initial implementation  by  F. Prill, DWD (2015-03)
+    ! Setup routine for barycentric interpolation at lon-lat grid
+    ! points for an arbitrary grid.
     !
     SUBROUTINE setup_barycentric_intp_lonlat_repartition(ptr_patch, tri_global, p_global,  &
       &                                                  triangulation_read_from_file,     &
@@ -1258,11 +1252,8 @@
 
 
     !-------------------------------------------------------------------------
-    !> Setup routine for barycentric interpolation at lon-lat grid
-    !  points for an arbitrary grid.
-    !
-    ! @par Revision History
-    !      Initial implementation  by  F. Prill, DWD (2015-01)
+    ! Setup routine for barycentric interpolation at lon-lat grid
+    ! points for an arbitrary grid.
     !
     SUBROUTINE setup_barycentric_intp_lonlat(tri, p_global, ptr_int_lonlat)
       ! triangulation of mass points.

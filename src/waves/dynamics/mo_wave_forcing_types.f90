@@ -1,24 +1,19 @@
-!>
-!! Data type defintion for wave forcing data state
-!!
-!! Defines the data type for storing wave-specific forcing
-!! fields.
-!!
-!! @author Mikhail Dobrynin, DWD
-!!
-!!
-!! @par Revision History
-!! Initial Revision by Mikhail Dobrynin, DWD (2023-02-08)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Data type defintion for wave forcing data state
+!
+! Defines the data type for storing wave-specific forcing
+! fields.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_wave_forcing_types
 
   USE mo_kind,               ONLY: wp

@@ -1,26 +1,17 @@
-!>
-!! @brief namelist setup for the sea-ice model
-!!
-!! Namelist setup for the sea-ice model
-!! <Details of procedures are documented below with their definitions.>
-!! <Include any applicable external references inline as module::procedure,>
-!! <external_procedure(), or by using @see.>
-!! <Don't forget references to literature.>
-!!
-!! @author Einar Olason, MPI-M (2013-01-29)
-!!
-!!
-!! @par Revision History
-!! New file based on mo_lnd_jsbach_nml.f90 by Einar Olason, MPI-M (2013-01-29)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! namelist setup for the sea-ice model
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_sea_ice_nml
 
   USE mo_kind,                ONLY: wp

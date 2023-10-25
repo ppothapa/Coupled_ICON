@@ -1,36 +1,34 @@
-!>
-!! Subroutine to initialize testcases 21 22 (Mountain waves over a Schaer 
-!! type mountain on a small planet without and with wind shear) proposed 
-!! for the DCMIP summer school
-!!
-!!
-!!  The tests in this section examine the response of atmospheric models to flow over a 
-!! mountain profile, with and without wind shear. In order to ensure the simulated response
-!! contains both hydrostatic and non-hydrostatic features, the radius of the Earth is scaled so that the
-!! simulation is in the non-hydrostatic domain. We chose a non-rotating Earth with angular velocity
-!! = 0 s^-1 and select a reduced-size Earth with radius as = a/X. The reduction factor is set to
-!! X = 500. This choice leads to an Earth with a circumference at the equator of about 2pi a/X, which is 
-!! approximately 80 km. These underlying ideas behind the tests are based on the work of Schaer et al. (MWR 2002),
-!! Wedi and Smolarkiewicz (QJR 2009), and Wedi et al. (ECMWF Tech Report 2009)
-!! Note however that in the presence of vertical wind shear we do not recommend the isothermal conditions 
-!! suggested in the literature. They lead to imbalances of the initial conditions in spherical geometry
-!!
-!! @par Revision History
-!! - initial revision by Pilar Ripodas, DWD, (2012-05-30)
-!!
-!! @par Literature
-!! - Dynamical Core Model Intercomparison Project (DCMIP) 
-!!   Test Case Document (P. Ullrich et al, 2012)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Subroutine to initialize testcases 21 22 (Mountain waves over a Schaer
+! type mountain on a small planet without and with wind shear) proposed
+! for the DCMIP summer school
+!
+! The tests in this section examine the response of atmospheric models to flow over a
+! mountain profile, with and without wind shear. In order to ensure the simulated response
+! contains both hydrostatic and non-hydrostatic features, the radius of the Earth is scaled so that the
+! simulation is in the non-hydrostatic domain. We chose a non-rotating Earth with angular velocity
+! = 0 s^-1 and select a reduced-size Earth with radius as = a/X. The reduction factor is set to
+! X = 500. This choice leads to an Earth with a circumference at the equator of about 2pi a/X, which is
+! approximately 80 km. These underlying ideas behind the tests are based on the work of Schaer et al. (MWR 2002),
+! Wedi and Smolarkiewicz (QJR 2009), and Wedi et al. (ECMWF Tech Report 2009)
+! Note however that in the presence of vertical wind shear we do not recommend the isothermal conditions
+! suggested in the literature. They lead to imbalances of the initial conditions in spherical geometry
+!
+! Literature
+! - Dynamical Core Model Intercomparison Project (DCMIP)
+!   Test Case Document (P. Ullrich et al, 2012)
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_nh_dcmip_schaer
 
    USE mo_kind,                 ONLY: wp
@@ -66,9 +64,6 @@ MODULE mo_nh_dcmip_schaer
 !
   !>
   !! Initialization of topograpphy for the nh schaer-type DCMIP test cases 
-  !!
-  !! @par Revision History
-  !!
   !!
   SUBROUTINE init_nh_topo_dcmip_schaer( p_patch, topo_c, fis)
 
@@ -148,9 +143,6 @@ MODULE mo_nh_dcmip_schaer
   !! Wedi and Smolarkiewicz (QJR 2009), and Wedi et al. (ECMWF Tech Report 2009)
   !! Note however that in the presence of vertical wind shear we do not recommend the isothermal conditions 
   !! suggested in the literature. They lead to imbalances of the initial conditions in spherical geometry
-  !! @par Revision History
-  !! - initial revision by Pilar Ripodas, DWD (2012-05-30)
-  !!
 
   SUBROUTINE init_nh_prog_dcmip_schaer(p_patch, p_nh_prog, p_nh_diag, p_nh_ref, &
     &                                  p_metrics, p_int, l_hydro_adjust )

@@ -1,25 +1,19 @@
-!>
-!! Geometric computations which are specific to the transport algorithm.
-!!
-!! Module contains procedures for geometric computations which are
-!! specific to the horizontal transport schemes.
-!!
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2013-10-30)
-!! Modification by Daniel Reinert, DWD (2013-10-30)
-!! - moved divide_flux_area from mo_advection_traj to this module
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Geometric computations which are specific to the transport algorithm.
+!
+! Module contains procedures for geometric computations which are
+! specific to the horizontal transport schemes.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -59,9 +53,6 @@ CONTAINS
   !!
   !! Flux area (aka. departure region) is subdivided according to its overlap
   !! with the underlying grid.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2012-04-03)
   !!
   SUBROUTINE divide_flux_area(p_patch, p_int, p_vn, p_vt,            &
     &                         dreg_patch0, dreg_patch1, dreg_patch2, &
@@ -842,9 +833,6 @@ CONTAINS
   !!
   !! Flux area (aka. departure region) is subdivided according to its overlap
   !! with the underlying grid.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2013-11-01)
   !!
   SUBROUTINE divide_flux_area_list(p_patch, p_int, p_vn, p_vt, falist, &
     &                         dreg_patch0, dreg_patch1, dreg_patch2,   &

@@ -1,18 +1,17 @@
-!>
-!! @brief Master namelist.
-!!        
-!! @par Revision History
-!! Created by Rene Redler (2011-03-22)
-!! Major revision by Luis Kornblueh (2015-04-15)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Master namelist.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_master_nml
 
   USE mo_exception,      ONLY: finish, message, warning
@@ -49,8 +48,6 @@ CONTAINS
   !! Initialization of variables that contain general information
   !! about the coupled model run. The configuration is read from
   !! namelist 'master_nml'.
-  !!
-  !! @par Revision History
   !!
   INTEGER FUNCTION read_master_namelist(namelist_filename)
     

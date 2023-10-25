@@ -1,29 +1,24 @@
-!>
-!! Preliminary read and time interpolation of greenhouse gases data
-!!
-!! This is  a clone of the respective ECHAM routine
-!!
-!! Time series of various greenhouse gases are read from
-!! file bc_greenhouse_gases.nc (CO2, CH4, N2O, and CFC's).
-!! Provides interpolation in time and conversion from volume mixing ratio 
-!! to mass mixing ratio of CO2, CH4, and N2O - not for CFC's!
-!!
-!! U. Schlese, DKRZ, June 1995, original source
-!! L. Kornblueh, MPI, November 2001, changed to read netCDF input,
-!!             packed in a module, f90 rewrite, and parallelization        
-!! M. Esch, MPI, May 2004, modified for scenarios
-!! M. Esch, MPI, December 2009, modified for CMIP5
-!! J. S. Rast, MPI, August 2010, modified interpolation to time step of radiation
-!! R. Schnur,  MPI, November 2010, for current time step and CO2 only
-!! L. Kornblueh, MPI, March 2013, adapted as temporary reader in ICON
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+!
+! Preliminary read and time interpolation of greenhouse gases data
+!
+! This is  a clone of the respective ECHAM routine
+!
+! Time series of various greenhouse gases are read from
+! file bc_greenhouse_gases.nc (CO2, CH4, N2O, and CFC's).
+! Provides interpolation in time and conversion from volume mixing ratio
+! to mass mixing ratio of CO2, CH4, and N2O - not for CFC's!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_bc_greenhouse_gases
 
   USE mo_kind,               ONLY: wp, dp, i8

@@ -1,25 +1,19 @@
-!>
-!! Reading of forcing data in standalone mode
-!!
-!! Routines for reading forcing data at user-defined time intervals in
-!! standalone mode.
-!!
-!! @author Daniel Reinert, DWD
-!! @author Mikhail Dobrynin, DWD
-!!
-!!
-!! @par Revision History
-!! Initial Revision by Daniel Reinert, (2023-06-13)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Reading of forcing data in standalone mode
+!
+! Routines for reading forcing data at user-defined time intervals in
+! standalone mode.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_wave_forcing
 
   USE mo_kind,                     ONLY: wp
@@ -89,9 +83,6 @@ CONTAINS
   !!
   !! Initialize the reader object which reads wave forcing data from file
   !! and performs a linear interpolation in time to a specified target date.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2023-06-13)
   !!
   SUBROUTINE read_wave_forcing__init (self, p_patch, destination_time, wave_forc_wind_file, &
     &        wave_forc_ice_file, wave_forc_slh_file, wave_forc_osc_file)
@@ -191,9 +182,6 @@ CONTAINS
   !! a linear interpolation to the specified destination time is performed.
   !! The result is stored inside the read object itself.
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2023-06-14)
-  !!
   SUBROUTINE read_wave_forcing__get_new_rawdata (self, destination_time)
 
     CHARACTER(len=*), PARAMETER :: routine = modname//':read_wave_forcing__get_new_rawdata'
@@ -234,9 +222,6 @@ CONTAINS
   !! The forcing state vector is updated by copying the raw data fields to the
   !! corresponding state vars. Additional diagnostic fields are updated on the basis
   !! of the recent raw data fields, which results in a fully updated forcing state vector.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2023-06-14)
   !!
   SUBROUTINE read_wave_forcing__update_forcing (self, destination_time, u10m, v10m, &
     &                                           sp10m, dir10m, sic, slh, uosc, vosc, &
@@ -335,9 +320,6 @@ CONTAINS
   !! Destruct reader of wave forcing data
   !!
   !! Destruct the reader object which reads in wave forcing data from file
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2023-06-13>)
   !!
   SUBROUTINE read_wave_forcing__deinit (self)
 

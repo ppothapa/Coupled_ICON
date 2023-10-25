@@ -1,21 +1,19 @@
-!>
-!! This module contains the driver routines needed for initializing nested
-!! domains that are started sometime during the integration
-!!
-!! @author Guenther Zaengl, DWD
-!!
-!!
-!! @par Revision History
-!! First version by Guenther Zaengl, DWD (2012-06-06)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! This module contains the driver routines needed for initializing nested
+! domains that are started sometime during the integration
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -83,14 +81,9 @@ MODULE mo_nh_init_nest_utils
   !!
   !! Driver routine for initializing a nested domain during runtime from the parent domain
   !!
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2012-06-06)
-  !!
   !! Note: the interpolation of the land variables does not yet include the
   !! land-water mask and adaptations to make optimal use of tiles
   !! The aggregate_landvars routine must be called before this routine
-  !!
   !!
   SUBROUTINE initialize_nest(jg, jgc)
 
@@ -842,11 +835,6 @@ MODULE mo_nh_init_nest_utils
   !! Scalars and wind increments are processed separately because wind increments are filtered in
   !! SR create_dwdanainc_atm, and the parent-to-child interpolation is executed after filtering
   !!
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2014-07-16)
-  !!
-  !!
   SUBROUTINE interpolate_scal_increments(initicon, jg, jgc)
 
     TYPE(t_initicon_state), TARGET, INTENT(INOUT) :: initicon(:)
@@ -1026,10 +1014,6 @@ MODULE mo_nh_init_nest_utils
   !! * fr_ice    (full field)
   !! * sst       (full field)
   !!   i.e. t_so(0) over sea points only or t_seasfc
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2014-12-12)
-  !!
   !!
   SUBROUTINE interpolate_sfcana(initicon, inputInstructions, jg, jgc )
 
@@ -1314,9 +1298,6 @@ MODULE mo_nh_init_nest_utils
   !! Computes topography blending for nested domains initialized with real
   !! topography data
   !!
-  !! @par Revision History
-  !! Initial release by Guenther Zaengl, DWD, (2011-07-05)
-  !!
   SUBROUTINE topography_blending(p_pp, p_pc, p_grf, i_chidx, &
                topo_cp, topo_cc)
 
@@ -1460,9 +1441,6 @@ MODULE mo_nh_init_nest_utils
   !>
   !! Computes topography feedback for nested domains initialized with real
   !! topography data
-  !!
-  !! @par Revision History
-  !! Initial release by Guenther Zaengl, DWD, (2011-07-05)
   !!
   SUBROUTINE topography_feedback(p_pp, i_chidx, topo_cp, topo_cc)
 

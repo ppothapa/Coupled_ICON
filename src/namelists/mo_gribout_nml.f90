@@ -1,26 +1,20 @@
-!>
-!! Namelist for Grib output
-!!
-!! These subroutines are called by  read_atmo_namelists and do the transport
-!! setup.
-!!
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2011-04-20)
-!! - moved here from mo_advection_utils
-!! Modification by Daniel Reinert, DWD (2011-04-20)
-!! - some updates on the structure
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Namelist for Grib output
+!
+! These subroutines are called by  read_atmo_namelists and do the transport
+! setup.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_gribout_nml
 
   USE mo_io_units,            ONLY: nnml, nnml_output
@@ -173,8 +167,6 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !
-  !
-  !>
   !! Read Namelist for gribout.
   !!
   !! This subroutine
@@ -185,9 +177,6 @@ CONTAINS
   !! - reads the user's (new) specifications
   !! - stores the Namelist for restart
   !! - fills the configuration state (partly)
-  !!
-  !! @par Revision History
-  !!  by Daniel Reinert, DWD (2013-01-29)
   !!
   SUBROUTINE read_gribout_namelist( filename )
 

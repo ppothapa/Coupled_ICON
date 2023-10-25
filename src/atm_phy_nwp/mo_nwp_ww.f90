@@ -1,39 +1,17 @@
-MODULE mo_nwp_ww
+!  Module to calculate weather interpretation, WW.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
-!>
-!!  Module to calculate weather interpretation, WW.
-!!
-!! @author Helmut Frank, DWD
-!!
-!! $Id: n/a$
-!!
-!! @par Copyright
-!! 2002-2009 by DWD and MPI-M
-!! This software is provided for non-commercial use only.
-!! See the LICENSE and the WARRANTY conditions.
-!!
-!! @par License
-!! The use of ICON is hereby granted free of charge for an unlimited time,
-!! provided the following rules are accepted and applied:
-!! <ol>
-!! <li> You may use or modify this code for your own non commercial and non
-!!    violent purposes.
-!! <li> The code may not be re-distributed without the consent of the authors.
-!! <li> The copyright notice and statement of authorship must appear in all
-!!    copies.
-!! <li> You accept the warranty conditions (see WARRANTY).
-!! <li> In case you intend to use the code commercially, we oblige you to sign
-!!    an according license agreement with DWD and MPI-M.
-!! </ol>
-!!
-!! @par Warranty
-!! This code has been tested up to a certain level. Defects and weaknesses,
-!! which may be included in the code, do not establish any warranties by the
-!! authors.
-!! The authors do not make any warranty, express or implied, or assume any
-!! liability or responsibility for the use, acquisition or application of this
-!! software.
-!!
+MODULE mo_nwp_ww
 
 #ifdef ONLYWW
 
@@ -756,23 +734,6 @@ WW_PRECIP: IF (rgdiff < rgdiff_th1) THEN
 !   the value of this sum resp. the value of the temperature at level ke set
 !   isprb and return to the calling program.
 !
-! Current Code Owner: DWD, Ulrich Pflueger
-!   Deutscher Wetterdienst, Abt. FE1
-!   Frankfurter Str. 135
-!   63067 Offenbach/Main
-!   Telefon: 069/8062-2753
-!   FAX: 069/8062-3721
-!   email: ulrich.pflueger@dwd.de
-!
-! History:
-! Version    Date       Name
-! ---------- ---------- ----
-! V1_0         2014/02/27 Ulrich Pflueger
-!  Initial release - based on V1_31 gefr.f (library wwlm)
-!  and               based on V1_9  gefr.f (library wwlmk)
-!
-! Code Description:
-! Language: Fortran 90.
 !=======================================================================
 !
       INTEGER, INTENT(IN)  :: jg                ! patch index

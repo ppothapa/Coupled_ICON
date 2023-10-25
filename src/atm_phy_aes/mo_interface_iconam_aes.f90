@@ -1,67 +1,44 @@
-!>
-!!
-!!------------------------------------------------------------------------------
-!! This module provides the interface between dynamics&transport and physics.
-!!
-!! @author Marco Giorgetta (MPI-M)
-!!
-!!------------------------------------------------------------------------------
-!!
-!! @brief Interface between ICONAM dynamics&transport and AES physics
-!!
-!! The provisional atmospheric state existing after dynamics&transport is used
-!! as input for the phyiscs parameterizations. The resulting physical tendencies
-!! are used to update and thus obtain the final atmospheric state of the time
-!! step. Thus the entire physics is treated as "fast" physics.
-!!
-!! Procedure:
-!! - Prepare the input fields from the prognostic state,
-!! - Call a subroutine to prepare the physics boundary conditions,
-!! - Call a subroutine to calculate the physics tendencies,
-!! - Call a subroutine to couple atmosphere and ocean, if needed,
-!! - Update the prognostic state with the physics tendencies,
-!! - Synchronize the prognostic state
-!!
-!! Memory:
-!! - Global atmospheric state fields needed in phyiscs are bundled in the
-!!   'field' (f) data type, using references to the memory of the original
-!!   fields organized in a number of data types used in the dynamics and
-!!   transport components.
-!! - Tendencies dx/dt resulting from physics are stored in the 'tend' (t) data
-!!   type, which has its own memory. These physics tendencies are used for the
-!!   final update of the prognostic variables before the end of the interface.
-!!
-!!
-!! @par Revision History
-!!  first implementation by Marco Giorgetta, MPI-M (2014-03-27)
-!!
-!! @par Copyright
-!! 2002-2023 by DWD and MPI-M
-!! This software is provided for non-commercial use only.
-!! See the LICENSE and the WARRANTY conditions.
-!!
-!! @par License
-!! The use of ICON is hereby granted free of charge for an unlimited time,
-!! provided the following rules are accepted and applied:
-!! <ol>
-!! <li> You may use or modify this code for your own non commercial and non
-!!      violent purposes.
-!! <li> The code may not be re-distributed without the consent of the authors.
-!! <li> The copyright notice and statement of authorship must appear in all
-!!      copies.
-!! <li> You accept the warranty conditions (see WARRANTY).
-!! <li> In case you intend to use the code commercially, we oblige you to sign
-!!      an according license agreement with DWD and MPI-M.
-!! </ol>
-!!
-!! @par Warranty
-!! This code has been tested up to a certain level. Defects and weaknesses,
-!! which may be included in the code, do not establish any warranties by the
-!! authors.
-!! The authors do not make any warranty, express or implied, or assume any
-!! liability or responsibility for the use, acquisition or application of this
-!! software.
-!!
+!
+!
+!------------------------------------------------------------------------------
+! This module provides the interface between dynamics&transport and physics.
+!
+!------------------------------------------------------------------------------
+!
+! Interface between ICONAM dynamics&transport and AES physics
+!
+! The provisional atmospheric state existing after dynamics&transport is used
+! as input for the phyiscs parameterizations. The resulting physical tendencies
+! are used to update and thus obtain the final atmospheric state of the time
+! step. Thus the entire physics is treated as "fast" physics.
+!
+! Procedure:
+! - Prepare the input fields from the prognostic state,
+! - Call a subroutine to prepare the physics boundary conditions,
+! - Call a subroutine to calculate the physics tendencies,
+! - Call a subroutine to couple atmosphere and ocean, if needed,
+! - Update the prognostic state with the physics tendencies,
+! - Synchronize the prognostic state
+!
+! Memory:
+! - Global atmospheric state fields needed in phyiscs are bundled in the
+!   'field' (f) data type, using references to the memory of the original
+!   fields organized in a number of data types used in the dynamics and
+!   transport components.
+! - Tendencies dx/dt resulting from physics are stored in the 'tend' (t) data
+!   type, which has its own memory. These physics tendencies are used for the
+!   final update of the prognostic variables before the end of the interface.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"

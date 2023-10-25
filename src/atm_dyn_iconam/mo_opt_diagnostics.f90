@@ -1,30 +1,28 @@
-!>
-!! Definition of optional (diagnostic) model variables
-!!
-!! In the metadata of each model variable ("add_var") it is specified
-!! *how* certain post-processing tasks, e.g. vertical interpolation
-!! onto p/z-levels, are treated. In the namelist, users can then
-!! specify *if* computations for these variables are performed.
-!!
-!! If so, the resulting model fields are appended to the list of
-!! internal post-processing tasks (each field forms its own task). As
-!! we do not know in advance the contents of this list, we call them
-!! "optional diagnostics".
-!!
-!! @author F. Prill (DWD)
-!!
-!! @par Revision History
-!! Initial implementation by F. Prill, DWD (2012-03-07)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+!
+! Definition of optional (diagnostic) model variables
+!
+! In the metadata of each model variable ("add_var") it is specified
+! *how* certain post-processing tasks, e.g. vertical interpolation
+! onto p/z-levels, are treated. In the namelist, users can then
+! specify *if* computations for these variables are performed.
+!
+! If so, the resulting model fields are appended to the list of
+! internal post-processing tasks (each field forms its own task). As
+! we do not know in advance the contents of this list, we call them
+! "optional diagnostics".
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_opt_diagnostics
 
   USE mo_kind,                 ONLY: wp

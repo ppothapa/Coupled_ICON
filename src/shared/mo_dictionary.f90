@@ -1,31 +1,27 @@
-!>
-!! Module for associating pairs of strings,
-!! e.g. for translating between variable names.
-!!
-!! @author F. Prill, DWD
-!!
-!! @note This implementation is aimed at *small* dictionaries,
-!!       e.g. translation between variable names. The algorithms
-!!       contained in this module are therefore simple and will
-!!       not scale with large data bases.
-!!
-!! @note When loading key-value pairs from an external text file, the
-!!       current implementation is restricted to strings that do not
-!!       contain spaces.
-!!
-!!
-!! @par Revision History
-!! Initial implementation  by  F. Prill, DWD (2013-01-21)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!! -----------------------------------------------------------------------------------
+! Module for associating pairs of strings,
+! e.g. for translating between variable names.
+!
+! @note This implementation is aimed at *small* dictionaries,
+!       e.g. translation between variable names. The algorithms
+!       contained in this module are therefore simple and will
+!       not scale with large data bases.
+!
+! @note When loading key-value pairs from an external text file, the
+!       current implementation is restricted to strings that do not
+!       contain spaces.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_dictionary
 
   USE mo_exception,      ONLY: finish

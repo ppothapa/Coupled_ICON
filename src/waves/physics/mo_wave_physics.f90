@@ -1,18 +1,17 @@
-!! Contains the subroutines with wave physics parametrisation
-!!
-!! @author Mikhail Dobrynin
-!!
-!! @par Revision History
-!! Initial revision by Mikhail Dobrynin, DWD  (2019.09.05)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Contains the subroutines with wave physics parametrisation
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -67,10 +66,6 @@ CONTAINS
   !!
   !! Calculation of shallow water cell centered
   !! wave group velocity
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2023-02-01)
-  !! Vectorization by Daniel Reinert, DWD (2023-02-13)
   !!
   SUBROUTINE wave_group_velocity_c(p_patch, p_config, wave_num_c, bathymetry_c, gv_c)
 
@@ -133,10 +128,6 @@ CONTAINS
   !! Calculation of shallow water edges centered
   !! wave group velocities
   !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2023-02-01)
-  !! Vectorization by Daniel Reinert, DWD (2023-02-13)
-  !!
   SUBROUTINE wave_group_velocity_e(p_patch, p_config, wave_num_e, bathymetry_e, gv_e)
 
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
@@ -197,10 +188,6 @@ CONTAINS
   !! Calculation of shallow water
   !! edge-normal and -tangential projections of
   !! wave group velocities using spectral directions
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2023-02-01)
-  !! Vectorization by Daniel Reinert, DWD (2023-02-13)
   !!
   SUBROUTINE wave_group_velocity_nt(p_patch, p_config, gv_e, gvn_e, gvt_e)
 
@@ -279,10 +266,6 @@ CONTAINS
   !! hence:
   !! * towards the coast, if (cells%edge_orientation * vn) > 0
   !! * towards the sea,   if (cells%edge_orientation * vn) < 0
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2023-02-15)
-  !! Vectorization by Daniel Reinert, DWD (2023-02-16)
   !!
   SUBROUTINE wave_group_velocity_bnd(p_patch, p_config, gvn_e)
 
@@ -375,10 +358,6 @@ CONTAINS
 !!$  !! in case of wave energy propagation towards the ocean,
 !!$  !! and set gn = deep water group velocity otherwise
 !!$  !!
-!!$  !! @par Revision History
-!!$  !! Initial revision by Mikhail Dobrynin, DWD (2023-02-15)
-!!$  !! Vectorization by Daniel Reinert, DWD (2023-02-xx)
-!!$  !!
 !!$  SUBROUTINE wave_group_velocity_bnd(p_patch, p_config, gvn_e)
 !!$
 !!$    CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
@@ -468,10 +447,6 @@ CONTAINS
   !!
   !! Adaptation of WAM 4.5 algorithm and code for calculation of total stress
   !! and sea surface roughness for ICON-waves (P.A.E.M. Janssen, 1990).
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-  !! Vectorization by Daniel Reinert, DWD (2023-01-30)
   !!
   SUBROUTINE air_sea(p_patch, wave_config, wsp10m, tauw, ustar, z0)
 
@@ -581,10 +556,6 @@ CONTAINS
   !! of the subroutine FEMEAN developed by S.D. HASSELMANN,
   !! optimized by L. Zambresky and H. Guenther, GKSS, 2001                              !
   !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-01-30)
-  !!
   SUBROUTINE mean_frequency_energy(p_patch, wave_config, tracer, llws, emean, emeanws, femean, femeanws)
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER :: &
          & routine =  modname//'mean_frequency_energy'
@@ -672,10 +643,6 @@ CONTAINS
   !! Adaptation of WAM 4.5 code of the subroutine TOTAL_ENERGY
   !! developed by S.D. HASSELMANN, optimized by L. Zambresky
   !! and H. Guenther, GKSS, 2001
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-01-30)
   !!
   SUBROUTINE total_energy(p_patch, wave_config, tracer, llws, emean, emeanws)
     ! in  p_patch, p_prog%tracer, wave_config%freq_ind, wave_config%MO_TAIL
@@ -783,10 +750,6 @@ CONTAINS
   !!       R SNYDER ET AL,1981.
   !!       G. KOMEN, S. HASSELMANN AND K. HASSELMANN, JPO, 1984.
   !!       P. JANSSEN, JPO, 1985
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-05-02)
   !!
   SUBROUTINE wave_stress(p_patch, wave_config, p_diag, dir10m, tracer)
      CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
@@ -948,10 +911,6 @@ CONTAINS
   !!
   !! Adaptation of WAM 4.5 code.
   !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-04-26)
-  !!
   SUBROUTINE high_frequency_stress(wave_config, i_startidx, i_endidx, last_prog_freq_ind, &
     &                              ustar, z0, xlevtail, tauhf1, phihf1)
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
@@ -1039,10 +998,6 @@ CONTAINS
   !! TM1_TM2_PERIODS_B
   !! Integration of spectra and adding of tail factors.
   !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-04-26)
-  !!
   SUBROUTINE tm1_period(p_patch, wave_config, tracer, emean, tm1, f1mean)
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
          &  routine = modname//'tm1_period'
@@ -1128,10 +1083,6 @@ CONTAINS
   !! Increase of spectrum in a time step and limit to a finite
   !! fraction of a typical F**(-4) equilibrium spectrum.
   !! Adaptation of WAM 4.5 code.
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-01-30)
   !!
   SUBROUTINE new_spectrum(p_patch, wave_config, p_diag, dir10m, tracer)
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
@@ -1271,10 +1222,6 @@ CONTAINS
   !! Adaptation of WAM 4.5 code.
   !! IMPHFTAIL
   !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-10-10)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-04-26)
-  !!
   SUBROUTINE impose_high_freq_tail(p_patch, wave_config, wave_num_c, depth, last_prog_freq_ind, tracer)
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER :: &
          & routine =  modname//'impose_high_freq_tail'
@@ -1368,10 +1315,6 @@ CONTAINS
   !! P. Janssen, JPO, 1989.
   !! P. Janssen, JPO., 1991.
   !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-10-10)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-04-25)
-  !!
   SUBROUTINE input_source_function(p_patch, wave_config, dir10m, tracer, p_diag)
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER :: &
          & routine =  modname//'input_source_function'
@@ -1464,10 +1407,6 @@ CONTAINS
   !!   WM1 IS SQRT(1/K)*F
   !!   WM2 IS SQRT(K)*F
   !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-10-10)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-04-25)
-  !!
   SUBROUTINE wm1_wm2_wavenumber(p_patch, wave_config, wave_num_c, tracer, emean, akmean, xkmean)
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER :: &
          & routine =  modname//'wm1_wm2_wavenumber'
@@ -1558,10 +1497,6 @@ CONTAINS
 !!$  !! G. KOMEN, P. JANSSEN   KNMI              01/06/1986
 !!$  !! Adaptation of WAM 4.5 code, function AKI
 !!$  !!
-!!$  !! @par Revision History
-!!$  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-!!$  !! Optimization and vectorization by Daniel Reinert, DWD (2023-02-13)
-!!$  !!
 !!$  FUNCTION wave_number(OM, depth) RESULT(wave_num)
 !!$    REAL(wp), INTENT(IN) :: OM                  !< CIRCULAR FREQUENCY 2*pi*freq (nfreqs)
 !!$    REAL(wp), INTENT(IN) :: depth(:)            !< bathymetric height at cell centers (nproma)
@@ -1625,10 +1560,6 @@ CONTAINS
   !! Newtons method to solve the dispersion relation in shallow water.
   !! G. KOMEN, P. JANSSEN   KNMI              01/06/1986
   !! Adaptation of WAM 4.5 code, function AKI
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-02-13)
   !!
   SUBROUTINE wave_number_c(p_patch, wave_config, depth, wave_num_c)
 
@@ -1717,10 +1648,6 @@ CONTAINS
   !! Newtons method to solve the dispersion relation in shallow water.
   !! G. KOMEN, P. JANSSEN   KNMI              01/06/1986
   !! Adaptation of WAM 4.5 code, function AKI
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-02-13)
   !!
   SUBROUTINE wave_number_e(p_patch, wave_config, depth, wave_num_e)
 
@@ -1822,10 +1749,6 @@ CONTAINS
   !! G.Komen, S. Hasselmann And K. Hasselmann, On The Existence
   !!          Of A Fully Developed Windsea Spectrum, JGR, 1984.
   !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-10-10)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-XX-XX)
-  !!
   SUBROUTINE dissipation_source_function(p_patch, wave_config, wave_num_c, tracer, p_diag)
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER :: &
          & routine =  modname//'dissipation_source_function'
@@ -1881,10 +1804,6 @@ CONTAINS
   !>
   !! Set wave spectrum to absolute allowed minimum
   !! Adaptation of WAM 4.5 code.
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-XX-XX)
   !!
   SUBROUTINE set_energy2emin(p_patch, wave_config, tracer)
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
@@ -1943,10 +1862,6 @@ CONTAINS
   !! Reference
   !!  HASSELMANN ET AL, D. HYDR. Z SUPPL A12(1973) (JONSWAP)
   !!  BOUWS AND KOMEN, JPO 13(1983)1653-1658
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-10-10)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-XX-XX)
   !!
   SUBROUTINE bottom_friction(p_patch, wave_config, wave_num_c, depth, tracer, p_diag)
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER :: &
@@ -2016,10 +1931,6 @@ CONTAINS
   !!                                    and prognostic part.
   !! H. Guenther  GKSS  February 2002   FT 90
   !! E. Myklebust       February 2005   optimization
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-10-10)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-05-31)
   !!
   SUBROUTINE nonlinear_transfer(p_patch, wave_config, depth, tracer, p_diag)
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER :: &
@@ -2450,10 +2361,6 @@ CONTAINS
   !!
   !! Based on WAM shallow water with depth and current refraction
   !! P_SPHER_SHALLOW_CURR
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2023-06-02)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-06-07)
   !!
   SUBROUTINE wave_refraction(p_patch, wave_config, wave_num_c, gv_c, depth, depth_grad, tracer)
 

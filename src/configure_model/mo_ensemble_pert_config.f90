@@ -1,22 +1,18 @@
-!>
-!! @brief Ensemble perturbations of nwp physics
-!!
-!! configuration setup for ensemble physics perturbations
-!!
-!! @author Guenther Zaengl, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Guenther Zaengl, DWD (2015-04-23)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! @brief Ensemble perturbations of nwp physics
+!
+! configuration setup for ensemble physics perturbations
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_ensemble_pert_config
 
   USE mo_kind,               ONLY: wp
@@ -235,13 +231,9 @@ MODULE mo_ensemble_pert_config
   CONTAINS
 
 
-  !>
   !! Application of the ensemble perturbation to the config/namelist variables 
   !!
   !! This is done based on random numbers determined by the ensemble member ID
-  !!
-  !! @par Revision History
-  !! Initial revision by Guenther Zaengl, DWD (2015-04-23)
   !!
   SUBROUTINE configure_ensemble_pert(ext_data, mtime_date)
 
@@ -369,11 +361,7 @@ MODULE mo_ensemble_pert_config
   END SUBROUTINE configure_ensemble_pert
 
 
-  !>
   !! Save unperturbed parameters in order to allow calculating time-dependent perturbations
-  !!
-  !! @par Revision History
-  !! Initial revision by Guenther Zaengl, DWD (2020-11-16)
   !!
   SUBROUTINE save_unperturbed_params
 
@@ -443,11 +431,7 @@ MODULE mo_ensemble_pert_config
   END SUBROUTINE save_unperturbed_params
 
 
-  !>
   !! Initialization/application of scalar ensemble perturbations
-  !!
-  !! @par Revision History
-  !! Initial revision by Guenther Zaengl, DWD (2020-11-16)
   !!
   SUBROUTINE set_scalar_ens_pert(lprint, lacc)
 
@@ -760,11 +744,7 @@ MODULE mo_ensemble_pert_config
   END SUBROUTINE set_scalar_ens_pert
 
 
-  !>
   !! Computation of array-based ensemble perturbation fields
-  !!
-  !! @par Revision History
-  !! Initial revision by Guenther Zaengl, DWD (2016-04-08)
   !!
   SUBROUTINE compute_ensemble_pert(p_patch, ext_data, prm_diag, phy_params, mtime_date, lrecomp, lacc)
 

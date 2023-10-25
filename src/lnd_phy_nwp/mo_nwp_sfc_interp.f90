@@ -1,25 +1,20 @@
-!>
-!! This module contains routines for the vertical interpolation of
-!! surface/soil fields provided by external analyses to the ICON grid
-!!
-!! Soil moisture is read from IFS2ICON as soil moisture index and then
-!! converted back to soil moisture mass [m] using TERRA soil types.
-!!
-!! @author Guenther Zaengl, DWD
-!!
-!!
-!! @par Revision History
-!! Guenther Zaengl, DWD (2011-07-29):                    first version
-!! Martin Koehler and Juergen Helmert, DWD (2011-08-12): soil moisture index conversion
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! This module contains routines for the vertical interpolation of
+! surface/soil fields provided by external analyses to the ICON grid
+!
+! Soil moisture is read from IFS2ICON as soil moisture index and then
+! converted back to soil moisture mass [m] using TERRA soil types.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 #include "consistent_fma.inc"
 MODULE mo_nwp_sfc_interp
 
@@ -238,12 +233,6 @@ CONTAINS
   !! Required input: soil moisture index
   !! Output: soil water content [m H2O]. Input field is overwritten
   !!
-  !! @par Revision History
-  !! Initial version by P Ripodas, DWD(2013-05)
-  !! - extracted from process_sfcfields
-  !! Modification by Daniel Reinert, DWD (2013-10-17)
-  !! - updated soil moisture initialization according to process_sfcfields
-  !
   SUBROUTINE smi_to_wsoil(p_patch, wsoil)
 
     TYPE(t_patch), INTENT(IN)    :: p_patch
@@ -341,15 +330,10 @@ CONTAINS
 
 
   !-------------
-  !>
   !! SUBROUTINE wsoil_to_smi
   !!
   !! Conversion of TERRA soil moisture into soil moisture index
   !!   soil moisture index = (soil moisture - wilting point) / (field capacity - wilting point)
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl DWD(2014-08-04)
-  !
   SUBROUTINE wsoil_to_smi(p_patch, wsoil)
 
 

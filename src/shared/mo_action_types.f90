@@ -1,22 +1,17 @@
-!>
-!! Type definition for action events
-!!
-!! Type definition for action events
-!!
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by daniel Reinert, DWD (2014-01-13)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Type definition for action events
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_action_types
 
   USE mtime,                 ONLY: MAX_DATETIME_STR_LEN, datetime, &
@@ -74,9 +69,6 @@ CONTAINS
   !! The function returns the active action index within the variable's array
   !! of actions. If no matching action is found, the function returns
   !! the result -1.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2015-04-08)
   !!
   INTEGER FUNCTION getActiveAction(actions, actionTyp, cur_date) RESULT(actionId)
     TYPE(t_var_action), INTENT(IN)  :: actions      ! var metadata

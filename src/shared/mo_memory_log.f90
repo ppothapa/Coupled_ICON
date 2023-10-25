@@ -1,4 +1,15 @@
-module mo_memory_log
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
+MODULE mo_memory_log
   use mo_mpi, only: get_my_mpi_all_id, get_my_mpi_all_comm_size
   use mo_util_rusage
   use mo_util_sysinfo

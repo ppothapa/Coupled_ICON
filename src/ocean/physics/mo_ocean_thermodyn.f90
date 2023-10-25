@@ -1,26 +1,20 @@
+! Provide an implementation of the ocean thermodynamics
+!
+! Provide an implementation of the parameters used for the thermodynamics
+! of the hydrostatic ocean model.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
-!---------------------------------------------------------------------------------------
-!>
-!! Provide an implementation of the ocean thermodynamics
-!!
-!! Provide an implementation of the parameters used for the thermodynamics
-!! of the hydrostatic ocean model.
-!!
-!! @par Revision History
-!!  Original version by Peter Korn, MPI-M (2009)
-!!  Modified by Stephan Lorenz,     MPI-M, 2010-07
-!!   - adapted to structures discussed in 2010-01.
-!!  Modified by Stephan Lorenz,     MPI-M, 2010-10
-!!   - structured input/output parameters
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
 !----------------------------
 #include "iconfor_dsl_definitions.inc"
 #include "omp_definitions.inc"
@@ -200,9 +194,6 @@ CONTAINS
     !! It overcomes a difficulty with the pressure gradient calculation for partial cells that arises
     !! in the subroutine "calc_internal_press" (see below). The calc_internal_press should not be used
     !! with partial cells.
-    !!
-    !! @par Revision History
-    !! Initial version by Peter Korn, MPI-M (2014)
     !!
   !<Optimize:inUse>
   SUBROUTINE calc_internal_press_grad(patch_3d, rho, pressure_hyd, bc_total_top_potential, grad_coeff, press_grad, use_acc)
@@ -665,9 +656,6 @@ CONTAINS
   !! in the subroutine "calc_internal_press" (see below). The calc_internal_press should not be used
   !! with partial cells.
   !!
-  !! @par Revision History
-  !! Initial version by Peter Korn, MPI-M (2014)
-  !!
 !<Optimize:inUse>
   SUBROUTINE calc_internal_press_grad0(patch_3d, rho, grad_coeff, press_grad)
     !
@@ -746,12 +734,6 @@ CONTAINS
   !! fluid column above a certain level.
   !! IMPORTANT: Do not use this with partial cells !!
   !!
-  !! @par Revision History
-  !! Initial version by Peter Korn, MPI-M (2009)
-  !! Initial release by Stephan Lorenz, MPI-M (2010-07)
-  !! Modified by Stephan Lorenz,        MPI-M (2010-10-22)
-  !!  - division by OceanReferenceDensity included
-  !!
 !<Optimize:inUse>
   SUBROUTINE calc_internal_press(patch_3d, rho, prism_thick_c, h, press_hyd)
     !
@@ -826,10 +808,6 @@ CONTAINS
   !>
   !! Calculates the density via a call to the equation-of-state.
   !! Several options for EOS are provided.
-  !!
-  !! @par Revision History
-  !! Initial version by Peter Korn, MPI-M (2009)
-  !! Initial release by Stephan Lorenz, MPI-M (2010-07)
   !!
 !<Optimize:inUse>
   SUBROUTINE calculate_density(patch_3d,tracer, rho, use_acc)
@@ -1057,10 +1035,6 @@ CONTAINS
   !>
   !!Calculates the density via a linear equation-of-state.
   !!
-  !! @par Revision History
-  !! Initial version by Peter Korn, MPI-M (2009)
-  !! Initial release by Stephan Lorenz, MPI-M (2010-07)
-  !!
   SUBROUTINE calculate_density_linear(patch_3d, tracer, rho)
     !
     TYPE(t_patch_3d ),TARGET, INTENT(in)   :: patch_3d
@@ -1260,8 +1234,6 @@ CONTAINS
   !!  Calculates density as a function of potential temperature and salinity
   !! using the equation of state as described in Gill, Atmosphere-Ocean Dynamics, Appendix 3
   !! The code below is copied from MPIOM
-  !! @par Revision History
-  !! Initial version by Peter Korn, MPI-M (2011)
   !!
 !<Optimize:inUse>
   SUBROUTINE calculate_density_mpiom(patch_3d, tracer, rho, use_acc)
@@ -1525,9 +1497,6 @@ CONTAINS
   !>
   !!Calculates the density via a linear equation-of-state.
   !!
-  !! @par Revision History
-  !! Initial version by Peter Korn, MPI-M (2009)
-  !!
   FUNCTION density_linear_function(t,s,p) result(rho)
     !
     REAL(wp),INTENT(in) :: t
@@ -1544,9 +1513,6 @@ CONTAINS
   !-------------------------------------------------------------------------
   !>
   !!Calculates the density via a linear equation-of-state.
-  !!
-  !! @par Revision History
-  !! Initial version by Peter Korn, MPI-M (2009)
   !!
   ELEMENTAL FUNCTION calculate_density_linear_onColumn(t,s) result(rho)
     !$ACC ROUTINE SEQ
@@ -1786,8 +1752,6 @@ CONTAINS
   !! The code was checked with testvalues from Gill's book.
   !! For testing insert values here:
   !!   s = 35.0_wp,  t = 25.0_wp, p = 1000.0_wp, s3h = SQRT(s**3)
-  !! @par Revision History
-  !! Initial version by Peter Korn, MPI-M (2011)
   !!
   FUNCTION density_mpiom_function(tpot, sal, p) result(rho)
     REAL(wp), INTENT(in) :: tpot, sal, p
@@ -1835,8 +1799,6 @@ CONTAINS
   !! The code was checked with testvalues from Gill's book.
   !! For testing insert values here:
   !!   s = 35.0_wp,  t = 25.0_wp, p = 1000.0_wp, s3h = SQRT(s**3)
-  !! @par Revision History
-  !! Initial version by Peter Korn, MPI-M (2011)
   !!
 !<Optimize:inUse>
   ELEMENTAL FUNCTION calculate_density_mpiom_onColumn(tpot, sal, p) result(rho)
@@ -1907,9 +1869,6 @@ CONTAINS
   !!   Fofonoff and Millard, 1984, UNESCO, Paris, Tech. Pap. Mar. Sci., 44, 53pp
   !! This method is using the older !! IPTS (International Practical Temperature Scale) of 1968.
   !! The code below is adopted from FESOM (Quiang Wang, Sergey Danilov)
-  !!
-  !! @par Revision History
-  !! Initial version by Stephan Lorenz, MPI-M (2014)
   !!
   !<Optimize:inUse>
   FUNCTION calc_neutralslope_coeff_func_onColumn(t,s,p,levels) result(coeff)
@@ -2151,8 +2110,6 @@ CONTAINS
   !!  Calculates density as a function of potential temperature and salinity
   !! using the equation of state as described in Gill, Atmosphere-Ocean Dynamics, Appendix 3
   !! The code below is copied from MPIOM
-  !! @par Revision History
-  !! Initial version by Peter Korn, MPI-M (2011)
   !!
 !<Optimize:inUse>
   SUBROUTINE calc_potential_density_mpiom(patch_3d, tracer, rhopot, use_acc)
@@ -2269,8 +2226,6 @@ CONTAINS
   !
   !!  Calculates potential tempertaure from in-situ temperature.
   !!  Formula described in Gill, Atmosphere-Ocean Dynamics, Appendix 3
-  !! @par Revision History
-  !! Initial version by Peter Korn, MPI-M (2011)
   !!
   SUBROUTINE convert_insitu2pot_temp(patch_3d, OceanReferenceDensity, temp_insitu, sal, temp_pot)
     TYPE(t_patch_3d ),TARGET, INTENT(in)   :: patch_3d
@@ -2314,8 +2269,6 @@ CONTAINS
   !!  Calculates density as a function of potential temperature and salinity
   !! using the equation of state as described in Gill, Atmosphere-Ocean Dynamics, Appendix 3
   !! The code below is copied from MPIOM
-  !! @par Revision History
-  !! Initial version by Peter Korn, MPI-M (2011)
   !!
   FUNCTION convert_insitu2pot_temp_func(t, s, p) result(temp_pot)
     REAL(wp), INTENT(in) :: t, s, p
@@ -2339,8 +2292,6 @@ CONTAINS
 !  !>
 !  !!  Calculates density as a function of potential temperature and salinity
 !  !! using the Jackett and McDougall equation of state
-!  !! @par Revision History
-!  !! Initial version by Peter Korn, MPI-M (2011)
 !  !! Code below is an adaption of Sergey Danilov's implementation in
 !  !! the AWI Finite-Volume model.
 !  !!
@@ -2430,8 +2381,6 @@ CONTAINS
 !    !
 !    !!  Calculates potential tempertaure from in-situ temperature.
 !    !!  Formula described in Gill, Atmosphere-Ocean Dynamics, Appendix 3
-!    !! @par Revision History
-!    !! Initial version by Peter Korn, MPI-M (2011)
 !    !!
 !
 !    TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d

@@ -1,23 +1,22 @@
-!>
-!! This module provides definition of types of the ICON ocean surface module,
-!! i.e. the sea ice and coupling between the atmopshere and the ocean model.
-!!
-!! Types are grouped as follows:
-!! - Sea ice:                                   t_sea_ice, t_sea_ice_budgets
-!! - Surface fluxes (categories):               t_atmos_fluxes
-!!
-!! @par Revision History
-!! Developed by
-!! Restructured by Vladimir Lapin, MPI-M (2016-10)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! This module provides definition of types of the ICON ocean surface module,
+! i.e. the sea ice and coupling between the atmopshere and the ocean model.
+!
+! Types are grouped as follows:
+! - Sea ice:                                   t_sea_ice, t_sea_ice_budgets
+! - Surface fluxes (categories):               t_atmos_fluxes
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_sea_ice_types
   USE mo_kind,                ONLY: wp
   USE mo_math_types,          ONLY: t_cartesian_coordinates

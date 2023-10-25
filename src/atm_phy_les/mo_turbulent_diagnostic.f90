@@ -1,28 +1,17 @@
-!>
-!! @brief turbulent diagnosis for LES physics 
-!!
-!! <Describe the concepts of the procedures and algorithms used in the module.>
-!! <Details of procedures are documented below with their definitions.>
-!! <Include any applicable external references inline as module::procedure,>
-!! <external_procedure(), or by using @see.>
-!! <Don't forget references to literature.>
-!!
-!! @author <name, affiliation>
-!! @author <name, affiliation>
-!!
-!!
-!! @par Revision History
-!! first implementation  by Anurag Dipankar, MPIM (2014-01)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! turbulent diagnosis for LES physics
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -92,8 +81,6 @@ CONTAINS
   !!
   !! Most of the diagnostics are from mo_nwp_diagnosis/nwp_diag_for_output
   !! routine. Some of them which were very specific to NWP have been deleted.
-  !!
-  !! @par Revision History
   !!
   SUBROUTINE les_cloud_diag(  kstart_moist,               & !in
                             & ih_clch, ih_clcm,           & !in
@@ -339,13 +326,6 @@ CONTAINS
 
   !>
   !! <Calculates 1D and 0D turbulent diagnostics>
-  !!
-  !! <Describe the purpose of the subroutine and its algorithm(s).>
-  !! <Include any applicable external references inline as module::procedure,>
-  !! <external_procedure(), or by using @see.>
-  !! <Don't forget references to literature.>
-  !!
-  !! @par Revision History
   !!
   SUBROUTINE calculate_turbulent_diagnostics(             &
                             & p_patch,                    & !in
@@ -996,13 +976,6 @@ CONTAINS
 !>
   !! <write out profile>
   !!
-  !! <Describe the purpose of the subroutine and its algorithm(s).>
-  !! <Include any applicable external references inline as module::procedure,>
-  !! <external_procedure(), or by using @see.>
-  !! <Don't forget references to literature.>
-  !!
-  !! @par Revision History
-  !!
   SUBROUTINE write_vertical_profiles(outvar, this_datetime)
     REAL(wp),                INTENT(IN)  :: outvar(:,:)
     TYPE(datetime), POINTER, INTENT(IN)  :: this_datetime
@@ -1034,13 +1007,6 @@ CONTAINS
 !>
   !! <write out time series>
   !!
-  !! <Describe the purpose of the subroutine and its algorithm(s).>
-  !! <Include any applicable external references inline as module::procedure,>
-  !! <external_procedure(), or by using @see.>
-  !! <Don't forget references to literature.>
-  !!
-  !! @par Revision History
-  !!
   SUBROUTINE write_time_series(outvar, this_datetime)
     REAL(wp),                INTENT(IN) :: outvar(:)
     TYPE(datetime), POINTER, INTENT(IN) :: this_datetime
@@ -1071,13 +1037,6 @@ CONTAINS
 !===========================================================================
 !>
   !! <initialize turbulent output>
-  !!
-  !! <Describe the purpose of the subroutine and its algorithm(s).>
-  !! <Include any applicable external references inline as module::procedure,>
-  !! <external_procedure(), or by using @see.>
-  !! <Don't forget references to literature.>
-  !!
-  !! @par Revision History
   !!
   SUBROUTINE init_les_turbulent_output(p_patch, p_metrics, this_datetime, l_rh, ldelete)
    TYPE(t_patch),   TARGET, INTENT(in)   :: p_patch    !<grid/patch info.
@@ -1432,13 +1391,6 @@ CONTAINS
 !===========================================================================
 !>
   !! <close turbulent output>
-  !!
-  !! <Describe the purpose of the subroutine and its algorithm(s).>
-  !! <Include any applicable external references inline as module::procedure,>
-  !! <external_procedure(), or by using @see.>
-  !! <Don't forget references to literature.>
-  !!
-  !! @par Revision History
   !!
   SUBROUTINE close_les_turbulent_output(jg)
    INTEGER, INTENT(IN) :: jg

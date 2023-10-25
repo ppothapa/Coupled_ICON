@@ -1,30 +1,25 @@
-!>
-!! Module for class of deformational flow tests
-!!
-!! Test case for horizontal advection problems.
-!!
-!! Literature:
-!! - Nair and Lauritzen (2010): A Class of Deformational Flow Test-Cases
-!!   for the Advection Problems on the Sphere. Submitted to JCP
-!! Modification by Daniel Reinert, DWD (2011-03-11)
-!! - adapted to the NH-core
-!!
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!! Initial version by Daniel Reinert (2010-03-25)
-!! Modification by Daniel Reinert, DWD (2010-11-25)
-!! - adaption to the revised version proposed by Nair and Lauritzen
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Module for class of deformational flow tests
+!
+! Test case for horizontal advection problems.
+!
+! Literature:
+! - Nair and Lauritzen (2010): A Class of Deformational Flow Test-Cases
+!   for the Advection Problems on the Sphere. Submitted to JCP
+! Modification by Daniel Reinert, DWD (2011-03-11)
+! - adapted to the NH-core
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_nh_df_test
 
   USE mo_kind,                ONLY: wp
@@ -96,9 +91,6 @@ CONTAINS
   !! Short description:
   !! Initialization of prognostic state vector for deformational flow
   !! test case.
-  !!
-  !! @par Revision History
-  !! Initial version by Daniel Reinert (2010-03-26)
   !!
   SUBROUTINE init_nh_state_prog_dftest( ptr_patch, ptr_nh_prog, ptr_nh_diag,  &
     &                                   ptr_int, ptr_ext_data,                &
@@ -220,9 +212,6 @@ CONTAINS
   !! Short description:
   !! get new horizontal velocity field for deformational flow test
   !! case.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert (2010-03-25)
   !!
   SUBROUTINE get_nh_df_velocity( ptr_patch, ptr_prog, p_ctest_name, p_rotate_axis_deg, &
     &                      p_sim_time )
@@ -515,9 +504,6 @@ CONTAINS
   !! test. Independent of the chosen flow field, the user can choose 
   !! between a C1 cosine bell, a slotted cylinder and a C_infty gaussian 
   !! hill.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2010-03-25)
   !!
   SUBROUTINE init_df_tracer( ptr_patch, ptr_int, p_ctest_name,                   &
     &                        p_rotate_axis_deg, linit_tracer_fv, tracer_inidist, &
@@ -959,9 +945,6 @@ CONTAINS
   !! departure points may directly be compared to the departure points derived
   !! with our operational methods.
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert (2010-03-31)
-  !!
   SUBROUTINE get_departure_points( ptr_patch, ptr_prog, p_ctest_name, p_rotate_axis_deg, &
     &                      p_dtime, p_sim_time )
 
@@ -1347,9 +1330,6 @@ CONTAINS
   !! For each cell the difference between the analytic and approximate
   !! distance vector is computed by summing over the edges.
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2010-04-06)
-  !!
     SUBROUTINE prep_departure_points_err( ptr_patch, p_cc)
 
     !INPUT PARAMETERS:
@@ -1413,10 +1393,6 @@ CONTAINS
   !! Short description:
   !! Rotate a sphere so that its NP is at (lc,tc). The rotated coordinates
   !!(rol,rot) corresponding to (la,th) in the regular sph. coordinates
-  !!
-  !! @par Revision History
-  !! Initial version by Ram Nair, NCAR/SCD (2006-08-01)
-  !! Adapted to ICON by Daniel Reinert, DWD (2009-10-05)
   !!
   SUBROUTINE rotated_sphere(lc,tc,la,th,rol,rot)
 

@@ -1,34 +1,18 @@
-!>
-!! Allocation/deallocation of external parameter state
-!!
-!! This module contains routines for setting up the external data state.
-!!
-!! @author Daniel Reinert, DWD
-!! @author Hermann Asensio, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2010-07-12)
-!! Modification by Hermann Asensio, DWD (2010-07-16)
-!!  - add miscellaneous variables for external parameters
-!! Modification by Daniel Reinert, DWD (2011-05-03)
-!! - Memory allocation method changed from explicit allocation to Luis'
-!!   infrastructure
-!! Modification by Daniel Reinert, DWD (2012-02-23)
-!! - Routine smooth_topography moved to a new module named mo_smooth_topo
-!! Modification by Daniel Reinert, DWD (2012-03-22)
-!! - Type declaration moved to new module mo_ext_data_types
-!! Modification by Daniel Reinert, DWD (2015-06-11)
-!! - reading and other stuff moved to new module mo_ext_data_init
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Allocation/deallocation of external parameter state
+!
+! This module contains routines for setting up the external data state.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -117,9 +101,6 @@ CONTAINS
   !>
   !! Top-level procedure for building external data structure
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2010-07-12)
-  !!
   SUBROUTINE construct_ext_data (p_patch, ext_data)
 
     TYPE(t_patch),          INTENT(IN)    :: p_patch(:)
@@ -173,10 +154,6 @@ CONTAINS
   !! elements).
   !!
   !! Initialization of elements with zero.
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Reinert (2011-05-03)
-  !! Statements that assign initial value added by Hui Wan (MPI-M, 2011-05-30)
   !!
   SUBROUTINE new_ext_data_atm_list ( p_patch, p_ext_atm, p_ext_atm_list, &
     &                                listname)
@@ -1525,9 +1502,6 @@ CONTAINS
   !!
   !! Initialization of elements with zero.
   !!
-  !! @par Revision History
-  !! Initial release by Daniel Reinert (2011-05-03)
-  !!
   SUBROUTINE new_ext_data_atm_td_list ( p_patch, p_ext_atm_td, &
     &                               p_ext_atm_td_list, listname)
 !
@@ -1853,13 +1827,7 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! Destruct external data data structure and lists
-  !!
-  !! Destruct external data data structure and lists
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2011-05-04)
   !!
   SUBROUTINE destruct_ext_data
 

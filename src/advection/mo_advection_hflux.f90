@@ -1,64 +1,37 @@
-!>
-!! Computation of horizontal tracer flux
-!!
-!! This routine computes the upwind fluxes for all edges of a uniform
-!! resolution patch. In case of different patches on a grid at the
-!! same level in the grid hierarchy, no correction is needed
-!! (the appropriate values must be then placed in the external halos).
-!! The upwind flux function can be replaced by any other flux
-!! function (e.g. Engquist-Osher, Godunov), in passive advection
-!! case they are all equivalent. These routines compute only
-!! the correct edge value of 'c*u' without multiplying by
-!! the edge length, so that then the divergence operator
-!! can be applied without modifications when computing the
-!! flux divergence in the conservative transport formula.
-!!
-!! Possible options for horizontal tracer flux computation include
-!! - MIURA with linear, quadratic, or cubic reconstruction
-!! - FFSL with linear, quadratic, or cubic reconstruction
-!!
-!! See e.g. Lin et al. (1994), Mon. Wea. Rev., 122, 1575-1593
-!! An improved, fully 2D version without splitting error is
-!! implemeted, too.
-!! See Miura, H. (2007), Mon. Wea. Rev., 135, 4038-4044
-!!
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!! Developed by L.Bonaventura  (2004).
-!! Adapted to new grid structure by L. Bonaventura, MPI-M, August 2005.
-!! Modification by Daniel Reinert, DWD (2009-08-09)
-!! - implementation of second order MUSCL
-!! Modification by Daniel Reinert, DWD (2009-11-09)
-!! - implementation of second order MIURA
-!! Modification by Daniel Reinert, DWD (2010-02-23)
-!! - swapped slope limiter into new subroutine h_miura_slimiter_mo
-!! Modification by Daniel Reinert, DWD (2010-04-23)
-!! - moved slope and flux limiter to new module mo_advection_limiter
-!! Modification by Daniel Reinert, DWD (2010-05-12)
-!! - included MIURA scheme with third order accurate reconstruction
-!! Modification by Daniel Reinert, DWD (2010-11-09)
-!! - removed MUSCL-type computation of horizontal fluxes
-!! Modification by Daniel Reinert, DWD (2011-09-20)
-!! - new Miura-type advection scheme with internal time-step subcycling
-!! Modification by Daniel Reinert, DWD (2012-05-04)
-!! - removed optional slope limiter
-!! Modification by Daniel Reinert, DWD (2013-09-30)
-!! - new option: FFSL + Miura-type advection with subcycling
-!! Modification by Will Sawyer, CSCS (2016-02-26)
-!! - added OpenACC support
-!! - added temp variables of type t_lsq to circumvent OpenACC compiler bug
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Computation of horizontal tracer flux
+!
+! This routine computes the upwind fluxes for all edges of a uniform
+! resolution patch. In case of different patches on a grid at the
+! same level in the grid hierarchy, no correction is needed
+! (the appropriate values must be then placed in the external halos).
+! The upwind flux function can be replaced by any other flux
+! function (e.g. Engquist-Osher, Godunov), in passive advection
+! case they are all equivalent. These routines compute only
+! the correct edge value of 'c*u' without multiplying by
+! the edge length, so that then the divergence operator
+! can be applied without modifications when computing the
+! flux divergence in the conservative transport formula.
+!
+! Possible options for horizontal tracer flux computation include
+! - MIURA with linear, quadratic, or cubic reconstruction
+! - FFSL with linear, quadratic, or cubic reconstruction
+!
+! See e.g. Lin et al. (1994), Mon. Wea. Rev., 122, 1575-1593
+! An improved, fully 2D version without splitting error is
+! implemeted, too.
+! See Miura, H. (2007), Mon. Wea. Rev., 135, 4038-4044
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -136,16 +109,6 @@ CONTAINS
   !! - the MIURA method with linear reconstruction and internal subcycling
   !! - the MIURA method with quadr/cubic reconstruction (essentially 2D)
   !! - the FFSL method with quadr/cubic reconstruction (essentially 2D)
-  !!
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2010-02-10)
-  !! Modification by Daniel Reinert (2010-11-05)
-  !! - tracer loop moved from step_advection to hor_upwind_flux
-  !! Modification by Daniel Reinert (2010-11-09)
-  !! - removed MUSCL-type horizontal advection
-  !! Modification by Daniel Reinert, DWD (2013-09-30)
-  !! - new option: FFSL + Miura-type advection with subcycling
   !!
   !
   ! !LITERATURE
@@ -670,22 +633,6 @@ CONTAINS
   !! using a Flux form semi-lagrangian (FFSL)-method based on the second order
   !! MIURA-scheme.
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2009-11-09)
-  !! Modification by Daniel Reinert, DWD (2010-02-10)
-  !! - transferred to separate subroutine
-  !! Modification by Daniel Reinert, DWD (2010-03-16)
-  !! - implemented new computation of backward trajectories on a local tangential
-  !!  plane for each edge-midpoint (much faster than the old version)
-  !! - moved calculation of backward trajectories and barycenter into subroutine
-  !!   back_traj_o1 in module mo_advection_utils. Added second order accurate
-  !!   computation of backward trajectories (subroutine back_traj_o2)
-  !! Modification by Daniel Reinert, DWD (2016-11-24)
-  !! - computation of backward trajectories moved one level up which simplifys 
-  !!   flow control. It is now simpler to ensure that backward trajectories are only 
-  !!   computed once per time step and that the backward trajectory information is 
-  !!   available at all points and levels.
-  !!
   !! @par LITERATURE
   !! - Miura, H. (2007), Mon. Weather Rev., 135, 4038-4044
   !! - Skamarock, W.C. (2010), Conservative Transport schemes for Spherical Geodesic
@@ -1054,21 +1001,6 @@ CONTAINS
   !! using a Flux form semi-lagrangian (FFSL)-method based on the second order
   !! MIURA-scheme. This particular version of the scheme includes a time
   !! subcyling-option.
-  !!
-  !! @par Revision History
-  !! - Initial revision by Daniel Reinert, DWD (2011-09-20)
-  !! Modification by Daniel Reinert, DWD (2012-01-25)
-  !! - bug fix for positive definite limiter. Limiter is now called after each
-  !!   substep.
-  !! Modification by Daniel Reinert, DWD (2013-09-27)
-  !! - increased number of subcycling steps from 2 to 3 (hard coded)
-  !! Modification by Daniel Reinert, DWD (2013-10-09)
-  !! - reduce vertical dimension of local arrays from nlev to elev
-  !! Modification by Daniel Reinert, DWD (2016-11-24)
-  !! - computation of backward trajectories moved one level up to simplify 
-  !!   flow control. It is now simpler to ensure that backward trajectories are only 
-  !!   computed once per time step and that the backward trajectory information is 
-  !!   available at all points and levels.
   !!
   !! @par LITERATURE
   !! - Miura, H. (2007), Mon. Weather Rev., 135, 4038-4044
@@ -1567,11 +1499,6 @@ CONTAINS
   !! Unlike the standard Miura scheme, a third or fourth order accurate
   !! (i.e. quadratic, cubic) least squares reconstruction is applied.
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2010-05-12)
-  !!  Modification by Daniel Reinert, DWD (2010-10-14)
-  !! - added possibility of cubic reconstruction
-  !!
   !! @par !LITERATURE
   !! - Miura, H. (2007), Mon. Weather Rev., 135, 4038-4044
   !! - Ollivier-Gooch, C. (2002), JCP, 181, 729-752 (for lsq reconstruction)
@@ -2064,9 +1991,6 @@ CONTAINS
   !! The scheme provides the time averaged horizontal tracer fluxes at triangle
   !! edges. A third or fourth order accurate (i.e. quadratic, cubic) least squares
   !! reconstruction can be selected.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2012-04-12)
   !!
   !! @par !LITERATURE
   !! - Miura, H. (2007), Mon. Weather Rev., 135, 4038-4044
@@ -2586,9 +2510,6 @@ CONTAINS
   !! The scheme provides the time averaged horizontal tracer fluxes at triangle
   !! edges. A third or fourth order accurate (i.e. quadratic, cubic) least squares
   !! reconstruction can be selected.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2013-11-01)
   !!
   !! @par !LITERATURE
   !! - Miura, H. (2007), Mon. Weather Rev., 135, 4038-4044

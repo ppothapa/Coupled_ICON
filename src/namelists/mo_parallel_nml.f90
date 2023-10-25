@@ -1,19 +1,17 @@
-!>
-!!     Contains namelists for parallel run control.
-!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Contains namelists for parallel run control.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_parallel_nml
 
   USE mo_io_units,            ONLY: nnml, nnml_output
@@ -83,11 +81,7 @@ MODULE mo_parallel_nml
   CONTAINS
 
   !-------------------------------------------------------------------------
-  !>
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
-  !! Adapted for I/O PEs, Rainer Johanni, Nov 2010
-  !! Leonidas Linardakis, namelist restructuring, Jul 2011
+  !
   SUBROUTINE read_parallel_namelist( filename )
 
     ! ------------------------------------------------------------------------

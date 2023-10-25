@@ -1,74 +1,20 @@
-!>
-!!   Contains the implementation of the mathematical grad operators.
-!!
-!!   Contains the implementation of the mathematical operators
-!!   employed by the shallow water prototype.
-!!
-!! @par Revision History
-!!  Developed  by Luca Bonaventura and Will Sawyer (2002-4).
-!!  Modified to ProTeX-style by  Luca Bonaventura and Thomas Heinze (2004).
-!!  Adapted to new data structure by Thomas Heinze,
-!!  Peter Korn and Luca Bonaventura (2005).
-!!  Modification by Thomas Heinze (2006-02-21):
-!!  - renamed m_modules to mo_modules
-!!  Subroutine for divergence multiplied by area added by P.Korn (2006).
-!!  Modification by Peter Korn, MPI-M, (2006-11-23):
-!!  - replacements in TYPE patch: ic by l2g_c, ie by l2g_e, iv by l2g_v,
-!!    iic by g2l_c, iie by g2l_e, iiv by g2l_v
-!!  - replaced edge_index by edge_idx
-!!  - replaced vertex_index by vertex_idx
-!!  - replaced cell_index by cell_idx
-!!  - replaced neighbor_index by neighbor_idx
-!!  - replaced child_index by child_idx
-!!  Modified by P Ripodas (2007-02):
-!!  - include the system orientation factor in the vorticity term of nabla2_vec
-!!  - solved errors in nabla4_vec and nabla4_scalar
-!!  Modification by Peter Korn, MPI-M, (2006/2007):
-!!  -operator overloading of curl operator and nabla2vec to handle atmosphere and ocean version
-!!  -change of input/output arguments of subroutines: arrays of fixed size are
-!!   changed to pointers, to avoid occurence of not-initialized numbers
-!!  Modified by Almut Gassmann, MPI-M, (2007-04)
-!!  - removed references to unused halo_verts
-!!  - summing over all halos corresponding to different parallel patches
-!!  Modified by Hui Wan, MPI-M, (2007-11)
-!!  - added subroutine cell_avg
-!!  Modification by Jochen Foerstner, DWD, (2008-05-05)
-!!  - div and div_times_area are now generic subroutines
-!!  - the divergence can now be computed either
-!!    using the midpoint rule
-!!    (div_midpoint, div_midpoint_times_area) or
-!!    using the Simpson's rule
-!!    (div_simpson, div_simpson_times_area)
-!!  Modification by Marco Restelli, MPI (2008-07-17)
-!!  - included subroutine dtan.
-!!  Modification by Jochen Foerstner, DWD (2008-09-12)
-!!  - moved SUBROUTINE ravtom_normgrad2 from mo_interpolation to this module
-!!    because of conflicting use statements.
-!!  Modification by Jochen Foerstner, DWD (2008-09-16)
-!!  - removed SUBROUTINE ravtom_normgrad2 (not used)
-!!  Modification by Daniel Reinert, DWD (2009-07-20)
-!!  - added subroutine grad_lsq_cell for gradient reconstruction via the
-!!    least-squares method and grad_green_gauss_gc_cell for Green-Gauss
-!!    gradient in geographical coordinates
-!!  Modification by Daniel Reinert, DWD (2009-12-14)
-!!  - renamed grad_lsq_cell -> recon_lsq_cell_l
-!!  Modification by Leonidas Linardakis, MPI-M (2010-21-01)
-!!  - split mo_math_operators into submodules
-!!  Modification by William Sawyer, CSCS (2014-09-23)
-!!  - OpenACC implementation
-!!
-!! @par To Do
-!! Boundary exchange, nblks in presence of halos and dummy edge
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Contains the implementation of the mathematical grad operators
+! employed by the shallow water prototype.
+!
+! @par To Do
+! Boundary exchange, nblks in presence of halos and dummy edge
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -128,22 +74,12 @@ CONTAINS
 
 !-------------------------------------------------------------------------
 !
-!>
 !!  Computes directional  derivative of a cell centered variable.
 !!
 !!  Computes directional  derivative of a cell centered variable
 !!  with respect to direction normal to triangle edge.
 !! input: lives on centres of triangles
 !! output:  lives on edges (velocity points)
-!!
-!! @par Revision History
-!! Developed  by  Luca Bonaventura, MPI-M (2002-5).
-!! Adapted to new data structure by Peter Korn
-!! and Luca Bonaventura, MPI-M (2005).
-!! Modifications by P. Korn, MPI-M(2007-2)
-!! -Switch fom array arguments to pointers
-!! Modification by Almut Gassmann, MPI-M (2007-04-20)
-!! - abandon grid for the sake of patch
 !!
 SUBROUTINE grad_fd_norm( psi_c, ptr_patch, grad_norm_psi_e, &
   &                      opt_slev, opt_elev, opt_rlstart, opt_rlend )
@@ -279,7 +215,7 @@ END SUBROUTINE grad_fd_norm
 !-------------------------------------------------------------------------
 !
 ! RESTRUCT: @Marco: please adjust calls to this routine to your needs.
-!>
+!!
 !! Computes directional derivative of a vertex centered variable with.
 !!
 !! Computes directional derivative of a vertex centered variable with
@@ -288,9 +224,6 @@ END SUBROUTINE grad_fd_norm
 !!   iorient*(vertex2 - vertex1)
 !! input: lives on vertices of triangles
 !! output: lives on edges (velocity points)
-!!
-!! @par Revision History
-!! Developed  Marco Restelli (2007-11-23).
 !!
 SUBROUTINE grad_fd_tang( psi_v, ptr_patch, grad_tang_psi_e,  &
   &                      opt_slev, opt_elev, opt_rlstart, opt_rlend )
@@ -423,8 +356,6 @@ END SUBROUTINE grad_fd_tang
 
 !-------------------------------------------------------------------------
 !
-!
-!>
 !! Computes the cell centered gradient in geographical coordinates.
 !!
 !! The gradient is computed by taking the derivative of the shape functions
@@ -432,9 +363,6 @@ END SUBROUTINE grad_fd_tang
 !! The triangular element is spanned by the cell circumcenters of the three
 !! direct neighbours. In contrast to the Green-Gauss approach, this
 !! approach does not involve the cell center value of the central triangle.
-!!
-!! @par Revision History
-!!  Initial revision by Daniel Reinert, DWD (2013-11-07)
 !!
 !! LITERATURE:
 !! Fish. J and T. Belytschko, 2007: A first course in finite elements,
@@ -589,8 +517,6 @@ END SUBROUTINE grad_fe_cell_3d
 
 !-------------------------------------------------------------------------
 !
-!
-!>
 !! Computes the cell centered gradient in geographical coordinates.
 !!
 !! The gradient is computed by taking the derivative of the shape functions
@@ -600,9 +526,6 @@ END SUBROUTINE grad_fe_cell_3d
 !! approach does not involve the cell center value of the central triangle.
 !!
 !! 2D version, i.e. for a single vertical level
-!!
-!! @par Revision History
-!!  Initial revision by Daniel Reinert, DWD (2013-11-07)
 !!
 !! LITERATURE:
 !! Fish. J and T. Belytschko, 2007: A first course in finite elements,
@@ -712,19 +635,10 @@ END SUBROUTINE grad_fe_cell_2d
 
 !-------------------------------------------------------------------------
 !
-!
-!>
 !! Computes the cell centered gradient in geographical coordinates.
 !!
 !! The Green-Gauss approach is used. See for example:
 !! http://www.cfd-online.com/Wiki/Gradient_computation
-!!
-!! @par Revision History
-!!  Developed by Daniel Reinert (2009-07-21)
-!!  Modification by Almut Gassmann (2010-01-12)
-!!  - generalize for hexagons
-!!  Modification by Guenther Zaengl (2010-03-09)
-!!  - optimization by using precomputed coefficients
 !!
 SUBROUTINE grad_green_gauss_cell_adv( p_cc, ptr_patch, ptr_int, p_grad, &
   &                                   opt_slev, opt_elev, opt_p_face,   &

@@ -1,10 +1,14 @@
-!>
-!! @par Copyright
-!! This code is subject to the MPI-M-Software - License - Agreement in it's most recent form.
-!! Please see URL http://www.mpimet.mpg.de/en/science/models/model-distribution.html and the
-!! file COPYING in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the headers of the routines.
-!!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_rte_rrtmgp_interface
   USE mo_kind,                       ONLY: wp
   USE mo_math_constants,             ONLY: pi
@@ -74,16 +78,13 @@ CONTAINS
   !-------------------------------------------------------------------
 
   !>
-  !! @brief arranges input and calls rrtm sw and lw routines
+  !! arranges input and calls rrtm sw and lw routines
   !!
-  !! @par Revision History
-  !! Original Source Rewritten and renamed by B. Stevens (2009-08)
-  !!
-  !! @remarks
+  !! Remarks
   !!   Some cloud physical properties are prescribed, which are
   !!   required to derive cloud optical properties
   !!
-  !! @par The gases are passed into RRTM via two multi-constituent arrays:
+  !! The gases are passed into RRTM via two multi-constituent arrays:
 
 
   ! TODO/BUG?
@@ -467,12 +468,9 @@ CONTAINS
     !$ACC END KERNELS
   END SUBROUTINE clamp_temperature
   !----------------------------------------------- !>
-  !! @brief arranges input and calls rrtm sw and lw routines
+  !! arranges input and calls rrtm sw and lw routines
   !!
-  !! @par Revision History
-  !! Original Source Rewritten and renamed by B. Stevens (2009-08)
-  !!
-  !! @remarks
+  !! Remarks
   !!   Because the RRTM indexes vertical levels differently than ECHAM a chief
   !!   function of thise routine is to reorder the input in the vertical.  In
   !!   addition some cloud physical properties are prescribed, which are

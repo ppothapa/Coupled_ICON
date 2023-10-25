@@ -1,20 +1,18 @@
-!>
-!! This module contains the I/O routines for initicon
-!!
-!! @author Guenther Zaengl, DWD
-!!
-!!
-!! @par Revision History
-!! First version by Guenther Zaengl, DWD (2011-07-13)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! This module contains the I/O routines for initicon
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -236,11 +234,6 @@ MODULE mo_initicon_io
   !!
   !! Reads horizontally interpolated external analysis atmosphere data
   !! (currently IFS or COSMO) and reads in vertical coordinate table.
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-14)
-  !! Modification by Daniel Reinert, DWD (2012-12-18)
-  !! - encapsulate reading of IFS analysis
   !!
   SUBROUTINE read_extana_atm (p_patch, initicon)
 
@@ -624,11 +617,6 @@ MODULE mo_initicon_io
   !!
   !! Reads horizontally interpolated external analysis surface data
   !! Currently, only IFS data are processed here
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-14)
-  !! Modification by Daniel Reinert, DWD (2012-12-18)
-  !! - encapsulate reading of IFS analysis
   !!
   SUBROUTINE read_extana_sfc (p_patch, initicon)
 
@@ -1273,13 +1261,6 @@ MODULE mo_initicon_io
   !! whereas DA output is read for T, p, u, v,
   !! qv, qc, qi, qr, qs, qg.
   !!
-  !! @par Revision History
-  !! Initial version by Daniel Reinert, DWD(2012-12-18)
-  !! Modifications for GRIB2 : F. Prill, DWD (2013-02-19)
-  !! Modifications by Daniel Reinert, DWD (2014-01-27)
-  !! - split off reading of FG fields
-  !!
-  !!
   SUBROUTINE fetch_dwdfg_atm_ii(requestList, p_patch, initicon, inputInstructions)
     CLASS(t_InputRequestList), POINTER, INTENT(INOUT) :: requestList
     TYPE(t_patch), INTENT(IN) :: p_patch(:)
@@ -1426,12 +1407,6 @@ MODULE mo_initicon_io
   !! Depending on the initialization mode, either full fields or increments
   !! are read (atmosphere only). The following full fields are read, if available:
   !!     u, v, t, p, qv, qi, qc, qr, qs, qg
-  !!
-  !! @par Revision History
-  !! Initial version by Daniel Reinert, DWD(2012-12-18)
-  !! Modifications for GRIB2 : F. Prill, DWD (2013-02-19)
-  !! Modifications by Daniel Reinert, DWD (2014-01-27)
-  !! - split off reading of FG fields
   !!
   SUBROUTINE fetch_dwdana_atm(requestList, p_patch, p_nh_state, initicon, inputInstructions)
     CLASS(t_InputRequestList), POINTER, INTENT(INOUT) :: requestList
@@ -2076,11 +2051,6 @@ MODULE mo_initicon_io
   !! Analysis is read for:
   !! fr_seaice, t_ice, h_ice, t_so, h_snow, w_snow, w_i, t_snow, rho_snow, freshsnow, w_so
   !!
-  !!
-  !! @par Revision History
-  !! Initial version by Daniel Reinert, DWD(2012-12-18)
-  !! Modifications by Daniel Reinert, DWD (2014-07-16)
-  !! - split off reading of ANA fields
   !!
   SUBROUTINE fetch_dwdana_sfc(requestList, p_patch, p_lnd_state, initicon, inputInstructions)
     CLASS(t_InputRequestList), POINTER, INTENT(INOUT) :: requestList

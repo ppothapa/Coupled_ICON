@@ -1,23 +1,18 @@
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!>
-!! Preliminary read and time interpolation routine for monthly SST and sea ice data
-!! 
-!! This is  a clone of the respective ECHAM routine
-!!
-!! U. Schlese, DKRZ,  May 1993, original version
-!! U. Schulzweida, MPI, May 1999, netCDF version
-!! L. Kornblueh, MPI, November 2001, cleanup for parallel environment
-!! U. Schulzweida, MPI, May 2002, blocking (nproma)
-!! L. Kornblueh, MPI, February 2013, adapted as temporary reader in ICON using cdi
-!!
-!! TODO: ctfreez in echam = 271.38, this is 271.45 K
+! This is  a clone of the respective ECHAM routine
 !
+! TODO: ctfreez in echam = 271.38, this is 271.45 K
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_bc_sst_sic
   
   USE mo_kind,               ONLY: dp, i8

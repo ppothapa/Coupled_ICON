@@ -1,18 +1,17 @@
-!! Contains utilities for diagnose pressure, temperature and air mass in nh model
-!!
-!!
-!! @par Revision History
-!! Initial release by Almut Gassmann, MPI-M (2009-03-06)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Contains utilities for diagnose pressure, temperature and air mass in nh model
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -59,9 +58,6 @@ MODULE mo_nh_diagnose_pres_temp
   !! diagnose_pres_temp
   !!
   !! Diagnoses pressure and temperature from NH prognostic fields
-  !!
-  !! @par Revision History
-  !! Initial release by Guenther Zaengl (2010-04-15)
   !!
   SUBROUTINE diagnose_pres_temp (p_metrics, pt_prog, pt_prog_rcf, pt_diag, pt_patch, &
     &                            opt_calc_temp, opt_calc_pres, opt_calc_temp_ifc,    &
@@ -449,9 +445,6 @@ MODULE mo_nh_diagnose_pres_temp
   !! Compute air mass within grid cell. Note that here, the air mass is defined
   !! as \rho*\Delta z [kg m-2]. Computing the true grid cell air mass 
   !! requires an additional multiplication with the grid cell area.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2020-01-29)
   !!
   SUBROUTINE compute_airmass (p_patch, p_metrics, rho, airmass)
 

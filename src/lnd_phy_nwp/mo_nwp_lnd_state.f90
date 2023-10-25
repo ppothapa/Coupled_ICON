@@ -1,18 +1,23 @@
-
-#if (defined (__GNUC__) || defined(__SUNPRO_F95) || defined(__SX__))
-#define HAVE_F95
-#endif
-!>
-!!  !MODULE:  mo_nwp_phy_state\\
-!!
-!! Description:  Contains the data structures
-!!  to store the physical model state and other auxiliary variables
-!!  in order to run the NWP land physics.
-!!  Constructors and destructors for these data structures as well as
-!!  initialization of fields are also defined here.
-!!  This module should be an analogon to 'mo_hydro_state.f90'
-
-!!  TODO/To think about:
+! Contains the data structures to store the physical model state and
+! other auxiliary variables in order to run the NWP land physics.
+! Constructors and destructors for these data structures as well as
+! initialization of fields are also defined here.  This module should
+! be an analogon to 'mo_hydro_state.f90'
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+!
+!
+!  TODO/To think about:
 !     - should physics be called before or after dynamics?
 !     - allocate fluxes at edges instead at the centers?
 !     - horizontal/vertical tracer flux (reconstruct q'v_n' into q'u' and q'v') ?
@@ -23,28 +28,11 @@
 !     - fill the physics tendency construction/destruction subroutine
 !     - later implement already calculated icon gradients for echam physics
 !     - think about variables for flexible time steps
-!!
-!! @author Kristina Froehlich, DWD
-!! @author Marco Giorgetta, MPI-M
-!!
-!!
-!! @par Revision History
-!! Initial  by Kristina Froehlich (2010-11-09)
-!! Modification by Daniel Reinert, DWD (2012-04-03)
-!! - encapsulated type definitions (mo_nwp_lnd_types)
-!! Modifications by Dmitrii Mironov, DWD (2016-08-04)
-!! - Changes related to the use of a rate equation 
-!!   for the sea-ice albedo.
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+
+#if (defined (__GNUC__) || defined(__SUNPRO_F95) || defined(__SX__))
+#define HAVE_F95
+#endif
+
 MODULE mo_nwp_lnd_state
 
   USE mo_kind,                 ONLY: wp
@@ -122,9 +110,6 @@ MODULE mo_nwp_lnd_state
   !! It calls constructors to
   !! single time level prognostic states, and diagnostic states.
   !! Initialization of all components with zero.
-  !!
-  !! @par Revision History
-  !! Initial release by Kristina Froehlich (2010-11-09)
   !!
   SUBROUTINE construct_nwp_lnd_state(p_patch, p_lnd_state, l_smi, n_timelevels)
 !
@@ -250,9 +235,6 @@ MODULE mo_nwp_lnd_state
   !! It calls destructors to
   !! single time level prognostic states, and diagnostic states.
   !!
-  !! @par Revision History
-  !! Initial release by Kristina Froehlich (2010-11-09)
-  !!
   SUBROUTINE destruct_nwp_lnd_state()
     !
     INTEGER :: ntl, &! local number of timelevels
@@ -332,10 +314,6 @@ MODULE mo_nwp_lnd_state
   !! Allocation of components of prognostic land state.
   !!
   !! Initialization of components with zero.
-  !!
-  !! @par Revision History
-  !! Initial release by , MPI-M (2011-07-01)
-  !!
   !!
   SUBROUTINE new_nwp_lnd_prog_list( p_jg, kblks, listname, vname_prefix, &
     &                               prog_list, p_prog_lnd, timelev )
@@ -1005,9 +983,6 @@ MODULE mo_nwp_lnd_state
   !!
   !! Initialization of components with zero.
   !!
-  !! @par Revision History
-  !! Initial release by Guenther Zaengl, DWD (2012-08-08)
-  !!
   !! Modifications by Dmitrii Mironov, DWD (2016-08-04)
   !! - Prognostic sea-ice albedo is added.
   !!
@@ -1275,10 +1250,6 @@ MODULE mo_nwp_lnd_state
   !! Allocation of components of diagnostic land state.
   !!
   !! Initialization of components with zero.
-  !!
-  !! @par Revision History
-  !! Initial release by , MPI-M (2011-07-01)
-  !!
   !!
   SUBROUTINE new_nwp_lnd_diag_list( p_jg, kblks, listname, vname_prefix, &
     &                               diag_list, p_diag_lnd, l_smi)

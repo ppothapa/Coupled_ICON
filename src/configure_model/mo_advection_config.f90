@@ -1,22 +1,16 @@
-!>
-!! @brief configuration setup for tracer transport
-!!
-!! configuration setup for atmospheric tracer transport
-!!
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2011-07-07)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! configuration setup for atmospheric tracer transport
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_advection_config
 
   USE mo_kind,                      ONLY: wp, dp
@@ -275,9 +269,6 @@ CONTAINS
   !! transport-NAMELIST and potentially other namelists. This routine is
   !! called, after all namelists have been read and a synoptic consistency
   !! check has been done.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2011-04-20)
   !!
   SUBROUTINE configure_advection( jg, nlev, nlev_1, iforcing, iqc, iqt,                &
     &                             kstart_moist, kend_qvsubstep, lvert_nest,            &
@@ -865,9 +856,6 @@ CONTAINS
   !!
   !! Deallocates all components of a class t_trList object
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-03-13)
-  !!
   SUBROUTINE destruct_trList(obj)
     TYPE(t_trList) :: obj
     !
@@ -894,9 +882,6 @@ CONTAINS
   !! Additional passive tracers are initialized by applying
   !! the initialization formulae provided via Namelist parameter
   !! 'init_formula'.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2015-05-11)
   !!
   SUBROUTINE init_passive_tracer (tracer_list, advection_config, ntl)
 
@@ -972,11 +957,6 @@ CONTAINS
 
   !>
   !! Screen print out of advection setup
-  !!
-  !! Screen print out of advection setup.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-03-30)
   !!
   SUBROUTINE advection_print_setup (config_obj, var_list_tracer, nlev)
     !
@@ -1081,9 +1061,6 @@ CONTAINS
   !!
   !! Creates tracer var list containing references to all prognostic tracer
   !! fields.
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Reinert, DWD (2012-02-02)
   !!
   SUBROUTINE new_nh_state_tracer_list (patch_id, from_var_list, p_tracer_list, listname)
     INTEGER, INTENT(IN) :: patch_id ! current patch ID

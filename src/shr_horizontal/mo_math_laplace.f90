@@ -1,74 +1,22 @@
-!>
-!!   Contains the implementation of the nabla mathematical operators.
-!!
-!!   Contains the implementation of the mathematical operators
-!!   employed by the shallow water prototype.
-!!
-!! @par Revision History
-!!  Developed  by Luca Bonaventura and Will Sawyer (2002-4).
-!!  Modified to ProTeX-style by  Luca Bonaventura and Thomas Heinze (2004).
-!!  Adapted to new data structure by Thomas Heinze,
-!!  Peter Korn and Luca Bonaventura (2005).
-!!  Modification by Thomas Heinze (2006-02-21):
-!!  - renamed m_modules to mo_modules
-!!  Subroutine for divergence multiplied by area added by P.Korn (2006).
-!!  Modification by Peter Korn, MPI-M, (2006-11-23):
-!!  - replacements in TYPE patch: ic by l2g_c, ie by l2g_e, iv by l2g_v,
-!!    iic by g2l_c, iie by g2l_e, iiv by g2l_v
-!!  - replaced edge_index by edge_idx
-!!  - replaced vertex_index by vertex_idx
-!!  - replaced cell_index by cell_idx
-!!  - replaced neighbor_index by neighbor_idx
-!!  - replaced child_index by child_idx
-!!  Modified by P Ripodas (2007-02):
-!!  - include the system orientation factor in the vorticity term of nabla2_vec
-!!  - solved errors in nabla4_vec and nabla4_scalar
-!!  Modification by Peter Korn, MPI-M, (2006/2007):
-!!  -operator overloading of curl operator and nabla2vec to handle atmosphere and ocean version
-!!  -change of input/output arguments of subroutines: arrays of fixed size are
-!!   changed to pointers, to avoid occurence of not-initialized numbers
-!!  Modified by Almut Gassmann, MPI-M, (2007-04)
-!!  - removed references to unused halo_verts
-!!  - summing over all halos corresponding to different parallel patches
-!!  Modified by Hui Wan, MPI-M, (2007-11)
-!!  - added subroutine cell_avg
-!!  Modification by Jochen Foerstner, DWD, (2008-05-05)
-!!  - div and div_times_area are now generic subroutines
-!!  - the divergence can now be computed either
-!!    using the midpoint rule
-!!    (div_midpoint, div_midpoint_times_area) or
-!!    using the Simpson's rule
-!!    (div_simpson, div_simpson_times_area)
-!!  Modification by Marco Restelli, MPI (2008-07-17)
-!!  - included subroutine dtan.
-!!  Modification by Jochen Foerstner, DWD (2008-09-12)
-!!  - moved SUBROUTINE ravtom_normgrad2 from mo_interpolation to this module
-!!    because of conflicting use statements.
-!!  Modification by Jochen Foerstner, DWD (2008-09-16)
-!!  - removed SUBROUTINE ravtom_normgrad2 (not used)
-!!  Modification by Daniel Reinert, DWD (2009-07-20)
-!!  - added subroutine grad_lsq_cell for gradient reconstruction via the
-!!    least-squares method and grad_green_gauss_gc_cell for Green-Gauss
-!!    gradient in geographical coordinates
-!!  Modification by Daniel Reinert, DWD (2009-12-14)
-!!  - renamed grad_lsq_cell -> recon_lsq_cell_l
-!!  Modification by Leonidas Linardakis, MPI-M (2010-21-01)
-!!  - split mo_math_operators into submodules
-!!  Modification by William Sawyer, CSCS (2016-07-21)
-!!  - OpenACC implementation
-!!
-!! @par To Do
-!! Boundary exchange, nblks in presence of halos and dummy edge
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+!   Contains the implementation of the nabla mathematical operators.
+!
+!   Contains the implementation of the mathematical operators
+!   employed by the shallow water prototype.
+!
+! @par To Do
+! Boundary exchange, nblks in presence of halos and dummy edge
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -129,18 +77,6 @@ CONTAINS
 !!
 !! input:  lives on edges (velocity points)
 !! output: lives on edges
-!!
-!! @par Revision History
-!! Developed and tested  by L.Bonaventura  (2002-4).
-!! Adapted to new grid and patch structure by P. Korn (2005).
-!! Modified by Th.Heinze (2006-06-20):
-!! - changed u_out(ie1,jn) to u_out(j,jn) according to hint of P.Korn
-!! Modifications by P. Korn, MPI-M(2007-2)
-!! -Switch fom array arguments to pointers
-!! Modified by P Ripodas (2007-02):
-!! - include the system orientation factor in the vorticity term
-!! Modified by Almut Gassmann (2007-04-20)
-!! - abandon grid for the sake of patch
 !!
 SUBROUTINE nabla2_vec_atmos( vec_e, ptr_patch, ptr_int, nabla2_vec_e, &
   &                          opt_slev, opt_elev, opt_rlstart, opt_rlend )
@@ -334,16 +270,6 @@ END SUBROUTINE nabla2_vec_atmos
 !! input:  lives on edges (velocity points)
 !! output: lives on edges
 !!
-!! @par Revision History
-!! Developed and tested  by L.Bonaventura  (2002-4).
-!! Adapted to new grid and patch structure by P. Korn (2005).
-!! Modifications by P. Korn, MPI-M(2007-2)
-!! -Switch fom array arguments to pointers
-!! Modification by Almut Gassmann, MPI-M (2007-04-20)
-!! - abandon grid for the sake of patch
-!! Modified by Marco Giorgetta, MPI-M (2009-02-26)
-!! - replaced nlev_ocean by nlev
-!!
 SUBROUTINE nabla4_vec( vec_e, ptr_patch, ptr_int, nabla4_vec_e, &
   &                    opt_nabla2, opt_slev, opt_elev, opt_rlstart, opt_rlend )
 
@@ -474,15 +400,6 @@ END SUBROUTINE nabla4_vec
 !! input:  lives on cells (mass points)
 !! output: lives on cells
 !!
-!! @par Revision History
-!! Developed and tested  by L.Bonaventura  (2002-4).
-!! Adapted to new grid and patch structure by P.Korn (2005).
-!! Derived from nabla4_scalar by Th.Heinze (2006-07-24).
-!! Modifications by P. Korn, MPI-M(2007-2)
-!! -Switch fom array arguments to pointers
-!! Modifications by Almut Gassmann, MPI-M (2007-04-20)
-!! -abandon grid for the sake of patch
-!!
 SUBROUTINE nabla2_scalar( psi_c, ptr_patch, ptr_int, nabla2_psi_c, &
   &                       slev, elev, rl_start, rl_end )
 
@@ -582,9 +499,6 @@ END SUBROUTINE nabla2_scalar
 !!  NOTE: This optimized routine works for triangular grids only.
 !! input:  lives on cells (mass points)
 !! output: lives on cells
-!!
-!! @par Revision History
-!! Developed by Guenther Zaengl, DWD, 2009-05-19
 !!
 SUBROUTINE nabla2_scalar_avg( psi_c, ptr_patch, ptr_int, avg_coeff, nabla2_psi_c, &
   &                           opt_slev, opt_elev )
@@ -868,15 +782,6 @@ END SUBROUTINE nabla2_scalar_avg
 !!
 !! input:  lives on edges (velocity points)
 !! output: lives on edges
-!!
-!! @par Revision History
-!! Developed and tested  by L.Bonaventura  (2002-4).
-!! Adapted to new grid and patch structure by P. Korn (2005).
-!! Modifications by P. Korn, MPI-M(2007-2)
-!! -Switch fom array arguments to pointers
-!! Modifications by Almut Gassmann, MPI-M (2007-04-20)
-!! - abandon grid for the sake of patch
-!! - corrected type for temp1 (now edges and no longer cells)
 !!
 SUBROUTINE nabla4_scalar( psi_c, ptr_patch, ptr_int, nabla4_psi_c, &
   &                       slev, elev, rl_start, rl_end, p_nabla2  )

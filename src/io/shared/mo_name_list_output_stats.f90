@@ -1,25 +1,30 @@
-!>
-!! Module generating a PostScript file visualizing the asynchronous I/O.
-!!
-!! The output write intervals are visualized as bars on a timeline,
-!! each processor on its separate row. The time line is given in
-!! seconds of wall-clock time. The interval bars are annotated by the
-!! corresponding filenames. Where there is no sufficient space left
-!! (on the paper), the annotation is ommitted.
-!!
-!! The start and end of each interval is triggered by user
-!! calls. These calls must happen consecutively (START1, END1, START2,
-!! END2, ...) but are otherwise not checked for consistency.
-!!
-!! Note that this Fortran module is restricted to high level calls
-!! while the actual drawing and scaling is automatically handled by
-!! the generated PostScript code.
-!!
-!! @author F. Prill
-!!
-!! @par Revision History
-!! Initial implementation  by  F. Prill, DWD (2014-10-06)
-!!
+! Module generating a PostScript file visualizing the asynchronous I/O.
+!
+! The output write intervals are visualized as bars on a timeline,
+! each processor on its separate row. The time line is given in
+! seconds of wall-clock time. The interval bars are annotated by the
+! corresponding filenames. Where there is no sufficient space left
+! (on the paper), the annotation is ommitted.
+!
+! The start and end of each interval is triggered by user
+! calls. These calls must happen consecutively (START1, END1, START2,
+! END2, ...) but are otherwise not checked for consistency.
+!
+! Note that this Fortran module is restricted to high level calls
+! while the actual drawing and scaling is automatically handled by
+! the generated PostScript code.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_name_list_output_stats
 
   USE mo_kind,                      ONLY: wp
@@ -83,8 +88,6 @@ CONTAINS
   !-------------------------------------------------------------------------------------------------
   !> Generate PostScript file header.
   !
-  !  @author F. Prill, DWD
-  !
   SUBROUTINE ps_define_header(psfile)
     INTEGER, INTENT(IN) :: psfile   !< PostScript file handle
 
@@ -99,8 +102,6 @@ CONTAINS
 
   !-------------------------------------------------------------------------------------------------
   !> Generate PostScript procedure block.
-  !
-  !  @author F. Prill, DWD
   !
   SUBROUTINE ps_define_routines(psfile)
     INTEGER, INTENT(IN) :: psfile   !< PostScript file handle
@@ -216,8 +217,6 @@ CONTAINS
   !
   !  Change font sizes, line heights and other layout settings here.
   !
-  !  @author F. Prill, DWD
-  !
   SUBROUTINE ps_define_constants(psfile, title_str)
     INTEGER,          INTENT(IN) :: psfile     !< PostScript file handle
     CHARACTER(LEN=*), INTENT(IN) :: title_str  !< title string
@@ -237,8 +236,6 @@ CONTAINS
   !-------------------------------------------------------------------------------------------------
   !> Generate PostScript prologue before interval definitions.
   !
-  !  @author F. Prill, DWD
-  !
   SUBROUTINE ps_define_prologue(psfile)
     INTEGER, INTENT(IN) :: psfile   !< PostScript file handle
 
@@ -252,8 +249,6 @@ CONTAINS
   !-------------------------------------------------------------------------------------------------
   !> Generate PostScript block for a new row in interval diagram.
   !
-  !  @author F. Prill, DWD
-  !
   SUBROUTINE ps_define_newrow(psfile, row_title)
     INTEGER,          INTENT(IN) :: psfile     !< PostScript file handle
     CHARACTER(LEN=*), INTENT(IN) :: row_title  !< row title string
@@ -264,8 +259,6 @@ CONTAINS
 
   !-------------------------------------------------------------------------------------------------
   !> Generate PostScript block defining a single interval.
-  !
-  !  @author F. Prill, DWD
   !
   SUBROUTINE ps_define_interval(psfile, annotation, sec_start, sec_end)
     INTEGER,          INTENT(IN) :: psfile              !< PostScript file handle
@@ -279,8 +272,6 @@ CONTAINS
   !-------------------------------------------------------------------------------------------------
   !> Generate PostScript epilogue after interval definitions.
   !
-  !  @author F. Prill, DWD
-  !
   SUBROUTINE ps_define_epilogue(psfile)
     INTEGER, INTENT(IN) :: psfile   !< PostScript file handle
 
@@ -291,8 +282,6 @@ CONTAINS
 
   !-------------------------------------------------------------------------------------------------
   !> Enlarge local list of intervals (if necessary).
-  !
-  !  @author F. Prill, DWD
   !
   SUBROUTINE resize_list(list, new_size)
     TYPE(t_list), INTENT(INOUT)     :: list      !< list of intervals
@@ -330,8 +319,6 @@ CONTAINS
   !-------------------------------------------------------------------------------------------------
   !> Free local list of intervals.
   !
-  !  @author F. Prill, DWD
-  !
   SUBROUTINE clear_list(list)
     TYPE(t_list), INTENT(INOUT) :: list !< list of intervals
     ! local variables
@@ -348,8 +335,6 @@ CONTAINS
 
   !-------------------------------------------------------------------------------------------------
   !> @return current time in the form of a "t_timestamp" data structure.
-  !
-  !  @author F. Prill, DWD
   !
   FUNCTION get_timestamp()
     TYPE (t_timestamp) :: get_timestamp !< current time stamp
@@ -380,8 +365,6 @@ CONTAINS
   !-------------------------------------------------------------------------------------------------
   !> @return current time difference (t1-t2) in seconds.
   !
-  !  @author F. Prill, DWD
-  !
   FUNCTION get_time_diff(t1, t2)
     REAL(wp) :: get_time_diff                  !< time difference in seconds.
     TYPE (t_timestamp), INTENT(IN) :: t1, t2   !< time stamps
@@ -393,8 +376,6 @@ CONTAINS
   !-------------------------------------------------------------------------------------------------
   !> Define initial time stamp used as reference (0 seconds wall-time).
   !
-  !  @author F. Prill, DWD
-  !
   SUBROUTINE set_reference_time()
     start_time = get_timestamp()
   END SUBROUTINE set_reference_time
@@ -402,8 +383,6 @@ CONTAINS
 
   !-------------------------------------------------------------------------------------------------
   !> Append the begin of a new interval to list.
-  !
-  !  @author F. Prill, DWD
   !
   SUBROUTINE interval_start(name)
     CHARACTER(LEN=*), INTENT(IN) :: name      !< name string for this interval
@@ -438,8 +417,6 @@ CONTAINS
   !-------------------------------------------------------------------------------------------------
   !> Close the currently opened interval in the list.
   !
-  !  @author F. Prill, DWD
-  !
   SUBROUTINE interval_end(name)
     CHARACTER(LEN=*), INTENT(IN) :: name      !< name string for this interval
     ! local variables
@@ -467,8 +444,6 @@ CONTAINS
 
   !-------------------------------------------------------------------------------------------------
   !> Collect intervals from multiple MPI tasks on a single MPI task.
-  !
-  !  @author F. Prill, DWD
   !
   SUBROUTINE interval_gather_procs(iroot, mpi_comm, this_pe_name, tot_list)
     INTEGER,          INTENT(IN)    :: iroot         !< MPI root process rank
@@ -561,8 +536,6 @@ CONTAINS
   !> Collect intervals from other MPI tasks on rank #0 and write
   !  PostScript file.
   !
-  !  @author F. Prill, DWD
-  !     
   SUBROUTINE interval_write_psfile(filename, title_str, this_pe_name, mpi_comm)
     CHARACTER(LEN=*),               INTENT(IN) :: filename      !< file name string (only used on PE#0)
     CHARACTER(LEN=*),               INTENT(IN) :: title_str     !< title string     (only used on PE#0)

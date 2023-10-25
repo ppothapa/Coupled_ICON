@@ -1,26 +1,23 @@
-!>
-!! The radiation scheme ecRad expects information from the host model (i.e., ICON) to be
-!!   copied to different ecRad data structures: t_ecrad_single_level_type, t_ecrad_gas_type,
-!!   t_ecrad_thermodynamics_type and t_ecrad_cloud_type. Similarly, the output of ecRad, i.e.
-!!   the radiative fluxes, are stored in a data structure t_ecrad_flux_type. 
-!! This module offers subroutines that transfer the data from ICON variables into the
-!!   correct ecRad data structure. The subroutines are written in a way that they can be used
-!!   on the reduced radiation grid as well as on the full radiation grid. This ensures 
-!!   consistency between the two modes.
-!!
-!! @author Daniel Rieger, Deutscher Wetterdienst, Offenbach
-!!
-!! @par Revision History
-!! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-05-10)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! The radiation scheme ecRad expects information from the host model (i.e., ICON) to be
+!   copied to different ecRad data structures: t_ecrad_single_level_type, t_ecrad_gas_type,
+!   t_ecrad_thermodynamics_type and t_ecrad_cloud_type. Similarly, the output of ecRad, i.e.
+!   the radiative fluxes, are stored in a data structure t_ecrad_flux_type.
+! This module offers subroutines that transfer the data from ICON variables into the
+!   correct ecRad data structure. The subroutines are written in a way that they can be used
+!   on the reduced radiation grid as well as on the full radiation grid. This ensures
+!   consistency between the two modes.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_nwp_ecrad_utilities
 
@@ -93,9 +90,6 @@ CONTAINS
   !! SUBROUTINE ecrad_set_single_level:
   !! Set ecRad single level information, i.e. fill t_ecrad_single_level_type with information
   !! from ICON.
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-05-10)
   !!
   SUBROUTINE ecrad_set_single_level(ecrad_single_level, current_datetime, cell_center, cosmu0, tsfc, &
     &                               albvisdif, albnirdif, albvisdir, albnirdir, emis_rad, i_startidx, i_endidx, &
@@ -173,9 +167,6 @@ CONTAINS
   !! SUBROUTINE ecrad_set_thermodynamics:
   !! Set ecRad thermodynamics information, i.e. fill t_ecrad_thermodynamics_type with information
   !! from ICON.
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-05-10)
   !!
   SUBROUTINE ecrad_set_thermodynamics(ecrad_thermodynamics, temp, pres, pres_ifc, &
     &                                 nlev, nlevp1, i_startidx, i_endidx, lacc)
@@ -257,9 +248,6 @@ CONTAINS
   !! SUBROUTINE ecrad_set_clouds:
   !! Set ecRad clouds information, i.e. fill t_ecrad_cloud_type with information
   !! from ICON.
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-05-10)
   !!
   SUBROUTINE ecrad_set_clouds(ecrad_cloud, ecrad_thermodynamics, qc, qi, clc, temp, pres, acdnc,                  &
     &                         fr_glac, fr_land, qr,qs,qg,reff_liq, reff_frz, reff_rain, reff_snow, reff_graupel,  &
@@ -539,9 +527,6 @@ CONTAINS
   !! - This interval might be smaller than jcs:jce
   !! - There is a documentation of the indices in the header of get_indices_rad_subblock
   !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-05-13)
-  !!
   SUBROUTINE ecrad_set_gas(ecrad_gas, ecrad_conf, o3, qv, pres, i_startidx, i_endidx, nlev, lacc)
 
     TYPE(t_ecrad_gas_type), INTENT(inout) :: &
@@ -698,11 +683,6 @@ CONTAINS
   !! SUBROUTINE ecrad_store_fluxes:
   !! Stores radiative fluxes calculated by ecRad from the ecRad type t_ecrad_flux_type
   !! in the corresponding ICON data structure.
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-05-13)
-  !! Add separate (diffuse) near-IR, visible, and PAR fluxes by Roland Wirth, Deutscher
-  !!     Wetterdienst, Offenbach (2021-09-15)
   !!
   SUBROUTINE ecrad_store_fluxes(jg, ecrad_flux, cosmu0, trsolall, trsol_up_toa, trsol_up_sfc, trsol_nir_sfc,   &
     &                           trsol_vis_sfc, trsol_par_sfc, fr_nir_sfc_diff, fr_vis_sfc_diff,                &
@@ -884,10 +864,6 @@ CONTAINS
   !! Computes a total transmissivity given a set of band-based transmissivities with their
   !! accompanying weights. NOTE: `tr_wgt` must be zero-initialized.
   !!
-  !! @par Revision History
-  !! Initial release by Roland Wirth, Deutscher Wetterdienst, Offenbach (2021-09-15)
-  !! OpenACC support by Roland Wirth, Deutscher Wetterdienst, Offenbach (2022-02-02)
-  !!
   SUBROUTINE transmissivity_in_band (weights, bands, tr_band, cosmu0, mask, tr_wgt, nbands)
 
     REAL(wp), INTENT(IN) :: weights(:) !< Weight for each band index present in `band`.
@@ -935,9 +911,6 @@ CONTAINS
   !>
   !! SUBROUTINE add_3D_diffuse_rad:
   !! Adds 3D contribution to diffuse radiation by reflection of direct solar radiation on scattered low clouds
-  !!
-  !! @par Revision History
-  !! Initial release by Guenther Zaengl, Deutscher Wetterdienst, Offenbach (2019-12-06)
   !!
   SUBROUTINE add_3D_diffuse_rad( &
         & ecrad_flux, clc, pres, temp, cosmu0, fr_nir_sfc_diff, fr_vis_sfc_diff, fr_par_sfc_diff, &
@@ -1032,9 +1005,6 @@ CONTAINS
   !! Function create_rdm_seed_in_time:
   !! Create a unique but reproducable random seed in time for the McICA solver
   !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-01-31)
-  !!
   FUNCTION create_rdm_seed_in_time(current_datetime)
     !$ACC ROUTINE SEQ
     ! In:
@@ -1074,9 +1044,6 @@ CONTAINS
   !! int(simtime) creates stripe patterns in the instantaneous fluxes.
   !! --------------------------------------------------------------
   !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-01-31)
-  !!
   FUNCTION create_rdm_seed(lon,lat,seed_in_time)
     !$ACC ROUTINE SEQ
     ! In:
@@ -1100,9 +1067,6 @@ CONTAINS
   !! from mo_newcld_optics.f90). Author of the original code: Bjorn Stevens, MPI-M, Hamburg
   !! see ECHAM5 documentation (Roeckner et al, MPI report 349)
   !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-01-31)
-  !!
   REAL(wp) FUNCTION reff_crystal(ziwc)  ![m]
     !$ACC ROUTINE SEQ
     REAL(wp), INTENT (IN)  :: &
@@ -1125,9 +1089,6 @@ CONTAINS
   !! Function reff_droplet:
   !! Function to calculate effective radius of water droplets (extracted for the use in ecRad
   !! from mo_newcld_optics.f90). Author of the original code: Bjorn Stevens, MPI-M, Hamburg
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-01-31)
   !!
   REAL(wp) FUNCTION reff_droplet(zlwc,zcdnc,zland,zglac,zfact)  ![m]
     !$ACC ROUTINE SEQ
@@ -1160,9 +1121,6 @@ CONTAINS
   !! Function to calculate gas profile decaying with height with a tanh function.
   !! Extracted for the use in ecRad from mo_radiation.f90.
   !! Author of the original code: Bjorn Stevens, MPI-M, Hamburg
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-05-14)
   !!
   SUBROUTINE gas_profile(vmr_gas, pres, xp, i_startidx, i_endidx, nlev, profile, lacc)
 

@@ -1,22 +1,17 @@
-!>
-!! @brief Read and apply optical properties of aerosol climatology
-!!        for volcanic stratospheric aerosols as provided for CMIP6
-!!
-!! @author J.S. Rast (MPI-M)
-!!
-!! @par Revision History
-!! original source by J.S. Rast (2010-02-19)
-!! Adapted to ICON by J.S. Rast (2013-09-18)
-!! Rewrite of caching mechanism by R. Wirth, DWD (2022-09)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Read and apply optical properties of aerosol climatology
+!        for volcanic stratospheric aerosols as provided for CMIP6
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_bc_aeropt_cmip6_volc
 

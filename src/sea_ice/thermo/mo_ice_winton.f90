@@ -1,21 +1,20 @@
-!>
-!! Provide an implementation of the sea-ice model.
-!!
-!! Provide an implementation of the parameters of the surface module (sea ice)
-!! used between the atmopshere and the hydrostatic ocean model.
-!!
-!! @author 
-!! 
-!! @par Revision History
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Provide an implementation of the sea-ice model.
+!
+! Provide an implementation of the parameters of the surface module (sea ice)
+! used between the atmopshere and the hydrostatic ocean model.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_ice_winton
 
   USE mo_kind,                ONLY: wp
@@ -59,10 +58,6 @@ CONTAINS
   !! ice % Qtop     Heat flux available for melting at ice surface          [W/m^2]
   !!
   !!           all "dtime" in this function are atmospheric time step
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2010-07). Originally code written by
-  !! Dirk Notz, following MPI-OM. Code transfered to ICON.
-  !!
 
   SUBROUTINE set_ice_temp_winton(i_startidx_c, i_endidx_c, nbdim, kice, pdtime, &
             &   Tsurf,          & ! Surface temperature [degC]                                   
@@ -225,10 +220,6 @@ CONTAINS
   !!                in previously ice covered areas if all ice is gone      [kg/m^3]
   !! ice % heatOceI to contain the energy that is available to the mixed layer
   !!                in previously ice covered areas if all ice is gone      [J]
-  !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2010-07). Originally code written by
-  !! Dirk Notz, following MPI-OM. Code transfered to ICON.
   !!
 
   SUBROUTINE ice_growth_winton(p_patch, ice, use_acc)!, lat)

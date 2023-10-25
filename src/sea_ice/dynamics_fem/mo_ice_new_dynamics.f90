@@ -1,19 +1,18 @@
-!>
-!! Contains the interface needed to call AWI FEM sea ice model
-!! as well as advection and interpolation routines.
-!!
-!! @par Revision History
-!! Developed  by Einar Olason (2013)
-!! Restructured by Vladimir Lapin (2015)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Contains the interface needed to call AWI FEM sea ice model
+! as well as advection and interpolation routines.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 ! #include "omp_definitions.inc"
 !----------------------------
@@ -82,9 +81,6 @@ CONTAINS
 !!  We first remap the neccesary inputs, then call the momentum solver (EVPdynamics)
 !!  and map the resulting velocity onto edges and cell centres.
 !!
-!! @par Revision History
-!! Developed by Einar Olason, MPI-M (2013-06-05)
-!! Modified   by Vladimir Lapin (2015)
 
   SUBROUTINE ice_new_dynamics( p_patch_3D, p_ice, p_os, p_as, atmos_fluxes, p_op_coeff, p_oce_sfc)
 

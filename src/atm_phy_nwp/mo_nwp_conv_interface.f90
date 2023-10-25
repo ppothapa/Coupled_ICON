@@ -1,24 +1,22 @@
 !OPTION! -cont
-!! this command should fix the problem of copying arrays in a subroutine call
-!>
-!! This module is the interface between nwp_nh_interface to the
-!! convection parameterisation(s):
-!! inwp_conv == 1 == Tiedtke-Bechtold convection
-!!
-!! @author Kristina Froehlich, DWD, Offenbach (2010-01-25)
-!!
-!! @par Revision History
-!! Initial Kristina Froehlich, DWD, Offenbach (2010-01-25)
-!! Add gust   by Helmut Frank, DWD, Offenbach (2013-03-13)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! this command should fix the problem of copying arrays in a subroutine call
+!
+! This module is the interface between nwp_nh_interface to the
+! convection parameterisation(s):
+! inwp_conv == 1 == Tiedtke-Bechtold convection
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"

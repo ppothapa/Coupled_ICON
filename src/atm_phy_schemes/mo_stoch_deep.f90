@@ -1,53 +1,40 @@
-! $RCSfile$
-! $Revision$ $Date$
 !
-!>
-!! Stochastic differential equation (SDE) deep convection subroutine.
-!!
-!! Description:
-!! This routine is not a stand-alone convection parameterization, but is
-!! used in conjunction with a conventional mass flux parameterization
-!! scheme, currently the Tiedtke-Bechtold scheme. It replaces the cloud
-!! base mass flux calculated with the conventional scheme with a
-!! stochastically perturbed mass flux value for each grid cell.
-!! The SDE version of the scheme evolves two prognostic variables
-!! describing the state of the cloud ensemble (grid box mass flux and cloud
-!! numbers).
-!! Required input for the construction of the mass flux distribution is
-!! the "bulk" or first-guess mass flux calculated by the conventional
-!! convection scheme (applied to profiles averaged over a representative
-!! neighbourhood).
-!!
-!! A full description of the scheme can be found in the following
-!! publications:
-!! Plant and Craig (2008)
-!! Machulskaya and Seifert (2019)
-!!
-!! Compile with FFLAG -fall-intrinsics
-!!
-!! @author Maike Ahlgrimm, DWD
-!!
-!! @par Revision History
-!!      First implementation by Maike Ahlgrimm, DWD (May 2021)
-!!
-!!-----------------------------------------------------------------------------
+! Stochastic differential equation (SDE) deep convection subroutine.
 !
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!! @par Warranty
-!! This code has been tested up to a certain level. Defects and weaknesses,
-!! which may be included in the code, do not establish any warranties by the
-!! authors.
-!! The authors do not make any warranty, express or implied, or assume any
-!! liability or responsibility for the use, acquisition or application of this
-!! software.
-!!-----------------------------------------------------------------------------
+! Description:
+! This routine is not a stand-alone convection parameterization, but is
+! used in conjunction with a conventional mass flux parameterization
+! scheme, currently the Tiedtke-Bechtold scheme. It replaces the cloud
+! base mass flux calculated with the conventional scheme with a
+! stochastically perturbed mass flux value for each grid cell.
+! The SDE version of the scheme evolves two prognostic variables
+! describing the state of the cloud ensemble (grid box mass flux and cloud
+! numbers).
+! Required input for the construction of the mass flux distribution is
+! the "bulk" or first-guess mass flux calculated by the conventional
+! convection scheme (applied to profiles averaged over a representative
+! neighbourhood).
+!
+! A full description of the scheme can be found in the following
+! publications:
+! Plant and Craig (2008)
+! Machulskaya and Seifert (2019)
+!
+! Compile with FFLAG -fall-intrinsics
+!
+!-----------------------------------------------------------------------------
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_stoch_deep
 

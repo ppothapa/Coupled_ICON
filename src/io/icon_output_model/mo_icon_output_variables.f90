@@ -1,31 +1,21 @@
-!>
-!!  Contains the data structures for the hydrostatic ocean model.
-!!
-!!  Contains the data structures to store the hydrostatic & boussinesq ocean model state.
-!!  Implementation is based on ICON-Shallow-Water model
-!!  to store the shallow water model state and other auxiliary variables.
-!!  Constructors and destructors for these data structures are also defined here.
-!!
-!! @par Revision History
-!!  Initial version by Peter Korn (MPI-M), (2006).
-!!  Big recoding by P. Korn (MPI-M), (2009/2010)
-!!  Modification by Stephan Lorenz, MPI-M, (2010-03-19):
-!!   - renaming and adjustment to ocean domain and patch_oce
-!!  Modification by Stephan Lorenz, MPI-M, 2011-07
-!!   - 3-dim ocean structures moved from patch_oce to hydro_ocean_base
+!  Contains the data structures for the hydrostatic ocean model.
+!
+!  Contains the data structures to store the hydrostatic & boussinesq ocean model state.
+!  Implementation is based on ICON-Shallow-Water model
+!  to store the shallow water model state and other auxiliary variables.
+!  Constructors and destructors for these data structures are also defined here.
 !
 !
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
-!----------------------------
-!=============================================================================================
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 #include "iconfor_dsl_definitions.inc"
 !=============================================================================================
 MODULE mo_icon_output_variables

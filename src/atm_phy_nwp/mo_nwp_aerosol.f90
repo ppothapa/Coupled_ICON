@@ -1,19 +1,18 @@
-!>
-!! This module prepares aerosol for the use in radiation
-!!
-!! @author Daniel Rieger, Deutscher Wetterdienst, Offenbach
-!!
-!! @par Revision History
-!! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2022-11-08)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! This module prepares aerosol for the use in radiation
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -79,9 +78,6 @@ MODULE mo_nwp_aerosol
 CONTAINS
 
   !---------------------------------------------------------------------------------------
-  !>
-  !! @par Revision History
-  !! Initial release by Harel Muskatel,  IMS (2023-05)
   !! This subroutine uploads CAMS aerosols mixing ratios 3D climatology and updates them once a day
   SUBROUTINE nwp_aerosol_init(mtime_datetime, p_patch)
 
@@ -127,10 +123,6 @@ CONTAINS
   END SUBROUTINE nwp_aerosol_init
 
   !---------------------------------------------------------------------------------------
-  !>
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2022-11-08)
-  !!
   SUBROUTINE nwp_aerosol_interface(mtime_datetime, pt_patch, ext_data, pt_diag, prm_diag,          &
     &                              zf, zh, dz, dt_rad,                                             &
     &                              inwp_radiation, nbands_lw, nbands_sw, wavenum1_sw, wavenum2_sw, &
@@ -454,10 +446,6 @@ CONTAINS
   END SUBROUTINE nwp_aerosol_interface
 
   !---------------------------------------------------------------------------------------
-  !>
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2022-11-10)
-  !!
   SUBROUTINE nwp_aerosol_daily_update_kinne(mtime_datetime, pt_patch, dt_rad, inwp_radiation, nbands_lw, nbands_sw)
     TYPE(datetime), POINTER, INTENT(in) :: &
       &  mtime_datetime                    !< Current datetime
@@ -492,10 +480,6 @@ CONTAINS
   END SUBROUTINE nwp_aerosol_daily_update_kinne
 
   !---------------------------------------------------------------------------------------
-  !>
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2022-11-09)
-  !!
   SUBROUTINE nwp_aerosol_kinne(mtime_datetime, zf, zh, dz, jg, jb, i_endidx, nlev, &
     &                          nbands_lw, nbands_sw, wavenum1_sw, wavenum2_sw,     &
     &                          od_lw, od_sw, ssa_sw, g_sw)
@@ -568,9 +552,6 @@ CONTAINS
 
 
   !---------------------------------------------------------------------------------------
-  !>
-  !! @par Revision History
-  !! Initial release by Harel Muskatel,  IMS (2023-04)
   !! This subroutine uploads CAMS aerosols mixing ratios 3D climatology and updates them
   SUBROUTINE nwp_aerosol_update_cams(mtime_datetime, jg, cams)
 
@@ -594,9 +575,6 @@ CONTAINS
   END SUBROUTINE nwp_aerosol_update_cams
 
   !---------------------------------------------------------------------------------------
-  !>
-  !! @par Revision History
-  !! Initial release by Harel Muskatel,  IMS (2023-08)
   !! Vertical interpolation of CAMS aerosols mixing ratios 3D climatology
   !! This routine uses the original data of CAMS climatology which has different
   !! number of pressure levels from ICON and also different lowest/highest pressure values. 
@@ -763,11 +741,6 @@ CONTAINS
   END SUBROUTINE vinterp_cams_aerosols
 
   !---------------------------------------------------------------------------------------
-  !>
-  !! @par Revision History
-  !! Initial release by Thorsten Reinhardt, AGeoBw, Offenbach (2011-01-13)
-  !! Cleanup and moved to mo_nwp_aerosol by Daniel Rieger, DWD, Offenbach (2023-04-04)
-  !!
   SUBROUTINE nwp_aerosol_tegen ( istart, iend, nlev, nlevp1, k850, temp, pres, pres_ifc,                 &
     &                            aer_ss_mo1, aer_org_mo1, aer_bc_mo1, aer_so4_mo1, aer_dust_mo1,         &
     &                            aer_ss_mo2, aer_org_mo2, aer_bc_mo2, aer_so4_mo2, aer_dust_mo2,         &
@@ -953,10 +926,6 @@ CONTAINS
   !---------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------
-  !>
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, DWD, Offenbach (2023-04-06)
-  !!
   SUBROUTINE nwp_cpl_aero_gscp_conv(istart, iend, nlev, pres_sfc, pres, acdnc, cloud_num, lacc)
   INTEGER, INTENT(in)                 :: &
     &  istart, iend, nlev                  !< loop start and end indices (nproma, vertical)
@@ -992,10 +961,6 @@ CONTAINS
   !---------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------
-  !>
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2023-04-04)
-  !!
   SUBROUTINE get_time_intp_weights(mtime_datetime, imo1 , imo2, time_weight)
     TYPE(datetime), POINTER, INTENT(in) :: &
       &  mtime_datetime                      !< Current datetime
@@ -1025,10 +990,6 @@ CONTAINS
   END SUBROUTINE get_time_intp_weights
 
   !---------------------------------------------------------------------------------------
-  !>
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2022-11-10)
-  !!
   SUBROUTINE nwp_aerosol_cleanup(od_lw, od_sw, ssa_sw, g_sw)
     CHARACTER(len=*), PARAMETER :: &
       &  routine = modname//':nwp_aerosol_cleanup'

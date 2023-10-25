@@ -1,36 +1,22 @@
-!>
-!!  Module determines main mathematical constants to be used by shallow water.
-!!
-!!  Module determines main mathematical constants to be used by shallow water
-!!  prototype. Values are taken from glibc 2.2.5: /usr/include/math.h
-!!  These constants
-!!  are provided to more significant digits than is necessary for a 64-bit
-!!  double precision number; they may be used for other purposes where the
-!!  extra precision is necessary or useful.
-!!
-!! @par Revision History
-!!  Developed  by Luis Kornblueh (2004)
-!!  Modified to ProTeX-style by  Luca Bonaventura and Thomas Heinze (2004).
-!!  Modified according to style guide by Thomas Heinze (2005-06-24):
-!!   - module renamed from mo_math to mo_math_constants
-!!   - eps moved from mo_physical_constants
-!!   - pid180i renamed to rad2deg
-!!  Including some more constants from math.h by Thomas Heinze (2005-07-18)
-!!  pid5 renamed to pi_5 by Thomas Heinze (2005-07-26)
-!!  Modification by Thomas Heinze (2006-02-21):
-!!  - renamed m_modules to mo_modules
-!!  Modification by Thomas Heinze (2006-05-18):
-!!  - introduced dbl_eps
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+!  Module determines main mathematical constants to be used by shallow water
+!  prototype. Values are taken from glibc 2.2.5: /usr/include/math.h
+!  These constants
+!  are provided to more significant digits than is necessary for a 64-bit
+!  double precision number; they may be used for other purposes where the
+!  extra precision is necessary or useful.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_math_constants
 
 USE mo_kind,      ONLY:  wp

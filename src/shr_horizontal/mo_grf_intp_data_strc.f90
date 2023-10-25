@@ -1,25 +1,20 @@
-!>
-!! Contains the interpolation routines needed for grid refinement.
-!!
-!! These had originally been included in mo_grf_interpolation but then were
-!! packed into a separate module to clean up the code
-!!
-!! @par Revision History
-!! Created by Guenther Zaengl, DWD (2009-02-09)
-!! Modification by Guenther Zaengl, DWD (2009-06-22)
-!! - preparation for generalized grid refinement (affects all subroutines)
-!! Modification by Constantin Junk, MPI-M (2011-05-05)
-!! - moved gridref_ctl namelist variables to mo_gridref_nml
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Contains the interpolation routines needed for grid refinement.
+!
+! These had originally been included in mo_grf_interpolation but then were
+! packed into a separate module to clean up the code
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_grf_intp_data_strc
 
 USE mo_kind, ONLY: wp

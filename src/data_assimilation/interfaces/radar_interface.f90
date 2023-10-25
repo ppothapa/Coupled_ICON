@@ -1,7 +1,18 @@
 !NEC$ options "-finline-max-depth=3 -finline-max-function-size=1000"
 
-!+ Source module for the radar forward operator of the COSMO-model
-!------------------------------------------------------------------------------
+! Source module for the radar forward operator of the COSMO-model!!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE radar_interface
 
   !------------------------------------------------------------------------------
@@ -13,26 +24,6 @@ MODULE radar_interface
   ! Method:
   !   See subroutines below
   !
-  ! Current Code Owner: DWD, Ulrich Blahak
-  !  phone:  +49  69  8062 2393
-  !  fax:    +49  69  8062 3721
-  !  email:  ulrich.blahak@dwd.de
-  !
-  ! History:
-  ! Version    Date       Name
-  ! ---------- ---------- ----
-  ! 1.1        2013/12/11 Ulrich Blahak
-  !  Initial release
-  ! 1.2        2017/06/06 Alberto de Lozar
-  !  Warm bubbles added
-  !
-  ! Code Description:
-  ! Language: Fortran 90.
-  ! Software Standards: "European Standards for Writing and
-  ! Documenting Exchangeable Fortran 90 Code".
-  !==============================================================================
-  !
-
   !------------------------------------------------------------------------------
   !
   ! Declarations:

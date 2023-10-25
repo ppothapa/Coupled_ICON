@@ -1,5 +1,15 @@
-!+ Data module for global fields needed for radar operators
-!-------------------------------------------------------------------------------
+! Data module for global fields needed for radar operators!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE radar_dbzcalc_params_type
 
@@ -9,25 +19,10 @@ MODULE radar_dbzcalc_params_type
 !  This module declares a derived type "dbzcalc_params" which holds the meta data for the
 !  reflectivity compuations in calc_dzb_vec()
 !
-! Current Code Owner: Ulrich Blahak, DWD
-!  phone:  +49  69 8062 2393
-!  fax:    +49  69 8062 3721
-!  email:  ulrich.blahak@dwd.de
-!
-! History:
-! Version      Date       Name
-! ------------ ---------- ----
-! V5_6b        2021-09-17 Ulrich Blahak
-!  Initial version
-!
-! Code Description:
-! Language: Fortran 90.
-! Software Standards: "European Standards for Writing and
-! Documenting Exchangeable Fortran 90 Code".
-!===============================================================================
-!
+!-------------------------------------------------------------------------------
+
 ! Declarations:
-!
+
 ! Modules used: NONE
 
 #ifdef __ICON__

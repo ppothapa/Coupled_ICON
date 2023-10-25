@@ -1,24 +1,23 @@
-!>
-!! @brief Routines for the initialisation of YAC on IO processes
-!!
-!! @author
-!!  Rene Redler (MPI-M)
-!!
-!! The purpose of routines construct_io_coupler and destruct_io_coupler is
-!! to initialise YAC on asynchronous IO processes. The YAC component definition
-!! and search are collective operations in the MPI sense. Thus all MPI processes
-!! must call yac_fdef_comp(s) and yac_fenddef.
-!! Currently, the IO processes do not receive any fields via YAC for output.
-!! Therefore, yac_fenddef is called with an empty list of fields.
-!! 
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! @brief Routines for the initialisation of YAC on IO processes
+!
+! The purpose of routines construct_io_coupler and destruct_io_coupler is
+! to initialise YAC on asynchronous IO processes. The YAC component definition
+! and search are collective operations in the MPI sense. Thus all MPI processes
+! must call yac_fdef_comp(s) and yac_fenddef.
+! Currently, the IO processes do not receive any fields via YAC for output.
+! Therefore, yac_fenddef is called with an empty list of fields.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_io_coupling
 
   USE mo_coupling_config,           ONLY: is_coupled_run

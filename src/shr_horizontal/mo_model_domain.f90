@@ -1,75 +1,21 @@
-!----------------------------------
-!>
-!!               The module contains the definition of the.
-!!
-!!               The module contains the definition of the
-!!  grid and patch data structure that is
-!!          actually used by the model.
-!! It contains abstract data types that
-!! are copies of those in
-!! m_grid, m_hierarchy and m_base_geometry.
-!!
-!! @par Revision History
-!! Initial version  by: Peter Korn,  MPI-M, Hamburg, June 2005
-!! Cartesian coordinates type added by
-!! Luca Bonaventura,  Polimi, Milano, October 2005
-!!  Modification by Thomas Heinze (2006-02-21):
-!!  - renamed m_modules to mo_modules
-!! Component gitter of type 'patch' changed to grid, P. Korn (2006).
-!! Modifications by Th.Heinze, DWD (2006-10-25):
-!! - changed index to idx in TYPE declarations of grid_cells, grid_edges
-!!    and grid_vertices
-!! Modification by Peter Korn, MPI-M, (2006-11-23):
-!!  - replacements in TYPE patch: ic by l2g_c, ie by l2g_e, iv by l2g_v,
-!!    iic by g2l_c, iie by g2l_e, iiv by g2l_v
-!!  - replaced edge_index by edge_idx
-!!  - replaced vertex_index by vertex_idx
-!!  - replaced cell_index by cell_idx
-!!  - replaced neighbor_index by neighbor_idx
-!!  - replaced child_index by child_idx
-!! Modification by P. Ripodas (2007-01-31)
-!!  - added tangent_orientation to TYPE grid_edges
-!! Modification by Hui Wan, MPI-M, (2007-02-22):
-!!  - type cartesian_coordinates and type geographical_coordinates
-!!    moved to mo_math_utilities
-!! Modification by A. Gassmann, MPI-M, (2007-04-03)
-!!  - added list type
-!!  - reorganized patch structure
-!! Modification by Almut Gassman, MPI-M, (2007-04-13)
-!!  - remove grid type
-!!  - store external data (topography and land_sea_mask) in TYPE external data
-!!  - k_list as variable name for integer lists
-!! Modification by Jochen Foesrtner, DWD, (2008-07-16)
-!!  - new fields in the derived type for the edges:
-!!    grid_edges%primal_cart_normal (Cartesian normal to edge),
-!!    grid_edges%quad_idx, grid_edges%quad_area and grid_edges%quad_orientation
-!!    (indices of edges and area of the quadrilateral formed by two adjacent cells)
-!!    up to now these new fields are initialized in mo_model_domain_import.f90
-!!    rather than read from a grid/patch file.
-!! Modification by Almut Gassmann, MPI-M, (2008-10-30)
-!!  - Coriolis parameter is part of the external data
-!! Modification by Almut Gassmann, MPI-M, (2009-03-06)
-!!  - added 3d metrics part
-!! Modification by Stephan Lorenz, MPI-M, (2010-02-02)
-!!  - added type patch_ocean including 3-dim vertical topography (bathymetry)
-!! Modification by Guenther Zaengl, DWD (2010-05-05)
-!! - Moved metrics fields into NH state to avoid memory problems with MPI parallelization
-!! Modification by Peter Korn, MPI-M, (2010-05-31)
-!!  - added new data types patch_ocean for reconstruction process
-!! Modification by Daniel Reinert, DWD (2010-07-21)
-!!  - completely removed atmospheric external data from patch
-!! Modification by Stephan Lorenz, MPI-M, (2010-10-26)
-!!  - added data structures in patch_ocean for new "PtP" reconstruction process
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! The module contains the definition of the grid and patch data
+! structure that is actually used by the model.  It contains abstract
+! data types that are copies of those in m_grid, m_hierarchy and
+! m_base_geometry.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
+  
 !! I can't say why xlf takes ages to optimize this file,
 !! but since it contains declarations only, it's sufficient to leave
 !! it unoptimized

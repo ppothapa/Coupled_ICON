@@ -1,29 +1,20 @@
-!!
-!!  Initial version by Chiel van Heerwaarden and Thijs Heus for MicroHH
-!!  and laer for UCLA-LES
-!!  Modified by Anurag Dipankar for ICON
-!!
-!> Background routines to read and write NetCDF output
-!! All calls to the netcdf library should be directed through here.
-!! The module opens (with open_nc), closes (with close_nc),
-!! and writes (with writevar_nc) anything between 0D (e.g. timeseries)
-!! and 4D (e.g. z,x,y,t) fields to file.
-!!
-!! \todo Parallel NETCDF
-!! \todo Documentation
-!!-------------------------------------------------------------------------------
-!! @author Anurag Dipankar, MPIM
-!!
-!! @par Revision History
-!! Initial implementation,            A. Dipankar, MPIM (2014-01-10)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+! Background routines to read and write NetCDF output
+! All calls to the netcdf library should be directed through here.
+! The module opens (with open_nc), closes (with close_nc),
+! and writes (with writevar_nc) anything between 0D (e.g. timeseries)
+! and 4D (e.g. z,x,y,t) fields to file.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 module mo_write_netcdf
 
@@ -70,7 +61,7 @@ module mo_write_netcdf
   end interface getatt_nc
 
 contains
-  
+
 !-------------------------------------------------------------------------
 !> Subroutine Open_NC: Opens a NetCDF File for writing
 !! If the file already exists, the record number is being set to the current
@@ -137,7 +128,7 @@ contains
 !          ! Step through the time dimension; stop when one is bigger
 !          do while(ncall < nrec .and. &
 !                   xtimes(ncall) /= fillvalue_double .and. &
-!                   xtimes(ncall) <= rtimee - spacing(1.)) 
+!                   xtimes(ncall) <= rtimee - spacing(1.))
 !
 !              ncall=ncall+1
 !          end do
@@ -176,7 +167,7 @@ contains
 !            deallocate(dimids)
 !          end do
 !          if (ldef) ldef = ensuredefine_nc(ncid)
-!           
+!
 !          deallocate(xtimes)
 !
 !        end if!nrec>0
@@ -191,7 +182,7 @@ contains
   end subroutine open_nc
 
 !-------------------------------------------------------------------------
-!> Switch NetCDF file to define mode. Returns true if the dataset already 
+!> Switch NetCDF file to define mode. Returns true if the dataset already
 !  was in define mode, and false if it was in data mode
   logical function ensuredefine_nc(ncid)
     integer, intent(in) :: ncid !< NetCDF file number
@@ -205,11 +196,11 @@ contains
       ensuredefine_nc = .true.
     case default
       call nchandle_error(ncid, iret)
-    end select    
+    end select
  end function ensuredefine_nc
 
 !-------------------------------------------------------------------------
-!> Switch NetCDF file to data mode. Returns true if the dataset was in define 
+!> Switch NetCDF file to data mode. Returns true if the dataset was in define
 !  mode, and false if it was already in data mode
   logical function ensuredata_nc(ncid)
     integer, intent(in) :: ncid !< NetCDF file number
@@ -223,7 +214,7 @@ contains
       ensuredata_nc = .false.
     case default
       call nchandle_error(ncid, iret)
-    end select    
+    end select
  end function ensuredata_nc
 
 !-------------------------------------------------------------------------
@@ -260,9 +251,9 @@ contains
     character (*), dimension(:), intent(in), optional :: dimunit     !< Units of the dimensions of the variable (in array form)
     integer, dimension(:), intent(in), optional       :: dimsize     !< List of dimension sizes; 0 for unlimited
     real(wp), dimension(:,:), intent(in), optional    :: dimvalues   !< List of values of the dimension
-    integer, optional                                 :: icompress   !< Choice of compression: 1 for double, 
+    integer, optional                                 :: icompress   !< Choice of compression: 1 for double,
                                                                      !   2 for integer
-  
+
     integer                                     :: iret, n, nrdim,VarID, icomp, datatype
     integer, allocatable, dimension(:)          :: ncdim
     logical                                     :: ldef
@@ -352,7 +343,7 @@ contains
     real(wp), dimension(:), allocatable :: dimvar
     character(LEN=80) :: fname
 
-    if (all(dimvalues == 0)) then ! If all values of this dimension are zero, 
+    if (all(dimvalues == 0)) then ! If all values of this dimension are zero,
                                   ! it is the unlimited (time) dimension
       ltime = .true.
     else
@@ -375,7 +366,7 @@ contains
           iret  = nf_get_var_double(ncid,varid,dimvar)
           ldef = ensuredefine_nc(ncid)
           ! Check whether dimension in file matches with the desired values
-          if (any((abs((dimvar - dimvalues)/(dimvar+epsilon(1.)))) > 1e-4)) then 
+          if (any((abs((dimvar - dimvalues)/(dimvar+epsilon(1.)))) > 1e-4)) then
             iret = getatt_nc(ncid,'title', fname)
             if (iret /= nf_noerr) fname = ''
             print *, 'NetCDF error in file ' // trim(fname)
@@ -456,7 +447,7 @@ contains
     else
       loc = 1
     end if
-   
+
     dimsize(1) = 1
     iret = nf_put_vara_double(ncid, VarID, loc, dimsize, var)
     if (iret /= nf_noerr .and. iret /= nf_erange) call nchandle_error(ncid, iret)
@@ -511,7 +502,7 @@ contains
     character(len=*), intent(in), optional :: varname
     integer :: iret, varid
     logical :: ldef
-    
+
     ldef = ensuredefine_nc(ncid)
     if (present(varname)) then
       iret  = nf_inq_varid(ncid,validate(varname),varid)
@@ -524,7 +515,7 @@ contains
       ldef = ensuredata_nc(ncid)
     end if
   end function putatt_str_nc
-  
+
 !-------------------------------------------------------------------------
   integer function putatt_single_nc(ncid, attrname, attrval, varname)
     integer, intent(in)                    :: ncid
@@ -533,7 +524,7 @@ contains
     character(len=*), intent(in), optional :: varname
     integer :: iret, varid
     logical :: ldef
-    
+
     ldef = ensuredefine_nc(ncid)
     if (present(varname)) then
       iret  = nf_inq_varid(ncid,validate(varname),varid)
@@ -545,7 +536,7 @@ contains
       ldef = ensuredata_nc(ncid)
     end if
   end function putatt_single_nc
-  
+
 !-------------------------------------------------------------------------
   integer function putatt_double_nc(ncid, attrname, attrval, varname)
     integer, intent(in)                    :: ncid
@@ -554,7 +545,7 @@ contains
     character(len=*), intent(in), optional :: varname
     integer :: iret, varid
     logical :: ldef
-    
+
     ldef = ensuredefine_nc(ncid)
     if (present(varname)) then
       iret  = nf_inq_varid(ncid,validate(varname),varid)
@@ -566,7 +557,7 @@ contains
       ldef = ensuredata_nc(ncid)
     end if
   end function putatt_double_nc
-  
+
 !-------------------------------------------------------------------------
   integer function putatt_int_nc(ncid, attrname, attrval, varname)
     integer, intent(in)                    :: ncid
@@ -575,7 +566,7 @@ contains
     character(len=*), intent(in), optional :: varname
     integer :: iret, varid
     logical :: ldef
-    
+
     ldef = ensuredefine_nc(ncid)
     if (present(varname)) then
       iret  = nf_inq_varid(ncid,validate(varname),varid)
@@ -587,7 +578,7 @@ contains
       ldef = ensuredata_nc(ncid)
     end if
   end function putatt_int_nc
-  
+
 !-------------------------------------------------------------------------
   integer function putatt_short_nc(ncid, attrname, attrval, varname)
     integer, intent(in)                    :: ncid
@@ -596,7 +587,7 @@ contains
     character(len=*), intent(in), optional :: varname
     integer :: iret, varid
     logical :: ldef
-    
+
     ldef = ensuredefine_nc(ncid)
     if (present(varname)) then
       iret  = nf_inq_varid(ncid,validate(varname),varid)
@@ -608,7 +599,7 @@ contains
       ldef = ensuredata_nc(ncid)
     end if
   end function putatt_short_nc
-  
+
 !-------------------------------------------------------------------------
   integer function getatt_str_nc(ncid, attrname, attrval, varname)
     integer, intent(in)                    :: ncid
@@ -616,7 +607,7 @@ contains
     character(len=*), intent(out)          :: attrval
     character(len=*), intent(in), optional :: varname
     integer :: iret, varid
-    
+
     if (present(varname)) then
       iret  = nf_inq_varid(ncid,validate(varname),varid)
     else
@@ -624,7 +615,7 @@ contains
     end if
     getatt_str_nc = nf_get_att_text(ncid, varid, validate(attrname), attrval)
   end function getatt_str_nc
-  
+
 !-------------------------------------------------------------------------
   integer function getatt_single_nc(ncid, attrname, attrval, varname)
     integer, intent(in)                    :: ncid
@@ -632,7 +623,7 @@ contains
     real(sp), intent(out)                  :: attrval
     character(len=*), intent(in), optional :: varname
     integer :: iret, varid
-    
+
     if (present(varname)) then
       iret  = nf_inq_varid(ncid,validate(varname),varid)
     else
@@ -640,7 +631,7 @@ contains
     end if
     getatt_single_nc= nf_get_att_real(ncid, varid, validate(attrname), [attrval])
   end function getatt_single_nc
-  
+
 !-------------------------------------------------------------------------
   integer function getatt_double_nc(ncid, attrname, attrval, varname)
     integer, intent(in)                    :: ncid
@@ -648,7 +639,7 @@ contains
     real(dp), intent(out)                  :: attrval
     character(len=*), intent(in), optional :: varname
     integer :: iret, varid
-    
+
     if (present(varname)) then
       iret  = nf_inq_varid(ncid,validate(varname),varid)
     else
@@ -656,7 +647,7 @@ contains
     end if
     getatt_double_nc= nf_get_att_double(ncid, varid, validate(attrname), attrval)
   end function getatt_double_nc
-  
+
 !-------------------------------------------------------------------------
   integer function getatt_int_nc(ncid, attrname, attrval, varname)
     integer, intent(in)                    :: ncid
@@ -664,7 +655,7 @@ contains
     integer(i4), intent(out)               :: attrval
     character(len=*), intent(in), optional :: varname
     integer :: iret, varid
-    
+
     if (present(varname)) then
       iret  = nf_inq_varid(ncid,validate(varname),varid)
     else
@@ -672,7 +663,7 @@ contains
     end if
     getatt_int_nc= nf_get_att_int(ncid, varid, validate(attrname), attrval)
   end function getatt_int_nc
-  
+
 !-------------------------------------------------------------------------
   integer function getatt_short_nc(ncid, attrname, attrval, varname)
     integer, intent(in)                    :: ncid
@@ -680,7 +671,7 @@ contains
     integer(i2), intent(out)               :: attrval
     character(len=*), intent(in), optional :: varname
     integer :: iret, varid
-    
+
     if (present(varname)) then
       iret  = nf_inq_varid(ncid,validate(varname),varid)
     else
@@ -688,7 +679,7 @@ contains
     end if
     getatt_short_nc= nf_get_att_int2(ncid, varid, validate(attrname), [attrval])
   end function getatt_short_nc
-  
+
 !-------------------------------------------------------------------------
   integer function getatt_str_fname_nc(fname, attrname, attrval, varname)
     character(len=*), intent(in)           :: fname
@@ -696,7 +687,7 @@ contains
     character(len=*), intent(out)          :: attrval
     character(len=*), intent(in), optional :: varname
     integer :: iret, varid, ncid
-    
+
     iret = nf_open(trim(fname), NF_NOWRITE, ncid)
     if (present(varname)) then
       iret  = nf_inq_varid(ncid,validate(varname),varid)
@@ -705,7 +696,7 @@ contains
     end if
     getatt_str_fname_nc = nf_get_att_text(ncid, varid, validate(attrname), attrval)
   end function getatt_str_fname_nc
-  
+
 !-------------------------------------------------------------------------
   function validate(input) !\todo Make this allocatable as soon as all common compilers allow it
     character(len=*), intent(in) :: input

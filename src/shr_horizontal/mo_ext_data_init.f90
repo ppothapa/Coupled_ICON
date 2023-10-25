@@ -1,32 +1,18 @@
-!>
-!! Initialization/reading reading of external datasets
-!!
-!! This module contains read and initialization routines for the external data state.
-!!
-!! @author Daniel Reinert, DWD
-!! @author Hermann Asensio, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2010-07-12)
-!! Modification by Hermann Asensio, DWD (2010-07-16)
-!!  - add miscellaneous variables for external parameters
-!! Modification by Daniel Reinert, DWD (2011-05-03)
-!! - Memory allocation method changed from explicit allocation to Luis'
-!!   infrastructure
-!! Modification by Daniel Reinert, DWD (2012-02-23)
-!! - Routine smooth_topography moved to a new module named mo_smooth_topo
-!! Modification by Daniel Reinert, DWD (2012-03-22)
-!! - Type declaration moved to new module mo_ext_data_types
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Initialization/reading reading of external datasets
+!
+! This module contains read and initialization routines for the external data state.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -134,15 +120,11 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! Init external data for atmosphere
   !!
   !! 1. Build data structure, including field lists and
   !!    memory allocation.
   !! 2. External data are read in from netCDF file or set analytically
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2010-07-16)
   !!
   SUBROUTINE init_ext_data (p_patch, p_int_state, ext_data)
 
@@ -468,8 +450,6 @@ CONTAINS
   ! external parameters.
   !
   ! Note: This subroutine opens the file and returns a CDI file ID.
-  !
-  ! @author F. Prill, DWD (2014-01-07)
   !-------------------------------------------------------------------------
   SUBROUTINE inquire_extpar_file(p_patch, jg, cdi_extpar_id, cdi_filetype, &
     &                            is_frglac_in)
@@ -821,13 +801,7 @@ CONTAINS
   END SUBROUTINE inquire_external_files
 
   !-------------------------------------------------------------------------
-  !>
-  !! Read atmospheric external data
-  !!
   !! Read atmospheric external data from netcdf
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2010-07-14)
   !!
   SUBROUTINE read_ext_data_atm (p_patch, ext_data, nlev_o3, cdi_extpar_id, &
     &                           extpar_varnames_dict)
@@ -2386,7 +2360,6 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! Diagnose aggregated external fields
   !!
   !! Aggregated external fields are diagnosed based on tile based external
@@ -2394,9 +2367,6 @@ CONTAINS
   !! in order to be consistent with tile-information. Note that the latter 
   !! re-diagnosis has been moved to init_index_lists in order not to 
   !! compromise restart reproducibility.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2013-01-23)
   !!
   SUBROUTINE diagnose_ext_aggr (p_patch, ext_data)
 
@@ -2577,17 +2547,11 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! Get interpolated field from monthly mean climatology
   !!
   !! Get interpolated field from monthly mean climatology. A linear interpolation
   !! in time between successive months is performed, assuming that the monthly field
   !! applies to the 15th of the month.
-  !!
-  !! @par Revision History
-  !! Initial revision by Juergen Helmert, DWD (2012-04-17)
-  !! Modification by Daniel Reinert, DWD (2013-05-03)
-  !! Generalization to arbitrary monthly mean climatologies
   !!
   SUBROUTINE interpol_monthly_mean(p_patch, mtime_date, monthly_means, out_field, out_diff)
 
@@ -2675,13 +2639,9 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! Improves specifiation of vegetation climatology based on monthly climatology
   !! of 2m-temperature. In particular, a distinction between deciduous and evergreen
   !! vegetation classes is made.
-  !!
-  !! @par Revision History
-  !! Initial revision by Guenther Zaengl, DWD (2017-10-30)
   !!
   SUBROUTINE vege_clim (p_patch, ext_data, nh_diag)
 
@@ -2903,7 +2863,6 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! adjust atmo LSM to ocean LSM for coupled simulation and initialize new land points
   !!
   !! coupled A-O: ocean LSM dominates over atmospheric LSM: sea (0), land (1)
@@ -2924,11 +2883,6 @@ CONTAINS
   !! ICON-seamless prototype 2 - uncommon grids (A/O) support fractional lsm_ctr_c at ocean coast
   !! This routine doesn't support the case ntiles=1.  Additional surface parameters
   !! would have to be implemented
-  !!
-  !! @par Revision History
-  !! Initial revision by Martin Koehler, DWD (2021-01-27)
-  !! Modification by Stephan Lorenz, MPI (2022-08-02)
-  !! Generalization to arbitrarily overlapping grids
   !!
   !-------------------------------------------------------------------------
 

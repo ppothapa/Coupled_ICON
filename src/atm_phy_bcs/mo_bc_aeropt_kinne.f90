@@ -1,19 +1,17 @@
-!>
-!! @brief Read and apply monthly aerosol optical properties of S. Kinne
-!! from yearly files.
-!!
-!! @author J.S. Rast (MPI-M)
-!!
-!! @par Revision History
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Read and apply monthly aerosol optical properties of S. Kinne
+! from yearly files.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_bc_aeropt_kinne
 
@@ -555,10 +553,6 @@ END SUBROUTINE read_bc_aeropt_kinne
 !! set aerosol optical properties for all wave length bands (solar and IR)
 !! in the case of the climatology of optical properties compiled by S.Kinne.
 !! The height profile is taken into account.
-   !!
-!! !REVISION HISTORY:
-!! original source by J.S. Rast (2009-11-03) for echam6
-!! adapted to icon by J.S. Rast (2013-08-28)
 SUBROUTINE set_bc_aeropt_kinne (    current_date,                         &
           & jg,                                                           &
           & jcs,                    kproma,             kbdim,            &

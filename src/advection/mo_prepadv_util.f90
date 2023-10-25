@@ -1,21 +1,19 @@
-!>
-!! This module contains subroutines that update the prep_adv state
-!! with meaningful values for standalone advection runs.
-!! Note that in real case runs, the prep_adv state is updated by the
-!! dynamical core (nh_solve).
-!!
-!! @author Hui Wan, MPI-M
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! This module contains subroutines that update the prep_adv state
+! with meaningful values for standalone advection runs.
+! Note that in real case runs, the prep_adv state is updated by the
+! dynamical core (nh_solve).
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -47,11 +45,6 @@ CONTAINS
   !!
   !! Note that upper boundary fluxes (when using horizontal/vertical nesting)
   !! are set in mo_nh_nest_utilities/boundary_interpolation.
-  !!
-  !! @par Revision History
-  !! First version by Daniel Reinert, DWD (2010-04-14)
-  !! Modification by William Sawyer, CSCS (2019-07-08)
-  !! - OpenACC implementation
   !!
   SUBROUTINE prepare_tracer( p_patch, p_now, p_new, p_metrics, p_nh_diag, &
     &                        p_vn_traj, p_mass_flx_me, p_mass_flx_ic, lacc)

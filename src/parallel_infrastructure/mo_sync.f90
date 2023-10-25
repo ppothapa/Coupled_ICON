@@ -1,21 +1,18 @@
-!>
-!!               The module <i>mo_communication</i>.
-!!
-!!               The module <i>mo_communication</i>
-!! provides functionality for boundary exchange and global sums.
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! The module <i>mo_communication</i>
+! provides functionality for boundary exchange and global sums.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "icon_definitions.inc"
 !----------------------------
@@ -206,9 +203,6 @@ END SUBROUTINE disable_sync_checks
 !-------------------------------------------------------------------------
 !> Does boundary exchange for a 3-D REAL array.
 !
-!  @par Revision History
-!  Initial version by Rainer Johanni, Nov 2009
-!
 SUBROUTINE sync_patch_array_r3(typ, p_patch, arr, opt_varname)
    INTEGER,       INTENT(IN)    :: typ
    TYPE(t_patch), TARGET, INTENT(IN) :: p_patch
@@ -230,9 +224,6 @@ END SUBROUTINE sync_patch_array_r3
 
 !-------------------------------------------------------------------------
 !> Does boundary exchange for a 3-D single precision array.
-!
-!  @par Revision History
-!  Initial version by Rainer Johanni, Nov 2009
 !
 SUBROUTINE sync_patch_array_s3(typ, p_patch, arr, opt_varname)
    INTEGER,       INTENT(IN)    :: typ
@@ -263,9 +254,6 @@ END SUBROUTINE sync_patch_array_s3
 
 !-------------------------------------------------------------------------
 !> Does boundary exchange for a 3-D INTEGER array.
-!
-!  @par Revision History
-!  Initial version by Rainer Johanni, Nov 2009
 !
 !  @note This implementation does not perform a consistency check
 !        (p_test_run)!
@@ -300,9 +288,6 @@ END SUBROUTINE sync_patch_array_i3
 !-------------------------------------------------------------------------
 !> Does boundary exchange for a 2-D REAL array.
 !
-!  @par Revision History
-!  Initial version by Rainer Johanni, Nov 2009
-!
 SUBROUTINE sync_patch_array_r2(typ, p_patch, arr, opt_varname)
    INTEGER,       INTENT(IN)    :: typ
    TYPE(t_patch), INTENT(IN) :: p_patch
@@ -318,9 +303,6 @@ END SUBROUTINE sync_patch_array_r2
 
 !-------------------------------------------------------------------------
 !> Does boundary exchange for a 2-D INTEGER array.
-!
-!  @par Revision History
-!  Initial version by Rainer Johanni, Nov 2009
 !
 !  @note This implementation does not perform a consistency check
 !        (p_test_run)!
@@ -349,13 +331,8 @@ END SUBROUTINE sync_patch_array_i2
 
 
 !-------------------------------------------------------------------------
-!>
 !! Does boundary exchange for up to 5 3D cell-based fields and/or a 4D field.
 !! The 4D field can alternatively be passed as an array of 3D fields.
-!!
-!! @par Revision History
-!! Optimized version by Guenther Zaengl, Apr 2010, based on routines
-!! developed by Rainer Johanni
 !!
 SUBROUTINE sync_patch_array_mult_dp(typ, p_patch, nfields, f3din1, f3din2, f3din3, &
                                  f3din4, f3din5, f4din, f3din_arr, opt_varname)
@@ -424,13 +401,8 @@ SUBROUTINE sync_patch_array_mult_dp(typ, p_patch, nfields, f3din1, f3din2, f3din
 END SUBROUTINE sync_patch_array_mult_dp
 
 !-------------------------------------------------------------------------
-!>
 !! Does boundary exchange for up to 5 3D cell-based fields and/or a 4D field.
 !! The 4D field can alternatively be passed as an array of 3D fields.
-!!
-!! @par Revision History
-!! Optimized version by Guenther Zaengl, Apr 2010, based on routines
-!! developed by Rainer Johanni
 !!
 SUBROUTINE sync_patch_array_mult_sp(typ, p_patch, nfields, f3din1, f3din2, f3din3, &
                                  f3din4, f3din5, f4din, f3din_arr, opt_varname)
@@ -511,13 +483,8 @@ SUBROUTINE sync_patch_array_mult_sp(typ, p_patch, nfields, f3din1, f3din2, f3din
 
 
 !-------------------------------------------------------------------------
-!>
 !! Does boundary exchange for up to 5 3D cell-based fields and/or a 4D field,
 !! which can either be single precision or double precision
-!!
-!! @par Revision History
-!! Optimized version by Guenther Zaengl, Apr 2010, based on routines
-!! developed by Rainer Johanni
 !!
 SUBROUTINE sync_patch_array_mult_mp(typ, p_patch, nfields, nfields_sp, f3din1, f3din2, f3din3, &
   f3din4, f3din5, f3din1_sp, f3din2_sp, f3din3_sp, f3din4_sp, f3din5_sp, f4din, f4din_sp, opt_varname)
@@ -608,13 +575,8 @@ SUBROUTINE sync_patch_array_mult_mp(typ, p_patch, nfields, nfields_sp, f3din1, f
 END SUBROUTINE sync_patch_array_mult_mp
 
 
-!>
 !! Does boundary exchange for a 4D field for which the extra dimension
 !! is on the third index.
-!!
-!! @par Revision History
-!! Optimized version by Guenther Zaengl, Apr 2010, based on routines
-!! developed by Rainer Johanni
 !!
 SUBROUTINE sync_patch_array_4de1(typ, p_patch, nfields, f4din, opt_varname)
 
@@ -679,14 +641,10 @@ SUBROUTINE check_patch_array_sp(typ, p_patch, arr, opt_varname)
 END SUBROUTINE check_patch_array_sp
 
 
-!>
 !! In a verification run, this routine checks the consistency of an array,
 !! i.e. if the parts on the worker PEs are identical with the data on
 !! the verification PE.
 !! For a non-verification run it just does nothing.
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
 !!
 SUBROUTINE check_patch_array_3(typ, p_patch, arr, opt_varname)
 
@@ -964,12 +922,7 @@ END SUBROUTINE check_patch_array_3
 !
 !
 
-!>
 !! 2-D Interface to check_patch_array.
-!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
 !!
 SUBROUTINE check_patch_array_2(typ, p_patch, arr, opt_varname)
 
@@ -993,12 +946,7 @@ END SUBROUTINE check_patch_array_2
 !
 !
 
-!>
 !! 4-D Interface to check_patch_array.
-!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
 !!
 SUBROUTINE check_patch_array_4(typ, p_patch, arr, opt_varname)
 
@@ -1027,11 +975,7 @@ SUBROUTINE check_patch_array_4(typ, p_patch, arr, opt_varname)
 END SUBROUTINE check_patch_array_4
 !-------------------------------------------------------------------------
 !-------------------------------------------------------------------------
-!>
 !! Syncs an idx/blk pair of arrays
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Oct 2011
 
 SUBROUTINE sync_idx(type_arr, type_idx, p_patch, idx, blk, opt_remap, opt_varname )
 
@@ -1263,13 +1207,8 @@ FUNCTION global_sum_1di (zfield, opt_iroot) RESULT (global_sum)
 END FUNCTION global_sum_1di
 
 !-------------------------------------------------------------------------
-!>
 !! Calculates the global sum of an integer scalar.
 !! This routine should be called outside an OMP parallel Region!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! "iroot"-functionality: F. Prill, DWD, 2014-03-14
 !!
 !! @param[in] opt_iroot (Optional:) root PE, otherwise we perform an
 !!            ALL-TO-ALL operation.
@@ -1300,14 +1239,9 @@ FUNCTION global_sum_array_0di (zfield, opt_iroot) RESULT (global_sum)
 END FUNCTION global_sum_array_0di
 
 !-------------------------------------------------------------------------
-!>
 !! Calculates the global sum of zfield and checks for consistency
 !! when doing a verification run.
 !! This routine should be called outside an OMP parallel Region!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! "iroot"-functionality: F. Prill, DWD, 2014-03-14
 !!
 !! @param[in] opt_iroot (Optional:) root PE, otherwise we perform an
 !!            ALL-TO-ALL operation (for "l_fast_sum == .TRUE.").
@@ -1349,13 +1283,9 @@ FUNCTION global_sum_array_0d (zfield, opt_iroot) RESULT (global_sum)
 END FUNCTION global_sum_array_0d
 
 !-------------------------------------------------------------------------
-!>
 !! Calculates the global sum of zfield and checks for consistency
 !! when doing a verification run.
 !! This routine should be called outside an OMP parallel Region!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
 !!
 FUNCTION global_sum_array_1d (zfield, opt_iroot) RESULT (global_sum)
 
@@ -1393,13 +1323,9 @@ END FUNCTION global_sum_array_1d
 
 
 !-------------------------------------------------------------------------
-!>
 !! Calculates the global sum of zfield and checks for consistency
 !! when doing a verification run.
 !! This routine should be called outside an OMP parallel Region!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
 !!
 FUNCTION global_sum_array_2d (zfield, lacc) RESULT (global_sum)
 
@@ -1438,13 +1364,9 @@ FUNCTION global_sum_array_2d (zfield, lacc) RESULT (global_sum)
 END FUNCTION global_sum_array_2d
 
 !-------------------------------------------------------------------------
-!>
 !! Calculates the global sum of zfield and checks for consistency
 !! when doing a verification run.
 !! This routine should be called outside an OMP parallel Region!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
 !!
 FUNCTION global_sum_array_3d (zfield) RESULT (global_sum)
 
@@ -1481,13 +1403,9 @@ END FUNCTION global_sum_array_3d
 
 
 !-------------------------------------------------------------------------
-!>
 !! Calculates the global sum of zfield and checks for consistency
 !! when doing a verification run.
 !! This routine should be called from within an OMP parallel Region!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
 !!
 FUNCTION omp_global_sum_array_1d (zfield) RESULT (global_sum)
 
@@ -1527,13 +1445,9 @@ FUNCTION omp_global_sum_array_1d (zfield) RESULT (global_sum)
 END FUNCTION omp_global_sum_array_1d
 
 !-------------------------------------------------------------------------
-!>
 !! Calculates the global sum of zfield and checks for consistency
 !! when doing a verification run.
 !! This routine should be called from within an OMP parallel Region!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
 !!
 FUNCTION omp_global_sum_array_2d (zfield) RESULT (global_sum)
 
@@ -1577,16 +1491,11 @@ END FUNCTION omp_global_sum_array_2d
 !
 !
 
-!>
 !! Calculates the global sum of zfield and checks for consistency.
 !!
 !! Calculates the global sum of zfield and checks for consistency
 !! when doing a verification run.
 !! This routine has to be called from outside an OMP parallel Region!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! NEC-optimized version by Guenther Zaengl, Dec 2009
 !!
 FUNCTION global_sum_array2 (zfield) RESULT (global_sum)
 
@@ -1715,7 +1624,6 @@ FUNCTION global_sum_array2 (zfield) RESULT (global_sum)
 END FUNCTION global_sum_array2
 
 
-!>
 !! Calculates the global sum of 3D and/or 4D input fields and checks for
 !! consistency when doing a verification run.
 !! This routine has to be called from outside an OMP parallel Region!
@@ -1723,10 +1631,6 @@ END FUNCTION global_sum_array2
 !! nfields specifies the number of 3D input fields, or pairs of input fields if
 !! ldiff=.true. (when providing a 4D field as input, it counts as "n" 3D fields)
 !! diffmask specifies if differences or ratios are to be computed.
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! Optimized version by Guenther Zaengl, Apr 2010
 !!
 FUNCTION global_sum_array3 (nfields,ldiff,f3din,f3dd,f3din2,f3dd2,f4din,f4dd,diffmask) &
          RESULT (global_sum)
@@ -2180,7 +2084,6 @@ END SUBROUTINE check_result
 
 
 !-------------------------------------------------------------------------------
-!>
 !! This routine calculates the sum of an array of IEEE 64 bit
 !! floating point values in an order insensitve way.
 !! This is done by calculating the sum in INTEGER arithmetic,
@@ -2191,9 +2094,6 @@ END SUBROUTINE check_result
 !! than naivly summing up the operands.
 !! ATTENTION: When compiled with OpenMP in effect, this routine
 !! should be called from a parallel region!!!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
 !!
 FUNCTION omp_order_insensit_ieee64_sum(vals, num_vals, mpi_comm) RESULT(global_sum)
 
@@ -2332,7 +2232,6 @@ END FUNCTION omp_order_insensit_ieee64_sum
 
 
 !-------------------------------------------------------------------------------
-!>
 !! This routine calculates the sum of an array of IEEE 64 bit
 !! floating point values in an order insensitve way.
 !! This is done by calculating the sum in INTEGER arithmetic,
@@ -2344,10 +2243,6 @@ END FUNCTION omp_order_insensit_ieee64_sum
 !! ATTENTION: When compiled with OpenMP in effect, this routine
 !! should be called outside an omp parallel region!!!!
 !! When used with OpenACC, the result is provided on host only.
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! OpenACC extension by Marek Jacob, Apr 2023
 !!
 FUNCTION order_insensit_ieee64_sum(vals, num_vals, mpi_comm, lacc) RESULT(global_sum)
 
@@ -2480,15 +2375,10 @@ END FUNCTION order_insensit_ieee64_sum
 !-------------------------------------------------------------------------------
 
 !-------------------------------------------------------------------------------
-!>
 !! This routine calculates the sum of an array in the
 !! straightforward way in parallel.
 !! ATTENTION: When compiled with OpenMP in effect, this routine
 !! should be called outside a parallel omp region!!!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! "iroot"-functionality: F. Prill, DWD, 2014-03-14
 !!
 !! @param[in] opt_iroot (Optional:) root PE, otherwise we perform an
 !!            ALL-TO-ALL operation.
@@ -2523,14 +2413,10 @@ END FUNCTION simple_sum
 !-------------------------------------------------------------------------
 
 !-------------------------------------------------------------------------------
-!>
 !! This routine calculates the sum of an array in the
 !! straightforward way in parallel.
 !! ATTENTION: When compiled with OpenMP in effect, this routine
 !! should be called from a parallel region!!!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
 !!
 FUNCTION omp_simple_sum(vals, num_vals, mpi_comm) RESULT(global_sum)
 
@@ -2574,12 +2460,7 @@ END FUNCTION omp_simple_sum
 !-------------------------------------------------------------------------
 
 
-!>
 !! Computes and prints summary information on the domain decomposition
-!!
-!!
-!! @par Revision History
-!! Initial version by Guenther Zaengl, Nov 2011
 !!
 SUBROUTINE decomposition_statistics(p_patch)
 
@@ -2785,9 +2666,6 @@ END SUBROUTINE decomposition_statistics
 !> Does boundary exchange for 3D cell-based fields, collecting as many
 !  fields as possible before actually performing the sync.
 !
-!  @par Revision History
-!  Initial revision : F. Prill, DWD (2013-02-08)
-!
 SUBROUTINE cumulative_sync_patch_array(typ, p_patch, f3d)
   INTEGER,       INTENT(IN)            :: typ
   TYPE(t_patch), INTENT(IN),    TARGET :: p_patch
@@ -2811,9 +2689,6 @@ END SUBROUTINE cumulative_sync_patch_array
 
 !-------------------------------------------------------------------------
 !> If there are any pending "cumulative sync" operations: Complete them!
-!
-!  @par Revision History
-!  Initial revision : F. Prill, DWD (2013-02-08)
 !
 RECURSIVE SUBROUTINE complete_cumulative_sync(opt_typ, opt_patch_id)
   INTEGER, OPTIONAL, INTENT(IN) :: opt_typ

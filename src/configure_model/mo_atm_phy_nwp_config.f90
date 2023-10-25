@@ -1,22 +1,16 @@
-!>
-!! @brief configuration for NWP physics package
-!!
-!! Setup of config-state for NWP physics package
-!!
-!! @author <name, affiliation>
-!!
-!!
-!! @par Revision History
-!! <Description of activity> by <name, affiliation> (<YYYY-MM-DD>)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Setup of config-state for NWP physics package
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_atm_phy_nwp_config
 
   USE mo_kind,                ONLY: wp, i8
@@ -247,12 +241,6 @@ CONTAINS
   !! Setup NWP physics
   !!
   !! Read namelist for NWP physics and setup physics time control.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2010-10-06)
-  !! revision for restructuring by Kristina Froehlich MPI-M (2011-07-12)
-  !! Modifications by Daniel Reinert, DWD (2017-06-02)
-  !! - revised crosschecks for slow physics time intervals.
   !!
   SUBROUTINE configure_atm_phy_nwp( n_dom, p_patch, dtime )
 
@@ -840,9 +828,6 @@ CONTAINS
   !!    an array of logicals of the same size as your group. This array tells you 
   !!    whether a specific physics event is due at the current time step, or not.  
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-05-30)
-  !!
   SUBROUTINE setupEventsNwp(atm_phy_nwp_config, pid, grpName, eventStartDate, eventEndDate, dt_phy)
 
     TYPE(t_atm_phy_nwp_config), TARGET, INTENT(INOUT)  :: atm_phy_nwp_config  !< config state
@@ -1113,9 +1098,6 @@ CONTAINS
   !!
   !! Shifted from nh_stepping in order to improve code structure
   !!
-  !! @par Revision History
-  !! Initial revision by Guenther Zaengl, DWD (2020-02-14)
-  !!
   SUBROUTINE setup_nwp_diag_events(lpi_max_Event, celltracks_Event, dbz_Event, hail_Event)
 
     TYPE(event), POINTER, INTENT(INOUT) :: lpi_max_Event, celltracks_Event, dbz_Event, hail_Event
@@ -1225,9 +1207,6 @@ CONTAINS
   !! as an optional argument. If nothing is specified the threshold 
   !! is set to 10._wp*dbl_eps.
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-06-02)
-  !!
   LOGICAL FUNCTION isModulo (dividend, divisor, optThresh)
 
     REAL(wp)          , INTENT(IN) :: dividend
@@ -1254,9 +1233,6 @@ CONTAINS
   !! The input value is rounded up to the next integer multiple
   !!  of the divisor
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-06-02)
-  !!
   REAL(wp) FUNCTION roundToNextMultiple (inval, divisor)
 
     REAL(wp)          , INTENT(IN) :: inval
@@ -1276,9 +1252,6 @@ CONTAINS
   !! Screen print out of physics timesteps.
   !! Printout in any case, if the respective timestep was modified by ICON
   !! Conditional printout (msg_lev>10), if the respective timestep was not modified. 
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-03-30)
   !!
   SUBROUTINE phy_nwp_print_dt (atm_phy_nwp_config, dt_phy_orig, dt_phy, pid)
     !
@@ -1343,13 +1316,7 @@ CONTAINS
   END SUBROUTINE phy_nwp_print_dt
 
 
-  !>
   !! Finalize atm_phy_nwp_config state
-  !!
-  !! Finalize atm_phy_nwp_config state
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-06-21)
   !!
   SUBROUTINE atm_phy_nwp_config_finalize (me)
     CLASS(t_atm_phy_nwp_config), INTENT(INOUT) :: me       !< passed-object dummy argument

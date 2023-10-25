@@ -1,27 +1,19 @@
-
-!! mo_sgs_turbmetric
-!!
-!! Calculates 3D subgrid-scale (with metric terms) for viscosity and diffusivity
-!! in the nonhydrostatic model
-!!
-!! @author Anurag Dipankar, DWD
-!!
-!!
-!! @par Revision History
-!! Initial release by Anurag Dipankar, MPI-M (2013-02-20)
-!! Modified by Slavko Brdar, DWD (2014-08-01)
-!!   - include turbulent metric terms
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-
-!----------------------------
+!
+! Calculates 3D subgrid-scale (with metric terms) for viscosity and diffusivity
+! in the nonhydrostatic model
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 #include "omp_definitions.inc"
 !----------------------------
 
@@ -94,10 +86,6 @@ MODULE mo_sgs_turbmetric
   !! Driver for computing the sgs viscosity and diffusivity using Smagorisnky model
   !! and evaluating diffusion term on triangles
   !!------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Anurag Dipankar, MPI-M (2013-03-05)
-  !! Modified by Slavko Brdar, DWD (2014-08-01)
-  !!   - include turbulent metric terms
   SUBROUTINE drive_subgrid_diffusion_m(p_sim_time, p_nh_prog, p_nh_prog_now_rcf, p_nh_prog_rcf,   &
                                        p_nh_diag, p_nh_metrics, p_patch, p_int, p_prog_lnd_now,   &
                                        p_prog_lnd_new, p_diag_lnd, prm_diag, prm_nwp_tend, dt, lacc)
@@ -287,10 +275,6 @@ MODULE mo_sgs_turbmetric
   !!        D_23 = du_2/dx_3 + du_3/dx_2
   !! For triangles: 1=normal, 2=tangential, and 3 = z directions
   !!------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Anurag Dipankar, MPI-M (2013-02-20)
-  !! Modified by Slavko Brdar, DWD (2014-08-01)
-  !!   - include turbulent metric terms
   SUBROUTINE smagorinsky_model(p_nh_prog, p_nh_metrics, p_patch, p_int, &
                                kh_ic, mech_prod, km_ic, bruvais, &
                                D_11_ie, D_12_ie, D_13_ie)
@@ -1181,10 +1165,6 @@ MODULE mo_sgs_turbmetric
   !!
   !! d_vn/d_t =  d_tau_11/d_x1 + d_tau_12/d_x2 + d_tau_13/d_x3
   !!------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Anurag Dipankar, MPI-M (2013-02-05)
-  !! Modified by Slavko Brdar, DWD (2014-08-01)
-  !!   - include turbulent metric terms
   SUBROUTINE diffuse_hori_velocity(p_nh_prog, p_nh_diag, p_nh_metrics, p_patch, p_int, &
                                    prm_diag, ddt_u, ddt_v, &
                                    D_11_ie, D_12_ie, D_13_ie, dt)
@@ -1992,10 +1972,6 @@ MODULE mo_sgs_turbmetric
   !! - Option to switch on implicit scheme in vertical
   !! - only solves for jk=2 to nlev. The bottom and top boundaries are left untouched
   !!------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Anurag Dipankar, MPI-M (2013-02-05)
-  !! Modified by Slavko Brdar, DWD (2014-08-01)
-  !!   - include turbulent metric terms
   SUBROUTINE diffuse_vert_velocity(p_nh_prog, p_nh_diag, p_nh_metrics, &
                                    p_patch, p_int, km_ic, ddt_w, dt)
 
@@ -2486,10 +2462,6 @@ MODULE mo_sgs_turbmetric
   !!   in the NH version.
   !! - Option to switch on implicit scheme in vertical
   !!------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Anurag Dipankar, MPI-M (2013-02-05)
-  !! Modified by Slavko Brdar, DWD (2014-08-01)
-  !!  - include metric terms
   SUBROUTINE diffuse_scalar(var, p_nh_metrics, p_patch, p_int, tot_tend,  &
                             exner, prm_diag, rho, dt, scalar_name)
 
@@ -3219,8 +3191,6 @@ MODULE mo_sgs_turbmetric
   !! - Option to switch on implicit scheme in vertical
   !! - Should be mergeable with diffuse_scalar
   !!------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Jan-Niklas Welss, MPI-M (2018-05-17)
   SUBROUTINE diffuse_tke(var_ic, var, p_nh_metrics, p_patch, p_int, tot_tend_ic, p_diag, dt)
                         
     REAL(wp),             INTENT(in)        :: var_ic(:,:,:)          !< SGS-TKE half level

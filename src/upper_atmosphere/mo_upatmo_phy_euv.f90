@@ -1,64 +1,63 @@
 !#define G3X
 
-!>
-!! Computation of EUV heating
-!!
-!! ATTENTION
-!! This version includes the possibility to compute EUV heating for diffderent solar activity conditions.
-!! The F10.7 index is taken from the canadian website
-!! http://www.drao-ofr.hia-iha.nrc-cnrc.gc.ca/icarus/www/sol_home.shtml
-!! For solar high the value of 235.1 (Nov. 1989) and for solar low the
-!! value of 68.7 (Sep. 86) is taken. Judith Lean's solar variability data for UV
-!! and visible are taken at these dates.
-!! The third possibility is to use the mean value for the months of Jan to Jun 1990 (187.3)
-!! which were used in the simulations of the 27day cycle.
-!! If the Rottman data were used, the following values should be taken:
-!! solar high: 192.8 (29.3.1992); solar low: 77.3 (2.1.1995)
-!! H. Schmidt, June 2003
-!!
-!!=============================================================================
-!!
-!! - Description:
-!!
-!! This module serves to calculate the solar heating due to absorption 
-!! in Extreme UV region (5-105nm). Data on fluxes and absorption coefficients
-!! are taken from Richards et al., 1994, JGR, vol 99, No A7, 13,283
-!!
-!! The module contains:
-!! A) status indicators for allocation and initialization
-!! B) constants and variables
-!! C) subroutine to compute solar flux in EUV
-!! D) subroutine to compute solar heating in EUV
-!!
-!!-----------------------------------------------------------------------------
-!!
-!! @author:
-!!
-!! V. Fomichev   , November, 1997: original source
-!! M.A. Giorgetta, MPI, June 2001: rewrite for ECHAM5
-!!
-!! @par Revision History:
-!!
-!! G. Zhou, MPI, June 2016: rewrite for ICON
-!! - make use of vertically-varying gravity
-!! Guidi Zhou, MPI-M, 2016-09-08:
-!! - disabled considering upper level grid points that can still be shined when surface
-!!   solar zenith angle is greater than 90deg: this is not crucial but nice to have, but
-!!   the original code produces large errors
-!! - cleaned up a bit
-!! Guidi Zhou, MPI-M, 2016-09-13:
-!! - fixed a bug not accumulating the heating rate from each spectral band
-!! Guidi Zhou, MPI-M, 2017-03-03:
-!! - added the ability to compute EUV heating only above a certain altitude for performance
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Computation of EUV heating
+!
+! ATTENTION
+! This version includes the possibility to compute EUV heating for diffderent solar activity conditions.
+! The F10.7 index is taken from the canadian website
+! http://www.drao-ofr.hia-iha.nrc-cnrc.gc.ca/icarus/www/sol_home.shtml
+! For solar high the value of 235.1 (Nov. 1989) and for solar low the
+! value of 68.7 (Sep. 86) is taken. Judith Lean's solar variability data for UV
+! and visible are taken at these dates.
+! The third possibility is to use the mean value for the months of Jan to Jun 1990 (187.3)
+! which were used in the simulations of the 27day cycle.
+! If the Rottman data were used, the following values should be taken:
+! solar high: 192.8 (29.3.1992); solar low: 77.3 (2.1.1995)
+! H. Schmidt, June 2003
+!
+!=============================================================================
+!
+! - Description:
+!
+! This module serves to calculate the solar heating due to absorption
+! in Extreme UV region (5-105nm). Data on fluxes and absorption coefficients
+! are taken from Richards et al., 1994, JGR, vol 99, No A7, 13,283
+!
+! The module contains:
+! A) status indicators for allocation and initialization
+! B) constants and variables
+! C) subroutine to compute solar flux in EUV
+! D) subroutine to compute solar heating in EUV
+!
+!-----------------------------------------------------------------------------
+!
+! V. Fomichev   , November, 1997: original source
+! M.A. Giorgetta, MPI, June 2001: rewrite for ECHAM5
+!
+! G. Zhou, MPI, June 2016: rewrite for ICON
+! - make use of vertically-varying gravity
+! Guidi Zhou, MPI-M, 2016-09-08:
+! - disabled considering upper level grid points that can still be shined when surface
+!   solar zenith angle is greater than 90deg: this is not crucial but nice to have, but
+!   the original code produces large errors
+! - cleaned up a bit
+! Guidi Zhou, MPI-M, 2016-09-13:
+! - fixed a bug not accumulating the heating rate from each spectral band
+! Guidi Zhou, MPI-M, 2017-03-03:
+! - added the ability to compute EUV heating only above a certain altitude for performance
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_upatmo_phy_euv
 
   USE mo_kind,               ONLY: wp

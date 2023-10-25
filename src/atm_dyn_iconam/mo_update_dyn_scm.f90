@@ -1,26 +1,19 @@
-!>
-!! Updates dynamical fields with slow physics tendencies in the special case
-!! that dynamics are switched off (ldynamics=F). An option is added where Coriolis force 
-!! should be used (lcoriolis=T).
-!!
-!! Anurag Dipankar, MPIM (24 March 2014): Fixed some bugs and removed unnecessary 
-!! sync for tracers as tracers are synced within the nwp_interface. 
-!!
-!! Martin Koehler (2019-12-09), added the Coriolis option.
-!!
-!! @author Daniel Reinert, DWD
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2013-11-28)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-
+!
+! Updates dynamical fields with slow physics tendencies in the special case
+! that dynamics are switched off (ldynamics=F). An option is added where Coriolis force
+! should be used (lcoriolis=T).
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_update_dyn_scm
 
@@ -52,10 +45,6 @@ CONTAINS
 !>
 !! Updates dynamical fields with slow physics tendencies
 !!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2013-11-28)
-!! 
 !!
   SUBROUTINE add_slowphys_scm(p_nh, p_patch, p_int, nnow, nnew, dtime)
 
@@ -185,9 +174,6 @@ CONTAINS
 !! points of the SCM.  Therefore the coefficients are selected such that only a single point is choosen
 !! for the RBF interpolation.  As a random choice the first point is taken (i_startidx,i_startblk).
 !!
-!! @par Revision History
-!! Initial revision by Martin Koehler, DWD (2019-12-09)
-!! 
 
   SUBROUTINE rbf_coeff_scm( ptr_patch, ptr_int )
 

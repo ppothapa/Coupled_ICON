@@ -1,17 +1,24 @@
-!>
-!! @file bgc.f90
-!! @brief Main biogeochemical subroutine, called at each time step
-!!
-!! This subroutine calls all routines that calculate changes of pelagic biogeochemical 
-!! tracers due to local processes (like photosythesis, heterotrophic
-!! processes, N-fixation, and denitrification), the air-sea gas
-!! exchange of carbon dioxide, oxygen, dinitrogen, and the
-!! benthic processes. It further calls the computation of the vertical displacement of
-!! particles
-!!
-!! called by mo_hydro_ocean_run:perform_ho_stepping
-!!
-!!
+! @brief Main biogeochemical subroutine, called at each time step
+!
+! This subroutine calls all routines that calculate changes of pelagic biogeochemical
+! tracers due to local processes (like photosythesis, heterotrophic
+! processes, N-fixation, and denitrification), the air-sea gas
+! exchange of carbon dioxide, oxygen, dinitrogen, and the
+! benthic processes. It further calls the computation of the vertical displacement of
+! particles
+!
+! called by mo_hydro_ocean_run:perform_ho_stepping
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 #include "icon_definitions.inc"
 #include "omp_definitions.inc"
 

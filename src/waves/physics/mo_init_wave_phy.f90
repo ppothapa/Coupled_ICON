@@ -1,20 +1,19 @@
-!! Description:  Contains the data structures
-!!  for initialisation of the physical model state and other auxiliary variables
-!!  in order to run wave physics.
-!!
-!! @author Mikhail Dobrynin, DWD, 05.09.2019
-!!
-!!
-!! @par Revision History
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Description:  Contains the data structures
+! for initialisation of the physical model state and other auxiliary variables
+! in order to run wave physics.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -59,9 +58,6 @@ CONTAINS
   !! and 1D JONSWAP spectum. The minimum of wave energy
   !! is limited to FLMIN.
   !! 2. tba
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
   !!
   SUBROUTINE init_wave_phy(p_patch, wave_config, p_prog, p_diag, wave_ext_data, p_forcing)
 
@@ -157,10 +153,6 @@ CONTAINS
   !! the fetch law and from the 1D JONSWAP spectum. The minimum
   !! of wave energy is limited to FLMIN.
   !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-  !! Vectorization by Daniel Reinert, DWD (2023-01-31)
-  !!
   SUBROUTINE init_wave_spectrum(p_patch, wave_config, p_diag, p_forcing, tracer)
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
          &  routine = modname//':init_wave_spectrum'
@@ -217,10 +209,6 @@ CONTAINS
   !! Calculation of the JONSWAP spectrum according to
   !! Hasselmann et al. 1973. Adaptation of WAM 4.5
   !! subroutine JONSWAP.
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-  !! Vectorization by Daniel Reinert, DWD (2023-01-31)
   !!
   SUBROUTINE JONSWAP (p_patch, freqs, ALPHAJ, GAMMA, SA, SB, FP, ET)
     TYPE(t_patch), INTENT(IN)  :: p_patch
@@ -299,10 +287,6 @@ CONTAINS
   !! model. Journal of physical oceanography, Vol. 6, No. 2, March 1976.
   !!
   !! Adopted from WAM 4.5.
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-  !! Vectorization by Daniel Reinert, DWD (2023-01-31)
   !!
   SUBROUTINE FETCH_LAW (p_patch, wave_config, p_diag, p_forcing)
 
@@ -383,9 +367,6 @@ CONTAINS
   !!
   !! Reference
   !! S. Hasselmann and K. Hasselmann, JPO, 1985
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-11-05)
   !!
   SUBROUTINE init_wave_nonlinear(wave_config, p_diag)!, ext_data)
 
@@ -661,10 +642,6 @@ CONTAINS
   !!
   !! Reference
   !! S. Hasselmann and K. Hasselmann, JPO, 1985 B
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-11-05)
-  !! Vectorization by Daniel Reinert, DWD (2023-XX-XX)
   INTEGER FUNCTION JAFU (CL, J, IAN)
 
     REAL(wp),    INTENT(IN) :: CL !! weights.

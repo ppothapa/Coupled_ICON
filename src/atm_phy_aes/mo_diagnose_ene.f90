@@ -1,15 +1,17 @@
-!>
-!! @brief Module containing subroutine computing near surface energetics
-!!
-!! @contact Marco A. Giorgetta, MPI-M, 2023-07
-!!
-!! @par Copyright and License
-!!
-!! Copyright 2023 Max Planck Institute for Meteorology, Marco A. Giorgetta
-!!
-!! Code subject to BSD-3-C, SPDX short identifier: BSD-3-Clause, see file
-!! BSD-3-C-license.pdf in the license-directory
-!!
+!
+! Module containing subroutine computing near surface energetics
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_diagnose_ene
 
   USE mo_run_config         ,ONLY: num_lev, iqv

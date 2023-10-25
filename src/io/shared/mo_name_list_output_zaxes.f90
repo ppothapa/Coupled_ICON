@@ -1,51 +1,52 @@
-!> Module handling the specification of vertical axes for the output
-!! module.
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!! @par Revision History
-!! Initial implementation by R. Johanni, taken from io_vlist module.
-!! Moved to a separate module: F. Prill, DWD (2014-08-12)
-!!
-!! --------------------------------
-!! Details of the implementation
-!! --------------------------------
-!!
-!! Axis creation:
-!!
-!! The CDI routines for the creation of the vertical axes are called
-!! for each output file separately in "mo_name_list_output_init",
-!! subroutine "setup_output_vlist".
-!!
-!! For model level output, all axes (atmospheric, surface, soil etc.)
-!! are created.  For pressure, height, and isentropic level output
-!! only the respective axis is created together with a surface axis
-!! for the grid information.
-!!
-!! Note: The vertical axes for the output of the ocean do not support
-!!       level selection yet.
-!!
-!! Derived data type "t_level_selection":
-!!
-!! Vertical levels are selected via objects of the derived data type
-!! "t_level_selection" (module "mo_level_selection").  If such
-!! a data object has been initialized for the output file, then the
-!! vertical axis definitions below create CDI axis objects for the
-!! selected levels only.
-!! The write routines in the module "mo_name_list_output" skip levels
-!! which are not part of the selection.
-!!
-!! Furthermore, if a "t_level_selection" object is present, then the
-!! memory windows for the asynchronous one-sided MPI communication are
-!! adjusted to the reduced level size
-!! "output_file%level_selection%n_selected".
-!!
+! Module handling the specification of vertical axes for the output
+! module.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+!
+!
+! --------------------------------
+! Details of the implementation
+! --------------------------------
+!
+! Axis creation:
+!
+! The CDI routines for the creation of the vertical axes are called
+! for each output file separately in "mo_name_list_output_init",
+! subroutine "setup_output_vlist".
+!
+! For model level output, all axes (atmospheric, surface, soil etc.)
+! are created.  For pressure, height, and isentropic level output
+! only the respective axis is created together with a surface axis
+! for the grid information.
+!
+! Note: The vertical axes for the output of the ocean do not support
+!       level selection yet.
+!
+! Derived data type "t_level_selection":
+!
+! Vertical levels are selected via objects of the derived data type
+! "t_level_selection" (module "mo_level_selection").  If such
+! a data object has been initialized for the output file, then the
+! vertical axis definitions below create CDI axis objects for the
+! selected levels only.
+! The write routines in the module "mo_name_list_output" skip levels
+! which are not part of the selection.
+!
+! Furthermore, if a "t_level_selection" object is present, then the
+! memory windows for the asynchronous one-sided MPI communication are
+! adjusted to the reduced level size
+! "output_file%level_selection%n_selected".
+
 MODULE mo_name_list_output_zaxes
 
   USE ISO_C_BINDING,                        ONLY: C_SIGNED_CHAR

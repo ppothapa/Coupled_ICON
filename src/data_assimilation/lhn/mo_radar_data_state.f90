@@ -1,21 +1,20 @@
-!>
-!! Allocation/deallocation and reading of radar datasets for LHN
-!!
-!! This module contains routines for setting up the radar data state.
-!!
-!! @author Klaus Stephan, DWD
-!!
-!! @par Revision History
-!! Initial revision by Klaus Stephan, DWD (2015-01-30)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Allocation/deallocation and reading of radar datasets for LHN
+!
+! This module contains routines for setting up the radar data state.
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -98,9 +97,6 @@ CONTAINS
   !! 1. Build data structure, including field lists and 
   !!    memory allocation.
   !! 2. External data are read in from netCDF file or set analytically
-  !!
-  !! @par Revision History
-  !! Initial revision by Klaus Stephan, DWD (2015-01-30) based on mo_radar_data_state.f90
   !!
   SUBROUTINE init_radar_data (p_patch)
 
@@ -205,9 +201,6 @@ CONTAINS
   !>
   !! Top-level procedure for building radar data structure
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2010-07-12)
-  !!
   SUBROUTINE construct_radar_data (p_patch)
 
     TYPE(t_patch),         INTENT(IN)    :: p_patch(:)
@@ -253,9 +246,6 @@ CONTAINS
   !! Destruct radar data data structure and lists
   !!
   !! Destruct radar data data structure and lists
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2011-05-04)
   !!
   SUBROUTINE destruct_radar_data
 
@@ -305,10 +295,6 @@ CONTAINS
   !! elements).
   !!
   !! Initialization of elements with zero.
-  !!
-  !! @par Revision History
-  !! Initial release by Klaus Stephan (2011-05-03)
-  !! Statements that assign initial value added by Hui Wan (MPI-M, 2011-05-30)
   !!
   SUBROUTINE new_radar_data_ct_list ( p_patch, p_radar_ct, p_radar_ct_list, &
     &                                listname)
@@ -378,9 +364,6 @@ CONTAINS
   !! elements).
   !!
   !! Initialization of elements with zero.
-  !!
-  !! @par Revision History
-  !! Initial release by Klaus Stephan (2011-05-03)
   !!
   SUBROUTINE new_radar_data_td_list ( p_patch, p_radar_td, &
     &                               p_radar_td_list, listname, nobs, nradheight)
@@ -469,7 +452,6 @@ CONTAINS
   !
   ! Note: This subroutine opens the file and returns a CDI file ID.
   !
-  ! @author F. Prill, DWD (2014-01-07)
   !-------------------------------------------------------------------------
   SUBROUTINE inquire_radar_file(p_patch, cdi_radar_id, cdi_filetype, &
        lread_process)
@@ -845,9 +827,6 @@ CONTAINS
   !!
   !! Read atmospheric radar data from netcdf
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2010-07-14)
-  !!
   SUBROUTINE read_radar_data (p_patch, radar_data, cdi_radar_id, cdi_black_id, cdi_height_id, &
     &                           radar_varnames_dict)
 
@@ -933,8 +912,6 @@ CONTAINS
   !>
   !! Constructor for lhn state
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2023-01-05)
   !!
   SUBROUTINE construct_lhn_state (p_patch)
 
@@ -972,9 +949,6 @@ CONTAINS
   !>
   !! Destructor for lhn state
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2023-01-05)
-  !!
   SUBROUTINE destruct_lhn_state ()
 
     ! local variables
@@ -1005,9 +979,6 @@ CONTAINS
 
   !>
   !! Constructor for prepadv state
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2021-08-11)
   !!
   SUBROUTINE new_lhn_fields_list (p_patch, listname, lhn_fields_list, lhn_fields)
 

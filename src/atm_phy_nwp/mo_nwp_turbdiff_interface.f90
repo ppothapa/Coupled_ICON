@@ -1,27 +1,25 @@
 !OPTION! -cont -msg o
-!! this command should fix the problem of copying arrays in a subroutine call
-!>
-!! This module is the interface between nwp_nh_interface and the 
-!! turbulence parameterisations:
-!! inwp_turb == icosmo == turbulence scheme by from COSMO (Raschendorfer)
-!! inwp_turb == iedmf  == eddy-diffusivity mass-flux DUALM scheme from IFS (Koehler, Neggers)
-!! inwp_turb == igme   == turbulence scheme imported from the GME
-!! This module handles the atmospheric turbulent above the surface layer diffusion.
-!!
-!! @author Kristina Froehlich, DWD, Offenbach (2010-01-25)
-!!
-!! @par Revision History
-!! Initial Kristina Froehlich, DWD, Offenbach (2010-01-25)
-!! Add EDMF Martin Koehler   , DWD, Offenbach (2017-08-17)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! this command should fix the problem of copying arrays in a subroutine call
+!
+! This module is the interface between nwp_nh_interface and the
+! turbulence parameterisations:
+! inwp_turb == icosmo == turbulence scheme by from COSMO (Raschendorfer)
+! inwp_turb == iedmf  == eddy-diffusivity mass-flux DUALM scheme from IFS (Koehler, Neggers)
+! inwp_turb == igme   == turbulence scheme imported from the GME
+! This module handles the atmospheric turbulent above the surface layer diffusion.
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"

@@ -1,16 +1,18 @@
-!>
-!! @brief Contains subroutines for initializing the AES physics package.
-!!
-!! @par Revision History
-!! First version by Hui Wan, 2010-07-20
-!!
-!! @par Copyright and License
-!!
-!! Copyright 2022 Max Planck Institute for Meteorology
-!! 
-!! Code subject to BSD-3-C, SPDX short identifier: BSD-3-Clause, see file
-!! BSD-3-C-license.pdf in the license-directory
-!!
+!
+! Contains subroutines for initializing the AES physics package.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -126,11 +128,6 @@ CONTAINS
   !! Top-level routine for initialization of AES physics.
   !! It calls a series of subroutines to initialize tunable parameters,
   !! lookup tables, and the physics state vectors "prm_field" and "prm_tend".
-  !!
-  !! @par Revision History
-  !! Initial version by Hui Wan, MPI-M (2010-07)
-  !! name change to init_echam_phy by Levi Silvers
-  !! name change to init_aes_phy by M. Esch, MPI-M (2022-03)
   !!
   SUBROUTINE init_aes_phy_params( p_patch )
 
@@ -743,9 +740,6 @@ CONTAINS
   !! Loop over all grid levels and give proper values to some components
   !! of the state vectors "prm_field" and "prm_tend".
   !!
-  !! @par Revision History
-  !! Initial version by Hui Wan, MPI-M (2010-07)
-  !!
   SUBROUTINE init_aes_phy_field( p_patch        ,&
     &                              temp           )
 
@@ -1201,11 +1195,6 @@ CONTAINS
   !! Initialize the O3 tracer from the Cariolle initial ozone field.
   !! Initialize ozone mass mixing ratios for Cariolle scheme. 
   !! An approximative initialization that considers the atmosphere as being dry is enough.
-  !!
-  !! @par Revision History
-  !! Initial version by Sebastian Rast, MPI-M (2016-11)
-  !! Changes:
-  !! - separate subroutine, Marco Giorgetta, MPI-M (2018-03)
   !!
   SUBROUTINE init_o3_lcariolle( mtime_current  ,&
     &                           p_patch        ,&

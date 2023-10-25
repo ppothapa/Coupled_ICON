@@ -1,44 +1,40 @@
-!>
-!! Contains utility routines for a TRUE/FALSE table.
-!!
-!! The table has the following layout: Each table row is determined by
-!! a row name. Then, in each column the table entry is marked by an
-!! "x" (or a user-defined symbol) where the column contains this row
-!! name.
-!!
-!! Code Example:
-!!
-!!   CALL init_bool_table(table)
-!!   CALL add_column(table, "cookies", (/ 'round ', 'edible' /)          )
-!!   CALL add_column(table, "apples",  (/ 'round ', 'juicy ', 'edible' /))
-!!   CALL add_column(table, "spiders", (/ 'juicy ', 'edible' /)          )
-!!   CALL print_bool_table(table)
-!!
-!! gives the following output:
-!!
-!!         | cookies | apples | spiders |  
-!!    
-!!  round  |  x      |  x     |         |  
-!!  edible |  x      |  x     |  x      |  
-!!  juicy  |         |  x     |  x      | 
-!!
-!!
-!! @author F. Prill, DWD
-!!
-!! @par Revision History
-!! Initial revision: 2013-08-20 : F. Prill, DWD
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
-!! @todo Implement a destruction routine.
-!!
+! Contains utility routines for a TRUE/FALSE table.
+!
+! The table has the following layout: Each table row is determined by
+! a row name. Then, in each column the table entry is marked by an
+! "x" (or a user-defined symbol) where the column contains this row
+! name.
+!
+! Code Example:
+!
+!   CALL init_bool_table(table)
+!   CALL add_column(table, "cookies", (/ 'round ', 'edible' /)          )
+!   CALL add_column(table, "apples",  (/ 'round ', 'juicy ', 'edible' /))
+!   CALL add_column(table, "spiders", (/ 'juicy ', 'edible' /)          )
+!   CALL print_bool_table(table)
+!
+! gives the following output:
+!
+!         | cookies | apples | spiders |
+!
+!  round  |  x      |  x     |         |
+!  edible |  x      |  x     |  x      |
+!  juicy  |         |  x     |  x      |
+!
+! @todo Implement a destruction routine.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_util_bool_table
 
   USE mo_impl_constants,      ONLY : SUCCESS

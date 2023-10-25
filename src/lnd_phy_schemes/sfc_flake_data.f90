@@ -1,97 +1,67 @@
-!> 
-!! This module contains common definitions, variables and constants 
-!! of the lake parameterization scheme FLake. These are 
-!!
-!! - flake_albedo_ref:
-!!  "reference" values of albedo for the lake water, lake ice, and snow are set.
-!!   As in "flake_paramoptic_ref", two ice categories, viz. white ice and blue
-!!   ice, and two snow categories, viz. dry snow and melting snow, are used.  
-!!
-!! - flake_configure:
-!!   Switches and reference values of parameters that configure FLake are set.
-!!
-!! - flake_derivedtypes:
-!!   Derived type(s) is(are) defined.
-!!
-!! - flake_parameters:
-!!   Values of empirical disposable constants of FLake 
-!!   and of several thermodynamic parameters are set.
-!!
-!! - flake_paramoptic_ref:
-!!   "Reference" values of the optical characteristics
-!!   of the lake water, lake ice, and snow are set.
-!!
-!! A detailed description of FLake is given in
-!!
-!! Mironov, D. V., 2008:
-!! Parameterization of lakes in numerical weather prediction. Description of a lake model.
-!! COSMO Technical Report, No. 11, Deutscher Wetterdienst, Offenbach am Main, Germany, 41 pp.
-!!
-!! Mironov, D., E. Heise, E. Kourzeneva, B. Ritter, N. Schneider, and A. Terzhevik, 2010:
-!! Implementation of the lake parameterisation scheme FLake
-!! into the numerical weather prediction model COSMO.
-!! Boreal Env. Res., 15, 218-230.
-!!
-!! A snow-ice module of FLake is discussed in 
-!!
-!! Mironov, D., B. Ritter, J.-P. Schulz, M. Buchhold, M. Lange, and E. Machulskaya, 2012:
-!! Parameterization of sea and lake ice in numerical weather prediction models
-!! of the German Weather Service.
-!! Tellus A, 64, 17330. doi:10.3402/tellusa.v64i0.17330
-!!
-!! Further information is available at the FLake web page http://lakemodel.net.
-!!
-!!
-!! @author Dmitrii Mironov, DWD.
-!!
-!! @par Revision History
-!!
-!! Old COSMO History:
-!! Version    Date       Name
-!! ---------- ---------- ----
-!! 3.18       2006/03/03 Dmitrii Mironov
-!!  Initial release
-!! V4_13        2010/05/11 Michael Gertz
-!!  Adaptions to SVN
-!! V4_24        2012/06/22 Dmitrii Mironov
-!!  Introduced a maximum value for EXP arguments
-!!
-!! ICON history
-!! Initial ICON release by Dmitrii Mironov, DWD (2013-02-08)
-!! (adaptation of the COSMO code for ICON)
-!!
-!! Modification by Dmitrii Mironov, DWD (2013-05-29)
-!! - minimum lake fraction fr_lake_min is added
-!!
-!! Modification by Dmitrii Mironov, DWD (2015-10-16)
-!! - parameter fr_lake_min is removed  
-!!
+! This module contains common definitions, variables and constants
+! of the lake parameterization scheme FLake.
 !
-! History:
-! Version      Date       Name
-! ------------ ---------- ----
-! V5_4e        2017-03-23 Ulrich Schaettler
-!  Initial release for COSMO (taken from ICON version)
+! ICON
 !
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-
-!234567890023456789002345678900234567890023456789002345678900234567890023456789002345678900234567890
-
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+!
+!
+! This module contains common definitions, variables and constants
+! of the lake parameterization scheme FLake. These are
+!
+! - flake_albedo_ref:
+!  "reference" values of albedo for the lake water, lake ice, and snow are set.
+!   As in "flake_paramoptic_ref", two ice categories, viz. white ice and blue
+!   ice, and two snow categories, viz. dry snow and melting snow, are used.
+!
+! - flake_configure:
+!   Switches and reference values of parameters that configure FLake are set.
+!
+! - flake_derivedtypes:
+!   Derived type(s) is(are) defined.
+!
+! - flake_parameters:
+!   Values of empirical disposable constants of FLake
+!   and of several thermodynamic parameters are set.
+!
+! - flake_paramoptic_ref:
+!   "Reference" values of the optical characteristics
+!   of the lake water, lake ice, and snow are set.
+!
+! A detailed description of FLake is given in
+!
+! Mironov, D. V., 2008:
+! Parameterization of lakes in numerical weather prediction. Description of a lake model.
+! COSMO Technical Report, No. 11, Deutscher Wetterdienst, Offenbach am Main, Germany, 41 pp.
+!
+! Mironov, D., E. Heise, E. Kourzeneva, B. Ritter, N. Schneider, and A. Terzhevik, 2010:
+! Implementation of the lake parameterisation scheme FLake
+! into the numerical weather prediction model COSMO.
+! Boreal Env. Res., 15, 218-230.
+!
+! A snow-ice module of FLake is discussed in
+!
+! Mironov, D., B. Ritter, J.-P. Schulz, M. Buchhold, M. Lange, and E. Machulskaya, 2012:
+! Parameterization of sea and lake ice in numerical weather prediction models
+! of the German Weather Service.
+! Tellus A, 64, 17330. doi:10.3402/tellusa.v64i0.17330
+!
+! Further information is available at the FLake web page http://lakemodel.net.
+!
+!
 ! Lines embraced with "!_tmp>" and "!_tmp<" contain temporary parts of the code.
 ! Lines embraced/marked with "!_dev>" and "!_dev<" may be replaced
 ! as improved formulations are developed and tested.
 ! Lines embraced/marked with "!_cdm>" and "!_cdm<" are DM's comments that may be helpful to a user.
 ! Lines embraced/marked with "!_dbg>" and "!_dbg<" are used for debugging purposes only.
 ! Lines starting with "!_nu" are not used.
-
-!234567890023456789002345678900234567890023456789002345678900234567890023456789002345678900234567890
 
 MODULE sfc_flake_data
 

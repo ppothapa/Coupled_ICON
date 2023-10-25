@@ -1,20 +1,18 @@
-!>
-!! Waves config.
-!! The content is mostly adopted from the WAM 4.5.4.
-!!
-!! @author Mikhail Dobrynin, DWD
-!!
-!! @par Revision History
-!! Initial revision by Mikhail Dobrynin, DWD (21.12.2022)
+! Waves config.
+! The content is mostly adopted from the WAM 4.5.4.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
 MODULE mo_wave_config
 
   USE mo_kind,                 ONLY: wp
@@ -152,9 +150,6 @@ CONTAINS
   !>
   !! deallocate memory used by object of type t_wave_config
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2023-02-02)
-  !!
   SUBROUTINE wave_config_destruct(me)
     CLASS(t_wave_config) :: me
     INTEGER :: jf
@@ -193,9 +188,6 @@ CONTAINS
   !! which depend on the waves-NAMELIST and potentially other namelists.
   !! This routine is called, after all namelists have been read and a
   !! synoptic consistency check has been done.
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2023-02-01)
   !!
   SUBROUTINE configure_wave(n_dom, ntracer)
 

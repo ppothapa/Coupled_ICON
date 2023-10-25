@@ -1,28 +1,24 @@
-!>
-!! @par Copyright
-!! This code is subject to the MPI-M-Software - License - Agreement in it's most recent form.
-!! Please see URL http://www.mpimet.mpg.de/en/science/models/model-distribution.html and the
-!! file COPYING in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the headers of the routines.
-!!
-!! @brief Prepares and provides cloud optical properties
-!!
-!! @remarks
-!!   This code makes use tabulated Mie Calculations for the RRTM band structure
-!!   prepared by Stefan Kinne.
-!!
-!! @author Bjorn Stevens, MPI-M, Hamburg (2009-09-19)
-!!
-!! $ID: n/a$
-!!
-!! @par Origin
-!!   Rewrite and synthesis of ECHAM5 code, particularly rad_int.f90 whose
-!!   contributers included:  M.A. Giorgetta, MPI-M (2002-05); U. Schulzweida,
-!!   MPI-M (2002-05); P. Stier MPI-M \& Caltech (2004-04, 2006-07), M. Thomas
-!!   MPI-M (2007-06); U. Schlese, MPI-M (2007-06); M. Esch, MPI-M (2007-06); 
-!!   S.J. Lorenz, MPI-M (2007-11).
-!! 
+! Prepares and provides cloud optical properties
 !
+! Remarks
+!   This code makes use tabulated Mie Calculations for the RRTM band structure
+!   prepared by Stefan Kinne.
+!
+! Origin
+!   Rewrite and synthesis of ECHAM5 code, particularly rad_int.f90
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_radiation_cloud_optics
 
   USE mo_kind, ONLY: wp
@@ -90,7 +86,7 @@ MODULE mo_radiation_cloud_optics
 CONTAINS
   !-----------------------------------------------------------------------------
   !>
-  !! @brief sets resolution dependent parameters for cloud optics
+  !! sets resolution dependent parameters for cloud optics
   !
 
   SUBROUTINE setup_cloud_optics(scale, zinhoml1_, zinhoml2_, &
@@ -149,8 +145,8 @@ CONTAINS
 
   END SUBROUTINE setup_cloud_optics
 
-  !! @brief Calculates cloud optical from cloud physical properties
-  !! @remarks  
+  !! Calculates cloud optical from cloud physical properties
+  !! Remarks  
   !!   Currently this model assumes four bands in the SW and maps these to the
   !!   six-band model of ECHAM5.
   SUBROUTINE cloud_optics(laglac, laland, kproma, kbdim, klev, ktype, &

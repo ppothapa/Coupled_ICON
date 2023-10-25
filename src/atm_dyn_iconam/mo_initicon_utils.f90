@@ -1,20 +1,18 @@
-!>
-!! This module contains the I/O routines for initicon
-!!
-!! @author Guenther Zaengl, DWD
-!!
-!!
-!! @par Revision History
-!! First version by Guenther Zaengl, DWD (2011-07-13)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! This module contains the I/O routines for initicon
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -123,10 +121,6 @@ MODULE mo_initicon_utils
   !! SUBROUTINE initicon_inverse_post_op
   !! Perform inverse post_op on input field, if necessary 
   !!
-  !! @par Revision History
-  !! Initial version by Daniel Reinert, DWD(2013-07-05)
-  !!
-  !!
   SUBROUTINE initicon_inverse_post_op(varname, optvar_out2D, optvar_out3D)
     CHARACTER(len=*), INTENT(IN)      :: varname             !< var name of field to be read
     REAL(wp), OPTIONAL, INTENT(INOUT) :: optvar_out2D(:,:)   !< 3D output field
@@ -175,9 +169,6 @@ MODULE mo_initicon_utils
   !>
   !! SUBROUTINE init_aersosol
   !! Initializes the aerosol field from the climatology if no first-guess data are available
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD (2015-11-06)
   !!
   SUBROUTINE init_aerosol(p_patch, ext_data, prm_diag)
 
@@ -274,10 +265,6 @@ MODULE mo_initicon_utils
   !! 
   !! Specifically, this routine fills sub-grid scale (previously nonexistent) land and water points
   !! with appropriate data from neighboring grid points where possible
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD (2015-01-16)
   !!
   !!
   SUBROUTINE fill_tile_points(p_patch, p_lnd_state, ext_data, process_ana_vars)
@@ -559,11 +546,6 @@ MODULE mo_initicon_utils
   !! In this case, the tile-based index lists and the tile fractions (frac_t) need to be restored
   !! from the landuse-class fractions and the snow-cover fractions
   !!
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD (2015-06-08)
-  !!
-  !!
   SUBROUTINE init_snowtiles(p_patch, p_lnd_state, ext_data)
 
     TYPE(t_patch),             INTENT(IN)    :: p_patch(:)
@@ -602,12 +584,6 @@ MODULE mo_initicon_utils
   !!
   !! Required input: initicon state
   !! Output is written on fields of NH state
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-28)
-  !! Modification by Daniel Reinert, DWD (2012-12-19)
-  !! - encapsulated surface specific part
-  !!
   !!
   SUBROUTINE copy_initicon2prog_atm(p_patch, initicon, p_nh_state)
 
@@ -829,11 +805,6 @@ MODULE mo_initicon_utils
   !! Copies first-guess fields from the assimilation cycle to the initicon state
   !! in order to prepare subsequent vertical remapping
   !!
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2015-07-24)
-  !!
-  !!
   SUBROUTINE copy_fg2initicon(p_patch, initicon, p_nh_state)
 
     TYPE(t_patch),          INTENT(IN) :: p_patch(:)
@@ -1036,16 +1007,6 @@ MODULE mo_initicon_utils
   !!
   !! Required input: initicon state
   !! Output is written on fields of land state
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-28)
-  !! Modification by Daniel Reinert, DWD (2012-12-19)
-  !! - encapsulated surface specific part
-  !! Modification by Daniel Reinert, DWD (2013-07-09)
-  !! - moved sea-ice coldstart into separate subroutine
-  !! Modification by Dmitrii Mironov, DWD (2016-08-11)
-  !! - Cold start initialization of sea ice is modified to exclude lake points.
-  !!
   !!
   SUBROUTINE copy_initicon2prog_sfc(p_patch, initicon, p_lnd_state, ext_data)
 
@@ -1398,10 +1359,6 @@ MODULE mo_initicon_utils
   !!   * allocates the fields we USE
   !!       * zeros OUT these fields to ensure deteministic checksums
   !!   * nullificates all other pointers
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-14)
-  !! Refactoring to make this work more like a REAL constructor by Nathanael Huebbe, DWD(2015-08-04)
   !!
   !! This initalizes all ALLOCATED memory to avoid nondeterministic
   !! checksums when ONLY a part of a field IS READ from file due to
@@ -1848,10 +1805,6 @@ MODULE mo_initicon_utils
   !>
   !! SUBROUTINE deallocate_initicon
   !! Deallocates the components of the initicon data type
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-14)
-  !!
   !!
   SUBROUTINE deallocate_initicon (initicon)
 
@@ -3269,9 +3222,6 @@ MODULE mo_initicon_utils
   !-------------------------------------------------------------------------
   !>
   !! for coupled simulation with new land points forced from the ocean: initialize soil
-  !!
-  !! @par Revision History
-  !! Initial revision by Martin Koehler, DWD (2021-02-04)
   !!
   !-------------------------------------------------------------------------
 

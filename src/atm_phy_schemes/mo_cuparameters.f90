@@ -1,32 +1,15 @@
-! $RCSfile$
-! $Revision$ $Date$
 !
-!>
-!! <Short description of module for listings and indices>
-!!
-!! *fcttrm* - Functions used by sucst for inital settings
-!! *SUCST * - Routine to initialize the constants of the model.
-!! *SUCUMF* - THIS ROUTINE DEFINES DISPOSABLE PARAMETERS FOR MASSFLUX SCHEME
-!! *SUPHLI* - SET-UP ROUTINE FOR COMMON BLOCK *YOEPHLI*
-!! *SUVDF*  - SET-UP ROUTINE FOR COMMON BLOCK *YOEVDF*
-!! *SUVDFS* - INITIALIZES COMMON BLOCK *YOEVDFS*
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
-!! @author    J.F. MAHFOUF         E.C.M.W.F.      1996-06-23
-!! @author A.C.M. BELJAARS         E.C.M.W.F.      1989-11-02
-!! @author A.C.M. BELJAARS         E.C.M.W.F.      1990-03-26
-!!
-!!
-!! @par Revision History
-!! Implementation into GME/ICON by Kristina Froehlich, DWD (2010-06-11)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
 MODULE mo_cuparameters
 
   USE mo_kind,       ONLY: jpim=>i4, jprb=>wp
@@ -1601,25 +1584,6 @@ IF (lhook) CALL dr_hook('SUCUMF',1,zhook_handle)
     !     --------------
     !        ORIGINAL : 94-02-07
     !     ------------------------------------------------------------------
-
-    !
-    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    ! Current Code Owner: DWD, Kristina Froehlich
-    !    kristina.froehlich@dwd.de
-    !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !
-    ! History:
-    ! Version    Date       Name
-    ! ---------- ---------- ----
-    ! @VERSION@  @DATE@     K. Froehlich
-    !  Initial release
-    !
-    ! Code Description:
-    ! Language: Fortran 90.
-    ! Software Standards: "European Standards for Writing and
-    ! Documenting Exchangeable Fortran 90 Code".
-    !=======================================================================
-    !
 
     !USE PARKIND1  ,ONLY : JPIM     ,JPRB
     !USE YOMCST   , ONLY : RG

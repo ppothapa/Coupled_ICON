@@ -1,17 +1,20 @@
-!>
-!! @brief Module containing subroutines for the initialization of a bubble on a torus
-!!
-!! @literature  cr2021_08_03_jsr for further documentation
-!!
-!! @contact S. Rast and B. Stevens, MPI-M, 2022-06
-!!
-!! @par Copyright and License
-!!
-!! Copyright 2022 Max Planck Institute for Meteorology, S. Rast, B. Stevens
-!! 
-!! Code subject to BSD-3-C, SPDX short identifier: BSD-3-Clause, see file
-!! BSD-3-C-license.pdf in the license-directory
-!!
+!
+! Module containing subroutines for the initialization of a bubble on a torus
+!
+! Literature  cr2021_08_03_jsr for further documentation
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_aes_bubble
   USE mo_kind,                ONLY: wp
   USE mo_model_domain,        ONLY: t_patch
@@ -188,9 +191,8 @@ MODULE mo_aes_bubble
 !!!=============================================================================================
 
   FUNCTION gaussian(mu, sigma, delta, x)
-    !> @brief
-    !> calculate value of gaussian at x, for gaussian centered at mu with
-    !> standard deviation sigma, and amplitude delta
+    ! calculate value of gaussian at x, for gaussian centered at mu with
+    ! standard deviation sigma, and amplitude delta
     !
     REAL(wp), INTENT(in) :: mu    !< expectation of the Gaussian
     REAL(wp), INTENT(in) :: sigma !< std-dev. of Gaussian

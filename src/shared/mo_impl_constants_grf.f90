@@ -1,19 +1,17 @@
-!>
-!!  Module contains some constants needed for grid refinement implementation.
-!!
-!!
-!! @par Revision History
-!!  Created by Guenther Zaengl, DWD (2009-12-14)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Module contains some constants needed for grid refinement implementation.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_impl_constants_grf
 !-------------------------------------------------------------------------
 !

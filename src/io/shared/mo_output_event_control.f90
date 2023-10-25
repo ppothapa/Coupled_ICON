@@ -1,23 +1,20 @@
-!> Routines that describe when regular output steps and ready file
-!> events shall be triggered. The definitions in this module control
-!> the behaviour of "mo_output_event_handler".
-!!
-!! See "mo_output_event_handler" for a detailed description.
-!!
-!! @author F. Prill, DWD
-!!
-!! @par Revision History
-!! Initial implementation  by  F. Prill, DWD (2013-09-17)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!! -----------------------------------------------------------------------------------
+! Routines that describe when regular output steps and ready file
+! events shall be triggered. The definitions in this module control
+! the behaviour of "mo_output_event_handler".
+!
+! See "mo_output_event_handler" for a detailed description.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_output_event_control
 
   USE mo_mpi,                ONLY: my_process_is_mpi_test, my_process_is_mpi_workroot
@@ -74,8 +71,6 @@ CONTAINS
   !        compute dates. Therefore we must actually step through all
   !        dynamic timesteps.
   !
-  !  @author F. Prill, DWD
-  !
   ! --------------------------------------------------------------------------------------------------
   SUBROUTINE compute_matching_sim_steps(num_dates, dates, sim_step_info, &
     &                                   result_steps, result_exactdate)
@@ -126,8 +121,6 @@ CONTAINS
 
   ! --------------------------------------------------------------------------------------------------
   !> Utility function: Compute "(date1-sim_start)/(dtime)"
-  !
-  !  @author F. Prill, DWD
   ! --------------------------------------------------------------------------------------------------
   SUBROUTINE compute_step(mtime_current, mtime_begin, mtime_end, dtime,  &
     &                     step_offset, step, exact_date)
@@ -168,9 +161,6 @@ CONTAINS
   !
   !  This routine also prescribes, in which steps the output file is
   !  opened or closed.
-  !
-  !  @author F. Prill, DWD
-  !
   ! --------------------------------------------------------------------------------------------------
   SUBROUTINE generate_output_filenames(num_dates, dates, sim_steps, &
     &                                  sim_step_info, fname_metadata, &

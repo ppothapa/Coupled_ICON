@@ -1,35 +1,31 @@
-!>
-!!     THIS ROUTINE COMPUTES NON-OROGRAPHIC GRAVITY WAVE DRAG
-!!     AFTER SCINOCCA (2003) AND Mc LANDRESS AND SCINOCCIA (JAS 2005)
-!!     HYDROSTATIC NON-ROTATIONAL SIMPLIFIED VERSION OF THE
-!!     WARNER AND MCINTYRE (1996) NON-OROGRAPHIC GRAVITY WAVE PARAMETERIZATION
-!!     CONSTANTS HAVE BEEN OPTIMIZED FOLLOWING M. ERN ET AL. (ATMOS. CHEM. PHYS. 2006)
-!!
-!!     REFERENCE: Orr, A., P. Bechtold, J. Scinoccia, M. Ern, M. Janiskova, 2010:
-!!                Improved middle atmosphere climate and analysis in the ECMWF forecasting system
-!!                through a non-orographic gravity wave parametrization. J.  Climate., 23, 5905-5926.
-!!
-!!     LAUNCH SPECTRUM - GENERALIZED DESAUBIES
-!!     INCLUDES A CRITICAL-LEVEL CORRECTION THAT PREVENTS THE
-!!     MOMEMTUM DEPOSITION IN EACH AZIMUTH FROM DRIVING THE FLOW TO SPEEDS FASTER
-!!     THAN THE PHASE SPEED OF THE WAVES, I.E. WHEN WAVES BREAK THEY DRAG THE MEAN
-!!     FLOW TOWARDS THEIR PHASE SPEED - NOT PAST IT.
-!!
-!! @author  J. SCINOCCIA
-!! @author  A. ORR          E.C.M.W.F.     August 2008
-!!
-!!
-!! @par Revision History
-!! Implementation into ICON by Kristina Froehlich, MPI-M, (2011-05-19)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+!     THIS ROUTINE COMPUTES NON-OROGRAPHIC GRAVITY WAVE DRAG
+!     AFTER SCINOCCA (2003) AND Mc LANDRESS AND SCINOCCIA (JAS 2005)
+!     HYDROSTATIC NON-ROTATIONAL SIMPLIFIED VERSION OF THE
+!     WARNER AND MCINTYRE (1996) NON-OROGRAPHIC GRAVITY WAVE PARAMETERIZATION
+!     CONSTANTS HAVE BEEN OPTIMIZED FOLLOWING M. ERN ET AL. (ATMOS. CHEM. PHYS. 2006)
+!
+!     REFERENCE: Orr, A., P. Bechtold, J. Scinoccia, M. Ern, M. Janiskova, 2010:
+!                Improved middle atmosphere climate and analysis in the ECMWF forecasting system
+!                through a non-orographic gravity wave parametrization. J.  Climate., 23, 5905-5926.
+!
+!     LAUNCH SPECTRUM - GENERALIZED DESAUBIES
+!     INCLUDES A CRITICAL-LEVEL CORRECTION THAT PREVENTS THE
+!     MOMEMTUM DEPOSITION IN EACH AZIMUTH FROM DRIVING THE FLOW TO SPEEDS FASTER
+!     THAN THE PHASE SPEED OF THE WAVES, I.E. WHEN WAVES BREAK THEY DRAG THE MEAN
+!     FLOW TOWARDS THEIR PHASE SPEED - NOT PAST IT.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_gwd_wms
   
   USE mo_kind,               ONLY: jprb=>wp, vp, jpim =>i4

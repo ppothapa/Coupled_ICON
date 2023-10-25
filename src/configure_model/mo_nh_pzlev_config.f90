@@ -1,27 +1,19 @@
-!>
-!! @brief configuration setup for z/i/p-level output
-!!
-!! configuration setup for z/i/p-level output
-!!
-!! <Details of procedures are documented below with their definitions.>
-!! <Include any applicable external references inline as module::procedure,>
-!! <external_procedure(), or by using @see.>
-!! <Don't forget references to literature.>
-!!
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2011-09-05)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! @brief configuration setup for z/i/p-level output
+!
+! configuration setup for z/i/p-level output
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_nh_pzlev_config
 
   USE mo_kind,               ONLY: wp
@@ -63,7 +55,6 @@ MODULE mo_nh_pzlev_config
 
 CONTAINS
 
-  !>
   !! setup components for output on pressure/height levels and isentropes
   !!
   !! Setup of additional control variables for output on pressure/height levels 
@@ -71,9 +62,6 @@ CONTAINS
   !! These may depend on the nh_pzlev-namelist and potentially other namelists. 
   !! This routine is called, after all namelists have been read and a synoptic 
   !! consistency check has been done.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2011-09-07)
   !!
   SUBROUTINE configure_nh_pzlev( jg, nproma, npromz_c, nblks_c )
   !

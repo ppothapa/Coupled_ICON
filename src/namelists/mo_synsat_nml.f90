@@ -1,23 +1,20 @@
-!>
-!! @brief Namelist for synthetic satellite images
-!!
-!! These subroutines are called by read_atmo_namelists and set the switches
-!! for synthetic satellite images
-!!
-!! @author Guenther Zaengl, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Guenther Zaengl, DWD (2015-05-05)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! @brief Namelist for synthetic satellite images
+!
+! These subroutines are called by read_atmo_namelists and set the switches
+! for synthetic satellite images
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_synsat_nml
 
   USE mo_exception,           ONLY: finish
@@ -55,8 +52,6 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !
-  !
-  !>
   !! Read Namelist for NWP ensemble perturbations. 
   !!
   !! This subroutine 
@@ -67,9 +62,6 @@ CONTAINS
   !! - reads the user's (new) specifications
   !! - stores the Namelist for restart
   !! - fills the configuration state (partly)   
-  !!
-  !! @par Revision History
-  !! Initial Revision by Guenther Zaengl, DWD (2015-04-23)
   !!
   SUBROUTINE read_synsat_namelist( filename )
 

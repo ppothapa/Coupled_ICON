@@ -1,3 +1,14 @@
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 ! we want SINGULARITY_CHECKS to be enabled, since the high-res grids have
 ! problems with the default values.
 
@@ -16,61 +27,7 @@
 !!   Contains the implementation of various mathematical algorithms
 !!   used by the shallow water model.
 !!
-!! @par Revision History
-!!  Developed  by Luca Bonaventura (2002-4).
-!!  Modified to ProTeX-style by  Luca Bonaventura and Thomas Heinze (2004).
-!!  Adapted to new data structure by Thomas Heinze,
-!!  Peter Korn and Luca Bonaventura (2005).
-!!  Modification by Thomas Heinze (2006-02-21):
-!!  - renamed m_modules to mo_modules
-!!  Modification by Peter Korn and Luca Bonaventura (2006-07-21):
-!!  - moved here linear algebra subroutines and other auxiliary functions
-!!  - added some Protex documentation and great cleanup
-!!  Modification by Thomas Heinze (2006-09-07):
-!!  - added functions barycenter and bary_center
-!!  Modification by Thomas Heinze (2006-10-19):
-!!  - added functions vector_product and integral_over_triangle
-!!  Modification by Tobias Ruppert and Thomas Heinze (2006-11-14):
-!!  - added functions solve_chol and choldec
-!!  - renamed function solve to solve_lu
-!!  Modification by Thomas Heinze (2006-11-16):
-!!  - added functions cvec2gvec and gvec2cvec
-!!  Modification by Peter Korn, MPI-M, (2006-11-23):
-!!  - replaced vertex_index by vertex_idx
-!!  Modification by Hui Wan (2007-02-22):
-!!  - functions barycenter and bary_center removed.
-!!    (These two functions used TYPE grid, thus should not be put
-!!     in to shr_general.)
-!!  - function ll2xyz removed because it had been replaced by
-!!    gc2cc and was not used anymore.
-!!  - type cartesian_coordinates and type geographical_coordinates
-!!    moved to this module from mo_model_domain
-!!  - functions func_f and dxg moved from mo_functions to here
-!!  Problem related to the range of longitude in the spherical coordnate
-!!  identified by Th. Heinze and P. Ripodas (2007-02-26). Correction in 'cc2gc'
-!!  made by H. Wan (2007-02-27).
-!!  Modification by Thomas Heinze, DWD, (2007-07-26):
-!!  - including all the improvements of Tobias Ruppert's diploma thesis
-!!  - several changes according to the programming guide
-!!  - functions func_f and dxg moved from here to mo_interpolation
-!!  Modification by Daniel Reinert, DWD, (2009-07-20)
-!!  - added subroutine qrdec
-!!  Modification by Daniel Reinert, DWD, (2012-04-04)
-!!  - added function which can be used to check whether to line segments
-!!    intersect (in 2D cartesian system)
-!!  Modification by Daniel Reinert, DWD, (2012-04-05)
-!!  - added function which computes the intersection point between 2 lines
-!!    (2D cartesian)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+
 MODULE mo_math_utility_solvers
   !-------------------------------------------------------------------------
   !
@@ -131,11 +88,6 @@ CONTAINS
   !!  @f$k\_dim@f$  : matrix dimension <br>
   !!  @f$p\_a@f$    : input matrix, overwritten by lu decomposition <br>
   !!  @f$k\_pivot@f$: integer index array recording row pivot line exchanges
-  !!
-  !! @par Revision History
-  !! Developed  by P.Korn (2006).
-  !! Revised by Th.Heinze, DWD, (2006-11-01):
-  !! - changed stop criterion from 1.e-08 to 1.e-12
   !!
   SUBROUTINE ludec (k_dim, p_a, k_pivot)
     !
@@ -242,9 +194,6 @@ CONTAINS
   !!  @f$p\_qmat@f$  : Q matrix (orthogonal) (m x n) <br>
   !!  @f$p\_rmat@f$  : R matrix (upper triangular) (n x n)
   !!
-  !! @par Revision History
-  !! Developed and tested by Daniel Reinert, DWD (2009-11-26)
-  !!
   SUBROUTINE qrdec (nrow, ncol, i_startidx, i_endidx, p_inmat, p_qmat, p_rmat)
     !
     ! !LITERATURE
@@ -309,9 +258,6 @@ CONTAINS
   !! in the lower triangle of @f$p\_a@f$, except for its diagonal elements which are
   !! returned in @f$p\_diag(1:k\_dim)@f$.
   !!
-  !! @par Revision History
-  !!  Original version by Tobias Ruppert and Thomas Heinze, DWD (2006-11-14)
-  !!
   SUBROUTINE choldec (k_dim, p_a, p_diag)
     !
 
@@ -367,10 +313,6 @@ CONTAINS
   !! need be given; it is not modified. The Cholesky factor @f$L@f$ is returned
   !! in the lower triangle of @f$p\_a@f$, except for its diagonal elements which are
   !! returned in @f$p\_diag(1:k\_dim)@f$.
-  !!
-  !! @par Revision History
-  !!  Original version by Tobias Ruppert and Thomas Heinze, DWD (2006-11-14)
-  !!  Vectorized version by Guenther Zaengl, DWD (2009-04-20)
   !!
 #ifdef __SX__
   SUBROUTINE choldec_v (istart, iend, k_dim, maxdim, p_a, p_diag)
@@ -472,10 +414,6 @@ CONTAINS
   !>
   !! Compute the inverse of matrix a (use only for VERY small matrices!).
   !!
-  !!
-  !! @par Revision History
-  !! Original version by Marco Restelli (2007-11-22)
-  !!
   SUBROUTINE inv_mat (a)
 
     REAL(wp), INTENT(inout)   :: a(:,:)     ! input matrix
@@ -508,9 +446,6 @@ CONTAINS
   !! @f$p\_a@f$ and @f$p\_diag@f$ are not modified and can be left in place for successive
   !! calls with different right-hand sides @f$p\_b@f$. @f$p\_b@f$ is not modified unless
   !! you identify @f$p\_b@f$ and @f$p\_x@f$ in the calling sequence, which is allowed.
-  !!
-  !! @par Revision History
-  !!  Original version by Tobias Ruppert and Thomas Heinze, DWD (2006-11-14)
   !!
   SUBROUTINE solve_chol (k_dim, p_a, p_diag, p_b, p_x)
     !
@@ -560,9 +495,6 @@ CONTAINS
   !! @f$p\_a@f$ and @f$p\_diag@f$ are not modified and can be left in place for successive
   !! calls with different right-hand sides @f$p\_b@f$. @f$p\_b@f$ is not modified unless
   !! you identify @f$p\_b@f$ and @f$p\_x@f$ in the calling sequence, which is allowed.
-  !!
-  !! @par Revision History
-  !!  Original version by Tobias Ruppert and Thomas Heinze, DWD (2006-11-14)
   !!
 #ifdef __SX__
   SUBROUTINE solve_chol_v (istart, iend, k_dim, maxdim, p_a, p_diag, p_b, p_x)

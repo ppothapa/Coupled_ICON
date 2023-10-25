@@ -1,19 +1,17 @@
-!>
-!! Core subroutine used for SPPT
-!! (Stochastic Perturbation of Physics Tendencies)
-!!
-!! @author Sascha Bellaire, MCH
-!!
-!! @par Revision History
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!<
+!
+! Core subroutine used for SPPT
+! (Stochastic Perturbation of Physics Tendencies)
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -49,12 +47,9 @@ MODULE mo_sppt_core
   CONTAINS
 
 
-  !>--------------------------------------------------------------------
-  !! Time interpolation and tapering of random numbers
-  !!
-  !! @par Revision History
-  !!
-  !!<-------------------------------------------------------------------
+  !---------------------------------------------------------------------
+  ! Time interpolation and tapering of random numbers
+  !---------------------------------------------------------------------
 
   SUBROUTINE time_interpol_rn (p_patch, sppt_config, rn_2d_now, rn_2d_new, &
     &                          mtime_datetime, rn_3d, lacc)
@@ -92,9 +87,9 @@ MODULE mo_sppt_core
     i_startblk = p_patch%cells%start_block(rl_start)
     i_endblk   = p_patch%cells%end_block(rl_end)
 
-    !<---------------------------------------------------------------------
+    !----------------------------------------------------------------------
     ! Interpolation
-    !>---------------------------------------------------------------------
+    !----------------------------------------------------------------------
 
     IF(linter) THEN
 
@@ -130,7 +125,7 @@ MODULE mo_sppt_core
 
         !<---------------------------------------------------------------------
         ! Tapering
-        !>---------------------------------------------------------------------
+        !----------------------------------------------------------------------
 
         IF(ltaper) THEN
 
@@ -158,12 +153,9 @@ MODULE mo_sppt_core
 
 
 
-  !>--------------------------------------------------------------------
-  !! Calculate tendencies
-  !!
-  !! @par Revision History
-  !!
-  !!<-------------------------------------------------------------------
+  !--------------------------------------------------------------------
+  ! Calculate tendencies
+  !--------------------------------------------------------------------
 
   SUBROUTINE calc_tend (i_startidx, i_endidx, nlev, ddt, var_new, var_now, dt, lacc)
 
@@ -184,9 +176,9 @@ MODULE mo_sppt_core
 
     CALL assert_acc_device_only("calc_tend", lacc)
 
-    !<---------------------------------------------------------------------
+    !---------------------------------------------------------------------
     ! Calculate tendencies
-    !>---------------------------------------------------------------------
+    !---------------------------------------------------------------------
 
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
@@ -202,12 +194,9 @@ MODULE mo_sppt_core
   END SUBROUTINE calc_tend
 
 
-  !>--------------------------------------------------------------------
-  !! Perturb tendencies
-  !!
-  !! @par Revision History
-  !!
-  !!<-------------------------------------------------------------------
+  !---------------------------------------------------------------------
+  ! Perturb tendencies
+  !---------------------------------------------------------------------
 
   SUBROUTINE pert_tend(jb, jg, i_startidx, i_endidx, nlev, sppt,  &
                         prm_nwp_tend, rho_atm,                &
@@ -234,9 +223,9 @@ MODULE mo_sppt_core
 
     CALL assert_acc_device_only("pert_tend", lacc)
 
-    !<---------------------------------------------------------------------
+    !---------------------------------------------------------------------
     ! Perturb tendencies
-    !>---------------------------------------------------------------------
+    !---------------------------------------------------------------------
 
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
@@ -319,12 +308,9 @@ MODULE mo_sppt_core
 
 
 
-  !>--------------------------------------------------------------------
-  !! Apply tendencies
-  !!
-  !! @par Revision History
-  !!
-  !!<-------------------------------------------------------------------
+  !---------------------------------------------------------------------
+  ! Apply tendencies
+  !---------------------------------------------------------------------
 
   SUBROUTINE apply_tend(pt_patch, sppt, pt_prog_rcf, dt, lacc)
 
@@ -361,9 +347,9 @@ MODULE mo_sppt_core
     i_startblk = pt_patch%cells%start_block(rl_start)
     i_endblk   = pt_patch%cells%end_block(rl_end)
 
-    !<---------------------------------------------------------------------
+    !---------------------------------------------------------------------
     ! Apply tracer tendencies
-    !>---------------------------------------------------------------------
+    !---------------------------------------------------------------------
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
@@ -400,12 +386,9 @@ MODULE mo_sppt_core
 
   END SUBROUTINE apply_tend
 
-  !>--------------------------------------------------------------------
-  !! Save prognostic state for key variables
-  !!
-  !! @par Revision History
-  !!
-  !!<-------------------------------------------------------------------
+  !---------------------------------------------------------------------
+  ! Save prognostic state for key variables
+  !---------------------------------------------------------------------
 
   SUBROUTINE save_state(jb, i_startidx, i_endidx, nlev,        &
                          temp, tracer, sppt, lacc)
@@ -428,9 +411,9 @@ MODULE mo_sppt_core
 
     CALL assert_acc_device_only("save_state", lacc)
 
-    !<---------------------------------------------------------------------
+    !----------------------------------------------------------------------
     ! Save state
-    !>---------------------------------------------------------------------
+    !----------------------------------------------------------------------
 
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)

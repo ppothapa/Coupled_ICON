@@ -1,20 +1,16 @@
-!>
-!!        Contains the variables to set up the wave  model.
-!=============================================================================================
-!!
-!! @author Mikhail Dobrynin, DWD, 11.06.2019
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
-!=============================================================================================
+! Contains the variables to set up the wave  model.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_wave_state
 
@@ -158,9 +154,6 @@ CONTAINS
   !!
   !! Creates tracer var list containing references to all prognostic tracer
   !! fields.
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Reinert, DWD (2012-02-02)
   !!
   SUBROUTINE new_wave_state_tracer_list (p_patch, from_var_list, p_tracer_list, listname)
     TYPE(t_patch),        INTENT(IN) :: p_patch ! current patch
@@ -771,9 +764,6 @@ CONTAINS
 
   !>
   !! Destruction of wave-specific variable lists and memory deallocation
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2022-12-20)
   !!
   SUBROUTINE destruct_wave_state ()
 

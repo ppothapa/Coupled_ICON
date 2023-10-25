@@ -1,26 +1,22 @@
-!>
-!! Data types and variables used by the rte-rrtmgp radiation package.
-!!
-!! This module contains
-!! <ol>
-!! <li> definition of data types for organising rte-rrtmgp diagnostics,
-!! <li> the actual variables that are declared of these types, and
-!! <li> subroutines for (de-)allocating memory for the variables.
-!! </ol>
-!!
-!! @author Sebastian Rast (MPI-M, 2016-03-03)
-!!
-!! @par Revision History
-!! First version by Sebastian Rast (MPI-M, 2016-03-03)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Data types and variables used by the rte-rrtmgp radiation package.
+!
+! This module contains
+!  definition of data types for organising rte-rrtmgp diagnostics,
+!  the actual variables that are declared of these types, and
+!  subroutines for (de-)allocating memory for the variables.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_radiation_forcing_memory
 
   USE mo_kind,                ONLY: wp

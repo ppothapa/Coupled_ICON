@@ -1,23 +1,19 @@
-!>
-!!
-!! The module <i>mo_util_dbg_prnt</i> prints out max and min as well as single
-!! cell and neighbouring values of 2- and 3-dim arrays of the icon core for
-!! debug purposes
-!!
-!! @par Revision History
-!! Initial version by Stephan Lorenz,  MPI-M, Hamburg (2010-11)
-!!
-!! @par Revision History
-!! Modified for general purpose by Stephan Lorenz, MPI-M, 2012-06
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! The module <i>mo_util_dbg_prnt</i> prints out max and min as well as single
+! cell and neighbouring values of 2- and 3-dim arrays of the icon core for
+! debug purposes
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "icon_definitions.inc"
 !----------------------------
@@ -111,12 +107,7 @@ CONTAINS
   !-------------------------------------------------------------------------
   
   !-------------------------------------------------------------------------
-  !>
   !! Initialization of indices for debug output
-  !!
-  !! @par Revision History
-  !! Initial release by Stephan Lorenz, MPI-M (2010-11)
-  !!
   !
   ! TODO: parallelize
   !
@@ -229,13 +220,8 @@ CONTAINS
   !-------------------------------------------------------------------------
   
   !-------------------------------------------------------------------------
-  !>
   !! Search for a cell center at given longitude and latitude
   !! provided in namelist dbg_index_nml
-  !!
-  !!
-  !! @par Revision History
-  !! Initial release by Stephan Lorenz, MPI-M (2010-12)
   !!
   !! TODO: parallelize
   !
@@ -344,17 +330,12 @@ CONTAINS
   !-------------------------------------------------------------------------
   
   !-------------------------------------------------------------------------
-  !>
   !! Print out min and max or a specific cell value and neighbors of a 3-dim array.
   !!
   !! Reduce writing effort for a simple print.
   !! The amount of prints is controlled by comparison of a fixed level of detail
   !! for output (inDetail_level) with variables idbg_mxmn/idbg_val  that are
   !! given via namelist dbg_index_nml
-  !!
-  !! @par Revision History
-  !! Initial release by Stephan Lorenz, MPI-M (2012-06)
-  !!
   !
   SUBROUTINE dbg_print_3d( description, p_array, place, inDetail_level, in_subset )
     

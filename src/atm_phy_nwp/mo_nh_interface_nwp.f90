@@ -1,32 +1,28 @@
-!>
-!!
-!! @brief prepares and postprocesses the fields for and from nwp physics
-!!
-!! Depending on the action item different sets of physics will be called:
-!! this is
-!! 1. condensation only so to apply saturation adjustment where needed
-!! 2. 'slow physics' means up to now the whole physical package beside
-!!     microphysics.
-!! 3. turbulence, microphysics and condensation are considered fast physical package
-!! 4. Updating the moist tracers in synchrone time intervalls to
-!!    advection and saturation adjustment
-!!
-!!
-!!
-!! @par Revision History
-!!  first implementation by Kristina Froehlich, DWD (2009-06-12)
-!!  Call nwp_diagnosis with ih_clch, ih_clcm by Helmut Frank, DWD (2013-01-18)
-!!  Calculate gusts in 6 hours               by Helmut Frank, DWD (2013-03-13)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+!
+! Prepares and postprocesses the fields for and from nwp physics
+!
+! Depending on the action item different sets of physics will be called:
+! this is
+! 1. condensation only so to apply saturation adjustment where needed
+! 2. 'slow physics' means up to now the whole physical package beside
+!     microphysics.
+! 3. turbulence, microphysics and condensation are considered fast physical package
+! 4. Updating the moist tracers in synchrone time intervalls to
+!    advection and saturation adjustment
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -2361,7 +2357,7 @@ CONTAINS
 
     !-------------------------------------------------------------------------
     !>
-    !!    @par Interpolation from  u,v onto v_n
+    !!    Interpolation from  u,v onto v_n
     !!      ddt_vn_phy  =interpol(ddt_u_tot)+interpol(ddt_v_tot)
     !!      Calculate normal velocity at edge midpoints
     !-------------------------------------------------------------------------

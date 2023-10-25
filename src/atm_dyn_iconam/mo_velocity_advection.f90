@@ -1,24 +1,20 @@
-!>
-!! mo_velocity_advection
-!!
-!! This module contains the subroutine calculating the velocity advection tendencies
-!! for the nonhydrostatic dynamical core. Separated from mo_solve_nonhydro in order
-!! to speed up compile time
-!!
-!! @author Guenther Zaengl, DWD
-!!
-!! @par Revision History
-!! Created by Guenther Zaengl, DWD (2013-09-13)
-!! Modification by William Sawyer, CSCS (2015-02-06):  OpenACC implementation
-!! 
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! This module contains the subroutine calculating the velocity advection tendencies
+! for the nonhydrostatic dynamical core. Separated from mo_solve_nonhydro in order
+! to speed up compile time
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -69,9 +65,6 @@ MODULE mo_velocity_advection
   !! In particular, the Lamb transformation is applied only to the horizontal
   !! equation of motion, whereas the vertical wind equation is discretized
   !! in advective form
-  !!
-  !! @par Revision History
-  !! Initial release by Guenther Zaengl (2010-02-03)
   !!
   SUBROUTINE velocity_tendencies (p_prog, p_patch, p_int, p_metrics, p_diag, z_w_concorr_me, z_kin_hor_e, &
                                   z_vt_ie, ntnd, istep, lvn_only, dtime, dt_linintp_ubc, ldeepatmo)

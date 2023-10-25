@@ -1,21 +1,20 @@
-!> Module handling the meta-data types for vertical axes for the output
-!! module.
+! Module handling the meta-data types for vertical axes for the output
+! module.
+!
+! See module mo_name_list_output_zaxes for details of the
+! implementation.
 !!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!! @par Revision History
-!! Initial implementation by R. Johanni, taken from io_vlist module.
-!! Moved to a separate module: F. Prill, DWD (2014-08-12)
-!!
-!! See module mo_name_list_output_zaxes for details of the
-!! implementation.
-!!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_name_list_output_zaxes_types
 
   USE ISO_C_BINDING,                        ONLY: C_SIGNED_CHAR

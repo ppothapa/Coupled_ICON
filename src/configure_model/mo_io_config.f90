@@ -1,27 +1,15 @@
-!>
-!! <Short description of module for listings and indices>
-!!
-!! <Describe the concepts of the procedures and algorithms used in the module.>
-!! <Details of procedures are documented below with their definitions.>
-!! <Include any applicable external references inline as module::procedure,>
-!! <external_procedure(), or by using @see.>
-!! <Don't forget references to literature.>
-!!
-!! @author <name, affiliation>
-!! @author <name, affiliation>
-!!
-!!
-!! @par Revision History
-!! <Description of activity> by <name, affiliation> (<YYYY-MM-DD>)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_io_config
   USE mo_cdi,                     ONLY: FILETYPE_NC2
   USE mo_exception,               ONLY: finish, message
@@ -265,14 +253,10 @@ MODULE mo_io_config
 
 CONTAINS
 
-  !>
   !! Precomputation of derived type collecting logical variables indicating whether
   !! optional diagnostics are requested in the output namelists
   !!
   !! Replaces repeated calculations of the same that used to be scattered around various places in the model code
-  !!
-  !! @par Revision History
-  !! Initial revision by Guenther Zaengl, DWD (2020-02-13)
   !!
   SUBROUTINE init_var_in_output(n_dom, lnwp)
 
@@ -423,15 +407,11 @@ CONTAINS
   END SUBROUTINE init_var_in_output
 
 
-  !>
   !! Set up derived components of the I/O config state
   !!
   !! Set up derived components of the I/O config state. This routine is
   !! called, after all namelists have been read and a synoptic consistency
   !! check has been done.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2014-11-28)
   !!
   SUBROUTINE configure_io()
 
@@ -493,18 +473,12 @@ CONTAINS
    END FUNCTION is_checkpoint_time
   !----------------------------------------------------------------------------------
 
-  !>
-  !! Decides about diagnostic computation of total integrals
-  !!
   !! Decides about diagnostic computation of total integrals, which
   !! is performed in "supervise_total_integrals_nh"
   !! Total integrals are computed
   !! - at the first time step (or the first time step after restart)
   !! - if (MOD(current_step,n_diag) == 0)
   !! - at the very last time step
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2014-12-01)
   !!
   FUNCTION is_totint_time(current_step, restart_step, n_diag, n_steps)
 

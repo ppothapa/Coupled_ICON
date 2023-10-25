@@ -1,56 +1,59 @@
-!> Module for writing restart files (synchronously)
-!!
-!! Note: The asynchronous implementation of the restart output can be
-!!       found in the module "mo_async_restart"
-!!
-!! Initial implementation: L. Kornblueh
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!! --------------------------------------------------------------------------------
-!!
-!! Generated files:
-!! ================
-!!
-!! 1. For each domain 1, ..., n_dom, and for each restart output time step:
-!!
-!!    Restart data file
-!!    -----------------
-!!      "<gridfile>_restart_<modeltype>_<timestamp>.nc",     e.g.
-!!      "iconR2B06_DOM01_restart_atm_20110101T001200Z.nc"    (NetCDF format)
-!!
-!!    This filename can be customized using the namelist parameter
-!!    "mo_run_nml/restart_filename".
-!!
-!!    This file contains
-!!    -  data
-!!    -  namelists
-!!    -  several attributes
-!!
-!!    Note:
-!!    -  We read the namelists only once and assume that these
-!!       are identical for all domains.
-!!    -  Since we do not know about the total number of domains at startup,
-!!       we have to ask the current restart file for the attribute "n_dom"
-!!
-!! 2. For each domain 1, ..., n_dom, and for the LAST restart output time step:
-!!
-!!    Symbolic link to data file
-!!    --------------------------
-!!      "restart_<modeltype>_DOMxx.nc"
-!!
-!!    Note:
-!!    -  The domain-dependent suffix "...DOMxx" is also required for non-nested setups.
-!!
-!! --------------------------------------------------------------------------------
-!!
-!OPTION! -pvctl conflict
+! Module for writing restart files (synchronously)
+! 
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+!
+!
+! Note: The asynchronous implementation of the restart output can be
+!       found in the module "mo_async_restart"
+!
+! --------------------------------------------------------------------------------
+!
+! Generated files:
+! ================
+!
+! 1. For each domain 1, ..., n_dom, and for each restart output time step:
+!
+!    Restart data file
+!    -----------------
+!      "<gridfile>_restart_<modeltype>_<timestamp>.nc",     e.g.
+!      "iconR2B06_DOM01_restart_atm_20110101T001200Z.nc"    (NetCDF format)
+!
+!    This filename can be customized using the namelist parameter
+!    "mo_run_nml/restart_filename".
+!
+!    This file contains
+!    -  data
+!    -  namelists
+!    -  several attributes
+!
+!    Note:
+!    -  We read the namelists only once and assume that these
+!       are identical for all domains.
+!    -  Since we do not know about the total number of domains at startup,
+!       we have to ask the current restart file for the attribute "n_dom"
+!
+! 2. For each domain 1, ..., n_dom, and for the LAST restart output time step:
+!
+!    Symbolic link to data file
+!    --------------------------
+!      "restart_<modeltype>_DOMxx.nc"
+!
+!    Note:
+!    -  The domain-dependent suffix "...DOMxx" is also required for non-nested setups.
+!
+! --------------------------------------------------------------------------------
+!
+!OPTION! -pvctl conflict!
+
 MODULE mo_sync_restart
 
   USE mtime,                        ONLY: datetime

@@ -1,47 +1,33 @@
 !NEC$ options "-finline-max-depth=3 -finline-max-function-size=1000"
-!!==============================================================================
-!!
-!! Two-moment mixed-phase bulk microphysics
-!!
-!! original version by Axel Seifert, May 2003
-!! with modifications by Ulrich Blahak, August 2007
-!!
-!!==============================================================================
-!!
-!! - uses intrinsic gamma function. In gfortran you may want to compile with
-!!   the option -fall-intrinsics
-!!
-!! @par Revision History
-!! Ported into UCLA-LES from COSMO by Axel Seifert (2011-07-20)
-!! Ported into ICON from UCLA-LES by Anurag Dipankar (2013-12-15)
-!! Ported back into COSMO from ICON by Axel Seifert (2016-01-11)
-!! Ported back into ICON from COSMO by Alberto de Lozar (2019-01-11)
-!!
-!!
-!!==============================================================================
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!==============================================================================
+!
+! Two-moment mixed-phase bulk microphysics
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_2mom_mcrph_driver
 
 !------------------------------------------------------------------------------
-!>
-!! Description:
-!!
-!!   The subroutines in the module "gscp" calculate the rates of change of
-!!   temperature, cloud condensate and water vapor due to cloud microphysical
-!!   processes related to the formation of grid scale clouds and precipitation.
-!!   In the COSMO model the microphysical subroutines are either
-!!   called from "organize_gscp" or from "organize_physics" itself.
-!!
+!
+! Description:
+!
+!   The subroutines in the module "gscp" calculate the rates of change of
+!   temperature, cloud condensate and water vapor due to cloud microphysical
+!   processes related to the formation of grid scale clouds and precipitation.
+!   In the COSMO model the microphysical subroutines are either
+!   called from "organize_gscp" or from "organize_physics" itself.
+!
+! - uses intrinsic gamma function. In gfortran you may want to compile with
+!   the option -fall-intrinsics
+!
 !==============================================================================
 !
 ! Declarations:

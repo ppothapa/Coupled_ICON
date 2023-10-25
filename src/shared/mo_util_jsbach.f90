@@ -1,27 +1,19 @@
-!>
-!! Contains modules that provide interfaces to ICON infrastructure for JSBACH4
-!!
-!! @par Revision History
-!! Moved from adapters directory of JSBACH4 to ICON     by Reiner Schnur (2019-01-30)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Contains modules that provide interfaces to ICON infrastructure for JSBACH4
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 #ifndef __NO_JSBACH__
-!>
-!! @brief Contains interfaces to ICON parallel infrastructure for JSBACH
-!!
-!! @author
-!!  Reiner Schnur, MPI-M Hamburg
-!!
-!! @par Revision History
-!! First version             by Reiner Schnur (2013-04-04)
-!!
+
 MODULE mo_jsb_parallel_iface
 
   USE mo_mpi,             ONLY: p_comm_work_test, p_comm_work, my_process_is_stdio, my_process_is_mpi_parallel, &
@@ -52,17 +44,7 @@ CONTAINS
 
 END MODULE mo_jsb_parallel_iface
 
-!! ==============================================================================================================================
-!>
-!! @brief Contains interfaces to ICON spatial domains for JSBACH
-!!
-!! @author
-!!  Reiner Schnur, MPI-M Hamburg
-!!
-!! @par Revision History
-!! First version                                              by Reiner Schnur (2013-04-04)
-!! New subroutines and some adaptations for jsb4 standalone   by Julia Nabel (2016-02-20)
-!!
+
 MODULE mo_jsb_domain_iface
 
   USE mo_model_domain,       ONLY: t_patch

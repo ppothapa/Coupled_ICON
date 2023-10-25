@@ -1,32 +1,16 @@
-!>
-!! Allocation/deallocation and reading of ocean external datasets
-!!
-!! @author Daniel Reinert, DWD
-!! @author Hermann Asensio, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2010-07-12)
-!! Modification by Hermann Asensio, DWD (2010-07-16)
-!!  - add miscellaneous variables for external parameters
-!! Modification by Daniel Reinert, DWD (2011-05-03)
-!! - Memory allocation method changed from explicit allocation to Luis'
-!!   infrastructure
-!! Modification by Daniel Reinert, DWD (2012-02-23)
-!! - Routine smooth_topography moved to a new module named mo_smooth_topo
-!! Modification by Daniel Reinert, DWD (2012-03-22)
-!! - Type declaration moved to new module mo_ext_data_types
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-
-!----------------------------
+! Allocation/deallocation and reading of ocean external datasets
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 #include "omp_definitions.inc"
 !----------------------------
 

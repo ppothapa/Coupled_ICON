@@ -1,19 +1,17 @@
-!>
-!! @brief Interface between ocean surface waves and atmosphere, through a coupler
-!!
-!! @author Mikhail Dobrynin (DWD)
-!! @author Daniel Reinert (DWD)
-!!
-!! @par Revision History
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Interface between ocean surface waves and atmosphere, through a coupler
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_wave_atmo_coupling
 
   USE mo_kind,                     ONLY: wp
@@ -53,9 +51,6 @@ CONTAINS
   !!   "fraction_of_ocean_covered_by_sea_ice"
   !!
   !! This subroutine is called from perform_wave_stepping.
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin and Daniel Reinert, DWD (2023-08-24)
   !!
   SUBROUTINE couple_wave_to_atmo(p_patch, z0, u10m, v10m, sea_ice_c)
 

@@ -1,10 +1,15 @@
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 #if defined __xlC__ && !defined NOXLFPROCESS
 @PROCESS HOT
 #endif
@@ -383,7 +388,7 @@
 
     !-----------------------------------------------------------------------------
     !>
-    !! @brief BAND 16:  2600-3250 cm-1 (low key- H2O,CH4; high key - CH4)
+    !! BAND 16:  2600-3250 cm-1 (low key- H2O,CH4; high key - CH4)
     !
     SUBROUTINE srtm_cmbgb16
 
@@ -457,7 +462,7 @@
     END SUBROUTINE srtm_cmbgb16
     !-----------------------------------------------------------------------------
     !>
-    !! @brief BAND 17:  3250-4000 cm-1 (low - H2O,CO2; high - H2O,CO2)
+    !! BAND 17:  3250-4000 cm-1 (low - H2O,CO2; high - H2O,CO2)
     !
     SUBROUTINE srtm_cmbgb17
 
@@ -534,7 +539,7 @@
     END SUBROUTINE srtm_cmbgb17
     !-----------------------------------------------------------------------------
     !>
-    !! @brief BAND 18:  4000-4650 cm-1 (low - H2O,CH4; high - CH4)
+    !! BAND 18:  4000-4650 cm-1 (low - H2O,CH4; high - CH4)
     !
     SUBROUTINE srtm_cmbgb18
 
@@ -610,7 +615,7 @@
     END SUBROUTINE srtm_cmbgb18
     !-----------------------------------------------------------------------------
     !>
-    !! @brief BAND 19:  4650-5150 cm-1 (low - H2O,CO2; high - CO2)
+    !! BAND 19:  4650-5150 cm-1 (low - H2O,CO2; high - CO2)
     !
     SUBROUTINE srtm_cmbgb19
 
@@ -686,7 +691,7 @@
     END SUBROUTINE srtm_cmbgb19
     !-----------------------------------------------------------------------------
     !>
-    !! @brief BAND 20:  5150-6150 cm-1 (low - H2O; high - H2O)
+    !! BAND 20:  5150-6150 cm-1 (low - H2O; high - H2O)
     !
     SUBROUTINE srtm_cmbgb20
 
@@ -759,7 +764,7 @@
     END SUBROUTINE srtm_cmbgb20
     !-----------------------------------------------------------------------------
     !>
-    !! @brief BAND 21:  6150-7700 cm-1 (low - H2O,CO2; high - H2O,CO2)
+    !! BAND 21:  6150-7700 cm-1 (low - H2O,CO2; high - H2O,CO2)
     !
     SUBROUTINE srtm_cmbgb21
 
@@ -837,7 +842,7 @@
     END SUBROUTINE srtm_cmbgb21
     !-----------------------------------------------------------------------------
     !>
-    !! @brief BAND 22:  7700-8050 cm-1 (low - H2O,O2; high - O2)
+    !! BAND 22:  7700-8050 cm-1 (low - H2O,O2; high - O2)
     !
     SUBROUTINE srtm_cmbgb22
 
@@ -913,7 +918,7 @@
     END SUBROUTINE srtm_cmbgb22
     !-----------------------------------------------------------------------------
     !>
-    !! @brief BAND 23:  8050-12850 cm-1 (low - H2O; high - nothing)
+    !! BAND 23:  8050-12850 cm-1 (low - H2O; high - nothing)
     !
     SUBROUTINE srtm_cmbgb23
 
@@ -974,7 +979,7 @@
     END SUBROUTINE srtm_cmbgb23
     !-----------------------------------------------------------------------------
     !>
-    !! @brief BAND 24:  12850-16000 cm-1 (low - H2O,O2; high - O2)
+    !! BAND 24:  12850-16000 cm-1 (low - H2O,O2; high - O2)
     !
     SUBROUTINE srtm_cmbgb24
 
@@ -1071,7 +1076,7 @@
     END SUBROUTINE srtm_cmbgb24
     !-----------------------------------------------------------------------------
     !>
-    !! @brief BAND 25:  16000-22650 cm-1 (low - H2O; high - nothing)
+    !! BAND 25:  16000-22650 cm-1 (low - H2O; high - nothing)
     !
     SUBROUTINE srtm_cmbgb25
 
@@ -1114,7 +1119,7 @@
     END SUBROUTINE srtm_cmbgb25
     !-----------------------------------------------------------------------------
     !>
-    !! @brief BAND 26:  22650-29000 cm-1 (low - nothing; high - nothing)
+    !! BAND 26:  22650-29000 cm-1 (low - nothing; high - nothing)
     !
     SUBROUTINE srtm_cmbgb26
 
@@ -1137,7 +1142,7 @@
     END SUBROUTINE srtm_cmbgb26
     !-----------------------------------------------------------------------------
     !>
-    !! @brief BAND 27:  29000-38000 cm-1 (low - O3; high - O3)
+    !! BAND 27:  29000-38000 cm-1 (low - O3; high - O3)
     !
     SUBROUTINE srtm_cmbgb27
 
@@ -1186,7 +1191,7 @@
     END SUBROUTINE srtm_cmbgb27
     !-----------------------------------------------------------------------------
     !>
-    !! @brief BAND 28:  38000-50000 cm-1 (low - O3,O2; high - O3,O2)
+    !! BAND 28:  38000-50000 cm-1 (low - O3,O2; high - O3,O2)
     !
     SUBROUTINE srtm_cmbgb28
 
@@ -1240,7 +1245,7 @@
     END SUBROUTINE srtm_cmbgb28
     !-----------------------------------------------------------------------------
     !>
-    !! @brief BAND 29:  820-2600 cm-1 (low - H2O; high - CO2)
+    !! BAND 29:  820-2600 cm-1 (low - H2O; high - CO2)
     !
     SUBROUTINE srtm_cmbgb29
 

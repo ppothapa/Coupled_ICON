@@ -1,16 +1,18 @@
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!
 ! Contains: Three routines of EVP dynamics. The driving routine is EVPdynamics.
 ! 2D indices are used to distinguish between boundary and internal nodes.
 !
 !
-! Vladimir: added omp parallelization; rhs_a, rhs_m, rhs_mis are precalculated now
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -193,9 +195,9 @@ end subroutine init_evp_solver_coeffs_old
 !===================================================================
 
 subroutine stress_tensor_old(elem)
-! EVP rheology implementation. Computes stress tensor components based on ice 
+! EVP rheology implementation. Computes stress tensor components based on ice
 ! velocity field. They are stored as elemental arrays (sigma11, sigma22 and
-! sigma12). 
+! sigma12).
 
   USE mo_sea_ice_nml,         ONLY: delta_min, Tevp_inv, Pstar, c_pressure
 
@@ -209,8 +211,8 @@ implicit none
     REAL(wp)   :: r1, r2, r3, si1, si2
     REAL(wp)   :: zeta, usum, vsum
 
-! ATTENTION: the rows commented with !metrics contain terms due to 
-! differentiation of metrics. 
+! ATTENTION: the rows commented with !metrics contain terms due to
+! differentiation of metrics.
 
      elnodes=elem2D_nodes(:,elem)
       ! Vladimir: this check is no longer needed. si_idx_elem contains only indices of elements with ice
@@ -223,7 +225,7 @@ implicit none
 
 !    precalculated as metrics_elem2D(elem)
 !     meancos=sin_elem2D(elem)/cos_elem2D(elem)/earth_radius  !metrics
-     vsum=sum(v_ice(elnodes))                           !metrics   
+     vsum=sum(v_ice(elnodes))                           !metrics
      usum=sum(u_ice(elnodes))                           !metrics
 
       ! ===== Deformation rate tensor on element elem:
@@ -238,7 +240,7 @@ implicit none
      delta=sqrt(delta)
      msum=sum(m_ice(elnodes))*val3
      asum=sum(a_ice(elnodes))*val3
-     
+
       ! ===== Hunke and Dukowicz c*h*p*
      pressure=pstar*(msum)*exp(-c_pressure*(1.0_wp-asum))
       ! =======================================
@@ -251,43 +253,43 @@ implicit none
       ! ===== if viscosity is too big, it is limited too
       ! (done via correcting delta_inv)
      delta_inv=1.0_wp/max(delta,delta_min)
-       
-     !pressure=pressure*delta*delta_inv    ! Limiting pressure --- may not 
-     !                                     ! be needed. Should be tested   
-				     
+
+     !pressure=pressure*delta*delta_inv    ! Limiting pressure --- may not
+     !                                     ! be needed. Should be tested
+
       ! ===== Limiting pressure/Delta  (zeta): still it may happen that zeta is too
       ! large in regions with fine mesh so that CFL criterion is violated.
-        				     
+
       zeta=pressure*delta_inv
-      ! This place was introduced by Hunke, but seemingly is not used 
+      ! This place was introduced by Hunke, but seemingly is not used
       ! in the current CICE. We artificially increase Clim_evp so
       ! that almost no limiting happens here
       !if (zeta>Clim_evp*voltriangle(elem)) then
       !zeta=Clim_evp*voltriangle(elem)
-      !end if 
-      
+      !end if
+
       pressure=pressure*Tevp_inv
       zeta=zeta*Tevp_inv
-      				     
+
      r1=zeta*(eps11+eps22) - pressure
      r2=zeta*(eps11-eps22)
      r3=zeta*eps12
      si1=sigma11(elem)+sigma22(elem)
      si2=sigma11(elem)-sigma22(elem)
-     
+
      si1=det1*(si1+dte*r1)
      si2=det2*(si2+dte*r2)
      sigma12(elem)=det2*(sigma12(elem)+dte*r3)
      sigma11(elem)=0.5_wp*(si1+si2)
      sigma22(elem)=0.5_wp*(si1-si2)
-   
+
 end subroutine stress_tensor_old
 
 !===================================================================
 subroutine stress2rhs_old
 ! EVP implementation:
 ! Computes the divergence of stress tensor and puts the result into the
-! rhs vectors 
+! rhs vectors
 
 IMPLICIT NONE
 INTEGER  :: row, elem, elnodes(3), k, i
@@ -318,14 +320,14 @@ REAL(wp) :: dx(3), dy(3)
      dx=bafux(:,elem)
      dy=bafuy(:,elem)
 !     elevation_elem=elevation(elnodes)
-     
+
      DO k=1,3
         row=elnodes(k)
         rhs_u(row)=rhs_u(row) - voltriangle(elem) * &
              (sigma11(elem)*dx(k)+sigma12(elem)*(dy(k)) &
              +sigma12(elem)*val3*metrics_elem2D(elem))                          !metrics
         rhs_v(row)=rhs_v(row) - voltriangle(elem) * &
-             (sigma12(elem)*dx(k)+sigma22(elem)*dy(k) &   
+             (sigma12(elem)*dx(k)+sigma22(elem)*dy(k) &
              -sigma11(elem)*val3*metrics_elem2D(elem))
      END DO
  END DO
@@ -349,7 +351,7 @@ end subroutine stress2rhs_old
 !===================================================================
 
 subroutine EVPdynamics_old
-! EVP implementation. Does cybcycling and boundary conditions.  
+! EVP implementation. Does cybcycling and boundary conditions.
   USE mo_sea_ice_nml,           ONLY: evp_rheol_steps
   USE mo_physical_constants,    ONLY: rhoi, rhos, Cd_io, rho_ref
   USE mo_ice_fem_icon_init,     ONLY: exchange_nod2D

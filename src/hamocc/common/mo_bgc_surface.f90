@@ -1,7 +1,17 @@
+! @brief module contains gas exchange, weathering fluxes,
+!        dust & nitrogen deposition
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 MODULE mo_bgc_surface
-!! @file mo_bgc_surface.f90
-!! @brief module contains gas exchange, weathering fluxes,
-!!        dust & nitrogen deposition
 
   USE mo_kind, ONLY           : wp
   USE mo_control_bgc, ONLY    : dtbgc, bgc_nproma, bgc_zlevs

@@ -1,63 +1,59 @@
-!>
-!! Module to calculate source terms for different aerosol species.
-!!
-!! This module contains routines to calculate source terms for different aerosol species.
-!! Implemented up to now:
-!! - Mineral dust source term based Kok et al. (2014). This aerosol emission is then
-!!   converted to an AOD source term for the 2D-aerosol scheme of ICON
-!!
-!! Literature references:
-!! Fecan et al. (1998)   - Fecan, F., Marticorena, B., & Bergametti, G. (1998, December).
-!!                         Parametrization of the increase of the aeolian erosion threshold wind
-!!                         friction velocity due to soil moisture for arid and semi-arid areas.
-!!                         In Annales Geophysicae (Vol. 17, No. 1, pp. 149-157). Springer-Verlag.
-!! Grythe et al. (2014)  - Grythe, H., Stroem, J., Krejci, R., Quinn, P., & Stohl, A., 2014.
-!!                         A review of sea-spray aerosol source functions using a large global set
-!!                         of sea salt aerosol concentration measurements.
-!!                         Atmos. Chem. Phys., 14(3), 1277-1297.
-!! Jaegle et al. (2011)  - Jaegle, L., Quinn, P. K., Bates, T. S., Alexander, B., and Lin, J.-T., 2011:
-!!                         Global distribution of sea salt aerosols: new constraints from in situ
-!!                         and remote sensing observations
-!!                         Atmos. Chem. Phys., 11, 3137-3157.
-!! Kok et al. (2012)     - Kok, J. F., E. J. Parteli, T. I. Michaels, and D. B. Karam, 2012:
-!!                         The physics of wind-blown sand and dust. Rep. prog. Phys., 75(10), 106901.
-!! Kok et al. (2014)     - Kok, J., N. Mahowald, G. Fratini, J. Gillies, M. Ishizuka, J. Leys, M. Mikami,
-!!                         M.-S. Park, S.-U. Park, R. Van Pelt, et al., 2014: An improved dust emission
-!!                         model - part 1: Model description and comparison against measurements.
-!!                         Atmos. Chem. Phys., 14(23), 13023-13041.
-!! Kok et al. (2014b)    - Kok, J., S. Albani, N.M. Mahowald, and D.S. Ward, 2014: An improved dust 
-!!                         emission model - Part 2: Evaluation in the Community Earth System Model, 
-!!                         with implications for the use of dust source functions
-!!                         Atmos. Chem. Phys., 14, 13043-13061
-!! Raupach, M. R. (1993) - Dry deposition of gases and particles to vegetation.
-!!                         Clean Air: Journal of the Clean Air Society of Australia and New Zealand,
-!!                         27(4), 200.
-!! Rieger et al. (2017)  - Rieger D., Steiner A., Bachmann V., Gasch P., Foerstner J., Deetz K., 
-!!                         Vogel B., and Vogel H., 2017: Impact of the 4 April 2014 Saharan dust 
-!!                         outbreak on the photovoltaic power generation in Germany. 
-!!                         Atmos. Chem. and Phys. 17 (21), 13391
-!! Shao, Y., & Lu, H. (2000) - A simple expression for wind erosion threshold friction velocity.
-!!                         Journal of Geophysical Research: Atmospheres, 105(D17), 22437-22443.
-!! Zender et al. (2003)  - Zender, C. S., Bian, H., & Newman, D. (2003).
-!!                         Mineral Dust Entrainment and Deposition (DEAD) model:
-!!                         Description and 1990s dust climatology.
-!!                         Journal of Geophysical Research: Atmospheres, 108(D14).
-!!
-!! @author Daniel Rieger, DWD
-!!
-!!
-!! @par Revision History
-!! Initial Revision by Daniel Rieger, DWD (2021-06-29)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Module to calculate source terms for different aerosol species.
+!
+! This module contains routines to calculate source terms for different aerosol species.
+! Implemented up to now:
+! - Mineral dust source term based Kok et al. (2014). This aerosol emission is then
+!   converted to an AOD source term for the 2D-aerosol scheme of ICON
+!
+! Literature references:
+! Fecan et al. (1998)   - Fecan, F., Marticorena, B., & Bergametti, G. (1998, December).
+!                         Parametrization of the increase of the aeolian erosion threshold wind
+!                         friction velocity due to soil moisture for arid and semi-arid areas.
+!                         In Annales Geophysicae (Vol. 17, No. 1, pp. 149-157). Springer-Verlag.
+! Grythe et al. (2014)  - Grythe, H., Stroem, J., Krejci, R., Quinn, P., & Stohl, A., 2014.
+!                         A review of sea-spray aerosol source functions using a large global set
+!                         of sea salt aerosol concentration measurements.
+!                         Atmos. Chem. Phys., 14(3), 1277-1297.
+! Jaegle et al. (2011)  - Jaegle, L., Quinn, P. K., Bates, T. S., Alexander, B., and Lin, J.-T., 2011:
+!                         Global distribution of sea salt aerosols: new constraints from in situ
+!                         and remote sensing observations
+!                         Atmos. Chem. Phys., 11, 3137-3157.
+! Kok et al. (2012)     - Kok, J. F., E. J. Parteli, T. I. Michaels, and D. B. Karam, 2012:
+!                         The physics of wind-blown sand and dust. Rep. prog. Phys., 75(10), 106901.
+! Kok et al. (2014)     - Kok, J., N. Mahowald, G. Fratini, J. Gillies, M. Ishizuka, J. Leys, M. Mikami,
+!                         M.-S. Park, S.-U. Park, R. Van Pelt, et al., 2014: An improved dust emission
+!                         model - part 1: Model description and comparison against measurements.
+!                         Atmos. Chem. Phys., 14(23), 13023-13041.
+! Kok et al. (2014b)    - Kok, J., S. Albani, N.M. Mahowald, and D.S. Ward, 2014: An improved dust
+!                         emission model - Part 2: Evaluation in the Community Earth System Model,
+!                         with implications for the use of dust source functions
+!                         Atmos. Chem. Phys., 14, 13043-13061
+! Raupach, M. R. (1993) - Dry deposition of gases and particles to vegetation.
+!                         Clean Air: Journal of the Clean Air Society of Australia and New Zealand,
+!                         27(4), 200.
+! Rieger et al. (2017)  - Rieger D., Steiner A., Bachmann V., Gasch P., Foerstner J., Deetz K.,
+!                         Vogel B., and Vogel H., 2017: Impact of the 4 April 2014 Saharan dust
+!                         outbreak on the photovoltaic power generation in Germany.
+!                         Atmos. Chem. and Phys. 17 (21), 13391
+! Shao, Y., & Lu, H. (2000) - A simple expression for wind erosion threshold friction velocity.
+!                         Journal of Geophysical Research: Atmospheres, 105(D17), 22437-22443.
+! Zender et al. (2003)  - Zender, C. S., Bian, H., & Newman, D. (2003).
+!                         Mineral Dust Entrainment and Deposition (DEAD) model:
+!                         Description and 1990s dust climatology.
+!                         Journal of Geophysical Research: Atmospheres, 108(D14).
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_aerosol_sources
 
   USE mo_kind,                          ONLY: wp
@@ -78,9 +74,6 @@ CONTAINS
   !!
   !! Calculates the source term for mineral dust optical depth based
   !! on external data
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, DWD (2019-08-01)
   !!
   SUBROUTINE aerosol_dust_aod_source (this_source, dzsoil, w_so, h_snow, w_so_ice, &
     &                                 soiltyp, plcov, lc_class, rho_a, tcm, u, v, aod_flux, dust_flux)
@@ -149,9 +142,6 @@ CONTAINS
   !! Calculates a soil moisture correction factor for the threshold friction
   !! wind speed according to Fecan et al. (1998).
   !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, DWD (2019-08-01)
-  !!
   ELEMENTAL FUNCTION calc_aerosol_dust_correta_fecan1998 (wgrav, f_clay) RESULT (f_eta)
 
     REAL(wp), INTENT(in)    :: &
@@ -182,9 +172,6 @@ CONTAINS
   !! Calculates a roughness correction factor for the threshold friction
   !! wind speed according to Raupach 1993.
   !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, DWD (2019-08-01)
-  !!
   ELEMENTAL FUNCTION calc_aerosol_dust_corrz0_raupach1993 (plcov) RESULT(f_z0)
 
     REAL(wp), INTENT(in)    :: &
@@ -208,9 +195,6 @@ CONTAINS
   !!
   !! Calculates the threshold friction wind speed according to Shao and Lu (2000):
   !! Only for friction wind speeds above this threshold, saltation occurs
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, DWD (2019-08-01)
   !!
   ELEMENTAL FUNCTION calc_aerosol_dust_ustart_shaolu2000 (f_eta, f_z0, rho_a) RESULT(ustart)
 
@@ -242,9 +226,6 @@ CONTAINS
   !! FUNCTION calc_aerosol_dust_mflux_kok2014
   !!
   !! Calculates the mineral dust emission flux according to Kok et al. (2014). 
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, DWD (2019-07-29)
   !!
   ELEMENTAL FUNCTION calc_aerosol_dust_mflux_kok2014 (ustar, ustart, f_bare, f_clay, rho_a) RESULT(dust_flux)
 
@@ -297,9 +278,6 @@ CONTAINS
   !!
   !! Here, a complex refractive index of m=1.55+0.0025j was used.
   !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, DWD (2020-01-09)
-  !!
   ELEMENTAL FUNCTION calc_dust_aod (dust_flux) RESULT(aod_flux)
 
     REAL(wp), INTENT(in)  :: &
@@ -322,9 +300,6 @@ CONTAINS
   !! FUNCTION calc_wgrav
   !!
   !! Calculates the gravimetric soil moisture content in percent
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, DWD (2019-08-06)
   !!
   FUNCTION calc_wgrav(w_so, w_so_ice, dzsoil) RESULT (wgrav)
 
@@ -352,9 +327,6 @@ CONTAINS
   !! above 5 cm, the factor is 0.
   !! Use a simple linear fit in between f(h_snow=0) = 1 and f(h_snow=0.05) = 0
   !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, DWD (2019-08-12)
-  !!
   ELEMENTAL FUNCTION calc_hsnow_fac(h_snow) RESULT (h_snow_fac)
 
     REAL(wp), INTENT(in)  :: &
@@ -372,9 +344,6 @@ CONTAINS
   !! SUBROUTINE aerosol_ssa_aod_source
   !!
   !! Calculates the source term for sea salt aerosol optical depth
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, DWD (2021-10-22)
   !!
   SUBROUTINE aerosol_ssa_aod_source (sst, sp_10m, aod_flux, ssa_flux, ssa_flux_t)
     REAL(wp), INTENT(in)  :: &
@@ -402,9 +371,6 @@ CONTAINS
   !! FUNCTION calc_ssa_mflux_grythe2014
   !!
   !! Calculates the sea salt aerosol flux according to Grythe et al. (2014). 
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, DWD (2021-10-22)
   !!
   ELEMENTAL FUNCTION calc_ssa_mflux_grythe2014 (u10m) RESULT(ssa_flux)
 
@@ -434,9 +400,6 @@ CONTAINS
   !! the relatively high SSA concentrations found in the tropics
   !! (Grythe et al., 2014).
   !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, DWD (2021-10-22)
-  !!
   ELEMENTAL FUNCTION calc_ssa_sst_weighting(sst) RESULT (temp_wgt)
 
     REAL(wp), INTENT(in)  :: &
@@ -455,9 +418,6 @@ CONTAINS
   !! SUBROUTINE calc_ssa_aod
   !!
   !! Calculates the sea salt aerosol optical depth.
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, DWD (2022-04-05)
   !!
   ELEMENTAL FUNCTION calc_ssa_aod (u10m) RESULT(aod_flux)
 

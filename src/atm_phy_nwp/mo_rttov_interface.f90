@@ -1,19 +1,17 @@
-!>
-!!  This module contains the interface routines for calling the RTTOV library
-!!  for generating synthetic satellite images
-!!
-!! @par Revision History
-!!  Developed by Guenther Zaengl, DWD (2015-04-20)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+!
+!  This module contains the interface routines for calling the RTTOV library
+!  for generating synthetic satellite images
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_rttov_interface
   !
@@ -258,9 +256,6 @@ CONTAINS
 !>
 !! Driver routine to call the RTTOV library for computing synthetic satellite images
 !! For the time being, using a reduced radiation grid is mandatory
-!!
-!! @par Revision History
-!! Developed  by Guenther Zaengl, DWD, 2015-04-30
 !!
 SUBROUTINE rttov_driver (jg, jgp, nnow, lacc)
 
@@ -593,9 +588,6 @@ END SUBROUTINE rttov_driver
 !! This routine interpolates the input fields for RTTOV to the reduced radiation grid,
 !! combined with a vertical interpolation to the predefined RTTOV model levels
 !!
-!!
-!! @par Revision History
-!! Developed  by Guenther Zaengl, DWD, 2015-04-30
 !!
 SUBROUTINE prepare_rttov_input(jg, jgp, nlev_rg, z_ifc, pres, dpres, temp, tot_cld, clc, qs, &
   det_rate, con_upd, fr_land, fr_lake, fr_seaice, cosmu0, psfc, tsfc, t2m, qv2m, u10m, v10m, &
@@ -1122,9 +1114,6 @@ END SUBROUTINE prepare_rttov_input
 !>
 !! Back-interpolation of synthetic satellite images from reduced grid to compute grid
 !!
-!! @par Revision History
-!! Developed  by Guenther Zaengl, DWD, 2015-04-30
-!!
 SUBROUTINE downscale_rttov_output(jg, jgp, nimg, rg_satimg, satimg, l_enabled)
 
   ! Input grid parameters
@@ -1228,9 +1217,6 @@ END SUBROUTINE downscale_rttov_output
 !! Define the pressure levels (interface/half levels, to be precise) used by RTTOV
 !! Unit is hPa!
 !!
-!! @par Revision History
-!! Developed  by Guenther Zaengl, DWD, 2015-04-20
-!!
 SUBROUTINE define_rttov_levels (nlev_rt, pres_rttov)
 
   INTEGER, INTENT(IN) :: nlev_rt
@@ -1309,9 +1295,6 @@ END SUBROUTINE define_rttov_levels
 !>
 !! This routine copies additional model levels to the local parent grid if the RTTOV library
 !! is called on a vertically nested grid
-!!
-!! @par Revision History
-!! Developed  by Guenther Zaengl, DWD, 2015-04-26
 !!
 SUBROUTINE copy_rttov_ubc (jg, jgc, lacc)
   ! Input grid parameters

@@ -1,17 +1,19 @@
-!>
-!! @brief Module containing subroutines for the configuration of aes_bubble test case
-!!
-!! @literature cr2021_08_03)jsr for further documentation
-!!
-!! @contact S. Rast and B. Stevens, MPI-M, 2022-06
-!!
-!! @par Copyright and License
-!!                                                                              
-!! Copyright 2022 Max Planck Institute for Meteorology, S. Rast, B. Stevens
-!! 
-!! Code subject to BSD-3-C, SPDX short identifier: BSD-3-Clause, see file
-!! BSD-3-C-license.pdf in the license-directory
-!!
+! @brief Module containing subroutines for the configuration of aes_bubble test case
+!
+! @literature cr2021_08_03)jsr for further documentation
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_aes_bubble_config
                                                                                      
   USE mo_exception            ,ONLY: message, message_text, print_value, warning, finish                                                                                 

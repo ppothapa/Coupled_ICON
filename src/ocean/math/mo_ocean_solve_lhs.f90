@@ -1,10 +1,23 @@
+! contains lhs-type for use in solver-backends
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 #if (defined(_OPENMP) && defined(OCE_SOLVE_OMP))
 #include "omp_definitions.inc"
 #define PURE_OR_OMP
 #else
 #define PURE_OR_OMP PURE
 #endif
-! contains lhs-type for use in solver-backends
 
 MODULE mo_ocean_solve_lhs
 

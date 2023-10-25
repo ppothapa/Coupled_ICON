@@ -1,24 +1,20 @@
-!>
-!! Surface radiation fluxes for the NWP VDIFF interface.
-!!
-!! This module is separate because it is required by the interface and sea model. Due to the
-!! dependence on mo_nwp_phy_types it cannot be included with mo_nwp_vdiff_types because that would
-!! introduce a cycle.
-!!
-!! @author Roland Wirth, DWD
-!!
-!! @par Revision History
-!! Initial revision by Roland Wirth, DWD (2023-04)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Surface radiation fluxes for the NWP VDIFF interface.
+!
+! This module is separate because it is required by the interface and sea model. Due to the
+! dependence on mo_nwp_phy_types it cannot be included with mo_nwp_vdiff_types because that would
+! introduce a cycle.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_nwp_vdiff_radfluxes
 

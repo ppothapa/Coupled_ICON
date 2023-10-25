@@ -1,23 +1,21 @@
-!>
-!! This module is the interface between nwp_nh_interface to the
-!! gravity wave drag related parameterisations:
-!! inwp_sso == 1 == COSMO subgrid scale orographic gravity wave drag
-!! inwp_gwd == 1 == IFS non-orographic gravity wave drag
-!!
-!! @author    J. SCINOCCIA -- Original Fortran Code
-!! @author    A. Orr  -- Rewritten in IFS format   E.C.M.W.F.     August 2008
-!!
-!! @par Revision History
-!! Initial iplementation for ICON Kristina Froehlich, MPI-M, Hamburg (2011-05-19)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! This module is the interface between nwp_nh_interface to the
+! gravity wave drag related parameterisations:
+! inwp_sso == 1 == COSMO subgrid scale orographic gravity wave drag
+! inwp_gwd == 1 == IFS non-orographic gravity wave drag
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"

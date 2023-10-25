@@ -1,44 +1,42 @@
 !OPTION! -cont
-!! this command should fix the problem of copying arrays in a subroutine call
-!>
-!! This module is the interface between nwp_nh_interface to the 
-!! microphysical parameterisations:
-!!
-!! inwp_gscp == 1 : one_moment bulk microphysics by Doms and Schaettler (2004) 
-!!                                                and Seifert and Beheng (2001)
-!! inwp_gscp == 2 : one-moment graupel scheme
-!!
-!! inwp_gscp == 3 : two-moment cloud ice scheme (extension of gscp=1)
-!!
-!! inwp_gscp == 4 : two-moment bulk microphysics by Seifert and Beheng (2006)
-!!                  with prognostic cloud droplet number
-!!
-!! inwp_gscp == 5 : two-moment bulk microphysics by Seifert and Beheng (2006)
-!!                  with prognostic cloud droplet number and some aerosol,
-!!                  CCN and IN tracers
-!!
-!! inwp_gscp == 6 : two-moment bulk microphysics by Seifert and Beheng (2006)
-!!                  incorporating prognostic aerosol as CCN and IN from the
-!!                  ART extension
-!!
-!! inwp_gscp == 8 : SBM warm phase scheme
-!!
-!!
-!! inwp_gscp == 9 : a simple Kessler-type warm rain scheme
-!!
-!! @author Kristina Froehlich, DWD, Offenbach (2010-01-25)
-!!
-!! @par Revision History
-!! Initial Kristina Froehlich, DWD, Offenbach (2010-01-25)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! this command should fix the problem of copying arrays in a subroutine call
+!
+! This module is the interface between nwp_nh_interface to the
+! microphysical parameterisations:
+!
+! inwp_gscp == 1 : one_moment bulk microphysics by Doms and Schaettler (2004)
+!                                                and Seifert and Beheng (2001)
+! inwp_gscp == 2 : one-moment graupel scheme
+!
+! inwp_gscp == 3 : two-moment cloud ice scheme (extension of gscp=1)
+!
+! inwp_gscp == 4 : two-moment bulk microphysics by Seifert and Beheng (2006)
+!                  with prognostic cloud droplet number
+!
+! inwp_gscp == 5 : two-moment bulk microphysics by Seifert and Beheng (2006)
+!                  with prognostic cloud droplet number and some aerosol,
+!                  CCN and IN tracers
+!
+! inwp_gscp == 6 : two-moment bulk microphysics by Seifert and Beheng (2006)
+!                  incorporating prognostic aerosol as CCN and IN from the
+!                  ART extension
+!
+! inwp_gscp == 8 : SBM warm phase scheme
+!
+! inwp_gscp == 9 : a simple Kessler-type warm rain scheme
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"

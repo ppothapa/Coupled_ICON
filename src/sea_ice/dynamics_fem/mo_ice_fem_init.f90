@@ -1,20 +1,22 @@
-!
 ! array allocation + matrix setup routines+field initialization+io.
-! Initialization and IO are just very simple versions (when coupled to 
+! Initialization and IO are just very simple versions (when coupled to
 ! FESOM, ice uses FESOM machinery) that allow one to run test cases.
 !
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-
 ! Matrices are needed (i) if VP solver is used, (ii) in advection
 ! routines and (iii) for partitioning
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
-!==============================================================================
 module mo_ice_fem_init
 
   USE mo_ice_fem_types
@@ -87,7 +89,7 @@ end subroutine set_par_support
 
 subroutine array_setup_ice
 !
-! inializing sea ice model 
+! inializing sea ice model
 !
 
 integer   :: k
@@ -100,7 +102,7 @@ integer   :: k
 
  allocate(col_pos(nod2d))
 
-! Allocate memory for variables of ice model      
+! Allocate memory for variables of ice model
  allocate(m_ice(nod2D), a_ice(nod2D), m_snow(nod2D))
  allocate(u_ice(nod2D), v_ice(nod2D))
  allocate(sigma11(elem2D), sigma12(elem2D), sigma22(elem2D))
@@ -120,14 +122,14 @@ integer   :: k
  sigma12= 0._wp
 
 ! Allocate memory used for coupling (Partly used for input, and partly
-! for output of information) 
- allocate(stress_atmice_x(nod2D), stress_atmice_y(nod2D))    
- allocate(elevation(nod2D))         ! =ssh  of ocean        
+! for output of information)
+ allocate(stress_atmice_x(nod2D), stress_atmice_y(nod2D))
+ allocate(elevation(nod2D))         ! =ssh  of ocean
  allocate(u_w(nod2D), v_w(nod2D))   ! =uf and vf of ocean at surface nodes
 
 ! Sets the structure of the stiffness matrix
  call icestiff_matrix
-! Fill in  the mass matrix    
+! Fill in  the mass matrix
  call ice_mass_matrix_fill
 ! Create lumped mass matrix
  allocate(lmass_matrix(nod2D))
@@ -148,7 +150,7 @@ INTEGER                       :: k
 
 ! a) We must compute the number of potentially non-zero entries
 ! b) Allocate space
-! c) Fill in the column index array with proper values 
+! c) Fill in the column index array with proper values
 
 
 ! a)
@@ -182,21 +184,21 @@ INTEGER                       :: col, elem, elnodes(3), offset
 INTEGER                       :: ipos, row, q, n, i
 
   mass_matrix =0.0_wp
-  DO i=1, myDim_elem2D   
+  DO i=1, myDim_elem2D
      elem=myList_elem2D(i)
-     elnodes=elem2D_nodes(:,elem)   
+     elnodes=elem2D_nodes(:,elem)
      DO n=1,3
         row=elnodes(n)
-        ! Global-to-local neighbourhood correspondence  
+        ! Global-to-local neighbourhood correspondence
         DO q=1,nghbr_nod2D(row)%nmb
            col_pos(nghbr_nod2D(row)%addresses(q))=q
-        END DO 
+        END DO
         offset=icestiff%rowptr(row)-1
-        DO q=1,3 
+        DO q=1,3
            col=elnodes(q)
            ipos=offset+col_pos(col)
            mass_matrix(ipos)=mass_matrix(ipos)+voltriangle(elem)/12.0_wp
-           IF(q==n) THEN                     
+           IF(q==n) THEN
              mass_matrix(ipos)=mass_matrix(ipos)+voltriangle(elem)/12.0_wp
            END IF
         END DO

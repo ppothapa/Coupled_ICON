@@ -1,22 +1,18 @@
-!>
-!! Single parcel for EDMF DUALM
-!!
-!! @author Martin Koehler, DWD
-!!
-!! @par Revision History
-!! Imported from IFS by Martin Koehler  (starting 2011-9-30)
-!!   (IFS cycle CY36R1_DUALM_M8b)
-!!
-!!-----------------------------------------------------------------------------
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!-----------------------------------------------------------------------------
+!
+! Single parcel for EDMF DUALM
+!
+!-----------------------------------------------------------------------------
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_vdfparcel
  

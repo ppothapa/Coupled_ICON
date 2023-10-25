@@ -1,4 +1,15 @@
-  SUBROUTINE update_sfcflx_analytical(p_patch_3D, p_os, p_sfc_flx)
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
+SUBROUTINE update_sfcflx_analytical(p_patch_3D, p_os, p_sfc_flx)
 
   TYPE(t_patch_3D ),TARGET, INTENT(IN)    :: p_patch_3D
   TYPE(t_hydro_ocean_state)                   :: p_os

@@ -1,26 +1,22 @@
-!>
-!! @brief Read and apply monthly aerosol optical properties of S. Kinne
-!! from yearly files.
-!!
-!! @author B. Stevens, K. Peters, J.S. Rast (MPI-M)
-!!
-!! @par Revision History
-!!         S. Rast, S. Fiedler (MPI-M): bug fixes for annual cycle,
-!!            Twomey effect (2017-02-16)
-!!         S. Rast, S. Fiedler (MPI-M): revised vertical distribution
-!!            to meter above sea level (was automatically included) (2017-02-16)
-!!         S. Rast, S. Fiedler (MPI-M): corrected artifical
-!!            gradients (2017-02-16)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Read and apply monthly aerosol optical properties of S. Kinne
+! from yearly files.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
+! ---------------------------
 #include "consistent_fma.inc"
+! ---------------------------
+
 MODULE mo_bc_aeropt_splumes
 
   USE mo_kind,                 ONLY: wp

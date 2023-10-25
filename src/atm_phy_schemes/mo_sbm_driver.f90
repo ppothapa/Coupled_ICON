@@ -1,31 +1,25 @@
 !------------------------------------------------------------------------------
-!>
-!! Description:
-!!
-!!   The subroutines in the module "gscp" calculate the rates of change of
-!!   temperature, cloud condensate and water vapor due to cloud microphysical
-!!   processes related to the formation of grid scale clouds and precipitation.
-!!   In the COSMO model the microphysical subroutines are either
-!!   called from "organize_gscp" or from "organize_physics" itself.
-!!
-!!   The coupling to radiation through the reff calculation and the 
-!!   radar calculation make use of the two-moment formulations.
-!!   Hence, the number and mass moments are calculated from SBM and 
-!!   are then passed to these subroutines. This introduces a spurious 
-!!   dependency of SBM results on 2mom parameters (PSD, particle geometry). 
-!!   A more consistent coupling that makes full use of the SBM particle 
-!!   distributions and calculating reff directly from SBM is planned.
-!!
-!! @author Pavel Khain, IMS
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Description:
+!
+!   The coupling to radiation through the reff calculation and the
+!   radar calculation make use of the two-moment formulations.
+!   Hence, the number and mass moments are calculated from SBM and
+!   are then passed to these subroutines. This introduces a spurious
+!   dependency of SBM results on 2mom parameters (PSD, particle geometry).
+!   A more consistent coupling that makes full use of the SBM particle
+!   distributions and calculating reff directly from SBM is planned.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_sbm_driver
 

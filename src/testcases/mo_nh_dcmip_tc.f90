@@ -1,58 +1,46 @@
-!>
-!!=======================================================================
-!!
-!!  Function for setting up idealized tropical cyclone initial conditions
-!!
-!!  Given a point specified by: 
-!!
-!!          longitude (radians) 
-!!         latitude (radians) 
-!!         height
-!!
-!!  the functions will return:
-!!        u        zonal wind (m s^-1)
-!!        v        meridional wind (m s^-1)
-!!        w        vertical velocity (m s^-1)
-!!        t        temperature (K)
-!!        phis        surface geopotential (m^2 s^-2)
-!!        ps        surface pressure (Pa)
-!!        rho        density (kj m^-3)
-!!        q        specific humidity (kg/kg)
-!!        qi        tracers (kg/kg)
-!!      p       pressure (Pa)  
-!!
-!!  Initial data are currently identical to:
-!!
-!!                 Reed, K. A., and C. Jablonowski, 2011: An analytic
-!!                 vortex initialization technique for idealized tropical
-!!                 cyclone studies in AGCMs. Mon. Wea. Rev., 139, 689-710. 
-!!
-!!  Author: Kevin A. Reed (University of Michigan, kareed@umich.edu)
-!!          version 1
-!!          5/21/2012
-!!
-!! <Short description of module for listings and indices>
-!!
-!! <Describe the concepts of the procedures and algorithms used in the module.>
-!! <Details of procedures are documented below with their definitions.>
-!! <Include any applicable external references inline as module::procedure,>
-!! <external_procedure(), or by using @see.>
-!! <Don't forget references to literature.>
-!!
-!! @author Kevin A. Reed, University of Michigan, kareed@umich.edu
-!!
-!!
-!! @par Revision History
-!! Adaptation for ICON by Marco Giorgetta (2012-07-02)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Function for setting up idealized tropical cyclone initial conditions
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+!
+!
+! Given a point specified by:
+!
+!          longitude (radians)
+!         latitude (radians)
+!         height
+!
+! the functions will return:
+!        u        zonal wind (m s^-1)
+!        v        meridional wind (m s^-1)
+!        w        vertical velocity (m s^-1)
+!        t        temperature (K)
+!        phis        surface geopotential (m^2 s^-2)
+!        ps        surface pressure (Pa)
+!        rho        density (kj m^-3)
+!        q        specific humidity (kg/kg)
+!        qi        tracers (kg/kg)
+!      p       pressure (Pa)
+!
+! Initial data are currently identical to:
+!
+!                 Reed, K. A., and C. Jablonowski, 2011: An analytic
+!                 vortex initialization technique for idealized tropical
+!                 cyclone studies in AGCMs. Mon. Wea. Rev., 139, 689-710.
+!
+! Author: Kevin A. Reed (University of Michigan, kareed@umich.edu)
+!          version 1
+!          5/21/2012
+
 MODULE mo_nh_dcmip_tc
 
   ! items of the infrastructure
@@ -125,17 +113,6 @@ MODULE mo_nh_dcmip_tc
 
 CONTAINS
 
-  !>
-  !! <Short description of the subroutine for listings and indices>
-  !!
-  !! <Describe the purpose of the subroutine and its algorithm(s).>
-  !! <Include any applicable external references inline as module::procedure,>
-  !! <external_procedure(), or by using @see.>
-  !! <Don't forget references to literature.>
-  !!
-  !! @par Revision History
-  !! Adaptation for ICON by Marco Giorgetta (2012-07-02)
-  !!
   SUBROUTINE init_nh_dcmip_tc( p_patch, p_nh_prog, p_nh_diag, p_metrics, p_int )
 
     TYPE(t_patch),      INTENT(inout), TARGET :: p_patch   !< patch on which computation is performed

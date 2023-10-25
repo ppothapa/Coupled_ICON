@@ -1,23 +1,21 @@
-!>
-!! This module contains often-used Fortran language constructs.
-!!
-!! The small functions and subroutines in this module should depend
-!! only on most basic types and should not call other model-specific
-!! subroutines.
-!!
-!! @par Revision History
-!!    Initial implementation : F. Prill, DWD (2012-07-04)
-!!    moved routines from "mo_var_list.f90"
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! This module contains often-used Fortran language constructs.
+!
+! The small functions and subroutines in this module should depend
+! only on most basic types and should not call other model-specific
+! subroutines.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_fortran_tools
 
   USE mo_kind,                    ONLY: wp, sp, vp, dp, ik4 => i4
@@ -446,13 +444,7 @@ CONTAINS
 
   END FUNCTION if_associated_rc_2d
 
-  !>
   !! Swap content of two Integers
-  !!
-  !! Swap content of two Integers
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2014-10-28)
   !!
   SUBROUTINE swap_int(a,b)
     INTEGER, INTENT(INOUT) :: a
@@ -466,13 +458,9 @@ CONTAINS
     b    = temp
   END SUBROUTINE swap_int
 
-  !>
   !! Expand array by given size
   !!
   !! Expand a 1D character array by given size.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2014-10-28)
   !!
   SUBROUTINE resize_arr_c1d(arr,nelem)
     ! GCC 4.9.0 complained about CHARACTER(:); Cray did not!

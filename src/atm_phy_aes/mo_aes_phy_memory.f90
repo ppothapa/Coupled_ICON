@@ -1,34 +1,27 @@
 !NEC$ options "-O1"
-!>
-!! Data types and variables used by the AES physics package.
-!!
-!! This module contains
-!! <ol>
-!! <li> definition of data types for organising the physical quantities in the
-!!      AES physics package,
-!! <li> the actual variables that are declared of these types, and
-!! <li> subroutines for (de-)allocating memory for the variables.
-!! </ol>
-!! This module uses derived data types in order to allow for local refinement.
-!!
-!! @author Huis Wan (MPI-M)
-!! @author Marco Giorgetta (MPI-M)
-!! @author Kristina Froehlich (DWD, MPI-M)
-!! @author Luis Kornblueh (MPI-M)
-!!
-!! @par Revision History
-!! First version by Hui Wan, Marco Giorgetta and Kristina Froehlich, 2010-10-28.
-!! Memory allocation method changed from explicit allocation to Luis' 
-!! infrastructure by Hui Wan (MPI-M, 2011-04-24)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Data types and variables used by the AES physics package.
+!
+! This module contains
+! 
+!  definition of data types for organising the physical quantities in the
+!    AES physics package,
+!  the actual variables that are declared of these types, and
+!  subroutines for (de-)allocating memory for the variables.
+! 
+! This module uses derived data types in order to allow for local refinement.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_aes_phy_memory
 
   USE mo_kind,                ONLY: dp, wp

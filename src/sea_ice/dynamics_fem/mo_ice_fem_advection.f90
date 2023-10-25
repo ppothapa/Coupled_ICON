@@ -1,24 +1,23 @@
-!>
-!! Contains the FESIM implementation of FE-FCT advection scheme due to Loehner et al.
-!! Driver routine fct_ice_solve calls other routines that do low-order,
-!! higher order solutions and then combine them in a flux corrected way.
-!! Taylor-Galerkin type of advection is used.
-!!
-!! There is a tunable paremeter gamma in ts_solve_low_order and fem_fct.
-!! Increasing it leads to positivity preserving solution.
-!!
-!! @par Revision History
-!! Based on FESIM's ice_fct.F90. Adaptation by Vladimir Lapin (2017)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Contains the FESIM implementation of FE-FCT advection scheme due to Loehner et al.
+! Driver routine fct_ice_solve calls other routines that do low-order,
+! higher order solutions and then combine them in a flux corrected way.
+! Taylor-Galerkin type of advection is used.
+!
+! There is a tunable paremeter gamma in ts_solve_low_order and fem_fct.
+! Increasing it leads to positivity preserving solution.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -52,9 +51,6 @@ CONTAINS
   !
   !> Driving routine
   !!
-  !! @par Revision History
-  !! Imported from FESIM by Vladimir Lapin, MPI-M (2017-04)
-  !
   subroutine fct_ice_solve
       implicit none
 
@@ -74,9 +70,6 @@ CONTAINS
   !> Computes the rhs in a Taylor-Galerkin way (with upwind type of
   !! correction for the advection operator)
   !!
-  !! @par Revision History
-  !! Imported from FESIM by Vladimir Lapin, MPI-M (2017-04)
-  !
   subroutine ice_TG_rhs
 
     USE mo_run_config,          ONLY: dtime
@@ -128,8 +121,6 @@ CONTAINS
   !
   !> Initialization of arrays necessary to implement FCT algorithm
   !!
-  !! @par Revision History
-  !! Imported from FESIM by Vladimir Lapin, MPI-M (2017-04)
   subroutine fem_fct_ice_init
       
       implicit none
@@ -149,9 +140,6 @@ CONTAINS
   !
   !> Does Taylor-Galerkin solution the first approximation
   !!
-  !! @par Revision History
-  !! Imported from FESIM by Vladimir Lapin, MPI-M (2017-04)
-  !
   subroutine ice_solve_high_order
       implicit none
       !
@@ -202,9 +190,6 @@ CONTAINS
   !! acting on the field from the previous time step. The mass matrix on the
   !! lhs is replaced with lumped one.
   !!
-  !! @par Revision History
-  !! Imported from FESIM by Vladimir Lapin, MPI-M (2017-04)
-  !
   subroutine ice_solve_low_order
 
       implicit none
@@ -244,9 +229,6 @@ CONTAINS
   !! Int. J. Numer. Meth. Fluids, 7 (1987), 1093--1109) as described by Kuzmin and
   !! Turek. (kuzmin@math.uni-dortmund.de)
   !!
-  !! @par Revision History
-  !! Imported from FESIM by Vladimir Lapin, MPI-M (2017-04)
-  !
   subroutine ice_fem_fct(tr_array_id)
       implicit none
 

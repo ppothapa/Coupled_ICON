@@ -1,25 +1,25 @@
-!>
-!! Chemical heating rate 
-!!
-!! This module allows to compute chemical heating by interpolating from zonal mean climatology (12-month)
-!!
-!! @par Revision History
-!!  Guidi Zhou, MPI-M, 2016-09-06: original source
-!!
-!!  Modification by Guidi Zhou, MPI-M, 2017-02-28:
-!!  - added support for using chemical heating only above a certain level
-!!  - added output of efficiency factor for standard shortwave radiation
-!!  Modification by Guidi Zhou, MPI-M (2017-03-06)
-!!  - added the ability to compute chemical heating only above a certain altitude for performance
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Chemical heating rate
+!
+! This module allows to compute chemical heating by interpolating from zonal mean climatology (12-month)
+!
+!  Modification by Guidi Zhou, MPI-M, 2017-02-28:
+!  - added support for using chemical heating only above a certain level
+!  - added output of efficiency factor for standard shortwave radiation
+!  Modification by Guidi Zhou, MPI-M (2017-03-06)
+!  - added the ability to compute chemical heating only above a certain altitude for performance
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_upatmo_phy_chemheat
 
   USE mo_kind,                   ONLY: wp, i8

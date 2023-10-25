@@ -1,25 +1,19 @@
-!>
-!! Provide an implementation of the ocean surface module.
-!!
-!! Provide an implementation of the parameters used for surface forcing
-!! of the hydrostatic ocean model.
-!!
-!! @author Vladimir Lapin, MPI
-!!
-!! @par Revision History
-!!  Original version by Peter Korn, MPI-M (2009)
-!!  Restructured code by Stephan Lorenz, MPI-M: (2015-04)
-!!  Restructured code by Vladimir Lapin, MPI-M: (2017-01)
-!!  Adopted for zstar by V. Singh, MPI-M:(2020)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Provide an implementation of the ocean surface module.
+!
+! Provide an implementation of the parameters used for surface forcing
+! of the hydrostatic ocean model.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_ocean_surface_refactor
 !-------------------------------------------------------------------------
 !

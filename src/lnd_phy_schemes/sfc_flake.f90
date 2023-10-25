@@ -1,169 +1,109 @@
-!>
-!! The main program unit of the lake parameterization scheme FLake.
-!! It contains all FLake procedures except for the procedures used 
-!! to compute fluxes of momentum and of sensible and latent heat over lakes. 
-!! (Note that the FLake flux-calculation routines can optionally be used 
-!! to determine fluxes over lakes. By default, fluxes over lakes 
-!! are computed in the same way as over the ocean).
-!! Communication between FLake and the host atmospheric model (ICON) 
-!! occurs through the subroutines "flake_coldinit", "flake_init" and "flake_interface".
-!! In "flake_init" (warm start initialization procedure), FLake prognostic variables 
-!! are initialized and some consistency checks are performed.
-!! In "flake_interface", a call to the FLake subroutine "flake_driver" is organized, 
-!! where FLake variables are advanced one time step forward 
-!! (see "flake_driver" for further details).
-!! The "flake_coldinit" serves to perform a cold start of FLake 
-!! within a host model. 
-!!
-!! FLake (Fresh-water Lake) is a bulk lake parameterization scheme 
-!! capable of predicting the water temperature 
-!! and the characteristics of ice and snow in lakes of various depth 
-!! on the time scales from a few hours to many years. 
-!! The scheme is based on a parametric representation of the evolving
-!! temperature profile, where the structure of the stratified layer between the
-!! upper mixed layer and the basin bottom, the lake thermocline, is described
-!! using the concept of self-similarity (assumed shape) of the temperature-depth curve.
-!! The concept was put forward by Kitaigorodskii and Miropolsky (1970) to
-!! describe the vertical temperature structure of the oceanic seasonal
-!! thermocline. It has been successfully used in geophysical applications.
-!! A bulk approach based on the assumed shape of the temperature-depth curve 
-!! is also used to describe the vertical structure of the thermally active 
-!! upper layer of bottom sediments and of the ice and snow cover.
-!!
-!! FLake incorporates the heat budget equations for the four layers
-!! in question, viz., snow, ice, water and bottom sediments, developed with
-!! due regard for the vertically distributed character of solar radiation
-!! heating. The entrainment equation that incorporates the spin-up term
-!! is used to compute the depth of a convectively-mixed layer.
-!! A relaxation-type equation is used to compute the wind-mixed layer depth in
-!! stable and neutral stratification, where a multi-limit formulation for the
-!! equilibrium mixed-layer depth accounts for the effects of the earth's rotation,
-!! of the surface buoyancy flux and of the static stability in the thermocline.
-!! The equations for the mixed-layer depth are developed with due regard for
-!! the volumetric character of the solar radiation heating.
-!! Simple thermodynamic arguments are invoked to develop
-!! the evolution equations for the ice and snow thickness.
-!! The heat flux through the water-bottom sediment interface is computed,
-!! using a parameterization proposed by Golosov et al. (1998).
-!! The heat flux trough the air-water interface
-!! (or through the air-ice or air-snow interface)
-!! is provided by the driving atmospheric model.
-!!
-!! Disposable constants and parameters of FLake are estimated, using
-!! independent empirical and numerical data. They should not be re-evaluated
-!! when the scheme is applied to a particular lake. The only lake-specific
-!! parameters are the lake depth, the optical characteristics of lake water,
-!! the temperature at the lower boundary of the thermally active layer of bottom
-!! sediments, and the depth of that layer. These parameters are not part 
-!! the model physics, however. 
-!! Note though that the data assimilation procedures (e.g. assimilation of observational 
-!! data on ice fraction) utilize constants and parameters, whose estimates are essentially 
-!! based on prior experience and common sense. Those constants and parameters 
-!! may need to be tuned as the case requires.
-!!
-!! A detailed description of FLake is given in
-!!
-!! Mironov, D. V., 2008: 
-!! Parameterization of lakes in numerical weather prediction. Description of a lake model. 
-!! COSMO Technical Report, No. 11, Deutscher Wetterdienst, Offenbach am Main, Germany, 41 pp.
+! The main program unit of the lake parameterization scheme FLake.
 !
-!! Mironov, D., E. Heise, E. Kourzeneva, B. Ritter, N. Schneider, and A. Terzhevik, 2010:
-!! Implementation of the lake parameterisation scheme FLake
-!! into the numerical weather prediction model COSMO.
-!! Boreal Env. Res., 15, 218-230.
-!!
-!! A snow-ice module of FLake is discussed in
-!!
-!! Mironov, D., B. Ritter, J.-P. Schulz, M. Buchhold, M. Lange, and E. Machulskaya, 2012:
-!! Parameterization of sea and lake ice in numerical weather prediction models
-!! of the German Weather Service.
-!! Tellus A, 64, 17330. doi:10.3402/tellusa.v64i0.17330
-!!
-!! Further information is available at the FLake web page http://lakemodel.net.
-!!
-!! In the present configuration, the bottom sediment module of FLake is switched off
-!! and the heat flux at the water-bottom sediment interface is set to zero. 
-!! Although the snowfall rate is provided by the driving atmospheric model, 
-!! snow over lake ice is not considered explicitly.
-!! The effect of snow is accounted for implicitly (parametrically) 
-!! through changes in the surface albedo with respect to solar radiation.
-!!
-!!
-!! @author Dmitrii Mironov, DWD.
-!!
-!! @par Revision History
-!!
-!! COSMO history:
-!! Version    Date       Name
-!! ---------- ---------- ----
-!! 3.18       2006/03/03 Dmitrii Mironov
-!!  Initial release
-!! 3.21       2006/12/04 Dmitrii Mironov, Ulrich Schaettler
-!!  General update of the scheme
-!! V4_11        2009/11/30 Ekaterina Machulskaya, Jan-Peter Schulz
-!!  Adaptations for multi-layer snow model
-!!  Eliminate option for cold start (is put to INT2LM) (US)
-!! V4_13        2010/05/11 Michael Gertz
-!!  Adaptions to SVN
-!! V4_15        2010/11/19 Ulrich Schaettler
-!!  The field t_s_lake is removed again after adaptations in the SST Analysis
-!! V4_16        2010/12/07 Dmitrii Mironov
-!!  Adaptation to the two time level scheme, update of I/O (SUBROUTINE flake_init)
-!! V4_21        2011/12/06 Dmitrii Mironov
-!!  Changes for better vectorization
-!! V4_23        2012/05/10 Burkhardt Rockel (CLM)
-!!  Restrict some writing information to "debug output"
-!!  Set  t_snow_mult = t_snow only for grid points depth_lk > 0.0,
-!!   otherwise program may crash later on in organize_dynamics
-!! V4_24        2012/06/22 Dmitrii Mironov
-!!  Added consistency checks at the beginning, because values might be inconsistent
-!!    due to grib packing
-!! V4_25        2012/09/28 Anne Roches, Oliver Fuhrer
-!!  Replaced qx-variables by using them from the tracer module
-!! V4_27        2013/03/19 Astrid Kerkweg, Ulrich Schaettler
-!!  Introduced MESSy interface
-!!
-!! Initial ICON release by Dmitrii Mironov, DWD (2013-06-05)
-!! (adaptation of the COSMO code for ICON)
-!! 
-!! Modification by <name>, <organization> (YYYY-MM-DD)
-!! - <brief description of modification>
-!! 
-!! Modification by Dmitrii Mironov, DWD (2015-10-16)
-!! - Parameter fr_lake_min is no longer used,
-!! - namelist parameter frlake_thrhld is used to specify minimum lake fraction.
-!! Modification by Guenther Zaengl, DWD (2017-02-02)
-!! - assimilation of observational data on ice fraction is introduced.
-!! Modification by Dmitrii Mironov, DWD (2019-11-22)
-!! - Some security constraints are modified (SUBROUTINE flake-driver). 
-!! 
 !
-! History:
-! Version      Date       Name
-! ------------ ---------- ----
-! V5_4e        2017-03-23 Ulrich Schaettler
-!  Initial release for COSMO (taken from ICON version)
-! V5_4f        2017-09-01 Ulrich Schaettler
-!  Removed obsolete switch lmulti_layer
-! V5_5         2018-02-23 Carlos Osuna, Xavier Lapillonne
-!  Port Flake to GPU with OpenACC. Move all routine parameters into argument list
-! V5_5b        2018-10-29 Xavier Lapillonne
-!  Removed update host / device
-!  Full OpenACC port to GPU
-! @VERSION@    @DATE@     Ulrich Schaettler
-!  Unification of ICON and COSMO versions
+! ICON
 !
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-
-!234567890023456789002345678900234567890023456789002345678900234567890023456789002345678900234567890
-
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+!
+!
+! The main program unit of the lake parameterization scheme FLake.
+!
+! It contains all FLake procedures except for the procedures used
+! to compute fluxes of momentum and of sensible and latent heat over lakes.
+! (Note that the FLake flux-calculation routines can optionally be used
+! to determine fluxes over lakes. By default, fluxes over lakes
+! are computed in the same way as over the ocean).
+! Communication between FLake and the host atmospheric model (ICON)
+! occurs through the subroutines "flake_coldinit", "flake_init" and "flake_interface".
+! In "flake_init" (warm start initialization procedure), FLake prognostic variables
+! are initialized and some consistency checks are performed.
+! In "flake_interface", a call to the FLake subroutine "flake_driver" is organized,
+! where FLake variables are advanced one time step forward
+! (see "flake_driver" for further details).
+! The "flake_coldinit" serves to perform a cold start of FLake
+! within a host model.
+!
+! FLake (Fresh-water Lake) is a bulk lake parameterization scheme
+! capable of predicting the water temperature
+! and the characteristics of ice and snow in lakes of various depth
+! on the time scales from a few hours to many years.
+! The scheme is based on a parametric representation of the evolving
+! temperature profile, where the structure of the stratified layer between the
+! upper mixed layer and the basin bottom, the lake thermocline, is described
+! using the concept of self-similarity (assumed shape) of the temperature-depth curve.
+! The concept was put forward by Kitaigorodskii and Miropolsky (1970) to
+! describe the vertical temperature structure of the oceanic seasonal
+! thermocline. It has been successfully used in geophysical applications.
+! A bulk approach based on the assumed shape of the temperature-depth curve
+! is also used to describe the vertical structure of the thermally active
+! upper layer of bottom sediments and of the ice and snow cover.
+!
+! FLake incorporates the heat budget equations for the four layers
+! in question, viz., snow, ice, water and bottom sediments, developed with
+! due regard for the vertically distributed character of solar radiation
+! heating. The entrainment equation that incorporates the spin-up term
+! is used to compute the depth of a convectively-mixed layer.
+! A relaxation-type equation is used to compute the wind-mixed layer depth in
+! stable and neutral stratification, where a multi-limit formulation for the
+! equilibrium mixed-layer depth accounts for the effects of the earth's rotation,
+! of the surface buoyancy flux and of the static stability in the thermocline.
+! The equations for the mixed-layer depth are developed with due regard for
+! the volumetric character of the solar radiation heating.
+! Simple thermodynamic arguments are invoked to develop
+! the evolution equations for the ice and snow thickness.
+! The heat flux through the water-bottom sediment interface is computed,
+! using a parameterization proposed by Golosov et al. (1998).
+! The heat flux trough the air-water interface
+! (or through the air-ice or air-snow interface)
+! is provided by the driving atmospheric model.
+!
+! Disposable constants and parameters of FLake are estimated, using
+! independent empirical and numerical data. They should not be re-evaluated
+! when the scheme is applied to a particular lake. The only lake-specific
+! parameters are the lake depth, the optical characteristics of lake water,
+! the temperature at the lower boundary of the thermally active layer of bottom
+! sediments, and the depth of that layer. These parameters are not part
+! the model physics, however.
+! Note though that the data assimilation procedures (e.g. assimilation of observational
+! data on ice fraction) utilize constants and parameters, whose estimates are essentially
+! based on prior experience and common sense. Those constants and parameters
+! may need to be tuned as the case requires.
+!
+! A detailed description of FLake is given in
+!
+! Mironov, D. V., 2008:
+! Parameterization of lakes in numerical weather prediction. Description of a lake model.
+! COSMO Technical Report, No. 11, Deutscher Wetterdienst, Offenbach am Main, Germany, 41 pp.
+!
+! Mironov, D., E. Heise, E. Kourzeneva, B. Ritter, N. Schneider, and A. Terzhevik, 2010:
+! Implementation of the lake parameterisation scheme FLake
+! into the numerical weather prediction model COSMO.
+! Boreal Env. Res., 15, 218-230.
+!
+! A snow-ice module of FLake is discussed in
+!
+! Mironov, D., B. Ritter, J.-P. Schulz, M. Buchhold, M. Lange, and E. Machulskaya, 2012:
+! Parameterization of sea and lake ice in numerical weather prediction models
+! of the German Weather Service.
+! Tellus A, 64, 17330. doi:10.3402/tellusa.v64i0.17330
+!
+! Further information is available at the FLake web page http://lakemodel.net.
+!
+! In the present configuration, the bottom sediment module of FLake is switched off
+! and the heat flux at the water-bottom sediment interface is set to zero.
+! Although the snowfall rate is provided by the driving atmospheric model,
+! snow over lake ice is not considered explicitly.
+! The effect of snow is accounted for implicitly (parametrically)
+! through changes in the surface albedo with respect to solar radiation.
+!
+!
 ! Lines embraced with "!_tmp>" and "!_tmp<" contain temporary parts of the code.
 ! Lines embraced/marked with "!_dev>" and "!_dev<" may be replaced
 ! as improved formulations are developed and tested.
@@ -171,9 +111,8 @@
 ! Lines embraced/marked with "!_dbg>" and "!_dbg<" are used for debugging purposes only.
 ! Lines starting with "!_nu" are not used.
 
-!234567890023456789002345678900234567890023456789002345678900234567890023456789002345678900234567890
-
 !NEC$ options "-finline-max-function-size=1000 -finline-max-depth=3"
+
 
 MODULE sfc_flake
 
@@ -379,22 +318,6 @@ CONTAINS
   !! ice thickness, or remove ice. To this end, an ad hoc assimilation procedure
   !! is used (that contains a good few of tuning constants). 
   !! Data on lake ice fraction are currently used for some large lakes only.
-  !!
-  !!
-  !! @par Revision History
-  !! Initial release by Dmitrii Mironov, DWD (2013-06-05)
-  !! 
-  !! Modification by Daniel Reinert, DWD (2013-06-26)
-  !! - error message split into two parts, since the message length exceeded 
-  !!   limit on SX9.
-  !! Modification by Daniel Reinert, DWD (2013-06-27)
-  !! - removed initialization of FLake variables at new time step. This should 
-  !!   not be part of the initilaization routine itself, since it is not 
-  !!   strictly necessary in order to run the model.
-  !! Modification by Guenther Zaengl, DWD (2017-02-02)
-  !! - assimilation of observational data on ice fraction is introduced
-  !!   (currently for Great Lakes of North America only).
-  !!
   !!
 
   SUBROUTINE flake_init (                                       &
@@ -758,12 +681,6 @@ CONTAINS
   !! During cold start, prognostic Flake fields are only initialized at lake-points. 
   !! Non-lake points are filled with dummy values during the warmstart procedure. 
   !! 
-  !! 
-  !! @par Revision History
-  !! Initial release by Daniel Reinert, DWD (2013-07-09)
-  !!
-  !! Modification by <name>, <institution> (<yyyy>-<mm>-<dd>)
-  !!
   SUBROUTINE flake_coldinit (                                   & 
                      &  nflkgb, idx_lst_fp,                     &
                      &  depth_lk,                               &
@@ -932,13 +849,6 @@ CONTAINS
   !! (lake fraction in excess of a minimum threshold value).
   !! Notice that inlining of some routines is necessary to ensure 
   !! DO loop vectorization (cf. COSMO).
-  !!
-  !!
-  !! @par Revision History 
-  !! Initial ICON release by Dmitrii Mironov, DWD (2013-06-05)
-  !! 
-  !! Modification by <name>, <organization> (YYYY-MM-DD)
-  !! - <brief description of modification>
   !!
 
   SUBROUTINE flake_interface (                                       &

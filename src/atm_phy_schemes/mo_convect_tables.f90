@@ -1,25 +1,19 @@
-!>
-!! @brief Lookup tables for convective adjustment code
-!!
-!! @author <name, affiliation>
-!! @author <name, affiliation>
-!!
-!!
-!! @par Revision History
-!!  D. Salmond, CRAY (UK), August 1991, original code
-!!  L. Kornblueh, MPI, April 2003, cleanup and move of table setup code
-!!                                 from setphys.f90 in module
-!!  M. Puetz, IBM, April 2009, added spline optio
-!!  H. Wan, MPI, 2010-07-16, transfer to ICON
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Lookup tables for convective adjustment code
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+!
+!  D. Salmond, CRAY (UK), August 1991, original code
+
 #if defined __xlC__ && !defined NOXLFPROCESS
 @PROCESS HOT
 #endif

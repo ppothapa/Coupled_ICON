@@ -1,40 +1,29 @@
-!===============================================================================!
 !
-!! Module to compute effective radius consistent with microphysics, cloud scheme 
-!! and convection scheme choice (not yet!).
-!! The effective radius calculated here can be used by the radiation module ECRAD,
-!! and by some satellite forward operators (like VISOP)
-!!
-!! The idea is to keep a consistent effective radius for the whole model and forward 
-!! operators. For this reason the coefficients and concentration can be claculated 
-!! in the microphysics (the module only provides an interface).
-!!
-!! Description:
-!! The module also contains adapted versions of the  routines developed 
-!! by Simon Gruber and Uli Blahak for the optical properties in RRTM 
-!! (only the effective radius, not the optical porperties),
+! Module to compute effective radius consistent with microphysics, cloud scheme
+! and convection scheme choice (not yet!).
+! The effective radius calculated here can be used by the radiation module ECRAD,
+! and by some satellite forward operators (like VISOP)
 !
-!!
-!!
-!! @author Alberto de Lozar, DWD
-!!                     alberto.lozar-de@dwd.de
+! The idea is to keep a consistent effective radius for the whole model and forward
+! operators. For this reason the coefficients and concentration can be claculated
+! in the microphysics (the module only provides an interface).
 !
-!! @par Revision History
-!! First Version. Alberto de Lozar, DWD 2019-10-10
-!!
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!===============================================================================!
-
-
+! Description:
+! The module also contains adapted versions of the  routines developed
+! by Simon Gruber and Uli Blahak for the optical properties in RRTM
+! (only the effective radius, not the optical porperties),
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_reff_main
 

@@ -1,36 +1,35 @@
-!>
-!! This module is the interface between ICON:nwp_radiation to the radiation scheme ecRad
-!!
-!! - There are two interfaces within this module: nwp_ecrad_radiation and
-!!   nwp_ecrad_radiation_reduced. The former provides the interface to ecrad on the full
-!!   ICON dynamics grid. The latter one provides the interface on a grid with a reduced
-!!   spatial resolution.
-!! - The decision which of the two interface routines is used, is done via the namelist
-!!   switch lredgrid_phys. Based on the value of lredgrid_phys, the correct interface
-!!   is called by mo_nwp_rad_interface:nwp_radiation.
-!! - The interfaces have to fill the different ecRad input types (ecrad_aerosol,
-!!   ecrad_single_level, ecrad_thermodynamics, ecrad_gas, ecrad_cloud) with data from
-!!   ICON variables. Then, the ecRad radiation code is called. At the end, the fluxes
-!!   calculated by ecRad and stored in the ecrad_flux structure are copied to ICON variables.
-!! - The difference between nwp_ecrad_radiation and nwp_ecrad_radiation_reduced is mostly
-!!   an upscaling at the beginning and a downscaling at the end of the interface.
-!! - The transfer of data from ICON to ecRad and vice versa is performed within
-!!   routines from mo_nwp_ecrad_utilities and mo_nwp_ecrad_prep_aerosol, independent of
-!!   the choice to use a reduced radiation grid or not.
-!!
-!! @author Daniel Rieger, Deutscher Wetterdienst, Offenbach
-!!
-!! @par Revision History
-!! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-01-31)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! This module is the interface between ICON:nwp_radiation to the radiation scheme ecRad
+!
+! - There are two interfaces within this module: nwp_ecrad_radiation and
+!   nwp_ecrad_radiation_reduced. The former provides the interface to ecrad on the full
+!   ICON dynamics grid. The latter one provides the interface on a grid with a reduced
+!   spatial resolution.
+! - The decision which of the two interface routines is used, is done via the namelist
+!   switch lredgrid_phys. Based on the value of lredgrid_phys, the correct interface
+!   is called by mo_nwp_rad_interface:nwp_radiation.
+! - The interfaces have to fill the different ecRad input types (ecrad_aerosol,
+!   ecrad_single_level, ecrad_thermodynamics, ecrad_gas, ecrad_cloud) with data from
+!   ICON variables. Then, the ecRad radiation code is called. At the end, the fluxes
+!   calculated by ecRad and stored in the ecrad_flux structure are copied to ICON variables.
+! - The difference between nwp_ecrad_radiation and nwp_ecrad_radiation_reduced is mostly
+!   an upscaling at the beginning and a downscaling at the end of the interface.
+! - The transfer of data from ICON to ecRad and vice versa is performed within
+!   routines from mo_nwp_ecrad_utilities and mo_nwp_ecrad_prep_aerosol, independent of
+!   the choice to use a reduced radiation grid or not.
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -104,11 +103,6 @@ CONTAINS
   !!  ... allocates the ecRad data types
   !!  ... fills the ecRad data types with current atmospheric and external data
   !!  ... saves the output to ICON physics data structure
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-01-31)
-  !! Add separate (diffuse) near-IR, visible, and PAR fluxes by Roland Wirth, Deutscher
-  !!     Wetterdienst, Offenbach (2021-09-15)
   !!
   SUBROUTINE nwp_ecrad_radiation ( current_datetime, pt_patch, ext_data,      &
     &  zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, od_lw, od_sw, ssa_sw,               &
@@ -532,10 +526,6 @@ CONTAINS
   !!  ... fills the ecRad data types with current atmospheric and external data
   !!  ... saves the output to ICON physics data structure
   !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-01-31)
-  !! Add separate (diffuse) near-IR, visible, and PAR fluxes by Roland Wirth, Deutscher
-  !!     Wetterdienst, Offenbach (2021-09-15)
   !! Open TODOs: dust_tunefac not considered so far
   !!
   ! The following pragma sets the optimization level to O1 for Nvidia compilers

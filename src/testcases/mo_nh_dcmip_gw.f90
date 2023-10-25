@@ -1,31 +1,29 @@
-!>
-!! Subroutine to initialize testcase 31 (gravity wave on a small planet) proposed 
-!! for the DCMIP summer school
-!!
-!! The non-hydrostatic gravity wave test examines the response of models to 
-!! short time-scale wavemotion triggered by a localized perturbation. The 
-!! formulation presented in this document is new, but is based on previous 
-!! approaches by Skamarock et al. (JAS 1994), Tomita and Satoh (FDR 2004), and
-!! Jablonowski et al. (NCAR Tech Report 2008) 
-!!
-!!
-!! @par Revision History
-!! - initial revision by Daniel Reinert, DWD, (2012-05-25)
-!!
-!! @par Literature
-!! - Dynamical Core Model Intercomparison Project (DCMIP) 
-!!   Test Case Document (P. Ullrich et al, 2012)
-!! - Baldauf, M. et al. (2013): in preparation
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Subroutine to initialize testcase 31 (gravity wave on a small planet) proposed
+! for the DCMIP summer school
+!
+! The non-hydrostatic gravity wave test examines the response of models to
+! short time-scale wavemotion triggered by a localized perturbation. The
+! formulation presented in this document is new, but is based on previous
+! approaches by Skamarock et al. (JAS 1994), Tomita and Satoh (FDR 2004), and
+! Jablonowski et al. (NCAR Tech Report 2008)
+!
+! Literature
+! - Dynamical Core Model Intercomparison Project (DCMIP)
+!   Test Case Document (P. Ullrich et al, 2012)
+! - Baldauf, M. et al. (2013): in preparation
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_nh_dcmip_gw
 
    USE mo_kind,                 ONLY: wp
@@ -80,9 +78,6 @@ CONTAINS
   !! formulation presented in this document is new, but is based on previous 
   !! approaches by Skamarock et al. (JAS 1994), Tomita and Satoh (FDR 2004), and
   !! Jablonowski et al. (NCAR Tech Report 2008) 
-  !!
-  !! @par Revision History
-  !! - initial revision by Daniel Reinert, DWD (2012-05-25)
   !!
   SUBROUTINE init_nh_dcmip_gw( p_patch, p_nh_prog, p_nh_diag, p_metrics, l_hydro_adjust)
 
@@ -434,11 +429,8 @@ CONTAINS
   !!   frame, the atmosphere is at rest. However, in the rotating frame, 
   !!   a wind speed of gw_u0*cos(\phi) is observed.  
   !!
-  !! @Literature
+  !! Literature
   !! - Baldauf, M. et al. (2013): in preparation
-  !!
-  !! @par Revision History
-  !! - initial revision by Daniel Reinert, DWD (2012-06-26)
   !!
   SUBROUTINE init_nh_gw_analyt( p_patch, p_nh_prog, p_nh_diag, p_metrics, p_int)
 

@@ -1,15 +1,17 @@
-!>                                                                                   
-!! @brief Read configuration parameters as Fortran namelist from an external file.
-!!
-!! @contact S. Rast (MPI-M)
-!!
-!! @par Copyright and License
-!!
-!! Copyright 2022 Max Planck Institute for Meteorology, S. Rast
-!! 
-!! Code subject to BSD-3-C, SPDX short identifier: BSD-3-Clause, see file
-!! BSD-3-C-license.pdf in the license-directory
-!!                                                                                   
+! @brief Read configuration parameters as Fortran namelist from an external file.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_aes_bubble_nml
 
   USE mo_aes_bubble_config, ONLY: aes_bubble_config, init_aes_bubble_config, &

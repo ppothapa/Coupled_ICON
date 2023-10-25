@@ -1,38 +1,28 @@
-! $RCSfile$
-! $Revision$ $Date$
 !
-!>
-!! *cuflxn* THIS ROUTINE DOES THE FINAL CALCULATION OF CONVECTIVE
-!!          FLUXES IN THE CLOUD LAYER AND IN THE SUBCLOUD LAYER
-!! *CUDTDQ* - UPDATES T AND Q TENDENCIES, PRECIPITATION RATES
-!!                DOES GLOBAL DIAGNOSTICS
-!! *CUDUDV* - UPDATES U AND V TENDENCIES,
-!!                DOES GLOBAL DIAGNOSTIC OF DISSIPATION
-!!
-!! @author    M.TIEDTKE         E.C.M.W.F.     7/86 MODIF. 12/89
-!!
-!!
-!! *CUCTRACER* - COMPUTE CONVECTIVE TRANSPORT OF CHEM. TRACERS
-!!                   IMPORTANT: ROUTINE IS FOR POSITIVE DEFINIT QUANTITIES
-!!
-!! *cubidiag* - SOLVES BIDIAGONAL SYSTEM FOR IMPLICIT SOLUTION
-!!              OF ADVECTION EQUATION
-!!
-!! @author    P.BECHTOLD        E.C.M.W.F.              11/02/2004
-!!
-!! For detailed description refer to subsequent subroutines
-!!
-!! @par Revision History
-!! first implementation into GME/ICON by Kristina Froehlich, DWD (2010-05-27)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! *cuflxn* THIS ROUTINE DOES THE FINAL CALCULATION OF CONVECTIVE
+!          FLUXES IN THE CLOUD LAYER AND IN THE SUBCLOUD LAYER
+! *CUDTDQ* - UPDATES T AND Q TENDENCIES, PRECIPITATION RATES
+!                DOES GLOBAL DIAGNOSTICS
+! *CUDUDV* - UPDATES U AND V TENDENCIES,
+!                DOES GLOBAL DIAGNOSTIC OF DISSIPATION
+!
+! *CUCTRACER* - COMPUTE CONVECTIVE TRANSPORT OF CHEM. TRACERS
+!                   IMPORTANT: ROUTINE IS FOR POSITIVE DEFINIT QUANTITIES
+!
+! *cubidiag* - SOLVES BIDIAGONAL SYSTEM FOR IMPLICIT SOLUTION
+!              OF ADVECTION EQUATION
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 #if !defined _OPENACC
 #include "consistent_fma.inc"
 #endif

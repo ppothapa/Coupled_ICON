@@ -1,35 +1,32 @@
-!>
-!! Nudging.
-!!
-!! This module contains procedures related to the nudging 
-!! of the atmospheric state simulated by ICON towards driving data. 
-!! Covered nudging types:
-!! - Global nudging
-!! For the nudging types:
-!! - Lateral boundary nudging
-!! - Upper boundary nudging 
-!! please see:
-!! - src/atm_dyn_iconam/mo_nh_nest_utilities: limarea_bdy_nudging
-!! The nudging we refer to in this module is unrelated 
-!! to the nudging in the context of:
-!! - assimilation (assimilation_nml)
-!! - large-scale forcing (ls_forcing_nml)
-!! 
-!! @par Revision History
-!! The content of this module follows closely the nudging 
-!! for the limited-area mode in:
-!! - src/atm_dyn_iconam/mo_nh_nest_utilities
-!! Modification for global nudging by Sebastian Borchert, DWD (2018-09)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Nudging.
+!
+! This module contains procedures related to the nudging
+! of the atmospheric state simulated by ICON towards driving data.
+! Covered nudging types:
+! - Global nudging
+! For the nudging types:
+! - Lateral boundary nudging
+! - Upper boundary nudging
+! please see:
+! - src/atm_dyn_iconam/mo_nh_nest_utilities: limarea_bdy_nudging
+! The nudging we refer to in this module is unrelated
+! to the nudging in the context of:
+! - assimilation (assimilation_nml)
+! - large-scale forcing (ls_forcing_nml)
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -70,9 +67,6 @@ CONTAINS !..................................................................
   !! This subroutine is meant as some kind of wrapper 
   !! for the procedures, which make up one nudging cycle 
   !! (except for the procedures related to the I/O of the driving data).
-  !!
-  !! @par Revision History
-  !! Initial revision by Sebastian Borchert, DWD (2018-09)
   !!
   SUBROUTINE nudging_interface( p_patch,          & !in
     &                           p_nh_state,       & !inout
@@ -226,11 +220,6 @@ CONTAINS !..................................................................
 
   !>
   !! This routine executes global nudging.
-  !!
-  !! @par Revision History
-  !! This subroutine is a conceptual copy of:
-  !! - 'src/atm_dyn_iconam/mo_nh_nest_utilities: limarea_bdy_nudging'
-  !! Modifications for global nudging by Sebastian Borchert, DWD (2018-09)
   !!
   SUBROUTINE global_nudging( p_patch,       & !in
     &                        p_prog,        & !inout

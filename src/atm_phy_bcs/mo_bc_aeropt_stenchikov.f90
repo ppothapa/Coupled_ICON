@@ -1,20 +1,18 @@
-!>
-!! @brief Read and apply optical properties of aerosol climatology 
-!!        by G. Stenchikov (volcanic stratospheric aerosols)
-!!        This is an adaption of mo_aero_volc of echam6 to icon
-!!
-!! @author J.S. Rast (MPI-M)
-!!
-!! @par Revision History
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Read and apply optical properties of aerosol climatology
+!        by G. Stenchikov (volcanic stratospheric aerosols)
+!        This is an adaption of mo_aero_volc of echam6 to icon
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_bc_aeropt_stenchikov
 
@@ -185,10 +183,6 @@ END SUBROUTINE read_bc_aeropt_stenchikov
 !! add aerosol optical properties for all wave length bands (solar and IR)
 !! in the case of volcanic aerosols of Stenchikov
 !! The height profile is taken into account.
-!!
-!! !REVISION HISTORY:
-!! original source by J.S. Rast (2010-02-19)
-!! adapted to icon by J.S. Rast (2013-09-18)
 SUBROUTINE add_bc_aeropt_stenchikov(current_date,       jg,               &
           & jcs, kproma,            kbdim,              klev,             &
           & krow,                   nb_sw,              nb_lw,            &
@@ -417,10 +411,6 @@ END SUBROUTINE add_bc_aeropt_stenchikov
 ! 
 !> SUBROUTINE pressure_index -- ! find index of pressure layer in which mid level 
 !    pressures of icon are located
-! !REVISION HISTORY:
-! original source by J.S. Rast (2010-02-17)
-! adapted to icon by J.S. Rast (2013-09-19)
-
 SUBROUTINE pressure_index(jcs, kproma,   kbdim,         klev,              &
                           pp_mid,        klevels,       pp_bound,          &
                           kindex)

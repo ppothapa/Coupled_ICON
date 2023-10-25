@@ -1,27 +1,30 @@
-!>
-!! SWR-ABSORPTION SCHEME
-!! Shortwave radiation is done in three steps
-!! As first step the relative swr absorption factor (swrab) in each level is calculated
-!! either for
-!! a) a static jerlov type of water (default Type IB)
-!!    sbr jerlov_swr_absorption
-!!
-!! The actual absorption and the update of the temperature is afterwards done
-!! again in two steps.
-!! a) for the uppermost level together with the rest of the
-!!    thermodynamic forcing.
-!! b) for the subsurface levels in subsurface_swr_absorption
-!!    Heat is distributed over the water column in proportion to the absorption.
-!!    No Heat is transpered into sea floor, but is added to the bottom level.
-!!
-!! @author H.Haak, MPI-M
-!! @author U.Mikolajewicz, MPI-M
-!!
-!!
-!! @par Revision History
-!! Introduced by H.Haak, MPI-M (2019-06-13)
-!! Adopted to zstar by V.Singh, MPI-M (2020)
-!!
+! SWR-ABSORPTION SCHEME
+! Shortwave radiation is done in three steps
+! As first step the relative swr absorption factor (swrab) in each level is calculated
+! either for
+! a) a static jerlov type of water (default Type IB)
+!    sbr jerlov_swr_absorption
+!
+! The actual absorption and the update of the temperature is afterwards done
+! again in two steps.
+! a) for the uppermost level together with the rest of the
+!    thermodynamic forcing.
+! b) for the subsurface levels in subsurface_swr_absorption
+!    Heat is distributed over the water column in proportion to the absorption.
+!    No Heat is transpered into sea floor, but is added to the bottom level.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_swr_absorption
   USE mo_kind,                      ONLY: wp
   USE mo_ocean_nml,                 ONLY: jerlov_atten, jerlov_bluefrac, n_zlev  

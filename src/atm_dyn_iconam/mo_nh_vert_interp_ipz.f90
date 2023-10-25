@@ -1,21 +1,19 @@
-!>
-!! This module contains routines for the vertical interpolation of
-!! atmospheric data provided by external analyses to the ICON grid
-!!
-!! @author Guenther Zaengl, DWD
-!!
-!!
-!! @par Revision History
-!! First version by Guenther Zaengl, DWD (2011-06-29)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! This module contains routines for the vertical interpolation of
+! atmospheric data provided by external analyses to the ICON grid
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -82,14 +80,6 @@ CONTAINS
   !! @note Computation of coefficients already performs interpolation
   !! of temperature, QV (prognostic+diagnostic) and pressure onto z-levels.
   !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-18)
-  !! Modification by Daniel Reinert, DWD (2011-09-05)
-  !! - routine duplicated for use in ICON
-  !! Modification by F. Prill, DWD (2012-02-29)
-  !! - Separated coefficient computation from interpolation
-  !! Modification by W. Sawyer, CSCS (2019-11-26)
-  !! - simplistic OpenACC implementation
 
   SUBROUTINE prepare_vert_interp_z(p_patch, p_diag, p_metrics, intp_hrz, nzlev,  &
     &                              temp_z_out, pres_z_out, p_z3d_out, vcoeff_z, lacc)
@@ -270,10 +260,6 @@ CONTAINS
   !! Compute coefficients for vertical interpolation of model-level
   !! fields to constant-pressure levels.
   !!
-  !! @par Revision History
-  !! Initial version: see SR prepare_vert_interp_z
-  !! Modification by W. Sawyer, CSCS (2019-11-26)
-  !! - simplistic OpenACC implementation
   SUBROUTINE prepare_vert_interp_p(p_patch, p_diag, p_metrics, intp_hrz, nplev,     &
     &                              gh_p_out, temp_p_out, p_p3d_out, vcoeff_p, lacc)
 
@@ -443,11 +429,6 @@ CONTAINS
   !! Compute coefficients for vertical interpolation of model-level
   !! fields to isentropes.
   !!
-  !! @par Revision History
-  !! Initial version: see SR prepare_vert_interp_i
-  !! Modification by W. Sawyer, CSCS (2019-11-26)
-  !! - simplistic OpenACC implementation
-  !!
   SUBROUTINE prepare_vert_interp_i(p_patch, p_prog, p_diag, p_metrics, intp_hrz, nilev,     &
     &                              gh_i_out, temp_i_out, p_i3d_out, vcoeff_i, lacc)
 
@@ -579,11 +560,6 @@ CONTAINS
   !! Output: 3D height field of pressure levels
   !!
   !! Method: piecewise analytical integration of the hydrostatic equation
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2012-11-13)
-  !!
-  !!
   !!
   SUBROUTINE z_at_plevels(pres_ml, tempv_ml, z3d_ml, pres_pl, z3d_pl, &
                           nblks, npromz, nlevs_ml, nlevs_pl,          &
@@ -995,10 +971,6 @@ CONTAINS
   !! the model orography. The target values of the interpolation (theta_thl)
   !! must be in descending order. It the input theta field does not increase monotonically
   !! with height, the first occurrence of the target value - scanning from top to bottom - is selected
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2012-07-19)
-  !!
   !!
   SUBROUTINE z_at_theta_levels(theta_ml, z3d_ml, theta_thl, z3d_thl, wfacpbl1, kpbl1, &
                                wfacpbl2, kpbl2, nblks, npromz, nlevs_ml, nlevs_thl, lacc)

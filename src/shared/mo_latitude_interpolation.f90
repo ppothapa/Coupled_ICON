@@ -1,26 +1,24 @@
-!>
-!! @brief calculate indices and weights for a linear interpolation of
-!!   a zonal climatology to the icon latitudes. 
-!!   Assumption: The climatology is ordered from North to South or
-!!   South to North, it has equally spaced latitudes but a shift
-!!   with respect to the poles is allowed that is different from
-!!   the other spacing, (e.g. Pi/2, Pi/6, 0., -Pi/6, -Pi/2), the shift would be Pi/3.
-!!   or (-Pi/2, -Pi/6, 0., Pi/6, Pi/2) with also a shift of Pi/3. Latitudes have to 
-!!   be given in radiant. The extrapolation to the poles is done by repeating the value
-!!   at the next lower latitude.
-!!
-!! @author J.S. Rast (MPI-M)
-!!
-!! @par Revision History
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! @brief calculate indices and weights for a linear interpolation of
+!   a zonal climatology to the icon latitudes.
+!   Assumption: The climatology is ordered from North to South or
+!   South to North, it has equally spaced latitudes but a shift
+!   with respect to the poles is allowed that is different from
+!   the other spacing, (e.g. Pi/2, Pi/6, 0., -Pi/6, -Pi/2), the shift would be Pi/3.
+!   or (-Pi/2, -Pi/6, 0., Pi/6, Pi/2) with also a shift of Pi/3. Latitudes have to
+!   be given in radiant. The extrapolation to the poles is done by repeating the value
+!   at the next lower latitude.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_latitude_interpolation
 

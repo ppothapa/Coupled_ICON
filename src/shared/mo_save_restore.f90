@@ -1,25 +1,20 @@
-!>
-!! Types and procedures for save/restore of 5D fields
-!!
-!! This module contains types and procedures for saving and
-!! restoring arbitrary 5D fields to/from a key-value storage.
-!!
-!!
-!! @author Roland Wirth, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Roland Wirth, DWD (2022-07-29)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Types and procedures for save/restore of 5D fields
+!
+! This module contains types and procedures for saving and
+! restoring arbitrary 5D fields to/from a key-value storage.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_save_restore
 
   USE mo_kind,                    ONLY: dp, sp
@@ -113,9 +108,6 @@ CONTAINS
   !!
   !! Note:
   !! * Variables defined on regular lat/lon grids are ignored.
-  !!
-  !! @par Revision History
-  !! Initial revision by Roland Wirth, DWD (2022-07-29)
   !!
   SUBROUTINE save_var_group_state (group_name, p_patch, fields)
     CHARACTER(len=*),           INTENT(IN) :: group_name  !< Name of the group to save.
@@ -246,9 +238,6 @@ CONTAINS
   !>
   !! Restore state of a variable group. E.g. used for iterative IAU (see mo_iau.f90).
   !!
-  !! @par Revision History
-  !! Initial revision by Roland Wirth, DWD (2022-07-29)
-  !!
   SUBROUTINE restore_var_group_state (group_name, p_patch, fields)
     CHARACTER(len=*),           INTENT(IN) :: group_name  !< Name of the group to save.
     TYPE(t_patch),              INTENT(IN) :: p_patch     !< current patch
@@ -360,9 +349,6 @@ CONTAINS
 
   !>
   !! Reinitialize state of a variable group. E.g. used for iterative IAU (see mo_iau.f90).
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel reinert, DWD (2023-01-19)
   !!
   SUBROUTINE reinit_var_group_state (group_name, p_patch)
     CHARACTER(len=*),    INTENT(IN) :: group_name  !< Name of the group to save.

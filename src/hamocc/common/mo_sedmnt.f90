@@ -1,8 +1,18 @@
-!>
-!! @brief Variables for sediment modules
-!!
-!! declaration and memory allocation
- 
+! @brief Variables for sediment modules
+!
+! declaration and memory allocation
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_sedmnt
 
   USE mo_kind, ONLY        : wp

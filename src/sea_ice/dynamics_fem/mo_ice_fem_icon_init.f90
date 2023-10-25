@@ -1,19 +1,18 @@
-!>
-!! Contains allocation, initialization and setup of the FEM mesh
-!! in relation to the ICON grid.
-!!
-!! @par Revision History
-!! Developed  by Einar Olason (2013).
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Contains allocation, initialization and setup of the FEM mesh
+! in relation to the ICON grid.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -78,10 +77,6 @@ CONTAINS
   !> Constructor of weights for FEM sea-ice model
   !! We calculate only c2v_wgt (PRIVATE), which is used by cells2verts_scalar
   !!
-  !! @par Revision History
-  !! Developed by Einar Olason, MPI-M (2013-06-05)
-  !! Modified by Vladimir Lapin, MPI-M (2015-11-04)
-  !<Optimize:inUse>
   SUBROUTINE init_fem_wgts(p_patch_3D)
     TYPE(t_patch_3D), TARGET, INTENT(IN)    :: p_patch_3D
 
@@ -167,9 +162,6 @@ CONTAINS
   !! Identical to verts_aw_cells (see mo_intp_data_strc for description).
   !! Code copied from mo_intp_coeffs_lsq_bln.
   !!
-  !! @par Revision History
-  !! Developed by Vladimir Lapin, MPI-M (2017-05-05)
-  !<Optimize:inUse>
   SUBROUTINE init_fem_wgts_extra(ptr_patch)
 
     TYPE(t_patch), TARGET, INTENT(in) :: ptr_patch
@@ -248,9 +240,6 @@ CONTAINS
   !
   !> Destructor of patch for FEM sea-ice model, deallocates c2v_wgt
   !!
-  !! @par Revision History
-  !! Developed by Einar Olason, MPI-M (2013-06-05)
-  !
   SUBROUTINE destruct_fem_wgts
 
     !Local variables
@@ -290,9 +279,6 @@ CONTAINS
   !! This replaces the routine Sergey used to read the grid from file. We give values to
   !! coord_nod2D, nod2D, index_nod2D, elem2D_nodes and elem2D from the ICON grid.
   !!
-  !! @par Revision History
-  !! Developed by Einar Olason, MPI-M (2013-08-05)
-  !
   SUBROUTINE ice_fem_grid_init(p_patch_3D)
 
   USE mo_math_utilities,      ONLY: rotate_latlon, rotate_latlon_vec!, disp_new_vect
@@ -476,9 +462,6 @@ CONTAINS
   !! Those arrays are necessary for the OMP-parallelized version of stress2rhs_omp
   !! Where we loop over the nodes to update the rhs value in the momentum equatoins.
   !!
-  !! @par Revision History
-  !! Developed by Vladimir Lapin, MPI-M (2015-11-30)
-  !
   SUBROUTINE basisfunctions_nod
 
     USE mo_ice_fem_mesh,           ONLY: nod2D, elem2D_nodes, nod2D_elems,    &
@@ -542,9 +525,6 @@ CONTAINS
   !> the new pole at (pollon, pollat).
   !-------------------------------------------------------------------------
   !!
-  !! @par Revision History
-  !! Developed by Vladimir Lapin, MPI-M (2015-08-11)
-  !
   function calc_f_rot(lat, lon, pollat, omega)
 
   implicit none
@@ -563,9 +543,6 @@ CONTAINS
   !! around sync_patch_array using the PRIVATE variable fem_patch as patch and reshaping the
   !! variable before and after syncing.
   !!
-  !! @par Revision History
-  !! Developed by Einar Olason, MPI-M (2013-08-05)
-  !
   SUBROUTINE exchange_nod2D(u_ice)
 
     REAL(wp), INTENT(INOUT) :: u_ice(fem_patch%n_patch_verts)
@@ -712,9 +689,6 @@ CONTAINS
   !! does not synchronise across CPUs the way it is calculated here. We also set voltriangle to the
   !! cell area, since the cell area is more accurately calculated by ICON than the FEM code.
   !!
-  !! @par Revision History
-  !! Developed by Einar Olason, MPI-M (2013-08-05)
-  !
   SUBROUTINE ice_fem_grid_post(p_patch)
     USE mo_ice_fem_types,       ONLY: lmass_matrix
     USE mo_ice_fem_mesh,        ONLY: myList_nod2D, myList_elem2D, coriolis_nod2D, voltriangle

@@ -1,23 +1,18 @@
-!>
-!! This module contains the subroutine that Adds random perturbation
-!! to the normal wind for the Non-Hyd core
-!!
-!!
-!! @author Pilar Ripodas, DWD
-!!  based in mo_ha_prog_util from Hui Wan for the Hydrostatic core
-!!
-!!
-!! @par Revision History
-!! First version for non-hydrostatic core by Pilar Ripodas, DWD (2010-09-14)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! This module contains the subroutine that Adds random perturbation
+! to the normal wind for the Non-Hyd core
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_nh_prog_util
 
   USE mo_kind,                ONLY: wp
@@ -32,19 +27,12 @@ MODULE mo_nh_prog_util
 
 
   PUBLIC :: nh_prog_add_random
-!!$  PUBLIC :: init_nh_state_prog_isoRest  !DR is currently not used at all
 
 CONTAINS
   !-------------
   !>
   !! SUBROUTINE nh_prog_add_random
   !! Add random perturbation to the normal wind.
-  !!
-  !! @par Revision History
-  !!  Based in  hydro_state_prog_add_random (by Hui)
-  !!  Adapted to the Non-Hyd. core by Pilar Ripodas, DWD, 2010-09
-  !!
-  !!
   !!
   SUBROUTINE nh_prog_add_random(p_patch, & ! in
                                 pvar,    & ! inout

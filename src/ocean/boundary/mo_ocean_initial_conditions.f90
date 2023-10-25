@@ -1,28 +1,21 @@
-!! Contains the implementation of the initial conditions for the hydrostatic ocean model.
-!!
-!! Contains the implementation of the initial conditions for the hydrostatic ocean model.
-!! This module controls the initial conditions as well as the initialisation of
-!! test cases, the top and bottom boundary conditions, and the structure of the
-!! forcing quantities.
-!!
-!! @author Peter Korn, MPI
-!! @author Stephan Lorenz, MPI
-!! @author Leonidas Linardakis, MPI
+! Contains the implementation of the initial conditions for the hydrostatic ocean model.
 !
-!! @par Revision History
-!! Initial version  by Peter Korn (MPI-M)  (2006).
-!! Modified by Stephan Lorenz     (MPI-M)  (2010-06).
-!! Adopted for zstar by V.Singh (MPI-M) (2020)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!----------------------------
+! Contains the implementation of the initial conditions for the hydrostatic ocean model.
+! This module controls the initial conditions as well as the initialisation of
+! test cases, the top and bottom boundary conditions, and the structure of the
+! forcing quantities.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_ocean_initial_conditions
   !-------------------------------------------------------------------------
   USE mo_kind,               ONLY: wp

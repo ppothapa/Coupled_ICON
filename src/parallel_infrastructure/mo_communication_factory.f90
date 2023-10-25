@@ -1,12 +1,14 @@
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 #include "icon_definitions.inc"
 MODULE mo_communication_factory
   USE mo_exception, ONLY: finish
@@ -60,9 +62,6 @@ CONTAINS
   !!                    faster if inplace == true
   !!
   !! send_decomp_info domain decomposition information for the SENDER array
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
   !!
   SUBROUTINE setup_comm_pattern(dst_n_points, dst_owner, dst_global_index, &
                                 send_glb2loc_index, src_n_points, src_owner, &

@@ -1,28 +1,17 @@
-!>
-!! @brief diagnosis of physics after physic's call 
-!!
-!! <Describe the concepts of the procedures and algorithms used in the module.>
-!! <Details of procedures are documented below with their definitions.>
-!! <Include any applicable external references inline as module::procedure,>
-!! <external_procedure(), or by using @see.>
-!! <Don't forget references to literature.>
-!!
-!! @author <Pilar Ripodas, DWD>
-!!
-!!
-!! @par Revision History
-!! first implementation by Pilar Ripodas, DWD (2011-03)
-!! generalized overlap by Martin Koehler, DWD (2014-04)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Diagnosis of physics after physics call
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -112,12 +101,6 @@ CONTAINS
   !! Computation of time averages, accumulated variables and vertical integrals 
   !! for output. The statistics are valid from the beginning of the forecast 
   !! to the output time.
-  !!
-  !! @par Revision History
-  !! Add calculation of high-, mid-, and low-level cloud cover, height
-  !! of base and top of convection  by Helmut Frank, DWD (2013-01-17)
-  !! Add height of 0 deg C level    by Helmut Frank, DWD (2013-03-11)
-  !!
   !!
   SUBROUTINE nwp_statistics(lcall_phy_jg,                 & !in
                             & dt_phy_jg, p_sim_time,      & !in
@@ -699,14 +682,6 @@ CONTAINS
   !>
   !! Computation of vertical integrals of moisture and cloud cover
   !!
-  !!
-  !! @par Revision History
-  !! Separated from module nwp_statistics by Guenther Zaengl, DWD (2014-07-11)
-  !! Includes calculation of high-, mid-, and low-level cloud cover, height
-  !! of base and top of convection  by Helmut Frank, DWD (2013-01-17)
-  !! Add height of 0 deg C level    by Helmut Frank, DWD (2013-03-11)
-  !!
-  !!
   SUBROUTINE calc_moist_integrals(pt_patch, p_metrics,        & !in
                                 & pt_prog, pt_prog_rcf,       & !in
                                 & ext_data, kstart_moist,     & !in
@@ -1090,15 +1065,6 @@ CONTAINS
   !! - CLCT_MOD: modified total cloud cover (between 0 and 1) 
   !! - t_ice is filled with t_so(0) for non-ice points (h_ice=0)
   !! - instantaneous 10m wind speed (resolved scales)
-  !!
-  !! @par Revision History
-  !! Add calculation of high-, mid-, and low-level cloud cover, height
-  !! of base and top of convection  by Helmut Frank, DWD (2013-01-17)
-  !! Add height of 0 deg C level    by Helmut Frank, DWD (2013-03-11)
-  !! Modification by Daniel Reinert (2014-02-27)
-  !! - separated all those diagnostics which are only required at output 
-  !!   times and moved them into a separate routine.
-  !!
   !!
   SUBROUTINE nwp_diag_for_output(mtime_current,           & !in
                             & kstart_moist,               & !in
@@ -1602,12 +1568,6 @@ CONTAINS
   !! the general public does not regard transparent cirrus clouds as
   !! "real" clouds.
   !!
-  !! @par Revision History
-  !! Developed by D. Majewski, DWD (2004).
-  !! Modification by Daniel Reinert, DWD (2014-09-10)
-  !! - Adapted to and implemented into ICON
-  !!
-  !!
   SUBROUTINE calcmod( pt_patch, pt_diag, prm_diag, lacc )
               
     TYPE(t_patch)       ,INTENT(IN)   :: pt_patch  !<grid/patch info.
@@ -1805,10 +1765,6 @@ CONTAINS
   !!
   !! Moved from nh_stepping for better code structure
   !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD (2020-02-14)
-  !!
-  !!
   SUBROUTINE nwp_opt_diagnostics(p_patch, p_patch_lp, p_int_lp, p_nh, p_int, prm_diag, &
      l_output, nnow, nnow_rcf, &
      lpi_max_Event, celltracks_Event, dbz_Event, hail_max_Event, mtime_current,  plus_slack, lacc)
@@ -1990,10 +1946,6 @@ CONTAINS
   !! that should be called directly from the physics interface in order to consider
   !! the intermediate values of nesting time steps
   !!
-  !! @par Revision History
-  !! Developed by Daniel Rieger, DWD (2021-07-06)
-  !!
-  !!
   SUBROUTINE nwp_opt_diagnostics_2(p_patch, p_metrics, p_prog, p_prog_rcf, p_diag, &
              &                     prm_diag, cosmu0, zsct, p_sim_time, dt_phy, lacc)
 
@@ -2065,9 +2017,6 @@ CONTAINS
   !>
   !! Extended diagnostics for NWP physics interface - part 1
   !! Was included in mo_nh_interface_nwp before
-  !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD (2013-01-07)
   !!
   SUBROUTINE nwp_diag_output_1(p_patch, p_diag, p_prog_rcf)
 
@@ -2175,9 +2124,6 @@ CONTAINS
   !>
   !! Extended diagnostics for NWP physics interface - part 2
   !! Was included in mo_nh_interface_nwp before
-  !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD (2013-01-07)
   !!
   SUBROUTINE nwp_diag_output_2(p_patch, p_prog_rcf, prm_nwp_tend)
 

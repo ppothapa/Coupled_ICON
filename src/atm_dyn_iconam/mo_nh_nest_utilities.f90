@@ -1,20 +1,19 @@
-!>
-!!  This module contains the routines needed for nesting in the nonhydrostatic.
-!!  version.
-!!
-!! @par Revision History
-!!  Developed and tested by Guenther Zaengl, DWD (2010-02-10)
-!!  OpenACC added by Marek Jacob, DWD (2021-08-18)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+!
+!  This module contains the routines needed for nesting in the nonhydrostatic.
+!  version.
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -84,9 +83,6 @@ CONTAINS
   !>
   !! Computes correction term needed to use perturbation density for
   !! lateral boundary nudging (for use with 1-way nesting).
-  !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD, 2010-05-05
   !!
   SUBROUTINE complete_nesting_setup(p_patch, p_patch_local_parent, p_grf_state_local_parent, p_nh_state)
 
@@ -188,9 +184,6 @@ CONTAINS
   !>
   !! Saves the dynamic prognostic variables needed afterwards for computing
   !! the lateral boundary tendencies for nested domains
-  !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD, 2015-10-08
   !!
   SUBROUTINE save_progvars (jg,p_nh_prog,p_nh_save)
 
@@ -334,9 +327,6 @@ CONTAINS
   !! Computes the time tendencies of the prognostic variables needed for
   !! interpolation to the lateral boundaries of the nested domains
   !! In addition, compute upper boundary condition for vertical nesting.
-  !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD, 2010-02-10
   !!
   SUBROUTINE compute_tendencies (jg,n_new,n_now,n_new_rcf,n_now_rcf,&
     &                            rdt,rdt_mflx)
@@ -674,9 +664,6 @@ CONTAINS
   !! of a refined mesh.
   !! In addition, interpolates prognostic variables to child upper boundary  
   !! for vertical nesting.
-  !!
-  !! @par Revision History
-  !! Developed  by Guenther Zaengl, DWD, 2008-07-10
   !!
   SUBROUTINE boundary_interpolation (jg,jgc,ntp_dyn,ntc_dyn,ntp_tr,ntc_tr, &
     p_patch, p_nh_state, prep_adv, p_grf_state)
@@ -1064,8 +1051,6 @@ CONTAINS
   !!    variables.
   !! 3. Interpolation of difference fields to the child grid
   !!
-  !! @par Revision History
-  !! Developed  by Guenther Zaengl, DWD, 2010-06-18
   SUBROUTINE prep_bdy_nudging(jgp, jg)
 
     CHARACTER(len=*), PARAMETER :: routine = modname//':prep_bdy_nudging'
@@ -1390,8 +1375,6 @@ CONTAINS
   !!    variables.
   !! 3. Interpolation of difference fields to the child grid
   !!
-  !! @par Revision History
-  !! Developed  by Guenther Zaengl, DWD, 2011-12-08
   SUBROUTINE prep_rho_bdy_nudging(jgp, jg)
 
 
@@ -1549,9 +1532,6 @@ CONTAINS
 
   !>
   !! This routine executes LATERAL boundary nudging for the limited-area mode.
-  !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD, 2013-21-10
   !!
   SUBROUTINE limarea_nudging_latbdy (p_patch, p_prog, ptr_tracer, p_metrics, p_diag, &
                                   p_int, p_latbc_const, p_latbc_old, p_latbc_new, lc1, lc2)
@@ -1865,9 +1845,6 @@ CONTAINS
   !>
   !! This routine executes UPPER boundary nudging for the limited-area mode.
   !!
-  !! @par Revision History
-  !! Developed  by Guenther Zaengl, DWD, 2013-21-10
-  !!
   SUBROUTINE limarea_nudging_upbdy (p_patch, p_prog, ptr_tracer, p_metrics, p_diag, &
                                   p_int, p_latbc_const, p_latbc_old, p_latbc_new, lc1, lc2)
 
@@ -2083,9 +2060,6 @@ CONTAINS
   !! This routine interpolates lateral boundary data (or more generally forcing data) 
   !! from the base domain to a specific child domain (jg), and all childs contained therein.
   !!
-  !! @par Revision History
-  !! Developed  by Guenther Zaengl, DWD, 2021-07-10
-  !!
   RECURSIVE SUBROUTINE intp_nestubc_nudging (p_patch, latbc_data, jg)
 
     TYPE(t_patch),       INTENT(INOUT) :: p_patch(:)
@@ -2193,8 +2167,6 @@ CONTAINS
   !! This routine executes boundary nudging for one-way nested domains
   !!
   !!
-  !! @par Revision History
-  !! Developed  by Guenther Zaengl, DWD, 2010-06-18
   SUBROUTINE nest_boundary_nudging(jg, nnew, nnew_rcf)
 
 
@@ -2341,8 +2313,6 @@ CONTAINS
   !! This routine executes boundary nudging for density (for use with 2-way nesting)
   !!
   !!
-  !! @par Revision History
-  !! Developed  by Guenther Zaengl, DWD, 2011-12-08
   SUBROUTINE density_boundary_nudging(jg, nnew)
 
 

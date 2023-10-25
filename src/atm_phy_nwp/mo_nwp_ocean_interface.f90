@@ -1,48 +1,44 @@
-!>
-!! @brief Interface between NWP physics and the ocean, through a coupler
-!!
-!! @author Martin Koehler (DWD) and Rene Redler (MPI-M) based on ECHAM version by Marco Giorgetta (MPI-M)
-!!
-!! Notes on openMP parallelisation:
-!!   Most jb-loops cannot be optimized easily because converting a 2-D field into a 1-D field
-!!   requires remembering the 1-D index "ncount", which is incremented over the loop.  This
-!!   technique is used in the current code and openMP is not used.
-!!   A solution suggested by Rene Redler would be to calculate that index (nn) would look like this:
-!!      !ICON_OMP_PARALLEL_DO PRIVATE(jb, ic, jc, nn) ICON_OMP_RUNTIME_SCHEDULE
-!!      DO jb = i_startblk, i_endblk
-!!        nn = (jb-1)*nproma                               ! translation to 1-d buffer fields
-!!        DO ic = 1, ext_data%atm%list_sea%ncount(jb)      ! number of ocean points (open water & sea ice)
-!!          jc = ext_data%atm%list_sea%idx(ic,jb)
-!!          prm_field(jg)%ocv(n,i_blk) = buffer(nn+jc,1)
-!!  It might also be necessary to synch the data before each loop passing data to the ocean.
-!!      CALL sync_patch_array(sync_c, p_patch, prm_diag%swflxsfc_t (:,:,isub_water) )
-!!
-!! Note: The variable names and numbers need to be consistent in 3 files:
-!!        - XML file: (supplied to model in run script)
-!!            <transient id="6" transient_standard_name="sea_surface_temperature"/>
-!!            The name will be used find the variable in mo_atmo_coupling_frame, not the number.
-!!        - mo_atmo_coupling_frame:
-!!            Variable names are associated to a variable number.
-!!            field_name(6) = "sea_surface_temperature"
-!!        - mo_nwp_ocean_interface:
-!!            CALL yac_fget ( field_id(6), ... )
-!!            The numbers have to be consistent in both fortran files.
-!!       Component names in coupling.xml must (!) match with modelname_list[*].
-!! 
-!! @par Revision History
-!!  Roland Wirth 202304: passing fields to YAC by pointers
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
-
-!----------------------------
+!
+! Interface between NWP physics and the ocean, through a coupler
+!
+! Notes on openMP parallelisation:
+!   Most jb-loops cannot be optimized easily because converting a 2-D field into a 1-D field
+!   requires remembering the 1-D index "ncount", which is incremented over the loop.  This
+!   technique is used in the current code and openMP is not used.
+!   A solution suggested by Rene Redler would be to calculate that index (nn) would look like this:
+!      !ICON_OMP_PARALLEL_DO PRIVATE(jb, ic, jc, nn) ICON_OMP_RUNTIME_SCHEDULE
+!      DO jb = i_startblk, i_endblk
+!        nn = (jb-1)*nproma                               ! translation to 1-d buffer fields
+!        DO ic = 1, ext_data%atm%list_sea%ncount(jb)      ! number of ocean points (open water & sea ice)
+!          jc = ext_data%atm%list_sea%idx(ic,jb)
+!          prm_field(jg)%ocv(n,i_blk) = buffer(nn+jc,1)
+!  It might also be necessary to synch the data before each loop passing data to the ocean.
+!      CALL sync_patch_array(sync_c, p_patch, prm_diag%swflxsfc_t (:,:,isub_water) )
+!
+! Note: The variable names and numbers need to be consistent in 3 files:
+!        - XML file: (supplied to model in run script)
+!            <transient id="6" transient_standard_name="sea_surface_temperature"/>
+!            The name will be used find the variable in mo_atmo_coupling_frame, not the number.
+!        - mo_atmo_coupling_frame:
+!            Variable names are associated to a variable number.
+!            field_name(6) = "sea_surface_temperature"
+!        - mo_nwp_ocean_interface:
+!            CALL yac_fget ( field_id(6), ... )
+!            The numbers have to be consistent in both fortran files.
+!       Component names in coupling.xml must (!) match with modelname_list[*].
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_nwp_ocean_interface
 

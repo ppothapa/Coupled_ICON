@@ -1,23 +1,19 @@
-!>
-!! Externalized module to call subroutine for computation of
-!! surface energy balance and skin temperature for each tile. 
-!!
-!! @author Martin Koehler, DWD
-!!
-!! @par Revision History
-!! Imported from IFS by Martin Koehler  (starting 2012-5-07)
-!!   (IFS cycle CY36R1)
-!!
-!!-----------------------------------------------------------------------------
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!-----------------------------------------------------------------------------
+!
+! Externalized module to call subroutine for computation of
+! surface energy balance and skin temperature for each tile.
+!
+!-----------------------------------------------------------------------------
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_surfseb
 

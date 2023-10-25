@@ -1,31 +1,21 @@
-!>
-!! @par Copyright
-!! This code is subject to the MPI-M-Software - License - Agreement in it's most recent form.
-!! Please see URL http://www.mpimet.mpg.de/en/science/models/model-distribution.html and the
-!! file COPYING in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the headers of the routines.
-!!
-!++mgs: new module 14.03.2010
-!++mgs: added decl_sun_cur (for MOZ photolysis) 02.06.2010
-!! @brief Module to provide parameters to radiation routines and avoid circular dependencies.
-!!
-!! @remarks
-!!   This module contains the public parameters provided by the radiation module
-!!   mo_radiation.
-!!
-!! @author Bjorn Stevens, MPI-M, Hamburg (2009-09-19):
-!!
-!!         Martin Schultz, FZJ, Juelich (2010-04-13):
-!!              extracted parameters from mo_radiation
-!!         Dagmar Popke, MPI-M, Hamburg (2013-11-15):
-!!              Implementation of RCE
-!!
-!! $ID: n/a$
-!!
-!! @par Origin
-!!   see mo_radiation.f90
-!!
+! Module to provide parameters to radiation routines and avoid circular dependencies.
 !
+! Remarks
+!   This module contains the public parameters provided by the radiation module
+!   mo_radiation.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_cloud_optics_parameters
 
   USE mo_kind,   ONLY: wp

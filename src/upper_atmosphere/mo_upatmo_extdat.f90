@@ -1,28 +1,23 @@
-!>
-!! Processing of the external data for the upper atmosphere.
-!!
-!! @par Revision History
-!! Initial revision by Sebastian Borchert, DWD (2016-09-06)
-!!
-!! @par Revision History
-!! Initial revision by Guidi Zhou, MPI-M (2015/2016)
-!! - Development and implementation of the external data processing 
-!!   for ICON-ECHAM
-!! Modified by Sebastian Borchert, DWD, 2016-09-06
-!! - Copy and adjustment for ICON-NWP
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Processing of the external data for the upper atmosphere.
+!
+!----------------------------
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
-!
+
 MODULE mo_upatmo_extdat
 
   USE mo_kind,                   ONLY: wp
@@ -53,9 +48,6 @@ CONTAINS
   !>
   !! Update external data for the upper atmosphere 
   !! under NWP forcing.
-  !!
-  !! @par Revision History
-  !! Initial revision by Guidi Zhou (MPI-M) and Sebastian Borchert (DWD) (2016-09-06)
   !!
   SUBROUTINE update_upatmo_extdat_nwp( mtime_datetime,    &  !in
     &                                  p_patch,           &  !in

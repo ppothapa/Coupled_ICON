@@ -1,7 +1,15 @@
-!+ 3DVAR/COSMO source module for feedback file interface to COSMO
+! 3DVAR/COSMO source module for feedback file interface to COSMO
 !
-! $Id: mo_fdbk_cosmo.f90,v 5.0.1.1 2014-02-21 09:36:32 for0adm Exp $
-!-------------------------------------------------------------------------------
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_fdbk_emvorado
 
@@ -25,56 +33,7 @@ MODULE mo_fdbk_emvorado
 !   These differ from the original in the sense of a perfomance-optimized
 !   interface and vectorizable loop structures for radar data.
 !
-! Current Code Owner:
-!    DWD, Ulrich Blahak; original mo_fdbk_cosmo.f90: Christoph Schraff
-!    phone: +49 69 8062 2725
-!    fax:   +49 69 8062 3721
-!    email: christoph.schraff@dwd.de
-!
-! History:
-! Version      Date       Name
-! ------------ ---------- ----
-! V4_22        2012/01/31 Christoph Schraff
-!  Initial release, based on original code from Marek Lazanowicz, IMGW Poland,
-!  and introduced in 3DVAR version V1_1.
-!  Code restructured, error handling adapted to COSMO needs.
-!  Adapted to updates of feedback file routines (e.g. from 3DVAR, sun_zenith
-!  etc.) and redefinitions of feedback file format, plus bug fixes.
-! V4_26        2012/12/06 Andreas Messer
-!  Modification for using also RTTOV10: introduction of 'sat_zenit'.
-! V4_28        2013/07/12 Ulrich Blahak, Christoph Schraff
-!  - Added routines 'write_report_radar_1', 'write_report_radar_2' to write
-!    radar reports to feedback files efficiently.
-!  - Added component 'spec_index' to type 't_acc_body'.
-!  - 'veri_data' in 't_acc_body' with fixed size 1 instead of pointer, i.e.
-!    simulated obs from at most 1 model run can be stored.
-! V5_1         2014-11-28 Ulrich Blahak, Christoph Schraff
-!  Added some missing structure components for radar. (UB)
-!  Adaptions in 'write_report_radar_1', 'write_report_radar_2' for better
-!   vectorization. (UB)
-!  Added KIND parameters to define standard reals (CS)
-!  Replaced mo_kind by kind_parameters (US)
-! V5_2         2015-05-21 Annika Schomburg
-!  Introduced new components ct_nwc, ch_nwc to type t_acc_header
-!  Introduced new component obs_par to type t_acc_body
-! V5_3         2015-10-09 Christoph Schraff
-!  Feedback file body entries 'dlat', 'dlon' added (according to 3DVAR V1_42).
-!  Feedback file veri_meta entry 'veri_operator_flag' added.
-!  'veri_data' defined as pointer to allow for writing data from more than one
-!  model run (as required for satellite radiances, see src_obs_rad.f90).
-! V5_4a        2016-05-10 Ulrich Blahak
-!  Initialization of vector-buffers in subroutines write_report_radar_1 and 
-!  write_report_radar_2 within the loops
-! V5_4d        2016-12-12 Michael Bender
-!  Added entries azimuth, plev_width in type t_acc_body
-! V5_5         2018-02-23 Christoph Schraff
-!  Use 'header% i_body' instead of 'offset' for feedback file entry 'i_body'.
-!
-! Code Description:
-! Language: Fortran 90.
-! Software Standards: "European Standards for Writing and
-! Documenting Exchangeable Fortran 90 Code".
-!===============================================================================
+!-------------------------------------------------------------------------------
 
 USE mo_kind,          ONLY: sp
 

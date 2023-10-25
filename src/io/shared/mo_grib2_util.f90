@@ -1,19 +1,16 @@
-!! -------------------------------------------------------------------------
-!>
-!! Module containing utility routines for setting GRIB2 keys.
-!!
-!! @author Daniel Reinert, DWD
-!!
-!! @par Revision History
-!! Initial implementation  by  D. Reinert (2014)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+! Module containing utility routines for setting GRIB2 keys.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_grib2_util
 
   USE mo_impl_constants,     ONLY: MAX_CHAR_LENGTH
@@ -137,15 +134,9 @@ CONTAINS
 
   !------------------------------------------------------------------------------------------------
 
-  !>
   !! Set local GRIB2 keys (SECTION 2)
   !!
   !! Set DWD specific local keys (SECTION 2)
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2014-01-20)
-  !! Modification by Daniel Reinert, DWD (2015-01-20)
-  !! - extract local settings from routine set_additional_GRIB2_keys 
   !!
   SUBROUTINE set_GRIB2_local_keys(vlistID, varID, grib_conf)
     INTEGER,                INTENT(IN) :: vlistID, varID
@@ -212,15 +203,7 @@ CONTAINS
 
   !------------------------------------------------------------------------------------------------
 
-  !>
-  !! Set GRIB2 ensemble keys
-  !!
   !! Set GRIB2 ensemble keys (SECTION 4)
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2014-01-20)
-  !! Modification by Daniel Reinert, DWD (2015-01-20)
-  !! - extract ensemble settings from routine set_additional_GRIB2_keys
   !!
   !! ATTENTION: To be called AFTER set_GRIB2_additional_keys
   !!            due to its dependency on typeOfGeneratingProcess that may 
@@ -262,13 +245,7 @@ CONTAINS
   END SUBROUTINE set_GRIB2_ensemble_keys
 
 
-  !>
-  !! Set synsat-specific keys
-  !!
   !! Set GRIB2 keys which are specific to synthetic satellite products.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2015-06-10)
   !!
   SUBROUTINE set_GRIB2_synsat_keys (vlistID, varID, info)
     
@@ -306,16 +283,12 @@ CONTAINS
   END SUBROUTINE set_GRIB2_synsat_keys
 
 
-  !>
   !! Set keys specific to atmospheric chemical species
   !!
   !! Set GRIB2 keys which are specific to atmospheric chemical species.
   !! Here, only the PDT will be changed. Additional Template-specific 
   !! keys will be set at the end of 
   !! mo_name_list_output_init:add_variables_to_vlist
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2015-11-16)
   !!
   SUBROUTINE set_GRIB2_chem_keys (vlistID, varID, info)
     
@@ -364,17 +337,7 @@ CONTAINS
   END SUBROUTINE set_GRIB2_chem_keys
 
 
-  !>
-  !! Set tile-specific keys
-  !!
   !! Set GRIB2 keys which are specific to tile-variables.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2014-01-20)
-  !! Modification by Daniel Reinert, DWD (2019-05-13)
-  !! * Replace hardcoded GRIB2 tile keys (names) by grib2_template_tile%keys.
-  !!   Due to this generalization, it is possible to use either our local 
-  !!   DWD tile templates or the official WMO ones for writing tiled data sets. 
   !!
   SUBROUTINE set_GRIB2_tile_keys (vlistID, varID, info, i_lctype, grib2_template_tile)
 
@@ -489,8 +452,6 @@ CONTAINS
   !!                      |                      |
   !!  <-------------------><--------------------->
   !!     forecastTime         lengthOfTimeRange
-  !!
-  !!  @author D. Reinert, F. Prill (DWD)
   !!
   !!  CAVEATs
   !!  - we implicitly assume that actions are ordered according to increasing forecast time.
@@ -633,13 +594,9 @@ CONTAINS
 
 
   !------------------------------------------------------------------------------------------------
-  !>
   !! Set time-dependent local GRIB2 keys (SECTION 2)
   !!
   !! Set DWD specific time-dependent local keys (SECTION 2)
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2015-02-06)
   !!
   SUBROUTINE set_GRIB2_timedep_local_keys(streamID, varID, grib_conf)
     INTEGER,                INTENT(IN) :: streamID, varID

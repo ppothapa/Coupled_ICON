@@ -1,68 +1,63 @@
-!>
-!! Routines and functions for the Incremental Analysis Update (IAU)
-!!
-!! This module contains routines and functions for the Incremental Analysis 
-!! Update (IAU), including the iterative IAU. The characteristics of the 
-!! iterative IAU are described in the following using the example of a global 
-!! NWP forecast run:
-!!
-!! IAU iteration
-!!
-!!                     input
-!!                       /
-!!                      /
-!!                     /
-!!          ........../
-!!         /
-!!        /
-!!       /
-!!      /
-!!     /
-!!  -90min               0min              90min
-!! ---|------------------|------------------|------------->
-!!    |//////////////////| - - - - - - - - - - - - - - - ->
-!!                               free forecast (iteration = false)
-!!    \________IAU_______/
-!!                       |
-!!                       /
-!!                      /
-!!                     /
-!!          ........../
-!!         /   reset
-!!        /
-!!       /
-!!      /
-!!     /
-!!  -90min               0min              90min
-!! ---|------------------|------------------|------------->
-!!    |//////////////////|//////////////////| free forecast
-!!
-!!    \_________________IAU________________/
-!!
-!!
-!!
-!! @author Daniel Reinert, DWD
-!!
-!! @Literature:
-!! Bloom, S. C., Takacs, L. L., da Silva, A. M., & Ledvina, D. (1996).
-!! Data Assimilation Using Incremental Analysis Updates, Monthly Weather Review,
-!! 124(6), 1256-1271
-!! Polavarapu, S., Ren, S., Clayton, A. M., Sankey, D., & Rochon, Y. (2004).
-!! On the Relationship between Incremental Analysis Updating and
-!! Incremental Digital Filtering, Monthly Weather Review, 132(10), 2495-2502
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2022-12-28)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Routines and functions for the Incremental Analysis Update (IAU)
+!
+! This module contains routines and functions for the Incremental Analysis
+! Update (IAU), including the iterative IAU. The characteristics of the
+! iterative IAU are described in the following using the example of a global
+! NWP forecast run:
+!
+! IAU iteration
+!
+!                     input
+!                       /
+!                      /
+!                     /
+!          ........../
+!         /
+!        /
+!       /
+!      /
+!     /
+!  -90min               0min              90min
+! ---|------------------|------------------|------------->
+!    |//////////////////| - - - - - - - - - - - - - - - ->
+!                               free forecast (iteration = false)
+!    \________IAU_______/
+!                       |
+!                       /
+!                      /
+!                     /
+!          ........../
+!         /   reset
+!        /
+!       /
+!      /
+!     /
+!  -90min               0min              90min
+! ---|------------------|------------------|------------->
+!    |//////////////////|//////////////////| free forecast
+!
+!    \_________________IAU________________/
+!
+! @Literature:
+! Bloom, S. C., Takacs, L. L., da Silva, A. M., & Ledvina, D. (1996).
+! Data Assimilation Using Incremental Analysis Updates, Monthly Weather Review,
+! 124(6), 1256-1271
+! Polavarapu, S., Ren, S., Clayton, A. M., Sankey, D., & Rochon, Y. (2004).
+! On the Relationship between Incremental Analysis Updating and
+! Incremental Digital Filtering, Monthly Weather Review, 132(10), 2495-2502
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_iau
 
   USE mo_kind,                    ONLY: wp
@@ -185,10 +180,6 @@ CONTAINS
   !! 'in_group' optional argument of the add_var/add_ref calls and assign the desired
   !! field(s) to one of the above mentioned groups.
   !!
-  !! @par Revision History
-  !! Initial release by Guenther Zaengl, DWD, (2016-06-17)
-  !! Rewrite using a key-value storage by Roland Wirth, DWD (2022-07-29)
-  !!
   SUBROUTINE save_initial_state(p_patch)
 
     TYPE(t_patch),    INTENT(IN) :: p_patch(:)
@@ -232,10 +223,6 @@ CONTAINS
   !----------------------------------------------------------------------------
   !>
   !! Restores the initial state of NWP applications for the IAU iteration mode.
-  !!
-  !! @par Revision History
-  !! Initial release by Guenther Zaengl, DWD, (2016-06-17)
-  !! Rewrite using a key-value storage by Roland Wirth, DWD (2022-07-29)
   !!
   SUBROUTINE restore_initial_state(p_patch, p_nh)
 
@@ -298,9 +285,6 @@ CONTAINS
   !! * time level arrays
   !! * mtime events for NWP physics, LHN, and DACE
   !!
-  !! @par Revision History
-  !! Initial release by Daniel Reinert, DWD, (2023-02-08)
-  !!
   SUBROUTINE reset_to_initial_state(p_patch, p_nh)
 
     TYPE(t_patch),        INTENT(IN)    :: p_patch(:)
@@ -345,9 +329,6 @@ CONTAINS
   !!   every (fast) dynamics time step
   !! - iau_wgt_adv can be used for all fields that need to be updated
   !!   every (slow) advection time step.
-  !!
-  !! @par Revision History
-  !! Initial revision by daniel Reinert, DWD (2014-01-29)
   !!
   SUBROUTINE compute_iau_wgt(sim_time, dt, dt_iau, lreset_wgt_adv)
 
@@ -416,9 +397,6 @@ CONTAINS
   !! Top-hat function is non-zero for 0<=t<=dt and is normalized such that
   !! \int_{t=0}^{t=dt} f(t)\,dt=1
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2014-01-29)
-  !!
   FUNCTION iau_top_hat (dt,cur_time)  RESULT (fct_eval)
 
     REAL(wp), INTENT(IN) :: dt                 ! time interval [s]
@@ -443,9 +421,6 @@ CONTAINS
   !! SIN2 function is non-zero for 0<=t<=dt and is normalized such that
   !! \int_{t=0}^{t=dt} f(t)\,dt=1
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2014-01-29)
-  !!
   FUNCTION iau_sin2 (dt,cur_time)  RESULT (fct_eval)
 
     REAL(wp), INTENT(IN) :: dt                 ! time interval [s]
@@ -468,9 +443,6 @@ CONTAINS
   !! Evaluates SIN function at a particular point in time
   !! SIN function is non-zero for 0<=t<=dt and is normalized such that
   !! \int_{t=0}^{t=dt} f(t)\,dt=1
-  !!
-  !! @par Revision History
-  !! Initial revision by Harald Anlauf, DWD (2014-04-03)
   !!
   FUNCTION iau_sin (dt, cur_time)  RESULT (fct_eval)
 

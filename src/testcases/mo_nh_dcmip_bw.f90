@@ -1,29 +1,24 @@
-!>
-!! Initialization routines for the (moist) baroclinic instability as used in DCMIP2016
-!!
-!! Initialization routines for the Ullrich, Melvin, Staniforth and Jablonowski 
-!! baroclinic instability, including moisture and terminator toy chemistry.
-!! This baroclinic instability test is part of the DCMIP2016 test case suite.
-!!
-!! @Literature
-!! Dynamical Core Model Intercomparison Project (DCMIP2016) Test Case Document
-!!
-!! @author Daniel Reinert, DWD
-!! @author Marco Giorgetta, MPI-M
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2016-03-21)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Initialization routines for the (moist) baroclinic instability as used in DCMIP2016
+!
+! Initialization routines for the Ullrich, Melvin, Staniforth and Jablonowski
+! baroclinic instability, including moisture and terminator toy chemistry.
+! This baroclinic instability test is part of the DCMIP2016 test case suite.
+!
+! Literature
+! Dynamical Core Model Intercomparison Project (DCMIP2016) Test Case Document
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_nh_dcmip_bw
 
   USE mo_kind,                ONLY: wp
@@ -108,9 +103,6 @@ CONTAINS
   !!
   !! Setup idealized conditions for DCMIP2016 baroclinic instability 
   !! test case.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2016-03-21)
   !!
   SUBROUTINE init_nh_dcmip_bw (p_patch, p_nh_prog, p_nh_diag, p_int, p_metrics)
 

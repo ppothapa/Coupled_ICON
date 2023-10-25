@@ -1,21 +1,19 @@
-!>
-!! This module contains routines for the vertical interpolation of
-!! atmospheric data provided by external analyses to the ICON grid
-!!
-!! @author Guenther Zaengl, DWD
-!!
-!!
-!! @par Revision History
-!! First version by Guenther Zaengl, DWD (2011-06-29)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! This module contains routines for the vertical interpolation of
+! atmospheric data provided by external analyses to the ICON grid
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -194,10 +192,6 @@ CONTAINS
   !! data (atmosphere only) interpolated horizontally by IFS2ICON to
   !! the ICON grid
   !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-14)
-  !!
-  !!
   SUBROUTINE vert_interp_atm(p_patch, p_nh_state, p_int, p_grf, initicon)
 
     TYPE(t_patch),          INTENT(INOUT)    :: p_patch(:)
@@ -248,10 +242,6 @@ CONTAINS
   !! Outer driver routine for vertical interpolation of analysis
   !! data (surface only) interpolated horizontally by ICONREMAP to
   !! the ICON grid
-  !!
-  !! @par Revision History
-  !! Initial version by Daniel Reinert, DWD(2012-12-19)
-  !!
   !!
   SUBROUTINE vert_interp_sfc(p_patch, initicon)
 
@@ -304,10 +294,6 @@ CONTAINS
   !! and stored in the initicon%atm state. They are finally converted into the following 
   !! set of prognostic variables:
   !! vn, w, qv, qc, qi, qr, qs, rho, exner, theta_v
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-14)
-  !!
   !!
   SUBROUTINE vert_interp(p_patch, p_int, p_metrics, initicon, opt_use_vn, opt_lmask_c, opt_lmask_e, opt_latbcmode, &
     &                    opt_inputonzgpot)
@@ -744,11 +730,6 @@ CONTAINS
   !!
   !! Fills input height field with dummy values if a mask field for data-void grid points is present
   !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2017-09-22)
-  !!
-  !!
-  !!
   SUBROUTINE fill_input_height(z3d_in, z3d_fill, nblks, npromz, nlev, lmask)
 
     ! Input fields
@@ -826,11 +807,6 @@ CONTAINS
   !!
   !! It is assumed that the highest level of the input data is at least
   !! as high as the highest level of the output data
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-14)
-  !!
-  !!
   !!
   SUBROUTINE prepare_lin_intp(z3d_in, z3d_out,                    &
                               nblks, npromz, nlevs_in, nlevs_out, &
@@ -1012,11 +988,6 @@ CONTAINS
   !! Output: index and coefficient fields to compute field values at
   !! 500 m and 1000 m above ground
   !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-14)
-  !!
-  !!
-  !!
   SUBROUTINE prepare_extrap(z3d_in, nblks, npromz, nlevs_in, &
                             kpbl1, wfacpbl1, kpbl2, wfacpbl2, lacc )
 
@@ -1127,11 +1098,6 @@ CONTAINS
   !! Required input fields: 3D coordinate fields of input data
   !! Output: index and coefficient fields to compute field values at
   !! 150 m above ground
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2013-04-11)
-  !!
-  !!
   !!
   SUBROUTINE prepare_extrap_ifspp(z3d_h_in, z3d_in, nblks, npromz, nlevs_in, kextrap, zextrap, wfac_extrap, lacc)
 
@@ -1250,11 +1216,6 @@ CONTAINS
   !!
   !! It is assumed that the highest level of the input data is at least
   !! as high as the highest level of the output data
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-14)
-  !!
-  !!
   !!
   SUBROUTINE prepare_cubic_intp(z3d_in, z3d_out,                    &
                                 nblks, npromz, nlevs_in, nlevs_out, &
@@ -1431,11 +1392,6 @@ CONTAINS
   !!
   !! Setting l_loglin=.TRUE. activates logarithmic interpolation
   !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-14)
-  !!
-  !!
-  !!
   SUBROUTINE lin_intp(f3d_in, f3d_out,                      &
                       nblks, npromz, nlevs_in, nlevs_out,   &
                       wfac, idx0, bot_idx, wfacpbl1, kpbl1, &
@@ -1598,11 +1554,6 @@ CONTAINS
   !! Output: pressure field of output data
   !!
   !! Method: piecewise analytical integration of the hydrostatic equation
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-14)
-  !!
-  !!
   !!
   SUBROUTINE pressure_intp(pres_in, tempv_in, z3d_in, pres_out, z3d_out,                   &
                            nblks, npromz, nlevs_in, nlevs_out,                             &
@@ -1897,11 +1848,6 @@ CONTAINS
   !!
   !! Method: piecewise analytical integration of the hydrostatic equation
   !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-14)
-  !!
-  !!
-  !!
   SUBROUTINE pressure_intp_initmode(pres_in, tempv_in, z3d_in, pres_out, tempv_out, z3d_out, &
     &                               nblks, npromz, nlevs_out, nlevs_in, wfac, idx0, bot_idx, &
     &                               opt_lmask                                                )
@@ -2105,11 +2051,6 @@ CONTAINS
   !! Required input fields: topography fields, patch and interpolation state
   !! Output: slope
   !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-14)
-  !!
-  !!
-  !!
   SUBROUTINE compute_slope(p_patch, p_int, topo_c, slope_c)
 
     TYPE(t_patch),          INTENT(INOUT)    :: p_patch
@@ -2198,11 +2139,6 @@ CONTAINS
   !! and to add it again afterwards with a variable weighting coefficient,
   !! accounting for the slope of the target grid point and for the height
   !! difference between source and target grid
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-14)
-  !!
-  !!
   !!
   SUBROUTINE temperature_intp(temp_in, temp_out, z3d_in, z3d_out,            &
                              nblks, npromz, nlevs_in, nlevs_out,             &
@@ -2699,11 +2635,6 @@ CONTAINS
   !! In particular, wind components are requested not to change sign when being
   !! extrapolated downward
   !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-18)
-  !!
-  !!
-  !!
   SUBROUTINE uv_intp(uv_in, uv_out, z3d_in, z3d_out,               &
                      nblks, npromz, nlevs_in, nlevs_out,           &
                      coef1, coef2, coef3, wfac_lin,                &
@@ -3078,11 +3009,6 @@ CONTAINS
   !!
   !! Performs cubic interpolation where possible, turning to linear interpolation
   !! close to the surface
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-18)
-  !!
-  !!
   !!
   SUBROUTINE qv_intp(qv_in, qv_out, z3d_in, z3d_out,                  &
                      temp_in, pres_in, temp_out, pres_out,            &

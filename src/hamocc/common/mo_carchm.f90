@@ -1,10 +1,17 @@
+! @brief Inorganic carbon cycle.
+!        Calc dissolution, update of hydrogen ions
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 MODULE mo_carchm
-
-!> @file mo_carchm.f90
-!! @brief Inorganic carbon cycle.
-!!        Calc dissolution, update of hydrogen ions
-!!
-!!
   
 USE mo_bgc_memory_types, ONLY  : t_bgc_memory
 

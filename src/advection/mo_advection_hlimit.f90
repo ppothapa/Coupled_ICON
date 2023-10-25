@@ -1,25 +1,19 @@
-!>
-!! Flux limiter for horizontal tracer transport
-!!
-!! This module contains flux limiters for horizontal 
-!! tracer transport.
-!!
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2018-11-29)
-!! - module mo_advection_limiter has been splitted into two modules, 
-!!   in order to separate horizontal and vertical limiter
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Flux limiter for horizontal tracer transport
+!
+! This module contains flux limiters for horizontal
+! tracer transport.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -81,15 +75,6 @@ CONTAINS
   !! - Schaer, C. and P.K. Smolarkiewicz (1996): A synchronous and iterative 
   !!   flux-correction formalism for coupled transport equations. J. comput. Phys., 
   !!   128, 101-120
-  !!
-  !! @par Revision History
-  !! - Inital revision by Daniel Reinert, DWD (2010-03-10)
-  !! Modification by Daniel Reinert, DWD (2010-03-25)
-  !! - adapted for MPI parallelization
-  !! Modification by Daniel Reinert, DWD (2012-09-20)
-  !! - possibility for iterative flux correction
-  !! Modification by Daniel Reinert, DWD (2016-09-21)
-  !! - remove iterative flux correction, since it does not pay off
   !!
   SUBROUTINE hflx_limiter_mo( ptr_patch, ptr_int, p_dtime, p_cc,            &
     &                         p_rhodz_now, p_rhodz_new, p_mass_flx_e,       &
@@ -570,10 +555,6 @@ CONTAINS
   !! - Harris, L. M. and P. H. Lauritzen (2010): A flux-form version of the
   !!   Conservative Semi-Lagrangian Multi-tracer transport scheme (CSLAM) on
   !!   the cubed sphere grid. JCP, in press
-  !!
-  !! @par Revision History
-  !! - Inital revision by Daniel Reinert, DWD (2010-10-06)
-  !! - Adaption for hexagonal model by Almut Gassmann, MPI-M (2010-11-18)
   !!
   SUBROUTINE hflx_limiter_pd( ptr_patch, ptr_int, p_dtime, p_cc,        &
     &                         p_rhodz_now, p_mflx_tracer_h, slev, elev, &

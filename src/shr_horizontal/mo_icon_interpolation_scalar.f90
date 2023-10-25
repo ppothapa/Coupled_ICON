@@ -1,130 +1,18 @@
-!>
-!! Contains the implementation of interpolation and reconstruction.
-!!
-!! Contains the implementation of interpolation and reconstruction
-!! routines used by the shallow water model, including the RBF
-!! reconstruction routines.
-!!
-!! @par Revision History
-!! Developed  by Luca Bonaventura and Will Sawyer (2002-4).
-!! Modified to ProTeX-style by  Luca Bonaventura and Thomas Heinze (2004).
-!! Adapted to new data structure by Thomas Heinze,
-!! Peter Korn and Luca Bonaventura (2005).
-!! Modification by Thomas Heinze (2006-02-21):
-!! - renamed m_modules to mo_modules
-!! Modification by Thomas Heinze (2006-07-05):
-!! - modified cell2edge_lin_int_coeff
-!! - created cc_dot_product
-!! Modification by Peter Korn and Luca Bonaventura(2006-07-28):
-!! - moved several auxiliary functions to mo_math_utilities
-!! - introduced recoded rbf interpolation for vector fields
-!! - added lraviart switch to force RT interpolation to be used
-!! Modification by Thomas Heinze  and Luca Bonaventura(2006-10-05):
-!! - merged with 'Milano' version by P. Korn
-!! Modification by Pilar Ripodas (2006-11):
-!! - new subroutine rbf_vec_interpol_car with the cartesian
-!!   coordinates as output
-!! Modification by Peter Korn, MPI-M, (2006-11-23):
-!! - replacements in TYPE patch: ic by l2g_c, ie by l2g_e, iv by l2g_v,
-!!   iic by g2l_c, iie by g2l_e, iiv by g2l_v
-!! - replaced edge_index by edge_idx
-!! - replaced vertex_index by vertex_idx
-!! - replaced cell_index by cell_idx
-!! - replaced neighbor_index by neighbor_idx
-!! Modification by Pilar Ripodas (2006-12):
-!! - dt_tan_vec and dt_tan_rt_vec are wrong. They are renamed to
-!!   dt_tan_vec_old and dt_tan_rt_vec_old and should not be used
-!! - New subroutines dt_tan_vec_h and dt_tan_vec_kin and
-!!   dt_tan_vec_gen are produced and
-!!   moved to mo_sw_state.f90
-!!  Modification by Peter Korn, MPI-M (2007-02)
-!!  Modification by Hui Wan, MPI-M (2007-02-22)
-!!  - changes in the USE section because
-!!    the coordinate types had been move from mo_model_domain
-!!    to mo_math_utilities;
-!!  Modification by Almut Gassmann, MPI-M (2007-04)
-!!  - removed reference to unused halo_verts
-!!  - summing over all halos of the various parallel patches (Quick and Dirty!)
-!!  Modification by Almut Gassmann, MPI-M (2007-04)
-!!  - abandon grid for the sake of patch
-!!  Modification by Thomas Heinze, DWD (2007-07-26)
-!!  - including all the improvements of Tobias Ruppert's diploma thesis
-!!  - several changes according to the programming guide
-!!  Modification by Pilar Ripodas, DWD (2007-07):
-!!  - substruct the outgoing component of the reconstructed
-!!    vector in subroutine "rbf_vec_interpol_car"
-!!  Modification by Thomas Heinze, DWD (2007-08-02)
-!!  - replaced rbf_kern_dim by rbf_kern_dim_c
-!!  - replaced rbf_vec_dim by rbf_vec_dim_c
-!!  - replaced rbf_mat_dim by rbf_mat_dim_c
-!!  - replaced rbf_vec_scale by rbf_vec_scale_c
-!!  - replaced rbf_vec_pdeg_c by rbf_vec_rbf_vec_pdeg_c_c
-!!  Modification by Hui Wan, MPI-M (2007-08-02; 2007-11-30)
-!!  - added interpolation coefficients c_aw_e and e_aw_c
-!!    and the initialization subroutine aw_int_coeff.
-!!  - added subroutine edges2cells_scalar
-!!  Modification by Jochen Foerstner, DWD (2008-05-05)
-!!  - four new subroutines
-!!      rbf_vec_index_vertex
-!!      rbf_vec_compute_coeff_vertex
-!!      rbf_vec_interpol_car_vertex
-!!      prepare_simpson
-!!    to reconstruct a Cartesian vector at the vertices using
-!!    RBF interpolation and to prepare quadrature via the
-!!    Simpson's rule.
-!!  Modification by Marco Restelli, MPI (2008-07-17)
-!!  - included the subroutines
-!!      cells2vertex_scalar, cells2vertex_coeff, ravtom_normgrad2,
-!!      ls_normgrad2, ls_normgrad2_ii, edges2points_vector
-!!    to compute polynomial fitting with sufficient accuracy as
-!!    required in SW-alpha model.
-!!  Modification by Jochen Foerstner, DWD (2008-09-12)
-!!  - moved SUBROUTINE ravtom_normgrad2 to mo_math_operators
-!!    because of conflicting use statements.
-!!  Modification by Almut Gassmann, MPI-M (2008-10-09)
-!!  - added features for helicity bracket reconstruction
-!!  Modification by Guenther Zaengl, DWD (2008-10-23)
-!!  - added interpolation routines needed for mesh refinement
-!!  Modification by Almut Gassmann, MPI-M (2009-01-29)
-!!  - conforming scalar interpolation routines and adjusting coefficients
-!!  Modification by Guenther Zaengl, DWD (2009-02-11)
-!!  - all routines needed for grid refinement are moved into the new
-!!    module mo_grf_interpolation
-!!  Modification by Guenther Zaengl, DWD (2009-02-13)
-!!  - RBFs are changed to direct reconstruction of velocity components on
-!!    the sphere, avoiding the detour over the 3D Cartesian space
-!!  Modification by Almut Gassmann, DWD (2009-03-17)
-!!  - remove lraviart
-!!  Modification by Almut Gassmann, MPI-M (2009-04-23)
-!!  - remove all Raviart Thomas stuff, add edge to verts averaging
-!!  Modification by Daniel Reinert, DWD (2009-07-20)
-!!  - added subroutine grad_lsq_compute_coeff_cell to prepare
-!!    (2D) gradient reconstruction at circumcenter via the least squares
-!!    method.
-!!  Modification by Almut Gassmann, MPI-M (2009-10-05)
-!!  - set RBF vec dimensions to predefined values (edges:4,vertices:6,cells:9);
-!!    All other switches and belongings are deleted. The reason is that
-!!    the Hollingsworth instability requires 4 edges, cell reconstruction
-!!    is only needed for output and vertices are only used in the bracket
-!!    version, where the dimension at the vertices should be 6
-!!  Modification by Daniel Reinert, DWD (2009-12-10)
-!!  - replaced grad_lsq_compute_coeff_cell by lsq_compute_coeff_cell
-!!    which initializes either a second order or a third order least squares
-!!    reconstruction.
-!!  Modification by Almut Gassmann, MPI-M (2010-01-12)
-!!  - generalize p_int%primal_normal_ec and p_int%edge_cell_length to hexagons
-!!  Modification by Will Sawyer, MPI-M (2016-07-19)
-!!  - OpenACC implementation
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Contains the implementation of interpolation and reconstruction
+! routines used by the shallow water model, including the RBF
+! reconstruction routines.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -179,19 +67,9 @@ CONTAINS
 !
 !-----------------------------------------------------------------------
 !
-!>
-!!  Performs  average of scalar fields from vertices to velocity points.
+!! Performs  average of scalar fields from vertices to velocity points.
 !!
-!!  The coefficients are given by c_int.
-!!
-!! @par Revision History
-!! Developed  by L.Bonaventura  (2004).
-!! Adapted to new grid and patch structure by P. Korn (2005)
-!! Modifications by Almut Gassmann (2007-04-30)
-!! -abandon grid for the sake of patch
-!! Modifications by Almut Gassmann (2009-01-28)
-!! - Rename (naming structure adapted to other interpolation routines) and
-!!   rewrite this routine for accepting given interpolation weights.
+!! The coefficients are given by c_int.
 !!
 SUBROUTINE verts2edges_scalar( p_vertex_in, ptr_patch, c_int, p_edge_out, &
   &                            opt_slev, opt_elev, opt_rlstart, opt_rlend )
@@ -304,23 +182,8 @@ END SUBROUTINE verts2edges_scalar
 !------------------------------------------------------------------------
 !
 !
-!>
-!!  Computes  average of scalar fields from centers of triangular faces to.
-!!
 !!  Computes  average of scalar fields from centers of triangular faces to
 !!  velocity points.
-!!
-!! @par Revision History
-!! Developed  by L.Bonaventura  (2004).
-!! Adapted to new grid and patch structure by P. Korn and  L.Bonaventura  (2005)
-!! Modification by Thomas Heinze, DWD (2006-08-18):
-!! - changed according to programming guide
-!! - replaced index iic1 and ic2 by j at the end of code (after discussion with
-!!   Hui Wan and Peter Korn)
-!! Modification by Almut Gassmann, MPI-M (2007-04-30)
-!! - abandon grid for the sake of patch
-!! Modification by Thomas Heinze, DWD (2007-08-06):
-!! - changed c_int to POINTER (was array)
 !!
 SUBROUTINE cells2edges_scalar( p_cell_in, ptr_patch, c_int, p_edge_out,                    &
   &                            opt_slev, opt_elev, opt_rlstart, opt_rlend, opt_fill_latbc, &
@@ -507,16 +370,8 @@ END SUBROUTINE cells2edges_scalar
 
 !------------------------------------------------------------------------
 !
-!>
-!!  Computes average of scalar fields from velocity points to.
-!!
 !!  Computes average of scalar fields from velocity points to
 !!  centers of dual faces.
-!!
-!! @par Revision History
-!!  Initial version by Almut Gassmann, MPI-M (2009-04-23)
-!!  - exchange calling parameters to have the same shape as for other
-!!    interpolation routines
 !!
 SUBROUTINE edges2verts_scalar( p_edge_in, ptr_patch, v_int, p_vert_out,  &
   &                            opt_slev, opt_elev, opt_rlstart, opt_rlend )
@@ -631,17 +486,8 @@ END SUBROUTINE edges2verts_scalar
 
 !------------------------------------------------------------------------
 !
-!>
-!!  Computes interpolation from edges to cells
-!!
 !!  Computes interpolation of scalar fields from velocity points to
 !!  cell centers via given interpolation weights
-!!
-!! @par Revision History
-!!  Original version by Hui Wan (MPI-M, 2006-08-17)
-!!  Modification by Almut Gassmann, MPI-M (2009-01-28)
-!!  - exchange calling parameters to have the same shape as for other
-!!    interpolation routines
 !!
 SUBROUTINE edges2cells_scalar_dp(p_edge_in, ptr_patch, c_int, p_cell_out,  &
   &                              opt_slev, opt_elev, opt_rlstart, opt_rlend)
@@ -751,17 +597,10 @@ END SUBROUTINE edges2cells_scalar_dp
 !------------------------------------------------------------------------
 !------------------------------------------------------------------------
 !
-!>
 !!  Computes interpolation from edges to cells
 !!
 !!  Computes interpolation of scalar fields from velocity points to
 !!  cell centers via given interpolation weights
-!!
-!! @par Revision History
-!!  Original version by Hui Wan (MPI-M, 2006-08-17)
-!!  Modification by Almut Gassmann, MPI-M (2009-01-28)
-!!  - exchange calling parameters to have the same shape as for other
-!!    interpolation routines
 !!
 SUBROUTINE edges2cells_scalar_sp( p_edge_in, ptr_patch, c_int, p_cell_out,  &
   &                            opt_slev, opt_elev, opt_rlstart, opt_rlend )
@@ -871,12 +710,7 @@ END SUBROUTINE edges2cells_scalar_sp
 !------------------------------------------------------------------------
 
 !------------------------------------------------------------------------
-!>
 !!  Computes  average of scalar fields from centers of cells to vertices.
-!!
-!!
-!! @par Revision History
-!! Developed  by Almut Gassmann, MPI-M (2009-01-28)
 !!
 SUBROUTINE cells2verts_scalar_dp( p_cell_in, ptr_patch, c_int, p_vert_out,    &
   &                               opt_slev, opt_elev, opt_rlstart, opt_rlend, &
@@ -999,12 +833,7 @@ END SUBROUTINE cells2verts_scalar_dp
 !------------------------------------------------------------------------
 
 !------------------------------------------------------------------------
-!>
-!!  Computes  average of scalar fields from centers of cells to vertices.
-!!
-!!
-!! @par Revision History
-!! Developed  by Almut Gassmann, MPI-M (2009-01-28)
+!! Computes  average of scalar fields from centers of cells to vertices.
 !!
 SUBROUTINE cells2verts_scalar_sp( p_cell_in, ptr_patch, c_int, p_vert_out,    &
   &                               opt_slev, opt_elev, opt_rlstart, opt_rlend, &
@@ -1128,12 +957,7 @@ END SUBROUTINE cells2verts_scalar_sp
 !------------------------------------------------------------------------
 
 !------------------------------------------------------------------------
-!>
-!!  Computes  average of scalar fields from centers of cells to vertices.
-!!
-!!
-!! @par Revision History
-!! Developed  by Almut Gassmann, MPI-M (2009-01-28)
+!! Computes  average of scalar fields from centers of cells to vertices.
 !!
   SUBROUTINE cells2verts_scalar_sp2dp(p_cell_in, ptr_patch, c_int, p_vert_out, &
     &                                 opt_slev, opt_elev, opt_rlstart, &
@@ -1375,13 +1199,7 @@ END SUBROUTINE cells2verts_scalar_ri
 !------------------------------------------------------------------------
 
 !
-!
-!>
-!!  Computes  average of scalar fields from vertices to centers of cells.
-!!
-!!
-!! @par Revision History
-!! Developed  by Almut Gassmann, MPI-M (2009-01-28)
+!! Computes  average of scalar fields from vertices to centers of cells.
 !!
 SUBROUTINE verts2cells_scalar( p_vert_in, ptr_patch, c_int, p_cell_out,  &
   &                            opt_slev, opt_elev )
@@ -1477,18 +1295,12 @@ END SUBROUTINE verts2cells_scalar
 !-------------------------------------------------------------------------
 !
 !
-!>
-!! Computes the average of a cell-based variable.
-!!
 !! Computes the average of a cell-based variable
 !! over its original location and the neighboring triangles.
 !! Version with variable weighting coefficients, computed such that
 !! linear horizontal gradients are not aliased into a checkerboard noise
 !! input:  lives on centers of triangles
 !! output: lives on centers of triangles
-!!
-!! @par Revision History
-!!  developed by Guenther Zaengl, 2008-12-05
 !!
 SUBROUTINE cell_avg( psi_c, ptr_patch, avg_coeff, avg_psi_c,     &
   &                  opt_slev, opt_elev, opt_rlstart, opt_rlend, &

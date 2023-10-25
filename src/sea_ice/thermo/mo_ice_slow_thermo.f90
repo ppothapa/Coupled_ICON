@@ -1,25 +1,19 @@
-!>
-!! Provide an implementation of ice thermodynamic growth model: ice_slow_thermo.
-!! Calculates ice growth rate over thick ice and open ocean. Updates heat
-!! and fresh-water fluxes which are passed to the ocean for coupling.
-!!
-!! @author Peter Korn, MPI
-!! @author Dirk Notz, MPI
-!!
-!! @par Revision History
-!!  Original version by Peter Korn, MPI-M (2009)
-!!  Restructured     by Stephan Lorenz, MPI-M (2015-04)
-!!  Restructured     by Vladimir Lapin, MPI-M (2017-04)
-!!
-!! @par Revision History
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+! Provide an implementation of ice thermodynamic growth model: ice_slow_thermo.
+! Calculates ice growth rate over thick ice and open ocean. Updates heat
+! and fresh-water fluxes which are passed to the ocean for coupling.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -81,12 +75,6 @@ CONTAINS
   !! ice            thermodynamics-related fields in the sea ice data structure
   !! p_oce_sfc      heat and fresh-water fluxes passed to the ocean
   !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2010-07).
-  !! Originally code by Dirk Notz, following MPI-OM. Code transfered to ICON.
-  !! Rewrite         by Stephan Lorenz, MPI-M (2015-01).
-  !! Restructured    by Vladimir Lapin, MPI-M (2017-03).
-  !
   SUBROUTINE ice_slow_thermo(p_patch_3D, p_os, atmos_fluxes, ice, p_oce_sfc, use_acc)
     TYPE(t_patch_3D), TARGET, INTENT(IN)    :: p_patch_3D
     TYPE(t_hydro_ocean_state),INTENT(IN)    :: p_os         ! sst, sss, ssh only
@@ -225,11 +213,6 @@ CONTAINS
   !! ice % newice       new ice growth in open water                            [m]
   !! ice % heatOceW     heat flux to the ocean surface layer (via open surface) [W/m^2]
   !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2010-07).
-  !! Originally code by Dirk Notz, following MPI-OM. Code transfered to ICON.
-  !! Modified        by Vladimir Lapin, MPI-M (2017-04).
-  !
   SUBROUTINE ice_open_ocean(p_patch, ice, atmos_fluxes, sst, use_acc)
     TYPE(t_patch),TARGET,      INTENT(IN)    :: p_patch
     TYPE(t_sea_ice),           INTENT(INOUT) :: ice
@@ -330,11 +313,6 @@ CONTAINS
   !! p_oce_sfc % FrshFlux_VolumeIce  forcing volume flux for height equation under sea ice     [m/s]
   !! p_oce_sfc % FrshFlux_TotalIce   forcing surface freshwater flux due to sea ice change     [m/s]
   !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2010-07).
-  !! Originally code by Dirk Notz, following MPI-OM. Code transfered to ICON.
-  !! Restructured    by Vladimir Lapin, MPI-M (2016-11).
-  !
   SUBROUTINE update_ice_ocean_fluxes(p_patch, ice, atmos_fluxes, sss, p_oce_sfc, use_acc)
     TYPE(t_patch),TARGET,      INTENT(IN)    :: p_patch
     TYPE(t_sea_ice),           INTENT(IN)    :: ice
@@ -476,12 +454,6 @@ CONTAINS
   !! ice % conc     new snow thickness for each ice category                [ ]
   !! ice % concSum  new ice  thickness for each ice category                [ ]
   !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2010-07).
-  !! Originally code by Dirk Notz, following MPI-OM. Code transfered to ICON.
-  !! Einar Olason, renamed and added support for changing concentration.
-  !! Restructured    by Vladimir Lapin, MPI-M (2017-03).
-  !
   SUBROUTINE ice_update_conc(p_patch,ice)
 
     TYPE(t_patch),             INTENT(IN)    :: p_patch
@@ -565,10 +537,6 @@ CONTAINS
   !>
   !! !  ice_thickness_limiter: Limit ice thinkness. Adjust fluxes and calculates the final freeboard
   !! !
-  !! @par Revision History
-  !! Initial release by Einar Olason, MPI-M (2013-10).
-  !! Modified by Vladimir Lapin,      MPI-M (2015-07).
-  !!
   SUBROUTINE ice_thickness_limiter( p_patch, p_ice, p_oce_sfc, p_os, use_acc )
     TYPE(t_patch),TARGET,      INTENT(IN)    :: p_patch
     TYPE(t_sea_ice),           INTENT(INOUT) :: p_ice
@@ -665,11 +633,6 @@ CONTAINS
   !>
   !! !  ice_thickness_limiter: Limit ice thinkness. Adjust fluxes and calculates the final freeboard
   !! !
-  !! @par Revision History
-  !! Initial release by Einar Olason, MPI-M (2013-10).
-  !! Modified by Vladimir Lapin,      MPI-M (2015-07).
-  !! Modified by Helmuth Haak,        MPI-M (2020-02).
-
   SUBROUTINE ice_thickness_limiter_hh( p_patch_3d, p_ice, p_oce_sfc, p_os, use_acc )
     TYPE(t_patch_3d),TARGET,      INTENT(IN) :: p_patch_3d
     TYPE(t_sea_ice),           INTENT(INOUT) :: p_ice
@@ -765,11 +728,6 @@ CONTAINS
   !>
   !! ! ice_growth_init: save ice thickness before ice_growth_* and initialize variables
   !!
-  !! @par Revision History
-  !! Initial release by Einar Olason, MPI-M (2011-09).
-  !! Originally code by Dirk Notz, following MPI-OM. Code transfered to ICON.
-  !! Restructured    by Vladimir Lapin, MPI-M (2017-03).
-  !
   SUBROUTINE ice_growth_init (ice,use_acc)
 
     TYPE (t_sea_ice), INTENT(INOUT) :: ice

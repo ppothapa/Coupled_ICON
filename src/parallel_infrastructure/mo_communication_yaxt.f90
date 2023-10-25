@@ -1,21 +1,19 @@
 !#define HAVE_YAXT
-!>
-!!               This module provides the yaxt based communication routines.
-!!
-!!               This module provides the yaxt based communication routines
-!! for parallel runs
-!!
-!! @par Revision History
-!! Initial version by Moritz Hanke, April 2016
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+
+! This module provides the yaxt based communication routines
+! for parallel runs
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "icon_definitions.inc"
@@ -283,9 +281,6 @@ END FUNCTION MY_IS_CONTIGUOUS_SP_4D
 
 !-------------------------------------------------------------------------
 !
-!
-
-!>
 !! Sets up a communication pattern for exchanging data.
 !!
 !! Note: This setup routine works only for the trivial communication
@@ -317,10 +312,6 @@ END FUNCTION MY_IS_CONTIGUOUS_SP_4D
 !!                    faster if inplace == true
 !!
 !! send_decomp_info domain decomposition information for the SENDER array
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! yaxt version by Moritz Hanke, April 2016
 !!
 SUBROUTINE setup_comm_pattern(p_pat, dst_n_points, dst_owner, &
                               dst_global_index, send_glb2loc_index, &
@@ -934,12 +925,7 @@ END SUBROUTINE setup_comm_pattern_collection
 
 !-------------------------------------------------------------------------
 !
-!>
 !! Deletes a communication pattern
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Oct 2011
-!! yaxt version by Moritz Hanke, April 2016
 !!
 !
 SUBROUTINE delete_comm_pattern(p_pat)
@@ -1013,15 +999,7 @@ END SUBROUTINE delete_comm_pattern_collection
 
 !-------------------------------------------------------------------------
 !
-!
-!>
 !! Does data exchange according to a communication pattern (in p_pat).
-!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! Modified by Guenther Zaengl for vectorization
-!! yaxt version by Moritz Hanke, April 2016
 !!
 !================================================================================================
 ! REAL SECTION ----------------------------------------------------------------------------------
@@ -1684,15 +1662,7 @@ CONTAINS
 
 END SUBROUTINE exchange_data_l3d
 
-!>
 !! Does data exchange according to a communication pattern (in p_pat).
-!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! Optimized version by Guenther Zaengl to process 4D fields or up to seven 3D fields
-!! in one step
-!! yaxt version by Moritz Hanke, April 2016
 !!
 SUBROUTINE exchange_data_mult_dp(p_pat, ndim2tot, recv, send, nshift)
 
@@ -1794,15 +1764,7 @@ SUBROUTINE exchange_data_mult_dp_top(p_pat, ndim2tot, recv, send, nshift)
 
 END SUBROUTINE exchange_data_mult_dp_top
 
-  !>
   !! Does data exchange according to a communication pattern (in p_pat).
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
-  !! Optimized version by Guenther Zaengl to process 4D fields or up to seven 3D fields
-  !! in one step
-  !! yaxt version by Moritz Hanke, April 2016
   !!
   SUBROUTINE exchange_data_mult_dp_bottom(p_pat, cpy_size, nlev, needs_cpy, &
     recv, send, nshift)
@@ -1978,17 +1940,9 @@ END SUBROUTINE exchange_data_mult_dp_top
 #endif
   END SUBROUTINE exchange_data_mult_dp_bottom
 
-  !>
-!! Does data exchange according to a communication pattern (in p_pat).
-!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! Optimized version by Guenther Zaengl to process 4D fields or up to seven 3D fields
-!! in one step
-!! yaxt version by Moritz Hanke, April 2016
-!!
-SUBROUTINE exchange_data_mult_sp(p_pat, ndim2tot, &
+  !! Does data exchange according to a communication pattern (in p_pat).
+  !!
+  SUBROUTINE exchange_data_mult_sp(p_pat, ndim2tot, &
    recv, send, nshift)
 
    CLASS(t_comm_pattern_yaxt), INTENT(INOUT) :: p_pat
@@ -2072,15 +2026,7 @@ SUBROUTINE exchange_data_mult_sp(p_pat, ndim2tot, &
 
 END SUBROUTINE exchange_data_mult_sp
 
-  !>
   !! Does data exchange according to a communication pattern (in p_pat).
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
-  !! Optimized version by Guenther Zaengl to process 4D fields or up to seven 3D fields
-  !! in one step
-  !! yaxt version by Moritz Hanke, April 2016
   !!
   SUBROUTINE exchange_data_mult_sp_bottom(p_pat, cpy_size, nlev, needs_cpy, &
     recv, send, nshift)
@@ -2256,15 +2202,7 @@ END SUBROUTINE exchange_data_mult_sp
 #endif
   END SUBROUTINE exchange_data_mult_sp_bottom
 
-!>
 !! Does data exchange according to a communication pattern (in p_pat).
-!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! Optimized version by Guenther Zaengl to process 4D fields and 3D fields with either single
-!! precision or double precision
-!! yaxt version by Moritz Hanke, April 2016
 !!
 SUBROUTINE exchange_data_mult_mixprec(p_pat, nfields_dp, ndim2tot_dp, &
      nfields_sp, ndim2tot_sp, recv_dp, send_dp, recv_sp, send_sp, nshift)
@@ -2292,14 +2230,7 @@ SUBROUTINE exchange_data_mult_mixprec(p_pat, nfields_dp, ndim2tot_dp, &
 
 END SUBROUTINE exchange_data_mult_mixprec
 
-!>
 !! Does data exchange according to a communication pattern (in p_pat).
-!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! Optimized version by Guenther Zaengl to process a 4D field whose extra dimension
-!! is on the first index
 !!
 SUBROUTINE exchange_data_4de1(p_pat, nfields, ndim2tot, recv, send)
 
@@ -2534,15 +2465,7 @@ CONTAINS
 
 END SUBROUTINE exchange_data_4de1
 
-!>
 !! Does data exchange according to a communication pattern (in p_pat).
-!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! Optimized version by Guenther Zaengl to process up to two 4D fields or up to six 3D fields
-!! for an array-sized communication pattern (as needed for boundary interpolation) in one step
-!! yaxt version by Moritz Hanke, April 2016
 !!
 SUBROUTINE exchange_data_grf(p_pat_coll, nfields, ndim2tot, recv, send)
 
@@ -2732,14 +2655,9 @@ END SUBROUTINE exchange_data_grf
 !
 !
 
-!>
 !! Interface for 2D arrays for exchange_data.
 !!
 !! Just reshapes the arrays and calls exchange_data.
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! yaxt version by Moritz Hanke, April 2016
 !!
 !================================================================================================
 ! REAL SECTION ----------------------------------------------------------------------------------

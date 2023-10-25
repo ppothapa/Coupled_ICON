@@ -1,18 +1,17 @@
-!>
-!! Contains averaging and interpolation routines (ICON <--> FEM)
-!!
-!! @par Revision History
-!! Based on: *list modules which were used for this development*
-!! Developed  by Einar (2014), Vladimir (2015)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Contains averaging and interpolation routines (ICON <--> FEM)
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -53,9 +52,6 @@ CONTAINS
   !
   !> Convert to cartesian coordinates lat-lon velocity vector on cells centers
   !!
-  !! @par Revision History
-  !! Developed by Vladimir Lapin, MPI-M (2015-10-13)
-  !<Optimize:inUse>
   SUBROUTINE gvec2cvec_c_2d(patch_3d, gvec_u, gvec_v, cvec, use_acc)
 
     TYPE(t_patch_3d),TARGET, INTENT(in)       :: patch_3d
@@ -107,9 +103,6 @@ CONTAINS
   !
   !> Inverse of gvec2cvec_c_2d. Convert cc vector on cell centers to lat-lon
   !!
-  !! @par Revision History
-  !! Developed by Vladimir Lapin, MPI-M (2015-10-13)
-  !<Optimize:inUse>
   SUBROUTINE cvec2gvec_c_2d(patch_3d, cvec, gvec_u, gvec_v, use_acc)
 
     TYPE(t_patch_3d),TARGET, INTENT(in)       :: patch_3d
@@ -163,9 +156,6 @@ CONTAINS
   !
   !> Rotate cartesian velocity vector on verts to the rotated FEM grid
   !!
-  !! @par Revision History
-  !! Developed by Vladimir Lapin, MPI-M (2015-10-25)
-  !<Optimize:inUse>
   SUBROUTINE rotate_cvec_v(p_patch, cvec_in, rot_mat_3D, cvec_out, use_acc)
 
     TYPE(t_patch), TARGET, INTENT(in)         :: p_patch
@@ -211,9 +201,6 @@ CONTAINS
   !
   !> Convert cartesian velocity vector to lat-lon vector (on the FEM grid)
   !!
-  !! @par Revision History
-  !! Developed by Vladimir Lapin, MPI-M (2015-10-25)
-  !
   SUBROUTINE cvec2gvec_v_fem(p_patch, cvec, gvec_u, gvec_v, use_acc)
 
     USE mo_ice_fem_mesh,           ONLY: coord_nod2D
@@ -265,9 +252,6 @@ CONTAINS
   !
   !> Inverse of cvec2gvec_v_fem. Convert lat-lon vector to cartesian (on the FEM grid)
   !!
-  !! @par Revision History
-  !! Developed by Vladimir Lapin, MPI-M (2015-10-25)
-  !
   SUBROUTINE gvec2cvec_v_fem(p_patch, gvec_u, gvec_v, cvec, use_acc)
 
     USE mo_ice_fem_mesh,           ONLY: coord_nod2D
@@ -320,10 +304,6 @@ CONTAINS
   !! Based on map_edges2vert_3d in ocean/math/mo_ocean_math_operators.f90
   !!      and edges2verts_scalar in shr_horizontal/mo_icon_interpolation_scalar.f90
   !!
-  !! @par Revision History
-  !! Developed by Einar Olason, MPI-M (2013-08-05)
-  !! Modified by Vladimir Lapin, MPI-M (2015-10-13)
-  !<Optimize:inUse>
   SUBROUTINE map_edges2verts(p_patch, vn, edge2vert_coeff_cc, p_vn_dual, use_acc)
 
     TYPE(t_patch), TARGET, INTENT(in)         :: p_patch
@@ -387,9 +367,6 @@ CONTAINS
   !> Map vectors from vertices to edges
   !! Based on ideas from rot_vertex_ocean_3d in ocean/math/mo_ocean_math_operators.f90
   !!
-  !! @par Revision History
-  !! Developed by Vladimir Lapin, MPI-M (2015-08-13)
-  !<Optimize:inUse>
   SUBROUTINE map_verts2edges(p_patch, p_vn_dual, edge2vert_coeff_cc_t, vn, use_acc)
 
     TYPE(t_patch), TARGET, INTENT(in)        :: p_patch
@@ -462,10 +439,6 @@ CONTAINS
 !! use_duplicated_connectivity = .TRUE. See CALL move_dummies_to_end_idxblk in subroutine complete_patches
 !!
 !! Usage is depriciated.
-!!
-!! @par Revision History
-!! Added by Vladimir Lapin, MPI-M (2015-08-13)
-
 !!
 SUBROUTINE cells2verts_scalar_seaice( p_cell_in, ptr_patch, c_int, p_vert_out,  &
   &                            opt_slev, opt_elev, opt_rlstart, opt_rlend, use_acc )

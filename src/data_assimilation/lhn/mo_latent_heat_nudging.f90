@@ -1,5 +1,16 @@
-!+ Module for latent heat nudging 
-!-------------------------------------------------------------------------------
+! Module for latent heat nudging!!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -7,49 +18,49 @@
 MODULE mo_latent_heat_nudging
 
 !-------------------------------------------------------------------------------
-!>
-!! Description:
-!!   The module "lheat_nudge" performs the latent heat nudging (lhn).
-!!   The lhn adds temperature increments to the prognostic variable t
-!!   so that the total temperature increase due to latent heat release
-!!   in the current timestep corresponds to the amount of analyzed
-!!   (or observed) precipitation.
-!!   The temperature increments added due to lhn are derived from the 
-!!   model heating rate profiles (large scale condensation and convective 
-!!   heating) scaled by the ratio of analyzed to modelled precipitation
-!!   (total precipitation: rain and snow from large scale and 
-!!   convective processes). The analyzed precipitation is based on radar
-!!   data merged with the model (total) precipitation fields.
-!!    
-!!   The module contains as an organizational unit the subroutine
-!!   "organize_lhn" which is called from the module organize_assimilation_config(jg).
-!!   Further module procedures (subroutines) called by organize_lhn:
-!!   -> lhn_obs_prep : reading+preparing the precip radar data
-!!      |
-!!      |--> lhn_obs_open  : open the radar data file and read general header
-!!      |--> lhn_obs_read  : read a record (header + data) from radar data file
-!!      |--> distribute_field : distribute field to all PE's
-!!
-!!   -> lhn_skill_scores   : verification of precipitation model against radar
-!!
-!!   -> lhn_t_inc  : derivation of temperature increments by scaling of
-!!      |           model latent heating profiles 
-!!      |--> assimilation_config(jg)%lhn_artif     : apply artificial profile
-!!      |--> assimilation_config(jg)%lhn_filt      : vertical filtering of local ttend_lhn profile
-!!      |--> assimilation_config(jg)%lhn_limit     : limiting of the ttend_lhn
-!!      |--> assimilation_config(jg)%lhn_relax     : horizontal filtering of ttend_lhn
-!!           |--> hor_filt
-!!                |--> init_horizontal_filtering
-!!                |--> horizontal_filtering
-!!                |--> exchange_boundaries
-!!   -> lhn_q_inc  : adjust humidity (i.e. qv) to new temperature (t+ttend_lhn)
-!!
-!!   Note: The names of input/output variables/arrays defined only once 
-!!         in the module declaration section but used and "filled" by the 
-!!         different subroutines are documented in the description parts
-!!         of each procedure for clarity.
-!!
-!===============================================================================
+!
+! Description:
+!   The module "lheat_nudge" performs the latent heat nudging (lhn).
+!   The lhn adds temperature increments to the prognostic variable t
+!   so that the total temperature increase due to latent heat release
+!   in the current timestep corresponds to the amount of analyzed
+!   (or observed) precipitation.
+!   The temperature increments added due to lhn are derived from the 
+!   model heating rate profiles (large scale condensation and convective 
+!   heating) scaled by the ratio of analyzed to modelled precipitation
+!   (total precipitation: rain and snow from large scale and 
+!   convective processes). The analyzed precipitation is based on radar
+!   data merged with the model (total) precipitation fields.
+!    
+!   The module contains as an organizational unit the subroutine
+!   "organize_lhn" which is called from the module organize_assimilation_config(jg).
+!   Further module procedures (subroutines) called by organize_lhn:
+!   -> lhn_obs_prep : reading+preparing the precip radar data
+!      |
+!      |--> lhn_obs_open  : open the radar data file and read general header
+!      |--> lhn_obs_read  : read a record (header + data) from radar data file
+!      |--> distribute_field : distribute field to all PE's
+!
+!   -> lhn_skill_scores   : verification of precipitation model against radar
+!
+!   -> lhn_t_inc  : derivation of temperature increments by scaling of
+!      |           model latent heating profiles 
+!      |--> assimilation_config(jg)%lhn_artif     : apply artificial profile
+!      |--> assimilation_config(jg)%lhn_filt      : vertical filtering of local ttend_lhn profile
+!      |--> assimilation_config(jg)%lhn_limit     : limiting of the ttend_lhn
+!      |--> assimilation_config(jg)%lhn_relax     : horizontal filtering of ttend_lhn
+!           |--> hor_filt
+!                |--> init_horizontal_filtering
+!                |--> horizontal_filtering
+!                |--> exchange_boundaries
+!   -> lhn_q_inc  : adjust humidity (i.e. qv) to new temperature (t+ttend_lhn)
+!
+!   Note: The names of input/output variables/arrays defined only once 
+!         in the module declaration section but used and "filled" by the 
+!         different subroutines are documented in the description parts
+!         of each procedure for clarity.
+!
+!-------------------------------------------------------------------------------
 
 ! Modules used:
 

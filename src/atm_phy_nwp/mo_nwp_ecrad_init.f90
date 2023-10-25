@@ -1,37 +1,36 @@
-!>
-!! In this module the configuration state for the ecRad radiation code is being set up.
-!!
-!! - Setup information is stored inside the object ecrad_conf of the derived type t_ecrad_conf
-!!   containing all the configuration information needed to run the radiation scheme.
-!! - The intention is that this part of the configuration is fixed for a given model run.
-!! - ICON namelist settings are translated to ecRad conform settings, if unsupported values
-!!   are provided via namelist, the user gets an error. (These values should already be
-!!   checked by the nml_crosscheck)
-!! - Currently, only the McICA Solver is supported.
-!! - Please note that only a subset of the available configuration options of ecRad is
-!!   filled by this routine. E.g., options only connected to the SPARTACUS Solver are 
-!!   currently not changed from the default as the SPARTACUS Solver was not tested in
-!!   ICON so far. For a full list of ecRad settings, please have a look at
-!!   externals/ecrad/radiation/radiation_config.F90
-!!
-!! @author Daniel Rieger, Deutscher Wetterdienst, Offenbach
-!!
-!! @par Revision History
-!! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-01-31)
-!! Add nir and vis weightings by Roland Wirth, Deutscher Wetterdienst, Offenbach (2021-09-15)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! In this module the configuration state for the ecRad radiation code is being set up.
+!
+! - Setup information is stored inside the object ecrad_conf of the derived type t_ecrad_conf
+!   containing all the configuration information needed to run the radiation scheme.
+! - The intention is that this part of the configuration is fixed for a given model run.
+! - ICON namelist settings are translated to ecRad conform settings, if unsupported values
+!   are provided via namelist, the user gets an error. (These values should already be
+!   checked by the nml_crosscheck)
+! - Currently, only the McICA Solver is supported.
+! - Please note that only a subset of the available configuration options of ecRad is
+!   filled by this routine. E.g., options only connected to the SPARTACUS Solver are
+!   currently not changed from the default as the SPARTACUS Solver was not tested in
+!   ICON so far. For a full list of ecRad settings, please have a look at
+!   externals/ecrad/radiation/radiation_config.F90
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
+
 MODULE mo_nwp_ecrad_init
 
   USE mo_kind,                 ONLY: wp
@@ -83,10 +82,6 @@ CONTAINS
 
 
   !---------------------------------------------------------------------------------------
-  !>
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-01-31)
-  !!
   SUBROUTINE setup_ecrad ( p_patch, ecrad_conf, ini_date )
 
     CHARACTER(len=*), PARAMETER :: routine = modname//'::setup_ecrad'

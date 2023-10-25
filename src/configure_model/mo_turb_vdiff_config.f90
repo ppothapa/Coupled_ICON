@@ -1,29 +1,24 @@
-!>
-!! Configuration structure for the VDIFF turbulence scheme.
-!!
-!! @author Marco Giorgetta, MPI-M
-!! @author Roland Wirth, DWD
-!!
-!! @par Revision History
-!! 2017-04, Marco Giorgetta (MPI-M), First revision
-!! 2021-07, Roland Wirth (DWD), Adapted from ICON-ECHAM
-!!
-!! References:
-!!     Angevine, W. M., Jiang, H., & Mauritsen T. (2010).
-!!           Performance of an eddy diffusivity mass flux scheme for shallow cumulus boundary layers.
-!!           Monthly Weather Review, 138(7), 2895-2912. https://doi.org/10.1175/2010MWR3142.1
-!!     Mauritsen, T., & Svensson, G. (2007).
-!!           Observations of stably stratified shear-driven atmospheric turbulence at low and high Richardson numbers.
-!!           Journal of the Atmospheric Sciences, 64(2), 645-655. https://doi.org/10.1175/JAS3856.1
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Configuration structure for the VDIFF turbulence scheme.
+!
+! References:
+!     Angevine, W. M., Jiang, H., & Mauritsen T. (2010).
+!           Performance of an eddy diffusivity mass flux scheme for shallow cumulus boundary layers.
+!           Monthly Weather Review, 138(7), 2895-2912. https://doi.org/10.1175/2010MWR3142.1
+!     Mauritsen, T., & Svensson, G. (2007).
+!           Observations of stably stratified shear-driven atmospheric turbulence at low and high Richardson numbers.
+!           Journal of the Atmospheric Sciences, 64(2), 645-655. https://doi.org/10.1175/JAS3856.1
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_turb_vdiff_config
   USE mo_kind, ONLY: wp
   USE mo_exception, ONLY: message, finish

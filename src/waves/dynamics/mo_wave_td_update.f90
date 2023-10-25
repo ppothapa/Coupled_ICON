@@ -1,20 +1,18 @@
-!! Contains the subroutines for updating time-dependent
-!! wave physics parameters
-!!
-!! @author Mikhail Dobrynin
+! Contains the subroutines for updating time-dependent
+! wave physics parameters
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
-
-!! Revision History
-!! Initial revision by Mikhail Dobrynin, DWD  (2023.06.05)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -46,9 +44,6 @@ CONTAINS
   !! calculate bathymetry gradient
   !!
   !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2023-06-05)
-  !!
   SUBROUTINE update_bathymetry_gradient(p_patch, p_int_state, bathymetry_c, geo_bath_grad_c)
 
     TYPE(t_patch),     INTENT(IN)    :: p_patch
@@ -72,10 +67,6 @@ CONTAINS
 
   !>
   !! calculate wind speed and direction (deg) from U and V
-  !!
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2023-06-05)
   !!
   SUBROUTINE update_wind_speed_and_direction(p_patch, u10, v10, wsp, wdir)
 
@@ -125,8 +116,6 @@ CONTAINS
   !! Set the ice-free mask to 1
   !! if the sea ice concentration less than the threshold value trhl_ice
   !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2023-05-31)
   SUBROUTINE update_ice_free_mask(p_patch, sea_ice_c, ice_free_mask)
 
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &

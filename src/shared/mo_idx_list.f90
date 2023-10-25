@@ -1,23 +1,17 @@
-!>
-!! Basic derived types for blocked and non-blocked index lists.
-!!
-!! Basic derived types for blocked and non-blocked 1D index lists.
-!!
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2019-12-03)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Basic derived types for blocked and non-blocked 1D index lists.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_idx_list
 
   USE mo_impl_constants,      ONLY: MAX_CHAR_LENGTH, SUCCESS
@@ -91,14 +85,7 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
-  !! Allocate object components
-  !!
   !! Allocates all components of the object of type t_idx_list1D
-  !!
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2019-11-22)
   !!
   SUBROUTINE idx_list1D__construct(obj, size, lopenacc)
     CLASS(t_idx_list1D) :: obj
@@ -134,14 +121,7 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
-  !! Deallocate object components
-  !!
   !! Deallocates all components of the object of type t_idx_list1D
-  !!
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2019-11-22)
   !!
   SUBROUTINE idx_list1D__finalize(obj)
     CLASS(t_idx_list1D) :: obj
@@ -162,12 +142,7 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! Convert non-blocked 1D index list into blocked list
-  !!
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2019-11-22)
   !!
   SUBROUTINE idx_list1D__get_blocked_list(obj, list1D_blocked)
     CLASS(t_idx_list1D) :: obj
@@ -191,12 +166,7 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! Allocates all components of the object of type t_idx_list_blocked
-  !!
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2019-11-22)
   !!
   SUBROUTINE idx_list_blocked__construct(obj, nproma, nblks, lopenacc)
     CLASS(t_idx_list_blocked) :: obj
@@ -234,14 +204,7 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
-  !! Deallocate object components
-  !!
   !! Deallocates all components of the object of type t_idx_list_blocked
-  !!
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2019-11-22)
   !!
   SUBROUTINE idx_list_blocked__finalize(obj)
     CLASS(t_idx_list_blocked) :: obj
@@ -263,12 +226,7 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! Get non-blocked 1D list from blocked list of type t_idx_list_blocked
-  !!
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2019-11-22)
   !!
   SUBROUTINE idx_list_blocked__get_list1D(obj, list1D)
     CLASS(t_idx_list_blocked)          :: obj
@@ -298,12 +256,7 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! Get global sum of points in index list
-  !!
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2019-11-22)
   !!
   FUNCTION idx_list_blocked__get_sum_global(obj, opt_startblk, opt_endblk) RESULT(ncount_global)
     CLASS(t_idx_list_blocked)     :: obj
@@ -336,12 +289,8 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! Copies traditional blocked index list (consisting of 2 integer arrays) 
   !! to blocked list of type t_idx_list_blocked
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2019-11-22)
   !!
   SUBROUTINE copy_list_blocked(source_list, source_count, target_list)
 
@@ -367,7 +316,6 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! Compares 2 sorted lists of type t_idx_list1D and groups  
   !! the elements into the following three sublists 
   !! list_intersect: elements which exist in both lists
@@ -375,9 +323,6 @@ CONTAINS
   !! list2_only    : elements which exist in list 2 only
   !!
   !! Output: sublists of type t_idx_list1D (i.e. non-blocked)
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2019-11-22)
   !!
   SUBROUTINE compare_sorted_1Dlists(list1, list2, list_intersect, &
     &                               list1_only, list2_only)
@@ -470,8 +415,6 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
-  !!
   !! Wrapper routine for compare_sorted_1Dlists, which reads and writes 
   !! blocked lists and performs sorting.
   !!
@@ -486,9 +429,6 @@ CONTAINS
   !! 2) sort lists using the quicksort/radixsort algorithm
   !! 3) compare the two lists and group the elements into 3 sublists
   !! 4) transform the sublists back into blocked lists
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2019-11-22)
   !!
   SUBROUTINE compare_sets(p_patch, list1, list2, list_intersect, &
     &                     list1_only, list2_only)

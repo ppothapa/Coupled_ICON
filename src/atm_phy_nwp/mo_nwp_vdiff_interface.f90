@@ -1,20 +1,16 @@
-!>
-!! Interface to the VDIFF turbulence scheme and JSBACH land-surface scheme.
-!!
-!! @author Roland Wirth, DWD
-!!
-!! @par Revision History
-!! Initial revision by Roland Wirth, DWD (2021-07)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Interface to the VDIFF turbulence scheme and JSBACH land-surface scheme.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_nwp_vdiff_interface
 
@@ -110,9 +106,6 @@ CONTAINS
   !! forward in time, and calls the LSS and a sea scheme to provide the surface boundary
   !! conditions. The routine then solves the linear system and computes tendencies. It also
   !! provides surface temperatures and albedos, as well as latent and sensible heat fluxes.
-  !!
-  !! @par Revision History
-  !! Initial revision by Roland Wirth, DWD (2020-08)
   !!
   SUBROUTINE nwp_vdiff ( &
         & datetime_now, delta_time, patch, ccycle_config, vdiff_config, nh_prog, nh_prog_rcf, &

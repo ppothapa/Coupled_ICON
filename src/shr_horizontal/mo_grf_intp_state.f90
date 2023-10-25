@@ -1,3 +1,19 @@
+! Contains the interpolation routines needed for grid refinement.
+!
+! These had originally been included in mo_grf_interpolation but then were
+! packed into a separate module to clean up the code
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 ! #ifdef __xlC__
 ! @PROCESS HOT
@@ -5,28 +21,7 @@
 #ifdef __PGI
 !pgi$g opt=1
 #endif
-!>
-!! Contains the interpolation routines needed for grid refinement.
-!!
-!! These had originally been included in mo_grf_interpolation but then were
-!! packed into a separate module to clean up the code
-!!
-!! @par Revision History
-!! Created by Guenther Zaengl, DWD (2009-02-09)
-!! Modification by Guenther Zaengl, DWD (2009-06-22)
-!! - preparation for generalized grid refinement (affects all subroutines)
-!! Modification by Constantin Junk, MPI-M (2011-05-05)
-!! - moved setup_gridref to mo_gridref_nml
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+
 MODULE mo_grf_intp_state
 !-------------------------------------------------------------------------
 !
@@ -86,12 +81,7 @@ CONTAINS
 
 !-------------------------------------------------------------------------
 !
-!
-!>
 !! Allocation of fields needed for grid refinement.
-!!
-!! @par Revision History
-!! Split off from construct_2d_gridref_state, Rainer Johanni (2010-10-29)
 !!
 SUBROUTINE allocate_grf_state( ptr_patch, ptr_grf )
 !
@@ -310,15 +300,9 @@ END SUBROUTINE allocate_grf_state
 
 !-------------------------------------------------------------------------
 !
-!
-!>
-!!               Allocation of fields needed for grid refinement.
+!! Allocation of fields needed for grid refinement.
 !!
-!!               Initialization of components.
-!!
-!! @par Revision History
-!! Created  by  Guenther Zaengl, DWD (2009-02-11).
-!! Modified by Rainer Johanni (2010-10-29): split out allocation
+!! Initialization of components.
 !!
 SUBROUTINE construct_2d_gridref_state( p_patch, p_patch_local_parent, &
   &                                    p_grf_state, p_grf_state_local_parent )
@@ -400,12 +384,8 @@ ELEMENTAL INTEGER FUNCTION glb_idx_1d_e(p_p, idx, blk)
 END FUNCTION glb_idx_1d_e
 !-------------------------------------------------------------------------
 !!
-!>
-!!  Transfers interpolation state from local parent to global parent
-!!  Some variables have to be transferred the other way round - see below
-!!
-!! @par Revision History
-!! Created by Rainer Johanni (2011-10-26)
+!! Transfers interpolation state from local parent to global parent
+!! Some variables have to be transferred the other way round - see below
 !!
 SUBROUTINE transfer_grf_state(p_p, p_lp, p_grf, p_lgrf, jcd)
 !
@@ -827,13 +807,8 @@ END FUNCTION vec_ubc_select_func
 
 !-------------------------------------------------------------------------
 !
-!
-!>
 !! Creates index lists for lateral/upper boundary interpolation needed to
 !! get rid of the grid point reordering in the parent domain
-!!
-!! @par Revision History
-!! Initial version by Guenther Zaengl, DWD (2013-07-10)
 !!
 SUBROUTINE create_grf_index_lists( p_patch_all, p_grf_state, p_int_state )
   !
@@ -1851,13 +1826,7 @@ END SUBROUTINE destruct_interpol_patterns
 
 !-------------------------------------------------------------------------
 !
-!
-!>
 !! Deallocation of fields needed for grid refinement for a single state.
-!!
-!!
-!! @par Revision History
-!! Split off from destruct_2d_interpol_state, Rainer Johanni (2010-10-29)
 !!
 SUBROUTINE deallocate_grf_state( ptr_patch, ptr_grf )
 !
@@ -2010,13 +1979,7 @@ END SUBROUTINE deallocate_grf_state
 
 !-------------------------------------------------------------------------
 !
-!
-!>
-!!               Deallocation of fields needed for grid refinement.
-!!
-!!
-!! @par Revision History
-!! Created  by  Guenther Zaengl, DWD (2009-02-11).
+!! Deallocation of fields needed for grid refinement.
 !!
 SUBROUTINE destruct_2d_gridref_state( p_patch, p_patch_local_parent, p_grf_state, &
   &                                   p_grf_state_local_parent )

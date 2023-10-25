@@ -1,42 +1,36 @@
-!>
-!! Soil Vegetation Atmosphere Transfer (SVAT) scheme TERRA
-!! Source Module  "sfc_terra.f90"
-!! "Nihil in TERRA sine causa fit." (Cicero)
-!!------------------------------------------------------------------------------
-!!-----------------------------------------------------------------------------
-!!
-!! @par Description:
-!!   The module "sfc_terra.f90" performs calculations related to the
-!!   parameterization of soil processes. It contains the subroutine terra, which 
-!!   is the combination of the former parts terra1 and terra2 of the COSMO-Model.
-!!
-!!   All parametric scalar and array data for this soil model routine are
-!!   defined in the data module sfc_terra_data.f90.
-!!   All global fields that are used by the soil model are passed through the
-!!   argument list.
-!!   All global scalar variables of the model that are used by the soil model 
-!!   routine terra are imported by USE statements below.
-!!
-!! @author E. Heise, R. Schrodin, B. Ritter
-!! @author E. Machulskaya, F. Ament, J. Helmert
-!!
-!! @par reference   This is an adaptation of subroutine terra_multlay in file
-!!  src_soil_multlay.f90 of the lm_f90 library (COSMO code). Equation numbers refer to
-!!  Doms, Foerstner, Heise, Herzog, Raschendorfer, Schrodin, Reinhardt, Vogel
-!!    (September 2005): "A Description of the Nonhydrostatic Regional Model LM",
-!!
-!! @par Revision History
-!! implemented into ICON by K. Froehlich, E. Machulskaya, and J. Helmert (2010-11-XX)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!==============================================================================
+! Soil Vegetation Atmosphere Transfer (SVAT) scheme TERRA
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+!
+! Source Module  "sfc_terra.f90"
+! "Nihil in TERRA sine causa fit." (Cicero)!!
+!
+! @par Description:
+!   The module "sfc_terra.f90" performs calculations related to the
+!   parameterization of soil processes. It contains the subroutine terra, which
+!   is the combination of the former parts terra1 and terra2 of the COSMO-Model.
+!
+!   All parametric scalar and array data for this soil model routine are
+!   defined in the data module sfc_terra_data.f90.
+!   All global fields that are used by the soil model are passed through the
+!   argument list.
+!   All global scalar variables of the model that are used by the soil model
+!   routine terra are imported by USE statements below.
+!
+! @par reference   This is an adaptation of subroutine terra_multlay in file
+!  src_soil_multlay.f90 of the lm_f90 library (COSMO code). Equation numbers refer to
+!  Doms, Foerstner, Heise, Herzog, Raschendorfer, Schrodin, Reinhardt, Vogel
+!    (September 2005): "A Description of the Nonhydrostatic Regional Model LM",
 
 MODULE sfc_terra
 

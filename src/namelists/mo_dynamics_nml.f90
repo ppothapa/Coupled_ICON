@@ -1,18 +1,18 @@
-!>
-!! Namelist variables shared by the hydrostatic and nonhydrostatic
-!! dynamical cores
-!!        
-!! @par Revision History
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Namelist variables shared by the hydrostatic and nonhydrostatic
+! dynamical cores
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_dynamics_nml
 
   USE mo_dynamics_config,     ONLY: config_iequations     => iequations,     &

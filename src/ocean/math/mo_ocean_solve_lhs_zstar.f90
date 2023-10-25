@@ -1,8 +1,19 @@
-  MODULE mo_surface_height_lhs_zstar
+! contains extended lhs-matrix-generator type
+! provides surface height lhs for free ocean surface solve
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
-    ! contains extended lhs-matrix-generator type
-    ! provides surface height lhs for free ocean surface solve
-   
+MODULE mo_surface_height_lhs_zstar
+
     USE mo_kind, ONLY: wp
     USE mo_exception, ONLY: finish
     USE mo_ocean_solve_lhs_type, ONLY: t_lhs_agen

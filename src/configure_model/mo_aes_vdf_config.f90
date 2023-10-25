@@ -1,32 +1,25 @@
-!>
-!! Configuration of the parameterization for vertical diffusion,
-!! that is used in the AES physics package.
-!!
-!! @author Marco Giorgetta, MPI-M
-!!
-!! @par Revision History
-!! First version by Marco Giorgetta, MPI-M (2017-04)
-!! Exracted VDIFF into separate module by Roland Wirth, DWD (2021-07)
-!!
-!! Based on earlier codes of:
-!!     ...
-!!
-!! References:
-!!     Angevine, W. M., Jiang, H., & Mauritsen T. (2010).
-!!           Performance of an eddy diffusivity- mass flux scheme for shallow cumulus boundary layers.
-!!           Monthly Weather Review, 138(7), 2895-2912. https://doi.org/10.1175/2010MWR3142.1
-!!     Mauritsen, T., & Svensson, G. (2007).
-!!           Observations of stably stratified shear-driven atmospheric turbulence at low and high Richardson numbers.
-!!           Journal of the Atmospheric Sciences, 64(2), 645-655. https://doi.org/10.1175/JAS3856.1
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Configuration of the parameterization for vertical diffusion,
+! that is used in the AES physics package.
+!
+! References:
+!     Angevine, W. M., Jiang, H., & Mauritsen T. (2010).
+!           Performance of an eddy diffusivity- mass flux scheme for shallow cumulus boundary layers.
+!           Monthly Weather Review, 138(7), 2895-2912. https://doi.org/10.1175/2010MWR3142.1
+!     Mauritsen, T., & Svensson, G. (2007).
+!           Observations of stably stratified shear-driven atmospheric turbulence at low and high Richardson numbers.
+!           Journal of the Atmospheric Sciences, 64(2), 645-655. https://doi.org/10.1175/JAS3856.1
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_aes_vdf_config
 
   USE mo_turb_vdiff_config    ,ONLY: t_vdiff_config, vdiff_config_init, &

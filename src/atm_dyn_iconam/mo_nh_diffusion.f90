@@ -1,24 +1,20 @@
-!>
-!! mo_nh_diffusion
-!!
-!! Diffusion in the nonhydrostatic model
-!!
-!! @author Almut Gassmann, MPI-M
-!!
-!!
-!! @par Revision History
-!! Initial release by Almut Gassmann, MPI-M (2009-08.25)
-!! Modification by William Sawyer, CSCS (2015-02-06)
-!! - OpenACC implementation
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! mo_nh_diffusion
+!
+! Diffusion in the nonhydrostatic model
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -85,10 +81,6 @@ MODULE mo_nh_diffusion
   !! diffusion
   !!
   !! Computes the horizontal diffusion of velocity and temperature
-  !!
-  !! @par Revision History
-  !! Initial release by Guenther Zaengl, DWD (2010-10-13), based on an earlier
-  !! version initially developed by Almut Gassmann, MPI-M
   !!
   SUBROUTINE  diffusion(p_nh_prog,p_nh_diag,p_nh_metrics,p_patch,p_int,dtime,linit)
 

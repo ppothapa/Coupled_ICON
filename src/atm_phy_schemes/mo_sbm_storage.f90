@@ -1,26 +1,20 @@
-!>
-!! Additional storage for Spectral Bin Microphysics (SBM)
-!!
-!!
-!! Stores temperature and humidity fields, which are specific to the
-!! Spectral Bin Microphysics scheme.
-!!
-!! @author Daniel Reinert, DWD
-!! @author Pavel Khain, IMS
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2023-07-12)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Additional storage for Spectral Bin Microphysics (SBM)
+!
+! Stores temperature and humidity fields, which are specific to the
+! Spectral Bin Microphysics scheme.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_sbm_storage
 
   USE mo_kind,                    ONLY: wp
@@ -88,9 +82,6 @@ CONTAINS
   !>
   !! Constructor for SBM storage
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2023-07-12)
-  !!
   SUBROUTINE construct_sbm_storage (p_patch)
 
     TYPE(t_patch), INTENT(in) :: p_patch(:)
@@ -123,9 +114,6 @@ CONTAINS
   !>
   !! Destructor for SBM storage
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2023-07-12)
-  !!
   SUBROUTINE destruct_sbm_storage ()
 
     ! local variables
@@ -152,9 +140,6 @@ CONTAINS
 
   !>
   !! Constructor for SBM storage
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2023-07-12)
   !!
   SUBROUTINE new_sbm_storage_list( p_patch, listname, sbm_storage_list, sbm_storage)
 

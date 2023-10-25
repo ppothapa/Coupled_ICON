@@ -1,8 +1,5 @@
 ! This code is part of Radiative Transfer for Energetics (RTE)
 !
-! Contacts: Robert Pincus and Eli Mlawer
-! email:  rrtmgp@aer.com
-!
 ! Copyright 2015-2018,  Atmospheric and Environmental Research and
 ! Regents of the University of Colorado.  All right reserved.
 !
@@ -17,6 +14,17 @@
 !
 ! The class can be used as-is but is also intended as an example of how to extend the RTE framework
 ! -------------------------------------------------------------------------------------------------
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 module mo_cloud_optics
   use mo_rte_kind,      only: wp, wl
@@ -149,7 +157,7 @@ contains
              this%lut_asyice(nsize_ice, nbnd, nrghice))
 
     !$ACC ENTER DATA CREATE(this)
-    
+
     !$ACC ENTER DATA CREATE(this%lut_extliq, this%lut_ssaliq, this%lut_asyliq) &
     !$ACC   CREATE(this%lut_extice, this%lut_ssaice, this%lut_asyice)
     ! Load LUT constants

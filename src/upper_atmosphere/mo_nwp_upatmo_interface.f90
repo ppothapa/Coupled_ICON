@@ -1,27 +1,24 @@
-!>
-!! Interface between 'src/atm_phy_nwp/mo_nh_interface_nwp: nwp_nh_interface' 
-!! and the schemes of upper-atmosphere physics in 'src/upper_atmosphere' 
-!!
-!! @author Sebastian Borchert (DWD)
-!!
-!! @par Revision History
-!! Initial revision by Guidi Zhou, MPI-M, 2015/2016
-!! - Development of upper-atmosphere physics interface for ICON-ECHAM
-!! Modified by Sebastian Borchert, DWD, 2016-08-02
-!! - Copy and adjustment for ICON-NWP
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Interface between 'src/atm_phy_nwp/mo_nh_interface_nwp: nwp_nh_interface'
+! and the schemes of upper-atmosphere physics in 'src/upper_atmosphere'
+!
+!----------------------------
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
-!
+
 MODULE mo_nwp_upatmo_interface
 
   USE mo_kind,                   ONLY: wp, vp
@@ -102,9 +99,6 @@ CONTAINS
 
   !>
   !! Upper-atmosphere-to-NWP interface.
-  !!
-  !! @par Revision History
-  !! Initial revision by Guidi Zhou (MPI-M) and Sebastian Borchert (DWD) (2016-08-02)
   !!
   SUBROUTINE nwp_upatmo_interface( dt_loc,         &  !in
     &                              mtime_datetime, &  !in
@@ -1451,9 +1445,6 @@ CONTAINS
 
   !>
   !! Interface to accumulate the upper-atmosphere physics tendencies.
-  !!
-  !! @par Revision History
-  !! Initial revision by Guidi Zhou (MPI-M) and Sebastian Borchert (DWD) (2016-08-02)
   !!
   SUBROUTINE nwp_upatmo_update( lslowphys,       &  !in
     &                           lradheat,        &  !in

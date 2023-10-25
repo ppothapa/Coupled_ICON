@@ -1,26 +1,16 @@
-!>
-!! Utility routines related to the TERRA surface model
-!!
-!! @author <NAME>, <AFFILIATION>
-!!
-!!
-!! @par Revision History
-!!
-!! Initial release by <NAME>, <AFFILIATION>  (YYYY-MM-DD)
-!!
-!! Modifications by Dmitrii Mironov, DWD (2016-08-02)
-!! - Changes related to the use of a rate equation 
-!!   for the sea-ice albedo.
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Utility routines related to the TERRA surface model
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -121,9 +111,6 @@ CONTAINS
   !! prognostic results. It is, however, necessary in order to minimize 
   !! GRIB truncation errors.
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2018-02-23)
-  !!
   SUBROUTINE init_lamlatbc_phys (p_patch, p_prog_lnd_now, p_prog_lnd_new, p_lnd_diag)
 
     TYPE(t_patch)     , INTENT(IN)    :: p_patch       ! patch info
@@ -179,21 +166,7 @@ CONTAINS
   END SUBROUTINE init_lamlatbc_phys
 
   !-------------------------------------------------------------------------
-  !>
   !! Init surface model TERRA, lake model Flake and seaice model
-  !!
-  !! Init surface model TERRA, lake model Flake and seaice model
-  !!
-  !! @par Revision History
-  !! Initial revision by Ekaterina Machulskaya, DWD (2011-07-??)
-  !! Modification by Daniel Reinert, DWD (2011-07-29)
-  !! - initialize climatological layer t_so(nlev_soil+1)
-  !! Modification by Daniel Reinert, DWD (2012-08-31)
-  !! - initialize sea-ice model
-  !! Modifications by Dmitrii Mironov, DWD (2016-08-04)
-  !! - Call to "seaice_init_nwp" is modified with due regard for
-  !!   prognostic treatment of the sea-ice albedo.
-  !!
   SUBROUTINE nwp_surface_init( p_patch, ext_data, p_prog_lnd_now,           &
     &                          p_prog_lnd_new, p_prog_wtr_now,              &
     &                          p_prog_wtr_new, p_lnd_diag, p_diag, prm_diag )
@@ -1166,11 +1139,7 @@ CONTAINS
 !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !>
   !! Agregate t_g and qv_s_t
-  !!
-  !! @par Revision History
-  !! Initial revision by P Ripodas, DWD (2012-12)
   !!
   !! Segregated from nwp_surface_init, to avoid recoding again
   !-------------------------------------------------------------------------
@@ -1268,12 +1237,7 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! Wrapper for computation of aggregated land variables
-  !!
-  !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD (2014-07-21)
   !!
   SUBROUTINE aggr_landvars(p_patch, ext_data, p_lnd_state, lacc)
 
@@ -1304,7 +1268,6 @@ CONTAINS
 
 !-------------------------------------------------------------------------
 
-  !>
   !! Aggregation of tile-specific, instantaneous soil and surface fields
   !!
   !! Please note that this routine is only called at output time steps 
@@ -1312,9 +1275,6 @@ CONTAINS
   !! of purely diagnostic instantaneous fields. I.e. the computation of 
   !! accumulated fields, or the aggregation of fields that enter the prognostic 
   !! computations is not allowed, as this will lead to erroneous results. 
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2018-02-23)
   !!
   SUBROUTINE aggregate_landvars( p_patch, ext_data, lnd_prog, lnd_diag, lacc )
 
@@ -1752,9 +1712,6 @@ CONTAINS
 
   !! Driver routine to (re-)initialize the snowtile index lists in the case of a restart
   !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD (2012-08-03)
-  !!
   SUBROUTINE init_snowtile_lists(p_patch, ext_data, p_lnd_diag)
 
     TYPE(t_patch), TARGET, INTENT(IN)    :: p_patch       !<grid/patch info.
@@ -1820,7 +1777,6 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! Initialize sea ice and open water index lists for restart and
   !! non-restart runs. Sea ice and open water points are distinguished
   !! based on fr_seaice, which is provided by external sources (e.g. analysis, ocean model, etc.).
@@ -1828,9 +1784,6 @@ CONTAINS
   !! Note that fr_seaice is potentially modified.
   !! For fr_seaice in ]0,frsi_min[, it is set to 0
   !! For fr_seaice in ]1-frsi_min,1[, it is set to 1.  
-  !!
-  !! @par Revision History
-  !! Initial version by Daniel Reinert, DWD (2012-08-03)
   !!
   SUBROUTINE init_sea_lists(p_patch, lseaice, fr_seaice, ext_data, opt_lverbose)
 
@@ -2168,16 +2121,11 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !
-  !
-  !>
   !! Updating of dynamic index lists
   !!
   !! Routine updates the following dynamic index lists (if required):
   !!
   !! - dynamic
-  !!
-  !! @par Revision History
-  !! Initial release by Guenther Zaengl, DWD (2012-07-01)
   !!
   SUBROUTINE update_idx_lists_lnd (idx_lst_lp, lp_count, idx_lst, gp_count, idx_lst_snow, &
     &             gp_count_snow, lc_frac, partial_frac, partial_frac_snow, snowtile_flag, &
@@ -2310,18 +2258,12 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !
-  !
-  !>
   !! Updating of dynamic index lists for sea points
   !!
   !! Routine updates the following dynamic index lists (if required):
   !!
   !! - dynamic open-water and sea-ice point index list, which are sub-index lists
   !!   of the static sea point index list list_sea
-  !!
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Reinert (2012-08-31)
   !!
   SUBROUTINE update_idx_lists_sea (hice_n, pres_sfc, list_seawtr_idx, list_seawtr_count,&
     &                              list_seaice_idx, list_seaice_count, frac_t_ice,      &
@@ -2607,7 +2549,6 @@ CONTAINS
   END SUBROUTINE update_idx_lists_sea
 
 
-  !>
   !> sstice_mode = MODE SSTICE_ANA_CLINC
   !!
   !! Climatological SST increments are computed, based on the climatological 
@@ -2618,11 +2559,6 @@ CONTAINS
   !! (t_g_t, t_s_t, t_sk_t). 
   !! Please note that the original SST field t_seasfc remains unchanged, i.e. 
   !! the SST increment is NOT added to t_seasfc.
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Reinert (2016-07-22)
-  !! Modification by Daniel Reinert (2022-04-26)
-  !! - moved to separate subroutine
   !!
   SUBROUTINE sst_add_climatological_incr (p_patch, ext_data, prog_lnd, diag_lnd, pres_sfc, &
     &                       ref_datetime, target_datetime)
@@ -2765,7 +2701,6 @@ CONTAINS
 
 
 
-  !>
   !> sstice_mode = SSTICE_INST, SSTICE_CLIM, SSTICE_AVG_MONTHLY, SSTICE_AVG_DAILY, 
   !!
   !! Processes the fields fr_seaice, t_seasfc and optionally h_ice, which are 
@@ -2780,12 +2715,6 @@ CONTAINS
   !! Updated fields: 
   !! general        : t_g_t, t_s_t, t_sk_t, qv_s_t
   !! seaice-specific: h_ice, t_ice, t_snow_si, h_snow_si, alb_si
-  !!
-  !!
-  !! @par Revision History
-  !! Initial release by Pilar Ripodas (2012-12)
-  !! Modification ba Daniel Reinert, DWD (2019-11-27)
-  !! - rewrite which bases upon comparison of sorted lists, rather than frac_t thresholds
   !!
   SUBROUTINE process_sst_and_seaice (p_patch, fr_seaice, t_seasfc, pres_sfc, ext_data,&
     &                               prog_lnd_now, prog_lnd_new, prog_wtr_now, prog_wtr_new, &
@@ -3254,7 +3183,6 @@ CONTAINS
   END SUBROUTINE process_sst_and_seaice
 
 
-  !>
   !! After updating the SST and sea ice fraction (from external files),
   !! the dynamic index lists for seaice and open water are re-generated.
   !! Based on these index lists several seaice and water-related fields are 
@@ -3262,10 +3190,6 @@ CONTAINS
   !! Updated fields: 
   !! general        : t_g_t, t_s_t, qv_s_t
   !! seaice-specific: h_ice, t_ice, t_snow_si, h_snow_si, alb_si
-  !!
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Reinert (2019-12-03)
   !!
   SUBROUTINE check_water_idx_lists(list_seaice_old, list_seaice_new, &
     &                              list_water_old, list_water_new, list_water_created, &
@@ -3405,10 +3329,6 @@ CONTAINS
   !!
   !! Update fields that depend on the actual ndvi ratio
   !!
-  !! @par Revision History
-  !! Initial release by Pilar Ripodas (2013-02)
-  !!
-  !!
   SUBROUTINE update_ndvi_dependent_fields( p_patch, ext_data, nh_diag )
 
     TYPE(t_patch)        , INTENT(IN)    :: p_patch
@@ -3527,14 +3447,10 @@ CONTAINS
 
 !-------------------------------------------------------------------------
   !-------------------------------------------------------------------------
-  !>
   !! Copies the tile-based prognostic land-state variables from time level now to 
   !! time level new. This has no relevance for the forecast results but
   !! avoids missing values when writing output at an odd integer multiple of the global
   !! physics time step
-  !!
-  !! @par Revision History
-  !! Initial revision by Guenther Zaengl, DWD (2014-06-02)
   !!
   !-------------------------------------------------------------------------
  
@@ -3609,13 +3525,7 @@ CONTAINS
   END SUBROUTINE copy_lnd_prog_now2new
 
 
-  !>
   !! Coldstart initialization of prognostic seaice albedo alb_si
-  !!
-  !! Coldstart initialization of prognostic seaice albedo alb_si
-  !! 
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2016-08-18)
   !!
   SUBROUTINE seaice_albedo_coldstart(p_patch, p_lnd_state, ext_data)
 

@@ -1,7 +1,6 @@
 !NEC$ options "-finline-max-depth=3 -finline-max-function-size=1000"
-!===============================================================================!
 !
-! Two-moment bulk microphysics by Axel Seifert, Klaus Beheng and Uli Blahak
+! Two-moment bulk microphysics after Seifert, Beheng and Blahak
 !
 ! Description:
 !
@@ -10,29 +9,24 @@
 ! of a particle undergoing riming, evaporation and collisions with
 ! other frozen particles. There is also code to write the table to a netcdf file.
 !
-! Method: See Appendix A of 
+! Method: See Appendix A of
 !
 ! A. Khain, D. Rosenfeld, A. Pokrovsky, U. Blahak, A. Ryzhkov, 2011:
 ! The role of CCN in precipitation and hail in a mid-latitude storm as seen
 ! in simulations using a spectral (bin) microphysics model in a 2D dynamic frame,
 ! Atmospheric Research, 99, 129-146
 !
-! Current Code Owner: Uli Blahak, DWD
-!                     ulrich.blahak@dwd.de
 !
-! Language: Fortran 2003
+! ICON
 !
-!===============================================================================!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!===============================================================================!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_2mom_mcrph_dmin_wetgrowth
 

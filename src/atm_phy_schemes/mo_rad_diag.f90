@@ -1,28 +1,26 @@
-!>
-!! @brief Module to collect routines that write radiation diagnostics on
-!!        output variables
-!!
-!! @remarks
-!!   collect routines here that write variables of the radiation part onto
-!!   output variables contained in mo_echam_phy_memory.f90
-!!
-!!
-!! @author Sebastian Rast, MPI-M, Hamburg (2015-06-19): Original source
-!!
-!! $ID: n/a$
-!!
-!! @par Origin
-!! Old rad_aero_diag of mo_radiation relocated here because it is needed in
-!! in the psrad radiation also.
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
 !
+! Module to collect routines that write radiation diagnostics on
+!        output variables
+!
+! Remarks
+!   collect routines here that write variables of the radiation part onto
+!   output variables contained in mo_echam_phy_memory.f90
+!
+! Origin
+! Old rad_aero_diag of mo_radiation relocated here because it is needed in
+! in the psrad radiation also.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_rad_diag
 
   USE mo_kind,                 ONLY: wp
@@ -37,12 +35,6 @@ CONTAINS
 
 !>
 !! SUBROUTINE rad_aero_diag writes actual aerosol optical properties to output stream
-!!
-!! @author J.S.Rast, MPI-Met Hamburg
-!!
-!! @par Revision History
-!! Origianl Source by J.S.Rast, MPI-Met Hamburg, (2013-08-30)
-!!
 !!
 SUBROUTINE rad_aero_diag (                                  &
       & kcs             ,kce             ,kbdim           , &

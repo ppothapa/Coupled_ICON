@@ -1,5 +1,4 @@
-! -----------------------------------------------------------------------
-! MPI global reshuffle, 05/2016 F. Prill
+! MPI global reshuffle.
 !
 ! This program works on a distributed-memory array, where each PE's
 ! part is defined by global indices "owner_idx" (local size!).  The
@@ -9,7 +8,18 @@
 ! send/receive operations, since the destination indices may be stored
 ! on a different PE. This implementation of the "reshuffle" operation
 ! involves no global-size arrays.
-! -----------------------------------------------------------------------
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_reshuffle
   ! actual method (MPI-2)

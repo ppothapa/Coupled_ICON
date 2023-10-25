@@ -1,23 +1,23 @@
-!>
-!! This module prepares aerosol climatologies in a format that can be used by ecRad
-!!
-!! @author Daniel Rieger, Deutscher Wetterdienst, Offenbach
-!!
-!! @par Revision History
-!! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (YYYY-MM-DD)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! This module prepares aerosol climatologies in a format that can be used by ecRad
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
+
 #if defined __xlC__
 @PROCESS SPILL(1058)
 #endif
@@ -58,9 +58,6 @@ CONTAINS
   !! SUBROUTINE nwp_ecrad_prep_aerosol_constant
   !! Prepare aerosol from constant values. If these optional values are not passed,
   !! the corresponding field in ecRad is set to zero.
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-05-15)
   !!
   !---------------------------------------------------------------------------------------
   SUBROUTINE nwp_ecrad_prep_aerosol_constant ( slev, nlev, i_startidx, i_endidx,         &
@@ -151,9 +148,6 @@ CONTAINS
   !! Prepare aerosol from Tegen climatology for ecRad. All the necessary
   !! information on the vertical and spatial distribution of the aerosol is given by the
   !! preprocessed fields zaeq1 - zaeq5. Code taken and adapted from rrtm, module mo_radiation
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2021-10-20)
   !!
   !---------------------------------------------------------------------------------------
   SUBROUTINE nwp_ecrad_prep_aerosol_tegen ( slev, nlev, i_startidx, i_endidx,       &
@@ -277,7 +271,6 @@ CONTAINS
   !>
   !! SUBROUTINE nwp_ecrad_prep_aerosol_td
   !! Time-dependent aerosol
-  !! @par Revision History
   !!
   !---------------------------------------------------------------------------------------
   SUBROUTINE nwp_ecrad_prep_aerosol_td (slev, nlev, i_startidx, i_endidx, &

@@ -1,50 +1,26 @@
-!>
-!! This module provides physical constants for the ICON general circulation models.
-!!
-!! Physical constants are grouped as follows:
-!! - Natural constants
-!! - Molar weights
-!! - Earth and Earth orbit constants
-!! - Thermodynamic constants for the dry and moist atmosphere
-!! - Constants used for the computation of lookup tables of the saturation
-!!    mixing ratio over liquid water (*c_les*) or ice(*c_ies*)
-!!    (to be shifted to the module that computes the lookup tables)
+! This module provides physical constants for the ICON general circulation models.
+!
+! Physical constants are grouped as follows:
+! - Natural constants
+! - Molar weights
+! - Earth and Earth orbit constants
+! - Thermodynamic constants for the dry and moist atmosphere
+! - Constants used for the computation of lookup tables of the saturation
+!    mixing ratio over liquid water (*c_les*) or ice(*c_ies*)
+!    (to be shifted to the module that computes the lookup tables)
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
-!!
-!! @par Revision History
-!!  Developed  by Luis Kornblueh and Luca Bonaventura (2002-03)
-!!  Modified to ProTeX-style by  Luca Bonaventura and Thomas Heinze (2004).
-!!  Modified according to style guide by Thomas Heinze (2005-06-24):
-!!   - module renamed from mo_constants to mo_physical_constants
-!!   - eps moved to mo_math_constants
-!!   - su0 renamed to u0 (as in Williamson et al. (1992) paper)
-!!  Adding units to comments by Thomas Heinze (2005-07-26)
-!!  Modification by Thomas Heinze (2006-02-21):
-!!  - renamed m_modules to mo_modules
-!!  Modification by Hui Wan (2007-01-12):
-!!  - added more constants from ECHAM5
-!!  Modification by Hui Wan (2007-01-16):
-!!  - parameter u0 moved to <i>mo_sw_testcases</i>
-!!  Modification by Kristina Froehlich (2010-05-07):
-!!  - start to introduce consolidated physical constants
-!!  Modification by Marco Giorgetta (2010-07-16):
-!!  - improve comments and structure
-!!  - add "day" for length of day in [s]
-!!  - move constants "*_bg" for the background structure of the atmosphere of the nh-model
-!!    to mo_vertical_grid, which is the only module using these constants
-!!  - move "grav_o_cpd" to mo_divergent_modes.f90, which is th only module using this
-!!    derived constant
-!!  Modification by Felix Rieper (2012-02)
-!!  - added some constants needed in cloud physics scheme
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
 MODULE mo_physical_constants
 
   USE mo_kind,            ONLY: wp

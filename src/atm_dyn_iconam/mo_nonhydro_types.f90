@@ -1,27 +1,22 @@
+!
+! Type definition for the dynamical core of ICONAM.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 #if (defined (__GNUC__) || defined(__SUNPRO_F95) || defined(__SX__))
 #define HAVE_F95
 #endif
-!>
 
-!! Type definition for the dynamical core of ICONAM.
-!!
-!! @author Almut Gassmann (MPI-M)
-!! @author Daniel Reinert (DWD)
-!! @author Guenther Zaengl (DWD)
-!!
-!! @par Revision History
-!! Initial release by Daniel Reinert, DWD (2012-02-07)
-!! - Moved here from mo_nonhydro_state to avoid circular dependencies
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
 MODULE mo_nonhydro_types
 
   USE mo_kind,                 ONLY: wp, vp

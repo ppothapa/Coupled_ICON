@@ -1,19 +1,19 @@
-!>
-!!  This module contains the routines needed for nesting in the nonhydrostatic 
-!!  version.
-!!
-!! @par Revision History
-!!  Developed and tested by Guenther Zaengl, DWD (2010-02-10)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+!
+!  This module contains the routines needed for nesting in the nonhydrostatic
+!  version.
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -69,13 +69,6 @@ CONTAINS
   !! This routine computes the incremental feedback of the prognostic variables from the fine mesh
   !! to the corresponding grid point on the coarse mesh
   !! jg in this case denotes the fine mesh level; output goes to parent_id(jg)
-  !!
-  !! @par Revision History
-  !! Developed  by Guenther Zaengl, DWD, 2008-04-15
-  !! @par
-  !! Modification by Guenther Zaengl, DWD, 2008-09-12:
-  !! Change feedback for cell-based variables from area-weighted averaging
-  !! to using fbk_wgt (see above routine)
   !!
   SUBROUTINE incr_feedback(p_patch, p_nh_state, p_int_state, p_grf_state, p_lnd_state, &
     jg, jgp)
@@ -705,16 +698,6 @@ CONTAINS
   !! This routine computes the feedback of the prognostic variables from the fine mesh
   !! to the corresponding grid point on the coarse mesh
   !! jg in this case denotes the fine mesh level; output goes to parent_id(jg)
-  !!
-  !! @par Revision History
-  !! Developed  by Guenther Zaengl, DWD, 2008-04-15
-  !! @par
-  !! Modification by Guenther Zaengl, DWD, 2008-09-12:
-  !! Change feedback for cell-based variables from area-weighted averaging
-  !! to using fbk_wgt (see above routine)
-  !! Deep-atmosphere corrections are neglected because they would largely cancel out 
-  !! in the incremental calculations applied here, implying that the related code complications 
-  !! would not be justified by increased scientific quality
   !!
   SUBROUTINE relax_feedback(p_patch, p_nh_state, p_int_state, p_grf_state, jg, jgp, dt_fbk, prm_diag)
 
@@ -1585,9 +1568,6 @@ CONTAINS
 
   !>
   !! This routine computes the feedback of latent heat nudging tendencies
-  !!
-  !! @par Revision History
-  !! Developed  by Guenther Zaengl, DWD, 2016-05-11
   !!
   SUBROUTINE lhn_feedback(p_patch, lhn_fields, p_grf_state, jg, jgp)
 

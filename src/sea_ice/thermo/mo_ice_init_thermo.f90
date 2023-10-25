@@ -1,24 +1,20 @@
-!>
-!! Provide an implementation of the initialization of the sea-ice.
-!!
-!! Provide an implementation of the subroutines used for initialization of
-!! the surface module.
-!!
-!! @author Peter Korn, MPI
-!! @author Dirk Notz, MPI
-!!
-!! @par Revision History
-!!  Original version by Peter Korn, MPI-M (2009)
-!!  Separated from mo_sea_ice by Vladimir Lapin, MPI-M (2017)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!----------------------------
+! Provide an implementation of the initialization of the sea-ice.
+!
+! Provide an implementation of the subroutines used for initialization of
+! the surface module.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_ice_init_thermo
   !-------------------------------------------------------------------------
   !
@@ -80,11 +76,6 @@ CONTAINS
   !-------------------------------------------------------------------------
   !
   !> ice_init
-  !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2010-07).
-  !! Originally code written by Dirk Notz, following MPI-OM.
-  !! Modified        by Vladimir Lapin, MPI-M (2017-04).
   !!
   SUBROUTINE ice_init( patch_3D, p_os, ice, cellThicknessUnderIce)
     TYPE(t_patch_3D), TARGET              :: patch_3D
@@ -202,10 +193,6 @@ CONTAINS
   !
   !> Constructor of sea-ice model, allocates all components and assigns zero.
   !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2010-07). Originally code written by
-  !! Dirk Notz, following MPI-OM. Code transfered to ICON.
-  !
   SUBROUTINE construct_sea_ice(patch_3D, p_ice, i_no_ice_thick_class)
     TYPE(t_patch_3D),TARGET,INTENT(IN)    :: patch_3D
     TYPE (t_sea_ice),       INTENT(INOUT) :: p_ice
@@ -520,10 +507,6 @@ CONTAINS
   !
   !> Destructor of sea-ice model, deallocates all components.
   !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2010-07). Originally code written by
-  !! Dirk Notz, following MPI-OM. Code transfered to ICON.
-  !
   SUBROUTINE destruct_sea_ice(p_ice)
     TYPE (t_sea_ice),  INTENT (INOUT) :: p_ice
     !Local variables
@@ -550,9 +533,6 @@ CONTAINS
   !>
   !! Constructor of atmos fluxes for hydrostatic ocean
   !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2011)
-  !
   SUBROUTINE construct_atmos_fluxes(p_patch, atmos_fluxes, i_no_ice_thick_class)
     !
     TYPE(t_patch),         INTENT(IN)    :: p_patch

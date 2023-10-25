@@ -1,59 +1,27 @@
-!>
-!! Computation of vertical tracer flux
-!!
-!! Vertical fluxes are calculated at triangle centers on half-levels.
-!! Possible options for vertical flux calculation include
-!! - first order Godunov method (UP1)
-!! - third order PPM method without CFL restriction
-!! - third order PSM method without CFL restriction
-!!
-!! Semi-monotone and monotone limiters are available for PPM
-!!
-!! These routines compute only the correct half level value of
-!! 'c*w'. The vertical divergence is computed in step_advection.
-!!
-!!
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Jochen Foerstner, DWD (2008-05-15)
-!! Modification by Daniel Reinert, DWD (2009-08-06)
-!! - code restructured
-!! Modification by Daniel Reinert, DWD (2009-08-12)
-!! - included piecewise parabolic method (PPM)
-!! Modification by Daniel Reinert, DWD (2009-08-12)
-!! - recoding of MUSCL in order to account for time and space
-!!   dependent surface pressure and layer thickness
-!! Modification by Daniel Reinert, DWD (2010-01-22)
-!! - modified MUSCL scheme which handles CFL>1 (see Lin and Rood (1996))
-!!   added optional semi-monotone limiter.
-!! Modification by Daniel Reinert, DWD (2010-01-09)
-!! - transferred vertical flux calculation (UP, MUSCL, PPM) to this
-!!   new module
-!! Modification by Daniel Reinert, DWD (2010-04-23)
-!! - moved slope limiter to new module mo_advection_limiter
-!! Modification by Daniel Reinert, DWD (2013-05-07)
-!! - removed unused second order MUSCL scheme
-!! Modification by Daniel Reinert, DWD (2015-11-26)
-!! - included parabolic spline method (PSM)
-!! Modification by Daniel Reinert, DWD (2016-03 ?)
-!! - refactoring in upwind_vflux_ppm_cfl
-!! Modification by Will Sawyer, CSCS (2016-07-15)
-!! - added OpenACC support
-!! Modification by Daniel Reinert, DWD (2019-02-18)
-!! - remove restricted time step version of PPM and rename 
-!!   upwind_vflux_ppm_cfl to upwind_vflux_ppm.
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Computation of vertical tracer flux
+!
+! Vertical fluxes are calculated at triangle centers on half-levels.
+! Possible options for vertical flux calculation include
+! - first order Godunov method (UP1)
+! - third order PPM method without CFL restriction
+! - third order PSM method without CFL restriction
+!
+! Semi-monotone and monotone limiters are available for PPM
+!
+! These routines compute only the correct half level value of
+! 'c*w'. The vertical divergence is computed in step_advection.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -111,7 +79,6 @@ CONTAINS
   !
   !
 
-  !>
   !! Calculation of vertical upwind flux at triangle centers on half levels
   !!
   !! Calculation of vertical upwind flux at triangle centers on half levels
@@ -119,20 +86,6 @@ CONTAINS
   !! - the first order Godunov method (UP1)
   !! - the third order PPM method
   !! - the third order PSM method
-  !!
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2010-02-10)
-  !! Modification by Daniel Reinert (2010-11-05)
-  !! - tracer loop moved from step_advection to vert_upwind_flux
-  !! Modification by Daniel Reinert (2010-11-08)
-  !! - lcompute and lcleanup are precomputed in setup_transport.
-  !!   This was necessary to allow for different flux-methods
-  !!   for different tracers.
-  !! Modification by Daniel Reinert, DWD (2011-02-15)
-  !! - new field providing the upper margin tracer flux (required)
-  !! Modification by Daniel Reinert, DWD (2013-05-07)
-  !! - removed unused second order MUSCL scheme
   !!
   !
   ! !LITERATURE
@@ -325,18 +278,10 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! The first order Godunov method
   !!
   !! Calculation of time averaged vertical tracer fluxes using the first
   !! order Godunov method.
-  !!
-  !! @par Revision History
-  !! Initial revision by Jochen Foerstner, DWD (2008-05-15)
-  !! Modification by Daniel Reinert, DWD (2010-02-09)
-  !! - transferred to separate subroutine
-  !! Modification by Daniel Reinert, DWD (2010-04-23)
-  !! - generalized to height based vertical coordinate systems
   !!
   SUBROUTINE upwind_vflux_up( p_patch, p_cc, p_iubc_adv, p_mflx_contra_v,    &
     &                         p_upflux, opt_q_ubc, opt_slev,                 &
@@ -471,15 +416,11 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! The third order PPM/PSM scheme for large time steps (CFL>1)
   !!
   !! Calculation of time averaged vertical tracer fluxes or tracer edge 
   !! values using the third order PPM/PSM scheme. This scheme can handle 
   !! large time steps (i.e. CFL>1)
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2011-01-14)
   !!
   !
   ! !LITERATURE
@@ -1224,19 +1165,12 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! The third order PPM/PSM scheme for large time steps (CFL>1)
   !! GPU-enabled version without index lists.
   !!
   !! Calculation of time averaged vertical tracer fluxes or tracer edge 
   !! values using the third order PPM/PSM scheme. This scheme can handle 
   !! large time steps (CFL>1).
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2011-01-14)
-  !! Modification by Daniel Reinert, DWD (2018-01-27)
-  !! - optimized for GPU
-  !!
   !
   ! !LITERATURE
   ! - Colella and Woodward (1984), JCP, 54, 174-201 (PPM)
@@ -1956,7 +1890,6 @@ CONTAINS
 
 
   !---------------------------------------------------------------
-  !>
   !! Description:
   !!   solve the vertical flux advection equation for sedimentation
   !!   of scalar variables (a purely downward directed transport)
@@ -1970,9 +1903,6 @@ CONTAINS
   !!
   !!   negative values in phi_new are clipped; this destroys
   !!   mass conservation.
-  !!
-  !! @par Revision History
-  !! Initial revision by Michael Baldauf, DWD (2018-11-07)
   !
   SUBROUTINE implicit_sedim_tracer( tracer,                    &
     &                        rho, rho_inv,                     &
@@ -2145,12 +2075,7 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! Set top and bottom  boundary condition for vertical transport
-  !!
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2011-04-12)
   !!
   SUBROUTINE set_bc_vadv(i_start, i_end, iubc_adv, llbc_no_flux, mflx_top, q_top, &
     &                        upflx_top, upflx_bottom )
@@ -2221,13 +2146,7 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! PSM Face value reconstruction after Zerroukat et al (2006)
-  !!
-  !! PSM Face value reconstruction after Zerroukat et al (2006)
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2015-04-12)
   !!
   !
   SUBROUTINE compute_face_values_psm( i_startidx, i_endidx, slev, elev, &
@@ -2375,13 +2294,7 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! PPM Face value reconstruction after Colella and Woodward (1984)
-  !!
-  !! PPM Face value reconstruction after Colella and Woodward (1984)
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2011-04-12)
   !!
   !
   SUBROUTINE compute_face_values_ppm( i_startidx, i_endidx, slev, elev, &

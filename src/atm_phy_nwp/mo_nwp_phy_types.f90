@@ -1,14 +1,10 @@
-#if (defined (__GNUC__) || defined(__SUNPRO_F95) || defined(__SX__))
-#define HAVE_F95
-#endif
-
-!>
-!! Description:  Contains the data structures
-!!  to store the physical model state and other auxiliary variables
-!!  in order to run the ECHAM physics.
-!!  This module should be an analogon to 'mo_nonhydro_types.f90'
-
-!!  TODO/To think about:
+!
+! Description:  Contains the data structures
+!  to store the physical model state and other auxiliary variables
+!  in order to run the ECHAM physics.
+!  This module should be an analogon to 'mo_nonhydro_types.f90'
+!
+!  TODO/To think about:
 !     - should physics be called before or after dynamics?
 !     - allocate fluxes at edges instead at the centers?
 !     - horizontal/vertical tracer flux (reconstruct q'v_n' into q'u' and q'v') ?
@@ -19,27 +15,22 @@
 !     - fill the physics tendency construction/destruction subroutine
 !     - later implement already calculated icon gradients for echam physics
 !     - think about variables for flexible time steps
-!!
-!! @author Kristina Froehlich, DWD
-!! @author Marco Giorgetta, MPI-M
-!!
-!!
-!! @par Revision History
-!! Initial  by Kristina Froehlich (2009-06-10)
-!! Memory allocation method changed from explicit allocation to Luis' 
-!! infrastructure by Kristina Froehlich (MPI-M, 2011-04-27)
-!! Added clch, clcm, clcl, hbas_con, htop_con by Helmut Frank (DWD, 2013-01-17)
-!! Added hzerocl and gusts                    by Helmut Frank (DWD, 2013-03-13)
-!! Added LPI, MLPI and koi to t_nwp_phy_diag by Guido Schroeder (DWD, 2021-01-29)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
+#if (defined (__GNUC__) || defined(__SUNPRO_F95) || defined(__SX__))
+#define HAVE_F95
+#endif
+
 MODULE mo_nwp_phy_types
 
   USE mo_kind,                ONLY: wp, vp

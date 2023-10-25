@@ -1,20 +1,20 @@
-!>
-!!  This module contains (not yet) utility programs for boundary interpolation and feedback
-!!  of diagnostic variables and the upscaling and downscaling routines needed
-!!  for the reduced physics grid
-!!
-!! @par Revision History
-!!  Developed and tested by Guenther Zaengl, DWD (2010-02-10)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+!
+!  This module contains (not yet) utility programs for boundary interpolation and feedback
+!  of diagnostic variables and the upscaling and downscaling routines needed
+!  for the reduced physics grid
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -196,9 +196,6 @@ END SUBROUTINE t_upscale_fields_assign2D
 !>
 !! This routine averages the input fields for RRTM radiation to the next coarser grid level.
 !!
-!!
-!! @par Revision History
-!! Developed  by Guenther Zaengl, DWD, 2010-12-01
 !!
 SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
   cosmu0, albvisdir, albnirdir, albvisdif, albnirdif, albdif,              &
@@ -1176,9 +1173,6 @@ END SUBROUTINE upscale_rad_input
 !! This routine interpolates the output fields of RRTM radiation from the reduced
 !! grid to the full grid.
 !!
-!! @par Revision History
-!! Developed  by Guenther Zaengl, DWD, 2010-12-03
-!!
 SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
   rg_trsolall, rg_trsol_clr_sfc, rg_lwflx_clr_sfc, rg_lwflx_up_sfc,         &
   rg_trsol_up_toa, rg_trsol_up_sfc, rg_trsol_nir_sfc, rg_trsol_vis_sfc,     &
@@ -2094,9 +2088,6 @@ END SUBROUTINE downscale_rad_output
 !>
 !! This routine optimizes the boundary interpolation of diagnostic physics fields for output
 !!
-!! @par Revision History
-!! Developed  by Guenther Zaengl, DWD, 2010-12-03
-!!
 SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, lacc)
 
   USE mo_nwp_phy_state,      ONLY: prm_diag
@@ -2756,9 +2747,6 @@ END SUBROUTINE interpol_phys_grf
 !! radiation is computed on a reduced grid
 !!
 !!
-!! @par Revision History
-!! Developed  by Guenther Zaengl, DWD, 2011-09-19
-!!
 SUBROUTINE interpol_rrg_grf (jg, jgc, jn, ntl_rcf, lacc)
 
   INTEGER, INTENT(in) :: jg, jgc, jn, ntl_rcf ! Input grid parameters
@@ -2879,9 +2867,6 @@ END SUBROUTINE interpol_rrg_grf
 !! This routine copies additional model levels to the local parent grid if vertical nesting
 !! is combined with a reduced radiation grid and the option latm_above_top = .TRUE.
 !!
-!! @par Revision History
-!! Developed  by Guenther Zaengl, DWD, 2015-01-26
-!!
 SUBROUTINE copy_rrg_ubc (jg, jgc)
 
   ! Input grid parameters
@@ -2908,9 +2893,6 @@ END SUBROUTINE copy_rrg_ubc
 
 !>
 !! This routine performs the feedback of diagnostic physics fields for output
-!!
-!! @par Revision History
-!! Developed  by Guenther Zaengl, DWD, 2010-12-03
 !!
 SUBROUTINE feedback_phys_diag(jg, jgp, lacc)
 

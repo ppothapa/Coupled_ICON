@@ -1,17 +1,20 @@
-!>
-!! This module contains parameters and routines needed for the
-!! WMO defined tropopause height.
-!!
-!! Hauke: Is this routine HAMMONIA save?
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! This module contains parameters and routines needed for the
+! WMO defined tropopause height.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
+!
+! Hauke: Is this routine HAMMONIA save?
 #if defined __xlC__ && !defined NOXLFPROCESS
 @PROCESS HOT
 #endif
@@ -29,13 +32,6 @@ MODULE mo_tropopause
 CONTAINS
   !>
   !! WMO_tropopause - calculation of the tropopause height.
-  !!
-  !! @par Revision History
-  !!  programmed by Dieter Nodorp                 V1.0  March 95
-  !!  modified by Thomas Reichler                 V1.2  May 95
-  !!  Rewritten for use in ECHAM  Christine Land  V2.0  Jan 96
-  !!  Rewritten for use in ECHAM5 Monika Esch           Sep 2003
-  !!  Debugged                    Luis Kornblueh        Nov 2003
   !!
   !! @par Purpose
   !!  WMO_tropopause computes the tropopause height following the

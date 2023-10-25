@@ -1,23 +1,19 @@
-!>
-!! Contains the interpolation routines needed for grid refinement.
-!!
-!! These had originally been included in mo_grf_interpolation but then were
-!! packed into a separate module to clean up the code
-!!
-!! @par Revision History
-!! Created by Guenther Zaengl, DWD (2009-02-09)
-!! Modification by Guenther Zaengl, DWD (2009-06-22)
-!! - preparation for generalized grid refinement (affects all subroutines)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Contains the interpolation routines needed for grid refinement.
+!
+! These had originally been included in mo_grf_interpolation but then were
+! packed into a separate module to clean up the code
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -63,10 +59,6 @@ CONTAINS
 !! distance weighting (IDW) or RBF. The output field (p_vn_out) contains
 !! the normal wind components along the lateral boundaries of nested
 !! model domains.
-!!
-!! @par Revision History
-!! Developed  by Guenther Zaengl, DWD (2008-06-05)
-!! Vector optimization (2009-03-20)
 !!
 SUBROUTINE interpol_vec_grf (p_pp, p_pc, p_grf, p_vn_in, p_vn_out)
   !
@@ -206,10 +198,6 @@ END SUBROUTINE interpol_vec_grf
 !>
 !! Performs gradient-based interpolation from parent edges to child edges 1 and 2
 !! and RBF/IDW-based interpolation to child edges 3 and 4
-!!
-!!
-!! @par Revision History
-!! Developed  by Guenther Zaengl, DWD (2010-03-12)
 !!
 SUBROUTINE interpol2_vec_grf (p_pp, p_pc, p_grf, nfields, f3din1, f3dout1, &
                               f3din2, f3dout2, f3din3, f3dout3, f3din4, f3dout4)
@@ -456,9 +444,6 @@ END SUBROUTINE interpol2_vec_grf
 !>
 !! Performs interpolation of scalar fields from parent cells to child
 !! cells using the 2D gradient at the cell center.
-!!
-!! @par Revision History
-!! Developed  by Guenther Zaengl, DWD (2009-12-16)
 !!
 SUBROUTINE interpol_scal_grf (p_pp, p_pc, p_grf, nfields,&
                               f3din1, f3dout1, f3din2, f3dout2, f3din3, f3dout3, &

@@ -1,33 +1,32 @@
-!>
-!! This module contains types and subroutines used for 
-!! the extrapolation of initial data to the upper atmosphere. 
-!! The extrapolation uses a blending of two states: 
-!! - "left" state: a linear extrapolation of the IFS-input-data from below 
-!!   the extrapolation region (already computed in 'src/atm_dyn_iconam/mo_nh_vert_interp') 
-!! - "right" state: a state derived from a simple climatology covering 
-!!   the upper atmosphere
-!! The blending of the two states is in such a way that: 
-!! - the lower in the extrapolation region, the more the left state dominates
-!! - the higher in the extrapolation region, the more the right state dominates 
-!! (Note: many of the data types and subroutines in this module 
-!! appear computationally inefficient for the current form of 
-!! upper-atmosphere extrapolation, but might be regarded as rudimentary
-!! modularity basis for sophisticated extrapolations in the future. 
-!! In addition, the extrapolation routines are expected to be called 
-!! only once during model initialization, so that some runtime/memory 
-!! overhead seems to be bearable.)
-!!
-!! @par Revision History
-!! The infrastructure is a copy from the 'initicon'-related modules.
-!! Modifications for extrapolation by Sebastian Borchert, DWD (2017-07-07)
-!! 
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+!
+! This module contains types and subroutines used for
+! the extrapolation of initial data to the upper atmosphere.
+! The extrapolation uses a blending of two states:
+! - "left" state: a linear extrapolation of the IFS-input-data from below
+!   the extrapolation region (already computed in 'src/atm_dyn_iconam/mo_nh_vert_interp')
+! - "right" state: a state derived from a simple climatology covering
+!   the upper atmosphere
+! The blending of the two states is in such a way that:
+! - the lower in the extrapolation region, the more the left state dominates
+! - the higher in the extrapolation region, the more the right state dominates
+! (Note: many of the data types and subroutines in this module
+! appear computationally inefficient for the current form of
+! upper-atmosphere extrapolation, but might be regarded as rudimentary
+! modularity basis for sophisticated extrapolations in the future.
+! In addition, the extrapolation routines are expected to be called
+! only once during model initialization, so that some runtime/memory
+! overhead seems to be bearable.)
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"

@@ -1,7 +1,19 @@
+! Interface for the RTTOV library (version 10 and later)
 !
-!+ Interface for the RTTOV library (version 10 and later)
+! ICON
 !
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_rtifc
+
+!-------------------------------------------------------------------------------------
 !
 ! Description:
 !   This module and the associated mo_rtifc_*.f90 modules contain subroutines
@@ -27,68 +39,7 @@ MODULE mo_rtifc
 !   All stuff that depends somehow on the RTTOV version is located in version
 !   specific modules mo_rtifc_${rttov_version}.f90 (rttov_version=nort,10,12,13...).
 !
-! Current Code Owner: DWD, Robin Faulwetter
-!    phone: +49 69 8062 2746
-!    fax:   +49 69 8062 3721
-!    email:  robin.faulwetter@dwd.de
-!
-! History:
-! Version      Date       Name
-! ------------ ---------- ----
-! V1_8         2009/12/09 Marc Schwaerz
-!  interface for the rttov (currently version 9) library
-! V1_10        2010/04/20 Michael Gertz
-!  Adaptions for SVN
-! V1_13        2011/11/01 Detlef Pingel
-!  update to current version
-! V1_19        2012-04-16 Andreas Messer
-!  RTTOV10 interface, Optimizations
-! V1_20        2012-06-18 Andreas Messer
-!  extend to RTTOV10; optimize
-! V1_22        2013-02-13 Andreas Messer
-!  Merged some changes from Alexandre Lanciani into rtifc.
-!  Implementation of vectorized K-mode (Robin Faulwetter).
-!  add namelist parameter for setting the rttov levels.
-!  move module mo_rtifc.f90 from directory basic to oo-model.
-! V1_23        2013-03-26 Andreas Rhodin
-!  new parameters: ctp_k, cfraction_k (adjoint cloud top height and fraction)
-! V1_26        2013/06/27 Robin Faulwetter
-!  Introduced a check on the influence of the surface onto radiances.
-!  Introduced USE_MWSURF bit. Corrected the usage of other USE_* bits.
-! V1_27        2013-11-08 Robin Faulwetter
-!  Implemented FOV-dependent obserrors for TOVS.
-!  Fixed undesired behaviour of thinning
-! V1_28        2014/02/26 Andreas Rhodin
-!  pass cloud-top-height and cloud-fraction to RTTOV routines by process_tovs_mult
-! V1_31        2014-08-21 Robin Faulwetter
-!  Unify mo_rtifc with COSMO.
-!  New, much faster write_rttov_prof routine.
-! V1_35        2014-11-07 Andreas Rhodin
-!  correct printout in case of error
-! V1_42        2015-06-08 Robin Faulwetter
-!  Unified modules for radiance processing with COSMO
-! V1_43        2015-08-19 Robin Faulwetter
-!  Added features required for high peaking radiances over land/clouds
-! V1_47        2016-06-06 Robin Faulwetter
-!  Many improvements for radiances.
-! V1_48        2016-10-06 Robin Faulwetter
-!  Implemented RTTOV12
-!
-! Code Description:
-! Language: Fortran 2003.
-! Software Standards:
-!
-! Authors:
-! Marc Schwaerz  EUMETSAT/DWD 2008-08-20 Initial release
-! Detlef Pingel           DWD 2009-06-18 Provision of gradient matrix interface
-! Marc Schwaerz  EUMETSAT/DWD 2009-07-30 Provision of tangent linear interface
-!                                        Implementation of mpi-distributed reading of coeff files
-!                                        Multiple profile processing enabled
-! Marc Schwaerz  EUMETSAT/DWD 2009-09-30 Possibility to turn off rttov support via a single
-!                                        pre-processor directive called NO_RTTOV
-! Robin Faulwetter        DWD 2020-05    Split into multiple modules and major cleanup/
-!                                        reorganisation
-!=======================================================================
+!-------------------------------------------------------------------------------------
 
 #include "mo_rtifc_macros.incf"
 

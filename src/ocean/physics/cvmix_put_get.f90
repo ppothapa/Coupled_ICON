@@ -1,7 +1,3 @@
-module cvmix_put_get
-
-!BOP
-!\newpage
 ! !MODULE: cvmix_put_get
 !
 ! !AUTHOR:
@@ -12,8 +8,19 @@ module cvmix_put_get
 !  (allocating memory as necessary) and then unpack the data out. If we switch
 !  to pointers, the pack will just point at the right target and the unpack
 !  will be un-necessary.
-!\\
-!\\
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
+MODULE cvmix_put_get
 
 ! !USES:
 

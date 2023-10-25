@@ -1,7 +1,3 @@
-module cvmix_convection
-
-!BOP
-!\newpage
 ! !MODULE: cvmix_convection
 !
 ! !AUTHOR:
@@ -12,12 +8,23 @@ module cvmix_convection
 !  specifying mixing coefficients to parameterize vertical convective mixing,
 !  and to set the viscosity and diffusivity in gravitationally unstable
 !  portions of the water column.
-!\\
-!\\
+!
 !  References:\\
 !  * Brunt-Vaisala?
-!\\
-!\\
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
+MODULE cvmix_convection
 
 ! !USES:
   use cvmix_kinds_and_types, only : cvmix_r8,                                 &

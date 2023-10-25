@@ -1,22 +1,21 @@
-!>
-!! Processing of nudging parameters for the nudging types:
-!! - Upper boundary nudging
-!! - Global nudging
-!! For the lateral boundary nudging, please see: 
-!! - src/configure_model/mo_limarea_config
-!! - src/configure_model/mo_interpol_config
-!!
-!! @par Revision History
-!! Initial revision by Guenther Zaengl and Sebastian Borchert, DWD (2018-09)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines. 
-!!
+! Processing of nudging parameters for the nudging types:
+! - Upper boundary nudging
+! - Global nudging
+! For the lateral boundary nudging, please see:
+! - src/configure_model/mo_limarea_config
+! - src/configure_model/mo_interpol_config
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_nudging_config
 
   USE mo_kind,                  ONLY: wp

@@ -1,22 +1,21 @@
-!>
-!! Initializes and controls the time stepping in the nonhydrostatic model.
-!!
-!!
-!! @par Revision History
-!! Initial release by Almut Gassmann, MPI-M (27009-02-06)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!! The time stepping does eventually perform an (iterative) Incremental Analysis 
-!! Update (IAU). See mo_iau.f90 for details.
-!!
-!!
+!
+! Initializes and controls the time stepping in the nonhydrostatic model.
+!
+! The time stepping does eventually perform an (iterative) Incremental Analysis
+! Update (IAU). See mo_iau.f90 for details.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -270,9 +269,6 @@ MODULE mo_nh_stepping
   !>
   !! Organizes nonhydrostatic time stepping
   !! Currently we assume to have only one grid level.
-  !!
-  !! @par Revision History
-  !! Initial release by Almut Gassmann, (2009-04-15)
   !!
   SUBROUTINE perform_nh_stepping (time_config, iau_iter, latbc, restartDescriptor)
     !
@@ -741,9 +737,6 @@ MODULE mo_nh_stepping
   !>
   !! Organizes nonhydrostatic time stepping
   !! Currently we assume to have only one grid level.
-  !!
-  !! @par Revision History
-  !! Initial release by Almut Gassmann, (2009-04-15)
   !!
   SUBROUTINE perform_nh_timeloop (time_config, iau_iter, latbc, restartDescriptor)
     !
@@ -1662,14 +1655,6 @@ MODULE mo_nh_stepping
   !! Performs dynamics time stepping:  Rotational modes (helicity bracket) and
   !! divergent modes (Poisson bracket) are split using Strang splitting.
   !!
-  !!
-  !! @par Revision History
-  !! Initial release by Almut Gassmann, MPI-M (2009-08-25)
-  !! Adaptation for grid refinement by Guenther Zaengl, DWD (2010-02-09)
-  !! Modification by Daniel Reinert, DWD (2010-04-15)
-  !!  - Implementation of tracer transport
-  !! Modification by Daniel Reinert, DWD (2010-07-23)
-  !!  - optional reduced calling frequency for transport and physics
   !!
   RECURSIVE SUBROUTINE integrate_nh (time_config, datetime_local, jg, nstep_global,   &
     &                                iau_iter, dt_loc, mtime_dt_loc, num_steps, latbc )
@@ -2647,9 +2632,6 @@ MODULE mo_nh_stepping
   !! Perform dynamical core substepping with respect to physics/transport.
   !! Number of substeps is given by ndyn_substeps.
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2014-10-28)
-  !!
   SUBROUTINE perform_dyn_substepping (time_config, p_patch, p_nh_state, p_int_state, prep_adv, &
     &                                 jstep, iau_iter, dt_phy, mtime_current)
 
@@ -2797,9 +2779,6 @@ MODULE mo_nh_stepping
   !!
   !! This had to be moved ahead of the initial output for the physics fields to be more complete
   !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD (2013-01-04)
-  !!
   RECURSIVE SUBROUTINE init_slowphysics (mtime_current, jg, dt_loc, lacc)
 
     CHARACTER(len=*), PARAMETER :: routine = modname//':init_slowphysics'
@@ -2929,9 +2908,6 @@ MODULE mo_nh_stepping
   !!
   !! This routine encapsulates calls to diagnostic computations required at output
   !! times only
-  !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD (2012-05-09)
   !!
   SUBROUTINE diag_for_output_dyn ()
 
@@ -3161,10 +3137,6 @@ MODULE mo_nh_stepping
   !>
   !! Fills nest boundary cells for physics fields
   !!
-  !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD (2014-07-21)
-  !!
   SUBROUTINE fill_nestlatbc_phys(lacc)
 
     LOGICAL,   INTENT(IN)   :: lacc
@@ -3212,9 +3184,6 @@ MODULE mo_nh_stepping
   !!
   !! This routine handles the increased sound-wave damping (by increasing the vertical wind offcentering)
   !! and mixed second-order/fourth-order divergence damping during the initial spinup phase
-  !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD (2013-06-04)
   !!
   SUBROUTINE update_spinup_damping(elapsed_time)
 
@@ -3302,9 +3271,7 @@ MODULE mo_nh_stepping
 
 
   !-------------------------------------------------------------------------
-  !>
-  !! @par Revision History
-  !!
+
   SUBROUTINE deallocate_nh_stepping
 
   INTEGER :: ist,jg
@@ -3350,9 +3317,7 @@ MODULE mo_nh_stepping
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !>
-  !! @par Revision History
-  !!
+
   SUBROUTINE allocate_nh_stepping(mtime_current)
 
     TYPE(datetime),     POINTER          :: mtime_current     !< current datetime (mtime)

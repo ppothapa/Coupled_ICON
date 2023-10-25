@@ -1,41 +1,38 @@
-!>
-!! Provide an implementation of the ocean physics.
-!!
-!! Provide an implementation of the physical parameters and characteristics
-!! for the hydrostatic ocean model.
-!!
-!! This module defines the interface to the KPP scheme of the CVMix library (cvmix_kpp.f90).
-!! The interface calculates all necessary additional fields that are required as input to the
-!! KPP scheme. The interface follows closely that of MOM6.
-!!
-!! A detailed description can be found in the CVMix documentation:
-!!   Griffies, S.M., Levy, M., Adcroft, A. J., Danabasoglu, R., Hallberg, R. W.,
-!!     Jacobsen, D., Large, W., Ringler, T. D.: Theory and numerics of the
-!!     Community Ocean Vertical Mixing (CVMix) Project. Tech. rep., available
-!!     at: https://github.com/CVMix/CVMix-description, 2013.
-!!
-!! reference: LMD94: Large, W. G., McWilliams, J. C., Doney, S. C.: Oceanic vertical mixing: A review and a model
-!!                     with a nonlocal boundary layer parameterization. Rev. Geophys., 21, 363-403,
-!!                     https://doi.org/10.1029./94RG01872,1994.
-!!
-!! Main subroutines:
-!! setup_kpp(): this prepares all parameters for the KPP scheme.
-!! calc_kpp(): this prepares all input fields and calls calc_coeff_kpp() from the CVMix library.
-!!
-!!
-!! @author Oliver Gutjahr, MPI-M
-!!
-!! @par Revision History
-!!  Original version by Oliver Gutjahr, MPI-M (04-2019)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Provide an implementation of the ocean physics.
+!
+! Provide an implementation of the physical parameters and characteristics
+! for the hydrostatic ocean model.
+!
+! This module defines the interface to the KPP scheme of the CVMix library (cvmix_kpp.f90).
+! The interface calculates all necessary additional fields that are required as input to the
+! KPP scheme. The interface follows closely that of MOM6.
+!
+! A detailed description can be found in the CVMix documentation:
+!   Griffies, S.M., Levy, M., Adcroft, A. J., Danabasoglu, R., Hallberg, R. W.,
+!     Jacobsen, D., Large, W., Ringler, T. D.: Theory and numerics of the
+!     Community Ocean Vertical Mixing (CVMix) Project. Tech. rep., available
+!     at: https://github.com/CVMix/CVMix-description, 2013.
+!
+! reference: LMD94: Large, W. G., McWilliams, J. C., Doney, S. C.: Oceanic vertical mixing: A review and a model
+!                     with a nonlocal boundary layer parameterization. Rev. Geophys., 21, 363-403,
+!                     https://doi.org/10.1029./94RG01872,1994.
+!
+! Main subroutines:
+! setup_kpp(): this prepares all parameters for the KPP scheme.
+! calc_kpp(): this prepares all input fields and calls calc_coeff_kpp() from the CVMix library.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------

@@ -1,3 +1,22 @@
+! provides extended communication / transfer infrastructure object
+! derived from abstract t_transfer - type to be used by solvers
+!
+! trivial transfer : group of solver-PEs is same as group od
+! solver-PEs arrays are just locally copied... (and converted between
+! different real-kinds, if necessary)
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 #if (defined(_OPENMP) && defined(OCE_SOLVE_OMP))
 #include "omp_definitions.inc"
 #endif
@@ -22,11 +41,6 @@ MODULE mo_ocean_solve_subset_transfer
 #ifndef NOMPI
   USE mpi, ONLY: MPI_STATUS_IGNORE, MPI_STATUSES_IGNORE, MPI_COMM_NULL, MPI_UNDEFINED
 #endif
-
-! provides extended communication / transfer infrastructure object derived from abstract t_transfer - type
-! to be used by solvers
-! trivial transfer : group of solver-PEs is same as group od solver-PEs
-! arrays are just locally copied... (and converted between different real-kinds, if necessary)
 
   IMPLICIT NONE
   PRIVATE

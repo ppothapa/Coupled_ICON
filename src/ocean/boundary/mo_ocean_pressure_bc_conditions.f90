@@ -1,10 +1,17 @@
-!! ===========================================================================================================================
-!! Implementation of tides by computation of the Sun's and Moon's full tidal potential
-!! This will be used in the pressure gradient calculation
-!!
-!! Authors: Kai Logemann, Helmholtz-Zentrum Geesthacht, and Leonidas Linardakis, Max-Planck-Institute for Meteorology, Hamburg
-!!
-!! ===========================================================================================================================
+! Implementation of tides by computation of the Sun's and Moon's full tidal potential
+! This will be used in the pressure gradient calculation
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "icon_definitions.inc"

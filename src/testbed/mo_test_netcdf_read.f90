@@ -1,17 +1,17 @@
-!>
-!! @brief tests the mo_read_interface methods
-!!
-!! @author
-!!  Leonidas Linardakis (MPI-M)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Tests the mo_read_interface methods
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_test_netcdf_read
 
   USE mo_kind,                ONLY: wp
@@ -25,8 +25,6 @@ MODULE mo_test_netcdf_read
 
   USE mo_model_domain,        ONLY: t_patch, p_patch
   USE mo_atmo_model,          ONLY: construct_atmo_model, destruct_atmo_model
-!!$ hydrostatic model no longer available
-!!$  USE mo_atmo_hydrostatic,    ONLY: construct_atmo_hydrostatic, destruct_atmo_hydrostatic
   USE mo_read_interface,      ONLY: openInputFile, closeFile, on_cells, &
     &                               t_stream_id, read_1D, read_2D_time, &
     &                               read_3D_time, read_netcdf_broadcast_method
@@ -76,8 +74,6 @@ CONTAINS
     timers_level = 0
     activate_sync_timers = .false.
     CALL construct_atmo_model(namelist_filename,shr_namelist_filename)
-!!$ hydrostatic model no longer available
-!!$    CALL construct_atmo_hydrostatic()
     patch => p_patch(1)
     levels  = patch%nlev
     !---------------------------------------------------------------------
@@ -144,8 +140,6 @@ CONTAINS
 
     !---------------------------------------------------------------------
     ! Carry out the shared clean-up processes
-!!$ hydrostatic model no longer available
-!!$    CALL destruct_atmo_hydrostatic()
     CALL destruct_atmo_model()
 
 
@@ -173,8 +167,6 @@ CONTAINS
     timers_level = 0
     activate_sync_timers = .false.
     CALL construct_atmo_model(namelist_filename,shr_namelist_filename)
-!!$ hydrostatic model no longer available
-!!$    CALL construct_atmo_hydrostatic()
     patch => p_patch(1)
     !---------------------------------------------------------------------
 
@@ -247,8 +239,6 @@ CONTAINS
 
     !---------------------------------------------------------------------
     ! Carry out the shared clean-up processes
-!!$ hydrostatic model no longer available
-!!$    CALL destruct_atmo_hydrostatic()
     CALL destruct_atmo_model()
      
 

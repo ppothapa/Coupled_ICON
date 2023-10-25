@@ -1,30 +1,28 @@
-!>
-!!  Pure 3D-Advection test case adapted to the NH-Core
-!!
-!!  This module contains parameters, initialization subroutines and
-!!  functions to be used in the Pure 3D-Advection test case of the
-!!  non-hydrostatic dynamical core.
-!!
-!! @par Revision History
-!!  Developed by Jochen Foerstner, DWD (2008-05-26)
-!! Modification by Daniel Reinert, DWD (2010-04-26)
-!! - adapted to the NH-core
-!!
-!! @par Literature
-!! - Jablonowski et al. (2008): Idealized test cases for the dynamical cores
-!!   of Atmospheric General Circulation Models: A proposal for the NCAR ASP
-!!   2008 summer colloquium
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Pure 3D-Advection test case adapted to the NH-Core
+!
+! This module contains parameters, initialization subroutines and
+! functions to be used in the Pure 3D-Advection test case of the
+! non-hydrostatic dynamical core.
+!
+! Literature
+! - Jablonowski et al. (2008): Idealized test cases for the dynamical cores
+!   of Atmospheric General Circulation Models: A proposal for the NCAR ASP
+!   2008 summer colloquium
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_nh_pa_test
+
 !-------------------------------------------------------------------------
 !
 !    ProTeX FORTRAN source: Style 2
@@ -74,9 +72,6 @@ CONTAINS
   !>
   !!               Initialization of prognostic state vector.
   !!
-  !!
-  !! @par Revision History
-  !!  Original version by Daniel Reinert, DWD (2010-04-26)
   !!
   SUBROUTINE init_nh_state_prog_patest( ptr_patch, ptr_int, ptr_nh_prog,      &
     &                                   ptr_nh_diag, ptr_ext_data, p_metrics, &
@@ -335,9 +330,6 @@ CONTAINS
   !!  (non-hydrostatic version). Optionally, an updated density
   !!  field may be computed (commented out, so far)
   !!
-  !! @par Revision History
-  !!  Original version by Daniel Reinert, DWD (2010-04-26)
-  !<
   SUBROUTINE set_nh_w_rho( ptr_patch, p_metrics, k_step, p_dtime, p_sim_time, &
     &                      p_w_prog, p_diag_pres, p_diag_rho_ic )
 

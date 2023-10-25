@@ -1,20 +1,18 @@
-!>
-!!               This module provides all routines for dividing patches
-!!
-!! (including interpolation state) and setting up communication.
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! This module provides all routines for dividing patches
+! (including interpolation state) and setting up communication.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_complete_subdivision
   !-------------------------------------------------------------------------
   USE mo_impl_constants,     ONLY: min_rlcell, min_rledge, &
@@ -946,10 +944,6 @@ CONTAINS
   !>
   !! This routine sets up a the physical patches
   !! It works on the divided patch state, so it can be used after a restore also
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2011
-  !! Revised version by Moritz Hanke, Nov 2013
 
   SUBROUTINE setup_phys_patches
     INTEGER :: jp, jg, i
@@ -1102,23 +1096,15 @@ CONTAINS
   END SUBROUTINE setup_phys_patches_cve
 
   !-------------------------------------------------------------------------
-  !>
-  !!               Calculates local line/block indices l_idx, l_blk
-  !!               from global line/block indices g_idx, g_blk
-  !!               using the mapping in decomp_info
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
+  !! Calculates local line/block indices l_idx, l_blk
+  !! from global line/block indices g_idx, g_blk
+  !! using the mapping in decomp_info
   !!
 
   !-------------------------------------------------------------------------
-  !>
   !! Maps indices which point outside domain (returned as <0 by get_local_idx_blk)
   !! to valid ones which are from the same set of neighbors for the given
   !! cell/edge/vert
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Oct 2011
   !!
   SUBROUTINE remap_index(glb2loc_index, l_idx, l_blk)
 

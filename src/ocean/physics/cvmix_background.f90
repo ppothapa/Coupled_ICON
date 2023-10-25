@@ -1,26 +1,30 @@
-module cvmix_background
+! This module contains routines to initialize the derived types
+! needed for time independent static background mixing coefficients.
+! It specifies either a scalar, 1D, or 2D field for viscosity and
+! diffusivity. It also calculates the background diffusivity using
+! the Bryan-Lewis method.  It then sets the viscosity and diffusivity
+! to the specified value.
+!
+! References:
+! * K Bryan and LJ Lewis.
+! A Water Mass Model of the World Ocean.
+! Journal of Geophysical Research, 1979.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
-!BOP
-!\newpage
-! !MODULE: cvmix_background
-!
-! !AUTHOR:
-!  Michael N. Levy, NCAR (mlevy@ucar.edu)
-!
-! !DESCRIPTION:
-!  This module contains routines to initialize the derived types needed for
-!  time independent static background mixing coefficients.  It specifies
-!  either a scalar, 1D, or 2D field for viscosity and diffusivity. It also
-!  calculates the background diffusivity using the Bryan-Lewis method.
-!  It then sets the viscosity and diffusivity to the specified value.
-!\\
-!\\
-!  References:\\
-!  * K Bryan and LJ Lewis.
-!  A Water Mass Model of the World Ocean.
-!  Journal of Geophysical Research, 1979.
-!\\
-!\\
+MODULE cvmix_background
+
+
 
 ! !USES:
 

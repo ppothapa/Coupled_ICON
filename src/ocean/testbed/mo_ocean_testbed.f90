@@ -1,27 +1,26 @@
-!>
-!! @brief Testbed for ocean
-!!
-!! The test_mode variable of the run_nml defines the mode of running the ocean.
-!! When test_mode==0 the normal timesteping (perform_ho_stepping) is called,
-!! else the ocean_testbed is called. There are currently 3 testbed modules:
-!!
-!! test_mode=1-99: ocean_testbed_modules; test ocean modules like advection, diffusion, etc
-!!
-!! test_mode=99-999: ocean_test_operators; test consistency, properties, round-off errors of operators
-!!
-!! test_mode=1000-1100: ocean_test_performance; reserved for performance tests of individual routines
-!!
-!! @author
-!!  Leonidas Linardakis (MPI-M)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! @brief Testbed for ocean
+!
+! The test_mode variable of the run_nml defines the mode of running the ocean.
+! When test_mode==0 the normal timesteping (perform_ho_stepping) is called,
+! else the ocean_testbed is called. There are currently 3 testbed modules:
+!
+! test_mode=1-99: ocean_testbed_modules; test ocean modules like advection, diffusion, etc
+!
+! test_mode=99-999: ocean_test_operators; test consistency, properties, round-off errors of operators
+!
+! test_mode=1000-1100: ocean_test_performance; reserved for performance tests of individual routines
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_ocean_testbed
 
   USE mo_exception,           ONLY: finish

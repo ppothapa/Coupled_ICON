@@ -1,21 +1,23 @@
-!>
-!! Contains the the interpolation data structures for the regular grid.
-!!
-!! A hierarchy of data structures is needed since one can use
-!!
-!! * several lon-lat grids, where each of them is applied to
-!!   * several ICON domains, where each of them requires
-!!     * several interpolation methods for the different variables.
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Contains the the interpolation data structures for the regular grid.
+!
+! A hierarchy of data structures is needed since one can use
+!
+! * several lon-lat grids, where each of them is applied to
+!   * several ICON domains, where each of them requires
+!     * several interpolation methods for the different variables.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_intp_lonlat_types
 
   USE mo_kind,                ONLY: wp
@@ -596,9 +598,6 @@ CONTAINS
   !--------------------------------------------------------------------------------
   !> Performs nearest neighbor interpolation, INTEGER implementation
   !
-  ! @par Revision History
-  !      Initial implementation  by  F. Prill, DWD (2013-02)
-  !
   SUBROUTINE t_intp_scalar_interpolate_i( this, p_cell_in, nproma, nblks_lonlat, npromz_lonlat, &
     &                                     p_out, opt_slev, opt_elev)
 
@@ -687,10 +686,6 @@ CONTAINS
   !  CALL rbf_vec_interpol_lonlat( grad_norm_psi_e, ptr_patch, ptr_int, grad_x,  &
   !    &                           grad_y, ptr_int%tri_idx(:,:,:),        &
   !    &                           nblks_lonlat, npromz_lonlat )
-  !
-  ! @par Revision History
-  !      Initial implementation  by  F. Prill, DWD (2011-08)
-  !      based on "rbf_interpol_c2grad"
   !
   SUBROUTINE t_intp_scalar_interpolate_r( this, p_cell_in, nproma, nblks_lonlat, npromz_lonlat, &
     &                                     p_out, opt_slev, opt_elev)
@@ -1070,9 +1065,6 @@ CONTAINS
   !
   ! This routine is based on mo_intp_rbf::rbf_vec_interpol_cell()
   !
-  ! @par Revision History
-  !      Initial implementation  by  F. Prill, DWD (2011-08)
-  !
   SUBROUTINE t_intp_vec_interpolate_r( this, p_vn_in, nproma, nblks_lonlat, npromz_lonlat, &
     &                                  grad_x, grad_y, opt_slev, opt_elev)
 
@@ -1161,9 +1153,6 @@ CONTAINS
   !> REAL fields: Driver routine for the interpolation of
   !  cell-based variables at lon-lat grid points.
   !
-  ! @par Revision History
-  !      Initial implementation  by  F. Prill, DWD (2011-08)
-  !
   SUBROUTINE t_lon_lat_intp_interpolate_r( this, name, p_cell_in, nproma, p_lonlat_out, hintp_type)
 
     ! Indices of source points and interpolation coefficients
@@ -1213,9 +1202,6 @@ CONTAINS
   !> INTEGER fields: Driver routine for the interpolation of
   !  cell-based variables at lon-lat grid points.
   !
-  ! @par Revision History
-  !      Initial implementation  by  F. Prill, DWD (2011-08)
-  !
   SUBROUTINE t_lon_lat_intp_interpolate_i( this, name, p_cell_in, nproma, p_lonlat_out, hintp_type)
 
     ! Indices of source points and interpolation coefficients
@@ -1255,9 +1241,6 @@ CONTAINS
   !> Performs vector RBF reconstruction at lon-lat grid points.
   !
   ! This routine is based on mo_intp_rbf::rbf_vec_interpol_cell()
-  !
-  ! @par Revision History
-  !      Initial implementation  by  F. Prill, DWD (2011-08)
   !
   SUBROUTINE t_lon_lat_intp_interpolate_rvec( this, p_vn_in, nproma, &
     &                                         grad_x, grad_y, hintp_type, opt_slev, opt_elev)

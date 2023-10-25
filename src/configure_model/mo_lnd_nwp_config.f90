@@ -1,31 +1,19 @@
-!>
-!! @brief configuration setup for NWP land scheme TERRA
-!!
-!! configuration setup for NWP land scheme TERRA
-!! <Details of procedures are documented below with their definitions.>
-!! <Include any applicable external references inline as module::procedure,>
-!! <external_procedure(), or by using @see.>
-!! <Don't forget references to literature.>
-!!
-!! @author Kristina Froehlich, MPI-M (2011-07-14)
-!! @author <name, affiliation>
-!!
-!!
-!! @par Revision History
-!! <Description of activity> by <name, affiliation> (<YYYY-MM-DD>)
-!!
-!! Modifications by Dmitrii Mironov, DWD (2016-08-04)
-!! - Logical switch is introduced to allow the use of 
-!!   a rate equation for the sea-ice albedo.
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! @brief configuration setup for NWP land scheme TERRA
+!
+! configuration setup for NWP land scheme TERRA
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_lnd_nwp_config
 
   USE mo_kind,               ONLY: wp
@@ -153,16 +141,12 @@ MODULE mo_lnd_nwp_config
 
 CONTAINS
 
-  !>
   !! setup components of the NWP land scheme
   !!
   !! Setup of additional nwp-land control variables depending on the 
   !! land-NAMELIST and potentially other namelists. This routine is 
   !! called, after all namelists have been read and a synoptic consistency 
   !! check has been done.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2011-08-01)
   !!
   SUBROUTINE configure_lnd_nwp(ljsbach)
   !
@@ -282,15 +266,10 @@ CONTAINS
   END SUBROUTINE configure_lnd_nwp
 
 
-
-  !>
   !! Given the internal land use class index, provide the official GRIB2 index.
   !!
   !! Given the ICON-internal land use class index, provide the official GRIB2 
   !! index according to GRIB2 table 4.2.43 (or vice versa).
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2015-01-26)
   !!
   FUNCTION convert_luc_ICON2GRIB(lc_datbase,iluc_in,opt_linverse)  RESULT (iluc_out)
 

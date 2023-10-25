@@ -1,34 +1,25 @@
+!
+! Constructs and destructs the state vector of the nonhydrostatic.
+!
+! Constructs and destructs the state vector of the nonhydrostatic
+! model variables. They are subdivided in several classes: prognostics
+! and diagnostics.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 #if (defined (__GNUC__) || defined(__SUNPRO_F95) || defined(__SX__))
 #define HAVE_F95
 #endif
-!>
-!! Constructs and destructs the state vector of the nonhydrostatic.
-!!
-!! Constructs and destructs the state vector of the nonhydrostatic
-!! model variables. They are subdivided in several classes: prognostics
-!! and diagnostics.
-!!
-!! @author Almut Gassmann (MPI-M)
-!! @author Daniel Reinert (DWD-M)
-!!
-!! @par Revision History
-!! Initial release by Almut Gassmann, MPI-M (2009-03-06)
-!! Modification by Daniel Reinert, DWD (2011-05-02)
-!! - Memory allocation method changed from explicit allocation to Luis'
-!!   infrastructure
-!! Modification by Daniel Reinert, DWD (2012-02-07)
-!! - Moved type definition to new module mo_nonhydro_types, to avoid 
-!!   circular dependencies
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
 
 MODULE mo_nonhydro_state
 
@@ -136,9 +127,6 @@ MODULE mo_nonhydro_state
   !! It calls constructors to single time level prognostic states, and 
   !! diagnostic states.
   !! Initialization of all components with zero.
-  !!
-  !! @par Revision History
-  !! Initial release by Almut Gassmann (2009-03-06)
   !!
   SUBROUTINE construct_nh_state(p_patch,  n_timelevels, var_in_output)
     TYPE(t_patch),         INTENT(IN) ::      & ! patch
@@ -285,9 +273,6 @@ MODULE mo_nonhydro_state
   !! It calls destructors to
   !! single time level prognostic states, and diagnostic states.
   !!
-  !! @par Revision History
-  !! Initial release by Almut Gassmann (2009-03-06)
-  !!
   SUBROUTINE destruct_nh_state(p_nh_state, p_nh_state_lists)
 !
     TYPE(t_nh_state),       ALLOCATABLE, INTENT(INOUT) :: & ! nh state at different grid levels
@@ -375,9 +360,6 @@ MODULE mo_nonhydro_state
   !!
   !! duplicate prognostic state 
   !!
-  !! @par Revision History
-  !! Initial release by P. Ripodas 
-  !!
   SUBROUTINE duplicate_prog_state ( p_prog_i, p_prog_d)
 
       TYPE(t_nh_prog), INTENT(IN)      :: &  !< prognostic state vector to be copied
@@ -408,9 +390,6 @@ MODULE mo_nonhydro_state
   !! Allocation of components of prognostic state.
   !!
   !! Initialization of components with zero.
-  !!
-  !! @par Revision History
-  !! Initial release by Almut Gassmann (2009-03-06)
   !!
   SUBROUTINE new_nh_state_prog_list ( p_patch, p_prog, p_prog_list,  &
     &                                 listname, vname_prefix, l_extra_timelev, timelev)
@@ -1528,12 +1507,6 @@ MODULE mo_nonhydro_state
   !! Allocation of components of diagnostic state.
   !!
   !! Initialization of components with zero.
-  !!
-  !! @par Revision History
-  !! Initial release by Almut Gassmann, MPI-M (2009-03-06)
-  !!
-  !! Modification by Kristina Froehlich, DWD, (2010-10-22)
-  !! - added pressure on interfaces
   !!
   SUBROUTINE new_nh_state_diag_list ( p_patch, p_diag, p_diag_list,  &
     &                                 listname, var_in_output )
@@ -3578,10 +3551,6 @@ MODULE mo_nonhydro_state
   !!
   !! Initialization of components with zero.
   !!
-  !! @par Revision History
-  !! Initial release by Daniel Reinert, DWD (2012-06-04)
-  !!
-  !!
   SUBROUTINE new_nh_state_ref_list ( p_patch, p_ref, p_ref_list,  &
     &                                 listname )
 !
@@ -3676,10 +3645,6 @@ MODULE mo_nonhydro_state
   !>
   !! Allocates all metric coefficients defined in type metrics_3d of the patch.
   !!
-  !! @par Revision History
-  !! Initial release by Almut Gassmann (2009-04-14)
-  !! Modification by Daniel Reinert, DWD, (2010-04-22)
-  !! - added geometric height at full levels
   SUBROUTINE new_nh_metrics_list ( p_patch, p_metrics, p_metrics_list,  &
     &                              listname )
 !

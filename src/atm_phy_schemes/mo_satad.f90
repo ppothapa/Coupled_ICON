@@ -1,48 +1,44 @@
-!>
-!!  Description:
-!!  This module provides service utilities for meteorological calculations.
-!!
-!! Routines (module procedure)
-!!
-!!     - satad_V_3D
-!!       Corrects the temperature, the specific humidity and the cloud water
-!!      content for condensation/evaporation.
-!!
-!!    - qsat_rho
-!!      Specific humidity at water saturation (with respect to flat surface)
-!!      depending on the temperature "temp" and the total density "rhotot")
-!!
-!!    - dqsatdT_rho
-!!       Partial derivative of the specific humidity at water saturation with
-!!       respect to the temperature at constant total density.
-!!
-!!      @author Ulrich Blahak
-!!
-!!    the following functions should  later be replaced by lookup tables
-!!     from mo_convect_tables!!!
-!!
-!!     - pres_sat_water
-!!       Saturation water vapour pressure
-!!
-!!     - pres_sat_ice
-!!       Saturation water vapour pressure
-!!
-!!     - spec_humi
-!!       Specific humidity at saturation pressure
-!!
+!
+!  Description:
+!  This module provides service utilities for meteorological calculations.
+!
+! Routines (module procedure)
+!
+!     - satad_V_3D
+!       Corrects the temperature, the specific humidity and the cloud water
+!      content for condensation/evaporation.
+!
+!    - qsat_rho
+!      Specific humidity at water saturation (with respect to flat surface)
+!      depending on the temperature "temp" and the total density "rhotot")
+!
+!    - dqsatdT_rho
+!       Partial derivative of the specific humidity at water saturation with
+!       respect to the temperature at constant total density.
+!
+!    the following functions should  later be replaced by lookup tables
+!     from mo_convect_tables!
+!     - pres_sat_water
+!       Saturation water vapour pressure
+!
+!     - pres_sat_ice
+!       Saturation water vapour pressure
+!
+!     - spec_humi
+!       Specific humidity at saturation pressure
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
-!!
-!! @par Revision History
-!! first implementation and modification for ICON by Kristina Froehlich, DWD (2010-09-15)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
 MODULE mo_satad
 
 

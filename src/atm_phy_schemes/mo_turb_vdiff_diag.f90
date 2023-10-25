@@ -1,24 +1,21 @@
+!
+! Subroutines for computing turbulent exchange coefficients.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
+!------------------
 #include "fsel.inc"
-!>
-!! @brief Subroutines for computing turbulent exchange coefficients.
-!!
-!! @author Authors of ECHAM code
-!! @author Hui Wan, MPI-M
-!!
-!! @par Revision History
-!! Code originates from ECHAM5/6
-!! Re-organized by Hui Wan (2010-09).
-!! Changed to solve the total turbulent energy scheme by Felix Pithan and
-!! Thorsten Mauritsen (2016-01), and later revised and bug-fixed (2017-12).
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!------------------
+
 MODULE mo_turb_vdiff_diag
 
   USE mo_kind,              ONLY: wp, i1
@@ -64,11 +61,7 @@ CONTAINS
   !! Therefore a number of variables are defined on what shall be referred to
   !! as "mid-levels", which are defined on levels with indices xmid(k) corre-
   !! sponding to xh(k+1), where x is some quantity at half-level k+1/2.
-  !!
-  !! @par Revision History
-  !! Separated from vdiff.f90 of ECHAM6 and re-organized by Hui Wan (2010-09).
-  !!  updated to echam-6.3.01 by Monika Esch (2014-11)
-  !!
+
   SUBROUTINE atm_exchange_coeff( jb,                                      &! in, for debugging only
                                & jcs, kproma, kbdim,                      &! in
                                & klev, klevm1,                            &! in

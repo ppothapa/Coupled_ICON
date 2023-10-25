@@ -1,47 +1,44 @@
-!> Parallel Bowyer/Watson algorithm for the construction of a Delaunay
-!! triangulation on the sphere.
-!!
-!! @author F. Prill, DWD
-!!
-!! This algorithm borrows from
-!!
-!! (1) Paul Bourke: "Efficient Triangulation Algorithm Suitable for
-!!      Terrain Modelling or An Algorithm for Interpolating
-!!      Irregularly-Spaced Data with Applications in Terrain
-!!      Modelling." Pan Pacific Computer Conference, Beijing, China,
-!!      1989.
-!!
-!! (2) Jacobsen, D. W.; Gunzburger, M.; Ringler, T.; Burkardt, J.;
-!!      Peterson, J.: "Parallel algorithms for planar and spherical
-!!      Delaunay construction with an application to centroidal
-!!      Voronoi tessellations."  Geoscientific Model Development;2013,
-!!      Vol. 6 Issue 4, p.1353 (global Delaunay condition for
-!!      parallelization)
-!!
-!! (3) Renka, R. J. "Interpolation of Data on the Surface of a
-!!      Sphere." ACM Trans. Math. Softw., ACM, 1984, 10, 417-436
-!!
-!! (4) J. Shewchuck: "Lecture Notes on Delaunay Triangulation."
-!!      Univ. of California, Berkeley. 2012. (ghost point instead of
-!!      "super-triangle", as described in Section 3.4 of)
-!!
-!! with modifications: 
-!! - sorting of points wrt. spherical cap (point subset for parallelization)
-!! - multi-threading and indexing shortcuts
-!! - global Delaunay condition is used as abort criterion for triangulation
-!!
-!!
-!! @par Revision History
-!! Initial implementation,            F. Prill, DWD (2014-11-12)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-
+! Parallel Bowyer/Watson algorithm for the construction of a Delaunay
+! triangulation on the sphere.
+!
+! This algorithm borrows from
+!
+! (1) Paul Bourke: "Efficient Triangulation Algorithm Suitable for
+!      Terrain Modelling or An Algorithm for Interpolating
+!      Irregularly-Spaced Data with Applications in Terrain
+!      Modelling." Pan Pacific Computer Conference, Beijing, China,
+!      1989.
+!
+! (2) Jacobsen, D. W.; Gunzburger, M.; Ringler, T.; Burkardt, J.;
+!      Peterson, J.: "Parallel algorithms for planar and spherical
+!      Delaunay construction with an application to centroidal
+!      Voronoi tessellations."  Geoscientific Model Development;2013,
+!      Vol. 6 Issue 4, p.1353 (global Delaunay condition for
+!      parallelization)
+!
+! (3) Renka, R. J. "Interpolation of Data on the Surface of a
+!      Sphere." ACM Trans. Math. Softw., ACM, 1984, 10, 417-436
+!
+! (4) J. Shewchuck: "Lecture Notes on Delaunay Triangulation."
+!      Univ. of California, Berkeley. 2012. (ghost point instead of
+!      "super-triangle", as described in Section 3.4 of)
+!
+! with modifications:
+! - sorting of points wrt. spherical cap (point subset for parallelization)
+! - multi-threading and indexing shortcuts
+! - global Delaunay condition is used as abort criterion for triangulation
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_delaunay
 

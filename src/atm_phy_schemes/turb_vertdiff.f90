@@ -1,60 +1,18 @@
-!>
-!! Source module for computing implicit vertical diffusion
-!!
-!! @par Description of *turb_vertdiff*:
-!!
-!! Current Code Owner: DWD, Matthias Raschendorfer
-!!  phone:  +49  69  8062 2708
-!!  fax:    +49  69  8062 3721
-!!  email:  matthias.raschendorfer@dwd.de
 !
-! History:
-! Version      Date       Name
-! ----------   ---------- ----
-! V5_4d        2016-12-12 Ulrich Schaettler, Matthias Raschendorfer
-!  New module splitted from turb_diffusion to call vertical diffusion independent
-!  from default turbulent diffusion scheme
-! V5_4e        2017-03-23 Ulrich Schaettler
-!  Renamed variable aux to zaux when using from turb_data
-!  Corrected setting of leff_flux for momentum fluxes
-! V5_4h        2017-12-15 Xavier Lapillonne
-!  Ported turbulence to GPU
-! V5_5         2018-02-23 Xavier Lapillonne
-!  Removed an update device before setting cur_prof in vertdiff
-! V5_6         2019-02-27 Ulrich Schaettler
-!  Updated with ICON Version d7e0252
-!    - CRAY_TURB_WORKAROUND: not necessary for COSMO
-!    - introduced debug output for incoming / outgoing variables
-!    - Load effective surface layer gradients due to given flux values, 
-!        if surface value input is a flux density (only check lsfli)
+! Source module for computing implicit vertical diffusion
 !
-!! @par Copyright and License
-!! This software is provided for non-commercial use only.
-!! See the LICENSE and the WARRANTY conditions.
-!!
-!! @par License
-!! The use of this software is hereby granted free of charge for an unlimited
-!! time, provided the following rules are accepted and applied:
-!! <ol>
-!! <li> You may use or modify this code for your own non commercial and non
-!!    violent purposes.
-!! <li> The code may not be re-distributed without the consent of the authors.
-!! <li> The copyright notice and statement of authorship must appear in all
-!!    copies.
-!! <li> You accept the warranty conditions (see WARRANTY).
-!! <li> In case you intend to use the code commercially, we oblige you to sign
-!!    an according license agreement
-!! </ol>
-!!
-!! @par Warranty
-!! This code has been tested up to a certain level. Defects and weaknesses,
-!! which may be included in the code, do not establish any warranties by the
-!! authors.
-!! The authors do not make any warranty, express or implied, or assume any
-!! liability or responsibility for the use, acquisition or application of this
-!! software.
-!!
 !-------------------------------------------------------------------------------
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE turb_vertdiff
 

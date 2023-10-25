@@ -1,23 +1,19 @@
-!>
-!! Time management for parameterized physical processes
-!!
-!! Setup mtime events and event groups for physical processes
-!!
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2017-05-19)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Time management for parameterized physical processes
+!
+! Setup mtime events and event groups for physical processes
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_phy_events
 
   USE mo_kind,                     ONLY: wp
@@ -182,9 +178,6 @@ CONTAINS
   !! Initializes a new physical process.
   !! Creates mtime event.
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-05-24)
-  !!
   SUBROUTINE phyProcBase_initialize (phyProc, name, id, is_enabled, startDate, endDate, dt, &
     &                                plusSlack, optReqInit, optInclStart)
     CLASS(t_phyProcBase)          , INTENT(INOUT) :: phyProc     !< passed-object dummy argument
@@ -271,9 +264,6 @@ CONTAINS
   !! phyProc%dt
   !! This re-initialization is, e.g., necessary if the IAU phase is iterated.
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-06-26)
-  !!
   SUBROUTINE phyProcBase_reinitEvent (phyProc)
     CLASS(t_phyProcBase), TARGET , INTENT(INOUT) :: phyProc  !< passed-object dummy argument
 
@@ -317,9 +307,6 @@ CONTAINS
   !! the physical process at hand.
   !!
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-05-31)
-  !!
   LOGICAL FUNCTION phyProcBase_doInit (phyProc, mtime_current)
 
     CLASS(t_phyProcBase)   , INTENT(INOUT) :: phyProc        !< passed-object dummy argument
@@ -348,9 +335,6 @@ CONTAINS
   !!
   !! Checks, whether the process should be triggered.
   !!
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-05-26)
   !!
   LOGICAL FUNCTION phyProcBase_isActive (phyProc, mtime_current, lasync)
 
@@ -394,9 +378,6 @@ CONTAINS
 !!$  !! Get last trigger date
 !!$  !! Currently not restart-safe!
 !!$  !!
-!!$  !! @par Revision History
-!!$  !! Initial revision by Daniel Reinert, DWD (2017-06-20)
-!!$  !!
 !!$  TYPE(datetime) FUNCTION phyProcBase_getLastActive (phyProc)
 !!$
 !!$    CLASS(t_phyProcBase), INTENT(IN) :: phyProc       !< passed-object dummy argument
@@ -423,9 +404,6 @@ CONTAINS
   !! However, this function is not restart-safe. The information 
   !! about the last trigger date is lost after restart. 
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-06-20)
-  !!
   TYPE(datetime) FUNCTION phyProcBase_getLastActive (phyProc)
 
     CLASS(t_phyProcBase), INTENT(IN) :: phyProc    !< passed-object dummy argument
@@ -441,9 +419,6 @@ CONTAINS
   !! Get last trigger date in PTString-Format
   !!
   !! Get last trigger date in PTString-Format
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-05-26)
   !!
   CHARACTER(len=MAX_DATETIME_STR_LEN) FUNCTION phyProcBase_getLastActivePTString (phyProc)
 
@@ -468,9 +443,6 @@ CONTAINS
   !! Compute time elapsed since last trigger event.
   !!
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-05-26)
-  !!
   TYPE(timedelta) FUNCTION phyProcBase_getElapsedTime (phyProc, mtime_current)
 
     CLASS(t_phyProcBase)   , INTENT(IN) :: phyProc        !< passed-object dummy argument
@@ -487,9 +459,6 @@ CONTAINS
   !! Get time elapsed since last trigger event in PTString-format
   !!
   !! Get time elapsed since last trigger event in PTString-format
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-05-26)
   !!
   CHARACTER(len=MAX_TIMEDELTA_STR_LEN) FUNCTION phyProcBase_getElapsedTimePTString (phyProc, mtime_current)
 
@@ -514,9 +483,6 @@ CONTAINS
   !!
   !! Get next trigger date.
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-06-20)
-  !!
   TYPE(datetime) FUNCTION phyProcBase_getNextActive (phyProc, mtime_current)
 
     CLASS(t_phyProcBase)   , INTENT(IN) :: phyProc        !< passed-object dummy argument
@@ -540,9 +506,6 @@ CONTAINS
   !!
   !! Is the next trigger date within selected time range.
   !! The time range is given by [mtime_current, mtime_current+slack].
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-06-20)
   !!
   LOGICAL FUNCTION phyProcBase_isNextTriggerTimeInRange_nobcast (phyProc, mtime_current, slack)
 
@@ -580,9 +543,6 @@ CONTAINS
   !! p_source. It is particularly suited for the case of nonzero 
   !! patch weights.
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-06-20)
-  !!
   LOGICAL FUNCTION phyProcBase_isNextTriggerTimeInRange_bcast (phyProc, mtime_current, slack, p_source, comm)
 
     CLASS(t_phyProcBase)   , INTENT(IN)    :: phyProc        !< passed-object dummy argument
@@ -613,9 +573,6 @@ CONTAINS
   !>
   !! Finalize physical process
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-06-21)
-  !!
   SUBROUTINE phyProcBase_final    (phyProc)
     CLASS(t_phyProcBase), INTENT(INOUT) :: phyProc    !< passed-object dummy argument
 
@@ -636,9 +593,6 @@ CONTAINS
   !! Constructor for variable of type t_phyProcGroup
   !!
   !! Constructor for variable of type t_phyProcGroup
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-05-24)
   !!
   SUBROUTINE phyProcGroup_construct (phyProcGrp, pid, grpName, grpSize)
     CLASS(t_phyProcGroup)         , INTENT(INOUT)   :: phyProcGrp !< passed-object dummy argument
@@ -676,9 +630,6 @@ CONTAINS
   !! Add process to group
   !!
   !! Add process to group.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-05-24)
   !!
   SUBROUTINE phyProcGroup_addToGroup (phyProcGrp, phyProc)
     CLASS(t_phyProcGroup)       , INTENT(INOUT)   :: phyProcGrp !< passed-object dummy argument
@@ -727,9 +678,6 @@ CONTAINS
   !! The mtime-events of all group members are re-initialized 
   !! by calling the member-specific routine reinitEvent.
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-06-26)
-  !!
   SUBROUTINE phyProcGroup_reinitEvents (phyProcGrp)
     CLASS(t_phyProcGroup), INTENT(INOUT)     :: phyProcGrp  !< passed-object dummy argument
 
@@ -765,9 +713,6 @@ CONTAINS
   !! phyProcGrp%proc(:)%p%lastActive
   !! It is transformed into 'seconds since last trigger date'. 
   !! From this, phyProcGrp%proc(:)%p%lastActive can be restored after restart.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-05-31)
   !!
   SUBROUTINE phyProcGroup_serialize (phyProcGrp, mtime_current, elapsedTime)
     CLASS(t_phyProcGroup)         , INTENT(IN)   :: phyProcGrp     !< passed-object dummy argument
@@ -813,9 +758,6 @@ CONTAINS
   !! So far, the following components are de-serialized:
   !! elapsedTime
   !! From this, phyProcGrp%proc(:)%p%lastActive is restored.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-05-31)
   !!
   SUBROUTINE phyProcGroup_deserialize (phyProcGrp, mtime_current, optAttnamePrefix)
     CLASS(t_phyProcGroup)         , INTENT(INOUT):: phyProcGrp     !< passed-object dummy argument
@@ -863,9 +805,6 @@ CONTAINS
   !!
   !! Print setup for all group members.
   !! I.e. show details about the mtime-events.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-06-30)
   !!
   SUBROUTINE phyProcGroup_printSetup (phyProcGrp)
     !
@@ -978,9 +917,6 @@ CONTAINS
   !! Print status of all group members.
   !! I.e. details about the mtime-events are printed.
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-03-30)
-  !!
   SUBROUTINE phyProcGroup_printStatus (phyProcGrp, mtime_current)
     !
     CLASS(t_phyProcGroup)  , INTENT(INOUT) :: phyProcGrp    !< passed-object dummy argument
@@ -1063,9 +999,6 @@ CONTAINS
   !!
   !! Finalization for variable of type t_phyProcGroup
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-06-21)
-  !!
   SUBROUTINE phyProcGroup_finalize (phyProcGrp)
     CLASS(t_phyProcGroup) , INTENT(INOUT) :: phyProcGrp  !< passed-object dummy argument
 
@@ -1097,9 +1030,6 @@ CONTAINS
   !! called this time step. If lcall_phy(iphys)=.FALSE., it must not be called.
   !! The decision making is based upon mtime events, which are initialized in 
   !! mo_atm_phy_nwp_config:configure_atm_phy_nwp.
-  !!
-  !! @par Revision History
-  !! Developed by Daniel Reinert, DWD (2017-05-30)
   !!
   SUBROUTINE mtime_ctrl_physics ( phyProcs, mtime_current, isInit, lcall_phy )
 

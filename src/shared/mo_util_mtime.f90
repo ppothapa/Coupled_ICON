@@ -1,14 +1,17 @@
-!> This module contains auxiliary routines for mtime date/time objects. 
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!! -----------------------------------------------------------------------------------
+! This module contains auxiliary routines for mtime date/time objects.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_util_mtime
 
   USE, INTRINSIC :: iso_c_binding, ONLY: c_int64_t, c_char
@@ -120,9 +123,6 @@ CONTAINS
   !!
   !! Returns previous 'midnight' datetime for given datetime in datetime-format
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-12-01)
-  !!
   TYPE(datetime) FUNCTION assumePrevMidnight(current_date)
     TYPE(datetime), INTENT(IN) :: current_date
 
@@ -139,9 +139,6 @@ CONTAINS
   !! Returns nest 'midnight' datetime for given datetime
   !!
   !! Returns next 'midnight' datetime for given datetime in datetime-format
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-12-01)
   !!
   TYPE(datetime) FUNCTION assumeNextMidnight(current_date)
     TYPE(datetime), INTENT(IN) :: current_date
@@ -170,9 +167,6 @@ CONTAINS
   !! between the current datetime and the anchor  
   !! datetime. Unless specified otherwise, the anchor date  
   !! is set to the experiment start date time_config%tc_exp_startdate.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-12-01)
   !!
   REAL(wp) FUNCTION getElapsedSimTimeInSeconds(datetime_current, anchor_datetime) RESULT(sim_time)
     !
@@ -207,9 +201,6 @@ CONTAINS
   !! object and for checking, whether the datetime object 
   !! at hand has already been touched and filed with a meaningful value.
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2018-12-01)
-  !!
   TYPE(datetime) FUNCTION dummyDateTime()
     !
     ! local
@@ -234,9 +225,6 @@ CONTAINS
   !! Wrapper for mtime function isCurrentEventActive in order to 
   !! encapsulate the vector-host offloading
   !! needed on the NEC Aurora
-  !!
-  !! @par Revision History
-  !! Initial revision by Guenther Zaengl, DWD (2020-01)
   !!
   LOGICAL FUNCTION is_event_active (in_event, mtime_current, offload_mode, plus_slack, opt_lasync)
 

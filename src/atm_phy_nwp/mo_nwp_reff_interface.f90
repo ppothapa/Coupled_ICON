@@ -1,31 +1,23 @@
-!===============================================================================!
 !
-!! Interface to compute effective radius consistent with microphysics, cloud scheme 
-!! and convection scheme choice (not yet!).
-!!
-!! Description:
-!! The module provides the interface between the ICON routine and the effective 
-!! radius module
-!!
-!!
-!!
-!! @author Alberto de Lozar, DWD
-!!                     alberto.lozar-de@dwd.de
+! Interface to compute effective radius consistent with microphysics, cloud scheme
+! and convection scheme choice (not yet!).
 !
-!! @par Revision History
-!! First Version. Alberto de Lozar, DWD 2019-12-12
-!!
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!===============================================================================!
+! Description:
+! The module provides the interface between the ICON routine and the effective
+! radius module
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"

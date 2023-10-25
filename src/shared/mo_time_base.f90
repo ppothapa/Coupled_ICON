@@ -1,30 +1,18 @@
-!! mo_time_base [module]
-!!    routines to handle Julian dates and times
-!!
-!! Authors:
-!!   L. Kornblueh, MPI                prepared basic version
-!!   I. Kirchner,  MPI July 2000      large revision
-!!   L. Kornblueh, MPI August 2000    adapting for right real kind (dp)
-!!                                    and other minor corrections, removed
-!!                                    30 day support, removed print overload.
-!!   L. Kornblueh, MPI February 2003  adaption to PRISM calendar
-!!                                    dates before the change to the gregorian
-!!                                    calendar are treated as gregorian as
-!!                                    well to have a consistent view on the
-!!                                    seasons in climate sense - introduce
-!!                                    preprocessor flag IAU for the original
-!!                                    code (IAU - International Astrophysical
-!!                                    Union).
-!!   I. Kirchner,  FUB February 2003  code review
-!!   L. Kornblueh, MPI April 2008     bug fix for year length in 1582
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+! mo_time_base [module]
+!    routines to handle Julian dates and times
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_time_base
 
 

@@ -1,35 +1,26 @@
-!>
-!! @par Copyright
-!! This code is subject to the MPI-M-Software - License - Agreement in it's most recent form. 
-!! Please see URL http://www.mpimet.mpg.de/en/science/models/model-distribution.html and the
-!! file COPYING in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the headers of the routines.
-!!
-!! @brief Module to provide Monte Carlo samples based on cloud fraction
-!!
-!! @remarks
-!!   This module draws Monte Carlo samples from profiles of the atmospheric
-!!   state and on overlap assumption ( 1=max-ran, 2=maximum, 3=random). 
-!!   Users provide profiles of cloud fraction and in-cloud optical thickness. 
-!!   A single sample is drawn; cloud fraction is either 1 or 0 and optical 
-!!   thickness is set to 0 where cloud fraction is 0. 
-!!
-!! @author Robert Pincus, U. Colorado, while visiting MPI-M, Hamburg (2010-08)
-!!
-!! $ID: n/a$
-!!
-!! @par Origin
-!!   Written by Robert Pincus; simplifed from code originally written for the 
-!!   GFDL atmospheric model AM2. 
-!!
-!! @par Copyright
-!!   The AER copyright
-!!   on the original code is as follows: Copyright 2002-2009, Atmospheric and
-!!   Environmental Research, Inc. (AER). This software may be used, copied, or
-!!   redistributed as long as it is not sold and this copyright notice is
-!!   reproduced on each copy made.  This model is provided as is without any
-!!   express or implied warranties. (http://www.rtweb.aer.com/)               
-!! 
+! Module to provide Monte Carlo samples based on cloud fraction
+!
+! Remarks
+!   This module draws Monte Carlo samples from profiles of the atmospheric
+!   state and on overlap assumption ( 1=max-ran, 2=maximum, 3=random).
+!   Users provide profiles of cloud fraction and in-cloud optical thickness.
+!   A single sample is drawn; cloud fraction is either 1 or 0 and optical
+!   thickness is set to 0 where cloud fraction is 0.
+!
+! Origin
+!   Written by Robert Pincus; simplifed from code originally written for the
+!   GFDL atmospheric model AM2.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_radiation_cld_sampling 
 

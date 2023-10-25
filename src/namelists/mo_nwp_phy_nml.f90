@@ -1,25 +1,20 @@
-!>
-!!  Namelist for NWP physics
-!!
-!!  these Subroutines are called by control model and construct the
-!!  physics composition
-!!
-!! @author <Kristina Froehlich, DWD>
-!!
-!!
-!! @par Revision History
-!! First implementation by Kristina Froehlich, DWD (2010-06-20>)
-!!  namelist varaibles for calling frequency of fast physics schemes
-!!   have been removed to ensure the high frequent calls
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Namelist for NWP physics
+!
+! these Subroutines are called by control model and construct the
+! physics composition
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_nwp_phy_nml
 
   USE mo_kind,                ONLY: wp
@@ -134,8 +129,6 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !
-  !
-  !>
   !! Read Namelist for NWP physics. 
   !!
   !! This subroutine 
@@ -147,9 +140,6 @@ CONTAINS
   !! - performs sanity checks
   !! - stores the Namelist for restart
   !! - fills the configuration state (partly)    
-  !!
-  !! @par Revision History
-  !!  by Daniel Reinert, DWD (2011-06-07)
   !!
   SUBROUTINE read_nwp_phy_namelist( filename )
 

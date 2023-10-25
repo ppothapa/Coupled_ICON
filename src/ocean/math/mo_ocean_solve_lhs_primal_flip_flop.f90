@@ -1,7 +1,17 @@
-MODULE mo_primal_flip_flop_lhs
-
 ! contains extended lhs-matrix-generator type
 ! provides the primal flip flop lhs for the "mass matrix inversion" - solve
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+MODULE mo_primal_flip_flop_lhs
 
   USE mo_exception, ONLY: finish
   USE mo_kind, ONLY: wp

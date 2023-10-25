@@ -1,20 +1,17 @@
-!>
-!! Provide interfaces to call sea ice ice model from the ocean and atmosphere.
-!!
-!! @author Dirk Notz, MPI
-!! @author Vladimir Lapin, MPI
-!!
-!! @par Revision History
-!! Original version by Peter Korn, MPI-M (2009)
-!! Modified by Vladimir Lapin, MPI-M (2017)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+! Provide interfaces to call sea ice ice model from the ocean and atmosphere.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -82,11 +79,6 @@ CONTAINS
   !! This function changes:
   !! p_ice      dynamics fields of sea ice
   !!
-  !! @par Revision History
-  !! Initial release by Vladimir Lapin, MPI-M (2016-11)
-  !! Modified by Helmuth Haak, MPI-M (2020-03)
-  !
-!<Optimize_Used>
   SUBROUTINE ice_dynamics(p_patch_3D, p_ice, p_oce_sfc, atmos_fluxes, p_os, p_as, p_op_coeff, use_acc)
 
     TYPE(t_patch_3D ),TARGET,   INTENT(IN)      :: p_patch_3D
@@ -270,11 +262,6 @@ CONTAINS
   !! p_ice      slow-thermodynamics fields of sea ice
   !! p_oce_sfc  heat and fresh-water fluxes, passed to the ocean
   !!
-  !! @par Revision History
-  !! Initial release by Vladimir Lapin, MPI-M (2016-11)
-  !! Modified by Helmuth Haak, MPI-M (2020-03)
-  !
-!<Optimize_Used>
   SUBROUTINE ice_thermodynamics(p_patch_3D, p_ice, p_oce_sfc, atmos_fluxes, p_os, p_as, p_op_coeff, use_acc)
 
     TYPE(t_patch_3D ),TARGET,   INTENT(IN)      :: p_patch_3D
@@ -326,11 +313,6 @@ CONTAINS
   !! p_ice        - fast-thermodynamics fields (Qtop, Qbot, Tsurf)
   !! atmos_fluxes - ice albedos (albvisdir, albvisdif, albnirdir, albnirdif)
   !!
-  !! @par Revision History
-  !! Original code (mo_ocean_surface) by Stephan Lorenz, MPI-M (2015-04)
-  !! Modified by Vladimir Lapin, MPI-M (2016-11)
-  !
-!<Optimize_Used>
   SUBROUTINE ice_fast_interface(p_patch, p_ice, atmos_fluxes, this_datetime, use_acc)
 
     TYPE(t_patch), TARGET,      INTENT(IN)      :: p_patch
@@ -438,10 +420,6 @@ CONTAINS
   !! Qtop, Qbot                 - heat flux available for surface/bottom melting
   !! alb{vis/nir}{dir/dif}      - albedos
   !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2010-07). Originally code written by
-  !! Dirk Notz, following MPI-OM. Code transfered to ICON.
-  !
   SUBROUTINE ice_fast(i_startidx_c, i_endidx_c, nbdim, kice, pdtime, &
             &   Tsurf,          & ! Surface temperature [degC]
             &   T1,             & ! Temperature of upper layer [degC]

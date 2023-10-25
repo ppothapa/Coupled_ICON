@@ -1,38 +1,20 @@
 !NEC$ options "-finline-max-depth=3 -finline-max-function-size=1000"
-!===============================================================================!
 !
-! Two-moment bulk microphysics by Axel Seifert, Klaus Beheng and Uli Blahak
+! Two-moment bulk microphysics after Seifert, Beheng and Blahak
 !
 ! Description:
 ! Provides various subroutines and functions for the two-moment microphysics
 !
-! Current Code Owner: Uli Blahak, DWD
-!                     ulrich.blahak@dwd.de
+! ICON
 !
-! Language: Fortran 2003
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
 !
-! Some code standards or recommendations, at least:
-!
-! - All changes that potentially change the results need to
-!   be approved by AS and UB
-! - All new variables/subroutines should be named in English
-! - In the future also comments should be written in English,
-!   but temporary use of some German is OK, too.
-! - Length of names of subroutines should be <= 20
-! - Length of names of variables should be <= 15
-! - Length of lines has to be < 100 including comments,
-!   recommended is <= 80 for code without comments.
-! - Temporary modifications for experiments should be marked by
-!
-!     AS_YYYYMMDD>
-!         ! Change for / Bugfix ....
-!     <AS_YYYYMMDD
-!
-!   until they are validated as improvements and made official
-!   (with AS, or whatever, being the initials of the guy doing the stuff
-!   and YYYYMMDD=year/month/day).
-!
-!===============================================================================!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_2mom_mcrph_util
 

@@ -1,22 +1,23 @@
+!
+! Subroutines for computing turbulent exchange coefficients of
+! 3D Smagorinsky turbulent scheme.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
+!------------------
 #include "fsel.inc"
-!>
-!! @brief Subroutines for computing turbulent exchange coefficients of
-!! 3D Smagorinsky turbulent scheme.
-!!
-!! @author Junhong Lee, MPI-M
-!!
-!! @par Revision History
-!! Code originates from ICON-LEM, mo_sgs_turbulence.f90
-!! Re-organized by Junhong Lee (2020-02).
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!------------------
+
+
 MODULE mo_turb_vdiff_sma
 
   USE mo_kind              ,ONLY: wp, i1
@@ -84,10 +85,6 @@ CONTAINS
   !! Therefore a number of variables are defined on what shall be referred to
   !! as "mid-levels", which are defined on levels with indices xmid(k) corre-
   !! sponding to xh(k+1), where x is some quantity at half-level k+1/2.
-  !!
-  !! @par Revision History
-  !! Separated from vdiff.f90 of ECHAM6 and re-organized by Hui Wan (2010-09).
-  !!  updated to echam-6.3.01 by Monika Esch (2014-11)
   !!
   SUBROUTINE atm_exchange_coeff3d( kbdim, nblks_c,                        &! in
                                & klev, klevm1, klevp1,                    &! in
@@ -604,9 +601,6 @@ CONTAINS
   !!        D_23 = du_2/dx_3 + du_3/dx_2
   !! For triangles: 1=normal, 2=tangential, and 3 = z directions
   !!------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Anurag Dipankar, MPI-M (2013-02-20)
-  !! Modify by Junhong Lee, MPI-M (2020-03-03)
 
     ALLOCATE( vn_ie(nproma,p_patch%nlevp1,p_patch%nblks_e)      &
              ,vt_ie(nproma,p_patch%nlevp1,p_patch%nblks_e)      &
@@ -1063,8 +1057,7 @@ CONTAINS
   !!
   !! d_vn/d_t =  d_tau_11/d_x1 + d_tau_12/d_x2 + d_tau_13/d_x3
   !!------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Anurag Dipankar, MPI-M (2013-02-05)
+
   SUBROUTINE diffuse_hori_velocity( nproma,                &
                                   & p_patch,               &
                                   & km_c, km_iv,           &
@@ -1275,8 +1268,6 @@ CONTAINS
   !! - Option to switch on implicit scheme in vertical
   !! - only solves for jk=2 to nlev. The bottom and top boundaries are left untouched
   !!------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Anurag Dipankar, MPI-M (2013-02-05)
   SUBROUTINE diffuse_vert_velocity( nproma,                &
                                   & p_patch,               &
                                   & rho_ic, w_vert, w_ie,  &
@@ -1640,8 +1631,6 @@ CONTAINS
   !!   in the NH version.
   !! - Option to switch on implicit scheme in vertical
   !!------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Anurag Dipankar, MPI-M (2013-02-05)
   SUBROUTINE diffuse_scalar( nproma, var_temp, &
                            & p_patch,          &
                            & km_ie,            &
@@ -1888,8 +1877,6 @@ CONTAINS
   !! Louis (1979) A Parametirc model of vertical eddy fluxes in the atmosphere
   !! and R. B. Stull's book
   !!------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Anurag Dipankar, MPI-M (2013-02-06)
   FUNCTION businger_heat(z0, z1, L) RESULT(factor)
      REAL(wp), INTENT(IN) :: z0, z1, L
      REAL(wp) :: factor, zeta, lamda, psi

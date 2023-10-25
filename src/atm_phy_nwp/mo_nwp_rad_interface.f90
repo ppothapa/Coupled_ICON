@@ -1,20 +1,19 @@
-!>
-!! This module is the interface between nwp_nh_interface to the radiation schemes
-!! (ecRad and RRTM).
-!!
-!! @author Thorsten Reinhardt, AGeoBw, Offenbach
-!!
-!! @par Revision History
-!! Initial release by Thorsten Reinhardt, AGeoBw, Offenbach (2011-01-13)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! This module is the interface between nwp_nh_interface to the radiation schemes
+! (ecRad and RRTM).
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -80,9 +79,6 @@ MODULE mo_nwp_rad_interface
   !>
   !! This subroutine is the interface between nwp_nh_interface to the radiation schemes.
   !! Depending on inwp_radiation, it can call RRTM (1) or ecRad(4).
-  !!
-  !! @par Revision History
-  !! Initial release by Thorsten Reinhardt, AGeoBw, Offenbach (2011-01-13)
   !!
   SUBROUTINE nwp_radiation ( lredgrid, p_sim_time, mtime_datetime, pt_patch,pt_par_patch, &
     & ext_data, lnd_diag, pt_prog, pt_diag, prm_diag, lnd_prog, wtr_prog, zf, zh, dz, lacc)

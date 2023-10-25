@@ -1,19 +1,17 @@
-!>
-!! Computes diagnostic parameters and some diagnostics in the wave model
-!!
-!!
-!! @par Revision History
-!! Initial release by Mikhail Dorbynin, DWD (2021-02-18)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Computes diagnostic parameters and some diagnostics in the wave model
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -44,9 +42,6 @@ CONTAINS
   !>
   !! Calculation of diagnostic parameters
   !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-22)
-  !!
   SUBROUTINE calculate_output_diagnostics(p_patch, wave_config, tracer, depth, p_diag)
 
     TYPE(t_patch),         INTENT(IN)    :: p_patch
@@ -75,9 +70,6 @@ CONTAINS
 
   !>
   !! TO DO: Description
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-22)
   !!
   SUBROUTINE significant_wave_height(p_patch, emean, hs)
 
@@ -119,9 +111,6 @@ CONTAINS
   !!
   !! Reference
   !! Kern E. Kenton, JGR, Vol 74 NO 28, 1969
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-18)
   !!
   SUBROUTINE stokes_drift(p_patch, wave_config, wave_num_c, depth, tracer, u_stokes, v_stokes)
 

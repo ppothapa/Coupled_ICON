@@ -1,21 +1,18 @@
-!>
-!! This module is the interface between nwp_nh_interface to the 
-!! surface parameterisations:
-!! inwp_sfc  == 1 == surface scheme TERRA run in COSMO
-!!
-!! @author Kristina Froehlich, DWD, Offenbach (2010-01-25)
-!!
-!! @par Revision History
-!! Initial Kristina Froehlich, DWD, Offenbach (2010-01-25)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! This module is the interface between nwp_nh_interface to the
+! surface parameterisations:
+! inwp_sfc  == 1 == surface scheme TERRA run in COSMO
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -1790,13 +1787,6 @@ CONTAINS
   !! Interface for seaice parameterization. Calls seaice time integration scheme 
   !! seaice_timestep_nwp and updates the dynamic seaice index lists.
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2012-08-31)
-  !!
-  !! Modifications by Dmitrii Mironov, DWD (2016-08-08)
-  !! - Call to "seaice_timestep_nwp" is modified 
-  !!   to allow prognostic treatment of the sea-ice albedo.
-  !!
   SUBROUTINE nwp_seaice (p_patch, p_diag, prm_diag, p_prog_wtr_now,  &
     &                    p_prog_wtr_new, lnd_prog_now, lnd_prog_new, &
     &                    ext_data, p_lnd_diag, dtime, lacc)
@@ -2020,9 +2010,6 @@ CONTAINS
   !! Interface for fresh water lake (Flake) parameterization. Calls time 
   !! integration routine flake_interface and updates the prognostic Flake variables 
   !! as well as t_g_t and qv_s_t.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2013-06-26)
   !!
   SUBROUTINE nwp_lake (p_patch, p_diag, prm_diag, p_prog_wtr_now,    &
     &                    p_prog_wtr_new, lnd_prog_now, lnd_prog_new, &

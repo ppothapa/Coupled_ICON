@@ -1,29 +1,25 @@
-!>
-!! @brief optical depth calculations for RRTM Shortwave Radiation
-!!
-!! @par Description
-!!     Compute the optical depth by interpolating in ln(pressure),
-!!     temperature, and appropriate species.  Below LAYTROP, the water
-!!     vapor self-continuum is interpolated (in temperature) separately.
-!!
-!! @author Eli J. Mlawer, Atmospheric & Environmental Research.
-!!
-!! $ID: n/a$
-!!
-!! @par Revisions
-!!  M.Hamrud      01-Oct-2003 CY28 Cleaning
-!!  JJMorcrette 2003-02-24 adapted to ECMWF environment
-!!  D.Salmond  31-Oct-2007 Vector version
-!!  B. Stevens (MPI) 04-10-2009 Rewritten as module for ECHAM
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
 !
+! Optical depth calculations for RRTM Shortwave Radiation
+!
+! Description
+!     Compute the optical depth by interpolating in ln(pressure),
+!     temperature, and appropriate species.  Below LAYTROP, the water
+!     vapor self-continuum is interpolated (in temperature) separately.
+!
+! Eli J. Mlawer, Atmospheric & Environmental Research.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 #if defined __xlC__ && !defined NOXLFPROCESS
 @PROCESS HOT
 #endif
@@ -48,7 +44,7 @@ CONTAINS
 
   !-----------------------------------------------------------------------------
   !>
-  !! @brief BAND 16:  2600-3250 cm-1 (low - H2O,CH4; high - CH4)
+  !! BAND 16:  2600-3250 cm-1 (low - H2O,CH4; high - CH4)
   !!
   SUBROUTINE srtm_taumol16 &
        & ( icount, kbdim     , klev,&
@@ -233,7 +229,7 @@ CONTAINS
   END SUBROUTINE srtm_taumol16
   !-----------------------------------------------------------------------------
   !>
-  !! @brief BAND 17:  3250-4000 cm-1 (low - H2O,CO2; high - H2O,CO2)
+  !! BAND 17:  3250-4000 cm-1 (low - H2O,CO2; high - H2O,CO2)
   !
   SUBROUTINE srtm_taumol17 &
        & ( icount, kbdim    , klev,&
@@ -448,7 +444,7 @@ CONTAINS
   END SUBROUTINE srtm_taumol17
   !-----------------------------------------------------------------------------
   !>
-  !! @brief BAND 18:  4000-4650 cm-1 (low - H2O,CH4; high - CH4)
+  !! BAND 18:  4000-4650 cm-1 (low - H2O,CH4; high - CH4)
   !
   SUBROUTINE srtm_taumol18 &
        & ( icount, kbdim    , klev,&
@@ -634,7 +630,7 @@ CONTAINS
   END SUBROUTINE srtm_taumol18
   !-----------------------------------------------------------------------------
   !>
-  !! @brief BAND 19:  4650-5150 cm-1 (low - H2O,CO2; high - CO2)
+  !! BAND 19:  4650-5150 cm-1 (low - H2O,CO2; high - CO2)
   !
   SUBROUTINE srtm_taumol19 &
        & ( icount, kbdim    , klev,&
@@ -820,7 +816,7 @@ CONTAINS
   END SUBROUTINE srtm_taumol19
   !-----------------------------------------------------------------------------
   !>
-  !! @brief BAND 20:  5150-6150 cm-1 (low - H2O; high - H2O)
+  !! BAND 20:  5150-6150 cm-1 (low - H2O; high - H2O)
   !
   SUBROUTINE srtm_taumol20 &
        & ( icount, kbdim    , klev,&
@@ -983,7 +979,7 @@ CONTAINS
   END SUBROUTINE srtm_taumol20
   !-----------------------------------------------------------------------------
   !>
-  !! @brief BAND 21:  6150-7700 cm-1 (low - H2O,CO2; high - H2O,CO2)
+  !! BAND 21:  6150-7700 cm-1 (low - H2O,CO2; high - H2O,CO2)
   !
   SUBROUTINE srtm_taumol21 &
        & ( icount, kbdim    , klev,&
@@ -1201,7 +1197,7 @@ CONTAINS
   END SUBROUTINE srtm_taumol21
   !-----------------------------------------------------------------------------
   !>
-  !! @brief BAND 29:  7700-8050 cm-1 (low - H2O,O2; high - O2)
+  !! BAND 29:  7700-8050 cm-1 (low - H2O,O2; high - O2)
   !
   SUBROUTINE srtm_taumol22 &
        & ( icount, kbdim    , klev,&
@@ -1401,7 +1397,7 @@ CONTAINS
   END SUBROUTINE srtm_taumol22
   !-----------------------------------------------------------------------------
   !>
-  !! @brief BAND 23:  8050-12850 cm-1 (low - H2O; high - nothing)
+  !! BAND 23:  8050-12850 cm-1 (low - H2O; high - nothing)
   !
   SUBROUTINE srtm_taumol23 &
        & ( icount, kbdim    , klev,&
@@ -1540,7 +1536,7 @@ CONTAINS
   END SUBROUTINE srtm_taumol23
   !-----------------------------------------------------------------------------
   !>
-  !! @brief BAND 24:  12850-16000 cm-1 (low - H2O,O2; high - O2)
+  !! BAND 24:  12850-16000 cm-1 (low - H2O,O2; high - O2)
   !
   SUBROUTINE srtm_taumol24 &
        & ( icount, kbdim    , klev,&
@@ -1733,7 +1729,7 @@ CONTAINS
   END SUBROUTINE srtm_taumol24
   !-----------------------------------------------------------------------------
   !>
-  !! @brief BAND 25:  16000-22650 cm-1 (low - H2O; high - nothing)
+  !! BAND 25:  16000-22650 cm-1 (low - H2O; high - nothing)
   !
   SUBROUTINE srtm_taumol25 &
        & ( icount, kbdim    , klev,&
@@ -1849,7 +1845,7 @@ CONTAINS
   END SUBROUTINE srtm_taumol25
   !-----------------------------------------------------------------------------
   !>
-  !! @brief BAND 26:  22650-29000 cm-1 (low - nothing; high - nothing)
+  !! BAND 26:  22650-29000 cm-1 (low - nothing; high - nothing)
   !
   SUBROUTINE srtm_taumol26 &
        & ( icount  , kbdim    , klev,&
@@ -1928,7 +1924,7 @@ CONTAINS
   END SUBROUTINE srtm_taumol26
   !-----------------------------------------------------------------------------
   !>
-  !! @brief BAND 27:  29000-38000 cm-1 (low - O3; high - O3)
+  !! BAND 27:  29000-38000 cm-1 (low - O3; high - O3)
   !
   SUBROUTINE srtm_taumol27 &
        & ( icount, kbdim    , klev,&
@@ -2052,7 +2048,7 @@ CONTAINS
   END SUBROUTINE srtm_taumol27
   !-----------------------------------------------------------------------------
   !>
-  !! @brief BAND 28:  38000-50000 cm-1 (low - O3,O2; high - O3,O2)
+  !! BAND 28:  38000-50000 cm-1 (low - O3,O2; high - O3,O2)
   !
   SUBROUTINE srtm_taumol28 &
        & ( icount, kbdim    , klev,&
@@ -2233,7 +2229,7 @@ CONTAINS
   END SUBROUTINE srtm_taumol28
   !-----------------------------------------------------------------------------
   !>
-  !! @brief BAND 29:  820-2600 cm-1 (low - H2O; high - CO2)
+  !! BAND 29:  820-2600 cm-1 (low - H2O; high - CO2)
   !
   SUBROUTINE srtm_taumol29 &
        & ( icount, kbdim    , klev,&

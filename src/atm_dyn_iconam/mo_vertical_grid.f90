@@ -1,24 +1,23 @@
-!>
-!! mo_vertical_grid provides all subroutines for handling of the vertical
-!! grid in the nonhydrostatic model branch.
-!! Routines are provided for
-!!  1) Creating the hybrid height based coordinate system.
-!!  2) (De)Allocations of related metric fields. Note, that they are defined
-!!     in mo_model_domain
-!!
-!! @author Almut Gassmann, MPI-M
-!!
-!! @par Revision History
-!! Initial release by Almut Gassmann (2009-04-14)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! mo_vertical_grid provides all subroutines for handling of the vertical
+! grid in the nonhydrostatic model branch.
+! Routines are provided for
+!  1) Creating the hybrid height based coordinate system.
+!  2) (De)Allocations of related metric fields. Note, that they are defined
+!     in mo_model_domain
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -98,12 +97,6 @@ MODULE mo_vertical_grid
   !----------------------------------------------------------------------------
   !>
   !! Initializes values for the fields in type nh_metrics of the NH state.
-  !!
-  !! @par Revision History
-  !! Initial release by Almut Gassmann (2009-04-14)
-  !! New formulation of the tangential slope by A. Gassmann (2009-11-17)
-  !! Modification by Almut Gassmann (2009-11-17)
-  !! - Adding Rayleigh damping coeff. at upper boundary
   !!
   SUBROUTINE set_nh_metrics(p_patch, p_nh, p_nh_lists, p_int, ext_data)
 
@@ -1786,9 +1779,6 @@ MODULE mo_vertical_grid
   !! Computation of coefficients and index lists needed for truly horizontal
   !! temperature diffusion.
   !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD (2010-10-19)
-  !!
   SUBROUTINE prepare_zdiffu(p_patch, p_nh, p_nh_metrics_list, p_int, maxslp, maxhgtd)
 
     CHARACTER(len=*), PARAMETER :: routine = modname//':prepare_zdiffu'
@@ -2090,9 +2080,6 @@ MODULE mo_vertical_grid
   !>
   !! Computation of coefficients for LES model in mo_sgs_turbulence
   !!
-  !! @par Revision History
-  !! Developed by Anurag Dipankar, MPIM (2013-04)
-  !!
   SUBROUTINE prepare_les_model(p_patch, p_nh, p_int, jg)
 
     CHARACTER(len=*), PARAMETER :: routine = modname//':prepare_les_model'
@@ -2188,9 +2175,6 @@ MODULE mo_vertical_grid
   !! Computation of nudging coefficient for nudging types:
   !! - Upper boundary nudging
   !! - Global nudging
-  !!
-  !! @par Revision History
-  !! Initial revision by Guenther Zaengl and Sebastian Borchert, DWD (2018-09)
   !!
   SUBROUTINE prepare_nudging(p_patch, p_nh)
 
@@ -2332,10 +2316,6 @@ MODULE mo_vertical_grid
   !----------------------------------------------------------------------------
   !>
   !! Computes metrical modification for the deep atmosphere
-  !!
-  !! @par Revision History
-  !! Initial revision by Sebastian Borchert, DWD (2017-06-30)
-  !!
   !!
   SUBROUTINE prepare_deepatmo_metrics( nblks_c,       &  !in
     &                                  nblks_e,       &  !in

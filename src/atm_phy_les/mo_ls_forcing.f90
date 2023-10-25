@@ -1,24 +1,21 @@
-!>
-!! mo_ls_forcing
-!!
-!! This module initializes and applies the large-scale forcing for idealized simulations
-!! This module assumes that the model grid is FLAT
-!! 2013-JUNE-04: AT THIS STAGE LS FORCING WILL WORK IN RESTART MODE ONLY IF ITS CALLED EVERY
-!! DYNAMIC TIMESTEP. TO MAKE IT WORK "SMOOTHLY" ADD_VAR HAS TO WORK ON 1D VARS
-!!
-!! @author Anurag Dipankar, MPI-M
-!!
-!! @par Revision History
-!! Initial release by Anurag Dipankar, MPI-M (2013-May-30)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! This module initializes and applies the large-scale forcing for idealized simulations
+! This module assumes that the model grid is FLAT
+! 2013-JUNE-04: AT THIS STAGE LS FORCING WILL WORK IN RESTART MODE ONLY IF ITS CALLED EVERY
+! DYNAMIC TIMESTEP. TO MAKE IT WORK "SMOOTHLY" ADD_VAR HAS TO WORK ON 1D VARS
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -97,8 +94,7 @@ MODULE mo_ls_forcing
   !!------------------------------------------------------------------------
   !! Initialize large-scale forcings from input file
   !!------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Anurag Dipankar, MPI-M (2013-May-30)
+
   SUBROUTINE init_ls_forcing(p_metrics)
 
     TYPE(t_nh_metrics),INTENT(in), TARGET :: p_metrics
@@ -992,8 +988,7 @@ MODULE mo_ls_forcing
   !! All tendencies are then accumulated in the slow physics tendency terms
   !!
   !!------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Anurag Dipankar, MPI-M (2013-May-30)
+
   SUBROUTINE apply_ls_forcing(p_patch, p_metrics, curr_sim_time,       & !in
                               p_prog, p_diag, qv, rl_start, rl_end,    & !in
                               ddt_u_ls, ddt_v_ls,                      & !out

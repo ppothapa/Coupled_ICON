@@ -1,7 +1,3 @@
-module cvmix_ddiff
-
-!BOP
-!\newpage
 ! !MODULE: cvmix_ddiff
 !
 ! !AUTHOR:
@@ -11,9 +7,9 @@ module cvmix_ddiff
 !  This module contains routines to initialize the derived types needed for
 !  double diffusion mixing and to set the diffusivity coefficient
 !  accordingly.
-!\\
-!\\
-!  References:\\
+!
+!
+!  References:
 !  * RW Schmitt.
 !  Double Diffusion in Oceanography.
 !  Annual Review of Fluid Mechanics, 1994.\\
@@ -25,8 +21,20 @@ module cvmix_ddiff
 !  McWilliams.
 !  Diurnal Coupling in the Tropical Oceans of CCSM3.
 !  Journal of Climate, 2006.
-!\\
-!\\
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
+MODULE cvmix_ddiff
 
 ! !USES:
 

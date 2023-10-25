@@ -1,13 +1,19 @@
-!>
-!! @file mo_cyano.f90
-!! @brief N2 fixation and cyanobateria dynamics.
-!!
-!! Contains computation of diagnostic and prognostic N2 fixation and.
-!! cyanobacteria dyanmics (growth, decay, buouyancy) 
-!!
-!!
-
- 
+! @brief N2 fixation and cyanobateria dynamics.
+!
+! Contains computation of diagnostic and prognostic N2 fixation and.
+! cyanobacteria dyanmics (growth, decay, buouyancy)
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_cyano
 

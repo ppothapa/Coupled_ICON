@@ -1,47 +1,41 @@
-!>
-!! @brief Module to provide interface to radiation routines.
-!!
-!! @remarks
-!!   This module contains routines that provide the interface between ECHAM
-!!   and the radiation code.  Mostly it organizes and calculates the
-!!   information necessary to call the radiative transfer solvers.
-!!
-!! @author Bjorn Stevens, MPI-M, Hamburg (2009-09-19):
-!!
-!!         Hauke Schmidt, MPI-M, Hamburg (2009-12-18): Few modifications to
-!!              allow specific solar irradiance for AMIP-type and preindustrial
-!!              simulations.
-!!         Luis Kornblueh, MPI-M, Hamburg (2010-04-06): Never ever use write
-!!              directly
-!!         Martin Schultz, FZJ, Juelich (2010-04-13):
-!!              Extracted public parameters into new module mo_radiation_parameters
-!!              to avoid circular dependencies in submodels
-!!                                      (2010-06-03):
-!!              Added submodel calls, decl_sun_cur
-!!         Roland Wirth, DWD, Offenbach (2021-09-16):
-!!              Add output fluxes for near-IR, visible, and diffuse radiation.
-!!
-!! $ID: n/a$
-!!
-!! @par Origin
-!!   Major segments of this code combines and rewrites (for the ICON standard)
-!!   code previously contained in the ECHAM5 routines rad_int.f90,
-!!   radiation.f90 and prerad.f90.  Modifications were also made to provide
-!!   a cleaner interface to the aerosol and cloud properties. Contributors to
-!!   the code from which the present routines were derived include:  M. Jarraud,
-!!   ECMWF (1983-06); M.A. Giorgetta, MPI-M (2002-05); U. Schulzweida,  MPI-M
-!!   (2002-05); P. Stier MPI-M \& Caltech (2004-04, 2006-07), M. Thomas MPI-M
-!!   (2007-06); U. Schlese, MPI-M (2007-06); M. Esch, MPI-M (2007-06); S.J.
-!!   Lorenz, MPI-M (2007-11); T. Raddatz, MPI-M (2006-05); I. Kirchner.
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
 !
+! Module to provide interface to radiation routines.
+!
+! Remarks
+!   This module contains routines that provide the interface between ECHAM
+!   and the radiation code.  Mostly it organizes and calculates the
+!   information necessary to call the radiative transfer solvers.
+!
+!         Hauke Schmidt, MPI-M, Hamburg (2009-12-18): Few modifications to
+!              allow specific solar irradiance for AMIP-type and preindustrial
+!              simulations.
+!         Luis Kornblueh, MPI-M, Hamburg (2010-04-06): Never ever use write
+!              directly
+!         Martin Schultz, FZJ, Juelich (2010-04-13):
+!              Extracted public parameters into new module mo_radiation_parameters
+!              to avoid circular dependencies in submodels
+!                                      (2010-06-03):
+!              Added submodel calls, decl_sun_cur
+!         Roland Wirth, DWD, Offenbach (2021-09-16):
+!              Add output fluxes for near-IR, visible, and diffuse radiation.
+!
+! Origin
+!   Major segments of this code combines and rewrites (for the ICON standard)
+!   code previously contained in the ECHAM5 routines rad_int.f90,
+!   radiation.f90 and prerad.f90.  Modifications were also made to provide
+!   a cleaner interface to the aerosol and cloud properties. 
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_radiation
 
   USE mo_bc_greenhouse_gases,  ONLY: ghg_co2mmr, ghg_ch4mmr, ghg_n2ommr, ghg_cfcmmr
@@ -855,9 +849,9 @@ CONTAINS
 
   !-----------------------------------------------------------------------------
   !>
-  !! @brief Organizes the calls to the radiation solver
+  !! Organizes the calls to the radiation solver
   !!
-  !! @remarks This routine organises the input/output for the radiation
+  !! Remarks This routine organises the input/output for the radiation
   !! computation.  The state of radiatively active constituents is set as the
   !! input. Output are flux transmissivities and emissivities at all the half
   !! levels of the grid (respectively ratio solar flux/solar input and ratio
@@ -1160,9 +1154,6 @@ CONTAINS
   !>
   !! GAS_PROFILE:  Determines Gas distributions based on case specification
   !!
-  !! @par Revsision History
-  !! B. Stevens (2009-08).
-  !!
   !! Description: This routine calculates the gas distributions for one of
   !! five cases:  (0) no gas present; (1) prognostic gas; (2) specified
   !! mixing ratio; (3) mixing ratio decaying with height given profile;
@@ -1238,18 +1229,15 @@ CONTAINS
   END FUNCTION gas_profile
   !-----------------------------------------------------------------------------
   !>
-  !! @brief arranges input and calls rrtm sw and lw routines
+  !! Arranges input and calls rrtm sw and lw routines
   !!
-  !! @par Revision History
-  !! Original Source Rewritten and renamed by B. Stevens (2009-08)
-  !!
-  !! @remarks
+  !! Remarks
   !!   Because the RRTM indexes vertical levels differently than ECHAM a chief
   !!   function of this routine is to reorder the input in the vertical.  In
   !!   addition some cloud physical properties are prescribed, which are
   !!   required to derive cloud optical properties
   !!
-  !! @par The gases are passed into RRTM via two multi-constituent arrays:
+  !! The gases are passed into RRTM via two multi-constituent arrays:
   !!   zwkl and wx_r. zwkl has JPINPX species and  wx_r has JPXSEC species
   !!   The species are identifed as follows.
   !!     ZWKL [#/cm2]          WX_R [#/cm2]
@@ -1812,12 +1800,6 @@ CONTAINS
   !!   - the solar incoming flux at TOA
   !! - Longwave net flux profiles are given as input
   !! - Specific heat depends on the moisture in the air
-  !!
-  !! @author Marco Giorgetta, Max Planck Institute for Meteorology
-  !!
-  !!
-  !! @par Revision History
-  !! <Description of activity> by <name, affiliation> (<YYYY-MM-DD>)
   !!
 
   SUBROUTINE radheat (jcs, jce, jg, kbdim, &

@@ -1,30 +1,17 @@
-!>
-!! Contains routine for topography smoothing
-!!
-!! Contains routine for topography smoothing
-!! <Details of procedures are documented below with their definitions.>
-!! <Include any applicable external references inline as module::procedure,>
-!! <external_procedure(), or by using @see.>
-!! <Don't forget references to literature.>
-!!
-!! @author Guenther Zaengl, DWD
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2012-02-23)
-!! Modification by Daniel Reinert, DWD (2012-02-23)
-!! - Routine smooth_topography moved here from mo_ext_data
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Contains routine for topography smoothing
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_process_topo
 
   USE mo_kind,               ONLY: wp
@@ -55,13 +42,9 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------
-  !>
   !! Computes the smoothed topography needed e.g. for the SLEVE coordinate.
   !! May be bypassed once an option for reading the smooth topography from data
   !! is available
-  !!
-  !! @par Revision History
-  !! Initial release by Guenther Zaengl, DWD, (2010-07-21)
   !!
   SUBROUTINE compute_smooth_topo(p_patch, p_int, topo_c, niter, topo_smt_c)
 
@@ -121,14 +104,10 @@ CONTAINS
 
 
   !-----------------------------------------------------------------------
-  !>
   !! Topography smoothing
   !!
   !! Topography smoothing by selectively applying nabla2 and nabla4 
   !! operators.
-  !!
-  !! @par Revision History
-  !! Developed by G. Zaengl
   !!
   SUBROUTINE smooth_topo (p_patch, p_int, topography_c)
 
@@ -378,8 +357,6 @@ CONTAINS
 
 
   !-----------------------------------------------------------------------
-  !>
-  !! Topography smoothing for real-case runs
   !!
   !! Topography smoothing for real-case runs. Apart from smoothing the 
   !! topography field, 
@@ -387,11 +364,6 @@ CONTAINS
   !!   data set
   !! - the SSO standard deviation field is updated based on the smoothed 
   !!   topography
-  !!
-  !! @par Revision History
-  !! Developed by G. Zaengl  (2004).
-  !! Modification by Daniel Reinert, DWD (2016-07-06)
-  !! - bring sea points back to zero height after smoothing
   !!
   SUBROUTINE smooth_topo_real_data (p_patch, p_int, fr_land, fr_lake, topography_c, sso_stdh)
 
@@ -465,15 +437,11 @@ CONTAINS
 
 
   !-----------------------------------------------------------------------
-  !>
   !! Reduce SSO stdh and slope over glaciers depending on the ratio between SSO slope and resolved slope
   !!
   !! This should preferably done in extpar, but the results with a globally modified calculation of 
   !! the SSO parameters (by removing the grid-scale slope before calculating stdh and SSO-slope) 
   !! were quite ambivalent
-  !!
-  !! @par Revision History
-  !! Developed by G. Zaengl  (2020-07-13).
   !!
   SUBROUTINE postproc_sso (p_patch, p_int, fr_glac, topography_c, sso_stdh, sso_sigma)
 

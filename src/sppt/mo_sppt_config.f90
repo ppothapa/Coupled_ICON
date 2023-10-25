@@ -1,21 +1,17 @@
-!>
-!! @brief configuration setup for SPPT (Stochastic Pertubation of Physics Tendencies) 
-!!
-!! configuration setup for SPPT
-!!
-!! @author Sascha Bellaire, MCH (2021-05-13)!!
-!!
-!! @par Revision History
-!! initial revision by Sascha Bellaire, MCH (2022-10-01)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Configuration setup for SPPT (Stochastic Pertubation of Physics Tendencies)
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_sppt_config
 
   USE mo_kind,                    ONLY: wp,i8
@@ -54,23 +50,23 @@ MODULE mo_sppt_config
   PUBLIC :: sppt_config
 
 
-  !<--------------------------------------------------------------------------
+  !---------------------------------------------------------------------------
   !
   ! Basic configuration setup for SPPT
   !
-  !>--------------------------------------------------------------------------
+  !---------------------------------------------------------------------------
 
   TYPE:: t_sppt_config
 
     ! namelist variables
 
-    LOGICAL :: lsppt      ! > forecast with SPPT
+    LOGICAL :: lsppt      ! forecast with SPPT
 
-    REAL(wp) :: hinc_rn   ! > time increment (s) for drawing a new field of random numbers
-    REAL(wp) :: dlat_rn   ! > random number coarse grid point distance in meridional direction (deg)
-    REAL(wp) :: dlon_rn   ! > random number coarse grid point distance in zonal direction (deg)
-    REAL(wp) :: range_rn  ! > max magnitude of random numbers
-    REAL(wp) :: stdv_rn   ! > standard deviation of the gaussian distribution of random numbers
+    REAL(wp) :: hinc_rn   ! time increment (s) for drawing a new field of random numbers
+    REAL(wp) :: dlat_rn   ! random number coarse grid point distance in meridional direction (deg)
+    REAL(wp) :: dlon_rn   ! random number coarse grid point distance in zonal direction (deg)
+    REAL(wp) :: range_rn  ! max magnitude of random numbers
+    REAL(wp) :: stdv_rn   ! standard deviation of the gaussian distribution of random numbers
 
     REAL(wp), ALLOCATABLE :: taper(:)              ! < factor for vertical tapering
 
@@ -99,12 +95,12 @@ MODULE mo_sppt_config
 
   CONTAINS
 
-  !>-----------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------------
   !
   ! Further configurations of SPPT (Stochastic Perturbation of Physics Tendencies)
   !
-  !<-----------------------------------------------------------------------------------
-  !
+  !------------------------------------------------------------------------------------
+
   SUBROUTINE configure_sppt(n_dom, p_patch, mtime_current)
 
     ! Subroutine arguments
@@ -143,21 +139,21 @@ MODULE mo_sppt_config
 
       nlev = p_patch(jg)%nlev
 
-      !<--------------------------------
+      !---------------------------------
       ! Create mtime event for SPPT
-      !>-------------------------------
+      !--------------------------------
 
       CALL setup_sppt_events(sppt_config(jg)%read_rapa_Event, sppt_config(jg)%hinc_rn)
 
-      !<--------------------------------
+      !---------------------------------
       ! Convert hinc_rn into mtime timedelta
-      !>-------------------------------
+      !--------------------------------
 
       CALL mtime_timedelta_from_fseconds(sppt_config(jg)%hinc_rn, mtime_current, sppt_config(jg)%mtime_hinc_rn)
 
-      !<--------------------------------
+      !---------------------------------
       ! Create factors for tapering
-      !>-------------------------------
+      !--------------------------------
 
       ! Allocate array for vertical tapering
       ALLOCATE(sppt_config(jg)%taper(nlev), stat=ist)
@@ -228,9 +224,9 @@ MODULE mo_sppt_config
       DEALLOCATE(sigm_coord, stat=ist)
       IF(ist /= SUCCESS) CALL finish(routine, "memory deallocation failure for array sigm_coord")
 
-      !<--------------------------------------
+      !---------------------------------------
       ! Compute bounding box of given patch
-      !>--------------------------------------
+      !---------------------------------------
 
       sppt_config(jg)%bbmin_lon = HUGE(0._wp)
       sppt_config(jg)%bbmin_lat = HUGE(0._wp)
@@ -284,13 +280,13 @@ MODULE mo_sppt_config
   END SUBROUTINE configure_sppt
 
 
-  !>-----------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------------
   !
   ! Setup mtime events for SPPT utilizing newEvent() subroutine
   !
   !   - read_rapa (read pattern/field of random numbers) 
   !
-  !<-----------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------------
   !
   SUBROUTINE setup_sppt_events(read_rapa_Event, hinc_rn)
 
@@ -304,9 +300,9 @@ MODULE mo_sppt_config
     TYPE(timedelta), POINTER               :: eventInterval    => NULL()
     CHARACTER(LEN=MAX_TIMEDELTA_STR_LEN)   :: td_string
 
-    !<--------------------------------
+    !---------------------------------
     ! Create event read_rapa_Event for reading/creating random numbers for perturbation
-    !>-------------------------------
+    !--------------------------------
 
     CALL getPTStringFromMS(INT(hinc_rn*1000.0_wp,i8), td_string)
 
@@ -321,20 +317,20 @@ MODULE mo_sppt_config
   END SUBROUTINE setup_sppt_events
 
 
-  !>-----------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------------
   !
   ! Crosscheck for SPPT (Stochastic Perturbation of Physics Tendencies)
   !
-  !<-----------------------------------------------------------------------------------
+  !------------------------------------------------------------------------------------
   !
   SUBROUTINE crosscheck_sppt()
 
     INTEGER  :: jg
     CHARACTER(len=*), PARAMETER :: routine =  modname//'::crosscheck_sppt'
 
-    !>-------------------------------
+    !--------------------------------
     ! Global cross checks - exit if ...
-    !<-------------------------------
+    !--------------------------------
 
     ! ... l_limited_area=.FALSE., i.e. global run
     IF(.NOT. l_limited_area) THEN
@@ -348,9 +344,9 @@ MODULE mo_sppt_config
       ENDIF
 #endif
 
-    !>-----------------------------
+    !------------------------------
     ! Cross checks for all domains - exit if ...
-    !>-----------------------------
+    !------------------------------
 
     DO jg=1,n_dom
 

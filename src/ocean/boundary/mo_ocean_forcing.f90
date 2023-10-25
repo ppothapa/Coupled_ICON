@@ -1,28 +1,20 @@
-!>
-!! Provide an implementation of the ocean forcing.
-!!
-!! Provide an implementation of the parameters used for surface forcing
-!! of the hydrostatic ocean model.
-!!
-!! @author Peter Korn, MPI
-!! @author Stephan Lorenz, MPI
-!!
-!! @par Revision History
-!!  Original version by Peter Korn, MPI-M (2009)
-!!  Modification by Stephan Lorenz, MPI-M (2010-06):
-!!   - renaming and adjustment to ocean domain and patch_oce
-!!  Modified by Stephan Lorenz,     MPI-M (2010-07)
-!!    adapted to structures discussed in 2010-01.
-!!  Modified by Vladimir Lapin,     MPI-M (2017-03)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Provide an implementation of the ocean forcing.
+!
+! Provide an implementation of the parameters used for surface forcing
+! of the hydrostatic ocean model.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------

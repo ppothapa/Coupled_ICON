@@ -1,33 +1,32 @@
-!>
-!! Subroutine to initialize testcase 20  (examine the impact of 3D Schaer-like 
-!! circular mountain profiles on an  atmosphere at rest ) proposed 
-!! for the DCMIP summer school
-!!
-!! A non-rotating planet is used. Test 2-0 is conducted on an unscaled 
-!! regular-size planet and primarily examines the accuracy of the pressure 
-!! gradient calculation in a steady-state hydrostatically-balanced 
-!! atmosphere at rest. This test is especially appealing for models with 
-!! orography-following vertical coordinates. It increases the complexity 
-!! of test 1-3, that investigated the impact of the same Schaer-type 
-!! orographic profile on the accuracy of purely-horizontal passive 
-!! tracer advection.
-!!
-!! @par Revision History
-!! - initial revision by Pilar Ripodas, DWD, (2012-07-16)
-!!
-!! @par Literature
-!! - Dynamical Core Model Intercomparison Project (DCMIP) 
-!!   Test Case Document (P. Ullrich et al, 2012)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Subroutine to initialize testcase 20  (examine the impact of 3D Schaer-like
+! circular mountain profiles on an  atmosphere at rest ) proposed
+! for the DCMIP summer school
+!
+! A non-rotating planet is used. Test 2-0 is conducted on an unscaled
+! regular-size planet and primarily examines the accuracy of the pressure
+! gradient calculation in a steady-state hydrostatically-balanced
+! atmosphere at rest. This test is especially appealing for models with
+! orography-following vertical coordinates. It increases the complexity
+! of test 1-3, that investigated the impact of the same Schaer-type
+! orographic profile on the accuracy of purely-horizontal passive
+! tracer advection.
+!
+! Literature
+! - Dynamical Core Model Intercomparison Project (DCMIP)
+!   Test Case Document (P. Ullrich et al, 2012)
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_nh_dcmip_rest_atm
 
    USE mo_kind,                 ONLY: wp
@@ -58,9 +57,6 @@ MODULE mo_nh_dcmip_rest_atm
 !
   !>
   !! Initialization of topograpphy for the nh schaer-type DCMIP test cases 
-  !!
-  !! @par Revision History
-  !!
   !!
   SUBROUTINE init_nh_topo_dcmip_rest_atm( p_patch, topo_c, fis)
 

@@ -1,24 +1,20 @@
-!>
-!! Data type defintion for wave external data state
-!!
-!! Defines the data type for storing wave-specific external parameter 
-!! fields such as bathymetry.
-!!
-!! @author Mikhail Dobrynin, DWD
-!!
-!!
-!! @par Revision History
-!! Initial Revision by Mikhail Dobrynin, DWD (2023-01-16)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Data type defintion for wave external data state
+!
+! Defines the data type for storing wave-specific external parameter
+! fields such as bathymetry.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_wave_ext_data_types
 
   USE mo_kind,               ONLY: wp

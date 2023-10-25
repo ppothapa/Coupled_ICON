@@ -1,33 +1,15 @@
-! $RCSfile$
-! $Revision$ $Date$
 !
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
-!>
-!! cuini:  THIS ROUTINE INTERPOLATES LARGE-SCALE FIELDS OF T,Q ETC.
-!!         TO HALF LEVELS (I.E. GRID FOR MASSFLUX SCHEME),
-!!         DETERMINES LEVEL OF MAXIMUM VERTICAL VELOCITY
-!!         AND INITIALIZES VALUES FOR UPDRAFTS AND DOWNDRAFTS
-!! @author   M.TIEDTKE         E.C.M.W.F.     12/89
-
-!! cubasen: THIS ROUTINE CALCULATES CLOUD BASE FIELDS
-!!          CLOUD BASE HEIGHT AND CLOUD TOP HEIGHT
-!!
-!! @author  A. Pier Siebesma   KNMI
-!! @author  C Jakob (ECMWF) (01/2001)
-!! @author  P Bechtold (ECMWF) (08/2002)
-!!
-!!
-!! @par Revision History
-!! first implementation by Kristina Froehlich (2010-05-26)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
 MODULE mo_cuinit
 
   USE mo_kind   ,ONLY: jprb=>wp     , &

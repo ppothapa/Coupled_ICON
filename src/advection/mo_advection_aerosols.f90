@@ -1,15 +1,16 @@
-!>
-!! Routines for idealized transport of 2D aerosol fields
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Routines for idealized transport of 2D aerosol fields
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_advection_aerosols
 
@@ -43,12 +44,6 @@ CONTAINS
   !
   !>
   !! Computes indices for vertically averaged fluxes used for transport of 2D aerosol fields
-  !!
-  !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD (2015-11-05)
-  !!
-  !!
   SUBROUTINE setup_aerosol_advection(p_patch)
 
     TYPE(t_patch),     TARGET, INTENT(IN) :: p_patch  !< patch of current domain
@@ -95,11 +90,6 @@ CONTAINS
   !
   !>
   !! Driver routine for idealized transport of 2D aerosol fields
-  !!
-  !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD (2015-11-05)
-  !!
   !!
   SUBROUTINE aerosol_2D_advection(p_patch, p_int, iprog_aero, dtime, aerosol, vn_traj, mflx_h, mflx_v, &
                                   deltaz_e, rhodz_now, rhodz_new)

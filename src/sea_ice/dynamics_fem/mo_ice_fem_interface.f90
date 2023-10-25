@@ -1,19 +1,18 @@
-!>
-!! Contains the interface needed to call AWI FEM sea ice model
-!! as well as advection and interpolation routines.
-!!
-!! @par Revision History
-!! Developed  by Einar Olason (2013)
-!! Restructured by Vladimir Lapin (2015)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Contains the interface needed to call AWI FEM sea ice model
+! as well as advection and interpolation routines.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -78,10 +77,6 @@ CONTAINS
 !!  We first remap the neccesary inputs, then call the momentum solver (EVPdynamics)
 !!  and map the resulting velocity onto edges and cell centres.
 !!
-!! @par Revision History
-!! Developed by Einar Olason, MPI-M (2013-06-05)
-!! Modified   by Vladimir Lapin (2015)
-!
   SUBROUTINE ice_fem_interface( p_patch_3D, p_ice, p_os, p_as, &
                                 atmos_fluxes, p_op_coeff, p_oce_sfc, use_acc )
 
@@ -252,9 +247,6 @@ CONTAINS
   !
   !> Initialize u_ice, v_ice in case of a restart
   !!
-  !! @par Revision History
-  !! Developed by Einar Olason, MPI-M (2013-08-05)
-  !
   SUBROUTINE ice_fem_init_vel_restart(p_patch, p_ice)
     USE mo_ice_fem_types,       ONLY: u_ice, v_ice
 
@@ -289,9 +281,6 @@ CONTAINS
   !
   !> Update p_ice%u_prog with last u_ice, v_ice values before writing a restart file
   !!
-  !! @par Revision History
-  !! Developed by Einar Olason, MPI-M (2013-08-05)
-  !
   SUBROUTINE ice_fem_update_vel_restart(p_patch, p_ice, use_acc)
     USE mo_ice_fem_types,       ONLY: u_ice, v_ice
 
@@ -360,10 +349,6 @@ CONTAINS
   !> 2) Rotate ocean velocities (available on the dual grid, i.e. vertices)
   !-------------------------------------------------------------------------
   !!
-  !! @par Revision History
-  !! Developed by Einar Olason, MPI-M (2013-06-05)
-  !! Modified by Vladimir Lapin, MPI-M (2015-07-17)
-  !
   SUBROUTINE map_icon2fem_vec( p_patch_3D, p_os, atmos_fluxes, p_op_coeff, use_acc )
 
     USE mo_ice_fem_icon_init, ONLY: rot_mat_3D
@@ -456,10 +441,6 @@ CONTAINS
   !> 2) Interpolate to cell centers and convert back to geographic coordinates
   !-------------------------------------------------------------------------
   !!
-  !! @par Revision History
-  !! Developed by Einar Olason, MPI-M (2013-06-05)
-  !! Modified by Vladimir Lapin, MPI-M (2015-07-17)
-  !
   SUBROUTINE map_fem2icon_vec( p_patch_3D, p_ice, p_op_coeff, use_acc )
 
     USE mo_ice_fem_icon_init, ONLY: rot_mat_3D!, pollon, pollat
@@ -561,9 +542,6 @@ CONTAINS
   !> 2) Resahpe result to get vars on FEM grid
   !-------------------------------------------------------------------------
   !!
-  !! @par Revision History
-  !! Developed by Vladimir Lapin, MPI-M (2017-05-05)
-  !
   SUBROUTINE map_icon2fem_scalar(p_patch, p_ice, ssh, use_acc)
 
     USE mo_ice_fem_icon_init, ONLY: c2v_wgt
@@ -682,9 +660,6 @@ CONTAINS
   !> 2) Interpolate from vertices to cell centers
   !-------------------------------------------------------------------------
   !!
-  !! @par Revision History
-  !! Developed by Vladimir Lapin, MPI-M (2017-05-05)
-  !
   SUBROUTINE map_fem2icon_scalar(p_patch, p_ice)
 
     USE mo_ice_fem_icon_init, ONLY: v2c_wgt

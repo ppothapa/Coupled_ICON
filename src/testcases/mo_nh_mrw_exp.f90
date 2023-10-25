@@ -1,26 +1,20 @@
-!>
-!!  Subroutine to initialized the Mountain Rossby Wave related test cases 
-!!   for the NH-Core (mrw_nh, mrw2_nh and mwbr_const)
-!!
-!!
-!! @par Revision History
-!! - first version by P. Ripodas , DWD, (2011-09)
-!! - some parts extracted from the original mo_nh_testcases.f90
-!! - new subroutines in mo_nh_init_utils are used 
-!!
-!! @par Literature
-!! -
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Subroutine to initialized the Mountain Rossby Wave related test cases
+! for the NH-Core (mrw_nh, mrw2_nh and mwbr_const)
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_nh_mrw_exp
+
 !-------------------------------------------------------------------------
 !
 !    ProTeX FORTRAN source: Style 2
@@ -82,9 +76,6 @@ MODULE mo_nh_mrw_exp
   !>
   !! Initialization of topography for the nh mrw test cases 
   !!
-  !! @par Revision History
-  !!
-  !!
   SUBROUTINE init_nh_topo_mrw( ptr_patch, topo_c, nblks_c, npromz_c, l_modified )
 
     TYPE(t_patch), TARGET,INTENT(INOUT) :: &  !< patch on which computation is performed
@@ -145,9 +136,6 @@ MODULE mo_nh_mrw_exp
   !>
   !! Initialization of prognostic state vector for the nh mrw test case 
   !! Tracers can also be initialized in case of inwp
-  !!
-  !! @par Revision History
-  !!
   !!
   SUBROUTINE init_nh_state_prog_mrw( ptr_patch, ptr_nh_prog, ptr_nh_diag,      &
     &                                topo_c, p_metrics, p_int, l_hydro_adjust, &
@@ -339,9 +327,6 @@ MODULE mo_nh_mrw_exp
   !! Initialization of prognostic state vector for the nh mrw test case 
   !! Tracers can also be initialized in case of inwp
   !!
-  !! @par Revision History
-  !!
-
   SUBROUTINE init_nh_prog_mwbr_const( ptr_patch, ptr_nh_prog, ptr_nh_diag,     &
     &                                topo_c, p_metrics, p_int, l_hydro_adjust, &
     &                                iforcing, l_moist,  opt_rh_at_1000hpa,    &

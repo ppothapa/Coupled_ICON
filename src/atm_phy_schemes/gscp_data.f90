@@ -1,57 +1,22 @@
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!+ Data module for variables of the grid scale parameterization
-!------------------------------------------------------------------------------
-
-MODULE gscp_data
-
-!------------------------------------------------------------------------------
 !
 ! Description:
 !  This module contains variables that are used in the grid scale 
 !  parameterizations (Microphysics). 
 !
-! Current Code Owner: DWD, Axel Seifert
-!  phone:  +49  69  8062 2729
-!  fax:    +49  69  8062 3721
-!  email:  ulrich.schaettler@dwd.de
+! ICON
 !
-! History:
-! Version    Date       Name
-! ---------- ---------- ----
-! 3.22       2007/01/24 Axel Seifert
-!  Initial Release
-! V4_5         2008/09/10 Ulrich Schaettler
-!  Added variables mu_rain and cloud_num, which are now Namelist variables
-! V4_13        2010/05/11 Michael Gertz
-!  Adaptions to SVN
-! V4_14        2010/06/14 Axel Seifert
-!  Introduced v0snow as global variable
-! V4_20        2011/08/31 Axel Seifert
-!  Moved some global variables from src_gscp to data_gscp
-! V4_21        2011/12/06 Axel Seifert
-!  Additional variable rain_n0_factor
-! V4_27        2013/03/19 Ulrich Schaettler
-!  Modified default values of some tuning constants to reflect settings of COSMO-EU
-! @VERSION@    @DATE@     Ulrich Schaettler, Oliver Fuhrer
-!  Adaptations to ICON Version 
-!  Replaced data_parameters and mo_kind with kind_parameters (US)
-!  Replaced ireals by wp (working precision) (OF)
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
 !
-! Code Description:
-! Language: Fortran 90.
-! Software Standards: "European Standards for Writing and
-! Documenting Exchangeable Fortran 90 Code".
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
+MODULE gscp_data
+
 !==============================================================================
-!
-! Declarations:
-!
-! Modules used:
 
 USE mo_kind,               ONLY: wp, i4
 

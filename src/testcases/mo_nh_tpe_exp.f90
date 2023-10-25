@@ -1,21 +1,19 @@
-!>
-!!  Terra Planet experiments for the NH-Core
-!!
-!!
-!! @par Revision History
-!! - adopted from mo_nh_ape_exp.f90 by R. Schur, MPI-Met, 2014-10-26
-!! - first version for aqua planet by P. Ripodas , DWD, (2010-09)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Terra Planet experiments for the NH-Core
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_nh_tpe_exp
+
 !-------------------------------------------------------------------------
 !
 !    ProTeX FORTRAN source: Style 2
@@ -52,11 +50,6 @@ CONTAINS
 !
   !>
   !!               Initialization of prognostic state vector.
-  !!
-  !!
-  !! @par Revision History
-  !!
-  !!
   SUBROUTINE init_nh_state_prog_TPE( ptr_patch, ptr_nh_prog, ptr_nh_diag, &
     &                                ptr_ext_data, p_metrics,             &
     &                                rh_at_1000hpa, qv_max, global_moist, p_sfc, t_atm )

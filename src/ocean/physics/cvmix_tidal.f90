@@ -1,7 +1,3 @@
- module cvmix_tidal
-
-!BOP
-!\newpage
 ! !MODULE: cvmix_tidal
 !
 ! !AUTHOR:
@@ -11,14 +7,25 @@
 !  This module contains routines to initialize the derived types needed for
 !  tidal mixing (currently just the Simmons scheme) and to set the viscosity
 !  and diffusivity coefficients accordingly.
-!\\
-!\\
-!  References:\\
+!
+!  References:
 !  * HL Simmons, SR Jayne, LC St. Laurent, and AJ Weaver.
 !  Tidally Driven Mixing in a Numerical Model of the Ocean General Circulation.
 !  Ocean Modelling, 2004.
-!\\
-!\\
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
+MODULE cvmix_tidal
 
 ! !USES:
 

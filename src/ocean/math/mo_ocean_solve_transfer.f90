@@ -1,3 +1,18 @@
+! provides abstract communication / transfer infrastructure object to
+! be used by solvers
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 #if (defined(_OPENMP) && defined(OCE_SOLVE_OMP))
 #include "omp_definitions.inc"
 #define PURE_OR_OMP
@@ -6,9 +21,6 @@
 #endif
 
 MODULE mo_ocean_solve_transfer
-
-! provides abstract communication / transfer infrastructure object to be used by
-! solvers
 
   USE mo_kind, ONLY: sp, dp, i8
   USE mo_fortran_tools, ONLY: t_ptr_2d, t_ptr_2d_sp

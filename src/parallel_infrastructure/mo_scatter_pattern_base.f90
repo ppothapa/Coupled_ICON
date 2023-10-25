@@ -1,22 +1,19 @@
-!>
-!! A small class to encapsulate the information of how the grid is decomposed,
-!! in order to allow quick and easy distribution of input data.
-!!
-!! All calls within this class are collective.
-!!
-!! @author N. Huebbe, DWD
-!!
-!!
-!! @par Revision History
-!! Initial hack: 2014-08-05 : N. Huebbe, DWD
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+! A small class to encapsulate the information of how the grid is decomposed,
+! in order to allow quick and easy distribution of input data.
+!
+! All calls within this class are collective.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_scatter_pattern_base
     USE mo_exception, ONLY: finish

@@ -1,15 +1,22 @@
-!>
-!! @file bgc.f90
-!! @brief Shifting of solid components
-!!
-!! By this routine solid components are shifted (upward and) downward
-!! to account for sedimant gain and loss. This includes a layer for
-!! permanent local_sediment_mem%burial which collects the partical matter (P, Si, C, clay)
-!! over the full time of integration.
-!!
-!! Upward shift is currently disabled.
-!!
- 
+! @brief Shifting of solid components
+!
+! By this routine solid components are shifted (upward and) downward
+! to account for sedimant gain and loss. This includes a layer for
+! permanent local_sediment_mem%burial which collects the partical matter (P, Si, C, clay)
+! over the full time of integration.
+!
+! Upward shift is currently disabled.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_sedshi
 

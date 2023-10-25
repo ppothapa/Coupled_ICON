@@ -1,22 +1,20 @@
-!>
-!! Provide an implementation of the sea-ice model.
-!!
-!! Provide an implementation of the parameters of the surface module (sea ice)
-!! used between the atmopshere and the hydrostatic ocean model.
-!!
-!! @author Peter Korn, MPI
-!! @author Dirk Notz, MPI
-!!
-!! @par Revision History
-!!  Original version by Peter Korn, MPI-M (2009)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+! Provide an implementation of the sea-ice model.
+!
+! Provide an implementation of the parameters of the surface module (sea ice)
+! used between the atmopshere and the hydrostatic ocean model.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 #ifndef _OPENMP
@@ -79,11 +77,6 @@ CONTAINS
   !>
   !! !! ice_conc_change: Calculates the changes in concentration as well as the grid-cell average
   !                     thickness of new ice forming in open-water areas
-  !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2010-07). Originally code written by
-  !! Dirk Notz, following MPI-OM. Code transfered to ICON.
-  !! Einar Olason, renamed and added support for changing concentration
   !!
   SUBROUTINE ice_conc_change(p_patch, ice, p_os, use_acc)
 

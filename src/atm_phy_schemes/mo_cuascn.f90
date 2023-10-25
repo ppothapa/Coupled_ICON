@@ -1,31 +1,21 @@
-! $RCSfile$
-! $Revision$ $Date$
-!>
-!!  cuascn:  THIS ROUTINE DOES THE CALCULATIONS FOR CLOUD ASCENTS
-!!            FOR CUMULUS PARAMETERIZATION
-!!  cubasmcn: CALCULATES CLOUD BASE VALUES FOR MIDLEVEL CONVECTION
-!!
-!!  cuentr: CALCULATES ENTRAINMENT/DETRAINMENT RATES FOR UPDRAFTS
-!!          IN CUMULUS PARAMETERIZATION
+!  cuentr: CALCULATES ENTRAINMENT/DETRAINMENT RATES FOR UPDRAFTS
+!          IN CUMULUS PARAMETERIZATION
 
-!! The following subroutine is not used in the current setup
-!! *CUSTRAT* - COMPUTES T,Q TENDENCIES FOR STRATOCUMULUS
+! The following subroutine is not used in the current setup
+! *CUSTRAT* - COMPUTES T,Q TENDENCIES FOR STRATOCUMULUS
 !                 CONVECTION
-!!
-!!  @author  M.TIEDTKE         E.C.M.W.F.     12/89
-!!  @author  P.BECHTOLD        E.C.M.W.F.     06/07
-!!
-!! @par Revision History
-!! first implementation into GME/ICON by Kristina Froehlich, DWD (2010-05-26)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_cuascn
 
   USE mo_kind   ,ONLY: jprb=>wp     , &
@@ -1122,16 +1112,6 @@ END SUBROUTINE cuascn
     !!          S. TIEDTKE (1989)
 
     !!
-    !! Current Code Owner: DWD, Kristina Froehlich
-    !!   kristina.froehlich@dwd.de
-    !!
-    !! History:
-    !! Version      Date       Name
-    !! ------------ ---------- ----
-    !! @VERSION@    @DATE@     K. Froehlich
-    !!  Initial release
-    !!
-    !! Code Description:
     !!     PARAMETER     DESCRIPTION                                   UNITS
     !!     ---------     -----------                                   -----
     !!     INPUT PARAMETERS (INTEGER):
@@ -1293,19 +1273,6 @@ END SUBROUTINE cuascn
     !!          TURBULENT ENTRAINMENT IS SIMULATED BY A CONSTANT
     !!          MULTIPLIED BY A VERTICAL SCALING FUNCTION
     !!
-    !!++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !! Current Code Owner: DWD, Kristina Froehlich
-    !!   kristina.froehlich@dwd.de
-    !!
-    !!++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    !!
-    !! History:
-    !! Version      Date       Name
-    !! ------------ ---------- ----
-    !! @VERSION@    @DATE@     k. Froehlich
-    !!  Initial release
-    !!
-    !! Code Description:
     !!     PARAMETER     DESCRIPTION                                   UNITS
     !!     ---------     -----------                                   -----
     !!     INPUT PARAMETERS (INTEGER):

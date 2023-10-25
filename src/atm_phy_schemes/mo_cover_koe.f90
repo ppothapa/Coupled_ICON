@@ -1,32 +1,28 @@
-!>
-!! Computation of cloud cover and grid mean cloud liquid water and cloud ice
-!!
-!! This routine takes information from turbulence, convection and grid-scale
-!! to produce cloud properties used in radiation (and microphysics).
-!!
-!! Possible future options
-!! - simple diagnostic (from turbulence, convection and grid scale)
-!! - prognostic total water variance AND prognostic ice
-!!
-!!
-!! @author Martin Koehler, DWD
-!!
-!!
-!! @par Revision History
-!! Developed by Martin Koehler  (starting 2010-08-23)
-!! Modification by Martin Koehler, DWD (2010-11-20)
-!! - options 0,1,2,3 ready
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Computation of cloud cover and grid mean cloud liquid water and cloud ice
+!
+! This routine takes information from turbulence, convection and grid-scale
+! to produce cloud properties used in radiation (and microphysics).
+!
+! Possible future options
+! - simple diagnostic (from turbulence, convection and grid scale)
+! - prognostic total water variance AND prognostic ice
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
+!----------------------------
 #include "consistent_fma.inc"
+!----------------------------
+
 MODULE mo_cover_koe
 
   USE mo_kind,               ONLY: wp, vp, i4
@@ -92,10 +88,6 @@ CONTAINS
 !-------------------------------------------------------------------------
 !
 !  Cloud cover and cloud water/ice calculation.
-!
-!
-!  @par Revision History
-!  Initial version by Martin Koehler, DWD (2010-08-23)
 !
 !  Options:
 !  (0) no clouds

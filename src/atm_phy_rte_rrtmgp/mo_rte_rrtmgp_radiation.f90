@@ -1,37 +1,28 @@
-!>
-!! @par Copyright
-!! This code is subject to the MPI-M-Software - License - Agreement in it's most recent form.
-!! Please see URL http://www.mpimet.mpg.de/en/science/models/model-distribution.html and the
-!! file COPYING in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the headers of the routines.
-!!
-!! @brief Module to provide interface to radiation routines. 
-!!
-!! @remarks
-!!   This module contains routines that provide the interface between ECHAM
-!!   and the radiation code.  Mostly it organizes and calculates the 
-!!   information necessary to call the radiative transfer solvers of the
-!!   the rte-rrtmgp version (R. Pinus). 
-!!
-!! @author Bjorn Stevens, MPI-M, Hamburg (2009-09-19): 
-!! @author Gustavo Hime, MPI-M, Hamburg (2019-01-01):
-!!
-!!         Sebastian Rast, MPI-M, Hamburg (2019-08-06): Renamings for 
-!!              separation of this routine from former rte_rrtmgp code.
-!!
-!! $ID: n/a$
-!!
-!! @par Origin
-!!     This code is based on a former rte_rrtmgp implementation.
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+! Module to provide interface to radiation routines.
 !
+! Remarks
+!   This module contains routines that provide the interface between ECHAM
+!   and the radiation code.  Mostly it organizes and calculates the
+!   information necessary to call the radiative transfer solvers of the
+!   the rte-rrtmgp version (R. Pinus).
+!
+!         Sebastian Rast, MPI-M, Hamburg (2019-08-06): Renamings for
+!              separation of this routine from former rte_rrtmgp code.
+!
+! Origin
+!     This code is based on a former rte_rrtmgp implementation.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_rte_rrtmgp_radiation
 
   USE mo_kind,                ONLY: wp, i8
@@ -77,8 +68,7 @@ MODULE mo_rte_rrtmgp_radiation
                                      & amu0m_x,          rdaylm_x            )
   !-----------------------------------------------------------------------------
   !>
-  !! @brief Prepares information for radiation call
-  !
+  ! Prepares information for radiation call
 
     TYPE(t_patch),           INTENT(in) :: p_patch
     TYPE(datetime), POINTER, INTENT(in) :: datetime_radiation, & !< date and time of radiative transfer calculation
