@@ -74,7 +74,8 @@ sort_keys "${!experiment_hashes[@]}"
 # Please don't change these path/file names. They are used by buildbot.
 hash_path=run/tolerance/hashes
 mkdir -p "${basedir}/${hash_path}/new/"
-hash_file=${basedir}/${hash_path}/new/${builder}
+hash_file=${basedir}/${hash_path}/${builder}
+hash_file_new=${basedir}/${hash_path}/new/${builder}
 
 # in case no hash file exists for this builder yet, create one
 # or in case no update is requested, create new has file
@@ -92,9 +93,9 @@ if [[ ! -f "${basedir}/${hash_path}/${builder}" ]] ||  [[ "${generate_hash_file:
             experiment_hash=${experiment_hashes[$exp]}
             echo "\"$exp\": $experiment_hash"
         done
-    } > "$hash_file"
+    } > "$hash_file_new"
 
-    cat "$hash_file"
+    cat "$hash_file_new"
 
 else # update requested
     echo ""
@@ -106,8 +107,27 @@ else # update requested
     done
     echo ""
 
-    echo "# Don't use this file" > "$hash_file"
-    echo "# Please update the tolerance hashes manually by using the output of tolerance/pp.collect_tolerance_hashes" > "$hash_file"
+    icon_data_rootFolder_in_hash_file=$(sed -n -e "s/^icon_data_rootFolder: //p" "$hash_file")
+    if [[ "$icon_data_rootFolder" != "$icon_data_rootFolder_in_hash_file" ]]; then
+        echo "╔══════════════════════════════════════════════════════════════════════════════╗"
+        echo "║                                   WARNING                                    ║"
+        echo "║                                                                              ║"
+        echo "║ The icon_data_rootFolder used to create the new tolerance data and           ║"
+        echo "║ icon_data_rootFolderdefined in the current                                   ║"
+        printf "║   %-74s ║\n" "${hash_path}/${builder}"
+        echo "║  yaml file are different!                                                    ║"
+        echo "║                                                                              ║"
+        echo "║ Please make sure that all (old) tolerance data is available under            ║"
+        printf "║   %-74s ║\n" "${icon_data_rootFolder}/buildbot_data/ref"
+        echo "║ and update icon_data_rootFolder in                                           ║"
+        printf "║   %-74s ║\n" "${hash_path}/${builder}"
+        echo "║ to                                                                           ║"
+        echo "║   icon_data_rootFolder: ${icon_data_rootFolder}"
+        echo "╚══════════════════════════════════════════════════════════════════════════════╝"
+    fi
+
+    echo "# Don't use this file" > "$hash_file_new"
+    echo "# Please update the tolerance hashes manually by using the output of tolerance/pp.collect_tolerance_hashes" > "$hash_file_new"
 fi
 
 # exit 0 on success (and don't execute any appended scripts)

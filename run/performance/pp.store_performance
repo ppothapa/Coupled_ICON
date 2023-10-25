@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# data should be stored here: /scratch/e1000/meteoswiss/scratch/jenkins/icon/pool/data/ICON/buildbot_data/performance
+# data should be stored here: /scratch/mch/jenkins/icon/pool/data/ICON/buildbot_data/performance
 # which is ${icon_data_rootFolder}/buildbot_data/performance
 performance_root="${icon_data_rootFolder}/buildbot_data/performance"
 
