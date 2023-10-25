@@ -35,7 +35,7 @@ MODULE mo_ext_data_init
                                    isub_seaice, isub_lake, sstice_mode, sst_td_filename,            &
                                    ci_td_filename, itype_lndtbl, c_soil, c_soil_urb, cskinc,        &
                                    lterra_urb, itype_eisa, cr_bsmin, itype_evsl
-  USE mo_atm_phy_nwp_config, ONLY: atm_phy_nwp_config
+  USE mo_atm_phy_nwp_config, ONLY: atm_phy_nwp_config, iprog_aero
   USE mo_extpar_config,      ONLY: itopo, itype_lwemiss, extpar_filename, generate_filename,    &
     &                              generate_td_filename, extpar_varnames_map_file,              &
     &                              n_iter_smooth_topo, i_lctype, nclass_lu, nhori, nmonths_ext, &
@@ -1283,6 +1283,11 @@ CONTAINS
           ext_data(jg)%atm%sso_stdh_raw(:,:) = ext_data(jg)%atm%sso_stdh(:,:)
 
 
+          IF ( iprog_aero > 1) THEN
+            CALL read_extdata('emi_bc',  arr2d=ext_data(jg)%atm%emi_bc )
+            CALL read_extdata('emi_oc',  arr2d=ext_data(jg)%atm%emi_oc )
+            CALL read_extdata('emi_so2', arr2d=ext_data(jg)%atm%emi_so2)
+          ENDIF
           ! Read time dependent data
           IF ( irad_aero == iRadAeroTegen .OR. irad_aero == iRadAeroART) THEN
             CALL read_extdata('AER_SS',   arr3d=ext_data(jg)%atm_td%aer_ss)

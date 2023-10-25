@@ -55,10 +55,9 @@ ocean_refinement="R02B06"
 # ----------------------------------
 #
 # NWP:
-dtime=450                        # NWP atmospheric timestep (s)   (same as in atmTimeStep!!)
+dtime=450                        # NWP atmospheric timestep (s)
 dt_rad=3600.                     # NWP radiation timestep (s) - must match coupling/ocean time step
 oceTimeStep="PT30M"              # ocean time step
-atmTimeStep="PT450S"             # atmos time step (for coupler)  (same as dtime!!)
 couplingTimeStep="PT30M"         # coupling time step
 
 #--------------------------------------------------------------------------------------------------
@@ -160,7 +159,7 @@ oce_output_interval_def="P1Y"  # annual mean output for deep ocean
 #mon_output_interval="P1M"
 
 # more specs:
-# atm_output_interval=$atmTimeStep     #  output every timestep
+# atm_output_interval="PT${dtime}S"    #  output every timestep
 # oce_output_interval=$oceTimeStep     #  output every timestep
 atm_output_interval=$all_output_interval
 oce_output_interval=$all_output_interval
@@ -440,7 +439,6 @@ cat > ${atm_namelist} << EOF
 &run_nml
  num_lev                 = ${nlev},${nlev}      ! number of full levels of vertical grid
  dtime                   = ${dtime}             ! [s] timestep in seconds
- modelTimeStep           = "${atmTimeStep}"
  ldynamics               = .TRUE.               ! dynamics
  ltransport              = .TRUE.               ! transport
  iforcing                = ${iforcing}          !

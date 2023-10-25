@@ -45,6 +45,7 @@ MODULE mo_ext_data_state
   USE mo_run_config,         ONLY: iforcing
   USE mo_lnd_nwp_config,     ONLY: ntiles_total, ntiles_water, llake,       &
     &                              sstice_mode, lterra_urb
+  USE mo_atm_phy_nwp_config, ONLY: iprog_aero
   USE mo_radiation_config,   ONLY: irad_o3, albedo_type, islope_rad
   USE mo_extpar_config,      ONLY: i_lctype, nclass_lu, nhori,              &
     &                              nmonths_ext, itype_vegetation_cycle, itype_lwemiss
@@ -228,6 +229,12 @@ CONTAINS
       &     p_ext_atm%horizon,         &
       &     p_ext_atm%skyview,         &
       &     p_ext_atm%o3,              &
+      &     p_ext_atm%emi_bc,          &
+      &     p_ext_atm%emi_oc,          &
+      &     p_ext_atm%emi_so2,         &
+      &     p_ext_atm%bcfire,          &
+      &     p_ext_atm%ocfire,          &
+      &     p_ext_atm%so2fire,         &
       &     p_ext_atm%llsm_atm_c,      &
       &     p_ext_atm%llake_c,         &
       &     p_ext_atm%fr_land,         &
@@ -409,6 +416,76 @@ CONTAINS
         &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc,              &
         &           grib2_desc, ldims=shape3d_c, loutput=.TRUE., lopenacc=.TRUE. )
       __acc_attach(p_ext_atm%o3)
+
+      IF (iprog_aero > 1) THEN
+        ! BC emission (precursor for anthr. 2D-aerosol emission)
+        !
+        ! emi_bc        p_ext_atm%emi_bc(nproma,nblks_c)
+        cf_desc    = t_cf_var('emi_bc', 'kg m-2 s-1', &
+          &                   'emi_bc', datatype_flt)
+        grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+        CALL add_var( p_ext_atm_list, 'emi_bc', p_ext_atm%emi_bc,                      &
+          &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,                     &
+          &           grib2_desc, ldims=shape2d_c, loutput=.TRUE., lopenacc=.TRUE. )
+        __acc_attach(p_ext_atm%emi_bc)
+
+        ! OC emission (precursor for anthr. 2D-aerosol emission)
+        !
+        ! emi_oc        p_ext_atm%emi_oc(nproma,nblks_c)
+        cf_desc    = t_cf_var('emi_oc', 'kg m-2 s-1', &
+          &                   'emi_oc', datatype_flt)
+        grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+        CALL add_var( p_ext_atm_list, 'emi_oc', p_ext_atm%emi_oc,                      &
+          &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,                     &
+          &           grib2_desc, ldims=shape2d_c, loutput=.TRUE., lopenacc=.TRUE. )
+        __acc_attach(p_ext_atm%emi_oc)
+
+        ! SO2 emission (precursor for anthr. 2D-aerosol emission)
+        !
+        ! emi_so2       p_ext_atm%emi_so2(nproma,nblks_c)
+        cf_desc    = t_cf_var('emi_so2', 'kg m-2 s-1', &
+          &                   'emi_so2', datatype_flt)
+        grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+        CALL add_var( p_ext_atm_list, 'emi_so2', p_ext_atm%emi_so2,                    &
+          &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,                     &
+          &           grib2_desc, ldims=shape2d_c, loutput=.TRUE., lopenacc=.TRUE. )
+        __acc_attach(p_ext_atm%emi_so2)
+
+        IF (iprog_aero > 2) THEN
+          ! BC emission (precursor for wildfire 2D-aerosol emission)
+          !
+          ! bcfire        p_ext_atm%bcfire(nproma,nblks_c)
+          cf_desc    = t_cf_var('bcfire', 'kg m-2 s-1', &
+            &                   'bcfire', datatype_flt)
+          grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+          CALL add_var( p_ext_atm_list, 'bcfire', p_ext_atm%bcfire,                      &
+            &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,                     &
+            &           grib2_desc, ldims=shape2d_c, loutput=.TRUE., lopenacc=.TRUE. )
+          __acc_attach(p_ext_atm%bcfire)
+
+          ! OC emission (precursor for wildfire 2D-aerosol emission)
+          !
+          ! ocfire        p_ext_atm%ocfire(nproma,nblks_c)
+          cf_desc    = t_cf_var('ocfire', 'kg m-2 s-1', &
+            &                   'ocfire', datatype_flt)
+          grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+          CALL add_var( p_ext_atm_list, 'ocfire', p_ext_atm%ocfire,                      &
+            &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,                     &
+            &           grib2_desc, ldims=shape2d_c, loutput=.TRUE., lopenacc=.TRUE. )
+          __acc_attach(p_ext_atm%ocfire)
+
+          ! SO2 emission (precursor for wildfire 2D-aerosol emission)
+          !
+          ! so2fire       p_ext_atm%so2fire(nproma,nblks_c)
+          cf_desc    = t_cf_var('so2fire', 'kg m-2 s-1', &
+            &                   'so2fire', datatype_flt)
+          grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+          CALL add_var( p_ext_atm_list, 'so2fire', p_ext_atm%so2fire,                    &
+            &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,                     &
+            &           grib2_desc, ldims=shape2d_c, loutput=.TRUE., lopenacc=.TRUE. )
+          __acc_attach(p_ext_atm%so2fire)
+        ENDIF
+      ENDIF
 
       ! external parameter for NWP forcing
 

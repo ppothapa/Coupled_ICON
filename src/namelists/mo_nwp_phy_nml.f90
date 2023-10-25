@@ -241,7 +241,9 @@ CONTAINS
 
     ! type of prognostic aerosol
     iprog_aero = 0  ! 0 = pure climatology
-                    ! 1 = very simple prognostic scheme based on advection of and relaxation towards climatology
+                    ! 1 = very simple prognostic scheme based on advection of and relaxation towards climatology for mineral dust
+                    ! 2 = very simple prognostic scheme based on advection of and relaxation towards climatology for all species
+                    ! 3 = very simple prognostic scheme based on advection of and relaxation towards climatology for all species including wildfires
 
     ! coupling between ozone and the tropopause
     icpl_o3_tp = 1      ! 0 = none

@@ -2644,6 +2644,14 @@ Requires:
 ivctype = 2; l\_limited\_area = .FALSE. 
 \tabularnewline
 
+%\hline
+fire2d\_filename&
+C & 'gfas2d\_emi\_ \\ <species>\_ \\ <gridfile>\_ \\ <yyyymmdd>.nc' & &
+Wildfire emission data sets for the <species> bc, oc and so2. Possible keywords: <species>, <gridfile>, <nroot>, <nroot0>, <jlev>, <idom>, <yyyymmdd>
+&
+Requires: 
+iprog\_aero = 3
+\tabularnewline
 
 \end{longtab}
 
@@ -5141,7 +5149,9 @@ I&
  &
 0: off \\
 1: simple prognostic aerosol scheme for mineral dust, based on 2D aerosol optical depth fields of Tegen climatology \\
-2: as option 1, but for all 5 aerosol types  & irad\_aero=6
+2: as option 1, but for all 5 aerosol types. Requires fields emi\_bc, emi\_oc and emi\_so2 in the extpar dataset \\
+3: as option 2, but including wildfire emissions for bc, oc and so2. Emission data set can be specified with fire2d\_filename (\&initicon\_nml)
+& irad\_aero=6.
 \tabularnewline
 
 icpl\_o3\_tp&

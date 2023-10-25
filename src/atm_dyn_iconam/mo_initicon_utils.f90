@@ -33,7 +33,7 @@ MODULE mo_initicon_utils
   USE mo_initicon_types,      ONLY: t_initicon_state, alb_snow_var, t_pi_atm_in, t_pi_sfc_in, t_pi_atm, &
     &                               t_pi_sfc, t_sfc_inc, ana_varnames_dict, t_init_state_const
   USE mo_initicon_config,     ONLY: init_mode, l_sst_in, qcana_mode, qiana_mode, qrsgana_mode, &
-    &                               ana_varnames_map_file, lread_vn,      &
+    &                               ana_varnames_map_file, lread_vn, fire2d_filename,          &
     &                               lvert_remap_fg, aerosol_fg_present, icpl_da_sfcevap
   USE mo_impl_constants,      ONLY: MODE_DWDANA, MODE_IAU,                              &
                                     MODE_IAU_OLD, MODE_IFSANA, MODE_COMBINED,           &
@@ -44,7 +44,7 @@ MODULE mo_initicon_utils
   USE mo_radiation_config,    ONLY: albedo_type
   USE mo_physical_constants,  ONLY: tf_salt, tmelt
   USE mo_exception,           ONLY: message, finish, message_text
-  USE mo_grid_config,         ONLY: n_dom
+  USE mo_grid_config,         ONLY: n_dom, nroot
   USE mo_mpi,                 ONLY: my_process_is_stdio, p_io, &
     &                               p_comm_work, my_process_is_mpi_workroot, &
     &                               p_min, p_max, p_sum, num_work_procs, my_process_is_work
@@ -54,8 +54,8 @@ MODULE mo_initicon_utils
     &                               frlake_thrhld, frsea_thrhld, nlev_snow, ntiles_lnd,           &
     &                               l2lay_rho_snow, lprog_albsi, dzsoil, frsi_min
   USE mo_nwp_sfc_utils,       ONLY: init_snowtile_lists
-  USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config
-  USE mo_aes_phy_config,    ONLY: aes_phy_config
+  USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config, iprog_aero
+  USE mo_aes_phy_config,      ONLY: aes_phy_config
   USE mo_nwp_phy_types,       ONLY: t_nwp_phy_diag
   USE sfc_terra_data,         ONLY: csalb_snow_min, csalb_snow_max, csalb_snow, crhosmin_ml, crhosmax_ml, &
     &                               cpwp, cfcap
@@ -77,7 +77,8 @@ MODULE mo_initicon_utils
   USE mo_time_config,         ONLY: time_config
   USE mo_bcs_time_interpolation, ONLY: t_time_interpolation_weights,         &
     &                                  calculate_time_interpolation_weights
-  USE mo_aerosol_sources_types,  ONLY: p_dust_source_const
+  USE mo_aerosol_sources,     ONLY: inquire_fire2d_data
+  USE mo_aerosol_sources_types,  ONLY: p_dust_source_const, p_fire_source_info
   USE mo_upatmo_config,       ONLY: upatmo_config
   USE mo_2mom_mcrph_util,     ONLY: set_qnc, set_qnr, set_qni,   &
     &                               set_qns, set_qng, set_qnh_expPSD_N0const
@@ -175,6 +176,8 @@ MODULE mo_initicon_utils
     TYPE(t_patch),          INTENT(in)    :: p_patch(:)
     TYPE(t_external_data),  INTENT(in)    :: ext_data(:)
     TYPE(t_nwp_phy_diag),   INTENT(inout) :: prm_diag(:)
+    
+    CHARACTER(*), PARAMETER     :: routine = 'init_aerosol'
 
     TYPE(t_time_interpolation_weights)  :: current_time_interpolation_weights
 
@@ -233,7 +236,7 @@ MODULE mo_initicon_utils
       IF ( ANY(.NOT.aerosol_fg_present(jg,1:5))) THEN
         WRITE(message_text,'(a,i3,a,i3,a)') 'Aerosol initialized from climatology, domain ',jg,', for',&
           COUNT(.NOT.aerosol_fg_present(jg,1:5)),' of 5 types'
-        CALL message('init_aerosol', TRIM(message_text))
+        CALL message(routine, TRIM(message_text))
       ENDIF
 
       CALL p_dust_source_const(jg)%init(ext_data(jg)%atm%i_lc_shrub_eg,  &
@@ -245,6 +248,14 @@ MODULE mo_initicon_utils
         &                               i_st_loam=5, i_st_clayloam=6,    &
         &                               i_st_clay=7, nlu_classes=23,     &
         &                               soiltype_sidx=0, soiltype_eidx=9)
+        
+      IF (iprog_aero > 2) THEN
+        CALL p_fire_source_info(jg)%init( ext_data(jg)%atm%bcfire,  &
+          &                               ext_data(jg)%atm%ocfire,  &
+          &                               ext_data(jg)%atm%so2fire  )
+        CALL inquire_fire2d_data(p_patch(jg), nroot, fire2d_filename, p_fire_source_info(jg), &
+          &                      time_config%tc_current_date, .TRUE.)
+      ENDIF ! iprog_aero > 2
 !$OMP END MASTER
 
     ENDDO

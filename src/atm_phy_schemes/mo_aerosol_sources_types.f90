@@ -22,12 +22,14 @@ MODULE mo_aerosol_sources_types
   USE mo_kind,                          ONLY: wp
   USE mo_exception,                     ONLY: finish
   USE mo_impl_constants,                ONLY: max_dom
+  USE mo_io_units,                      ONLY: filename_max
 
   IMPLICIT NONE
 
   PRIVATE
 
   PUBLIC :: t_dust_source_const, p_dust_source_const
+  PUBLIC :: t_fire_source_info, p_fire_source_info
 
   ! Type to hold constant information needed for the mineral dust source
   TYPE t_dust_source_const
@@ -42,7 +44,27 @@ MODULE mo_aerosol_sources_types
       PROCEDURE :: finalize => finalize_aerosol_dust_aod_source
   END TYPE t_dust_source_const
 
+  TYPE t_fire_species_info
+    REAL(wp), POINTER            :: var(:,:)
+    CHARACTER(LEN=10)            :: varname
+    CHARACTER(LEN=filename_max)  :: current_filename
+  END TYPE t_fire_species_info
+
+  TYPE t_fire_source_info
+    LOGICAL                   :: &
+      &  is_initialized=.FALSE.    !< Has this object been initialized?
+    INTEGER                   :: &
+      &  nspecies                  !< Species: SO2, BC, OC
+    TYPE(t_fire_species_info), ALLOCATABLE :: &
+      &  species(:)
+    ! ---------------------------------------------------------------------------------------------
+    CONTAINS
+      PROCEDURE :: init     => init_aerosol_fire_source_info
+      PROCEDURE :: finalize => finalize_aerosol_fire_source_info
+  END TYPE t_fire_source_info
+
   TYPE(t_dust_source_const) :: p_dust_source_const(max_dom)
+  TYPE(t_fire_source_info)  :: p_fire_source_info(max_dom)
 
   CHARACTER(LEN = *), PARAMETER :: modname = 'mo_aerosol_sources_types'
 
@@ -140,5 +162,71 @@ CONTAINS
     this_source%is_initialized = .FALSE.
 
   END SUBROUTINE finalize_aerosol_dust_aod_source
+
+  !>
+  !! SUBROUTINE init_aerosol_fire_source_info
+  !!
+  !! * Initializes the t_fire_source_info derived type. 
+  !! * Sets pointer to ICON memory where the wildfire data is stored
+  !!
+  !! @par Revision History
+  !! Initial release by Daniel Rieger, DWD (2023-05-17)
+  !!
+  SUBROUTINE init_aerosol_fire_source_info(this_info, bcfire, ocfire, so2fire)
+
+    CLASS(t_fire_source_info), INTENT(inout)  :: &
+      &  this_info
+    REAL(wp), POINTER, INTENT(in) :: &
+      & bcfire(:,:), ocfire(:,:), so2fire(:,:)
+    ! Local variables
+    INTEGER :: &
+      &  js
+
+    this_info%nspecies = 3
+    ALLOCATE(this_info%species(this_info%nspecies))
+
+    this_info%species(1)%var     => bcfire
+    this_info%species(1)%varname =  'bcfire'
+    this_info%species(2)%var     => ocfire
+    this_info%species(2)%varname =  'ocfire'
+    this_info%species(3)%var     => so2fire
+    this_info%species(3)%varname =  'so2fire'
+
+    DO js = 1, this_info%nspecies
+      this_info%species(js)%current_filename =  ''
+    ENDDO
+
+    this_info%is_initialized = .TRUE.
+
+  END SUBROUTINE init_aerosol_fire_source_info
+
+  !>
+  !! SUBROUTINE finalize_aerosol_fire_source_info
+  !!
+  !! * Cleanup for the fire source info type
+  !!
+  !! @par Revision History
+  !! Initial release by Daniel Rieger, DWD (2023-05-17)
+  !!
+  SUBROUTINE finalize_aerosol_fire_source_info(this_info)
+
+    CLASS(t_fire_source_info), INTENT(inout)  :: &
+      &  this_info
+    ! Local variables
+    INTEGER :: &
+      &  js
+
+    DO js = 1, this_info%nspecies
+      this_info%species(js)%var              => NULL()
+      this_info%species(js)%varname          =  ''
+      this_info%species(js)%current_filename =  ''
+    ENDDO
+
+    DEALLOCATE(this_info%species)
+
+    this_info%nspecies       = 0
+    this_info%is_initialized = .FALSE.
+
+  END SUBROUTINE finalize_aerosol_fire_source_info
 
 END MODULE mo_aerosol_sources_types
