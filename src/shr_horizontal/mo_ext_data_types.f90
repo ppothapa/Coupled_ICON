@@ -62,7 +62,6 @@ MODULE mo_ext_data_types
 
     !
     ! *** Land-Sea-Mask ***
-
     LOGICAL, POINTER  ::   &   !< atmosphere land-sea-mask on cell centers [ ]
       &  llsm_atm_c(:,:)       ! .TRUE. if landpoint
                                ! index1=1,nproma, index2=1,nblks_c
@@ -83,7 +82,8 @@ MODULE mo_ext_data_types
       &  elevation_c(:,:)
 
     REAL(wp), POINTER ::   &   !< fraction land in a grid element         [ ]
-      &  fr_land(:,:)          ! 0. for water, 1.0 indicates 100% land
+      &  fr_land(:,:)          ! 0. for water, 1.0 indicates 100% land (NWP physics)
+                               ! 0. for ocean, 1.0 indicates 100% land or lakes (AES physics)
                                ! index1=1,nproma, index2=1,nblks_c
 
     REAL(wp), POINTER ::    &  !< fraction land glacier in a grid element [ ]

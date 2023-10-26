@@ -36,7 +36,7 @@ MODULE mo_ext_data_init
 
   USE mo_kind,               ONLY: wp
   USE mo_io_units,           ONLY: filename_max
-  USE mo_impl_constants,     ONLY: inwp, io3_clim, io3_ape,                                         &
+  USE mo_impl_constants,     ONLY: inwp, iaes, io3_clim, io3_ape,                                   &
     &                              max_char_length, min_rlcell_int, min_rlcell,                     &
     &                              MODIS, GLOBCOVER2009, GLC2000, SUCCESS, SSTICE_ANA_CLINC,        &
     &                              SSTICE_CLIM
@@ -351,37 +351,44 @@ CONTAINS
 
       CALL message(routine,'Finished reading external data' )
 
-      IF ( iforcing == inwp ) THEN
-
-        DO jg = 1, n_dom
-          IF (pp_sso > 0) THEN
-            CALL postproc_sso ( p_patch(jg)                   ,&
-              &                 p_int_state(jg)               ,&
-              &                 ext_data(jg)%atm%fr_glac      ,&
-              &                 ext_data(jg)%atm%topography_c ,&
-              &                 ext_data(jg)%atm%sso_stdh     ,&
-              &                 ext_data(jg)%atm%sso_sigma     )
+      DO jg = 1, n_dom
+         IF ( iforcing == inwp ) THEN
+            IF (pp_sso > 0) THEN
+               CALL postproc_sso ( p_patch(jg)                  ,&
+                &                 p_int_state(jg)               ,&
+                &                 ext_data(jg)%atm%fr_glac      ,&
+                &                 ext_data(jg)%atm%topography_c ,&
+                &                 ext_data(jg)%atm%sso_stdh     ,&
+                &                 ext_data(jg)%atm%sso_sigma )
+            ENDIF
          ENDIF
 
          ! topography smoothing
-         IF (n_iter_smooth_topo(jg) > 0) THEN
-            CALL smooth_topo_real_data ( p_patch(jg)                   ,&
-              &                          p_int_state(jg)               ,&
-              &                          ext_data(jg)%atm%fr_land      ,&
-              &                          ext_data(jg)%atm%fr_lake      ,&
-              &                          ext_data(jg)%atm%topography_c ,&
-              &                          ext_data(jg)%atm%sso_stdh     )
-          ENDIF
+         IF ( n_iter_smooth_topo(jg) > 0 ) THEN
+            IF ( iforcing == inwp ) THEN
+               CALL smooth_topo_real_data ( p_patch(jg)                          ,&
+                 &                          p_int_state(jg)                      ,&
+                 &                          ext_data(jg)%atm%fr_land             ,&
+                 &                          ext_data(jg)%atm%topography_c        ,&
+                 &                          fr_lake = ext_data(jg)%atm%fr_lake   ,&
+                 &                          sso_stdh = ext_data(jg)%atm%sso_stdh )
+            ELSE IF (iforcing == iaes) THEN
+               CALL smooth_topo_real_data ( p_patch(jg)                          ,&
+                 &                          p_int_state(jg)                      ,&
+                 &                          ext_data(jg)%atm%fr_land             ,&
+                 &                          ext_data(jg)%atm%topography_c )
+            ENDIF
+         ENDIF ! n_iter_smooth_topo(jg) > 0
 
-          ! calculate gradient of orography for resolved surface drag
-          !
-          call grad_fe_cell  ( ext_data(jg)%atm%topography_c, &
-            &                  p_patch(jg),                   &
-            &                  p_int_state(jg),               &
-            &                  ext_data(jg)%atm%grad_topo )
-        END DO
+         ! calculate gradient of orography for resolved surface drag
+         !
+         call grad_fe_cell  ( ext_data(jg)%atm%topography_c, &
+           &                  p_patch(jg),                   &
+           &                  p_int_state(jg),               &
+           &                  ext_data(jg)%atm%grad_topo )
+      END DO
 
-
+      IF ( iforcing == inwp ) THEN
 
         ! Get interpolated ndviratio, alb_dif, albuv_dif and albni_dif. Interpolation
         ! is done in time, based on ini_datetime (midnight). Fields are updated on a
@@ -393,7 +400,6 @@ CONTAINS
         !
 
         this_datetime => newDatetime(time_config%tc_current_date)
-
 
         ! always assume midnight
         DO jg = 1, n_dom
@@ -436,12 +442,12 @@ CONTAINS
               &                        ext_data(jg)%atm_td%lw_emiss,     &! in
               &                        ext_data(jg)%atm%emis_rad         )! out
           ENDDO
-        ENDIF  ! albedo_type
+        ENDIF  ! lwemiss
 
         ! clean up
         CALL deallocateDatetime(this_datetime)
 
-      END IF
+      END IF ! inwp
 
     CASE DEFAULT ! itopo
 
@@ -841,7 +847,7 @@ CONTAINS
 
     CHARACTER(len=*), PARAMETER :: routine = modname//':read_ext_data_atm'
     ! input file for topography_c for mpi-physics
-    CHARACTER(len=max_char_length) :: land_sso_fn
+    CHARACTER(len=max_char_length) :: land_sso_fn, land_frac_fn
 
     CHARACTER(filename_max) :: ozone_file  !< file name for reading in
     CHARACTER(filename_max) :: sst_td_file !< file name for reading in
@@ -1012,18 +1018,24 @@ CONTAINS
 
       DO jg = 1,n_dom
 
-        ! Read topography
+        ! Read topography and land-sea mask
 
         IF (n_dom > 1) THEN
           WRITE(land_sso_fn , '(a,i2.2,a)') 'bc_land_sso_DOM' , jg, '.nc'
+          WRITE(land_frac_fn , '(a,i2.2,a)') 'bc_land_frac_DOM' , jg, '.nc'
         ELSE
           land_sso_fn  = 'bc_land_sso.nc'
+          land_frac_fn = 'bc_land_frac.nc'
         ENDIF
 
         CALL openInputFile(stream_id, land_sso_fn, p_patch(jg), default_read_method)
         CALL read_2D(stream_id, on_cells, 'oromea', &
           &          ext_data(jg)%atm%topography_c)
+        CALL closeFile(stream_id)
 
+        CALL openInputFile(stream_id, land_frac_fn, p_patch(jg), default_read_method)
+        CALL read_2D(stream_id, on_cells, 'notsea', &
+          &          ext_data(jg)%atm%fr_land)
         CALL closeFile(stream_id)
 
       END DO

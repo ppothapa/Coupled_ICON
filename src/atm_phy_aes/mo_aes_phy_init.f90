@@ -65,6 +65,7 @@ MODULE mo_aes_phy_init
   USE mo_jsb_model_init,       ONLY: jsbach_init
   USE mo_jsb_interface,        ONLY: jsbach_get_var
 #endif
+  USE mo_ext_data_state,       ONLY: ext_data
 
   ! carbon cycle
   USE mo_ccycle_config,        ONLY: print_ccycle_config, ccycle_config
@@ -533,10 +534,11 @@ CONTAINS
         WRITE(message_text,'(2a)') 'Read notsea, glac and lake from file ', TRIM(land_frac_fn)
         CALL message(routine, message_text)
         !
+        ! notsea land-sea mask is already read in mo_ext_data_init:read_ext_data_atm because it is needed
+        ! early on for topography smoothing
+        prm_field(jg)%lsmask(:,:) = ext_data(jg)%atm%fr_land(:,:)
+        !
         CALL openInputFile(stream_id, land_frac_fn, p_patch(jg))
-        CALL read_2D(stream_id=stream_id, location=on_cells,&
-             &          variable_name='notsea',               &
-             &          fill_array=prm_field(jg)%lsmask(:,:))
         CALL read_2D(stream_id=stream_id, location=on_cells, &
              &          variable_name='glac',               &
              &          fill_array=prm_field(jg)% glac(:,:))
