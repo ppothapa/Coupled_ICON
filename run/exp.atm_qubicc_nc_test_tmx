@@ -93,8 +93,8 @@ start_date=1979-01-01T00:00:00Z
   end_date=1979-01-01T00:04:00Z
 
 # restart intervals
-checkpoint_interval=PT2M
-   restart_interval=PT4M
+checkpoint_interval=PT5M
+   restart_interval=PT5M
 
 # output intervals
 first_output_date=1979-01-01T00:00:40Z
@@ -209,15 +209,13 @@ cat >> ${atmo_namelist} << EOF
  damp_height        = 50000.      ! [m]
  rayleigh_coeff     = 1.0
  vwind_offctr       = 0.2
+ lhdiff_rcf         = .TRUE.
  !divdamp_order      = 24         ! 24 is not allowed for checkpoint_interval < 2.5h (why?)
  divdamp_type       = 3
  divdamp_fac        = 0.004
  thslp_zdiffu       = 0.02
  thhgtd_zdiffu      = 125.
  htop_moist_proc    = ${htop_cloudy}
-/
-&dynamics_nml
- lmoist_thdyn   = .TRUE.
 /
 &diffusion_nml
  hdiff_order        = 5
@@ -269,7 +267,7 @@ cat >> ${atmo_namelist} << EOF
  aes_phy_config(1)%lamip      = .TRUE.
  aes_phy_config(1)%lice       = .TRUE.
  aes_phy_config(1)%lmlo       = .FALSE.
- aes_phy_config(1)%llake      = .${jsbach_with_lakes}.
+ aes_phy_config(1)%llake      = .FALSE.
 !
 ! top height for cloud processes
  aes_phy_config(1)%zmaxcloudy = ${htop_cloudy}
@@ -322,8 +320,12 @@ then
 cat >> ${atmo_namelist} << EOF
 !
 &aes_vdf_nml ! grid(1)
- aes_vdf_config(1)%lmix_max   =  150.
- aes_vdf_config(1)%pr0        =  0.7
+ aes_vdf_config(1)%lmix_max    =  150.
+ aes_vdf_config(1)%pr0         =  0.7
+ aes_vdf_config(1)%use_tmx     = .TRUE.
+ aes_vdf_config(1)%turb        = 2    ! 1: TTE, 2: Smagorinsky (only 2 for use_tmx=true)
+ aes_vdf_config(1)%solver_type = 2   ! for tmx; 1: explicit, 2: implicit solver
+ aes_vdf_config(1)%energy_type = 1   ! for tmx; use 1: dry static energy, 2: internal energy for thermal vert. diffusion
 /
 EOF
 fi # ${dt_vdf}
@@ -351,10 +353,12 @@ cat > ${jsbach_namelist} << EOF
   usecase                 = 'jsbach_lite'
   use_lakes               = .${jsbach_with_lakes}.
   fract_filename          = 'bc_land_frac.nc'
+  use_tmx                 = .TRUE.
 /
 &jsb_seb_nml
   bc_filename             = 'bc_land_phys.nc'
   ic_filename             = 'ic_land_soil.nc'
+  niter_tmx               = 0 ! Number of iterations for explicit coupling (tmx)
 /
 &jsb_rad_nml
   use_alb_veg_simple      = .TRUE.
@@ -364,7 +368,7 @@ cat > ${jsbach_namelist} << EOF
 &jsb_turb_nml
   bc_filename             = 'bc_land_phys.nc'
   ic_filename             = 'ic_land_soil.nc'
-  max_ini_rough_m         = -1.0 ! > 0: limit for roughness length from initial file
+  max_ini_rough_m         = 5.0 ! > 0: limit for roughness length from initial file
 /
 &jsb_sse_nml
   l_heat_cap_map          = .FALSE.

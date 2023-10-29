@@ -124,7 +124,9 @@ MODULE mo_aes_phy_config
      LOGICAL                              :: ljsb    !< .true. for calculating the JSBACH land surface
      LOGICAL                              :: llake   !< .true. for using lakes in JSBACH
      LOGICAL                              :: lamip   !< .true. for AMIP simulations
-     !
+     LOGICAL                              :: use_shflx_adjustment
+     LOGICAL                              :: suppress_shflx_adjustment_over_ice
+        !
      ! vertical range parameters
      REAL(wp)                             :: zmaxcloudy !< maximum height (m)   for cloud related computations
      INTEGER                              :: jks_cloudy !< vertical start index for cloud related computations
@@ -280,6 +282,9 @@ CONTAINS
     aes_phy_config(:)% lice  = .FALSE.
     !
     aes_phy_config(:)% lsstice          = .FALSE.
+    !
+    aes_phy_config(:)% use_shflx_adjustment = .FALSE.
+    aes_phy_config(:)% suppress_shflx_adjustment_over_ice = .FALSE.
     !
     ! vertical range parameters
     aes_phy_config(:)% zmaxcloudy = 33000.0_wp
@@ -649,6 +654,10 @@ CONTAINS
        CALL print_value('    aes_phy_config('//TRIM(cg)//')% llake',    aes_phy_config(jg)% llake )
        CALL print_value('    aes_phy_config('//TRIM(cg)//')% lamip',    aes_phy_config(jg)% lamip )
        CALL print_value('    aes_phy_config('//TRIM(cg)//')% lsstice ', aes_phy_config(jg)% lsstice  )
+       CALL print_value('    aes_phy_config('//TRIM(cg)//')% use_shflx_adjustment ', &
+           &                                                            aes_phy_config(jg)% use_shflx_adjustment)
+       CALL print_value('    aes_phy_config('//TRIM(cg)//')% suppress_shflx_adjustment_over_ice ', &
+           &                                                            aes_phy_config(jg)% suppress_shflx_adjustment_over_ice)
        CALL message    ('','')
        !
        CALL message    ('','vertical ranges')

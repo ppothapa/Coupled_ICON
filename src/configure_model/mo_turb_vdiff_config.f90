@@ -15,6 +15,10 @@
 !!     Mauritsen, T., & Svensson, G. (2007).
 !!           Observations of stably stratified shear-driven atmospheric turbulence at low and high Richardson numbers.
 !!           Journal of the Atmospheric Sciences, 64(2), 645-655. https://doi.org/10.1175/JAS3856.1
+!!     Lee, J., Hohenegger, C., Chlond, A., & Schnur, R. (2022).
+!!           The climatic role of interactive leaf phenology in the vegetation-atmosphere system of
+!!           radiative-convective equilibrium storm-resolving simulations.
+!!           Tellus, Series B-Chemical and Physical Meteorology, 74, 164-175.
 !!
 !! @par Copyright and License
 !!
@@ -65,7 +69,10 @@ MODULE mo_turb_vdiff_config
     REAL(wp) :: z0m_oce         !< Roughness length for momentum over ocean [m].
                                 !! See mo_surface_ocean.f90 of ECHAM6.
 
-    INTEGER :: turb             !< turbulence scheme: VDIFF_TURB_TTE or VDIFF_TURB_3DSMAGORINSKY.
+    INTEGER  :: turb            !< turbulence scheme: VDIFF_TURB_TTE or VDIFF_TURB_3DSMAGORINSKY.
+    LOGICAL  :: use_tmx         !< true: use tmx diffusion
+    INTEGER  :: solver_type     !< 1: explicit solver, 2: implicit solver
+    INTEGER  :: energy_type     !< use 1: dry static energy 2: internal energy for thermal diffusion in tmx 
     REAL(wp) :: smag_constant
     REAL(wp) :: turb_prandtl    !< Turbulent Prandtl number
     REAL(wp) :: rturb_prandtl   !< inverse turbulent prandtl number
@@ -134,6 +141,9 @@ CONTAINS
     config%z0m_oce  =  1e-3_wp
     config%lmix_max =  150._wp
     config%turb     =  VDIFF_TURB_TTE
+    config%use_tmx  = .FALSE.
+    config%solver_type   = 2
+    config%energy_type   = 1
     config%smag_constant = 0.23_wp
     config%max_turb_scale= 300._wp
     config%turb_prandtl  = 0.33333333333_wp

@@ -47,6 +47,7 @@ MODULE mo_nml_crosscheck
   USE mo_atm_phy_nwp_config,       ONLY: atm_phy_nwp_config, icpl_aero_conv, iprog_aero
   USE mo_lnd_nwp_config,           ONLY: ntiles_lnd, lsnowtile, sstice_mode, llake
   USE mo_aes_phy_config,           ONLY: aes_phy_config
+  USE mo_aes_vdf_config,           ONLY: aes_vdf_config
   USE mo_radiation_config,         ONLY: irad_aero, iRadAeroNone, iRadAeroConst,           &
     &                                    iRadAeroTegen, iRadAeroART, iRadAeroConstKinne,   &
     &                                    iRadAeroCAMSclim,                                 &
@@ -852,6 +853,11 @@ CONTAINS
             CALL message(routine, 'Setting llake = .FALSE. since ljsb = .FALSE.')
             aes_phy_config(jg)%llake = .FALSE.
          END IF
+      ELSE
+        IF (aes_vdf_config(jg)%use_tmx) THEN
+          CALL message(routine, 'Setting llake = .FALSE. since using tmx (lakes are treated inside JSBACH)')
+          aes_phy_config(jg)%llake = .FALSE.
+        END IF
       END IF
     END DO
 #endif

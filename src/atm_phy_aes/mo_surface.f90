@@ -29,8 +29,6 @@ MODULE mo_surface
   USE mo_physical_constants,ONLY: grav, Tf, alf, albedoW, stbo, tmelt, rhos!!$, rhoi
   USE mo_physical_constants,ONLY: cvd, cpd
   USE mo_coupling_config,   ONLY: is_coupled_run
-  USE mo_coupling_config,   ONLY: config_use_sens_heat_flux_hack
-  USE mo_coupling_config,   ONLY: config_suppress_sens_heat_flux_hack_over_ice
   USE mo_aes_phy_config,    ONLY: aes_phy_config
   USE mo_aes_phy_memory,    ONLY: cdimissval
   USE mo_aes_vdf_config,    ONLY: aes_vdf_config
@@ -87,7 +85,7 @@ CONTAINS
                            & plhflx_gbm, pshflx_gbm,            &! out
                            & pevap_gbm,                         &! out
                            & pu_stress_tile,   pv_stress_tile,  &! out
-                           & plhflx_tile, pshflx_tile,          &! inout
+                           & plhflx_tile, pshflx_tile,          &! out
                            & pevap_tile,                        &! out
                            & pco2nat,                           &! out
                            !! optional
@@ -253,6 +251,7 @@ CONTAINS
     INTEGER     :: is       (      ksfc_type) !< counter for masks
 
     INTEGER  :: jsfc, jk, jkm1, im, k, jl, jls, js
+
     REAL(wp) :: se_sum(kbdim), qv_sum(kbdim), wgt_sum(kbdim), wgt(kbdim)
     REAL(wp) :: zca(kbdim,ksfc_type), zcs(kbdim,ksfc_type)
     REAL(wp) :: zfrc_oce(kbdim)
@@ -1084,8 +1083,9 @@ CONTAINS
       ! Net longwave - we don't have tiles yet
       ! First all ice classes
 
-      IF (config_use_sens_heat_flux_hack .AND. &
-          .NOT. config_suppress_sens_heat_flux_hack_over_ice) THEN
+      IF (aes_phy_config(jg)%use_shflx_adjustment .AND. &
+          .NOT. aes_phy_config(jg)%suppress_shflx_adjustment_over_ice) THEN
+  
 
         !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
         DO k=1,kice
@@ -1104,8 +1104,8 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL LOOP
 
-      ELSE ! .NOT. config_use_sens_heat_flux_hack .OR.
-           ! config_suppress_sens_heat_flux_hack_over_ice
+      ELSE ! .NOT. aes_phy_config(jg)%use_shflx_adjustment .OR.
+           ! aes_phy_config(jg)%suppress_shflx_adjustment_over_ice
 
         !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
         DO k=1,kice
@@ -1124,8 +1124,8 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL LOOP
 
-      ENDIF ! config_use_sens_heat_flux_hack .AND.
-            ! .NOT. config_suppress_sens_heat_flux_hack_over_ice
+      ENDIF ! aes_phy_config(jg)%use_shflx_adjustment .AND.
+            ! .NOT. aes_phy_config(jg)%suppress_shflx_adjustment_over_ice
 
       !$ACC WAIT
       CALL ice_fast(jcs, kproma, kbdim, kice, pdtime, &
