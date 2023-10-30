@@ -47,7 +47,7 @@
 
 MODULE mo_vdf_atmo
 
-  USE mo_kind,              ONLY: wp, i1
+  USE mo_kind,              ONLY: wp, sp, i1
   USE mo_exception,         ONLY: message, finish
   USE mtime,                ONLY: t_datetime => datetime
   USE mo_tmx_process_class, ONLY: t_tmx_process
@@ -146,9 +146,15 @@ MODULE mo_vdf_atmo
       & papm1(:,:,:) => NULL() , &
       & paphm1(:,:,:) => NULL() , &
       & dz(:,:,:) => NULL() , &
-      & inv_dzf(:,:,:) => NULL() , &
       & inv_dzh(:,:,:) => NULL(), &
       & pfrc(:,:,:) => NULL()
+#ifdef __MIXED_PRECISION
+    REAL(sp), POINTER :: &
+      & inv_dzf(:,:,:) => NULL()
+#else
+    REAL(wp), POINTER :: &
+      & inv_dzf(:,:,:) => NULL()
+#endif
   CONTAINS
     ! PROCEDURE :: Init => init_t_vdf_atmo_variable_set
     PROCEDURE :: Set_pointers => Set_pointers_inputs
@@ -542,7 +548,11 @@ CONTAINS
     CALL inlist%append(t_variable('graupel', shape_3d, "kg/kg", type_id="real"))
     CALL inlist%append(t_variable('full level pressure', shape_3d, "Pa", type_id="real"))
     CALL inlist%append(t_variable('layer thickness', shape_3d, "m", type_id="real"))
+#ifdef __MIXED_PRECISION
+    CALL inlist%append(t_variable('inverse layer thickness full', shape_3d, "m", type_id="single"))
+#else
     CALL inlist%append(t_variable('inverse layer thickness full', shape_3d, "m", type_id="real"))
+#endif
     ! CALL inlist%append(t_variable('saturation specific humidity', shape_3d, "kg/kg", type_id="real"))
     CALL inlist%append(t_variable('moist air mass', shape_3d, "kg/m2", type_id="real"))
     ! CALL inlist%append(t_variable('specific heat of air at constant pressure', shape_3d, "J/kg/K", type_id="real"))
@@ -603,7 +613,11 @@ CONTAINS
       __acc_attach(this%paphm1)
       this%dz      => this%list%Get_ptr_r3d('layer thickness')
       __acc_attach(this%dz)
+#ifdef __MIXED_PRECISION
+      this%inv_dzf => this%list%Get_ptr_s3d('inverse layer thickness full')
+#else
       this%inv_dzf => this%list%Get_ptr_r3d('inverse layer thickness full')
+#endif
       __acc_attach(this%inv_dzf)
       this%inv_dzh => this%list%Get_ptr_r3d('inverse layer thickness half')
       __acc_attach(this%inv_dzh)

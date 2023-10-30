@@ -20,7 +20,7 @@
 
 MODULE mo_tmx_surface_interface
 
-  USE mo_kind, ONLY: wp
+  USE mo_kind, ONLY: wp, vp
   USE mo_fortran_tools, ONLY: init
   USE mtime, ONLY: datetime
   USE mo_physical_constants, ONLY: rgrav, cpd, cvd, tmelt, Tf, stbo, rhos, alv, als, alf
@@ -62,8 +62,9 @@ CONTAINS
     TYPE(datetime), INTENT(in), POINTER :: datetime_old ! date and time at beginning of this time step
     REAL(wp),       INTENT(in)          :: dtime
     REAL(wp),       INTENT(in)          :: cpd
+    REAL(vp), INTENT(IN) :: &
+      & dz        (:,:)     ! reference height in surface layer times 2
     REAL(wp), INTENT(IN) :: &
-      & dz        (:,:), &  ! reference height in surface layer times 2
       & pres_srf  (:,:), &  ! surface pressure
       & ptemp     (:,:), &  ! temperature of lowest atmospheric level
       & pq        (:,:), &  ! humidity of lowest atmospheric level

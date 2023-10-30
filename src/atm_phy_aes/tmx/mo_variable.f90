@@ -2,7 +2,7 @@
 
 MODULE mo_variable
 
-  USE mo_kind, ONLY : wp
+  USE mo_kind, ONLY : wp, sp
   USE mo_exception, ONLY: finish
   USE mo_fortran_tools, ONLY: init
   USE mo_math_types, ONLY : t_geographical_coordinates
@@ -21,7 +21,7 @@ MODULE mo_variable
     ! Meta-data
     CHARACTER(LEN=:), ALLOCATABLE :: name
     CHARACTER(LEN=:), ALLOCATABLE :: units
-    CHARACTER(LEN=:), ALLOCATABLE :: type_id   ! "bool", "int", "real", "geocoord"
+    CHARACTER(LEN=:), ALLOCATABLE :: type_id   ! "bool", "int", "real", "single", "geocoord"
     INTEGER :: dim = 0
     INTEGER :: dims(5) = [ 1, 1, 1, 1, 1 ]
     INTEGER :: starts(5) = [ 1, 1, 1, 1, 1 ]
@@ -48,6 +48,9 @@ MODULE mo_variable
     REAL(wp), POINTER            :: r4d(:,:,:,:)   => NULL()
     REAL(wp), POINTER            :: r5d(:,:,:,:,:) => NULL()
 
+    REAL(sp), POINTER            :: s2d(:,:)       => NULL()
+    REAL(sp), POINTER            :: s3d(:,:,:)     => NULL()
+
     TYPE(t_geographical_coordinates ), POINTER :: gc2d(:,:) => NULL()
     TYPE(t_geographical_coordinates ), POINTER :: gc4d(:,:,:,:) => NULL()
 
@@ -72,6 +75,8 @@ MODULE mo_variable
     MODULE PROCEDURE bind_variable_r3d
     MODULE PROCEDURE bind_variable_r4d
     MODULE PROCEDURE bind_variable_r5d
+    MODULE PROCEDURE bind_variable_s2d
+    MODULE PROCEDURE bind_variable_s3d
     MODULE PROCEDURE bind_variable_gc2d
     MODULE PROCEDURE bind_variable_gc4d
   END INTERFACE bind_variable
@@ -442,6 +447,50 @@ CONTAINS
       PRINT *, "ERROR: ", TRIM(tv%name), " must have size ", tv%dims(1:tv%dim), " but has size ", SHAPE(v)
     ENDIF
   END SUBROUTINE bind_variable_r5d
+
+  SUBROUTINE bind_variable_s2d( tv, v )
+    CLASS(t_variable), POINTER :: tv
+    REAL(sp), POINTER :: v(:,:)
+    IF ( ASSOCIATED( tv%r2d ) ) THEN
+      PRINT *, "ERROR: ", TRIM(tv%name), " is already associated"
+    ELSE
+      tv%s2d => v
+      __acc_attach(tv%s2d)
+      tv%bound = .true.
+    ENDIF
+    IF ( tv%dim /= 2 ) THEN
+      PRINT *, "ERROR: ", TRIM(tv%name), " is not two dimensional"
+    ENDIF
+    IF (.not. ASSOCIATED(v) ) THEN
+      PRINT *, "ERROR: ", TRIM(tv%name), " array not associated"
+      STOP
+    ENDIF
+    IF ( ANY(SHAPE(v) /= tv%dims(1:tv%dim)) ) THEN
+      PRINT *, "ERROR: ", TRIM(tv%name), " must have size ", tv%dims(1:tv%dim), " but has size ", SHAPE(v)
+    ENDIF
+  END SUBROUTINE bind_variable_s2d
+
+  SUBROUTINE bind_variable_s3d( tv, v )
+    CLASS(t_variable), POINTER :: tv
+    REAL(sp), POINTER :: v(:,:,:)
+    IF ( ASSOCIATED( tv%s3d ) ) THEN
+      PRINT *, "ERROR: ", TRIM(tv%name), " is already associated"
+    ELSE
+      tv%s3d => v
+      __acc_attach(tv%s3d)
+      tv%bound = .true.
+    ENDIF
+    IF ( tv%dim /= 3 ) THEN
+      PRINT *, "ERROR: ", TRIM(tv%name), " is not three dimensional"
+    ENDIF
+    IF (.not. ASSOCIATED(v) ) THEN
+      PRINT *, "ERROR: ", TRIM(tv%name), " array not associated"
+      STOP
+    ENDIF
+    IF ( ANY(SHAPE(v) /= tv%dims(1:tv%dim)) ) THEN
+      PRINT *, "ERROR: ", TRIM(tv%name), " must have size ", tv%dims(1:tv%dim), " but has size ", SHAPE(v)
+    ENDIF
+  END SUBROUTINE bind_variable_s3d
 
   SUBROUTINE bind_variable_gc2d( tv, v )
     TYPE(t_variable), INTENT(INOUT) :: tv

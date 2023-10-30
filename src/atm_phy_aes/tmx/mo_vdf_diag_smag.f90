@@ -19,7 +19,7 @@
 
 MODULE mo_vdf_diag_smag
 
-  USE mo_kind,              ONLY: wp, i1
+  USE mo_kind,              ONLY: wp, vp, i1
   USE mo_exception,         ONLY: message, finish
   USE mo_tmx_process_class, ONLY: t_tmx_process
   USE mo_tmx_field_class,   ONLY: t_tmx_field, t_domain, isfc_oce, isfc_ice, isfc_lnd
@@ -411,8 +411,9 @@ CONTAINS
     INTEGER,  INTENT(in)  :: &
       & nvalid(:),           &
       & indices(:,:)
+    REAL(vp), DIMENSION(:,:), INTENT(in) :: &
+      dz
     REAL(wp), DIMENSION(:,:), INTENT(in) :: &
-      dz,        &
       thetam1,   &
       pqm1 ,     &
       ! pxim1,     &
@@ -441,6 +442,7 @@ CONTAINS
     CHARACTER(len=*), PARAMETER :: routine = modname//':compute_sfc_exchange_coefficients'
 
     INTEGER  :: jb, jls, js
+    REAL(wp) :: dz_temp
     
 !$OMP PARALLEL
     CALL init(km)
@@ -449,16 +451,17 @@ CONTAINS
     CALL init(kh_neutral)
 !$OMP END PARALLEL
 
-!$OMP PARALLEL DO PRIVATE(jb,jls,js) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP PARALLEL DO PRIVATE(jb,jls,js, dz_temp) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = domain%i_startblk_c, domain%i_endblk_c
-      !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG(STATIC: 1) VECTOR ASYNC(1) PRIVATE(js)
+      !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG(STATIC: 1) VECTOR ASYNC(1) PRIVATE(js, dz_temp)
       DO jls = 1, nvalid(jb)
         js=indices(jls,jb)
 
         ! Note: dz=p_nh_metrics%ddqz_z_half(:,nlevp1,:) from atmosphere (src/atm_dyn_iconam/mo_vertical_grid.f90)
         ! is twice of what we want
+        dz_temp = REAL(dz(js,jb), KIND=wp) * 0.5_wp
         CALL sfc_exchange_coefficients(                                                      &
-          & dz(js,jb) * 0.5_wp,                                                              &
+          & dz_temp,                                                                         &
           & pqm1(js,jb),                                                                     &
           & thetam1(js,jb), mwind(js,jb), rough_m(js,jb), theta_sfc(js,jb), qsat_sfc(js,jb), &
           & km(js,jb), kh(js,jb), km_neutral(js,jb), kh_neutral(js,jb)                       &

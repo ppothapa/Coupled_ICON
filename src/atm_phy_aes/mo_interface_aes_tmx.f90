@@ -23,7 +23,7 @@
 
 MODULE mo_interface_aes_tmx
 
-  USE mo_kind                ,ONLY: wp
+  USE mo_kind                ,ONLY: wp, sp
   USE mtime                  ,ONLY: datetime, OPERATOR(>)
 
   USE mo_exception           ,ONLY: finish, warning
@@ -468,16 +468,13 @@ CONTAINS
     INTEGER :: nlev, nlevp1, jg
     INTEGER :: rls, rle, jbs, jbe, jcs, jce, jb, jc
     REAL(wp), POINTER :: ptr_r2d(:,:), ptr_r3d(:,:,:)
+    REAL(sp), POINTER :: ptr_s2d(:,:)
     INTEGER, ALLOCATABLE :: sfc_types(:)
 
     REAL(wp), POINTER :: dz_srf(:,:)
     REAL(wp), POINTER :: zco2(:,:)
 
     CHARACTER(len=*), PARAMETER :: routine = modname//':init_tmx'
-
-#ifdef __MIXED_PRECISION
-    CALL finish(routine, 'mixed precision not yet implemented for tmx')
-#else
 
     patch => p_patch
 
@@ -651,8 +648,13 @@ CONTAINS
     CALL bind_variable(vdf%sfc%inputs%list%Search('cosine of zenith angle'), field%cosmu0)
     CALL bind_variable(vdf%sfc%inputs%list%Search('atm CO2 concentration'), zco2) ! TODO carbon cycle
     !
+#ifdef __MIXED_PRECISION
+    ptr_s2d => p_nh_metrics%ddqz_z_half(:,nlevp1,:)
+    CALL bind_variable(vdf%sfc%inputs%list%Search('reference height in surface layer times 2'), ptr_s2d)
+#else
     ptr_r2d => p_nh_metrics%ddqz_z_half(:,nlevp1,:)
     CALL bind_variable(vdf%sfc%inputs%list%Search('reference height in surface layer times 2'), ptr_r2d)
+#endif
     ! dz_srf(:,:) = 2._wp * (field%zh(:,nlev,:) - field%zh(:,nlevp1,:))
     ! dz_srf(:,:) = 2._wp * (p_nh_metrics%z_mc(:,nlev,:) - p_nh_metrics%z_ifc(:,nlevp1,:))
     ! CALL bind_variable(vdf%sfc%inputs%list%Search('reference height in surface layer times 2'), dz_srf)
@@ -734,8 +736,6 @@ CONTAINS
     CALL bind_variable(vdf%sfc%diagnostics%list%Search('10m meridional wind, tile'),                    field%vas_tile)
 
     CALL vdf%Lock_variable_sets()
-
-#endif
 
   END SUBROUTINE init_tmx
 

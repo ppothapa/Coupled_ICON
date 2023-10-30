@@ -45,7 +45,7 @@
 
 MODULE mo_vdf_sfc
 
-  USE mo_kind,              ONLY: wp, i1, i4
+  USE mo_kind,              ONLY: wp, sp, i1, i4
   USE mo_exception,         ONLY: message, finish
   USE mo_fortran_tools,     ONLY: init, copy
   USE mtime,                ONLY: t_datetime => datetime
@@ -126,8 +126,15 @@ MODULE mo_vdf_sfc
       & ice_thickness(:,:)   => NULL(),  & !< sea ice: ice thickness [m]
       & zf(:,:) => NULL(), & !< geom. height of lowest atm. full level [m]
       & zh(:,:) => NULL(), & !< geom. height of surface (interface level) [m]
-      & dz(:,:) => NULL(), &
       & fract_tile(:,:,:) => NULL()
+#ifdef __MIXED_PRECISION
+    REAL(sp), POINTER :: &
+      & dz(:,:) => NULL()
+#else
+    REAL(wp), POINTER :: &
+      & dz(:,:) => NULL()
+#endif
+
   CONTAINS
     ! PROCEDURE :: Init => init_t_vdf_sfc_variable_set
     PROCEDURE :: Set_pointers => Set_pointers_inputs
@@ -984,7 +991,11 @@ CONTAINS
     CALL inlist%append(t_variable('surface pressure', shape_2d, "Pa", type_id="real"))
     CALL inlist%append(t_variable('atm geometric height full', shape_2d, "Pa", type_id="real"))
     CALL inlist%append(t_variable('sfc geometric height half', shape_2d, "Pa", type_id="real"))
+#ifdef __MIXED_PRECISION
+    CALL inlist%append(t_variable('reference height in surface layer times 2', shape_2d, "m", type_id="single"))
+#else
     CALL inlist%append(t_variable('reference height in surface layer times 2', shape_2d, "m", type_id="real"))
+#endif
     CALL inlist%append(t_variable('surface rain flux, large-scale', shape_2d, "kg m-2 s-1", type_id="real"))
     CALL inlist%append(t_variable('surface snow flux, large-scale', shape_2d, "kg m-2 s-1", type_id="real"))
 
@@ -1078,7 +1089,11 @@ CONTAINS
       __acc_attach(this%zf)
       this%zh => this%list%Get_ptr_r2d('sfc geometric height half')
       __acc_attach(this%zh)
+#ifdef __MIXED_PRECISION
+      this%dz => this%list%Get_ptr_s2d('reference height in surface layer times 2')
+#else
       this%dz => this%list%Get_ptr_r2d('reference height in surface layer times 2')
+#endif
       __acc_attach(this%dz)
       this%fract_tile => this%list%get_ptr_r3d('grid box fraction of tiles')
       __acc_attach(this%fract_tile)

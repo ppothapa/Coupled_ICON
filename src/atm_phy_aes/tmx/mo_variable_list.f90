@@ -1,6 +1,6 @@
 MODULE mo_variable_list
 
-  USE mo_kind,                ONLY: wp
+  USE mo_kind,                ONLY: wp, sp
   USE mo_generic_linked_list, ONLY: t_generic_linked_list, t_generic_linked_list_item
   USE mo_variable,            ONLY: t_variable, &
        &                            allocate_variable, &
@@ -52,6 +52,8 @@ MODULE mo_variable_list
     PROCEDURE :: get_ptr_r1d             => t_variable_list_get_ptr_r1d
     PROCEDURE :: get_ptr_r2d             => t_variable_list_get_ptr_r2d
     PROCEDURE :: get_ptr_r3d             => t_variable_list_get_ptr_r3d
+    PROCEDURE :: get_ptr_s2d             => t_variable_list_get_ptr_s2d
+    PROCEDURE :: get_ptr_s3d             => t_variable_list_get_ptr_s3d
     ! GENERIC   :: get_ptr                 => t_variable_list_get_ptr_r0d, t_variable_list_get_ptr_r1d, &
     !   &                                     t_variable_list_get_ptr_r2d, t_variable_list_get_ptr_r3d
     PROCEDURE :: allocator               => t_variable_list_allocator
@@ -305,6 +307,39 @@ CONTAINS
 
   END FUNCTION t_variable_list_get_ptr_r3d
 
+  FUNCTION t_variable_list_get_ptr_s2d(this, name) result(ptr)
+    CLASS (t_variable_list) :: this
+    CHARACTER(len=*), INTENT(IN) :: name
+    REAL(sp), POINTER :: ptr(:,:)
+    
+    ASSOCIATE (tv => this%search(name))
+      SELECT TYPE (tv)
+      CLASS IS (t_variable)
+        ptr => tv%s2d
+        __acc_attach(ptr)
+      CLASS DEFAULT
+        ptr => NULL()
+      END SELECT
+    END ASSOCIATE
+
+  END FUNCTION t_variable_list_get_ptr_s2d
+
+  FUNCTION t_variable_list_get_ptr_s3d(this, name) result(ptr)
+    CLASS (t_variable_list) :: this
+    CHARACTER(len=*), INTENT(IN) :: name
+    REAL(sp), POINTER :: ptr(:,:,:)
+    
+    ASSOCIATE (tv => this%search(name))
+      SELECT TYPE (tv)
+      CLASS IS (t_variable)
+        ptr => tv%s3d
+        __acc_attach(ptr)
+      CLASS DEFAULT
+        ptr => NULL()
+      END SELECT
+    END ASSOCIATE
+
+  END FUNCTION t_variable_list_get_ptr_s3d
 
   !FUNCTION t_variable_item_construct(dim, name, units, d, l_opt) result(tvi)
   !  TYPE(t_variable_item) :: tvi
