@@ -37,13 +37,14 @@ MODULE mo_nml_crosscheck
     &                                    ltransport, ltestcase, ltimer,                    &
     &                                    activate_sync_timers, timers_level, lart,         &
     &                                    msg_level, luse_radarfwo
-  USE mo_dynamics_config,          ONLY: iequations, ldeepatmo
+  USE mo_dynamics_config,          ONLY: iequations, ldeepatmo, lmoist_thdyn
   USE mo_advection_config,         ONLY: advection_config
   USE mo_nonhydrostatic_config,    ONLY: itime_scheme_nh => itime_scheme,                  &
     &                                    rayleigh_type, ivctype, iadv_rhotheta
   USE mo_atm_phy_nwp_config,       ONLY: atm_phy_nwp_config, icpl_aero_conv, iprog_aero
   USE mo_lnd_nwp_config,           ONLY: ntiles_lnd, lsnowtile, sstice_mode, llake
   USE mo_aes_phy_config,           ONLY: aes_phy_config
+  USE mo_aes_vdf_config,           ONLY: aes_vdf_config
   USE mo_radiation_config,         ONLY: irad_aero, iRadAeroNone, iRadAeroConst,           &
     &                                    iRadAeroTegen, iRadAeroART, iRadAeroConstKinne,   &
     &                                    iRadAeroCAMSclim,                                 &
@@ -230,6 +231,10 @@ CONTAINS
         & 'surface scheme must be switched off, when running the APE test')
     ENDIF
 
+    IF ( nh_test_name=='HS_nh'.AND. lmoist_thdyn ) THEN
+      CALL finish(routine, &
+        & 'lmoist_thdyn must be .FALSE. when running the Held-Suarez test')
+    ENDIF
 
     !--------------------------------------------------------------------
     ! SCM single column model
@@ -845,6 +850,11 @@ CONTAINS
             CALL message(routine, 'Setting llake = .FALSE. since ljsb = .FALSE.')
             aes_phy_config(jg)%llake = .FALSE.
          END IF
+      ELSE
+        IF (aes_vdf_config(jg)%use_tmx) THEN
+          CALL message(routine, 'Setting llake = .FALSE. since using tmx (lakes are treated inside JSBACH)')
+          aes_phy_config(jg)%llake = .FALSE.
+        END IF
       END IF
     END DO
 #endif

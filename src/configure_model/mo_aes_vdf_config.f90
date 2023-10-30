@@ -112,6 +112,11 @@ CONTAINS
        CALL print_value('    aes_vdf_config('//TRIM(cg)//')% z0m_ice        ',aes_vdf_config(jg)% z0m_ice        )
        CALL print_value('    aes_vdf_config('//TRIM(cg)//')% z0m_oce        ',aes_vdf_config(jg)% z0m_oce        )
        CALL print_value('    aes_vdf_config('//TRIM(cg)//')% turb           ',aes_vdf_config(jg)% turb           )
+       CALL print_value('    aes_vdf_config('//TRIM(cg)//')% use_tmx        ',aes_vdf_config(jg)% use_tmx        )
+       IF (aes_vdf_config(jg)% use_tmx) THEN
+        CALL print_value('    aes_vdf_config('//TRIM(cg)//')% solver_type    ',aes_vdf_config(jg)% solver_type   )
+        CALL print_value('    aes_vdf_config('//TRIM(cg)//')% energy_type    ',aes_vdf_config(jg)% energy_type   )
+       END IF
        CALL print_value('    aes_vdf_config('//TRIM(cg)//')% smag_constant  ',aes_vdf_config(jg)% smag_constant  )
        CALL print_value('    aes_vdf_config('//TRIM(cg)//')% turb_prandtl   ',aes_vdf_config(jg)% turb_prandtl   )
        CALL print_value('    aes_vdf_config('//TRIM(cg)//')% rturb_prandtl  ',aes_vdf_config(jg)% rturb_prandtl  )

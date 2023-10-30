@@ -339,6 +339,8 @@ CONTAINS
           ! set index
           js=loidx(jls,jsfc)
 
+          ! TODO
+          ! Note: for fractional land-sea mask, this will put the ocean current into the land tile!?????
           pu_stress_tile(js,jsfc) = zconst*pfac_sfc(js) *pcfm_tile(js,jsfc)*(pu_rtpfac1(js) - pocu(js)*tpfac2)
           pv_stress_tile(js,jsfc) = zconst*pfac_sfc(js) *pcfm_tile(js,jsfc)*(pv_rtpfac1(js) - pocv(js)*tpfac2)
        END DO

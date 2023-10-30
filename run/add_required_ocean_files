@@ -14,7 +14,7 @@
   fi
   #ocean_location= ${ocean_location:="buildbot"}
   #ocean_location="local" #${ocean_location:="local"}
-  builbot_ocean_reference_path=/pool/data/ICON/buildbot_data/ref/2023-09-08.icon-mpim.39cf485fb122
+  builbot_ocean_reference_path=/pool/data/ICON/buildbot_data/ref/2023-10-16.icon-mpim.5882d97d9cec
   get_file=${get_file:='add_link_file'} # or 'add_required_file' for copying
 
   # if there are local settings from the user... use them

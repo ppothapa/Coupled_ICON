@@ -37,7 +37,7 @@ MODULE mo_nh_stepping
     &                                    divdamp_fac, divdamp_fac_o2, ih_clch, ih_clcm, kstart_moist, &
     &                                    ndyn_substeps, ndyn_substeps_var, ndyn_substeps_max, vcfl_threshold
   USE mo_diffusion_config,         ONLY: diffusion_config
-  USE mo_dynamics_config,          ONLY: nnow, nnew, nnow_rcf, nnew_rcf, nsav1, nsav2, ldeepatmo
+  USE mo_dynamics_config,          ONLY: nnow, nnew, nnow_rcf, nnew_rcf, nsav1, nsav2, lmoist_thdyn, ldeepatmo
   USE mo_io_config,                ONLY: is_totint_time, n_diag, var_in_output, checkpoint_on_demand
   USE mo_parallel_config,          ONLY: nproma, num_prefetch_proc, proc0_offloading
   USE mo_run_config,               ONLY: ltestcase, dtime, nsteps, ldynamics, ltransport,   &
@@ -227,6 +227,7 @@ MODULE mo_nh_stepping
   USE mo_extpar_config,            ONLY: generate_td_filename
   USE mo_nudging_config,           ONLY: nudging_config, l_global_nudging, indg_type
   USE mo_nudging,                  ONLY: nudging_interface
+  USE mo_initicon_utils,           ONLY: prepare_thermo_src_term
 
   !$ser verbatim USE mo_ser_all, ONLY: serialize_all
 
@@ -2689,7 +2690,8 @@ MODULE mo_nh_stepping
       &                  rho       = p_nh_state%prog(nnow(jg))%rho, & !in
       &                  airmass   = p_nh_state%diag%airmass_now    ) !inout
 
-
+    ! get moisture term for thermodynamic equation 
+    IF (lmoist_thdyn) CALL prepare_thermo_src_term(p_patch)
 
     ! perform dynamics substepping
     !

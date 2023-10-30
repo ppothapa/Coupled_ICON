@@ -150,7 +150,7 @@ CONTAINS
       ! neighbors exceeds a certain threshold value
 
       DO iter_sub = 1, niter ! perform niter iterations
-                             ! note: a variable number of iterations (with an exit condition) potentially 
+                             ! note: a variable number of iterations (with an exit condition) potentially
                              ! causes trouble with MPI reproducibility
 
         z_heightdiff_threshold = heightdiff_threshold(jg)
@@ -352,7 +352,7 @@ CONTAINS
 
     ENDDO !iter
 
-   END SUBROUTINE smooth_topo
+  END SUBROUTINE smooth_topo
 
 
 
@@ -365,21 +365,21 @@ CONTAINS
   !! - the SSO standard deviation field is updated based on the smoothed 
   !!   topography
   !!
-  SUBROUTINE smooth_topo_real_data (p_patch, p_int, fr_land, fr_lake, topography_c, sso_stdh)
+  SUBROUTINE smooth_topo_real_data (p_patch, p_int, fr_land, topography_c, fr_lake, sso_stdh)
 
     TYPE(t_patch)      , INTENT(INOUT) :: p_patch
     TYPE(t_int_state)  , INTENT(IN)    :: p_int
     REAL(wp)           , INTENT(IN)    :: fr_land(:,:)
-    REAL(wp)           , INTENT(IN)    :: fr_lake(:,:)
     REAL(wp)           , INTENT(INOUT) :: topography_c(:,:)
-    REAL(wp)           , INTENT(INOUT) :: sso_stdh(:,:)
+    REAL(wp), OPTIONAL , INTENT(IN)    :: fr_lake(:,:)
+    REAL(wp), OPTIONAL , INTENT(INOUT) :: sso_stdh(:,:)
 
     ! local variables
     INTEGER  :: jb, jc
     INTEGER  :: i_startblk, nblks_c, i_startidx, i_endidx
     REAL(wp) :: z_topo_c_sv(nproma,p_patch%nblks_c)
     REAL(wp) :: zhdiff
-
+    LOGICAL  :: is_present_fr_lake
 
     nblks_c    = p_patch%nblks_c
 
@@ -388,15 +388,15 @@ CONTAINS
     ! save original raw topography
     z_topo_c_sv(:,:) = topography_c(:,:)
 
-
     ! topography smoothing
     !
     CALL smooth_topo(p_patch, p_int, topography_c)
 
-
     ! bring sea-points back to zero height (i.e. to original extpar values)
     !
     IF (lrevert_sea_height) THEN
+
+      is_present_fr_lake = PRESENT(fr_lake)
 
       DO jb = i_startblk,nblks_c
 
@@ -405,9 +405,13 @@ CONTAINS
 
         DO jc=i_startidx, i_endidx
           !
-          ! bring grid cell back to zero height, if it is entirely covered by sea. 
-          IF ( (fr_land(jc,jb) + fr_lake(jc,jb)) == 0._wp ) THEN
-            topography_c(jc,jb) = z_topo_c_sv(jc,jb)
+          ! bring grid cell back to zero height, if it is entirely covered by sea.
+          IF (is_present_fr_lake) THEN
+            ! NPW physics
+            IF ((fr_land(jc,jb) + fr_lake(jc,jb)) == 0._wp) topography_c(jc,jb) = z_topo_c_sv(jc,jb)
+          ELSE
+            ! AES physics
+            IF (fr_land(jc,jb) < EPSILON(1._wp)) topography_c(jc,jb) = z_topo_c_sv(jc,jb)
           ENDIF
         ENDDO  !jc
 
@@ -416,7 +420,7 @@ CONTAINS
 
     ! re-compute SSO_STDH based on smoothed topography
     !
-    IF (pp_sso <= 1) THEN
+    IF (PRESENT(sso_stdh) .AND. pp_sso <= 1) THEN
 
       DO jb = i_startblk,nblks_c
 

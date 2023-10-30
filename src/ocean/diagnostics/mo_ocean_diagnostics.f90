@@ -2498,7 +2498,6 @@ CONTAINS
 !   monitor%vorticity(:)                  = 0.0_wp
 !   monitor%enstrophy(:)                  = 0.0_wp
 !   monitor%potential_enstrophy(:)        = 0.0_wp
-    monitor%absolute_vertical_velocity(:) = 0.0_wp
     monitor%HeatFlux_ShortWave(:)         = 0.0_wp
     monitor%HeatFlux_LongWave(:)          = 0.0_wp
     monitor%HeatFlux_Sensible(:)          = 0.0_wp
@@ -2527,11 +2526,6 @@ CONTAINS
     monitor%agulhas(:)                    = 0.0_wp
     monitor%agulhas_long(:)               = 0.0_wp
     monitor%agulhas_longer(:)             = 0.0_wp
-    monitor%t_mean_na_200m(:)             = 0.0_wp
-    monitor%t_mean_na_800m(:)             = 0.0_wp
-    monitor%ice_ocean_heat_budget(:)      = 0.0_wp
-    monitor%ice_ocean_salinity_budget(:)  = 0.0_wp
-    monitor%ice_ocean_volume_budget(:)    = 0.0_wp
   END SUBROUTINE reset_ocean_monitor
 
   SUBROUTINE calc_condep(patch_3d, condep, zgrad_rho, use_acc)

@@ -125,6 +125,7 @@ USE mo_aes_phy_dims,        ONLY: init_aes_phy_dims
 USE mo_aes_phy_init,        ONLY: init_aes_phy_params, init_aes_phy_external, &
    &                              init_aes_phy_field, init_o3_lcariolle
 USE mo_aes_phy_cleanup,     ONLY: cleanup_aes_phy
+USE mo_interface_aes_tmx,   ONLY: init_tmx
 #endif
 #ifndef __NO_JSBACH__
   USE mo_jsb_model_init,    ONLY: jsbach_init_after_restart
@@ -763,6 +764,17 @@ CONTAINS
       CALL create_mipz_level_selections(output_file)
       CALL create_vertical_axes(output_file)
     END IF
+
+    ! tmx
+#ifndef __NO_AES__
+    IF (aes_vdf_config(1)%use_tmx) THEN
+      IF (n_dom == 1) THEN
+        CALL init_tmx(p_patch(1), dtime)
+      ELSE
+        CALL finish(routine, 'Only one domain supported currently for new tmx')
+      END IF
+    END IF
+#endif
 
 #ifdef MESSY
     CALL messy_init_coupling

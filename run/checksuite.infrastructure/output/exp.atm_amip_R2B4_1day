@@ -191,6 +191,9 @@ cat > ${atm_namelist} << EOF
  decay_exp        = 1.2
  flat_height      = 16000.      ! [m]
 /
+&dynamics_nml
+ lmoist_thdyn   = .TRUE.
+/
 &diffusion_nml
 /
 &transport_nml
