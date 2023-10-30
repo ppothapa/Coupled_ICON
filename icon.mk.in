@@ -379,10 +379,6 @@ srclist: $(dep_files)
 # Check rule:
 check: all check-bundled
 
-# Installation rule:
-install: all
-	$(INSTALL) -d $(DESTDIR)@bindir@ && $(INSTALL) $(exec_files) $(DESTDIR)@bindir@
-
 # A general rule for clean recipes is to delete only those files that have been
 # created explicitly, abandoning the idea of trying to delete all possible side
 # effect files, e.g. Cray's *.i and *.lst files, MacOS's *.dSYM directories,
@@ -445,6 +441,11 @@ distclean: clean
 	  done; \
 	fi
 	rm -f icon.mk
+
+# Installation rule:
+install: all
+	$(INSTALL) -d $(DESTDIR)@bindir@ && $(INSTALL) $(exec_files) $(DESTDIR)@bindir@
+@HD_ENABLED@	$(silent_none)$(MAKE) -C externals/hd $@ V=$(V)
 
 # Explicit bundled libraries configuration rule:
 config-bundled: $(addsuffix /Makefile,$(bundled_subdirs))
@@ -581,6 +582,9 @@ externals/yac: $(filter externals/mtime externals/yaxt,$(bundled_subdirs))
 
 # Build the bundled yaxt and ppm before building the bundled cdi:
 externals/cdi: $(filter externals/yaxt externals/ppm,$(bundled_subdirs))
+
+# Build the bundled yac before the bundled hd:
+externals/hd: $(filter externals/yac,$(bundled_subdirs))
 
 # Configure delayed bundled libraries:
 @ICON_DELAYED_CONFIG_RULES@

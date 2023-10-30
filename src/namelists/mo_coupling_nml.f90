@@ -26,7 +26,8 @@ MODULE mo_coupling_nml
   USE mo_namelist,        ONLY: open_nml, close_nml, position_nml, POSITIONED
   USE mo_exception,       ONLY: finish
   USE mo_coupling_config, ONLY: config_coupled_to_ocean, config_coupled_to_waves,       &
-    &                           config_coupled_to_atmo, config_use_sens_heat_flux_hack, &
+    &                           config_coupled_to_hydrodisc, config_coupled_to_atmo,    &
+    &                           config_use_sens_heat_flux_hack,                         &
     &                           config_suppress_sens_heat_flux_hack_over_ice
   USE mo_coupling,        ONLY: coupler_config_files_exist
 
@@ -52,7 +53,7 @@ CONTAINS
     !
     ! Local variables
     !
-    LOGICAL :: coupled_to_ocean, coupled_to_waves, coupled_to_atmo
+    LOGICAL :: coupled_to_ocean, coupled_to_waves, coupled_to_atmo, coupled_to_hydrodisc
     LOGICAL :: coupled_mode
     LOGICAL :: use_sens_heat_flux_hack
     LOGICAL :: suppress_sens_heat_flux_hack_over_ice
@@ -62,15 +63,16 @@ CONTAINS
          &   routine = 'mo_coupling_nml:read_coupling_namelist'
 
     NAMELIST /coupling_mode_nml/ coupled_to_ocean, coupled_to_waves, coupled_to_atmo, &
-         use_sens_heat_flux_hack, suppress_sens_heat_flux_hack_over_ice
+         coupled_to_hydrodisc, use_sens_heat_flux_hack, suppress_sens_heat_flux_hack_over_ice
 
     !--------------------------------------------------------------------
     ! 1. Set default values
     !--------------------------------------------------------------------
 
-    coupled_to_ocean = .FALSE.
-    coupled_to_waves = .FALSE.
-    coupled_to_atmo  = .FALSE.
+    coupled_to_ocean     = .FALSE.
+    coupled_to_waves     = .FALSE.
+    coupled_to_atmo      = .FALSE.
+    coupled_to_hydrodisc = .FALSE.
     use_sens_heat_flux_hack = .FALSE.
     suppress_sens_heat_flux_hack_over_ice = .FALSE.
 
@@ -91,9 +93,10 @@ CONTAINS
 
 #endif
 
-    config_coupled_to_ocean = coupled_to_ocean
-    config_coupled_to_waves = coupled_to_waves
-    config_coupled_to_atmo  = coupled_to_atmo
+    config_coupled_to_ocean     = coupled_to_ocean
+    config_coupled_to_waves     = coupled_to_waves
+    config_coupled_to_atmo      = coupled_to_atmo
+    config_coupled_to_hydrodisc = coupled_to_hydrodisc
     config_use_sens_heat_flux_hack = use_sens_heat_flux_hack
     config_suppress_sens_heat_flux_hack_over_ice = suppress_sens_heat_flux_hack_over_ice
 
@@ -102,7 +105,7 @@ CONTAINS
     ! 3. Sanity checks
     !----------------------------------------------------
 
-    coupled_mode = ANY((/coupled_to_ocean,coupled_to_waves,coupled_to_atmo/))
+    coupled_mode = ANY((/coupled_to_ocean,coupled_to_waves,coupled_to_atmo,coupled_to_hydrodisc/))
 
     IF (coupled_mode .AND. .NOT. coupler_config_files_exist()) THEN
       CALL finish( &
