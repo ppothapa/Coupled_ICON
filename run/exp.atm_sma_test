@@ -14,7 +14,7 @@ author_list="Junhong Lee, Cathy Hohenegger, Andreas Chlond, MPIM"
 # icon_data_poolFolder          = base directory, where grids/, input/ and setup/ exist
 # nproma                        = blocking length for array dimensioning and inner loop lengths
 
-icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/grids/private/mpim/icon_preprocessing/source"
+icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/grids/public/mpim"
 
 #--------------------------------------------------------------------------------------------------
 
@@ -22,14 +22,9 @@ icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/grids/private/mpi
 
 # horizontal grid(s)
 #
-#grids_folder=${icon_data_poolFolder}/grids
-grids_folder=${basedir}/data
+# Torus
 #
-# domain globe
-grid_id=0005
-grid_refinement=R02B04
-grid_label=G
-grid_name=icon_grid_${grid_id}_${grid_refinement}_${grid_label}
+grids_folder=${icon_data_poolFolder}/Torus_Triangles_96x96_150m
 #
 atmo_dyn_grids="'Torus_Triangles_96x96_150m.nc',"
 
@@ -196,11 +191,11 @@ start_year=$(( ${start_date%%-*} - 1 ))
 end_year=$(( ${end_date%%-*} + 1 ))
 #
 # - well mixed greenhouse gases
-datadir=${icon_data_poolFolder}/greenhouse_gases
+datadir=${icon_data_poolFolder}/independent/greenhouse_gases
 add_link_file $datadir/greenhouse_historical_plus.nc                    ./bc_greenhouse_gases.nc
 #
 # - ozone
-datadir=${icon_data_poolFolder}/ozone/rce/${grid_refinement}_${grid_label}
+datadir=${grids_folder}/r0001
 add_link_file ${datadir}/bc_ozone_rce.nc                                ./bc_ozone.nc
 
 #--------------------------------------------------------------------------------------------------
