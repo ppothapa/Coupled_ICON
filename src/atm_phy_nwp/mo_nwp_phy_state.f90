@@ -77,7 +77,7 @@ USE mo_model_domain,        ONLY: t_patch, p_patch, p_patch_local_parent
 USE mo_grid_config,         ONLY: n_dom, n_dom_start, nexlevs_rrg_vnest
 USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config, icpl_aero_conv, iprog_aero
 USE turb_data,              ONLY: ltkecon
-USE mo_initicon_config,     ONLY: icpl_da_sfcevap, icpl_da_snowalb, icpl_da_skinc
+USE mo_initicon_config,     ONLY: icpl_da_sfcevap, icpl_da_snowalb, icpl_da_skinc, icpl_da_seaice
 USE mo_radiation_config,    ONLY: irad_aero, iRadAeroTegen, iRadAeroART
 USE mo_lnd_nwp_config,      ONLY: ntiles_total, ntiles_water, nlev_soil
 USE mo_nwp_vdiff_interface, ONLY: nwp_vdiff_setup
@@ -1752,6 +1752,19 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
         __acc_attach(diag%snowalb_fac)
     ENDIF
 
+    IF (icpl_da_seaice >= 2) THEN
+      ! Factor for adaptive bottom heat flux tuning
+      !
+      ! hflux_si_fac     diag%hflux_si_fac(nproma,nblks_c)
+      cf_desc    = t_cf_var('hflux_si_fac', '-', 'tuning factor for seaice bottom heat flux', datatype_flt)
+      grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( diag_list, 'hflux_si_fac', diag%hflux_si_fac, &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,  &
+        &           grib2_desc, ldims=shape2d, loutput=.TRUE.,    &
+        &           initval=0.0_wp, lrestart=.TRUE., lopenacc=.TRUE.)
+        __acc_attach(diag%hflux_si_fac)
+    ENDIF
+
     IF (icpl_da_skinc >= 2) THEN
       ! Factors for adaptive tuning of soil heat capacity and conductivity
       !
@@ -3135,7 +3148,7 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
     ! &      diag%t_2m_land(nproma,nblks_c)
     cf_desc    = t_cf_var('t_2m_land', 'K ','temperature in 2m over land fraction', &
       &          datatype_flt)
-    grib2_desc = grib2_var(0, 0, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL) &
+    grib2_desc = grib2_var(0, 0, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL)  &
       &           + t_grib2_int_key("typeOfSecondFixedSurface", 181)
     CALL add_var( diag_list, 't_2m_land', diag%t_2m_land,                 &
       & GRID_UNSTRUCTURED_CELL, ZA_HEIGHT_2M_LAYER, cf_desc, grib2_desc,  &

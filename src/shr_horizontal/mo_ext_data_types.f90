@@ -79,6 +79,10 @@ MODULE mo_ext_data_types
       &  fr_land(:,:)          ! 0. for water, 1.0 indicates 100% land
                                ! index1=1,nproma, index2=1,nblks_c
 
+    REAL(wp), POINTER ::   &   !< smoothed land fraction for adaptive tuning of sea ice bottom heat flux and sea ice albedo
+      &  fr_land_smt(:,:)      ! 0. for water, 1.0 indicates 100% land
+                               ! index1=1,nproma, index2=1,nblks_c
+
     REAL(wp), POINTER ::    &  !< fraction land glacier in a grid element [ ]
       &  fr_glac(:,:)          ! 1.0 indicates 100% glacier
                                ! index1=1,nproma, index2=1,nblks_c

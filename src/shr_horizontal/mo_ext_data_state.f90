@@ -43,6 +43,7 @@ MODULE mo_ext_data_state
   USE mo_io_config,          ONLY: lnetcdf_flt64_output
   USE mo_grid_config,        ONLY: n_dom
   USE mo_run_config,         ONLY: iforcing
+  USE mo_initicon_config,    ONLY: icpl_da_seaice, icpl_da_snowalb
   USE mo_lnd_nwp_config,     ONLY: ntiles_total, ntiles_water, llake,       &
     &                              sstice_mode, lterra_urb
   USE mo_atm_phy_nwp_config, ONLY: iprog_aero
@@ -238,6 +239,7 @@ CONTAINS
       &     p_ext_atm%llsm_atm_c,      &
       &     p_ext_atm%llake_c,         &
       &     p_ext_atm%fr_land,         &
+      &     p_ext_atm%fr_land_smt,     &
       &     p_ext_atm%fr_glac,         &
       &     p_ext_atm%z0,              &
       &     p_ext_atm%fr_lake,         &
@@ -528,6 +530,18 @@ CONTAINS
         &           lopenacc=.TRUE. )
       __acc_attach(p_ext_atm%fr_land)
 
+      IF (icpl_da_seaice >= 2 .OR. icpl_da_snowalb >= 2) THEN
+        ! smoothed land fraction for adaptive tuning of sea ice bottom heat flux and sea ice albedo
+        !
+        ! fr_land_smt      p_ext_atm%fr_land_smt(nproma,nblks_c)
+        cf_desc    = t_cf_var('smoothed land_area_fraction', '-', 'Fraction land smooth', datatype_flt)
+        grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+        CALL add_var( p_ext_atm_list, 'fr_land_smt', p_ext_atm%fr_land_smt,   &
+          &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,    &
+          &           grib2_desc, ldims=shape2d_c, loutput=.TRUE.,    &
+          &           isteptype=TSTEP_CONSTANT,                       &
+          &           lopenacc=.TRUE. )
+      ENDIF
 
       ! glacier area fraction
       !

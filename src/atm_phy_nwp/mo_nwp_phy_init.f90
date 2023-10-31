@@ -116,7 +116,7 @@ MODULE mo_nwp_phy_init
   USE mo_nwp_parameters,      ONLY: t_phy_params
 
   USE mo_initicon_config,     ONLY: init_mode, lread_tke, icpl_da_sfcevap, dt_ana, icpl_da_snowalb, icpl_da_skinc, &
-                                    icpl_da_sfcfric, icpl_da_tkhmin
+                                    icpl_da_sfcfric, icpl_da_tkhmin, icpl_da_seaice
 
   USE mo_nwp_tuning_config,   ONLY: tune_zceff_min, tune_v0snow, tune_zvz0i, tune_icesedi_exp
   USE mo_cuparameters,        ONLY: sugwd
@@ -374,8 +374,6 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
 !$OMP END PARALLEL
   ENDIF
 
-  ! mask field to distinguish between tropics and extratropics (needed for some tuning measures)
-  !
   rl_start = 1 ! Initialization should be done for all points
   rl_end   = min_rlcell
 
@@ -386,6 +384,8 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
 
     CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, i_startidx, i_endidx, rl_start, rl_end)
 
+    ! mask fields to distinguish between tropics and extratropics (needed for some tuning measures)
+    !
     DO jc = i_startidx,i_endidx
       zlat = ABS(p_patch%cells%center(jc,jb)%lat*rad2deg)
       IF (zlat < 25._wp) THEN
@@ -453,13 +453,24 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
     IF (icpl_da_snowalb >= 1 .AND. .NOT. isRestart()) THEN
       ! Tuning factor for snow albedo
       DO jc = i_startidx,i_endidx
-        IF (ANY(p_diag_lnd%h_snow_t(jc,jb,1:ntiles_total) > 0._wp)) THEN
+        IF (ANY(p_diag_lnd%h_snow_t(jc,jb,1:ntiles_total) > 0._wp) .OR. p_prog_wtr_now%h_ice(jc,jb) > 0._wp) THEN
           IF (p_diag%t_avginc(jc,jb) > 0._wp) THEN
             prm_diag%snowalb_fac(jc,jb) = MAX(0.75_wp,1._wp/(1._wp+10800._wp/dt_ana*0.8_wp*p_diag%t_avginc(jc,jb)))
           ELSE
             prm_diag%snowalb_fac(jc,jb) = MIN(4._wp/3._wp,1._wp-10800._wp/dt_ana*0.8_wp*p_diag%t_avginc(jc,jb))
           ENDIF
         ENDIF
+        IF (icpl_da_snowalb >= 2) THEN ! albedo factor is also applied to sea ice and needs to be restricted to the vicinity of land
+          tbias_wgt = MIN(1._wp,100._wp*ext_data%atm%fr_land_smt(jc,jb))
+          prm_diag%snowalb_fac(jc,jb) = tbias_wgt*prm_diag%snowalb_fac(jc,jb) + (1._wp-tbias_wgt)
+        ENDIF
+      ENDDO
+    ENDIF
+    IF (icpl_da_seaice >= 2) THEN
+      ! Tuning factor for sea ice bottom heat flux
+      DO jc = i_startidx,i_endidx
+        prm_diag%hflux_si_fac(jc,jb) = MIN(1._wp,MAX(0._wp,-5._wp*p_diag%t_avginc(jc,jb))) * &
+          MIN(1._wp,100._wp*ext_data%atm%fr_land_smt(jc,jb))
       ENDDO
     ENDIF
     IF (icpl_da_skinc >= 2) THEN

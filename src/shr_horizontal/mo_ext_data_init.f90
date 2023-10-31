@@ -40,10 +40,10 @@ MODULE mo_ext_data_init
     &                              generate_td_filename, extpar_varnames_map_file,              &
     &                              n_iter_smooth_topo, i_lctype, nclass_lu, nhori, nmonths_ext, &
     &                              itype_vegetation_cycle, read_nc_via_cdi, pp_sso
-  USE mo_initicon_config,    ONLY: icpl_da_sfcevap, dt_ana, icpl_da_skinc
+  USE mo_initicon_config,    ONLY: icpl_da_sfcevap, dt_ana, icpl_da_skinc, icpl_da_seaice, icpl_da_snowalb
   USE mo_radiation_config,   ONLY: irad_o3, albedo_type, islope_rad,    &
     &                              irad_aero, iRadAeroTegen, iRadAeroART
-  USE mo_process_topo,       ONLY: smooth_topo_real_data, postproc_sso
+  USE mo_process_topo,       ONLY: smooth_topo_real_data, postproc_sso, smooth_frland
   USE mo_model_domain,       ONLY: t_patch
   USE mo_exception,          ONLY: message, message_text, finish
   USE mo_grid_config,        ONLY: n_dom, nroot
@@ -343,16 +343,21 @@ CONTAINS
               &                 ext_data(jg)%atm%topography_c ,&
               &                 ext_data(jg)%atm%sso_stdh     ,&
               &                 ext_data(jg)%atm%sso_sigma     )
-         ENDIF
+          ENDIF
 
-         ! topography smoothing
-         IF (n_iter_smooth_topo(jg) > 0) THEN
+          ! topography smoothing
+          IF (n_iter_smooth_topo(jg) > 0) THEN
             CALL smooth_topo_real_data ( p_patch(jg)                   ,&
               &                          p_int_state(jg)               ,&
               &                          ext_data(jg)%atm%fr_land      ,&
               &                          ext_data(jg)%atm%fr_lake      ,&
               &                          ext_data(jg)%atm%topography_c ,&
               &                          ext_data(jg)%atm%sso_stdh     )
+          ENDIF
+
+          ! smooth land fraction for adaptive tuning of sea ice bottom heat flux and sea ice albedo
+          IF (icpl_da_seaice >= 2 .OR. icpl_da_snowalb >= 2) THEN
+            CALL smooth_frland (p_patch(jg), p_int_state(jg), ext_data(jg)%atm%fr_land, ext_data(jg)%atm%fr_land_smt)
           ENDIF
 
           ! calculate gradient of orography for resolved surface drag

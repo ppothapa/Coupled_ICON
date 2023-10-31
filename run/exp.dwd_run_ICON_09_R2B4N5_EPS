@@ -728,7 +728,8 @@ cat >> ${atmo_namelist} << EOF
  include_last           = .FALSE.
  output_filename        = 'iga_fg'                ! file name base
  filename_format        = '<output_filename>_DOM<physdom>_<levtype>_<hhhmmss>'
- ml_varlist             = 'group:dwd_fg_atm_vars','group:dwd_fg_sfc_vars','-z_ifc','t_seasfc','t_avginc','rh_avginc','t_wgt_avginc','vabs_avginc','-temp','-u','-v','-pres','-pres_sfc','-t_2m','-td_2m','-u_10m','-v_10m','-fr_land','-t_g','-w_i','-t_so','-w_so','-plantevap','-w_so_ice','-t_snow','-w_snow','-rho_snow','-rho_snow_mult','-t_snow_mult','-wtot_snow','-wliq_snow','-dzh_snow','-qv_s','-h_snow','-freshsnow','-snowfrac_lc'
+ ml_varlist             = 'group:dwd_fg_atm_vars','group:dwd_fg_sfc_vars','-z_ifc','t_seasfc','t_avginc','rh_avginc','t_wgt_avginc','vabs_avginc','-temp','-u','-v','-pres','-pres_sfc','-t_2m','-td_2m','-u_10m','-v_10m','-fr_land','-t_g','-w_i','-t_so','-w_so','-plantevap','-w_so_ice','-t_snow','-w_snow','-rho_snow','-rho_snow_mult','-t_snow_mult','-wtot_snow','-wliq_snow','-dzh_snow','-qv_s','-h_snow','-freshsnow','-snowfrac_lc',
+                           '-hsnow_max' ! 2023-10-24: temporarily disable hsnow_max as the probtest CPU spread is too small
 !output_grid            = .TRUE.
 /
 
@@ -747,7 +748,8 @@ cat >> ${atmo_namelist} << EOF
  include_last           = .FALSE.
  output_filename        = 'iga_fg'                   ! file name base
  filename_format        = '<output_filename>_DOM<physdom>_<levtype>_tiles_<hhhmmss>'
- ml_varlist             = 'group:dwd_fg_sfc_vars_t'
+ ml_varlist             = 'group:dwd_fg_sfc_vars_t',
+                          '-h_snow_t_4' ! 2023-10-24: temporarily disable h_snow_t_4 as the probtest CPU spread is too small
 !output_grid            = .TRUE.
 /
 ! //// ICON Global Analysis in Bacy - End //// !
@@ -775,7 +777,8 @@ cat >> ${atmo_namelist} << EOF
  ml_varlist             = 'group:dwd_fg_atm_vars','group:dwd_fg_sfc_vars','-z_ifc','gust10','rh_2m','pres_msl',
                           'clcl','clct','clcm','clch','group:cloud_diag','clc','-vn','-w','-theta_v','-tke','-rho',
                           'tot_prec','asodird_s','asodifd_s','asodifu_s',
-                          '-qc_sgs', '-tot_qc_dia' ! 2023-08-30: temporarily disable these 2 variables as they give false alarm in probtest.
+                          '-qc_sgs', '-tot_qc_dia', ! 2023-08-30: temporarily disable these 2 variables as they give false alarm in probtest.
+                          '-h_snow', '-hsnow_max' ! 2023-10-24: temporarily disable h_snow and hsnow_max as their probtest CPU spread is too small
 !output_grid            = .TRUE.
 /
 ! //// ICON Global Forecast in Bacy - End //// !

@@ -1894,7 +1894,7 @@ CONTAINS
         hsnow_now(ic) = p_prog_wtr_now%h_snow_si(jc,jb)
         albsi_now(ic) = p_prog_wtr_now%alb_si(jc,jb)             ! sea-ice albedo [-]
         IF (icpl_da_seaice >= 2) THEN ! adaptive parameter tuning for bottom heat flux
-          fhflx(ic) = MIN(1._wp,MAX(0._wp,-8._wp*p_diag%t_avginc(jc,jb)))
+          fhflx(ic) = prm_diag%hflux_si_fac(jc,jb)
         ELSE
           fhflx(ic) = 0._wp
         ENDIF
