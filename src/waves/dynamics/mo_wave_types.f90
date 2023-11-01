@@ -42,42 +42,75 @@ MODULE mo_wave_types
       &  gv_e(:,:,:),         & ! group velocity                    (nproma,nblks_e,nfreqs)  (m/s)
       &  gvn_e(:,:,:),        & ! orthogonal normal group velocity  (nproma,nblks_e,nfreqs)  (m/s)
       &  gvt_e(:,:,:),        & ! tangential group velocity         (nproma,nblks_e,nfreqs)  (m/s)
-      &  alphaj(:,:),         & ! jonswap alpha                     (nproma,nblks_c)
+      &  alphaj(:,:),         & ! jonswap alpha                     (nproma,nblks_c)         (-)  
       &  fp(:,:),             & ! jonswap peak frequency            (nproma,nblks_c)         (hz)
-      &  et(:,:,:),           & ! jonswap spectra                   (nproma,nblks_c,nfreqs)
+      &  et(:,:,:),           & ! jonswap spectra                   (nproma,nblks_c,nfreqs)  (-)
       &  flminfr(:,:,:),      & ! the minimum value in spectral bins for a given frequency (nproma,nblks_c,nfreqs)
-      &  emean(:,:),          & ! total energy                      (nproma,nblks_c)         (m^2)
-      &  emeanws(:,:),        & ! total windsea energy              (nproma,nblks_c)         (m^2)
-      &  femean(:,:),         & ! mean frequency energy             (nproma,nblks_c)         (m^2)
       &  f1mean(:,:),         & ! mean frequency based on f-moment  (nproma,nblks_c)
-      &  tm1(:,:),            & ! wave tm1 period                   (nproma,nblks_c)         (s)
-      &  tm2(:,:),            & ! wave tm2 period                   (nproma,nblks_c)         (s)
       &  wave_num_c(:,:,:),   & ! wave number at cell centers as a function of
                                 ! circular frequency and water depth (nproma,nblks_c,nfreqs) (1/m)
-      &  wave_num_e(:,:,:),   & ! wave number at cell edges as a function of
+      &  wave_num_e(:,:,:),   & ! wave number at cell edges as a function of 
                                 ! circular frequency and water depth (nproma,nblks_e,nfreqs) (1/m)
-      &  akmean(:,:),         & ! mean wavenumber based on sqrt(1/k)-moment (nproma,nblks_c)
-      &  xkmean(:,:),         & ! mean wavenumber based on sqrt(k)-moment   (nproma,nblks_c)
-      &  femeanws(:,:),       & ! mean windsea frequency energy             (nproma,nblks_c)
-      &  ustar(:,:),          & ! friction velocity                 (nproma,nblks_c)         (m/s)
-      &  z0(:,:),             & ! roughness length                  (nproma,nblks_c)         (m)
-      &  tauhf1(:,:),         & ! init high-frequency stress        (nproma,nblks_c)
-      &  phihf1(:,:),         & ! init high-frequency energy flux into ocean (nproma,nblks_c)
-      &  tauhf(:,:),          & ! high-frequency stress                 (nproma,nblks_c)
-      &  phihf(:,:),          & ! high-frequency energy flux into ocean (nproma,nblks_c)
-      &  xlevtail(:,:),       & ! tail level                            (nproma,nblks_c)
-      &  tauw(:,:),           & ! wave stress                           (nproma,nblks_c)     (m/s)^2
-      &  phiaw(:,:),          & ! energy flux from wind into waves integrated over the full frequency range  (nproma,nblks_c)
-      &  fl(:,:,:),           & ! diagonal matrix of functional derivative (nproma,nblks_c,ntracer)
-      &  sl(:,:,:),           & ! total source function                    (nproma,nblks_c,ntracer)
-      &  hs(:,:),             & ! significant wave height                  (nproma,nblks_c)  (m)
-      &  hs_dir(:,:),         & ! mean direction of total wave height      (nproma,nblks_c)  (deg)
-      &  enh(:,:),            & ! nonlinear transfer function coefficients for shallow water
-      &  AF11(:),             & ! for discrete approximation of nonlinear transfer
-      &  FKLAP(:), FKLAP1(:), & ! --//--
-      &  FKLAM(:), FKLAM1(:), & ! --//--
-      &  u_stokes(:,:),       & ! U-component of surface Stokes drift
-      &  v_stokes(:,:)        & ! V-component of surface Stokes drift
+      &  akmean(:,:),         & ! mean wavenumber based on sqrt(1/k)-moment  (nproma,nblks_c) (1/m)
+      &  xkmean(:,:),         & ! mean wavenumber based on sqrt(k)-moment    (nproma,nblks_c) (1/m)
+      &  ustar(:,:),          & ! friction velocity                          (nproma,nblks_c) (m/s)
+      &  z0(:,:),             & ! roughness length                           (nproma,nblks_c) (m)
+      &  tauhf1(:,:),         & ! init high-frequency stress                 (nproma,nblks_c) (m/s)^2
+      &  phihf1(:,:),         & ! init high-frequency energy flux into ocean (nproma,nblks_c) (m/s)^2
+      &  tauhf(:,:),          & ! high-frequency stress                      (nproma,nblks_c) (m/s)^2
+      &  phihf(:,:),          & ! high-frequency energy flux into ocean      (nproma,nblks_c) (m/s)^2
+      &  xlevtail(:,:),       & ! tail level                                 (nproma,nblks_c) (-)
+      &  tauw(:,:),           & ! wave stress                                (nproma,nblks_c) (m/s)^2
+      &  phiaw(:,:),          & ! energy flux from wind into waves integrated over the full frequency range  (nproma,nblks_c) (-)
+      &  fl(:,:,:),           & ! diagonal matrix of functional derivative (nproma,nblks_c,ntracer) (-)
+      &  sl(:,:,:),           & ! total source function                    (nproma,nblks_c,ntracer) (-)
+      &  enh(:,:),            & ! nonlinear transfer function coefficients for shallow water 
+      &  AF11(:),             & ! for discrete approximation of nonlinear transfer (nfreqs+4) (-)
+      &  FKLAP(:), FKLAP1(:), & ! --//-- (nfreqs+4) (-)
+      &  FKLAM(:), FKLAM1(:), & ! --//-- (nfreqs+4) (-)
+      &  depth(:,:),          & ! water depth (nproma,nblks_c)  (m)
+      ! total waves
+      &  emean(:,:),          & ! total energy                   (nproma,nblks_c) (m^2)
+      &  emeanws(:,:),        & ! total wind sea input energy    (nproma,nblks_c) (m^2)
+      &  femean(:,:),         & ! mean frequency energy          (nproma,nblks_c) (m^2)
+      &  femeanws(:,:),       & ! windsea mean frequency energy  (nproma,nblks_c) (m^2)
+      &  hs(:,:),             & ! total significant wave height  (nproma,nblks_c) (m)
+      &  hs_dir(:,:),         & ! total mean wave direction      (nproma,nblks_c) (deg)
+      &  tpp(:,:),            & ! total peak wave period         (nproma,nblks_c) (s)
+      &  tmp(:,:),            & ! total mean wave period         (nproma,nblks_c) (s)
+      &  tm1(:,:),            & ! total wave m1 period           (nproma,nblks_c) (s)
+      &  tm2(:,:),            & ! total wave m2 period           (nproma,nblks_c) (s)
+      &  ds(:,:),             & ! total directional wave spread  (nproma,nblks_c) (deg)
+      ! wind sea
+      &  emean_sea(:,:),      & ! wind sea energy                (nproma,nblks_c) (m^2)
+      &  femean_sea(:,:),     & ! wind sea mean frequency energy (nproma,nblks_c) (m^2)
+      &  f1mean_sea(:,:),     & ! wind sea mean frequency        (nproma,nblks_c) (Hz)
+      &  hs_sea(:,:),         & ! sea significant wave height    (nproma,nblks_c) (m)
+      &  hs_sea_dir(:,:),     & ! sea mean wave direction        (nproma,nblks_c) (deg)  
+      &  pp_sea(:,:),         & ! sea peak period                (nproma,nblks_c) (s)  
+      &  mp_sea(:,:),         & ! sea mean period                (nproma,nblks_c) (s)  
+      &  m1_sea(:,:),         & ! sea m1-period                  (nproma,nblks_c) (s) 
+      &  m2_sea(:,:),         & ! sea m2-period                  (nproma,nblks_c) (s)
+      &  ds_sea(:,:),         & ! sea directional spreed         (nproma,nblks_c) (deg) 
+      ! swell
+      &  emean_swell(:,:),    & ! swell energy                   (nproma,nblks_c) (m^2)
+      &  femean_swell(:,:),   & ! swell mean frequency energy    (nproma,nblks_c) (m^2)
+      &  f1mean_swell(:,:),   & ! swell sea mean frequency       (nproma,nblks_c) (Hz)
+      &  hs_swell(:,:),       & ! swell significant wave height  (nproma,nblks_c) (m)
+      &  hs_swell_dir(:,:),   & ! swell mean wave direction      (nproma,nblks_c) (deg)
+      &  pp_swell(:,:),       & ! swell peak period              (nproma,nblks_c) (s)
+      &  mp_swell(:,:),       & ! swell mean period              (nproma,nblks_c) (s)
+      &  m1_swell(:,:),       & ! swell m1-period                (nproma,nblks_c) (s)
+      &  m2_swell(:,:),       & ! swell m2-period                (nproma,nblks_c) (s)
+      &  ds_swell(:,:),       & ! swell directional spreed       (nproma,nblks_c) (deg)
+      !
+      &  drag(:,:),           & ! drag coefficient               (nproma,nblks_c) (-)
+      &  tauwn(:,:),          & ! normalised wave stress         (nproma,nblks_c) (-)
+      &  beta(:,:),           & ! Charnock parameter             (nproma,nblks_c) (-)
+      &  mean_period(:,:),    & ! mean wave period = 1/femean    (nproma,nblks_c) (s)
+      &  peak_period(:,:),    & ! peak wave period               (nproma,nblks_c) (s)
+      &  u_stokes(:,:),       & ! U-component of surface Stokes drift (nproma,nblks_c) (m/s)
+      &  v_stokes(:,:)        & ! V-component of surface Stokes drift (nproma,nblks_c) (m/s)
       &  => NULL()
 
     REAL(vp), POINTER, CONTIGUOUS :: &
@@ -85,14 +118,16 @@ MODULE mo_wave_types
       &  => NULL()
 
     INTEGER, POINTER, CONTIGUOUS ::  &
-      &  last_prog_freq_ind(:,:), & ! last frequency index of the prognostic range
-      &  llws(:,:,:),             & ! .TRUE. where sinput is positive, wind sea, swell splitting flag  (nproma,nblks_c,ntracer)
-      &  ikp(:), ikp1(:),         & ! for discrete approximation of nonlinear transfer
-      &  ikm(:), ikm1(:),         & ! --//--
-      &  k1w(:,:), k2w(:,:),      & ! --//--
-      &  k11w(:,:), k21w(:,:),    & ! --//--
-      &  ja1(:,:), ja2(:,:),      & ! --//--
-      &  non_lin_tr_ind(:,:,:,:)  & ! tracer index for nonlinear interaction p_diag%non_lin_tr_ind(nfreqs+4,2,ndirs,8)
+      &  last_prog_freq_ind(:,:), & ! last frequency index of the prognostic range (nproma,nblks_c) (-)
+      &  llws(:,:,:),             & ! 1 - where sinput is positive (nproma,nblks_c,ntracer) (-)
+      &  swell_mask(:,:),         & ! swell separation mask (nproma,nblks_c) (-)
+      &  swell_mask_tr(:,:,:),    & ! swell separation mask (nproma,nblks_c,ntracer) (-)
+      &  ikp(:), ikp1(:),         & ! for discrete approximation of nonlinear transfer (nfreqs+4) (-)
+      &  ikm(:), ikm1(:),         & ! --//-- (nfreqs+4) (-)
+      &  k1w(:,:), k2w(:,:),      & ! --//-- (ndirs, 2) (-)
+      &  k11w(:,:), k21w(:,:),    & ! --//-- (ndirs, 2) (-) 
+      &  ja1(:,:), ja2(:,:),      & ! --//-- (ndirs, 2) (-)
+      &  non_lin_tr_ind(:,:,:,:)  & ! tracer index for nonlinear interaction (nfreqs+4,2,ndirs,8) (-)
       &  => NULL()
 
     TYPE(t_ptr_2d3d), ALLOCATABLE :: freq_ptr(:)       !< pointer array: one pointer for each frequence

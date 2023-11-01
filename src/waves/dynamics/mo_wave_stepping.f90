@@ -16,7 +16,7 @@ MODULE mo_wave_stepping
   USE mo_exception,                ONLY: message, message_text, finish
   USE mo_impl_constants,           ONLY: SUCCESS
   USE mo_run_config,               ONLY: output_mode, ltestcase
-  USE mo_name_list_output,         ONLY: write_name_list_output, istime4name_list_output
+  USE mo_name_list_output,         ONLY: write_name_list_output, istime4name_list_output, istime4name_list_output_dom
   USE mo_parallel_config,          ONLY: proc0_offloading
   USE mo_time_config,              ONLY: t_time_config
   USE mtime,                       ONLY: datetime, timedelta, &
@@ -40,7 +40,7 @@ MODULE mo_wave_stepping
   USE mo_wave_diagnostics,         ONLY: calculate_output_diagnostics
   USE mo_wave_physics,             ONLY: new_spectrum, total_energy, mean_frequency_energy, &
        &                                 air_sea, input_source_function, last_prog_freq_ind, &
-       &                                 impose_high_freq_tail, tm1_period, wave_stress, &
+       &                                 impose_high_freq_tail, tm1_tm2_periods, wave_stress, &
        &                                 wm1_wm2_wavenumber, dissipation_source_function, &
        &                                 set_energy2emin, bottom_friction, nonlinear_transfer, &
        &                                 wave_refraction
@@ -48,8 +48,8 @@ MODULE mo_wave_stepping
   USE mo_wave_forcing_state,       ONLY: wave_forcing_state
   USE mo_wave_forcing,             ONLY: t_read_wave_forcing
   USE mo_wave_events,              ONLY: create_wave_events, dummyWaveEvent
-  USE mo_wave_td_update,           ONLY: update_bathymetry_gradient, update_wind_speed_and_direction, &
-    &                                    update_ice_free_mask
+  USE mo_wave_td_update,           ONLY: update_bathymetry_gradient, update_speed_and_direction, &
+    &                                    update_ice_free_mask, update_water_depth
   USE mo_coupling_config,          ONLY: is_coupled_to_atmo
 
 #ifdef YAC_coupling
@@ -101,7 +101,7 @@ CONTAINS
 
     ! convenience pointer
     mtime_current => time_config%tc_current_date
-
+ 
     IF (ltestcase) THEN
       !-----------------------------------------------------------------------
       ! advection experiment
@@ -157,10 +157,15 @@ CONTAINS
             &                slh              = wave_forcing_state(jg)%sea_level_c,   & !out
             &                uosc             = wave_forcing_state(jg)%usoce_c,       & !out
             &                vosc             = wave_forcing_state(jg)%vsoce_c,       & !out
+            &                sp_osc           = wave_forcing_state(jg)%sp_soce_c,     & !out
+            &                dir_osc          = wave_forcing_state(jg)%dir_soce_c,    & !out
             &                ice_free_mask_c  = wave_forcing_state(jg)%ice_free_mask_c) !out
+
         ELSE
+
           WRITE(message_text,'(a,a,a)') 'No forcing files specified, testcase run is assumed.'
           CALL message(routine, message_text)
+
         END IF
       END DO
     END IF
@@ -168,6 +173,12 @@ CONTAINS
     DO jg = 1, n_dom
       n_now  = nnow(jg)
       n_new  = nnew(jg)
+
+      ! depth initialisation/update
+      CALL update_water_depth(p_patch = p_patch(jg),         & ! IN
+           bathymetry_c = wave_ext_data(jg)%bathymetry_c,    & ! IN
+           sea_level_c = wave_forcing_state(jg)%sea_level_c, & ! IN
+           depth_c = p_wave_state(jg)%diag%depth)              ! OUT
 
       ! update bathymetry gradient
       CALL update_bathymetry_gradient(p_patch(jg), & ! IN
@@ -210,19 +221,12 @@ CONTAINS
            p_wave_state(jg)%diag%z0)      ! OUT
 
       ! Calculate tm1 period and f1 frequency and wavenumbers
-      CALL tm1_period(p_patch(jg), wave_config(jg), &
+      CALL tm1_tm2_periods(p_patch(jg), wave_config(jg), &
            p_wave_state(jg)%prog(n_now)%tracer, &
            p_wave_state(jg)%diag%emean, &
            p_wave_state(jg)%diag%tm1, &  ! OUT
+           p_wave_state(jg)%diag%tm2, &  ! OUT
            p_wave_state(jg)%diag%f1mean) ! OUT
-
-      ! Calculation of diagnistic output parameters
-      CALL calculate_output_diagnostics(p_patch = p_patch(jg), &
-           &                      wave_config = wave_config(jg), &
-           &                           tracer = p_wave_state(jg)%prog(n_now)%tracer, &
-           &                            depth = wave_ext_data(jg)%bathymetry_c, &
-           &                           p_diag = p_wave_state(jg)%diag)
-
     END DO
 
       ! create wave events
@@ -238,6 +242,20 @@ CONTAINS
     ! initialize time step counter
     jstep = 0
 
+    DO jg = 1,n_dom
+      IF (.NOT. p_patch(jg)%ldom_active) CYCLE
+
+      IF (istime4name_list_output_dom(jg=jg, jstep=jstep)) THEN
+
+        ! Calculation of diagnostic output parameters
+        CALL calculate_output_diagnostics(p_patch = p_patch(jg),                    & ! IN
+          &                      wave_config = wave_config(jg),                     & ! IN
+          &                            sp10m = wave_forcing_state(jg)%sp10m,        & ! IN
+          &                           dir10m = wave_forcing_state(jg)%dir10m,       & ! IN
+          &                           tracer = p_wave_state(jg)%prog(n_now)%tracer, & ! IN
+          &                           p_diag = p_wave_state(jg)%diag)                 ! INOUT
+      ENDIF
+    ENDDO
 
     !--------------------------------------------------------------------------
     ! loop over the list of internal post-processing tasks, e.g.
@@ -298,16 +316,17 @@ CONTAINS
 #endif
           ! update forcing state
           ! update wind speed and direction
-          CALL update_wind_speed_and_direction(p_patch = p_patch(jg),                & ! IN
-            &                               u10     = wave_forcing_state(jg)%u10m,   & ! IN
-            &                               v10     = wave_forcing_state(jg)%v10m,   & ! IN
-            &                               wsp     = wave_forcing_state(jg)%sp10m,  & ! OUT
-            &                               wdir    = wave_forcing_state(jg)%dir10m)   ! OUT
+          CALL update_speed_and_direction(p_patch = p_patch(jg),                   & ! IN
+            &                               u     = wave_forcing_state(jg)%u10m,   & ! IN
+            &                               v     = wave_forcing_state(jg)%v10m,   & ! IN
+            &                              sp     = wave_forcing_state(jg)%sp10m,  & ! OUT
+            &                              dir    = wave_forcing_state(jg)%dir10m)   ! OUT
 
           ! update ice-free mask
           CALL update_ice_free_mask(p_patch    = p_patch(jg),                          & ! IN
             &                    sea_ice_c     = wave_forcing_state(jg)%sea_ice_c,     & ! IN
             &                    ice_free_mask = wave_forcing_state(jg)%ice_free_mask_c) ! OUT
+
         ELSE
           ! get new forcing data (read from file and copy to forcing state vector)
           IF (wave_config(jg)%lread_forcing) THEN
@@ -321,7 +340,16 @@ CONTAINS
               &                slh              = wave_forcing_state(jg)%sea_level_c,   & !out
               &                uosc             = wave_forcing_state(jg)%usoce_c,       & !out
               &                vosc             = wave_forcing_state(jg)%vsoce_c,       & !out
+              &                sp_osc           = wave_forcing_state(jg)%sp_soce_c,     & !out
+              &                dir_osc          = wave_forcing_state(jg)%dir_soce_c,    & !out
               &                ice_free_mask_c  = wave_forcing_state(jg)%ice_free_mask_c) !out
+
+             ! update depth
+            CALL update_water_depth(p_patch = p_patch(jg),                        & ! IN
+              &          bathymetry_c = wave_ext_data(jg)%bathymetry_c,     & ! IN
+              &           sea_level_c = wave_forcing_state(jg)%sea_level_c, & ! IN
+              &               depth_c = p_wave_state(jg)%diag%depth)          ! OUT
+
           END IF
         END IF ! is_coupled_to_atmo()
 
@@ -358,10 +386,11 @@ CONTAINS
              p_wave_state(jg)%diag%femeanws) ! OUT
 
         ! Calculate tm1 period and f1 frequency and wavenumbers
-        CALL tm1_period(p_patch(jg), wave_config(jg), &
+        CALL tm1_tm2_periods(p_patch(jg), wave_config(jg), &
              p_wave_state(jg)%prog(n_now)%tracer, &
              p_wave_state(jg)%diag%emean, &
              p_wave_state(jg)%diag%tm1, &  ! OUT
+             p_wave_state(jg)%diag%tm2, &  ! OUT
              p_wave_state(jg)%diag%f1mean) ! OUT
         CALL wm1_wm2_wavenumber(p_patch     = p_patch(jg),                         & !IN
           &                     wave_config = wave_config(jg),                     & !IN
@@ -527,17 +556,26 @@ CONTAINS
              p_wave_state(jg)%diag%femean, & ! OUT
              p_wave_state(jg)%diag%femeanws) ! OUT
 
-        ! Calculation of diagnistic output parameters
-        CALL calculate_output_diagnostics(p_patch = p_patch(jg), &
-             &                      wave_config = wave_config(jg), &
-             &                           tracer = p_wave_state(jg)%prog(n_now)%tracer, &
-             &                            depth = wave_ext_data(jg)%bathymetry_c, &
-             &                           p_diag = p_wave_state(jg)%diag)
-
         ! switch between time levels now and new for next time step
         CALL swap(nnow(jg), nnew(jg))
 
       END DO
+
+
+      DO jg = 1,n_dom
+        IF (.NOT. p_patch(jg)%ldom_active) CYCLE
+
+        IF (istime4name_list_output_dom(jg=jg, jstep=jstep)) THEN
+          ! Calculation of diagnostic output parameters
+          ! Calculation is performed only at output times
+          CALL calculate_output_diagnostics(p_patch = p_patch(jg),                       & ! IN
+            &                      wave_config = wave_config(jg),                        & ! IN
+            &                            sp10m = wave_forcing_state(jg)%sp10m,           & ! IN
+            &                           dir10m = wave_forcing_state(jg)%dir10m,          & ! IN
+            &                           tracer = p_wave_state(jg)%prog(nnow(jg))%tracer, & ! IN
+            &                           p_diag = p_wave_state(jg)%diag)                    ! INOUT
+        ENDIF
+      ENDDO
 
       l_nml_output = output_mode%l_nml .AND. jstep >= 0 .AND. istime4name_list_output(jstep)
       simulation_status = new_simulation_status(l_output_step  = l_nml_output,             &

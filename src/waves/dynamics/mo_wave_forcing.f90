@@ -24,7 +24,8 @@ MODULE mo_wave_forcing
   USE mo_interpolate_time,         ONLY: t_time_intp
   USE mo_fortran_tools,            ONLY: copy, DO_DEALLOCATE
   USE mtime,                       ONLY: datetime
-  USE mo_wave_td_update,           ONLY: update_wind_speed_and_direction, update_ice_free_mask
+  USE mo_wave_td_update,           ONLY: update_ice_free_mask, &
+    &                                    update_speed_and_direction
   USE mo_mpi,                      ONLY: my_process_is_mpi_workroot, p_io, p_bcast, &
     &                                    p_comm_work
 
@@ -225,7 +226,7 @@ CONTAINS
   !!
   SUBROUTINE read_wave_forcing__update_forcing (self, destination_time, u10m, v10m, &
     &                                           sp10m, dir10m, sic, slh, uosc, vosc, &
-    &                                           ice_free_mask_c)
+    &                                           sp_osc, dir_osc, ice_free_mask_c)
 
     CHARACTER(len=*), PARAMETER :: routine = modname//':read_wave_forcing__update_forcing'
 
@@ -238,6 +239,8 @@ CONTAINS
     REAL(wp),                INTENT(INOUT) :: sic(:,:)                 ! sea ice fraction
     REAL(wp),                INTENT(INOUT) :: slh(:,:)                 ! sea level height
     REAL(wp),                INTENT(INOUT) :: uosc(:,:), vosc(:,:)     ! ocean surface currents
+    REAL(wp),                INTENT(INOUT) :: sp_osc(:,:)              ! ocean surface current velocity
+    REAL(wp),                INTENT(INOUT) :: dir_osc(:,:)             ! ocean surface current direction
     INTEGER,                 INTENT(INOUT) :: ice_free_mask_c(:,:)     ! ice mask
 
     ! get new forcing data (read from file)
@@ -289,11 +292,18 @@ CONTAINS
     !
 
     ! update wind speed and direction
-    CALL update_wind_speed_and_direction(p_patch = self%p_patch, &  ! IN
-      &                                  u10     = u10m,         &  ! IN
-      &                                  v10     = v10m,         &  ! IN
-      &                                  wsp     = sp10m,        &  ! OUT
-      &                                  wdir    = dir10m)          ! OUT
+    CALL update_speed_and_direction(p_patch = self%p_patch, &  ! IN
+      &                               u     = u10m,         &  ! IN
+      &                               v     = v10m,         &  ! IN
+      &                              sp     = sp10m,        &  ! OUT
+      &                              dir    = dir10m)          ! OUT
+
+    ! update ocean current velocity and direction
+    CALL update_speed_and_direction(p_patch = self%p_patch, &  ! IN
+      &                               u     = uosc,         &  ! IN
+      &                               v     = vosc,         &  ! IN
+      &                              sp     = sp_osc,       &  ! OUT
+      &                              dir    = dir_osc)         ! OUT
 
     ! update ice-free mask
     CALL update_ice_free_mask(p_patch       = self%p_patch,   & ! IN

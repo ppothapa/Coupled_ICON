@@ -42,7 +42,7 @@ MODULE mo_wave_physics
   PUBLIC :: input_source_function, dissipation_source_function
   PUBLIC :: last_prog_freq_ind
   PUBLIC :: impose_high_freq_tail
-  PUBLIC :: tm1_period
+  PUBLIC :: tm1_tm2_periods
   PUBLIC :: wm1_wm2_wavenumber
   PUBLIC :: new_spectrum
   PUBLIC :: total_energy
@@ -998,15 +998,16 @@ CONTAINS
   !! TM1_TM2_PERIODS_B
   !! Integration of spectra and adding of tail factors.
   !!
-  SUBROUTINE tm1_period(p_patch, wave_config, tracer, emean, tm1, f1mean)
+  SUBROUTINE tm1_tm2_periods(p_patch, wave_config, tracer, emean, tm1, tm2, f1mean)
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
-         &  routine = modname//'tm1_period'
+         &  routine = modname//'tm1_tm2_period'
 
     TYPE(t_patch),               INTENT(IN)    :: p_patch
     TYPE(t_wave_config), TARGET, INTENT(IN)    :: wave_config
     REAL(wp),                    INTENT(IN)    :: tracer(:,:,:,:) !< energy spectral bins (nproma,nlev,nblks_c,ntracer)
     REAL(wp),                    INTENT(IN)    :: emean(:,:)      !< total energy (nproma,nblks_c)
     REAL(wp),                    INTENT(INOUT) :: tm1(:,:)        !< tm1 period (nproma,nblks_c)
+    REAL(wp),                    INTENT(INOUT) :: tm2(:,:)        !< tm2 period (nproma,nblks_c)
     REAL(wp),                    INTENT(INOUT) :: f1mean(:,:)     !< tm1 frequency (nproma,nblks_c)
 
     ! local
@@ -1053,12 +1054,14 @@ CONTAINS
       ! tail part
       DO jc = i_startidx, i_endidx
         tm1(jc,jb) = wc%MP1_TAIL * temp(jc,wc%nfreqs)
+        tm2(jc,jb) = wc%MP2_TAIL * temp(jc,wc%nfreqs)
       END DO
 
       ! add all other frequencies
       DO jf = 1,wc%nfreqs
         DO jc = i_startidx, i_endidx
           tm1(jc,jb) = tm1(jc,jb) + temp(jc,jf) * wc%dfim_fr(jf)
+          tm2(jc,jb) = tm2(jc,jb) + temp(jc,jf) * wc%dfim_fr2(jf)
         END DO
       END DO
 
@@ -1066,8 +1069,10 @@ CONTAINS
       DO jc = i_startidx, i_endidx
         IF (emean(jc,jb).gt.EMIN) THEN
           tm1(jc,jb) = emean(jc,jb) / tm1(jc,jb)
+          tm2(jc,jb) = SQRT(emean(jc,jb) / tm2(jc,jb))
         ELSE
           tm1(jc,jb) =  1.0_wp
+          tm2(jc,jb) =  1.0_wp
         END IF
         f1mean(jc,jb) = 1.0_wp / tm1(jc,jb)
       END DO
@@ -1075,7 +1080,7 @@ CONTAINS
 !$OMP ENDDO NOWAIT
 !$OMP END PARALLEL
 
-  END SUBROUTINE tm1_period
+  END SUBROUTINE tm1_tm2_periods
 
   !>
   !! Calculation of new spectrum.

@@ -314,7 +314,7 @@ CONTAINS
       !
       DO jf = 1,wc%nfreqs
         DO jd = 1,wc%ndirs
-          
+
           ! tracer ID as a function of frequency ID and direction ID
           jfjd = jd + (jf-1) * wc%ndirs
           wc%tracer_ind(jd,jf) = jfjd
