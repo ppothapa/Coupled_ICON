@@ -36,7 +36,7 @@ MODULE mo_nwp_phy_init
   USE mo_model_domain,        ONLY: t_patch
   USE mo_impl_constants,      ONLY: min_rlcell, min_rlcell_int, io3_ape,            &
     &                               MODE_COMBINED, MODE_IFSANA, icosmo, ismag,      &
-    &                               iprog, igme, iedmf, SUCCESS,   &
+    &                               iprog, igme, SUCCESS,                           &
     &                               MODE_COSMO, MODE_ICONVREMAP, iss, iorg, ibc,    &
     &                               iso4, idu, LSS_JSBACH, LSS_TERRA, ivdiff
   USE mo_impl_constants_grf,  ONLY: grf_bdywidth_c
@@ -85,10 +85,6 @@ MODULE mo_nwp_phy_init
     &                               su_yoethf,         &
     &                               sucldp, suphli,    &
     &                               suvdf , suvdfs
-#ifndef __NO_ICON_EDMF__
-  ! EDMF DUAL turbulence
-  USE mo_edmf_param,          ONLY: suct0, su0phy, susekf, susveg, sussoil
-#endif
   ! turbulence
   USE mo_turbdiff_config,     ONLY: turbdiff_config
   USE turb_data,              ONLY: get_turbdiff_param, lsflcnd, &
@@ -1276,8 +1272,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
 
   IF ( atm_phy_nwp_config(jg)%inwp_convection == 1 .OR. &
     &  atm_phy_nwp_config(jg)%inwp_cldcover == 1   .OR. &
-    &  atm_phy_nwp_config(jg)%inwp_surface == 1    .OR. &
-    &  atm_phy_nwp_config(jg)%inwp_turb == iedmf )     THEN
+    &  atm_phy_nwp_config(jg)%inwp_surface == 1 )   THEN
 
     !This has to be done here because not only convection, but also inwp_cldcover == 1
     !uses mo_cufunctions's foealfa. Therefore, the parameters of the function foealfa
@@ -1299,8 +1294,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   !< call for convection
   !------------------------------------------
 
-  IF ( atm_phy_nwp_config(jg)%inwp_convection == 1 .OR. &
-    &  atm_phy_nwp_config(jg)%inwp_turb == iedmf )     THEN
+  IF ( atm_phy_nwp_config(jg)%inwp_convection == 1 ) THEN
 
     IF (msg_level >= 12)  CALL message(modname, 'init convection')
 
@@ -1457,7 +1451,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
 
   ! initialize gz0 (roughness length * g)
   !
-  IF ( ANY( (/icosmo,igme,ismag,iprog,iedmf/)==atm_phy_nwp_config(jg)%inwp_turb ) .AND. &
+  IF ( ANY( (/icosmo,igme,ismag,iprog/)==atm_phy_nwp_config(jg)%inwp_turb ) .AND. &
        linit_mode ) THEN
 
     ! gz0 is initialized if we do not start from an own first guess
@@ -1535,7 +1529,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
 
   ENDIF
 
-  IF ( ANY( (/icosmo,iedmf/)==atm_phy_nwp_config(jg)%inwp_turb ) ) THEN
+  IF ( ANY( (/icosmo/)==atm_phy_nwp_config(jg)%inwp_turb ) ) THEN
 
     ! allocate and init implicit weights for tridiagonal solver
     ALLOCATE( turbdiff_config(jg)%impl_weight(nlevp1), &
@@ -1599,7 +1593,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
 
   ! Initialize turbulence models
   !
-  IF ( ( ANY( (/icosmo,iedmf/)==atm_phy_nwp_config(jg)%inwp_turb ) ) .AND. linit_mode ) THEN
+  IF ( ( ANY( (/icosmo/)==atm_phy_nwp_config(jg)%inwp_turb ) ) .AND. linit_mode ) THEN
 
     IF (msg_level >= 12)  CALL message(modname, 'init COSMO turbulence')
 
@@ -1734,61 +1728,57 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
       prm_diag%lhfl_s(i_startidx:i_endidx,jb) = &
         &  prm_diag%qhfl_s(i_startidx:i_endidx,jb) * lh_v
 
-      IF ( iedmf /= atm_phy_nwp_config(jg)%inwp_turb )  THEN
-
-        ! turbdiff
-        CALL turbdiff ( &
-          &  iini=1,                                               & !atmosph. turbulence and vertical diffusion
-          &  ltkeinp=ltkeinp_loc,                                  &
-          &  lstfnct=.TRUE. ,                                      &
-          &  l3dturb=.FALSE.,                                      & ! not possible for ICON
-          &  lrunsso=(atm_phy_nwp_config(jg)%inwp_sso > 0),        & ! running COSMO SSO scheme
-          &  lruncnv=(atm_phy_nwp_config(jg)%inwp_convection > 0), & ! running convection
-          &  lrunscm=.FALSE.,                                      & ! no single column model
-          &  lsfluse=lsflcnd,                                      & !
-          &  dt_var=atm_phy_nwp_config(jg)%dt_fastphy,                &
-          &  dt_tke=atm_phy_nwp_config(jg)%dt_fastphy,                &
-          &  nprv=nzprv, ntur=1, ntim=1,                              &
-          &  nvec=nproma, ke=nlev, ke1=nlevp1, kcm=nlevcm, iblock=jb, &
-          &  ivstart=i_startidx, ivend=i_endidx,                      &
-          &  l_hori=l_hori,                                           &
-          &  hhl=p_metrics%z_ifc(:,:,jb),                             &
-          &  dp0=p_diag%dpres_mc(:,:,jb),                             &
-          &  gz0=prm_diag%gz0(:,jb),                                  &
-          &  l_pat = ext_data%atm%l_pat(:,jb),                        &
-          &  t_g=p_prog_lnd_now%t_g(:,jb),                            &
-          &  qv_s=p_diag_lnd%qv_s(:,jb),                              &
-          &  ps=p_diag%pres_sfc(:,jb),                                &
-          &  u=p_diag%u(:,:,jb),                                      &
-          &  v=p_diag%v(:,:,jb),                                      &
-          &  w=p_prog_now%w(:,:,jb),                                  &
-          &  t=p_diag%temp(:,:,jb),                                   &
-          &  qv=p_prog_now%tracer(:,:,jb,iqv),                        &
-          &  qc=p_prog_now%tracer(:,:,jb,iqc),                        &
-          &  prs=p_diag%pres(:,:,jb),                                 &
-          &  rhoh=p_prog_now%rho(:,:,jb),                             &
-          &  rhon=zrhon(:,:),                                         &
-          &  epr=p_prog_now%exner(:,:,jb),                            &
-          &  impl_weight=turbdiff_config(jg)%impl_weight,             &
-          &  tvm=prm_diag%tvm(:,jb),                                  &
-          &  tvh=prm_diag%tvh(:,jb),                                  &
-          &  tfm=prm_diag%tfm(:,jb),                                  &
-          &  tfh=prm_diag%tfh(:,jb),                                  &
-          &  tke=p_prog_now%tke(:,:,jb),                              &
-          &  tkvm=prm_diag%tkvm(:,:,jb),                              &
-          &  tkvh=prm_diag%tkvh(:,:,jb),                              &
-          &  rcld=prm_diag%rcld(:,:,jb),                              &
-          &  u_tens=prm_nwp_tend%ddt_u_turb(:,:,jb),                  &
-          &  v_tens=prm_nwp_tend%ddt_v_turb(:,:,jb),                  &
-          &  tketens=prm_nwp_tend%ddt_tke(:,:,jb),                    &
-          &  ut_sso=REAL(prm_nwp_tend%ddt_u_sso(:,:,jb),wp),          &
-          &  vt_sso=REAL(prm_nwp_tend%ddt_v_sso(:,:,jb),wp),          &
-          &  shfl_s=prm_diag%shfl_s(:,jb),                            &
-          &  qvfl_s=prm_diag%qhfl_s(:,jb),                            &
-          &  zvari=zvariaux                                           & !out
-          &  )
-
-      END IF
+      ! turbdiff
+      CALL turbdiff ( &
+        &  iini=1,                                               & !atmosph. turbulence and vertical diffusion
+        &  ltkeinp=ltkeinp_loc,                                  &
+        &  lstfnct=.TRUE. ,                                      &
+        &  l3dturb=.FALSE.,                                      & ! not possible for ICON
+        &  lrunsso=(atm_phy_nwp_config(jg)%inwp_sso > 0),        & ! running COSMO SSO scheme
+        &  lruncnv=(atm_phy_nwp_config(jg)%inwp_convection > 0), & ! running convection
+        &  lrunscm=.FALSE.,                                      & ! no single column model
+        &  lsfluse=lsflcnd,                                      & !
+        &  dt_var=atm_phy_nwp_config(jg)%dt_fastphy,                &
+        &  dt_tke=atm_phy_nwp_config(jg)%dt_fastphy,                &
+        &  nprv=nzprv, ntur=1, ntim=1,                              &
+        &  nvec=nproma, ke=nlev, ke1=nlevp1, kcm=nlevcm, iblock=jb, &
+        &  ivstart=i_startidx, ivend=i_endidx,                      &
+        &  l_hori=l_hori,                                           &
+        &  hhl=p_metrics%z_ifc(:,:,jb),                             &
+        &  dp0=p_diag%dpres_mc(:,:,jb),                             &
+        &  gz0=prm_diag%gz0(:,jb),                                  &
+        &  l_pat = ext_data%atm%l_pat(:,jb),                        &
+        &  t_g=p_prog_lnd_now%t_g(:,jb),                            &
+        &  qv_s=p_diag_lnd%qv_s(:,jb),                              &
+        &  ps=p_diag%pres_sfc(:,jb),                                &
+        &  u=p_diag%u(:,:,jb),                                      &
+        &  v=p_diag%v(:,:,jb),                                      &
+        &  w=p_prog_now%w(:,:,jb),                                  &
+        &  t=p_diag%temp(:,:,jb),                                   &
+        &  qv=p_prog_now%tracer(:,:,jb,iqv),                        &
+        &  qc=p_prog_now%tracer(:,:,jb,iqc),                        &
+        &  prs=p_diag%pres(:,:,jb),                                 &
+        &  rhoh=p_prog_now%rho(:,:,jb),                             &
+        &  rhon=zrhon(:,:),                                         &
+        &  epr=p_prog_now%exner(:,:,jb),                            &
+        &  impl_weight=turbdiff_config(jg)%impl_weight,             &
+        &  tvm=prm_diag%tvm(:,jb),                                  &
+        &  tvh=prm_diag%tvh(:,jb),                                  &
+        &  tfm=prm_diag%tfm(:,jb),                                  &
+        &  tfh=prm_diag%tfh(:,jb),                                  &
+        &  tke=p_prog_now%tke(:,:,jb),                              &
+        &  tkvm=prm_diag%tkvm(:,:,jb),                              &
+        &  tkvh=prm_diag%tkvh(:,:,jb),                              &
+        &  rcld=prm_diag%rcld(:,:,jb),                              &
+        &  u_tens=prm_nwp_tend%ddt_u_turb(:,:,jb),                  &
+        &  v_tens=prm_nwp_tend%ddt_v_turb(:,:,jb),                  &
+        &  tketens=prm_nwp_tend%ddt_tke(:,:,jb),                    &
+        &  ut_sso=REAL(prm_nwp_tend%ddt_u_sso(:,:,jb),wp),          &
+        &  vt_sso=REAL(prm_nwp_tend%ddt_v_sso(:,:,jb),wp),          &
+        &  shfl_s=prm_diag%shfl_s(:,jb),                            &
+        &  qvfl_s=prm_diag%qhfl_s(:,jb),                            &
+        &  zvari=zvariaux                                           & !out
+        &  )
 
       ! preparation for concentration boundary condition. Usually inactive for standard ICON runs.
       IF ( .NOT. lsflcnd ) THEN
@@ -1867,26 +1857,6 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   END IF
   ! No handling of VDIFF here. VDIFF does its initialization together with the slow physics.
   ! Configured in event setup in src/configure_model/mo_atm_phy_nwp_config.f90.
- 
-  IF ( atm_phy_nwp_config(jg)%inwp_turb == iedmf .AND. linit_mode ) THEN  !EDMF DUALM
-
-#ifndef __NO_ICON_EDMF__
-    CALL suct0
-    CALL su0phy
-    CALL susekf
-    CALL susveg
-    CALL sussoil
-
-!$OMP PARALLEL
-    ! paranoia: Make sure that rcld is initialized  (needed by cloud cover scheme)
-    CALL init(prm_diag%rcld(:,:,:))
-!$OMP END PARALLEL
-#else
-    CALL finish(routine, 'EDMF turbulence desired, but --disable-edmf configured')
-#endif
-
-  ENDIF
-
 
   ! Gravity wave drag scheme
   !

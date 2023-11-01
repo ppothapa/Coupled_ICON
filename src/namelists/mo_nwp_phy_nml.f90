@@ -19,7 +19,7 @@ MODULE mo_nwp_phy_nml
 
   USE mo_kind,                ONLY: wp
   USE mo_exception,           ONLY: finish, message, message_text
-  USE mo_impl_constants,      ONLY: max_dom, iedmf, ivdiff, LSS_JSBACH
+  USE mo_impl_constants,      ONLY: max_dom, ivdiff, LSS_JSBACH
   USE mo_namelist,            ONLY: position_nml, POSITIONED, open_nml, close_nml
   USE mo_mpi,                 ONLY: my_process_is_stdio
   USE mo_io_units,            ONLY: nnml, nnml_output, filename_max
@@ -429,10 +429,6 @@ CONTAINS
       ENDIF
 
 #ifdef _OPENACC
-      IF (inwp_turb(jg) == iedmf) THEN
-        CALL finish(routine,'GPU version not available for edmf turbulence.')
-      ENDIF
-      
       IF ( ALL((/0,1,5/) /= inwp_cldcover(jg)) ) THEN
         CALL finish(routine,'GPU version only available for cloud cover 0, 1 and 5')
       ENDIF

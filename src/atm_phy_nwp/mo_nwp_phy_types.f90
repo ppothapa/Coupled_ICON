@@ -68,7 +68,6 @@ MODULE mo_nwp_phy_types
 
     TYPE(t_ptr_2d3d),ALLOCATABLE :: cfm_ptr(:)  !< pointer array: average of cfm
     TYPE(t_ptr_2d3d),ALLOCATABLE :: cfh_ptr(:)  !< pointer array: average of cfh
-    TYPE(t_ptr_2d3d),ALLOCATABLE :: z0m_ptr(:)  !< pointer array: average of z0m
     TYPE(t_ptr_2d3d),ALLOCATABLE :: albdif_t_ptr(:)   !< pointer array: tile-specific albedo (shortwave)
     TYPE(t_ptr_2d3d),ALLOCATABLE :: albvisdif_t_ptr(:)!< pointer array: tile-specific albedo (UV/visible)
     TYPE(t_ptr_2d3d),ALLOCATABLE :: albnirdif_t_ptr(:)!< pointer array: tile-specific albedo (NIR)
@@ -265,8 +264,6 @@ MODULE mo_nwp_phy_types
       &  snow_con_rate    (:,:),  & !! convective surface snow_rate                    [kg/m2/s]
       &  rain_con_rate_3d (:,:,:),& !! 3d convective rain rate (convection scheme)     [kg/m2/s]
       &  snow_con_rate_3d (:,:,:),& !! 3d convective snow_rate (convection scheme)     [kg/m2/s]
-      &  rain_edmf_rate_3d(:,:,:),& !! 3d convective rain rate (EDMF scheme)           [kg/m2/s]
-      &  snow_edmf_rate_3d(:,:,:),& !! 3d convective snow_rate (EDMF scheme)           [kg/m2/s]
       !
       ! Instantaneous grid scale precipitation rate [kg/m2/s] (sum over gsp hydromets):
       &  prec_gsp_rate    (:,:),  & !! total surface precipitation rate                [kg/m2/s]
@@ -379,10 +376,6 @@ MODULE mo_nwp_phy_types
       reff_qs(:,:,:)   ,   & !! effective radius of cloud snow                (m)
       reff_qg(:,:,:)   ,   & !! effective radius of cloud graupel             (m)
       reff_qh(:,:,:)         !! effective radius of cloud hail                (m)
-
-    ! need only for EDMF
-    REAL(wp), POINTER, CONTIGUOUS :: &
-      & z0m     (:,:)       !< aerodynamic roughness length
 
     !> Diagnostics for LES turbulence
     REAL(wp), POINTER, CONTIGUOUS :: &

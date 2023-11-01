@@ -45,8 +45,6 @@ MODULE mo_cover_koe
 
   USE mo_cover_cosmo,        ONLY: cover_cosmo
 
-  USE mo_impl_constants,     ONLY: iedmf
-
   USE mo_nwp_tuning_config,  ONLY: tune_box_liq, tune_box_liq_asy, tune_thicklayfac, tune_sgsclifac, icpl_turb_clc, &
                                    tune_box_liq_sfc_fac, allow_overcast, tune_sc_eis, tune_sc_invmin, tune_sc_invmax
 
@@ -119,7 +117,7 @@ SUBROUTINE cover_koe( &
   & rhoc_tend                       , & ! in:    convective rhoc tendency
   & kcinv                           , & ! in:    inversion height index
   & linversion                      , & ! in:    inversion logical
-  & qv, qc, qi, qs, qtvar, qc_sgs   , & ! inout: prognostic cloud variables
+  & qv, qc, qi, qs, qc_sgs          , & ! inout: prognostic cloud variables
   & lacc                            , & ! in:    parameter to prevent openacc during init
   & ttend_clcov                     , & ! out:   temperature tendency due to sgs condensation
   & cc_tot, qv_tot, qc_tot, qi_tot    ) ! out:   cloud output diagnostic
@@ -150,8 +148,7 @@ REAL(KIND=wp), DIMENSION(:,:), INTENT(IN) ::  &
   & qv               , & ! specific water vapor content                  (kg/kg)
   & qc               , & ! specific cloud water content                  (kg/kg)
   & qi               , & ! specific cloud ice   content                  (kg/kg)
-  & qs               , & ! specific snow        content                  (kg/kg)
-  & qtvar                ! total water variance (qt'2)                   (kg2/kg2)
+  & qs                   ! specific snow        content                  (kg/kg)
 
 REAL(KIND=wp), DIMENSION(:), INTENT(IN) ::  &
   & ps               , & ! surface pressure
@@ -515,38 +512,16 @@ CASE( 1 )
   ENDDO
   !$ACC END PARALLEL
 
-
-  IF (cover_koe_config%inwp_turb == iedmf) THEN
-    CALL assert_acc_host_only("cover_koe cover_koe_config%inwp_turb == iedmf", lacc)
-
-    DO jk = kstart,klev
-      DO jl = kidia,kfdia
-!       IF (SQRT(qtvar(jl,jk)) / MAX(qv(jl,jk)+qc(jl,jk)+qi(jl,jk),0.000001_wp) > 0.01_wp) THEN
-        IF (SQRT(qtvar(jl,jk)) > 0.001_wp * (qv(jl,jk)+qc(jl,jk)+qi(jl,jk)) ) THEN
-! for EDMF DUALM: take values written within EDMF - only done within high qtvar grid points
-          cc_tot(jl,jk) = cc_tot(jl,jk)
-          qc_tot(jl,jk) = qc_tot(jl,jk)
-          qi_tot(jl,jk) = qi_tot(jl,jk)
-        ELSE
-! combination strat/conv cloud
-          cc_tot(jl,jk)  = max( cc_turb(jl,jk), cc_conv(jl,jk) )
-          qc_tot(jl,jk)  = max( qc_turb(jl,jk), qc_conv(jl,jk) )
-          qi_tot(jl,jk)  = max( qi_turb(jl,jk), qi_conv(jl,jk) )
-        ENDIF
-      ENDDO
+  !$ACC PARALLEL IF(lzacc) DEFAULT(PRESENT) ASYNC(1)
+  !$ACC LOOP GANG VECTOR COLLAPSE(2)
+  DO jk = kstart,klev
+    DO jl = kidia,kfdia
+      cc_tot(jl,jk)  = max( cc_turb(jl,jk), cc_conv(jl,jk) )
+      qc_tot(jl,jk)  = max( qc_turb(jl,jk), qc_conv(jl,jk) )
+      qi_tot(jl,jk)  = max( qi_turb(jl,jk), qi_conv(jl,jk) )
     ENDDO
-  ELSE ! use always combination of strat/conv cloud
-    !$ACC PARALLEL IF(lzacc) DEFAULT(PRESENT) ASYNC(1)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
-    DO jk = kstart,klev
-      DO jl = kidia,kfdia
-        cc_tot(jl,jk)  = max( cc_turb(jl,jk), cc_conv(jl,jk) )
-        qc_tot(jl,jk)  = max( qc_turb(jl,jk), qc_conv(jl,jk) )
-        qi_tot(jl,jk)  = max( qi_turb(jl,jk), qi_conv(jl,jk) )
-      ENDDO
-    ENDDO
-    !$ACC END PARALLEL
-  ENDIF
+  ENDDO
+  !$ACC END PARALLEL
 
 
 !-----------------------------------------------------------------------

@@ -58,7 +58,6 @@ USE mo_impl_constants,      ONLY: success, &
   &                               TASK_COMPUTE_LAPSERATE,             &
   &                               TASK_COMPUTE_SRH,                   &
   &                               TASK_COMPUTE_INVERSION,             &
-  &                               iedmf,                              &
   &                               ivdiff,                             &
   &                               LSS_JSBACH,                         &
   &                               HINTP_TYPE_LONLAT_NNB,              &
@@ -448,7 +447,6 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
       &     diag%q_sedim, &
       &     diag%qrs_flux, &
       &     diag%qvtend_lhn, &
-      &     diag%rain_edmf_rate_3d, &
       &     diag%reff_qc, &
       &     diag%reff_qg, &
       &     diag%reff_qh, &
@@ -457,7 +455,6 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
       &     diag%reff_qs, &
       &     diag%rh, &
       &     diag%sdi2, &
-      &     diag%snow_edmf_rate_3d, &
       &     diag%snowalb_fac, &
       &     diag%srh, &
       &     diag%swflxsfc_t, &
@@ -480,7 +477,6 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
       &     diag%w_ctmax, &
       &     diag%wshear_u, &
       &     diag%wshear_v, &
-      &     diag%z0m, &
       &     diag%z_pbl)
 
 
@@ -633,32 +629,6 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
                 & ldims=shape3dkp1,                                           &
                 & isteptype=TSTEP_INSTANT, lopenacc=.TRUE.)
     __acc_attach(diag%snow_con_rate_3d)
-
-
-    IF ( atm_phy_nwp_config(k_jg)%inwp_turb == iedmf ) THEN
-
-      ! &      diag%rain_edmf_rate_3d(nproma,nlevp1,nblks_c)
-      cf_desc    = t_cf_var('rain_edmf_rate_3d', 'kg m-2 s-1',                &
-        &          '3d EDMF convective rain rate', datatype_flt)
-      grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( diag_list, 'rain_edmf_rate_3d', diag%rain_edmf_rate_3d,       &
-                  & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE_HALF, cf_desc, grib2_desc,&
-                  & lrestart = .FALSE., & ! .TRUE. may be necessary for ART (to be evaluated)
-                  & ldims=shape3dkp1,                                           &
-                  & isteptype=TSTEP_INSTANT )
-      
-      
-      ! &      diag%snow_edmf_rate_3d(nproma,nlevp1,nblks_c)
-      cf_desc    = t_cf_var('snow_edmf_rate_3d', 'kg m-2 s-1',                   &
-        &          '3d EDMF convective snow rate', datatype_flt)
-      grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( diag_list, 'snow_edmf_rate_3d', diag%snow_edmf_rate_3d,       &
-                  & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE_HALF, cf_desc, grib2_desc,&
-                  & lrestart = .FALSE., & ! .TRUE. may be necessary for ART (to be evaluated)
-                  & ldims=shape3dkp1,                                           &
-                  & isteptype=TSTEP_INSTANT )
-
-    ENDIF
 
 
     ! &      diag%rain_gsp(nproma,nblks_c)
@@ -3722,7 +3692,6 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
          & lrestart=.TRUE., loutput=.TRUE.,                           &
          & isteptype=TSTEP_INSTANT )
     ENDDO
-    !EDMF requires lrestart=.TRUE. 
 
 
     ! &      diag%vmfl_s_t(nproma,nblks_c,ntiles_total+ntiles_water)
@@ -3748,7 +3717,6 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
          & lrestart=.TRUE., loutput=.TRUE.,                           &
          & isteptype=TSTEP_INSTANT )
     ENDDO
-    !EDMF requires lrestart=.TRUE. 
 
 
     ! &      diag%umfl_s(nproma,nblks_c)
@@ -3903,22 +3871,6 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
       & lopenacc=.TRUE.                                                        )
     __acc_attach(diag%adrag_v_grid)
 
-
-    !------------------------------
-    ! EDMF
-    !------------------------------
-
-    IF( atm_phy_nwp_config(k_jg)%inwp_turb == iedmf) THEN
-
-       ! &      diag%z0m(nproma,nblks_c)
-       cf_desc    = t_cf_var('z0m', '', &
-            &                'geopotential of the top of the atmospheric boundary layer', &
-            &                datatype_flt)
-       grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-       CALL add_var( diag_list, 'z0m', diag%z0m,                             &
-         & GRID_UNSTRUCTURED_CELL,ZA_SURFACE, cf_desc, grib2_desc, ldims=shape2d )
-
-    ENDIF  !inwp_turb == EDMF
 
 #ifndef __NO_ICON_LES__
     !------------------------------

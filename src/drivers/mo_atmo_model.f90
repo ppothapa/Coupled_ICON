@@ -67,7 +67,7 @@ MODULE mo_atmo_model
     &                                   grid_generatingCenter,                                & ! grid generating center
     &                                   grid_generatingSubcenter,                             & ! grid generating subcenter
     &                                   iforcing, luse_radarfwo,                              &
-    &                                   iqc, iqt, iqv, iqi, iqs, iqr, iqtvar, ltimer,         &
+    &                                   iqc, iqt, iqv, iqi, iqs, iqr, ltimer,                 &
     &                                   iqni, iqg, iqm_max, iqtke, iqh, iqnr, iqns, iqng,     &
     &                                   iqnh, iqnc, iqgl, iqhl, inccn, ininact, ininpot,      &
     &                                   lart, nqtendphy, ntracer,                             &
@@ -659,7 +659,7 @@ CONTAINS
       &                       advection_config,                            &
       &                       iqv, iqc, iqi, iqr, iqs, iqt, iqg, iqni,     &
       &                       iqh, iqnr, iqns, iqng, iqnh, iqnc,           &
-      &                       iqgl, iqhl, inccn, iqtvar, ininact, ininpot, &
+      &                       iqgl, iqhl, inccn, ininact, ininpot,         &
       &                       iqtke, iqm_max, ntracer, nqtendphy,          &
       &                       atm_phy_nwp_config(:)%nclass_gscp,           &
       &                       iqbin, iqb_i, iqb_e, iqb_s)

@@ -730,7 +730,6 @@ enable_rpaths
 enable_silent_rules
 enable_delayed_config
 enable_atmo
-enable_edmf
 enable_les
 enable_upatmo
 enable_ocean
@@ -1495,8 +1494,6 @@ Optional Features:
 
 Model Features:
   --enable-atmo           enable the atmosphere component of ICON
-                          [default=yes]
-  --enable-edmf           enable the EDMF turbulence component of ICON
                           [default=yes]
   --enable-les            enable the Large-Eddy Simulation component of ICON
                           [default=yes]
@@ -2966,16 +2963,6 @@ if test "${enable_atmo+set}" = set; then :
 fi
 else
   enable_atmo=yes
-fi
-
-
-# Check whether --enable-edmf was given.
-if test "${enable_edmf+set}" = set; then :
-  enableval=$enable_edmf; if test x"$enableval" != xno; then :
-  enable_edmf=yes
-fi
-else
-  enable_edmf=yes
 fi
 
 
@@ -5295,10 +5282,6 @@ as_fn_append FCFLAGS " ${FC_PP_DEF}__ICON__"
 
 if test "x$enable_atmo" = xno; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}__NO_ICON_ATMO__"
-fi
-
-if test "x$enable_edmf" = xno; then :
-  as_fn_append FCFLAGS " ${FC_PP_DEF}__NO_ICON_EDMF__"
 fi
 
 if test "x$enable_les" = xno; then :

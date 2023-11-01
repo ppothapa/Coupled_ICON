@@ -2497,7 +2497,7 @@ ENDDO
             zrla   = 1.0_wp/MAX(cdash*SQRT(zustar),eps_div)
           CASE (2)   ! Raschendorfer transfer scheme: laminar canopy resistance already considered
             zrla   = 0.0_wp
-          CASE DEFAULT ! 3: EDMF: additional laminar canopy resistance
+          CASE DEFAULT ! additional laminar canopy resistance for other schemes
             zrla   = 1.0_wp/MAX(tch(i)*zuv,eps_div)
         END SELECT
 

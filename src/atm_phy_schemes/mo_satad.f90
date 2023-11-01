@@ -108,9 +108,8 @@ CONTAINS
 
 SUBROUTINE satad_v_3D (maxiter, tol, te, qve, qce,    & ! IN, INOUT
                        rhotot,                        & ! IN
-                       qtvar,                         & ! IN optional
-     idim, kdim, ilo, iup, klo, kup,                  & ! IN
-                                           errstat)     ! optional
+                       idim, kdim, ilo, iup, klo, kup,& ! IN
+                       errstat)                         ! optional
 
   !-------------------------------------------------------------------------------
   !
@@ -166,9 +165,6 @@ SUBROUTINE satad_v_3D (maxiter, tol, te, qve, qce,    & ! IN, INOUT
   REAL    (KIND=ireals),    INTENT (IN),  DIMENSION(:,:) ::  &  !  dim (idim,kdim)
        rhotot    ! density containing dry air and water constituents
 
-  REAL    (KIND=ireals),    INTENT (IN), OPTIONAL, DIMENSION(:,:)       ::  &  !  dim (idim,kdim)
-       qtvar     ! total water variance - needed only for EDMF
-
 !KF error status temporarly set to optional
   INTEGER (KIND=iintegers), INTENT (OUT),  OPTIONAL  ::  &
        errstat                ! Error status of the saturation adjustment
@@ -197,7 +193,7 @@ SUBROUTINE satad_v_3D (maxiter, tol, te, qve, qce,    & ! IN, INOUT
        twork, tworkold
 
 
-  LOGICAL :: ll_satad, lqtvar
+  LOGICAL :: ll_satad
 
 
   !------------ End of header ----------------------------------------------------
@@ -209,12 +205,6 @@ SUBROUTINE satad_v_3D (maxiter, tol, te, qve, qce,    & ! IN, INOUT
   ! Initialization
 
   IF (PRESENT(errstat)) errstat = 0_iintegers
-
-  IF (PRESENT(qtvar)) THEN
-    lqtvar = .TRUE.
-  ELSE
-    lqtvar = .FALSE.
-  ENDIF
 
   zqwmin = 1.0E-20_ireals
 
@@ -252,11 +242,6 @@ SUBROUTINE satad_v_3D (maxiter, tol, te, qve, qce,    & ! IN, INOUT
       DO i = ilo , iup
 
        ll_satad = .TRUE.
-       IF (lqtvar) THEN
-         IF ( qtvar(i,k) > 0.0001_ireals * (qve(i,k)+qce(i,k))**2 ) THEN ! satad not in EDMF boundary layer
-           ll_satad = .false.                                            ! sqrt(qtvar) > 0.001
-         ENDIF
-       ENDIF
 
        IF ( ll_satad ) THEN
 
@@ -366,10 +351,9 @@ SUBROUTINE satad_v_3D (maxiter, tol, te, qve, qce,    & ! IN, INOUT
 END SUBROUTINE satad_v_3D
 
 SUBROUTINE satad_v_3D_gpu (maxiter, tol, te, qve, qce,    & ! IN, INOUT
-                       rhotot,                        & ! IN
-                       qtvar,                         & ! IN optional
-     idim, kdim, ilo, iup, klo, kup,                  & ! IN
-                                           errstat)     ! optional
+                           rhotot,                        & ! IN
+                           idim, kdim, ilo, iup, klo, kup,& ! IN
+                           errstat)                         ! optional
 
   !-------------------------------------------------------------------------------
   !
@@ -426,9 +410,6 @@ SUBROUTINE satad_v_3D_gpu (maxiter, tol, te, qve, qce,    & ! IN, INOUT
   REAL    (KIND=ireals),    INTENT (IN),  DIMENSION(:,:) ::  &  !  dim (idim,kdim)
        rhotot    ! density containing dry air and water constituents
 
-  REAL    (KIND=ireals),    INTENT (IN), OPTIONAL, DIMENSION(:,:)       ::  &  !  dim (idim,kdim)
-       qtvar     ! total water variance - needed only for EDMF
-
 !KF error status temporarly set to optional
   INTEGER (KIND=iintegers), INTENT (OUT),  OPTIONAL  ::  &
        errstat                ! Error status of the saturation adjustment
@@ -456,7 +437,7 @@ SUBROUTINE satad_v_3D_gpu (maxiter, tol, te, qve, qce,    & ! IN, INOUT
   REAL (KIND=ireals), PARAMETER :: cp_v = 1850._ireals ! specific heat of water vapor J
                                                        !at constant pressure
                                                        ! (Landolt-Bornstein)
-  LOGICAL :: ll_satad, lqtvar
+  LOGICAL :: ll_satad
 
 
   !------------ End of header ----------------------------------------------------
@@ -468,12 +449,6 @@ SUBROUTINE satad_v_3D_gpu (maxiter, tol, te, qve, qce,    & ! IN, INOUT
   ! Initialization
 
   IF (PRESENT(errstat)) errstat = 0_iintegers
-
-  IF (PRESENT(qtvar)) THEN
-    lqtvar = .TRUE.
-  ELSE
-    lqtvar = .FALSE.
-  ENDIF
 
   zqwmin = 1.0E-20_ireals
 
@@ -500,11 +475,6 @@ SUBROUTINE satad_v_3D_gpu (maxiter, tol, te, qve, qce,    & ! IN, INOUT
       qtest = qsat_rho(Ttest, rhotot(i,k))
 
       ll_satad = .TRUE.
-      IF (lqtvar) THEN
-        IF ( qtvar(i,k) > 0.0001_ireals * (qve(i,k)+qce(i,k))**2 ) THEN ! satad not in EDMF boundary layer
-          ll_satad = .false.                                            ! sqrt(qtvar) > 0.001
-        ENDIF
-      ENDIF
 
       iter_mask = .FALSE.
       twork = 0.0_ireals

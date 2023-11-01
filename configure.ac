@@ -90,12 +90,6 @@ AC_ARG_ENABLE([atmo],
   [AS_IF([test x"$enableval" != xno], [enable_atmo=yes])],
   [enable_atmo=yes])
 
-AC_ARG_ENABLE([edmf],
-  [AS_HELP_STRING([--enable-edmf],
-     [enable the EDMF turbulence component of ICON @<:@default=yes@:>@])],
-  [AS_IF([test x"$enableval" != xno], [enable_edmf=yes])],
-  [enable_edmf=yes])
-
 AC_ARG_ENABLE([les],
   [AS_HELP_STRING([--enable-les],
      [enable the Large-Eddy Simulation component of ICON @<:@default=yes@:>@])],
@@ -778,9 +772,6 @@ AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__ICON__"])
 
 AS_VAR_IF([enable_atmo], [no],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_ICON_ATMO__"])])
-
-AS_VAR_IF([enable_edmf], [no],
-  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_ICON_EDMF__"])])
 
 AS_VAR_IF([enable_les], [no],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_ICON_LES__"])])

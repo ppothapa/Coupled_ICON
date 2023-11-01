@@ -23,7 +23,7 @@ MODULE mo_nwp_sfc_interface
   USE mo_kind,                ONLY: wp
   USE mo_exception,           ONLY: message, message_text, finish
   USE mo_model_domain,        ONLY: t_patch
-  USE mo_impl_constants,      ONLY: min_rlcell_int, iedmf, icosmo, max_dom
+  USE mo_impl_constants,      ONLY: min_rlcell_int, icosmo, max_dom
   USE mo_impl_constants_grf,  ONLY: grf_bdywidth_c
   USE mo_loopindices,         ONLY: get_indices_c
   USE mo_ext_data_types,      ONLY: t_external_data
@@ -309,7 +309,7 @@ CONTAINS
 
     ! canopy-type needed by TERRA:
     SELECT CASE (atm_phy_nwp_config(jg)%inwp_turb)
-    CASE(icosmo,iedmf)
+    CASE(icosmo)
        icant=2 !canopy-treatment related to Raschendorfer-transfer-scheme
     CASE DEFAULT
        icant=1 !canopy-treatment related to Louis-transfer-scheme

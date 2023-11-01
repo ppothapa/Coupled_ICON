@@ -22,7 +22,7 @@ MODULE mo_atm_phy_nwp_config
   USE mo_impl_constants,      ONLY: max_dom, itconv, itccov,  &
     &                               itrad, itradheat, itsso, itgscp, itsatad,  &
     &                               itturb, itsfc, itgwd, itfastphy,           &
-    &                               iphysproc, iphysproc_short, ismag, iedmf,  &
+    &                               iphysproc, iphysproc_short, ismag,         &
     &                               iprog, SUCCESS, ivdiff
   USE mo_math_constants,      ONLY: dbl_eps, pi_2, deg2rad
   USE mo_exception,           ONLY: message, message_text, finish
@@ -429,8 +429,8 @@ CONTAINS
       !     of the advection/fast-physics timestep.
       !     If not, the slow physics timestep is rounded up to the 
       !     next integer multiple.
-      ! II) Special rules for cloud cover time step are set in combination
-      !     with EDMF turbulence and when using no convection scheme (see below)
+      ! II) Special rules for cloud cover time step are set 
+      !     when using no convection scheme (see below)
       !III) The radiation timestep must be an integer multiple of the 
       !     cloud-cover timestep and the convection. If not, the radiation timestep is 
       !     rounded up to the next integer multiple.
@@ -482,14 +482,6 @@ CONTAINS
 
 
       ! RULE (II)
-      !
-      ! Special rule for EDMF DUALM:
-      ! cloud cover is called every turbulence time step
-      IF ( atm_phy_nwp_config(jg)%inwp_turb == iedmf ) THEN
-        WRITE(message_text,'(a)') 'EDMF DUALM selected => Resetting dt_ccov to dt_fastphy.'
-        CALL message(routine, message_text)
-        atm_phy_nwp_config(jg)%dt_ccov = atm_phy_nwp_config(jg)%dt_fastphy
-      ENDIF
       !
       ! When using no convection scheme, users may not be aware that setting a convection or cloud cover time step
       ! is relevant. We thus prevent the cloud cover time step from being unreasonably large by limiting

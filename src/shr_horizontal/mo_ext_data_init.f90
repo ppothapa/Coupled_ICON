@@ -254,7 +254,7 @@ CONTAINS
             ENDIF
             !ext_data(jg)%atm%i_lc_water        = 21
   
-            !Special setup for EDMF
+            !Special setup for tiles
             ext_data(jg)%atm%soiltyp_t(:,:,:) = soiltyp_scm ! soil type
             ext_data(jg)%atm%frac_t(:,:,:)    = 0._wp       ! set all tiles to 0
             ext_data(jg)%atm%frac_t(:,:,isub_water) = 1._wp ! set only ocean to 1
@@ -293,7 +293,7 @@ CONTAINS
             ext_data(jg)%atm%topography_c(:,:)= 0.0_wp      ! topographic height
             i_lctype(jg) = GLOBCOVER2009
   
-            !Special setup for EDMF
+            !Special setup for tiles
             ext_data(jg)%atm%soiltyp_t(:,:,:) = 8           ! soil type
             ext_data(jg)%atm%frac_t(:,:,:)    = 0._wp       ! set all tiles to 0
             ext_data(jg)%atm%frac_t(:,:,isub_water) = 1._wp ! set only ocean to 1

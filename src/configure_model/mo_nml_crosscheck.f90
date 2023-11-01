@@ -20,7 +20,7 @@ MODULE mo_nml_crosscheck
   USE mo_exception,                ONLY: message, message_text, finish
   USE mo_impl_constants,           ONLY: inwp, tracer_only, inh_atmosphere,                &
     &                                    iaes, RAYLEIGH_CLASSIC, inoforcing,               &
-    &                                    iedmf, icosmo, iprog, MODE_IAU, MODE_IAU_OLD,     &
+    &                                    icosmo, iprog, MODE_IAU, MODE_IAU_OLD,            &
     &                                    max_echotop, max_wshear, max_srh,                 &
     &                                    LSS_JSBACH, LSS_TERRA, ivdiff
   USE mo_time_config,              ONLY: time_config, dt_restart
@@ -224,8 +224,7 @@ CONTAINS
     ENDIF
 
     IF ( ( nh_test_name=='APE_nwp'.OR. nh_test_name=='dcmip_tc_52' ) .AND.  &
-      &  ( ANY(atm_phy_nwp_config(:)%inwp_surface > 0 ) ) .AND.             &
-      &  ( ANY(atm_phy_nwp_config(:)%inwp_turb    /= iedmf ) ) ) THEN
+      &  ( ANY(atm_phy_nwp_config(:)%inwp_surface > 0) ) ) THEN
       CALL finish(routine, &
         & 'surface scheme must be switched off, when running the APE test')
     ENDIF
@@ -303,7 +302,7 @@ CONTAINS
 
       DO jg =1,n_dom
 
-        IF ((atm_phy_nwp_config(1)%inwp_turb /= iedmf) .AND. (atm_phy_nwp_config(jg)%inwp_gscp /= 8)) THEN
+        IF (atm_phy_nwp_config(jg)%inwp_gscp /= 8) THEN
           IF( atm_phy_nwp_config(jg)%inwp_satad == 0       .AND. &
           & ((atm_phy_nwp_config(jg)%inwp_convection >0 ) .OR. &
           &  (atm_phy_nwp_config(jg)%inwp_gscp > 0 )   ) ) &
@@ -556,20 +555,6 @@ CONTAINS
     !--------------------------------------------------------------------
     ! Tracers and diabatic forcing
     !--------------------------------------------------------------------
-
-    IF (atm_phy_nwp_config(1)%inwp_turb == iedmf) THEN ! EDMF turbulence
-#ifdef __NO_ICON_EDMF__
-      CALL finish( routine, 'EDMF turbulence desired, but compilation with --disable-edmf' )
-#endif
-
-      DO jg =1,n_dom
-        turbdiff_config(jg)%ldiff_qi = .TRUE.  !! turbulent diffusion of QI on (by EDMF)
-      ENDDO
-
-      !dmk    ntiles_lnd = 5     !! EDMF currently only works with 5 land tiles - consistent with TESSEL
-      !! even if the land model is inactive ntiles_lnd should be 5
-    ENDIF
-
 
     ! General
     SELECT CASE (iequations)
