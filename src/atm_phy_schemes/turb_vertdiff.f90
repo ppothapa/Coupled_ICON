@@ -154,7 +154,7 @@ SUBROUTINE vertdiff ( &
                 lsfluse, lqvcrst, lrunscm,   &
           dt_var, nvec, ke, ke1,             &
 !
-          kcm, kstart_cloud, kstart_tracer,  &
+          kcm, kstart_cloud,                 &
           iblock, ivstart, ivend,            &
 !
           hhl, dp0, r_air, zvari,            &
@@ -165,7 +165,6 @@ SUBROUTINE vertdiff ( &
 !
           impl_weight,                       &
           ptr, ndtr,                         &
-          ncloud_offset, idx_nturb_tracer,   &
 !
           tvm, tvh, tkvm, tkvh,              &
           u_tens, v_tens, t_tens,            &
@@ -230,11 +229,7 @@ INTEGER,        INTENT(IN) :: &
 
   kstart_cloud    ! start level index for vertical diffusion of cloud water
 
-INTEGER, DIMENSION(:), OPTIONAL, INTENT(IN) :: &
-
-  kstart_tracer   ! start level index for vertical diffusion of art tracers (including cloud ice)
-
-  !Note: Through 'kstart_cloud' and 'kstart_tracer' vertical diffusion of the respective properties
+  !Note: Through 'kstart_cloud' vertical diffusion of the respective properties
   !       is artificially restricted above this very level
 
 INTEGER,        INTENT(IN) :: &
@@ -345,14 +340,6 @@ REAL (KIND=wp), DIMENSION(:), OPTIONAL, TARGET, INTENT(INOUT) :: &
   qvfl_s,       & ! water vapor   flux at the surface             (kg/m2/s) (positive downward)
   umfl_s,       & ! u-momentum flux at the surface                (N/m2)    (positive downward)
   vmfl_s          ! v-momentum flux at the surface                (N/m2)    (positive downward)
-
-
-!
-! Indices concerning ART-tracer:
-! -----------------------------------------------
-!
-INTEGER, OPTIONAL                :: ncloud_offset       ! offset for ptr-indexing in ART
-INTEGER, OPTIONAL                :: idx_nturb_tracer(:) ! indices of the turbulent tracers in the prognostic list
 
 !-------------------------------------------------------------------------------
 !Local Parameters:
@@ -538,16 +525,16 @@ INTEGER :: my_cart_id, my_thrd_id
 
   lsfli(:)=.FALSE. !surface values are concentrations by default
 
-  dvar(u_m)%av  => u  ; dvar(u_m)%at => utens  ; dvar(u_m)%sv => NULL()
-  dvar(v_m)%av  => v  ; dvar(v_m)%at => vtens  ; dvar(v_m)%sv => NULL()
+  dvar(u_m)%av  => u  ; dvar(u_m)%at => utens  ; dvar(u_m)%sv => NULL() ; dvar(u_m)%kstart = 1
+  dvar(v_m)%av  => v  ; dvar(v_m)%at => vtens  ; dvar(v_m)%sv => NULL() ; dvar(v_m)%kstart = 1
 
 !Note: Use                                       dvar(u_m)%sv => u(:,ke)
 !      and                                       dvar(v_m)%sv => v(:,ke)
 !      in order to force a "free-slip condition"!
 
-  dvar(tem)%av  => t  ; dvar(tem)%at => ttens  ; dvar(tem)%sv => t_g
-  dvar(vap)%av  => qv ; dvar(vap)%at => qvtens ; dvar(vap)%sv => qv_s
-  dvar(liq)%av  => qc ; dvar(liq)%at => qctens ; dvar(liq)%sv => NULL()
+  dvar(tem)%av  => t  ; dvar(tem)%at => ttens  ; dvar(tem)%sv => t_g    ; dvar(tem)%kstart = 1
+  dvar(vap)%av  => qv ; dvar(vap)%at => qvtens ; dvar(vap)%sv => qv_s   ; dvar(vap)%kstart = 1
+  dvar(liq)%av  => qc ; dvar(liq)%at => qctens ; dvar(liq)%sv => NULL() ; dvar(liq)%kstart = kstart_cloud
 
 !SCLM --------------------------------------------------------------------------------
 #ifdef SCLM
@@ -592,6 +579,7 @@ INTEGER :: my_cart_id, my_thrd_id
       ELSE
         dvar(n)%sv => NULL()   ; lsfli(n)=.FALSE.
       END IF
+      dvar(n)%kstart = ptr(m)%kstart
     END DO
   END IF
 
@@ -736,18 +724,7 @@ enddo
          DO n=1, ndiff !loop over all variables to be diffused potentially
 
          ! define start index for vertical diffusion
-         IF ( PRESENT(ncloud_offset) .AND. n .GT. (nmvar + ncloud_offset) ) THEN  ! passive art tracers
-            ! get index of turbulent art tracer:
-            ! ndiff = nmvar + ntrac
-            ! ndiff = nmvar + ncloud_offset + nturb_tracer
-            idx_trac     = n - nmvar - ncloud_offset    ! index of turbulent art tracer
-            idx_tracer   = idx_nturb_tracer(idx_trac)   ! index of turbulent art tracer with respect to prognostic list
-            kstart_vdiff = kstart_tracer(idx_tracer)
-         ELSEIF (n.EQ.liq) THEN !for liquid water
-            kstart_vdiff = kstart_cloud
-         ELSE
-            kstart_vdiff = 1
-         END IF
+         kstart_vdiff = dvar(n)%kstart
 
          IF ( (lum_dif .AND. n.EQ.u_m)   .OR. &                   !u_m-diffusion or
               (lvm_dif .AND. n.EQ.v_m)   .OR. &                   !v_m-diffusion or

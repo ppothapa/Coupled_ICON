@@ -143,6 +143,7 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
   ! type structure to hand over additional tracers to turbdiff
   TYPE(modvar) :: ptr(max_ntracer)
 
+  INTEGER :: nturb                               !< Loop counter
   INTEGER :: ncloud_offset                       !< offset for ptr-indexing in ART
                                                  !< interface due to additionally
                                                  !< diffused cloud fields
@@ -324,9 +325,10 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
         !$ACC KERNELS ASYNC(1) DEFAULT(PRESENT)
         ddt_turb_qnc(:,:) = 0.0_wp
         !$ACC END KERNELS
-        ptr(ncloud_offset)%av => p_prog_rcf%tracer(:,:,jb,iqnc)
-        ptr(ncloud_offset)%at => ddt_turb_qnc(:,:)
-        ptr(ncloud_offset)%sv => NULL()
+        ptr(ncloud_offset)%av     => p_prog_rcf%tracer(:,:,jb,iqnc)
+        ptr(ncloud_offset)%at     => ddt_turb_qnc(:,:)
+        ptr(ncloud_offset)%sv     => NULL()
+        ptr(ncloud_offset)%kstart =  kstart_moist(jg)
       ENDIF ! ltwomoment
 
       IF (turbdiff_config(jg)%ldiff_qi) THEN
@@ -335,18 +337,20 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
         !$ACC KERNELS ASYNC(1) DEFAULT(PRESENT)
         prm_nwp_tend%ddt_tracer_turb(:,:,jb,iqi) = 0.0_wp
         !$ACC END KERNELS
-        ptr(ncloud_offset)%av => p_prog_rcf%tracer(:,:,jb,iqi)
-        ptr(ncloud_offset)%at => prm_nwp_tend%ddt_tracer_turb(:,:,jb,iqi)
-        ptr(ncloud_offset)%sv => NULL()
+        ptr(ncloud_offset)%av     => p_prog_rcf%tracer(:,:,jb,iqi)
+        ptr(ncloud_offset)%at     => prm_nwp_tend%ddt_tracer_turb(:,:,jb,iqi)
+        ptr(ncloud_offset)%sv     => NULL()
+        ptr(ncloud_offset)%kstart =  kstart_moist(jg)
         IF (ltwomoment) THEN
           ! register cloud ice number for turbulent diffusion
           ncloud_offset = ncloud_offset + 1
           !$ACC KERNELS ASYNC(1) DEFAULT(PRESENT)
           ddt_turb_qni(:,:) = 0.0_wp
           !$ACC END KERNELS
-          ptr(ncloud_offset)%av => p_prog_rcf%tracer(:,:,jb,iqni)
-          ptr(ncloud_offset)%at => ddt_turb_qni(:,:)
-          ptr(ncloud_offset)%sv => NULL()
+          ptr(ncloud_offset)%av     => p_prog_rcf%tracer(:,:,jb,iqni)
+          ptr(ncloud_offset)%at     => ddt_turb_qni(:,:)
+          ptr(ncloud_offset)%sv     => NULL()
+          ptr(ncloud_offset)%kstart =  kstart_moist(jg)
         ENDIF ! ltwomoment
       ENDIF ! turbdiff_config(jg)%ldiff_qi
 
@@ -356,18 +360,20 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
         !$ACC KERNELS ASYNC(1) DEFAULT(PRESENT)
         ddt_turb_qs (:,:) = 0.0_wp
         !$ACC END KERNELS
-        ptr(ncloud_offset)%av => p_prog_rcf%tracer(:,:,jb,iqs )
-        ptr(ncloud_offset)%at => ddt_turb_qs (:,:)
-        ptr(ncloud_offset)%sv => NULL()
+        ptr(ncloud_offset)%av     => p_prog_rcf%tracer(:,:,jb,iqs )
+        ptr(ncloud_offset)%at     => ddt_turb_qs (:,:)
+        ptr(ncloud_offset)%sv     => NULL()
+        ptr(ncloud_offset)%kstart =  kstart_moist(jg)
         IF (ltwomoment) THEN
           ! register snow number for turbulent diffusion
           ncloud_offset = ncloud_offset + 1
           !$ACC KERNELS ASYNC(1) DEFAULT(PRESENT)
           ddt_turb_qns(:,:) = 0.0_wp
           !$ACC END KERNELS
-          ptr(ncloud_offset)%av => p_prog_rcf%tracer(:,:,jb,iqns)
-          ptr(ncloud_offset)%at => ddt_turb_qns(:,:)
-          ptr(ncloud_offset)%sv => NULL()
+          ptr(ncloud_offset)%av     => p_prog_rcf%tracer(:,:,jb,iqns)
+          ptr(ncloud_offset)%at     => ddt_turb_qns(:,:)
+          ptr(ncloud_offset)%sv     => NULL()
+          ptr(ncloud_offset)%kstart =  kstart_moist(jg)
         ENDIF ! ltwomoment
       ENDIF ! turbdiff_config(jg)%ldiff_qs
 
@@ -381,6 +387,9 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
            &                          p_diag=p_diag, prm_diag=prm_diag,                &
            &                          jb=jb, idx_nturb_tracer=idx_nturb_tracer,        &
            &                          lacc=lacc )
+         DO nturb = 1, art_config(jg)%nturb_tracer
+           ptr(ncloud_offset+nturb)%kstart = kstart_tracer(jg,idx_nturb_tracer(nturb))
+         ENDDO
       ENDIF
 #endif
   
@@ -510,9 +519,8 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
         &  dt_var=tcall_turb_jg,                                  & !in
         &  nvec=nproma,                                           & !in
         &  ke=nlev, ke1=nlevp1,                                   & !in
-        &  kcm=nlevcm, iblock=jb,                                 & !in
-        &  kstart_cloud=kstart_moist(jg),                         & !in start index for vertical diffusion of cloud-water
-        &  kstart_tracer=kstart_tracer(jg,:),                     & !in start index for vertical diffusion of art tracers
+        &  kcm=nlevcm, kstart_cloud=kstart_moist(jg),             & !in
+        &  iblock=jb,                                             & !in
         &  ivstart=i_startidx, ivend=i_endidx,                    & !in
         &  hhl       = p_metrics%z_ifc(:,:,jb),                   & !in
         &  zvari     = zvari(:,:,:),                              & !out
@@ -531,8 +539,6 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
         &  impl_weight=turbdiff_config(jg)%impl_weight,           & !in
         &  ptr       = ptr(:),                                    & !inout
         &  ndtr      = art_config(jg)%nturb_tracer+ncloud_offset, & !in: diffusion of additional tracer variables!
-        &  ncloud_offset =    ncloud_offset,                      & !in
-        &  idx_nturb_tracer = idx_nturb_tracer,                   & !in
         &  tvm       = prm_diag%tvm(:,jb),                        & !inout
         &  tvh       = prm_diag%tvh(:,jb),                        & !inout
         &  tkvm      = prm_diag%tkvm(:,:,jb),                     & !inout

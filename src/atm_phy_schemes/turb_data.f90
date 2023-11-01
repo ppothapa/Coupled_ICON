@@ -377,7 +377,9 @@ TYPE modvar !model variable
              sv(:)   => NULL(), & !surface     values (concentration of flux density)
              at(:,:) => NULL()    !atmospheric time tendencies
      LOGICAL                                 ::         &
-             fc                !surface values are flux densities
+             fc                   !surface values are flux densities
+     INTEGER                                 ::         &
+             kstart  = 1          !start level for vertical diffusion
 END TYPE modvar
 
 TYPE turvar !turbulence variables
