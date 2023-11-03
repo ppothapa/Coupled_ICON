@@ -68,9 +68,10 @@ MODULE mo_ocean_solve_backend
 
 ! abstract interfaces to be declared in extended solver types
   ABSTRACT INTERFACE
-    SUBROUTINE a_solve_backend_wp(this)
+    SUBROUTINE a_solve_backend_wp(this, use_acc)
       IMPORT t_ocean_solve_backend
       CLASS(t_ocean_solve_backend), INTENT(INOUT) :: this
+      LOGICAL, INTENT(in), OPTIONAL :: use_acc
     END SUBROUTINE a_solve_backend_wp
     SUBROUTINE a_solve_backend_sp(this)
       IMPORT t_ocean_solve_backend
@@ -135,15 +136,21 @@ CONTAINS
   END SUBROUTINE ocean_solve_backend_construct
 
 ! general solve interface (decides wether to use sp- or wp-variant)
-  SUBROUTINE ocean_solve_backend_solve(this, niter, niter_sp, upd)
+  SUBROUTINE ocean_solve_backend_solve(this, niter, niter_sp, upd, use_acc)
     CLASS(t_ocean_solve_backend), INTENT(INOUT) :: this
     INTEGER, INTENT(OUT) :: niter, niter_sp
     INTEGER, INTENT(IN) :: upd
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
     CHARACTER(LEN=*), PARAMETER :: routine = this_mod_name// &
       & '::ocean_solve_t::ocean_solve'
     INTEGER :: sum_it, n_re, n_it
+    LOGICAL :: lacc
 
-    LOGICAL :: lacc = .TRUE.
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     IF (.NOT.ASSOCIATED(this%trans)) &
       & CALL finish(routine, "solve needs to be initialized")
@@ -183,7 +190,7 @@ CONTAINS
       n_re = 0
       n_it = -1
       DO WHILE(n_it .EQ. -1 .AND. n_re .LT. this%par%nr)
-        CALL this%doit_wp()
+        CALL this%doit_wp(use_acc=lacc)
         n_it = this%niter_cal(1)
         sum_it = sum_it + MERGE(n_it, this%par%m, n_it .GT. -1)
         IF (this%abs_tol_wp .LT. this%res_wp(1)) n_it = -1

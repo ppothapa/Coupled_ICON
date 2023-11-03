@@ -605,7 +605,7 @@ subroutine integrate_tke_gpu(                      &
   !$ACC   CREATE(a_dif, b_dif, c_dif, a_tri, b_tri, c_tri, d_tri, ke, cp, dp) &
   !$ACC   IF(lacc)
 
-  !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
   DO jc = start_index, end_index
     IF (levels(jc) > 0) THEN
       
@@ -883,6 +883,7 @@ subroutine integrate_tke_gpu(                      &
     END IF
   END DO
   !$ACC END PARALLEL LOOP
+  !$ACC WAIT(1)
 
   !$ACC END DATA
 

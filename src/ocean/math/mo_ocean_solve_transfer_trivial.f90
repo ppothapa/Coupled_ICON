@@ -177,9 +177,10 @@ CONTAINS
         !$ACC ENTER DATA CREATE(data_out) IF(lacc)
     END IF
 !ICON_OMP PARALLEL WORKSHARE
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     data_out(:,:) = data_in(:,:)
     !$ACC END KERNELS
+    !$ACC WAIT(1)
 !ICON_OMP END PARALLEL WORKSHARE
     IF (ltimer) CALL timer_stop(this%timer_in(tt))
 
@@ -257,9 +258,10 @@ CONTAINS
 
     IF (ltimer) CALL timer_start(this%timer_in(tt))
 !ICON_OMP PARALLEL WORKSHARE
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     data_out(:,:) = data_in(:,:)
     !$ACC END KERNELS
+    !$ACC WAIT(1)
 !ICON_OMP END PARALLEL WORKSHARE
     IF (ltimer) CALL timer_stop(this%timer_in(tt))
 
@@ -287,10 +289,11 @@ CONTAINS
 
     IF (ltimer) CALL timer_start(this%timer_in(tt))
 !ICON_OMP PARALLEL WORKSHARE
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     do1(:,:) = di1(:,:)
     do2(:,:) = di2(:,:)
     !$ACC END KERNELS
+    !$ACC WAIT(1)
 !ICON_OMP END PARALLEL WORKSHARE
     IF (ltimer) CALL timer_stop(this%timer_in(tt))
 
@@ -322,9 +325,10 @@ CONTAINS
 !$OMP PARALLEL DO SCHEDULE(STATIC)
 #endif
     DO i = 1, SIZE(data_in, 3)
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       data_out(:,:,i) = data_in(:,:,i)
       !$ACC END KERNELS
+      !$ACC WAIT(1)
     END DO
 #ifdef _OPENMP
 !$OMP END PARALLEL DO
@@ -359,10 +363,11 @@ CONTAINS
 !$OMP PARALLEL DO SCHEDULE(STATIC)
 #endif
     DO i = 1, SIZE(data_in_idx, 3)
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       data_out_idx(:,:,i) = data_in_idx(:,:,i)
       data_out_blk(:,:,i) = data_in_blk(:,:,i)
       !$ACC END KERNELS
+      !$ACC WAIT(1)
     END DO
 #ifdef _OPENMP
 !$OMP END PARALLEL DO
@@ -392,9 +397,10 @@ CONTAINS
 
     IF (ltimer) CALL timer_start(this%timer_out)
 !ICON_OMP PARALLEL WORKSHARE
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     data_out(:,:) = data_in(:,:)
     !$ACC END KERNELS
+    !$ACC WAIT(1)
 !ICON_OMP END PARALLEL WORKSHARE
     IF (ltimer) CALL timer_stop(this%timer_out)
 
@@ -421,9 +427,10 @@ CONTAINS
 
     IF (ltimer) CALL timer_start(this%timer_out)
 !ICON_OMP PARALLEL WORKSHARE
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     data_out(:) = data_in(:)
     !$ACC END KERNELS
+    !$ACC WAIT(1)
 !ICON_OMP END PARALLEL WORKSHARE
     IF (ltimer) CALL timer_stop(this%timer_out)
 
@@ -450,9 +457,10 @@ CONTAINS
 
     IF (ltimer) CALL timer_start(this%timer_out)
 !ICON_OMP PARALLEL WORKSHARE
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     data_out(:) = data_in(:)
     !$ACC END KERNELS
+    !$ACC WAIT(1)
 !ICON_OMP END PARALLEL WORKSHARE
     IF (ltimer) CALL timer_stop(this%timer_out)
 

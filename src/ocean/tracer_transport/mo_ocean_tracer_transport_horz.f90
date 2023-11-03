@@ -275,6 +275,7 @@ CONTAINS
       div_advflux_horz (:,:,:) = 0.0_wp
       z_adv_flux_h(:,:,:) = 0.0_wp
       !$ACC END KERNELS
+      !$ACC WAIT(1)
     ENDIF ! l_with_horz_tracer_advection
 
 
@@ -429,9 +430,10 @@ CONTAINS
     !$ACC DATA CREATE(z_adv_flux_high, z_adv_flux_low) IF(lacc)
 
     !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
-    z_adv_flux_high = 0.0_wp
-    z_adv_flux_low  = 0.0_wp 
+    z_adv_flux_high(:,:,:) = 0.0_wp
+    z_adv_flux_low(:,:,:)  = 0.0_wp 
     !$ACC END KERNELS
+    !$ACC WAIT(1)
 
     SELECT CASE(fct_low_order_flux)
 

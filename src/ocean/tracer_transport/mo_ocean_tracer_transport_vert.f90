@@ -435,7 +435,6 @@ CONTAINS
 
     ENDDO
     !$ACC END PARALLEL
-    !$ACC WAIT(1)
 
     ! 4. Limitation of first guess parabola (which is based on z_face)
     ! Note that z_face_up(k) does not need to equal z_face_low(k-1) after

@@ -257,11 +257,12 @@ CONTAINS
 
     IF(no_tracer<=1)RETURN
 
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     salt(:,:)              = 0.0_wp
     saltinseaice(:,:)      = 0.0_wp
     saltinliquidwater(:,:) = 0.0_wp
     !$ACC END KERNELS
+    !$ACC WAIT(1)
 
     rhoicwa = rhoi / rho_ref
     rhosnwa = rhos / rho_ref
@@ -270,7 +271,7 @@ CONTAINS
 
     DO block = subset%start_block, subset%end_block
       CALL get_index_range(subset, block, cellStart, cellEnd)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       DO cell = cellStart, cellEnd
         IF (subset%vertical_levels(cell,block) < 1) CYCLE
 
@@ -311,6 +312,7 @@ CONTAINS
       END DO ! cell
       !$ACC END PARALLEL LOOP
     END DO !block
+    !$ACC WAIT(1)
 
   END SUBROUTINE calc_salt_content
   !-------------------------------------------------------------------------
@@ -560,7 +562,7 @@ CONTAINS
 
     DO block = subset%start_block, subset%end_block
       CALL get_index_range(subset, block, cellStart, cellEnd)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       DO cell = cellStart, cellEnd
         IF (subset%vertical_levels(cell,block) < 1) CYCLE
 
@@ -582,6 +584,7 @@ CONTAINS
       END DO ! cell
       !$ACC END PARALLEL LOOP
     END DO !block
+    !$ACC WAIT(1)
 
   END SUBROUTINE calc_salt_content_zstar
 

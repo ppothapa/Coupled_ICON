@@ -42,10 +42,22 @@ MODULE mo_ocean_solve_legacy_gmres
 CONTAINS
 
 ! actual GMRES solve (vanilla)
-  SUBROUTINE ocean_solve_legacy_gmres_cal_wp(this)
+  SUBROUTINE ocean_solve_legacy_gmres_cal_wp(this, use_acc)
     CLASS(t_ocean_solve_legacy_gmres), INTENT(INOUT) :: this
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
     LOGICAL :: maxiterex ! is reconstructed later
+    LOGICAL :: lacc
     INTEGER :: niter
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+#ifdef _OPENACC
+    IF (lacc) CALL finish(this_mod_name, 'OpenACC version currently not tested/validated')
+#endif
 
     CALL ocean_restart_gmres(this%x_wp, this%lhs, this%b_wp, &
       & this%par%tol, this%par%use_atol, this%par%m, maxiterex, &

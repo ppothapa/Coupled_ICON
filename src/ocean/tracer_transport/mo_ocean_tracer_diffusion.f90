@@ -139,8 +139,8 @@ CONTAINS
         
       ENDDO
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
     ENDDO
+    !$ACC WAIT(1)
     !$ACC END DATA
 !ICON_OMP_END_PARALLEL_DO
 
@@ -177,8 +177,8 @@ CONTAINS
         
       ENDDO
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
     ENDDO
+    !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
 
     IF (PRESENT(subset_range)) THEN
@@ -604,7 +604,6 @@ CONTAINS
       ENDDO
     ENDDO
     !$ACC END PARALLEL
-    !$ACC WAIT(1)
 
     !------------------------------------
     ! Fill triangular matrix
@@ -815,7 +814,6 @@ CONTAINS
     ! b is diagonal, a is the upper diagonal, c is the lower
 
     !  top level
-    !$ACC WAIT
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO cell_index = start_index, end_index

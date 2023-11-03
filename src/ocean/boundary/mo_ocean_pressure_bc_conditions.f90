@@ -23,7 +23,7 @@ MODULE mo_ocean_pressure_bc_conditions
   USE mo_kind,                   ONLY: wp, dp
    USE mtime,                    ONLY: datetime
   USE mo_exception,              ONLY: finish
-  USE mo_model_domain,           ONLY: t_patch_3d
+  USE mo_model_domain,           ONLY: t_patch_3d, t_patch
   USE mo_ocean_nml,              ONLY: use_tides,   &
     & use_tides_SAL, atm_pressure_included_in_ocedyn,       &
     & OceanReferenceDensity_inv, vert_cor_type
@@ -37,6 +37,7 @@ MODULE mo_ocean_pressure_bc_conditions
   USE mo_ocean_types,            ONLY: t_hydro_ocean_state
   USE mo_sea_ice_types,          ONLY: t_sea_ice
   USE mo_dynamics_config,        ONLY: nold
+  USE mo_grid_subset,            ONLY: t_subset_range, get_index_range
 
 
   IMPLICIT NONE
@@ -60,7 +61,10 @@ CONTAINS
     LOGICAL, INTENT(IN), OPTIONAL                    :: use_acc
 
     REAL(wp) :: switch_atm_pressure, switch_vert_cor_type, switch_tides
+    INTEGER :: jc, jb, start_index, end_index
     LOGICAL  :: lacc
+    TYPE(t_patch), POINTER :: patch_2d
+    TYPE(t_subset_range), POINTER :: all_cells
     CHARACTER(len=*), PARAMETER :: routine = 'create_pressure_bc_conditions'
 
     IF (PRESENT(use_acc)) THEN
@@ -69,10 +73,13 @@ CONTAINS
       lacc = .FALSE.
     END IF
 
+    !-----------------------------------------------------------------------
+    patch_2d  => patch_3d%p_patch_2d(1)
+    all_cells => patch_2d%cells%all
     !------------------------------------------------------------------------
     IF (use_tides .OR. use_tides_SAL) THEN
 #ifdef _OPENACC
-      CALL finish(routine, 'use_tides not ported')
+      IF (lacc) CALL finish(routine, 'use_tides not ported')
 #endif
       ! compute tidal potential
       CALL calculate_tides_potential(patch_3d,current_time,ocean_state%p_diag%rho, ocean_state%p_prog(nold(1))%h, &
@@ -104,18 +111,23 @@ CONTAINS
     ! total top potential
 
     IF ( (switch_atm_pressure + switch_vert_cor_type + switch_tides) > 0.0_wp ) THEN
-
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-      ocean_state%p_aux%bc_total_top_potential =  &
-        & ocean_state%p_aux%bc_tides_potential &
-        & + ocean_state%p_aux%bc_SAL_potential &
-        & + p_as%pao * OceanReferenceDensity_inv * switch_atm_pressure & ! add acceleration by air pressure
-        & + grav * sea_ice%draftave * switch_vert_cor_type ! only zstar: pressure of sea ice on top of the first layer (divided by rhoref to create an acceleration)
-      !$ACC END KERNELS
-
+    
+      DO jb = all_cells%start_block, all_cells%end_block
+        CALL get_index_range(all_cells, jb, start_index, end_index)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        DO jc = start_index, end_index
+          ocean_state%p_aux%bc_total_top_potential(jc,jb) =  &
+            & ocean_state%p_aux%bc_tides_potential(jc,jb) &
+            & + ocean_state%p_aux%bc_SAL_potential(jc,jb) &
+            & + p_as%pao(jc,jb) * OceanReferenceDensity_inv * switch_atm_pressure & ! add acceleration by air pressure
+            & + grav * sea_ice%draftave(jc,jb) * switch_vert_cor_type ! only zstar: pressure of sea ice on top of the first layer (divided by rhoref to create an acceleration)
+        END DO
+        !$ACC END PARALLEL LOOP
+      END DO
+      !$ACC WAIT(1)
     ENDIF
 
-     IF (use_tides .OR. use_tides_SAL) THEN
+    IF (use_tides .OR. use_tides_SAL) THEN
       CALL dbg_print('tides_potential',  ocean_state%p_aux%bc_tides_potential, &
            str_module, 3, in_subset=patch_3d%p_patch_2d(1)%cells%owned)
       CALL dbg_print('tides_SAL',      ocean_state%p_aux%bc_SAL_potential, &

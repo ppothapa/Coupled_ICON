@@ -993,7 +993,7 @@ CONTAINS
 
     !$ACC DATA CREATE(z_vert_density_grad_e) IF(lacc)
 
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     DO je = start_index, end_index
 
       cell_1_idx = patch_2D%edges%cell_idx(je,blockNo,1)
@@ -1040,6 +1040,7 @@ CONTAINS
       END DO ! jk = 2, levels
     END DO ! je = start_index, end_index
     !$ACC END PARALLEL LOOP
+    !$ACC WAIT(1)
 
     !$ACC END DATA
 

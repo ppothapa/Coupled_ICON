@@ -623,8 +623,7 @@ CONTAINS
 !ICON_OMP PARALLEL
 ! apply ax(i) = sum(A(i,j)*x(j))
 !ICON_OMP DO PRIVATE(inz, iidx, x_t)
-!     !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(x_t) IF(lacc)
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     DO iblk = 1, this%trans%nblk
       ax(:, iblk) = 0._wp
       DO inz = 1, SIZE(a, 3)
@@ -634,15 +633,15 @@ CONTAINS
       END DO
     END DO
     !$ACC END KERNELS
-!     !$ACC END PARALLEL LOOP
 !ICON_OMP END DO NOWAIT
 ! zero all non-active elements
 !ICON_OMP DO SCHEDULE(DYNAMIC)
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     DO iblk = this%trans%nblk + 1, SIZE(ax, 2)
       ax(:, iblk) = 0.0_wp
     END DO
     !$ACC END PARALLEL LOOP
+    !$ACC WAIT(1)
 !ICON_OMP END DO NOWAIT
 !ICON_OMP END PARALLEL
     !$ACC END DATA
@@ -757,7 +756,7 @@ CONTAINS
 
 !ICON_OMP PARALLEL
 !ICON_OMP DO PRIVATE(inz, iidx, x_t)
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     DO iblk = 1, this%trans%nblk
       ax(:, iblk) = 0._wp
       DO inz = 1, SIZE(a, 3)
@@ -769,11 +768,12 @@ CONTAINS
     !$ACC END KERNELS
 !ICON_OMP END DO NOWAIT
 !ICON_OMP DO SCHEDULE(DYNAMIC, 1)
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     DO iblk = this%trans%nblk + 1, SIZE(ax, 2)
       ax(:, iblk) = 0.0_sp
     END DO
     !$ACC END PARALLEL LOOP
+    !$ACC WAIT(1)
 !ICON_OMP END DO NOWAIT
 !ICON_OMP END PARALLEL
     !$ACC END DATA

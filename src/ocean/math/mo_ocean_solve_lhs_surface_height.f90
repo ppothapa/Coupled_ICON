@@ -160,11 +160,11 @@ CONTAINS
     DO blkNo = cells_in_domain%start_block, cells_in_domain%end_block
       CALL get_index_range(cells_in_domain, blkNo, start_index, end_index)
 
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       lhs(:,blkNo) = 0.0_wp
       !$ACC END KERNELS
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       DO jc = start_index, end_index
         IF(.NOT.(this%patch_3d%lsm_c(jc,1,blkNo) > sea_boundary)) THEN
 !           FORALL(ico = 1:9) xco(ico) = x(idx(ico, jc, blkNo), blk(ico, jc, blkNo))
@@ -187,6 +187,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL LOOP
     END DO ! blkNo
+    !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
     IF (debug_check_level > 20) THEN
       !$ACC UPDATE HOST(lhs) ASYNC(1) IF(lacc)
@@ -215,10 +216,6 @@ CONTAINS
     INTEGER :: start_index, end_index, jc, blkNo, je
     TYPE(t_subset_range), POINTER :: cells_in_domain, edges_in_domain
     CHARACTER(len=*), PARAMETER :: routine = modname//':lhs_surface_height_ab_mim_wp'
-
-!#ifdef _OPENACC
-!    CALL finish(routine, 'OpenACC version currently not implemented')
-!#endif
 
     cells_in_domain => this%patch_2D%cells%in_domain
     edges_in_domain => this%patch_2D%edges%in_domain

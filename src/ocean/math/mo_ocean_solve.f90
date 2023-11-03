@@ -167,11 +167,19 @@ CONTAINS
   END SUBROUTINE ocean_solve_construct
 
 ! general interface for solve
-  SUBROUTINE ocean_solve_solve(this, niter, niter_sp)
+  SUBROUTINE ocean_solve_solve(this, niter, niter_sp, use_acc)
     CLASS(t_ocean_solve), INTENT(INOUT) :: this
     INTEGER, INTENT(OUT) :: niter, niter_sp
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
+    LOGICAL :: lacc
     CHARACTER(LEN=*), PARAMETER :: routine = this_mod_name// &
       & '::t_ocean_solve::ocean_solve'
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     IF (.NOT.ALLOCATED(this%act)) &
       & CALL finish(routine, "solve needs to be initialized")
@@ -179,7 +187,7 @@ CONTAINS
 ! update rhs-pointer
     this%act%b_loc_wp => this%b_loc_wp
 ! call backend
-    CALL this%act%solve(niter, niter_sp, MERGE(1, 0, this%sol_type .NE. solve_legacy_gmres))
+    CALL this%act%solve(niter, niter_sp, MERGE(1, 0, this%sol_type .NE. solve_legacy_gmres), use_acc=lacc)
     IF (ltimer) CALL timer_stop(this%timer)
 
   END SUBROUTINE ocean_solve_solve

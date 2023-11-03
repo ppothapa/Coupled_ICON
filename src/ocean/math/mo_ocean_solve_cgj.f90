@@ -72,14 +72,25 @@ SUBROUTINE ocean_solve_cgj_recover_arrays_wp(this, x, b, z, d, r, r2, &
   END SUBROUTINE ocean_solve_cgj_recover_arrays_wp
 
 ! actual CG solve utilizing Jacobi preconditioner - wp-variant
-  SUBROUTINE ocean_solve_cgj_cal_wp(this)
+  SUBROUTINE ocean_solve_cgj_cal_wp(this, use_acc)
     CLASS(t_ocean_solve_cgj), INTENT(INOUT) :: this
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
     REAL(KIND=wp) :: alpha, beta, dz_glob, tol, tol2
     REAL(KIND=wp) :: rh_glob, rh_glob_o, rn
     INTEGER :: nidx_a, nidx_e, nblk, iblk, k, m, k_final
     REAL(KIND=wp), POINTER, DIMENSION(:,:), CONTIGUOUS :: &
       & x, b, z, d, r, r2, invaii, h
-    LOGICAL :: done
+    LOGICAL :: done, lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+#ifdef _OPENACC
+    IF (lacc) CALL finish(this_mod_name, 'OpenACC version currently not tested/validated')
+#endif
 
 ! retrieve extends of vector to solve
     nidx_a = this%trans%nidx

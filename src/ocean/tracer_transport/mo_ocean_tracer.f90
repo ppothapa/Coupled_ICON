@@ -143,10 +143,6 @@ CONTAINS
     !        & routine = ('mo_tracer_advection:advect_individual_tracer')
     !-------------------------------------------------------------------------------
 
-#ifdef _OPENACC
-    CALL finish(routine, 'OpenACC version currently not tested/validated')
-#endif
-
     trac_old => old_tracer%concentration
     trac_new => new_tracer%concentration
     patch_2D => patch_3d%p_patch_2d(1)
@@ -159,6 +155,10 @@ CONTAINS
     ELSE
       lacc = .FALSE.
     END IF
+
+#ifdef _OPENACC
+    IF (lacc) CALL finish(routine, 'OpenACC version currently not tested/validated')
+#endif
 
     !$ACC DATA COPYIN(trac_old) &
     !$ACC   COPY(trac_new) IF(lacc)
@@ -174,8 +174,8 @@ CONTAINS
         END DO
       END DO
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
     END DO
+    !$ACC WAIT(1)
     !$ACC END DATA
   END SUBROUTINE copy_individual_tracer_ab
   !-------------------------------------------------------------------------
@@ -298,10 +298,6 @@ CONTAINS
     !        & routine = ('mo_tracer_advection:advect_diffuse_tracer')
     !-------------------------------------------------------------------------------
 
-#ifdef _OPENACC
-    CALL finish(routine, 'OpenACC version currently not tested/validated')
-#endif
-
     trac_old => old_tracer%concentration
     trac_new => new_tracer%concentration
 
@@ -323,6 +319,10 @@ CONTAINS
       lacc = .FALSE.
     END IF
 
+#ifdef _OPENACC
+    IF (lacc) CALL finish(routine, 'OpenACC version currently not tested/validated')
+#endif
+
     !$ACC DATA PRESENT(nproma, n_zlev, patch_3d%p_patch_2d(1)%alloc_cell_blocks) &
     !$ACC   COPYIN(k_h, transport_state_h_old, transport_state_h_new) &
     !$ACC   COPY(old_tracer_concentration) &
@@ -339,6 +339,7 @@ CONTAINS
     div_adv_flux_vert   (1:nproma,1:n_zlev,1:alloc_cell_blocks) = 0.0_wp
     ! div_diff_flux_horz  (1:nproma,1:n_zlev,1:alloc_cell_blocks) = 0.0_wp
     !$ACC END KERNELS
+    !$ACC WAIT(1)
 
     !---------------------------------------------------------------------
     CALL advect_horz( patch_3d,        &
@@ -392,8 +393,8 @@ CONTAINS
         END DO
       END DO
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
     END DO
+    !$ACC WAIT(1)
 
     CALL sync_patch_array(sync_c, patch_2D, new_tracer_concentration)
     !$ACC END DATA
@@ -480,10 +481,11 @@ CONTAINS
 #ifndef _OPENACC
     !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     ! these are probably not necessary
-    div_adv_flux_vert = 0.0_wp
-    div_adv_flux_horz = 0.0_wp
-    div_diff_flux_horz = 0.0_wp
+    div_adv_flux_vert(:,:,:) = 0.0_wp
+    div_adv_flux_horz(:,:,:) = 0.0_wp
+    div_diff_flux_horz(:,:,:) = 0.0_wp
     !$ACC END KERNELS
+    !$ACC WAIT(1)
 #endif
     !---------------------------------------------------------------------
     IF ( l_with_vert_tracer_advection ) THEN

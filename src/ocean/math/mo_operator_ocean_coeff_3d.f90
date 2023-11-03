@@ -256,7 +256,7 @@ CONTAINS
 !ICON_OMP sinLat, cosLat, cartesian_x, cartesian_y, cartesian_z, y_help) ICON_OMP_DEFAULT_SCHEDULE
       DO blockNo = subset%start_block, subset%end_block
         CALL get_index_range(subset, blockNo, start_index, end_index)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         DO this_index =  start_index, end_index
         
           ! these should be calclulated once and stored in the coefficients structure
@@ -280,6 +280,7 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL LOOP
       ENDDO
+      !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
             
               
@@ -289,7 +290,7 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index,end_index, this_index, level) ICON_OMP_DEFAULT_SCHEDULE
       DO blockNo = subset%start_block, subset%end_block
         CALL get_index_range(subset, blockNo, start_index, end_index)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         DO this_index =  start_index, end_index
           DO level = 1, levels(this_index,blockNo)  
             x(this_index,level,blockNo) = vector(this_index,level,blockNo)%x(1)
@@ -298,6 +299,7 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL LOOP
       ENDDO
+      !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
       
     CASE DEFAULT

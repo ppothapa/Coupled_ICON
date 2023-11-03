@@ -79,6 +79,14 @@ MODULE mo_scalar_product
 !     MODULE PROCEDURE map_edges2edges_viacell_3d_mlev
 !   END INTERFACE
 
+  INTERFACE nonlinear_coriolis_3d_fast
+#if defined(__LVECTOR__) && !defined(__LVEC_BITID__)
+    MODULE PROCEDURE nonlinear_coriolis_3d_fast_vector
+#else
+    MODULE PROCEDURE nonlinear_coriolis_3d_fast_scalar
+#endif
+  END INTERFACE
+
   INTERFACE map_edges2edges_viacell_3d_const_z
     MODULE PROCEDURE map_edges2edges_viacell_2D_constZ
 !     MODULE PROCEDURE map_edges2edges_viacell_2D_constZs
@@ -173,7 +181,7 @@ CONTAINS
       DO blockNo = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, blockNo, start_cell_index, end_cell_index)
 
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         DO cell_index =  start_cell_index, end_cell_index
           DO level = startLevel, patch_3d%p_patch_1d(1)%dolic_c(cell_index,blockNo)
 
@@ -183,6 +191,7 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL LOOP
       ENDDO
+      !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
 
     CASE (KineticEnergy_onDualGrid)
@@ -191,7 +200,7 @@ CONTAINS
         CALL get_index_range(all_cells, blockNo, start_cell_index, end_cell_index)
 
 !         p_diag%kin(:,:,blockNo)=0.0_wp
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         DO cell_index =  start_cell_index, end_cell_index
           DO level = startLevel, patch_3d%p_patch_1d(1)%dolic_c(cell_index,blockNo)
 
@@ -202,6 +211,7 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL LOOP
       ENDDO
+      !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
 
     CASE (KineticEnergy_onPrimalGrid)
@@ -211,11 +221,11 @@ CONTAINS
         DO blockNo = all_cells%start_block, all_cells%end_block
           CALL get_index_range(all_cells, blockNo, start_cell_index, end_cell_index)
 
-          !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+          !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
           p_diag%kin(:,:,blockNo)=0.0_wp
           !$ACC END KERNELS
 
-          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
           DO cell_index =  start_cell_index, end_cell_index
             w = 0.0_wp
             DO n=1,patch_2d%cells%max_connectivity
@@ -240,6 +250,7 @@ CONTAINS
           END DO
           !$ACC END PARALLEL LOOP
         END DO ! block
+        !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
 !         CALL finish("calc_scalar_product_veloc_3d", "NONLINEAR_CORIOLIS_PRIMAL_GRID works only for triangles")
       ELSE
@@ -249,7 +260,7 @@ CONTAINS
 
   !         p_diag%kin(:,:,blockNo)=0.0_wp
 
-          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
           DO cell_index =  start_cell_index, end_cell_index
             w1 =  patch_2d%edges%area_edge      &
               &      (edge_of_cell_idx(cell_index,blockNo,1),edge_of_cell_blk(cell_index,blockNo,1))
@@ -283,6 +294,7 @@ CONTAINS
           END DO
           !$ACC END PARALLEL LOOP
         END DO ! block
+        !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
       ENDIF
 
@@ -341,7 +353,7 @@ CONTAINS
   !!Option for Anticipated Vorticity added. Code for this option is mostly identical to
   !! code without this option, but optimization suggests a bit of code doubling.
   !<Optimize:inUse>
-  SUBROUTINE nonlinear_coriolis_3d_fast(patch_3d, vn, p_vn_dual, vort_v, &
+  SUBROUTINE nonlinear_coriolis_3d_fast_scalar(patch_3d, vn, p_vn_dual, vort_v, &
     & operators_coefficients, vort_flux, use_acc)
     TYPE(t_patch_3d ), POINTER, INTENT(in) :: patch_3d
     REAL(wp), INTENT(inout)                    :: vn(nproma,n_zlev,patch_3d%p_patch_2d(1)%nblks_e)
@@ -395,7 +407,7 @@ CONTAINS
 
       ! vort_flux(:,:,blockNo) = 0.0_wp
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(numOfEdges, this_vort_flux) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(numOfEdges, this_vort_flux) ASYNC(1) IF(lacc)
       DO je =  start_edge_index, end_edge_index
 
         this_vort_flux(:,:) = 0.0_wp
@@ -490,6 +502,7 @@ CONTAINS
       !$ACC END PARALLEL LOOP
 
     END DO ! blockNo = edges_inDomain%start_block, edges_inDomain%end_block
+    !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
 
   ELSEIF(l_ANTICIPATED_VORTICITY)THEN
@@ -506,7 +519,8 @@ CONTAINS
 
       ! vort_flux(:,:,blockNo) = 0.0_wp
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(numOfEdges, this_vort_flux, thick_edge, thick_vert) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) &
+      !$ACC   PRIVATE(numOfEdges, this_vort_flux, thick_edge, thick_vert) ASYNC(1) IF(lacc)
       DO je =  start_edge_index, end_edge_index
 
         this_vort_flux(:,:) = 0.0_wp
@@ -612,12 +626,138 @@ CONTAINS
       !$ACC END PARALLEL LOOP
 
     END DO ! blockNo = edges_inDomain%start_block, edges_inDomain%end_block
+    !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
 
   ENDIF
 
 
-  END SUBROUTINE nonlinear_coriolis_3d_fast
+  END SUBROUTINE nonlinear_coriolis_3d_fast_scalar
+  !-------------------------------------------------------------------------
+
+  !-------------------------------------------------------------------------
+  !>
+  !! Optimized version of the nonlinear_coriolis_3d
+  !! Note: intel -o3 will produce very different results when using this version,
+  !!  the model exhibits great sensitivity using the AtlanticBoxACC setup
+  !! Note: vn should be zero on land edges, otherwise it will give wrong result.
+  !!
+  !!Option for Anticipated Vorticity added. Code for this option is mostly identical to
+  !! code without this option, but optimization suggests a bit of code doubling.
+  !<Optimize:inUse>
+  SUBROUTINE nonlinear_coriolis_3d_fast_vector (patch_3d, vn, p_vn_dual, vort_v, &
+    & operators_coefficients, vort_flux, use_acc)
+    TYPE(t_patch_3d), POINTER, INTENT(in) :: patch_3d
+    REAL(wp), INTENT(inout) :: vn(nproma,n_zlev,patch_3d%p_patch_2d(1)%nblks_e)
+    TYPE(t_cartesian_coordinates), INTENT(inout) :: p_vn_dual(nproma,n_zlev,patch_3d%p_patch_2d(1)%nblks_v)
+    REAL(wp), INTENT(inout) :: vort_v(nproma,n_zlev,patch_3d%p_patch_2d(1)%nblks_v)
+    TYPE(t_operator_coeff),INTENT(in), TARGET :: operators_coefficients
+    REAL(wp), INTENT(inout) :: vort_flux(nproma,n_zlev,patch_3d%p_patch_2d(1)%nblks_e)
+    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+
+    !Local variables
+    !TYPE(t_patch), POINTER         :: patch_2D
+    INTEGER :: startLevel! , endLevel     ! vertical start and end level
+    INTEGER :: je, level, blockNo
+    INTEGER :: jv
+    INTEGER :: start_index, end_index
+    INTEGER :: vertex_edge
+    INTEGER :: vertex1_idx, vertex1_blk, vertex2_idx, vertex2_blk
+    INTEGER :: edgeOfVertex_index, edgeOfVertex_block
+    LOGICAL :: lacc
+
+    TYPE(t_subset_range), POINTER :: edges_in_domain
+    TYPE(t_subset_range), POINTER :: verts_in_domain
+    TYPE(t_patch), POINTER :: patch_2d
+    INTEGER, POINTER :: dolic_e(:,:)
+
+    INTEGER, PARAMETER :: MAX_DUAL_EDGES = 6
+
+    REAL(wp) :: vert_vort(MAX_DUAL_EDGES, nproma, patch_3d%p_patch_2D(1)%nblks_v)
+
+    !-----------------------------------------------------------------------
+    patch_2d   => patch_3d%p_patch_2d(1)
+    edges_in_domain => patch_2d%edges%in_domain
+    verts_in_domain => patch_2d%verts%in_domain
+    dolic_e => patch_3d%p_patch_1d(1)%dolic_e
+    !-----------------------------------------------------------------------
+    startLevel    = 1
+    ! endLevel    = n_zlev
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
+
+    !$ACC DATA CREATE(vert_vort) IF(lacc)
+
+    CALL rot_vertex_ocean_3d(patch_3d, vn, p_vn_dual, operators_coefficients, vort_v, use_acc=lacc)
+    ! sync not needed here, but used for example for the Leith
+    CALL sync_patch_array(SYNC_V, patch_2D, vort_v)
+
+    IF (.NOT. l_ANTICIPATED_VORTICITY) THEN
+      DO level = startLevel, n_zlev
+        DO blockNo = verts_in_domain%start_block, verts_in_domain%end_block
+          CALL get_index_range (verts_in_domain, blockNo, start_index, end_index)
+
+          !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+          DO jv = start_index, end_index
+            !NEC$ unroll_complete
+            DO vertex_edge = 1, MAX_DUAL_EDGES
+              edgeOfVertex_index = patch_2d%verts%edge_idx(jv,blockNo,vertex_edge)
+              edgeOfVertex_block = patch_2d%verts%edge_blk(jv,blockNo,vertex_edge)
+
+              IF (level <= dolic_e(edgeOfVertex_index, edgeOfVertex_block) .AND. &
+                  & vertex_edge <= patch_2d%verts%num_edges(jv, blockNo)) THEN
+                vert_vort(vertex_edge, jv, blockNo) = &
+                    & vn(edgeOfVertex_index, level, edgeOfVertex_block) &
+                    & * (vort_v(jv, level, blockNo) + patch_2d%verts%f_v(jv, blockNo))
+              ELSE
+                vert_vort(vertex_edge, jv, blockNo) = 0._wp
+              END IF
+            END DO
+          END DO
+          !$ACC END PARALLEL LOOP
+        END DO
+
+        DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
+          CALL get_index_range(edges_in_domain, blockNo, start_index, end_index)
+
+          !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+          vort_flux(start_index:end_index,level,blockNo) = 0.0_wp
+          !$ACC END KERNELS
+
+          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+          DO je = start_index, end_index
+            IF (level > dolic_e(je,blockNo)) CYCLE
+
+            vertex1_idx = patch_2d%edges%vertex_idx(je,blockNo,1)
+            vertex1_blk = patch_2d%edges%vertex_blk(je,blockNo,1)
+            vertex2_idx = patch_2d%edges%vertex_idx(je,blockNo,2)
+            vertex2_blk = patch_2d%edges%vertex_blk(je,blockNo,2)
+
+            !NEC$ unroll_complete
+            DO vertex_edge = 1, MAX_DUAL_EDGES
+              ! Trust that indices > patch_2d%verts%num_edges(vertex1_idx,vertex1_blk) are zero in edge2edge
+              vort_flux(je, level, blockNo) = vort_flux(je, level, blockNo) + &
+                  & vert_vort(vertex_edge, vertex1_idx, vertex1_blk) &
+                  & * operators_coefficients%edge2edge_viavert_coeff(je,level,blockNo,vertex_edge) &
+                  & + vert_vort(vertex_edge, vertex2_idx, vertex2_blk) &
+                  & * operators_coefficients%edge2edge_viavert_coeff(je,level,blockNo,no_dual_edges + vertex_edge)
+            END DO
+          END DO
+          !$ACC END PARALLEL LOOP
+        END DO
+      END DO
+      !$ACC WAIT(1)
+
+    ELSEIF(l_ANTICIPATED_VORTICITY)THEN
+      CALL finish('nonlinear_coriolis_3d_fast_vector', 'l_ANTICIPATED_VORTICITY=.TRUE. not vectorized.')
+    ENDIF
+
+    !$ACC END DATA
+  END SUBROUTINE nonlinear_coriolis_3d_fast_vector
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
@@ -666,7 +806,7 @@ CONTAINS
       ENDIF
 
 #ifdef _OPENACC
-    CALL finish(routine, 'OpenACC version for fast_performance_level <= 10 currently not tested/validated')
+    IF (lacc) CALL finish(routine, 'OpenACC version for fast_performance_level <= 10 currently not tested/validated')
 #endif
 
     !-----------------------------------------------------------------------
@@ -689,7 +829,7 @@ CONTAINS
     DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
       CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       level_loop: DO level = startLevel, endLevel
 
         edge_idx_loop: DO je =  start_edge_index, end_edge_index
@@ -727,6 +867,7 @@ CONTAINS
       END DO level_loop
       !$ACC END PARALLEL LOOP
     END DO ! blockNo = edges_inDomain%start_blockold, edges_inDomain%end_block
+    !$ACC WAIT(1)
     ! !$OMP END DO NOWAIT
     ! !$OMP END PARALLEL
 
@@ -825,7 +966,7 @@ CONTAINS
      ENDIF
 
 #ifdef _OPENACC
-    CALL finish(routine, 'OpenACC version for no_primal_edges /= 3 currently not tested/validated')
+    IF (lacc) CALL finish(routine, 'OpenACC version for no_primal_edges /= 3 currently not tested/validated')
 #endif
 
     !-----------------------------------------------------------------------
@@ -852,7 +993,7 @@ CONTAINS
     DO blockNo = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, blockNo, start_cell_index, end_cell_index)
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       cell_idx_loop: DO cell_index =  start_cell_index, end_cell_index
 
         endLevel=MIN(endLevel,patch_3D%p_patch_1D(1)%dolic_c(cell_index,blockNo))
@@ -916,6 +1057,7 @@ CONTAINS
       !$ACC END PARALLEL LOOP
 
     END DO ! blockNo = all_cells%start_block, all_cells%end_block
+    !$ACC WAIT(1)
 
 !     CALL dbg_print('x(1)', p_vn_c(:,:,:)%x(1), &
 !       & module_name,  1, in_subset=patch_3d%p_patch_2d(1)%cells%owned)
@@ -932,24 +1074,26 @@ CONTAINS
   SUBROUTINE map_edges2cell_no_height_3d_onTriangles( patch_3d, vn_e, operators_coefficients, p_vn_c, &
     & opt_startLevel, opt_endLevel, subset_range, use_acc )
 
-    TYPE(t_patch_3d ),TARGET, INTENT(in)   :: patch_3d
+    TYPE(t_patch_3d ),TARGET, INTENT(in)       :: patch_3d
     REAL(wp), INTENT(in)                       :: vn_e(:,:,:)    ! input (nproma,n_zlev,nblks_e)
     TYPE(t_operator_coeff), INTENT(in)         :: operators_coefficients
     TYPE(t_cartesian_coordinates)              :: p_vn_c(:,:,:)  ! output (nproma,n_zlev,alloc_cell_blocks)
     ! intent(inout) for nag compiler
-    INTEGER, INTENT(in), OPTIONAL :: opt_startLevel,  opt_endLevel      ! optional vertical start level
-    TYPE(t_subset_range), TARGET,  OPTIONAL :: subset_range
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    INTEGER, INTENT(in), OPTIONAL              :: opt_startLevel,  opt_endLevel      ! optional vertical start level
+    TYPE(t_subset_range), TARGET,  OPTIONAL    :: subset_range
+    LOGICAL, INTENT(IN), OPTIONAL              :: use_acc
     !Local variables
-    INTEGER :: startLevel, endLevel
+    INTEGER :: startLevel, endLevel, max_level
     INTEGER :: start_cell_index, end_cell_index
     INTEGER :: edge_1_index, edge_1_block, edge_2_index, edge_2_block, edge_3_index, edge_3_block
     INTEGER :: cell_index, blockNo, level
     TYPE(t_subset_range), POINTER :: all_cells
     TYPE(t_patch), POINTER :: patch_2d
+    INTEGER, DIMENSION(:,:), POINTER           :: dolic_c
     LOGICAL :: lacc
     !-----------------------------------------------------------------------
     patch_2d   => patch_3d%p_patch_2d(1)
+    dolic_c    => patch_3d%p_patch_1d(1)%dolic_c
     !-----------------------------------------------------------------------
     IF ( PRESENT(subset_range) ) THEN
       all_cells => subset_range
@@ -980,8 +1124,19 @@ CONTAINS
 !ICON_OMP level) ICON_OMP_DEFAULT_SCHEDULE
     DO blockNo = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, blockNo, start_cell_index, end_cell_index)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      max_level = MIN(MAXVAL(dolic_c(start_cell_index:end_cell_index,blockNo)),endLevel)
+
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+#if defined(__LVECTOR__) && !defined(__LVEC_BITID__)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) &
+      !$ACC   PRIVATE(edge_1_index, edge_1_block, edge_2_index, edge_2_block, edge_3_index, edge_3_block)
+      DO level = startLevel, max_level
+        DO cell_index = start_cell_index, end_cell_index
+          IF (dolic_c(cell_index,blockNo) < level) CYCLE
+#else
+      !$ACC LOOP GANG VECTOR
       DO cell_index = start_cell_index, end_cell_index
+#endif
 
         edge_1_index = patch_2d%cells%edge_idx(cell_index,blockNo,1)
         edge_1_block = patch_2d%cells%edge_blk(cell_index,blockNo,1)
@@ -990,8 +1145,12 @@ CONTAINS
         edge_3_index = patch_2d%cells%edge_idx(cell_index,blockNo,3)
         edge_3_block = patch_2d%cells%edge_blk(cell_index,blockNo,3)
 
+#if defined(__LVECTOR__) && !defined(__LVEC_BITID__)
+#else
         !$ACC LOOP SEQ
-        DO level = startLevel, MIN(patch_3D%p_patch_1D(1)%dolic_c(cell_index,blockNo), endLevel)
+        DO level = startLevel, MIN(dolic_c(cell_index,blockNo), endLevel)
+#endif
+
           p_vn_c(cell_index,level,blockNo)%x =                                            &
             & (  operators_coefficients%edge2cell_coeff_cc(cell_index,level,blockNo,1)%x  &
             &      * vn_e(edge_1_index,level,edge_1_block)                                &
@@ -1005,10 +1164,11 @@ CONTAINS
             & / (operators_coefficients%fixed_vol_norm(cell_index,level,blockNo)          &
             &    * patch_3d%p_patch_1d(1)%prism_thick_c(cell_index,level,blockNo))
         END DO
-
       END DO
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
+
     END DO ! blockNo = all_cells%start_block, all_cells%end_block
+    !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
 
   END SUBROUTINE map_edges2cell_no_height_3d_onTriangles
@@ -1236,7 +1396,7 @@ CONTAINS
     ENDIF
     !-----------------------------------------------------------------------
 #ifdef _OPENACC
-    CALL finish(routine, 'OpenACC version for max_connectivity /=3 or perf_level currently not tested/validated')
+    IF (lacc) CALL finish(routine, 'OpenACC version for max_connectivity /=3 or perf_level currently not tested/validated')
 #endif
 
     edges_inDomain => patch_2d%edges%in_domain
@@ -1262,7 +1422,6 @@ CONTAINS
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       out_vn_e(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
-      !$ACC WAIT(1)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR
@@ -1312,8 +1471,8 @@ CONTAINS
         END DO edge_idx_loop
       END DO level_loop_e
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
+    !$ACC WAIT(1)
     !$ACC END DATA
   END SUBROUTINE map_edges2edges_viacell_3d_mlev_const_z
   !-----------------------------------------------------------------------------
@@ -1391,7 +1550,6 @@ CONTAINS
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       out_vn_e(:, :, blockNo) = 0.0_wp
       !$ACC END KERNELS
-      !$ACC WAIT(1)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR
@@ -1442,9 +1600,9 @@ CONTAINS
 
       END DO
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
 
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
+    !$ACC WAIT(1)
 
 !ICON_OMP_END_DO NOWAIT
 !ICON_OMP_END_PARALLEL
@@ -1463,7 +1621,7 @@ CONTAINS
     TYPE(t_operator_coeff), INTENT(in)   :: operators_coefficients
     REAL(wp), INTENT(in)                 :: stretch_e(nproma, patch_3d%p_patch_2d(1)%nblks_e)
     REAL(wp), INTENT(inout)              :: out_vn_e(nproma,n_zlev,patch_3d%p_patch_2d(1)%nblks_e)
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL        :: use_acc
     !Local variables
     INTEGER :: startLevel, endLevel
     INTEGER :: start_edge_index, end_edge_index
@@ -1498,25 +1656,17 @@ CONTAINS
       lacc = .FALSE.
     END IF
 
-    ! All derived variables used to specify the size of OpenACC arrays in the declaration have to be present
-    !$ACC DATA PRESENT(patch_3d%p_patch_2d(1)%nblks_e) IF(lacc)
-
 !ICON_OMP_PARALLEL
 !ICON_OMP_DO PRIVATE(start_edge_index, end_edge_index, je, cell_1_index, cell_1_block, &
 !ICON_OMP   cell_2_index, cell_2_block, edge_11_index, edge_12_index, edge_13_index, &
 !ICON_OMP  edge_11_block, edge_12_block, edge_13_block, edge_21_index, edge_22_index, &
 !ICON_OMP  edge_23_index, edge_21_block, edge_22_block, edge_23_block, level)  ICON_OMP_DEFAULT_SCHEDULE
-    !$ACC DATA COPYIN(patch_2d%edges%cell_blk, patch_2d%edges%cell_idx, coeffs) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_e, patch_2d%cells%edge_blk, patch_2d%cells%edge_idx) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%prism_thick_e, vn_e, stretch_e) &
-    !$ACC   COPY(out_vn_e) IF(lacc)
     DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
       CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
 
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       out_vn_e(:, :, blockNo) = 0.0_wp
       !$ACC END KERNELS
-      !$ACC WAIT(1)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR
@@ -1573,14 +1723,11 @@ CONTAINS
 
       END DO
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
 
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
-    !$ACC END DATA
+    !$ACC WAIT(1)
 !ICON_OMP_END_DO NOWAIT
 !ICON_OMP_END_PARALLEL
-
-  !$ACC END DATA
   END SUBROUTINE map_edges2edges_3d_zstar
   !-----------------------------------------------------------------------------
 
@@ -1634,7 +1781,7 @@ CONTAINS
     ENDIF
 
 #ifdef _OPENACC
-    CALL finish(routine, 'OpenACC version for max_connectivity /= 3 currently not tested/validated')
+    IF (lacc) CALL finish(routine, 'OpenACC version for max_connectivity /= 3 currently not tested/validated')
 #endif
 
     !-----------------------------------------------------------------------
@@ -1662,7 +1809,6 @@ CONTAINS
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       out_vn_e(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
-      !$ACC WAIT(1)
       
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR
@@ -1710,8 +1856,8 @@ CONTAINS
         END DO edge_idx_loop2
       END DO level_loop_e2
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
+    !$ACC WAIT(1)
     !$ACC END DATA
 
   END SUBROUTINE map_edges2edges_viacell_3d_mlev_constZs
@@ -1937,7 +2083,6 @@ CONTAINS
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       out_vn_e(:, :, blockNo) = 0.0_wp
       !$ACC END KERNELS
-      !$ACC WAIT(1)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR
@@ -1994,9 +2139,9 @@ CONTAINS
 
       END DO
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
 
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
+    !$ACC WAIT(1)
     !$ACC END DATA
 
 !ICON_OMP_END_DO NOWAIT
@@ -2057,7 +2202,7 @@ CONTAINS
     !-----------------------------------------------------------------------
 
 #ifdef _OPENACC
-    CALL finish(routine, 'OpenACC version currently not tested/validated')
+    IF (lacc) CALL finish(routine, 'OpenACC version currently not tested/validated')
 #endif
 
     edges_inDomain => patch_2d%edges%in_domain
@@ -2087,7 +2232,6 @@ CONTAINS
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       out_vn_e(:,blockNo) = 0.0_wp
       !$ACC END KERNELS
-      !$ACC WAIT(1)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR
@@ -2140,8 +2284,8 @@ CONTAINS
         END DO  level_loop_e
       END DO edge_idx_loop
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
+    !$ACC WAIT(1)
     !$ACC END DATA
   END SUBROUTINE map_edges2edges_viacell_2D_constZ
   !-------------------------------------------------------------------------
@@ -2250,8 +2394,8 @@ CONTAINS
         END DO
       END DO
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
+    !$ACC WAIT(1)
     !$ACC END DATA
 
 !ICON_OMP_END_PARALLEL_DO
@@ -2273,7 +2417,7 @@ CONTAINS
     INTEGER :: edge_2_1_index, edge_2_2_index, edge_2_3_index
     INTEGER :: edge_1_1_block, edge_1_2_block, edge_1_3_block
     INTEGER :: edge_2_1_block, edge_2_2_block, edge_2_3_block
-    INTEGER :: je, blockNo, start_edge_index, end_edge_index, level
+    INTEGER :: je, blockNo, start_edge_index, end_edge_index
 
     REAL(sp), POINTER :: all_coeffs(:,:,:)
 
@@ -2287,7 +2431,7 @@ CONTAINS
     edges_indomain    => patch_2d%edges%in_domain
     all_coeffs        => operators_coefficients%edge2edge_viacell_coeff_all
 
-!ICON_OMP_PARALLEL_DO PRIVATE(start_edge_index, end_edge_index, je, level, cell_1_index, cell_1_block, &
+!ICON_OMP_PARALLEL_DO PRIVATE(start_edge_index, end_edge_index, je, cell_1_index, cell_1_block, &
 !ICON_OMP  cell_2_index, cell_2_block, edge_1_1_index, edge_1_2_index, edge_1_3_index, &
 !ICON_OMP  edge_1_1_block, edge_1_2_block, edge_1_3_block, edge_2_1_index, edge_2_2_index, &
 !ICON_OMP  edge_2_3_index, edge_2_1_block, edge_2_2_block, edge_2_3_block)  ICON_OMP_DEFAULT_SCHEDULE
@@ -2298,37 +2442,34 @@ CONTAINS
 
         out_vn_e(je,blockNo) = 0.0_wp
 
-        DO level = 1, MIN(1,patch_3d%p_patch_1d(1)%dolic_e(je,blockNo))
+        ! get the two cells of the edge
+        cell_1_index = patch_2d%edges%cell_idx(je,blockNo,1)
+        cell_1_block = patch_2d%edges%cell_blk(je,blockNo,1)
+        cell_2_index = patch_2d%edges%cell_idx(je,blockNo,2)
+        cell_2_block = patch_2d%edges%cell_blk(je,blockNo,2)
 
-          ! get the two cells of the edge
-          cell_1_index = patch_2d%edges%cell_idx(je,blockNo,1)
-          cell_1_block = patch_2d%edges%cell_blk(je,blockNo,1)
-          cell_2_index = patch_2d%edges%cell_idx(je,blockNo,2)
-          cell_2_block = patch_2d%edges%cell_blk(je,blockNo,2)
+        ! get the six edges of the two cells
+        edge_1_1_index = patch_2d%cells%edge_idx(cell_1_index, cell_1_block, 1)
+        edge_1_2_index = patch_2d%cells%edge_idx(cell_1_index, cell_1_block, 2)
+        edge_1_3_index = patch_2d%cells%edge_idx(cell_1_index, cell_1_block, 3)
+        edge_2_1_index = patch_2d%cells%edge_idx(cell_2_index, cell_2_block, 1)
+        edge_2_2_index = patch_2d%cells%edge_idx(cell_2_index, cell_2_block, 2)
+        edge_2_3_index = patch_2d%cells%edge_idx(cell_2_index, cell_2_block, 3)
+        edge_1_1_block = patch_2d%cells%edge_blk(cell_1_index, cell_1_block, 1)
+        edge_1_2_block = patch_2d%cells%edge_blk(cell_1_index, cell_1_block, 2)
+        edge_1_3_block = patch_2d%cells%edge_blk(cell_1_index, cell_1_block, 3)
+        edge_2_1_block = patch_2d%cells%edge_blk(cell_2_index, cell_2_block, 1)
+        edge_2_2_block = patch_2d%cells%edge_blk(cell_2_index, cell_2_block, 2)
+        edge_2_3_block = patch_2d%cells%edge_blk(cell_2_index, cell_2_block, 3)
 
-          ! get the six edges of the two cells
-          edge_1_1_index = patch_2d%cells%edge_idx(cell_1_index, cell_1_block, 1)
-          edge_1_2_index = patch_2d%cells%edge_idx(cell_1_index, cell_1_block, 2)
-          edge_1_3_index = patch_2d%cells%edge_idx(cell_1_index, cell_1_block, 3)
-          edge_2_1_index = patch_2d%cells%edge_idx(cell_2_index, cell_2_block, 1)
-          edge_2_2_index = patch_2d%cells%edge_idx(cell_2_index, cell_2_block, 2)
-          edge_2_3_index = patch_2d%cells%edge_idx(cell_2_index, cell_2_block, 3)
-          edge_1_1_block = patch_2d%cells%edge_blk(cell_1_index, cell_1_block, 1)
-          edge_1_2_block = patch_2d%cells%edge_blk(cell_1_index, cell_1_block, 2)
-          edge_1_3_block = patch_2d%cells%edge_blk(cell_1_index, cell_1_block, 3)
-          edge_2_1_block = patch_2d%cells%edge_blk(cell_2_index, cell_2_block, 1)
-          edge_2_2_block = patch_2d%cells%edge_blk(cell_2_index, cell_2_block, 2)
-          edge_2_3_block = patch_2d%cells%edge_blk(cell_2_index, cell_2_block, 3)
+        out_vn_e(je,blockNo) = &
+          & in_vn_e(edge_1_1_index, edge_1_1_block) * all_coeffs(1, je, blockNo) + &
+          & in_vn_e(edge_1_2_index, edge_1_2_block) * all_coeffs(2, je, blockNo) + &
+          & in_vn_e(edge_1_3_index, edge_1_3_block) * all_coeffs(3, je, blockNo) + &
+          & in_vn_e(edge_2_1_index, edge_2_1_block) * all_coeffs(4, je, blockNo) + &
+          & in_vn_e(edge_2_2_index, edge_2_2_block) * all_coeffs(5, je, blockNo) + &
+          & in_vn_e(edge_2_3_index, edge_2_3_block) * all_coeffs(6, je, blockNo)
 
-          out_vn_e(je,blockNo) = &
-            & in_vn_e(edge_1_1_index, edge_1_1_block) * all_coeffs(1, je, blockNo) + &
-            & in_vn_e(edge_1_2_index, edge_1_2_block) * all_coeffs(2, je, blockNo) + &
-            & in_vn_e(edge_1_3_index, edge_1_3_block) * all_coeffs(3, je, blockNo) + &
-            & in_vn_e(edge_2_1_index, edge_2_1_block) * all_coeffs(4, je, blockNo) + &
-            & in_vn_e(edge_2_2_index, edge_2_2_block) * all_coeffs(5, je, blockNo) + &
-            & in_vn_e(edge_2_3_index, edge_2_3_block) * all_coeffs(6, je, blockNo)
-
-        ENDDO
       END DO
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
 !ICON_OMP_END_PARALLEL_DO
@@ -2385,7 +2526,7 @@ CONTAINS
     DO blockNo = edges_indomain%start_block, edges_indomain%end_block
       CALL get_index_range(edges_indomain, blockNo, start_edge_index, end_edge_index)
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       DO je = start_edge_index, end_edge_index
 
         out_vn_e(je,blockNo) = 0.0_wp
@@ -2432,6 +2573,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL LOOP
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
+    !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
 
     !$ACC END DATA
@@ -2828,11 +2970,11 @@ CONTAINS
     DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
       CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
 
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       ptp_vn(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       DO je = start_edge_index, end_edge_index
         !Get indices of two adjacent triangles
         cell_1_index = patch_2d%edges%cell_idx(je,blockNo,1)
@@ -2852,6 +2994,7 @@ CONTAINS
       !$ACC END PARALLEL LOOP
 
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
+    !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
 
     ! sync the result if necessary
@@ -2903,11 +3046,11 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(start_edge_index, end_edge_index, je, &
 !ICON_OMP  cell_1_index,cell_1_block, cell_2_index,cell_2_block) ICON_OMP_DEFAULT_SCHEDULE
     DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       ptp_vn(:,blockNo) = 0.0_wp
       !$ACC END KERNELS
       CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       DO je =  start_edge_index, end_edge_index
 
         IF (patch_3d%p_patch_1d(1)%dolic_e(je, blockNo) > 0) THEN
@@ -2927,6 +3070,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL LOOP
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
+    !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
 
     ! sync the result if necessary
@@ -2975,7 +3119,7 @@ CONTAINS
     prism_center_distance => patch_3D%p_patch_1D(1)%constantPrismCenters_Zdistance  (:,:,blockNo)
     prism_thick           => patch_3D%p_patch_1D(1)%prism_thick_flat_sfc_c(:,:,blockNo)
 
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     DO jc = start_cell_index, end_cell_index
       end_level  = patch_3D%p_patch_1d(1)%dolic_c(jc,blockNo)
 !       IF ( end_level >=min_dolic ) THEN
@@ -2990,6 +3134,7 @@ CONTAINS
 
     END DO
     !$ACC END PARALLEL LOOP
+    !$ACC WAIT(1)
 !     CALL sync_patch_array(sync_c, patch_3D%p_patch_2D(1), vec_center(:,:,:)%x(1))
 !     CALL sync_patch_array(sync_c, patch_3D%p_patch_2D(1), vec_center(:,:,:)%x(2))
 !     CALL sync_patch_array(sync_c, patch_3D%p_patch_2D(1), vec_center(:,:,:)%x(3))

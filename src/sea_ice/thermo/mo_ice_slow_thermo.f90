@@ -100,6 +100,7 @@ CONTAINS
 
     INTEGER, PARAMETER :: energyCheck_dbg_lev   = 3
     INTEGER, PARAMETER :: energyCheck_dbg_print = 4
+    INTEGER            :: jc, jb, i_startidx_c, i_endidx_c
 
     IF (PRESENT(use_acc)) THEN
       lacc = use_acc
@@ -118,15 +119,20 @@ CONTAINS
     IF (ltimer) CALL timer_start(timer_ice_slow)
 
     ! initialize growth-related variables with zeros (before ice_growth_*)
-    CALL ice_growth_init (ice, use_acc=lacc)
+    CALL ice_growth_init (ice, p_patch, use_acc=lacc)
 
     ! heat flux from ocean into ice: ice%zHeatOceI. Will be applied in ice_growth_* routine
     CALL oce_ice_heatflx (p_patch, p_os, ice, use_acc=lacc)
 
     ! totalsnowfall is applied in ice_growth_*
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-    ice%totalsnowfall(:,:) =  atmos_fluxes%rpreci(:,:) * dtime
-    !$ACC END KERNELS
+    DO jb = 1,p_patch%nblks_c
+      CALL get_index_range(p_patch%cells%all, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      DO jc = i_startidx_c,i_endidx_c
+        ice%totalsnowfall(jc, jb) =  atmos_fluxes%rpreci(jc, jb) * dtime
+      END DO
+      !$ACC END PARALLEL LOOP
+    END DO
 
     ! thick ice growth/melt (K-classes): calculates ice%hs, ice%hi, ice%heatOceI
     !-------------------------------------------------------------------------------
@@ -141,9 +147,15 @@ CONTAINS
 
     ! for historical reasons, ice%totalsnowfall represents cell-average, when applied in mo_ocean_surface*
     ! ToDo: should not be done this way
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-    ice%totalsnowfall(:,:) =  ice%totalsnowfall(:,:) * ice%concSum(:,:)
-    !$ACC END KERNELS
+
+    DO jb = 1,p_patch%nblks_c
+      CALL get_index_range(p_patch%cells%all, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      DO jc = i_startidx_c,i_endidx_c
+        ice%totalsnowfall(jc, jb) =  ice%totalsnowfall(jc, jb) * ice%concSum(jc, jb)
+      END DO
+      !$ACC END PARALLEL LOOP
+    END DO
 
     !-------------------------------------------------------------------------------
     CALL dbg_print('IceSlow: aftZero: totalSnF', ice%totalsnowfall, str_module, 3, in_subset=p_patch%cells%owned)
@@ -182,7 +194,7 @@ CONTAINS
 
     CALL dbg_print('IceSlow: energy aft. ConcChange', energyCheck, str_module, &
          &         energyCheck_dbg_print, in_subset= p_patch%cells%all)
- 
+
     !---------------------------------------------------------------------
 
     ! limits ice thinkness, adjust p_oce_sfc fluxes and calculates the final freeboard
@@ -595,7 +607,7 @@ CONTAINS
                       & + (1._wp-sice/sss(jc,jb))*(p_ice%hi(jc,k,jb)-z_smax)*p_ice%conc(jc,k,jb)*rhoi/(rho_ref*dtime)  ! Ice
 
                 ENDIF
-          
+
                 p_oce_sfc%FrshFlux_IceSalt(jc,jb) = p_oce_sfc%FrshFlux_IceSalt(jc,jb) &
                   & + sice * (p_ice%hi(jc,k,jb)-z_smax)*p_ice%conc(jc,k,jb)*rhoi/(rho_ref*dtime)
 
@@ -679,7 +691,7 @@ CONTAINS
             zunderice_old = p_patch_3d%p_patch_1d(1)%prism_thick_c(jc,1,jb) &
                  - draft_old*p_ice%conc(jc,k,jb)
             svold =sice*rhoicwa*(p_ice%hi(jc,k,jb)*p_ice%conc(jc,k,jb)) &
-                       +p_os%p_prog(nold(1))%tracer(jc,1,jb,2)*zunderice_old 
+                       +p_os%p_prog(nold(1))%tracer(jc,1,jb,2)*zunderice_old
 
             ddice = MIN(  (draft_old*p_ice%conc(jc,k,jb)-z_smax)/rhoicwa &
                  , p_ice%hi(jc,k,jb)*p_ice%conc(jc,k,jb) )
@@ -689,19 +701,19 @@ CONTAINS
             p_ice%draft(jc,k,jb) = (rhos * p_ice%hs(jc,k,jb) + rhoi * p_ice%hi(jc,k,jb))/rho_ref
             p_ice%zunderice(jc,jb) = p_patch_3d%p_patch_1d(1)%prism_thick_c(jc,1,jb) &
                  - p_ice%draft(jc,k,jb)*p_ice%conc(jc,k,jb)
-           
+
             !update surface salinity
             p_os%p_prog(nold(1))%tracer(jc,1,jb,2) =(rhoicwa*ddice*sice &
                              +p_os%p_prog(nold(1))%tracer(jc,1,jb,2)*zunderice_old)/p_ice%zunderice(jc,jb)
 
             svnew =sice*rhoicwa*(p_ice%hi(jc,k,jb)*p_ice%conc(jc,k,jb)) &
-                       +p_os%p_prog(nold(1))%tracer(jc,1,jb,2)*zunderice_new 
+                       +p_os%p_prog(nold(1))%tracer(jc,1,jb,2)*zunderice_new
 
             print*,'seaice-limiter',svnew-svold,svnew,svold,ddice,&
                             zunderice_new,zunderice_old
 
 !            p_oce_sfc%FrshFlux_TotalIce (jc,jb) = p_oce_sfc%FrshFlux_TotalIce (jc,jb)                      &
-!                 & + ddice*rhoi/(rho_ref*dtime)  ! 
+!                 & + ddice*rhoi/(rho_ref*dtime)  !
 !            p_oce_sfc%HeatFlux_Total(jc,jb) = p_oce_sfc%HeatFlux_Total(jc,jb)   &
 !                 & + ddice*alf*rhoi/dtime           ! Ice
 
@@ -714,7 +726,7 @@ CONTAINS
       ENDDO
       !$ACC END PARALLEL LOOP
     ENDDO
-       
+
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     CALL dbg_print('iceClUp: hi aft. limiter'     ,p_ice%hi       ,str_module, 3, in_subset=p_patch%cells%owned)
     CALL dbg_print('iceClUp: hs aft. limiter'     ,p_ice%hs       ,str_module, 3, in_subset=p_patch%cells%owned)
@@ -728,10 +740,12 @@ CONTAINS
   !>
   !! ! ice_growth_init: save ice thickness before ice_growth_* and initialize variables
   !!
-  SUBROUTINE ice_growth_init (ice,use_acc)
+  SUBROUTINE ice_growth_init (ice, p_patch, use_acc)
 
     TYPE (t_sea_ice), INTENT(INOUT) :: ice
     LOGICAL, INTENT(IN), OPTIONAL   :: use_acc
+    TYPE(t_patch),  POINTER         :: p_patch
+    INTEGER                         :: jb, k, jc, i_startidx_c, i_endidx_c
 
     LOGICAL :: lacc
 
@@ -741,27 +755,28 @@ CONTAINS
       lacc = .FALSE.
     END IF
 
-!ICON_OMP_PARALLEL
-!ICON_OMP_WORKSHARE
     ! initialize ice-growth-related variables with zeros
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-    ice % zHeatOceI   (:,:,:) = 0._wp
-    ice % heatOceI    (:,:,:) = 0._wp
-    ice % snow_to_ice (:,:,:) = 0._wp
-    ice % delhi       (:,:,:) = 0._wp         ! change in mean ice thickness due to thermodynamic effects
-    ice % delhs       (:,:,:) = 0._wp         ! change in mean snow thickness due to melting
-    ice % hiold (:,:,:) = ice%hi(:,:,:)
+    DO jb = 1, p_patch%nblks_c
+      CALL get_index_range(p_patch%cells%all, jb, i_startidx_c, i_endidx_c)
+      DO k=1,ice%kice
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        DO jc = i_startidx_c,i_endidx_c
+          ice % zHeatOceI   (jc, k, jb) = 0._wp
+          ice % heatOceI    (jc, k, jb) = 0._wp
+          ice % snow_to_ice (jc, k, jb) = 0._wp
+          ice % delhi       (jc, k, jb) = 0._wp         ! change in mean ice thickness due to thermodynamic effects
+          ice % delhs       (jc, k, jb) = 0._wp         ! change in mean snow thickness due to melting
+          ice % hiold (jc, k, jb) = ice%hi(jc, k, jb)
 !    ice % hsold (:,:,:) = ice%hs(:,:,:)
-    !$ACC END KERNELS
-
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-    ice % heatOceW      (:,:) = 0._wp
-    ice % newice        (:,:) = 0._wp
-    ice % totalsnowfall (:,:) = 0._wp
-    !$ACC END KERNELS
-!
-!ICON_OMP_END_WORKSHARE
-!ICON_OMP_END_PARALLEL
+          IF (k == 1) THEN
+            ice % heatOceW      (jc, jb) = 0._wp
+            ice % newice        (jc, jb) = 0._wp
+            ice % totalsnowfall (jc, jb) = 0._wp
+          END IF
+        END DO
+        !$ACC END PARALLEL LOOP
+      END DO
+    END DO
 
   END SUBROUTINE ice_growth_init
 

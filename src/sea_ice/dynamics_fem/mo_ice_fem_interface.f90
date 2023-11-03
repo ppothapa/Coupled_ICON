@@ -310,7 +310,7 @@ CONTAINS
     i_endidx_v_1   = 0
 
     !$ACC DATA COPYIN(all_verts, all_verts%start_block) &
-    !$ACC   COPY(p_ice, p_ice%u_prog, p_ice%v_prog, u_ice, v_ice) IF(lacc)
+    !$ACC   COPY(u_ice, v_ice) IF(lacc)
 
     DO jb = all_verts%start_block, all_verts%end_block
       CALL get_index_range(all_verts, jb, i_startidx_v, i_endidx_v)

@@ -94,6 +94,7 @@ CONTAINS
     TYPE(t_patch),  POINTER :: p_patch
     TYPE(t_subset_range), POINTER :: all_edges
     TYPE(t_subset_range), POINTER :: owned_cells
+    TYPE(t_subset_range), POINTER :: all_cells
     LOGICAL :: lacc
 
     TYPE(t_cartesian_coordinates) :: cvec_ice_velocity(nproma,p_patch_3D%p_patch_2D(1)%alloc_cell_blocks)
@@ -109,6 +110,7 @@ CONTAINS
 
     INTEGER  :: edge_block_1,edge_block_2,edge_block_3,edge_index_1,edge_index_2,edge_index_3
     INTEGER  :: edge_block_i,start_index,end_index,edge_index_i,cell_block,cell_index
+    INTEGER  :: jc, jb, i_startidx_c, i_endidx_c
 
     IF (PRESENT(use_acc)) THEN
       lacc = use_acc
@@ -120,6 +122,7 @@ CONTAINS
     p_patch         => p_patch_3D%p_patch_2D(1)
     all_edges       => p_patch%edges%all
     owned_cells     => p_patch%cells%owned
+    all_cells       => p_patch%cells%all
 
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     CALL dbg_print('bef.icedyn: hi  ',p_ice%hi    ,str_module,2, in_subset=p_patch%cells%owned)
@@ -141,7 +144,6 @@ CONTAINS
       IF ( i_ice_dyn == 2 ) THEN
         CALL ice_new_dynamics( p_patch_3D, p_ice, p_os, p_as, atmos_fluxes, p_op_coeff, p_oce_sfc)
       ENDIF
-
 
       CALL dbg_print('bef.iceadv: conc',p_ice%conc  ,str_module,2, in_subset=p_patch%cells%owned)
 
@@ -238,17 +240,23 @@ CONTAINS
       IF (timers_level > 1) CALL timer_stop(timer_extra40)
 
     ELSE
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-      p_ice%u(:,:) = 0._wp
-      p_ice%v(:,:) = 0._wp
-      !$ACC END KERNELS
+
+      DO jb = all_cells%start_block, all_cells%end_block
+        CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        DO jc = i_startidx_c, i_endidx_c
+          p_ice%u(jc,jb) = 0._wp
+          p_ice%v(jc,jb) = 0._wp
+        END DO
+        !$ACC END PARALLEL LOOP
+      END DO
+
     ENDIF
 
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     CALL dbg_print('aft.icedyn: hi  ',p_ice%hi    ,str_module,2, in_subset=p_patch%cells%owned)
     CALL dbg_print('aft.icedyn: hs  ',p_ice%hs    ,str_module,2, in_subset=p_patch%cells%owned)
     CALL dbg_print('aft.icedyn: conc',p_ice%conc  ,str_module,2, in_subset=p_patch%cells%owned)
-
 
   END SUBROUTINE ice_dynamics
 
@@ -285,21 +293,27 @@ CONTAINS
 
     !-----------------------------------------------------------------------
     p_patch         => p_patch_3D%p_patch_2D(1)
+
+#ifndef _OPENMP
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     CALL dbg_print('bef.icethm: hi  ',p_ice%hi    ,str_module,2, in_subset=p_patch%cells%owned)
     CALL dbg_print('bef.icethm: hs  ',p_ice%hs    ,str_module,2, in_subset=p_patch%cells%owned)
     CALL dbg_print('bef.icethm: conc',p_ice%conc  ,str_module,2, in_subset=p_patch%cells%owned)
+    !---------------------------------------------------------------------
+#endif
 
     !---------------------------------------------------------------------
     ! (2) --------------- Slow sea ice thermodynamics --------------------
     !---------------------------------------------------------------------
     CALL ice_slow_thermo(p_patch_3D, p_os, atmos_fluxes, p_ice, p_oce_sfc, use_acc=lacc)
 
+#ifndef _OPENMP
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     CALL dbg_print('aft.icethm: hi  ',p_ice%hi    ,str_module,2, in_subset=p_patch%cells%owned)
     CALL dbg_print('aft.icethm: hs  ',p_ice%hs    ,str_module,2, in_subset=p_patch%cells%owned)
     CALL dbg_print('aft.icethm: conc',p_ice%conc  ,str_module,2, in_subset=p_patch%cells%owned)
     !---------------------------------------------------------------------
+#endif
 
   END SUBROUTINE ice_thermodynamics
 
@@ -322,7 +336,7 @@ CONTAINS
     LOGICAL, INTENT(IN), OPTIONAL               :: use_acc
     !
     ! local variables
-    INTEGER               :: jb, i_startidx_c, i_endidx_c
+    INTEGER               :: jb, i_startidx_c, i_endidx_c, i, j
     LOGICAL               :: lacc
     REAL(wp), DIMENSION(SIZE(atmos_fluxes%lat,1), SIZE(atmos_fluxes%lat,2)) :: nonsolar
     REAL(wp), DIMENSION(SIZE(atmos_fluxes%dlatdT,1), SIZE(atmos_fluxes%dlatdT,2)) :: nonsolardT
@@ -345,13 +359,14 @@ CONTAINS
         DO jb = all_cells%start_block, all_cells%end_block
           CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
 
-          !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-          nonsolar(:,:)   = atmos_fluxes%lat(:,:,jb) + atmos_fluxes%sens(:,:,jb) + atmos_fluxes%LWnet(:,:,jb)
-          !$ACC END KERNELS
-
-          !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-          nonsolardT(:,:) = atmos_fluxes%dlatdT(:,:,jb) + atmos_fluxes%dsensdT(:,:,jb) + atmos_fluxes%dLWdT(:,:,jb)
-          !$ACC END KERNELS
+          DO j =1,p_ice%kice
+            !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+            DO i=1,nproma
+              nonsolar(i,j)   = atmos_fluxes%lat(i,j,jb) + atmos_fluxes%sens(i,j,jb) + atmos_fluxes%LWnet(i,j,jb)
+              nonsolardT(i,j) = atmos_fluxes%dlatdT(i,j,jb) + atmos_fluxes%dsensdT(i,j,jb) + atmos_fluxes%dLWdT(i,j,jb)
+            END DO
+            !$ACC END PARALLEL LOOP
+          END DO
 
           CALL ice_fast(i_startidx_c, i_endidx_c, nproma, p_ice%kice, dtime, &
             &   p_ice% Tsurf(:,:,jb),   &          !  intent(inout)
@@ -364,8 +379,6 @@ CONTAINS
             &   atmos_fluxes%SWnet  (:,:,jb),   &  !  following: intent(in)
             &   nonsolar, &
             &   nonsolardT, &
-!            &   atmos_fluxes%lat(:,:,jb) + atmos_fluxes%sens(:,:,jb) + atmos_fluxes%LWnet(:,:,jb),   &
-!            &   atmos_fluxes%dlatdT(:,:,jb) + atmos_fluxes%dsensdT(:,:,jb) + atmos_fluxes%dLWdT(:,:,jb),   &
             &   p_ice% Tfw  (:,  jb),   &
             &   atmos_fluxes%albvisdir(:,:,jb), &  !  intent(out)
             &   atmos_fluxes%albvisdif(:,:,jb), &  !  intent(out)
@@ -373,7 +386,7 @@ CONTAINS
             &   atmos_fluxes%albnirdif(:,:,jb), &  !  intent(out)
             &   doy=getDayOfYearFromDateTime(this_datetime), &
             &   use_acc = lacc)
-        ENDDO
+        END DO
 !ICON_OMP_END_PARALLEL_DO
 
         ! provide constant heat fluxes for special analytical cases
@@ -399,6 +412,7 @@ CONTAINS
 
     !$ACC END DATA
 
+#ifndef _OPENMP
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     CALL dbg_print('ice_fast: hi     ',p_ice%hi       ,str_module,3, in_subset=p_patch%cells%owned)
     CALL dbg_print('ice_fast: hs     ',p_ice%hs       ,str_module,3, in_subset=p_patch%cells%owned)
@@ -407,6 +421,7 @@ CONTAINS
     CALL dbg_print('aft.fast: Qtop   ',p_ice%Qtop     ,str_module,3, in_subset=p_patch%cells%owned)
     CALL dbg_print('aft.fast: Qbot   ',p_ice%Qbot     ,str_module,3, in_subset=p_patch%cells%owned)
     !---------------------------------------------------------------------
+#endif
 
   END SUBROUTINE ice_fast_interface
 

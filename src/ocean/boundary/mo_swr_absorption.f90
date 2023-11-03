@@ -146,13 +146,11 @@ CONTAINS
     TYPE(t_hydro_ocean_state), TARGET, INTENT(inout)  :: ocean_state
     LOGICAL, INTENT(IN), OPTIONAL                     :: use_acc
 
-    REAL(wp), POINTER :: swsum(:,:)
     REAL(wp), POINTER :: swrab(:,:,:)
     REAL(wp), POINTER :: rsdoabsorb(:,:,:)
     REAL(wp), POINTER :: heatabs(:,:)
 
-    REAL(wp) :: heatabb(nproma, patch_3D%p_patch_2d(1)%alloc_cell_blocks)
-    REAL(wp) :: heatabs_t(nproma, patch_3D%p_patch_2d(1)%alloc_cell_blocks)
+    REAL(wp) :: heatabb(nproma), heatabs_t(nproma)
 
     REAL(wp) :: dti, cc
 
@@ -160,6 +158,7 @@ CONTAINS
 
     TYPE(t_patch), POINTER                   :: patch_2d
     TYPE(t_subset_range), POINTER            :: all_cells
+    REAL(wp), POINTER :: tracer(:,:,:,:)
     LOGICAL :: lacc
 
     IF (PRESENT(use_acc)) THEN
@@ -171,10 +170,10 @@ CONTAINS
     patch_2d => patch_3D%p_patch_2d(1)
     all_cells => patch_2d%cells%all
 
-    swsum => ocean_state%p_diag%swsum
     swrab => ocean_state%p_diag%swrab
     heatabs => ocean_state%p_diag%heatabs
     rsdoabsorb => ocean_state%p_diag%rsdoabsorb
+    tracer => ocean_state%p_prog(nold(1))%tracer
 
     cc = clw * rho_ref
     dti=1.0_wp/dtime
@@ -184,33 +183,45 @@ CONTAINS
     !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index,hetabs_t,level,heatabb) SCHEDULE(dynamic)
     DO blockNo = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, blockNo, start_index, end_index)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR
       DO jc =  start_index, end_index
+        heatabs_t(jc)=patch_3d%wet_c(jc,1,blockNo)*heatabs(jc,blockNo)*dtime/cc
+        heatabb(jc) = 0._wp
+      END DO
 
-        heatabs_t(jc,blockno)=patch_3d%wet_c(jc,1,blockNo)*heatabs(jc,blockNo)*dtime/cc
-        heatabb(jc,blockno) = 0._wp
-
-       DO level=n_zlev,2,-1
-
-          heatabb(jc,blockno)=heatabb(jc,blockno)+swrab(jc,level,blockNo)*heatabs_t(jc,blockno)
+#ifdef __LVECTOR__
+      !$ACC LOOP SEQ
+      DO level=n_zlev,2,-1
+        !$ACC LOOP GANG VECTOR
+        DO jc =  start_index, end_index
+#else
+      !$ACC LOOP GANG VECTOR
+      DO jc =  start_index, end_index
+        !$ACC LOOP SEQ
+        DO level=n_zlev,2,-1
+#endif
+          heatabb(jc)=heatabb(jc)+swrab(jc,level,blockNo)*heatabs_t(jc)
 
           ! diagnostic for subfurface sw absorbtion
-          rsdoabsorb(jc,level,blockNo)=heatabb(jc,blockno)*cc*dti
+          rsdoabsorb(jc,level,blockNo)=heatabb(jc)*cc*dti
 
           IF (patch_3d%wet_c(jc,level,blockNo) .GT. 0.5 ) THEN
-            ocean_state%p_prog(nold(1))%tracer(jc,level,blockNo,1) = &
-                 ocean_state%p_prog(nold(1))%tracer(jc,level,blockNo,1) + &
+            tracer(jc,level,blockNo,1) = &
+                 tracer(jc,level,blockNo,1) + &
                  patch_3d%wet_c(jc,level,blockNo) &
-                 * (heatabb(jc,blockno)/patch_3d%p_patch_1d(1)%prism_thick_c(jc,level,blockNo))
+                 * (heatabb(jc)/patch_3d%p_patch_1d(1)%prism_thick_c(jc,level,blockNo))
           ENDIF
 
-          heatabb(jc,blockno) = heatabb(jc,blockno) * ( 1.0_wp - patch_3d%wet_c(jc,level,blockNo))
+          heatabb(jc) = heatabb(jc) * ( 1.0_wp - patch_3d%wet_c(jc,level,blockNo))
 
         END DO
 
       END DO
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
     END DO
+    !$ACC WAIT(1)
 
     !$ACC END DATA
 
@@ -244,13 +255,11 @@ CONTAINS
     REAL(wp), INTENT(IN   ) :: stretch_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks) 
     LOGICAL, INTENT(IN), OPTIONAL                     :: use_acc
 
-    REAL(wp), POINTER :: swsum(:,:)
     REAL(wp), POINTER :: swrab(:,:,:)
     REAL(wp), POINTER :: rsdoabsorb(:,:,:)
     REAL(wp), POINTER :: heatabs(:,:)
 
-    REAL(wp) :: heatabb(nproma, patch_3D%p_patch_2d(1)%alloc_cell_blocks)
-    REAL(wp) :: heatabs_t(nproma, patch_3D%p_patch_2d(1)%alloc_cell_blocks)
+    REAL(wp) :: heatabb(nproma), heatabs_t(nproma)
 
     REAL(wp) :: dti, cc
 
@@ -258,6 +267,7 @@ CONTAINS
 
     TYPE(t_patch), POINTER                   :: patch_2d
     TYPE(t_subset_range), POINTER            :: all_cells
+    REAL(wp), POINTER                        :: tracer(:,:,:,:)
     LOGICAL                                  :: lacc
     CHARACTER(LEN=max_char_length), PARAMETER :: str_module = 'subsurface_swr_absorption_zstar'
 
@@ -270,10 +280,10 @@ CONTAINS
     patch_2d => patch_3D%p_patch_2d(1)
     all_cells => patch_2d%cells%all
 
-    swsum => ocean_state%p_diag%swsum
     swrab => ocean_state%p_diag%swrab
     heatabs => ocean_state%p_diag%heatabs
     rsdoabsorb => ocean_state%p_diag%rsdoabsorb
+    tracer => ocean_state%p_prog(nold(1))%tracer
 
     cc = clw * rho_ref
     dti=1.0_wp/dtime
@@ -283,34 +293,46 @@ CONTAINS
     !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index,hetabs_t,level,heatabb) SCHEDULE(dynamic)
     DO blockNo = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, blockNo, start_index, end_index)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC LOOP GANG VECTOR
       DO jc =  start_index, end_index
+        heatabs_t(jc)=patch_3d%wet_c(jc,1,blockNo)*heatabs(jc,blockNo)*dtime/cc
+        heatabb(jc) = 0._wp
+      END DO
 
-        heatabs_t(jc,blockno)=patch_3d%wet_c(jc,1,blockNo)*heatabs(jc,blockNo)*dtime/cc
-        heatabb(jc,blockno) = 0._wp
-
-       DO level=n_zlev,2,-1
-
-          heatabb(jc,blockno)=heatabb(jc,blockno)+swrab(jc,level,blockNo)*heatabs_t(jc,blockno)
+#ifdef __LVECTOR__
+      !$ACC LOOP SEQ
+      DO level=n_zlev,2,-1
+        !$ACC LOOP GANG VECTOR
+        DO jc =  start_index, end_index
+#else
+      !$ACC LOOP GANG VECTOR
+      DO jc =  start_index, end_index
+        !$ACC LOOP SEQ
+        DO level=n_zlev,2,-1
+#endif
+          heatabb(jc)=heatabb(jc)+swrab(jc,level,blockNo)*heatabs_t(jc)
 
           ! diagnostic for subfurface sw absorbtion
-          rsdoabsorb(jc,level,blockNo)=heatabb(jc,blockno)*cc*dti
+          rsdoabsorb(jc,level,blockNo)=heatabb(jc)*cc*dti
 
           IF (patch_3d%wet_c(jc,level,blockNo) .GT. 0.5 ) THEN
-            ocean_state%p_prog(nold(1))%tracer(jc,level,blockNo,1) = &
-                 ocean_state%p_prog(nold(1))%tracer(jc,level,blockNo,1) + &
+            tracer(jc,level,blockNo,1) = &
+                 tracer(jc,level,blockNo,1) + &
                  & patch_3d%wet_c(jc,level,blockNo) &
-                 & * (heatabb(jc,blockno)/ &
+                 & * (heatabb(jc)/ &
                  & ( stretch_c(jc, blockNo)*patch_3d%p_patch_1d(1)%prism_thick_c(jc,level,blockNo) )  )
           ENDIF
 
-          heatabb(jc,blockno) = heatabb(jc,blockno) * ( 1.0_wp - patch_3d%wet_c(jc,level,blockNo))
+          heatabb(jc) = heatabb(jc) * ( 1.0_wp - patch_3d%wet_c(jc,level,blockNo))
 
         END DO
 
       END DO
-      !$ACC END PARALLEL LOOP
+      !$ACC END PARALLEL
     END DO
+    !$ACC WAIT(1)
 
     !$ACC END DATA
 
@@ -376,7 +398,7 @@ CONTAINS
     !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index) SCHEDULE(dynamic)
     DO blockNo = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, blockNo, start_index, end_index)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       DO jc =  start_index, end_index
 
         swsum(jc,blockNo)=swr_frac(jc,2,blockNo)
@@ -394,6 +416,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL LOOP
     END DO
+    !$ACC WAIT(1)
 
 
   END SUBROUTINE dynamic_swr_absorption

@@ -8548,14 +8548,22 @@ CONTAINS
   END FUNCTION p_sum_sp_1d
 
   !------------------------------------------------------
-  FUNCTION p_sum_dp_1d (zfield, comm, root) RESULT (p_sum)
+  FUNCTION p_sum_dp_1d (zfield, comm, root, use_g2g) RESULT (p_sum)
 
     REAL(dp),          INTENT(in) :: zfield(:)
     INTEGER, OPTIONAL, INTENT(in) :: comm, root
     REAL(dp)                      :: p_sum (SIZE(zfield))
+    LOGICAL, OPTIONAL, INTENT(in) :: use_g2g
+    LOGICAL :: loc_use_g2g
 
 #ifndef NOMPI
     INTEGER :: p_comm, my_rank
+
+    IF (PRESENT(use_g2g)) THEN
+      loc_use_g2g = use_g2g
+    ELSE
+      loc_use_g2g = .FALSE.
+    END IF
 
     IF (PRESENT(comm)) THEN
        p_comm = comm
@@ -8572,8 +8580,14 @@ CONTAINS
         ! do not use the result on all the other ranks:
         IF (root /= my_rank) p_sum = zfield
       ELSE
+
+        !$ACC HOST_DATA USE_DEVICE(zfield) IF(loc_use_g2g)
+
         CALL mpi_allreduce (zfield, p_sum, SIZE(zfield), p_real_dp, &
              mpi_sum, p_comm, p_error)
+
+        !$ACC END HOST_DATA
+
       END IF
     ELSE
        p_sum = zfield

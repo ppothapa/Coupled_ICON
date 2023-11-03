@@ -112,6 +112,7 @@ MODULE mo_ocean_ab_timestepping_zstar
   USE mo_sea_ice_nml,            ONLY: i_ice_dyn
   USE mo_restart,                ONLY: t_RestartDescriptor, createRestartDescriptor, deleteRestartDescriptor
   USE mo_ice_fem_interface,      ONLY: ice_fem_init_vel_restart, ice_fem_update_vel_restart
+  USE mo_ocean_math_utils,       ONLY: solve_tridiag_block
 
   USE mo_ocean_physics_types,ONLY: v_params
 
@@ -125,6 +126,14 @@ MODULE mo_ocean_ab_timestepping_zstar
   PUBLIC :: calc_normal_velocity_ab_zstar
   PUBLIC :: solve_free_surface_eq_zstar
   PUBLIC :: update_zstar_variables
+
+  INTERFACE velocity_diffusion_vertical_implicit_zstar
+#if defined(__LVECTOR__) && !defined(__LVEC_BITID__)
+    MODULE PROCEDURE velocity_diffusion_vertical_implicit_zstar_vector
+#else
+    MODULE PROCEDURE velocity_diffusion_vertical_implicit_zstar_scalar
+#endif
+  END INTERFACE
 
   LOGICAL :: eliminate_upper_diag = .true.
 
@@ -147,7 +156,7 @@ CONTAINS
 
   !! Update stretching variables based on new surface height
   SUBROUTINE update_zstar_variables( patch_3d, ocean_state, operators_coefficients, &
-      & eta_c, stretch_c, stretch_e)
+      & eta_c, stretch_c, stretch_e, use_acc)
     
     TYPE(t_patch_3d ), POINTER, INTENT(in)          :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET, INTENT(INOUT) :: ocean_state
@@ -155,6 +164,7 @@ CONTAINS
     REAL(wp), INTENT(INOUT) :: eta_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks) !! sfc ht 
     REAL(wp), INTENT(INOUT) :: stretch_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks) 
     REAL(wp), INTENT(INOUT) :: stretch_e(nproma, patch_3d%p_patch_2d(1)%nblks_e) !! stretch factor 
+    LOGICAL, INTENT(in), OPTIONAL :: use_acc
     
     TYPE(t_patch), POINTER :: patch_2d
     
@@ -180,6 +190,13 @@ CONTAINS
     INTEGER  :: edge_1_index, edge_1_block, edge_2_index, edge_2_block, edge_3_index, edge_3_block
     REAL(wp) :: st1, st2, st3 
     REAL(wp) :: dz_dt 
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
 
     !------------------------------------------------------------------
     patch_2d        => patch_3d%p_patch_2d(1)
@@ -189,17 +206,23 @@ CONTAINS
     all_cells => patch_2d%cells%ALL
     all_edges => patch_2d%edges%ALL
     !------------------------------------------------------------------
- 
+
+    !$ACC DATA CREATE(H_c, z_depth, w_temp, w_edg, w_deriv) IF(lacc)
+
 !ICON_OMP_MASTER
       CALL sync_patch_array(sync_c, patch_2D, eta_c    )
 !ICON_OMP_END_MASTER
 !ICON_OMP_BARRIER
 
-    z_depth = 0.0_wp
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    z_depth(:,:,:) = 0.0_wp
+    !$ACC END KERNELS
+    !$ACC WAIT(1)
 
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index,end_index, jc, bt_lev) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, start_index, end_index)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       DO jc = start_index, end_index
         
         bt_lev = patch_3d%p_patch_1d(1)%dolic_c(jc, jb)      
@@ -219,7 +242,9 @@ CONTAINS
         ENDIF
           
       END DO
+      !$ACC END PARALLEL LOOP
     END DO ! blockNo
+    !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
 
 !ICON_OMP_MASTER
@@ -231,6 +256,7 @@ CONTAINS
 !ICON_OMP  id1, id2, bl1, bl2, st1, st2) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = all_edges%start_block, all_edges%end_block
       CALL get_index_range(all_edges, jb, start_index, end_index)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       DO je = start_index, end_index
         
         !Get indices of two adjacent triangles
@@ -255,7 +281,9 @@ CONTAINS
         ENDIF
         
       END DO
+      !$ACC END PARALLEL LOOP
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block
+    !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO    
 
 
@@ -270,11 +298,16 @@ CONTAINS
   !! w* = (w - v.grad z)*(dz/dz*)^(-1)
   !-------------------------------------------------------------------------
 
-  w_edg = 0.0_wp
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    w_edg(:,:,:) = 0.0_wp
+    !$ACC END KERNELS
+    !$ACC WAIT(1)
+
 !ICON_OMP_DO PRIVATE(start_index, end_index, je, id1, bl1, id2, bl2, jk) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = all_edges%start_block, all_edges%end_block
       CALL get_index_range(all_edges, jb, start_index, end_index)
 
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       DO je = start_index, end_index
 
         id1=patch_2D%edges%cell_idx(je,jb,1)
@@ -290,17 +323,23 @@ CONTAINS
         END DO
           
       END DO
+      !$ACC END PARALLEL LOOP
     END DO
+    !$ACC WAIT(1)
 !ICON_OMP_END_DO NOWAIT
 !ICON_OMP_END_PARALLEL
 
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    w_temp(:,:,:) = 0.0_wp
+    !$ACC END KERNELS
+    !$ACC WAIT(1)
 
-    w_temp = 0.0_wp
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index,end_index, jc, st1, st2, st3, &
 !ICON_OMP edge_1_index, edge_1_block, edge_2_index, edge_2_block, edge_3_index, edge_3_block,  &
 !ICON_OMP level) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, start_index, end_index)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       DO jc = start_index, end_index
         IF(patch_3D%lsm_c(jc, 1, jb) <= sea_boundary)THEN
 
@@ -337,16 +376,22 @@ CONTAINS
 
         END IF
       END DO
+      !$ACC END PARALLEL LOOP
 
     END DO ! blockNo = all_cells%start_block, all_cells%end_block
+    !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
 
-    w_deriv = 0.0_wp
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    w_deriv(:,:,:) = 0.0_wp
+    !$ACC END KERNELS
+    !$ACC WAIT(1)
+
 !ICON_OMP_PARALLEL_DO PRIVATE(start_cell_index,end_cell_index, level)
 !ICON_OMP_DEFAULT_SCHEDULE     
     DO jb = all_cells%start_block, all_cells%end_block
-      w_deriv(:,:,jb) = 0.0_wp
       CALL get_index_range(all_cells, jb, start_index, end_index)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       DO jc = start_index, end_index
         DO jk = 1, patch_3D%p_patch_1d(1)%dolic_c(jc, jb)-1
           w_deriv(jc ,jk + 1, jb) &
@@ -354,17 +399,24 @@ CONTAINS
           & +          w_temp(jc, jk + 1, jb))              
         END DO
       END DO
+      !$ACC END PARALLEL LOOP
     END DO
+    !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
 
     !! FIXME: The below usage gives an error
     !! Maybe it is because of all_cells vs cells_in_domain?
 !    CALL map_scalar_center2prismtop(patch_3d, w_temp, operators_coefficients, w_deriv)
 
-    ocean_state%p_diag%w_deriv = 0.0_wp
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    ocean_state%p_diag%w_deriv(:,:,:) = 0.0_wp
+    !$ACC END KERNELS
+    !$ACC WAIT(1)
+
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index,end_index, jc, jk) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, start_index, end_index)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       DO jc = start_index, end_index
         IF(patch_3D%lsm_c(jc, 1, jb) <= sea_boundary)THEN
           DO jk = 1, MIN(patch_3D%p_patch_1D(1)%dolic_c(jc,jb), n_zlev)
@@ -374,7 +426,9 @@ CONTAINS
           END DO
         END IF
       END DO
+      !$ACC END PARALLEL LOOP
     END DO ! blockNo
+    !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
     
 
@@ -384,6 +438,8 @@ CONTAINS
 !
 !    CALL dbg_print('on entry: wstar', ocean_state%p_diag%w,'check', 1, in_subset=cells_in_domain)
 !    CALL dbg_print('on entry: w    ', w_edg,'check', 1, in_subset=edges_in_domain)
+
+    !$ACC END DATA
   END SUBROUTINE update_zstar_variables
  
 
@@ -507,11 +563,7 @@ CONTAINS
       lacc = .FALSE.
     END IF
 
-    !$ACC DATA PRESENT(patch_3d%p_patch_2d(1)%alloc_cell_blocks, patch_3d%p_patch_2d(1)%nblks_e) &
-    !$ACC   COPYIN(eta, nold, nnew, patch%edges%cell_idx, patch%edges%cell_blk, grad_coeff) &
-    !$ACC   COPYIN(patch_3d%p_patch_1d(1)%dolic_e, vn_old, vn_pred) &
-    !$ACC   CREATE(z_grad_h_block) &
-    !$ACC   COPY(vn_new, vn_time_weighted) IF(lacc)
+    !$ACC DATA CREATE(z_grad_h_block) IF(lacc)
 
 !ICON_OMP_PARALLEL_DO PRIVATE(blockNo,start_edge_index,end_edge_index, je, jk, z_grad_h_block) ICON_OMP_DEFAULT_SCHEDULE
     DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
@@ -523,23 +575,18 @@ CONTAINS
 
       ! Step 2) Calculate the new velocity from the predicted one and the new surface height
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       DO je = start_edge_index, end_edge_index
         DO jk = 1, patch_3d%p_patch_1d(1)%dolic_e(je,blockNo)
-           vn_new(je,jk,blockNo) = (vn_pred(je,jk,blockNo) &
-             & - gdt_x_ab_beta * z_grad_h_block(je))
-        END DO          
-      END DO
-      !$ACC END PARALLEL LOOP
+          vn_new(je,jk,blockNo) = (vn_pred(je,jk,blockNo) &
+            & - gdt_x_ab_beta * z_grad_h_block(je))
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
-      DO je = start_edge_index, end_edge_index
-        DO jk = 1, patch_3d%p_patch_1d(1)%dolic_e(je,blockNo)
           vn_time_weighted(je,jk,blockNo) = ab_gam * vn_new(je,jk,blockNo) &
             & + one_minus_ab_gam * vn_old(je,jk,blockNo)
         END DO
       END DO
       !$ACC END PARALLEL LOOP
+      !$ACC WAIT(1)
     END DO ! blockNo
 !ICON_OMP_END_PARALLEL_DO
 
@@ -561,12 +608,13 @@ CONTAINS
   !!
   !! Adapted to zstar
   !!
-  SUBROUTINE calc_vert_velocity_bottomup_zstar( patch_3d, ocean_state, op_coeffs, stretch_c, stretch_e)
+  SUBROUTINE calc_vert_velocity_bottomup_zstar( patch_3d, ocean_state, op_coeffs, stretch_c, stretch_e, use_acc)
     TYPE(t_patch_3d), TARGET :: patch_3d       ! patch on which computation is performed
     TYPE(t_hydro_ocean_state) :: ocean_state
     TYPE(t_operator_coeff), INTENT(in) :: op_coeffs
     REAL(wp), INTENT(IN)               :: stretch_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks) 
     REAL(wp), INTENT(IN)               :: stretch_e(nproma, patch_3d%p_patch_2d(1)%nblks_e) !! stretch factor 
+    LOGICAL, INTENT(in), OPTIONAL      :: use_acc
     ! Local variables
     INTEGER :: jc, jk, blockNo, start_index, end_index
     TYPE(t_subset_range), POINTER :: cells_in_domain, edges_in_domain, all_cells, cells_owned
@@ -575,6 +623,13 @@ CONTAINS
     REAL(wp) :: div_m_c(nproma, n_zlev)
     REAL(wp) :: deta_dt, H_c 
     INTEGER  :: bt_lev
+    LOGICAL :: lacc
+
+    IF (PRESENT(use_acc)) THEN
+      lacc = use_acc
+    ELSE
+      lacc = .FALSE.
+    END IF
  
     !-----------------------------------------------------------------------
     patch_2D         => patch_3d%p_patch_2d(1)
@@ -588,16 +643,23 @@ CONTAINS
     ! Step 1) Calculate divergence of horizontal velocity at all levels
     !------------------------------------------------------------------
 
+    !$ACC DATA CREATE(div_m_c) IF(lacc)
+
     !-------------------------------------------------------------------------------
     CALL map_edges2edges_3d_zstar( patch_3d, ocean_state%p_diag%vn_time_weighted, op_coeffs, &
-      & stretch_e, ocean_state%p_diag%mass_flx_e)
+      & stretch_e, ocean_state%p_diag%mass_flx_e, use_acc=lacc)
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index,end_index, jc, jk) ICON_OMP_DEFAULT_SCHEDULE
     DO blockNo = cells_in_domain%start_block, cells_in_domain%end_block
       CALL get_index_range(cells_in_domain, blockNo, start_index, end_index)
       CALL div_oce_3D_onTriangles_onBlock(ocean_state%p_diag%mass_flx_e, patch_3D, op_coeffs%div_coeff, &
         & ocean_state%p_diag%div_mass_flx_c(:,:,blockNo), blockNo=blockNo, start_index=start_index, &
-        & end_index=end_index, start_level=1, end_level=n_zlev)
+        & end_index=end_index, start_level=1, end_level=n_zlev, use_acc=lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       div_m_c(:, :) = ocean_state%p_diag%div_mass_flx_c(:,:,blockNo)
+      !$ACC END KERNELS
+      !$ACC WAIT(1)
+
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       DO jc = start_index, end_index
         !use bottom boundary condition for vertical velocity at bottom of prism
         ! this should be awlays zero
@@ -607,6 +669,7 @@ CONTAINS
 
         deta_dt = -SUM(div_m_c(jc, 1:patch_3d%p_patch_1d(1)%dolic_c(jc,blockNo)))
         vertical_velocity(jc, patch_3d%p_patch_1d(1)%dolic_c(jc,blockNo) + 1, blockNo) = 0.0_wp
+        !$ACC LOOP SEQ
         DO jk = patch_3d%p_patch_1d(1)%dolic_c(jc,blockNo), 1, -1
           vertical_velocity(jc,jk,blockNo) = vertical_velocity(jc,jk+1,blockNo) - &
             & ( ocean_state%p_diag%div_mass_flx_c(jc,jk,blockNo) + &
@@ -615,11 +678,14 @@ CONTAINS
             & )/stretch_c(jc, blockNo)
         END DO
       END DO
+      !$ACC END PARALLEL LOOP
+      !$ACC WAIT(1)
     END DO ! blockNo
 !ICON_OMP_END_PARALLEL_DO
     
     CALL sync_patch_array(sync_c,patch_2D,vertical_velocity)
 
+    !$ACC END DATA
   END SUBROUTINE calc_vert_velocity_bottomup_zstar
   !-------------------------------------------------------------------------
  
@@ -802,7 +868,110 @@ CONTAINS
   !!Subroutine implements implicit vertical diffusion for horizontal velocity fields
   !!by inverting a scalar field..
   !------------------------------------------------------------------------
-  SUBROUTINE velocity_diffusion_vertical_implicit_zstar( &
+  SUBROUTINE velocity_diffusion_vertical_implicit_zstar_vector( &
+    & patch_3d,                            &
+    & velocity,                            &
+    & a_v, stretch_e,                      &
+    & operators_coefficients,              &
+    & start_index, end_index, edge_block)
+
+    TYPE(t_patch_3d), INTENT(IN) :: patch_3d
+    REAL(wp), INTENT(INOUT) :: velocity(:,:)   ! on edges, (nproma, levels)
+    REAL(wp), INTENT(IN) :: a_v(:,:)      ! on edges, (nproma, levels)
+    REAL(wp), INTENT(IN) :: stretch_e(nproma, patch_3d%p_patch_2d(1)%nblks_e) !! stretch factor
+    TYPE(t_operator_coeff), INTENT(IN) :: operators_coefficients
+    INTEGER , INTENT(IN):: start_index, end_index, edge_block
+    !
+    REAL(wp) :: inv_prism_thickness, inv_prisms_center_distance, inv_prisms_center_distance_next
+    REAL(wp) :: a(nproma, 1:n_zlev), b(nproma, 1:n_zlev), c(nproma, 1:n_zlev), d(nproma, 1:n_zlev)
+    REAL(wp) :: fact(1:n_zlev)
+    REAL(wp) :: inv_str_e
+
+    INTEGER, POINTER :: dolic_e(:)
+    REAL(wp), POINTER :: inv_prism_thick_e(:,:)
+    REAL(wp), POINTER :: inv_prism_center_dist_e(:,:)
+
+    INTEGER :: max_bottom_level
+    INTEGER :: bottom_level
+    INTEGER :: edge_index, level
+
+    !-----------------------------------------------------------------------
+
+    dolic_e => patch_3d%p_patch_1d(1)%dolic_e(:,edge_block)
+    inv_prism_thick_e => patch_3d%p_patch_1d(1)%inv_prism_thick_e(:,:,edge_block)
+    inv_prism_center_dist_e => patch_3d%p_patch_1d(1)%inv_prism_center_dist_e(:,:,edge_block)
+
+    max_bottom_level = MAXVAL(dolic_e(start_index:end_index))
+
+    ! Nothing to diffuse?
+    IF (max_bottom_level < 2) RETURN
+
+    DO edge_index = start_index, end_index
+      bottom_level = dolic_e(edge_index)
+
+      IF (bottom_level < 1) THEN
+        CYCLE
+      ELSE IF (bottom_level == 1) THEN
+        a(edge_index, 1) = 0.0_wp
+        b(edge_index, 1) = 1.0_wp
+        c(edge_index, 1) = 0.0_wp
+        d(edge_index, 1) = velocity(edge_index, 1)
+      ELSE
+        inv_str_e = 1._wp/stretch_e(edge_index, edge_block)
+
+        inv_prism_thickness = inv_str_e * inv_prism_thick_e(edge_index, 1)
+        inv_prisms_center_distance = inv_str_e * inv_prism_center_dist_e(edge_index, 2)
+
+        a(edge_index, 1) = 0.0_wp
+        c(edge_index, 1) = -a_v(edge_index, 2) * inv_prism_thickness * inv_prisms_center_distance * dtime
+        b(edge_index, 1) = 1.0_wp - c(edge_index, 1)
+        d(edge_index, 1) = velocity(edge_index, 1)
+
+        inv_prism_thickness = inv_str_e * inv_prism_thick_e(edge_index, bottom_level)
+        inv_prisms_center_distance = inv_str_e * inv_prism_center_dist_e(edge_index, bottom_level)
+
+        a(edge_index, bottom_level) = -a_v(edge_index,bottom_level) * inv_prism_thickness * inv_prisms_center_distance * dtime
+        c(edge_index, bottom_level) = 0.0_wp
+        b(edge_index, bottom_level) = 1.0_wp - a(edge_index, bottom_level)
+        d(edge_index, bottom_level) = velocity(edge_index, bottom_level)
+      END IF
+    END DO
+
+    DO level=2, max_bottom_level-1
+      DO edge_index = start_index, end_index
+        IF (level > dolic_e(edge_index) - 1) CYCLE
+
+        inv_str_e = 1._wp/stretch_e(edge_index, edge_block)
+
+        inv_prism_thickness = inv_str_e * inv_prism_thick_e(edge_index, level)
+        inv_prisms_center_distance = inv_str_e * inv_prism_center_dist_e(edge_index, level)
+        inv_prisms_center_distance_next = inv_str_e * inv_prism_center_dist_e(edge_index, level+1)
+
+        a(edge_index, level) = - a_v(edge_index,level) * inv_prism_thickness * inv_prisms_center_distance * dtime
+        c(edge_index, level) = - a_v(edge_index,level+1) * inv_prism_thickness * inv_prisms_center_distance_next * dtime
+        b(edge_index, level) = 1.0_wp - a(edge_index, level) - c(edge_index, level)
+        d(edge_index, level) = velocity(edge_index, level)
+      END DO
+    END DO
+
+    CALL solve_tridiag_block ( &
+        & a=a(start_index:end_index,:), &
+        & b=b(start_index:end_index,:), &
+        & c=c(start_index:end_index,:), &
+        & d=d(start_index:end_index,:), &
+        & x=velocity(start_index:end_index,:), &
+        & n=dolic_e(start_index:end_index), &
+        & eliminate_upper=eliminate_upper_diag &
+      )
+
+  END SUBROUTINE velocity_diffusion_vertical_implicit_zstar_vector
+  !-------------------------------------------------------------------------
+
+    !-------------------------------------------------------------------------
+  !!Subroutine implements implicit vertical diffusion for horizontal velocity fields
+  !!by inverting a scalar field..
+  !------------------------------------------------------------------------
+  SUBROUTINE velocity_diffusion_vertical_implicit_zstar_scalar( &
     & patch_3d,                            &
     & velocity,                            &
     & a_v, stretch_e,                      &
@@ -902,7 +1071,7 @@ CONTAINS
 
     END DO ! edge_index = start_index, end_index
 
-  END SUBROUTINE velocity_diffusion_vertical_implicit_zstar
+  END SUBROUTINE velocity_diffusion_vertical_implicit_zstar_scalar
   !-------------------------------------------------------------------------
 
 

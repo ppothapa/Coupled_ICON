@@ -119,10 +119,13 @@ MODULE mo_surface_height_lhs_zstar
 
         IF (PRESENT(use_acc)) THEN
           lacc = use_acc
-          CALL finish("lhs_surface_height_zstar()", "OpenACC version not implemented yet")
         ELSE
           lacc = .FALSE.
         END IF
+
+#ifdef _OPENACC
+        IF (lacc) CALL finish("lhs_surface_height_zstar()", "OpenACC version not implemented yet")
+#endif
 
         IF (this%use_shortcut) &
           & CALL finish("t_surface_height_lhs::lhs_surface_height_wp", &

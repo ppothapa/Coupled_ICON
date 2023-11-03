@@ -78,7 +78,7 @@ CONTAINS
 
     IF (forcing_windstress_u_type > 100 .OR. forcing_windstress_u_type == 0) THEN
 #ifdef _OPENACC
-      CALL finish(routine, 'OpenACC version not implemented')
+      IF (lacc) CALL finish(routine, 'OpenACC version not implemented')
 #endif
 
       ! analytic wind
@@ -243,18 +243,20 @@ CONTAINS
       !z_scale(:,:) = OceanReferenceDensity*patch_3D%p_patch_1D(1)%prism_thick_flat_sfc_c(:,1,:)
 !ICON_OMP_DO ICON_OMP_DEFAULT_SCHEDULE
       DO jb = all_cells%start_block, all_cells%end_block
-        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         z_scale(:,jb) = 1.0_wp / (OceanReferenceDensity*ocean_state%p_diag%thick_c(:,jb))
         !$ACC END KERNELS
-      ENDDO
+      END DO
+      !$ACC WAIT(1)
 !ICON_OMP_END_DO
     ELSEIF(iswm_oce /= 1)THEN
 !ICON_OMP_DO ICON_OMP_DEFAULT_SCHEDULE
       DO jb = all_cells%start_block, all_cells%end_block
-        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         z_scale(:,jb) = 1.0_wp / OceanReferenceDensity
         !$ACC END KERNELS
-      ENDDO
+      END DO
+      !$ACC WAIT(1)
 !ICON_OMP_END_DO
     ENDIF
 
@@ -267,26 +269,27 @@ CONTAINS
 
     SELECT CASE (i_bc_veloc_top)
 
-   CASE (0)
+    CASE (0)
 
    !  ! CALL message (TRIM(routine),'ZERO top velocity boundary conditions chosen')
 !ICON_OMP_DO PRIVATE(start_index, end_index, jc) ICON_OMP_DEFAULT_SCHEDULE
-     DO jb = all_cells%start_block, all_cells%end_block
+      DO jb = all_cells%start_block, all_cells%end_block
 
-       !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
        ocean_state%p_aux%bc_top_u(:,jb)          =0.0_wp
        ocean_state%p_aux%bc_top_v(:,jb)          =0.0_wp
        !$ACC END KERNELS
 
-       CALL get_index_range(all_cells, jb, start_index, end_index)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
-       DO jc = start_index, end_index
+        CALL get_index_range(all_cells, jb, start_index, end_index)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        DO jc = start_index, end_index
 !          ocean_state%p_aux%bc_top_u(jc,jb)          =0.0_wp
 !          ocean_state%p_aux%bc_top_v(jc,jb)          =0.0_wp
           ocean_state%p_aux%bc_top_veloc_cc(jc,jb)%x =0.0_wp
-       END DO
-       !$ACC END PARALLEL LOOP
-     END DO
+        END DO
+        !$ACC END PARALLEL LOOP
+      END DO
+      !$ACC WAIT(1)
 !ICON_OMP_END_DO
 
     CASE (1) ! Forced by wind stress stored in p_oce_sfc
@@ -295,7 +298,7 @@ CONTAINS
 !ICON_OMP_DO PRIVATE(start_index, end_index, jc, stress_coeff) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, start_index, end_index)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         DO jc = start_index, end_index
           IF (patch_3d%p_patch_1d(1)%dolic_c(jc, jb) > 0) THEN
             stress_coeff = z_scale(jc,jb)
@@ -306,6 +309,7 @@ CONTAINS
         END DO
         !$ACC END PARALLEL LOOP
       END DO
+      !$ACC WAIT(1)
 !ICON_OMP_END_DO
 
  !  CASE (2) ! Forced by difference between wind velocity stored in p_oce_sfc and ocean velocity at top layer
@@ -365,7 +369,7 @@ CONTAINS
 !ICON_OMP_DO PRIVATE(start_index, end_index, jc, stress_coeff) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, start_index, end_index)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         DO jc = start_index, end_index
           IF(patch_3D%lsm_c(jc,1,jb) <= sea_boundary)THEN
 
@@ -379,6 +383,7 @@ CONTAINS
        END DO
        !$ACC END PARALLEL LOOP
      END DO
+     !$ACC WAIT(1)
 !ICON_OMP_END_DO
 
     CASE default
@@ -434,15 +439,16 @@ CONTAINS
 
     CASE(0)
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       DO je = start_edge_index, end_edge_index
         bc_bot_vn(je) = 0.0_wp
       END DO
       !$ACC END PARALLEL LOOP
+      !$ACC WAIT(1)
 
     CASE(1)!Bottom friction
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       DO je = start_edge_index, end_edge_index
         bottom_level =  patch_3D%p_patch_1D(1)%dolic_e(je,blockNo)
         IF ( bottom_level > 0 ) THEN  ! wet points only
@@ -454,10 +460,11 @@ CONTAINS
         ENDIF
       END DO
       !$ACC END PARALLEL LOOP
+      !$ACC WAIT(1)
 
     CASE(2)
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       DO je = start_edge_index, end_edge_index
         bottom_level =  patch_3D%p_patch_1D(1)%dolic_e(je,blockNo)
         IF ( bottom_level > 0 ) THEN  ! wet points only	
@@ -469,6 +476,7 @@ CONTAINS
         END IF
       END DO
       !$ACC END PARALLEL LOOP
+      !$ACC WAIT(1)
 
     CASE(3) !Bottom friction and topographic slope
       CALL message (TRIM(routine), &

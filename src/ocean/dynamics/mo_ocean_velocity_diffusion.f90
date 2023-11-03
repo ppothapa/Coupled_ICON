@@ -98,7 +98,7 @@ CONTAINS
       !divgrad laplacian is chosen
       IF(laplacian_form==2)THEN
 #ifdef _OPENACC
-      CALL finish(method_name, 'OpenACC version currently for laplacian_form not implemented')
+        IF (lacc) CALL finish(method_name, 'OpenACC version currently for laplacian_form not implemented')
 #endif
         CALL finish(method_name, "form of harmonic Laplacian not recommended")
         CALL veloc_diff_harmonic_div_grad( patch_3D,      &
@@ -125,7 +125,7 @@ CONTAINS
       
     ELSEIF(VelocityDiffusion_order==2 .or. VelocityDiffusion_order==21)THEN
 #ifdef _OPENACC
-      CALL finish(method_name, 'OpenACC version currently for VelocityDiffusion_order/=1 not implemented')
+      IF (lacc) CALL finish(method_name, 'OpenACC version currently for VelocityDiffusion_order/=1 not implemented')
 #endif
       IF(laplacian_form==2)THEN
         !CALL finish("mo_ocean_velocity_diffusion:velocity_diffusion", "form of biharmonic Laplacian not recommended")
@@ -739,9 +739,10 @@ CONTAINS
     ! z_div_c(:,:,patch_2D%alloc_cell_blocks) = 0.0_wp
     
 #ifdef NAGFOR
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-    z_div_c = 0.0_wp
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    z_div_c(:,:,:) = 0.0_wp
     !$ACC END KERNELS
+    !$ACC WAIT(1)
 #endif
 
     ! vn is synced on all edges
@@ -756,11 +757,12 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index,end_index, edge_index, level, nabla2) ICON_OMP_DEFAULT_SCHEDULE
     DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
       CALL get_index_range(edges_in_domain, blockNo, start_index, end_index)
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       nabla2(:,:) = 0.0_wp
       !$ACC END KERNELS
+      !$ACC WAIT(1)
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       DO edge_index = start_index, end_index
         DO level = start_level, patch_3D%p_patch_1d(1)%dolic_e(edge_index,blockNo)
 
@@ -790,16 +792,19 @@ CONTAINS
         END DO
       END DO
       !$ACC END PARALLEL LOOP
+      !$ACC WAIT(1)
 
       IF (present(nabla2_vec_e)) THEN
-        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         nabla2_vec_e(:,:,blockNo) = nabla2(:,:)
         !$ACC END KERNELS
+        !$ACC WAIT(1)
       END IF
       IF (present(HarmonicDiffusion)) THEN
-        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         HarmonicDiffusion(:,:,blockNo) = nabla2(:,:) * k_h(:,:,blockNo)
         !$ACC END KERNELS
+        !$ACC WAIT(1)
       END IF
     END DO
 !ICON_OMP_END_PARALLEL_DO
@@ -1078,13 +1083,14 @@ CONTAINS
 
     !-----------------------------------------------------------------------
 !     dt_inv = 1.0_wp/dtime
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     DO edge_index = start_index, end_index
       bottom_level(edge_index) = patch_3d%p_patch_1d(1)%dolic_e(edge_index,edge_block)
     ENDDO
     !$ACC END PARALLEL LOOP
+    !$ACC WAIT(1)
     ! Note : the inv_prism_thick_e, inv_prism_center_dist_e should be updated in calculate_thickness
-    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     DO level=1, max_end_level
       DO edge_index = start_index, end_index
         IF (bottom_level(edge_index) < 2 .OR. level > bottom_level(edge_index)) CYCLE ! nothing to diffuse
@@ -1097,18 +1103,20 @@ CONTAINS
       END DO ! edge_index = start_index, end_index
     END DO
     !$ACC END PARALLEL LOOP
+    !$ACC WAIT(1)
 
     !------------------------------------
     ! Fill triangular matrix
     ! b is diagonal, a is the upper diagonal, c is the lower
     !   top level
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     DO edge_index = start_index, end_index
       a(edge_index,1) = 0.0_wp
     END DO
     !$ACC END PARALLEL LOOP
+    !$ACC WAIT(1)
     
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     DO edge_index = start_index, end_index
       IF (bottom_level(edge_index) < 2) CYCLE ! nothing to diffuse
             
@@ -1117,11 +1125,12 @@ CONTAINS
       b(edge_index,1) = 1.0_wp - c(edge_index,1)
     END DO
     !$ACC END PARALLEL LOOP
+    !$ACC WAIT(1)
     
 !     c(start_index:end_index,1) = -a_v(start_index:end_index,2) * & 
 !       & inv_prism_thickness(start_index:end_index,1) * inv_prisms_center_distance(start_index:end_index,2)*dtime
 !     b(start_index:end_index,1) = 1.0_wp - c(start_index:end_index,1)
-    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     DO level = 2, max_end_level-1
       DO edge_index = start_index, end_index
 !         bottom_level = patch_3d%p_patch_1d(1)%dolic_e(edge_index,edge_block)
@@ -1132,8 +1141,9 @@ CONTAINS
       END DO ! edge_index = start_index, end_index
     END DO
     !$ACC END PARALLEL LOOP
+    !$ACC WAIT(1)
       ! bottom
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     DO edge_index = start_index, end_index
 !       bottom_level = patch_3d%p_patch_1d(1)%dolic_e(edge_index,edge_block)
       IF (bottom_level(edge_index) < 2) CYCLE
@@ -1144,10 +1154,11 @@ CONTAINS
       c(edge_index,bottom_level(edge_index)) = 0.0_wp
     END DO
     !$ACC END PARALLEL LOOP
+    !$ACC WAIT(1)
 
     IF (eliminate_upper_diag) THEN
         ! solve the tridiagonal matrix by eliminating c (the upper diagonal) 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP SEQ
       DO level = max_end_level-1, 1, -1
         !$ACC LOOP GANG VECTOR
@@ -1161,15 +1172,17 @@ CONTAINS
         END DO ! edge_index = start_index, end_index
       END DO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       DO edge_index = start_index, end_index
         IF (bottom_level(edge_index) < 2) CYCLE ! nothing to diffuse
         velocity(edge_index,1) = column_velocity(edge_index,1)/b(edge_index,1)
       END DO
       !$ACC END PARALLEL LOOP
+      !$ACC WAIT(1)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP SEQ
       DO level = 2, max_end_level
         !$ACC LOOP GANG VECTOR
@@ -1181,10 +1194,11 @@ CONTAINS
         END DO ! edge_index = start_index, end_index
       END DO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
 
     ELSE
       ! solve the tridiagonal matrix by eliminating a (the lower diagonal)
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP SEQ
       DO level=2, max_end_level
         !$ACC LOOP GANG VECTOR
@@ -1198,16 +1212,18 @@ CONTAINS
         END DO ! edge_index = start_index, end_index
       END DO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
       
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       DO edge_index = start_index, end_index
         IF (bottom_level(edge_index) < 2) CYCLE ! nothing to diffuse
         velocity(edge_index,bottom_level(edge_index)) = column_velocity(edge_index,bottom_level(edge_index))/ &
           & b(edge_index,bottom_level(edge_index))
       END DO
       !$ACC END PARALLEL LOOP
+      !$ACC WAIT(1)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP SEQ
       DO level=max_end_level-1,1,-1
         !$ACC LOOP GANG VECTOR
@@ -1220,6 +1236,7 @@ CONTAINS
         END DO ! edge_index = start_index, end_index
       END DO
       !$ACC END PARALLEL
+      !$ACC WAIT(1)
       
     ENDIF
 
@@ -1262,7 +1279,7 @@ CONTAINS
 !     dt_inv = 1.0_wp/dtime
 
     !$ACC PARALLEL LOOP GANG VECTOR PRIVATE(inv_prism_thickness, inv_prisms_center_distance) &
-    !$ACC   PRIVATE(a, b, c, column_velocity, fact) DEFAULT(PRESENT) IF(lacc)
+    !$ACC   PRIVATE(a, b, c, column_velocity, fact) DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     DO edge_index = start_index, end_index
       bottom_level = patch_3d%p_patch_1d(1)%dolic_e(edge_index,edge_block)
 
@@ -1327,6 +1344,7 @@ CONTAINS
 
     END DO ! edge_index = start_index, end_index
     !$ACC END PARALLEL LOOP
+    !$ACC WAIT(1)
 
   END SUBROUTINE velocity_diffusion_vertical_implicit_onBlock
 #endif

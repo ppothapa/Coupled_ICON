@@ -66,10 +66,13 @@ CONTAINS
 
     IF (PRESENT(use_acc)) THEN
       lacc = use_acc
-      CALL finish("lhs_primal_flip_flop_wp()", "OpenACC version not implemented yet")
     ELSE
       lacc = .FALSE.
     END IF
+
+#ifdef _OPENACC
+    IF (lacc) CALL finish("lhs_primal_flip_flop_wp()", "OpenACC version not implemented yet")
+#endif
 
     IF(.NOT.this%is_init .OR. this%jk .EQ. solve_invalid) &
       CALL finish("lhs_primal_flip_flop_wp()", "not correctly initialized")

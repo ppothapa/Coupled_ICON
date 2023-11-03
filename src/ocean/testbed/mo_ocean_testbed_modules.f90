@@ -647,7 +647,7 @@ CONTAINS
       END DO
     END DO
 
-    CALL transfer_ocean_state(patch_3d, operators_coefficients, .TRUE.)
+    CALL transfer_ocean_state(patch_3d, operators_coefficients)
     !------------------------------------------------------------------
     DO jstep = (jstep0+1), (jstep0+nsteps)
       

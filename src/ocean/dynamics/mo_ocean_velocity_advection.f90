@@ -111,7 +111,7 @@ CONTAINS
       ELSEIF(NonlinearCoriolis_type==nonlinear_coriolis_primal_grid)THEN
 
 #ifdef _OPENACC
-      CALL finish(routine, 'OpenACC version currently for nonlinear_coriolis_primal_grid not implemented')
+        IF (lacc) CALL finish(routine, 'OpenACC version currently for nonlinear_coriolis_primal_grid not implemented')
 #endif
 
         CALL veloc_adv_horz_mimetic_classicCgrid( patch_3D, &
@@ -123,7 +123,7 @@ CONTAINS
       ELSEIF(NonlinearCoriolis_type==no_coriolis)THEN
 
 #ifdef _OPENACC
-      CALL finish(routine, 'OpenACC version currently for no_coriolis not implemented')
+        IF (lacc) CALL finish(routine, 'OpenACC version currently for no_coriolis not implemented')
 #endif
 
         CALL calculate_only_kineticGrad( patch_3D, &
@@ -137,7 +137,7 @@ CONTAINS
     ELSEIF (velocity_advection_form == divergence_form) THEN
 
 #ifdef _OPENACC
-      CALL finish(routine, 'OpenACC version currently for divergence_form not implemented')
+      IF (lacc) CALL finish(routine, 'OpenACC version currently for divergence_form not implemented')
 #endif
 
       ! notInUse
@@ -185,7 +185,7 @@ CONTAINS
     CASE(VerticalAdvection_DivergenceForm)
 
 #ifdef _OPENACC
-      CALL finish(routine, 'OpenACC version currently for VerticalAdvection_DivergenceForm not implemented')
+      IF (lacc) CALL finish(routine, 'OpenACC version currently for VerticalAdvection_DivergenceForm not implemented')
 #endif
 
       CALL veloc_adv_vert_mimetic_div( patch_3D, p_diag,ocean_coefficients, veloc_adv_vert_e)
@@ -193,15 +193,16 @@ CONTAINS
     CASE(VerticalAdvection_RotationalForm)
 
 #ifdef _OPENACC
-      CALL finish(routine, 'OpenACC version currently for VerticalAdvection_RotationalForm not implemented')
+      IF (lacc) CALL finish(routine, 'OpenACC version currently for VerticalAdvection_RotationalForm not implemented')
 #endif
 
       CALL veloc_adv_vert_rot( patch_3D, p_diag,ocean_coefficients, veloc_adv_vert_e)
 
     CASE(VerticalAdvection_None)
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       veloc_adv_vert_e(:,:,:) = 0.0_wp
       !$ACC END KERNELS
+      !$ACC WAIT(1)
 
     CASE default
       CALL finish("veloc_adv_vert_mimetic","unknown HorizonatlVelocity_VerticalAdvection_form")
@@ -905,11 +906,12 @@ ENDDO
 
     !$ACC DATA CREATE(z_adv_u_i, z_adv_u_m) IF(lacc)
 
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
     z_adv_u_m(1:nproma,1:n_zlev,1:patch_2D%alloc_cell_blocks)%x(1) = 0.0_wp
     z_adv_u_m(1:nproma,1:n_zlev,1:patch_2D%alloc_cell_blocks)%x(2) = 0.0_wp
     z_adv_u_m(1:nproma,1:n_zlev,1:patch_2D%alloc_cell_blocks)%x(3) = 0.0_wp
     !$ACC END KERNELS
+    !$ACC WAIT(1)
 
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index,end_index,jc, jk, fin_level,inv_prism_center_distance, &
 !ICON_OMP z_adv_u_i) ICON_OMP_DEFAULT_SCHEDULE
@@ -925,7 +927,7 @@ ENDDO
                                               & blockNo, start_index, end_index, use_acc=lacc)
 
       !Step 1: multiply vertical velocity with vertical derivative of horizontal velocity
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       DO jc = start_index, end_index
         fin_level = patch_3D%p_patch_1D(1)%dolic_c(jc,blockNo)
 
@@ -952,6 +954,7 @@ ENDDO
         ENDIF
       END DO
       !$ACC END PARALLEL LOOP
+      !$ACC WAIT(1)
 
       ! Step 2: Map product of vertical velocity & vertical derivative from top of prism to mid position.
       CALL map_vec_prismtop2center_on_block(patch_3d, z_adv_u_i, z_adv_u_m(:,:,blockNo), &

@@ -16,7 +16,7 @@
 #include "omp_definitions.inc"
 !----------------------------
 MODULE mo_ice_parameterizations
-  
+
   USE mo_kind,                ONLY: wp
   USE mo_run_config,          ONLY: dtime
   USE mo_dynamics_config,     ONLY: nold
@@ -160,8 +160,8 @@ CONTAINS
   !
   ! Calculates the heat flux from the uppermost water layer into the ice.
   !
-  ! Currently (as in growth.f90): all energy available in upper ocean grid cell 
-  ! is supplied to the ice and the upper ocean temperature is held at the 
+  ! Currently (as in growth.f90): all energy available in upper ocean grid cell
+  ! is supplied to the ice and the upper ocean temperature is held at the
   ! freezing point. This is not very physical.
   !
   ! Positive flux upwards.
@@ -186,7 +186,7 @@ SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice, use_acc)
     ELSE
       lacc = .FALSE.
     END IF
-    
+
     all_cells   => p_patch%cells%all
     sst         => p_os%p_prog(nold(1))%tracer(:,1,:,1)
     u_diag      => p_os%p_diag%u(:,1,:)
@@ -269,7 +269,7 @@ SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice, use_acc)
         !$ACC END PARALLEL LOOP
       END DO
 !ICON_OMP_END_PARALLEL_DO
-    
+
     CASE DEFAULT
       CALL finish(TRIM(routine), 'Invalid i_Qio_type')
 
@@ -281,8 +281,8 @@ SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice, use_acc)
     CALL dbg_print('O-I-HeatFlx: concSum   ' ,ice%concSum   , str_module, 4, in_subset=p_patch%cells%owned)
     !---------------------------------------------------------------------
 
-  END SUBROUTINE oce_ice_heatflx 
-  
+  END SUBROUTINE oce_ice_heatflx
+
 
   !-------------------------------------------------------------------------------
   !>
@@ -373,7 +373,9 @@ SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice, use_acc)
     TYPE(t_sea_ice),        INTENT(INOUT) :: p_ice
     LOGICAL, INTENT(IN), OPTIONAL         :: use_acc
 
-    INTEGER :: i, j, size1, size2
+    ! Local
+    TYPE(t_subset_range), POINTER :: all_cells
+    INTEGER :: jb, jc, i_startidx_c, i_endidx_c
     LOGICAL :: lacc
 
     IF (PRESENT(use_acc)) THEN
@@ -382,48 +384,54 @@ SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice, use_acc)
       lacc = .FALSE.
     END IF
 
-!ICON_OMP_PARALLEL
+    all_cells            => p_patch%cells%all
 
-!ICON_OMP_WORKSHARE
-      ! Fix overshoots in concentration that can appear due to ice convergence in areas with conc ~ 1
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-      WHERE ( p_ice%conc(:,1,:) > 1._wp )
-        p_ice%conc(:,1,:) = 1._wp
-        ! New ice and snow thickness
-        p_ice%hi   (:,1,:) = p_ice%vol (:,1,:)/( p_ice%conc(:,1,:)*p_patch%cells%area(:,:) )
-        p_ice%hs   (:,1,:) = p_ice%vols(:,1,:)/( p_ice%conc(:,1,:)*p_patch%cells%area(:,:) )
-      ENDWHERE
-      !$ACC END KERNELS
-!ICON_OMP_END_WORKSHARE
+    ! Fix overshoots in concentration that can appear due to ice convergence in areas with conc ~ 1
+!ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, i_startidx_c, i_endidx_c)
+    DO jb = all_cells%start_block, all_cells%end_block
+      CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      DO jc = i_startidx_c,i_endidx_c
+        IF (( p_ice%conc(jc,1,jb) > 1._wp )) THEN
+          p_ice%conc  (jc,1,jb) = 1._wp
+          ! New ice and snow thickness
+          p_ice%hi   (jc,1,jb) = p_ice%vol (jc,1,jb)/( p_ice%conc(jc,1,jb)*p_patch%cells%area(jc,jb) )
+          p_ice%hs   (jc,1,jb) = p_ice%vols(jc,1,jb)/( p_ice%conc(jc,1,jb)*p_patch%cells%area(jc,jb) )
+        END IF
+      END DO
+      !$ACC END PARALLEL LOOP
+    END DO
+!ICON_OMP_END_PARALLEL_DO
 
-      ! Fix undershoots - ONLY for the one-ice-class case
-      ! Quick fix, should be reformulated to occur at the advection stage
-!ICON_OMP_WORKSHARE
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-      WHERE ( ( p_ice%conc(:,1,:) < TINY(1._wp) ) .OR. ( p_ice%hi(:,1,:) < TINY(1._wp) ) )
-        p_ice%conc  (:,1,:) = 0._wp
-        p_ice%hi    (:,1,:) = 0._wp
-        p_ice%hs    (:,1,:) = 0._wp
-        p_ice%vol   (:,1,:) = 0._wp
-        p_ice%vols  (:,1,:) = 0._wp
-      ENDWHERE
-      !$ACC END KERNELS
+    ! Fix undershoots - ONLY for the one-ice-class case
+    ! Quick fix, should be reformulated to occur at the advection stage
+!ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, i_startidx_c, i_endidx_c)
+    DO jb = all_cells%start_block, all_cells%end_block
+      CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      DO jc = i_startidx_c,i_endidx_c
+        IF (( p_ice%conc(jc,1,jb) < TINY(1._wp) ) .OR. ( p_ice%hi(jc,1,jb) < TINY(1._wp) )) THEN
+          p_ice%conc  (jc,1,jb) = 0._wp
+          p_ice%hi    (jc,1,jb) = 0._wp
+          p_ice%hs    (jc,1,jb) = 0._wp
+          p_ice%vol   (jc,1,jb) = 0._wp
+          p_ice%vols  (jc,1,jb) = 0._wp
+        END IF
+      END DO
+      !$ACC END PARALLEL LOOP
+    END DO
+!ICON_OMP_END_PARALLEL_DO
 
-!fixme !ICON_OMP_END_WORKSHARE
-!fixme      
-!fixme      ! fix possible undershoots in snow depth 
-!fixme      ! quick fix preliminary, what should we do with negative snow?
-!fixme !ICON_OMP_WORKSHARE
-!fixme       WHERE ( p_ice%hs(:,1,:) < 0._wp )
-!fixme         p_ice%hs   (:,1,:) = 0._wp
-!fixme      ENDWHERE
-!ICON_OMP_END_WORKSHARE
-
-!ICON_OMP_END_PARALLEL
-
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-      p_ice%concSum(:,:) = SUM(p_ice%conc, 2)
-      !$ACC END KERNELS
+!ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, i_startidx_c, i_endidx_c)
+    DO jb = all_cells%start_block, all_cells%end_block
+      CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      DO jc = i_startidx_c,i_endidx_c
+        p_ice%concSum(jc,jb) = SUM(p_ice%conc(jc,:,jb))
+      END DO
+      !$ACC END PARALLEL LOOP
+    END DO
+!ICON_OMP_END_PARALLEL_DO
 
   END SUBROUTINE ice_cut_off
 

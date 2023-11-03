@@ -121,17 +121,23 @@ CONTAINS
     ! TODO ram - remove all instances of p_patch%cells%area(:,:) and test
     ! See also dynamics_fem/mo_ice_fem_interface.f90
     DO k=1,ice%kice
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-      ice%vol (:,k,:) = ice%hi(:,k,:)*ice%conc(:,k,:)*p_patch%cells%area(:,:)
-      ice%vols(:,k,:) = ice%hs(:,k,:)*ice%conc(:,k,:)*p_patch%cells%area(:,:)
-      !$ACC END KERNELS
-    ENDDO
+!ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc, jb) ICON_OMP_DEFAULT_SCHEDULE
+      DO jb = all_cells%start_block, all_cells%end_block
+        CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        DO jc = i_startidx_c,i_endidx_c
+          ice%vol (jc,k,jb) = ice%hi(jc,k,jb)*ice%conc(jc,k,jb)*p_patch%cells%area(jc,jb)
+          ice%vols(jc,k,jb) = ice%hs(jc,k,jb)*ice%conc(jc,k,jb)*p_patch%cells%area(jc,jb)
+        END DO
+        !$ACC END PARALLEL LOOP
+      END DO
+!ICON_OMP_END_PARALLEL_DO
+    END DO
 
     CALL dbg_print('IceConcCh: vol  at beg' ,ice%vol , str_module, 4, in_subset=p_patch%cells%owned)
     CALL dbg_print('IceConcCh: vols at beg' ,ice%vols, str_module, 4, in_subset=p_patch%cells%owned)
 
-!ICON_OMP_PARALLEL
-!ICON_OMP_DO PRIVATE(i_startidx_c, i_endidx_c, jc) ICON_OMP_DEFAULT_SCHEDULE 
+!ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc) ICON_OMP_DEFAULT_SCHEDULE
     ! Concentration change due to new ice formation
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
@@ -143,7 +149,7 @@ CONTAINS
           !                   newice must not be multiplied by 1-conc
           ice%vol  (jc,1,jb) = ice%vol(jc,1,jb) + ice%newice(jc,jb)*p_patch%cells%area(jc,jb)
 
-          ! Hibler's way to change the concentration 
+          ! Hibler's way to change the concentration
           !  - the formulation here uses the default values of leadclose parameters 2 and 3 in MPIOM:
           !    1 and 0 respectively, which recovers the Hibler model: conc=conc+newice/hnull
           ! Fixed 2. April (2014) - we don't need to multiply with 1-A here, like Hibler does, because it's
@@ -165,7 +171,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL LOOP
     END DO
-!ICON_OMP_END_DO
+!ICON_OMP_END_PARALLEL_DO
 
 #ifndef _OPENMP
     CALL dbg_print('IceConcCh: conc leadcl' ,ice%conc, str_module, 4, in_subset=p_patch%cells%owned)
@@ -173,22 +179,27 @@ CONTAINS
     CALL dbg_print('IceConcCh: hs   leadcl' ,ice%hs  , str_module, 4, in_subset=p_patch%cells%owned)
 #endif
 
-!ICON_OMP_WORKSHARE
     ! This is where concentration, and thickness change due to ice melt (we must conserve volume)
     ! A.k.a. lateral melt
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-    WHERE ( ice%hiold(:,1,:) > ice%hi(:,1,:) .AND. ice%hi(:,1,:) > 0._wp )
-      ! Hibler's way to change the concentration due to lateral melting (leadclose parameter 1)
-      ice%conc(:,1,:) = MAX( 0._wp, ice%conc(:,1,:) &
-        &        - ( ice%hiold(:,1,:)-ice%hi(:,1,:) )*ice%conc(:,1,:)*leadclose_1/ice%hiold(:,1,:) )
+!ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc, jb) ICON_OMP_DEFAULT_SCHEDULE
+    DO jb = all_cells%start_block, all_cells%end_block
+      CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      DO jc = i_startidx_c,i_endidx_c
+        IF (ice%hiold(jc,1,jb) > ice%hi(jc,1,jb) .AND. ice%hi(jc,1,jb) > 0._wp) THEN
+          ! Hibler's way to change the concentration due to lateral melting (leadclose parameter 1)
+          ice%conc(jc,1,jb) = MAX( 0._wp, ice%conc(jc,1,jb) &
+          &        - ( ice%hiold(jc,1,jb)-ice%hi(jc,1,jb) )*ice%conc(jc,1,jb)*leadclose_1/ice%hiold(jc,1,jb) )
 
-      ! New ice and snow thickness
-      ice%hi  (:,1,:) = ice%vol (:,1,:)/( ice%conc(:,1,:)*p_patch%cells%area(:,:) )
-      ice%hs  (:,1,:) = ice%vols(:,1,:)/( ice%conc(:,1,:)*p_patch%cells%area(:,:) )
-      !TODO: Re-calculate temperatures to conserve energy when we change the ice thickness
-    ENDWHERE
-    !$ACC END KERNELS
-!ICON_OMP_END_WORKSHARE
+          ! New ice and snow thickness
+          ice%hi  (jc,1,jb) = ice%vol (jc,1,jb)/( ice%conc(jc,1,jb)*p_patch%cells%area(jc,jb) )
+          ice%hs  (jc,1,jb) = ice%vols(jc,1,jb)/( ice%conc(jc,1,jb)*p_patch%cells%area(jc,jb) )
+          !TODO: Re-calculate temperatures to conserve energy when we change the ice thickness
+        END IF
+      END DO
+      !$ACC END PARALLEL LOOP
+    END DO
+!ICON_OMP_END_PARALLEL_DO
 
 #ifndef _OPENMP
     CALL dbg_print('IceConcCh: conc latMlt' ,ice%conc, str_module, 4, in_subset=p_patch%cells%owned)
@@ -198,36 +209,52 @@ CONTAINS
 
     ! Ice cannot grow thinner than hmin
     ! Changed 27. March
-!ICON_OMP_WORKSHARE
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-    WHERE ( ice%hi(:,1,:) < hmin .AND. ice%hi(:,1,:) > 0._wp )
-      ice%hi  (:,1,:) = hmin
-      ice%conc(:,1,:) = ice%vol(:,1,:) / ( ice%hi(:,1,:)*p_patch%cells%area(:,:) )
-      ice%hs  (:,1,:) = ice%vols(:,1,:)/( ice%conc(:,1,:)*p_patch%cells%area(:,:) )
-    ENDWHERE
-    !$ACC END KERNELS
-!ICON_OMP_END_WORKSHARE
+!ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc, jb) ICON_OMP_DEFAULT_SCHEDULE
+    DO jb = all_cells%start_block, all_cells%end_block
+      CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      DO jc = i_startidx_c,i_endidx_c
+        IF (ice%hi(jc,1,jb) < hmin .AND. ice%hi(jc,1,jb) > 0._wp) THEN
+          ice%hi  (jc,1,jb) = hmin
+          ice%conc(jc,1,jb) = ice%vol(jc,1,jb) / ( ice%hi(jc,1,jb)*p_patch%cells%area(jc,jb) )
+          ice%hs  (jc,1,jb) = ice%vols(jc,1,jb)/( ice%conc(jc,1,jb)*p_patch%cells%area(jc,jb) )
+        END IF
+      END DO
+      !$ACC END PARALLEL LOOP
+    END DO
+!ICON_OMP_END_PARALLEL_DO
 
-!ICON_OMP_WORKSHARE
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-    WHERE (ice%hi(:,1,:) <= 0._wp)
-      ice%Tsurf(:,1,:) = Tfw(:,:)
-      ice%T1   (:,1,:) = Tfw(:,:)
-      ice%T2   (:,1,:) = Tfw(:,:)
-      ice%conc (:,1,:) = 0.0_wp
-      ice%hi   (:,1,:) = 0.0_wp
-      ice%hs   (:,1,:) = 0.0_wp
-      ice%E1   (:,1,:) = 0.0_wp
-      ice%E2   (:,1,:) = 0.0_wp
-      ice%vol  (:,1,:) = 0.0_wp
-    ENDWHERE
-    !$ACC END KERNELS
-!ICON_OMP_END_WORKSHARE
-!ICON_OMP_END_PARALLEL
+!ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc, jb) ICON_OMP_DEFAULT_SCHEDULE
+    DO jb = all_cells%start_block, all_cells%end_block
+      CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      DO jc = i_startidx_c,i_endidx_c
+        IF (ice%hi(jc,1,jb) <= 0._wp) THEN
+          ice%Tsurf(jc,1,jb) = Tfw(jc,jb)
+          ice%T1   (jc,1,jb) = Tfw(jc,jb)
+          ice%T2   (jc,1,jb) = Tfw(jc,jb)
+          ice%conc (jc,1,jb) = 0.0_wp
+          ice%hi   (jc,1,jb) = 0.0_wp
+          ice%hs   (jc,1,jb) = 0.0_wp
+          ice%E1   (jc,1,jb) = 0.0_wp
+          ice%E2   (jc,1,jb) = 0.0_wp
+          ice%vol  (jc,1,jb) = 0.0_wp
+        END IF
+      END DO
+      !$ACC END PARALLEL LOOP
+    END DO
+!ICON_OMP_END_PARALLEL_DO
 
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-    ice%concSum(:,:)  = SUM(ice%conc(:,:,:), 2)
-    !$ACC END KERNELS
+!ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc, jb) ICON_OMP_DEFAULT_SCHEDULE
+    DO jb = all_cells%start_block, all_cells%end_block
+      CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      DO jc = i_startidx_c,i_endidx_c
+        ice%concSum(jc,jb) = SUM(ice%conc(jc,:,jb))
+      END DO
+      !$ACC END PARALLEL LOOP
+    END DO
+!ICON_OMP_END_PARALLEL_DO
 
     CALL dbg_print('IceConcCh: IceConc end' ,ice%conc, str_module, 3, in_subset=p_patch%cells%owned)
     CALL dbg_print('IceConcCh: hi   at end' ,ice%hi  , str_module, 4, in_subset=p_patch%cells%owned)

@@ -81,16 +81,7 @@ CONTAINS
 
     !-------------------------------------------------------------------------------------------
     all_cells            => p_patch%cells%all
-    ! initialization
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-    Q_surplus   (:,:,:)    = 0.0_wp
-    !$ACC END KERNELS
-    ! Save ice and snow thickness before thermodynamic effects
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-    hiold (:,:,:) = ice%hi(:,:,:)
-    hsold (:,:,:) = ice%hs(:,:,:)
-    !$ACC END KERNELS
-!    ice%heatOceI(:,:,:) = 0.0_wp ! initialized in ice_zero
+
 
     !---------DEBUG DIAGNOSTICS-----------------------------------------------------------------
     CALL dbg_print('GrowZero bef.: Qtop'     , ice%Qtop     , str_module, 4, in_subset=p_patch%cells%owned)
@@ -106,6 +97,12 @@ CONTAINS
       !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
       DO k=1,ice%kice
         DO jc = i_startidx_c,i_endidx_c
+        ! initialization
+          Q_surplus   (jc, k, jb)    = 0.0_wp
+          ! Save ice and snow thickness before thermodynamic effects
+          hiold (jc, k, jb) = ice%hi(jc, k, jb)
+          hsold (jc, k, jb) = ice%hs(jc, k, jb)
+    !      ice%heatOceI(:,:,:) = 0.0_wp ! initialized in ice_zero
           IF (ice%hi(jc,k,jb) > 0._wp) THEN
             !     ------------------------------------------------
             ! (1) --------------- Update hi and hs ---------------
@@ -314,7 +311,7 @@ CONTAINS
           IF (Tsurf(jc,k) + deltaT > 0.0_wp)  deltaT = -Tsurf(jc,k)
           ! now assign new Tsurf
           Tsurf(jc,k) = Tsurf(jc,k) + deltaT
-            
+
           ! Heat flux available for surface melting Qtop = -(F_A - F_S) evaluated at the new Tsurf.
           ! 1) if new Tsurf < 0, then surface fluxes are balanced, and Qtop == 0.
           ! 2) if new Tsurf = 0, then Qtop > 0 (goes into surface melting in ice_growth_zerolayer).

@@ -239,10 +239,6 @@ CONTAINS
     CHARACTER(len=*), PARAMETER :: routine = modname//':limiter_ocean_zalesak_horizontal_general'
     !-------------------------------------------------------------------------
 
-#ifdef _OPENACC
-    CALL finish(routine, 'OpenACC version currently not tested/validated')
-#endif
-
     patch_2d        => patch_3d%p_patch_2d(1)
     edges_in_domain => patch_2d%edges%in_domain
     cells_in_domain => patch_2d%cells%in_domain
@@ -275,6 +271,10 @@ CONTAINS
     ELSE
       lacc = .FALSE.
     END IF
+
+#ifdef _OPENACC
+    IF (lacc) CALL finish(routine, 'OpenACC version currently not tested/validated')
+#endif
 
     !$ACC DATA PRESENT(patch_3d%p_patch_2d(1)%nblks_e, patch_3d%p_patch_2d(1)%alloc_cell_blocks) &
     !$ACC   PRESENT(patch_3d%p_patch_2d(1)%cells%max_connectivity) IF(lacc)
@@ -313,6 +313,7 @@ CONTAINS
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       z_anti(:,:,blockNo)     = 0.0_wp
       !$ACC END KERNELS
+      !$ACC WAIT(1)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR
@@ -346,7 +347,6 @@ CONTAINS
       z_tracer_max(:,:,blockNo)        = 0.0_wp
       z_tracer_min(:,:,blockNo)        = 0.0_wp
       !$ACC END KERNELS
-      !$ACC WAIT(1)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR
@@ -418,7 +418,6 @@ CONTAINS
         ENDDO
       ENDDO
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
       
       ! precalculate local maximum/minimum of current tracer value and low order
       ! updated value
@@ -430,11 +429,11 @@ CONTAINS
         & MIN(          tracer(:,:,blockNo), &
         &     z_tracer_new_low(:,:,blockNo))
       !$ACC END KERNELS
-      !$ACC WAIT(1)
 
 !      write(0,*) blockNo, ":", z_tracer_max(start_index:end_index,start_level:end_level,blockNo)
 !      write(0,*) blockNo, ":", z_tracer_min(start_index:end_index,start_level:end_level,blockNo)
     ENDDO
+    !$ACC WAIT(1)
     !$ACC END DATA
 !ICON_OMP_END_DO
 
@@ -525,8 +524,8 @@ CONTAINS
         ENDDO
       ENDDO
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
     ENDDO
+    !$ACC WAIT(1)
     !$ACC END DATA
 !ICON_OMP_END_DO
 
@@ -557,7 +556,6 @@ CONTAINS
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       flx_tracer_final(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
-      !$ACC WAIT(1)
       
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR
@@ -593,8 +591,8 @@ CONTAINS
         END DO
       END DO
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
     ENDDO
+    !$ACC WAIT(1)
     !$ACC END DATA
 !ICON_OMP_END_DO NOWAIT
 !ICON_OMP_END_PARALLEL
@@ -745,8 +743,8 @@ CONTAINS
         END DO  ! end loop over edges
       END DO  ! end loop over levels
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
     END DO  ! end loop over blocks
+    !$ACC WAIT(1)
 !ICON_OMP_END_DO
 
     
@@ -866,7 +864,6 @@ CONTAINS
         ENDDO
       ENDDO
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
       
       ! precalculate local maximum/minimum of current tracer value and low order
       ! updated value
@@ -880,6 +877,7 @@ CONTAINS
 !      write(0,*) blockNo, ":", z_tracer_max(start_index:end_index,start_level:end_level,blockNo)
 !      write(0,*) blockNo, ":", z_tracer_min(start_index:end_index,start_level:end_level,blockNo)
     ENDDO
+    !$ACC WAIT(1)
 !ICON_OMP_END_DO
 !ICON_OMP_END_PARALLEL
 
@@ -1012,8 +1010,8 @@ CONTAINS
         ENDDO
       ENDDO
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
     ENDDO
+    !$ACC WAIT(1)
 !ICON_OMP_END_DO
 !ICON_OMP_END_PARALLEL
 
@@ -1041,7 +1039,6 @@ CONTAINS
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       flx_tracer_final(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
-      !$ACC WAIT(1)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       !$ACC LOOP GANG VECTOR
@@ -1077,8 +1074,8 @@ CONTAINS
         END DO
       END DO
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
     ENDDO
+    !$ACC WAIT(1)
 !ICON_OMP_END_DO_PARALLEL
 ! !ICON_OMP_END_PARALLEL
 
@@ -1191,6 +1188,7 @@ CONTAINS
    r_m(:,:,:)          = 0.0_wp
    r_p(:,:,:)          = 0.0_wp
    !$ACC END KERNELS
+   !$ACC WAIT(1)
 #endif
  
   IF (p_test_run) THEN
@@ -1278,8 +1276,8 @@ CONTAINS
           &     z_tracer_new_low(jc,level,blockNo))
       ENDDO      
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
     ENDDO
+    !$ACC WAIT(1)
 !ICON_OMP_END_DO
          
     !Fluid interior       
@@ -1350,7 +1348,6 @@ CONTAINS
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       inv_prism_thick_new(:,:) = patch_3D%p_patch_1d(1)%inv_prism_thick_c(:,:,blockNo)
       !$ACC END KERNELS
-      !$ACC WAIT(1)
 
       !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       DO jc = start_index, end_index

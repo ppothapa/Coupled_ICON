@@ -352,6 +352,8 @@ CONTAINS
     INTEGER ::  iout, icheck_str_mod, jstr, i, jk, nlev, ndimblk
     REAL(wp)          :: minmaxmean(3)
 
+    IF ((idbg_val < inDetail_level) .AND. (idbg_mxmn < inDetail_level)) RETURN
+
     start_detail_timer(timer_dbg_prnt,10)    
     
 
@@ -523,6 +525,8 @@ CONTAINS
     CHARACTER(LEN=12) ::  strmod
     INTEGER ::  iout, icheck_str_mod, jstr, i, jk, ndimblk
     REAL(wp)          ::  minmaxmean(3)
+
+    IF ((idbg_val < inDetail_level) .AND. (idbg_mxmn < inDetail_level)) RETURN
     
     start_detail_timer(timer_dbg_prnt,10)
     
