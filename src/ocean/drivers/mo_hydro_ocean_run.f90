@@ -29,7 +29,7 @@ MODULE mo_hydro_ocean_run
   USE mo_memory_log,             ONLY: memory_log_add
   USE mo_ocean_nml,              ONLY: iswm_oce, n_zlev, no_tracer, &
     &  i_sea_ice, cfl_check, cfl_threshold, cfl_stop_on_violation,   &
-    &  cfl_write, surface_module, run_mode, RUN_FORWARD, RUN_ADJOINT, &
+    &  cfl_write, surface_module, &
     &  lswr_jerlov, lsediment_only, &
     &  Cartesian_Mixing, GMRedi_configuration, OceanReferenceDensity_inv, &
     &  atm_pressure_included_in_ocedyn, &
@@ -318,64 +318,28 @@ CONTAINS
     ENDIF
     !------------------------------------------------------------------
 
-    SELECT CASE (run_mode)
-    CASE (RUN_FORWARD)
+    CALL transfer_ocean_state(patch_3d, operators_coefficients)
 
-      CALL transfer_ocean_state(patch_3d, operators_coefficients)
+    jstep = jstep0
+    TIME_LOOP: DO
 
-      jstep = jstep0
-      TIME_LOOP: DO
+      IF(lsediment_only) THEN
+        CALL sed_only_time_step()
+      ELSE
+        IF ( vert_cor_type == 0 ) THEN
+          CALL ocean_time_step()
+        ELSEIF ( vert_cor_type == 1 ) THEN
+          CALL ocean_time_step_zstar()
+        ENDIF
+      END IF
 
-         IF(lsediment_only) THEN
-             CALL sed_only_time_step()
-         ELSE
-           IF ( vert_cor_type == 0 ) THEN
-             CALL ocean_time_step()
-            ELSEIF ( vert_cor_type == 1 ) THEN
-             CALL ocean_time_step_zstar()
-            ENDIF
-         END IF
+      IF (isEndOfThisRun()) THEN
+        ! leave time loop
+        EXIT TIME_LOOP
+      END IF
 
-         IF (isEndOfThisRun()) THEN
-            ! leave time loop
-            EXIT TIME_LOOP
-         END IF
+    ENDDO TIME_LOOP
 
-      ENDDO TIME_LOOP
-
-
-      !------------------------------------------------------------------
-      ! BEGIN :: call special adjoint version of dynamical core
-      !------------------------------------------------------------------
-#ifdef __COMPAD_ADJLOOP__
-
-   CASE (RUN_ADJOINT)
-
-#     include "adify_oes_hydro_ocean_run_perform_ho_stepping_before_timeloop.inc"
-      jstep = jstep0
-      TIME_LOOP_ADJOINT: DO
-
-#        include "adify_oes_hydro_ocean_run_perform_ho_stepping_timeloop_body_begin.inc"
-         CALL ocean_time_step()
-
-#        include "adify_oes_hydro_ocean_run_perform_ho_stepping_timeloop_body_end.inc"
-
-         IF (isEndOfThisRun()) THEN
-            ! leave time loop
-            EXIT TIME_LOOP_ADJOINT
-         END IF
-
-      ENDDO TIME_LOOP_ADJOINT
-
-#     include "adify_oes_hydro_ocean_run_perform_ho_stepping_after_timeloop.inc"
-
-      !------------------------------------------------------------------
-      ! END :: call special adjoint version of dynamivcal core
-      !------------------------------------------------------------------
-#endif /* __COMPAD_ADJLOOP__) .... */
-
-
-    END SELECT
 
     CALL clear_ocean_ab_timestepping_mimetic()
 
@@ -1863,13 +1827,6 @@ CONTAINS
     ocean_state%p_aux%g_nm1 => tmp
 
   END SUBROUTINE update_time_g_n
-
-
-#ifdef __COMPAD_ADJLOOP__
-
-#include "adify_oes_checkpoints.inc"
-
-#endif /*  __COMPAD_ADJLOOP__  */
 
 
 

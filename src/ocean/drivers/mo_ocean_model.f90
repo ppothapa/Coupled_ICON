@@ -50,7 +50,7 @@ MODULE mo_ocean_model
 
   USE mo_ocean_nml_crosscheck,   ONLY: ocean_crosscheck
   USE mo_ocean_nml,              ONLY: i_sea_ice, no_tracer, &
-    & initialize_fromRestart, ncheckpoints
+    & initialize_fromRestart
 
   USE mo_model_domain,        ONLY: t_patch_3d, p_patch_local_parent
 
@@ -549,7 +549,7 @@ MODULE mo_ocean_model
     !------------------------------------------------------------------
 
     ! patch_2D and ocean_state have dimension n_dom
-    CALL construct_hydro_ocean_state(patch_3d, ocean_state, ncheckpoints)
+    CALL construct_hydro_ocean_state(patch_3d, ocean_state)
     ocean_state(1)%operator_coeff => operators_coefficients
 
     CALL construct_ocean_nudge(patch_3d%p_patch_2d(1),  ocean_nudge)
