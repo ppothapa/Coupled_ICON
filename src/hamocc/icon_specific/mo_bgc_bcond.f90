@@ -43,6 +43,7 @@ USE mo_master_control,       ONLY: get_my_process_name
   USE mo_ocean_nml,          ONLY: lsediment_only
   USE mo_run_config,         ONLY: dtime
   USE mo_netcdf_errhandler,  ONLY: nf
+  USE mo_fortran_tools,      ONLY: set_acc_host_or_device
 
 #include "add_var_acc_macro.inc"
 
@@ -522,11 +523,11 @@ CONTAINS
 
 !<Optimize:inUse>
 
-   SUBROUTINE update_bgc_bcond(p_patch_3D, bgc_ext, this_datetime, use_acc)
+   SUBROUTINE update_bgc_bcond(p_patch_3D, bgc_ext, this_datetime, lacc)
     TYPE(t_patch_3D ),TARGET, INTENT(IN)        :: p_patch_3D
     TYPE(t_hamocc_bcond)                        :: bgc_ext
     TYPE(datetime), INTENT(IN)                  :: this_datetime
-    LOGICAL, INTENT(IN), OPTIONAL               :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL               :: lacc
 
 
  ! local variables
@@ -536,13 +537,9 @@ CONTAINS
     INTEGER  :: jc, jb, startidx, endidx
     TYPE(t_subset_range), POINTER :: all_cells
     TYPE(t_patch), POINTER :: p_patch
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
 
     !  calculate day and month
@@ -576,7 +573,7 @@ CONTAINS
        all_cells => p_patch%cells%all
        DO jb = all_cells%start_block, all_cells%end_block
          call get_index_range(all_cells, jb, startidx, endidx)
-         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
          !$ACC LOOP GANG VECTOR
          DO jc = startidx, endidx
            bgc_ext%dusty(jc,jb) = rday1*ext_data(1)%bgc%dust(jc,jmon1,jb) + &

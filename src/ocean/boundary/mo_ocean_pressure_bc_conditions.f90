@@ -38,6 +38,7 @@ MODULE mo_ocean_pressure_bc_conditions
   USE mo_sea_ice_types,          ONLY: t_sea_ice
   USE mo_dynamics_config,        ONLY: nold
   USE mo_grid_subset,            ONLY: t_subset_range, get_index_range
+  USE mo_fortran_tools,          ONLY: set_acc_host_or_device
 
 
   IMPLICIT NONE
@@ -52,26 +53,22 @@ MODULE mo_ocean_pressure_bc_conditions
 CONTAINS
 
   !-------------------------------------------------------------------------
-  SUBROUTINE create_pressure_bc_conditions(patch_3d,ocean_state, p_as,sea_ice, current_time, use_acc)
+  SUBROUTINE create_pressure_bc_conditions(patch_3d,ocean_state, p_as,sea_ice, current_time, lacc)
     TYPE(t_patch_3d ),TARGET, INTENT(in)             :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET, INTENT(inout) :: ocean_state
     TYPE(t_atmos_for_ocean), TARGET, INTENT(in)      :: p_as
     TYPE (t_sea_ice), TARGET, INTENT(in)             :: sea_ice
     TYPE(datetime), POINTER, INTENT(in)              :: current_time
-    LOGICAL, INTENT(IN), OPTIONAL                    :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL                    :: lacc
 
     REAL(wp) :: switch_atm_pressure, switch_vert_cor_type, switch_tides
     INTEGER :: jc, jb, start_index, end_index
-    LOGICAL  :: lacc
+    LOGICAL  :: lzacc
     TYPE(t_patch), POINTER :: patch_2d
     TYPE(t_subset_range), POINTER :: all_cells
     CHARACTER(len=*), PARAMETER :: routine = 'create_pressure_bc_conditions'
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !-----------------------------------------------------------------------
     patch_2d  => patch_3d%p_patch_2d(1)
@@ -79,7 +76,7 @@ CONTAINS
     !------------------------------------------------------------------------
     IF (use_tides .OR. use_tides_SAL) THEN
 #ifdef _OPENACC
-      IF (lacc) CALL finish(routine, 'use_tides not ported')
+      IF (lzacc) CALL finish(routine, 'use_tides not ported')
 #endif
       ! compute tidal potential
       CALL calculate_tides_potential(patch_3d,current_time,ocean_state%p_diag%rho, ocean_state%p_prog(nold(1))%h, &
@@ -114,7 +111,7 @@ CONTAINS
     
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, start_index, end_index)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO jc = start_index, end_index
           ocean_state%p_aux%bc_total_top_potential(jc,jb) =  &
             & ocean_state%p_aux%bc_tides_potential(jc,jb) &

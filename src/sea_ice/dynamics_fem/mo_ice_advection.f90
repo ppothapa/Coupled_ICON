@@ -34,6 +34,7 @@ MODULE mo_ice_advection
   USE mo_ocean_math_operators,  ONLY: div_oce_3D
 
   USE mo_sea_ice_types,       ONLY: t_sea_ice
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -54,11 +55,11 @@ CONTAINS
   !! This uses the upwind_hflux_ice routine and the ocean's div_oce_3D routine to do upwind
   !! advection of the relevant variables.
   !!
-  SUBROUTINE ice_advection_upwind( p_patch_3D, p_op_coeff, p_ice, use_acc )
+  SUBROUTINE ice_advection_upwind( p_patch_3D, p_op_coeff, p_ice, lacc )
     TYPE(t_patch_3D), TARGET, INTENT(IN)    :: p_patch_3D
     TYPE(t_operator_coeff),   INTENT(IN)    :: p_op_coeff
     TYPE(t_sea_ice),          INTENT(INOUT) :: p_ice
-    LOGICAL, INTENT(IN), OPTIONAL           :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL           :: lacc
 
     ! Local variables
     ! Patch and range
@@ -68,7 +69,7 @@ CONTAINS
     ! Indexing
     INTEGER  :: jk, jb, jc
     INTEGER  :: i_startidx_c, i_endidx_c
-    LOGICAL  :: lacc
+    LOGICAL  :: lzacc
 
     ! Temporary variables/buffers
     REAL(wp) :: z_adv_flux_h (nproma,p_ice%kice,p_patch_3D%p_patch_2D(1)%nblks_e)
@@ -77,48 +78,44 @@ CONTAINS
     REAL(wp) :: flux_hs  (nproma,p_ice%kice, p_patch_3D%p_patch_2D(1)%alloc_cell_blocks)
     REAL(wp) :: tmp(SIZE(p_ice%hi,1), SIZE(p_ice%hi,2), SIZE(p_ice%hi,3))
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
 !--------------------------------------------------------------------------------------------------
     patch_2D => p_patch_3D%p_patch_2D(1)
     cells_in_domain => patch_2D%cells%in_domain
 !--------------------------------------------------------------------------------------------------
 
-    !$ACC DATA CREATE(tmp, z_adv_flux_h, flux_hi, flux_conc, flux_hs) IF(lacc)
+    !$ACC DATA CREATE(tmp, z_adv_flux_h, flux_hi, flux_conc, flux_hs) IF(lzacc)
 
     !upwind estimate of tracer flux
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
     tmp(:,:,:) = p_ice%hi(:,:,:) * p_ice%conc(:,:,:)
     !$ACC END KERNELS
-    CALL upwind_hflux_ice( p_patch_3D, tmp,  p_ice%vn_e, z_adv_flux_h, use_acc=lacc )
+    CALL upwind_hflux_ice( p_patch_3D, tmp,  p_ice%vn_e, z_adv_flux_h, lacc=lzacc )
     DO jk=1,p_ice%kice
       CALL div_oce_3D( z_adv_flux_h(:,jk,:), patch_2D, p_op_coeff%div_coeff, flux_hi  (:,jk,:),&
-        & 1, cells_in_domain, use_acc=lacc )
+        & 1, cells_in_domain, lacc=lzacc )
     ENDDO
 
-    CALL upwind_hflux_ice( p_patch_3D, p_ice%conc, p_ice%vn_e, z_adv_flux_h, use_acc=lacc )
+    CALL upwind_hflux_ice( p_patch_3D, p_ice%conc, p_ice%vn_e, z_adv_flux_h, lacc=lzacc )
     DO jk=1,p_ice%kice
       CALL div_oce_3D( z_adv_flux_h(:,jk,:), patch_2D, p_op_coeff%div_coeff, flux_conc(:,jk,:),&
-        & 1, cells_in_domain, use_acc=lacc )
+        & 1, cells_in_domain, lacc=lzacc )
     ENDDO
 
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
     tmp(:,:,:) = p_ice%hs(:,:,:) * p_ice%conc(:,:,:)
     !$ACC END KERNELS
-    CALL upwind_hflux_ice( p_patch_3D, tmp, p_ice%vn_e, z_adv_flux_h, use_acc=lacc )
+    CALL upwind_hflux_ice( p_patch_3D, tmp, p_ice%vn_e, z_adv_flux_h, lacc=lzacc )
     DO jk=1,p_ice%kice
       CALL div_oce_3D( z_adv_flux_h(:,jk,:), patch_2D, p_op_coeff%div_coeff, flux_hs  (:,jk,:),&
-        & 1, cells_in_domain, use_acc=lacc )
+        & 1, cells_in_domain, lacc=lzacc )
     ENDDO
 
     DO jk = 1,p_ice%kice
       DO jb = cells_in_domain%start_block, cells_in_domain%end_block
         CALL get_index_range(cells_in_domain, jb, i_startidx_c, i_endidx_c)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
         DO jc = i_startidx_c, i_endidx_c
           IF ( p_patch_3D%lsm_c(jc,1,jb) <= sea_boundary ) THEN
 
@@ -269,7 +266,7 @@ CONTAINS
   !! Calculation of horizontal tracer fluxes using the first
   !! order Godunov method.
   !!
-  SUBROUTINE upwind_hflux_ice( p_patch_3D, pvar_c, pvn_e, pupflux_e, opt_slev, opt_elev, use_acc )
+  SUBROUTINE upwind_hflux_ice( p_patch_3D, pvar_c, pvn_e, pupflux_e, opt_slev, opt_elev, lacc )
 
     TYPE(t_patch_3D ),TARGET, INTENT(IN)   :: p_patch_3D
     REAL(wp), INTENT(IN)              :: pvar_c   (:,:,:) !< advected cell centered variable
@@ -277,7 +274,7 @@ CONTAINS
     REAL(wp), INTENT(OUT)             :: pupflux_e(:,:,:) !< variable in which the upwind flux is stored
     INTEGER, INTENT(in), OPTIONAL     :: opt_slev    ! optional vertical start level
     INTEGER, INTENT(in), OPTIONAL     :: opt_elev    ! optional vertical end level
-    LOGICAL, INTENT(IN), OPTIONAL     :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL     :: lacc
 
     ! local variables
     INTEGER, DIMENSION(:,:,:), POINTER :: iilc,iibc  ! pointer to line and block indices
@@ -286,19 +283,15 @@ CONTAINS
     INTEGER  :: je, jk, jb         !< index of edge, vert level, block
     TYPE(t_subset_range), POINTER :: edges_in_domain
     TYPE(t_patch), POINTER         :: patch_2D
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !-----------------------------------------------------------------------
     patch_2D         => p_patch_3D%p_patch_2D(1)
     edges_in_domain => patch_2D%edges%in_domain
     !-----------------------------------------------------------------------
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
     pupflux_e(:,:,:) = 0.0_wp
     !$ACC END KERNELS
     
@@ -336,7 +329,7 @@ CONTAINS
         DO jk = slev, elev
 #else
 !CDIR UNROLL=6
-      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lzacc)
       DO jk = slev, elev
         DO je = i_startidx, i_endidx
 #endif

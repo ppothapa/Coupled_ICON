@@ -50,6 +50,7 @@ MODULE mo_ice_fem_interface
                                       gvec2cvec_c_2d, cvec2gvec_c_2d,                   &
                                       rotate_cvec_v, gvec2cvec_v_fem, cvec2gvec_v_fem,  &
                                       cells2verts_scalar_seaice
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
 #ifdef _OPENACC
   USE openacc, ONLY: acc_is_present 
 #endif
@@ -78,7 +79,7 @@ CONTAINS
 !!  and map the resulting velocity onto edges and cell centres.
 !!
   SUBROUTINE ice_fem_interface( p_patch_3D, p_ice, p_os, p_as, &
-                                atmos_fluxes, p_op_coeff, p_oce_sfc, use_acc )
+                                atmos_fluxes, p_op_coeff, p_oce_sfc, lacc )
 
     USE mo_ice_fem_types,     ONLY: sigma11, sigma12, sigma22
     USE mo_ice_fem_evp,       ONLY: EVPdynamics
@@ -98,47 +99,43 @@ CONTAINS
     TYPE(t_atmos_for_ocean),  INTENT(INOUT)  :: p_as
     TYPE(t_subset_range),     POINTER        :: all_cells
     TYPE(t_ocean_surface),    INTENT(INOUT)  :: p_oce_sfc
-    LOGICAL, INTENT(IN), OPTIONAL            :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL            :: lacc
 
     ! Local variables
     TYPE(t_patch), POINTER :: p_patch
     REAL(wp), ALLOCATABLE  :: ssh(:,:) ! sea surface height (input only)         [m]
     REAL(wp), ALLOCATABLE  :: ssh_reduced(:,:) ! reduced sea surface height to take slp coupling into account     [m]
     INTEGER                :: jc, jb, start_index, end_index
-    LOGICAL                :: lacc
+    LOGICAL                :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
 !--------------------------------------------------------------------------------------------------
     p_patch   => p_patch_3D%p_patch_2D(1)
     all_cells => p_patch_3d%p_patch_2d(1)%cells%all
 
-    !$ACC UPDATE HOST(p_ice%draftave) ASYNC(1) IF(lacc .AND. acc_is_present(p_ice%draftave))
+    !$ACC UPDATE HOST(p_ice%draftave) ASYNC(1) IF(lzacc .AND. acc_is_present(p_ice%draftave))
     !$ACC WAIT(1)
     ALLOCATE(ssh(SIZE(p_ice%draftave(:,:),1),SIZE(p_ice%draftave(:,:),2)))
 
     !$ACC DATA COPYIN(coord_nod2D, rot_mat_3D, c2v_wgt) &
-    !$ACC   COPY(ssh) IF(lacc)
+    !$ACC   COPY(ssh) IF(lzacc)
 
     !$ACC DATA COPYIN(u_ice, v_ice) &
-    !$ACC   COPY(m_ice, m_snow, a_ice, elevation, u_w, v_w, stress_atmice_x, stress_atmice_y) IF(lacc)
+    !$ACC   COPY(m_ice, m_snow, a_ice, elevation, u_w, v_w, stress_atmice_x, stress_atmice_y) IF(lzacc)
  
     IF (ssh_in_icedyn_type == 1) THEN  ! Fully including ssh
       IF (vert_cor_type == 1) THEN
-        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+        !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
         ssh(:,:) = p_os%p_prog(nold(1))%eta_c(:,:) + p_ice%draftave(:,:)
         !$ACC END KERNELS
       ELSEIF (vert_cor_type == 0) THEN
-        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+        !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
         ssh(:,:) = p_os%p_prog(nold(1))%h(:,:)
         !$ACC END KERNELS
       ENDIF
     ELSEIF (ssh_in_icedyn_type == 0)THEN  ! Not including ssh at all
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
       ssh(:,:) = 0.0_wp
       !$ACC END KERNELS
     ELSEIF (ssh_in_icedyn_type > 1)THEN
@@ -148,11 +145,11 @@ CONTAINS
 ! this is the formulation of MPIOM to let the sea dynamics feels the atm pressure
     IF ( atm_pressure_included_in_icedyn ) THEN
       ALLOCATE(ssh_reduced(SIZE(ssh,1),SIZE(ssh,2)))
-      !$ACC ENTER DATA CREATE(ssh_reduced) IF(lacc)
+      !$ACC ENTER DATA CREATE(ssh_reduced) IF(lzacc)
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index, jc) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, start_index, end_index)
-          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
           DO jc = start_index, end_index
             ssh_reduced(jc,jb) = ssh (jc,jb) &
                  + (p_as%pao(jc,jb)-sfc_press_pascal)/(rho_ref*grav)
@@ -175,13 +172,13 @@ CONTAINS
     ! Map scalars to vertices. Obtain: m_ice, m_snow, a_ice, elevation
     IF (atm_pressure_included_in_icedyn) THEN 
       CALL dbg_print('debug femIWrap: ssh_reduced' , ssh_reduced, str_module, 4, in_subset=p_patch%cells%owned)
-      CALL map_icon2fem_scalar(p_patch, p_ice, ssh_reduced, use_acc=lacc)
+      CALL map_icon2fem_scalar(p_patch, p_ice, ssh_reduced, lacc=lzacc)
     ELSE 
-      CALL map_icon2fem_scalar(p_patch, p_ice, ssh, use_acc=lacc)
+      CALL map_icon2fem_scalar(p_patch, p_ice, ssh, lacc=lzacc)
     ENDIF
 
     ! Map vectors to vertices on the rotated-pole grid. Obtain: stress_atmice_x, stress_atmice_y, u_w, v_w
-    CALL map_icon2fem_vec(p_patch_3D, p_os, atmos_fluxes, p_op_coeff, use_acc=lacc)
+    CALL map_icon2fem_vec(p_patch_3D, p_os, atmos_fluxes, p_op_coeff, lacc=lzacc)
 
     IF (ltimer) CALL timer_stop(timer_ice_interp)
 
@@ -191,10 +188,10 @@ CONTAINS
 
     !$ACC END DATA
 
-    CALL EVPdynamics(use_acc=lacc)
+    CALL EVPdynamics(lacc=lzacc)
 
     !$ACC DATA COPYIN(u_ice, v_ice) &
-    !$ACC   COPY(u_w, v_w, stress_atmice_x, stress_atmice_y, elevation) IF(lacc)
+    !$ACC   COPY(u_w, v_w, stress_atmice_x, stress_atmice_y, elevation) IF(lzacc)
 
 !--------------------------------------------------------------------------------------------------
 ! FCT advection on FEM grid. Advection on ICON grid is done in ice_slow_interface
@@ -215,7 +212,7 @@ CONTAINS
     IF (ltimer) CALL timer_start(timer_ice_interp)
 
     ! Rotate and interpolate ice velocities back to ICON grid
-    CALL map_fem2icon_vec( p_patch_3D, p_ice, p_op_coeff, use_acc=lacc )
+    CALL map_fem2icon_vec( p_patch_3D, p_ice, p_op_coeff, lacc=lzacc )
     ! If advection is on FEM grid, interp ice scalars back to ICON grid
 
     IF (i_ice_advec == 1) THEN
@@ -232,7 +229,7 @@ CONTAINS
     !$ACC END DATA
     DEALLOCATE(ssh)
     IF (atm_pressure_included_in_icedyn) THEN
-      !$ACC EXIT DATA DELETE(ssh_reduced) IF(lacc)
+      !$ACC EXIT DATA DELETE(ssh_reduced) IF(lzacc)
       DEALLOCATE(ssh_reduced)
     END IF
 
@@ -281,12 +278,12 @@ CONTAINS
   !
   !> Update p_ice%u_prog with last u_ice, v_ice values before writing a restart file
   !!
-  SUBROUTINE ice_fem_update_vel_restart(p_patch, p_ice, use_acc)
+  SUBROUTINE ice_fem_update_vel_restart(p_patch, p_ice, lacc)
     USE mo_ice_fem_types,       ONLY: u_ice, v_ice
 
     TYPE(t_patch), TARGET, INTENT(in)       :: p_patch
     TYPE(t_sea_ice),       INTENT(inout)    :: p_ice
-    LOGICAL, INTENT(IN), OPTIONAL           :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL           :: lacc
 
     ! Local variables
     ! Patch and ranges
@@ -295,29 +292,25 @@ CONTAINS
     INTEGER :: i_startidx_v, i_endidx_v
     INTEGER :: i_startidx_v_1, i_endidx_v_1
     INTEGER :: jk, jb, jv
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-  !-------------------------------------------------------------------------
+    !-------------------------------------------------------------------------
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     all_verts => p_patch%verts%all
     i_startidx_v_1 = 0
     i_endidx_v_1   = 0
 
     !$ACC DATA COPYIN(all_verts, all_verts%start_block) &
-    !$ACC   COPY(u_ice, v_ice) IF(lacc)
+    !$ACC   COPY(u_ice, v_ice) IF(lzacc)
 
     DO jb = all_verts%start_block, all_verts%end_block
       CALL get_index_range(all_verts, jb, i_startidx_v, i_endidx_v)
       IF (jb > all_verts%start_block) &
           CALL get_index_range(all_verts, jb-1, i_startidx_v_1, i_endidx_v_1)
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
       DO jv = i_startidx_v, i_endidx_v
         jk = jv-i_startidx_v+1 + &
             (jb-all_verts%start_block) * (i_endidx_v_1-i_startidx_v_1+1)
@@ -349,7 +342,7 @@ CONTAINS
   !> 2) Rotate ocean velocities (available on the dual grid, i.e. vertices)
   !-------------------------------------------------------------------------
   !!
-  SUBROUTINE map_icon2fem_vec( p_patch_3D, p_os, atmos_fluxes, p_op_coeff, use_acc )
+  SUBROUTINE map_icon2fem_vec( p_patch_3D, p_os, atmos_fluxes, p_op_coeff, lacc )
 
     USE mo_ice_fem_icon_init, ONLY: rot_mat_3D
     USE mo_ice_fem_types,     ONLY: u_w, v_w, stress_atmice_x, stress_atmice_y!, u_ice, v_ice !, a_ice
@@ -359,11 +352,11 @@ CONTAINS
     TYPE(t_hydro_ocean_state),INTENT(IN)     :: p_os
     TYPE (t_atmos_fluxes),    INTENT(IN)     :: atmos_fluxes
     TYPE(t_operator_coeff),   INTENT(IN)     :: p_op_coeff
-    LOGICAL, INTENT(IN), OPTIONAL            :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL            :: lacc
 
     ! Local variables
     TYPE(t_patch), POINTER :: p_patch
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     INTEGER :: i, j
 
     ! Temporary variables/buffers
@@ -374,21 +367,17 @@ CONTAINS
     TYPE(t_cartesian_coordinates) :: p_vn_dual_fem(nproma,p_patch_3D%p_patch_2D(1)%nblks_v)
     TYPE(t_cartesian_coordinates) :: p_vn_dual_2D (nproma,p_patch_3D%p_patch_2D(1)%nblks_v)
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
 !--------------------------------------------------------------------------------------------------
     p_patch => p_patch_3D%p_patch_2D(1)
 
-    !$ACC DATA CREATE(p_tau_n_c, tau_n, p_tau_n_dual, p_tau_n_dual_fem, p_vn_dual_fem, p_vn_dual_2D) IF(lacc)
+    !$ACC DATA CREATE(p_tau_n_c, tau_n, p_tau_n_dual, p_tau_n_dual_fem, p_vn_dual_fem, p_vn_dual_2D) IF(lzacc)
 
     !**************************************************************
     ! (1) Convert lat-lon wind stress to cartesian coordinates
     !**************************************************************
-    CALL gvec2cvec_c_2d(p_patch_3D, atmos_fluxes%stress_x, atmos_fluxes%stress_y, p_tau_n_c, use_acc=lacc)
+    CALL gvec2cvec_c_2d(p_patch_3D, atmos_fluxes%stress_x, atmos_fluxes%stress_y, p_tau_n_c, lacc=lzacc)
 
     !**************************************************************
     ! (2) Interpolate 3D wind stress from cell centers to edges
@@ -396,7 +385,7 @@ CONTAINS
 #ifdef NAGFOR
     tau_n = 0.0_wp
 #endif
-    CALL map_cell2edges_3D(p_patch_3D, p_tau_n_c, tau_n ,p_op_coeff, 1, use_acc=lacc)
+    CALL map_cell2edges_3D(p_patch_3D, p_tau_n_c, tau_n ,p_op_coeff, 1, lacc=lzacc)
 
     CALL sync_patch_array(SYNC_E, p_patch, tau_n)
 
@@ -408,7 +397,7 @@ CONTAINS
     p_tau_n_dual(:,:)%x(2) = 0.0_wp
     p_tau_n_dual(:,:)%x(3) = 0.0_wp
 #endif
-    CALL map_edges2verts(p_patch, tau_n, p_op_coeff%edge2vert_coeff_cc, p_tau_n_dual, use_acc=lacc)
+    CALL map_edges2verts(p_patch, tau_n, p_op_coeff%edge2vert_coeff_cc, p_tau_n_dual, lacc=lzacc)
 
     CALL sync_patch_array(SYNC_V, p_patch, p_tau_n_dual%x(1))
     CALL sync_patch_array(SYNC_V, p_patch, p_tau_n_dual%x(2))
@@ -419,18 +408,18 @@ CONTAINS
     !     + convert back to geographic coordinates
     !**************************************************************
     ! atmospheric stress
-    CALL rotate_cvec_v(p_patch, p_tau_n_dual, rot_mat_3D, p_tau_n_dual_fem, use_acc=lacc)
-    CALL cvec2gvec_v_fem(p_patch, p_tau_n_dual_fem, stress_atmice_x, stress_atmice_y, use_acc=lacc)
+    CALL rotate_cvec_v(p_patch, p_tau_n_dual, rot_mat_3D, p_tau_n_dual_fem, lacc=lzacc)
+    CALL cvec2gvec_v_fem(p_patch, p_tau_n_dual_fem, stress_atmice_x, stress_atmice_y, lacc=lzacc)
     ! ocean velocities
     DO j=1,p_patch_3D%p_patch_2D(1)%nblks_v
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
       DO i=1,nproma
         p_vn_dual_2D(i,j) = p_os%p_diag%p_vn_dual(i,1,j)
       END DO
       !$ACC END PARALLEL LOOP
     END DO
-    CALL rotate_cvec_v(p_patch, p_vn_dual_2D, rot_mat_3D, p_vn_dual_fem, use_acc=lacc)
-    CALL cvec2gvec_v_fem(p_patch, p_vn_dual_fem, u_w, v_w, use_acc=lacc)
+    CALL rotate_cvec_v(p_patch, p_vn_dual_2D, rot_mat_3D, p_vn_dual_fem, lacc=lzacc)
+    CALL cvec2gvec_v_fem(p_patch, p_vn_dual_fem, u_w, v_w, lacc=lzacc)
 
     !$ACC END DATA
 
@@ -441,7 +430,7 @@ CONTAINS
   !> 2) Interpolate to cell centers and convert back to geographic coordinates
   !-------------------------------------------------------------------------
   !!
-  SUBROUTINE map_fem2icon_vec( p_patch_3D, p_ice, p_op_coeff, use_acc )
+  SUBROUTINE map_fem2icon_vec( p_patch_3D, p_ice, p_op_coeff, lacc )
 
     USE mo_ice_fem_icon_init, ONLY: rot_mat_3D!, pollon, pollat
     USE mo_ice_fem_types,          ONLY: u_ice, v_ice
@@ -450,11 +439,11 @@ CONTAINS
     TYPE(t_patch_3D), TARGET, INTENT(IN)     :: p_patch_3D
     TYPE(t_sea_ice),          INTENT(INOUT)  :: p_ice
     TYPE(t_operator_coeff),   INTENT(IN)     :: p_op_coeff
-    LOGICAL, INTENT(IN), OPTIONAL            :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL            :: lacc
 
     ! Local variables
     TYPE(t_patch), POINTER :: p_patch
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     INTEGER :: i, j
 
     ! Temporary variables/buffers
@@ -465,11 +454,7 @@ CONTAINS
     TYPE(t_cartesian_coordinates) :: p_vn_c_2D(nproma,p_patch_3D%p_patch_2D(1)%alloc_cell_blocks)
     REAL(wp)                      :: rot_mat_3D_trans(SIZE(rot_mat_3D,2), SIZE(rot_mat_3D,1))
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
 !--------------------------------------------------------------------------------------------------
     p_patch => p_patch_3D%p_patch_2D(1)
@@ -486,21 +471,21 @@ CONTAINS
 
     !$ACC DATA CREATE(vn_e_tmp, p_vn_dual_fem, p_vn_dual, p_vn_c_3D, p_vn_c_2D) &
     !$ACC   COPYIN(rot_mat_3D_trans) &
-    !$ACC   IF(lacc)
+    !$ACC   IF(lzacc)
 
     !**************************************************************
     ! (1) Rotate ice vels to ICON variables + convert to cc
     !**************************************************************
     ! Convert the lat-lon vectors to 3d cartesian
-    CALL gvec2cvec_v_fem(p_patch, u_ice, v_ice, p_vn_dual_fem, use_acc=lacc)
+    CALL gvec2cvec_v_fem(p_patch, u_ice, v_ice, p_vn_dual_fem, lacc=lzacc)
 
     ! Rotate the vectors back onto the ICON grid
-    CALL rotate_cvec_v(p_patch, p_vn_dual_fem, rot_mat_3D_trans, p_vn_dual, use_acc=lacc)
+    CALL rotate_cvec_v(p_patch, p_vn_dual_fem, rot_mat_3D_trans, p_vn_dual, lacc=lzacc)
 
     !**************************************************************
     ! (2) Interpolate ice velocities to edges for advection
     !**************************************************************
-    CALL map_verts2edges(p_patch, p_vn_dual, p_op_coeff%edge2vert_coeff_cc_t, p_ice%vn_e, use_acc=lacc)
+    CALL map_verts2edges(p_patch, p_vn_dual, p_op_coeff%edge2vert_coeff_cc_t, p_ice%vn_e, lacc=lzacc)
 
     CALL sync_patch_array(SYNC_E, p_patch, p_ice%vn_e)
 
@@ -508,7 +493,7 @@ CONTAINS
     ! (3) ... and cells for drag calculation and output
     !**************************************************************
     DO j = 1,p_patch%nblks_e
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
       DO i = 1,nproma
         vn_e_tmp(i,1,j) = p_ice%vn_e(i,j)
       END DO
@@ -516,19 +501,19 @@ CONTAINS
     END DO
 
     CALL map_edges2cell_3D( p_patch_3D, vn_e_tmp, &
-      &   p_op_coeff, p_vn_c_3D, 1, 1, use_acc=lacc)
+      &   p_op_coeff, p_vn_c_3D, 1, 1, lacc=lzacc)
 
     !**************************************************************
     ! (4) Convert back to geographic coordinates
     !**************************************************************
     DO j = 1,p_patch_3D%p_patch_2D(1)%alloc_cell_blocks
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
       DO i = 1,nproma
         p_vn_c_2D(i,j) = p_vn_c_3D(i,1,j)
       END DO
       !$ACC END PARALLEL LOOP
     END DO
-    CALL cvec2gvec_c_2d(p_patch_3D, p_vn_c_2D, p_ice%u, p_ice%v, use_acc=lacc)
+    CALL cvec2gvec_c_2d(p_patch_3D, p_vn_c_2D, p_ice%u, p_ice%v, lacc=lzacc)
 
     CALL sync_patch_array(SYNC_C, p_patch, p_ice%u)
     CALL sync_patch_array(SYNC_C, p_patch, p_ice%v)
@@ -542,7 +527,7 @@ CONTAINS
   !> 2) Resahpe result to get vars on FEM grid
   !-------------------------------------------------------------------------
   !!
-  SUBROUTINE map_icon2fem_scalar(p_patch, p_ice, ssh, use_acc)
+  SUBROUTINE map_icon2fem_scalar(p_patch, p_ice, ssh, lacc)
 
     USE mo_ice_fem_icon_init, ONLY: c2v_wgt
     USE mo_ice_fem_types,     ONLY: m_ice, m_snow, a_ice, elevation
@@ -550,7 +535,7 @@ CONTAINS
     TYPE(t_patch), TARGET, INTENT(INOUT) :: p_patch
     TYPE(t_sea_ice),        INTENT(IN)  :: p_ice
     REAL(wp),DIMENSION(nproma,p_patch%alloc_cell_blocks), INTENT(IN) :: ssh
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
     ! Temporary variables/buffers
     REAL(wp), DIMENSION (nproma, p_ice%kice, p_patch%nblks_v)   :: buffy_array
@@ -558,31 +543,27 @@ CONTAINS
     REAL(wp), DIMENSION (nproma,1,p_patch%alloc_cell_blocks)    :: tmp
 
     INTEGER :: i, j, k, l
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC DATA CREATE(buffy_array, buffy, tmp) IF(lacc)
+    !$ACC DATA CREATE(buffy_array, buffy, tmp) IF(lzacc)
 
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
     buffy_array(:,:,:)   = 0.0_wp
     !$ACC END KERNELS
 
 
     ! Interpolate tracers to vertices
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
     tmp(:,:,:) = p_ice%hi(:,:,:) * MAX(TINY(1._wp),p_ice%conc(:,:,:))
     !$ACC END KERNELS
 
-    CALL cells2verts_scalar_seaice( tmp, p_patch, c2v_wgt, buffy_array, use_acc=lacc )
+    CALL cells2verts_scalar_seaice( tmp, p_patch, c2v_wgt, buffy_array, lacc=lzacc )
 
     CALL sync_patch_array(SYNC_V, p_patch, buffy_array )
 
-    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(3) DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(3) DEFAULT(PRESENT) IF(lzacc)
     DO k=1,p_patch%nblks_v
       DO j=1,p_ice%kice
         DO i=1,nproma
@@ -593,11 +574,11 @@ CONTAINS
     END DO
     !$ACC END PARALLEL LOOP
 
-    CALL cells2verts_scalar_seaice( p_ice%conc, p_patch, c2v_wgt, buffy_array, use_acc=lacc )
+    CALL cells2verts_scalar_seaice( p_ice%conc, p_patch, c2v_wgt, buffy_array, lacc=lzacc )
 
     CALL sync_patch_array(SYNC_V, p_patch, buffy_array )
 
-    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(3) DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(3) DEFAULT(PRESENT) IF(lzacc)
     DO k=1,p_patch%nblks_v
       DO j=1,p_ice%kice
         DO i=1,nproma
@@ -608,15 +589,15 @@ CONTAINS
     END DO
     !$ACC END PARALLEL LOOP
 
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
     tmp(:,:,:) = p_ice%hs(:,:,:) * MAX(TINY(1._wp),p_ice%conc(:,:,:))
     !$ACC END KERNELS
 
-    CALL cells2verts_scalar_seaice( tmp, p_patch, c2v_wgt, buffy_array, use_acc=lacc )
+    CALL cells2verts_scalar_seaice( tmp, p_patch, c2v_wgt, buffy_array, lacc=lzacc )
 
     CALL sync_patch_array(SYNC_V, p_patch, buffy_array )
 
-    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(3) DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(3) DEFAULT(PRESENT) IF(lzacc)
     DO k=1,p_patch%nblks_v
       DO j=1,p_ice%kice
         DO i=1,nproma
@@ -628,7 +609,7 @@ CONTAINS
     !$ACC END PARALLEL LOOP
 
     ! Interpolate SSH to vertices
-    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lzacc)
     DO j=1,SIZE(ssh,2)
       DO i=1,SIZE(ssh,1)
         tmp(i,1,j) = ssh(i,j)
@@ -636,10 +617,10 @@ CONTAINS
     END DO
     !$ACC END PARALLEL LOOP
 
-    CALL cells2verts_scalar_seaice( tmp, p_patch, c2v_wgt, buffy_array, use_acc=lacc )
+    CALL cells2verts_scalar_seaice( tmp, p_patch, c2v_wgt, buffy_array, lacc=lzacc )
     CALL sync_patch_array(SYNC_V, p_patch, buffy_array )
 
-    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(3) DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(3) DEFAULT(PRESENT) IF(lzacc)
     DO k=1,p_patch%nblks_v
       DO j=1,p_ice%kice
         DO i=1,nproma

@@ -19,6 +19,7 @@ MODULE mo_ocean_solve_cg
 
   USE mo_kind, ONLY: wp, sp
   USE mo_ocean_solve_backend, ONLY: t_ocean_solve_backend
+  USE mo_fortran_tools, ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -70,20 +71,16 @@ CONTAINS
   END SUBROUTINE ocean_solve_cg_recover_arrays_wp
 
 ! actual CG solve (vanilla) - wp-variant
-SUBROUTINE ocean_solve_cg_cal_wp(this, use_acc)
+SUBROUTINE ocean_solve_cg_cal_wp(this, lacc)
     CLASS(t_ocean_solve_cg), INTENT(INOUT) :: this
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
     REAL(KIND=wp) :: alpha, beta, dz_glob, tol, tol2, rn, rn_last
     INTEGER :: nidx_e, nblk, iblk, k, m, k_final
     REAL(KIND=wp), POINTER, DIMENSION(:,:), CONTIGUOUS :: &
       & x, b, z, d, r, r2
-    LOGICAL :: done, lacc
+    LOGICAL :: done, lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
 ! retrieve extends of vector to solve
     nblk = this%trans%nblk
@@ -94,28 +91,28 @@ SUBROUTINE ocean_solve_cg_cal_wp(this, use_acc)
 ! retrieve arrays
     CALL this%recover_arrays(x, b, z, d, r, r2)
 
-    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     b(nidx_e+1:, nblk) = 0._wp
     !$ACC END KERNELS
     !$ACC WAIT(1)
 
 ! compute initial residual and auxiliary vectors
-    !$ACC UPDATE HOST(x) ASYNC(1) IF(lacc)
+    !$ACC UPDATE HOST(x) ASYNC(1) IF(lzacc)
     !$ACC WAIT(1)
     CALL this%trans%sync(x)
-    !$ACC UPDATE DEVICE(x) ASYNC(1) IF(lacc)
+    !$ACC UPDATE DEVICE(x) ASYNC(1) IF(lzacc)
     !$ACC WAIT(1) ! can be removed when all ACC compute regions are ASYNC(1)
 
-    CALL this%lhs%apply(x, z, use_acc=lacc)
+    CALL this%lhs%apply(x, z, lacc=lzacc)
 
-    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     z(nidx_e+1:, nblk) = 0._wp
     !$ACC END KERNELS
     !$ACC WAIT(1)
 
 !ICON_OMP PARALLEL DO SCHEDULE(STATIC)
     DO iblk = 1, nblk
-      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       r(:, iblk) = b(:, iblk) - z(:, iblk)
       d(:, iblk) = r(:, iblk)
       r2(:, iblk) = r(:, iblk) * r(:, iblk)
@@ -124,7 +121,7 @@ SUBROUTINE ocean_solve_cg_cal_wp(this, use_acc)
     END DO
 !ICON_OMP END PARALLEL DO
 
-    !$ACC UPDATE HOST(r2) ASYNC(1) IF(lacc)
+    !$ACC UPDATE HOST(r2) ASYNC(1) IF(lzacc)
     !$ACC WAIT(1)
     CALL this%trans%global_sum(r2, rn)
 
@@ -152,13 +149,13 @@ SUBROUTINE ocean_solve_cg_cal_wp(this, use_acc)
       IF (k .GT. 1) THEN
         beta = rn / rn_last
 
-        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         d(nidx_e+1:, nblk) = 0._wp
         !$ACC END KERNELS
 
 !ICON_OMP PARALLEL DO SCHEDULE(STATIC)
         DO iblk = 1, nblk
-          !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+          !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           d(:, iblk) = r(:, iblk) + beta * d(:, iblk)
           !$ACC END KERNELS
         END DO
@@ -167,46 +164,46 @@ SUBROUTINE ocean_solve_cg_cal_wp(this, use_acc)
       END IF
       CALL this%trans%sync(d)
 
-      CALL this%lhs%apply(d, z, use_acc=lacc)
+      CALL this%lhs%apply(d, z, lacc=lzacc)
 
-      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       d(nidx_e+1:, nblk) = 0._wp
       !$ACC END KERNELS
 ! compute extrapolated location of minimum in direction of d
 !ICON_OMP PARALLEL DO SCHEDULE(STATIC)
       DO iblk = 1, nblk
-        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         r2(:, iblk) = d(:, iblk) * z(:, iblk)
         !$ACC END KERNELS
       END DO
 !ICON_OMP END PARALLEL DO
-      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       r2(nidx_e+1:, nblk) = 0._wp
       !$ACC END KERNELS
       !$ACC WAIT(1)
 
-      !$ACC UPDATE HOST(r2) ASYNC(1) IF(lacc)
+      !$ACC UPDATE HOST(r2) ASYNC(1) IF(lzacc)
       !$ACC WAIT(1)
       CALL this%trans%global_sum(r2, dz_glob)
       alpha = rn / dz_glob
 ! update guess and residuum
 !ICON_OMP PARALLEL DO SCHEDULE(STATIC)
       DO iblk = 1, nblk
-        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         x(:, iblk) = x(:, iblk) + alpha * d(:, iblk)
         r(:, iblk) = r(:, iblk) - alpha * z(:, iblk)
         r2(:, iblk) = r(:, iblk) * r(:, iblk)
         !$ACC END KERNELS
       END DO
 !ICON_OMP END PARALLEL DO
-      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       r2(nidx_e+1:, nblk) = 0._wp
       !$ACC END KERNELS
       !$ACC WAIT(1)
 ! save old and compute new residual norm
       rn_last = rn
 
-      !$ACC UPDATE HOST(r2) ASYNC(1) IF(lacc)
+      !$ACC UPDATE HOST(r2) ASYNC(1) IF(lzacc)
       !$ACC WAIT(1)
       CALL this%trans%global_sum(r2, rn)
     END DO

@@ -31,6 +31,7 @@ MODULE mo_ocean_solve_lhs
   USE mo_ocean_solve_lhs_type, ONLY: t_lhs_agen
   USE mo_ocean_nml, ONLY: l_lhs_direct
   USE mo_run_config, ONLY: ltimer
+  USE mo_fortran_tools, ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
   PRIVATE
@@ -599,31 +600,27 @@ CONTAINS
 #if !defined(_OPENACC) || !defined(_CRAYFTN)
   PURE_OR_OMP &
 #endif
-  SUBROUTINE lhs_doit_wp(this, x, ax, a , b, i, use_acc)
+  SUBROUTINE lhs_doit_wp(this, x, ax, a , b, i, lacc)
     CLASS(t_lhs), INTENT(IN) :: this
     REAL(KIND=wp), INTENT(IN), DIMENSION(:,:), CONTIGUOUS :: x
     REAL(KIND=wp), INTENT(OUT), DIMENSION(:,:), CONTIGUOUS :: ax
     REAL(KIND=wp), INTENT(IN), DIMENSION(:,:,:), CONTIGUOUS :: a
     INTEGER, INTENT(IN), DIMENSION(:,:,:), CONTIGUOUS :: i, b
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
     REAL(KIND=wp) :: x_t(this%trans%nidx)
     INTEGER :: iidx, iblk, inz
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !$ACC DATA COPYIN(this, this%trans, x, a, b, i) &
     !$ACC   COPY(ax) &
-    !$ACC   CREATE(x_t) IF(lacc)
+    !$ACC   CREATE(x_t) IF(lzacc)
 
 !ICON_OMP PARALLEL
 ! apply ax(i) = sum(A(i,j)*x(j))
 !ICON_OMP DO PRIVATE(inz, iidx, x_t)
-    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     DO iblk = 1, this%trans%nblk
       ax(:, iblk) = 0._wp
       DO inz = 1, SIZE(a, 3)
@@ -636,7 +633,7 @@ CONTAINS
 !ICON_OMP END DO NOWAIT
 ! zero all non-active elements
 !ICON_OMP DO SCHEDULE(DYNAMIC)
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     DO iblk = this%trans%nblk + 1, SIZE(ax, 2)
       ax(:, iblk) = 0.0_wp
     END DO
@@ -685,22 +682,18 @@ CONTAINS
   END SUBROUTINE lhs_noaii_doit_wp
 
 ! interface for solvers, applying lhs-matrix
-  SUBROUTINE lhs_apply_wp(this, x, ax, opt_direct, use_acc)
+  SUBROUTINE lhs_apply_wp(this, x, ax, opt_direct, lacc)
     CLASS(t_lhs), INTENT(INOUT) :: this
     REAL(KIND=wp), INTENT(IN), DIMENSION(:,:), CONTIGUOUS :: x
     REAL(KIND=wp), INTENT(OUT), DIMENSION(:,:), CONTIGUOUS :: ax
     LOGICAL, INTENT(IN), OPTIONAL :: opt_direct
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
 
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     LOGICAL :: l_direct
     CHARACTER(LEN=*),PARAMETER :: routine = module_name//":lhs_apply_wp()"
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     IF (.NOT.this%is_init) CALL finish(routine, "t_lhs was not initiaized-...!")
     l_direct = l_lhs_direct
@@ -708,9 +701,9 @@ CONTAINS
     IF (ltimer) CALL timer_start(this%timer)
     IF (.NOT.l_direct) THEN
       CALL this%doit(x, ax, this%coef_c_wp, &
-       & this%blk_cal, this%idx_cal, use_acc=lacc)
+       & this%blk_cal, this%idx_cal, lacc=lzacc)
     ELSE
-      CALL this%agen%apply(x, ax, use_acc=lacc)
+      CALL this%agen%apply(x, ax, lacc=lzacc)
     END IF
     IF (ltimer) CALL timer_stop(this%timer)
   END SUBROUTINE lhs_apply_wp
@@ -733,30 +726,26 @@ CONTAINS
 #if !defined(_OPENACC) || !defined(_CRAYFTN)
   PURE_OR_OMP &
 #endif
-  SUBROUTINE lhs_doit_sp(this, x, ax, a, b, i, use_acc)
+  SUBROUTINE lhs_doit_sp(this, x, ax, a, b, i, lacc)
     CLASS(t_lhs), INTENT(IN) :: this
     REAL(KIND=sp), INTENT(IN), DIMENSION(:,:), CONTIGUOUS :: x
     REAL(KIND=sp), INTENT(OUT), DIMENSION(:,:), CONTIGUOUS :: ax
     REAL(KIND=sp), INTENT(IN), DIMENSION(:,:,:), CONTIGUOUS :: a
     INTEGER, INTENT(IN), DIMENSION(:,:,:), CONTIGUOUS :: i, b
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
     REAL(KIND=sp) :: x_t(this%trans%nidx)
     INTEGER :: iidx, iblk, inz
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !$ACC DATA COPYIN(this, this%trans, x, a, b, i) &
     !$ACC   COPY(ax) &
-    !$ACC   CREATE(x_t) IF(lacc)
+    !$ACC   CREATE(x_t) IF(lzacc)
 
 !ICON_OMP PARALLEL
 !ICON_OMP DO PRIVATE(inz, iidx, x_t)
-    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     DO iblk = 1, this%trans%nblk
       ax(:, iblk) = 0._wp
       DO inz = 1, SIZE(a, 3)
@@ -768,7 +757,7 @@ CONTAINS
     !$ACC END KERNELS
 !ICON_OMP END DO NOWAIT
 !ICON_OMP DO SCHEDULE(DYNAMIC, 1)
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     DO iblk = this%trans%nblk + 1, SIZE(ax, 2)
       ax(:, iblk) = 0.0_sp
     END DO

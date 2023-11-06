@@ -105,6 +105,7 @@ MODULE mo_ocean_physics
   USE mo_sea_ice_types,       ONLY: t_sea_ice, t_atmos_fluxes
   USE mo_ocean_velocity_diffusion, ONLY: veloc_diff_harmonic_div_grad
   USE mo_ocean_GM_Redi,       ONLY: init_GMRedi
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -875,7 +876,7 @@ CONTAINS
   !! @par Revision History
   !! Initial release by Peter Korn, MPI-M (2011-02)
 !<Optimize:inUse:done>
-  SUBROUTINE update_ho_params(patch_3d, ocean_state, fu10, concsum, params_oce,op_coeffs, atmos_fluxes, p_oce_sfc, use_acc)
+  SUBROUTINE update_ho_params(patch_3d, ocean_state, fu10, concsum, params_oce,op_coeffs, atmos_fluxes, p_oce_sfc, lacc)
     !, calculate_density_func)
 
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
@@ -886,18 +887,14 @@ CONTAINS
     TYPE (t_ocean_surface), INTENT(IN)   :: p_oce_sfc
     TYPE(t_operator_coeff),INTENT(in)    :: op_coeffs
     TYPE(t_atmos_fluxes)                 :: atmos_fluxes
-    LOGICAL, INTENT(IN), OPTIONAL        :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL        :: lacc
 
     INTEGER :: tracer_index
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     !INTEGER :: vert_mix_type=2 ! by_nils ! FIXME: make this a namelist parameter
     !-------------------------------------------------------------------------
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     start_timer(timer_upd_phys,1)
 
@@ -905,7 +902,7 @@ CONTAINS
 
 !   Calculate the vertical density gradient on the interfaces (zgrad_rho)
 !   and the Richardson Number ; shall be used in PP and possibly TKE
-    CALL calc_vertical_stability(patch_3d, ocean_state, use_acc=lacc)
+    CALL calc_vertical_stability(patch_3d, ocean_state, lacc=lzacc)
 
     SELECT CASE(vert_mix_type)
     CASE(vmix_pp)
@@ -913,7 +910,7 @@ CONTAINS
     CASE(vmix_tke)
       !write(*,*) 'Do calc_tke...'
 #ifdef _OPENACC
-      CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10, concsum, use_acc=lacc)
+      CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10, concsum, lacc=lzacc)
 #else
       CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10, concsum)
 #endif
@@ -2096,14 +2093,14 @@ CONTAINS
   !-------------------------------------------------------------------------
 
 !<Optimize:inUse>
-  SUBROUTINE calc_vertical_stability(patch_3d, ocean_state, use_acc)
+  SUBROUTINE calc_vertical_stability(patch_3d, ocean_state, lacc)
     TYPE(t_patch_3d ),TARGET, INTENT(in)             :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET                :: ocean_state
-    LOGICAL, INTENT(in), OPTIONAL                    :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL                    :: lacc
 
     !Local variables
     INTEGER :: start_index, end_index, cell_index,level,end_level, blockNo
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
     TYPE(t_subset_range), POINTER :: cells_in_domain, all_cells
     TYPE(t_patch), POINTER :: patch_2D
@@ -2116,14 +2113,10 @@ CONTAINS
     REAL(wp) :: z_rho_up(nproma,n_zlev), z_rho_down(nproma,n_zlev) !, density(n_zlev)
     REAL(wp) :: pressure(nproma,n_zlev), salinity(nproma,n_zlev)!
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
 #ifdef _OPENACC
-    IF (lacc) CALL finish('calc_vertical_stability', 'OpenACC version for LVECTOR currently not implemented')
+    IF (lzacc) CALL finish('calc_vertical_stability', 'OpenACC version for LVECTOR currently not implemented')
 #endif
 
     IF (eos_type /= 2) THEN
@@ -2138,7 +2131,7 @@ CONTAINS
 
     z_grav_rho = grav/OceanReferenceDensity
 
-    !$ACC DATA CREATE(z_rho_up, pressure, z_rho_down, salinity) IF(lacc)
+    !$ACC DATA CREATE(z_rho_up, pressure, z_rho_down, salinity) IF(lzacc)
 
     !ICON_OMP_PARALLEL PRIVATE(salinity, z_rho_up, z_rho_down, pressure)
     salinity = sal_ref
@@ -2228,11 +2221,7 @@ CONTAINS
     REAL(wp) :: z_rho_up(n_zlev), z_rho_down(n_zlev) !, density(n_zlev)
     REAL(wp) :: pressure(n_zlev), salinity(n_zlev)
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !-------------------------------------------------------------------------------
     patch_2D        => patch_3d%p_patch_2d(1)
@@ -2242,10 +2231,10 @@ CONTAINS
 
     z_grav_rho = grav/OceanReferenceDensity
 
-    !$ACC DATA CREATE(salinity, z_rho_up, z_rho_down, pressure) IF(lacc)
+    !$ACC DATA CREATE(salinity, z_rho_up, z_rho_down, pressure) IF(lzacc)
 
     !ICON_OMP_PARALLEL PRIVATE(salinity, z_rho_up, z_rho_down, pressure)
-    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     salinity(1:n_zlev) = sal_ref
     z_rho_up(:)=0.0_wp
     z_rho_down(:)=0.0_wp
@@ -2258,13 +2247,13 @@ CONTAINS
     DO blockNo = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, blockNo, start_index, end_index)
 
-      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       ocean_state%p_diag%Richardson_Number(:, :, blockNo) = 0.0_wp
       ocean_state%p_diag%zgrad_rho(:,:, blockNo) = 0.0_wp
       !$ACC END KERNELS
 
       !$ACC PARALLEL LOOP GANG VECTOR &
-      !$ACC   PRIVATE(salinity, z_rho_up, z_rho_down, pressure) DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC   PRIVATE(salinity, z_rho_up, z_rho_down, pressure) DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO cell_index = start_index, end_index
 
         end_level = patch_3d%p_patch_1d(1)%dolic_c(cell_index,blockNo)
@@ -2334,12 +2323,12 @@ CONTAINS
 
 !<Optimize:inUse>
 #ifdef __LVECTOR__
-  SUBROUTINE calc_vertical_stability_zstar(patch_3d, ocean_state, eta_c, stretch_c, use_acc)
+  SUBROUTINE calc_vertical_stability_zstar(patch_3d, ocean_state, eta_c, stretch_c, lacc)
     TYPE(t_patch_3d ),TARGET, INTENT(in)             :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET                :: ocean_state
     REAL(wp), INTENT(IN) :: eta_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks) !! sfc ht
     REAL(wp), INTENT(IN) :: stretch_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
-    LOGICAL, INTENT(in), OPTIONAL                    :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL                    :: lacc
 
     !Local variables
     INTEGER :: start_index, end_index, cell_index,level,end_level, blockNo
@@ -2351,7 +2340,7 @@ CONTAINS
     REAL(wp) :: z_shear_cell
     REAL(wp) :: z_rho_up, z_rho_down !, density(n_zlev)
     REAL(wp) :: pressure, salinity_up, salinity_down
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
     !-------------------------------------------------------------------------------
     patch_2D        => patch_3d%p_patch_2d(1)
@@ -2359,14 +2348,10 @@ CONTAINS
     all_cells       => patch_2D%cells%ALL
     !-------------------------------------------------------------------------------
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
 #ifdef _OPENACC
-    IF (lacc) CALL finish('calc_vertical_stability_zstar', 'OpenACC version for LVECTOR currently not implemented')
+    IF (lzacc) CALL finish('calc_vertical_stability_zstar', 'OpenACC version for LVECTOR currently not implemented')
 #endif
 
     z_grav_rho = grav/OceanReferenceDensity
@@ -2430,12 +2415,12 @@ CONTAINS
 
   END SUBROUTINE calc_vertical_stability_zstar
 #else
-  SUBROUTINE calc_vertical_stability_zstar(patch_3d, ocean_state, eta_c, stretch_c, use_acc)
+  SUBROUTINE calc_vertical_stability_zstar(patch_3d, ocean_state, eta_c, stretch_c, lacc)
     TYPE(t_patch_3d ),TARGET, INTENT(in)             :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET                :: ocean_state
     REAL(wp), INTENT(IN) :: eta_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks) !! sfc ht
     REAL(wp), INTENT(IN) :: stretch_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
-    LOGICAL, INTENT(in), OPTIONAL                    :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL                    :: lacc
 
     !Local variables
     INTEGER :: start_index, end_index, cell_index,level,end_level, blockNo
@@ -2447,7 +2432,7 @@ CONTAINS
     REAL(wp) :: z_shear_cell
     REAL(wp) :: z_rho_up(n_zlev), z_rho_down(n_zlev) !, density(n_zlev)
     REAL(wp) :: pressure(n_zlev), salinity(n_zlev)
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
     !-------------------------------------------------------------------------------
     patch_2D        => patch_3d%p_patch_2d(1)
@@ -2455,14 +2440,10 @@ CONTAINS
     all_cells       => patch_2D%cells%ALL
     !-------------------------------------------------------------------------------
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
 #ifdef _OPENACC
-    IF (lacc) CALL finish('calc_vertical_stability_zstar', 'OpenACC version currently not implemented')
+    IF (lzacc) CALL finish('calc_vertical_stability_zstar', 'OpenACC version currently not implemented')
 #endif
 
     z_grav_rho = grav/OceanReferenceDensity

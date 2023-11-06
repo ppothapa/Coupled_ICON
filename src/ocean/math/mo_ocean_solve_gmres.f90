@@ -20,6 +20,7 @@ MODULE mo_ocean_solve_gmres
   USE mo_kind, ONLY: sp, wp
   USE mo_exception, ONLY: finish
   USE mo_ocean_solve_backend, ONLY: t_ocean_solve_backend
+  USE mo_fortran_tools, ONLY: set_acc_host_or_device
  
   IMPLICIT NONE
   
@@ -80,23 +81,19 @@ CONTAINS
   END SUBROUTINE ocean_solve_gmres_recover_arrays_wp
 
 ! actual GMRES-R(n) implementation
-  SUBROUTINE ocean_solve_gmres_cal_wp(this, use_acc)
+  SUBROUTINE ocean_solve_gmres_cal_wp(this, lacc)
     CLASS(t_ocean_solve_gmres), INTENT(INOUT) :: this
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
     REAL(wp) :: tol, ci, h_aux
     INTEGER :: jb, nblk, nidx_e, i, k, i_final
     REAL(KIND=wp), POINTER, CONTIGUOUS :: v(:,:,:), x(:,:), b(:,:), &
       & w(:,:), z(:,:), h(:,:), s(:), c(:), res(:), vi(:,:)
-    LOGICAL :: done, lacc
+    LOGICAL :: done, lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
 #ifdef _OPENACC
-    IF (lacc) CALL finish(this_mod_name, 'OpenACC version currently not tested/validated')
+    IF (lzacc) CALL finish(this_mod_name, 'OpenACC version currently not tested/validated')
 #endif
 
 ! set pointers to internal solver-arrays

@@ -86,6 +86,7 @@ MODULE mo_ocean_pp_scheme
   USE mo_statistics,          ONLY: global_minmaxmean
   USE mo_io_config,           ONLY: lnetcdf_flt64_output
   USE mo_math_types,          ONLY: t_cartesian_coordinates
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
   PRIVATE
@@ -940,20 +941,20 @@ CONTAINS
   !! Initial release by Leonidas Linardakis, MPI-M (2011-02)
   !<Optimize:inUse:done>
   SUBROUTINE ICON_PP_Edge_vnPredict_scheme(patch_3d, &
-    & blockNo, start_index, end_index, ocean_state, vn_predict, use_acc) !, calculate_density_func)
+    & blockNo, start_index, end_index, ocean_state, vn_predict, lacc) !, calculate_density_func)
 
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
     INTEGER, INTENT(in) :: blockNo, start_index, end_index
     TYPE(t_hydro_ocean_state), TARGET :: ocean_state
     REAL(wp) :: vn_predict(:,:)
-    LOGICAL, INTENT(in), OPTIONAL     :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL     :: lacc
 
     ! Local variables
     INTEGER :: je,jk
     !INTEGER  :: ile1, ibe1,ile2, ibe2,ile3, ibe3
     INTEGER :: cell_1_idx, cell_1_block, cell_2_idx,cell_2_block
     INTEGER :: levels
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
     !Below is a set of variables and parameters for tracer and velocity
     REAL(wp), PARAMETER :: z_0               = 40.0_wp
@@ -969,14 +970,10 @@ CONTAINS
     TYPE(t_ho_params), POINTER :: params_oce
     CHARACTER(LEN=*), PARAMETER :: routine='ICON_PP_Edge_vnPredict_scheme'
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
 #ifdef _OPENACC
-    IF (lacc) CALL finish(routine, "OpenACC version currently not tested/validated")
+    IF (lzacc) CALL finish(routine, "OpenACC version currently not tested/validated")
 #endif
 
     !-------------------------------------------------------------------------
@@ -991,9 +988,9 @@ CONTAINS
     z_inv_OceanReferenceDensity  = 1.0_wp/OceanReferenceDensity
     !-------------------------------------------------------------------------
 
-    !$ACC DATA CREATE(z_vert_density_grad_e) IF(lacc)
+    !$ACC DATA CREATE(z_vert_density_grad_e) IF(lzacc)
 
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     DO je = start_index, end_index
 
       cell_1_idx = patch_2D%edges%cell_idx(je,blockNo,1)

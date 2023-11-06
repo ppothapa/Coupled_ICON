@@ -28,6 +28,7 @@ MODULE mo_chemcon
 
   USE mo_bgc_constants
   USE mo_bgc_memory_types, ONLY  : t_bgc_memory
+  USE mo_fortran_tools, ONLY     : set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -40,7 +41,7 @@ CONTAINS
 
 
 SUBROUTINE CHEMCON (local_bgc_mem, start_idx, end_idx, klevs, psao, ptho,  &
-     &               pddpo, ptiestu, kldtday, use_acc)
+     &               pddpo, ptiestu, kldtday, lacc)
 
   
   IMPLICIT NONE
@@ -56,7 +57,7 @@ SUBROUTINE CHEMCON (local_bgc_mem, start_idx, end_idx, klevs, psao, ptho,  &
   REAL(wp) :: ptho(bgc_nproma,bgc_zlevs)  !< potential temperature [deg C]
   REAL(wp) :: pddpo(bgc_nproma,bgc_zlevs) !< size of scalar grid cell (3rd REAL) [m]
   REAL(wp) :: ptiestu(bgc_nproma,bgc_zlevs)  !< depth of scalar grid cell [m]
-  LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+  LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
   !! Local variables
 
@@ -69,13 +70,9 @@ SUBROUTINE CHEMCON (local_bgc_mem, start_idx, end_idx, klevs, psao, ptho,  &
   REAL(wp) :: aksi, cksi, aks, cks, akf, ckf, free2sws,total2sws
   REAL(wp) :: ck1p,ck2p,ck3p, ak1p,ak2p,ak3p, total2free
   REAL(wp) :: sti, fti, total2free_0p, free2SWS_0p, total2SWS_0p,SWS2total
-  LOGICAL :: lacc
+  LOGICAL :: lzacc
 
-  IF (PRESENT(use_acc)) THEN
-    lacc = use_acc
-  ELSE
-    lacc = .FALSE.
-  END IF
+  CALL set_acc_host_or_device(lzacc, lacc)
 
   !     -----------------------------------------------------------------
   !*            SET MEAN TOTAL [CA++] IN SEAWATER (MOLES/KG)
@@ -94,7 +91,7 @@ SUBROUTINE CHEMCON (local_bgc_mem, start_idx, end_idx, klevs, psao, ptho,  &
   !             --------------------------------
   !
 
-  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
   !$ACC LOOP GANG VECTOR
   DO jc = start_idx, end_idx
 
@@ -336,7 +333,7 @@ SUBROUTINE CHEMCON (local_bgc_mem, start_idx, end_idx, klevs, psao, ptho,  &
      !*     22.1 APPROX. SEAWATER PRESSURE AT U-POINT DEPTH (BAR)
      !  ----------------------------------------------------------------
 
-  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
   !$ACC LOOP GANG VECTOR PRIVATE(lnkpk0)
   DO jc = start_idx, end_idx
      kpke=klevs(jc)

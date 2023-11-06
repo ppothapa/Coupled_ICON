@@ -1142,7 +1142,7 @@ CONTAINS
         &   albvisdif_ice,      & ! out
         &   albnirdir_ice,      & ! out
         &   albnirdif_ice,      & ! out
-        &   use_acc=.TRUE.)       ! in
+        &   lacc=.TRUE.)          ! in
 
       ! Update the thickness of snow on ice in atmosphere only simulation.
       ! In coupled experiments this is done by the ocean model in either

@@ -33,6 +33,7 @@ MODULE mo_surface_height_lhs_zstar
     USE mo_model_domain, ONLY: t_patch_3d, t_patch
     USE mo_mpi,  ONLY: my_process_is_mpi_parallel
     USE mo_sync, ONLY: sync_e, sync_patch_array
+    USE mo_fortran_tools, ONLY: set_acc_host_or_device
 
   
       IMPLICIT NONE
@@ -110,21 +111,17 @@ MODULE mo_surface_height_lhs_zstar
       END SUBROUTINE lhs_surface_height_destruct
     
     ! interface routine for the left hand side computation
-      SUBROUTINE lhs_surface_height_zstar(this, x, ax, use_acc)
+      SUBROUTINE lhs_surface_height_zstar(this, x, ax, lacc)
         CLASS(t_surface_height_lhs_zstar), INTENT(INOUT) :: this
         REAL(wp), INTENT(IN) :: x(:,:)
         REAL(wp), INTENT(OUT) :: ax(:,:)
-        LOGICAL, INTENT(IN), OPTIONAL :: use_acc
-        LOGICAL :: lacc
+        LOGICAL, INTENT(IN), OPTIONAL :: lacc
+        LOGICAL :: lzacc
 
-        IF (PRESENT(use_acc)) THEN
-          lacc = use_acc
-        ELSE
-          lacc = .FALSE.
-        END IF
+        CALL set_acc_host_or_device(lzacc, lacc)
 
 #ifdef _OPENACC
-        IF (lacc) CALL finish("lhs_surface_height_zstar()", "OpenACC version not implemented yet")
+        IF (lzacc) CALL finish("lhs_surface_height_zstar()", "OpenACC version not implemented yet")
 #endif
 
         IF (this%use_shortcut) &

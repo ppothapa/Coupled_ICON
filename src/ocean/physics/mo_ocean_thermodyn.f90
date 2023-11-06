@@ -34,6 +34,7 @@ MODULE mo_ocean_thermodyn
   USE mo_grid_subset,         ONLY: t_subset_range, get_index_range
   USE mo_parallel_config,     ONLY: nproma
   USE mo_util_dbg_prnt,       ONLY: dbg_print
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -196,7 +197,7 @@ CONTAINS
     !! with partial cells.
     !!
   !<Optimize:inUse>
-  SUBROUTINE calc_internal_press_grad(patch_3d, rho, pressure_hyd, bc_total_top_potential, grad_coeff, press_grad, use_acc)
+  SUBROUTINE calc_internal_press_grad(patch_3d, rho, pressure_hyd, bc_total_top_potential, grad_coeff, press_grad, lacc)
     !
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
     REAL(wp), INTENT(in)                 :: rho          (nproma,n_zlev, patch_3d%p_patch_2d(1)%alloc_cell_blocks)  !< density
@@ -205,7 +206,7 @@ CONTAINS
     !REAL(wp), INTENT(in), TARGET        :: prism_thick_e(1:nproma,1:n_zlev, patch_3d%p_patch_2d(1)%nblks_e)
     REAL(wp), INTENT(in)                 :: grad_coeff(:,:,:)
     REAL(wp), INTENT(inout)              :: press_grad    (nproma,n_zlev, patch_3d%p_patch_2d(1)%nblks_e)  !< hydrostatic pressure gradient
-    LOGICAL, INTENT(in), OPTIONAL        :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL        :: lacc
 
     ! local variables:
     !CHARACTER(len=max_char_length), PARAMETER :: &
@@ -224,13 +225,9 @@ CONTAINS
     REAL(wp) :: press_L, press_R
     REAL(wp) :: thick1, thick2
 
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !-----------------------------------------------------------------------
     z_grav_rho_inv = OceanReferenceDensity_inv * grav
@@ -242,7 +239,7 @@ CONTAINS
     iidx => patch_3D%p_patch_2D(1)%edges%cell_idx
     iblk => patch_3D%p_patch_2D(1)%edges%cell_blk
 
-    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     pressure_hyd (1:nproma,1:n_zlev, 1:patch_3d%p_patch_2d(1)%alloc_cell_blocks)=0.0_wp
     !$ACC END KERNELS
     !$ACC WAIT(1)
@@ -253,7 +250,7 @@ CONTAINS
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, start_index, end_index)
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO jc = start_index, end_index
 
        pressure_hyd(jc,1,jb) = rho(jc,1,jb)*z_grav_rho_inv*patch_3D%p_patch_1d(1)%constantPrismCenters_Zdistance(jc,1,jb) &
@@ -277,7 +274,7 @@ CONTAINS
     DO jb = edges_in_domain%start_block, edges_in_domain%end_block
       CALL get_index_range(edges_in_domain, jb, start_index, end_index)
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO je = start_index, end_index
 
         ic1=patch_2D%edges%cell_idx(je,jb,1)
@@ -813,12 +810,12 @@ CONTAINS
   !! Several options for EOS are provided.
   !!
 !<Optimize:inUse>
-  SUBROUTINE calculate_density(patch_3d,tracer, rho, use_acc)
+  SUBROUTINE calculate_density(patch_3d,tracer, rho, lacc)
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
     REAL(wp),    INTENT(in), TARGET :: tracer(:,:,:,:)     !< input of S and T
     REAL(wp), INTENT(inout), TARGET :: rho   (:,:,:)       !< density
-    LOGICAL, INTENT(in), OPTIONAL   :: use_acc
-    LOGICAL :: lacc
+    LOGICAL, INTENT(in), OPTIONAL   :: lacc
+    LOGICAL :: lzacc
 
     ! local variables:
     ! CHARACTER(len=max_char_length), PARAMETER :: &
@@ -829,14 +826,10 @@ CONTAINS
     !---------------------------------------------------------------------
     ! CALL message (TRIM(routine), 'start')
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
 #ifdef _OPENACC
-    IF (lacc .and. (eos_type /= 2)) CALL finish('calculate_density', 'OpenACC version for eos_type /=2 currently not implemented')
+    IF (lzacc .and. (eos_type /= 2)) CALL finish('calculate_density', 'OpenACC version for eos_type /=2 currently not implemented')
 #endif
 
     !For calculate_density_lin_EOS and calculate_density_MPIOM the conversion to in-situ temperature is done
@@ -846,9 +839,9 @@ CONTAINS
       CALL calculate_density_linear(patch_3d, tracer, rho)
     CASE(2)
 #ifdef __LVECTOR__
-      CALL calculate_density_mpiom_vec(patch_3d, tracer, rho, use_acc=lacc)
+      CALL calculate_density_mpiom_vec(patch_3d, tracer, rho, lacc=lzacc)
 #else
-      CALL calculate_density_mpiom(patch_3d, tracer, rho, use_acc=lacc)
+      CALL calculate_density_mpiom(patch_3d, tracer, rho, lacc=lzacc)
 #endif
     CASE(3)
       CALL calculate_density_jmdwfg06(patch_3d, tracer, rho)
@@ -872,23 +865,19 @@ CONTAINS
   !!
   !! Adapted for zstar
   !!
-  SUBROUTINE calculate_density_zstar(patch_3d,tracer, eta_c, stretch_c, rho, use_acc)
+  SUBROUTINE calculate_density_zstar(patch_3d,tracer, eta_c, stretch_c, rho, lacc)
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
     REAL(wp),    INTENT(in), TARGET :: tracer(:,:,:,:)     !< input of S and T
     REAL(wp), INTENT(in)            :: eta_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
     REAL(wp), INTENT(in)            :: stretch_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
     REAL(wp), INTENT(inout), TARGET :: rho   (:,:,:)       !< density
-    LOGICAL, INTENT(in), OPTIONAL   :: use_acc
-    LOGICAL :: lacc
+    LOGICAL, INTENT(in), OPTIONAL   :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
 #ifdef _OPENACC
-    IF (lacc .and. (eos_type /= 2)) CALL finish('calculate_density_zstar', 'OpenACC version for eos_type /=2 currently not implemented')
+    IF (lzacc .and. (eos_type /= 2)) CALL finish('calculate_density_zstar', 'OpenACC version for eos_type /=2 currently not implemented')
 #endif
 
     !! FIXME zstar: only mpiom adapted to zstar
@@ -898,7 +887,7 @@ CONTAINS
     CASE(1)
       CALL calculate_density_linear(patch_3d, tracer, rho)
     CASE(2)
-      CALL calculate_density_mpiom_zstar(patch_3d, tracer, eta_c, stretch_c, rho, use_acc=lacc)
+      CALL calculate_density_mpiom_zstar(patch_3d, tracer, eta_c, stretch_c, rho, lacc=lzacc)
     CASE(3)
       CALL calculate_density_jmdwfg06(patch_3d, tracer, rho)
       !CALL calculate_density_JM_EOS(patch_2D, tracer, rho)k
@@ -972,19 +961,15 @@ CONTAINS
   !-------------------------------------------------------------------------
   !>
 !<Optimize:inUse>
-  SUBROUTINE calc_potential_density(patch_3d,tracer, rhopot, use_acc)
+  SUBROUTINE calc_potential_density(patch_3d,tracer, rhopot, lacc)
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
     REAL(wp),    INTENT(in), TARGET :: tracer(:,:,:,:)     !< input of S and T
     REAL(wp), INTENT(inout), TARGET :: rhopot(:,:,:)       !< density
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
 
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !For calculate_density_lin_EOS and calculate_density_MPIOM the conversion to in-situ temperature is done
     !internally.
@@ -992,7 +977,7 @@ CONTAINS
     !    CASE(1)
     !      CALL calculate_density_lin_EOS(patch_3d, tracer, rhopot)
     !    CASE(2)
-    CALL calc_potential_density_mpiom(patch_3d, tracer, rhopot, use_acc=lacc)
+    CALL calc_potential_density_mpiom(patch_3d, tracer, rhopot, lacc=lzacc)
     !    CASE(3)
     !      CALL calculate_density_JMDWFG06_EOS(patch_3d, tracer, rhopot)
     !      !CALL calculate_density_JM_EOS(patch_2D, tracer, rho)
@@ -1254,12 +1239,12 @@ CONTAINS
   !! The code below is copied from MPIOM
   !!
 !<Optimize:inUse>
-  SUBROUTINE calculate_density_mpiom(patch_3d, tracer, rho, use_acc)
+  SUBROUTINE calculate_density_mpiom(patch_3d, tracer, rho, lacc)
     !
     TYPE(t_patch_3d ),TARGET, INTENT(in)   :: patch_3d
     REAL(wp), INTENT(in)                   :: tracer(:,:,:,:)
     REAL(wp), INTENT(inout)                :: rho(:,:,:)       !< density
-    LOGICAL, INTENT(in), OPTIONAL          :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL          :: lacc
 
     ! !LOCAL VARIABLES:
     ! loop indices
@@ -1270,7 +1255,7 @@ CONTAINS
     TYPE(t_subset_range), POINTER :: all_cells
     TYPE(t_patch), POINTER :: patch_2D
 
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
     !-----------------------------------------------------------------------
     patch_2D   => patch_3d%p_patch_2d(1)
@@ -1278,13 +1263,9 @@ CONTAINS
     salinityReference_column(1:n_zlev) = sal_ref
     !-------------------------------------------------------------------------
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC DATA COPY(salinityReference_column) IF(lacc)
+    !$ACC DATA COPY(salinityReference_column) IF(lzacc)
 
     !  tracer 1: potential temperature
     !  tracer 2: salinity
@@ -1292,7 +1273,7 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index, jc, levels, z_p) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, start_index, end_index)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(z_p) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(z_p) ASYNC(1) IF(lzacc)
         DO jc = start_index, end_index
           levels = max(1,patch_3d%p_patch_1d(1)%dolic_c(jc,jb))
           z_p(1:levels - 1) = patch_3d%p_patch_1d(1)%depth_CellMiddle(jc,1:levels - 1,jb) * OceanReferenceDensity * sitodbar
@@ -1318,7 +1299,7 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index, jc, levels, z_p) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, start_index, end_index)
-        !$ACC PARALLEL LOOP GANG DEFAULT(PRESENT) PRIVATE(z_p) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG DEFAULT(PRESENT) PRIVATE(z_p) ASYNC(1) IF(lzacc)
         DO jc = start_index, end_index
           levels = max(1,patch_3d%p_patch_1d(1)%dolic_c(jc,jb))
           z_p(1:levels - 1) = patch_3d%p_patch_1d(1)%depth_CellMiddle(jc,1:levels - 1,jb) * OceanReferenceDensity * sitodbar
@@ -1346,12 +1327,12 @@ CONTAINS
 
   END SUBROUTINE calculate_density_mpiom
   !-------------------------------------------------------------------------
-  SUBROUTINE calculate_density_mpiom_vec(patch_3d, tracer, rho, use_acc)
+  SUBROUTINE calculate_density_mpiom_vec(patch_3d, tracer, rho, lacc)
     !
     TYPE(t_patch_3d ),TARGET, INTENT(in)   :: patch_3d
     REAL(wp), INTENT(in)                   :: tracer(:,:,:,:)
     REAL(wp), INTENT(inout)                :: rho(:,:,:)       !< density
-    LOGICAL, INTENT(in), OPTIONAL          :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL          :: lacc
 
     ! !LOCAL VARIABLES:
     ! loop indices
@@ -1359,7 +1340,7 @@ CONTAINS
     INTEGER :: jc, jk, jb, max_level
     INTEGER :: levels
     INTEGER :: i_startblk, i_endblk, start_index, end_index
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     TYPE(t_subset_range), POINTER :: all_cells
     TYPE(t_patch), POINTER :: patch_2D
     !-----------------------------------------------------------------------
@@ -1367,11 +1348,7 @@ CONTAINS
     all_cells => patch_2D%cells%ALL
     !-------------------------------------------------------------------------
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !  tracer 1: potential temperature
     !  tracer 2: salinity
@@ -1381,7 +1358,7 @@ CONTAINS
         CALL get_index_range(all_cells, jb, start_index, end_index)
         max_level = MAXVAL(patch_3d%p_patch_1d(1)%dolic_c(start_index:end_index,jb))
 
-        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO jk = 1, max_level
           DO jc = start_index, end_index
             levels = max(1, patch_3d%p_patch_1d(1)%dolic_c(jc,jb))
@@ -1411,7 +1388,7 @@ CONTAINS
         CALL get_index_range(all_cells, jb, start_index, end_index)
         max_level = MAXVAL(patch_3d%p_patch_1d(1)%dolic_c(start_index:end_index,jb))
   
-        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO jk = 1, max_level
           DO jc = start_index, end_index
             levels = max(1, patch_3d%p_patch_1d(1)%dolic_c(jc,jb))
@@ -1450,14 +1427,14 @@ CONTAINS
   !!
   !! Adapted for zstar
   !!
-  SUBROUTINE calculate_density_mpiom_zstar(patch_3d, tracer, eta_c, stretch_c, rho, use_acc)
+  SUBROUTINE calculate_density_mpiom_zstar(patch_3d, tracer, eta_c, stretch_c, rho, lacc)
     !
     TYPE(t_patch_3d ),TARGET, INTENT(in)   :: patch_3d
     REAL(wp), INTENT(in)                   :: tracer(:,:,:,:)
     REAL(wp), INTENT(in)                   :: eta_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
     REAL(wp), INTENT(in)                   :: stretch_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
     REAL(wp), INTENT(inout)                :: rho(:,:,:)       !< density
-    LOGICAL, INTENT(in), OPTIONAL          :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL          :: lacc
 
     ! !LOCAL VARIABLES:
     ! loop indices
@@ -1467,7 +1444,7 @@ CONTAINS
     INTEGER :: i_startblk, i_endblk, start_index, end_index
     TYPE(t_subset_range), POINTER :: all_cells
     TYPE(t_patch), POINTER :: patch_2D
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
     !-----------------------------------------------------------------------
     patch_2D   => patch_3d%p_patch_2d(1)
@@ -1475,13 +1452,9 @@ CONTAINS
     salinityReference_column(1:n_zlev) = sal_ref
     !-------------------------------------------------------------------------
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC DATA COPY(salinityReference_column) IF(lacc)
+    !$ACC DATA COPY(salinityReference_column) IF(lzacc)
 
     !  tracer 1: potential temperature
     !  tracer 2: salinity
@@ -1489,7 +1462,7 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index, jc, levels, z_p) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, start_index, end_index)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(z_p) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(z_p) ASYNC(1) IF(lzacc)
         DO jc = start_index, end_index
           levels = patch_3d%p_patch_1d(1)%dolic_c(jc,jb)
           !! Note the negative sign for eta_c. Depth is positive from free
@@ -1516,7 +1489,7 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index, jc, levels, z_p) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, start_index, end_index)
-        !$ACC PARALLEL LOOP GANG DEFAULT(PRESENT) PRIVATE(z_p) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG DEFAULT(PRESENT) PRIVATE(z_p) ASYNC(1) IF(lzacc)
         DO jc = start_index, end_index
           levels = patch_3d%p_patch_1d(1)%dolic_c(jc,jb)
           z_p(1:levels) = ( stretch_c(jc, jb) * patch_3d%p_patch_1d(1)%depth_CellMiddle(jc,1:levels,jb) &
@@ -2164,11 +2137,11 @@ CONTAINS
   !! The code below is copied from MPIOM
   !!
 !<Optimize:inUse>
-  SUBROUTINE calc_potential_density_mpiom(patch_3d, tracer, rhopot, use_acc)
+  SUBROUTINE calc_potential_density_mpiom(patch_3d, tracer, rhopot, lacc)
     TYPE(t_patch_3d ),TARGET, INTENT(in)   :: patch_3d
     REAL(wp), INTENT(in)                   :: tracer(:,:,:,:)
     REAL(wp), INTENT(inout)                :: rhopot(:,:,:)
-    LOGICAL, INTENT(in), OPTIONAL          :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL          :: lacc
 
     ! !LOCAL VARIABLES:
     ! loop indices
@@ -2178,16 +2151,12 @@ CONTAINS
     INTEGER :: start_index, end_index
     TYPE(t_subset_range), POINTER :: all_cells
 
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     !-----------------------------------------------------------------------
     all_cells => patch_3d%p_patch_2d(1)%cells%ALL
     !-------------------------------------------------------------------------
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !  tracer 1: potential temperature
     !  tracer 2: salinity
@@ -2196,7 +2165,7 @@ CONTAINS
 !ICON_OMP_DO PRIVATE(start_index, end_index, jc, jk) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, start_index, end_index)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO jc = start_index, end_index
           !$ACC LOOP SEQ
           DO jk=1, patch_3d%p_patch_1d(1)%dolic_c(jc,jb) ! operate on wet ocean points only
@@ -2214,7 +2183,7 @@ CONTAINS
 !ICON_OMP_DO PRIVATE(start_index, end_index, jc, jk) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, start_index, end_index)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO jc = start_index, end_index
           !$ACC LOOP SEQ
           DO jk=1, patch_3d%p_patch_1d(1)%dolic_c(jc,jb) ! operate on wet ocean points only

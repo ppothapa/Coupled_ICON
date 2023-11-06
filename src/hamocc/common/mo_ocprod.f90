@@ -51,13 +51,14 @@ MODULE mo_ocprod
        &                          l_opal_q10, opal_remin_q10, opal_remin_tref, &
        &                          l_doc_q10, doc_remin_q10, doc_remin_tref, &
        &                          l_poc_q10, poc_remin_q10, poc_remin_tref
+    USE mo_fortran_tools, ONLY : set_acc_host_or_device
   PUBLIC :: ocprod
            
 
 CONTAINS
 
 
-SUBROUTINE ocprod (local_bgc_mem, klev,start_idx, end_idx, ptho, pddpo, za, ptiestu, l_dynamic_pi, max_klevs, use_acc)
+SUBROUTINE ocprod (local_bgc_mem, klev,start_idx, end_idx, ptho, pddpo, za, ptiestu, l_dynamic_pi, max_klevs, lacc)
     
 
   IMPLICIT NONE
@@ -76,7 +77,7 @@ SUBROUTINE ocprod (local_bgc_mem, klev,start_idx, end_idx, ptho, pddpo, za, ptie
 
   LOGICAL, INTENT(in) :: l_dynamic_pi
   INTEGER, INTENT(IN) :: max_klevs
-  LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+  LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
  !  Local variables
 
@@ -94,7 +95,7 @@ SUBROUTINE ocprod (local_bgc_mem, klev,start_idx, end_idx, ptho, pddpo, za, ptie
 
   REAL(wp) :: dms_prod, dms_uv, dms_bac 
 
-  LOGICAL :: lacc
+  LOGICAL :: lzacc
 
   REAL(wp) :: reminfac
 
@@ -107,13 +108,9 @@ SUBROUTINE ocprod (local_bgc_mem, klev,start_idx, end_idx, ptho, pddpo, za, ptie
   REAL(wp) :: dnrn, dnra, nlim, no2a, no2c_max, n2oa, nrn2, n2oc_max 
   REAL(wp) :: anamox, avo2, n2oprod, n2on2, no2rmax
 
-  IF (PRESENT(use_acc)) THEN
-    lacc = use_acc
-  ELSE
-    lacc = .FALSE.
-  END IF
+  CALL set_acc_host_or_device(lzacc, lacc)
 
- !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+ !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
  !$ACC LOOP GANG VECTOR COLLAPSE(2)
  DO k = 1, max_klevs
    DO j = start_idx, end_idx

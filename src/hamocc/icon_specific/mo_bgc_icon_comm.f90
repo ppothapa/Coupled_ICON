@@ -52,6 +52,8 @@
       USE mo_bgc_memory_types,   ONLY: t_bgc_memory, t_sediment_memory, t_aggregates_memory
 
       USE mo_var_list_gpu,        ONLY: gpu_update_var_list
+
+      USE mo_fortran_tools,      ONLY: set_acc_host_or_device
  
       IMPLICIT NONE
 
@@ -93,7 +95,7 @@
 !================================================================================== 
     
       SUBROUTINE update_icon(local_bgc_mem, start_idx, end_idx, &
-&             klevs, pddpo, jb, ptracer, pco2flx, use_acc)
+&             klevs, pddpo, jb, ptracer, pco2flx, lacc)
 
       USE mo_param1_bgc, ONLY: n_bgctra,kcflux_cpl
 
@@ -102,24 +104,20 @@
       INTEGER, INTENT(in)::klevs(nproma), jb
       REAL(wp),INTENT(in) :: pddpo(nproma,n_zlev) !< size of scalar grid cell (3rd REAL) [m]
       REAL(wp),INTENT(inout) :: pco2flx(nproma)
-      LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+      LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
       INTEGER :: jc, jk, kpke
       INTEGER :: start_idx, end_idx
       INTEGER :: itrac
-      LOGICAL :: lacc
+      LOGICAL :: lzacc
       CHARACTER(LEN=max_char_length), PARAMETER :: &
                 routine = 'update_icon'
 
      ! CALL message(TRIM(routine), 'start' )
 
-     IF (PRESENT(use_acc)) THEN
-       lacc = use_acc
-     ELSE
-       lacc = .FALSE.
-     END IF
+     CALL set_acc_host_or_device(lzacc, lacc)
  
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc=start_idx,end_idx 
         kpke=klevs(jc)
@@ -141,7 +139,7 @@
 !================================================================================== 
       SUBROUTINE update_bgc(local_bgc_mem, local_sediment_mem, start_index, end_index, &
                           & klevs, pddpo, jb, ptracer, pco2mr, p_diag, p_sed, p_tend,  &
-                          & max_klevs, use_acc)
+                          & max_klevs, lacc)
 
      USE mo_bgc_bcond,  ONLY: ext_data_bgc
 
@@ -168,22 +166,18 @@
       TYPE(t_hamocc_tend) :: p_tend
       REAL(wp),INTENT(in) :: pddpo(nproma,n_zlev) !< size of scalar grid cell (3rd REAL) [m]
       INTEGER, INTENT(IN) :: max_klevs
-      LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+      LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
       INTEGER :: jc, jk
       INTEGER :: start_index, end_index
       INTEGER :: itrac
       CHARACTER(LEN=max_char_length), PARAMETER :: &
                 routine = 'update_icon'
-      LOGICAL :: lacc
+      LOGICAL :: lzacc
 
-      IF (PRESENT(use_acc)) THEN
-        lacc = use_acc
-      ELSE
-        lacc = .FALSE.
-      END IF
+      CALL set_acc_host_or_device(lzacc, lacc)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc=start_index,end_index
         IF (pddpo(jc, 1) .GT. EPSILON(0.5_wp)) THEN
@@ -293,7 +287,7 @@
 
 !================================================================================== 
   SUBROUTINE set_bgc_tendencies_output(local_bgc_mem, local_sediment_mem, local_aggregate_memory, start_idx, end_idx, &
-&             klevs,pddpo,jb,p_tend, p_diag, p_sed, p_agg, max_klevs, use_acc)
+&             klevs,pddpo,jb,p_tend, p_diag, p_sed, p_agg, max_klevs, lacc)
       
       USE mo_param1_bgc, ONLY: kphosy, ksred, kremin, kdenit, &
  &                             kcflux, koflux, knflux, knfixd, &
@@ -337,19 +331,15 @@
       INTEGER, INTENT(in) :: start_idx, end_idx,jb
       INTEGER, INTENT(IN) :: max_klevs
       REAL(wp),INTENT(in) :: pddpo(nproma,n_zlev) !< size of scalar grid cell (3rd REAL) [m]
-      LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+      LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
 
       INTEGER :: jc, jk
-      LOGICAL :: lacc
+      LOGICAL :: lzacc
 
-      IF (PRESENT(use_acc)) THEN
-        lacc = use_acc
-      ELSE
-        lacc = .FALSE.
-      END IF
+      CALL set_acc_host_or_device(lzacc, lacc)
  
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc=start_idx,end_idx 
         IF (pddpo(jc, 1) .GT. EPSILON(0.5_wp)) THEN

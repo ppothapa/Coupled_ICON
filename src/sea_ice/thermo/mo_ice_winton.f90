@@ -27,6 +27,7 @@ MODULE mo_ice_winton
   USE mo_sea_ice_types,       ONLY: t_sea_ice
   USE mo_grid_subset,         ONLY: t_subset_range, get_index_range
   USE mo_util_dbg_prnt,       ONLY: dbg_print
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -71,7 +72,7 @@ CONTAINS
             &   nonsolar,       & ! Latent and sensible heat flux and longwave radiation [W/m^2]
             &   dnonsolardT,    & ! Derivative of non-solar fluxes w.r.t. temperature [W/m^2/K]
             &   Tfw,            & ! Freezing temperature of the ocean
-            &   use_acc)
+            &   lacc)
 
     INTEGER, INTENT(IN)    :: i_startidx_c, i_endidx_c, nbdim, kice
     REAL(wp),INTENT(IN)    :: pdtime
@@ -86,7 +87,7 @@ CONTAINS
     REAL(wp),INTENT(IN)    :: nonsolar   (nbdim,kice)
     REAL(wp),INTENT(IN)    :: dnonsolardT(nbdim,kice)
     REAL(wp),INTENT(IN)    :: Tfw        (nbdim)
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
     !!Local variables
     REAL(wp) ::      &
@@ -108,20 +109,16 @@ CONTAINS
     REAL(wp) :: idt2 ! 1 / (2*dt)
 
     INTEGER :: k, jk, jc ! loop indices
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     muS = mu*Sice
 
    !-------------------------------------------------------------------------------
 
     ! initialization
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP SEQ
     DO k = 1,kice
       !$ACC LOOP GANG VECTOR
@@ -133,7 +130,7 @@ CONTAINS
     !$ACC END PARALLEL
     idt2   =  1.0_wp / (2.0_wp*pdtime)
 
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP SEQ
     DO k=1,kice
       !$ACC LOOP GANG VECTOR PRIVATE(B, A, K1, K2, D, iK1B, Tsurfm, A1a, A1) &
@@ -222,10 +219,10 @@ CONTAINS
   !!                in previously ice covered areas if all ice is gone      [J]
   !!
 
-  SUBROUTINE ice_growth_winton(p_patch, ice, use_acc)!, lat)
+  SUBROUTINE ice_growth_winton(p_patch, ice, lacc)!, lat)
     TYPE(t_patch)            , INTENT(IN), TARGET    :: p_patch
     TYPE(t_sea_ice)          , INTENT(INOUT)         :: ice
-    LOGICAL, INTENT(IN), OPTIONAL                    :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL                    :: lacc
     !REAL(wp),                  INTENT(IN)    :: lat(:,:,:)
                                    !! lat. heat flux  [W/m^2] DIMENSION (ie,je,kice)
 
@@ -257,20 +254,16 @@ CONTAINS
     INTEGER :: k, jb, jc, i_startidx_c, i_endidx_c     ! loop indices
     REAL(wp) :: muS
 
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     muS = mu*Sice
 
-    !$ACC DATA CREATE(Q_surplus) IF(lacc)
+    !$ACC DATA CREATE(Q_surplus) IF(lzacc)
 
     ! Necessary initialisation
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
     Q_surplus(:,:,:) = 0.0_wp
     !$ACC END KERNELS
     surfmelti1       = 0.0_wp
@@ -281,7 +274,7 @@ CONTAINS
     !-------------------------------------------------------------------------------
     DO jb = 1,p_patch%nblks_c
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lzacc)
       DO k=1,ice%kice
         DO jc = i_startidx_c,i_endidx_c
           ! Do the following wherever there is ice

@@ -109,6 +109,7 @@ MODULE mo_hydro_ocean_run
   USE mo_ocean_ext_data,         ONLY: ext_data
   USE mo_ocean_state,            ONLY: v_base
   USE mo_ocean_nudging,          ONLY: ocean_nudge
+  USE mo_fortran_tools,          ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -143,9 +144,9 @@ CONTAINS
     TYPE(t_solvercoeff_singleprecision), INTENT(inout) :: solvercoeff_sp
 
     REAL(wp) :: stretch_e(nproma, patch_3d%p_patch_2d(1)%nblks_e)           !!
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    lacc = .FALSE.
+    lzacc = .FALSE.
 
     IF (is_restart .AND. is_coupled_run() ) THEN
         ! Initialize 10m Wind Speed from restart file when run in coupled mode
@@ -203,9 +204,9 @@ CONTAINS
     ENDIF
 
 #ifndef __SPEED_OVER_OUTPUT__
-    lacc = .TRUE.
-    !$ACC UPDATE DEVICE(sea_ice%hi, sea_ice%conc, sea_ice%hs, sea_ice%zunderice, sea_ice%draftave) IF(lacc)
-    !$ACC UPDATE DEVICE(patch_3d%p_patch_1d(1)%prism_volume, ocean_state%p_diag%swsum, ocean_state%p_diag%swrab) IF(lacc)
+    lzacc = .TRUE.
+    !$ACC UPDATE DEVICE(sea_ice%hi, sea_ice%conc, sea_ice%hs, sea_ice%zunderice, sea_ice%draftave) IF(lzacc)
+    !$ACC UPDATE DEVICE(patch_3d%p_patch_1d(1)%prism_volume, ocean_state%p_diag%swsum, ocean_state%p_diag%swrab) IF(lzacc)
 #endif
  !
   END SUBROUTINE prepare_ho_stepping
@@ -390,9 +391,9 @@ CONTAINS
     SUBROUTINE ocean_time_step()
         REAL(wp) :: total_salt, total_saltinseaice, total_saltinliquidwater
         INTEGER  :: blockNo, i
-        LOGICAL  :: lacc
+        LOGICAL  :: lzacc
 
-        lacc = .FALSE.
+        lzacc = .FALSE.
 
         ! optional memory loggin
         CALL memory_log_add
@@ -411,12 +412,12 @@ CONTAINS
 
 #ifdef _OPENACC
         i_am_accel_node = my_process_is_work()    ! Activate GPUs
-        lacc = .TRUE.
+        lzacc = .TRUE.
 #endif
 
         start_detail_timer(timer_extra22,6)
         CALL update_height_depdendent_variables( patch_3d, ocean_state(jg), p_ext_data(jg), operators_coefficients, &
-                                                 solvercoeff_sp, use_acc=lacc)
+                                                 solvercoeff_sp, lacc=lzacc)
         stop_detail_timer(timer_extra22,6)
 
         start_timer(timer_scalar_prod_veloc,2)
@@ -424,7 +425,7 @@ CONTAINS
           & ocean_state(jg)%p_prog(nold(1))%vn,       &
           & ocean_state(jg)%p_diag,                   &
           & operators_coefficients,                   &
-          & use_acc=lacc)
+          & lacc=lzacc)
         stop_timer(timer_scalar_prod_veloc,2)
 
         !In case of a time-varying forcing:
@@ -435,7 +436,7 @@ CONTAINS
          sea_ice, 0)
 
         CALL update_ocean_surface_refactor( patch_3d, ocean_state(jg), p_as, sea_ice, p_atm_f, p_oce_sfc, &
-             & current_time, operators_coefficients, use_acc = lacc )
+             & current_time, operators_coefficients, lacc = lzacc )
 
         IF (lcheck_salt_content) CALL check_total_salt_content(110,ocean_state(jg)%p_prog(nold(1))%tracer(:,:,:,2), patch_2d, &
          ocean_state(jg)%p_prog(nold(1))%h(:,:), patch_3D%p_patch_1d(1)%prism_thick_flat_sfc_c(:,:,:),&
@@ -445,17 +446,17 @@ CONTAINS
 
         start_detail_timer(timer_extra22,4)
         CALL update_height_depdendent_variables( patch_3d, ocean_state(jg), p_ext_data(jg), operators_coefficients, &
-                                                 solvercoeff_sp, use_acc=lacc)
+                                                 solvercoeff_sp, lacc=lzacc)
         stop_detail_timer(timer_extra22,4)
 
         !--------------------------------------------------------------------------
         ! calculate in situ density here, as it may be used fotr the tides load
         CALL calculate_density( patch_3d,                         &
           & ocean_state(jg)%p_prog(nold(1))%tracer(:,:,:,:),      &
-          & ocean_state(jg)%p_diag%rho(:,:,:), use_acc = lacc)
+          & ocean_state(jg)%p_diag%rho(:,:,:), lacc = lzacc)
 
         !--------------------------------------------------------------------------
-        CALL create_pressure_bc_conditions(patch_3d,ocean_state(jg), p_as, sea_ice, current_time, use_acc=lacc)
+        CALL create_pressure_bc_conditions(patch_3d,ocean_state(jg), p_as, sea_ice, current_time, lacc=lzacc)
         !------------------------------------------------------------------------
 
   !       IF (timers_level > 2) CALL timer_start(timer_scalar_prod_veloc)
@@ -483,7 +484,7 @@ CONTAINS
         !---------------------------------------------------------------------
         !by_ogut: added p_oce_sfc
         CALL update_ho_params(patch_3d, ocean_state(jg), p_as%fu10, sea_ice%concsum, p_phys_param, operators_coefficients, &
-                              p_atm_f, p_oce_sfc, use_acc=lacc)
+                              p_atm_f, p_oce_sfc, lacc=lzacc)
 
         !------------------------------------------------------------------------
         IF (debug_check_level > 5) THEN
@@ -497,7 +498,7 @@ CONTAINS
         ! solve for new free surface
         start_timer(timer_solve_ab,1)
         CALL solve_free_surface_eq_ab (patch_3d, ocean_state(jg), p_ext_data(jg), &
-          & p_as, p_oce_sfc, p_phys_param, jstep, operators_coefficients, solvercoeff_sp, return_status, use_acc = lacc)!, p_int(jg))
+          & p_as, p_oce_sfc, p_phys_param, jstep, operators_coefficients, solvercoeff_sp, return_status, lacc = lzacc)!, p_int(jg))
         IF (return_status /= 0) THEN
          CALL output_ocean(              &
            & patch_3d=patch_3d,          &
@@ -528,25 +529,25 @@ CONTAINS
             !$ACC   SELF(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_2xbelowplusthis_tothisabove) &
             !$ACC   SELF(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_thisabove_to2xthisplusbelow) &
             !$ACC   SELF(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_thisbelow_to2xthisplusabove) &
-            !$ACC   SELF(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheight_inv_thisabovebelow2below) IF(lacc)
+            !$ACC   SELF(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheight_inv_thisabovebelow2below) IF(lzacc)
           END DO
 
           !$ACC UPDATE SELF(patch_3D%p_patch_1d(1)%prism_center_dist_c, patch_3D%p_patch_1d(1)%prism_volume) &
           !$ACC   SELF(patch_3D%p_patch_1d(1)%depth_cellmiddle, patch_3D%p_patch_1d(1)%depth_cellinterface) &
           !$ACC   SELF(patch_3D%p_patch_1d(1)%prism_thick_c, patch_3D%p_patch_1d(1)%prism_thick_e) &
           !$ACC   SELF(patch_3D%p_patch_1d(1)%inv_prism_thick_c, patch_3D%p_patch_1d(1)%inv_prism_thick_e) &
-          !$ACC   SELF(patch_3D%p_patch_1d(1)%inv_prism_center_dist_c, patch_3D%p_patch_1d(1)%inv_prism_center_dist_e) IF(lacc)
+          !$ACC   SELF(patch_3D%p_patch_1d(1)%inv_prism_center_dist_c, patch_3D%p_patch_1d(1)%inv_prism_center_dist_e) IF(lzacc)
 #endif
 
-          lacc = .FALSE.
+          lzacc = .FALSE.
           i_am_accel_node = .FALSE.                    ! Deactivate GPUs
         END IF
 #endif
 
         ! fill diffusion coefficients
         DO i = 1, ocean_state(jg)%p_prog(nold(1))%tracer_collection%no_of_tracers
-          !$ACC ENTER DATA COPYIN(ocean_state(jg)%p_prog(nold(1))%tracer_collection%tracer(i)%concentration) IF(lacc)
-          !$ACC ENTER DATA COPYIN(ocean_state(jg)%p_prog(nnew(1))%tracer_collection%tracer(i)%concentration) IF(lacc)
+          !$ACC ENTER DATA COPYIN(ocean_state(jg)%p_prog(nold(1))%tracer_collection%tracer(i)%concentration) IF(lzacc)
+          !$ACC ENTER DATA COPYIN(ocean_state(jg)%p_prog(nnew(1))%tracer_collection%tracer(i)%concentration) IF(lzacc)
         END DO
 
         !------------------------------------------------------------------------
@@ -554,7 +555,7 @@ CONTAINS
         ! velocity vn_pred and updated surface height
         start_timer(timer_normal_veloc,4)
         CALL calc_normal_velocity_ab(patch_3d, ocean_state(jg),&
-          & operators_coefficients, solvercoeff_sp,  p_ext_data(jg), p_phys_param, use_acc = lacc)
+          & operators_coefficients, solvercoeff_sp,  p_ext_data(jg), p_phys_param, lacc = lzacc)
         stop_timer(timer_normal_veloc,4)
 
         !------------------------------------------------------------------------
@@ -562,12 +563,12 @@ CONTAINS
         ! incompressiblity condition in the non-shallow-water case
         IF ( iswm_oce /= 1 ) THEN
           start_timer(timer_vert_veloc,4)
-          CALL calc_vert_velocity( patch_3d, ocean_state(jg),operators_coefficients, use_acc = lacc)
+          CALL calc_vert_velocity( patch_3d, ocean_state(jg),operators_coefficients, lacc = lzacc)
           stop_timer(timer_vert_veloc,4)
         ELSE
 
 #ifdef _OPENACC
-          IF (lacc) CALL finish(routine, 'OpenACC version currently not tested/validated')
+          IF (lzacc) CALL finish(routine, 'OpenACC version currently not tested/validated')
 #endif
 
           CALL map_edges2edges_viacell_3d_const_z( patch_3d, ocean_state(jg)%p_diag%vn_time_weighted, operators_coefficients, &
@@ -616,7 +617,7 @@ CONTAINS
         END DO
 
         CALL tracer_transport(patch_3d, ocean_state(jg), p_as, sea_ice, p_oce_sfc, &
-          & p_phys_param, operators_coefficients, current_time, use_acc=lacc)
+          & p_phys_param, operators_coefficients, current_time, lacc=lzacc)
 
         IF (lcheck_salt_content) CALL check_total_salt_content(140,ocean_state(jg)%p_prog(nnew(1))%tracer(:,:,:,2), patch_2d, &
           ocean_state(jg)%p_prog(nnew(1))%h(:,:), patch_3D%p_patch_1d(1)%prism_thick_flat_sfc_c(:,:,:),&
@@ -626,7 +627,7 @@ CONTAINS
       !------------------------------------------------------------------------
         ! Optional : nudge temperature and salinity
         IF (no_tracer>=1) THEN
-          CALL nudge_ocean_tracers( patch_3d, ocean_state(jg), use_acc=lacc)
+          CALL nudge_ocean_tracers( patch_3d, ocean_state(jg), lacc=lzacc)
         ENDIF
         !------------------------------------------------------------------------
         ! perform accumulation for special variables
@@ -636,12 +637,12 @@ CONTAINS
 
           CALL calc_potential_density( patch_3d,                            &
             & ocean_state(jg)%p_prog(nold(1))%tracer,                       &
-            & ocean_state(jg)%p_diag%rhopot, use_acc=lacc )
+            & ocean_state(jg)%p_diag%rhopot, lacc=lzacc )
 
           ! calculate diagnostic barotropic stream function
           CALL calc_psi (patch_3d, ocean_state(jg)%p_diag%u(:,:,:),         &
             & patch_3D%p_patch_1d(1)%prism_thick_c(:,:,:),                  &
-            & ocean_state(jg)%p_diag%u_vint, current_time, use_acc=lacc)
+            & ocean_state(jg)%p_diag%u_vint, current_time, lacc=lzacc)
 
 
           CALL dbg_print('calc_psi: u_vint' ,ocean_state(jg)%p_diag%u_vint, str_module, 3, in_subset=patch_2d%cells%owned)
@@ -657,8 +658,8 @@ CONTAINS
         ENDIF
 
         DO i = 1, ocean_state(jg)%p_prog(nold(1))%tracer_collection%no_of_tracers
-          !$ACC EXIT DATA COPYOUT(ocean_state(jg)%p_prog(nold(1))%tracer_collection%tracer(i)%concentration) IF(lacc)
-          !$ACC EXIT DATA COPYOUT(ocean_state(jg)%p_prog(nnew(1))%tracer_collection%tracer(i)%concentration) IF(lacc)
+          !$ACC EXIT DATA COPYOUT(ocean_state(jg)%p_prog(nold(1))%tracer_collection%tracer(i)%concentration) IF(lzacc)
+          !$ACC EXIT DATA COPYOUT(ocean_state(jg)%p_prog(nnew(1))%tracer_collection%tracer(i)%concentration) IF(lzacc)
         END DO
 
 #ifdef _OPENACC
@@ -673,7 +674,7 @@ CONTAINS
             !$ACC   DEVICE(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_2xbelowplusthis_tothisabove) &
             !$ACC   DEVICE(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_thisabove_to2xthisplusbelow) &
             !$ACC   DEVICE(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheightratio_thisbelow_to2xthisplusabove) &
-            !$ACC   DEVICE(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheight_inv_thisabovebelow2below) IF(lacc)
+            !$ACC   DEVICE(operators_coefficients%verticaladvectionppmcoeffs(blockNo)%cellheight_inv_thisabovebelow2below) IF(lzacc)
           END DO
         END IF
 
@@ -681,29 +682,29 @@ CONTAINS
         !$ACC   SELF(patch_3D%p_patch_1d(1)%depth_cellmiddle, patch_3D%p_patch_1d(1)%depth_cellinterface) &
         !$ACC   SELF(patch_3D%p_patch_1d(1)%prism_thick_c, patch_3D%p_patch_1d(1)%prism_thick_e) &
         !$ACC   SELF(patch_3D%p_patch_1d(1)%inv_prism_thick_c, patch_3D%p_patch_1d(1)%inv_prism_thick_e) &
-        !$ACC   SELF(patch_3D%p_patch_1d(1)%inv_prism_center_dist_c, patch_3D%p_patch_1d(1)%inv_prism_center_dist_e) IF(lacc)
+        !$ACC   SELF(patch_3D%p_patch_1d(1)%inv_prism_center_dist_c, patch_3D%p_patch_1d(1)%inv_prism_center_dist_e) IF(lzacc)
 
         !$ACC UPDATE SELF(sea_ice%hi, sea_ice%conc, sea_ice%concsum, sea_ice%hs, sea_ice%vn_e, sea_ice%vol) &
-        !$ACC   SELF(sea_ice%zunderice, sea_ice%draftave, sea_ice%totalsnowfall) IF(lacc)
+        !$ACC   SELF(sea_ice%zunderice, sea_ice%draftave, sea_ice%totalsnowfall) IF(lzacc)
 
         !$ACC UPDATE SELF(ocean_state(jg)%p_prog(nnew(1))%h, ocean_state(jg)%p_prog(nnew(1))%h, ocean_state(jg)%p_prog(nnew(1))%vn) &
-        !$ACC   SELF(ocean_state(jg)%p_prog(nnew(1))%tracer) IF(lacc)
+        !$ACC   SELF(ocean_state(jg)%p_prog(nnew(1))%tracer) IF(lzacc)
 
         !$ACC UPDATE SELF(ocean_state(jg)%p_diag%kin, ocean_state(jg)%p_diag%rho) &
         !$ACC   SELF(ocean_state(jg)%p_diag%vn_pred, ocean_state(jg)%p_diag%zgrad_rho) &
         !$ACC   SELF(ocean_state(jg)%p_diag%div_mass_flx_c, ocean_state(jg)%p_diag%mass_flx_e) &
         !$ACC   SELF(ocean_state(jg)%p_diag%vn_time_weighted, ocean_state(jg)%p_diag%u_vint) &
-        !$ACC   SELF(ocean_state(jg)%p_diag%rhopot, ocean_state(jg)%p_diag%w, ocean_state(jg)%p_diag%swrab) IF(lacc)
+        !$ACC   SELF(ocean_state(jg)%p_diag%rhopot, ocean_state(jg)%p_diag%w, ocean_state(jg)%p_diag%swrab) IF(lzacc)
 
         !$ACC UPDATE SELF(p_oce_sfc%heatflux_total, p_oce_sfc%frshflux_volumetotal) &
         !$ACC   SELF(ocean_state(jg)%p_diag%delta_thetao, ocean_state(jg)%p_diag%delta_so) &
-        !$ACC   SELF(ocean_state(jg)%p_diag%delta_snow, ocean_state(jg)%p_diag%delta_ice) IF(lacc)
+        !$ACC   SELF(ocean_state(jg)%p_diag%delta_snow, ocean_state(jg)%p_diag%delta_ice) IF(lzacc)
 
         !$ACC UPDATE SELF(p_oce_sfc%FrshFlux_Precipitation, p_oce_sfc%FrshFlux_Evaporation, p_oce_sfc%FrshFlux_Runoff) &
         !$ACC   SELF(p_oce_sfc%FrshFlux_VolumeIce) &
-        !$ACC   SELF(p_oce_sfc%FrshFlux_TotalOcean, p_oce_sfc%FrshFlux_TotalIce) IF(lacc)
+        !$ACC   SELF(p_oce_sfc%FrshFlux_TotalOcean, p_oce_sfc%FrshFlux_TotalIce) IF(lzacc)
 #endif
-        lacc = .FALSE.
+        lzacc = .FALSE.
         i_am_accel_node = .FALSE.                 ! Deactivate GPUs
 #endif
 
@@ -727,9 +728,9 @@ CONTAINS
 
 #ifdef _OPENACC
         i_am_accel_node = my_process_is_work()    ! Activate GPUs
-        lacc = .TRUE.
+        lzacc = .TRUE.
 #ifndef __SPEED_OVER_OUTPUT__
-        !$ACC UPDATE SELF(p_as%fu10, p_as%pao) IF(lacc)
+        !$ACC UPDATE SELF(p_as%fu10, p_as%pao) IF(lzacc)
 #endif
 #endif
         CALL update_statistics
@@ -740,7 +741,7 @@ CONTAINS
           &                sea_ice,                 &
           &                jstep, jstep0)
 #ifdef _OPENACC
-        lacc = .FALSE.
+        lzacc = .FALSE.
         i_am_accel_node = .FALSE.                 ! Deactivate GPUs
 #endif
 
@@ -777,11 +778,11 @@ CONTAINS
 
 #ifdef _OPENACC
         i_am_accel_node = my_process_is_work()    ! Activate GPUs
-        lacc = .TRUE.
+        lzacc = .TRUE.
 #ifndef __SPEED_OVER_OUTPUT__
-        !$ACC UPDATE DEVICE(p_oce_sfc%Wind_Speed_10m, p_oce_sfc%sea_level_pressure) IF(lacc)
+        !$ACC UPDATE DEVICE(p_oce_sfc%Wind_Speed_10m, p_oce_sfc%sea_level_pressure) IF(lzacc)
 #endif
-        lacc = .FALSE.
+        lzacc = .FALSE.
         i_am_accel_node = .FALSE.                 ! Deactivate GPUs
 #endif
 
@@ -810,10 +811,10 @@ CONTAINS
             patch_2d%ldom_active = .TRUE.
 #ifdef _OPENACC
             i_am_accel_node = my_process_is_work()    ! Activate GPUs
-            lacc = .TRUE.
+            lzacc = .TRUE.
 #endif
             !
-            IF (i_ice_dyn == 1) CALL ice_fem_update_vel_restart(patch_2d, sea_ice, use_acc=lacc) ! write FEM vel to restart or checkpoint file
+            IF (i_ice_dyn == 1) CALL ice_fem_update_vel_restart(patch_2d, sea_ice, lacc=lzacc) ! write FEM vel to restart or checkpoint file
             CALL restartDescriptor%updatePatch(patch_2d, &
                                               &opt_nice_class=1, &
                                               &opt_ocean_zlevels=n_zlev, &
@@ -821,7 +822,7 @@ CONTAINS
                                               &opt_ocean_zheight_cellinterfaces = patch_3d%p_patch_1d(1)%zlev_i(:))
             CALL restartDescriptor%writeRestart(current_time, jstep)
 #ifdef _OPENACC
-            lacc = .FALSE.
+            lzacc = .FALSE.
             i_am_accel_node = .FALSE.                 ! Deactivate GPUs
 #endif
           END IF
@@ -859,9 +860,9 @@ CONTAINS
     !-------------------------------------------------------------------------
     SUBROUTINE ocean_time_step_zstar()
         INTEGER  :: blockNo, i
-        LOGICAL  :: lacc
+        LOGICAL  :: lzacc
 
-        lacc = .FALSE.
+        lzacc = .FALSE.
 
         ! fill transport state
         ocean_state(jg)%transport_state%patch_3d    => patch_3d
@@ -884,7 +885,7 @@ CONTAINS
 
 #ifdef _OPENACC
         i_am_accel_node = my_process_is_work()    ! Activate GPUs
-        lacc = .TRUE.
+        lzacc = .TRUE.
 #ifndef __SPEED_OVER_OUTPUT__
         !$ACC UPDATE DEVICE(patch_3d%p_patch_2d(1)%edges%cell_idx, patch_3d%p_patch_2d(1)%edges%cell_blk) &
         !$ACC   DEVICE(patch_3d%p_patch_2d(1)%cells%edge_idx, patch_3d%p_patch_2d(1)%cells%edge_blk) &
@@ -893,13 +894,13 @@ CONTAINS
         !$ACC   DEVICE(patch_3d%p_patch_2d(1)%cells%max_connectivity, patch_3d%lsm_e) &
         !$ACC   DEVICE(patch_3d%p_patch_1d(1)%dolic_c, patch_3d%p_patch_1d(1)%dolic_e) &
         !$ACC   DEVICE(patch_3d%p_patch_1d(1)%prism_thick_c, patch_3d%p_patch_1d(1)%prism_thick_e) &
-        !$ACC   DEVICE(patch_3d%p_patch_2d(1)%cells%center) IF(lacc)
+        !$ACC   DEVICE(patch_3d%p_patch_2d(1)%cells%center) IF(lzacc)
 
         !$ACC UPDATE DEVICE(operators_coefficients%edge2edge_viacell_coeff) &
         !$ACC   DEVICE(operators_coefficients%edge2edge_viacell_coeff_all, operators_coefficients%fixed_vol_norm) &
-        !$ACC   DEVICE(operators_coefficients%edge2vert_coeff_cc, operators_coefficients%edge2cell_coeff_cc) IF(lacc)
+        !$ACC   DEVICE(operators_coefficients%edge2vert_coeff_cc, operators_coefficients%edge2cell_coeff_cc) IF(lzacc)
 
-        !$ACC UPDATE DEVICE(ocean_state(jg)%p_prog(nold(1))%vn) IF(lacc)
+        !$ACC UPDATE DEVICE(ocean_state(jg)%p_prog(nold(1))%vn) IF(lzacc)
 #endif
 #endif
 
@@ -908,24 +909,24 @@ CONTAINS
           & ocean_state(jg)%p_prog(nold(1))%vn,         &
           & ocean_state(jg)%p_diag,                     &
           & operators_coefficients,                     &
-          & use_acc=lacc)
+          & lacc=lzacc)
         stop_timer(timer_scalar_prod_veloc,2)
 
 #ifdef _OPENACC
 #ifndef __SPEED_OVER_OUTPUT__
         !$ACC UPDATE SELF(ocean_state(jg)%p_diag%p_vn, ocean_state(jg)%p_diag%ptp_vn, ocean_state(jg)%p_diag%kin) &
-        !$ACC   SELF(ocean_state(jg)%p_diag%p_vn_dual, ocean_state(jg)%p_diag%u, ocean_state(jg)%p_diag%v) IF(lacc)
+        !$ACC   SELF(ocean_state(jg)%p_diag%p_vn_dual, ocean_state(jg)%p_diag%u, ocean_state(jg)%p_diag%v) IF(lzacc)
 #endif
-        lacc = .FALSE.
+        lzacc = .FALSE.
         i_am_accel_node = .FALSE.                 ! Deactivate GPUs
 #endif
 
 ! #ifdef _OPENACC
 !         i_am_accel_node = my_process_is_work()    ! Activate GPUs
-!         lacc = .TRUE.
+!         lzacc = .TRUE.
 ! #ifndef __SPEED_OVER_OUTPUT__
 !         !$ACC DATA COPY(ocean_state(jg)%p_prog(nold(1))%eta_c, ocean_state(jg)%p_prog(nold(1))%stretch_c) &
-!         !$ACC   COPY(ocean_state(jg)%p_prog(nold(1))%h) IF(lacc)
+!         !$ACC   COPY(ocean_state(jg)%p_prog(nold(1))%h) IF(lzacc)
 ! 
 !         !$ACC UPDATE DEVICE(patch_3d%p_patch_2d(1)%edges%cell_idx, patch_3d%p_patch_2d(1)%edges%cell_blk) &
 !         !$ACC   DEVICE(patch_3d%p_patch_2d(1)%edges%vertex_idx, patch_3d%p_patch_2d(1)%edges%vertex_blk) &
@@ -939,9 +940,9 @@ CONTAINS
 !         !$ACC   DEVICE(patch_3d%p_patch_1d(1)%dolic_c, patch_3d%p_patch_1d(1)%dolic_e) &
 !         !$ACC   DEVICE(patch_3d%p_patch_1d(1)%prism_thick_c, patch_3d%p_patch_1d(1)%prism_thick_e) &
 !         !$ACC   DEVICE(patch_3d%p_patch_1d(1)%prism_thick_flat_sfc_c, patch_3d%p_patch_1d(1)%depth_CellInterface) &
-!         !$ACC   DEVICE(patch_3d%wet_c, patch_3d%wet_halo_zero_c, patch_3d%lsm_c) IF(lacc)
+!         !$ACC   DEVICE(patch_3d%wet_c, patch_3d%wet_halo_zero_c, patch_3d%lsm_c) IF(lzacc)
 ! 
-!         !$ACC UPDATE DEVICE(v_base%lsm_c, ext_data(1)%oce%flux_forc_mon_c) IF(lacc)
+!         !$ACC UPDATE DEVICE(v_base%lsm_c, ext_data(1)%oce%flux_forc_mon_c) IF(lzacc)
 ! 
 !         !$ACC UPDATE DEVICE(p_oce_sfc%data_surfRelax_Salt, p_oce_sfc%data_surfRelax_Temp) &
 !         !$ACC   DEVICE(p_oce_sfc%HeatFlux_ShortWave, p_oce_sfc%HeatFlux_LongWave, p_oce_sfc%HeatFlux_Sensible) &
@@ -952,25 +953,25 @@ CONTAINS
 !         !$ACC   DEVICE(p_oce_sfc%Wind_Speed_10m, p_oce_sfc%FrshFlux_Precipitation, p_oce_sfc%cellThicknessUnderIce) &
 !         !$ACC   DEVICE(p_oce_sfc%FrshFlux_Evaporation, p_oce_sfc%FrshFlux_Runoff, p_oce_sfc%FrshFlux_TotalOcean) &
 !         !$ACC   DEVICE(p_oce_sfc%FrshFlux_SnowFall, p_oce_sfc%TempFlux_Relax) &
-!         !$ACC   DEVICE(p_oce_sfc%HeatFlux_Relax, p_oce_sfc%SaltFlux_Relax, p_oce_sfc%FrshFlux_Relax) IF(lacc)
+!         !$ACC   DEVICE(p_oce_sfc%HeatFlux_Relax, p_oce_sfc%SaltFlux_Relax, p_oce_sfc%FrshFlux_Relax) IF(lzacc)
 ! 
 !         !$ACC UPDATE DEVICE(ocean_state(jg)%p_diag%p_vn_dual, ocean_state(jg)%p_diag%rsdoabsorb) &
-!         !$ACC   DEVICE(ocean_state(jg)%p_diag%swsum, ocean_state(jg)%p_diag%swrab) IF(lacc)
+!         !$ACC   DEVICE(ocean_state(jg)%p_diag%swsum, ocean_state(jg)%p_diag%swrab) IF(lzacc)
 !         !$ACC UPDATE DEVICE(ocean_state(jg)%p_diag%u, ocean_state(jg)%p_diag%v) &
-!         !$ACC   DEVICE(ocean_state(jg)%p_diag%heatabs, ocean_state(jg)%p_diag%heatflux_rainevaprunoff) IF(lacc)
+!         !$ACC   DEVICE(ocean_state(jg)%p_diag%heatabs, ocean_state(jg)%p_diag%heatflux_rainevaprunoff) IF(lzacc)
 !         !$ACC UPDATE DEVICE(ocean_state(jg)%p_diag%delta_ice, ocean_state(jg)%p_diag%delta_snow) &
-!         !$ACC   DEVICE(ocean_state(jg)%p_diag%delta_thetao, ocean_state(jg)%p_diag%delta_so) IF(lacc)
-!         !$ACC UPDATE DEVICE(ocean_state(jg)%p_prog(nold(1))%tracer) IF(lacc)
+!         !$ACC   DEVICE(ocean_state(jg)%p_diag%delta_thetao, ocean_state(jg)%p_diag%delta_so) IF(lzacc)
+!         !$ACC UPDATE DEVICE(ocean_state(jg)%p_prog(nold(1))%tracer) IF(lzacc)
 ! 
 !         !$ACC UPDATE DEVICE(operators_coefficients%edge2vert_coeff_cc) &
 !         !$ACC   DEVICE(operators_coefficients%edge2cell_coeff_cc_t, operators_coefficients%edge2vert_coeff_cc_t) &
 !         !$ACC   DEVICE(operators_coefficients%edge2cell_coeff_cc, operators_coefficients%fixed_vol_norm) &
-!         !$ACC   DEVICE(operators_coefficients%edge2edge_viacell_coeff, operators_coefficients%div_coeff) IF(lacc)
+!         !$ACC   DEVICE(operators_coefficients%edge2edge_viacell_coeff, operators_coefficients%div_coeff) IF(lzacc)
 ! 
 !         !$ACC UPDATE DEVICE(p_as%pao) &
 !         !$ACC   DEVICE(p_as%topBoundCond_windStress_u, p_as%topBoundCond_windStress_v, p_as%u, p_as%v) &
 !         !$ACC   DEVICE(p_as%tafo, p_as%ftdew, p_as%fu10, p_as%fclou, p_as%pao, p_as%fswr) &
-!         !$ACC   DEVICE(p_as%FrshFlux_Precipitation, p_as%FrshFlux_Runoff, p_as%data_surfRelax_Temp) IF(lacc)
+!         !$ACC   DEVICE(p_as%FrshFlux_Precipitation, p_as%FrshFlux_Runoff, p_as%data_surfRelax_Temp) IF(lzacc)
 ! #endif
 ! #endif
 
@@ -984,7 +985,7 @@ CONTAINS
         !! Tracer relaxation and surface flux boundary conditions
         CALL update_ocean_surface_refactor( patch_3d, ocean_state(jg), p_as, sea_ice, p_atm_f, p_oce_sfc, &
             & current_time, operators_coefficients, ocean_state(jg)%p_prog(nold(1))%eta_c, &
-            & ocean_state(jg)%p_prog(nold(1))%stretch_c, use_acc=lacc)
+            & ocean_state(jg)%p_prog(nold(1))%stretch_c, lacc=lzacc)
 
         stop_timer(timer_upd_flx,3)
 
@@ -993,7 +994,7 @@ CONTAINS
 !         !$ACC UPDATE SELF(ocean_state(jg)%p_diag%heatabs, ocean_state(jg)%p_diag%heatflux_rainevaprunoff) &
 !         !$ACC   SELF(ocean_state(jg)%p_diag%rsdoabsorb, ocean_state(jg)%p_diag%delta_ice) &
 !         !$ACC   SELF(ocean_state(jg)%p_diag%delta_snow, ocean_state(jg)%p_diag%delta_thetao) &
-!         !$ACC   SELF(ocean_state(jg)%p_diag%delta_so, ocean_state(jg)%p_prog(nold(1))%tracer) IF(lacc)
+!         !$ACC   SELF(ocean_state(jg)%p_diag%delta_so, ocean_state(jg)%p_prog(nold(1))%tracer) IF(lzacc)
 ! 
 !         !$ACC UPDATE SELF(p_oce_sfc%HeatFlux_ShortWave, p_oce_sfc%HeatFlux_LongWave, p_oce_sfc%HeatFlux_Sensible) &
 !         !$ACC   SELF(p_oce_sfc%HeatFlux_Latent, p_oce_sfc%HeatFlux_Total, p_oce_sfc%FrshFlux_IceSalt) &
@@ -1003,39 +1004,39 @@ CONTAINS
 !         !$ACC   SELF(p_oce_sfc%Wind_Speed_10m, p_oce_sfc%FrshFlux_Precipitation, p_oce_sfc%cellThicknessUnderIce) &
 !         !$ACC   SELF(p_oce_sfc%FrshFlux_Evaporation, p_oce_sfc%FrshFlux_Runoff, p_oce_sfc%FrshFlux_TotalOcean) &
 !         !$ACC   SELF(p_oce_sfc%FrshFlux_SnowFall, p_oce_sfc%TempFlux_Relax) &
-!         !$ACC   SELF(p_oce_sfc%HeatFlux_Relax, p_oce_sfc%SaltFlux_Relax, p_oce_sfc%FrshFlux_Relax) IF(lacc)
+!         !$ACC   SELF(p_oce_sfc%HeatFlux_Relax, p_oce_sfc%SaltFlux_Relax, p_oce_sfc%FrshFlux_Relax) IF(lzacc)
 ! 
 !         !$ACC UPDATE SELF(p_as%topBoundCond_windStress_u, p_as%topBoundCond_windStress_v, p_as%u, p_as%v) &
 !         !$ACC   SELF(p_as%tafo, p_as%ftdew, p_as%fu10, p_as%fclou, p_as%pao, p_as%fswr) &
-!         !$ACC   SELF(p_as%FrshFlux_Precipitation, p_as%FrshFlux_Runoff, p_as%data_surfRelax_Temp) IF(lacc)
+!         !$ACC   SELF(p_as%FrshFlux_Precipitation, p_as%FrshFlux_Runoff, p_as%data_surfRelax_Temp) IF(lzacc)
 ! 
 !         !$ACC END DATA
 ! #endif
-!         lacc = .FALSE.
+!         lzacc = .FALSE.
 !         i_am_accel_node = .FALSE.                 ! Deactivate GPUs
 ! #endif
 
 
 #ifdef _OPENACC
         i_am_accel_node = my_process_is_work()    ! Activate GPUs
-        lacc = .TRUE.
+        lzacc = .TRUE.
 #ifndef __SPEED_OVER_OUTPUT__
         !$ACC DATA COPYIN(ocean_state(jg)%p_prog(nold(1))%eta_c, ocean_state(jg)%p_prog(nnew(1))%eta_c) &
         !$ACC   COPYIN(ocean_state(jg)%p_prog(nold(1))%stretch_c, stretch_e) &
         !$ACC   COPYIN(p_as%pao, ocean_state(jg)%p_aux%bc_tides_potential, ocean_state(jg)%p_aux%bc_SAL_potential) &
-        !$ACC   COPY(ocean_state(jg)%p_diag%w_deriv) IF(lacc)
+        !$ACC   COPY(ocean_state(jg)%p_diag%w_deriv) IF(lzacc)
 
         !$ACC UPDATE DEVICE(patch_3D%p_patch_2d(1)%edges%cell_idx, patch_3D%p_patch_2d(1)%edges%cell_blk) &
         !$ACC   DEVICE(patch_3D%p_patch_2d(1)%cells%edge_idx, patch_3D%p_patch_2d(1)%cells%edge_blk) &
         !$ACC   DEVICE(patch_3d%p_patch_1d(1)%dolic_c, patch_3d%p_patch_1d(1)%dolic_e) &
         !$ACC   DEVICE(patch_3d%p_patch_1d(1)%depth_CellMiddle, patch_3d%p_patch_1d(1)%depth_CellInterface) &
-        !$ACC   DEVICE(patch_3D%lsm_c, patch_3D%lsm_e) IF(lacc)
+        !$ACC   DEVICE(patch_3D%lsm_c, patch_3D%lsm_e) IF(lzacc)
         
         !$ACC UPDATE DEVICE(operators_coefficients%edge2cell_coeff_cc, operators_coefficients%edge2cell_coeff_cc_t) &
-        !$ACC   DEVICE(operators_coefficients%grad_coeff) IF(lacc)
+        !$ACC   DEVICE(operators_coefficients%grad_coeff) IF(lzacc)
         
         !$ACC UPDATE DEVICE(ocean_state(jg)%p_prog(nold(1))%vn, ocean_state(jg)%p_prog(nold(1))%tracer) &
-        !$ACC   DEVICE(sea_ice%draftave) IF(lacc)
+        !$ACC   DEVICE(sea_ice%draftave) IF(lzacc)
 #endif
 #endif
         !------------------------------------------------------------------------
@@ -1053,16 +1054,16 @@ CONTAINS
           & ocean_state(jg)%p_diag%rho(:,:,:) )
 
         !--------------------------------------------------------------------------
-        CALL create_pressure_bc_conditions(patch_3d,ocean_state(jg), p_as, sea_ice, current_time, use_acc=lacc)
+        CALL create_pressure_bc_conditions(patch_3d,ocean_state(jg), p_as, sea_ice, current_time, lacc=lzacc)
         !------------------------------------------------------------------------
 #ifdef _OPENACC
 #ifndef __SPEED_OVER_OUTPUT__
         !$ACC UPDATE SELF(ocean_state(jg)%p_aux%bc_total_top_potential) &
-        !$ACC   SELF(ocean_state(jg)%p_diag%rho) IF(lacc)
+        !$ACC   SELF(ocean_state(jg)%p_diag%rho) IF(lzacc)
 
         !$ACC END DATA
 #endif
-        lacc = .FALSE.
+        lzacc = .FALSE.
         i_am_accel_node = .FALSE.                 ! Deactivate GPUs
 #endif
 
@@ -1099,10 +1100,10 @@ CONTAINS
 
 #ifdef _OPENACC
         i_am_accel_node = my_process_is_work()    ! Activate GPUs
-        lacc = .TRUE.
+        lzacc = .TRUE.
 #ifndef __SPEED_OVER_OUTPUT__
         !$ACC DATA COPYIN(ocean_state(jg)%p_prog(nnew(1))%eta_c) &
-        !$ACC   COPYIN(stretch_e, ocean_state(jg)%p_prog(nold(1))%stretch_c) IF(lacc)
+        !$ACC   COPYIN(stretch_e, ocean_state(jg)%p_prog(nold(1))%stretch_c) IF(lzacc)
 
         !$ACC UPDATE DEVICE(patch_3d%p_patch_2d(1)%edges%cell_idx, patch_3d%p_patch_2d(1)%edges%cell_blk) &
         !$ACC   DEVICE(patch_3d%p_patch_2d(1)%cells%edge_idx, patch_3d%p_patch_2d(1)%cells%edge_blk) &
@@ -1110,12 +1111,12 @@ CONTAINS
         !$ACC   DEVICE(patch_3d%p_patch_2d(1)%cells%in_domain%start_block, patch_3d%p_patch_2d(1)%cells%in_domain%end_block) &
         !$ACC   DEVICE(patch_3d%p_patch_1d(1)%dolic_c, patch_3d%p_patch_1d(1)%dolic_e) &
         !$ACC   DEVICE(patch_3d%p_patch_1d(1)%depth_CellInterface, patch_3d%p_patch_1D(1)%prism_thick_flat_sfc_c) &
-        !$ACC   DEVICE(patch_3d%p_patch_1d(1)%prism_thick_e) IF(lacc)
+        !$ACC   DEVICE(patch_3d%p_patch_1d(1)%prism_thick_e) IF(lzacc)
 
-        !$ACC UPDATE DEVICE(ocean_state(jg)%p_prog(nold(1))%vn, ocean_state(jg)%p_diag%vn_pred) IF(lacc)
+        !$ACC UPDATE DEVICE(ocean_state(jg)%p_prog(nold(1))%vn, ocean_state(jg)%p_diag%vn_pred) IF(lzacc)
         
         !$ACC UPDATE DEVICE(operators_coefficients%grad_coeff, operators_coefficients%div_coeff) &
-        !$ACC   DEVICE(operators_coefficients%edge2edge_viacell_coeff) IF(lacc)
+        !$ACC   DEVICE(operators_coefficients%edge2edge_viacell_coeff) IF(lzacc)
 #endif
 #endif
 
@@ -1124,7 +1125,7 @@ CONTAINS
         ! velocity vn_pred and updated surface height
         start_timer(timer_normal_veloc,4)
         CALL calc_normal_velocity_ab_zstar(patch_3d, ocean_state(jg), operators_coefficients, &
-          & ocean_state(jg)%p_prog(nnew(1))%eta_c, use_acc=lacc)
+          & ocean_state(jg)%p_prog(nnew(1))%eta_c, lacc=lzacc)
         stop_timer(timer_normal_veloc,4)
 
         !------------------------------------------------------------------------
@@ -1132,17 +1133,17 @@ CONTAINS
         ! incompressiblity condition in the non-shallow-water case
         start_timer(timer_vert_veloc,4)
         CALL calc_vert_velocity_bottomup_zstar( patch_3d, ocean_state(jg),operators_coefficients, &
-          & ocean_state(jg)%p_prog(nold(1))%stretch_c, stretch_e, use_acc=lacc)
+          & ocean_state(jg)%p_prog(nold(1))%stretch_c, stretch_e, lacc=lzacc)
         stop_timer(timer_vert_veloc,4)
 
 #ifdef _OPENACC
 #ifndef __SPEED_OVER_OUTPUT__
-        !$ACC UPDATE HOST(ocean_state(jg)%p_prog(nnew(1))%vn, ocean_state(jg)%p_diag%vn_time_weighted) IF(lacc)
-        !$ACC UPDATE HOST(ocean_state(jg)%p_diag%div_mass_flx_c, ocean_state(jg)%p_diag%mass_flx_e, ocean_state(jg)%p_diag%w) IF(lacc)
+        !$ACC UPDATE HOST(ocean_state(jg)%p_prog(nnew(1))%vn, ocean_state(jg)%p_diag%vn_time_weighted) IF(lzacc)
+        !$ACC UPDATE HOST(ocean_state(jg)%p_diag%div_mass_flx_c, ocean_state(jg)%p_diag%mass_flx_e, ocean_state(jg)%p_diag%w) IF(lzacc)
 
         !$ACC END DATA
 #endif
-        lacc = .FALSE.
+        lzacc = .FALSE.
         i_am_accel_node = .FALSE.                 ! Deactivate GPUs
 #endif
 
@@ -1170,7 +1171,7 @@ CONTAINS
 ! #ifdef _OPENACC
 !         IF (GMRedi_configuration == Cartesian_Mixing ) THEN
 !           i_am_accel_node = my_process_is_work()    ! Activate GPUs
-!           lacc = .TRUE.
+!           lzacc = .TRUE.
 !         END IF
 ! #ifndef __SPEED_OVER_OUTPUT__
 !         !$ACC UPDATE DEVICE(sea_ice%hi, sea_ice%conc, sea_ice%hs, sea_ice%zunderice) &
@@ -1181,7 +1182,7 @@ CONTAINS
 !         !$ACC   DEVICE(sea_ice%hiold, sea_ice%heatocew, sea_ice%newice, sea_ice%totalsnowfall) &
 !         !$ACC   DEVICE(sea_ice%qbot_slow, sea_ice%surfmelt, sea_ice%surfmeltt) &
 !         !$ACC   DEVICE(sea_ice%e1, sea_ice%e2, sea_ice%draft) &
-!         !$ACC   IF(lacc)
+!         !$ACC   IF(lzacc)
 ! #endif
 ! #endif
 
@@ -1214,7 +1215,7 @@ CONTAINS
         !$ACC   COPYIN(ocean_state(jg)%p_diag, ocean_state(jg)%p_diag%w) &
         !$ACC   COPYIN(ocean_state(jg)%p_diag%mass_flx_e, ocean_state(jg)%p_diag%vn_time_weighted) &
         !$ACC   COPYIN(p_phys_param%cvmix_params, p_phys_param%cvmix_params%nl_trans_tend_heat) &
-        !$ACC   COPYIN(p_phys_param%cvmix_params%nl_trans_tend_salt, p_oce_sfc%TopBC_Temp_vdiff, p_oce_sfc%TopBC_Salt_vdiff) IF(lacc)
+        !$ACC   COPYIN(p_phys_param%cvmix_params%nl_trans_tend_salt, p_oce_sfc%TopBC_Temp_vdiff, p_oce_sfc%TopBC_Salt_vdiff) IF(lzacc)
 
         DO i = patch_3D%p_patch_2D(1)%cells%ALL%start_block, patch_3D%p_patch_2D(1)%cells%ALL%end_block
           !$ACC ENTER DATA COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_This_toBelow) &
@@ -1225,26 +1226,26 @@ CONTAINS
           !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_2xBelowplusThis_toThisAbove) &
           !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_ThisAbove_to2xThisplusBelow) &
           !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_ThisBelow_to2xThisplusAbove) &
-          !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeight_inv_ThisAboveBelow2Below) IF(lacc)
+          !$ACC   COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeight_inv_ThisAboveBelow2Below) IF(lzacc)
         END DO
 
         ! fill diffusion coefficients
         DO i = 1, ocean_state(jg)%p_prog(nold(1))%tracer_collection%no_of_tracers
           ocean_state(jg)%p_prog(nold(1))%tracer_collection%tracer(i)%hor_diffusion_coeff => p_phys_param%TracerDiffusion_coeff(:,:,:,i)
           ocean_state(jg)%p_prog(nold(1))%tracer_collection%tracer(i)%ver_diffusion_coeff => p_phys_param%a_tracer_v(:,:,:,i)
-          !$ACC ENTER DATA COPYIN(ocean_state(jg)%p_prog(nold(1))%tracer_collection%tracer(i)%concentration) IF(lacc)
-          !$ACC ENTER DATA COPYIN(ocean_state(jg)%p_prog(nnew(1))%tracer_collection%tracer(i)%concentration) IF(lacc)
+          !$ACC ENTER DATA COPYIN(ocean_state(jg)%p_prog(nold(1))%tracer_collection%tracer(i)%concentration) IF(lzacc)
+          !$ACC ENTER DATA COPYIN(ocean_state(jg)%p_prog(nnew(1))%tracer_collection%tracer(i)%concentration) IF(lzacc)
         END DO
 
         CALL tracer_transport_zstar(patch_3d, ocean_state(jg), p_as, sea_ice, &
           & p_oce_sfc, p_phys_param, operators_coefficients, current_time, &
           & ocean_state(jg)%p_prog(nold(1))%stretch_c, stretch_e, ocean_state(jg)%p_prog(nnew(1))%stretch_c, &
-          & use_acc=lacc)
+          & lacc=lzacc)
 
         !$ACC WAIT(1)
         DO i = 1, ocean_state(jg)%p_prog(nold(1))%tracer_collection%no_of_tracers
-          !$ACC EXIT DATA COPYOUT(ocean_state(jg)%p_prog(nold(1))%tracer_collection%tracer(i)%concentration) IF(lacc)
-          !$ACC EXIT DATA COPYOUT(ocean_state(jg)%p_prog(nnew(1))%tracer_collection%tracer(i)%concentration) IF(lacc)
+          !$ACC EXIT DATA COPYOUT(ocean_state(jg)%p_prog(nold(1))%tracer_collection%tracer(i)%concentration) IF(lzacc)
+          !$ACC EXIT DATA COPYOUT(ocean_state(jg)%p_prog(nnew(1))%tracer_collection%tracer(i)%concentration) IF(lzacc)
         END DO
 
         DO i = patch_3D%p_patch_2D(1)%cells%ALL%start_block, patch_3D%p_patch_2D(1)%cells%ALL%end_block
@@ -1256,14 +1257,14 @@ CONTAINS
           !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_2xBelowplusThis_toThisAbove) &
           !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_ThisAbove_to2xThisplusBelow) &
           !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_ThisBelow_to2xThisplusAbove) &
-          !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeight_inv_ThisAboveBelow2Below) IF(lacc)
+          !$ACC   COPYOUT(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeight_inv_ThisAboveBelow2Below) IF(lzacc)
         END DO
 
         !$ACC END DATA
 
 ! #ifdef _OPENACC
 !         IF (GMRedi_configuration == Cartesian_Mixing ) THEN
-!           lacc = .FALSE.
+!           lzacc = .FALSE.
 !           i_am_accel_node = .FALSE.                 ! Deactivate GPUs
 !         END IF
 ! #endif
@@ -1277,22 +1278,22 @@ CONTAINS
 
 #ifdef _OPENACC
         i_am_accel_node = my_process_is_work()    ! Activate GPUs
-        lacc = .TRUE.
+        lzacc = .TRUE.
 #ifndef __SPEED_OVER_OUTPUT__
         !$ACC DATA COPYIN(ocean_nudge%data_3dimRelax_Temp, ocean_nudge%data_3dimRelax_Salt) &
-        !$ACC   COPY(ocean_nudge%forc_3dimRelax_Temp, ocean_nudge%forc_3dimRelax_Salt) IF(lacc)
+        !$ACC   COPY(ocean_nudge%forc_3dimRelax_Temp, ocean_nudge%forc_3dimRelax_Salt) IF(lzacc)
 
         !$ACC UPDATE DEVICE(patch_3d%p_patch_1d(1)%dolic_c) &
         !$ACC   DEVICE(patch_3d%p_patch_1d(1)%prism_thick_c, patch_3d%p_patch_2d(1)%cells%center) &
         !$ACC   DEVICE(ocean_state(jg)%p_diag%u, ocean_state(jg)%p_prog(nold(1))%tracer) &
-        !$ACC   DEVICE(ocean_state(jg)%p_prog(nnew(1))%tracer) IF(lacc)
+        !$ACC   DEVICE(ocean_state(jg)%p_prog(nnew(1))%tracer) IF(lzacc)
 #endif
 #endif
         !------------------------------------------------------------------------
         ! Optional : nudge temperature and salinity
         !! FIXME zstar: Not adapted to zstar
         IF (no_tracer>=1) THEN
-          CALL nudge_ocean_tracers( patch_3d, ocean_state(jg), use_acc=lacc)
+          CALL nudge_ocean_tracers( patch_3d, ocean_state(jg), lacc=lzacc)
         ENDIF
 
         !------------------------------------------------------------------------
@@ -1302,12 +1303,12 @@ CONTAINS
         IF (no_tracer>=1) THEN
           CALL calc_potential_density( patch_3d,                            &
             & ocean_state(jg)%p_prog(nold(1))%tracer,                       &
-            & ocean_state(jg)%p_diag%rhopot, use_acc=lacc)
+            & ocean_state(jg)%p_diag%rhopot, lacc=lzacc)
 
           ! calculate diagnostic barotropic stream function
           CALL calc_psi (patch_3d, ocean_state(jg)%p_diag%u(:,:,:),         &
             & patch_3D%p_patch_1d(1)%prism_thick_c(:,:,:),                  &
-            & ocean_state(jg)%p_diag%u_vint, current_time, use_acc=lacc)
+            & ocean_state(jg)%p_diag%u_vint, current_time, lacc=lzacc)
 
           CALL dbg_print('calc_psi: u_vint' ,ocean_state(jg)%p_diag%u_vint, str_module, 3, in_subset=patch_2d%cells%owned)
         ENDIF
@@ -1315,11 +1316,11 @@ CONTAINS
 #ifdef _OPENACC
 #ifndef __SPEED_OVER_OUTPUT__
           !$ACC UPDATE SELF(ocean_state(jg)%p_diag%rhopot, ocean_state(jg)%p_diag%u_vint) &
-          !$ACC   SELF(ocean_state(jg)%p_prog(nnew(1))%tracer) IF(lacc)
+          !$ACC   SELF(ocean_state(jg)%p_prog(nnew(1))%tracer) IF(lzacc)
 
           !$ACC END DATA
 #endif
-        lacc = .FALSE.
+        lzacc = .FALSE.
         i_am_accel_node = .FALSE.                 ! Deactivate GPUs
 #endif
 
@@ -1336,28 +1337,28 @@ CONTAINS
             & p_atm_f, &
             & p_oce_sfc, &
             & sea_ice, &
-            & use_acc=lacc)
+            & lacc=lzacc)
 
         stop_detail_timer(timer_extra20,5)
 
 #ifdef _OPENACC
         i_am_accel_node = my_process_is_work()    ! Activate GPUs
-        lacc = .TRUE.
+        lzacc = .TRUE.
 #ifndef __SPEED_OVER_OUTPUT__
         !$ACC UPDATE DEVICE(sea_ice%hi, sea_ice%conc, sea_ice%hs, sea_ice%zunderice) &
         !$ACC   DEVICE(sea_ice%u, sea_ice%v, sea_ice%qtop, sea_ice%qbot, sea_ice%qbot_slow) &
         !$ACC   DEVICE(sea_ice%vn_e, sea_ice%draftave, sea_ice%totalsnowfall) &
-        !$ACC   DEVICE(sea_ice%zheatocei, sea_ice%heatocei, sea_ice%heatocew) IF(lacc)
+        !$ACC   DEVICE(sea_ice%zheatocei, sea_ice%heatocei, sea_ice%heatocew) IF(lzacc)
 
-        !$ACC UPDATE DEVICE(sea_ice%concSum, sea_ice%Tsurf, sea_ice%vol, sea_ice%vols, sea_ice%draft) IF(lacc)
+        !$ACC UPDATE DEVICE(sea_ice%concSum, sea_ice%Tsurf, sea_ice%vol, sea_ice%vols, sea_ice%draft) IF(lzacc)
 
         !$ACC UPDATE DEVICE(p_oce_sfc%FrshFlux_Precipitation, p_oce_sfc%FrshFlux_Evaporation) &
         !$ACC   DEVICE(p_oce_sfc%FrshFlux_Runoff, p_oce_sfc%FrshFlux_VolumeTotal, p_oce_sfc%FrshFlux_TotalOcean) &
         !$ACC   DEVICE(p_oce_sfc%HeatFlux_Total, p_oce_sfc%HeatFlux_ShortWave, p_oce_sfc%HeatFlux_Longwave) &
         !$ACC   DEVICE(p_oce_sfc%HeatFlux_Sensible, p_oce_sfc%HeatFlux_Latent, p_oce_sfc%Wind_Speed_10m) &
-        !$ACC   DEVICE(p_oce_sfc%FrshFlux_VolumeIce, p_oce_sfc%sea_level_pressure) IF(lacc)
+        !$ACC   DEVICE(p_oce_sfc%FrshFlux_VolumeIce, p_oce_sfc%sea_level_pressure) IF(lzacc)
 
-        !$ACC UPDATE DEVICE(ocean_state(jg)%p_prog(nnew(1))%vn, ocean_state(jg)%p_prog(nnew(1))%tracer) IF(lacc)
+        !$ACC UPDATE DEVICE(ocean_state(jg)%p_prog(nnew(1))%vn, ocean_state(jg)%p_prog(nnew(1))%tracer) IF(lzacc)
 
         !$ACC UPDATE DEVICE(ocean_state(jg)%p_diag%vn_pred, ocean_state(jg)%p_diag%vn_time_weighted) &
         !$ACC   DEVICE(ocean_state(jg)%p_diag%w, ocean_state(jg)%p_diag%rhopot, ocean_state(jg)%p_diag%rho) &
@@ -1366,18 +1367,18 @@ CONTAINS
         !$ACC   DEVICE(ocean_state(jg)%p_diag%press_hyd, ocean_state(jg)%p_diag%ptp_vn) &
         !$ACC   DEVICE(ocean_state(jg)%p_diag%kin, ocean_state(jg)%p_diag%vort) &
         !$ACC   DEVICE(ocean_state(jg)%p_diag%u, ocean_state(jg)%p_diag%v) &
-        !$ACC   DEVICE(ocean_state(jg)%p_diag%veloc_adv_horz) IF(lacc)
+        !$ACC   DEVICE(ocean_state(jg)%p_diag%veloc_adv_horz) IF(lzacc)
 
         !$ACC UPDATE DEVICE(ocean_state(jg)%p_aux%bc_top_u, ocean_state(jg)%p_aux%bc_top_v) &
         !$ACC   DEVICE(ocean_state(jg)%p_aux%bc_top_vn, ocean_state(jg)%p_aux%bc_bot_vn) &
         !$ACC   DEVICE(ocean_state(jg)%p_aux%g_n, ocean_state(jg)%p_aux%g_nimd) &
-        !$ACC   DEVICE(ocean_state(jg)%p_aux%p_rhs_sfc_eq) IF(lacc)
+        !$ACC   DEVICE(ocean_state(jg)%p_aux%p_rhs_sfc_eq) IF(lzacc)
 
-        !$ACC UPDATE DEVICE(p_atm_f%stress_x, p_atm_f%stress_y, p_atm_f%stress_xw, p_atm_f%stress_yw) IF(lacc)
+        !$ACC UPDATE DEVICE(p_atm_f%stress_x, p_atm_f%stress_y, p_atm_f%stress_xw, p_atm_f%stress_yw) IF(lzacc)
 
-        !$ACC UPDATE DEVICE(p_atm_f%albvisdir, p_atm_f%albvisdif, p_atm_f%albnirdir, p_atm_f%albnirdif) IF(lacc)
+        !$ACC UPDATE DEVICE(p_atm_f%albvisdir, p_atm_f%albvisdif, p_atm_f%albnirdir, p_atm_f%albnirdif) IF(lzacc)
 
-        !$ACC UPDATE DEVICE(p_phys_param%A_veloc_v, p_phys_param%a_tracer_v) IF(lacc)
+        !$ACC UPDATE DEVICE(p_phys_param%A_veloc_v, p_phys_param%a_tracer_v) IF(lzacc)
   
         !$ACC UPDATE DEVICE(p_phys_param%cvmix_params%tke, p_phys_param%cvmix_params%tke_Lmix) &
         !$ACC   DEVICE(p_phys_param%cvmix_params%tke_Ttot, p_phys_param%cvmix_params%tke_Tbck) &
@@ -1385,7 +1386,7 @@ CONTAINS
         !$ACC   DEVICE(p_phys_param%cvmix_params%tke_Tdif, p_phys_param%cvmix_params%tke_Tdis) &
         !$ACC   DEVICE(p_phys_param%cvmix_params%tke_Twin, p_phys_param%cvmix_params%tke_Pr) &
         !$ACC   DEVICE(p_phys_param%cvmix_params%cvmix_dummy_1, p_phys_param%cvmix_params%cvmix_dummy_2) &
-        !$ACC   DEVICE(p_phys_param%cvmix_params%cvmix_dummy_3) IF(lacc)
+        !$ACC   DEVICE(p_phys_param%cvmix_params%cvmix_dummy_3) IF(lzacc)
 #endif
 #endif
 
@@ -1397,7 +1398,7 @@ CONTAINS
           &                sea_ice,                 &
           &                jstep, jstep0)
 #ifdef _OPENACC
-        lacc = .FALSE.
+        lzacc = .FALSE.
         i_am_accel_node = .FALSE.                 ! Deactivate GPUs
 #endif
 
@@ -1427,11 +1428,11 @@ CONTAINS
 
 #ifdef _OPENACC
         i_am_accel_node = my_process_is_work()    ! Activate GPUs
-        lacc = .TRUE.
+        lzacc = .TRUE.
 #ifndef __SPEED_OVER_OUTPUT__
-        !$ACC UPDATE DEVICE(p_oce_sfc%Wind_Speed_10m, p_oce_sfc%sea_level_pressure) IF(lacc)
+        !$ACC UPDATE DEVICE(p_oce_sfc%Wind_Speed_10m, p_oce_sfc%sea_level_pressure) IF(lzacc)
 #endif
-        lacc = .FALSE.
+        lzacc = .FALSE.
         i_am_accel_node = .FALSE.                 ! Deactivate GPUs
 #endif
 
@@ -1459,12 +1460,12 @@ CONTAINS
 
 #ifdef _OPENACC
             i_am_accel_node = my_process_is_work()    ! Activate GPUs
-            lacc = .TRUE.
+            lzacc = .TRUE.
 #ifndef __SPEED_OVER_OUTPUT__
-            !$ACC UPDATE DEVICE(ocean_state(jg)%p_prog(nnew(1))%vn, ocean_state(jg)%p_prog(nnew(1))%tracer) IF(lacc)
+            !$ACC UPDATE DEVICE(ocean_state(jg)%p_prog(nnew(1))%vn, ocean_state(jg)%p_prog(nnew(1))%tracer) IF(lzacc)
 #endif
 #endif
-            IF (i_ice_dyn == 1) CALL ice_fem_update_vel_restart(patch_2d, sea_ice, use_acc=lacc) ! write FEM vel to restart or checkpoint file
+            IF (i_ice_dyn == 1) CALL ice_fem_update_vel_restart(patch_2d, sea_ice, lacc=lzacc) ! write FEM vel to restart or checkpoint file
 
             CALL restartDescriptor%updatePatch(patch_2d, &
                                               &opt_nice_class=1, &
@@ -1473,7 +1474,7 @@ CONTAINS
                                               &opt_ocean_zheight_cellinterfaces = patch_3d%p_patch_1d(1)%zlev_i(:))
             CALL restartDescriptor%writeRestart(current_time, jstep)
 #ifdef _OPENACC
-            lacc = .FALSE.
+            lzacc = .FALSE.
             i_am_accel_node = .FALSE.                 ! Deactivate GPUs
 #endif
           END IF
@@ -1571,7 +1572,7 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   SUBROUTINE tracer_transport(patch_3d, ocean_state, p_as, sea_ice, p_oce_sfc, p_phys_param, &
-      operators_coefficients, current_time, use_acc)
+      operators_coefficients, current_time, lacc)
     TYPE(t_patch_3d ),TARGET, INTENT(inout)          :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET, INTENT(inout) :: ocean_state
     TYPE(t_atmos_for_ocean),  INTENT(inout)          :: p_as
@@ -1580,7 +1581,7 @@ CONTAINS
     TYPE(t_ho_params)                                :: p_phys_param
     TYPE(t_operator_coeff),   INTENT(inout)          :: operators_coefficients
     TYPE(datetime), POINTER, INTENT(in)              :: current_time
-    LOGICAL, INTENT(in), OPTIONAL                    :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL                    :: lacc
 
     TYPE(t_tracer_collection) , POINTER              :: old_tracer_collection, new_tracer_collection
     TYPE(t_ocean_transport_state), POINTER           :: transport_state
@@ -1588,7 +1589,7 @@ CONTAINS
     TYPE(t_subset_range), POINTER :: all_cells
 
     INTEGER :: i, jg
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
     patch_2D              => patch_3D%p_patch_2D(1)
     all_cells             => patch_2D%cells%ALL
@@ -1596,11 +1597,7 @@ CONTAINS
     new_tracer_collection => ocean_state%p_prog(nnew(1))%tracer_collection
     transport_state       => ocean_state%transport_state
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
 !     IF (no_tracer>=1) THEN
 !       !calculate some information that is used for all tracers
@@ -1624,13 +1621,13 @@ CONTAINS
       transport_state%vn          => ocean_state%p_diag%vn_time_weighted
 
       IF (use_draftave_for_transport_h) THEN
-        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         transport_state%h_old     = ocean_state%p_prog(nold(1))%h - sea_ice%draftave
         transport_state%h_new     = ocean_state%p_prog(nnew(1))%h - sea_ice%draftave
         !$ACC END KERNELS
         !$ACC WAIT(1)
       ELSE
-        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         transport_state%h_old     = ocean_state%p_prog(nold(1))%h
         transport_state%h_new     = ocean_state%p_prog(nnew(1))%h
         !$ACC END KERNELS
@@ -1655,7 +1652,7 @@ CONTAINS
 
       IF (GMRedi_configuration == Cartesian_Mixing ) THEN
         CALL advect_ocean_tracers(old_tracer_collection, new_tracer_collection, &
-          & transport_state, operators_coefficients, use_acc=lacc)
+          & transport_state, operators_coefficients, lacc=lzacc)
       ELSE
         CALL  advect_ocean_tracers_dev(old_tracer_collection, new_tracer_collection, &
           &  ocean_state, transport_state, p_phys_param, operators_coefficients)
@@ -1681,7 +1678,7 @@ CONTAINS
   !-------------------------------------------------------------------------
   SUBROUTINE tracer_transport_zstar(patch_3d, ocean_state, p_as, sea_ice, &
       & p_oce_sfc, p_phys_param, operators_coefficients, current_time, &
-      & stretch_c, stretch_e, stretch_c_new, use_acc)
+      & stretch_c, stretch_e, stretch_c_new, lacc)
     TYPE(t_patch_3d ),TARGET, INTENT(inout)          :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET, INTENT(inout) :: ocean_state
     TYPE(t_atmos_for_ocean),  INTENT(inout)          :: p_as
@@ -1693,7 +1690,7 @@ CONTAINS
     REAL(wp), INTENT(IN) :: stretch_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
     REAL(wp), INTENT(IN) :: stretch_e(nproma, patch_3d%p_patch_2d(1)%nblks_e) !! stretch factor
     REAL(wp), INTENT(IN) :: stretch_c_new(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
-    LOGICAL, INTENT(in), OPTIONAL                    :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL                    :: lacc
 
     TYPE(t_ocean_transport_state) , POINTER                   :: transport_state
     TYPE(t_tracer_collection) , POINTER              :: old_tracer_collection, new_tracer_collection
@@ -1701,7 +1698,7 @@ CONTAINS
     TYPE(t_subset_range), POINTER                    :: all_cells
 
     INTEGER :: i
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
     !------------------------------------------------------------------------
     !Tracer transport
@@ -1712,11 +1709,7 @@ CONTAINS
     new_tracer_collection => ocean_state%p_prog(nnew(1))%tracer_collection
     transport_state => ocean_state%transport_state
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !------------------------------------------------------------------------
     IF (no_tracer>=1) THEN
@@ -1750,7 +1743,7 @@ CONTAINS
       IF (GMRedi_configuration==Cartesian_Mixing) THEN
         !! Note that zstar has no horizontal diffusion
         CALL advect_ocean_tracers_zstar(old_tracer_collection, new_tracer_collection, &
-          & transport_state, operators_coefficients, stretch_e, stretch_c, stretch_c_new, use_acc=lacc)
+          & transport_state, operators_coefficients, stretch_e, stretch_c, stretch_c_new, lacc=lzacc)
       ELSE
         CALL  advect_ocean_tracers_GMRedi_zstar(old_tracer_collection, new_tracer_collection, &
           &  ocean_state, transport_state, p_phys_param, operators_coefficients, &

@@ -51,6 +51,7 @@ MODULE mo_sea_ice
   USE mo_grid_subset,         ONLY: t_subset_range, get_index_range
   USE mo_util_dbg_prnt,       ONLY: dbg_print
   USE mo_dbg_nml,             ONLY: idbg_mxmn, idbg_val
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -78,25 +79,21 @@ CONTAINS
   !! !! ice_conc_change: Calculates the changes in concentration as well as the grid-cell average
   !                     thickness of new ice forming in open-water areas
   !!
-  SUBROUTINE ice_conc_change(p_patch, ice, p_os, use_acc)
+  SUBROUTINE ice_conc_change(p_patch, ice, p_os, lacc)
 
     TYPE(t_patch),             INTENT(IN), TARGET :: p_patch
     TYPE (t_sea_ice),          INTENT(INOUT)      :: ice
     TYPE(t_hydro_ocean_state), INTENT(IN)         :: p_os
-    LOGICAL, INTENT(IN), OPTIONAL                 :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL                 :: lacc
 
     TYPE(t_subset_range), POINTER :: all_cells
     INTEGER                       :: k, jb, jc, i_startidx_c, i_endidx_c
  !  REAL(wp) :: sst(nproma,p_patch%alloc_cell_blocks)
  !  REAL(wp) :: sss(nproma,p_patch%alloc_cell_blocks)
     REAL(wp) :: Tfw(nproma,p_patch%alloc_cell_blocks) ! Ocean freezing temperature [C]
-    LOGICAL  :: lacc
+    LOGICAL  :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     all_cells            => p_patch%cells%all
 
@@ -104,15 +101,15 @@ CONTAINS
 
     CALL dbg_print('IceConcCh: IceConc beg' ,ice%conc, str_module, 4, in_subset=p_patch%cells%owned)
 
-    !$ACC DATA CREATE(Tfw) IF(lacc)
+    !$ACC DATA CREATE(Tfw) IF(lzacc)
 
     ! Calculate the sea surface freezing temperature                        [C]
     IF ( no_tracer < 2 .OR. use_constant_tfreez ) THEN
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
       Tfw(:,:) = Tf
       !$ACC END KERNELS
     ELSE
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
       Tfw(:,:) = -mu * p_os%p_prog(nold(1))%tracer(:,1,:,2)
       !$ACC END KERNELS
     ENDIF
@@ -124,7 +121,7 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc, jb) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
         DO jc = i_startidx_c,i_endidx_c
           ice%vol (jc,k,jb) = ice%hi(jc,k,jb)*ice%conc(jc,k,jb)*p_patch%cells%area(jc,jb)
           ice%vols(jc,k,jb) = ice%hs(jc,k,jb)*ice%conc(jc,k,jb)*p_patch%cells%area(jc,jb)
@@ -141,7 +138,7 @@ CONTAINS
     ! Concentration change due to new ice formation
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
       DO jc = i_startidx_c,i_endidx_c
         IF (ice%newice(jc,jb) > 0._wp .AND. v_base%lsm_c(jc,1,jb) <= sea_boundary) THEN
           ! New volume - we just preserve volume:
@@ -184,7 +181,7 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc, jb) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
       DO jc = i_startidx_c,i_endidx_c
         IF (ice%hiold(jc,1,jb) > ice%hi(jc,1,jb) .AND. ice%hi(jc,1,jb) > 0._wp) THEN
           ! Hibler's way to change the concentration due to lateral melting (leadclose parameter 1)
@@ -212,7 +209,7 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc, jb) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
       DO jc = i_startidx_c,i_endidx_c
         IF (ice%hi(jc,1,jb) < hmin .AND. ice%hi(jc,1,jb) > 0._wp) THEN
           ice%hi  (jc,1,jb) = hmin
@@ -227,7 +224,7 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc, jb) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
       DO jc = i_startidx_c,i_endidx_c
         IF (ice%hi(jc,1,jb) <= 0._wp) THEN
           ice%Tsurf(jc,1,jb) = Tfw(jc,jb)
@@ -248,7 +245,7 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc, jb) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
       DO jc = i_startidx_c,i_endidx_c
         ice%concSum(jc,jb) = SUM(ice%conc(jc,:,jb))
       END DO

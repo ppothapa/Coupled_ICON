@@ -36,6 +36,7 @@ MODULE mo_ocean_nudging
   USE mo_exception,                 ONLY: finish !, message_text, message
   USE mo_operator_ocean_coeff_3d,   ONLY: t_operator_coeff
   USE mo_grid_subset,               ONLY: t_subset_range, get_index_range
+  USE mo_fortran_tools,             ONLY: set_acc_host_or_device
 
 
   IMPLICIT NONE
@@ -66,10 +67,10 @@ CONTAINS
   !! Developed  by  Helmuth Haak, MPI-M (2018).
   !!
 !<Optimize:inUse>
-  SUBROUTINE nudge_ocean_tracers(patch_3d, p_os, use_acc)
+  SUBROUTINE nudge_ocean_tracers(patch_3d, p_os, lacc)
     TYPE(t_patch_3d ),TARGET, INTENT(inout)      :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET :: p_os
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
     !Local variables
 
@@ -79,13 +80,9 @@ CONTAINS
     TYPE(t_subset_range), POINTER :: cells_in_domain
     TYPE(t_patch), POINTER :: patch_2D
     INTEGER, POINTER :: dolic_c(:,:)
-    LOGICAL  :: lacc
+    LOGICAL  :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     patch_2d  => patch_3d%p_patch_2d(1)
     cells_in_domain => patch_2d%cells%ALL
@@ -108,7 +105,7 @@ CONTAINS
 
     DO blockNo = cells_in_domain%start_block, cells_in_domain%end_block
       CALL get_index_range(cells_in_domain, blockNo, start_index, end_index)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO jc = start_index, end_index
         DO level = 1, dolic_c(jc,blockNo)
           ocean_nudge%forc_3dimrelax_temp(jc,level,blockNo) = z_relax * dtime &
@@ -150,7 +147,7 @@ CONTAINS
 
       DO blockNo = cells_in_domain%start_block, cells_in_domain%end_block
         CALL get_index_range(cells_in_domain, blockNo, start_index, end_index)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO jc = start_index, end_index
           DO level = 1, dolic_c(jc,blockNo)
             ocean_nudge%forc_3dimrelax_salt(jc,level,blockNo) = z_relax * dtime &

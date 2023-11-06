@@ -2211,7 +2211,7 @@ CONTAINS
 
   END SUBROUTINE assert_lacc_equals_i_am_accel_node
 
-  SUBROUTINE set_acc_host_or_device(lzacc, lacc)
+  PURE SUBROUTINE set_acc_host_or_device(lzacc, lacc)
     LOGICAL, INTENT(out) :: lzacc
     LOGICAL, INTENT(in), OPTIONAL :: lacc
 

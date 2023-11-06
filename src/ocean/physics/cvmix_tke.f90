@@ -31,6 +31,7 @@ use cvmix_utils,              only : cvmix_update_tke, solve_tridiag
 
 
 USE mo_exception,          ONLY: finish
+USE mo_fortran_tools,      ONLY: set_acc_host_or_device
 
 implicit none
 private 
@@ -493,7 +494,7 @@ subroutine integrate_tke_gpu(                      &
                              rho_ref,              &
                              grav,                 &
                              alpha_c,              &
-                             use_acc)
+                             lacc)
 
   integer, intent(in)                  :: start_index
   integer, intent(in)                  :: end_index
@@ -530,11 +531,11 @@ subroutine integrate_tke_gpu(                      &
   real(cvmix_r8), intent(in)           :: rho_ref
   real(cvmix_r8), intent(in)           :: grav
   real(cvmix_r8), intent(in), optional :: alpha_c(nproma,max_nlev+1)
-  logical, intent(in), optional        :: use_acc
+  logical, intent(in), optional        :: lacc
 
   ! local variables
   type(tke_type), pointer              :: tke_constants_in
-  logical :: lacc
+  logical :: lzacc
 
   real(cvmix_r8), dimension(nproma,max_nlev+1) :: &
     tke_unrest                                  , & ! copy of tke before restorring to background value
@@ -592,20 +593,16 @@ subroutine integrate_tke_gpu(                      &
 
   CHARACTER(LEN=*), PARAMETER :: method_name = module_name//':integrate_tke_gpu'
 
-  if (present(use_acc)) then
-    lacc = use_acc
-  else
-    lacc = .FALSE.
-  end if
+  CALL set_acc_host_or_device(lzacc, lacc)
 
   tke_constants_in => tke_constants_saved
 
   !$ACC DATA COPYIN(tke_constants_in) &
   !$ACC   CREATE(tke_unrest, tke_upd, mxl, sqrttke, prandtl, Rinum, K_diss_v, P_diss_v, forc) &
   !$ACC   CREATE(a_dif, b_dif, c_dif, a_tri, b_tri, c_tri, d_tri, ke, cp, dp) &
-  !$ACC   IF(lacc)
+  !$ACC   IF(lzacc)
 
-  !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
   DO jc = start_index, end_index
     IF (levels(jc) > 0) THEN
       

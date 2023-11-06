@@ -14,6 +14,7 @@ MODULE mo_settling
 
       USE mo_kind,    ONLY        : wp
       USE mo_bgc_memory_types, ONLY  : t_bgc_memory, t_sediment_memory
+      USE mo_fortran_tools, ONLY  : set_acc_host_or_device
 
 
       IMPLICIT NONE
@@ -28,7 +29,7 @@ CONTAINS
 !>
 ! !! @file settling.f90
 !! @brief compute settling of debris
-      SUBROUTINE settling (local_bgc_mem, local_sediment_mem, klev,start_idx, end_idx, pddpo, za, use_acc)
+      SUBROUTINE settling (local_bgc_mem, local_sediment_mem, klev,start_idx, end_idx, pddpo, za, lacc)
 
       USE mo_param1_bgc, ONLY     : icalc, iopal, kopex90,   &
        &                            idet, kcalex90, &
@@ -58,19 +59,15 @@ CONTAINS
 
       REAL(wp), INTENT(in), TARGET   :: pddpo(bgc_nproma,bgc_zlevs)      !< size of scalar grid cell (3rd dimension) [m]
       REAL(wp), INTENT(in), TARGET   :: za(bgc_nproma)      !< surface height
-      LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+      LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
 
       ! Local variables
       INTEGER,  POINTER  :: kbo(:)   !< k-index of bottom layer (2d)
       INTEGER :: k, kpke,j
-      LOGICAL :: lacc
+      LOGICAL :: lzacc
 
-      IF (PRESENT(use_acc)) THEN
-        lacc = use_acc
-      ELSE
-        lacc = .FALSE.
-      END IF
+      CALL set_acc_host_or_device(lzacc, lacc)
 
 
      ! implicit method:
@@ -81,7 +78,7 @@ CONTAINS
      !
      kbo => local_bgc_mem%kbo
      
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO j=start_idx,end_idx
         kpke=klev(j)        

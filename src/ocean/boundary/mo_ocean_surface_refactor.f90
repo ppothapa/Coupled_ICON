@@ -71,6 +71,7 @@ MODULE mo_ocean_surface_refactor
   USE mo_ocean_check_total_content,       ONLY: check_total_salt_content, check_total_si_volume
 
   USE mo_mpi, only: get_my_mpi_work_id
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -97,13 +98,13 @@ CONTAINS
   !! Initial release (mo_oce_bulk)          by Stephan Lorenz, MPI-M (2010-07)
   !! Restructuring (mo_ocean_surface)       by Stephan Lorenz, MPI-M (2015-04)
   !
-  SUBROUTINE apply_surface_fluxes_slo(p_patch_3D, p_os, p_ice, p_oce_sfc, use_acc)
+  SUBROUTINE apply_surface_fluxes_slo(p_patch_3D, p_os, p_ice, p_oce_sfc, lacc)
 
     TYPE(t_patch_3D ),TARGET, INTENT(IN)        :: p_patch_3D
     TYPE(t_hydro_ocean_state)                   :: p_os
     TYPE(t_sea_ice)                             :: p_ice
     TYPE(t_ocean_surface)                       :: p_oce_sfc
-    LOGICAL, INTENT(IN), OPTIONAL               :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL               :: lacc
     !
     ! local variables
     CHARACTER(LEN=max_char_length), PARAMETER :: routine = 'mo_ocean_surface_refactor:apply_surface_fluxes_slo'
@@ -113,16 +114,12 @@ CONTAINS
 
     REAL(wp)  :: heatflux_surface_layer ! heatflux into the surface layer
     REAL(wp)  :: zunderice_ini
-    LOGICAL   :: lacc
+    LOGICAL   :: lzacc
 
     TYPE(t_patch), POINTER:: p_patch
     TYPE(t_subset_range), POINTER :: all_cells
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !-----------------------------------------------------------------------
     p_patch         => p_patch_3D%p_patch_2D(1)
@@ -140,7 +137,7 @@ CONTAINS
         ! by construction, is stored in p_oce_sfc%cellThicknessUnderIce
         DO jb = all_cells%start_block, all_cells%end_block
           CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(heatflux_surface_layer) ASYNC(1) IF(lacc)
+          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(heatflux_surface_layer) ASYNC(1) IF(lzacc)
           DO jc = i_startidx_c, i_endidx_c
             IF (p_patch_3D%lsm_c(jc,1,jb) <= sea_boundary) THEN
 
@@ -169,7 +166,7 @@ CONTAINS
     !    i.e. for salinity relaxation only, no volume flux is applied
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(zUnderIce_ini) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(zUnderIce_ini) ASYNC(1) IF(lzacc)
       DO jc = i_startidx_c, i_endidx_c
         IF (p_patch_3D%p_patch_1D(1)%dolic_c(jc,jb) > 0) THEN
 
@@ -320,7 +317,7 @@ CONTAINS
   !
   SUBROUTINE update_ocean_surface_refactor(p_patch_3D, p_os, p_as, p_ice, &
       & atmos_fluxes, p_oce_sfc, this_datetime, p_op_coeff, eta_c, stretch_c, &
-      & use_acc)
+      & lacc)
 
     TYPE(t_patch_3D ),TARGET, INTENT(IN)        :: p_patch_3D
     TYPE(t_hydro_ocean_state)                   :: p_os
@@ -332,23 +329,19 @@ CONTAINS
     TYPE(t_operator_coeff),   INTENT(IN)        :: p_op_coeff
     REAL(wp), INTENT(INOUT),OPTIONAL :: eta_c(nproma, p_patch_3d%p_patch_2d(1)%alloc_cell_blocks) !! sfc ht
     REAL(wp), INTENT(IN   ),OPTIONAL :: stretch_c(nproma, p_patch_3d%p_patch_2d(1)%alloc_cell_blocks)
-    LOGICAL,  INTENT(IN   ),OPTIONAL :: use_acc
+    LOGICAL,  INTENT(IN   ),OPTIONAL :: lacc
     !
     ! local variables
     TYPE(t_patch), POINTER                      :: p_patch
     TYPE(t_subset_range), POINTER               :: all_cells
     INTEGER                                     :: trac_no
     REAL(wp)                                    :: dsec
-    LOGICAL                                     :: lacc
+    LOGICAL                                     :: lzacc
     INTEGER                                     :: jc, jb, i_startidx_c, i_endidx_c
 
     CHARACTER(LEN=max_char_length), PARAMETER :: routine = 'mo_ocean_surface_refactor:update_ocean_surface'
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !-----------------------------------------------------------------------
     p_patch         => p_patch_3D%p_patch_2D(1)
@@ -358,7 +351,7 @@ CONTAINS
 
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO jc = i_startidx_c, i_endidx_c
         p_oce_sfc%top_dilution_coeff(jc,jb) = 1.0_wp ! Initilize dilution factor to one
       END DO
@@ -385,7 +378,7 @@ CONTAINS
          p_os%p_prog(nold(1))%tracer(:,:,:,2),               &
          p_os%p_diag%delta_ice,                              &
          p_os%p_diag%delta_snow, p_os%p_diag%delta_thetao,   &
-         p_os%p_diag%delta_so, use_acc=lacc)
+         p_os%p_diag%delta_so, lacc=lzacc)
 
     END IF
 
@@ -396,13 +389,13 @@ CONTAINS
       trac_no = 1   !  tracer no 1: temperature
 
       IF (vert_cor_type .EQ. 0 ) THEN
-        CALL update_surface_relaxation(p_patch_3D, p_os, p_ice, p_oce_sfc, trac_no, use_acc=lacc)
+        CALL update_surface_relaxation(p_patch_3D, p_os, p_ice, p_oce_sfc, trac_no, lacc=lzacc)
       ELSE
-        CALL update_surface_relaxation(p_patch_3D, p_os, p_ice, p_oce_sfc, trac_no, stretch_c, use_acc=lacc)
+        CALL update_surface_relaxation(p_patch_3D, p_os, p_ice, p_oce_sfc, trac_no, stretch_c, lacc=lzacc)
       ENDIF
 
       !  apply restoring to surface temperature directly
-      CALL apply_surface_relaxation(p_patch_3D, p_os, p_oce_sfc, trac_no, use_acc=lacc)
+      CALL apply_surface_relaxation(p_patch_3D, p_os, p_oce_sfc, trac_no, lacc=lzacc)
 
     END IF
 
@@ -410,24 +403,24 @@ CONTAINS
       trac_no = 2   !  tracer no 2: salinity
 
       IF (vert_cor_type .EQ. 0) THEN
-        CALL update_surface_relaxation(p_patch_3D, p_os, p_ice, p_oce_sfc, trac_no, use_acc=lacc)
+        CALL update_surface_relaxation(p_patch_3D, p_os, p_ice, p_oce_sfc, trac_no, lacc=lzacc)
       ELSE
-        CALL update_surface_relaxation(p_patch_3D, p_os, p_ice, p_oce_sfc, trac_no, stretch_c, use_acc=lacc)
+        CALL update_surface_relaxation(p_patch_3D, p_os, p_ice, p_oce_sfc, trac_no, stretch_c, lacc=lzacc)
       ENDIF
 
       !  apply restoring to surface salinity directly
-      CALL apply_surface_relaxation(p_patch_3D, p_os, p_oce_sfc, trac_no, use_acc=lacc)
+      CALL apply_surface_relaxation(p_patch_3D, p_os, p_oce_sfc, trac_no, lacc=lzacc)
 
     ENDIF
 
     !---------------------------------------------------------------------
     ! (2) Receive/calculate surface fluxes and wind stress
     !---------------------------------------------------------------------
-    CALL update_atmos_fluxes(p_patch_3D, p_as, atmos_fluxes, p_oce_sfc, p_os, p_ice, this_datetime, use_acc=lacc)
+    CALL update_atmos_fluxes(p_patch_3D, p_as, atmos_fluxes, p_oce_sfc, p_os, p_ice, this_datetime, lacc=lzacc)
 
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO jc = i_startidx_c,i_endidx_c
         ! copy atmospheric variables into new forcing variables for diagnostics
         p_oce_sfc%Wind_Speed_10m(jc,jb) = p_as%fu10(jc,jb)
@@ -447,12 +440,12 @@ CONTAINS
 
         !  (3a) Fast sea ice thermodynamics (Analytical or OMIP cases only. Otherwise, done in the atmosphere)
         IF (iforc_oce == Analytical_Forcing .OR. iforc_oce == OMIP_FluxFromFile)  THEN
-            CALL ice_fast_interface(p_patch, p_ice, atmos_fluxes, this_datetime, use_acc=lacc)
+            CALL ice_fast_interface(p_patch, p_ice, atmos_fluxes, this_datetime, lacc=lzacc)
         ENDIF
 
-        CALL ice_dynamics(p_patch_3D, p_ice, p_oce_sfc, atmos_fluxes, p_os, p_as, p_op_coeff, use_acc=lacc)
+        CALL ice_dynamics(p_patch_3D, p_ice, p_oce_sfc, atmos_fluxes, p_os, p_as, p_op_coeff, lacc=lzacc)
 
-        CALL ice_thermodynamics(p_patch_3D, p_ice, p_oce_sfc, atmos_fluxes, p_os, p_as, p_op_coeff, use_acc=lacc)
+        CALL ice_thermodynamics(p_patch_3D, p_ice, p_oce_sfc, atmos_fluxes, p_os, p_as, p_op_coeff, lacc=lzacc)
 
     ELSE !  sea ice is off
 
@@ -460,7 +453,7 @@ CONTAINS
       ! should not be done here! Move to apply_surface_fluxes
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO jc = i_startidx_c,i_endidx_c
           IF(p_oce_sfc%SST(jc,jb) .LT. Tf) p_oce_sfc%SST(jc,jb) = Tf
         END DO
@@ -476,7 +469,7 @@ CONTAINS
     ! atm-ocean stress is either from file, bulk formula, or coupling
     ! if ice dynamics is off, ocean-ice stress is set to zero (no friction with ice)
 
-    CALL update_ocean_surface_stress(p_patch_3D, p_ice, p_os, atmos_fluxes, p_oce_sfc, use_acc=lacc)
+    CALL update_ocean_surface_stress(p_patch_3D, p_ice, p_os, atmos_fluxes, p_oce_sfc, lacc=lzacc)
 
     !---------------------------------------------------------------------
     ! (5) Apply thermal and haline fluxes to the ocean surface layer
@@ -485,14 +478,14 @@ CONTAINS
 
     ! include hamoccs chlorophylls effect sw absorption
     ! FIXME zstar: Haven't checked for zstar requirements in hamocc
-    IF ( lhamocc .AND. lfb_bgc_oce ) CALL dynamic_swr_absorption(p_patch_3d, p_os, use_acc=lacc)
+    IF ( lhamocc .AND. lfb_bgc_oce ) CALL dynamic_swr_absorption(p_patch_3d, p_os, lacc=lzacc)
 
 
     IF ( lswr_jerlov ) THEN
 
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO jc = i_startidx_c,i_endidx_c
           p_os%p_diag%heatabs(jc,jb)=(p_os%p_diag%swsum(jc,jb)  &
                   *p_oce_sfc%HeatFlux_ShortWave(jc,jb)*(1.0_wp-p_ice%concsum(jc,jb)))
@@ -505,7 +498,7 @@ CONTAINS
 
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO jc = i_startidx_c,i_endidx_c
           p_os%p_diag%heatabs(jc,jb)=0.0_wp
         END DO
@@ -516,18 +509,18 @@ CONTAINS
     END IF
 
     IF (vert_cor_type .EQ. 0 ) THEN
-       CALL apply_surface_fluxes_slo(p_patch_3D, p_os, p_ice, p_oce_sfc, use_acc=lacc)
+       CALL apply_surface_fluxes_slo(p_patch_3D, p_os, p_ice, p_oce_sfc, lacc=lzacc)
     ELSE
-       CALL apply_surface_fluxes_zstar_v13(p_patch_3D, p_os, p_ice, p_oce_sfc, eta_c, stretch_c, use_acc=lacc)
+       CALL apply_surface_fluxes_zstar_v13(p_patch_3D, p_os, p_ice, p_oce_sfc, eta_c, stretch_c, lacc=lzacc)
     ENDIF
 
     ! apply subsurface heating
     IF ( lswr_jerlov ) THEN
 
       IF (vert_cor_type .EQ. 0) THEN
-        CALL subsurface_swr_absorption(p_patch_3d, p_os, use_acc=lacc)
+        CALL subsurface_swr_absorption(p_patch_3d, p_os, lacc=lzacc)
       ELSE
-        CALL subsurface_swr_absorption_zstar(p_patch_3d, p_os, stretch_c, use_acc=lacc)
+        CALL subsurface_swr_absorption_zstar(p_patch_3d, p_os, stretch_c, lacc=lzacc)
       ENDIF
 
     ENDIF
@@ -542,11 +535,11 @@ CONTAINS
     IF (limit_elevation) THEN
 
       IF (vert_cor_type .EQ. 0) THEN
-        CALL balance_elevation(p_patch_3D, p_os%p_prog(nold(1))%h, p_oce_sfc, p_ice, use_acc=lacc)
+        CALL balance_elevation(p_patch_3D, p_os%p_prog(nold(1))%h, p_oce_sfc, p_ice, lacc=lzacc)
       !---------DEBUG DIAGNOSTICS-------------------------------------------
         CALL dbg_print('UpdSfc: h-old+BalElev',p_os%p_prog(nold(1))%h  ,str_module, 3, in_subset=p_patch%cells%owned)
       ELSE
-        CALL balance_elevation_zstar(p_patch_3D, eta_c, p_oce_sfc, stretch_c, use_acc=lacc)
+        CALL balance_elevation_zstar(p_patch_3D, eta_c, p_oce_sfc, stretch_c, lacc=lzacc)
       !---------DEBUG DIAGNOSTICS-------------------------------------------
         CALL dbg_print('UpdSfc: h-old+BalElev', eta_c, routine, 2, in_subset=p_patch%cells%owned)
       !---------------------------------------------------------------------
@@ -562,7 +555,7 @@ CONTAINS
   !!
   !! Adapted for zstar
   !
-  SUBROUTINE apply_surface_fluxes_zstar_v13(p_patch_3D, p_os, p_ice, p_oce_sfc, eta_c, stretch_c, use_acc)
+  SUBROUTINE apply_surface_fluxes_zstar_v13(p_patch_3D, p_os, p_ice, p_oce_sfc, eta_c, stretch_c, lacc)
 
     TYPE(t_patch_3D ),TARGET, INTENT(IN)        :: p_patch_3D
     TYPE(t_hydro_ocean_state)                   :: p_os
@@ -571,7 +564,7 @@ CONTAINS
     !
     REAL(wp), INTENT(INOUT) :: eta_c(nproma, p_patch_3d%p_patch_2d(1)%alloc_cell_blocks) !! sfc ht
     REAL(wp), INTENT(IN   ) :: stretch_c(nproma, p_patch_3d%p_patch_2d(1)%alloc_cell_blocks)
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
     ! local variables
     INTEGER               :: jc, jb, jt
@@ -586,7 +579,7 @@ CONTAINS
     REAL(wp)              :: temp_stretch
 #endif
     REAL(wp)              :: tdc_i
-    LOGICAL               :: lacc
+    LOGICAL               :: lzacc
 
     REAL(wp) :: min_h
 
@@ -607,11 +600,7 @@ CONTAINS
 
     CHARACTER(LEN=max_char_length), PARAMETER :: str_module = 'apply_surface_fluxes_zstar_v13'
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !-----------------------------------------------------------------------
     p_patch         => p_patch_3D%p_patch_2D(1)
@@ -627,7 +616,7 @@ CONTAINS
 
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO jc = i_startidx_c, i_endidx_c
         !!  Provide total ocean forcing:
         !    - total heat fluxes are aggregated for ice/ocean in ice thermodynamics
@@ -648,7 +637,7 @@ CONTAINS
       IF ( heatflux_forcing_on_sst ) THEN
         DO jb = all_cells%start_block, all_cells%end_block
           CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(heatflux_surface_layer) ASYNC(1) IF(lacc)
+          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(heatflux_surface_layer) ASYNC(1) IF(lzacc)
           DO jc = i_startidx_c, i_endidx_c
             IF (p_patch_3D%lsm_c(jc,1,jb) <= sea_boundary) THEN
 
@@ -680,7 +669,7 @@ CONTAINS
 
         max_lev = MAXVAL(dolic_c(i_startidx_c:i_endidx_c, jb))
 
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(dz_new, z_change, temp_stretch) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(dz_new, z_change, temp_stretch) ASYNC(1) IF(lzacc)
         DO jc = i_startidx_c, i_endidx_c
           IF (dolic_c(jc,jb) > 0) THEN
 
@@ -716,7 +705,7 @@ CONTAINS
         !$ACC END PARALLEL LOOP
         !$ACC WAIT(1)
 
-        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP SEQ
         DO jk = max_lev-1,1,-1
           !$ACC LOOP GANG VECTOR
@@ -799,7 +788,7 @@ CONTAINS
 #else
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-        !$ACC PARALLEL DEFAULT(PRESENT) PRIVATE(dz_old, dz_new, z_change) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) PRIVATE(dz_old, dz_new, z_change) ASYNC(1) IF(lzacc)
         !$ACC LOOP SEQ
         DO jc = i_startidx_c, i_endidx_c
           IF (dolic_c(jc,jb) > 0) THEN
@@ -902,7 +891,7 @@ CONTAINS
 
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO jc = i_startidx_c, i_endidx_c
         !! set correct cell thickness under ice
         p_oce_sfc%cellThicknessUnderIce   (jc,jb) = p_ice%zUnderIce(jc,jb)
@@ -933,7 +922,7 @@ CONTAINS
   !! Initial release by Vladimir Lapin, MPI-M (2016-11)
   !
 !<Optimize_Used>
-  SUBROUTINE update_atmos_fluxes(p_patch_3D, p_as, atmos_fluxes, p_oce_sfc, p_os, p_ice, this_datetime, use_acc)
+  SUBROUTINE update_atmos_fluxes(p_patch_3D, p_as, atmos_fluxes, p_oce_sfc, p_os, p_ice, this_datetime, lacc)
 
     TYPE(t_patch_3D ),TARGET,  INTENT(IN)       :: p_patch_3D
     TYPE(t_atmos_for_ocean)                     :: p_as
@@ -942,21 +931,17 @@ CONTAINS
     TYPE (t_hydro_ocean_state),INTENT(IN)       :: p_os
     TYPE (t_sea_ice),          INTENT(IN)       :: p_ice
     TYPE(datetime), POINTER                     :: this_datetime
-    LOGICAL, INTENT(IN), OPTIONAL               :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL               :: lacc
 
     ! local variables
     CHARACTER(LEN=max_char_length), PARAMETER :: routine = 'mo_ocean_surface_refactor:update_atmos_fluxes'
     TYPE(t_patch), POINTER:: p_patch
     TYPE(t_subset_range), POINTER :: all_cells
-    LOGICAL                       :: lacc
+    LOGICAL                       :: lzacc
     INTEGER                       :: jc, jb, i_startidx_c, i_endidx_c
     REAL(wp)                      :: ftdew_in(SIZE(p_as%ftdew,1), SIZE(p_as%ftdew,2))
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !-----------------------------------------------------------------------
     p_patch         => p_patch_3D%p_patch_2D(1)
@@ -967,21 +952,21 @@ CONTAINS
 
     CASE (Analytical_Forcing)        !  11      !  Driving the ocean with analytical fluxes
 
-      CALL update_atmos_fluxes_analytical(p_patch_3D, p_os, p_ice, atmos_fluxes, p_oce_sfc, use_acc=lacc)
+      CALL update_atmos_fluxes_analytical(p_patch_3D, p_os, p_ice, atmos_fluxes, p_oce_sfc, lacc=lzacc)
 
     CASE (OMIP_FluxFromFile)         !  12      !  Driving the ocean with OMIP fluxes
 
       !   a) read OMIP data into p_as
-      CALL update_flux_fromFile(p_patch_3D, p_as, this_datetime, use_acc=lacc)
+      CALL update_flux_fromFile(p_patch_3D, p_as, this_datetime, lacc=lzacc)
 
       !   b) calculate heat fluxes from p_as
-      CALL calc_omip_budgets_oce(p_patch_3d, p_as, p_os, p_ice, atmos_fluxes, use_acc=lacc)
+      CALL calc_omip_budgets_oce(p_patch_3d, p_as, p_os, p_ice, atmos_fluxes, lacc=lzacc)
 
       IF (i_sea_ice >= 1) THEN ! sea ice is on
 
-          !$ACC DATA CREATE(ftdew_in) IF(lacc)
+          !$ACC DATA CREATE(ftdew_in) IF(lzacc)
 
-          !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+          !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           ftdew_in(:,:) = p_as%ftdew(:,:)-tmelt
           !$ACC END KERNELS
           !$ACC WAIT(1)
@@ -1003,20 +988,20 @@ CONTAINS
             &                        atmos_fluxes%dLWdT    (:,:,:),                  &  !  output parameter
             &                        atmos_fluxes%dsensdT  (:,:,:),                  &  !  output parameter
             &                        atmos_fluxes%dlatdT   (:,:,:),                  &  !  output parameter
-            &                        use_acc=lacc)
+            &                        lacc=lzacc)
 
           !$ACC END DATA
 
       ELSE   !  no sea ice
 
 #ifdef _OPENACC
-        IF (lacc) CALL finish(routine, 'OpenACC version currently not tested/validated')
+        IF (lzacc) CALL finish(routine, 'OpenACC version currently not tested/validated')
 #endif
 
         ! apply net surface heat flux in W/m2 for OMIP case, since these fluxes are calculated in calc_omip_budgets_oce
         DO jb = all_cells%start_block, all_cells%end_block
           CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           DO jc = i_startidx_c,i_endidx_c
             IF (p_patch_3D%lsm_c(jc,1,jb) <= sea_boundary) THEN
               p_oce_sfc%HeatFlux_ShortWave(jc,jb) = atmos_fluxes%SWnetw(jc,jb) ! net SW radiation flux over water
@@ -1045,7 +1030,7 @@ CONTAINS
       ! d) freshwater fluxes from p_as
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO jc = i_startidx_c,i_endidx_c
 
           ! provide evaporation from latent heat flux for OMIP case
@@ -1079,7 +1064,7 @@ CONTAINS
     CASE (Coupled_FluxFromAtmo)
 
 #ifdef _OPENACC
-      IF (lacc) CALL finish(routine, 'OpenACC version currently not tested/validated')
+      IF (lzacc) CALL finish(routine, 'OpenACC version currently not tested/validated')
 #endif
 
       !  Driving the ocean in a coupled mode:
@@ -1089,7 +1074,7 @@ CONTAINS
 
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO jc = i_startidx_c,i_endidx_c
 
           ! HAMOCC uses p_as to get SW radiation and wind, so we need to copy
@@ -1140,12 +1125,12 @@ CONTAINS
 
     IF (zero_freshwater_flux) THEN
 #ifdef _OPENACC
-      IF (lacc) CALL finish(routine, 'OpenACC version currently not tested/validated')
+      IF (lzacc) CALL finish(routine, 'OpenACC version currently not tested/validated')
 #endif
 
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO jc = i_startidx_c,i_endidx_c
           ! since latw<>0. we must set evap and TotalOcean again to zero:
           p_oce_sfc%FrshFlux_Evaporation  (jc,jb) = 0.0_wp
@@ -1200,14 +1185,14 @@ CONTAINS
   !! Initial release by Stephan Lorenz, MPI-M (2010-07)
   !
 !<Optimize_Used>
-  SUBROUTINE update_atmos_fluxes_analytical(p_patch_3D, p_os, p_ice, atmos_fluxes, p_oce_sfc, use_acc)
+  SUBROUTINE update_atmos_fluxes_analytical(p_patch_3D, p_os, p_ice, atmos_fluxes, p_oce_sfc, lacc)
 
     TYPE(t_patch_3D ),TARGET, INTENT(IN)    :: p_patch_3D
     TYPE(t_hydro_ocean_state), INTENT(IN)   :: p_os
     TYPE(t_sea_ice), INTENT(IN)             :: p_ice
     TYPE(t_atmos_fluxes)                    :: atmos_fluxes
     TYPE(t_ocean_surface)                   :: p_oce_sfc
-    LOGICAL, INTENT(IN), OPTIONAL           :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL           :: lacc
     !
     ! local variables
     INTEGER :: jc, jb
@@ -1223,7 +1208,7 @@ CONTAINS
     REAL(wp) :: z_temp_max, z_temp_min, z_temp_incr
     REAL(wp) :: center, length, zonal_waveno,amplitude
     REAL(wp) :: no_flux_length, south_bound, max_flux_y
-    LOGICAL  :: lacc
+    LOGICAL  :: lzacc
 
     CHARACTER(LEN=max_char_length), PARAMETER :: routine = 'mo_ocean_bulk_forcing:update_atmos_fluxes_analytical'
     !-------------------------------------------------------------------------
@@ -1234,14 +1219,10 @@ CONTAINS
     !-------------------------------------------------------------------------
     all_cells => p_patch%cells%all
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
 #ifdef _OPENACC
-    IF (lacc) CALL finish(routine, 'OpenACC version currently not tested/validated')
+    IF (lzacc) CALL finish(routine, 'OpenACC version currently not tested/validated')
 #endif
 
     ! atmosphere fluxes for analytical testcased similar to mo_ocean_initial_conditions:
@@ -1254,7 +1235,7 @@ CONTAINS
 
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, start_cell_index, end_cell_index)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO jc = start_cell_index, end_cell_index
           ! set LW/SW/sensible/latent heat fluxes over ice to constant
           atmos_fluxes%SWnet(jc,1,jb) = atmos_SWnet_const
@@ -1284,7 +1265,7 @@ CONTAINS
 
           DO jb = all_cells%start_block, all_cells%end_block
             CALL get_index_range(all_cells, jb, start_cell_index, end_cell_index)
-            !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+            !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
             DO jc = start_cell_index, end_cell_index
 
               IF(p_patch_3D%lsm_c(jc,1,jb)<=sea_boundary)THEN
@@ -1321,7 +1302,7 @@ CONTAINS
 
           DO jb = all_cells%start_block, all_cells%end_block
             CALL get_index_range(all_cells, jb, start_cell_index, end_cell_index)
-            !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+            !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
             DO jc = start_cell_index, end_cell_index
               p_oce_sfc%data_surfRelax_Temp(jc,jb)     = 0.0_wp
               p_oce_sfc%TopBC_Temp_vdiff(jc,jb) = 0.0_wp
@@ -1356,7 +1337,7 @@ CONTAINS
        !y_length = basin_height_deg * deg2rad
        DO jb = all_cells%start_block, all_cells%end_block
          CALL get_index_range(all_cells, jb, start_cell_index, end_cell_index)
-         !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+         !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
          DO jc = start_cell_index, end_cell_index
 
            IF(p_patch_3D%lsm_c(jc,1,jb)<=sea_boundary)THEN
@@ -1415,7 +1396,7 @@ CONTAINS
 
         DO jb = all_cells%start_block, all_cells%end_block
           CALL get_index_range(all_cells, jb, start_cell_index, end_cell_index)
-          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           DO jc = start_cell_index, end_cell_index
 
             p_oce_sfc%TopBC_Temp_vdiff(jc,jb) = z_relax*( p_oce_sfc%data_surfRelax_Temp(jc,jb) &
@@ -1440,7 +1421,7 @@ CONTAINS
         !Add horizontal variation
         DO jb = all_cells%start_block, all_cells%end_block
           CALL get_index_range(all_cells, jb, start_cell_index, end_cell_index)
-          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
           DO jc = start_cell_index, end_cell_index
             z_lat = p_patch%cells%center(jc,jb)%lat
             z_lat_deg = z_lat*rad2deg
@@ -1474,7 +1455,7 @@ CONTAINS
     !-----------------------------
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, start_cell_index, end_cell_index)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO jc = start_cell_index, end_cell_index
         !  needed for old heat flux BC
         p_oce_sfc%HeatFlux_Total(jc,jb)=p_oce_sfc%TopBC_Temp_vdiff(jc,jb)

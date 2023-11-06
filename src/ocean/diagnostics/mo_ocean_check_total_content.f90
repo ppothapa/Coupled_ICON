@@ -69,6 +69,7 @@ MODULE mo_ocean_check_total_content
   USE mtime,                 ONLY: datetime, MAX_DATETIME_STR_LEN, datetimeToPosixString
 
   USE mo_ocean_nml,          ONLY: n_zlev, no_tracer, vert_cor_type
+  USE mo_fortran_tools,      ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
   PRIVATE
@@ -186,7 +187,7 @@ CONTAINS
 
   !-------------------------------------------------------------------------
  SUBROUTINE calc_total_salt_content(so, patch_2d, h, thickness, ice, im, &
-                  total_salt, total_saltinseaice, total_saltinliquidwater, use_acc)
+                  total_salt, total_saltinseaice, total_saltinliquidwater, lacc)
 
     TYPE(t_patch), TARGET, INTENT(IN)                                 :: patch_2d
     REAL(wp),DIMENSION(nproma,patch_2d%alloc_cell_blocks),INTENT(IN) :: h
@@ -197,25 +198,21 @@ CONTAINS
     REAL(wp)                                              :: total_salt
     REAL(wp)                                              :: total_saltinseaice
     REAL(wp)                                              :: total_saltinliquidwater
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
     REAL(wp), DIMENSION(nproma,patch_2d%alloc_cell_blocks) :: salt
     REAL(wp), DIMENSION(nproma,patch_2d%alloc_cell_blocks) :: saltinseaice
     REAL(wp), DIMENSION(nproma,patch_2d%alloc_cell_blocks) :: saltinliquidwater
 
     INTEGER :: im 
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC DATA COPY(salt, saltinseaice, saltinliquidwater) IF(lacc)
+    !$ACC DATA COPY(salt, saltinseaice, saltinliquidwater) IF(lzacc)
 
     CALL calc_salt_content(so, patch_2d, h, thickness, ice, im , &
-                           salt, saltinseaice, saltinliquidwater, use_acc=lacc )
+                           salt, saltinseaice, saltinliquidwater, lacc=lzacc )
 
     !$ACC END DATA
 
@@ -228,13 +225,13 @@ CONTAINS
   
   !-------------------------------------------------------------------------
   SUBROUTINE calc_salt_content(so, patch_2d, h, thickness, ice, im, &
-            salt, saltinseaice, saltinliquidwater, use_acc)
+            salt, saltinseaice, saltinliquidwater, lacc)
     TYPE(t_patch), TARGET, INTENT(IN)                                 :: patch_2d
     REAL(wp),DIMENSION(nproma,patch_2d%alloc_cell_blocks),INTENT(IN) :: h
     REAL(wp),DIMENSION(nproma,n_zlev,patch_2d%alloc_cell_blocks),INTENT(IN) :: thickness
     REAL(wp),DIMENSION(nproma,n_zlev,patch_2d%alloc_cell_blocks),INTENT(IN) :: so !salinity
     TYPE (t_sea_ice),       INTENT(IN)                    :: ice
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
     ! locals
     REAL(wp), INTENT(INOUT), DIMENSION(nproma,patch_2d%alloc_cell_blocks) :: salt
@@ -242,22 +239,18 @@ CONTAINS
     REAL(wp), INTENT(INOUT), DIMENSION(nproma,patch_2d%alloc_cell_blocks) :: saltinliquidwater
 
     REAL(wp) :: rhoicwa,rhosnwa,draftave
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
  
     TYPE(t_subset_range), POINTER                         :: subset
     INTEGER                                               :: block, cell, cellStart,cellEnd, level
     INTEGER                                               :: im
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     IF(no_tracer<=1)RETURN
 
-    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     salt(:,:)              = 0.0_wp
     saltinseaice(:,:)      = 0.0_wp
     saltinliquidwater(:,:) = 0.0_wp
@@ -271,7 +264,7 @@ CONTAINS
 
     DO block = subset%start_block, subset%end_block
       CALL get_index_range(subset, block, cellStart, cellEnd)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO cell = cellStart, cellEnd
         IF (subset%vertical_levels(cell,block) < 1) CYCLE
 
@@ -484,7 +477,7 @@ CONTAINS
 
   
   SUBROUTINE calc_total_salt_content_zstar(so, patch_2d, stretch, thickness, ice, &
-      & total_salt, total_saltinseaice, total_saltinliquidwater, use_acc)
+      & total_salt, total_saltinseaice, total_saltinliquidwater, lacc)
 
     TYPE(t_patch), TARGET, INTENT(IN)                                 :: patch_2d
     REAL(wp),DIMENSION(nproma,patch_2d%alloc_cell_blocks),INTENT(IN)  :: stretch
@@ -495,23 +488,19 @@ CONTAINS
     REAL(wp), INTENT(OUT)                                 :: total_salt
     REAL(wp), INTENT(OUT)                                 :: total_saltinseaice
     REAL(wp), INTENT(OUT)                                 :: total_saltinliquidwater
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
     REAL(wp), DIMENSION(nproma,patch_2d%alloc_cell_blocks) :: salt
     REAL(wp), DIMENSION(nproma,patch_2d%alloc_cell_blocks) :: saltinseaice
     REAL(wp), DIMENSION(nproma,patch_2d%alloc_cell_blocks) :: saltinliquidwater
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC DATA COPY(salt, saltinseaice, saltinliquidwater) IF(lacc)
+    !$ACC DATA COPY(salt, saltinseaice, saltinliquidwater) IF(lzacc)
 
     CALL calc_salt_content_zstar(so, patch_2d, stretch, thickness, ice, &
-                           salt, saltinseaice, saltinliquidwater, use_acc=lacc )
+                           salt, saltinseaice, saltinliquidwater, lacc=lzacc )
 
     !$ACC END DATA
 
@@ -523,13 +512,13 @@ CONTAINS
  
   
   SUBROUTINE calc_salt_content_zstar(so, patch_2d, stretch, thickness, ice, &
-            salt, saltinseaice, saltinliquidwater, use_acc)
+            salt, saltinseaice, saltinliquidwater, lacc)
     TYPE(t_patch), TARGET, INTENT(IN)                                 :: patch_2d
     REAL(wp),DIMENSION(nproma,patch_2d%alloc_cell_blocks),INTENT(IN)  :: stretch
     REAL(wp),DIMENSION(nproma,n_zlev,patch_2d%alloc_cell_blocks),INTENT(IN) :: thickness
     REAL(wp),DIMENSION(nproma,n_zlev,patch_2d%alloc_cell_blocks),INTENT(IN) :: so !salinity
     TYPE (t_sea_ice),       INTENT(IN)                    :: ice
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
     ! locals
     REAL(wp), DIMENSION(nproma,patch_2d%alloc_cell_blocks) :: salt
@@ -537,17 +526,13 @@ CONTAINS
     REAL(wp), DIMENSION(nproma,patch_2d%alloc_cell_blocks) :: saltinliquidwater
 
     REAL(wp) :: rhoicwa,rhosnwa,draftave
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
  
     TYPE(t_subset_range), POINTER                         :: subset
     INTEGER                                               :: block, cell, cellStart,cellEnd, level
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     IF(no_tracer<=1)RETURN
 
@@ -562,7 +547,7 @@ CONTAINS
 
     DO block = subset%start_block, subset%end_block
       CALL get_index_range(subset, block, cellStart, cellEnd)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO cell = cellStart, cellEnd
         IF (subset%vertical_levels(cell,block) < 1) CYCLE
 
