@@ -40,9 +40,9 @@ MODULE mo_wave_types
     REAL(wp), POINTER, CONTIGUOUS :: &
       &  gv_c(:,:,:),         & ! group velocity                    (nproma,nblks_c,nfreqs)  (m/s)
       &  gv_e(:,:,:),         & ! group velocity                    (nproma,nblks_e,nfreqs)  (m/s)
-      &  gvn_e(:,:,:),        & ! orthogonal normal group velocity  (nproma,nblks_e,nfreqs)  (m/s)
-      &  gvt_e(:,:,:),        & ! tangential group velocity         (nproma,nblks_e,nfreqs)  (m/s)
-      &  alphaj(:,:),         & ! jonswap alpha                     (nproma,nblks_c)         (-)  
+      &  gvn_e(:,:,:,:),      & ! orthogonal normal group velocity  (nproma,nlev,nblks_e,nfreqs)  (m/s)
+      &  gvt_e(:,:,:,:),      & ! tangential group velocity         (nproma,nlev,nblks_e,nfreqs)  (m/s)
+      &  alphaj(:,:),         & ! jonswap alpha                     (nproma,nblks_c)         (-)
       &  fp(:,:),             & ! jonswap peak frequency            (nproma,nblks_c)         (hz)
       &  et(:,:,:),           & ! jonswap spectra                   (nproma,nblks_c,nfreqs)  (-)
       &  flminfr(:,:,:),      & ! the minimum value in spectral bins for a given frequency (nproma,nblks_c,nfreqs)
@@ -145,7 +145,6 @@ MODULE mo_wave_types
   TYPE t_wave_state_lists
     ! array of prognostic state lists at different timelevels
     TYPE(t_var_list_ptr), ALLOCATABLE :: prog_list(:)  !< shape: (timelevels)
-    TYPE(t_var_list_ptr), ALLOCATABLE :: tracer_list(:)
     TYPE(t_var_list_ptr)              :: diag_list
   END TYPE t_wave_state_lists
 

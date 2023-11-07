@@ -19,11 +19,9 @@
 MODULE mo_wave_physics
 
   USE mo_model_domain,        ONLY: t_patch
-  USE mo_grid_config,         ONLY: grid_sphere_radius
-  USE mo_exception,           ONLY: message
   USE mo_impl_constants,      ONLY: MAX_CHAR_LENGTH, min_rlcell, min_rledge
   USE mo_loopindices,         ONLY: get_indices_c, get_indices_e
-  USE mo_kind,                ONLY: wp, vp
+  USE mo_kind,                ONLY: wp
   USE mo_parallel_config,     ONLY: nproma
   USE mo_run_config,          ONLY: dtime
   USE mo_physical_constants,  ONLY: grav
@@ -47,15 +45,14 @@ MODULE mo_wave_physics
   PUBLIC :: new_spectrum
   PUBLIC :: total_energy
   PUBLIC :: wave_stress
-  PUBLIC :: mean_frequency_energy, set_energy2emin
+  PUBLIC :: mean_frequency_energy
   PUBLIC :: wave_group_velocity_c
   PUBLIC :: wave_group_velocity_e
   PUBLIC :: wave_group_velocity_nt
   PUBLIC :: wave_group_velocity_bnd
   PUBLIC :: wave_number_c
   PUBLIC :: wave_number_e
-  PUBLIC :: wave_refraction
-
+  PUBLIC :: set_energy2emin
 
   CHARACTER(LEN=*), PARAMETER :: modname = 'mo_wave_physics'
 
@@ -196,9 +193,9 @@ CONTAINS
 
     TYPE(t_patch),       INTENT(IN)   :: p_patch
     TYPE(t_wave_config), INTENT(IN)   :: p_config
-    REAL(wp),            INTENT(IN)   :: gv_e(:,:,:) !< group velocity (nproma,nblks_e,nfreqs)  ( m/s )
-    REAL(wp),            INTENT(INOUT):: gvn_e(:,:,:)!< normal group velocity (nproma,nblks_e,dirs*nfreqs)  ( m/s )
-    REAL(wp),            INTENT(INOUT):: gvt_e(:,:,:)!< tangential group velocity (nproma,nblks_e,ndirs*nfreqs)  ( m/s )
+    REAL(wp),            INTENT(IN)   :: gv_e(:,:,:)   !< group velocity (nproma,nblks_e,nfreqs)  ( m/s )
+    REAL(wp),            INTENT(INOUT):: gvn_e(:,:,:,:)!< normal group velocity (nproma,1,nblks_e,dirs*nfreqs)  ( m/s )
+    REAL(wp),            INTENT(INOUT):: gvt_e(:,:,:,:)!< tangential group velocity (nproma,1,nblks_e,ndirs*nfreqs)  ( m/s )
 
     INTEGER :: i_rlstart, i_rlend, i_startblk, i_endblk
     INTEGER :: i_startidx, i_endidx
@@ -227,11 +224,11 @@ CONTAINS
             gvu = gv_e(je,jb,jf) * SIN(p_config%dirs(jd))
             gvv = gv_e(je,jb,jf) * COS(p_config%dirs(jd))
 
-            gvn_e(je,jb,jt) = &
+            gvn_e(je,1,jb,jt) = &
                  gvu * p_patch%edges%primal_normal(je,jb)%v1 + &
                  gvv * p_patch%edges%primal_normal(je,jb)%v2
 
-            gvt_e(je,jb,jt) = &
+            gvt_e(je,1,jb,jt) = &
                  gvu * p_patch%edges%dual_normal(je,jb)%v1 + &
                  gvv * p_patch%edges%dual_normal(je,jb)%v2
           END DO
@@ -251,9 +248,9 @@ CONTAINS
   !!
   !! Set the wave group velocity to zero at the boundary edge
   !! in case of wave energy propagation towards the ocean,
-  !! and set gn = deep water group velocity otherwise
+  !! and set gn = deep water group velocity otherwise.
   !!
-  !! we make use of the fact that the edge-normal velocity vector points
+  !! We make use of the fact that the edge-normal velocity vector points
   !! * towards the coast, if
   !!   cells%edge_orientation > 0 .AND. vn > 0
   !!   OR
@@ -274,7 +271,7 @@ CONTAINS
 
     TYPE(t_patch),       INTENT(IN)   :: p_patch
     TYPE(t_wave_config), INTENT(IN)   :: p_config
-    REAL(wp),            INTENT(INOUT):: gvn_e(:,:,:)!< normal group velocity (nproma,nblks_e,dirs*nfreqs)  ( m/s )
+    REAL(wp),            INTENT(INOUT):: gvn_e(:,:,:,:)!< normal group velocity (nproma,nlev,nblks_e,dirs*nfreqs)  ( m/s )
 
     ! local variables
     REAL(wp):: gv
@@ -339,8 +336,8 @@ CONTAINS
           DO ic = 1, cnt
             jje = ile(ic)
             jjb = ibe(ic)
-            is_towards_coastline = (e_orient(ic) * gvn_e(jje,jjb,jt)) > 0._wp
-            gvn_e(jje,jjb,jt) = MERGE(gv, 0.0_wp, is_towards_coastline)
+            is_towards_coastline = (e_orient(ic) * gvn_e(jje,1,jjb,jt)) > 0._wp
+            gvn_e(jje,1,jjb,jt) = MERGE(gv, 0.0_wp, is_towards_coastline)
           ENDDO  !jc
         ENDDO  !jd
       ENDDO  !jf
@@ -1095,7 +1092,7 @@ CONTAINS
 
     TYPE(t_patch),               INTENT(IN)    :: p_patch
     TYPE(t_wave_config), TARGET, INTENT(IN)    :: wave_config
-    TYPE(t_wave_diag),           INTENT(INOUT) :: p_diag
+    TYPE(t_wave_diag),           INTENT(IN)    :: p_diag
     REAL(wp),                    INTENT(IN)    :: dir10m(:,:)
     REAL(wp),                    INTENT(INOUT) :: tracer(:,:,:,:)
 
@@ -1327,7 +1324,7 @@ CONTAINS
     TYPE(t_patch),               INTENT(IN)    :: p_patch
     TYPE(t_wave_config), TARGET, INTENT(IN)    :: wave_config
     REAL(wp),                    INTENT(IN)    :: dir10m(:,:)
-    REAL(wp),                    INTENT(INOUT) :: tracer(:,:,:,:)
+    REAL(wp),                    INTENT(IN)    :: tracer(:,:,:,:)
     TYPE(t_wave_diag),           INTENT(INOUT) :: p_diag
 
     TYPE(t_wave_config), POINTER :: wc => NULL()
@@ -1761,7 +1758,7 @@ CONTAINS
     TYPE(t_patch),               INTENT(IN)    :: p_patch
     TYPE(t_wave_config), TARGET, INTENT(IN)    :: wave_config
     REAL(wp),                    INTENT(IN)    :: wave_num_c(:,:,:) !< wave number (1/m)
-    REAL(wp),                    INTENT(INOUT) :: tracer(:,:,:,:)
+    REAL(wp),                    INTENT(IN)    :: tracer(:,:,:,:)
     TYPE(t_wave_diag),           INTENT(INOUT) :: p_diag
 
     TYPE(t_wave_config), POINTER :: wc => NULL()
@@ -1876,7 +1873,7 @@ CONTAINS
     TYPE(t_wave_config), TARGET, INTENT(IN)    :: wave_config
     REAL(wp),                    INTENT(IN)    :: wave_num_c(:,:,:) !< wave number (1/m)
     REAL(wp),                    INTENT(IN)    :: depth(:,:)
-    REAL(wp),                    INTENT(INOUT) :: tracer(:,:,:,:)
+    REAL(wp),                    INTENT(IN)    :: tracer(:,:,:,:)
     TYPE(t_wave_diag),           INTENT(INOUT) :: p_diag
 
     TYPE(t_wave_config), POINTER :: wc => NULL()
@@ -1944,7 +1941,7 @@ CONTAINS
     TYPE(t_patch),               INTENT(IN)    :: p_patch
     TYPE(t_wave_config), TARGET, INTENT(IN)    :: wave_config
     REAL(wp),                    INTENT(IN)    :: depth(:,:)
-    REAL(wp),                    INTENT(INOUT) :: tracer(:,:,:,:)
+    REAL(wp),                    INTENT(IN)    :: tracer(:,:,:,:)
     TYPE(t_wave_diag),           INTENT(INOUT) :: p_diag
 
     ! local
@@ -2359,120 +2356,5 @@ CONTAINS
 !$OMP END PARALLEL
 
   END SUBROUTINE nonlinear_transfer
-
-
-  !>
-  !! Calculate grid, depth and current refraction
-  !!
-  !! Based on WAM shallow water with depth and current refraction
-  !! P_SPHER_SHALLOW_CURR
-  !!
-  SUBROUTINE wave_refraction(p_patch, wave_config, wave_num_c, gv_c, depth, depth_grad, tracer)
-
-    CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER :: &
-         routine = modname//':wave_refraction'
-
-    TYPE(t_patch),               INTENT(IN)  :: p_patch
-    TYPE(t_wave_config), TARGET, INTENT(IN)  :: wave_config
-    REAL(wp),                    INTENT(IN)  :: wave_num_c(:,:,:)
-    REAL(wp),                    INTENT(IN)  :: gv_c(:,:,:)         ! group velocity at cell centers
-    REAL(wp),                    INTENT(IN)  :: depth(:,:)
-    REAL(vp),                    INTENT(IN)  :: depth_grad(:,:,:,:) ! bathymetry gradient (2,jc,jk,jb)
-    REAL(wp),                    INTENT(INOUT) :: tracer(:,:,:,:)
-
-
-    TYPE(t_wave_config), POINTER :: wc => NULL()
-
-    INTEGER :: i_rlstart, i_rlend, i_startblk, i_endblk
-    INTEGER :: i_startidx, i_endidx
-    INTEGER :: jc,jb,jf,jd,jk
-    INTEGER :: jt,jtm1,jtp1                       !< tracer index
-
-    REAL(wp) :: DELTHR, DELTH, DELTR, DELTH0, sm, sp, ak, akd, DTP, DTM, dDTC, temp, tsihkd
-    REAL(wp) :: thdd(nproma,wave_config%ndirs)
-    REAL(wp) :: delta_ref(nproma,wave_config%nfreqs*wave_config%ndirs)
-
-    wc => wave_config
-
-    DELTH = 2.0_wp*pi/REAL(wc%ndirs,wp)
-    DELTR = DELTH * grid_sphere_radius
-    DELTH0 = 0.5_wp * dtime / DELTR
-    DELTHR = 0.5_wp * dtime / DELTH
-
-    i_rlstart  = 1
-    i_rlend    = min_rlcell
-    i_startblk = p_patch%cells%start_block(i_rlstart)
-    i_endblk   = p_patch%cells%end_block(i_rlend)
-    jk         = p_patch%nlev
-
-
-!$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jf,jd,jc,jt,i_startidx,i_endidx,temp,ak,akd,tsihkd,thdd, &
-!$OMP            sm,sp,jtm1,jtp1,dtp,dtm,dDTC,delta_ref) ICON_OMP_DEFAULT_SCHEDULE
-    DO jb = i_startblk, i_endblk
-      CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,           &
-           &                 i_startidx, i_endidx, i_rlstart, i_rlend)
-      DO jf = 1,wc%nfreqs
-        DO jd = 1,wc%ndirs
-          DO jc = i_startidx, i_endidx
-
-            temp = (SIN(wc%dirs(jd)) + SIN(wc%dirs(wc%dir_neig_ind(2,jd)))) * depth_grad(2,jc,jk,jb) &
-                 - (COS(wc%dirs(jd)) + COS(wc%dirs(wc%dir_neig_ind(2,jd)))) * depth_grad(1,jc,jk,jb)
-
-            ak = wave_num_c(jc,jb,jf)
-            akd = ak * depth(jc,jb)
-
-            IF (akd <= 10.0_wp) THEN
-              tsihkd = (pi2 * wc%freqs(jf))/SINH(2.0_wp*akd)
-            ELSE
-              tsihkd = 0.0_wp
-            END IF
-
-            thdd(jc,jd) = temp * tsihkd
-
-          END DO !jc
-        END DO !jd
-
-
-        DO jd = 1,wc%ndirs
-
-          sm = DELTH0 * (SIN(wc%dirs(jd)) + SIN(wc%dirs(wc%dir_neig_ind(1,jd)))) !index of direction - 1
-          sp = DELTH0 * (SIN(wc%dirs(jd)) + SIN(wc%dirs(wc%dir_neig_ind(2,jd)))) !index of direction + 1
-
-          jt   = wc%tracer_ind(jd,jf)
-          jtm1 = wc%tracer_ind(wc%dir_neig_ind(1,jd),jf)
-          jtp1 = wc%tracer_ind(wc%dir_neig_ind(2,jd),jf)
-
-          DO jc = i_startidx, i_endidx
-
-            DTP = SIN(p_patch%cells%center(jc,jb)%lat) / COS(p_patch%cells%center(jc,jb)%lat) * gv_c(jc,jb,jf)
-
-            DTM = DTP * SM + thdd(jc,wc%dir_neig_ind(1,jd)) * DELTHR
-            DTP = DTP * SP + thdd(jc,jd) * DELTHR
-
-            dDTC = -MAX(0._wp , DTP) + MIN(0._wp , DTM)
-            DTP  = -MIN(0._wp , DTP)
-            DTM  =  MAX(0._wp , DTM)
-
-            delta_ref(jc,jt) = dDTC * tracer(jc,jk,jb,jt) &
-                 + DTM * tracer(jc,jk,jb,jtm1)  &
-                 + DTP * tracer(jc,jk,jb,jtp1)
-          END DO !jc
-        END DO !jd
-      END DO !jf
-
-      DO jf = 1,wc%nfreqs
-        DO jd = 1,wc%ndirs
-          jt = wc%tracer_ind(jd,jf)
-          DO jc = i_startidx, i_endidx
-            tracer(jc,jk,jb,jt) = tracer(jc,jk,jb,jt) + delta_ref(jc,jt)
-          END DO !jc
-        END DO !jd
-      END DO !jf
-
-    END DO !jb
-!$OMP ENDDO NOWAIT
-!$OMP END PARALLEL
-  END SUBROUTINE wave_refraction
 
 END MODULE mo_wave_physics

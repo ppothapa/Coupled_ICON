@@ -1830,7 +1830,7 @@ CONTAINS
 #endif
       ELSE IF (my_process_is_waves()) THEN
 #ifndef __NO_ICON_WAVES__
-        CALL setup_zaxes_waves(p_of%verticalAxisList)
+        CALL setup_zaxes_waves(p_of%verticalAxisList, p_of%level_selection, p_of%log_patch_id)
 #endif
       ENDIF
 

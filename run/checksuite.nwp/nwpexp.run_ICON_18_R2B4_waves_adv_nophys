@@ -3,6 +3,8 @@
 # ICON-waves.
 #
 # The purpose is the technical testing of the ICON-waves.
+# Idealized test, in which the horizontal propagation and refraction of wave energy
+# are the only active processes. Wave physics is switched off completely.
 #
 # Mikhail Dobrynin, 2022
 #
@@ -28,9 +30,6 @@ DATAROOT="${icon_data_poolFolder}/Checksuite_data"
 # directory with input grids:
 GRIDDIR=${DATAROOT}/ICON-waves
 
-# directory with input data from IFS:
-#IFSDATADIR=${DATAROOT}/Inidata_R2B6N7_IFStest
-
 # directory with external parameter data:
 EXTPARDIR=${DATAROOT}/ICON-waves
 
@@ -43,8 +42,6 @@ EXTPARDIR=${DATAROOT}/ICON-waves
 
 # grid files
 ln -sf ${GRIDDIR}/ocean_icon_waves_grid_0010_R02B04_G_DOM01.nc ocean_icon_waves_grid_0010_R02B04_G_DOM01.nc
-#ln -sf ${GRIDDIR}/iconR2B06_DOM01.nc iconR2B06_DOM01.nc
-#ln -sf ${GRIDDIR}/iconR2B07_DOM02.nc iconR2B07_DOM02.nc
 
 # external parameter (from ExtPar tool)
 ln -sf ${EXTPARDIR}/extpar_ocean_icon_waves_grid_0010_R02B04_G_DOM01.nc extpar_ocean_icon_waves_grid_0010_R02B04_G_DOM01.nc
@@ -68,6 +65,7 @@ num_io_procs=1
 num_restart_procs=0
 num_prefetch_proc=0
 num_io_procs_radar=0
+proc0_shift=0  # proc0_shift does not work yet with WAVES
 
 #spectral resolution
 nd=12          # NUMBER OF DIRECTIONS
@@ -104,23 +102,22 @@ EOF
 
 cat > ${wave_namelist} << EOF
 &coupling_mode_nml
- coupled_to_atmo = .FALSE.
+ coupled_to_atmo      = .FALSE.
 /
 &run_nml
  num_lev              = 1
  dtime                = ${dtime}     ! [s] timestep in seconds
  ltimer               = .true.
  timers_level         = 10
- msg_level            = 15
+ msg_level            = 14
  ltestcase            = .TRUE.       ! run testcase
  ldynamics            = .TRUE.
- ltransport           = .FALSE.      ! no horizontal propagation of wave energy
+ ltransport           = .TRUE.
  ntracer              = $((${nd}*${nf}))
  output               = "nml"
 /
 &parallel_nml
  nproma                  = ${nproma}             ! loop chunk length
- nproma_sub              = ${nproma_sub}         ! loop chunk length for radiation
  p_test_run              = .false.               ! .TRUE. means verification run for MPI parallelization
  l_test_openmp           = .false.
  l_log_checks            = .false.
@@ -128,7 +125,7 @@ cat > ${wave_namelist} << EOF
  num_restart_procs       = ${num_restart_procs}  ! number of restart processors
  num_prefetch_proc       = ${num_prefetch_proc}  ! number of processors for LBC prefetching
  num_io_procs_radar      = ${num_io_procs_radar} ! number of EMVORADO I/O processors
- proc0_shift             = $proc0_shift
+ proc0_shift             = ${proc0_shift}
  num_dist_array_replicas = 4
  iorder_sendrecv         = 1
 /
@@ -140,14 +137,24 @@ cat > ${wave_namelist} << EOF
  extpar_filename = '${wave_extpar}'
 /
 &wave_nml
- ndirs       = ${nd}   ! number of directions
- nfreqs      = ${nf}   ! number of frequencies
- forc_file_prefix = '' ! prefix of forcing file name
+ ndirs            = ${nd}   ! number of directions
+ nfreqs           = ${nf}   ! number of frequencies
+ forc_file_prefix = ''       ! prefix of forcing file name
+ linput_sf1       = .FALSE.  ! wind source function term
+ linput_sf2       = .FALSE.
+ lwave_stress1    = .FALSE.  ! wave stress
+ lwave_stress2    = .FALSE.
+ ldissip_sf       = .FALSE.  ! dissipation source function term
+ lnon_linear_sf   = .FALSE.  ! non linear source function term
+ lbottom_fric_sf  = .FALSE.  ! bottom_friction source function term
+/
+&energy_propagation_nml
+ itype_limit  = 0      ! no horizontal limiter
 /
 &output_nml
  filetype                =                          4         ! output format: 2=GRIB2, 4=NETCDFv2
  dom                     =                         -1         ! write all domains
- output_bounds           =        0., 10000000., 3600         ! output: start, end, increment
+ output_bounds           =        0., 10000000., 7200.        ! output: start, end, increment
  steps_per_file          =                       1000         ! number of output steps in one output file
  mode                    =                          1         ! 1: forecast mode (relative t-axis), 2: climate mode (absolute t-axis)
  include_last            =                      .TRUE.        ! flag whether to include the last time step
@@ -156,6 +163,21 @@ cat > ${wave_namelist} << EOF
  ml_varlist              = 'bathymetry_c',
                            'group:wave_forcing',
                            'group:wave_phy','group:wave_short',
+                           'q112_010_004','q1_001_001','fl_020_010','fl_025_001'
+/
+&output_nml
+ filetype                =                          4         ! output format: 2=GRIB2, 4=NETCDFv2
+ dom                     =                         -1         ! write all domains
+ output_bounds           =        0., 10000000., 7200.        ! output: start, end, increment
+ steps_per_file          =                       1000         ! number of output steps in one output file
+ mode                    =                          1         ! 1: forecast mode (relative t-axis), 2: climate mode (absolute t-axis)
+ include_last            =                      .TRUE.        ! flag whether to include the last time step
+ output_filename         =                   'WAVE_LL'        ! file name base
+ output_grid             =                      .TRUE.        ! flag whether grid information is added to output.
+ remap                   =                          1         ! output on regular lat-lon grid
+ reg_lon_def             =                 0., 1, 360.
+ reg_lat_def             =                 -90.,1.,90.
+ ml_varlist              = 'bathymetry_c','hs','emean',
                            'q112_010_004','q1_001_001','fl_020_010','fl_025_001'
 /
 EOF

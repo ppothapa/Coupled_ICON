@@ -233,6 +233,8 @@ CONTAINS
 
     CALL message(routine, 'finished.')
 
+    IF (timers_level > 1) CALL timer_stop(timer_model_init)
+
   END SUBROUTINE construct_wave_model
   !-------------------------------------------------------------------
 
