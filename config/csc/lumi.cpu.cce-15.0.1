@@ -6,7 +6,7 @@ unset CDPATH
 script_dir=$(cd "$(dirname "$0")"; pwd)
 icon_dir=$(cd "${script_dir}/../.."; pwd)
 
-modules='PrgEnv-cray craype/2.7.20 cce/15.0.1 cray-mpich/8.1.25 cray-libsci/23.02.1.1 libfabric craype-x86-rome cray-hdf5 cray-netcdf'
+modules='PrgEnv-cray craype/2.7.20 cce/15.0.1 cray-mpich/8.1.27 cray-libsci/23.02.1.1 libfabric craype-x86-rome cray-hdf5 cray-netcdf'
 
 sw_root=${ICON_SW_PREFIX-'/project/project_465000454/icon/sw/cce-15.0.1-zen2'}
 
@@ -52,7 +52,7 @@ LDFLAGS="-L${ECCODES_ROOT}/lib64 -L${FYAML_ROOT}/lib -L${XML2_ROOT}/lib"
 # libfabric.so), therefore we generate the required flags based on the
 # LD_LIBRARY_PATH variable set by the modules that are loaded in BUILD_ENV (we
 # should be using CRAY_LD_LIBRARY_PATH instead but not all modules set it):
-extra_rpath_dirs=$(unset LD_LIBRARY_PATH; { eval "${BUILD_ENV}"; } >/dev/null 2>&1; echo "${LD_LIBRARY_PATH}")
+extra_rpath_dirs=$(unset LD_LIBRARY_PATH; { eval "${BUILD_ENV}"; } >/dev/null; echo "${LD_LIBRARY_PATH}")
 ICON_LDFLAGS="-Wl,--disable-new-dtags -Wl,--as-needed -Wl,-rpath,${extra_rpath_dirs}"
 
 # Note that generated list of flags will contain RPATHs to the custom libraries
