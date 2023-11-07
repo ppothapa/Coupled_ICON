@@ -563,15 +563,15 @@ CONTAINS
     TYPE(t_patch), TARGET, INTENT(IN) ::  &   !< patch on which computation is performed
       &  ptr_patch
 
-    TYPE(t_int_state), TARGET, INTENT(IN) ::  &  !< pointer to data structure for
-      &  ptr_int                               !< interpolation
+    TYPE(t_int_state), INTENT(IN) ::  &  !< pointer to data structure for
+      &  ptr_int                         !< interpolation
 
     REAL(wp), INTENT(IN) ::     &    !< advected cell centered variable
       &  p_cc(:,:,:)                 !< dim: (nproma,nlev,nblks_c)
                                      !< [kg kg^-1]
 
-    REAL(wp), INTENT(IN) ::    &    !< density times cell thickness at timestep n
-      &  p_rhodz_now(:,:,:)         !< dim: (nproma,nlev,nblks_c)
+    REAL(wp), INTENT(IN) ::     &    !< density times cell thickness at timestep n
+      &  p_rhodz_now(:,:,:)          !< dim: (nproma,nlev,nblks_c)
 
     REAL(wp), INTENT(IN) ::     &    !< time step [s]
       &  p_dtime
@@ -587,17 +587,16 @@ CONTAINS
       &  elev
 
     INTEGER, INTENT(IN), OPTIONAL :: & !< optional: refinement control start level
-     &  opt_rlstart                    !< only valid for calculation of 'edge value'
+      &  opt_rlstart                   !< only valid for calculation of 'edge value'
 
     INTEGER, INTENT(IN), OPTIONAL :: & !< optional: refinement control end level
-     &  opt_rlend                      !< (to avoid calculation of halo points)
+      &  opt_rlend                     !< (to avoid calculation of halo points)
 
-#if defined(__INTEL_COMPILER) || defined(__SX__) || defined(_OPENACC)
-    REAL(wp) :: z_mflx1,  z_mflx2, z_mflx3
-#else
-    REAL(wp) ::                 &    !< tracer mass flux ( total mass crossing the edge )
-      &  z_mflx(nproma,slev:elev,3) !< [kg m^-3]
-#endif
+    ! local variables
+    !
+    REAL(wp) :: &
+      &  z_mflx1, z_mflx2, z_mflx3     !< tracer mass flux ( total mass crossing the edge )
+
     ! remark: single precision would be sufficient for r_m, but SP-sync is not yet available
     REAL(wp) ::                 &    !< fraction which must multiply all outgoing fluxes
       &  r_m(nproma,slev:elev,ptr_patch%nblks_c) !< of cell jc to guarantee
@@ -605,20 +604,20 @@ CONTAINS
 
     REAL(wp) :: z_signum                     !< sign of mass flux
                                              !< >0: out; <0: in
-#ifndef __INTEL_COMPILER
+#if defined (__SX__) || defined ( _OPENACC )
     REAL(wp) :: p_m                          !< sum of fluxes out of cell jc
                                              !< [kg m^-3]
 #else
     REAL(wp) :: p_m(nproma,slev:elev)
 #endif
-    INTEGER, DIMENSION(:,:,:), POINTER :: &  !< Pointer to line and block indices of two
-      &  iilc, iibc                          !< neighbor cells (array)
+    INTEGER, CONTIGUOUS, POINTER :: &        !< Pointer to line and block indices of two
+      &  iilc(:,:,:), iibc(:,:,:)            !< neighbor cells (array)
 
-    INTEGER, DIMENSION(:,:,:), POINTER :: &  !< Pointer to line and block indices (array)
-      &  iidx, iblk                          !< of edges
+    INTEGER, CONTIGUOUS, POINTER :: &        !< Pointer to line and block indices (array)
+      &  iidx(:,:,:), iblk(:,:,:)            !< of edges
 
     INTEGER  :: i_startblk, i_endblk, i_startidx, i_endidx
-    INTEGER  :: i_rlstart, i_rlend, i_rlstart_c, i_rlend_c, i_nchdom
+    INTEGER  :: i_rlstart, i_rlend, i_rlstart_c, i_rlend_c
     INTEGER  :: je, jk, jb, jc         !< index of edge, vert level, block, cell
 
 #ifdef __INTEL_COMPILER
@@ -627,17 +626,13 @@ CONTAINS
   !-------------------------------------------------------------------------
 
     ! set default values
-    i_rlstart = grf_bdywidth_e - 1 ! needed for call from miura_cycl scheme, 
-                                   ! otherwise grf_bdywidth_e would be sufficient
+    i_rlstart = grf_bdywidth_e
     i_rlend   = min_rledge_int - 1
-
 
     ! Check for optional arguments
     IF (PRESENT(opt_rlstart)) i_rlstart = opt_rlstart
     IF (PRESENT(opt_rlend)) i_rlend = opt_rlend
 
-    ! number of child domains
-    i_nchdom = MAX(1,ptr_patch%n_childdom)
 
     !
     ! Set pointers to index-arrays
@@ -662,20 +657,22 @@ CONTAINS
     ENDIF
 
 !$OMP PARALLEL PRIVATE(i_rlstart_c,i_rlend_c,i_startblk,i_endblk)
+
+    i_rlstart_c = grf_bdywidth_c
+    i_rlend_c   = min_rlcell_int
+
     ! Additional initialization of lateral boundary points is needed for limited-area mode
     IF ( l_limited_area .AND. ptr_patch%id == 1) THEN
 
-      i_startblk   = ptr_patch%cells%start_blk(1,1)
-      i_endblk     = ptr_patch%cells%end_blk(grf_bdywidth_c-1,1)
+      i_startblk   = ptr_patch%cells%start_block(1)
+      i_endblk     = ptr_patch%cells%end_block(i_rlstart_c-1)
 
       CALL init(r_m(:,:,i_startblk:i_endblk))
 !$OMP BARRIER
     ENDIF
 
-    i_rlstart_c = grf_bdywidth_c
-    i_rlend_c   = min_rlcell_int
-    i_startblk  = ptr_patch%cells%start_blk(i_rlstart_c,1)
-    i_endblk    = ptr_patch%cells%end_blk(i_rlend_c,i_nchdom)
+    i_startblk  = ptr_patch%cells%start_block(i_rlstart_c)
+    i_endblk    = ptr_patch%cells%end_block(i_rlend_c)
 
     !
     ! 1. Reformulate all fluxes in terms of the total mass [kg m^-3]
@@ -684,13 +681,8 @@ CONTAINS
     !    z_mflx > 0: outward
     !    z_mflx < 0: inward
     !
-
-#if defined (__INTEL_COMPILER) || defined (__SX__)
 !$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx,p_m, &
 !$OMP            z_mflx1,z_mflx2,z_mflx3) ICON_OMP_DEFAULT_SCHEDULE
-#else
-!$OMP DO PRIVATE(jb,jk,jc,i_startidx,i_endidx,p_m,z_mflx) ICON_OMP_DEFAULT_SCHEDULE
-#endif
     DO jb = i_startblk, i_endblk
 
       CALL get_indices_c(ptr_patch, jb, i_startblk, i_endblk,        &
@@ -707,60 +699,23 @@ CONTAINS
         DO jc = i_startidx, i_endidx
 #endif
 
-#if defined (__SX__) || defined ( _OPENACC )
           z_mflx1 = ptr_int%geofac_div(jc,1,jb) * p_dtime &
             &                * p_mflx_tracer_h(iidx(jc,jb,1),jk,iblk(jc,jb,1))
           z_mflx2 = ptr_int%geofac_div(jc,2,jb) * p_dtime &
             &                * p_mflx_tracer_h(iidx(jc,jb,2),jk,iblk(jc,jb,2))
           z_mflx3 = ptr_int%geofac_div(jc,3,jb) * p_dtime &
             &                * p_mflx_tracer_h(iidx(jc,jb,3),jk,iblk(jc,jb,3))
+
+#if defined (__SX__) || defined ( _OPENACC )
 
           ! Sum of all outgoing fluxes out of cell jc
           p_m =  MAX(0._wp,z_mflx1) + MAX(0._wp,z_mflx2) + MAX(0._wp,z_mflx3)
 
-          ! fraction which must multiply all fluxes out of cell jc to guarantee no undershoot
-          ! Nominator: maximum allowable decrease of \rho q
+          ! 2. fraction which must multiply all fluxes out of cell jc to guarantee no undershoot
+          !    Nominator: maximum allowable decrease of \rho q
           r_m(jc,jk,jb) = MIN(1._wp, (p_cc(jc,jk,jb)*p_rhodz_now(jc,jk,jb)) / (p_m + dbl_eps) )
 
-#elif !defined (__INTEL_COMPILER)
-
-          z_mflx(jc,jk,1) = ptr_int%geofac_div(jc,1,jb) * p_dtime &
-            &                * p_mflx_tracer_h(iidx(jc,jb,1),jk,iblk(jc,jb,1))
-
-          z_mflx(jc,jk,2) = ptr_int%geofac_div(jc,2,jb) * p_dtime &
-            &                * p_mflx_tracer_h(iidx(jc,jb,2),jk,iblk(jc,jb,2))
-  
-          z_mflx(jc,jk,3) = ptr_int%geofac_div(jc,3,jb) * p_dtime &
-            &                * p_mflx_tracer_h(iidx(jc,jb,3),jk,iblk(jc,jb,3))
-  
-        ENDDO
-      ENDDO
-
-      !
-      ! 2. Compute total outward mass
-      !
-      DO jk = slev, elev
-!DIR$ IVDEP
-        DO jc = i_startidx, i_endidx
-
-          ! Sum of all outgoing fluxes out of cell jc
-          p_m =  MAX(0._wp,z_mflx(jc,jk,1))  &
-            &  + MAX(0._wp,z_mflx(jc,jk,2))  &
-            &  + MAX(0._wp,z_mflx(jc,jk,3))
-
-          ! fraction which must multiply all fluxes out of cell jc to guarantee no
-          ! undershoot
-          ! Nominator: maximum allowable decrease of \rho q
-          r_m(jc,jk,jb) = MIN(1._wp, (p_cc(jc,jk,jb)*p_rhodz_now(jc,jk,jb)) &
-            &                        /(p_m + dbl_eps) )
-
 #else
-          z_mflx1 = ptr_int%geofac_div(jc,1,jb) * p_dtime &
-            &                * p_mflx_tracer_h(iidx(jc,jb,1),jk,iblk(jc,jb,1))
-          z_mflx2 = ptr_int%geofac_div(jc,2,jb) * p_dtime &
-            &                * p_mflx_tracer_h(iidx(jc,jb,2),jk,iblk(jc,jb,2))
-          z_mflx3 = ptr_int%geofac_div(jc,3,jb) * p_dtime &
-            &                * p_mflx_tracer_h(iidx(jc,jb,3),jk,iblk(jc,jb,3))
           ! Sum of all outgoing fluxes out of cell jc
           p_m(jc,jk) = MAX(0._wp,z_mflx1) + &
             &          MAX(0._wp,z_mflx2) + &
@@ -770,20 +725,17 @@ CONTAINS
       DO jk = slev, elev
 !DIR$ IVDEP
         DO jc = i_startidx, i_endidx
-          ! fraction which must multiply all fluxes out of cell jc to guarantee
-          ! no
-          ! undershoot
-          ! Nominator: maximum allowable decrease of \rho q
+          ! 2. fraction which must multiply all fluxes out of cell jc to guarantee
+          !    no undershoot
+          !    Nominator: maximum allowable decrease of \rho q
           r_m(jc,jk,jb) = MIN(1._wp, (p_cc(jc,jk,jb)*p_rhodz_now(jc,jk,jb)) &
             &                        /(p_m(jc,jk) + dbl_eps) )
 
-          
 #endif
         ENDDO
       ENDDO
       !$ACC END PARALLEL
     ENDDO
-
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
@@ -795,8 +747,8 @@ CONTAINS
     ! 3. Limit outward fluxes
     !    The inward ones remain untouched.
     !
-    i_startblk = ptr_patch%edges%start_blk(i_rlstart,1)
-    i_endblk   = ptr_patch%edges%end_blk(i_rlend,i_nchdom)
+    i_startblk = ptr_patch%edges%start_block(i_rlstart)
+    i_endblk   = ptr_patch%edges%end_block(i_rlend)
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jk,je,i_startidx,i_endidx,z_signum) ICON_OMP_DEFAULT_SCHEDULE
@@ -808,15 +760,12 @@ CONTAINS
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
 #ifdef __LOOP_EXCHANGE
       DO je = i_startidx, i_endidx
-        ! this is potentially needed for calls from miura_cycl
-        IF (ptr_patch%edges%refin_ctrl(je,jb) == grf_bdywidth_e-2) CYCLE
         DO jk = slev, elev
 #else
 !$NEC outerloop_unroll(4)
       !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(z_signum)
       DO jk = slev, elev
         DO je = i_startidx, i_endidx
-          IF (ptr_patch%edges%refin_ctrl(je,jb) == grf_bdywidth_e-2) CYCLE
 #endif
 
           ! p_mflx_tracer_h > 0: flux directed from cell 1 -> 2
@@ -826,12 +775,11 @@ CONTAINS
           p_mflx_tracer_h(je,jk,jb) = p_mflx_tracer_h(je,jk,jb) * 0.5_wp  &
             & *( (1._wp + z_signum) * r_m(iilc(je,jb,1),jk,iibc(je,jb,1)) &
             &   +(1._wp - z_signum) * r_m(iilc(je,jb,2),jk,iibc(je,jb,2)) )
-  
+
         ENDDO
       ENDDO
       !$ACC END PARALLEL
     ENDDO
-
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
