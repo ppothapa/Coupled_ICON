@@ -23,7 +23,7 @@
 MODULE mo_ocean_initialization
   !-------------------------------------------------------------------------
   USE mo_kind,                ONLY: wp
-  USE mo_mpi,                 ONLY: my_process_is_mpi_test
+  USE mo_mpi,                 ONLY: my_process_is_mpi_test, p_pe
   USE mo_parallel_config,     ONLY: nproma
   USE mo_master_config,       ONLY: isRestart
   USE mo_impl_constants,      ONLY: land, land_boundary, boundary, sea_boundary, sea,  &
@@ -34,7 +34,7 @@ MODULE mo_ocean_initialization
   USE mo_ocean_nml,           ONLY: n_zlev, dzlev_m, no_tracer, l_max_bottom, l_partial_cells, &
     & coriolis_type, basin_center_lat, basin_height_deg, iswm_oce, coriolis_fplane_latitude,   &
     & use_smooth_ocean_boundary, max_allocated_levels, minVerticalLevels
-  USE mo_util_dbg_prnt,       ONLY: c_i, c_b, nc_i, nc_b
+  USE mo_util_dbg_prnt,       ONLY: c_i, c_b, nc_i, nc_b, near_proc_id
   USE mo_exception,           ONLY: message_text, message, finish
   USE mo_model_domain,        ONLY: t_patch,t_patch_3d, t_grid_cells, t_grid_edges
   USE mo_grid_config,         ONLY: n_dom, n_dom_start, grid_sphere_radius, grid_angular_velocity, &
@@ -230,7 +230,7 @@ CONTAINS
     ! Create a step inside the deep ocean bathymetry
     !-----------------------------
 
-    IF (l_vert_step) THEN
+    IF (l_vert_step .AND. p_pe == near_proc_id) THEN
 
       ! Set the bathymetry at cell and edges to a value for tests mainly with Aqua Planet
 

@@ -611,9 +611,12 @@ CONTAINS
       ELSE
         number_of_values = 0
       ENDIF
-      number_of_values = (number_of_values + in_subset%end_index + &
-        & (in_subset%block_size - in_subset%start_index + 1)) * &
-        & (end_vertical - start_vertical + 1)
+
+      IF (in_subset%end_block - in_subset%start_block >= 0) THEN
+        number_of_values = (number_of_values + in_subset%end_index + &
+          & (in_subset%block_size - in_subset%start_index + 1)) * &
+          & (end_vertical - start_vertical + 1)
+      END IF
 
     ENDIF
 

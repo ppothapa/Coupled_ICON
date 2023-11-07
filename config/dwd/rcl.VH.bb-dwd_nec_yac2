@@ -8,6 +8,7 @@ if ((RH_VERSION !=8 )); then
     --enable-waves \
     --enable-ecrad \
     --enable-coupling \
+    --enable-fcgroup-OCEAN=src/hamocc:src/ocean:src/sea_ice \
     "$@"
 else
   "$(dirname -- "${BASH_SOURCE[0]}")"/rcl.VH.gcc-9.2.0_mpi-3.3_art_oper_RH8 \
@@ -15,5 +16,6 @@ else
     --enable-waves \
     --enable-ecrad \
     --enable-coupling \
+    --enable-fcgroup-OCEAN=src/hamocc:src/ocean:src/sea_ice \
     "$@"
 fi

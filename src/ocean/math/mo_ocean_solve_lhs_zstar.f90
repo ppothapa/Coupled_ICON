@@ -203,7 +203,7 @@ MODULE mo_surface_height_lhs_zstar
         edges_in_domain => this%patch_2D%edges%in_domain
         gdt2_inv = REAL(1.0_wp / (grav*(dtime)**2),wp)
         gam_times_beta = REAL(ab_gam * ab_beta, wp)
-        lhs(1:nproma,cells_in_domain%end_block:) = 0.0_wp
+        lhs(1:nproma,cells_in_domain%end_block+1:) = 0.0_wp
 
         CALL grad_fd_norm_oce_2d_3d( x, this%patch_2D, this%op_coeffs_wp%grad_coeff(:,1,:), &
           & this%z_grad_h_wp(:,:), subset_range=this%patch_2D%edges%gradIsCalculable)

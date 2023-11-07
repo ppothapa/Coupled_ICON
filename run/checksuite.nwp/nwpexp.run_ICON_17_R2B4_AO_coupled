@@ -111,8 +111,8 @@ nproma_oce=$nproma
 
 # Note that "mpi_atm_io_procs" must match the number of output files
 mpi_atm_io_procs=2      # >0 for atmosphere plus land (not working for monitoring)
-mpi_oce_io_procs=0      # >0 for ocean is not working yet
-ICON_COMPONENT2_proc0_shift=0 # proc0_shift is not working yet for ocean.
+mpi_oce_io_procs=2
+ICON_COMPONENT2_proc0_shift=$proc0_shift
 
 #=============================================================================
 
@@ -800,7 +800,6 @@ cat > ${oce_namelist} << EOF
  nproma                      = ${nproma_oce}
  num_io_procs                = ${mpi_oce_io_procs}
  num_prefetch_proc           = 0
- pio_type                    = 0
  p_test_run                  = .FALSE.
  l_fast_sum                  = .TRUE.
  proc0_shift                 = ${ICON_COMPONENT2_proc0_shift}

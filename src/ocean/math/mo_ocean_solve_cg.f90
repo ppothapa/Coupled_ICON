@@ -54,12 +54,16 @@ CONTAINS
     REAL(KIND=wp), INTENT(OUT), POINTER, DIMENSION(:,:) :: &
       & x, b, z, d, r, r2
 
+    INTEGER :: nblk_e
+
+    nblk_e = MERGE(this%trans%nblk, 1, this%trans%nblk > 0)
+
     IF (.NOT.ALLOCATED(this%z_wp)) THEN
-      ALLOCATE(this%z_wp(this%trans%nidx, this%trans%nblk), &
+      ALLOCATE(this%z_wp(this%trans%nidx, nblk_e), &
         & this%d_wp(this%trans%nidx, this%trans%nblk_a), &
-        & this%r_wp(this%trans%nidx, this%trans%nblk), &
-        & this%rsq_wp(this%trans%nidx, this%trans%nblk))
-      this%d_wp(:, this%trans%nblk:this%trans%nblk_a) = 0._wp
+        & this%r_wp(this%trans%nidx, nblk_e), &
+        & this%rsq_wp(this%trans%nidx, nblk_e))
+      this%d_wp(:, this%trans%nblk+1:this%trans%nblk_a) = 0._wp
       !$ACC ENTER DATA COPYIN(this%z_wp, this%d_wp, this%r_wp, this%rsq_wp)
     END IF
     x => this%x_wp
@@ -75,7 +79,7 @@ SUBROUTINE ocean_solve_cg_cal_wp(this, lacc)
     CLASS(t_ocean_solve_cg), INTENT(INOUT) :: this
     LOGICAL, INTENT(in), OPTIONAL :: lacc
     REAL(KIND=wp) :: alpha, beta, dz_glob, tol, tol2, rn, rn_last
-    INTEGER :: nidx_e, nblk, iblk, k, m, k_final
+    INTEGER :: nidx_e, nblk, nblk_e, iblk, k, m, k_final
     REAL(KIND=wp), POINTER, DIMENSION(:,:), CONTIGUOUS :: &
       & x, b, z, d, r, r2
     LOGICAL :: done, lzacc
@@ -84,6 +88,7 @@ SUBROUTINE ocean_solve_cg_cal_wp(this, lacc)
 
 ! retrieve extends of vector to solve
     nblk = this%trans%nblk
+    nblk_e = MERGE(this%trans%nblk, 1, this%trans%nblk > 0)
     nidx_e = this%trans%nidx_e
     m = this%par%m
     k_final = -1
@@ -92,7 +97,7 @@ SUBROUTINE ocean_solve_cg_cal_wp(this, lacc)
     CALL this%recover_arrays(x, b, z, d, r, r2)
 
     !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-    b(nidx_e+1:, nblk) = 0._wp
+    b(nidx_e+1:, nblk_e) = 0._wp
     !$ACC END KERNELS
     !$ACC WAIT(1)
 
@@ -106,12 +111,14 @@ SUBROUTINE ocean_solve_cg_cal_wp(this, lacc)
     CALL this%lhs%apply(x, z, lacc=lzacc)
 
     !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-    z(nidx_e+1:, nblk) = 0._wp
+    z(nidx_e+1:, nblk_e) = 0._wp
     !$ACC END KERNELS
     !$ACC WAIT(1)
 
 !ICON_OMP PARALLEL DO SCHEDULE(STATIC)
-    DO iblk = 1, nblk
+    ! The nblk_e upper limit is such that the loop runs at least once, even if the domain is empty.
+    ! This ensures that r, d, and r2 are initialized.
+    DO iblk = 1, nblk_e
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       r(:, iblk) = b(:, iblk) - z(:, iblk)
       d(:, iblk) = r(:, iblk)
@@ -150,7 +157,7 @@ SUBROUTINE ocean_solve_cg_cal_wp(this, lacc)
         beta = rn / rn_last
 
         !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-        d(nidx_e+1:, nblk) = 0._wp
+        d(nidx_e+1:, nblk_e) = 0._wp
         !$ACC END KERNELS
 
 !ICON_OMP PARALLEL DO SCHEDULE(STATIC)
@@ -167,7 +174,7 @@ SUBROUTINE ocean_solve_cg_cal_wp(this, lacc)
       CALL this%lhs%apply(d, z, lacc=lzacc)
 
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-      d(nidx_e+1:, nblk) = 0._wp
+      d(nidx_e+1:, nblk_e) = 0._wp
       !$ACC END KERNELS
 ! compute extrapolated location of minimum in direction of d
 !ICON_OMP PARALLEL DO SCHEDULE(STATIC)
@@ -178,7 +185,7 @@ SUBROUTINE ocean_solve_cg_cal_wp(this, lacc)
       END DO
 !ICON_OMP END PARALLEL DO
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-      r2(nidx_e+1:, nblk) = 0._wp
+      r2(nidx_e+1:, nblk_e) = 0._wp
       !$ACC END KERNELS
       !$ACC WAIT(1)
 
@@ -197,7 +204,7 @@ SUBROUTINE ocean_solve_cg_cal_wp(this, lacc)
       END DO
 !ICON_OMP END PARALLEL DO
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-      r2(nidx_e+1:, nblk) = 0._wp
+      r2(nidx_e+1:, nblk_e) = 0._wp
       !$ACC END KERNELS
       !$ACC WAIT(1)
 ! save old and compute new residual norm
@@ -224,7 +231,7 @@ SUBROUTINE ocean_solve_cg_cal_wp(this, lacc)
         & this%d_sp(this%trans%nidx, this%trans%nblk_a), &
         & this%r_sp(this%trans%nidx, this%trans%nblk), &
         & this%rsq_sp(this%trans%nidx, this%trans%nblk))
-      this%d_sp(:, this%trans%nblk:this%trans%nblk_a) = 0._sp
+      this%d_sp(:, this%trans%nblk+1:this%trans%nblk_a) = 0._sp
     END IF
     x => this%x_sp
     b => this%b_sp
@@ -238,23 +245,24 @@ SUBROUTINE ocean_solve_cg_cal_wp(this, lacc)
   SUBROUTINE ocean_solve_cg_cal_sp(this)
     CLASS(t_ocean_solve_cg), INTENT(INOUT) :: this
     REAL(KIND=sp) :: alpha, beta, dz_glob, tol, tol2, rn, rn_last
-    INTEGER :: nidx_e, nblk, iblk, k, m, k_final
+    INTEGER :: nidx_e, nblk, nblk_e, iblk, k, m, k_final
     REAL(KIND=sp), POINTER, DIMENSION(:,:), CONTIGUOUS :: &
       & x, b, z, d, r, r2
     LOGICAL :: done
 
 ! retrieve extends of vector to solve
     nblk = this%trans%nblk
+    nblk_e = MERGE(this%trans%nblk, 1, this%trans%nblk > 0)
     nidx_e = this%trans%nidx_e
     m = this%par%m
     k_final = -1
 ! retrieve arrays
     CALL this%recover_arrays(x, b, z, d, r, r2)
-    b(nidx_e+1:, nblk) = 0._sp
+    b(nidx_e+1:, nblk_e) = 0._sp
 ! compute initial residual and auxiliary vectors
     CALL this%trans%sync(x)
     CALL this%lhs%apply(x, z)
-    z(nidx_e+1:, nblk) = 0._sp
+    z(nidx_e+1:, nblk_e) = 0._sp
 !ICON_OMP PARALLEL DO SCHEDULE(STATIC)
     DO iblk = 1, nblk
       r(:, iblk) = b(:, iblk) - z(:, iblk)
@@ -285,7 +293,7 @@ SUBROUTINE ocean_solve_cg_cal_wp(this, lacc)
 ! correct search direction (in direction of gradient) / update search vector
       IF (k .GT. 1) THEN
         beta = rn / rn_last
-        d(nidx_e+1:, nblk) = 0._sp
+        d(nidx_e+1:, nblk_e) = 0._sp
 !ICON_OMP PARALLEL DO SCHEDULE(STATIC)
         DO iblk = 1, nblk
           d(:, iblk) = r(:, iblk) + beta * d(:, iblk)
@@ -294,14 +302,14 @@ SUBROUTINE ocean_solve_cg_cal_wp(this, lacc)
       END IF
       CALL this%trans%sync(d)
       CALL this%lhs%apply(d, z)
-      d(nidx_e+1:, nblk) = 0._sp
+      d(nidx_e+1:, nblk_e) = 0._sp
 ! compute extrapolated location of minimum in direction of d
 !ICON_OMP PARALLEL DO SCHEDULE(STATIC)
       DO iblk = 1, nblk
         r2(:, iblk) = d(:, iblk) * z(:, iblk)
       END DO
 !ICON_OMP END PARALLEL DO
-      r2(nidx_e+1:, nblk) = 0._sp
+      r2(nidx_e+1:, nblk_e) = 0._sp
       CALL this%trans%global_sum(r2, dz_glob)
       alpha = rn / dz_glob
 ! update guess and residuum
@@ -312,7 +320,7 @@ SUBROUTINE ocean_solve_cg_cal_wp(this, lacc)
         r2(:, iblk) = r(:, iblk) * r(:, iblk)
       END DO
 !ICON_OMP END PARALLEL DO
-      r2(nidx_e+1:, nblk) = 0._sp
+      r2(nidx_e+1:, nblk_e) = 0._sp
 ! save old and compute new residual norm
       rn_last = rn
       CALL this%trans%global_sum(r2, rn)

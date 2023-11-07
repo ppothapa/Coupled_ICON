@@ -126,6 +126,13 @@ CONTAINS
     IF (PRESENT(subset_name)) &
       & subset%name = TRIM(subset_name)
 
+    ! Guarantee somewhat safe extents if subset is empty. This should work in loops and array expressions.
+    IF (subset%start_block < 0) THEN
+      subset%start_block = 1
+      subset%end_block = 0
+      subset%start_index = 1
+      subset%end_index = 0
+    END IF
 !     IF (subset%no_of_holes > 0) THEN
 !       CALL warning(method_name, "We have holes in the range subset")
 !     ENDIF
@@ -167,13 +174,19 @@ CONTAINS
     INTEGER, INTENT(out) :: start_index, end_index
     !$ACC ROUTINE SEQ
 
-    start_index = 1
-    end_index = subset_range%block_size
+    IF (current_block < subset_range%start_block .OR. &
+        current_block > subset_range%end_block) THEN
+      start_index = 1
+      end_index = 0
+    ELSE
+      start_index = 1
+      end_index = subset_range%block_size
 
-    IF (current_block == subset_range%start_block) &
-      start_index = subset_range%start_index
-    IF (current_block == subset_range%end_block) &
-      end_index = subset_range%end_index
+      IF (current_block == subset_range%start_block) &
+        start_index = subset_range%start_index
+      IF (current_block == subset_range%end_block) &
+        end_index = subset_range%end_index
+    END IF
 
   END SUBROUTINE get_index_range
   !----------------------------------------------------

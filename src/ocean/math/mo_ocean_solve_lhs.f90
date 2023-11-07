@@ -307,8 +307,8 @@ CONTAINS
       this%nblk_loc = par%nblk
       this%nblk_a_loc = par%nblk_a
     ELSE
-      CALL finish(routine, &
-        & "no valid nblk was provided")
+      this%nblk_loc = 0
+      this%nblk_a_loc = 1
     END IF
     this%have_sp = have_sp
     this%is_const = this%agen%is_const
@@ -440,8 +440,10 @@ CONTAINS
     grp_map(:,:) = 127
 !ICON_OMP END PARALLEL WORKSHARE
 ! set a valid dummy
-    this%idx_loc(1,1,:) = 2
-    this%blk_loc(1,1,:) = 2
+    IF (this%nblk_loc > 0) THEN
+      this%idx_loc(1,1,:) = 2
+      this%blk_loc(1,1,:) = 2
+    END IF
     this%nindep_grp = 0
     ngid = this%trans%ngid_a_l
 ! ordering by global indices is necessary to get bit-identical solutions, even

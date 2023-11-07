@@ -341,7 +341,7 @@ CONTAINS
     ! Go through all the vertices and assign coordinates and land mask to coord_nod2D and
     ! index_nod2D
     k=0
-    DO jb = 1,p_patch%nblks_v
+    DO jb = p_patch%verts%all%start_block, p_patch%verts%all%end_block
       CALL get_index_range(p_patch%verts%all, jb, i_startidx_v, i_endidx_v) 
       DO jv = i_startidx_v,i_endidx_v
         k=k+1
