@@ -18,7 +18,7 @@ warnings=$(grep '^deplist\.py: ' "${log}") && {
   cat "${log}" >&2
   cat >&2 <<_EOF
 ---
-ERROR: the dependecy generator reported warnings (see the full log above):
+ERROR: the dependency generator reported warnings (see the full log above):
 ${warnings}
 _EOF
   exit 1

@@ -551,7 +551,7 @@ sanitize-mod-proxies:
 # We need to tolerate the absence of makefiles in the bundled
 # libraries when running clean rules. If the delayed configuration is disabled,
 # we tolerate the absence of the makefiles for the 'distclean' target only.
-# Otherwise, we additionaly enable the tolerance for the 'mostlyclean' and
+# Otherwise, we additionally enable the tolerance for the 'mostlyclean' and
 # 'clean' targets because they can be requested before the bundled directories
 # get configured:
 nomakefile_bundled_targets:= distclean
