@@ -2440,9 +2440,9 @@ CONTAINS
     INTEGER :: edge_2_1_index, edge_2_2_index, edge_2_3_index
     INTEGER :: edge_1_1_block, edge_1_2_block, edge_1_3_block
     INTEGER :: edge_2_1_block, edge_2_2_block, edge_2_3_block
-    INTEGER :: je, blockNo, start_edge_index, end_edge_index, level
+    INTEGER :: je, blockNo, start_edge_index, end_edge_index
     LOGICAL :: lzacc
-
+    
     REAL(wp), POINTER :: all_coeffs(:,:,:)
 
     TYPE(t_subset_range), POINTER :: edges_indomain
@@ -2462,7 +2462,7 @@ CONTAINS
     !$ACC   COPYIN(patch_2d%edges%cell_idx, patch_2d%edges%cell_blk, all_coeffs, in_vn_e, stretch_e) &
     !$ACC   COPY(out_vn_e) IF(lzacc)
 
-!ICON_OMP_PARALLEL_DO PRIVATE(start_edge_index, end_edge_index, je, level, cell_1_index, cell_1_block, &
+!ICON_OMP_PARALLEL_DO PRIVATE(start_edge_index, end_edge_index, je, cell_1_index, cell_1_block, &
 !ICON_OMP  cell_2_index, cell_2_block, edge_1_1_index, edge_1_2_index, edge_1_3_index, &
 !ICON_OMP  edge_1_1_block, edge_1_2_block, edge_1_3_block, edge_2_1_index, edge_2_2_index, &
 !ICON_OMP  edge_2_3_index, edge_2_1_block, edge_2_2_block, edge_2_3_block)  ICON_OMP_DEFAULT_SCHEDULE
@@ -2472,47 +2472,46 @@ CONTAINS
       !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO je = start_edge_index, end_edge_index
 
+        IF (patch_3d%p_patch_1d(1)%dolic_e(je,blockNo) < 1) CYCLE
+
         out_vn_e(je,blockNo) = 0.0_wp
 
-        DO level = 1, MIN(1,patch_3d%p_patch_1d(1)%dolic_e(je,blockNo))
+        ! get the two cells of the edge
+        cell_1_index = patch_2d%edges%cell_idx(je,blockNo,1)
+        cell_1_block = patch_2d%edges%cell_blk(je,blockNo,1)
+        cell_2_index = patch_2d%edges%cell_idx(je,blockNo,2)
+        cell_2_block = patch_2d%edges%cell_blk(je,blockNo,2)
 
-          ! get the two cells of the edge
-          cell_1_index = patch_2d%edges%cell_idx(je,blockNo,1)
-          cell_1_block = patch_2d%edges%cell_blk(je,blockNo,1)
-          cell_2_index = patch_2d%edges%cell_idx(je,blockNo,2)
-          cell_2_block = patch_2d%edges%cell_blk(je,blockNo,2)
-
-          ! get the six edges of the two cells
-          edge_1_1_index = patch_2d%cells%edge_idx(cell_1_index, cell_1_block, 1)
-          edge_1_2_index = patch_2d%cells%edge_idx(cell_1_index, cell_1_block, 2)
-          edge_1_3_index = patch_2d%cells%edge_idx(cell_1_index, cell_1_block, 3)
-          edge_2_1_index = patch_2d%cells%edge_idx(cell_2_index, cell_2_block, 1)
-          edge_2_2_index = patch_2d%cells%edge_idx(cell_2_index, cell_2_block, 2)
-          edge_2_3_index = patch_2d%cells%edge_idx(cell_2_index, cell_2_block, 3)
-          edge_1_1_block = patch_2d%cells%edge_blk(cell_1_index, cell_1_block, 1)
-          edge_1_2_block = patch_2d%cells%edge_blk(cell_1_index, cell_1_block, 2)
-          edge_1_3_block = patch_2d%cells%edge_blk(cell_1_index, cell_1_block, 3)
-          edge_2_1_block = patch_2d%cells%edge_blk(cell_2_index, cell_2_block, 1)
-          edge_2_2_block = patch_2d%cells%edge_blk(cell_2_index, cell_2_block, 2)
-          edge_2_3_block = patch_2d%cells%edge_blk(cell_2_index, cell_2_block, 3)
+        ! get the six edges of the two cells
+        edge_1_1_index = patch_2d%cells%edge_idx(cell_1_index, cell_1_block, 1)
+        edge_1_2_index = patch_2d%cells%edge_idx(cell_1_index, cell_1_block, 2)
+        edge_1_3_index = patch_2d%cells%edge_idx(cell_1_index, cell_1_block, 3)
+        edge_2_1_index = patch_2d%cells%edge_idx(cell_2_index, cell_2_block, 1)
+        edge_2_2_index = patch_2d%cells%edge_idx(cell_2_index, cell_2_block, 2)
+        edge_2_3_index = patch_2d%cells%edge_idx(cell_2_index, cell_2_block, 3)
+        edge_1_1_block = patch_2d%cells%edge_blk(cell_1_index, cell_1_block, 1)
+        edge_1_2_block = patch_2d%cells%edge_blk(cell_1_index, cell_1_block, 2)
+        edge_1_3_block = patch_2d%cells%edge_blk(cell_1_index, cell_1_block, 3)
+        edge_2_1_block = patch_2d%cells%edge_blk(cell_2_index, cell_2_block, 1)
+        edge_2_2_block = patch_2d%cells%edge_blk(cell_2_index, cell_2_block, 2)
+        edge_2_3_block = patch_2d%cells%edge_blk(cell_2_index, cell_2_block, 3)
 !          if ( stretch_e(edge_1_1_index, edge_1_1_block ) .NE. 1.0_wp   ) THEN
 !            write(*, *) edge_1_1_index, edge_1_1_block, stretch_e(edge_1_1_index, edge_1_1_block)
 !          ENDIF
-          out_vn_e(je,blockNo) = &
-            & in_vn_e(edge_1_1_index, edge_1_1_block) * all_coeffs(1, je, blockNo) &
-            & * stretch_e(edge_1_1_index, edge_1_1_block) + &
-            & in_vn_e(edge_1_2_index, edge_1_2_block) * all_coeffs(2, je, blockNo) &
-            & * stretch_e(edge_1_2_index, edge_1_2_block) + &
-            & in_vn_e(edge_1_3_index, edge_1_3_block) * all_coeffs(3, je, blockNo) &
-            & * stretch_e(edge_1_3_index, edge_1_3_block) + &
-            & in_vn_e(edge_2_1_index, edge_2_1_block) * all_coeffs(4, je, blockNo) &
-            & * stretch_e(edge_2_1_index, edge_2_1_block) + &
-            & in_vn_e(edge_2_2_index, edge_2_2_block) * all_coeffs(5, je, blockNo) &
-            & * stretch_e(edge_2_2_index, edge_2_2_block) + &
-            & in_vn_e(edge_2_3_index, edge_2_3_block) * all_coeffs(6, je, blockNo) &
-            & * stretch_e(edge_2_3_index, edge_2_3_block)
+        out_vn_e(je,blockNo) = &
+          & in_vn_e(edge_1_1_index, edge_1_1_block) * all_coeffs(1, je, blockNo) &
+          & * stretch_e(edge_1_1_index, edge_1_1_block) + &
+          & in_vn_e(edge_1_2_index, edge_1_2_block) * all_coeffs(2, je, blockNo) &
+          & * stretch_e(edge_1_2_index, edge_1_2_block) + &
+          & in_vn_e(edge_1_3_index, edge_1_3_block) * all_coeffs(3, je, blockNo) &
+          & * stretch_e(edge_1_3_index, edge_1_3_block) + &
+          & in_vn_e(edge_2_1_index, edge_2_1_block) * all_coeffs(4, je, blockNo) &
+          & * stretch_e(edge_2_1_index, edge_2_1_block) + &
+          & in_vn_e(edge_2_2_index, edge_2_2_block) * all_coeffs(5, je, blockNo) &
+          & * stretch_e(edge_2_2_index, edge_2_2_block) + &
+          & in_vn_e(edge_2_3_index, edge_2_3_block) * all_coeffs(6, je, blockNo) &
+          & * stretch_e(edge_2_3_index, edge_2_3_block)
 
-        END DO
       END DO
       !$ACC END PARALLEL LOOP
     END DO ! blockNo = edges_in_domain%start_block, edges_in_domain%end_block

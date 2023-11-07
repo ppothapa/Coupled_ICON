@@ -533,6 +533,9 @@ CONTAINS
 ! if no group was found, open up a new group
       IF (next) THEN
         this%nindep_grp = this%nindep_grp + 1
+        IF (this%nindep_grp > SIZE(this%grp_nelem)) &
+          CALL finish("lhs_create_matrix_init", &
+            "Too many independent groups. Increase t_lhs::grp_nelem")
         igrp = this%nindep_grp
       END IF
 ! store assignment of x-element to group

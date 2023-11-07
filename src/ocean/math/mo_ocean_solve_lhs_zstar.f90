@@ -140,16 +140,21 @@ MODULE mo_surface_height_lhs_zstar
                 & this%patch_2d%nblks_e .NE. SIZE(this%z_e_wp, 2)) &
                 & DEALLOCATE(this%z_e_wp, this%z_grad_h_wp)
           END IF
-          IF (.NOT.ALLOCATED(this%z_e_wp)) &
-            & ALLOCATE(this%z_e_wp(nproma, this%patch_2d%nblks_e), &
+          IF (.NOT.ALLOCATED(this%z_e_wp)) THEN
+            ALLOCATE(this%z_e_wp(nproma, this%patch_2d%nblks_e), &
                 & this%z_grad_h_wp(nproma, this%patch_2d%nblks_e))
+            this%z_e_wp(:,:) = 0._wp
+            this%z_grad_h_wp(:,:) = 0._wp
+          END IF
           IF (ALLOCATED(this%stretch_e)) THEN
             IF (nproma .NE. SIZE(this%stretch_e, 1) .OR. &
                 & this%patch_2d%nblks_e .NE. SIZE(this%stretch_e, 2)) &
                 & DEALLOCATE(this%stretch_e)
           END IF
-          IF (.NOT.ALLOCATED(this%stretch_e)) &
-            & ALLOCATE(this%stretch_e(nproma, this%patch_2d%nblks_e))
+          IF (.NOT.ALLOCATED(this%stretch_e)) THEN
+            ALLOCATE(this%stretch_e(nproma, this%patch_2d%nblks_e))
+            this%stretch_e(:,:) = 1.0_wp
+          END IF
         END IF
  
         CALL this%internal_wp(x, ax)
@@ -214,6 +219,9 @@ MODULE mo_surface_height_lhs_zstar
     !ICON_OMP_PARALLEL_DO PRIVATE(start_index,end_index, jc) ICON_OMP_DEFAULT_SCHEDULE
         DO blkNo = cells_in_domain%start_block, cells_in_domain%end_block
           CALL get_index_range(cells_in_domain, blkNo, start_index, end_index)
+          lhs(:start_index-1,blkNo) = 0._wp
+          lhs(end_index+1:,blkNo) = 0._wp
+
           IF (this%patch_2d%cells%max_connectivity .EQ. 3) THEN
             CALL div_oce_2D_onTriangles_onBlock(this%z_e_wp, this%patch_2D, &
               & this%op_coeffs_wp%div_coeff, lhs(:,blkNo), level=topLevel, &
