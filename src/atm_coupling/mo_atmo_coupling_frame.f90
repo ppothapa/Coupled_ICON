@@ -24,13 +24,14 @@ MODULE mo_atmo_coupling_frame
 #ifndef __NO_AES__
   USE mo_aes_phy_memory      ,ONLY: prm_field
 #endif
+  USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config
 
   USE mo_parallel_config     ,ONLY: nproma
 
   USE mo_run_config          ,ONLY: iforcing, ltimer, modelTimeStep
   USE mo_timer,               ONLY: timer_start, timer_stop, timer_coupling_init
 
-  USE mo_impl_constants      ,ONLY: MAX_CHAR_LENGTH, inwp, iaes
+  USE mo_impl_constants      ,ONLY: MAX_CHAR_LENGTH, inwp, iaes, LSS_JSBACH
 
 #if !defined(__NO_JSBACH__) && !defined(__NO_JSBACH_HD__)
   USE mo_interface_hd_ocean  ,ONLY: jsb_fdef_hd_fields
@@ -517,7 +518,10 @@ CONTAINS
 
 #if !defined(__NO_JSBACH__) && !defined(__NO_JSBACH_HD__)
 
-    IF (iforcing .NE. INWP) THEN  ! preliminary, not allowed to go here without jsbach/hd
+    ! Define coupling of runoff if HD model is present and interface is coded
+    !  - discrimination between Proto2 (no HD) and Proto3 (with HD) is needed
+    ! preliminary: coupling to jsbach/hd is active
+    IF (iforcing /= INWP .OR. atm_phy_nwp_config(jg)%inwp_surface == LSS_JSBACH) THEN
 
 !     !
 !     ! Attention: needs to be checked with Roland Wirth and JSBACH users in case a second runoff mask is used

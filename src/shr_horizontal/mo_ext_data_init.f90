@@ -25,7 +25,7 @@ MODULE mo_ext_data_init
   USE mo_impl_constants,     ONLY: inwp, iaes, io3_clim, io3_ape,                                   &
     &                              max_char_length, min_rlcell_int, min_rlcell,                     &
     &                              MODIS, GLOBCOVER2009, GLC2000, SUCCESS, SSTICE_ANA_CLINC,        &
-    &                              SSTICE_CLIM
+    &                              SSTICE_CLIM, LSS_TERRA
   USE mo_math_constants,     ONLY: dbl_eps, rad2deg
   USE mo_physical_constants, ONLY: ppmv2gg, zemiss_def, tmelt
   USE mo_run_config,         ONLY: msg_level, iforcing, check_uuid_gracefully
@@ -1197,9 +1197,9 @@ CONTAINS
         !--------------------------------------------------------------------
         CALL read_extdata('topography_c', ext_data(jg)%atm%topography_c)
 
-        ! If ocean coupling is used, then read the land sea masks
+        ! If ocean coupling and TERRA is used, then read the land sea masks
 
-        IF ( is_coupled_to_ocean() ) THEN
+        IF ( is_coupled_to_ocean() .AND. atm_phy_nwp_config(jg)%inwp_surface == LSS_TERRA ) THEN
 
           ! --- option NWP grids for coupling: Read fraction of land (land-sea mask) from
           ! interpolated ocean grid (ocean: integer 0/1 lsm). lsm_ctr_c is the fraction of land.
@@ -1401,9 +1401,9 @@ CONTAINS
         ! land sea mask at cell centers (LOGICAL)
         !
 
-        ! adjust atmo LSM to ocean LSM for coupled simulation and initialize new land points
+        ! adjust atmo LSM to ocean LSM for coupled simulation and initialize new land points (TERRA only)
 
-        IF ( is_coupled_to_ocean() ) THEN
+        IF ( is_coupled_to_ocean() .AND. atm_phy_nwp_config(jg)%inwp_surface == LSS_TERRA ) THEN
           CALL lsm_ocean_atmo ( p_patch(jg), ext_data(jg) )
         ENDIF
 
