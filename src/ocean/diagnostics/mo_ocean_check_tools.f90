@@ -22,14 +22,14 @@ MODULE mo_ocean_check_tools
   USE mo_dynamics_config,    ONLY: nold,nnew
   USE mo_run_config,         ONLY: dtime
   USE mo_exception,          ONLY: finish, message, message_text
-  USE mo_util_dbg_prnt,      ONLY: dbg_print, c_i, c_b
+  USE mo_util_dbg_prnt,      ONLY: dbg_print, c_i, c_b, near_proc_id
   USE mo_grid_config,        ONLY: n_dom
   USE mo_grid_subset,        ONLY: t_subset_range, get_index_range
   USE mo_ocean_types,          ONLY: t_hydro_ocean_state
   USE mo_ext_data_types,     ONLY: t_external_data
   USE mo_run_config,         ONLY: dtime, nsteps
   USE mo_math_constants,     ONLY: pi
-  USE mo_mpi,                ONLY: get_my_global_mpi_id
+  USE mo_mpi,                ONLY: get_my_global_mpi_id, p_pe
   IMPLICIT NONE
   
   PRIVATE
@@ -163,6 +163,8 @@ CONTAINS
     !------------------------------------------------------------------
     ! Check parameters
     !------------------------------------------------------------------
+
+    IF (p_pe /= near_proc_id) RETURN
 
     ! slm and coordinates of this point:
     islmval = patch_3d%lsm_c(c_i,c_k,c_b)

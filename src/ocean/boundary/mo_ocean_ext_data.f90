@@ -17,7 +17,7 @@
 MODULE mo_ocean_ext_data
 
   USE mo_master_control,       ONLY: get_my_process_name
-  
+
   USE mo_kind,               ONLY: wp
   USE mo_io_units,           ONLY: filename_max
   USE mo_parallel_config,    ONLY: nproma
@@ -35,7 +35,7 @@ MODULE mo_ocean_ext_data
     & use_omip_windstress, use_omip_fluxes, use_omip_forcing, &
     & bulk_wind_stress_type, wind_stress_from_file
   USE mo_sea_ice_nml,        ONLY: i_ice_dyn
-   
+
   USE mo_model_domain,       ONLY: t_patch
   USE mo_exception,          ONLY: message, message_text, finish
   USE mo_grid_config,        ONLY: n_dom, nroot, dynamics_grid_filename
@@ -61,6 +61,7 @@ MODULE mo_ocean_ext_data
   USE mo_netcdf_errhandler,  ONLY: nf
   USE mo_io_config,          ONLY: lnetcdf_flt64_output
 
+#include "add_var_acc_macro.inc"
 
   IMPLICIT NONE
 
@@ -87,7 +88,7 @@ CONTAINS
   !! Init external data for atmosphere and ocean
   !!
   !! Init external data for atmosphere and ocean.
-  !! 1. Build data structure, including field lists and 
+  !! 1. Build data structure, including field lists and
   !!    memory allocation.
   !! 2. External data are read in from netCDF file or set analytically
   !!
@@ -117,7 +118,7 @@ CONTAINS
     !  2.  construct external fields for the model
     !------------------------------------------------------------------
 
-    ! top-level procedure for building data structures for 
+    ! top-level procedure for building data structures for
     ! external data.
     CALL message (TRIM(routine), 'Construction of data structure for ' // &
       &                          'external data started')
@@ -126,6 +127,7 @@ CONTAINS
     ! write(0,*) 'create new external data list for ocean'
     ! Build external data list for constant-in-time fields for the ocean model
     DO jg = 1, n_dom
+      !$ACC ENTER DATA COPYIN(ext_data(jg)%oce)
       WRITE(listname,'(a,i2.2)') 'ext_data_oce_D',jg
       CALL new_ext_data_oce_list(p_patch(jg), ext_data(jg)%oce, ext_data(jg)%oce_list, TRIM(listname))
     END DO ! jg = 1,n_dom
@@ -171,7 +173,7 @@ CONTAINS
       &  p_patch
 
     TYPE(t_external_ocean), INTENT(INOUT) :: & !< current external data structure
-      &  p_ext_oce 
+      &  p_ext_oce
 
     TYPE(t_var_list_ptr) :: p_ext_oce_list !< current external data list
 
@@ -243,7 +245,8 @@ CONTAINS
       &                   'Model bathymetry', datatype_flt)
     grib2_desc = grib2_var( 192, 140, 219, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( p_ext_oce_list, 'bathymetry_c', p_ext_oce%bathymetry_c,      &
-      &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc, ldims=shape2d_c )
+      &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc, ldims=shape2d_c, lopenacc = .TRUE.)
+    __acc_attach(p_ext_oce%bathymetry_c)
 
 
     ! bathymetric height at cell edge
@@ -280,8 +283,9 @@ CONTAINS
         &                   'OMIP forcing data', datatype_flt)
       grib2_desc = grib2_var( 192, 140, 219, ibits, GRID_UNSTRUCTURED, GRID_CELL)
       CALL add_var( p_ext_oce_list, 'flux_forc_mon_c', p_ext_oce%flux_forc_mon_c,  &
-        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc, ldims=shape4d_c )
-      p_ext_oce%flux_forc_mon_c = 0.0_wp
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc, ldims=shape4d_c, &
+        &           lopenacc=.TRUE., initval=0.0_wp)
+      __acc_attach(p_ext_oce%flux_forc_mon_c)
     END IF
 
   END SUBROUTINE new_ext_data_oce_list
@@ -408,7 +412,7 @@ CONTAINS
         &                           '  no of edges =', p_patch(jg)%n_patch_edges_g, &
         &                           '  no of verts =', no_verts
       CALL message( TRIM(routine),TRIM(message_text))
-      
+
       CALL nf(nf_close(ncid), routine)
     ENDIF
 
@@ -427,7 +431,7 @@ CONTAINS
     ext_data(jg)%oce%bathymetry_e(:,:) = 99999999.0_wp
     ext_data(jg)%oce%lsm_ctr_c(:,:)    = LAND
     ext_data(jg)%oce%lsm_ctr_e(:,:)    = LAND
-     
+
     CALL read_2D(stream_id, on_cells, 'cell_elevation', &
       &          ext_data(jg)%oce%bathymetry_c)
 
@@ -516,7 +520,7 @@ CONTAINS
       ENDIF
 
       CALL openinputfile(stream_id, omip_file, p_patch(jg))
-      
+
       IF(p_test_run) THEN
         mpi_comm = p_comm_work_test
       ELSE
@@ -570,35 +574,35 @@ CONTAINS
         ! 2m-temperature
         CALL read_3D(stream_id, on_cells, 'temp_2m', z_flux)
         ext_data(jg)%oce%flux_forc_mon_c(:,:,:,4) = z_flux(:,:,:)
-     
+
         ! 2m dewpoint temperature
         CALL read_3D(stream_id, on_cells, 'dpt_temp_2m', z_flux)
         ext_data(jg)%oce%flux_forc_mon_c(:,:,:,5) = z_flux(:,:,:)
-     
+
         ! Scalar wind
         CALL read_3D(stream_id, on_cells, 'scalar_wind', z_flux)
         ext_data(jg)%oce%flux_forc_mon_c(:,:,:,6) = z_flux(:,:,:)
-     
+
         ! cloud cover
         CALL read_3D(stream_id, on_cells, 'cloud', z_flux)
         ext_data(jg)%oce%flux_forc_mon_c(:,:,:,7) = z_flux(:,:,:)
-     
+
         ! sea level pressure  ! hh: can be usefull
         CALL read_3D(stream_id, on_cells, 'pressure', z_flux)
         ext_data(jg)%oce%flux_forc_mon_c(:,:,:,8) = z_flux(:,:,:)
-     
+
         ! total solar radiation
         CALL read_3D(stream_id, on_cells, 'tot_solar', z_flux)
         ext_data(jg)%oce%flux_forc_mon_c(:,:,:,9) = z_flux(:,:,:) * sw_scaling_factor
-     
+
         ! precipitation
         CALL read_3D(stream_id, on_cells, 'precip', z_flux)
         ext_data(jg)%oce%flux_forc_mon_c(:,:,:,10) = z_flux(:,:,:)
-     
-!        ! evaporation ! hh: not needed 
+
+!        ! evaporation ! hh: not needed
 !        CALL read_3D(stream_id, on_cells, 'evap', z_flux)
 !        ext_data(jg)%oce%flux_forc_mon_c(:,:,:,11) = z_flux(:,:,:)
-     
+
         ! runoff
         CALL read_3D(stream_id, on_cells, 'runoff', z_flux)
         ext_data(jg)%oce%flux_forc_mon_c(:,:,:,12) = z_flux(:,:,:)

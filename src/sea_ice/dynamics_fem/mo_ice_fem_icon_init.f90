@@ -37,7 +37,7 @@ MODULE mo_ice_fem_icon_init
   USE mo_math_constants,      ONLY: rad2deg, deg2rad
 
   USE mo_sync,                ONLY: sync_v, sync_patch_array
-
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -341,7 +341,7 @@ CONTAINS
     ! Go through all the vertices and assign coordinates and land mask to coord_nod2D and
     ! index_nod2D
     k=0
-    DO jb = 1,p_patch%nblks_v
+    DO jb = p_patch%verts%all%start_block, p_patch%verts%all%end_block
       CALL get_index_range(p_patch%verts%all, jb, i_startidx_v, i_endidx_v) 
       DO jv = i_startidx_v,i_endidx_v
         k=k+1
@@ -559,22 +559,18 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   ! copy ice velocities to ICON variables
-  SUBROUTINE copy_fem2icon(u_ice, u_, nlev, lev_idx, use_acc)
+  SUBROUTINE copy_fem2icon(u_ice, u_, nlev, lev_idx, lacc)
     INTEGER, INTENT(in) :: nlev, lev_idx
     REAL(wp), INTENT(IN) :: u_ice(fem_patch%n_patch_verts)
     REAL(wp), INTENT(INOUT) :: u_(nproma, nlev, fem_patch%nblks_v)
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
     INTEGER :: jv, jb, npad, nlast
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lzacc)
     DO jb = 1, fem_patch%nblks_v-1
       DO jv = 1, nproma
         u_(jv, lev_idx, jb) = u_ice((jb-1)*nproma + jv)
@@ -585,12 +581,12 @@ CONTAINS
     npad = nproma*fem_patch%nblks_v - fem_patch%n_patch_verts
     nlast = nproma - npad
     jb = fem_patch%nblks_v
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
     DO jv = 1, nlast
       u_(jv, lev_idx, jb) = u_ice((jb-1)*nproma + jv)
     END DO
     !$ACC END PARALLEL LOOP
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
     DO jv = nlast+1,nproma
       u_(jv, lev_idx, jb) = -9999._wp
     END DO
@@ -599,22 +595,18 @@ CONTAINS
   END SUBROUTINE copy_fem2icon
 
   ! Reshape and copy ice velocity to FEM model variables
-  SUBROUTINE copy_icon2fem(u_, u_ice, nlev, lev_idx, use_acc)
+  SUBROUTINE copy_icon2fem(u_, u_ice, nlev, lev_idx, lacc)
     INTEGER, INTENT(in) :: nlev, lev_idx
     REAL(wp), INTENT(IN) :: u_(nproma, nlev, fem_patch%nblks_v)
     REAL(wp), INTENT(OUT) :: u_ice(fem_patch%n_patch_verts)
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     INTEGER :: jv, jb, npad, nlast
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lzacc)
     DO jb = 1, fem_patch%nblks_v-1
       DO jv = 1, nproma
         u_ice((jb-1)*nproma + jv) = u_(jv, lev_idx, jb)
@@ -624,37 +616,33 @@ CONTAINS
     npad = nproma*fem_patch%nblks_v - fem_patch%n_patch_verts
     nlast = nproma - npad
     jb = fem_patch%nblks_v
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
     DO jv = 1, nlast
       u_ice((jb-1)*nproma + jv) = u_(jv, lev_idx, jb)
     END DO
     !$ACC END PARALLEL LOOP
   END SUBROUTINE copy_icon2fem
 
-  SUBROUTINE exchange_nod2Dx2(u1_ice, u2_ice, use_acc)
+  SUBROUTINE exchange_nod2Dx2(u1_ice, u2_ice, lacc)
     REAL(wp), INTENT(INOUT) :: u1_ice(fem_patch%n_patch_verts), &
          u2_ice(fem_patch%n_patch_verts)
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
     
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     ! Temporary buffer
     REAL(wp) :: u_(nproma, 2, fem_patch%nblks_v)
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC DATA CREATE(u_) IF(lacc)
+    !$ACC DATA CREATE(u_) IF(lzacc)
 
-    CALL copy_fem2icon(u1_ice, u_, 2, 1, use_acc=lacc)
-    CALL copy_fem2icon(u2_ice, u_, 2, 2, use_acc=lacc)
+    CALL copy_fem2icon(u1_ice, u_, 2, 1, lacc=lzacc)
+    CALL copy_fem2icon(u2_ice, u_, 2, 2, lacc=lzacc)
 
     CALL sync_patch_array(SYNC_V, fem_patch, u_)
 
-    CALL copy_icon2fem(u_, u1_ice, 2, 1, use_acc=lacc)
-    CALL copy_icon2fem(u_, u2_ice, 2, 2, use_acc=lacc)
+    CALL copy_icon2fem(u_, u1_ice, 2, 1, lacc=lzacc)
+    CALL copy_icon2fem(u_, u2_ice, 2, 2, lacc=lzacc)
 
     !$ACC END DATA
 

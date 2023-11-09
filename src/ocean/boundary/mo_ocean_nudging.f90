@@ -36,6 +36,7 @@ MODULE mo_ocean_nudging
   USE mo_exception,                 ONLY: finish !, message_text, message
   USE mo_operator_ocean_coeff_3d,   ONLY: t_operator_coeff
   USE mo_grid_subset,               ONLY: t_subset_range, get_index_range
+  USE mo_fortran_tools,             ONLY: set_acc_host_or_device
 
 
   IMPLICIT NONE
@@ -66,27 +67,26 @@ CONTAINS
   !! Developed  by  Helmuth Haak, MPI-M (2018).
   !!
 !<Optimize:inUse>
-  SUBROUTINE nudge_ocean_tracers(patch_3d, p_os, use_acc)
+  SUBROUTINE nudge_ocean_tracers(patch_3d, p_os, lacc)
     TYPE(t_patch_3d ),TARGET, INTENT(inout)      :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET :: p_os
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
     !Local variables
 
     REAL(wp) :: z_relax
     REAL(wp) :: z_c(nproma,n_zlev,patch_3d%p_patch_2d(1)%alloc_cell_blocks)
+    INTEGER :: jc, blockNo, start_index, end_index, level
     TYPE(t_subset_range), POINTER :: cells_in_domain
     TYPE(t_patch), POINTER :: patch_2D
-    LOGICAL  :: lacc
+    INTEGER, POINTER :: dolic_c(:,:)
+    LOGICAL  :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     patch_2d  => patch_3d%p_patch_2d(1)
     cells_in_domain => patch_2d%cells%ALL
+    dolic_c => patch_3d%p_patch_1d(1)%dolic_c
 
     ! Final step: 3-dim temperature relaxation
     !  - strict time constant, i.e. independent of layer thickness
@@ -103,14 +103,22 @@ CONTAINS
 !      ocean_nudge%forc_3dimrelax_temp(:,:,:) = -z_relax * ocean_nudge%relax_3dim_coefficient(:,:,:) &
 !        & * ( p_os%p_prog(nnew(1))%tracer(:,:,:,1) - ocean_nudge%data_3dimrelax_temp(:,:,:))
 
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-      ocean_nudge%forc_3dimrelax_temp(:,:,:) = z_relax * dtime &
-         * (ocean_nudge%data_3dimrelax_temp(:,:,:) - p_os%p_prog(nnew(1))%tracer(:,:,:,1) )
+    DO blockNo = cells_in_domain%start_block, cells_in_domain%end_block
+      CALL get_index_range(cells_in_domain, blockNo, start_index, end_index)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      DO jc = start_index, end_index
+        DO level = 1, dolic_c(jc,blockNo)
+          ocean_nudge%forc_3dimrelax_temp(jc,level,blockNo) = z_relax * dtime &
+            * (ocean_nudge%data_3dimrelax_temp(jc,level,blockNo) - p_os%p_prog(nnew(1))%tracer(jc,level,blockNo,1) )
 
-      ! add relaxation term to new temperature
-      p_os%p_prog(nnew(1))%tracer(:,:,:,1) = p_os%p_prog(nnew(1))%tracer(:,:,:,1) + &
-                                             ocean_nudge%forc_3dimRelax_temp(:,:,:)
-      !$ACC END KERNELS
+          ! add relaxation term to new temperature
+          p_os%p_prog(nnew(1))%tracer(jc,level,blockNo,1) = p_os%p_prog(nnew(1))%tracer(jc,level,blockNo,1) + &
+                                                ocean_nudge%forc_3dimRelax_temp(jc,level,blockNo)
+          END DO
+        END DO
+        !$ACC END PARALLEL LOOP
+      END DO
+      !$ACC WAIT(1)
 
       !---------DEBUG DIAGNOSTICS-------------------------------------------
       idt_src=1  ! output print level (1-5, fix)
@@ -137,14 +145,22 @@ CONTAINS
 !        & ( p_os%p_prog(nnew(1))%tracer(:,:,:,2) -       &
 !        & ocean_nudge%forc_3dimrelax_salt(:,:,:))
 
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-      ocean_nudge%forc_3dimrelax_salt(:,:,:) = z_relax * dtime &
-         * (ocean_nudge%data_3dimrelax_salt(:,:,:) - p_os%p_prog(nnew(1))%tracer(:,:,:,2) )
+      DO blockNo = cells_in_domain%start_block, cells_in_domain%end_block
+        CALL get_index_range(cells_in_domain, blockNo, start_index, end_index)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+        DO jc = start_index, end_index
+          DO level = 1, dolic_c(jc,blockNo)
+            ocean_nudge%forc_3dimrelax_salt(jc,level,blockNo) = z_relax * dtime &
+              * (ocean_nudge%data_3dimrelax_salt(jc,level,blockNo) - p_os%p_prog(nnew(1))%tracer(jc,level,blockNo,2) )
 
-      ! add relaxation term to new temperature
-      p_os%p_prog(nnew(1))%tracer(:,:,:,2) = p_os%p_prog(nnew(1))%tracer(:,:,:,2) + &
-                                             ocean_nudge%forc_3dimRelax_salt(:,:,:)
-      !$ACC END KERNELS
+            ! add relaxation term to new temperature
+            p_os%p_prog(nnew(1))%tracer(jc,level,blockNo,2) = p_os%p_prog(nnew(1))%tracer(jc,level,blockNo,2) + &
+                                                  ocean_nudge%forc_3dimRelax_salt(jc,level,blockNo)
+          END DO
+        END DO
+        !$ACC END PARALLEL LOOP
+      END DO
+      !$ACC WAIT(1)
 
       ! add relaxation term to new salinity
 

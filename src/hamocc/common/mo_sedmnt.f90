@@ -23,6 +23,7 @@ MODULE mo_sedmnt
   USE mo_memory_bgc, ONLY :  sinkspeed_dust
   USE mo_bgc_constants, ONLY: g,rhoref_water
   USE mo_bgc_memory_types
+  USE mo_fortran_tools, ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -155,25 +156,21 @@ END SUBROUTINE
 
 
 
-SUBROUTINE  ini_bottom(local_bgc_mem, start_idx, end_idx, klevs, pddpo, use_acc)
+SUBROUTINE  ini_bottom(local_bgc_mem, start_idx, end_idx, klevs, pddpo, lacc)
 
  TYPE(t_bgc_memory), POINTER :: local_bgc_mem
  REAL(wp), INTENT(IN):: pddpo(bgc_nproma,bgc_zlevs)
 
  INTEGER, INTENT(IN) :: start_idx, end_idx
  INTEGER,  TARGET::klevs(bgc_nproma)
- LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+ LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
- LOGICAL :: lacc
+ LOGICAL :: lzacc
  INTEGER ::  j, k, kpke
 
-  IF (PRESENT(use_acc)) THEN
-    lacc = use_acc
-  ELSE
-    lacc = .FALSE.
-  END IF
+  CALL set_acc_host_or_device(lzacc, lacc)
 
-  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
   !$ACC LOOP GANG(STATIC: 1) VECTOR
   DO j = start_idx, end_idx
    k=klevs(j)

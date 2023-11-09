@@ -43,6 +43,7 @@ MODULE mo_ocean_tracer
   USE mo_timer,                     ONLY: timer_start, timer_stop, timers_level, timer_extra30
   USE mo_statistics,                ONLY: global_minmaxmean, print_value_location
   USE mo_ocean_tracer_transport_types,  ONLY: t_ocean_tracer, t_tracer_collection, t_ocean_transport_state
+  USE mo_fortran_tools,             ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -67,25 +68,21 @@ CONTAINS
   !! Developed  by  Peter Korn, MPI-M (2010).
   !!
 !<Optimize:inUse>
-  SUBROUTINE advect_ocean_tracers(old_tracers, new_tracers, transport_state, operators_coeff, use_acc)
+  SUBROUTINE advect_ocean_tracers(old_tracers, new_tracers, transport_state, operators_coeff, lacc)
     TYPE(t_tracer_collection), INTENT(inout)      :: old_tracers
     TYPE(t_tracer_collection), INTENT(inout)      :: new_tracers
     TYPE(t_ocean_transport_state), TARGET         :: transport_state
     TYPE(t_operator_coeff), INTENT(in) :: operators_coeff
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
 
     !Local variables
     TYPE(t_patch_3d ), POINTER     :: patch_3d
     INTEGER :: tracer_index
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     !-------------------------------------------------------------------------------
     patch_3d => transport_state%patch_3d
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     DO tracer_index = 1, old_tracers%no_of_tracers
       IF ( old_tracers%tracer(tracer_index)%is_advected) THEN
@@ -94,7 +91,7 @@ CONTAINS
           & transport_state, operators_coeff,               &
           & new_tracers%tracer(tracer_index),               &
           & old_tracers%typeOfTracers,                      &
-          & use_acc=lacc)
+          & lacc=lzacc)
       ENDIF
     END DO
     
@@ -124,12 +121,12 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !>
-  SUBROUTINE copy_individual_tracer_ab(patch_3d, old_tracer, new_tracer, use_acc)
+  SUBROUTINE copy_individual_tracer_ab(patch_3d, old_tracer, new_tracer, lacc)
 
     TYPE(t_patch_3d ),TARGET, INTENT(inout)   :: patch_3d
     TYPE(t_ocean_tracer), TARGET :: old_tracer
     TYPE(t_ocean_tracer), TARGET :: new_tracer
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
 
     INTEGER :: jc,level,jb
     INTEGER :: start_cell_index, end_cell_index
@@ -137,15 +134,11 @@ CONTAINS
     TYPE(t_subset_range), POINTER :: all_cells
     TYPE(t_patch), POINTER :: patch_2D
     INTEGER :: start_block, end_block
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     CHARACTER(len=*), PARAMETER :: routine = modname//':copy_individual_tracer_ab'
     ! CHARACTER(len=max_char_length), PARAMETER :: &
     !        & routine = ('mo_tracer_advection:advect_individual_tracer')
     !-------------------------------------------------------------------------------
-
-#ifdef _OPENACC
-    CALL finish(routine, 'OpenACC version currently not tested/validated')
-#endif
 
     trac_old => old_tracer%concentration
     trac_new => new_tracer%concentration
@@ -154,19 +147,19 @@ CONTAINS
     start_block = all_cells%start_block
     end_block = all_cells%end_block
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+#ifdef _OPENACC
+    IF (lzacc) CALL finish(routine, 'OpenACC version currently not tested/validated')
+#endif
 
     !$ACC DATA COPYIN(trac_old) &
-    !$ACC   COPY(trac_new) IF(lacc)
+    !$ACC   COPY(trac_new) IF(lzacc)
 
     DO jb = start_block, end_block
       CALL get_index_range(all_cells, jb, start_cell_index, end_cell_index)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = start_cell_index, end_cell_index
         DO level = 1, n_zlev
@@ -174,8 +167,8 @@ CONTAINS
         END DO
       END DO
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
     END DO
+    !$ACC WAIT(1)
     !$ACC END DATA
   END SUBROUTINE copy_individual_tracer_ab
   !-------------------------------------------------------------------------
@@ -190,7 +183,7 @@ CONTAINS
   !!
 !<Optimize:inUse>
   SUBROUTINE advect_diffuse_individual_tracer(patch_3d, old_tracer,       &
-    & transport_state, operators_coeff, new_tracer, typeOfTracers, use_acc)
+    & transport_state, operators_coeff, new_tracer, typeOfTracers, lacc)
 
     TYPE(t_patch_3d ),TARGET, INTENT(inout)   :: patch_3d
     TYPE(t_ocean_tracer), TARGET :: old_tracer
@@ -198,13 +191,13 @@ CONTAINS
     TYPE(t_ocean_transport_state), TARGET :: transport_state
     TYPE(t_operator_coeff),INTENT(in) :: operators_coeff
     CHARACTER(LEN=*), INTENT(in)         :: typeOfTracers
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
 !     REAL(wp), INTENT(inout), OPTIONAL :: horizontally_diffused_tracer(:,:,:)
 
     !Local variables
     TYPE(t_subset_range), POINTER :: cells_in_domain
     TYPE(t_patch), POINTER :: patch_2D
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     ! CHARACTER(len=max_char_length), PARAMETER :: &
     !        & routine = ('mo_tracer_advection:advect_diffuse_tracer')
     !-------------------------------------------------------------------------------_
@@ -212,11 +205,7 @@ CONTAINS
     patch_2D => patch_3d%p_patch_2d(1)
     cells_in_domain => patch_2D%cells%in_domain
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     idt_src=2  ! output print level (1-5, fix)
@@ -225,7 +214,7 @@ CONTAINS
     !---------------------------------------------------------------------
     IF(tracer_update_mode == use_none ) THEN
       CALL copy_individual_tracer_ab( patch_3d,            &
-        & old_tracer,new_tracer,use_acc=lacc)
+        & old_tracer,new_tracer,lacc=lzacc)
       RETURN
     ENDIF
    
@@ -234,7 +223,7 @@ CONTAINS
       CALL advect_diffuse_SW_tracer(patch_3d, old_tracer,       &
         & transport_state, operators_coeff,                      &
         & old_tracer%hor_diffusion_coeff,        &
-        & new_tracer, use_acc=lacc)
+        & new_tracer, lacc=lzacc)
         
     !The 3D-case
     ELSE ! IF( iswm_oce /= 1) THEN
@@ -247,7 +236,7 @@ CONTAINS
         & old_tracer%ver_diffusion_coeff,   &
         & new_tracer,                       &
         & typeOfTracers,                    &
-        & use_acc=lacc)
+        & lacc=lzacc)
 
     ENDIF
 
@@ -265,7 +254,7 @@ CONTAINS
   SUBROUTINE advect_diffuse_SW_tracer(patch_3d, old_tracer,       &
     & transport_state, operators_coeff,                      &
     & k_h,                                   &
-    & new_tracer, use_acc)
+    & new_tracer, lacc)
 
     TYPE(t_patch_3d ),TARGET, INTENT(inout)   :: patch_3d
     TYPE(t_ocean_tracer), TARGET :: old_tracer
@@ -273,7 +262,7 @@ CONTAINS
     TYPE(t_operator_coeff),INTENT(in) :: operators_coeff
     REAL(wp), INTENT(in)                 :: k_h(:,:,:)       !horizontal mixing coeff
     TYPE(t_ocean_tracer), TARGET :: new_tracer
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
  
     !Local variables
     REAL(wp) :: delta_t, delta_z,delta_z_new
@@ -288,7 +277,7 @@ CONTAINS
     INTEGER :: jc,level,jb,ic,ib,alloc_cell_blocks,start_block,end_block
     INTEGER :: z_dolic
     INTEGER :: start_cell_index, end_cell_index
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     TYPE(t_subset_range), POINTER :: cells_in_domain
     TYPE(t_patch), POINTER :: patch_2D
     REAL(wp), DIMENSION(:,:,:), POINTER :: new_tracer_concentration, old_tracer_concentration
@@ -297,10 +286,6 @@ CONTAINS
     ! CHARACTER(len=max_char_length), PARAMETER :: &
     !        & routine = ('mo_tracer_advection:advect_diffuse_tracer')
     !-------------------------------------------------------------------------------
-
-#ifdef _OPENACC
-    CALL finish(routine, 'OpenACC version currently not tested/validated')
-#endif
 
     trac_old => old_tracer%concentration
     trac_new => new_tracer%concentration
@@ -317,16 +302,16 @@ CONTAINS
     start_block = cells_in_domain%start_block
     end_block = cells_in_domain%end_block
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+#ifdef _OPENACC
+    IF (lzacc) CALL finish(routine, 'OpenACC version currently not tested/validated')
+#endif
 
     !$ACC DATA PRESENT(nproma, n_zlev, patch_3d%p_patch_2d(1)%alloc_cell_blocks) &
     !$ACC   COPYIN(k_h, transport_state_h_old, transport_state_h_new) &
     !$ACC   COPY(old_tracer_concentration) &
-    !$ACC   CREATE(div_adv_flux_horz, div_adv_flux_vert, div_diff_flux_horz) IF(lacc)
+    !$ACC   CREATE(div_adv_flux_horz, div_adv_flux_vert, div_diff_flux_horz) IF(lzacc)
 
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     idt_src=2  ! output print level (1-5, fix)
@@ -334,11 +319,12 @@ CONTAINS
     !---------------------------------------------------------------------
     
     !Shallow water is done with horizontal advection
-    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     div_adv_flux_horz   (1:nproma,1:n_zlev,1:alloc_cell_blocks) = 0.0_wp
     div_adv_flux_vert   (1:nproma,1:n_zlev,1:alloc_cell_blocks) = 0.0_wp
     ! div_diff_flux_horz  (1:nproma,1:n_zlev,1:alloc_cell_blocks) = 0.0_wp
     !$ACC END KERNELS
+    !$ACC WAIT(1)
 
     !---------------------------------------------------------------------
     CALL advect_horz( patch_3d,        &
@@ -373,13 +359,13 @@ CONTAINS
 
     !$ACC DATA COPYIN(div_adv_flux_horz, div_diff_flux_horz) &
     !$ACC   COPYIN(old_tracer_concentration, transport_state_h_new) &
-    !$ACC   COPY(new_tracer_concentration) IF(lacc)
+    !$ACC   COPY(new_tracer_concentration) IF(lzacc)
 
     !level=1
     DO jb = start_block, end_block
       CALL get_index_range(cells_in_domain, jb, start_cell_index, end_cell_index)
       
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = start_cell_index, end_cell_index
         DO level = 1, 1!MIN(dolic_c(jc,jb),1)  ! this at most should be 1
@@ -392,8 +378,8 @@ CONTAINS
         END DO
       END DO
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
     END DO
+    !$ACC WAIT(1)
 
     CALL sync_patch_array(sync_c, patch_2D, new_tracer_concentration)
     !$ACC END DATA
@@ -414,7 +400,7 @@ CONTAINS
     & patch_3d, old_tracer,                &
     & transport_state, operators_coeff,    &
     & k_h, a_v,                            &
-    & new_tracer, typeOfTracers, use_acc)!,        &
+    & new_tracer, typeOfTracers, lacc)!,        &
     ! & horizontally_diffused_tracer        )
 
     TYPE(t_patch_3d ),TARGET, INTENT(inout)   :: patch_3d
@@ -425,7 +411,7 @@ CONTAINS
     REAL(wp), INTENT(inout)              :: a_v(:,:,:)       !vertical mixing coeff, in
     TYPE(t_ocean_tracer), TARGET         :: new_tracer
     CHARACTER(LEN=*), INTENT(in)         :: typeOfTracers
-    LOGICAL, INTENT(in), OPTIONAL        :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL        :: lacc
 !     REAL(wp), INTENT(inout), OPTIONAL :: horizontally_diffused_tracer(:,:,:)
 
     !Local variables
@@ -440,7 +426,7 @@ CONTAINS
     TYPE(t_subset_range), POINTER :: cells_in_domain, edges_in_domain
     TYPE(t_patch), POINTER :: patch_2D
     REAL(wp) :: top_bc(nproma)
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
     INTEGER, DIMENSION(:,:), POINTER :: dolic_c
     REAL(wp), DIMENSION(:,:,:), POINTER :: prism_thick_flat_sfc_c, new_tracer_concentration, &
@@ -465,25 +451,22 @@ CONTAINS
     start_block = cells_in_domain%start_block
     end_block = cells_in_domain%end_block
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !$ACC DATA COPYIN(dolic_c, transport_state_h_old, transport_state_h_new, old_tracer_top_bc) &
     !$ACC   COPYIN(prism_thick_flat_sfc_c, old_tracer_concentration, prism_thick_c) &
     !$ACC   COPY(new_tracer_concentration) &
-    !$ACC   CREATE(div_adv_flux_horz, div_adv_flux_vert, div_diff_flux_horz, top_bc) IF(lacc)
+    !$ACC   CREATE(div_adv_flux_horz, div_adv_flux_vert, div_diff_flux_horz, top_bc) IF(lzacc)
 
     !---------------------------------------------------------------------
 #ifndef _OPENACC
-    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     ! these are probably not necessary
-    div_adv_flux_vert = 0.0_wp
-    div_adv_flux_horz = 0.0_wp
-    div_diff_flux_horz = 0.0_wp
+    div_adv_flux_vert(:,:,:) = 0.0_wp
+    div_adv_flux_horz(:,:,:) = 0.0_wp
+    div_diff_flux_horz(:,:,:) = 0.0_wp
     !$ACC END KERNELS
+    !$ACC WAIT(1)
 #endif
     !---------------------------------------------------------------------
     IF ( l_with_vert_tracer_advection ) THEN
@@ -493,7 +476,7 @@ CONTAINS
         & transport_state,                           &
         & operators_coeff,                     &
         & div_adv_flux_vert,        &
-        & use_acc=lacc)
+        & lacc=lzacc)
 
       !---------DEBUG DIAGNOSTICS-------------------------------------------
       idt_src=3  ! output print level (1-5, fix)
@@ -512,7 +495,7 @@ CONTAINS
       & transport_state_h_new,         &
       & div_adv_flux_horz,              &
       & div_adv_flux_vert,             &
-      & use_acc=lacc)
+      & lacc=lzacc)
     !---------------------------------------------------------------------
 
     IF(GMRedi_configuration==Cartesian_Mixing)THEN
@@ -525,7 +508,7 @@ CONTAINS
       & transport_state_h_old,         &
       & transport_state_h_new,         &
       & div_diff_flux_horz,            &
-      & use_acc=lacc)
+      & lacc=lzacc)
 
     ELSE
       CALL finish(method_name, "wrong GMredi call")
@@ -547,12 +530,12 @@ CONTAINS
       IF (ASSOCIATED(old_tracer_top_bc)) THEN
 !         CALL dbg_print('top_bc all'       , old_tracer_top_bc, "transport", 1,  patch_3d%p_patch_2d(1)%cells%all)
 !         CALL finish("ASSOCIATED(old_tracer_top_bc)","")
-        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         top_bc(:) = old_tracer_top_bc(:,jb)
         !$ACC END KERNELS
         !$ACC WAIT(1)
       ELSE
-        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         top_bc(:) = 0.0_wp
         !$ACC END KERNELS
         !$ACC WAIT(1)
@@ -561,19 +544,19 @@ CONTAINS
 #ifdef __LVECTOR__
       level = 1
       max_dolic_c = -1
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) REDUCTION(MAX: max_dolic_c) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) REDUCTION(MAX: max_dolic_c) IF(lzacc)
       DO jc = start_cell_index, end_cell_index
         max_dolic_c = MAX(max_dolic_c, dolic_c(jc,jb))
       END DO
       !$ACC END PARALLEL LOOP
       !$ACC WAIT(1)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = start_cell_index, end_cell_index
         IF (dolic_c(jc,jb) < level) CYCLE
 #else
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc = start_cell_index, end_cell_index
         !TODO check algorithm: inv_prism_thick_c vs. del_zlev_m | * vs. /
@@ -600,15 +583,15 @@ CONTAINS
         !by_Oliver: account for nonlocal transport term for heat and scalar
         !(salinity) if KPP scheme is used
 
-        !$ACC DATA COPYIN(old_transport_tendencies) IF(lacc)
+        !$ACC DATA COPYIN(old_transport_tendencies) IF(lzacc)
 #ifdef __LVECTOR__
-        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO level = 2, max_dolic_c
           DO jc = start_cell_index, end_cell_index
             IF (dolic_c(jc,jb) < level) CYCLE
 #else
-        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO jc = start_cell_index, end_cell_index
           DO level = 2, dolic_c(jc,jb)
@@ -628,13 +611,13 @@ CONTAINS
       ELSE
 
 #ifdef __LVECTOR__
-        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO level = 2, max_dolic_c
           DO jc = start_cell_index, end_cell_index
             IF (dolic_c(jc,jb) < level) CYCLE
 #else
-        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO jc = start_cell_index, end_cell_index
           DO level = 2, dolic_c(jc,jb)
@@ -672,7 +655,7 @@ CONTAINS
           & new_tracer,                 &
           & a_v,                        &
           & transport_state_h_new,      &
-          & use_acc=lacc)
+          & lacc=lzacc)
           
     ENDIF!IF ( l_with_vert_tracer_diffusion )
 

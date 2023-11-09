@@ -43,7 +43,10 @@ USE mo_master_control,       ONLY: get_my_process_name
   USE mo_ocean_nml,          ONLY: lsediment_only
   USE mo_run_config,         ONLY: dtime
   USE mo_netcdf_errhandler,  ONLY: nf
-  
+  USE mo_fortran_tools,      ONLY: set_acc_host_or_device
+
+#include "add_var_acc_macro.inc"
+
   IMPLICIT NONE
 
   INCLUDE 'netcdf.inc'
@@ -84,13 +87,15 @@ CONTAINS
     CALL message (TRIM(routine), 'Start')
 
 
-    ! top-level procedure for building data structures for 
+    ! top-level procedure for building data structures for
     ! external data.
     CALL message (TRIM(routine), 'Construction of data structure for ' // &
       &                          'external data started')
 
 
     WRITE(listname,'(a,i2.2)') 'ext_data_bgc_D',jg
+    ! At this point ext_data is already copied to the device, because of an early copy of ext_data%oce
+    !$ACC ENTER DATA COPYIN(ext_data%bgc)
     CALL new_ext_data_bgc_list(p_patch, ext_data%bgc, pext_data_bgc, ext_data%bgc_list, TRIM(listname))
 
 
@@ -121,9 +126,9 @@ CONTAINS
       &  p_patch
 
     TYPE(t_external_bgc), INTENT(INOUT) :: & !< current external data structure
-      &  p_ext_bgc 
+      &  p_ext_bgc
     TYPE(t_hamocc_bcond), INTENT(INOUT) :: & !< current external data structure
-      &  p_ext_data_bgc 
+      &  p_ext_data_bgc
 
     TYPE(t_var_list_ptr) :: p_ext_bgc_list !< current external data list
 
@@ -164,14 +169,16 @@ CONTAINS
        &                   'DUST', DATATYPE_FLT32)
      grib2_desc = grib2_var( 192, 140, 219, ibits, GRID_UNSTRUCTURED, GRID_CELL)
      CALL add_var( p_ext_bgc_list, 'DUSTin', p_ext_bgc%dust,      &
-       &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc, ldims=shape3d_c )
+       &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc, ldims=shape3d_c, lopenacc = .TRUE. )
+     __acc_attach(p_ext_bgc%dust)
      CALL add_var( p_ext_bgc_list, 'DUSTY', p_ext_data_bgc%dusty,      &
        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc, ldims=shape2d_c )
      cf_desc    = t_cf_var('Nitrogen cell center', 'kg m-2 yr-1', &
        &                   'NDEP', DATATYPE_FLT32)
      grib2_desc = grib2_var( 192, 140, 239, ibits, GRID_UNSTRUCTURED, GRID_CELL)
      CALL add_var( p_ext_bgc_list, 'NDEP', p_ext_bgc%nitro,      &
-       &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc, ldims=shape3d_c )
+       &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc, ldims=shape3d_c, lopenacc = .TRUE. )
+     __acc_attach(p_ext_bgc%nitro)
      CALL add_var( p_ext_bgc_list, 'NITRO', p_ext_data_bgc%nitro,      &
        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc, ldims=shape2d_c )
     ELSE
@@ -270,7 +277,7 @@ CONTAINS
     z_flux(:,:,:) = 0.0_wp
 
     CALL associate_keyword("<path>", TRIM(getModelBaseDir()), keywords)
-    
+
       dust_file='dust.nc'
 
       CALL message( TRIM(routine),'HAMOCC dust file is: '//TRIM(dust_file) )
@@ -318,7 +325,7 @@ CONTAINS
       ENDIF
 
       CALL openinputfile(stream_id, dust_file, p_patch)
-      
+
       no_tst = 12
       !-------------------------------------------------------
       !
@@ -328,7 +335,7 @@ CONTAINS
 
         CALL read_3D(stream_id, on_cells, 'DUST', z_flux)
         ext_data%bgc%dust(:,:,:) = z_flux(:,:,:)
-     
+
 
       !
       ! close file
@@ -386,7 +393,7 @@ CONTAINS
       ENDIF
 
       CALL openinputfile(stream_id, dust_file, p_patch)
-      
+
       no_tst = 12
       !-------------------------------------------------------
       !
@@ -395,7 +402,7 @@ CONTAINS
       !-------------------------------------------------------
         CALL read_3D(stream_id, on_cells, 'ndepo', z_flux)
         ext_data%bgc%nitro(:,:,:) = z_flux(:,:,:)
-     
+
 
       !
       ! close file
@@ -442,7 +449,7 @@ CONTAINS
     z_flux(:,:,:) = 0.0_wp
 
     CALL associate_keyword("<path>", TRIM(getModelBaseDir()), keywords)
-    
+
       dust_file='particle_fluxes.nc'
 
       CALL message( TRIM(routine),'HAMOCC sediment flux file is: '//TRIM(dust_file) )
@@ -486,7 +493,7 @@ CONTAINS
       ENDIF
 
       CALL openInputFile(stream_id, dust_file, p_patch)
-      
+
       no_tst = 12
       !-------------------------------------------------------
       !
@@ -501,7 +508,7 @@ CONTAINS
         CALL read_3D(stream_id, on_cells, 'silpro', z_flux)
         ext_data%bgc%silpro(:,:) = z_flux(:,1,:)*dtime
         CALL read_3D(stream_id, on_cells, 'produs', z_flux)
-        ext_data%bgc%produs(:,:) = z_flux(:,1,:)*dtime     
+        ext_data%bgc%produs(:,:) = z_flux(:,1,:)*dtime
 
       !
       ! close file
@@ -516,13 +523,13 @@ CONTAINS
 
 !<Optimize:inUse>
 
-   SUBROUTINE update_bgc_bcond(p_patch_3D, bgc_ext, this_datetime, use_acc)
+   SUBROUTINE update_bgc_bcond(p_patch_3D, bgc_ext, this_datetime, lacc)
     TYPE(t_patch_3D ),TARGET, INTENT(IN)        :: p_patch_3D
     TYPE(t_hamocc_bcond)                        :: bgc_ext
     TYPE(datetime), INTENT(IN)                  :: this_datetime
-    LOGICAL, INTENT(IN), OPTIONAL               :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL               :: lacc
 
-  
+
  ! local variables
     CHARACTER(LEN=max_char_length), PARAMETER :: routine = 'mo_bgc_bcond:update_bgc_bcond'
     INTEGER  :: jmon, jdmon, jmon1, jmon2
@@ -530,19 +537,15 @@ CONTAINS
     INTEGER  :: jc, jb, startidx, endidx
     TYPE(t_subset_range), POINTER :: all_cells
     TYPE(t_patch), POINTER :: p_patch
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
 
     !  calculate day and month
     jmon  = this_datetime%date%month         ! integer current month
     jdmon = this_datetime%date%day           ! integer day in month
-    
+
 
       jmon1=jmon-1
       jmon2=jmon
@@ -561,16 +564,16 @@ CONTAINS
       IF (jmon2 == 13) jmon2=1
 
       IF (lsediment_only) THEN
-       bgc_ext%prorca(:,:) = ext_data(1)%bgc%prorca(:,:) 
-       bgc_ext%prcaca(:,:) = ext_data(1)%bgc%prcaca(:,:) 
-       bgc_ext%produs(:,:) = ext_data(1)%bgc%produs(:,:) 
-       bgc_ext%silpro(:,:) = ext_data(1)%bgc%silpro(:,:) 
+       bgc_ext%prorca(:,:) = ext_data(1)%bgc%prorca(:,:)
+       bgc_ext%prcaca(:,:) = ext_data(1)%bgc%prcaca(:,:)
+       bgc_ext%produs(:,:) = ext_data(1)%bgc%produs(:,:)
+       bgc_ext%silpro(:,:) = ext_data(1)%bgc%silpro(:,:)
       ELSE
        p_patch => p_patch_3D%p_patch_2D(1)
        all_cells => p_patch%cells%all
        DO jb = all_cells%start_block, all_cells%end_block
          call get_index_range(all_cells, jb, startidx, endidx)
-         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
          !$ACC LOOP GANG VECTOR
          DO jc = startidx, endidx
            bgc_ext%dusty(jc,jb) = rday1*ext_data(1)%bgc%dust(jc,jmon1,jb) + &

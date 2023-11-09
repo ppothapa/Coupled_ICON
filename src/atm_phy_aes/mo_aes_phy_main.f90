@@ -32,6 +32,7 @@ MODULE mo_aes_phy_main
   USE mo_omp_block_loop      ,ONLY: omp_block_loop_cell
 
   USE mo_aes_phy_config      ,ONLY: aes_phy_tc, dt_zero
+  USE mo_aes_vdf_config      ,ONLY: aes_vdf_config
   USE mo_aes_phy_diag        ,ONLY: surface_fractions, &
     &                               droplet_number,    &
     &                               cpair_cvair_qconv, &
@@ -50,6 +51,7 @@ MODULE mo_aes_phy_main
   USE mo_interface_aes_rad   ,ONLY: interface_aes_rad
   USE mo_interface_aes_rht   ,ONLY: interface_aes_rht
   USE mo_interface_aes_vdf   ,ONLY: interface_aes_vdf
+  USE mo_interface_aes_tmx   ,ONLY: interface_aes_tmx
   USE mo_interface_aes_car   ,ONLY: interface_aes_car
   USE mo_interface_aes_art   ,ONLY: interface_aes_art
   !
@@ -177,13 +179,24 @@ CONTAINS
        aes_phy_tc(jg)%is_in_sd_ed_interval_vdf = (aes_phy_tc(jg)%sd_vdf <= datetime) .AND. (aes_phy_tc(jg)%ed_vdf > datetime)
        aes_phy_tc(jg)%is_active_vdf            = isCurrentEventActive(aes_phy_tc(jg)%ev_vdf, datetime)
        !
-       CALL message_forcing_action('vertical diffusion (vdf)',              &
-            &                      aes_phy_tc(jg)%is_in_sd_ed_interval_vdf, &
-            &                      aes_phy_tc(jg)%is_active_vdf)
-       !
-       CALL omp_block_loop_cell(patch, diagnose_cov) ! cloud cover before turbulent diffusion
-       !
-       CALL interface_aes_vdf(patch)
+       IF (aes_vdf_config(jg)%use_tmx) THEN
+         CALL message_forcing_action('vertical diffusion (tmx)',              &
+              &                      aes_phy_tc(jg)%is_in_sd_ed_interval_vdf, &
+              &                      aes_phy_tc(jg)%is_active_vdf)
+
+         CALL interface_aes_tmx(patch,                                        &
+            &                   aes_phy_tc(jg)%is_in_sd_ed_interval_vdf,      &
+            &                   aes_phy_tc(jg)%is_active_vdf,                 &
+            &                   datetime, pdtime)
+       ELSE
+         CALL message_forcing_action('vertical diffusion (vdf)',              &
+              &                      aes_phy_tc(jg)%is_in_sd_ed_interval_vdf, &
+              &                      aes_phy_tc(jg)%is_active_vdf)
+         !
+         CALL omp_block_loop_cell(patch, diagnose_cov) ! cloud cover before turbulent diffusion (only for TKE scheme)
+         !
+         CALL interface_aes_vdf(patch)
+       END IF
        !
     END IF
 

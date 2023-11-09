@@ -50,6 +50,7 @@ MODULE mo_ice_slow_thermo
   USE mo_ice_zerolayer,       ONLY: ice_growth_zerolayer
   USE mo_ice_winton,          ONLY: ice_growth_winton
   USE mo_exception,           ONLY: finish
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
   PRIVATE
@@ -75,17 +76,17 @@ CONTAINS
   !! ice            thermodynamics-related fields in the sea ice data structure
   !! p_oce_sfc      heat and fresh-water fluxes passed to the ocean
   !!
-  SUBROUTINE ice_slow_thermo(p_patch_3D, p_os, atmos_fluxes, ice, p_oce_sfc, use_acc)
+  SUBROUTINE ice_slow_thermo(p_patch_3D, p_os, atmos_fluxes, ice, p_oce_sfc, lacc)
     TYPE(t_patch_3D), TARGET, INTENT(IN)    :: p_patch_3D
     TYPE(t_hydro_ocean_state),INTENT(IN)    :: p_os         ! sst, sss, ssh only
     TYPE(t_atmos_fluxes),     INTENT(IN)    :: atmos_fluxes
     TYPE(t_sea_ice),          INTENT(INOUT) :: ice
     TYPE(t_ocean_surface),    INTENT(INOUT) :: p_oce_sfc
-    LOGICAL, INTENT(IN), OPTIONAL           :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL           :: lacc
 
     ! Local variables
     TYPE(t_patch),  POINTER :: p_patch
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
     REAL(wp), POINTER :: sss    (:,:) ! sea surface salinity (input only)       [psu]
     REAL(wp), POINTER :: sst    (:,:) ! sea surface temperature (input only)    [C]
@@ -100,12 +101,9 @@ CONTAINS
 
     INTEGER, PARAMETER :: energyCheck_dbg_lev   = 3
     INTEGER, PARAMETER :: energyCheck_dbg_print = 4
+    INTEGER            :: jc, jb, i_startidx_c, i_endidx_c
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !-----------------------------------------------------------------------
     p_patch => p_patch_3D%p_patch_2D(1)
@@ -118,15 +116,20 @@ CONTAINS
     IF (ltimer) CALL timer_start(timer_ice_slow)
 
     ! initialize growth-related variables with zeros (before ice_growth_*)
-    CALL ice_growth_init (ice, use_acc=lacc)
+    CALL ice_growth_init (ice, p_patch, lacc=lzacc)
 
     ! heat flux from ocean into ice: ice%zHeatOceI. Will be applied in ice_growth_* routine
-    CALL oce_ice_heatflx (p_patch, p_os, ice, use_acc=lacc)
+    CALL oce_ice_heatflx (p_patch, p_os, ice, lacc=lzacc)
 
     ! totalsnowfall is applied in ice_growth_*
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-    ice%totalsnowfall(:,:) =  atmos_fluxes%rpreci(:,:) * dtime
-    !$ACC END KERNELS
+    DO jb = 1,p_patch%nblks_c
+      CALL get_index_range(p_patch%cells%all, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
+      DO jc = i_startidx_c,i_endidx_c
+        ice%totalsnowfall(jc, jb) =  atmos_fluxes%rpreci(jc, jb) * dtime
+      END DO
+      !$ACC END PARALLEL LOOP
+    END DO
 
     ! thick ice growth/melt (K-classes): calculates ice%hs, ice%hi, ice%heatOceI
     !-------------------------------------------------------------------------------
@@ -134,16 +137,22 @@ CONTAINS
     !-------------------------------------------------------------------------------
     SELECT CASE (i_ice_therm)
     CASE (1,3)
-        CALL ice_growth_zerolayer (p_patch, ice, use_acc=lacc)
+        CALL ice_growth_zerolayer (p_patch, ice, lacc=lzacc)
     CASE (2)
-        CALL ice_growth_winton    (p_patch, ice, use_acc=lacc)
+        CALL ice_growth_winton    (p_patch, ice, lacc=lzacc)
     END SELECT
 
     ! for historical reasons, ice%totalsnowfall represents cell-average, when applied in mo_ocean_surface*
     ! ToDo: should not be done this way
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-    ice%totalsnowfall(:,:) =  ice%totalsnowfall(:,:) * ice%concSum(:,:)
-    !$ACC END KERNELS
+
+    DO jb = 1,p_patch%nblks_c
+      CALL get_index_range(p_patch%cells%all, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
+      DO jc = i_startidx_c,i_endidx_c
+        ice%totalsnowfall(jc, jb) =  ice%totalsnowfall(jc, jb) * ice%concSum(jc, jb)
+      END DO
+      !$ACC END PARALLEL LOOP
+    END DO
 
     !-------------------------------------------------------------------------------
     CALL dbg_print('IceSlow: aftZero: totalSnF', ice%totalsnowfall, str_module, 3, in_subset=p_patch%cells%owned)
@@ -153,10 +162,10 @@ CONTAINS
     ! Calculates ice%snow_to_ice and updates ice%draft, ice%draftave
     ! Note that such conversion is assumed to occur with no heat or salt exchange with the ocean.
     ! In particular, the routine does not change ice%heatOceI
-    CALL ice_draft_and_flooding (p_patch, ice, use_acc=lacc)
+    CALL ice_draft_and_flooding (p_patch, ice, lacc=lzacc)
 
     ! fluxes and ice growth over open water
-    CALL ice_open_ocean(p_patch, ice, atmos_fluxes, sst, use_acc=lacc)
+    CALL ice_open_ocean(p_patch, ice, atmos_fluxes, sst, lacc=lzacc)
 
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     energyCheck = energy_in_surface(p_patch, ice, ssh(:,:), sst(:,:), computation_type=0, &
@@ -168,12 +177,12 @@ CONTAINS
     !---------------------------------------------------------------------
 
     ! updates fluxes that ocean will receive
-    CALL update_ice_ocean_fluxes(p_patch, ice, atmos_fluxes, sss, p_oce_sfc, use_acc=lacc)
+    CALL update_ice_ocean_fluxes(p_patch, ice, atmos_fluxes, sss, p_oce_sfc, lacc=lzacc)
 
     ! Ice Concentration Change
     IF ( i_ice_therm >= 1 ) THEN
 !        CALL ice_update_conc(p_patch,ice)
-        CALL ice_conc_change(p_patch, ice, p_os, use_acc=lacc)
+        CALL ice_conc_change(p_patch, ice, p_os, lacc=lzacc)
     ENDIF
 
     !---------DEBUG DIAGNOSTICS-------------------------------------------
@@ -182,14 +191,14 @@ CONTAINS
 
     CALL dbg_print('IceSlow: energy aft. ConcChange', energyCheck, str_module, &
          &         energyCheck_dbg_print, in_subset= p_patch%cells%all)
- 
+
     !---------------------------------------------------------------------
 
     ! limits ice thinkness, adjust p_oce_sfc fluxes and calculates the final freeboard
     ! ToDo: limit ice thickness in the ice_growth_*. Then correction to p_oce_sfc will not be needed
     IF (limit_seaice) THEN
-        IF (limit_seaice_type .eq. 1) CALL ice_thickness_limiter( p_patch, ice, p_oce_sfc, p_os, use_acc=lacc )
-        IF (limit_seaice_type .eq. 2) CALL ice_thickness_limiter_hh( p_patch_3d, ice, p_oce_sfc, p_os, use_acc=lacc )
+        IF (limit_seaice_type .eq. 1) CALL ice_thickness_limiter( p_patch, ice, p_oce_sfc, p_os, lacc=lzacc )
+        IF (limit_seaice_type .eq. 2) CALL ice_thickness_limiter_hh( p_patch_3d, ice, p_oce_sfc, p_os, lacc=lzacc )
     ENDIF
 
     !---------DEBUG DIAGNOSTICS-------------------------------------------
@@ -213,12 +222,12 @@ CONTAINS
   !! ice % newice       new ice growth in open water                            [m]
   !! ice % heatOceW     heat flux to the ocean surface layer (via open surface) [W/m^2]
   !!
-  SUBROUTINE ice_open_ocean(p_patch, ice, atmos_fluxes, sst, use_acc)
+  SUBROUTINE ice_open_ocean(p_patch, ice, atmos_fluxes, sst, lacc)
     TYPE(t_patch),TARGET,      INTENT(IN)    :: p_patch
     TYPE(t_sea_ice),           INTENT(INOUT) :: ice
     TYPE(t_atmos_fluxes),      INTENT(IN)    :: atmos_fluxes
     REAL(wp),                  INTENT(IN)    :: sst(:,:)
-    LOGICAL, INTENT(IN), OPTIONAL            :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL            :: lacc
 
     ! Local variables
     REAL(wp), DIMENSION (nproma, p_patch%alloc_cell_blocks) ::   &
@@ -227,20 +236,16 @@ CONTAINS
     ! Loop indices
     TYPE(t_subset_range), POINTER :: all_cells
     INTEGER :: jb, jc, i_startidx_c, i_endidx_c
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !-------------------------------------------------------------------------------------------
     all_cells   => p_patch%cells%all
 
-    !$ACC DATA CREATE(AvailMLHeat) IF(lacc)
+    !$ACC DATA CREATE(AvailMLHeat) IF(lzacc)
 
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
     AvailMLHeat(:,:) = 0.0_wp
     !$ACC END KERNELS
     !-------------------------------------------------------------------------------
@@ -252,7 +257,7 @@ CONTAINS
     !TODOram: openmp
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
       DO jc = i_startidx_c, i_endidx_c
         IF (all_cells%vertical_levels(jc,jb) < 1) CYCLE ! Ocean points only
 
@@ -313,13 +318,13 @@ CONTAINS
   !! p_oce_sfc % FrshFlux_VolumeIce  forcing volume flux for height equation under sea ice     [m/s]
   !! p_oce_sfc % FrshFlux_TotalIce   forcing surface freshwater flux due to sea ice change     [m/s]
   !!
-  SUBROUTINE update_ice_ocean_fluxes(p_patch, ice, atmos_fluxes, sss, p_oce_sfc, use_acc)
+  SUBROUTINE update_ice_ocean_fluxes(p_patch, ice, atmos_fluxes, sss, p_oce_sfc, lacc)
     TYPE(t_patch),TARGET,      INTENT(IN)    :: p_patch
     TYPE(t_sea_ice),           INTENT(IN)    :: ice
     TYPE(t_atmos_fluxes),      INTENT(IN)    :: atmos_fluxes
     REAL(wp),                  INTENT(IN)    :: sss(:,:)
     TYPE(t_ocean_surface),     INTENT(INOUT) :: p_oce_sfc
-    LOGICAL, INTENT(IN), OPTIONAL            :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL            :: lacc
 
     !Local Variables
     REAL(wp), DIMENSION (nproma, p_patch%alloc_cell_blocks) ::   &
@@ -333,20 +338,16 @@ CONTAINS
     ! Loop indices
     TYPE(t_subset_range), POINTER :: all_cells
     INTEGER :: jb, jc, i_startidx_c, i_endidx_c
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !-------------------------------------------------------------------------------------------
     all_cells   => p_patch%cells%all
 
-    !$ACC DATA CREATE(fi1, fi2, fi3, snowiceave, icegrowave, snowmelted) IF(lacc)
+    !$ACC DATA CREATE(fi1, fi2, fi3, snowiceave, icegrowave, snowmelted) IF(lzacc)
 
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
     fi1         (:,:) = 0.0_wp
     fi2         (:,:) = 0.0_wp
     fi3         (:,:) = 0.0_wp
@@ -359,7 +360,7 @@ CONTAINS
   !TODOram: openmp
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
       DO jc = i_startidx_c, i_endidx_c
         IF (all_cells%vertical_levels(jc,jb) < 1) CYCLE ! Ocean points only
 
@@ -537,40 +538,36 @@ CONTAINS
   !>
   !! !  ice_thickness_limiter: Limit ice thinkness. Adjust fluxes and calculates the final freeboard
   !! !
-  SUBROUTINE ice_thickness_limiter( p_patch, p_ice, p_oce_sfc, p_os, use_acc )
+  SUBROUTINE ice_thickness_limiter( p_patch, p_ice, p_oce_sfc, p_os, lacc )
     TYPE(t_patch),TARGET,      INTENT(IN)    :: p_patch
     TYPE(t_sea_ice),           INTENT(INOUT) :: p_ice
     TYPE(t_ocean_surface),     INTENT(INOUT) :: p_oce_sfc
     TYPE(t_hydro_ocean_state), INTENT(IN)    :: p_os
-    LOGICAL, INTENT(IN), OPTIONAL            :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL            :: lacc
 
     ! Local variables
     TYPE(t_subset_range), POINTER                           :: all_cells
     INTEGER                                                 :: k, jb, jc, i_startidx_c, i_endidx_c
     REAL(wp)                                                :: z_smax, prism_thick_flat
     REAL(wp), DIMENSION (nproma, p_patch%alloc_cell_blocks) :: sss ! Sea surface salinity
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     all_cells    => p_patch%cells%all
 
-    !$ACC DATA CREATE(sss) IF(lacc)
+    !$ACC DATA CREATE(sss) IF(lzacc)
 
     ! surface layer thickness, same as patch_3d%p_patch_1d(1)%prism_thick_flat_sfc_c(:,1,:)
     prism_thick_flat = v_base%del_zlev_m(1)
     ! sea surface salinity
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
     sss(:,:)  =  p_os%p_prog(nold(1))%tracer(:,1,:,2)
     !$ACC END KERNELS
 
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
       DO jc = i_startidx_c, i_endidx_c
 
         DO k = 1, p_ice%kice
@@ -595,7 +592,7 @@ CONTAINS
                       & + (1._wp-sice/sss(jc,jb))*(p_ice%hi(jc,k,jb)-z_smax)*p_ice%conc(jc,k,jb)*rhoi/(rho_ref*dtime)  ! Ice
 
                 ENDIF
-          
+
                 p_oce_sfc%FrshFlux_IceSalt(jc,jb) = p_oce_sfc%FrshFlux_IceSalt(jc,jb) &
                   & + sice * (p_ice%hi(jc,k,jb)-z_smax)*p_ice%conc(jc,k,jb)*rhoi/(rho_ref*dtime)
 
@@ -633,12 +630,12 @@ CONTAINS
   !>
   !! !  ice_thickness_limiter: Limit ice thinkness. Adjust fluxes and calculates the final freeboard
   !! !
-  SUBROUTINE ice_thickness_limiter_hh( p_patch_3d, p_ice, p_oce_sfc, p_os, use_acc )
+  SUBROUTINE ice_thickness_limiter_hh( p_patch_3d, p_ice, p_oce_sfc, p_os, lacc )
     TYPE(t_patch_3d),TARGET,      INTENT(IN) :: p_patch_3d
     TYPE(t_sea_ice),           INTENT(INOUT) :: p_ice
     TYPE(t_ocean_surface),     INTENT(INOUT) :: p_oce_sfc
     TYPE(t_hydro_ocean_state), INTENT(IN)    :: p_os
-    LOGICAL, INTENT(IN), OPTIONAL            :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL            :: lacc
 
     ! Local variables
     TYPE(t_patch), POINTER                   :: p_patch
@@ -646,17 +643,13 @@ CONTAINS
     INTEGER                                  :: k, jb, jc, i_startidx_c, i_endidx_c
     REAL(wp)                                 :: z_smax ,rhoicwa,zunderice_old,zunderice_new,ddice &
                                                ,svnew,svold,draft_old
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     CHARACTER(len=*), PARAMETER :: routine = 'ice_thickness_limiter_hh'
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
 #ifdef _OPENACC
-    IF (lacc) CALL finish(routine, 'OpenACC version currently not tested/validated')
+    IF (lzacc) CALL finish(routine, 'OpenACC version currently not tested/validated')
 #endif
 
     p_patch => p_patch_3D%p_patch_2D(1)
@@ -665,7 +658,7 @@ CONTAINS
 
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
       DO jc = i_startidx_c, i_endidx_c
 
         DO k = 1, p_ice%kice
@@ -679,7 +672,7 @@ CONTAINS
             zunderice_old = p_patch_3d%p_patch_1d(1)%prism_thick_c(jc,1,jb) &
                  - draft_old*p_ice%conc(jc,k,jb)
             svold =sice*rhoicwa*(p_ice%hi(jc,k,jb)*p_ice%conc(jc,k,jb)) &
-                       +p_os%p_prog(nold(1))%tracer(jc,1,jb,2)*zunderice_old 
+                       +p_os%p_prog(nold(1))%tracer(jc,1,jb,2)*zunderice_old
 
             ddice = MIN(  (draft_old*p_ice%conc(jc,k,jb)-z_smax)/rhoicwa &
                  , p_ice%hi(jc,k,jb)*p_ice%conc(jc,k,jb) )
@@ -689,19 +682,19 @@ CONTAINS
             p_ice%draft(jc,k,jb) = (rhos * p_ice%hs(jc,k,jb) + rhoi * p_ice%hi(jc,k,jb))/rho_ref
             p_ice%zunderice(jc,jb) = p_patch_3d%p_patch_1d(1)%prism_thick_c(jc,1,jb) &
                  - p_ice%draft(jc,k,jb)*p_ice%conc(jc,k,jb)
-           
+
             !update surface salinity
             p_os%p_prog(nold(1))%tracer(jc,1,jb,2) =(rhoicwa*ddice*sice &
                              +p_os%p_prog(nold(1))%tracer(jc,1,jb,2)*zunderice_old)/p_ice%zunderice(jc,jb)
 
             svnew =sice*rhoicwa*(p_ice%hi(jc,k,jb)*p_ice%conc(jc,k,jb)) &
-                       +p_os%p_prog(nold(1))%tracer(jc,1,jb,2)*zunderice_new 
+                       +p_os%p_prog(nold(1))%tracer(jc,1,jb,2)*zunderice_new
 
             print*,'seaice-limiter',svnew-svold,svnew,svold,ddice,&
                             zunderice_new,zunderice_old
 
 !            p_oce_sfc%FrshFlux_TotalIce (jc,jb) = p_oce_sfc%FrshFlux_TotalIce (jc,jb)                      &
-!                 & + ddice*rhoi/(rho_ref*dtime)  ! 
+!                 & + ddice*rhoi/(rho_ref*dtime)  !
 !            p_oce_sfc%HeatFlux_Total(jc,jb) = p_oce_sfc%HeatFlux_Total(jc,jb)   &
 !                 & + ddice*alf*rhoi/dtime           ! Ice
 
@@ -714,7 +707,7 @@ CONTAINS
       ENDDO
       !$ACC END PARALLEL LOOP
     ENDDO
-       
+
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     CALL dbg_print('iceClUp: hi aft. limiter'     ,p_ice%hi       ,str_module, 3, in_subset=p_patch%cells%owned)
     CALL dbg_print('iceClUp: hs aft. limiter'     ,p_ice%hs       ,str_module, 3, in_subset=p_patch%cells%owned)
@@ -728,40 +721,39 @@ CONTAINS
   !>
   !! ! ice_growth_init: save ice thickness before ice_growth_* and initialize variables
   !!
-  SUBROUTINE ice_growth_init (ice,use_acc)
+  SUBROUTINE ice_growth_init (ice, p_patch, lacc)
 
     TYPE (t_sea_ice), INTENT(INOUT) :: ice
-    LOGICAL, INTENT(IN), OPTIONAL   :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL   :: lacc
+    TYPE(t_patch),  POINTER         :: p_patch
+    INTEGER                         :: jb, k, jc, i_startidx_c, i_endidx_c
 
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
-!ICON_OMP_PARALLEL
-!ICON_OMP_WORKSHARE
     ! initialize ice-growth-related variables with zeros
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-    ice % zHeatOceI   (:,:,:) = 0._wp
-    ice % heatOceI    (:,:,:) = 0._wp
-    ice % snow_to_ice (:,:,:) = 0._wp
-    ice % delhi       (:,:,:) = 0._wp         ! change in mean ice thickness due to thermodynamic effects
-    ice % delhs       (:,:,:) = 0._wp         ! change in mean snow thickness due to melting
-    ice % hiold (:,:,:) = ice%hi(:,:,:)
+    DO jb = 1, p_patch%nblks_c
+      CALL get_index_range(p_patch%cells%all, jb, i_startidx_c, i_endidx_c)
+      DO k=1,ice%kice
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
+        DO jc = i_startidx_c,i_endidx_c
+          ice % zHeatOceI   (jc, k, jb) = 0._wp
+          ice % heatOceI    (jc, k, jb) = 0._wp
+          ice % snow_to_ice (jc, k, jb) = 0._wp
+          ice % delhi       (jc, k, jb) = 0._wp         ! change in mean ice thickness due to thermodynamic effects
+          ice % delhs       (jc, k, jb) = 0._wp         ! change in mean snow thickness due to melting
+          ice % hiold (jc, k, jb) = ice%hi(jc, k, jb)
 !    ice % hsold (:,:,:) = ice%hs(:,:,:)
-    !$ACC END KERNELS
-
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-    ice % heatOceW      (:,:) = 0._wp
-    ice % newice        (:,:) = 0._wp
-    ice % totalsnowfall (:,:) = 0._wp
-    !$ACC END KERNELS
-!
-!ICON_OMP_END_WORKSHARE
-!ICON_OMP_END_PARALLEL
+          IF (k == 1) THEN
+            ice % heatOceW      (jc, jb) = 0._wp
+            ice % newice        (jc, jb) = 0._wp
+            ice % totalsnowfall (jc, jb) = 0._wp
+          END IF
+        END DO
+        !$ACC END PARALLEL LOOP
+      END DO
+    END DO
 
   END SUBROUTINE ice_growth_init
 

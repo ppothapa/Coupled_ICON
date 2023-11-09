@@ -40,6 +40,7 @@ MODULE mo_ocean_velocity_advection
     & map_scalar_prismtop2center_onBlock, map_vector_center2prismtop_onBlock
   USE mo_operator_ocean_coeff_3d, ONLY: t_operator_coeff
   USE mo_grid_subset,         ONLY: t_subset_range, get_index_range
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -75,7 +76,7 @@ CONTAINS
     & p_diag,          &
     & veloc_adv_horz_e,&
     & ocean_coefficients, &
-    & use_acc)
+    & lacc)
     !
     !
     TYPE(t_patch_3D ), POINTER, INTENT(IN) :: patch_3D
@@ -84,17 +85,13 @@ CONTAINS
     TYPE(t_hydro_ocean_diag)             :: p_diag
     REAL(wp), POINTER, INTENT(inout)     :: veloc_adv_horz_e(:,:,:) ! out
     TYPE(t_operator_coeff), TARGET, INTENT(in) :: ocean_coefficients
-    LOGICAL, INTENT(IN), OPTIONAL              :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL              :: lacc
 
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     CHARACTER(len=*), PARAMETER :: routine = modname//':veloc_adv_horz_mimetic'
     !-----------------------------------------------------------------------
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     IF (velocity_advection_form == rotational_form) THEN
 
@@ -106,12 +103,12 @@ CONTAINS
           & p_diag,          &
           & veloc_adv_horz_e,&
           & ocean_coefficients,&
-          & use_acc=lacc)
+          & lacc=lzacc)
 
       ELSEIF(NonlinearCoriolis_type==nonlinear_coriolis_primal_grid)THEN
 
 #ifdef _OPENACC
-      CALL finish(routine, 'OpenACC version currently for nonlinear_coriolis_primal_grid not implemented')
+        IF (lzacc) CALL finish(routine, 'OpenACC version currently for nonlinear_coriolis_primal_grid not implemented')
 #endif
 
         CALL veloc_adv_horz_mimetic_classicCgrid( patch_3D, &
@@ -123,7 +120,7 @@ CONTAINS
       ELSEIF(NonlinearCoriolis_type==no_coriolis)THEN
 
 #ifdef _OPENACC
-      CALL finish(routine, 'OpenACC version currently for no_coriolis not implemented')
+        IF (lzacc) CALL finish(routine, 'OpenACC version currently for no_coriolis not implemented')
 #endif
 
         CALL calculate_only_kineticGrad( patch_3D, &
@@ -137,7 +134,7 @@ CONTAINS
     ELSEIF (velocity_advection_form == divergence_form) THEN
 
 #ifdef _OPENACC
-      CALL finish(routine, 'OpenACC version currently for divergence_form not implemented')
+      IF (lzacc) CALL finish(routine, 'OpenACC version currently for divergence_form not implemented')
 #endif
 
       ! notInUse
@@ -160,32 +157,28 @@ CONTAINS
   !! Developed  by  Peter Korn, MPI-M (2011).
   !!
 !<Optimize:inUse>
-  SUBROUTINE veloc_adv_vert_mimetic( patch_3D, p_diag,ocean_coefficients, veloc_adv_vert_e, use_acc)
+  SUBROUTINE veloc_adv_vert_mimetic( patch_3D, p_diag,ocean_coefficients, veloc_adv_vert_e, lacc)
     !
     TYPE(t_patch_3D ),TARGET, INTENT(IN)   :: patch_3D
     TYPE(t_hydro_ocean_diag)          :: p_diag
     TYPE(t_operator_coeff), INTENT(in):: ocean_coefficients
     REAL(wp), INTENT(inout)           :: veloc_adv_vert_e(:,:,:) ! (1:nproma,1:n_zlev,1:patch_3D%p_patch_2D(1)%nblks_e)
-    LOGICAL, INTENT(IN), OPTIONAL              :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL              :: lacc
 
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     CHARACTER(len=*), PARAMETER :: routine = modname//':veloc_adv_vert_mimetic'
     !-----------------------------------------------------------------------
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     SELECT CASE(HorizonatlVelocity_VerticalAdvection_form)
     CASE(VerticalAdvection_MimeticRotationalForm)
-      CALL veloc_adv_vert_mimetic_rot( patch_3D, p_diag,ocean_coefficients, veloc_adv_vert_e, use_acc=lacc)
+      CALL veloc_adv_vert_mimetic_rot( patch_3D, p_diag,ocean_coefficients, veloc_adv_vert_e, lacc=lzacc)
 
     CASE(VerticalAdvection_DivergenceForm)
 
 #ifdef _OPENACC
-      CALL finish(routine, 'OpenACC version currently for VerticalAdvection_DivergenceForm not implemented')
+      IF (lzacc) CALL finish(routine, 'OpenACC version currently for VerticalAdvection_DivergenceForm not implemented')
 #endif
 
       CALL veloc_adv_vert_mimetic_div( patch_3D, p_diag,ocean_coefficients, veloc_adv_vert_e)
@@ -193,15 +186,16 @@ CONTAINS
     CASE(VerticalAdvection_RotationalForm)
 
 #ifdef _OPENACC
-      CALL finish(routine, 'OpenACC version currently for VerticalAdvection_RotationalForm not implemented')
+      IF (lzacc) CALL finish(routine, 'OpenACC version currently for VerticalAdvection_RotationalForm not implemented')
 #endif
 
       CALL veloc_adv_vert_rot( patch_3D, p_diag,ocean_coefficients, veloc_adv_vert_e)
 
     CASE(VerticalAdvection_None)
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       veloc_adv_vert_e(:,:,:) = 0.0_wp
       !$ACC END KERNELS
+      !$ACC WAIT(1)
 
     CASE default
       CALL finish("veloc_adv_vert_mimetic","unknown HorizonatlVelocity_VerticalAdvection_form")
@@ -236,18 +230,18 @@ CONTAINS
     & p_diag,          &
     & veloc_adv_horz_e,&
     & ocean_coefficients,&
-    & use_acc)
+    & lacc)
 
     TYPE(t_patch_3D ), POINTER, INTENT(IN)   :: patch_3D
     REAL(wp), POINTER, INTENT(inout)  :: vn(:,:,:)
     TYPE(t_hydro_ocean_diag) :: p_diag
     REAL(wp), POINTER, INTENT(inout)  :: veloc_adv_horz_e(:,:,:) ! out
     TYPE(t_operator_coeff), INTENT(in), TARGET :: ocean_coefficients
-    LOGICAL, INTENT(IN), OPTIONAL              :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL              :: lacc
 
     INTEGER :: jk, blockNo, cell_index,start_cell_index, end_cell_index, level,startLevel
     INTEGER :: start_edge_index, end_edge_index
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     INTEGER, DIMENSION(:,:,:), POINTER :: edge_of_cell_idx, edge_of_cell_blk
     !REAL(wp) :: z_vort_flx(nproma,n_zlev,patch_3D%p_patch_2D(1)%nblks_e)
     TYPE(t_subset_range), POINTER :: edges_in_domain, all_cells
@@ -262,11 +256,7 @@ CONTAINS
     startLevel      =1
     !-----------------------------------------------------------------------
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !calculate vorticity flux across dual edge
     ! p_diag%p_vn_dual and vn_old must have been synced
@@ -276,7 +266,7 @@ CONTAINS
       & p_diag%vort,     &
       & ocean_coefficients,      &
       & veloc_adv_horz_e, &
-      & use_acc=lacc)
+      & lacc=lzacc)
 
       ! this is calculated in mo_diagnostics, only used for output
 !     p_diag%potential_vort_e=veloc_adv_horz_e
@@ -315,7 +305,7 @@ CONTAINS
         & patch_3D,                    &
         & ocean_coefficients%grad_coeff(:,:,blockNo), &
         & p_diag%grad(:,:,blockNo),           &
-        & start_edge_index, end_edge_index, blockNo, use_acc=lacc)
+        & start_edge_index, end_edge_index, blockNo, lacc=lzacc)
       ! the result is on edges_in_domain
 
 
@@ -868,20 +858,20 @@ ENDDO
   !! Developed  by  Peter Korn, MPI-M (2010).
   !!
 !<Optimize:inUse>
-  SUBROUTINE veloc_adv_vert_mimetic_rot( patch_3D, p_diag,p_op_coeff, veloc_adv_vert_e, use_acc)
+  SUBROUTINE veloc_adv_vert_mimetic_rot( patch_3D, p_diag,p_op_coeff, veloc_adv_vert_e, lacc)
 
     TYPE(t_patch_3D ),TARGET, INTENT(IN)   :: patch_3D
     TYPE(t_hydro_ocean_diag)          :: p_diag
     TYPE(t_operator_coeff),INTENT(in) :: p_op_coeff
     REAL(wp), INTENT(inout)           :: veloc_adv_vert_e(1:nproma,1:n_zlev,1:patch_3D%p_patch_2D(1)%nblks_e)
-    LOGICAL, INTENT(IN), OPTIONAL     :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL     :: lacc
 
     !local variables
     INTEGER :: start_level     ! vertical start and end level
     INTEGER :: jc, jk, blockNo
     INTEGER :: start_index, end_index
     INTEGER :: fin_level
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     REAL(wp), POINTER :: inv_prism_center_distance(:,:)! ,prism_thick(:,:)
     TYPE(t_cartesian_coordinates) :: z_adv_u_i(nproma,n_zlev+1)
     TYPE(t_cartesian_coordinates) :: z_adv_u_m(nproma,n_zlev,patch_3D%p_patch_2D(1)%alloc_cell_blocks)
@@ -895,21 +885,18 @@ ENDDO
    !-----------------------------------------------------------------------
     start_level = 1
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     vertical_velocity => p_diag%w
 
-    !$ACC DATA CREATE(z_adv_u_i, z_adv_u_m) IF(lacc)
+    !$ACC DATA CREATE(z_adv_u_i, z_adv_u_m) IF(lzacc)
 
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     z_adv_u_m(1:nproma,1:n_zlev,1:patch_2D%alloc_cell_blocks)%x(1) = 0.0_wp
     z_adv_u_m(1:nproma,1:n_zlev,1:patch_2D%alloc_cell_blocks)%x(2) = 0.0_wp
     z_adv_u_m(1:nproma,1:n_zlev,1:patch_2D%alloc_cell_blocks)%x(3) = 0.0_wp
     !$ACC END KERNELS
+    !$ACC WAIT(1)
 
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index,end_index,jc, jk, fin_level,inv_prism_center_distance, &
 !ICON_OMP z_adv_u_i) ICON_OMP_DEFAULT_SCHEDULE
@@ -922,10 +909,10 @@ ENDDO
                                               & p_diag%p_vn(:,:,blockNo),  &
                                               & z_adv_u_i(:,:),&
                                               & start_level+1,             &
-                                              & blockNo, start_index, end_index, use_acc=lacc)
+                                              & blockNo, start_index, end_index, lacc=lzacc)
 
       !Step 1: multiply vertical velocity with vertical derivative of horizontal velocity
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO jc = start_index, end_index
         fin_level = patch_3D%p_patch_1D(1)%dolic_c(jc,blockNo)
 
@@ -952,16 +939,17 @@ ENDDO
         ENDIF
       END DO
       !$ACC END PARALLEL LOOP
+      !$ACC WAIT(1)
 
       ! Step 2: Map product of vertical velocity & vertical derivative from top of prism to mid position.
       CALL map_vec_prismtop2center_on_block(patch_3d, z_adv_u_i, z_adv_u_m(:,:,blockNo), &
-        & blockNo, start_index, end_index, use_acc=lacc)
+        & blockNo, start_index, end_index, lacc=lzacc)
     END DO
 
 !ICON_OMP_END_PARALLEL_DO
 
     ! Step 3: Map result of previous calculations from cell centers to edges (for all vertical layers)
-    CALL map_cell2edges_3D( patch_3D, z_adv_u_m, veloc_adv_vert_e,p_op_coeff, use_acc=lacc)
+    CALL map_cell2edges_3D( patch_3D, z_adv_u_m, veloc_adv_vert_e,p_op_coeff, lacc=lzacc)
 
     !---------Debug Diagnostics-------------------------------------------
     idt_src=3  ! output print level (1-5, fix)

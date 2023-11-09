@@ -18,6 +18,7 @@ MODULE mo_sedmnt_diffusion
  USE mo_hamocc_nml, ONLY     : ks,porwat, l_N_cycle
  USE mo_bgc_memory_types, ONLY  : t_bgc_memory, t_sediment_memory
  USE mo_sedmnt, ONLY : zcoefsu,zcoeflo
+ USE mo_fortran_tools, ONLY  : set_acc_host_or_device
  
  IMPLICIT NONE
 
@@ -28,7 +29,7 @@ MODULE mo_sedmnt_diffusion
 
 CONTAINS
 
-SUBROUTINE DIPOWA (local_bgc_mem, local_sediment_mem, start_idx, end_idx, use_acc)
+SUBROUTINE DIPOWA (local_bgc_mem, local_sediment_mem, start_idx, end_idx, lacc)
 !! @brief diffusion of pore water
 !!
 !! vertical diffusion of sediment pore water tracers
@@ -62,7 +63,7 @@ SUBROUTINE DIPOWA (local_bgc_mem, local_sediment_mem, start_idx, end_idx, use_ac
 
   INTEGER, INTENT(in)  :: start_idx    !< start index for j loop (ICON cells, MPIOM lat dir)          
   INTEGER, INTENT(in)  :: end_idx      !< end index  for j loop  (ICON cells, MPIOM lat dir) 
-  LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+  LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
   !! Local variables
   INTEGER,  POINTER  :: kbo(:)   !< k-index of bottom layer (2d)
@@ -73,20 +74,16 @@ SUBROUTINE DIPOWA (local_bgc_mem, local_sediment_mem, start_idx, end_idx, use_ac
   REAL(wp) :: tredsy(0:ks,3)               !< redsy for 'reduced system'
 
   REAL(wp) :: aprior                       !< start value of oceanic tracer in bottom layer
-  LOGICAL :: lacc
+  LOGICAL :: lzacc
 
-  IF (PRESENT(use_acc)) THEN
-    lacc = use_acc
-  ELSE
-    lacc = .FALSE.
-  END IF
+  CALL set_acc_host_or_device(lzacc, lacc)
 
   !
   ! --------------------------------------------------------------------
   !
   kbo => local_bgc_mem%kbo  
 
-  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
   !$ACC LOOP GANG VECTOR PRIVATE(sedb1, tredsy)
   DO j = start_idx, end_idx
         

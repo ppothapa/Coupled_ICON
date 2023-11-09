@@ -1765,6 +1765,28 @@ END MODULE mo_jsb_convect_tables_iface
 
 !! ==============================================================================================================================
 !>
+!! @brief Contains interfaces to thermodynamic functions from ICON
+!!
+!! @author
+!!  Reiner Schnur, MPI-M Hamburg
+!!
+!! @par Revision History
+!! First version                                 by Reiner Schnur (2022-03-07)
+!! Change from convect_tables to mo_aes_thermo   by Reiner Schnur (2023-03-23)
+!!
+MODULE mo_jsb_thermo_iface
+
+  USE mo_aes_thermo, ONLY: potential_temperature, sat_pres_water, sat_pres_ice, specific_humidity
+
+  IMPLICIT NONE
+  PUBLIC
+
+  CHARACTER(len=*), PARAMETER :: modname = 'mo_jsb_thermo_iface'
+
+END MODULE mo_jsb_thermo_iface
+
+!! ==============================================================================================================================
+!>
 !! @brief Contains interfaces to ICON orbital and solar functions
 !!
 !! @author
@@ -1845,6 +1867,24 @@ CONTAINS
   END SUBROUTINE compute_cos_zenith_angle
 
 END MODULE mo_jsb_orbit_solar_iface
+
+!! ==============================================================================================================================
+!>
+!! @brief Contains the function to compute surface exchange coefficients for tmx from JSBACH
+!!
+!! @author
+!!  Reiner Schnur, MPI-M Hamburg
+!!
+!! @par Revision History
+!! First version                                 by Reiner Schnur (2023-08-02)
+!!
+MODULE mo_jsb_surface_exchange_iface
+
+  USE mo_vdf_diag_smag, ONLY: sfc_exchange_coefficients
+
+  PUBLIC :: sfc_exchange_coefficients
+
+END MODULE mo_jsb_surface_exchange_iface
 
 !! ==============================================================================================================================
 #else

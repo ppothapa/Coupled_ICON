@@ -26,17 +26,11 @@ MODULE mo_ocean_types
   USE mo_model_domain,        ONLY: t_patch_3d
   USE mo_ocean_tracer_transport_types
 
-  USE mtime, ONLY: datetime
-  USE mo_time_config, ONLY: t_time_config
-  USE mo_name_list_output_types, ONLY: t_output_file  
-
   PUBLIC :: t_hydro_ocean_base
   PUBLIC :: t_hydro_ocean_state
   PUBLIC :: t_hydro_ocean_prog
   PUBLIC :: t_hydro_ocean_diag
   PUBLIC :: t_hydro_ocean_aux
-  PUBLIC :: t_ocean_checkpoint
-  PUBLIC :: t_ocean_adjoint
   PUBLIC :: t_onCells_Pointer_3d_wp, t_onCells_HalfLevels_Pointer_wp, t_onEdges_Pointer_3d_wp
   PUBLIC :: t_oce_config
   PUBLIC :: t_verticalAdvection_ppm_coefficients
@@ -535,42 +529,6 @@ MODULE mo_ocean_types
 
   END TYPE t_operator_coeff
     
-  TYPE t_ocean_checkpoint
-    onCells_2D :: h, h0
-    onCells_3D :: t, t0, s, s0, w
-    onEdges_3D :: vn, vn0, g_nm1
-    onCells_3D :: hi, hs, conc, Tsurf, T1, T2,albvisdir, albvisdif, albnirdir, albnirdif
-    onCells_3D :: E1, E2,vol,vols,draft,Qtop,Qbot,alb,zHeatOceI,heatOceI,hiold,hsold
-    onCells_3D :: SWnet , lat, sens, LWnet, dlatdT, dsensdT, dLWdT, surfmelt, surfmeltT,evapwi,zgrad_rho
-
-    onCells_2D :: Wind_Speed_10m, HeatFlux_Total, HeatFlux_Shortwave, HeatFlux_LongWave 
-    onCells_2D :: HeatFlux_Sensible,HeatFlux_Latent,concSum,Tfw,heatOceW,newice
-    onCells_2D :: FrshFlux_Precipitation, FrshFlux_Evaporation, FrshFlux_SnowFall, FrshFlux_Runoff
-    onCells_2D :: CO2_Mixing_Ratio
-
-    onCells_2D :: zUnderIce,albvisdirw, albvisdifw, albnirdirw, albnirdifw,draftave
-    onCells_2D :: SaltFlux_Relax, FrshFlux_Relax, HeatFlux_Relax, TempFlux_Relax 
-!   onCells_2D :: u,v,u_prog,v_prog,vn_e
-!   onCells_2D :: atmos_fluxes_stress_x, atmos_fluxes_stress_y
-!   onCells_2D :: atmos_fluxes_stress_xw, atmos_fluxes_stress_yw
-
-
-
-    TYPE(datetime) :: datetime
-    TYPE(t_time_config) :: time_config
-!    TYPE(t_output_file), ALLOCATABLE   :: output_file(:)
-    TYPE(t_hydro_ocean_prog), POINTER :: prog_old, prog_new 
-
-  END TYPE t_ocean_checkpoint
-
-  TYPE t_ocean_adjoint
-    onCells_2D :: h
-    onCells_3D :: t, s
-    onEdges_3D :: vn,foo
-    onCells_3D :: hi, hs, conc, Tsurf, T1, T2
-    onCells_2D :: zUnderIce
-  END TYPE t_ocean_adjoint
-
   
   TYPE t_solverCoeff_singlePrecision
     ! the same as in t_operator_coeff in single precision for using in the solver
@@ -593,8 +551,6 @@ MODULE mo_ocean_types
     TYPE(t_hydro_ocean_diag) :: p_diag
     TYPE(t_hydro_ocean_aux)  :: p_aux
     TYPE(t_operator_coeff), POINTER :: operator_coeff
-    TYPE(t_ocean_checkpoint), POINTER :: p_check(:)
-    TYPE(t_ocean_adjoint) :: p_adjoint
     TYPE(t_ocean_transport_state)  :: transport_state
 
   END TYPE t_hydro_ocean_state

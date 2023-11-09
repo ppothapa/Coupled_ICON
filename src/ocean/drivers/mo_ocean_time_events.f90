@@ -44,9 +44,7 @@ MODULE mo_ocean_time_events
   
   PUBLIC :: get_OceanCurrentTime_Pointer 
 
-!   PUBLIC :: set_OceanCurrentTime
-  PUBLIC :: get_OceanCurrentTime
-  
+
   CHARACTER(LEN=20)  :: str_module = 'mo_ocean_time_events'  ! Output of module for 1 line debug
   !-------------------------------------------------------------------------
 
@@ -232,24 +230,6 @@ CONTAINS
     get_OceanCurrentTime_Pointer => return_current_time
 
   END FUNCTION get_OceanCurrentTime_Pointer
-  !-------------------------------------------------------------------------
-  
-  !-------------------------------------------------------------------------
-  SUBROUTINE set_OceanCurrentTime( current_time )
-    TYPE(datetime), INTENT(IN) :: current_time
-
-    ocean_current_time = current_time
-
-  END SUBROUTINE set_OceanCurrentTime
-  !-------------------------------------------------------------------------
-
-  !-------------------------------------------------------------------------
-  FUNCTION get_OceanCurrentTime()
-    TYPE(datetime)         :: get_OceanCurrentTime
-
-    get_OceanCurrentTime = ocean_current_time
-
-  END FUNCTION get_OceanCurrentTime
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------

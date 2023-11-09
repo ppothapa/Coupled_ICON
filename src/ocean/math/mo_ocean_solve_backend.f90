@@ -25,6 +25,7 @@ MODULE mo_ocean_solve_backend
   USE mo_ocean_solve_aux, ONLY: t_ocean_solve_parm
   USE mo_timer, ONLY: timer_start, timer_stop, new_timer
   USE mo_run_config, ONLY: ltimer
+  USE mo_fortran_tools, ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
   PRIVATE
@@ -68,9 +69,10 @@ MODULE mo_ocean_solve_backend
 
 ! abstract interfaces to be declared in extended solver types
   ABSTRACT INTERFACE
-    SUBROUTINE a_solve_backend_wp(this)
+    SUBROUTINE a_solve_backend_wp(this, lacc)
       IMPORT t_ocean_solve_backend
       CLASS(t_ocean_solve_backend), INTENT(INOUT) :: this
+      LOGICAL, INTENT(in), OPTIONAL :: lacc
     END SUBROUTINE a_solve_backend_wp
     SUBROUTINE a_solve_backend_sp(this)
       IMPORT t_ocean_solve_backend
@@ -98,21 +100,17 @@ CONTAINS
   END SUBROUTINE ocean_solve_backend_dump_matrix
 
 ! initialize data and arrays
-  SUBROUTINE ocean_solve_backend_construct(this, par, par_sp, lhs_agen, trans, use_acc)
+  SUBROUTINE ocean_solve_backend_construct(this, par, par_sp, lhs_agen, trans, lacc)
     CLASS(t_ocean_solve_backend), INTENT(INOUT) :: this
     TYPE(t_ocean_solve_parm), INTENT(IN) :: par, par_sp
     CLASS(t_lhs_agen), TARGET, INTENT(IN) :: lhs_agen
     CLASS(t_transfer), TARGET, INTENT(IN) :: trans
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
-    LOGICAL :: lacc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
+    LOGICAL :: lzacc
     CHARACTER(LEN=*), PARAMETER :: routine = this_mod_name// &
       & "::ocean_solve_t::ocean_solve_backend_construct()"
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     IF (ASSOCIATED(this%trans)) CALL finish(routine, &
       & "already initialized!")
@@ -130,30 +128,32 @@ CONTAINS
     CALL this%lhs%construct(par_sp%nidx .EQ. par%nidx, par, lhs_agen, trans)
 
     !$ACC ENTER DATA COPYIN(this, this%lhs, this%trans, this%par) &
-    !$ACC   COPYIN(this%trans%nblk, this%trans%nidx_e, this%par%m) IF(lacc)
+    !$ACC   COPYIN(this%trans%nblk, this%trans%nidx_e, this%par%m) IF(lzacc)
     this%timer_wait = new_timer("solve_wait")
   END SUBROUTINE ocean_solve_backend_construct
 
 ! general solve interface (decides wether to use sp- or wp-variant)
-  SUBROUTINE ocean_solve_backend_solve(this, niter, niter_sp, upd)
+  SUBROUTINE ocean_solve_backend_solve(this, niter, niter_sp, upd, lacc)
     CLASS(t_ocean_solve_backend), INTENT(INOUT) :: this
     INTEGER, INTENT(OUT) :: niter, niter_sp
     INTEGER, INTENT(IN) :: upd
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
     CHARACTER(LEN=*), PARAMETER :: routine = this_mod_name// &
       & '::ocean_solve_t::ocean_solve'
     INTEGER :: sum_it, n_re, n_it
+    LOGICAL :: lzacc
 
-    LOGICAL :: lacc = .TRUE.
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     IF (.NOT.ASSOCIATED(this%trans)) &
       & CALL finish(routine, "solve needs to be initialized")
     IF (upd .EQ. 1) CALL this%lhs%update()
 ! transfer input fields to internal solver arrays (from worker-PEs to solver-PEs)
     IF (.NOT.ALLOCATED(this%x_wp)) THEN ! must also allocate
-      CALL this%trans%into_once(this%x_loc_wp, this%x_wp, 1, use_acc=lacc)
-      CALL this%trans%into_once(this%b_loc_wp, this%b_wp, 1, use_acc=lacc)
+      CALL this%trans%into_once(this%x_loc_wp, this%x_wp, 1, lacc=lzacc)
+      CALL this%trans%into_once(this%b_loc_wp, this%b_wp, 1, lacc=lzacc)
     ELSE ! transfer/copy only
-      CALL this%trans%into(this%x_loc_wp, this%x_wp, this%b_loc_wp, this%b_wp, 1, use_acc=lacc)
+      CALL this%trans%into(this%x_loc_wp, this%x_wp, this%b_loc_wp, this%b_wp, 1, lacc=lzacc)
     END IF
 
     this%niter_cal(2) = -2
@@ -183,7 +183,7 @@ CONTAINS
       n_re = 0
       n_it = -1
       DO WHILE(n_it .EQ. -1 .AND. n_re .LT. this%par%nr)
-        CALL this%doit_wp()
+        CALL this%doit_wp(lacc=lzacc)
         n_it = this%niter_cal(1)
         sum_it = sum_it + MERGE(n_it, this%par%m, n_it .GT. -1)
         IF (this%abs_tol_wp .LT. this%res_wp(1)) n_it = -1
@@ -196,7 +196,7 @@ CONTAINS
     IF (ltimer) CALL timer_start(this%timer_wait)
     IF (ltimer) CALL p_barrier(p_comm_work)
     IF (ltimer) CALL timer_stop(this%timer_wait)
-    CALL this%trans%sctr(this%x_wp, this%x_loc_wp, use_acc=lacc)
+    CALL this%trans%sctr(this%x_wp, this%x_loc_wp, lacc=lzacc)
     !> these are 1d arrays with size two
     CALL this%trans%bcst(this%res_wp, this%res_loc_wp)
     CALL this%trans%bcst(this%niter_cal, this%niter)

@@ -20,6 +20,7 @@ MODULE mo_ocean_solve_bicgStab
   USE mo_kind, ONLY: wp
   USE mo_exception, ONLY: finish
   USE mo_ocean_solve_backend, ONLY: t_ocean_solve_backend
+  USE mo_fortran_tools, ONLY: set_acc_host_or_device
  
   IMPLICIT NONE
   
@@ -77,14 +78,21 @@ CONTAINS
   END SUBROUTINE ocean_solve_bicgStab_recover_arrays_wp
 
 ! actual BiCG-Stab solve (vanilla) - wp-variant
-  SUBROUTINE ocean_solve_bicgStab_cal_wp(this)
+  SUBROUTINE ocean_solve_bicgStab_cal_wp(this, lacc)
     CLASS(t_ocean_solve_bicgStab), INTENT(INOUT) :: this
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
     REAL(KIND=wp) :: alpha, beta, omega, tol, tol2
     REAL(KIND=wp) :: rh_glob, rh_glob_o, r0v_glob, ts_glob, tt_glob, rn
     INTEGER :: nidx_e, nblk, iblk, k, m, k_final
     REAL(KIND=wp), POINTER, DIMENSION(:,:), CONTIGUOUS :: &
       & x, b, r0, r, v, p, ta1, s, ta2
-    LOGICAL :: done
+    LOGICAL :: done, lzacc
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+#ifdef _OPENACC
+    IF (lzacc) CALL finish(this_mod_name, 'OpenACC version currently not tested/validated')
+#endif
 
 ! retrieve extends of vector to solve
     nblk = this%trans%nblk

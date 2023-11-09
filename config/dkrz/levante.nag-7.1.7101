@@ -127,7 +127,7 @@ ICON_CDI_FCFLAGS='-C=all'
 ICON_MTIME_FCFLAGS='-C=all'
 
 # Do not pass Fortran compiler flags that cannot be handled by the libtool
-# script of the bundled SCT and pass an additinal flag enabling 'mpif.h':
+# script of the bundled SCT and pass an additional flag enabling 'mpif.h':
 ICON_SCT_FCFLAGS="-I${MPI_ROOT}/include -C=all"
 
 # Prevent the test suite of YAC from failing:

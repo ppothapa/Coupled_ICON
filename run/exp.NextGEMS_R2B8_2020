@@ -149,7 +149,6 @@ cat > ${atmo_namelist} << EOF
  ifs2icon_filename    = 'ifs2icon.nc'
 /
 &nonhydrostatic_nml
- ndyn_substeps        = 6      ! dtime/dt_dyn
  damp_height          = 44000. ! [m]
  rayleigh_coeff       = 1      ! set to 0.1001 for rerun with little change
  vwind_offctr         = 0.2
@@ -181,6 +180,9 @@ cat > ${atmo_namelist} << EOF
  decay_exp            = 1.2
  flat_height          = 16000. ! [m]
  htop_thcknlimit      = 14000.
+/
+&dynamics_nml
+ lmoist_thdyn   = .TRUE.
 /
 &diffusion_nml
 /
@@ -230,17 +232,17 @@ cat > ${atmo_namelist} << EOF
  aes_rad_config(1)%yr_perp    = 2020
 /
 &aes_vdf_nml
- aes_vdf_config(1)%pr0        = 0.7
  aes_vdf_config(1)%turb       = 2
+ aes_vdf_config(1)%pr0        = 0.7
 /
 &aes_cov_nml
  aes_cov_config(1)%cqx        = 1.e-6
 /
 &aes_cop_nml
  aes_cop_config(1)%cinhomi  = 1.0
- aes_cop_config(1)%cinhoml1 = 0.4
- aes_cop_config(1)%cinhoml2 = 0.4
- aes_cop_config(1)%cinhoml3 = 0.4
+ aes_cop_config(1)%cinhoml1 = 0.66
+ aes_cop_config(1)%cinhoml2 = 0.66
+ aes_cop_config(1)%cinhoml3 = 0.66
  aes_cop_config(1)%cn1lnd   = 50.0
  aes_cop_config(1)%cn1sea   = 50.0
  aes_cop_config(1)%cn2lnd   = 220.0
@@ -274,8 +276,8 @@ cat > ${jsbach_namelist} << EOF
  ic_filename         = 'ic_land_soil.nc'
 /
 &jsb_sse_nml
- l_heat_cap_map      = .FALSE.
- l_heat_cond_map     = .FALSE.
+ l_heat_cap_map      = .TRUE.
+ l_heat_cond_map     = .TRUE.
  l_heat_cap_dyn      = .FALSE.
  l_heat_cond_dyn     = .FALSE.
  l_snow              = .TRUE.
@@ -284,11 +286,13 @@ cat > ${jsbach_namelist} << EOF
  l_supercool         = .FALSE.
  bc_filename         = 'bc_land_soil.nc'
  ic_filename         = 'ic_land_soil.nc'
+ l_soil_texture      = .FALSE.
 /
 &jsb_hydro_nml
  bc_filename         = 'bc_land_soil.nc'
  ic_filename         = 'ic_land_soil.nc'
  bc_sso_filename     = 'bc_land_sso.nc'
+ l_soil_texture      = .FALSE.
 /
 &jsb_assimi_nml
  active              = .FALSE.              ! Use FALSE for jsbach_lite, TRUE for jsbach_pfts
@@ -353,7 +357,7 @@ datadir=${icon_data_poolFolder}/0033/sst_and_seaice/r0001
 add_link_file $datadir/bc_sic_2020.nc                                     ./bc_sic.nc
 add_link_file $datadir/bc_sst_2020.nc                                     ./bc_sst.nc
 #
-datadir=${icon_data_poolFolder}/0033/aerosol_kinne/r0001
+datadir=${icon_data_poolFolder}/0033/aerosol_kinne/r0002
 add_link_file $datadir/bc_aeropt_kinne_lw_b16_coa.nc                      ./
 add_link_file $datadir/bc_aeropt_kinne_sw_b14_coa.nc                      ./
 add_link_file $datadir/bc_aeropt_kinne_sw_b14_fin_2020.nc                 ./bc_aeropt_kinne_sw_b14_fin.nc
@@ -364,7 +368,7 @@ add_link_file $datadir/greenhouse_gases/greenhouse_ssp245.nc              ./bc_g
 datadir=${icon_data_poolFolder}/independent/solar_radiation/3.2
 add_link_file $datadir/swflux_14band_cmip6_1850-2299-v3.2.nc              ./bc_solar_irradiance_sw_b14.nc
 #
-datadir=${icon_data_poolFolder}/0033-0034/land/r0002
+datadir=${icon_data_poolFolder}/0033/land/r0001
 add_link_file $datadir/ic_land_soil_2015.nc                               ./ic_land_soil.nc
 add_link_file $datadir/bc_land_frac_2015.nc                               ./bc_land_frac.nc
 add_link_file $datadir/bc_land_phys_2015.nc                               ./bc_land_phys.nc
@@ -418,13 +422,13 @@ if [[ "$output_atm_2d" == "yes" ]]; then
 &output_nml !
  output_filename  = "${EXPNAME}_atm_2d_ml"
  filename_format  = "<output_filename>_<datetime2>"
- filetype = 5
- mode = 1
+ filetype         = 5
+ mode             = 1
  output_start     = "${start_date}"
  output_end       = "${end_date}" 
- operation = 'mean'
  output_interval  = "${atm_output_interval_2d}" !     the output interval and
  file_interval    = "${atm_file_interval}"    !     the file interval
+ operation        = 'mean'
  ml_varlist       = 'psl'     ,
                     'rsdt'    ,
                     'rsut'    , 'rsutcs'  , 'rlut'    , 'rlutcs'  ,

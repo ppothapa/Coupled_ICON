@@ -31,11 +31,14 @@
 
 from yac import *
 import xarray as xr
+import numpy as np
 import isodate
 from datetime import date
 from glob import glob
 import f90nml
 from os.path import exists
+
+import sys
 
 VERBOSE = 2
 
@@ -45,7 +48,8 @@ iso_coupling_interval='PT90M' # radiation time step
 dataPath = "/pool/data/ECHAM6/input/r0008/T127/ozone/"
 fileRoot = "T127_ozone_"
 
-nml_fname = glob('NAMELIST*atm')[0]
+NAMELIST=sys.argv[1]
+nml_fname = glob(NAMELIST)[0]
 nml = f90nml.read(nml_fname)
 
 irad_o3  = nml['aes_rad_nml']['aes_rad_config'][0]['irad_o3']

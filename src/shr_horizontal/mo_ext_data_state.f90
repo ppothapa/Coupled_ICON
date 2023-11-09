@@ -1469,7 +1469,19 @@ CONTAINS
 
       END IF  ! albedo_type
 
-    END IF! iforcing
+    ELSE ! iforcing /= inwp
+
+      ! notsea  p_ext_atm%fr_land(nproma,nblks_c)
+      cf_desc    = t_cf_var('fraction of land', '', &
+        &                   'fraction of the grid cell that is not ocean, i.e. land+lakes', datatype_flt)
+      grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'notsea', p_ext_atm%fr_land,             &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,             &
+        &           grib2_desc, ldims=shape2d_c, loutput=.FALSE.,            &
+        &           isteptype=TSTEP_CONSTANT)
+      __acc_attach(p_ext_atm%fr_land)
+
+    END IF ! iforcing
 
     ! atmosphere land-sea-mask at surface on cell centers
     ! lsm_ctr_c  p_ext_atm%lsm_ctr_c(nproma,nblks_c)

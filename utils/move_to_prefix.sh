@@ -82,7 +82,7 @@ eval "`echo "top_srcdir='@abs_top_srcdir@'; prefix='@prefix@'; mkdir_p='@MKDIR_P
 
 test x"$force" = xno && test x"$prefix" = 'x/usr/local' && fn_error 3 \
 "prefix equals to the default value '/usr/local': rerun the configure script
-specifing an installation prefix other than '/usr/local' using '--prefix' or
+specifying an installation prefix other than '/usr/local' using '--prefix' or
 rerun this script with an option '--force' to disable this check"
 
 # We do not run 'make install' in $builddir because the user might have

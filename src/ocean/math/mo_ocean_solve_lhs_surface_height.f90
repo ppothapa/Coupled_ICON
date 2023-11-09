@@ -36,6 +36,7 @@ MODULE mo_surface_height_lhs
   USE mo_scalar_product, ONLY: map_edges2edges_viacell_3d_const_z
   USE mo_model_domain, ONLY: t_patch_3d, t_patch
   USE mo_mpi, ONLY: my_process_is_mpi_parallel
+  USE mo_fortran_tools, ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -93,18 +94,14 @@ CONTAINS
   END SUBROUTINE lhs_surface_height_construct
 
 ! interface routine for the left hand side computation
-  SUBROUTINE lhs_surface_height_wp(this, x, ax, use_acc)
+  SUBROUTINE lhs_surface_height_wp(this, x, ax, lacc)
     CLASS(t_surface_height_lhs), INTENT(INOUT) :: this
     REAL(wp), INTENT(IN) :: x(:,:)
     REAL(wp), INTENT(OUT) :: ax(:,:)
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
-    LOGICAL :: lacc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     IF (this%use_shortcut) &
       & CALL finish("t_surface_height_lhs::lhs_surface_height_wp", &
@@ -123,21 +120,21 @@ CONTAINS
     END IF
 ! call approriate backend depending on select_lhs choice
     IF (select_lhs == select_lhs_matrix) THEN
-      CALL this%internal_matrix_wp(x, ax, use_acc=lacc)
+      CALL this%internal_matrix_wp(x, ax, lacc=lzacc)
     ELSE
       CALL this%internal_wp(x, ax)
     ENDIF
   END SUBROUTINE lhs_surface_height_wp
 
 ! internal backend routine to compute surface height lhs -- "matrix" implementation
-  SUBROUTINE lhs_surface_height_ab_mim_matrix_wp(this, x, lhs, use_acc)
+  SUBROUTINE lhs_surface_height_ab_mim_matrix_wp(this, x, lhs, lacc)
     CLASS(t_surface_height_lhs), INTENT(INOUT) :: this
     REAL(wp), INTENT(IN), CONTIGUOUS :: x(:,:)
     REAL(wp), INTENT(OUT), CONTIGUOUS :: lhs(:,:)
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
     INTEGER :: start_index, end_index, jc, blkNo, ico
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     TYPE(t_subset_range), POINTER :: cells_in_domain
     REAL(wp), POINTER, DIMENSION(:,:,:), CONTIGUOUS :: lhs_coeffs
 !     REAL(wp) :: xco(9)
@@ -148,23 +145,19 @@ CONTAINS
     idx => this%op_coeffs_wp%lhs_CellToCell_index
     blk => this%op_coeffs_wp%lhs_CellToCell_block
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC DATA COPYIN(this) IF(lacc)
+    !$ACC DATA COPYIN(this) IF(lzacc)
 
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index,end_index, jc) ICON_OMP_DEFAULT_SCHEDULE
     DO blkNo = cells_in_domain%start_block, cells_in_domain%end_block
       CALL get_index_range(cells_in_domain, blkNo, start_index, end_index)
 
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       lhs(:,blkNo) = 0.0_wp
       !$ACC END KERNELS
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO jc = start_index, end_index
         IF(.NOT.(this%patch_3d%lsm_c(jc,1,blkNo) > sea_boundary)) THEN
 !           FORALL(ico = 1:9) xco(ico) = x(idx(ico, jc, blkNo), blk(ico, jc, blkNo))
@@ -187,10 +180,11 @@ CONTAINS
       END DO
       !$ACC END PARALLEL LOOP
     END DO ! blkNo
+    !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
     IF (debug_check_level > 20) THEN
-      !$ACC UPDATE HOST(lhs) ASYNC(1) IF(lacc)
-      !$ACC WAIT(1) IF(lacc)
+      !$ACC UPDATE HOST(lhs) ASYNC(1) IF(lzacc)
+      !$ACC WAIT(1) IF(lzacc)
       DO blkNo = cells_in_domain%start_block, cells_in_domain%end_block
         CALL get_index_range(cells_in_domain, blkNo, start_index, end_index)
         DO jc = start_index, end_index
@@ -215,10 +209,6 @@ CONTAINS
     INTEGER :: start_index, end_index, jc, blkNo, je
     TYPE(t_subset_range), POINTER :: cells_in_domain, edges_in_domain
     CHARACTER(len=*), PARAMETER :: routine = modname//':lhs_surface_height_ab_mim_wp'
-
-!#ifdef _OPENACC
-!    CALL finish(routine, 'OpenACC version currently not implemented')
-!#endif
 
     cells_in_domain => this%patch_2D%cells%in_domain
     edges_in_domain => this%patch_2D%edges%in_domain
