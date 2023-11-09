@@ -5,12 +5,14 @@ set -eu
 MY_DIR=$(cd "$(dirname "$0")"; pwd)
 ICON_DIR=$(cd "${MY_DIR}/../.."; pwd)
 
-${ICON_DIR}/config/csc/lumi.cpu.cce --enable-openmp "$@"
-
 if [ ! -z "${BB_NAME-}" ] ; then
   MAKE_PROCS=22
 else
   MAKE_PROCS=8
 fi
 
-make -j ${MAKE_PROCS}
+${ICON_DIR}/config/csc/lumi.container_wrapper.cce bash -i - <<EOF
+set -eu
+${ICON_DIR}/config/csc/lumi.cpu.cce
+make -j ${MAKE_PROCS} V=1
+EOF

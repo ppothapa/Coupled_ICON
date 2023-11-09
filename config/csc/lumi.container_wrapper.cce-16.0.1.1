@@ -1,0 +1,20 @@
+#!/bin/bash
+
+unset CDPATH
+
+script_dir=$(unset CDPATH; cd "$(dirname "$0")" && pwd)
+icon_dir=$(unset CDPATH; cd "${script_dir}/../.." && pwd)
+
+sw=/project/project_465000454/icon/sw
+pool=/appl/local/climatedt/pool/
+container=/scratch/project_465000454/cpe/ccpe-rocm-5.4.1-16.0.1.1.sif
+
+module --force purge
+
+singularity exec --cleanenv --rocm \
+  --bind "${PWD}" \
+  --bind "${icon_dir}" \
+  --bind "${sw}" \
+  --bind "${pool}" \
+  "${container}" \
+  "$@"
