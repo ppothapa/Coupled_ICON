@@ -1,17 +1,16 @@
-!>
-!! @brief Diagnostics for the Smagorinsky diffusion scheme
-!!
-!! @author Reiner Schnur (MPI-M)
-!!
-!! @par Revision History
-!!
-!! @par Copyright and License
-!!
-!! Copyright 2022 Max Planck Institute for Meteorology, Junhong Lee
-!!
-!! Code subject to BSD-3-C, SPDX short identifier: BSD-3-Clause, see file 
-!! BSD-3-C-license.pdf in the license-directory
-!!
+!
+! Classes and functions for the turbulent mixing package (tmx)
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -505,9 +504,9 @@ CONTAINS
      END IF
 
   END FUNCTION stability_function_mom
-  !>
-  !! stability_function_heat
-  !!------------------------------------------------------------------------
+  !
+  ! stability_function_heat
+  !------------------------------------------------------------------------
 #ifndef _OPENACC
   ELEMENTAL &
 #endif
@@ -533,13 +532,13 @@ CONTAINS
      END IF
   END FUNCTION stability_function_heat
 
-  !>
-  !! factor_mom
-  !!------------------------------------------------------------------------
-  !! Businger Dyer similarity profile:
-  !! Louis (1979) A Parametirc model of vertical eddy fluxes in the atmosphere
-  !! and R. B. Stull's book
-  !!------------------------------------------------------------------------
+  !
+  ! factor_mom
+  !------------------------------------------------------------------------
+  ! Businger Dyer similarity profile:
+  ! Louis (1979) A Parametirc model of vertical eddy fluxes in the atmosphere
+  ! and R. B. Stull's book
+  !------------------------------------------------------------------------
 #ifndef _OPENACC
   ELEMENTAL &
 #endif
@@ -581,15 +580,13 @@ CONTAINS
     END IF
 
   END FUNCTION businger_mom
-  !>
-  !! factor_heat
-  !!------------------------------------------------------------------------
-  !! Businger Dyer similarity profile:
-  !! Louis (1979) A Parametirc model of vertical eddy fluxes in the atmosphere
-  !! and R. B. Stull's book
-  !!------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Anurag Dipankar, MPI-M (2013-02-06)
+  !
+  ! factor_heat
+  !------------------------------------------------------------------------
+  ! Businger Dyer similarity profile:
+  ! Louis (1979) A Parametirc model of vertical eddy fluxes in the atmosphere
+  ! and R. B. Stull's book
+  !------------------------------------------------------------------------
 #ifndef _OPENACC
   ELEMENTAL &
 #endif

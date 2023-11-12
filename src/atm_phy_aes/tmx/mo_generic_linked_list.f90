@@ -1,30 +1,30 @@
-!>
-!! This code provides a polymorphic (generic) linked list
-!! 
-!! @par Copyright and License
-!!
-!! This code has been copied from
-!!
-!! Metcalf, M. and Reid, J. K. and Cohen, M.:
-!! Modern Fortran explained: incorporating Fortran 2018
-!! Oxford University Press, Oxford, 522 pages, 2018
-!! ISBN: 9780198811893, 9780198811886
-!! doi:10.1093/oso/9780198811893.001.0001
-!!
-!! and adapted to this implementation by
-!!
-!! Luis Kornblueh, MPI-M and Florian Prill, DWD.
-!!
-!! THE SOFTWARE IS PROVIDED "AS IS" AND NEITHER THE ORIGINAL AUTHORS
-!! NOR THE ADAPTING AUTHORS DISCLAIM ALL WARRANTIES WITH REGARD TO
-!! THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-!! AND FITNESS. IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY
-!! SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-!! WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
-!! AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING
-!! OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
-!! SOFTWARE.
-!!
+!
+! This module provides a polymorphic (generic) linked list
+! 
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+!
+! This code is based on Appendix C of
+!
+!     Metcalf, M. and Reid, J. K. and Cohen, M.:
+!     Modern Fortran explained: incorporating Fortran 2018
+!     Oxford University Press, Oxford, 522 pages, 2018
+!     ISBN: 9780198811893, 9780198811886
+!     doi:10.1093/oso/9780198811893.001.0001
+!
+! It has been downloaded from ftp://ftp.numerical.rl.ac.uk/pub/MRandC/oo.f90
+! (now only available from https://archive.org/details/ftp.numerical.rl.ac.uk)
+! and adapted to this implementation.
+!
+
 module mo_generic_linked_list
   !
   ! Module for a list type that can contain items with any scalar value.
