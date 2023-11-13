@@ -3816,6 +3816,7 @@ ENDDO
 
   IF (lmulti_snow) THEN
 
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
     !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
       ! Estimate thermal surface fluxes:
@@ -4111,6 +4112,7 @@ ENDDO
       zfor_snow_mult(i)  = (zrnet_snow + zshfl_snow(i) + zlhfl_snow(i) + lh_f*zrr(i))*zf_snow(i)
     END DO
 
+  !$ACC END PARALLEL
   ELSE  ! single-layer snow model
 
     ! TERRA_URB: Set anthropogenic heat flux

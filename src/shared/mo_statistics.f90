@@ -496,7 +496,7 @@ CONTAINS
         !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) &
         !$ACC   REDUCTION(+: sum_value, number_of_values) &
         !$ACC   REDUCTION(MAX: max_value) &
-        !$ACC   REDUCTION(MIN: min_value) IF(lzacc)
+        !$ACC   REDUCTION(MIN: min_value) ASYNC(1) IF(lzacc)
         DO idx = start_index, end_index
           IF (in_subset%vertical_levels(idx,block) > 0) THEN
             min_value    = MIN(min_value, values(idx, block))
@@ -1312,13 +1312,13 @@ CONTAINS
 
     ! gather the total level sum of this process in total_sum(level)
     total_sum     = 0.0_wp
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzopenacc)
-    !$ACC LOOP GANG VECTOR REDUCTION(+: total_sum)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) &
+    !$ACC   REDUCTION(+: total_sum) ASYNC(1) IF(lzopenacc)
     DO myThreadNo=0, no_of_threads-1
       ! write(0,*) myThreadNo, level, " sum=", sum_value(level, myThreadNo)
       total_sum    = total_sum    + sum_value( myThreadNo)
     ENDDO
-    !$ACC END PARALLEL
+    !$ACC END PARALLEL LOOP
     !$ACC END DATA
     DEALLOCATE(sum_value)
 
@@ -1427,14 +1427,14 @@ CONTAINS
     ! gather the total level sum of this process in total_sum(level)
     total_sum    = 0.0_wp
     total_weight = 0.0_wp
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzopenacc)
-    !$ACC LOOP GANG VECTOR REDUCTION(+: total_sum) REDUCTION(+: total_weight)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) &
+    !$ACC   REDUCTION(+: total_sum) REDUCTION(+: total_weight) ASYNC(1) IF(lzopenacc)
     DO myThreadNo=0, no_of_threads-1
       ! write(0,*) myThreadNo, level, " sum=", sum_value(level, myThreadNo), sum_weight(level, myThreadNo)
       total_sum    = total_sum    + sum_value( myThreadNo)
       total_weight = total_weight + sum_weight( myThreadNo)
     ENDDO
-    !$ACC END PARALLEL
+    !$ACC END PARALLEL LOOP
     !$ACC WAIT(1)
     !$ACC END DATA
     DEALLOCATE(sum_value, sum_weight)

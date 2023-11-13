@@ -1614,7 +1614,7 @@ CONTAINS
 
         lk100_less_than_0 = .FALSE.
 
-        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) REDUCTION(.OR.: lk100_less_than_0) IF(lacc)
         !$ACC LOOP GANG VECTOR PRIVATE(k375, dzsum, dtdzavg, ktp, tpshp, wfac) &
         !$ACC   PRIVATE(k100, wfac2, jkk, o3_clim) REDUCTION(.OR.: lk100_less_than_0)
         DO jc = i_startidx,i_endidx

@@ -1627,12 +1627,11 @@ CONTAINS
 
     minval_1d = HUGE(minval_1d)
 
-    !$ACC PARALLEL DEFAULT(PRESENT) COPY(minval_1d) ASYNC(1) REDUCTION(MIN: minval_1d) IF(lacc)
-    !$ACC LOOP GANG VECTOR
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) REDUCTION(MIN: minval_1d) IF(lacc)
     DO i = 1, s1
       minval_1d = MIN(minval_1d, var(i)) ! The loop is equivalent to MINVAL(var(:))
     ENDDO
-    !$ACC END PARALLEL
+    !$ACC END PARALLEL LOOP
     !$ACC WAIT ! required to sync result back to CPU
 #else
     minval_1d = MINVAL(var(:))
@@ -1656,14 +1655,13 @@ CONTAINS
   
       minval_2d = HUGE(minval_2d)
   
-      !$ACC PARALLEL DEFAULT(PRESENT) COPY(minval_2d) ASYNC(1) REDUCTION(MIN: minval_2d) IF(lacc)
-      !$ACC LOOP GANG VECTOR
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) REDUCTION(MIN: minval_2d) IF(lacc)
       DO j = 1, s2
         DO i = 1, s1
           minval_2d = MIN(minval_2d, var(i,j)) ! The loop is equivalent to MINVAL(var(:,:))
         ENDDO
       ENDDO
-      !$ACC END PARALLEL
+      !$ACC END PARALLEL LOOP
       !$ACC WAIT ! required to sync result back to CPU
 #else
       minval_2d = MINVAL(var(:,:))

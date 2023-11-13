@@ -893,13 +893,12 @@ CONTAINS
 
         dps_blk_scal = 0._wp
         npoints_blk_scal = 0
-        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) REDUCTION(+: dps_blk_scal, npoints_blk_scal) IF(lzacc)
-        !$ACC LOOP GANG VECTOR
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) REDUCTION(+: dps_blk_scal, npoints_blk_scal) IF(lzacc)
         DO jc = i_startidx, i_endidx
           dps_blk_scal = dps_blk_scal + ABS(pt_diag%ddt_pres_sfc(jc,jb))
           npoints_blk_scal = npoints_blk_scal + 1
         ENDDO
-        !$ACC END PARALLEL
+        !$ACC END PARALLEL LOOP
         !$ACC WAIT(1)
         dps_blk(jb) = dps_blk_scal
         npoints_blk(jb) = npoints_blk_scal

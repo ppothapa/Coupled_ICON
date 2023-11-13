@@ -534,7 +534,7 @@ MODULE mo_velocity_advection
         maxvcfl = 0
 
 ! DA this kernel is ASYNC(1), so need to wait to retrieve the value
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) REDUCTION(MAX: maxvcfl) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(vcfl) REDUCTION(MAX: maxvcfl)
       DO jk = MAX(3,nrdmax_jg-2), nlev-3
 #ifndef _OPENACC

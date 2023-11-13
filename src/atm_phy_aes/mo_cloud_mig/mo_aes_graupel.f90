@@ -186,7 +186,7 @@ CONTAINS
   !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
   !$ACC LOOP SEQ
   DO  k = ke,kstart,-1
-    !$ACC LOOP GANG VECTOR PRIVATE(jmx, iqx, k)
+    !$ACC LOOP GANG VECTOR PRIVATE(jmx, iqx)
     DO iv = ivstart, ivend
       IF ( (MAX(q(lqc)%x(iv,k),q(lqr)%x(iv,k),q(lqs)%x(iv,k),q(lqi)%x(iv,k),q(lqg)%x(iv,k)) > qmin)  &
               .OR. (t(iv,k)<tfrz_het2 .AND. q(lqv)%x(iv,k)> qsat_ice_rho(t(iv,k),rho(iv,k))) ) THEN

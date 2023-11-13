@@ -529,6 +529,7 @@ CONTAINS
       !$ACC END PARALLEL
 
       !$ACC WAIT
+
       CALL lookup_ua_list_spline('nsurf_diag(2)', jcs, kbdim, is(jsfc), loidx(:,jsfc), ptas_tile(:,jsfc), ua)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
