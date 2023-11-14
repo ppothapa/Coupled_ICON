@@ -1524,10 +1524,10 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
 
     !QV
     CALL add_ref( diag_list, 'tot_cld',                                            &
-                & tot_pfx//'qv_dia', diag%tot_ptr(iqv)%p_3d,            &
-                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                               &
-                & t_cf_var(tot_pfx//'qv_dia', 'kg kg-1',                &
-                &          'total specific humidity (diagnostic)', datatype_flt),&
+                & tot_pfx//'qv_dia', diag%tot_ptr(iqv)%p_3d,                       &
+                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                            &
+                & t_cf_var(tot_pfx//'qv_dia', 'kg kg-1',                           &
+                &          'total specific humidity (diagnostic)', datatype_flt),  &
                 & grib2_var(0, 1, 211, ibits, GRID_UNSTRUCTURED, GRID_CELL),       &
                 & ref_idx=iqv,                                                     &
                 & ldims=shape3d,                                                   &
@@ -1537,12 +1537,13 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
                 &             l_satlimit=.FALSE.,                                  & 
                 &             lower_limit=2.5e-7_wp, l_restore_pbldev=.FALSE. ),   &
                 & in_group=groups("cloud_diag") )
+    __acc_attach(diag%tot_ptr(iqv)%p_3d)
 
     !QC
     CALL add_ref( diag_list, 'tot_cld',                                            &
-                & tot_pfx//'qc_dia', diag%tot_ptr(iqc)%p_3d,            &
-                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                               &
-                & t_cf_var(tot_pfx//'qc_dia', 'kg kg-1',                &
+                & tot_pfx//'qc_dia', diag%tot_ptr(iqc)%p_3d,                       &
+                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                            &
+                & t_cf_var(tot_pfx//'qc_dia', 'kg kg-1',                           &
                 & 'total specific cloud water content (diagnostic)', datatype_flt),&
                 & grib2_var(0, 1, 212, ibits, GRID_UNSTRUCTURED, GRID_CELL),       &
                 & ref_idx=iqc,                                                     &
@@ -1554,13 +1555,14 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
                 &             l_extrapol=.FALSE., l_pd_limit=.FALSE.,              &
                 &             lower_limit=0._wp ),                                 &
                 & in_group=groups("cloud_diag") )
+    __acc_attach(diag%tot_ptr(iqc)%p_3d)
 
     !QI
     CALL add_ref( diag_list, 'tot_cld',                                            &
-                & tot_pfx//'qi_dia', diag%tot_ptr(iqi)%p_3d,            &
-                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                               &
-                & t_cf_var(tot_pfx//'qi_dia', 'kg kg-1',                &
-                & 'total specific cloud ice content (diagnostic)', datatype_flt),&
+                & tot_pfx//'qi_dia', diag%tot_ptr(iqi)%p_3d,                       &
+                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                            &
+                & t_cf_var(tot_pfx//'qi_dia', 'kg kg-1',                           &
+                & 'total specific cloud ice content (diagnostic)', datatype_flt),  &
                 & grib2_var(0, 1, 213, ibits, GRID_UNSTRUCTURED, GRID_CELL),       &
                 & ref_idx=iqi,                                                     &
                 & ldims=shape3d,                                                   &
@@ -1571,6 +1573,7 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
                 &             l_extrapol=.FALSE., l_pd_limit=.FALSE.,              &
                 &             lower_limit=0._wp ),                                 &
                 & in_group=groups("cloud_diag") )
+    __acc_attach(diag%tot_ptr(iqi)%p_3d)
 
     !      diag%tot_cld_vi(nproma,nblks_c,3)
     cf_desc     = t_cf_var('tot_cld_vi', 'kg m-2','vertical integr total cloud variables', datatype_flt)
@@ -4497,7 +4500,9 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
                     & cf_desc, grib2_desc,                                           &
                     & ldims=shape2d,                                                 &
                     & isteptype=TSTEP_INSTANT,                                       &
-                    & l_pp_scheduler_task=TASK_COMPUTE_VIS, lrestart=.FALSE. )
+                    & l_pp_scheduler_task=TASK_COMPUTE_VIS, lrestart=.FALSE.,        &
+                    & lopenacc=.TRUE. )
+      __acc_attach(diag%vis)
     END IF
 
     IF (var_in_output%hbas_sc) THEN

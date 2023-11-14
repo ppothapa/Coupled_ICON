@@ -6,7 +6,7 @@ builder: daint_cpu_nvidia_mixed
 # The list below maps each experiment to its current experiment_hash
 "atm_qubicc_nc_test": fe8243ac04291736213f5a02f79a5cb6d7510f37
 "mch_bench_r19b07_dev_sppt": a0870928c400ba8c3c5d6640d6d119db06be55d8
-"mch_opr_r04b07": 29b08c75fae41c9aade3f27637e9a5910bb350b0
+"mch_opr_r04b07": 7c05f5ec01c954c1ffdd27d9366f43bdf56b6da9
 "mch_opr_r04b07_lhn_00": a2d0657dde6d1b74fd265188e8a4a78bb3c03e94
 "mch_opr_r04b07_sstice_inst": e42d8aa25914a244b6108844e8cbe30051d0a815
 "mch_opr_r19b07_lpi": e1311265102fa93cb4e7ec2600ee1cdc59b1911f
