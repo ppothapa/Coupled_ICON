@@ -19,6 +19,7 @@
 MODULE mo_tmx_surface_interface
 
   USE mo_kind, ONLY: wp, vp
+  USE mo_exception, ONLY: finish
   USE mo_fortran_tools, ONLY: init
   USE mtime, ONLY: datetime
   USE mo_physical_constants, ONLY: rgrav, cpd, cvd, tmelt, Tf, stbo, rhos, alv, als, alf
@@ -26,9 +27,12 @@ MODULE mo_tmx_surface_interface
   USE mo_coupling_config,   ONLY: is_coupled_run
   USE mo_aes_phy_config,    ONLY: aes_phy_config  ! TODO: replace USE
   USE mo_tmx_field_class, ONLY: t_domain, isfc_oce, isfc_ice, isfc_lnd
+
+  ! If land is present, JSBACH is currently the only surface scheme supported by AES physcis package
+#ifndef __NO_JSBACH__
   ! USE mo_jsb_interface, ONLY: jsbach_interface
   USE mo_jsb_interface,     ONLY: jsbach_interface, jsbach_get_var
-
+#endif
 
   IMPLICIT NONE
   PRIVATE
@@ -105,8 +109,6 @@ CONTAINS
 
     CHARACTER(len=*), PARAMETER :: routine = modname//':update_land'
 
-    !$ACC DATA CREATE(dz_srf, rain_tmp, snow_tmp, rvds, rnds, rpds, fract_par_diffuse, t_acoef, t_bcoef, q_acoef, q_bcoef)
-
 !$OMP PARALLEL
     CALL init(tsfc)
     CALL init(qsat)
@@ -124,6 +126,10 @@ CONTAINS
       CALL init(km_neutral)
     END IF
 !$OMP END PARALLEL
+
+#ifndef __NO_JSBACH__
+
+    !$ACC DATA CREATE(dz_srf, rain_tmp, snow_tmp, rvds, rnds, rpds, fract_par_diffuse, t_acoef, t_bcoef, q_acoef, q_bcoef)
 
 !$OMP PARALLEL DO PRIVATE(jb, jcs, jce, jc, dz_srf, rain_tmp, snow_tmp, rvds, rnds, rpds, fract_par_diffuse, &
 !$OMP                     t_acoef, t_bcoef, q_acoef, q_bcoef) ICON_OMP_DEFAULT_SCHEDULE
@@ -242,6 +248,10 @@ CONTAINS
 
     !$ACC END DATA
 
+#else
+    CALL finish(routine, "The JSBACH component is not activated")
+#endif
+
   END SUBROUTINE update_land
 
   SUBROUTINE update_sea_ice(domain, dtime, cpd, &
@@ -291,12 +301,6 @@ CONTAINS
 
     CHARACTER(len=*), PARAMETER :: routine = modname//':update_sea_ice'
 
-#ifndef __NO_ICON_OCEAN__
-
-    kice = 1
-
-    !$ACC DATA CREATE(Tfw, nonsolar_flux, dnonsolar_flux_dt, T1, T2)
-
 !$OMP PARALLEL
     CALL init(new_tsfc)
     CALL init(q_top)
@@ -308,6 +312,12 @@ CONTAINS
     CALL init(T1)
     CALL init(T2)
 !$OMP END PARALLEL
+
+#ifndef __NO_ICON_OCEAN__
+
+    kice = 1
+
+    !$ACC DATA CREATE(Tfw, nonsolar_flux, dnonsolar_flux_dt, T1, T2)
 
 !$OMP PARALLEL DO PRIVATE(jb, jcs, jce, jc, Tfw, nonsolar_flux, dnonsolar_flux_dt) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = domain%i_startblk_c,domain%i_endblk_c
@@ -377,7 +387,7 @@ CONTAINS
     !$ACC END DATA
 
 #else
-    CALL finish(method_name, "The ice process requires the ICON_OCEAN component")
+    CALL finish(routine, "The ice process requires the ICON_OCEAN component")
 #endif
   
   END SUBROUTINE update_sea_ice
@@ -569,6 +579,7 @@ CONTAINS
 !$OMP END PARALLEL DO
 
     IF (isfc == isfc_lnd) THEN
+#ifndef __NO_JSBACH__
       CALL jsbach_get_var('turb_rough_m', 1, ptr2d=jsb_rough_m)
       CALL jsbach_get_var('turb_rough_h', 1, ptr2d=jsb_rough_h)
 !$OMP PARALLEL DO PRIVATE(jb, jls, js) ICON_OMP_DEFAULT_SCHEDULE
@@ -583,6 +594,9 @@ CONTAINS
       END DO
 !$OMP END PARALLEL DO
       NULLIFY(jsb_rough_m, jsb_rough_h)
+#else
+      CALL finish(routine, "The JSBACH component is not activated")
+#endif
     END IF
 
     !$ACC WAIT(1)
@@ -623,6 +637,10 @@ CONTAINS
     
     CHARACTER(len=*), PARAMETER :: routine = modname//':compute_sfc_sat_spec_humidity'
 
+#ifdef __NO_JSBACH__
+    IF (isfc == isfc_lnd) CALL finish(routine, "The JSBACH component is not activated")
+#endif
+
 !$OMP PARALLEL DO PRIVATE(jb, jls, js) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = domain%i_startblk_c,domain%i_endblk_c
 
@@ -645,6 +663,7 @@ CONTAINS
     END DO
 !$OMP END PARALLEL DO
 
+#ifndef __NO_JSBACH__
     IF (isfc == isfc_lnd .AND. .NOT. linit) THEN
       CALL jsbach_get_var('seb_qsat_star', 1, ptr2d=jsb_qsat)
 !$OMP PARALLEL DO PRIVATE(jb, jls, js) ICON_OMP_DEFAULT_SCHEDULE
@@ -659,6 +678,7 @@ CONTAINS
 !$OMP END PARALLEL DO
       NULLIFY(jsb_qsat)
     END IF
+#endif
 
     !$ACC WAIT(1)
 
@@ -744,10 +764,16 @@ CONTAINS
       RETURN
     END IF
 
+#ifdef __NO_JSBACH__
+    IF (isfc == isfc_lnd) CALL finish(routine, "The JSBACH component is not activated")
+#endif
+
     IF (isfc == isfc_lnd) THEN
+#ifndef __NO_JSBACH__
       CALL jsbach_get_var('hydro_evapotrans',  1, ptr2d=jsb_evapotrans_ptr)
       CALL jsbach_get_var('seb_latent_hflx',   1, ptr2d=jsb_latent_hflx_ptr)
       CALL jsbach_get_var('seb_sensible_hflx', 1, ptr2d=jsb_sensible_hflx_ptr)
+#endif
     END IF
 
 !$OMP PARALLEL DO PRIVATE(jb, jls, js) ICON_OMP_DEFAULT_SCHEDULE

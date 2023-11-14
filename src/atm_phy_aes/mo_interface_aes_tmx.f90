@@ -49,7 +49,6 @@ MODULE mo_interface_aes_tmx
   USE mo_loopindices         ,ONLY: get_indices_c
   USE mo_nh_testcases_nml    ,ONLY: nh_test_name
 
-  USE mo_jsb_interface
   USE mo_aes_thermo,          ONLY: potential_temperature
   
 #ifdef _OPENACC
