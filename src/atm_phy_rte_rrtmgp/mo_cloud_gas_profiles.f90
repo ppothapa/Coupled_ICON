@@ -20,7 +20,7 @@ MODULE mo_cloud_gas_profiles
   USE mo_aes_phy_config,       ONLY: aes_phy_config
   USE mo_aes_cov_config,       ONLY: aes_cov_config
   USE mo_aes_rad_config,       ONLY: aes_rad_config
-  USE mo_run_config,           ONLY: iqv, iqc, iqi, ico2, io3
+  USE mo_run_config,           ONLY: iqv, iqc, iqi, iqs, ico2, io3
   USE mo_bc_greenhouse_gases,  ONLY: ghg_co2vmr, ghg_ch4vmr, ghg_n2ovmr, ghg_cfcvmr
   USE mo_bc_ozone,             ONLY: ext_ozone
   USE mo_o3_util,              ONLY: o3_pl2ml, o3_timeint
@@ -33,7 +33,8 @@ MODULE mo_cloud_gas_profiles
 
   PRIVATE
 
-  PUBLIC              :: gas_profiles, cloud_profiles, init_gas_profiles
+  PUBLIC              :: gas_profiles, cloud_profiles, snow_profiles, &
+                       & init_gas_profiles
   
   INTEGER, PARAMETER  :: ngases=8
   TYPE t_gas
@@ -403,6 +404,36 @@ CONTAINS
     !$ACC WAIT
     !$ACC END DATA
   END SUBROUTINE cloud_profiles
+
+  SUBROUTINE snow_profiles(jg,            jcs,           jce,         &
+       &                   klev,          xq_trc,xm_air, xm_snw       )
+    INTEGER, INTENT(IN)    :: jg             ! domain index
+    INTEGER, INTENT(IN)    :: jcs            ! start index in block of col.
+    INTEGER, INTENT(IN)    :: jce            ! end index in block of col.
+    INTEGER, INTENT(IN)    :: klev           ! number of vertical levels
+    REAL(wp), INTENT(IN)   :: xq_trc(:,:,:)  ! in  tracer  mass fraction [kg/kg]
+    REAL(wp), INTENT(IN)   :: xm_air(:,:)    ! air mass in layer
+    REAL(wp), INTENT(OUT)  :: xm_snw(:,:)    ! snow     
+
+    INTEGER                    :: jl, jk
+    REAL(wp)                   :: frad
+
+    frad = aes_rad_config(jg)% frad_h2o
+
+    !$ACC DATA PRESENT(xm_snw, xq_trc, xm_air)
+    SELECT CASE (aes_rad_config(jg)%irad_h2o)
+    CASE (0)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
+      xm_snw(jcs:jce,:)=0._wp
+      !$ACC END KERNELS
+    CASE (1)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
+      xm_snw(jcs:jce,:) = MAX(xq_trc(jcs:jce,:,iqs)*xm_air(jcs:jce,:)*frad,0._wp)
+      !$ACC END KERNELS
+    END SELECT
+    !$ACC WAIT
+    !$ACC END DATA
+  END SUBROUTINE snow_profiles
 
   SUBROUTINE tanh_profile(jcs,      jce,                 &
        &                  pressure, vpp,     gas_profile )

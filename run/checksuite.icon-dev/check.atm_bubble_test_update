@@ -65,7 +65,7 @@ export MD='u'
 #
 # 3. Launch the checksuite from run/
 
-reference_dir=2023-10-17.icon-mpim.2ebdb4e4d0e5
+reference_dir=2023-11-10.icon-mpim.b798b861f7f9
 
 builder="${BB_SYSTEM}_${BB_SLAVE}" # old buildbot
 [[ ! -z $BB_NAME ]] && builder=$(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]') # new buildbot

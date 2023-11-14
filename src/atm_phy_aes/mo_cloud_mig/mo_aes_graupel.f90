@@ -39,7 +39,7 @@ USE mo_aes_thermo, ONLY:        & !!
 
 IMPLICIT NONE
 PRIVATE
-PUBLIC :: graupel
+PUBLIC :: graupel, snow_number, snow_lambda, ice_number
 
 LOGICAL, PARAMETER :: &
   lrain        = .TRUE.  , & ! switch for disabling rain

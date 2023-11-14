@@ -225,7 +225,19 @@ MODULE mo_aes_phy_memory
       & rlus        (:,  :)=>NULL(),  &!< [W/m2] surface upwelling   longwave radiation
       & rldscs      (:,  :)=>NULL(),  &!< [W/m2] surface downwelling clear-sky longwave radiation
       & rluscs      (:,  :)=>NULL(),  &!< [W/m2] surface downwelling clear-sky longwave radiation
-      & o3          (:,:,:)=>NULL()    !< [mol/mol] ozone volume mixing ratio 
+      & o3          (:,:,:)=>NULL()    !< [mol/mol] ozone volume mixing ratio
+    ! effective radius of ice
+    REAL(wp), POINTER ::      &
+      & x_snow      (:,:,:)=>NULL(),  &!< average mass of snow flake in kg
+      & x_ice       (:,:,:)=>NULL(),  &!< average mass of ice crystal in kg
+      & acinc       (:,:,:)=>NULL(),  &!< cloud ice number concentration [1/m^3]
+      & acsnc       (:,:,:)=>NULL(),  &!< cloud snow number concentration [1/m^3]
+      & reff_ice    (:,:,:)=>NULL(),  &!< effective radius of snow in [um]
+      & tau_ice     (:,:,:)=>NULL()    !< 3d optical depth of ice in clouds   
+    ! effective radius of snow
+    REAL(wp), POINTER ::      &
+      & reff_snow   (:,:,:)=>NULL(),  &!< effective radius of snow in [um]
+      & tau_snow    (:,:,:)=>NULL()    !< 3d optical depth of snow
     ! aerosol optical properties
     REAL(wp),POINTER ::      &
       & aer_aod_533 (:,:,:)=>NULL(),  &!< aerosol optical depth at 533 nm
@@ -883,6 +895,102 @@ CONTAINS
                 &               vert_intp_method=VINTP_METHOD_LIN )            )
     __acc_attach(field%tv)
 
+    ! average mass of snow flake
+    grib2_desc = grib2_var(0,4,2, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    cf_desc    = t_cf_var('x_snow', 'kg', 'average mass of snow flake', datatype_flt)
+    CALL add_var( field_list, prefix//'x_snow', field%x_snow,                           &
+                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc, ldims=shape3d, &
+                & lrestart = .FALSE.,                                           &
+                & vert_interp=create_vert_interp_metadata(                      &
+                &   vert_intp_type=vintp_types("P","Z","I"),                    &
+                &   vert_intp_method=VINTP_METHOD_LIN ),                        &
+                & lopenacc=.TRUE.)
+    __acc_attach(field%x_snow)
+
+    ! average mass of ice crystal
+    grib2_desc = grib2_var(0,4,2, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    cf_desc    = t_cf_var('x_ice', 'kg', 'average mass of ice crystal', datatype_flt)
+    CALL add_var( field_list, prefix//'x_ice', field%x_ice,                           &
+                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc, ldims=shape3d, &
+                & lrestart = .FALSE.,                                           &
+                & vert_interp=create_vert_interp_metadata(                      &
+                &   vert_intp_type=vintp_types("P","Z","I"),                    &
+                &   vert_intp_method=VINTP_METHOD_LIN ),                        &
+                & lopenacc=.TRUE.)
+    __acc_attach(field%x_ice)
+
+    ! cloud snow number concentration
+    grib2_desc = grib2_var(0,4,2, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    cf_desc    = t_cf_var('acsnc', 'm^-3', 'cloud snow number concentration', datatype_flt)
+    CALL add_var( field_list, prefix//'acsnc', field%acsnc,                           &
+                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc, ldims=shape3d, &
+                & lrestart = .FALSE.,                                           &
+                & vert_interp=create_vert_interp_metadata(                      &
+                &   vert_intp_type=vintp_types("P","Z","I"),                    &
+                &   vert_intp_method=VINTP_METHOD_LIN ),                        &
+                & lopenacc=.TRUE.)
+    __acc_attach(field%acsnc)
+
+    ! cloud ice number concentration
+    grib2_desc = grib2_var(0,4,2, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    cf_desc    = t_cf_var('acinc', 'm^-3', 'cloud ice number concentration', datatype_flt)
+    CALL add_var( field_list, prefix//'acinc', field%acinc,                           &
+                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc, ldims=shape3d, &
+                & lrestart = .FALSE.,                                           &
+                & vert_interp=create_vert_interp_metadata(                      &
+                &   vert_intp_type=vintp_types("P","Z","I"),                    &
+                &   vert_intp_method=VINTP_METHOD_LIN ),                        &
+                & lopenacc=.TRUE.)
+    __acc_attach(field%acinc)
+
+    ! effective radius of ice
+    grib2_desc = grib2_var(0,4,2, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    cf_desc    = t_cf_var('reff_ice', 'um', 'effective radius of cloud ice', datatype_flt)
+    CALL add_var( field_list, prefix//'reff_ice', field%reff_ice,                           &
+                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc, ldims=shape3d, &
+                & lrestart = .FALSE.,                                           &
+                & vert_interp=create_vert_interp_metadata(                      &
+                &   vert_intp_type=vintp_types("P","Z","I"),                    &
+                &   vert_intp_method=VINTP_METHOD_LIN ),                        &
+                & lopenacc=.TRUE.)
+    __acc_attach(field%reff_ice)
+
+    ! optical depth of ice
+    grib2_desc = grib2_var(0,4,2, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    cf_desc    = t_cf_var('tau_ice', '', 'optical depth of ice, integral over all bands', datatype_flt)
+    CALL add_var( field_list, prefix//'tau_ice', field%tau_ice,                           &
+                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc, ldims=shape3d, &
+                & lrestart = .FALSE.,                                           &
+                & vert_interp=create_vert_interp_metadata(                      &
+                &   vert_intp_type=vintp_types("P","Z","I"),                    &
+                &   vert_intp_method=VINTP_METHOD_LIN ),                        &
+                & lopenacc=.TRUE.)
+    __acc_attach(field%tau_ice)
+    
+    ! effective radius of snow
+    grib2_desc = grib2_var(0,4,2, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    cf_desc    = t_cf_var('reff_snow', 'um', 'effective radius of snow', datatype_flt)
+    CALL add_var( field_list, prefix//'reff_snow', field%reff_snow,                           &
+                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc, ldims=shape3d, &
+                & lrestart = .FALSE.,                                           &
+                & vert_interp=create_vert_interp_metadata(                      &
+                &   vert_intp_type=vintp_types("P","Z","I"),                    &
+                &   vert_intp_method=VINTP_METHOD_LIN ),                        &
+                & lopenacc=.TRUE.)
+    __acc_attach(field%reff_snow)
+
+    ! optical depth of snow
+    grib2_desc = grib2_var(0,4,2, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    cf_desc    = t_cf_var('tau_snow', '', 'optical depth of snow, integral over all bands', datatype_flt)
+    CALL add_var( field_list, prefix//'tau_snow', field%tau_snow,                           &
+                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc, grib2_desc, ldims=shape3d, &
+                & lrestart = .FALSE.,                                           &
+                & vert_interp=create_vert_interp_metadata(                      &
+                &   vert_intp_type=vintp_types("P","Z","I"),                    &
+                &   vert_intp_method=VINTP_METHOD_LIN ),                        &
+                & lopenacc=.TRUE.)
+    __acc_attach(field%tau_snow)
+    
     ! OZONE 
     ! &       field% o3        (nproma,nlev  ,nblks),          &
     grib2_desc = grib2_var(0,14,1, ibits, GRID_UNSTRUCTURED, GRID_CELL)
