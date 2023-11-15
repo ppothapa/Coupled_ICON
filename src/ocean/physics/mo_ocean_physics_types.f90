@@ -233,8 +233,6 @@ CONTAINS
   !!
   !! Construction of arrays for ocean physics ...
   !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2010-07)
   !
   !
 !<Optimize:inUse:initOnly>
@@ -900,8 +898,6 @@ CONTAINS
   !>
   !! Destruction of arrays for ocean physics
   !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2010-07)
   !
 !<Optimize:inUse:initOnly>
   SUBROUTINE destruct_ho_params(params_oce)

@@ -91,8 +91,6 @@ CONTAINS
   !>
   !! Sbr set boundary values for velocity field.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2011).
   !
 !  SUBROUTINE set_lateral_boundary_values( patch_3d, vn )
 !
@@ -137,14 +135,6 @@ CONTAINS
   !! ocean, and land, where parameter values from mo_impl_constants are used. The three
   !! dimensions are two for the nproma-blocking  and the middle one for the vertical levels.
   !!
-  !! @par Revision History
-  !! Initial release by Stephan Lorenz, MPI-M (2010-02-19)
-  !! Modified by Stephan Lorenz,        MPI-M (2010-08)
-  !!  - fill dolic and sea_boundary as well
-  !! Modified by Stephan Lorenz,        MPI-M (2011-05)
-  !!  - level below surface receives same land-sea-mask
-  !! Modified by Stephan Lorenz,        MPI-M (2011-06)
-  !! - all 3-dim structures moved from patch_oce to type  t_hydro_ocean_base
   !!
   !!  mpi parallelized
 !<Optimize:inUse>
@@ -872,9 +862,6 @@ CONTAINS
   !! The 2-dimensional land-sea-mask is used to define basins for calculation of
   !! meridional overturning circulation (MOC) and to define areas of certain interest.
   !!
-  !! @par Revision History
-  !! Initial release by Stephan Lorenz, MPI-M (2012-02)
-  !! Modified by Stephan Lorenz,        MPI-M (2012-02)
   !!
   !!  no-mpi parallelized
 !<Optimize:inUse>
@@ -1237,8 +1224,6 @@ CONTAINS
   !! The land-sea masks are not taken into account here. This would require to extend the
   !! 2D-coriolis-structure to a 3D one
   !!
-  !! @par Revision History
-  !!  developed by Peter Korn, 2011
   !!
 !<Optimize:inUse>
   SUBROUTINE init_coriolis_oce( patch_2D )
@@ -1358,8 +1343,6 @@ CONTAINS
   !! the 2D horizontal patch components is already initialized.
   !
   !
-  !! @par Revision History
-  !! Developed  by  Peter korn, MPI-M (2012/08).
   !!
   
 !<Optimize:inUse>
@@ -1916,8 +1899,6 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !>
-  !! @par Revision History
-  !! Developed  by  Stephan Lorenz, MPI-M (2011).
 !<Optimize:inUse>
   SUBROUTINE set_del_zlev(n_zlev, dzlev_m, del_zlev_i, del_zlev_m, zlev_i, zlev_m)
     INTEGER,  INTENT(IN) :: n_zlev

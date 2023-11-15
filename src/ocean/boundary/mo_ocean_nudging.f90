@@ -57,13 +57,11 @@ MODULE mo_ocean_nudging
 
 CONTAINS
 
-      !-------------------------------------------------------------------------
+  !-------------------------------------------------------------------------
   !
   !>
   !! !  SUBROUTINE nudge saLINITY AND TEMERATURE
   !!
-  !! @par Revision History
-  !! Developed  by  Helmuth Haak, MPI-M (2018).
   !!
 !<Optimize:inUse>
   SUBROUTINE nudge_ocean_tracers(patch_3d, p_os, use_acc)

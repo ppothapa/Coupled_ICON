@@ -103,8 +103,6 @@ CONTAINS
   !-------------------------------------------------------------------------
   !>
   !!
-  !! @par Revision History
-  !!  developed by Peter Korn, MPI-M (2010-11)
   !<Optimize:inUse>
   SUBROUTINE calc_scalar_product_veloc_3d( patch_3d, vn_e,&
     & p_diag, operators_coefficients, use_acc )
@@ -788,8 +786,6 @@ CONTAINS
   ! map_edges2cell_without_height: This sbr is used for kinetic energy calculation
   !>
   !!
-  !! @par Revision History
-  !!  developed by Peter Korn, MPI-M (2010-11)
   !<Optimize:inUse>
   SUBROUTINE map_edges2cell_no_height_3d( patch_3d, vn_e, operators_coefficients, p_vn_c, opt_startLevel, &
     & opt_endLevel, subset_range, use_acc)
@@ -1018,8 +1014,6 @@ CONTAINS
   ! map_edges2cell_with_height: This sbr is used by the GMRedi
   !>
   !!
-  !! @par Revision History
-  !!  developed by Peter Korn, MPI-M (2010-11)
   !<Optimize:inUse>
   SUBROUTINE map_edges2cell_with_height_3d( patch_3d, vn_e, operators_coefficients, p_vn_c, opt_startLevel, &
     & opt_endLevel, subset_range)
@@ -2775,8 +2769,6 @@ CONTAINS
   !>
   !! Discrete mapping of cell-based vectors to edges on the primal grid.
   !!
-  !! @par Revision History
-  !!  developed by Peter Korn, MPI-M (2010-11)
   !<Optimize:inUse>
   SUBROUTINE map_cell2edges_3d_mlevels( patch_3d, p_vn_c, ptp_vn, operators_coefficients,&
     & opt_startLevel, opt_endLevel, subset_range, use_acc )
@@ -2867,8 +2859,6 @@ CONTAINS
   !>
   !! Discrete mapping of cell-based vectors to edges on the primal grid.
   !!
-  !! @par Revision History
-  !!  developed by Peter Korn, MPI-M (2010-11)
   !<Optimize:inUse:done>
   SUBROUTINE map_cell2edges_3d_1level( patch_3d, p_vn_c, ptp_vn,operators_coefficients, level, subset_range, use_acc )
 
@@ -2942,8 +2932,6 @@ CONTAINS
   !>
   !! !  SUBROUTINE maps for a fluid column a scalar value from the top/bottom of a 3D prism to the central level of the prism.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   !!
   SUBROUTINE map_vec_prismtop2center_on_block(patch_3d, vec_top, vec_center, &
     & blockNo, start_cell_index, end_cell_index, use_acc)
@@ -3000,8 +2988,6 @@ CONTAINS
   !>
   !! !  SUBROUTINE maps for a fluid column a scalar value from the top/bottom of a 3D prism to the central level of the prism.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   !!
   SUBROUTINE map_scalar_prismtop2center(patch_3d, scalar_top, p_op_coeff,scalar_center)
     TYPE(t_patch_3d ),TARGET, INTENT(in)             :: patch_3d
@@ -3092,8 +3078,6 @@ CONTAINS
   !>
   !! !  SUBROUTINE maps within a fluid column a scalar value from the the central level of the prism to top/bottom of a 3D prism.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   !!
   SUBROUTINE map_scalar_center2prismtop(patch_3d, scalar_center, p_op_coeff,scalar_top)
     TYPE(t_patch_3d ),TARGET, INTENT(in   )          :: patch_3d
@@ -3144,8 +3128,6 @@ CONTAINS
   !>
   !! !  SUBROUTINE maps for a fluid column a scalar value from the top/bottom of a 3D prism to the central level of the prism.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   !!
   SUBROUTINE map_vec_prismtop2center_on_block_GM(patch_3d, vec_top, vec_center, &
     & blockNo, start_cell_index, end_cell_index)
@@ -3188,8 +3170,6 @@ CONTAINS
   !>
   !! !  SUBROUTINE maps for a fluid column a scalar value from the top/bottom of a 3D prism to the central level of the prism.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   !!
   SUBROUTINE map_scalar_prismtop2center_GM(patch_3d, scalar_top, p_op_coeff, scalar_center)
     TYPE(t_patch_3d ),TARGET, INTENT(in)             :: patch_3d
@@ -3245,8 +3225,6 @@ CONTAINS
   !>
   !! !  SUBROUTINE maps within a fluid column a scalar value from the the central level of the prism to top/bottom of a 3D prism.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   !!
   SUBROUTINE map_scalar_center2prismtop_GM(patch_3d, scalar_center, p_op_coeff, scalar_top)
     TYPE(t_patch_3d ),TARGET, INTENT(in   )          :: patch_3d
@@ -3613,8 +3591,6 @@ CONTAINS
 !   !-----------------------------------------------------------------------------
 !   !>
 !   !!
-!   !! @par Revision History
-!   !!  developed by Peter Korn, MPI-M (2010-11)
 !   SUBROUTINE map_edges2cell_with_height_3d( patch_3d, vn_e, operators_coefficients, p_vn_c, h_e,&
 !     & opt_startLevel, opt_endLevel, subset_range)
 !
@@ -3753,8 +3729,6 @@ CONTAINS
   ! !   !! Discrete mapping of cell-based vectors to edges on the primal grid.
   ! !   !!
   ! !   !!
-  ! !   !! @par Revision History
-  ! !   !!  developed by Peter Korn, MPI-M (2010-11)
   ! !   !!  mpi parallelized LL, result not synced
   ! !   SUBROUTINE map_cell2edges_2d( patch_3D, p_vn_c, ptp_vn, operators_coefficients)
   ! !

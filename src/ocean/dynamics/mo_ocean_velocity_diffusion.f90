@@ -64,8 +64,6 @@ CONTAINS
   !! !  SUBROUTINE calculates horizontal diffusion of edge velocity via laplacian diffusion
   !!    implemented as P^T div( K_H grad P v).
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
 !<Optimize:inUse>
   SUBROUTINE velocity_diffusion( patch_3D, vn_in, physics_parameters, p_diag,operators_coeff, &
@@ -160,8 +158,6 @@ CONTAINS
   !! !  SUBROUTINE calculates horizontal diffusion of edge velocity via laplacian diffusion
   !!    implemented as P^T div( K_H grad P v).
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
   SUBROUTINE veloc_diff_harmonic_div_grad( patch_3D, grad_coeff, p_diag,&
     & operators_coeff, laplacian_vn_out)
@@ -303,8 +299,6 @@ CONTAINS
   !!    which is following MPI-OM, the operator can not be written as simple iteration of
   !!    the laplacian in divgrad form.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
   SUBROUTINE veloc_diff_biharmonic_div_grad0( patch_3D, physics_parameters, p_diag,&
     & operators_coeff, laplacian_vn_out)
@@ -515,15 +509,13 @@ CONTAINS
   END SUBROUTINE veloc_diff_biharmonic_div_grad0
   !-------------------------------------------------------------------------
 
-   !-------------------------------------------------------------------------
+  !-------------------------------------------------------------------------
   !>
   !! !  SUBROUTINE calculates horizontal diffusion of edge velocity via bilaplacian diffusion
   !!    implemented as P^T (div K grad(divgrad P v)). Due to the position of the mixing matrix
   !!    which is following MPI-OM, the operator can not be written as simple iteration of
   !!    the laplacian in divgrad form.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
   SUBROUTINE veloc_diff_biharmonic_div_grad( patch_3D, physics_parameters, p_diag,&
     & operators_coeff, laplacian_vn_out)
@@ -680,7 +672,6 @@ CONTAINS
   !! input:  lives on edges (velocity points)
   !! output: lives on edges
   !!
-  !! @par Revision History
   !!  mpi note: the result is not synced. Should be done in the calling method if required
   !!
   SUBROUTINE veloc_diff_harmonic_curl_curl( patch_3D, u_vec_e, vort, div_coeff, &
@@ -816,8 +807,6 @@ CONTAINS
   !! input:  lives on edges (velocity points)
   !! output: lives on edges
   !!
-  !! @par Revision History
-  !! Developed by P. Korn, MPI-M(2012)
   !!  mpi note: the result is not synced. Should be done in the calling method if required
   !!
   SUBROUTINE veloc_diff_biharmonic_curl_curl( patch_3D,physics_parameters,u_vec_e,vort, operators_coeff,&
@@ -985,9 +974,6 @@ CONTAINS
   !!by inverting a scalar field..
   !>
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2011).
-  !! Optimized ofr round-off erros, Leonidas Linardakis, MPI-M (2014)
   !------------------------------------------------------------------------
   SUBROUTINE velocity_diffusion_vertical_implicit( patch_3d,           &
     & velocity, a_v,                                                   &
@@ -1033,9 +1019,6 @@ CONTAINS
   !>
   !! sbr identical to previous one, except for homogeneous boundary conditions
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2011).
-  !! Optimized ofr round-off erros, Leonidas Linardakis, MPI-M (2014)
   !------------------------------------------------------------------------
 !<Optimize:inUse>
 #ifdef __LVECTOR__

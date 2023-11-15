@@ -506,13 +506,6 @@ CONTAINS
   !! Calculation of horizontal tracer fluxes using the first
   !! order Godunov method.
   !!
-  !! @par Revision History
-  !! Developed by L.Bonaventura  (2004).
-  !! Adapted to new grid structure by L. Bonaventura, MPI-M, August 2005.
-  !! Modification by Daniel Reinert, DWD (2010-02-09)
-  !! - transferred to separate subroutine
-  !! Modification by Stephan Lorenz, MPI (2010-09-06)
-  !! - adapted to hydrostatic ocean core
   !!
   !!  mpi note: the result is not synced. Should be done in the calling method if required
 !<Optimize:inUse>

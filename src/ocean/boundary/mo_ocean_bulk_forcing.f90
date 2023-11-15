@@ -99,7 +99,7 @@ CONTAINS
 !----------------------------- Relaxation -----------------------------
 !**********************************************************************
 
-  !-------------------------------------------------------------------------
+!-------------------------------------------------------------------------
   !
   !> Calculates surface temperature and salinity tracer relaxation
   !!   relaxation terms for tracer equation and surface fluxes are calculated
@@ -107,9 +107,6 @@ CONTAINS
   !!   surface tracer restoring is applied either in apply_surface_relaxation
   !!   or in adding surface relaxation fluxes to total forcing fluxes
   !!
-  !! @par Revision History
-  !! Initial release by Stephan Lorenz, MPI-M (2014)
-  !! Adapted for zstar by V.Singh, MPI-M (2020)
   !
   SUBROUTINE update_surface_relaxation(p_patch_3D, p_os, p_ice, p_oce_sfc, tracer_no, stretch_c, use_acc)
 
@@ -254,8 +251,6 @@ CONTAINS
   !!   surface tracer restoring is applied either in apply_surface_relaxation
   !!   or in adding surface relaxation fluxes to total forcing fluxes
   !!
-  !! @par Revision History
-  !! Initial release by Stephan Lorenz, MPI-M (2014)
   !
   SUBROUTINE apply_surface_relaxation(p_patch_3D, p_os, p_oce_sfc, tracer_no, use_acc)
 
@@ -366,8 +361,6 @@ CONTAINS
   !! Provides surface forcing fluxes for ocean model from file.
   !!  Reads OMIP/NCEP fluxes via netcdf for bulk formula
   !!
-  !! @par Revision History
-  !! Initial release by Stephan Lorenz, MPI-M (2010/2014)
   !
   SUBROUTINE update_flux_fromFile(p_patch_3D, p_as, this_datetime, use_acc)
 
@@ -674,15 +667,7 @@ CONTAINS
   !> Calc_omip_budgets_ice equals sbr "Budget" in MPIOM.
   !! Sets the atmospheric fluxes over *SEA ICE ONLY* for the update of the ice
   !! temperature and ice growth rates for OMIP forcing
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2011-07). Originally code written by
-  !! Dirk Notz, following MPIOM. Code transfered to ICON.
-  !! Einar Olason, split calc_atm_fluxes_from_bulk into calc_bulk_flux_ice and calc_bulk_flux_oce
-  !! so that the ocean model can be run without the ice model, but with OMIP fluxes.
-  !!
-  !! Rewritten by Stephan Lorenz, MPI-M (2015-06).
-  !!  Using interface with parameters in order to call budget routine independent of ocean model
-
+  
   SUBROUTINE calc_omip_budgets_ice(p_patch_3d, tafoC, ftdewC, fu10, fclou, pao, fswr,                &
     &                              kice, tice, hice, albvisdir, albvisdif, albnirdir, albnirdif, &
     &                              LWnetIce, SWnetIce, sensIce, latentIce,                       &
@@ -924,9 +909,6 @@ CONTAINS
   !> Forcing_from_bulk equals sbr "Budget_omip" in MPIOM.
   !! Sets the atmospheric fluxes for the update of
   !! temperature of *OPEN WATER* for OMIP forcing.
-  !! @par Revision History
-  !! Initial release by Stephan Lorenz, MPI-M (2012-08). Originally code written by
-  !! Dirk Notz, following MPIOM. Code transfered to ICON.
 
   SUBROUTINE calc_omip_budgets_oce(p_patch_3d, p_as, p_os, p_ice, atmos_fluxes, use_acc)
     TYPE(t_patch_3d),         INTENT(IN), TARGET    :: p_patch_3d
@@ -1316,10 +1298,6 @@ CONTAINS
   !! Note: this ice-ocean stress is calculated again in mo_ice_fem_evp on the FEM grid.
   !! ToDo: store ice-ocean stress, so that I-O and O-I stresses are guaranteed to match.
   !!
-  !! @par Revision History
-  !! Developed by Einar Olason, MPI-M (2013-06-05)
-  !! Rewritten by Vladimir Lapin, MPI-M (2017-02).
-
   ! difference of ice and ocean velocities determines ocean stress below sea ice
   ! resulting stress on ocean surface is stored in atmos_fluxes%topBoundCond_windStress_u
 
@@ -1454,8 +1432,6 @@ CONTAINS
   !! Balance sea level to zero over global ocean
   !! This routine uses parts of mo_ocean_diagnostics
   !!
-  !! @par Revision History
-  !! Initial revision by Stephan Lorenz, MPI (2013-04)
   !!
   !!
   SUBROUTINE balance_elevation (p_patch_3D, h_old, p_oce_sfc, p_ice, use_acc)

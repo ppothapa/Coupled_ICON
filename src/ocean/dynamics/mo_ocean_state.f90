@@ -159,9 +159,6 @@ CONTAINS
   !! whose components (representing multiple time levels).
   !! Initialization of all components with zero.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2007).
-  !!  Modification by Stephan Lorenz, MPI-M, (2010-06-01) - no temporary memory array
   !
   !
 !<Optimize:inUse>
@@ -443,8 +440,6 @@ CONTAINS
   !!               Destructor for hydrostatic ocean state.
   !
   !
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2006).
   !!
 !<Optimize:inUse>
   SUBROUTINE destruct_hydro_ocean_state(ocean_state)
@@ -491,8 +486,6 @@ CONTAINS
   !! Initialization of components with zero.
   !
   !
-  !! @par Revision History
-  !! Developed  by  Stephan Lorenz, MPI-M (2011/06).
   !!
 
 !<Optimize:inUse>
@@ -600,8 +593,6 @@ CONTAINS
   !>
   !!               Deallocation of diagnostic hydrostatic ocean state.
   !
-  !! @par Revision History
-  !! Developed  by  Stephan Lorenz, MPI-M (2011/06).
   !!
   SUBROUTINE destruct_hydro_ocean_base(v_base)
 
@@ -629,8 +620,6 @@ CONTAINS
   !!               Initialization of components with zero.
   !
   !
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2006).
   !!
 !<Optimize:inUse>
   SUBROUTINE construct_hydro_ocean_prog(patch_3d, ocean_state_prog, var_suffix)
@@ -788,8 +777,6 @@ CONTAINS
   !!               Allocation of components of hydrostatic ocean diagnostic state.
   !!               Initialization of components with zero.
   !
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2006).
   !!
 
 !<Optimize:inUse>
@@ -2275,8 +2262,6 @@ CONTAINS
   !>
   !!               Deallocation of diagnostic hydrostatic ocean state.
   !
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2005).
   !!
 !<Optimize:inUse>
   SUBROUTINE destruct_hydro_ocean_diag(ocean_state_diag)
@@ -2309,8 +2294,6 @@ CONTAINS
   !!               Allocation of components for 3dim ocean nudging.
   !!               Initialization of components with zero.
   !
-  !! @par Revision History
-  !! Developed  by  Helmuth Haak, MPI-M (2018).
   !!
 !<Optimize:inUse>
   SUBROUTINE construct_ocean_nudge(patch_2d, ocean_nudge)
@@ -2382,8 +2365,6 @@ CONTAINS
   !>
   !!               Deallocation of auxilliary hydrostatic ocean state.
   !
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2005).
   !!
 !<Optimize:inUse>
   SUBROUTINE destruct_ocean_nudge(ocean_nudge)
@@ -2413,8 +2394,6 @@ CONTAINS
   !!               Allocation of components of hydrostatic ocean auxiliary state.
   !!               Initialization of components with zero.
   !
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2006).
   !!
 !<Optimize:inUse>
   SUBROUTINE construct_hydro_ocean_aux(patch_2d, ocean_state_aux, ocean_transport_state)
@@ -2723,8 +2702,6 @@ CONTAINS
   !>
   !!               Deallocation of auxilliary hydrostatic ocean state.
   !
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2005).
   !!
 !<Optimize:inUse>
   SUBROUTINE destruct_hydro_ocean_aux(ocean_state_aux)
@@ -2772,8 +2749,6 @@ CONTAINS
   !! the 2D horizontal patch components is already initialized.
   !
   !
-  !! @par Revision History
-  !! Developed  by  Peter korn, MPI-M (2012/08).
   !!
 !<Optimize:inUse>
   SUBROUTINE construct_patch_3d(patch_3d)

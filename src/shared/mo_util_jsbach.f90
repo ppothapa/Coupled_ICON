@@ -225,16 +225,9 @@ CONTAINS
 
 END MODULE mo_jsb_domain_iface
 
-!! ==============================================================================================================================
-!>
-!! @brief Contains interface to ICON namelist handling for JSBACH
-!!
-!! @author
-!!  Reiner Schnur, MPI-M Hamburg
-!!
-!! @par Revision History
-!! First version             by Reiner Schnur (2013-02-06)
-!!
+!------------------------------------------------------------------------------------------------------------
+!> Contains interface to ICON namelist handling for JSBACH
+
 MODULE mo_jsb_namelist_iface
 
   USE mo_exception, ONLY: finish
@@ -254,8 +247,8 @@ MODULE mo_jsb_namelist_iface
 CONTAINS
 
   !>
-  !! Wrapper function to make ICON subroutine open_nml a function, as in ECHAM.
-  !! Should be replaced when open_nml in ICON gets updated.
+  ! Wrapper function to make ICON subroutine open_nml a function, as in ECHAM.
+  ! Should be replaced when open_nml in ICON gets updated.
   INTEGER FUNCTION open_nml(namelist_filename)
 
     CHARACTER(len=*), INTENT(in) :: namelist_filename
@@ -266,8 +259,8 @@ CONTAINS
   END FUNCTION open_nml
 
   !>
-  !! Wrapper function to make ICON subroutine close_nml a function take unit as argument,
-  !! as in ECHAM. Should be replaced when close_nml in ICON gets updated.
+  ! Wrapper function to make ICON subroutine close_nml a function take unit as argument,
+  ! as in ECHAM. Should be replaced when close_nml in ICON gets updated.
   SUBROUTINE close_nml(nml_handler)
 
     INTEGER, INTENT(in) :: nml_handler
@@ -281,8 +274,8 @@ CONTAINS
   END SUBROUTINE close_nml
 
   !>
-  !! Wrapper function to make ICON subroutine position_nml a function, as in ECHAM.
-  !! Should be replaced when open_nml in ICON gets updated.
+  ! Wrapper function to make ICON subroutine position_nml a function, as in ECHAM.
+  ! Should be replaced when open_nml in ICON gets updated.
   INTEGER FUNCTION position_nml(name, nml_handler, lrewind, status)
 
     CHARACTER(len=*), INTENT(in)            :: name         ! namelist group name
@@ -302,16 +295,9 @@ CONTAINS
 
 END MODULE mo_jsb_namelist_iface
 
-!! ==============================================================================================================================
-!>
-!! @brief Contains interface to reading of generic ICON infrastructure namelists (for standalone JSBACH)
-!!
-!! @author
-!!  Reiner Schnur, MPI-M Hamburg
-!!
-!! @par Revision History
-!! First version                                              by Reiner Schnur (2020-07-14)
-!!
+!------------------------------------------------------------------------------------------------------------
+!> Contains interface to reading of generic ICON infrastructure namelists (for standalone JSBACH)
+!
 MODULE mo_read_namelists_iface
 
   PUBLIC :: read_infrastructure_namelists_for_jsbach
@@ -375,18 +361,9 @@ CONTAINS
 
 END MODULE mo_read_namelists_iface
 
-!! ==============================================================================================================================
-!>
-!! @brief Contains interfaces to ICON time control for JSBACH
-!!
-!! @author
-!!  Reiner Schnur, MPI-M Hamburg
-!!
-!! @par Revision History
-!! First version                                              by Reiner Schnur (2013-02-06)
-!! New subroutines and some adaptations for jsb4 standalone   by Julia Nabel (2016-02-20)
-!! Added ltimer although this doesn't really belong here      by Reiner Schnur (2018-06-04)
-!!
+!------------------------------------------------------------------------------------------------------------
+!> Contains interfaces to ICON time control for JSBACH
+!
 MODULE mo_jsb_time_iface
 
   USE mo_kind,               ONLY: wp
@@ -506,7 +483,7 @@ CONTAINS
          &                                 time_config%tc_dt_model, tq)
     isteps = INT(tq%quotient)
 
-!@todo: error message is misleading! should be: error in istep calculation or comparable!?
+!todo: error message is misleading! should be: error in istep calculation or comparable!?
     IF (isteps <= 0) &
       CALL finish(routine, 'number of time steps not configured yet.')
 
@@ -538,9 +515,8 @@ CONTAINS
 
   END FUNCTION get_time_stop
 
-  !>
-  !! @brief Get time at previous time step
-  !!
+  ! Get time at previous time step
+  !
   FUNCTION get_time_previous(current, dt) RESULT(previous)
 
     TYPE(t_datetime), POINTER, INTENT(in) :: current
@@ -561,9 +537,8 @@ CONTAINS
 
   END FUNCTION get_time_previous
 
-  !>
-  !! @brief Get time at next time step
-  !!
+  ! Get time at next time step
+  !
   FUNCTION get_time_next(current, dt) RESULT(next)
 
     TYPE(t_datetime), POINTER, INTENT(in) :: current
@@ -700,11 +675,10 @@ CONTAINS
 
   END SUBROUTINE get_date_components
 
-  !>
-  !! Get length of year
-  !!
-  !! Function returns the length of a year in days
-  !!
+  ! Get length of year
+  !
+  ! Function returns the length of a year in days
+  !
   INTEGER FUNCTION get_year_length(yr)
     INTEGER, INTENT(in) :: yr
 
@@ -718,11 +692,10 @@ CONTAINS
 
   END FUNCTION get_year_length
 
-  !>
-  !! Get length of month
-  !!
-  !! Function returns the length of a month in days
-  !!
+  ! Get length of month
+  !
+  ! Function returns the length of a month in days
+  !
   INTEGER FUNCTION get_month_length(yr, mo)
     INTEGER, INTENT(in) :: yr, mo
 
@@ -736,23 +709,21 @@ CONTAINS
 
   END FUNCTION get_month_length
 
-  !>
-  !! Get length of day
-  !!
-  !! Function returns the length of a day in seconds
-  !!
+  ! Get length of day
+  !
+  ! Function returns the length of a day in seconds
+  !
   REAL(wp) FUNCTION get_day_length()
 
     get_day_length = REAL(no_of_sec_in_a_day,wp)
 
   END FUNCTION get_day_length
 
-  !>
-  !! Get day in year
-  !!
-  !! Function returns the day of the year for a given date.
-  !! The seconds in the day are given as fraction of the day.
-  !!
+  ! Get day in year
+  !
+  ! Function returns the day of the year for a given date.
+  ! The seconds in the day are given as fraction of the day.
+  !
   REAL(wp) FUNCTION get_year_day(date)
 
     ! t_datetime points to mtimes datetime
@@ -797,17 +768,9 @@ CONTAINS
 
 END MODULE mo_jsb_time_iface
 
-!! ==============================================================================================================================
-!>
-!! @brief Contains interfaces to ICON io for JSBACH
-!!
-!! @author
-!!  Reiner Schnur, MPI-M Hamburg
-!!
-!! @par Revision History
-!! First version                                 by Reiner Schnur (2013-04-04)
-!! IO namelist subroutine for jsb4 standalone    by Julia Nabel (2016-02-20)
-!!
+!------------------------------------------------------------------------------------------------------------
+!> Contains interfaces to ICON io for JSBACH
+!
 MODULE mo_jsb_io_iface
 
   USE mo_kind,               ONLY: wp
@@ -906,16 +869,9 @@ CONTAINS
 
 END MODULE mo_jsb_io_iface
 
-!! ==============================================================================================================================
-!>
-!! @brief Contains interfaces to ICON NetCDF io for JSBACH
-!!
-!! @author
-!!  Reiner Schnur, MPI-M Hamburg
-!!
-!! @par Revision History
-!! First version             by Reiner Schnur (2013-04-04)
-!!
+!------------------------------------------------------------------------------------------------------------
+!> Contains interfaces to ICON NetCDF io for JSBACH
+!
 MODULE mo_jsb_io_netcdf_iface
 
   USE mo_kind,               ONLY: wp
@@ -1207,18 +1163,9 @@ CONTAINS
 
 END MODULE mo_jsb_io_netcdf_iface
 
-!! ==============================================================================================================================
-!>
-!! @brief Contains grid utilities for JSBACH
-!!
-!! @author
-!!  Reiner Schnur, MPI-M Hamburg
-!!
-!! @par Revision History
-!! First version                                                   by Reiner Schnur (2013-04-04)
-!! New subroutines and some adaptations for jsb4 standalone        by Julia Nabel   (2016-02-20)
-!! Separated from mo_jsb_domain_iface to avoid cyclic dependencies by Reiner Schnur (2019-02-04)
-!!
+!------------------------------------------------------------------------------------------------------------
+!> Contains grid utilities for JSBACH
+!
 MODULE mo_jsb_grid_iface
 
   USE mo_kind,               ONLY: wp
@@ -1287,16 +1234,9 @@ CONTAINS
 
 END MODULE mo_jsb_grid_iface
 
-!! ==============================================================================================================================
-!>
-!! @brief Contains interfaces to different ICON utilities for JSBACH
-!!
-!! @author
-!!  Reiner Schnur, MPI-M Hamburg
-!!
-!! @par Revision History
-!! First version               by Reiner Schnur (2016-02-29)
-!!
+!------------------------------------------------------------------------------------------------------------
+!> Contains interfaces to different ICON utilities for JSBACH
+!
 MODULE mo_jsb_utils_iface
 
   USE mo_fortran_tools, ONLY: assign_if_present, assign_if_present_allocatable
@@ -1308,16 +1248,9 @@ MODULE mo_jsb_utils_iface
 
 END MODULE mo_jsb_utils_iface
 
-!! ==============================================================================================================================
-!>
-!! @brief Contains interfaces to ICON varlists for JSBACH
-!!
-!! @author
-!!  Reiner Schnur, MPI-M Hamburg
-!!
-!! @par Revision History
-!! First version               by Reiner Schnur (2013-04-04)
-!!
+!------------------------------------------------------------------------------------------------------------
+!> Contains interfaces to ICON varlists for JSBACH
+!
 MODULE mo_jsb_varlist_iface
 
   USE mo_kind,               ONLY: wp, dp
@@ -1619,16 +1552,9 @@ CONTAINS
 
 END MODULE mo_jsb_varlist_iface
 
-!! ==============================================================================================================================
-!>
-!! @brief Contains interface to ICON mo_jsb_vertical_axes for JSBACH
-!!
-!! @author
-!!  Reiner Schnur, MPI-M Hamburg
-!!
-!! @par Revision History
-!! First version               by Reiner Schnur (2017-03-14)
-!!
+!------------------------------------------------------------------------------------------------------------
+!> Contains interface to ICON mo_jsb_vertical_axes for JSBACH
+!
 MODULE mo_jsb_vertical_axes_iface
 
   USE mo_kind, ONLY: wp !, dp
@@ -1682,16 +1608,9 @@ CONTAINS
 
 END MODULE mo_jsb_vertical_axes_iface
 
-!! ==============================================================================================================================
-!>
-!! @brief Contains interface to ICON physcial constants for JSBACH
-!!
-!! @author
-!!  Reiner Schnur, MPI-M Hamburg
-!!
-!! @par Revision History
-!! First version               by Reiner Schnur (2016-03-18)
-!!
+!------------------------------------------------------------------------------------------------------------
+!> Contains interface to ICON physcial constants for JSBACH
+!
 MODULE mo_physical_constants_iface
 
   USE mo_kind, ONLY: wp
@@ -1737,16 +1656,9 @@ MODULE mo_physical_constants_iface
 
 END MODULE mo_physical_constants_iface
 
-!! ==============================================================================================================================
-!>
-!! @brief Contains interfaces to ICON convect_tables
-!!
-!! @author
-!!  Reiner Schnur, MPI-M Hamburg
-!!
-!! @par Revision History
-!! First version                                 by Reiner Schnur (2022-03-07)
-!!
+!------------------------------------------------------------------------------------------------------------
+!> Contains interfaces to ICON convect_tables
+!
 MODULE mo_jsb_convect_tables_iface
 
   USE mo_kind,                 ONLY: wp
@@ -1763,16 +1675,9 @@ MODULE mo_jsb_convect_tables_iface
 
 END MODULE mo_jsb_convect_tables_iface
 
-!! ==============================================================================================================================
-!>
-!! @brief Contains interfaces to ICON orbital and solar functions
-!!
-!! @author
-!!  Reiner Schnur, MPI-M Hamburg
-!!
-!! @par Revision History
-!! First version                                 by Reiner Schnur (2022-08-26)
-!!
+!------------------------------------------------------------------------------------------------------------
+!> Contains interfaces to ICON orbital and solar functions
+!
 MODULE mo_jsb_orbit_solar_iface
 
   USE mo_kind,             ONLY: wp
@@ -1789,9 +1694,7 @@ MODULE mo_jsb_orbit_solar_iface
 
 CONTAINS
 
-  ! ====================================================================================================== !
-  !
-  !> Compute cosine of zenith angle (only used for standalone land model, one domain only!)
+  ! Compute cosine of zenith angle (only used for standalone land model, one domain only!)
   !
   SUBROUTINE compute_cos_zenith_angle(this_datetime, patch, cos_zenith_angle)
 
@@ -1846,7 +1749,7 @@ CONTAINS
 
 END MODULE mo_jsb_orbit_solar_iface
 
-!! ==============================================================================================================================
+!------------------------------------------------------------------------------------------------------------
 #else
 
 ! nag does not like empty files

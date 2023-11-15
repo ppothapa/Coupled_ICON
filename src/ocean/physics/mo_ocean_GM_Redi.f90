@@ -119,8 +119,6 @@ CONTAINS
   !>
   !! !  SUBROUTINE calculates the fluxes of the isoycnical diffusion following Redi.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   !!
 !<Optimize:inUse:done>
   SUBROUTINE prepare_GMRedi(patch_3d, ocean_state, param, op_coeff)
@@ -147,8 +145,6 @@ CONTAINS
   !>
   !! !  SUBROUTINE calculates the fluxes of the isoycnical diffusion following Redi.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   !!
   !<Optimize:inUse:done>
   SUBROUTINE calc_ocean_physics(patch_3d, ocean_state, param, op_coeff, GMRedi_flux_horz, GMRedi_flux_vert, &
@@ -207,8 +203,6 @@ CONTAINS
   !>
   !! !  SUBROUTINE calculates the fluxes of the isoycnical diffusion following Redi and the eddy flux of GM.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   !!
   !<Optimize:inUse>
   SUBROUTINE calc_combined_GentMcWilliamsRedi_flux(patch_3d, ocean_state, param, op_coeff,&
@@ -493,8 +487,6 @@ CONTAINS
   !!    !Note that in case of 1-component fluid we use the density for the slope calculation,
   !!    !all relevant imformation is stored in the tracer%temperature structure
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   !!
 !<Optimize:inUse>
   SUBROUTINE calc_neutral_slopes(patch_3d, ocean_state, param, op_coeff)
@@ -989,8 +981,6 @@ CONTAINS
   !!    !reconstructions on cell centers.
   !!
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2016).
   !!
 !<Optimize:inUse>
   SUBROUTINE calc_tracer_derivatives(patch_3d, tracer, ocean_state, op_coeff, tracer_index, typeOfTracers)
@@ -1130,8 +1120,6 @@ CONTAINS
   !>
   !! !  SUBROUTINE calculates the tapering functions used in Gent-McWilliams-Redi parametrization.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   !!
 !<Optimize:inUse>
   SUBROUTINE calc_tapering_function(patch_3d, param, ocean_state)
@@ -1338,8 +1326,6 @@ CONTAINS
   !!         !    diagonal piece of the horizontal diffusion.
   
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   !!
 !<Optimize:inUse>
   SUBROUTINE calc_entries_mixing_tensor(patch_3d, ocean_state, param, op_coeff)
@@ -1695,9 +1681,7 @@ CONTAINS
   !>
   !! !  SUBROUTINE calculates the fluxes of the isoycnical diffusion following Redi and the eddy flux of GM.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
-  !!
+   !!
   !<Optimize:inUse>
   SUBROUTINE diagnose_Redi_flux_balance(patch_3d, ocean_state, param, op_coeff,&
     &tracer_index, typeOfTracers)
@@ -2171,8 +2155,6 @@ ocean_state%p_prog(nold(1))%tracer_collection%tracer(tracer_index)%concentration
 !!$  !! !  This is currently used for diagnostic purposes, the GM-Redi paramerization
 !!$  !! !  uses the skew-flux approach.
 !!$  !!
-!!$  !! @par Revision History
-!!$  !! Developed  by  Peter Korn, MPI-M (2016).
 !!$  !!
 !!$!<Optimize:inUse>
 !!$  SUBROUTINE calc_bolus_velocity(patch_3d, ocean_state, param, op_coeff)

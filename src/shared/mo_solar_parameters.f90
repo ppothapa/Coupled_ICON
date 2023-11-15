@@ -1,18 +1,19 @@
-! @brief Module to provide parameters to radiation routines and avoid circular dependencies.
+! This module contains parameters for the solar constant and the
+! routine for computing the cosine of the solar zenith angle, both
+! together needed to define the incident solar flux.
 !
-! @remarks
-!   This module contains the public parameters for the solar constant and the routine
-!   for computing the cosine of the solar zneith angle, both together needed to define
-!   the incident solar flux.
+! The underlying data are part of the standard CMPI6 input, referenced in
 !
-!         Martin Schultz, FZJ, Juelich (2010-04-13):
-!              extracted parameters from mo_radiation
-!         Dagmar Popke, MPI-M, Hamburg (2013-11-15):
-!              Implementation of RCE
+! Matthes, K., Funke, B., Anderson, M. E., Barnard, L., Beer, J.,
+! Charbonneau, P., Clilverd, M. A., Dudok de Wit, T., Haberreiter, M.,
+! Hendry, A., Jackman, C. H., Kretschmar, M., Kruschke, T., Kunze, M.,
+! Langematz, U., Marsh, D. R., Maycock, A., Misios, S., Rodger, C. J.,
+! Scaife, A. A., Seppala, A., Shangguan, M., Sinnhuber, M., Tourpali,
+! K., Usoskin, I., van de Kamp, M., Verronen, P. T., and S. Versick,
+! 2017: Solar Forcing for CMIP6 (v3.2). Geosci. Model Dev., 10,
+! doi:10.5194/gmd-10-2247-2017.
 !
-! @par Origin
-!   see mo_radiation.f90
-!
+! and provided by HEPPA/SOLARIS Geomar.
 !
 ! ICON
 !

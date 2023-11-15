@@ -63,8 +63,6 @@ CONTAINS
   !>
   !! !  SUBROUTINE advects the tracers present in the ocean model.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
 !<Optimize:inUse>
   SUBROUTINE advect_ocean_tracers(old_tracers, new_tracers, transport_state, operators_coeff, use_acc)
@@ -185,8 +183,6 @@ CONTAINS
   !>
   !! !  SUBROUTINE advects the tracers present in the ocean model.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
 !<Optimize:inUse>
   SUBROUTINE advect_diffuse_individual_tracer(patch_3d, old_tracer,       &
@@ -258,8 +254,6 @@ CONTAINS
   !>
   !! !  SUBROUTINE advects the tracers for shallow water case
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
 !<Optimize:inUse>
   SUBROUTINE advect_diffuse_SW_tracer(patch_3d, old_tracer,       &
@@ -406,8 +400,6 @@ CONTAINS
   !>
   !! !  SUBROUTINE advects the tracers present in the ocean model.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
 !<Optimize:inUse>
   SUBROUTINE advect_diffuse_tracer(        &

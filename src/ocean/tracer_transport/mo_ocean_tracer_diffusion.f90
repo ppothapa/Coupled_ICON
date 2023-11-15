@@ -395,9 +395,6 @@ CONTAINS
   !>
   !! sbr identical to sbr above but now with homogeneous boundary conditions
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2011).
-  !! Preconditioning by Leonidas Linardakis, MPI-M (2014)
   !!
   !! The result ocean_tracer%concetration is calculated on domain_cells
   !-------------------------------------------------------------------------

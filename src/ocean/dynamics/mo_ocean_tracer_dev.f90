@@ -83,8 +83,6 @@ CONTAINS
   !>
   !! !  SUBROUTINE advects the tracers present in the ocean model.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
 !<Optimize:inUse>
   SUBROUTINE advect_ocean_tracers_dev(old_tracers, new_tracers, p_os, transport_state, p_param, p_op_coeff)
@@ -126,8 +124,6 @@ CONTAINS
   !>
   !! !  SUBROUTINE advects the tracers present in the ocean model.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
 !<Optimize:inUse>
   SUBROUTINE advect_diffuse_tracer(patch_3d, old_tracer,       &
@@ -606,8 +602,6 @@ CONTAINS
   !!    actual velocity. This information is required by MIURA-scheme and is identical
   !!    for all tracers.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2012).
 !<Optimize:inUse>
   SUBROUTINE prepare_tracer_transport_GMRedi(patch_3d, p_os, p_param, p_op_coeff)
 

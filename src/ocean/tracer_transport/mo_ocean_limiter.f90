@@ -70,17 +70,8 @@ CONTAINS
   !! a central edges is a boundary edge.
   !! Note: This limiter is positive definite and almost monotone (but not strictly).
   !!
-  !! @par Literature:
-  !! - Zalesak, S.T. (1979): Fully Multidimensional Flux-corrected Transport
+  !! Zalesak, S.T. (1979): Fully Multidimensional Flux-corrected Transport
   !!   Algorithms for Fluids. JCP, 31, 335-362
-  !!
-  !! @par Revision History
-  !! - Inital revision by Daniel Reinert, DWD (2010-03-10)
-  !! Modification by Daniel Reinert, DWD (2010-03-25)
-  !! - adapted for MPI parallelization
-  !! - adapted for ocean use by P. Korn (2012)
-  !! - optimized by L. Linardakis (2015)
-  !! - criterion for switch to low order scheme near boundaries added P. Korn (2015)  
   !!
   !!  mpi note: computed on domain edges. Results is not synced.
   !!
@@ -1545,8 +1536,6 @@ CONTAINS
   !! Literature
   !! Lin and Rood (1996), MWR, 124, 2046-2070
   !!
-  !! @par Revision History
-  !! Developed by Daniel Reinert, DWD (2010-02-04)
   !!
   !! mpi parallelized, only cells_in_domain are computed, no sync
 !<Optimize:inUse>

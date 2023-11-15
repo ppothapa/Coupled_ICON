@@ -510,8 +510,6 @@ CONTAINS
   !-------------------------------------------------------------------------
   !> Allocation of operators coefficients.
   !
-  ! @par Revision History
-  ! Peter Korn (2012-2)
   !
 !<Optimize:inUse>
   SUBROUTINE allocate_operators_coefficients( patch_2D, operators_coefficients, solverCoeff_sp)
@@ -913,8 +911,6 @@ CONTAINS
   !-------------------------------------------------------------------------
   !> Initialize expansion coefficients.
   !!
-  !! @par Revision History
-  !! Peter Korn (2012-2)
   !!
 !<Optimize:inUse>
   SUBROUTINE par_init_operator_coeff( patch_3D, operators_coefficients, solverCoeff_sp)
@@ -955,8 +951,6 @@ CONTAINS
 
   !---------------------------------------------------------------------------------
   !>
-  !! @par Revision History
-  !! Developed  by  Leonidas Linardakis, MPI-M (2010).
   !!
 !<Optimize:inUse>
   SUBROUTINE init_verticalAdvection_ppm_coefficients( patch_3D, vertAdvPPM_coeffs)
@@ -1072,9 +1066,6 @@ CONTAINS
   !!   fixed_vol_norm   : summed volume weight of moved cell
   !!   variable_vol_norm: volume weight at the edges of moved cell
   !!
-  !! @par Revision History
-  !!  developed by Peter Korn, MPI-M  2010-09
-  !!  Modification by Stephan Lorenz, 2010-11
   !!
 !<Optimize:inUse>
   SUBROUTINE init_operator_coeffs( patch_2D, operators_coefficients)
@@ -1297,9 +1288,6 @@ CONTAINS
   !!   fixed_vol_norm   : summed volume weight of moved cell
   !!   variable_vol_norm: volume weight at the edges of moved cell
   !!
-  !! @par Revision History
-  !!  developed by Peter Korn, MPI-M  2010-09
-  !!  Modification by Stephan Lorenz, 2010-11
 !<Optimize:inUse>
   SUBROUTINE init_operator_coeffs_cell( patch_2D, operators_coefficients )
     TYPE(t_patch), TARGET,  INTENT(INOUT)  :: patch_2D
@@ -1633,9 +1621,6 @@ CONTAINS
   !!   fixed_vol_norm   : summed volume weight of moved cell
   !!   variable_vol_norm: volume weight at the edges of moved cell
   !!
-  !! @par Revision History
-  !!  developed by Peter Korn, MPI-M  2010-09
-  !!  Modification by Stephan Lorenz, 2010-11
   !!
 !<Optimize:inUse>
   SUBROUTINE init_operator_coeffs_vertex( patch_2D, operators_coefficients)
@@ -1975,8 +1960,6 @@ CONTAINS
   !-------------------------------------------------------------------------
   !> Modify coefficients at the boundary
   !!
-  !! @par Revision History
-  !! Peter Korn (2012-2)
   !!
 !<Optimize:inUse>
   SUBROUTINE apply_boundary2coeffs( patch_3D, operators_coefficients)
@@ -2629,21 +2612,6 @@ CONTAINS
   !>
   !! Precomputes the geometrical factors used in the divergence, rotation.
   !!
-  !! @par Revision History
-  !!  developed by Guenther Zaengl, 2009-03-17
-  !!  Modification by Almut Gassmann, 2009-12-19
-  !!  - Vorticity is computed on quads in case of the hexagonal grid
-  !!  Modification by Almut Gassmann, 2010-02-05
-  !!  - Added feature for poor men's 3rd order advection, where a directional
-  !!    laplace is needed at the edges.
-  !!  Modification by Stephan Lorenz, 2010-06-02
-  !!  - Storage moved from int_state into patch_oce since it is static
-  !!    geometric information used in the ocean model
-  !!  Modification by Peter Korn, 2010-11
-  !!  - Calculation of cell area changed to achieve compatibility with
-  !!    sw-model (cell area and consequently divergence different)
-  !!  Modification by Stephan Lorenz, 2011-07
-  !!   - 3-dim structures moved from patch_oce to hydro_ocean_base for parallelization
   !!
 !<Optimize:inUse>
   SUBROUTINE init_diff_operator_coeff_3D( patch_2D, operators_coefficients )

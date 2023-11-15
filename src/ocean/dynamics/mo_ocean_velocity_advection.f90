@@ -64,8 +64,6 @@ CONTAINS
   !! Computes horizontal advection of a (edge based) vector field.
   !! either by using rotational/vector-invariant form of velocity advection
   !! or the divergence form
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2011).
   !!
   !!   mpi parallelized LL
 !<Optimize:inUse>
@@ -156,8 +154,6 @@ CONTAINS
   !! Computes vertical advection of a (edge based) vector field.
   !! either by using rotational/vector-invariant form of velocity advection
   !! or the divergence form
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2011).
   !!
 !<Optimize:inUse>
   SUBROUTINE veloc_adv_vert_mimetic( patch_3D, p_diag,ocean_coefficients, veloc_adv_vert_e, use_acc)
@@ -225,8 +221,6 @@ CONTAINS
   !! input:  lives on edges (velocity points)
   !! output: lives on edges (velocity points)
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
   !! veloc_adv_horz_e is on edges%in_domain
   !! p_diag%vort is on all vertices
@@ -405,8 +399,6 @@ CONTAINS
   !! input:  lives on edges (velocity points)
   !! output: lives on edges (velocity points)
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
   !! veloc_adv_horz_e is on edges%in_domain
   !! p_diag%vort is on all vertices
@@ -864,8 +856,6 @@ ENDDO
   !! input:  lives on cells (velocity points)
   !! output: lives on edges (velocity points)
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
 !<Optimize:inUse>
   SUBROUTINE veloc_adv_vert_mimetic_rot( patch_3D, p_diag,p_op_coeff, veloc_adv_vert_e, use_acc)
@@ -990,8 +980,6 @@ ENDDO
   !! input:  lives on cells (velocity points)
   !! output: lives on edges (velocity points)
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
 !   SUBROUTINE veloc_adv_vert_mimetic_rot_old( patch_3D, p_diag,ocean_coefficients, veloc_adv_vert_e)
 !
@@ -1109,8 +1097,6 @@ ENDDO
   !! input:  lives on cells (velocity points)
   !! output: lives on edges (velocity points)
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
   SUBROUTINE veloc_adv_vert_mim_rot_flux2( patch_3D, p_diag,ocean_coefficients, veloc_adv_vert_e)
 
@@ -1265,8 +1251,6 @@ ENDDO
   !! input:  lives on cells (velocity points)
   !! output: lives on edges (velocity points)
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
   SUBROUTINE veloc_adv_vert_mimetic_rot_flux( patch_3D, p_diag,ocean_coefficients, veloc_adv_vert_e)
 
@@ -1363,8 +1347,6 @@ ENDDO
   !! input:  lives on cells (velocity points)
   !! output: lives on edges (velocity points)
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
   SUBROUTINE veloc_adv_vert_mimetic_div( patch_3D, p_diag,ocean_coefficients, veloc_adv_vert_e)
 
@@ -1455,8 +1437,6 @@ ENDDO
 !   !! input:  lives on cells (velocity points)
 !   !! output: lives on edges (velocity points)
 !   !!
-!   !! @par Revision History
-!   !! Developed  by  Peter Korn, MPI-M (2010).
 !   !!  mpi parallelized LL
 !   !!
 !   SUBROUTINE veloc_adv_vert_mimetic_div( patch_2D, p_diag,ocean_coefficients, veloc_adv_vert_e)
@@ -1551,8 +1531,6 @@ ENDDO
 !   !! input:  lives on edges (velocity points)
 !   !! output: lives on edges (velocity points)
 !   !!
-!   !! @par Revision History
-!   !! Developed  by  Peter Korn, MPI-M (2010).
 !   !!  mpi parallelized LL
 !   !!
 !   SUBROUTINE veloc_adv_horz_rbf( patch_2D, vn, p_diag, grad_coeff, veloc_adv_horz_e, p_int)
@@ -1845,8 +1823,6 @@ ENDDO
 !   !! input:  lives on cells (velocity points)
 !   !! output: lives on edges (velocity points)
 !   !!
-!   !! @par Revision History
-!   !! Developed  by  Peter Korn, MPI-M (2010).
 !   !!  mpi parallelized LL
 !    !!
 !   SUBROUTINE veloc_adv_vert_rbf( patch_2D, u_c, v_c, w_c, &

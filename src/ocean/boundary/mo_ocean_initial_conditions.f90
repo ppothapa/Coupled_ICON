@@ -1368,8 +1368,6 @@ write(0,*)'Galewsky-Test:h', maxval(ocean_height),minval(ocean_height)
   !-------------------------------------------------------------------------------
   !> Initial datum for zonal velocity u, test case unsteady solid body
   ! rotation of L\"auter et al.(2007).
-  !
-  ! Developed by Th.Heinze, DWD, (2007-03)
   !-------------------------------------------------------------------------
   SUBROUTINE velocity_LauterRotation(patch_3d, vn)
     TYPE(t_patch_3d ),TARGET, INTENT(inout) :: patch_3d
@@ -5224,9 +5222,6 @@ END DO
   !-------------------------------------------------------------------------
   ! Initial datum for height, test case 2 of Williamson et al.(1992).
   !
-  ! !REVISION HISTORY:
-  ! Developed  by L.Bonaventura  (2002-5).
-  ! Revised to programming guide by Th.Heinze, DWD, (2006-12)
   !
   FUNCTION test2_h( point_lon, point_lat) result(p_hh)
     REAL(wp), PARAMETER :: h0 = 2.94e4_wp * rgrav  ! maximum height
@@ -5265,9 +5260,6 @@ END DO
   !-------------------------------------------------------------------------
   ! Initial datum for height, test case 5 of Williamson et al.(1992).
   !
-  ! !REVISION HISTORY:
-  ! Developed  by L.Bonaventura  (2002-5).
-  ! Revised to programming guide by Th.Heinze, DWD, (2007-01)
   FUNCTION test5_h( point_lat) result(p_hh)
     REAL(wp), PARAMETER :: h0    = 5960._wp  ! maximum height
     REAL(wp), PARAMETER :: uzero = 20._wp    ! maximum velocity
@@ -5306,9 +5298,6 @@ END DO
   !
   ! Initial datum for orography, test case 5 of Williamson et al.(1992).
   !
-  ! !REVISION HISTORY:
-  ! Developed  by L.Bonaventura  (2002-5).
-  ! Revised to programming guide by Th.Heinze, DWD, (2007-02)
   !
   SUBROUTINE depth_mountain_orography_Williamson_test5(patch_3d, cells_bathymetry)
     TYPE(t_patch_3d ),TARGET, INTENT(inout) :: patch_3d
@@ -5476,8 +5465,6 @@ END DO
     ! Initial datum for height h, test case unsteady solid body
     ! rotation of L\"auter et al.(2007).
     
-    ! !REVISION HISTORY:
-    ! Developed by Th.Heinze, DWD, (2007-03)
     !
     ! !DEFINED PARAMETERS:
     REAL(wp), PARAMETER :: d0    = 133681.0_wp  ! additive constant
@@ -5531,13 +5518,6 @@ END DO
 !   ! to compute geostrophically balanced initial state used
 !   ! in test 3.
 !   !
-!   ! !REVISION HISTORY:
-!   ! Developed  by L.Bonaventura  (2002-5).
-!   ! Modified by Th.Heinze, DWD, (2006-11-22):
-!   ! - introduced INTERFACE uu (got an error message with g95 compiler,
-!   !   scanned the code, this seems to be the correct way, but might be wrong)
-!   ! Modified by Th.Heinze, DWD, (2006-12-12):
-!   ! - renamed it to geostrophic_balance
 !   FUNCTION geostrophic_balance( point_lat, func)  result(p_hh)
 !     
 !     INTERFACE                        ! selected function
@@ -5600,12 +5580,6 @@ END DO
 !   ! to compute geostrophically balanced initial state used
 !   ! in test 3.
 !   !
-!   ! !REVISION HISTORY:
-!   ! Developed  by L.Bonaventura  (2002-5).
-!   ! Modified by Th.Heinze, DWD, (2006-11-22):
-!   ! - introduced INTERFACE uu (got an error message with g95 compiler,
-!   !   scanned the code, this seems to be the correct way, but might be wrong)
-!   ! Modified by F. Rauser, MPI (2009,10) for testcase 11 galewsky
 !   !
 !   FUNCTION geostrophic_balance_11( phi, func)  result(p_hh)
 !     
@@ -5707,9 +5681,6 @@ END DO
 !
 ! Initial datum for geopotential h, test case 6 of Williamson et al.(1992).
 !
-! !REVISION HISTORY:  
-! Developed  by L.Bonaventura  (2002-5).
-! Modified by Th.Heinze, DWD, (2006-11-02)
 
 ! !DEFINED PARAMETERS:  
 !    REAL (wp), PARAMETER  :: h0 = 8000._wp, re_omg_kk = 50._wp
@@ -5808,9 +5779,6 @@ END DO
 !
 ! Initial datum for zonal velocity u, test case 6 of Williamson et al.(1992) .
 !
-! !REVISION HISTORY:  
-! Developed  by L.Bonaventura  (2002-5).    
-! Modified by Th.Heinze, DWD, (2006-11-02)
 
 ! !DEFINED PARAMETERS:  
    ! REAL (wp), PARAMETER  :: re_omg_kk = 50._wp
@@ -5887,9 +5855,6 @@ END DO
 ! Initial datum for meridional velocity v, test case 6 of Williamson 
 ! et al.(1992).
 !
-! !REVISION HISTORY:  
-! Developed  by L.Bonaventura  (2002-5).    
-! Modified by Th.Heinze, DWD, (2006-11-02)
 
 ! !DEFINED PARAMETERS:  
    ! REAL (wp), PARAMETER  :: re_omg_kk = 50._wp
@@ -5961,10 +5926,6 @@ END DO
 !
 ! Initial datum for relative vorticity, test case 6 of Williamson et al.(1992).
 !
-! !REVISION HISTORY:  
-! Developed  by L.Bonaventura  (2002-5).    
-! Modified by Th.Heinze, DWD, (2006-11-02):
-! - corrected vorticity
 
 ! !DEFINED PARAMETERS:  
    ! REAL (wp), PARAMETER  :: re_omg_kk = 50._wp
@@ -6407,23 +6368,10 @@ END DO
 
   FUNCTION geostr_balance11( phi, func)  RESULT(p_hh)
 !
-! !DESCRIPTION:
+    ! !DESCRIPTION:
 ! Performs  numerical integration between -$\frac{\pi}{2}$ and $\frac{\pi}{2}$
 ! to compute geostrophically balanced initial state used
 ! in test 3.
-!
-! !REVISION HISTORY:  
-! Developed  by L.Bonaventura  (2002-5).
-! Modified by Th.Heinze, DWD, (2006-11-22): 
-! - introduced INTERFACE uu (got an error message with g95 compiler,
-!   scanned the code, this seems to be the correct way, but might be wrong)
-! Modified by Th.Heinze, DWD, (2006-12-12): 
-! - renamed it to geostr_balance
-! Modified by F. Rauser, MPI (2009,10) for testcase 11 galewsky
-! Composite Simpson rule added by P. Dueben, MPI (2010,06)
-!
-! !REMARKS:
-! was htmp2 in previous code
 
 ! !INTERFACE:
     INTERFACE                        ! selected function

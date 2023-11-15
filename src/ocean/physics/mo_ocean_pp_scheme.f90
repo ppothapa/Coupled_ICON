@@ -108,8 +108,6 @@ CONTAINS
   !>
   !! 
   !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2016-12)
   !<Optimize:inUse:done>
   SUBROUTINE calculate_rho4GMRedi(patch_3d, temperature, salinity, rho_GM) 
 
@@ -295,8 +293,6 @@ CONTAINS
   !! As in the ICON_PP_scheme, but
   !! velocity gradients for the vertical viscocity are clculated on edges
   !!
-  !! @par Revision History
-  !! Initial release by Leonidas Linardakis, MPI-M (2011-02)
   !<Optimize:inUse:done>
   SUBROUTINE ICON_PP_Edge_scheme2(patch_3d, ocean_state, params_oce) !, calculate_density_func)
 
@@ -476,8 +472,6 @@ CONTAINS
   !! As in the ICON_PP_scheme, but
   !! velocity gradients for the vertical viscocity are clculated on edges
   !!
-  !! @par Revision History
-  !! Initial release by Leonidas Linardakis, MPI-M (2011-02)
   !<Optimize:inUse:done>
   SUBROUTINE ICON_PP_Edge_scheme(patch_3d, ocean_state, params_oce) !, calculate_density_func)
 
@@ -703,8 +697,6 @@ CONTAINS
 !! As in the ICON_PP_scheme, but
   !! velocity gradients for the vertical viscocity are clculated on edges
   !!
-  !! @par Revision History
-  !! Initial release by Leonidas Linardakis, MPI-M (2011-02)
   !<Optimize:inUse:done>
   SUBROUTINE ICON_PP_Edge_scheme_zstar(patch_3d, ocean_state, params_oce, &
       & eta_c, stretch_c, stretch_e) !, calculate_density_func)
@@ -936,8 +928,6 @@ CONTAINS
   !! This calculate vertical viscocity for the predicted vn
   !! and time-weights it with the previous viscocity
   !!
-  !! @par Revision History
-  !! Initial release by Leonidas Linardakis, MPI-M (2011-02)
   !<Optimize:inUse:done>
   SUBROUTINE ICON_PP_Edge_vnPredict_scheme(patch_3d, &
     & blockNo, start_index, end_index, ocean_state, vn_predict, use_acc) !, calculate_density_func)

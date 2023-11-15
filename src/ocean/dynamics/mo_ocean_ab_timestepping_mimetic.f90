@@ -206,8 +206,6 @@ CONTAINS
   !-------------------------------------------------------------------------
   !! !  Solves the free surface equation.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   SUBROUTINE solve_free_sfc_ab_mimetic(patch_3d, ocean_state, p_ext_data, p_as, p_oce_sfc, &
     & p_phys_param, timestep, op_coeffs, solverCoeff_sp, ret_status, use_acc)
     TYPE(t_patch_3d ),POINTER, INTENT(in) :: patch_3d
@@ -401,8 +399,6 @@ CONTAINS
   !>
   !! Computation of velocity predictor in Adams-Bashforth timestepping.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
 !<Optimize:inUse>
   SUBROUTINE calculate_explicit_term_ab( patch_3d, ocean_state, p_phys_param, &
@@ -867,8 +863,6 @@ CONTAINS
   !!  Calculation of right-hand side of elliptic surface equation.
   !!  This is used in semi implicit timelevel stepping.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
 !<Optimize:inUse>
   SUBROUTINE fill_rhs4surface_eq_ab( patch_3d, ocean_state, op_coeffs, use_acc)
@@ -1091,8 +1085,6 @@ CONTAINS
   !>
   !! Computation of new velocity in Adams-Bashforth timestepping.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
 !<Optimize:inUse>
   SUBROUTINE calc_normal_velocity_ab_mimetic(patch_3d,ocean_state, op_coeffs, use_acc)
@@ -1238,9 +1230,6 @@ CONTAINS
   !! vertical velocity is negative for positive divergence
   !! of horizontal velocity
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn,   MPI-M (2006).
-  !!  Modified by Stephan Lorenz, MPI-M (2010-06)
   !TODO review
 !<Optimize:inUse>
   SUBROUTINE calc_vert_velocity_mim_bottomup( patch_3d, ocean_state, op_coeffs, use_acc )

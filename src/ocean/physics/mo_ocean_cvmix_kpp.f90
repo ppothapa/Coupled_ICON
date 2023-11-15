@@ -326,8 +326,6 @@ CONTAINS
   !! This routine sets all required parameters for internal calculations with
   !! routine cvmix_coeffs_kpp
   !!  !!
-  !! @par Revision History
-  !! Initial release by Oliver Gutjahr, MPI-M (2019-04)
   !-------------------------------------------------------------------------
   SUBROUTINE setup_kpp()
     !---------------------------
@@ -385,8 +383,6 @@ CONTAINS
   !! Note 2: there is no matching of the mixing coefficients at the base of the
   !!         mixed layer by default.
   !! 
-  !! @par Revision History
-  !! Initial release by Oliver Gutjahr, MPI-M (2019-04)
   !-------------------------------------------------------------------------
 
 SUBROUTINE calc_kpp(patch_3d, ocean_state, params_oce, atmos_fluxes, p_oce_sfc, concsum)
@@ -719,8 +715,6 @@ SUBROUTINE calc_kpp(patch_3d, ocean_state, params_oce, atmos_fluxes, p_oce_sfc, 
   !! depth equals the present cell depth.
   !!
   !!
-  !! @par Revision History
-  !! Initial release by Oliver Gutjahr, MPI-M (2019-04)
   !-------------------------------------------------------------------------
   SUBROUTINE calc_surface_layer_averages(patch_3d, ocean_state, params_oce, &
                cellHeight_KPP, iFaceHeight_KPP, Coriolis, temp, salt, Tsurf, Ssurf, &

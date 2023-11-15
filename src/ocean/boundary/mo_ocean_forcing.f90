@@ -87,9 +87,6 @@ CONTAINS
   !
   !> Constructor of ocean surface model, allocates all components and assigns zero.
   !!
-  !! @par Revision History
-  !! Initial release by Stephan Lorenz, MPI-M (2015-06).
-  !! Modified by Vladimir Lapin,        MPI-M (2017-01).
   !! Combine with construct_ocean_forcing
   !
   SUBROUTINE construct_ocean_surface(p_patch_3D, p_oce_sfc)
@@ -123,7 +120,7 @@ CONTAINS
       &        t_cf_var('top_dilution_coeff', '', 'top_dilution_coeff', datatype_flt),&
       &        grib2_var(255, 255, 255, DATATYPE_PACK16, GRID_UNSTRUCTURED, GRID_CELL),&
       &        ldims=(/nproma,alloc_cell_blocks/), lrestart_cont=.false., in_group=groups("oce_force_essentials"))
-      
+
     IF (is_coupled_run()) THEN
       IF ( l_cpl_co2 ) THEN
         CALL add_var(ocean_restart_list, 'co2_mixing_ratio', p_oce_sfc%CO2_Mixing_Ratio, &
@@ -387,9 +384,6 @@ CONTAINS
   !>
   !! Destructor surface flux forcing for hydrostatic ocean
   !!
-  !! @par Revision History
-  !! Initial release by Stephan Lorenz, MPI-M (2010-07)
-  !! Modified by Vladimir Lapin,        MPI-M (2017-01)
   !
 !<Optimize:inUse>
   SUBROUTINE destruct_ocean_forcing(p_oce_sfc)
@@ -419,8 +413,6 @@ CONTAINS
   !>
   !! Constructor of atmospheric reprsentation  in ocean.
   !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2011-07)
   !
   SUBROUTINE construct_atmos_for_ocean(p_patch, p_as)
     !
@@ -489,8 +481,6 @@ CONTAINS
   !>
   !!  Destructor of atmospheric reprsentation  in ocean.
   !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2011)
   !
   SUBROUTINE destruct_atmos_for_ocean(p_as)
     !
@@ -594,8 +584,6 @@ CONTAINS
   !! Initialization of temperature and salinity relaxation for the hydrostatic ocean model.
   !! Temperature and salinity relaxation data are read from external data
   !
-  !! @par Revision History
-  !! Initial release by Stephan Lorenz, MPI-M, 2011-11
   !
   !-------------------------------------------------------------------------
   !
@@ -1354,8 +1342,6 @@ CONTAINS
   !!  Following common relation of wind stress to wind speed (e.g. Smith 1980)
   !!
   !
-  !! @par Revision History
-  !! Initial release by Stephan Lorenz, MPI-M, 2014-07
   !
   !-------------------------------------------------------------------------
   !

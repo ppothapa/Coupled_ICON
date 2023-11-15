@@ -77,8 +77,6 @@ CONTAINS
   !!
   !! Note: Not clear if all the included calclulations are needed
   !!
-  !! @par Revision History
-  !!  developed by Guenther Zaengl, 2009-03-31
   !!
 !<Optimize:inUse>
   SUBROUTINE complete_ocean_patch_geometry( patch_2D)

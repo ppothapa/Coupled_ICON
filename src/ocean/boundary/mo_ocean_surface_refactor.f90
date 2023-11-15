@@ -93,9 +93,6 @@ CONTAINS
   !>
   !! Apply Thermodynamic Equations for Thermal and Haline Boundary Conditions
   !!
-  !! @par Revision History
-  !! Initial release (mo_oce_bulk)          by Stephan Lorenz, MPI-M (2010-07)
-  !! Restructuring (mo_ocean_surface)       by Stephan Lorenz, MPI-M (2015-04)
   !
   SUBROUTINE apply_surface_fluxes_slo(p_patch_3D, p_os, p_ice, p_oce_sfc, use_acc)
 
@@ -796,8 +793,6 @@ CONTAINS
   !!           the ice surface are not updated, because they are only used in ice_fast,
   !!           and ice_fast is called within the atmosphere.
   !!
-  !! @par Revision History
-  !! Initial release by Vladimir Lapin, MPI-M (2016-11)
   !
 !<Optimize_Used>
   SUBROUTINE update_atmos_fluxes(p_patch_3D, p_as, atmos_fluxes, p_oce_sfc, p_os, p_ice, this_datetime, use_acc)
@@ -1050,8 +1045,6 @@ CONTAINS
   !! Update surface flux forcing for hydrostatic ocean
   !!
   !!
-  !! @par Revision History
-  !! Initial release by Stephan Lorenz, MPI-M (2010-07)
   !
 !<Optimize_Used>
   SUBROUTINE update_atmos_fluxes_analytical(p_patch_3D, p_os, p_ice, atmos_fluxes, p_oce_sfc, use_acc)

@@ -56,8 +56,6 @@ CONTAINS
   !-------------------------------------------------------------------------
   !! SUBROUTINE advects vertically the tracers present in the ocean model.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
   !! mpi parallelized, sync required: trac_out
 !<Optimize:inUse>
@@ -200,13 +198,9 @@ CONTAINS
   !! Calculation of time averaged vertical tracer fluxes using the third
   !! order PPM scheme.
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2009-08-12)
-  !! Modification by Daniel Reinert, DWD (2010-04-23)
   !! - generalized to height based vertical coordinate systems. Included
   !!   parameter coeff_grid, in order to apply the same code to either a
   !!   pressure based or height based vertical coordinate system.
-  !! Modification by Daniel Reinert, DWD (2011-01-17)
   !! - added optional parameter opt_lout_edge which will provide the
   !!   reconstructed 'edge' value.
   !!

@@ -44,8 +44,6 @@ CONTAINS
   !>
   !! !  Solves the free surface equation.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
 !<Optimize:inUse>
   SUBROUTINE solve_free_surface_eq_ab(patch_3D, ocean_state, external_data, p_as, p_oce_sfc, &
@@ -85,8 +83,6 @@ CONTAINS
   !>
   !! Computation of new velocity in Adams-Bashforth timestepping.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
 !<Optimize:inUse>
   SUBROUTINE calc_normal_velocity_ab(patch_3D, ocean_state, operators_coefficients, &
@@ -126,8 +122,6 @@ CONTAINS
   !! For the case of the semi-implicit-AB scheme the land-sea-mask may be applied
   !! at least after collecting the whole explicit term.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn,   MPI-M (2006).
   !!
 !<Optimize:inUse>
   SUBROUTINE calc_vert_velocity(patch_3D, ocean_state, operators_coefficients, use_acc)

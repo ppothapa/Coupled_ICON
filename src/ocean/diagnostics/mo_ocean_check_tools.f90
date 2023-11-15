@@ -43,9 +43,6 @@ CONTAINS
   !>
   !! Initialization of indices for some output on ocean variables
   !!
-  !! @par Revision History
-  !! Initial release by Stephan Lorenz, MPI-M (2010-11)
-  !! Modified        by Stephan Lorenz, MPI-M (2012-06)
   !!
 !<Optimize:inUse>
   SUBROUTINE init_oce_index (patch_2d, patch_3d, pstate_oce, p_ext_data)
@@ -256,7 +253,7 @@ CONTAINS
 
   END SUBROUTINE init_oce_index
   !-------------------------------------------------------------------------
-    
+
 
   !-------------------------------------------------------------------------
   !>

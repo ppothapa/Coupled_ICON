@@ -55,9 +55,6 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !>
-  !! @par Revision History
-  !! Developed by Peter Korn, MPI-M  (2008-2010).
-  !! Initial release by Stephan Lorenz, MPI-M (2010-07)
   !
 !<Optimize:inUse>
   SUBROUTINE output_ocean( &

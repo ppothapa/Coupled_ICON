@@ -146,8 +146,6 @@ CONTAINS
   !-------------------------------------------------------------------------
   !  The constructor of the types related to ocean diagnostics
   !>
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2011).
   !!
 !<Optimize:inUse>
   SUBROUTINE construct_oce_diagnostics( patch_3D, ocean_state )
@@ -439,8 +437,6 @@ CONTAINS
   !>
   !!
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2011).
   !!
 !<Optimize:inUse>
   SUBROUTINE destruct_oce_diagnostics()
@@ -1505,8 +1501,6 @@ CONTAINS
   !   (Atlantic, Pacific, Indian, global)
   !>
   !!
-  !! @par Revision History
-  !! Developed  by  Stephan Lorenz, MPI-M (2012).
   !!  based on code from MPIOM
   !
   ! TODO: implement variable output dimension (1 deg resolution) and smoothing extent
@@ -1790,8 +1784,6 @@ CONTAINS
   !
   !>
   !!
-  !! @par Revision History
-  !! Developed  by  Stephan Lorenz, MPI-M (2012).
   !!  based on code from MPIOM
   !
   ! TODO: implement variable output dimension (1 deg resolution) and smoothing extent
@@ -1981,8 +1973,6 @@ CONTAINS
   !>
   !>  Calculation of horizontal stream function using normal velocity on edges
   !!
-  !! @par Revision History
-  !! Developed  by  Stephan Lorenz, MPI-M (2014).
   !!
 !<Optimize:inUse>
   SUBROUTINE calc_psi_vn (patch_3D, vn, prism_thickness_e, op_coeff, u_vint, v_vint, this_datetime)

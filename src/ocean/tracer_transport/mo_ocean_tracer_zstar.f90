@@ -65,8 +65,7 @@ CONTAINS
   !! a central edges is a boundary edge.
   !! Note: This limiter is positive definite and almost monotone (but not strictly).
   !!
-  !! @par Literature:
-  !! - Zalesak, S.T. (1979): Fully Multidimensional Flux-corrected Transport
+  !!  Zalesak, S.T. (1979): Fully Multidimensional Flux-corrected Transport
   !!   Algorithms for Fluids. JCP, 31, 335-362
   !!
   !! Adapted for zstar

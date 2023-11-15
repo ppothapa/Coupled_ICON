@@ -91,8 +91,6 @@ CONTAINS
   !!    memory allocation.
   !! 2. External data are read in from netCDF file or set analytically
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2010-07-16)
   !!
 !<Optimize:inUse>
   SUBROUTINE construct_ocean_ext_data (p_patch, ext_data)
@@ -160,8 +158,6 @@ CONTAINS
   !!
   !! Initialization of elements with zero.
   !!
-  !! @par Revision History
-  !! Initial release by Daniel Reinert (2011-06-24)
   !!
 !<Optimize:inUse>
   SUBROUTINE new_ext_data_oce_list ( p_patch, p_ext_oce, p_ext_oce_list, &
@@ -294,8 +290,6 @@ CONTAINS
   !!
   !! Destruct external data data structure and lists
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2011-05-04)
   !!
 !<Optimize:inUse>
   SUBROUTINE destruct_ocean_ext_data
@@ -326,8 +320,6 @@ CONTAINS
   !!
   !! Read ocean external data from netcdf
   !!
-  !! @par Revision History
-  !! Initial revision by Stephan Lorenz, MPI (2011-06-17)
   !!
 !<Optimize:inUse>
   SUBROUTINE read_ext_data_oce (p_patch, ext_data)

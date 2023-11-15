@@ -1129,8 +1129,6 @@ CONTAINS
   !    Accurate and Computationally Efficient Algorithms for Potential
   !    Temperature and Density of Seawater. JAOT, 20, 730-741
   !
-  ! !REVISION HISTORY:
-  ! implemented by Peter Herrmann (2009)
   !
   SUBROUTINE calculate_density_jmdwfg06(patch_3d, tracer, rho)
     !
@@ -1548,8 +1546,6 @@ CONTAINS
   !    Accurate and Computationally Efficient Algorithms for Potential
   !    Temperature and Density of Seawater. JAOT, 20, 730-741
   !
-  ! !REVISION HISTORY:
-  ! implemented by Peter Herrmann (2009)
   !
   ELEMENTAL FUNCTION calculate_density_jmdwfg06_onColumn(temperature, salinity, p) result(rho)
 !NEC$ always_inline
@@ -1677,8 +1673,6 @@ CONTAINS
   !    Accurate and Computationally Efficient Algorithms for Potential
   !    Temperature and Density of Seawater. JAOT, 20, 730-741
   !
-  ! !REVISION HISTORY:
-  ! implemented by Peter Herrmann (2009)
   !
   FUNCTION density_jmdwfg06_function(temperature, salinity, p) result(rho)
     REAL(wp), INTENT(in)       :: temperature
@@ -1986,7 +1980,6 @@ CONTAINS
   !! Calculates neutral slopes from UNESCO EOS as described in Gill, Atmosphere-Ocean Dynamics, Appendix 3
   !! The code below is related EOS impl from MPIOM. Note that within this sbr the potential temperature
   !! ha to be converted into in-situ temperature !
-  !! Initial version by Peter Korn, MPI-M (2016)
   !!
 !<Optimize:inUse>
   FUNCTION calc_neutralslope_coeff_func_onColumn_UNESCO(tpot, sal, p, levels) result(coeff)

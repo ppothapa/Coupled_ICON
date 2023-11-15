@@ -134,8 +134,6 @@ CONTAINS
   !>
   !! Initialisation of ocean physics
   !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2010-07)
 !<Optimize:inUse:initOnly>
   SUBROUTINE init_ho_params(  patch_3d, physics_param, fu10 )
     TYPE(t_patch_3d ),POINTER, INTENT(in) :: patch_3d
@@ -599,8 +597,6 @@ CONTAINS
   !! The lower bound is given in units [m^2/s].
   !!
   !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2011-08)
   !
   SUBROUTINE calc_lower_bound_veloc_diff(  patch_2D, lower_bound_diff )
     TYPE(t_patch), TARGET, INTENT(in)  :: patch_2D
@@ -626,8 +622,6 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2011-08)
 !<Optimize:inUse:initOnly>
   SUBROUTINE smooth_lapl_diff( patch_3d, k_h, smoothFactor )
     TYPE(t_patch_3d ),TARGET, INTENT(in)   :: patch_3d
@@ -694,8 +688,6 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2011-08)
 !<Optimize:inUse:initOnly>
   SUBROUTINE smooth_lapl_diff_3D( patch_3d, k_h, smoothFactor )
     TYPE(t_patch_3d ),TARGET, INTENT(in)   :: patch_3d
@@ -776,8 +768,6 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2011-08)
 !<Optimize:inUse:initOnly>
   SUBROUTINE smooth_lapl_diff_verts_3D( patch_3d, k_h, smoothFactor )
     TYPE(t_patch_3d ),TARGET, INTENT(in)   :: patch_3d
@@ -871,8 +861,6 @@ CONTAINS
   !! What is missing is the fractional ice cover (see eqs. (15-16)).
   !! Eq. (18) is the Redi part that is not implemented, yet
   !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2011-02)
 !<Optimize:inUse:done>
   SUBROUTINE update_ho_params(patch_3d, ocean_state, fu10, concsum, params_oce,op_coeffs, atmos_fluxes, p_oce_sfc, use_acc)
     !, calculate_density_func)
@@ -1027,8 +1015,6 @@ CONTAINS
   !!
   !! Liteature: Fox-Kemper, Menemenlis, Can Large Eddy Simulations improve Mesoscale Rich Ocean Models ?
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   SUBROUTINE calculate_LeithClosure_harmonic_vort(patch_3d, ocean_state, param, operators_coeff)
     TYPE(t_patch_3d ),TARGET, INTENT(in)             :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET                :: ocean_state
@@ -1120,8 +1106,6 @@ CONTAINS
   !!
   !! Liteature: Fox-Kemper, Menemenlis, Can Large Eddy Simulations improve Mesoscale Rich Ocean Models ?
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   SUBROUTINE calculate_LeithClosure_harmonic_vort_w(patch_3d, ocean_state, param, operators_coeff)
     TYPE(t_patch_3d ),TARGET, INTENT(in)             :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET                :: ocean_state
@@ -1482,8 +1466,6 @@ CONTAINS
   !!
   !! Liteature: Fox-Kemper, Menemenlis, Can Large Eddy Simulations improve Mesoscale Rich Ocean Models ?
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   SUBROUTINE calculate_LeithClosure_harmonic_vort_div(patch_3d, ocean_state, param, operators_coeff)
     TYPE(t_patch_3d ),TARGET, INTENT(in)             :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET                :: ocean_state
@@ -1615,8 +1597,6 @@ CONTAINS
   !!
   !! Liteature: Fox-Kemper, Menemenlis, Can Large Eddy Simulations improve Mesoscale Rich Ocean Models ?
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   SUBROUTINE calculate_LeithClosure_harmonicDivGrad_VortDiv(patch_3d, ocean_state, param, operators_coeff)
     TYPE(t_patch_3d ),TARGET, INTENT(in)             :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET                :: ocean_state
@@ -1724,8 +1704,6 @@ CONTAINS
   !!
   !! Liteature: Fox-Kemper, Menemenlis, Can Large Eddy Simulations improve Mesoscale Rich Ocean Models ?
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   !!
   SUBROUTINE calculate_LeithClosure_biharmonic(patch_3d, ocean_state, param, operators_coeff)
     TYPE(t_patch_3d ),TARGET, INTENT(in)             :: patch_3d
@@ -1944,8 +1922,6 @@ CONTAINS
   !>
   !! !  SUBROUTINE calculates importan physical numbers: Richardson number, Buoancy frequency, baroclinic wave speed, Rossby radius.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2016).
   !!
 !<Optimize:inUse>
   SUBROUTINE calc_characteristic_physical_numbers(patch_3d, ocean_state)

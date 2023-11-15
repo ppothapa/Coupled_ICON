@@ -2,8 +2,6 @@
 !
 ! Contains the implementation of the mathematical operators for the ocean.
 !
-! @par To Do
-! Boundary exchange, nblks in presence of halos and dummy edge
 !
 !
 ! ICON
@@ -225,15 +223,6 @@ CONTAINS
   !! input: lives on centres of triangles
   !! output:  lives on edges (velocity points)
   !!
-  !! @par Revision History
-  !! Developed  by  Luca Bonaventura, MPI-M (2002-5).
-  !! Adapted to new data structure by Peter Korn
-  !! and Luca Bonaventura, MPI-M (2005).
-  !! Modifications by P. Korn, MPI-M(2007-2)
-  !! -Switch fom array arguments to pointers
-  !! Modification by Almut Gassmann, MPI-M (2007-04-20)
-  !! - abandon grid for the sake of patch_2D
-  !!Boundary handling for triangles by P. Korn (2009)
   !!
   !!  mpi note: the result is on edges_in_domain.
 !<Optimize:inUse>
@@ -372,21 +361,6 @@ CONTAINS
   !! input:  lives on edges (velocity points)
   !! output: lives on centers of triangles
   !!
-  !! @par Revision History
-  !! Developed  by  Luca Bonaventura, MPI-M (2002-5).
-  !! Changes according to programming guide by Thomas Heinze, DWD (2006-08-18).
-  !! Modification by Thomas Heinze, DWD (2006-09-11):
-  !! - loop only over the inner cells of a patch_2D, not any more over halo cells
-  !! Modifications by P. Korn, MPI-M(2007-2)
-  !! - Switch fom array arguments to pointers
-  !! Modification by Almut Gassmann, MPI-M (2007-04-20)
-  !! - abandon grid for the sake of patch_2D
-  !! Modification by Guenther Zaengl, DWD (2009-03-17)
-  !! - vector optimization
-  !! Modification by Peter Korn, MPI-M    (2009)
-  !! - Boundary treatment for the ocean
-  !! Modification by Stephan Lorenz, MPI-M (2010-08-05)
-  !! - New boundary definition with inner and boundary points on land/sea
   !!
 !<Optimize:inUse>
   SUBROUTINE div_oce_3D_mlevels_onTriangles( vec_e, patch_3D, div_coeff, div_vec_c, opt_start_level, opt_end_level, &
@@ -624,21 +598,6 @@ CONTAINS
   !! input:  lives on edges (velocity points)
   !! output: lives on centers of triangles
   !!
-  !! @par Revision History
-  !! Developed  by  Luca Bonaventura, MPI-M (2002-5).
-  !! Changes according to programming guide by Thomas Heinze, DWD (2006-08-18).
-  !! Modification by Thomas Heinze, DWD (2006-09-11):
-  !! - loop only over the inner cells of a patch_2D, not any more over halo cells
-  !! Modifications by P. Korn, MPI-M(2007-2)
-  !! - Switch fom array arguments to pointers
-  !! Modification by Almut Gassmann, MPI-M (2007-04-20)
-  !! - abandon grid for the sake of patch_2D
-  !! Modification by Guenther Zaengl, DWD (2009-03-17)
-  !! - vector optimization
-  !! Modification by Peter Korn, MPI-M    (2009)
-  !! - Boundary treatment for the ocean
-  !! Modification by Stephan Lorenz, MPI-M (2010-08-05)
-  !! - New boundary definition with inner and boundary points on land/sea
   !!
 !<Optimize:inUse>
   SUBROUTINE div_oce_3D_mlevels( vec_e, patch_3D, div_coeff, div_vec_c, opt_start_level, opt_end_level, &
@@ -776,21 +735,6 @@ CONTAINS
   !! input:  lives on edges (velocity points)
   !! output: lives on centers of triangles
   !!
-  !! @par Revision History
-  !! Developed  by  Luca Bonaventura, MPI-M (2002-5).
-  !! Changes according to programming guide by Thomas Heinze, DWD (2006-08-18).
-  !! Modification by Thomas Heinze, DWD (2006-09-11):
-  !! - loop only over the inner cells of a patch_2D, not any more over halo cells
-  !! Modifications by P. Korn, MPI-M(2007-2)
-  !! - Switch fom array arguments to pointers
-  !! Modification by Almut Gassmann, MPI-M (2007-04-20)
-  !! - abandon grid for the sake of patch_2D
-  !! Modification by Guenther Zaengl, DWD (2009-03-17)
-  !! - vector optimization
-  !! Modification by Peter Korn, MPI-M    (2009)
-  !! - Boundary treatment for the ocean
-  !! Modification by Stephan Lorenz, MPI-M (2010-08-05)
-  !! - New boundary definition with inner and boundary points on land/sea
   !!
   SUBROUTINE div_oce_3D_1level( vec_e, patch_2D, div_coeff, div_vec_c,  &
     & level, subset_range, use_acc)
@@ -1158,15 +1102,6 @@ CONTAINS
   !! input: lives on centres of triangles
   !! output:  lives on edges (velocity points)
   !!
-  !! @par Revision History
-  !! Developed  by  Luca Bonaventura, MPI-M (2002-5).
-  !! Adapted to new data structure by Peter Korn
-  !! and Luca Bonaventura, MPI-M (2005).
-  !! Modifications by P. Korn, MPI-M(2007-2)
-  !! -Switch fom array arguments to pointers
-  !! Modification by Almut Gassmann, MPI-M (2007-04-20)
-  !! - abandon grid for the sake of patch_2D
-  !! Boundary handling for triangles by P. Korn (2009)
   !!  mpi note: the result is not synced. Should be done in the calling method if required
   !!
 !<Optimize:inUse>
@@ -1569,8 +1504,6 @@ CONTAINS
   !!    start level has to be specifed, at end level value zero is assigned to vert. derivative
   !!    start_level should be > 1
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   !!
 !<Optimize:inUse>
   SUBROUTINE verticalDeriv_vec_midlevel_on_block(patch_3d, vec_in, vertDeriv_vec,start_level, &
@@ -1624,8 +1557,6 @@ CONTAINS
   !! i.e. at the center of a 3D prism.
   !!    start level has to be specifed, at end level value zero is assigned to vert. derivative
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   !!
 !<Optimize:inUse>
   SUBROUTINE verticalDeriv_scalar_onHalfLevels_on_block(patch_3d, scalar_in, vertDeriv_scalar, start_level, &
@@ -1711,8 +1642,6 @@ CONTAINS
   !!    i.e. at the center of a 3D prism.
   !!    start level has to be specifed, at end level value zero is assigned to vert. derivative
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   !!
 !<Optimize:inUse>
   SUBROUTINE verticalDiv_scalar_onFullLevels_on_block(patch_3d, scalar_in, vertDiv_scalar, start_level, &
@@ -2301,8 +2230,6 @@ CONTAINS
   !!  cell edges from prognostic surface height at cell centers. We use height at
   !!  old timelevel "n"
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
 !<Optimize:inUse>
   SUBROUTINE calculate_thickness( patch_3D, ocean_state, p_ext_data, operators_coefficients, &
@@ -2808,8 +2735,6 @@ CONTAINS
   !!  cell edges from prognostic surface height at cell centers. We use height at
   !!  old timelevel "n"
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
 !<Optimize:inUse>
   SUBROUTINE update_thickness_dependent_operator_coeff( patch_3D, ocean_state, &

@@ -391,9 +391,6 @@ CONTAINS
   !>
   !! sbr identical to sbr above but now with homogeneous boundary conditions
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2011).
-  !! Preconditioning by Leonidas Linardakis, MPI-M (2014)
   !!
   !! The result ocean_tracer%concetration is calculated on domain_cells
   !-------------------------------------------------------------------------
@@ -497,9 +494,6 @@ CONTAINS
   !>
   !! sbr identical to sbr above but now with homogeneous boundary conditions
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2011).
-  !! Preconditioning by Leonidas Linardakis, MPI-M (2014)
   !!
   !! The result ocean_tracer%concetration is calculated on domain_cells
   SUBROUTINE tracer_diffusion_vertical_implicit_r0( patch_3D,               &
@@ -1151,8 +1145,6 @@ CONTAINS
   !!
   !! NOT USED
   !!
-  !! @par Revision History
-  !! Peter Korn (2012-2)
 !  SUBROUTINE update_diffusion_matrices(   patch_3D,          &
 !                                         & p_phys_param,       &
 !                                         & matrix_vert_diff_e, &

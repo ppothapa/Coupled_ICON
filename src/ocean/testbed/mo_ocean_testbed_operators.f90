@@ -1,7 +1,5 @@
 ! Contains the implementation of the mathematical operators for the ocean.
 !
-! @par To Do
-! Boundary exchange, nblks in presence of halos and dummy edge
 !
 !
 ! ICON

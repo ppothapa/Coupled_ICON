@@ -90,7 +90,7 @@ CONTAINS
 
   END SUBROUTINE top_bound_cond_horz_veloc
   !-------------------------------------------------------------------------
-    
+
   !-------------------------------------------------------------------------
   !>
   !! Computes top boundary condition for horizontal velocity. This information
@@ -99,8 +99,6 @@ CONTAINS
   !!
   !! The forcing fluxes are provided by mo_ho_forcing
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn,         MPI-M (2010)
   !<Optimize:inUse>
   SUBROUTINE top_bound_cond_horz_veloc_onEdges( patch_3D, ocean_state, p_op_coeff) 
     !
@@ -482,7 +480,7 @@ CONTAINS
 
   END SUBROUTINE VelocityBottomBoundaryCondition_onBlock
   !-------------------------------------------------------------------------
-  
+
   !-------------------------------------------------------------------------
   !>
   !! Computes bottom boundary condition for horizontal velocity.
@@ -493,9 +491,6 @@ CONTAINS
   !!
   !!
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
-  !! Modified by Stephan Lorenz,     MPI-M (2010-07)
 !<Optimize:inUse>
   SUBROUTINE bot_bound_cond_horz_veloc( patch_3D, ocean_state, physics_parameters, p_op_coeff)
     !
@@ -658,8 +653,6 @@ CONTAINS
 ! !   !! sbr calulates  Pu dot P (nabla H), this corresponds to
 ! !   !! continuous top boundary conditiopn u dot nabla H
 ! !   !!
-! !   !! @par Revision History
-! !   !! Developed  by  Peter Korn, MPI-M (2010).
 ! !   !!  mpi parallelized LL
 ! !   !!
 ! !   SUBROUTINE bot_bound_cond_vert_veloc( patch_2D, patch_3D, ocean_state, bot_bc_w )
@@ -751,8 +744,6 @@ CONTAINS
 ! !   !! sbr calulates (h^(n+1)-h^n)/dt + Pu dot P (nabla h), this corresponds to
 ! !   !! continuous top boundary condition d_t h +u dot nabla h
 ! !   !!
-! !   !! @par Revision History
-! !   !! Developed  by  Peter Korn, MPI-M (2010).
 ! !   !!   no-mpi parallelized
 ! !   !!
 ! !   SUBROUTINE top_bound_cond_vert_veloc( patch_2D, ocean_state, top_bc_w, timestep)!, p_int )
@@ -877,15 +868,13 @@ CONTAINS
 ! !     ENDIF
 ! !   END SUBROUTINE top_bound_cond_vert_veloc
 ! !   !-------------------------------------------------------------------------
-  
-  !-------------------------------------------------------------------------
+
+!-------------------------------------------------------------------------
   !>
   !! Computes top boundary condition for tracer specified by tracer_id.
   !! d C/dz
   !!
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
 !<Optimize:inUse>
   SUBROUTINE top_bound_cond_tracer( patch_2D, pstate_oce, tracer_id, p_oce_sfc, top_bc_tracer)
     
@@ -948,14 +937,12 @@ CONTAINS
     
   END SUBROUTINE top_bound_cond_tracer
   !-------------------------------------------------------------------------
-  
+
   !-------------------------------------------------------------------------
   !>
   !! Computes bottom boundary condition for tracer specified by tracer_id.
   !!
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!  mpi parallelized LL (no sync required)
   !!
   SUBROUTINE bot_bound_cond_tracer( patch_2D, pstate_oce, tracer_id, bot_bc_tracer)

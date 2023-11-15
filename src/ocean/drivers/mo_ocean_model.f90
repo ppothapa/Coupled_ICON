@@ -494,8 +494,6 @@ MODULE mo_ocean_model
   !>
   !! Simple method_name for preparing hydrostatic ocean model.
   !!
-  !! @par Revision History
-  !! Initial release by Stephan Lorenz, MPI-M (2010-07)
 !<Optimize:inUse>
   SUBROUTINE construct_ocean_states(patch_3d, ocean_state, external_data, &
     & p_phys_param, p_as,&

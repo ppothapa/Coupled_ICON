@@ -216,9 +216,6 @@ CONTAINS
   !>
   !! Main stepping routine for call of hydrostatic ocean model
   !!
-  !! @par Revision History
-  !! Developed by Peter Korn, MPI-M  (2008-2010).
-  !! Initial release by Stephan Lorenz, MPI-M (2010-07)
   !
 !<Optimize:inUse>
   SUBROUTINE perform_ho_stepping( patch_3d, ocean_state, p_ext_data,    &
