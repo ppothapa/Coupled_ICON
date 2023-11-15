@@ -225,8 +225,12 @@ CONTAINS
     !$ACC   CREATE(cfm_tile, cfh, cfh_tile, cfv, cftotte, cfthv, zaa) &
     !$ACC   CREATE(zaa_btm, zbb, zbb_btm, zfactor_sfc, ddt_u, ddt_v) &
     !$ACC   CREATE(zthvvar, ztottevn, zch_tile, kedisp, tend_ua_vdf) &
-    !$ACC   CREATE(tend_va_vdf, tend_wa_vdf, q_vdf, tend_qtrc_vdf, q_snocpymlt, zco2, zxt_emis) &
+    !$ACC   CREATE(tend_va_vdf, tend_wa_vdf, q_vdf, tend_qtrc_vdf, q_snocpymlt, zco2) &
+#if !(defined(_CRAYFTN) && _RELEASE_MAJOR <= 16)
+    !ACCWA zero sized arrays are not properly supported (CAST-33010) and cause here 
+    ! weird "present" error
     !$ACC   CREATE(tend_qtrc_vdf_dummy) &
+#endif
     !$ACC   CREATE(tend_ta_sfc, q_rlw_impl, tend_ta_rlw_impl, tend_ta_vdf) &
     !$ACC   CREATE(ts_tile, z0m_tile, ustar, wstar_tile, rlus) &
     !$ACC   CREATE(albvisdir_ice, albnirdir_ice, albvisdif_ice) &
@@ -234,7 +238,6 @@ CONTAINS
     !$ACC   CREATE(albvisdir, albnirdir, albvisdif, albnirdif) &
     !$ACC   CREATE(albvisdir_tile, albnirdir_tile, albvisdif_tile) &
     !$ACC   CREATE(albnirdif_tile, albedo, albedo_tile) &
-    !$ACC   CREATE(qi_hori_tend, ql_hori_tend, qv_hori_tend, ta_hori_tend) &
     !$ACC   CREATE(qnc_hori_tend, qni_hori_tend)
 
     IF ( is_dry_cbl ) THEN
@@ -310,7 +313,7 @@ CONTAINS
           END IF
           !
           ! DA: fuse all the 1D copies in a single ACC kernel
-          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+          !$ACC PARALLEL NO_CREATE(zxt_emis) DEFAULT(PRESENT) ASYNC(1)
           SELECT CASE (ccycle_config(jg)%iccycle)
              !
           CASE (0) ! no c-cycle

@@ -2536,7 +2536,7 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
   IF (assimilation_config(jg)%lhn_wweight) THEN
     !$ACC PARALLEL LOOP GANG VECTOR &
     !$ACC   DEFAULT(PRESENT) PRIVATE(ip, umean, vmean, zvb) &
-    !$ACC   REDUCTION(+: n_windcor, n_windcor0) PRIVATE(ip, umean, vmean, zvb) ASYNC(1)
+    !$ACC   REDUCTION(+: n_windcor, n_windcor0) ASYNC(1)
 !NEC$ ivdep
     DO i = 1, ntreat
       ip = treat_list(i)

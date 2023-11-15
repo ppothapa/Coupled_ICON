@@ -416,8 +416,16 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
       nzprv = 1
 
       !$ACC KERNELS ASYNC(1) DEFAULT(PRESENT)
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+      ! ACCWA (Cray Fortran <= 16.0.1.1) : explicit type conversion fails with HSA memory error CAST-32450
+      ! In principle, implicit conversion works correctly, however, for code readability 
+      ! this should be removed when compiler is fixed 
+      ut_sso(:,:)=prm_nwp_tend%ddt_u_sso(:,:,jb)
+      vt_sso(:,:)=prm_nwp_tend%ddt_v_sso(:,:,jb)
+#else
       ut_sso(:,:)=REAL(prm_nwp_tend%ddt_u_sso(:,:,jb), wp)
       vt_sso(:,:)=REAL(prm_nwp_tend%ddt_v_sso(:,:,jb), wp)
+#endif
       !$ACC END KERNELS
 
       IF (timers_level > 9) CALL timer_start(timer_nwp_turbdiff)

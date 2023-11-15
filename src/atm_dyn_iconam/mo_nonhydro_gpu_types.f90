@@ -121,8 +121,15 @@ CONTAINS
     END IF
 
     !$ACC WAIT(1)
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    ! ACCWA (Cray Fortran 16.0.1) : p_int_state and p_int_state_local_parent are interpreted
+    !  as already deleted; I think this is bug so treat as a workaround for time being
+    !$ACC EXIT DATA DELETE(p_patch, p_patch_local_parent) &
+    !$ACC   DELETE(p_nh_state, prep_adv, advection_config, les_config, num_lev)
+#else
     !$ACC EXIT DATA DELETE(p_int_state, p_int_state_local_parent, p_patch, p_patch_local_parent) &
     !$ACC   DELETE(p_nh_state, prep_adv, advection_config, les_config, num_lev)
+#endif
 
   END SUBROUTINE d2h_icon
 

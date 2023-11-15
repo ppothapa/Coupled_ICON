@@ -125,6 +125,11 @@ CONTAINS
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jk,nlen)
+    ! DEFAULT(PRESENT) may check for whole nh_pzlev_config, however, as it is
+    ! allocated (COPYIN) only one element at the time check explicitly only
+    ! the current element
+    !$ACC PARALLEL PRESENT(nh_pzlev_config(jg:jg)) DEFAULT(PRESENT) ASYNC(1)
+    !$ACC LOOP SEQ
     DO jb = 1,nblks_c
 
       IF (jb /= nblks_c) THEN
@@ -133,7 +138,6 @@ CONTAINS
         nlen = npromz_c
       ENDIF
 
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
       !$ACC LOOP SEQ
       DO jk = 1, z_nplev
         !$ACC LOOP GANG(STATIC: 1) VECTOR
@@ -157,9 +161,9 @@ CONTAINS
           nh_pzlev_config(jg)%i3d(jc,jk,jb) = nh_pzlev_config(jg)%ilevels%values(jk)
         ENDDO
       ENDDO
-      !$ACC END PARALLEL
 
     ENDDO
+    !$ACC END PARALLEL
 !$OMP END DO
 !$OMP END PARALLEL
     

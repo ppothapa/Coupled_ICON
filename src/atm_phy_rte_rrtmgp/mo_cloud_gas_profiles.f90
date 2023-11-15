@@ -218,22 +218,31 @@ CONTAINS
     DO igas=1,ngases
       SELECT CASE (dom_gas(igas)%irad)
       CASE (0) ! gas concentration is 0
-        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
-        gas_profile(jcs:jce,:,igas) = 0.0_wp
-        !$ACC END KERNELS
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1)
+        DO jk=1,klev
+          gas_profile(jcs:jce,jk,igas) = 0.0_wp
+        END DO
+        !$ACC END PARALLEL LOOP
       CASE (1) ! gas is taken from interactive (so transported) tracer
         !note that trasported species are in MMR ...
-        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
-        gas_profile(jcs:jce,:,igas) = xq_trc(jcs:jce,:,dom_gas(igas)%itrac) * dom_gas(igas)%mmr2vmr
-        !$ACC END KERNELS
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1)
+        DO jk=1,klev
+          gas_profile(jcs:jce,jk,igas) = xq_trc(jcs:jce,jk,dom_gas(igas)%itrac) * dom_gas(igas)%mmr2vmr
+        END DO
+        !$ACC END PARALLEL LOOP
+
       CASE (2,12) ! gas concentration is set from namelist value
-        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
-        gas_profile(jcs:jce,:,igas) = dom_gas(igas)%vmr
-        !$ACC END KERNELS
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1)
+        DO jk=1,klev
+            gas_profile(jcs:jce,jk,igas) = dom_gas(igas)%vmr
+        END DO
+        !$ACC END PARALLEL LOOP
       CASE (3,13) ! gas concentration is taken from greenhouse dom_gas scenario
-        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
-        gas_profile(jcs:jce,:,igas) = dom_gas(igas)%vmr_scenario
-        !$ACC END KERNELS
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1)
+        DO jk=1,klev
+          gas_profile(jcs:jce,jk,igas) = dom_gas(igas)%vmr_scenario
+        END DO
+        !$ACC END PARALLEL LOOP
       
       !  O3
       CASE (4) ! ozone is constant in time in climatology, first time is used
@@ -273,6 +282,7 @@ CONTAINS
               &          o3_time_int = zo3_timint,              &
               &          o3_clim     = gas_profile(:,:,igas),   &
               &          opt_use_acc = use_acc                  )
+        !$ACC WAIT
         !$ACC END DATA
         DEALLOCATE(zo3_timint)
       END SELECT
@@ -324,6 +334,7 @@ CONTAINS
     END DO
     !$ACC END PARALLEL LOOP
     
+    !$ACC WAIT
     !$ACC END DATA
   END SUBROUTINE gas_profiles
 
