@@ -54,22 +54,13 @@ ICON_DIAG_FCFLAGS='-hlist=a'
 
 LDFLAGS="-L${ECCODES_ROOT}/lib64 -L${FYAML_ROOT}/lib -L${XML2_ROOT}/lib"
 
-# The compiler does not inject RPATHs to several runtime libraries (e.g.
-# libfabric.so), therefore we generate the required flags based on the
-# LD_LIBRARY_PATH variable set by the modules that are loaded in BUILD_ENV:
-extra_rpath_dirs=$(unset LD_LIBRARY_PATH; { set +eu; eval "${BUILD_ENV}"; set -eu; } >/dev/null; echo "${LD_LIBRARY_PATH}")
-ICON_LDFLAGS="-Wl,--disable-new-dtags -Wl,--as-needed -Wl,-rpath,${extra_rpath_dirs}"
+ICON_LDFLAGS="-Wl,--disable-new-dtags -Wl,--as-needed"
 
 LIBS="${XML2_LIBS} ${FYAML_LIBS} ${ECCODES_LIBS} ${ZLIB_LIBS}"
 
 CMAKE="${sw_root}/gcc-12.2.0-zen2/cmake-3.21.4/bin/cmake"
 
-# Note that generated list of flags will contain RPATHs to the custom libraries
-# because BUILD_ENV not only loads the modules but also extends the
-# LD_LIBRARY_PATH variable for the configure scripts and test suites of the
-# bundled libraries to work. Therefore, we configure ICON with --disable-rpaths
-# to avoid duplicate RPATH entries in the ICON executable:
-EXTRA_CONFIG_ARGS='--disable-rpaths --disable-mpi-checks --enable-openmp --enable-grib2 --enable-loop-exchange --enable-fcgroup-O0 --enable-fcgroup-DIAG'
+EXTRA_CONFIG_ARGS='--disable-mpi-checks --enable-openmp --enable-grib2 --enable-loop-exchange --enable-fcgroup-O0 --enable-fcgroup-DIAG'
 
 ################################################################################
 

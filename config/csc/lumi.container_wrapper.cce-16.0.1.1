@@ -1,7 +1,6 @@
 #!/bin/bash
 
-unset CDPATH
-
+current_dir=$(pwd)
 script_dir=$(unset CDPATH; cd "$(dirname "$0")" && pwd)
 icon_dir=$(unset CDPATH; cd "${script_dir}/../.." && pwd)
 
@@ -11,10 +10,11 @@ container=/scratch/project_465000454/cpe/ccpe-rocm-5.4.1-16.0.1.1.sif
 
 module --force purge
 
-singularity exec --cleanenv --rocm \
-  --bind "${PWD}" \
-  --bind "${icon_dir}" \
-  --bind "${sw}" \
-  --bind "${pool}" \
-  "${container}" \
-  "$@"
+set dummy --bind "${current_dir}" --bind "${sw}" --bind "${pool}" "${container}" "$@"; shift
+
+# Do not bind ${icon_dir} if we build in-source:
+if test "x${current_dir}" != "x${icon_dir}"; then
+  set dummy --bind "${icon_dir}" "$@"; shift
+fi
+
+singularity exec --cleanenv --rocm "$@"

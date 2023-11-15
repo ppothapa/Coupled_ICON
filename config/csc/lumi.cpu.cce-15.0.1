@@ -62,8 +62,8 @@ ICON_LDFLAGS="-Wl,--disable-new-dtags -Wl,--as-needed -Wl,-rpath,${extra_rpath_d
 
 LIBS="${XML2_LIBS} ${FYAML_LIBS} ${ECCODES_LIBS} ${ZLIB_LIBS}"
 
-# Note that generated list of flags will contain RPATHs to the custom libraries
-# because BUILD_ENV not only loads the modules but also extends the
+# Note that the generated list of flags will contain RPATHs to the custom
+# libraries because BUILD_ENV not only loads the modules but also extends the
 # LD_LIBRARY_PATH variable for the configure scripts and test suites of the
 # bundled libraries to work. Therefore, we configure ICON with --disable-rpaths
 # to avoid duplicate RPATH entries in the ICON executable:
