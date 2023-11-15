@@ -137,7 +137,7 @@ MODULE mo_2mom_mcrph_processes
        & set_qnh_expPSD_N0const,     &
        & estick_ltab_equi
 
-  USE mo_fortran_tools, ONLY: set_acc_host_or_device
+  USE mo_fortran_tools, ONLY: set_acc_host_or_device, assert_acc_device_only, init
 
   IMPLICIT NONE
 
@@ -5557,10 +5557,10 @@ CONTAINS
   ! Sedimentation subroutines for ICON
   !*******************************************************************************
 
-  SUBROUTINE sedi_icon_rain (rain,rain_coeffs,qp,np,precrate,precrate3D,qc,rhocorr,adz,dt, &
-      &                      its,ite,kts,kte,cmax) !
+  SUBROUTINE sedi_icon_rain (rain_in,rain_coeffs,qp,np,precrate,precrate3D,qc,rhocorr,adz,dt, &
+      &                      its,ite,kts,kte,cmax,lacc)
 
-    CLASS(particle), INTENT(in)             :: rain
+    CLASS(particle), TARGET,INTENT(in)      :: rain_in
     TYPE(particle_rain_coeffs), INTENT(in)  :: rain_coeffs
     INTEGER,  INTENT(IN)                    :: its,ite,kts,kte
     REAL(wp), DIMENSION(:,:), INTENT(INOUT) :: qp,np,precrate3D
@@ -5568,6 +5568,7 @@ CONTAINS
     REAL(wp), DIMENSION(:),   INTENT(INOUT) :: precrate
     REAL(wp), INTENT(IN)                    :: dt
     REAL(wp), INTENT(INOUT), OPTIONAL       :: cmax
+    CLASS(particle),POINTER                 :: rain ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     INTEGER  :: i, k
     REAL(wp) :: x_p,D_m,D_p,mue,v_n,v_q
@@ -5576,15 +5577,26 @@ CONTAINS
 
 !!$ Activate the new explicit and more stable boxtracking sedimentation method:
 !!$  (http://www.cosmo-model.org/content/model/documentation/core/docu_sedi_twomom.pdf)
-    LOGICAL, PARAMETER :: lboxtracking = .true.
+    LOGICAL, PARAMETER :: lboxtracking = .true. ! lboxtracking = .false. is not supported on GPU
 
-#ifdef _OPENACC
-    CALL finish("sedi_icon_rain", "Routine has not been ported to openACC yet.")
-#endif
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
-    v_n_sedi(:,kts-1) = 0.0_wp
-    v_q_sedi(:,kts-1) = 0.0_wp
-       
+    !-----------------------------------------------------------------------
+    CALL assert_acc_device_only("sedi_icon_rain", lacc)
+
+    !$ACC DATA CREATE(v_n_sedi, v_q_sedi)
+
+    rain => rain_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+    !$ACC LOOP GANG VECTOR
+    DO i = its,ite
+      v_n_sedi(i,kts-1) = 0.0_wp
+      v_q_sedi(i,kts-1) = 0.0_wp
+    ENDDO
+    !$ACC END PARALLEL
+
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(x_p, D_m, mue, D_p, v_n, v_q)
     DO k = kts,kte
       DO i = its,ite
 
@@ -5618,6 +5630,7 @@ CONTAINS
         ENDIF
       END DO
     END DO
+    !$ACC END PARALLEL
 
     IF (lboxtracking) THEN
       CALL sedi_icon_box_core(v_n_sedi, v_q_sedi, adz, dt, its, ite, kts, kte, &
@@ -5627,12 +5640,15 @@ CONTAINS
                           np, qp, precrate, precrate3D, cmax)
     END IF
 
+    !$ACC WAIT
+    !$ACC END DATA
+
   END SUBROUTINE sedi_icon_rain
 
-  SUBROUTINE sedi_icon_sphere (ptype,pcoeffs,qp,np,precrate,precrate3D,rhocorr,adz,dt, &
-      &                  its,ite,kts,kte,cmax) !
+  SUBROUTINE sedi_icon_sphere (ptype_in,pcoeffs,qp,np,precrate,precrate3D,rhocorr,adz,dt, &
+      &                  its,ite,kts,kte,cmax,lacc)
 
-    CLASS(particle), INTENT(in)             :: ptype
+    CLASS(particle),TARGET, INTENT(in)      :: ptype_in
     CLASS(particle_sphere), INTENT(in)      :: pcoeffs
     INTEGER, INTENT(IN)                     :: its,ite,kts,kte
     REAL(wp), DIMENSION(:,:), INTENT(INOUT) :: qp,np,precrate3D
@@ -5640,6 +5656,7 @@ CONTAINS
     REAL(wp), DIMENSION(:),   INTENT(INOUT) :: precrate
     REAL(wp), INTENT(IN)                    :: dt
     REAL(wp), INTENT(INOUT), OPTIONAL       :: cmax
+    CLASS(particle),POINTER                 :: ptype ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     INTEGER  :: i, k
     REAL(wp) :: x_p,v_n,v_q,lam
@@ -5648,15 +5665,28 @@ CONTAINS
 
 !!$ Activate the new explicit and more stable boxtracking sedimentation method:
 !!$  (http://www.cosmo-model.org/content/model/documentation/core/docu_sedi_twomom.pdf)
-    LOGICAL, PARAMETER :: lboxtracking = .true.
+    LOGICAL, PARAMETER :: lboxtracking = .true. ! lboxtracking = .false. is not supported on GPU
 
-#ifdef _OPENACC
-    CALL finish("sedi_icon_sphere", "Routine has not been ported to openACC yet.")
-#endif
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
-    v_n_sedi(:, kts-1) = 0.0_wp
-    v_q_sedi(:, kts-1) = 0.0_wp
+    !-----------------------------------------------------------------------
+    CALL assert_acc_device_only("sedi_icon_sphere", lacc)
 
+    !$ACC DATA CREATE(v_n_sedi, v_q_sedi)
+
+    ptype => ptype_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
+
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+    !$ACC LOOP GANG VECTOR
+    DO i = its,ite
+      v_n_sedi(i, kts-1) = 0.0_wp
+      v_q_sedi(i, kts-1) = 0.0_wp
+    ENDDO
+    !$ACC END PARALLEL
+
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(x_p, lam, v_n, v_q)
     DO k = kts,kte
       DO i = its,ite
         IF (qp(i,k) > q_crit) THEN
@@ -5681,6 +5711,7 @@ CONTAINS
         END IF
       END DO
     END DO
+    !$ACC END PARALLEL
 
     IF (lboxtracking) THEN
       CALL sedi_icon_box_core(v_n_sedi, v_q_sedi, adz, dt, its, ite, kts, kte, &
@@ -5690,12 +5721,18 @@ CONTAINS
                           np, qp, precrate, precrate3D, cmax)
     END IF
 
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO k=kts,kte
       DO i = its,ite
         np(i,k) = MIN(np(i,k), qp(i,k)/ptype%x_min)
         np(i,k) = MAX(np(i,k), qp(i,k)/ptype%x_max)
       END DO
     END DO
+    !$ACC END PARALLEL
+
+    !$ACC WAIT
+    !$ACC END DATA
 
   END SUBROUTINE sedi_icon_sphere
 
@@ -5721,7 +5758,7 @@ CONTAINS
 
 !!$ Activate the new explicit and more stable boxtracking sedimentation method:
 !!$  (http://www.cosmo-model.org/content/model/documentation/core/docu_sedi_twomom.pdf)
-    LOGICAL, PARAMETER :: lboxtracking = .true.
+    LOGICAL, PARAMETER :: lboxtracking = .true. ! lboxtracking = .false. is not supported on GPU
 
 #ifdef _OPENACC
     CALL finish("sedi_icon_sphere_lwf", "Routine has not been ported to openACC yet.")
@@ -5917,6 +5954,10 @@ CONTAINS
     INTEGER :: i, k, kk, k_c, k_p
     REAL(wp) :: cmax_temp, odt, cmax_j
 
+#ifdef _OPENACC
+    CALL finish("mo_2mom_mcrph_processes", "sedi_icon_core is not supported on GPU")
+#endif
+
     dz(its:ite,kts:kte) = 1.0_wp / adz(its:ite,kts:kte)
 
     odt = 1.0_wp / dt
@@ -6020,6 +6061,10 @@ CONTAINS
     INTEGER :: i, k, kk, k_c, k_p
     REAL(wp) :: cmax_temp, odt
 
+#ifdef _OPENACC
+    CALL finish("mo_2mom_mcrph_processes", "sedi_icon_core is not supported on GPU")
+#endif
+
     dz(its:ite,kts:kte) = 1.0_wp / adz(its:ite,kts:kte)
 
     odt = 1.0_wp / dt
@@ -6108,6 +6153,10 @@ CONTAINS
     REAL(wp), DIMENSION(its:ite,kts:kte)   :: s_nv, s_qv
     REAL(wp), DIMENSION(its:ite,kts:kte+1) :: dz
     REAL(wp)                               :: cmax_temp, cmax_j, odt
+
+#ifdef _OPENACC
+    CALL finish("mo_2mom_mcrph_processes", "The NEC version of sedi_icon_box_core is not supported on GPU")
+#endif
 
     dz(its:ite,kts:kte) = 1.0_wp / adz(its:ite,kts:kte)
     ! .. dummy value for level kte+1, does not have an effect but is needed
@@ -6226,16 +6275,33 @@ CONTAINS
     REAL(wp), DIMENSION(its:ite,kts:kte+1) :: dz
     REAL(wp)                               :: cmax_temp, odt, dz_loc
 
-    dz(its:ite,kts:kte) = 1.0_wp / adz(its:ite,kts:kte)
-    ! .. dummy value for level kte+1, does not have an effect but is needed
-    !    to prevent an array bound violation below:
-    dz(its:ite,kte+1) = dz(its:ite,kte)
+    !$ACC DATA CREATE(q_fluss, n_fluss, s_nv, s_qv, dz)
+
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+    DO k = kts, kte
+      DO i = its,ite
+        dz(i,k) = 1.0_wp / adz(i,k)
+        IF (k == kte) THEN
+          ! .. dummy value for level kte+1, does not have an effect but is needed
+          !    to prevent an array bound violation below:
+          dz(i,k+1) = dz(i,k)
+        ENDIF
+      ENDDO
+    ENDDO
+    !$ACC END PARALLEL
 
     odt = 1.0_wp / dt
 
-    ! .. Upper boundary condition on fluxes:
-    q_fluss(:, 1-IAND(kts, 1))  = 0.0_wp
-    n_fluss(:, 1-IAND(kts, 1))  = 0.0_wp
+
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+    !$ACC LOOP GANG VECTOR
+    DO i = its,ite
+      ! .. Upper boundary condition on fluxes:
+      q_fluss(i, 1-IAND(kts, 1))  = 0.0_wp
+      n_fluss(i, 1-IAND(kts, 1))  = 0.0_wp
+    ENDDO
+    !$ACC END PARALLEL
 
     IF (PRESENT(cmax)) THEN
       cmax_temp = cmax
@@ -6243,10 +6309,13 @@ CONTAINS
       cmax_temp = 0.0_wp
     END IF
 
-    s_nv(:,:) = 0.0_wp
-    s_qv(:,:) = 0.0_wp
+    CALL init(s_nv, opt_acc_async=.TRUE.)
+    CALL init(s_qv, opt_acc_async=.TRUE.)
 
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) REDUCTION(MAX: cmax_temp)
+    !$ACC LOOP SEQ
     DO k = kts, kte
+      !$ACC LOOP GANG VECTOR PRIVATE(v_nv, v_qv, kk, dz_loc) REDUCTION(MAX: cmax_temp)
       DO i = its,ite
 
         v_nv = v_n_sedi(i,k)
@@ -6277,19 +6346,28 @@ CONTAINS
 
       END DO
     END DO
+    !$ACC END PARALLEL
 
     ! .. Divide the time-aggregated flux by dt to get the time-averaged
     !    flux and give a negative sign because fluxes are directed downward:
 
-    s_nv(:,:) = -s_nv(:,:) * odt
-    s_qv(:,:) = -s_qv(:,:) * odt
-
-
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO k = kts, kte
+      DO i = its,ite
+        s_nv(i,k) = -s_nv(i,k) * odt
+        s_qv(i,k) = -s_qv(i,k) * odt
+      END DO
+    END DO
+    !$ACC END PARALLEL
 
+
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+    !$ACC LOOP SEQ
+    DO k = kts, kte
       k_c = IAND(k, 1)
       k_p = 1-IAND(k, 1)
-
+      !$ACC LOOP GANG VECTOR
       DO i = its,ite
 
         ! .. Flux-limiter to avoid negative values:
@@ -6304,10 +6382,19 @@ CONTAINS
 
       ENDDO
     END DO
+    !$ACC END PARALLEL
 
     IF (PRESENT(cmax)) cmax = cmax_temp
 
-    precrate(its:ite) = - q_fluss(its:ite,IAND(kte, 1)) ! precipitation rate at ground
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+    !$ACC LOOP GANG VECTOR
+    DO i = its,ite
+      precrate(i) = - q_fluss(i,IAND(kte, 1)) ! precipitation rate at ground
+    ENDDO
+    !$ACC END PARALLEL
+
+    !$ACC WAIT
+    !$ACC END DATA
 
   END SUBROUTINE sedi_icon_box_core
 #endif
