@@ -756,16 +756,16 @@ MODULE mo_ensemble_pert_config
       ENDDO
     ENDIF
 
-    CALL random_gen(rnd_lhn_coef, rnd_num)
+    CALL random_gen(rnd_lhn_coef, rnd_num, .TRUE.)
     assimilation_config(1:max_dom)%lhn_coef = lhn_coef_sv(1:max_dom) + 2._wp*(rnd_num-0.5_wp)*range_lhn_coef
 
-    CALL random_gen(rnd_lhn_artif_fac, rnd_num)
+    CALL random_gen(rnd_lhn_artif_fac, rnd_num, .TRUE.)
     assimilation_config(1:max_dom)%fac_lhn_artif_tune = lhn_artif_fac_sv(1:max_dom) + 2._wp*(rnd_num-0.5_wp)*range_lhn_artif_fac
 
-    CALL random_gen(rnd_fac_lhn_down, rnd_num)
+    CALL random_gen(rnd_fac_lhn_down, rnd_num, .TRUE.)
     assimilation_config(1:max_dom)%fac_lhn_down = MIN(1._wp, fac_lhn_down_sv(1:max_dom) + 2._wp*(rnd_num-0.5_wp)*range_fac_lhn_down)
 
-    CALL random_gen(rnd_fac_lhn_up, rnd_num)
+    CALL random_gen(rnd_fac_lhn_up, rnd_num, .TRUE.)
     assimilation_config(1:max_dom)%fac_lhn_up = MAX(1._wp, fac_lhn_up_sv(1:max_dom) + 2._wp*(rnd_num-0.5_wp)*range_fac_lhn_up)
 
 #ifdef _OPENACC
@@ -911,12 +911,21 @@ MODULE mo_ensemble_pert_config
   END SUBROUTINE compute_ensemble_pert
 
   ! Auxiliary routine to switch between equally distributed and discrete random numbers
-  SUBROUTINE random_gen(rnd_in, rnd_val)
+  SUBROUTINE random_gen(rnd_in, rnd_val, lhn_mode)
 
     REAL(wp), INTENT(INOUT) :: rnd_in
     REAL(wp), INTENT(OUT) :: rnd_val
+    LOGICAL,  INTENT(IN), OPTIONAL :: lhn_mode
 
     REAL(wp) :: rnd_aux, phaseshift
+    LOGICAL  :: force_type1
+
+    ! LHN perturbations need to be independent of itype_pert_gen
+    IF (PRESENT(lhn_mode)) THEN
+      force_type1 = lhn_mode
+    ELSE
+      force_type1 = .FALSE.
+    ENDIF
 
     IF (linit) THEN
 
@@ -926,7 +935,7 @@ MODULE mo_ensemble_pert_config
 #if defined (__SX__) || defined (__NEC_VH__)
       CALL p_bcast(rnd_aux, p_io, p_comm_work)
 #endif
-      IF (itype_pert_gen == 1) THEN
+      IF (itype_pert_gen == 1 .OR. force_type1) THEN
         rnd_val = rnd_aux
       ELSE IF (itype_pert_gen == 2) THEN
         IF (rnd_aux < 0.25_wp) THEN
