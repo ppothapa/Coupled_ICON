@@ -2274,7 +2274,7 @@ library: either use the bundled version of FORTRAN-SUPPORT dnl
 accordingly])])],
 dnl
   [icon_subdir_srcdir="$srcdir/externals/fortran-support"
-   icon_subdir_unique_file="src/mo_util_backtrace.f90"
+   icon_subdir_unique_file="src/mo_util_backtrace.F90"
    AS_IF([test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"],
      [AC_MSG_ERROR([unable to find sources of the bundled version of dnl
 FORTRAN-SUPPORT library ($icon_subdir_unique_file) in '$icon_subdir_srcdir': dnl

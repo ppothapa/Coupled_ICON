@@ -250,7 +250,6 @@ MODULE mo_mpi
   USE yaxt,                   ONLY: xt_initialize, xt_initialized
 #endif
   USE mo_exception,           ONLY: init_logger
-  USE mo_util_backtrace,      ONLY: ftn_util_backtrace
 
   IMPLICIT NONE
 
@@ -2687,7 +2686,6 @@ CONTAINS
                      nerr_unit=nerr, &
                      l_extra_output=(proc_split .AND. comm_lev > 0 .AND. get_glob_proc0() == p_pe_work),&
                      extra_info_prefix='PROC SPLIT', &
-                     callback_traceback=ftn_util_backtrace, &
                      callback_abort=abort_mpi)
 
   END SUBROUTINE start_mpi

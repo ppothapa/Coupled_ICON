@@ -9895,7 +9895,7 @@ ${icon_usr_note}" "$LINENO" 5; }
 fi
 else
     icon_subdir_srcdir="$srcdir/externals/fortran-support"
-   icon_subdir_unique_file="src/mo_util_backtrace.f90"
+   icon_subdir_unique_file="src/mo_util_backtrace.F90"
    if test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"; then :
   as_fn_error $? "unable to find sources of the bundled version of FORTRAN-SUPPORT library ($icon_subdir_unique_file) in '$icon_subdir_srcdir': provide an external version of FORTRAN-SUPPORT library (--with-external-fortran-support) by setting FCFLAGS, LDFLAGS and LIBS accordingly" "$LINENO" 5
 fi
