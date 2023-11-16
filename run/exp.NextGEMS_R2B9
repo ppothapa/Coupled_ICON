@@ -59,13 +59,11 @@ jsbach_namelist=NAMELIST_${EXPNAME}_lnd
 
 # JSBACH settings
 jsbach_usecase=jsbach_lite    # jsbach_lite or jsbach_pfts
-jsbach_with_lakes=yes
 jsbach_with_carbon=no         # yes needs jsbach_pfts usecase
 
 # Some further processing for land configuration
 # ----------------------------------------------
 #
-llake=$([ "${jsbach_with_lakes:=yes}" == yes ]    && echo .TRUE. || echo .FALSE. )
 lcarbon=$([ "${jsbach_with_carbon:=yes}" == yes ] && echo .TRUE. || echo .FALSE. )
 #
 if [[ $jsbach_usecase == *pfts* ]]
@@ -117,7 +115,7 @@ cat > ${atmo_namelist} << EOF
  num_io_procs         = ${mpi_atm_io_procs}
  io_proc_chunk_size   = 46
  io_process_stride    = 8
- num_restart_procs    = $((atm_procs/8))
+ num_restart_procs    = 992  ! prelim
 /
 &grid_nml
  dynamics_grid_filename = ${atmo_dyn_grids}
@@ -133,6 +131,8 @@ cat > ${atmo_namelist} << EOF
  msg_level            = 12          ! level of details report during integration
  restart_filename     = "${EXPNAME}_restart_atm_<rsttime>.mfr"
  activate_sync_timers = .TRUE.
+ profiling_output     = 1
+ timers_level         = 10
 /
 &extpar_nml
  itopo                = 1           ! 1: read topography from the grid file
@@ -200,13 +200,13 @@ cat > ${atmo_namelist} << EOF
  aes_phy_config(1)%lamip  = .TRUE.
  aes_phy_config(1)%lice   = .TRUE.
  aes_phy_config(1)%lmlo   = .FALSE.
- aes_phy_config(1)%llake  = ${llake}
+ aes_phy_config(1)%llake  = .TRUE.
 
  aes_phy_config(1)%iqneg_d2p = 2
  aes_phy_config(1)%iqneg_p2d = 2
 /
 &aes_rad_nml
- aes_rad_config(1)%isolrad    = 6
+ aes_rad_config(1)%isolrad    = 1 ! Time dependent solar spectrum from file
  aes_rad_config(1)%irad_h2o   = 1
  aes_rad_config(1)%irad_co2   = 2
  aes_rad_config(1)%irad_ch4   = 12
@@ -227,6 +227,7 @@ cat > ${atmo_namelist} << EOF
 &aes_vdf_nml
  aes_vdf_config(1)%turb       = 2
  aes_vdf_config(1)%pr0        = 0.7
+! aes_vdf_config(1)%use_tmx    = .TRUE. ! adapted to ngc3039, does not work proper yet
 ! aes_vdf_config(1)%lmix_max   = 150.
 /
 &aes_cov_nml
@@ -234,15 +235,26 @@ cat > ${atmo_namelist} << EOF
 /
 &aes_cop_nml
  aes_cop_config(1)%cinhomi  = 1.0
- aes_cop_config(1)%cinhoml1 = 0.66
- aes_cop_config(1)%cinhoml2 = 0.66
- aes_cop_config(1)%cinhoml3 = 0.66
+ aes_cop_config(1)%cinhoml1 = 0.4
+ aes_cop_config(1)%cinhoml2 = 0.4
+ aes_cop_config(1)%cinhoml3 = 0.4
  aes_cop_config(1)%cn1lnd   = 50.0
  aes_cop_config(1)%cn1sea   = 50.0
  aes_cop_config(1)%cn2lnd   = 220.0
  aes_cop_config(1)%cn2sea   = 100.0
 /
 &cloud_mig_nml
+/
+&sea_ice_nml
+ albedow_sim  = 0.10
+ albi         = 0.70
+ albim        = 0.65
+ albs         = 0.80
+ albsm        = 0.65
+ i_ice_dyn    = 1
+ i_ice_therm  = 1
+ leadclose_1  = 0.25
+ leadclose_2n = 0.666
 /
 EOF
 
@@ -252,7 +264,8 @@ EOF
 cat > ${jsbach_namelist} << EOF
 &jsb_model_nml
  usecase             = "${jsbach_usecase}"
- use_lakes           = ${llake}
+ use_lakes           = .TRUE.
+! use_tmx             = .TRUE.    ! adapted to ngc3039, does not work proper yet
  fract_filename      = 'bc_land_frac.nc'
  init_from_ifs       = .TRUE.
 /
@@ -268,10 +281,11 @@ cat > ${jsbach_namelist} << EOF
 &jsb_turb_nml
  bc_filename         = 'bc_land_phys.nc'
  ic_filename         = 'ic_land_soil.nc'
+! max_ini_rough_m     = 2.0 ! has to be set with tmx!
 /
 &jsb_sse_nml
- l_heat_cap_map      = .TRUE.
- l_heat_cond_map     = .TRUE.
+ l_heat_cap_map      = .FALSE.
+ l_heat_cond_map     = .FALSE.
  l_heat_cap_dyn      = .FALSE.
  l_heat_cond_dyn     = .FALSE.
  l_snow              = .TRUE.
@@ -341,17 +355,17 @@ add_required_file ${basedir}/run/${dict_file}                             ./
 
 # initial and boundary conditions
 # 
-datadir=${icon_data_poolFolder}/0015/initial_condition/r0002
+datadir=${icon_data_poolFolder}/${grid_id}/initial_condition/r0002
 add_link_file $datadir/ifs2icon_2020012000_R02B09_G.nc                    ./ifs2icon.nc
 #
-datadir=${icon_data_poolFolder}/0015/ozone/r0002
+datadir=${icon_data_poolFolder}/${grid_id}/ozone/r0002
 add_link_file $datadir/bc_ozone_historical_2014.nc                        ./bc_ozone.nc
 # 
-datadir=${icon_data_poolFolder}/0015/sst_and_seaice/r0002
+datadir=${icon_data_poolFolder}/${grid_id}/sst_and_seaice/r0002
 add_link_file $datadir/bc_sic_2020.nc                                     ./bc_sic.nc
 add_link_file $datadir/bc_sst_2020.nc                                     ./bc_sst.nc
 #
-datadir=${icon_data_poolFolder}/0015/aerosol_kinne/r0002
+datadir=${icon_data_poolFolder}/${grid_id}/aerosol_kinne/r0002
 add_link_file $datadir/bc_aeropt_kinne_lw_b16_coa.nc                      ./
 add_link_file $datadir/bc_aeropt_kinne_sw_b14_coa.nc                      ./
 add_link_file $datadir/bc_aeropt_kinne_sw_b14_fin_2020.nc                 ./bc_aeropt_kinne_sw_b14_fin.nc
@@ -420,9 +434,8 @@ if [[ "$output_atm_2d" == "yes" ]]; then
  filetype         = 5
  mode             = 1
  output_start     = "${start_date}"
- output_end       = "${end_date}" 
- include_last     = .false.
- output_interval  = 'P1D'
+ output_end       = "${end_date}"
+ output_interval  = "${atm_output_interval_2d}" !
  file_interval    = "${atm_file_interval}"    !     the file interval
  operation        = 'mean'
  ml_varlist       = 'psl'     ,

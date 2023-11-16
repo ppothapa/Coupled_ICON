@@ -66,13 +66,11 @@ jsbach_namelist=NAMELIST_${EXPNAME}_lnd
 
 # JSBACH settings
 jsbach_usecase=jsbach_lite    # jsbach_lite or jsbach_pfts
-jsbach_with_lakes=yes
 jsbach_with_carbon=no         # yes needs jsbach_pfts usecase
 
 # Some further processing for land configuration
 # ----------------------------------------------
 #
-llake=$([ "${jsbach_with_lakes:=yes}" == yes ]    && echo .TRUE. || echo .FALSE. )
 lcarbon=$([ "${jsbach_with_carbon:=yes}" == yes ] && echo .TRUE. || echo .FALSE. )
 #
 if [[ $jsbach_usecase == *pfts* ]]
@@ -99,7 +97,7 @@ atm_file_interval="P1D"
 
 # output_<xyz>=yes : yes --> output files for <xyz>, any other value --> no files for <xyz>
 
-output_atm_vgrid=yes              # produces 1 file, but only once
+output_atm_vgrid=no               # produces 1 file, but only once
 output_atm_2d=yes                 # produces 1 files
 output_atm_3d=yes                 # produces 3 files
 
@@ -124,7 +122,7 @@ cat > ${atmo_namelist} << EOF
  num_io_procs         = ${mpi_atm_io_procs}
  io_proc_chunk_size   = 46
  io_process_stride    = 8
- num_restart_procs    = $((atm_procs/8))
+ num_restart_procs    = 10 !prelim
 /
 &grid_nml
  dynamics_grid_filename = ${atmo_dyn_grids}
@@ -207,13 +205,13 @@ cat > ${atmo_namelist} << EOF
  aes_phy_config(1)%lamip  = .TRUE.
  aes_phy_config(1)%lice   = .TRUE.
  aes_phy_config(1)%lmlo   = .FALSE.
- aes_phy_config(1)%llake  = ${llake}
+ aes_phy_config(1)%llake  = .TRUE.
 
  aes_phy_config(1)%iqneg_d2p = 2
  aes_phy_config(1)%iqneg_p2d = 2
 /
 &aes_rad_nml
- aes_rad_config(1)%isolrad    = 1
+ aes_rad_config(1)%isolrad    = 1 ! Time dependent solar spectrum from file
  aes_rad_config(1)%irad_h2o   = 1
  aes_rad_config(1)%irad_co2   = 2
  aes_rad_config(1)%irad_ch4   = 12
@@ -234,21 +232,33 @@ cat > ${atmo_namelist} << EOF
 &aes_vdf_nml
  aes_vdf_config(1)%turb       = 2
  aes_vdf_config(1)%pr0        = 0.7
+! aes_vdf_config(1)%use_tmx    = .TRUE. ! adapted to ngc3039, does not work proper yet
 /
 &aes_cov_nml
  aes_cov_config(1)%cqx        = 1.e-6
 /
 &aes_cop_nml
  aes_cop_config(1)%cinhomi  = 1.0
- aes_cop_config(1)%cinhoml1 = 0.66
- aes_cop_config(1)%cinhoml2 = 0.66
- aes_cop_config(1)%cinhoml3 = 0.66
+ aes_cop_config(1)%cinhoml1 = 0.4
+ aes_cop_config(1)%cinhoml2 = 0.4
+ aes_cop_config(1)%cinhoml3 = 0.4
  aes_cop_config(1)%cn1lnd   = 50.0
  aes_cop_config(1)%cn1sea   = 50.0
  aes_cop_config(1)%cn2lnd   = 220.0
  aes_cop_config(1)%cn2sea   = 100.0
 /
 &cloud_mig_nml
+/
+&sea_ice_nml
+ albedow_sim  = 0.10
+ albi         = 0.70
+ albim        = 0.65
+ albs         = 0.80
+ albsm        = 0.65
+ i_ice_dyn    = 1
+ i_ice_therm  = 1
+ leadclose_1  = 0.25
+ leadclose_2n = 0.666
 /
 EOF
 
@@ -258,7 +268,8 @@ EOF
 cat > ${jsbach_namelist} << EOF
 &jsb_model_nml
  usecase             = "${jsbach_usecase}"
- use_lakes           = ${llake}
+ use_lakes           = .TRUE.
+! use_tmx             = .TRUE.    ! adapted to ngc3039, does not work proper yet
  fract_filename      = 'bc_land_frac.nc'
  init_from_ifs       = .TRUE.
 /
@@ -274,10 +285,11 @@ cat > ${jsbach_namelist} << EOF
 &jsb_turb_nml
  bc_filename         = 'bc_land_phys.nc'
  ic_filename         = 'ic_land_soil.nc'
+! max_ini_rough_m     = 2.0 ! has to be set with tmx!
 /
 &jsb_sse_nml
- l_heat_cap_map      = .TRUE.
- l_heat_cond_map     = .TRUE.
+ l_heat_cap_map      = .FALSE.
+ l_heat_cond_map     = .FALSE.
  l_heat_cap_dyn      = .FALSE.
  l_heat_cond_dyn     = .FALSE.
  l_snow              = .TRUE.
@@ -286,13 +298,13 @@ cat > ${jsbach_namelist} << EOF
  l_supercool         = .FALSE.
  bc_filename         = 'bc_land_soil.nc'
  ic_filename         = 'ic_land_soil.nc'
- l_soil_texture      = .FALSE.
+ l_soil_texture      = .TRUE.
 /
 &jsb_hydro_nml
  bc_filename         = 'bc_land_soil.nc'
  ic_filename         = 'ic_land_soil.nc'
  bc_sso_filename     = 'bc_land_sso.nc'
- l_soil_texture      = .FALSE.
+ l_soil_texture      = .TRUE.
 /
 &jsb_assimi_nml
  active              = .FALSE.              ! Use FALSE for jsbach_lite, TRUE for jsbach_pfts
@@ -347,17 +359,17 @@ add_required_file ${basedir}/run/${dict_file}                             ./
 
 # initial and boundary conditions
 # 
-datadir=${icon_data_poolFolder}/0033/initial_condition/r0003
+datadir=${icon_data_poolFolder}/${grid_id}/initial_condition/r0003
 add_link_file $datadir/ifs2icon_2016080100_R02B08_G.nc                    ./ifs2icon.nc
 #
-datadir=${icon_data_poolFolder}/0033/ozone/r0001
+datadir=${icon_data_poolFolder}/${grid_id}/ozone/r0001
 add_link_file $datadir/bc_ozone_historical_2014.nc                        ./bc_ozone.nc
 # 
-datadir=${icon_data_poolFolder}/0033/sst_and_seaice/r0001
+datadir=${icon_data_poolFolder}/${grid_id}/sst_and_seaice/r0001
 add_link_file $datadir/bc_sic_2016.nc                                     ./bc_sic.nc
 add_link_file $datadir/bc_sst_2016.nc                                     ./bc_sst.nc
 #
-datadir=${icon_data_poolFolder}/0033/aerosol_kinne/r0002
+datadir=${icon_data_poolFolder}/${grid_id}/aerosol_kinne/r0002
 add_link_file $datadir/bc_aeropt_kinne_lw_b16_coa.nc                      ./
 add_link_file $datadir/bc_aeropt_kinne_sw_b14_coa.nc                      ./
 add_link_file $datadir/bc_aeropt_kinne_sw_b14_fin_2016.nc                 ./bc_aeropt_kinne_sw_b14_fin.nc
@@ -368,7 +380,7 @@ add_link_file $datadir/greenhouse_gases/greenhouse_ssp245.nc              ./bc_g
 datadir=${icon_data_poolFolder}/independent/solar_radiation/3.2
 add_link_file $datadir/swflux_14band_cmip6_1850-2299-v3.2.nc              ./bc_solar_irradiance_sw_b14.nc
 #
-datadir=${icon_data_poolFolder}/0033/land/r0001
+datadir=${icon_data_poolFolder}/${grid_id}/land/r0001
 add_link_file $datadir/ic_land_soil_2015.nc                               ./ic_land_soil.nc
 add_link_file $datadir/bc_land_frac_2015.nc                               ./bc_land_frac.nc
 add_link_file $datadir/bc_land_phys_2015.nc                               ./bc_land_phys.nc
@@ -419,14 +431,14 @@ fi
 if [[ "$output_atm_2d" == "yes" ]]; then
   #
   cat >> ${atmo_namelist} << EOF
-&output_nml !
+&output_nml
  output_filename  = "${EXPNAME}_atm_2d_ml"
  filename_format  = "<output_filename>_<datetime2>"
  filetype         = 5
  mode             = 1
  output_start     = "${start_date}"
- output_end       = "${end_date}" 
- output_interval  = "${atm_output_interval_2d}" !     the output interval and
+ output_end       = "${end_date}"
+ output_interval  = "${atm_output_interval_2d}" !
  file_interval    = "${atm_file_interval}"    !     the file interval
  operation        = 'mean'
  ml_varlist       = 'psl'     ,
@@ -438,13 +450,13 @@ if [[ "$output_atm_2d" == "yes" ]]; then
                     'pr'      , 'prw'     , 'cllvi'   , 'clivi'   ,
                     'hfls'    , 'hfss'    , 'evspsbl' ,
                     'tauu'    , 'tauv'    ,
-                    'sfcwind' , 'tas'     , 
-       !                                        ! Variables not used for quickplots
+                    'sfcwind' , 'tas'     ,
+!                      ! Variables not used for quickplots, but for tables
                     'ps'      , 'cosmu0'  ,
                     'sic'     , 'sit'     ,
                     'albedo'  ,
                     'prlr'    , 'prls'    ,
-                    'qgvi'    , 'qrvi'    , 'qsvi'    , 
+                    'qgvi'    , 'qrvi'    , 'qsvi'    ,
                     'uas'     , 'vas'     , 'dew2'    ,
                     'cptgzvi' , 'uphyvi'  , 'udynvi',
                     'ssfl_tsa', 'rsfl_tsa', 'shfl_qsa',
@@ -463,7 +475,7 @@ if [[ "$output_atm_3d" == "yes" ]]; then
  filetype         = 5
  mode             = 1
  output_start     = "${start_date}"
- output_end       = "${end_date}" 
+ output_end       = "${end_date}"
  operation        = 'mean'
  output_interval  = "${atm_output_interval_3d}" !     the output interval and
  file_interval    = "${atm_file_interval}"    !     the file interval
@@ -475,7 +487,7 @@ if [[ "$output_atm_3d" == "yes" ]]; then
  filetype         = 5
  mode             = 1
  output_start     = "${start_date}"
- output_end       = "${end_date}" 
+ output_end       = "${end_date}"
  operation        = 'mean'
  output_interval  = "${atm_output_interval_3d}" !     the output interval and
  file_interval    = "${atm_file_interval}"    !     the file interval
@@ -487,11 +499,11 @@ if [[ "$output_atm_3d" == "yes" ]]; then
  filetype         = 5
  mode             = 1
  output_start     = "${start_date}"
- output_end       = "${end_date}" 
+ output_end       = "${end_date}"
  operation        = 'mean'
  output_interval  = "${atm_output_interval_3d}" !     the output interval and
  file_interval    = "${atm_file_interval}"    !     the file interval
- ml_varlist       = 'hus', 'pfull',
+ ml_varlist       = 'wa', 'hus', 'pfull',
 /
 EOF
 fi
