@@ -1104,9 +1104,9 @@ CONTAINS
           IF ((1.e6_wp * reff_snow(i, j)) > reimax) THEN
             snow_bnd_lw%tau(i, j, band) = snow_bnd_lw%tau(i, j, band) * reimax / (1.e6_wp * reff_snow(i, j))
           END IF
+          tau_snow(i, j) = tau_snow(i, j) + snow_bnd_lw%tau(i, j, band)
         END DO
       END DO
-      tau_snow(1:ncol, 1:klev) = tau_snow(1:ncol, 1:klev) + snow_bnd_lw%tau(1:ncol, 1:klev, band)
     END DO
     !$ACC END PARALLEL LOOP
     !--jsr
@@ -1367,9 +1367,9 @@ CONTAINS
           IF ((1.e6_wp * reff_snow(i, j)) > reimax) THEN
             snow_bnd_sw%tau(i, j, band) = snow_bnd_sw%tau(i, j, band) * reimax / (1.e6_wp * reff_snow(i, j))
           END IF
+          tau_snow(i, j) = tau_snow(i, j) + snow_bnd_sw%tau(i, j, band)
         END DO
       END DO
-      tau_snow(1:ncol, 1:klev) = tau_snow(1:ncol, 1:klev) + snow_bnd_sw%tau(1:ncol, 1:klev, band)
     END DO
     !$ACC END PARALLEL LOOP
     !--jsr

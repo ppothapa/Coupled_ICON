@@ -434,13 +434,21 @@ CONTAINS
     !$ACC DATA PRESENT(xm_snw, xq_trc, xm_air)
     SELECT CASE (aes_rad_config(jg)%irad_h2o)
     CASE (0)
-      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
-      xm_snw(jcs:jce,:)=0._wp
-      !$ACC END KERNELS
+      !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
+      DO jk=1,klev
+        DO jl = jcs,jce
+            xm_snw(jl,jk) = 0._wp
+        END DO
+      END DO
+      !$ACC END PARALLEL LOOP
     CASE (1)
-      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
-      xm_snw(jcs:jce,:) = MAX(xq_trc(jcs:jce,:,iqs)*xm_air(jcs:jce,:)*frad,0._wp)
-      !$ACC END KERNELS
+      !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
+      DO jk=1,klev
+        DO jl = jcs,jce
+            xm_snw(jl,jk) = MAX(xq_trc(jl,jk,iqs) * xm_air(jl,jk) * frad, 0._wp)
+        END DO
+      END DO
+      !$ACC END PARALLEL LOOP
     END SELECT
     !$ACC WAIT
     !$ACC END DATA
