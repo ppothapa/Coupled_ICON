@@ -5778,7 +5778,7 @@ run\_nml:iforcing = inwp; inwp\_cldcover = 1
 
 \hline
 tune\_box\_liq\_sfc\_fac&
-R&
+R (max\_dom)&
 1.0&
 &
 Tuning factor for box\_liq reduction near the surface&
@@ -5921,6 +5921,17 @@ run\_nml:iforcing = inwp\\
 albedo\_type=2
 \tabularnewline
 
+\hline
+itune\_slopecorr&
+I&
+0&
+&
+Tuning measures for high-resolution configurations with mesh sizes around or below 1 km\\
+0: None\\
+1: Slope-dependent reduction of laminar transfer resistance and near-surface minimum vertical diffusion &
+run\_nml:iforcing = inwp\\
+inwp\_turb=1
+\tabularnewline
 
 \hline
 itune\_o3&
@@ -8484,7 +8495,8 @@ imode\_tkesso &
 I                &      1      & &
 mode of calculat. the SSO source term for TKE production:\\
 1: original implementation\\
-2: Ri-dependent reduction factor for Ri$>$1 &
+2: Ri-dependent reduction factor for Ri$>$1\\
+3: as 2 with additional reductoin for dx $<$ 2 km  &
 \tabularnewline
 
 %\hline

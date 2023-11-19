@@ -46,7 +46,7 @@ MODULE mo_cover_koe
   USE mo_cover_cosmo,        ONLY: cover_cosmo
 
   USE mo_nwp_tuning_config,  ONLY: tune_box_liq, tune_box_liq_asy, tune_thicklayfac, tune_sgsclifac, icpl_turb_clc, &
-                                   tune_box_liq_sfc_fac, allow_overcast, tune_sc_eis, tune_sc_invmin, tune_sc_invmax
+                                   allow_overcast, tune_sc_eis, tune_sc_invmin, tune_sc_invmax
 
   USE mo_ensemble_pert_config, ONLY: box_liq_sv, thicklayfac_sv, box_liq_asy_sv
 
@@ -75,6 +75,7 @@ MODULE mo_cover_koe
     INTEGER(KIND=i4)        ::     inwp_gscp     ! microphysics scheme number
     INTEGER(KIND=i4)        ::     inwp_cpl_re   ! coupling reff (for qs altering qi)
     INTEGER(KIND=i4)        ::     inwp_reff     ! reff option (for qs altering qi)
+    REAL   (KIND=wp)        ::     tune_box_liq_sfc_fac ! tuning factor for near-surface reduction of liquid box width
   END TYPE t_cover_koe_config
 
 !-------------------------------------------------------------------------
@@ -318,7 +319,7 @@ DO jk = kstart,klev
     ! derivative of qsat_w w.r.t. temperature
     zdqlsat_dT(jl,jk) = dqsdt(tt(jl,jk), zqlsat(jl,jk))
     ! limit on box width near the surface, reaches unperturbed tune_box_liq (default 0.05) at 500 m AGL
-    zagl_lim(jl,jk) = tune_box_liq_sfc_fac * box_liq_sv * (0.5_wp + 1.e-3_wp*pgeo(jl,jk)*grav_i)
+    zagl_lim(jl,jk) = cover_koe_config%tune_box_liq_sfc_fac * box_liq_sv * (0.5_wp + 1.e-3_wp*pgeo(jl,jk)*grav_i)
   ENDDO
 ENDDO
 !$ACC END PARALLEL

@@ -114,7 +114,8 @@ MODULE mo_nwp_phy_init
   USE mo_initicon_config,     ONLY: init_mode, lread_tke, icpl_da_sfcevap, dt_ana, icpl_da_snowalb, icpl_da_skinc, &
                                     icpl_da_sfcfric, icpl_da_tkhmin, icpl_da_seaice
 
-  USE mo_nwp_tuning_config,   ONLY: tune_zceff_min, tune_v0snow, tune_zvz0i, tune_icesedi_exp
+  USE mo_nwp_tuning_config,   ONLY: tune_zceff_min, tune_v0snow, tune_zvz0i, tune_icesedi_exp, tune_box_liq_sfc_fac, &
+                                    itune_slopecorr
   USE mo_cuparameters,        ONLY: sugwd
   USE mo_fortran_tools,       ONLY: init
   USE mtime,                  ONLY: datetime, MAX_DATETIME_STR_LEN, &
@@ -191,7 +192,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   REAL(wp)            :: pref(p_patch%nlev)
   REAL(wp)            :: zlat, zlon, zprat, zn1, zn2, zcdnc
   REAL(wp)            :: zpres, zpres0
-  REAL(wp)            :: gz0(nproma), l_hori(nproma)
+  REAL(wp)            :: gz0(nproma), l_hori(nproma), slope(nproma)
   REAL(wp)            :: scale_fac ! scale factor used only for RCE cases
   REAL(wp) :: zvariaux(nproma,p_patch%nlevp1,ndim)  !< to pass values from turbdiff to vertdiff
   REAL(wp) :: zrhon   (nproma,p_patch%nlevp1)       !< to pass values from turbdiff to vertdiff
@@ -516,6 +517,18 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
           prm_diag%sfcfric_fac(jc,jb) = MAX(1._wp, prm_diag%sfcfric_fac(jc,jb))
         ENDIF
 
+      ENDDO
+    ENDIF
+    IF (itune_slopecorr >= 1) THEN
+      DO jc = i_startidx,i_endidx
+        slope(jc) = SQRT(ext_data%atm%grad_topo(1,jc,jb)**2 + ext_data%atm%grad_topo(2,jc,jb)**2)
+        prm_diag%tkred_sfc_h(jc,jb) = prm_diag%tkred_sfc_h(jc,jb)/MIN(7.5_wp,1._wp+10._wp*SQRT(MAX(0._wp,slope(jc)-0.05_wp)))
+      ENDDO
+      DO jt = 1, ntiles_total + ntiles_total
+        DO jc = i_startidx,i_endidx
+          prm_diag%rlamh_fac_t(jc,jb,jt) = prm_diag%rlamh_fac_t(jc,jb,jt)/ &
+            MIN(10._wp,1._wp+15._wp*SQRT(MAX(0._wp,slope(jc)-0.05_wp)))
+         ENDDO
       ENDDO
     ENDIF
   ENDDO
@@ -990,6 +1003,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
   cover_koe_config(jg)%inwp_cpl_re = atm_phy_nwp_config(jg)%icpl_rad_reff
   cover_koe_config(jg)%inwp_reff   = atm_phy_nwp_config(jg)%icalc_reff
   cover_koe_config(jg)%lsgs_cond   = atm_phy_nwp_config(jg)%lsgs_cond
+  cover_koe_config(jg)%tune_box_liq_sfc_fac = tune_box_liq_sfc_fac(jg)
 
   !$ACC ENTER DATA CREATE(cover_koe_config(jg:jg))
   !$ACC UPDATE DEVICE(cover_koe_config(jg:jg)) ASYNC(1) ! This updates all components of cover_koe_config as they are statically allocated

@@ -69,6 +69,7 @@ MODULE mo_nwp_tuning_nml
     &                               config_itune_gust_diag       => itune_gust_diag,       &
     &                               config_tune_gustsso_lim      => tune_gustsso_lim,      &
     &                               config_itune_albedo          => itune_albedo,          &
+    &                               config_itune_slopecorr       => itune_slopecorr,       &
     &                               config_itune_o3              => itune_o3,              &
     &                               config_lcalib_clcov          => lcalib_clcov,          &
     &                               config_max_calibfac_clcl     => max_calibfac_clcl,     &
@@ -190,7 +191,7 @@ MODULE mo_nwp_tuning_nml
     &  tune_box_liq_asy            ! (in case of inwp_cldcover = 1)
 
   REAL(wp) :: &                    !< Tuning factor for box_liq reduction near the surface
-    & tune_box_liq_sfc_fac         ! (in case of inwp_cldcover = 1)
+    & tune_box_liq_sfc_fac(max_dom)! (in case of inwp_cldcover = 1)
 
   REAL(wp) :: &                    !< Tuning factor for steeper dependence CLC(RH). This is an unphysical ad-hoc
     & allow_overcast               ! parameter to improve the cloud cover in the Mediterranean.
@@ -217,6 +218,9 @@ MODULE mo_nwp_tuning_nml
 
   INTEGER :: &                     !< (MODIS) albedo tuning
     &  itune_albedo                ! 0: no tuning
+
+  INTEGER :: &                     !< slope-dependent tuning of parameters affecting stable PBLs
+    &  itune_slopecorr             ! 1: slope-dependent reduction of rlam_heat and near-surface tkhmin
 
   INTEGER :: &                     !< type of artificial ozone tuning 
     &  itune_o3                    ! 0: no tuning
@@ -271,7 +275,8 @@ MODULE mo_nwp_tuning_nml
     &                      tune_gustsso_lim, tune_eiscrit, itune_o3,              &
     &                      tune_sc_eis, tune_sc_invmin, tune_sc_invmax,           &
     &                      tune_capethresh, tune_gkdrag_enh, tune_grcrit_enh,     &
-    &                      tune_minsso_gwd, tune_dursun_scaling, tune_sbmccn
+    &                      tune_minsso_gwd, tune_dursun_scaling, tune_sbmccn,     &
+    &                      itune_slopecorr
 
 CONTAINS
 
@@ -395,7 +400,7 @@ CONTAINS
     tune_box_liq     = 0.05_wp     ! box width scale of liquid clouds
     tune_thicklayfac = 0.005_wp    ! factor [1/m] for increasing the box with for layer thicknesses exceeding 150 m
     tune_box_liq_asy = 3._wp       ! asymmetry factor for liquid cloud parameterization
-    tune_box_liq_sfc_fac = 1._wp   ! Tuning factor for box_liq reduction near the surface
+    tune_box_liq_sfc_fac(:) = 1._wp   ! Tuning factor for box_liq reduction near the surface
     allow_overcast   = 1._wp       ! Tuning factor for steeper dependence CLC(RH)
     tune_sgsclifac   = 0._wp       ! Scaling factor for subgrid-scale contribution to diagnosed cloud ice
     lcalib_clcov     = .TRUE.      ! use calibration of layer-wise cloud cover diagnostics over land
@@ -410,6 +415,7 @@ CONTAINS
     tune_difrad_3dcont = 0.5_wp    ! tuning factor for 3D contribution to diagnosed diffuse radiation (no impact on prognostic results!)
     itune_albedo    = 0            ! original (measured) albedo
     itune_o3        = 2            ! standard ozone tuning for EcRad
+    itune_slopecorr  = 0           ! slope-dependent reduction of rlam_heat and near-surface tkhmin
     !
     ! IAU increment tuning
     max_freshsnow_inc = 0.025_wp   ! maximum allowed positive freshsnow increment
@@ -561,6 +567,7 @@ CONTAINS
     config_itune_gust_diag       = itune_gust_diag
     config_tune_gustsso_lim      = tune_gustsso_lim
     config_itune_albedo          = itune_albedo
+    config_itune_slopecorr       = itune_slopecorr
     config_itune_o3              = itune_o3
     config_lcalib_clcov          = lcalib_clcov
     config_max_calibfac_clcl     = max_calibfac_clcl

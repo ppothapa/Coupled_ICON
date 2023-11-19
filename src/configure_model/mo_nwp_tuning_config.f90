@@ -65,6 +65,7 @@ MODULE mo_nwp_tuning_config
   PUBLIC :: tune_gustsso_lim
   PUBLIC :: itune_gust_diag
   PUBLIC :: itune_albedo
+  PUBLIC :: itune_slopecorr
   PUBLIC :: itune_o3
   PUBLIC :: lcalib_clcov
   PUBLIC :: max_calibfac_clcl
@@ -189,7 +190,7 @@ MODULE mo_nwp_tuning_config
     &  tune_box_liq_asy            ! (in case of inwp_cldcover = 1)
 
   REAL(wp) :: &                    !< Tuning factor for box_liq reduction near the surface
-    & tune_box_liq_sfc_fac         ! (in case of inwp_cldcover = 1)
+    & tune_box_liq_sfc_fac(max_dom)! (in case of inwp_cldcover = 1)
 
   REAL(wp) :: &                    !< Tuning factor for steeper dependence CLC(RH)
     & allow_overcast               ! (in case of inwp_cldcover = 1)
@@ -223,6 +224,9 @@ MODULE mo_nwp_tuning_config
   INTEGER :: &                     !< (MODIS) albedo tuning
     &  itune_albedo                ! 1: dimmed Sahara
                                    ! 2: dimmed Sahara and brighter Antarctica
+
+  INTEGER :: &                     !< slope-dependent tuning of parameters affecting stable PBLs
+    &  itune_slopecorr             ! 1: slope-dependent reduction of rlam_heat and near-surface tkhmin
 
   INTEGER :: &                     !< type of artificial ozone tuning 
     &  itune_o3                    ! 0: no tuning
