@@ -657,71 +657,78 @@ CONTAINS
       DO jk = 1, nlev ! loop on icon vertical levels
 
         camsaermr(jc,jk) = 0.0_wp
+        layer_mass = 0.0_wp
 
         icon_sigma1 = icon_sigma(jc,jk)
         icon_sigma2 = icon_sigma(jc,jk+1)
         g_dp = grav/(pres(jc,nlev+1)*(icon_sigma2-icon_sigma1))
 
-        ! loop to find lmin & lmax that are above/below jk and jk+1 respectively
-        delta = 1.0_wp
-        delt = 1.0_wp
-        DO jk1 = 1,nk1+1
+        ! Exclude all ICON levels which have lower pressure than CAMS lowest pressure
+        IF (icon_sigma1 > cams_sigma(jc,1)) THEN
 
-          delta1 = icon_sigma1 - cams_sigma(jc,jk1) 
-          IF (delta1 >= 0.0_wp .AND. ABS(delta1) < delta) THEN
-            lmin = jk1 
-            delta = ABS(delta1)
-          END IF
+          ! loop to find lmin & lmax that are above/below jk and jk+1 respectively
+          delta = 1.0_wp
+          delt = 1.0_wp
 
-          delt1 = cams_sigma(jc,jk1)-icon_sigma2 
-          IF (delt1 >= 0.0_wp .AND. ABS(delt1) < delt) THEN
-            lmax = jk1 
-            delt = ABS(delt1)
-          END IF
+          DO jk1 = 1,nk1+1
+            delta1 = icon_sigma1 - cams_sigma(jc,jk1) 
+            IF (delta1 >= 0.0_wp .AND. ABS(delta1) < delta) THEN
+              lmin = jk1 
+              delta = ABS(delta1)
+            END IF
 
-        ENDDO
+            delt1 = cams_sigma(jc,jk1)-icon_sigma2 
+            IF (delt1 >= 0.0_wp .AND. ABS(delt1) < delt) THEN
+              lmax = jk1 
+              delt = ABS(delt1)
+            END IF
+          ENDDO
 
-        ! accumulate all mass in between jk and jk+1
-
-        ! Current ICON layer completely within one cams layer (CASE 1)
-        IF ( lmax == (lmin+1) ) THEN
-
-          layer_mass = cams(jc,lmin) *            &
+          ! accumulate all mass in between jk and jk+1
+          ! Current ICON layer completely within one cams layer (CASE 1)
+          IF ( lmax == (lmin+1) ) THEN
+          layer_mass = layer_mass + cams(jc,lmin) *            &
             &         ( (icon_sigma2-icon_sigma1) &
             &         / (cams_sigma(jc,lmax)-cams_sigma(jc,lmin)) )
 
-        ! Current ICON layer covers more than one CAMS layer (CASE 2,3)
-        ELSE          
+          ! Current ICON layer covers more than one CAMS layer (CASE 2,3)
+          ELSE          
+            ! this IF is for CASE 3 only
+            IF (lmax > lmin + 2) THEN
+              DO k = lmin+1, lmax-2
+                layer_mass = layer_mass + cams(jc,k) 
+              END DO           
+            END IF
 
-          layer_mass = 0.0_wp
+            layer_mass = layer_mass + cams(jc,lmin) *         &
+              &         ( (cams_sigma(jc,lmin+1)-icon_sigma1) &
+              &         / (cams_sigma(jc,lmin+1)-cams_sigma(jc,lmin)) )
 
-          ! this IF is for CASE 3 only
-          IF (lmax > lmin + 2) THEN
-            DO k = lmin+1, lmax-2
-              layer_mass = layer_mass + cams(jc,k) 
-            END DO           
+            layer_mass = layer_mass + cams(jc,lmax-1) *       &
+              &         ( (icon_sigma2-cams_sigma(jc,lmax-1)) &
+              &         / (cams_sigma(jc,lmax)-cams_sigma(jc,lmax-1)) )
+
           END IF
 
-          layer_mass = layer_mass + cams(jc,lmin) *         &
-            &         ( (cams_sigma(jc,lmin+1)-icon_sigma1) &
-            &         / (cams_sigma(jc,lmin+1)-cams_sigma(jc,lmin)) )
-
-          layer_mass = layer_mass + cams(jc,lmax-1) *       &
-            &         ( (icon_sigma2-cams_sigma(jc,lmax-1)) &
-            &         / (cams_sigma(jc,lmax)-cams_sigma(jc,lmax-1)) )
+          ! add upper (lowest pressure) CAMS levels mass 
+          ! which does not have any corresponding ICON level
+          ! add this mass to ICON level jk = 1 (lowest pressure level) 
+          IF (jk == 1 .AND. lmin > 1) THEN
+            DO k = 1, lmin-1
+              layer_mass = layer_mass + cams(jc,k)
+            END DO
+              layer_mass = layer_mass + cams(jc,lmin) *       &
+                &         ( (icon_sigma1-cams_sigma(jc,lmin)) &
+                &         / (cams_sigma(jc,lmin+1)-cams_sigma(jc,lmin)) )
+          END IF
 
         END IF
 
-        ! add upper (lowest pressure) CAMS levels mass 
-        ! which does not have any corresponding ICON level
-        ! add this mass to ICON level jk = 1 (lowest pressure level) 
-        IF (jk == 1 .AND. lmin > 1) THEN
-          DO k = 1, lmin-1
-            layer_mass = layer_mass + cams(jc,k)
-          END DO
-            layer_mass = layer_mass + cams(jc,lmin) *       &
-              &         ( (icon_sigma1-cams_sigma(jc,lmin)) &
-              &         / (cams_sigma(jc,lmin+1)-cams_sigma(jc,lmin)) )
+        ! Include the case where ICON level partialy covers the first CAMS level
+        IF (icon_sigma1 < cams_sigma(jc,1) .AND. icon_sigma2 > cams_sigma(jc,1) ) THEN
+          layer_mass = layer_mass + cams(jc,1) *       &
+            &         ( (icon_sigma2-cams_sigma(jc,1)) &
+            &         / (cams_sigma(jc,2)-cams_sigma(jc,1)) )
         END IF
 
         ! move from integrated mass (kg/m^2) to mixing ratios
