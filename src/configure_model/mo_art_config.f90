@@ -25,6 +25,7 @@
 !!
 MODULE mo_art_config
 
+  USE mo_kind,                 ONLY: wp
   USE mo_impl_constants,       ONLY: max_dom
   USE mo_impl_constants,       ONLY: MAX_CHAR_LENGTH
   
@@ -146,6 +147,8 @@ MODULE mo_art_config
     ! Write DEBUG-Restartfile
     LOGICAL :: lart_debugRestart
     
+    ! Time interval over which maximum of air concentration of radionuclides is taken
+    REAL(wp):: radioact_maxtint
   END TYPE t_art_config
 
   TYPE(t_art_config), TARGET :: art_config(0:max_dom)
