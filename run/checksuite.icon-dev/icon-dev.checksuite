@@ -501,7 +501,7 @@ make_sure_cdo_exists_and_runs() {
 date
 
 # possible test modes
-MODES="b u r n m o t p ur un um uo rn rm ro nm no mo mp tp urn urm uro unm uno umo rnm rno rmo nmo tmp urnm urno urmo unmo rnmo urnmo rnmot"
+MODES="b u r n m o t p c ur un um uo rn rm ro nm no mo mp mc tp tc urn urm uro unm uno umo rnm rno rmo nmo tmp tmc urnm urno urmo unmo rnmo urnmo rnmot"
 
 while getopts ":cd:e:f:hm:o:r:s:t:u" OPT; do
     case $OPT in
@@ -522,15 +522,16 @@ while getopts ":cd:e:f:hm:o:r:s:t:u" OPT; do
             ;;
         m  ) MODE=$OPTARG 
             case $MODE in
-                'base')         MD='b';;
-                'update')       MD='u';;
-                'restart')      MD='r';;
-                'nproma')       MD='n';;
-                'mpi')          MD='m';;
-                'omp')          MD='o';;
-                'tolerance')    MD='t';;
-                'performance')  MD='p';;
-                *)              MD=$MODE;;
+                'base')              MD='b';;
+                'update')            MD='u';;
+                'restart')           MD='r';;
+                'nproma')            MD='n';;
+                'mpi')               MD='m';;
+                'omp')               MD='o';;
+                'tolerance')         MD='t';;
+                'performance')       MD='p';;
+                'compute-sanitizer') MD='c';;
+                *)                   MD=$MODE;;
             esac
 
             # Check if the given MODE arguments are correct
@@ -597,6 +598,7 @@ FORCE_MRS=${FORCE_MRS='yes'}
 # o = omp test
 # t = tolerance test
 # p = performance test
+# c = compute-sanitizer test
 #
 MD=${MD='rnmo'}
 # Force to overwrite existing experiments even if they are present
@@ -932,7 +934,7 @@ if string_in_list $MD $CMODES; then
 fi # MODE
 
 
-CMODES="m um rm nm mo tm mp urm unm umo rnm rmo nmo tmp urnm urmo unmo rnmo urnmo rnmot"
+CMODES="m um rm nm mo tm mp mc urm unm umo rnm rmo nmo tmp tmc urnm urmo unmo rnmo urnmo rnmot"
 if string_in_list $MD $CMODES; then
     TEST='mpi'
     echo ' '
@@ -1145,7 +1147,7 @@ if string_in_list $MD $CMODES; then
     fi # TEST_POSSIBLE
 fi # MODE
 
-CMODES="t tm rnmot rt tp tmp"
+CMODES="t tm tc rnmot rt tp tmp tmc"
 if string_in_list $MD $CMODES; then
     TEST='tolerance'
     echo ' '
@@ -1181,6 +1183,32 @@ if string_in_list $MD $CMODES; then
         EXIT_STATUS=$(($EXIT_STATUS + 1))
     fi
 fi
+
+CMODES="c tc mc tmc"
+if string_in_list $MD $CMODES; then
+    TEST='compute-sanitizer'
+    echo ' '
+    echo "#################### perform $TEST test          ####################"
+    echo ' '
+
+    lowercase_bb_name=$(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]')
+    if [[ ${lowercase_bb_name} =~ "gpu" ]]; then
+        ${SCRIPT_DIR}/${RUN_SCRIPT} --compute-sanitizer
+        if [ "$?" == 0 ]; then
+            PASSED_TESTS="$PASSED_TESTS $TEST"
+            EXIT_STATUS=$(($EXIT_STATUS + 0))
+        else
+            FAILED_TESTS="$FAILED_TESTS $TEST"
+            EXIT_STATUS=$(($EXIT_STATUS + 1))
+        fi
+    else
+        echo "Warning: ${BB_NAME} does not seem to be a GPU builder."
+        echo "The compute-sanitizer test will not be executed."
+        PASSED_TESTS="$PASSED_TESTS $TEST"
+        EXIT_STATUS=$(($EXIT_STATUS + 0))
+    fi
+fi
+
 
 echo ' '
 echo ' '

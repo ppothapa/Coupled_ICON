@@ -10,6 +10,17 @@ export NUMA_NODE=${NUMA[$LOCAL_RANK]}
 
 export CUDA_VISIBLE_DEVICES=${GPUS[$SLURM_LOCALID%8]}
 
+sanitizer_wrapper="../../run/run_wrapper/sanitizer_wrapper.sh"
 
-numactl --cpunodebind=$NUMA_NODE --membind=$NUMA_NODE bash -c "$@"
-
+if [[ $# -lt 2 ]]; then
+    # only ICON binary as argument
+    numactl --cpunodebind=$NUMA_NODE --membind=$NUMA_NODE bash -c "$@"
+elif [[ "$1" = "--compute-sanitizer" ]]; then
+    module use $USER_ENV_ROOT/modules
+    module load nvhpc
+    shift
+    numactl --cpunodebind=$NUMA_NODE --membind=$NUMA_NODE bash -c "${sanitizer_wrapper} $@"
+else
+    echo "Error: Unrecognised command line option: $1"
+    exit 1
+fi

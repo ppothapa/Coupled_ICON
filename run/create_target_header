@@ -1369,6 +1369,10 @@ set_run_target_balfrin_gpu()
         job_log_name="LOG.$job_name.%j"
     fi
 
+    # add compute-sanitizer
+    # can be enabled with exp.abc.run --compute-sanitizer
+    use_mpi_startrun="${use_mpi_startrun} \${1-}"
+
     # ------------------------------------
     s_cpu_time=""
     if [[ "x$use_cpu_time" != "x" ]]

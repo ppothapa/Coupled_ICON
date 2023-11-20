@@ -128,7 +128,7 @@ MODULE mo_nh_interface_nwp
 #ifndef __NO_ICON_UPATMO__
   USE mo_nwp_upatmo_interface,    ONLY: nwp_upatmo_interface, nwp_upatmo_update
 #endif
-  USE mo_fortran_tools,           ONLY: set_acc_host_or_device, copy
+  USE mo_fortran_tools,           ONLY: set_acc_host_or_device, copy, init
 #ifdef HAVE_RADARFWO
   USE mo_emvorado_warmbubbles_type, ONLY: autobubs_list
   USE mo_run_config,                ONLY: luse_radarfwo
@@ -1896,11 +1896,10 @@ CONTAINS
 #else
     IF( l_any_slowphys .OR. lcall_phy_jg(itradheat) ) THEN
 #endif
-      IF (p_test_run) THEN
-        !$ACC KERNELS ASYNC(1) IF(lzacc)
-        z_ddt_u_tot = 0._wp
-        z_ddt_v_tot = 0._wp
-        !$ACC END KERNELS
+      ! needs to be always initialized with OpenACC
+      IF (p_test_run .OR. lzacc) THEN
+        CALL init(z_ddt_u_tot, opt_acc_async=.TRUE.)
+        CALL init(z_ddt_v_tot, opt_acc_async=.TRUE.)
       ENDIF
 
       IF (timers_level > 10) CALL timer_start(timer_phys_acc_1)

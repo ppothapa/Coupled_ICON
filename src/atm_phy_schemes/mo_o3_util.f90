@@ -51,7 +51,7 @@ MODULE mo_o3_util
        &                             deallocateTimedelta, deallocateDatetime
   USE mo_bcs_time_interpolation, ONLY: t_time_interpolation_weights, &
        &                               calculate_time_interpolation_weights
-  USE mo_fortran_tools,        ONLY: set_acc_host_or_device
+  USE mo_fortran_tools,        ONLY: set_acc_host_or_device, init
 
   IMPLICIT NONE
 
@@ -1170,6 +1170,10 @@ CONTAINS
     !$ACC   CREATE(wfac_tr, wfac_p_tr, wfac_p_tr2, wfac_p_mst, wfac_p_ust) &
     !$ACC   PRESENT(atm_phy_nwp_config, o3, p_diag, prm_diag, pt_patch, RGHG7, RGHG7_MACC) &
     !$ACC   IF(lacc)
+
+#ifdef _OPENACC
+    CALL init(zviozo, opt_acc_async=.TRUE.)
+#endif
 
     !Time index. Taken from su_ghgclim.F90 of ECMWF's IFS (37r2).
 
