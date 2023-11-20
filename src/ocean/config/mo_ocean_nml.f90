@@ -320,14 +320,8 @@ MODULE mo_ocean_nml
   LOGICAL  :: use_smooth_ocean_boundary  = .TRUE.
   LOGICAL  :: createSolverMatrix  = .FALSE.
 
-  ! adjoint run setup
-  ! number of checkpoints
-  INTEGER :: ncheckpoints           = -1
-  INTEGER, PARAMETER :: RUN_FORWARD            = 0
-  INTEGER, PARAMETER :: RUN_ADJOINT            = 1
-  INTEGER :: run_mode               = 0
   INTEGER :: minVerticalLevels       = 2
-  
+
   NAMELIST/ocean_dynamics_nml/&
     &                 ab_beta                      , &
     &                 ab_const                     , &
@@ -383,8 +377,6 @@ MODULE mo_ocean_nml
     &                 HorizonatlVelocity_VerticalAdvection_form, &
     &                 solver_FirstGuess            , &
     &                 use_smooth_ocean_boundary    , &
-    &                 run_mode                     , &
-    &                 ncheckpoints                 , &
     &                 createSolverMatrix           , &
     &                 minVerticalLevels
 

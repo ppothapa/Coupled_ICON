@@ -430,10 +430,10 @@ CONTAINS
   !----------------------------------------------------------------------------
   SUBROUTINE fetch_ua_spline(jcs,size,idx,zalpha,table,ua,dua)
     INTEGER,            INTENT(in)  :: jcs, size
-    INTEGER,            INTENT(in)  :: idx(size)
-    REAL(wp),           INTENT(in)  :: zalpha(size)
+    INTEGER,            INTENT(in)  :: idx(:)
+    REAL(wp),           INTENT(in)  :: zalpha(:)
     REAL(wp),           INTENT(in)  :: table(1:2,lucupmin-2:lucupmax+1)
-    REAL(wp), OPTIONAL, INTENT(out) :: ua(size), dua(size)
+    REAL(wp), OPTIONAL, INTENT(out) :: ua(:), dua(:)
 
     REAL(wp) :: a, b, c, d, dx, ddx, x, bxa
     INTEGER :: jl
@@ -1150,9 +1150,9 @@ SUBROUTINE prepare_ua_index_spline(jg, name, jcs, size, temp, idx, zalpha, &
     &                              klev, kblock, kblock_size)
     CHARACTER(len=*),   INTENT(in)  :: name
     INTEGER,            INTENT(in)  :: jcs, size, kidx
-    INTEGER,            INTENT(in)  :: list(kidx)
-    REAL(wp),           INTENT(in)  :: temp(size)
-    REAL(wp), OPTIONAL, INTENT(out) :: ua(size), dua(size)
+    INTEGER,            INTENT(in)  :: list(:)
+    REAL(wp),           INTENT(in)  :: temp(:)
+    REAL(wp), OPTIONAL, INTENT(out) :: ua(:), dua(:)
     INTEGER,  OPTIONAL, INTENT(in)  :: klev
     INTEGER,  OPTIONAL, INTENT(in)  :: kblock
     INTEGER,  OPTIONAL, INTENT(in)  :: kblock_size

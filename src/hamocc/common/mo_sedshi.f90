@@ -30,6 +30,7 @@ MODULE mo_sedshi
     USE mo_hamocc_nml, ONLY: l_up_sedshi,ks
     
     USE mo_bgc_memory_types, ONLY: t_bgc_memory, t_sediment_memory
+    USE mo_fortran_tools, ONLY: set_acc_host_or_device
     
 
     IMPLICIT NONE
@@ -40,7 +41,7 @@ MODULE mo_sedshi
 
 CONTAINS
 
-SUBROUTINE sedshi(local_bgc_mem, local_sediment_mem, start_idx, end_idx, use_acc)
+SUBROUTINE sedshi(local_bgc_mem, local_sediment_mem, start_idx, end_idx, lacc)
 
   
  
@@ -52,7 +53,7 @@ SUBROUTINE sedshi(local_bgc_mem, local_sediment_mem, start_idx, end_idx, use_acc
 
   INTEGER, INTENT(in)  :: start_idx       !< 1st REAL of model grid.
   INTEGER, INTENT(in)  :: end_idx       !< 2nd REAL of model grid.
-  LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+  LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
   !! Local variables
 
@@ -63,13 +64,9 @@ SUBROUTINE sedshi(local_bgc_mem, local_sediment_mem, start_idx, end_idx, use_acc
   REAL(wp) :: seddef                 !< sediment deficiency
   REAL(wp) :: spresent, buried
   REAL(wp) :: refill,frac
-  LOGICAL :: lacc
+  LOGICAL :: lzacc
 
-  IF (PRESENT(use_acc)) THEN
-    lacc = use_acc
-  ELSE
-    lacc = .FALSE.
-  END IF
+  CALL set_acc_host_or_device(lzacc, lacc)
   !
   !----------------------------------------------------------------------
   !
@@ -84,8 +81,8 @@ SUBROUTINE sedshi(local_bgc_mem, local_sediment_mem, start_idx, end_idx, use_acc
   !$ACC DATA PRESENT(local_bgc_mem, local_bgc_mem%bolay, local_sediment_mem) &
   !$ACC   PRESENT(local_sediment_mem%sedlay, local_sediment_mem%burial) &
   !$ACC   COPYIN(porsol, seddw) &
-  !$ACC   CREATE(wsed, fulsed) IF(lacc)
-  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC   CREATE(wsed, fulsed) IF(lzacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
   !$ACC LOOP SEQ
   DO k = 1, ks-1
      !$ACC LOOP GANG VECTOR
@@ -130,7 +127,7 @@ SUBROUTINE sedshi(local_bgc_mem, local_sediment_mem, start_idx, end_idx, use_acc
   ! to surface layers in the long range. Can be supplied again if a
   ! sediment column has a deficiency in volume.
 
-  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
   !$ACC LOOP GANG VECTOR
   DO j = start_idx, end_idx
 
@@ -145,7 +142,7 @@ SUBROUTINE sedshi(local_bgc_mem, local_sediment_mem, start_idx, end_idx, use_acc
   ENDDO !end j-loop
   !$ACC END PARALLEL
 
-  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
   !$ACC LOOP SEQ
   DO iv = 1, nsedtra
      !$ACC LOOP GANG VECTOR
@@ -174,13 +171,13 @@ SUBROUTINE sedshi(local_bgc_mem, local_sediment_mem, start_idx, end_idx, use_acc
   ! then, successively, the following layers are filled upwards.
   ! if there is not enough solid matter to fill the column, add clay. 
 
-  !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
   fulsed(:) = 0._wp
   !$ACC END KERNELS
 
  
   ! determine how the total sediment column is filled
-  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
   !$ACC LOOP SEQ
   DO k = 1, ks
      !$ACC LOOP GANG VECTOR
@@ -199,7 +196,7 @@ SUBROUTINE sedshi(local_bgc_mem, local_sediment_mem, start_idx, end_idx, use_acc
 
   ! shift the sediment deficiency from the deepest (local_sediment_mem%burial)
   ! layer into layer ks
-  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
   !$ACC LOOP GANG VECTOR
   DO j = start_idx, end_idx
 
@@ -258,7 +255,7 @@ SUBROUTINE sedshi(local_bgc_mem, local_sediment_mem, start_idx, end_idx, use_acc
  
  
   !     redistribute overload of deepest layer ks to layers 2 to ks
-  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
   !$ACC LOOP SEQ
   DO  k = ks, 2, -1
      !$ACC LOOP GANG VECTOR

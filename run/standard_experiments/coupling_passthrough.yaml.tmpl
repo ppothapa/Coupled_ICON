@@ -28,13 +28,19 @@ definitions:
 #%  if include_river_runoff is set:
     spmap_interp_stack: &spmap_interp_stack
       interpolation:
-        - source_to_target_map
-#%    if river_runoff_spread|d(0.0)|float > 0.0:
-          spread_distance: %{river_runoff_spread}
-          weighted: arithmetic_average
-#%      if runoff_weight_file|d(''):    
-          weight_file_name: %{runoff_weight_file|d('')}
+#%    set spread=river_runoff_spread|d(0.0)|float
+#%    set weight_file=runoff_weight_file|d('')
+#%    if spread > 0.0 or weight_file:
+        - source_to_target_map:
+#%      if spread > 0.0:
+            spread_distance: %{spread}
+            weighted: arithmetic_average
 #%      endif
+#%      if weight_file:
+            weight_file_name: %{weight_file}
+#%      endif
+#%    else:
+        - source_to_target_map
 #%    endif
 #%#  /////include_river_runoff is set    
 #%- endif

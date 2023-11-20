@@ -1031,6 +1031,10 @@ CONTAINS
 
   !-------------------------------------------------------------------------
 
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+!ACCWA (Cray Fortran <= 16.0.1.1) zero sized arrays are not properly supported CAST-33010
+    IF ( falist%npoints == 0 ) RETURN
+#endif
 
     ! Check for optional arguments
     IF ( PRESENT(opt_rlstart) ) THEN
@@ -1212,7 +1216,7 @@ CONTAINS
       icnt_c2m = nvalid(3)
       icnt_rem = nvalid(4)
 
-      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR
       DO jl = 1, icnt_c1
         ielist_c1(jl) = indices(jl, 1)
@@ -1237,7 +1241,7 @@ CONTAINS
         idxlist_rem(jl) = falist%eidx(indices(jl, 4), jb)
         levlist_rem(jl) = falist%elev(indices(jl, 4), jb)
       ENDDO
-      !$ACC END KERNELS
+      !$ACC END PARALLEL
 
       !$ACC KERNELS ASYNC(1) IF(i_am_accel_node)
       conditions(:,:) = 0

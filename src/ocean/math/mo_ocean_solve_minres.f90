@@ -19,6 +19,7 @@ MODULE mo_ocean_solve_mres
   USE mo_kind, ONLY: wp
   USE mo_exception, ONLY: finish
   USE mo_ocean_solve_backend, ONLY: t_ocean_solve_backend
+  USE mo_fortran_tools, ONLY: set_acc_host_or_device
  
   IMPLICIT NONE
   
@@ -81,13 +82,20 @@ CONTAINS
   END SUBROUTINE ocean_solve_mres_recover_arrays_wp
 
 ! actual MINRES solve (vanilla) - wp-variant
-SUBROUTINE ocean_solve_mres_cal_wp(this)
+SUBROUTINE ocean_solve_mres_cal_wp(this, lacc)
     CLASS(t_ocean_solve_mres), INTENT(INOUT) :: this
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
     REAL(KIND=wp) :: alpha, beta1, beta2, tol, tol2, rn, rsg, ssg, ss0g, ssg_o
     INTEGER :: nidx_a, nidx_e, nblk, iblk, k, m, k_final
     REAL(KIND=wp), POINTER, DIMENSION(:,:), CONTIGUOUS :: &
       & x, b, tmp, r, p0, p1, p2, s0, s1, s2, rs, ss
-    LOGICAL :: done
+    LOGICAL :: done, lzacc
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+#ifdef _OPENACC
+    IF (lzacc) CALL finish(this_mod_name, 'OpenACC version currently not tested/validated')
+#endif
 
 ! retrieve extends of vector to solve
     nidx_a = this%trans%nidx

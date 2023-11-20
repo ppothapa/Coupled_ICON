@@ -35,6 +35,7 @@ MODULE mo_statistics
 #ifdef _OPENACC
   USE mo_mpi,            ONLY: i_am_accel_node
 #endif
+  USE mo_fortran_tools,  ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -469,21 +470,17 @@ CONTAINS
   !-----------------------------------------------------------------------
   !>
   ! Returns the min max mean in a 2D array in a given range subset
-  FUNCTION MinMaxMean_2D_InRange(values, in_subset, use_acc) result(minmaxmean)
+  FUNCTION MinMaxMean_2D_InRange(values, in_subset, lacc) result(minmaxmean)
     REAL(wp), INTENT(in) :: values(:,:)
     TYPE(t_subset_range), INTENT(in) :: in_subset
     REAL(wp) :: minmaxmean(3)
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
-    LOGICAL :: lacc
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
+    LOGICAL :: lzacc
 
     REAL(wp) :: min_in_block, max_in_block, min_value, max_value, sum_value
     INTEGER :: block, start_index, end_index, number_of_values, idx
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     IF (in_subset%no_of_holes > 0) CALL warning(module_name, "there are holes in the subset")
     ! init the min, max values
@@ -499,7 +496,7 @@ CONTAINS
         !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) &
         !$ACC   REDUCTION(+: sum_value, number_of_values) &
         !$ACC   REDUCTION(MAX: max_value) &
-        !$ACC   REDUCTION(MIN: min_value) IF(lacc)
+        !$ACC   REDUCTION(MIN: min_value) ASYNC(1) IF(lzacc)
         DO idx = start_index, end_index
           IF (in_subset%vertical_levels(idx,block) > 0) THEN
             min_value    = MIN(min_value, values(idx, block))
@@ -516,7 +513,7 @@ CONTAINS
     ELSE ! no in_subset%vertical_levels
 
 #ifdef _OPENACC
-        IF (lacc) CALL finish("MinMaxMean_2D_InRange", "OpenACC version not implemented for global_minmaxmean with no subset")
+        IF (lzacc) CALL finish("MinMaxMean_2D_InRange", "OpenACC version not implemented for global_minmaxmean with no subset")
 #endif
 
 !ICON_OMP_PARALLEL_DO PRIVATE(block, start_index, end_index, min_in_block, max_in_block) &
@@ -614,9 +611,12 @@ CONTAINS
       ELSE
         number_of_values = 0
       ENDIF
-      number_of_values = (number_of_values + in_subset%end_index + &
-        & (in_subset%block_size - in_subset%start_index + 1)) * &
-        & (end_vertical - start_vertical + 1)
+
+      IF (in_subset%end_block - in_subset%start_block >= 0) THEN
+        number_of_values = (number_of_values + in_subset%end_index + &
+          & (in_subset%block_size - in_subset%start_index + 1)) * &
+          & (end_vertical - start_vertical + 1)
+      END IF
 
     ENDIF
 
@@ -1312,13 +1312,13 @@ CONTAINS
 
     ! gather the total level sum of this process in total_sum(level)
     total_sum     = 0.0_wp
-    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzopenacc)
-    !$ACC LOOP GANG VECTOR REDUCTION(+: total_sum)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) &
+    !$ACC   REDUCTION(+: total_sum) ASYNC(1) IF(lzopenacc)
     DO myThreadNo=0, no_of_threads-1
       ! write(0,*) myThreadNo, level, " sum=", sum_value(level, myThreadNo)
       total_sum    = total_sum    + sum_value( myThreadNo)
     ENDDO
-    !$ACC END PARALLEL
+    !$ACC END PARALLEL LOOP
     !$ACC END DATA
     DEALLOCATE(sum_value)
 
@@ -1427,14 +1427,14 @@ CONTAINS
     ! gather the total level sum of this process in total_sum(level)
     total_sum    = 0.0_wp
     total_weight = 0.0_wp
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzopenacc)
-    !$ACC LOOP GANG VECTOR REDUCTION(+: total_sum) REDUCTION(+: total_weight)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) &
+    !$ACC   REDUCTION(+: total_sum) REDUCTION(+: total_weight) ASYNC(1) IF(lzopenacc)
     DO myThreadNo=0, no_of_threads-1
       ! write(0,*) myThreadNo, level, " sum=", sum_value(level, myThreadNo), sum_weight(level, myThreadNo)
       total_sum    = total_sum    + sum_value( myThreadNo)
       total_weight = total_weight + sum_weight( myThreadNo)
     ENDDO
-    !$ACC END PARALLEL
+    !$ACC END PARALLEL LOOP
     !$ACC WAIT(1)
     !$ACC END DATA
     DEALLOCATE(sum_value, sum_weight)
@@ -2308,30 +2308,26 @@ CONTAINS
   !-----------------------------------------------------------------------
 
   !-----------------------------------------------------------------------
-  SUBROUTINE verticallyIntegrated_field_notWeighted(vint_field,field_3D,subset,levels, use_acc)
+  SUBROUTINE verticallyIntegrated_field_notWeighted(vint_field,field_3D,subset,levels, lacc)
     REAL(wp),INTENT(inout)          :: vint_field(:,:)
     REAL(wp),INTENT(in)             :: field_3D(:,:,:)
     TYPE(t_subset_range),INTENT(in) :: subset
     INTEGER,INTENT(in),OPTIONAL :: levels
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
     INTEGER :: idx,block,level,start_index,end_index
 
     INTEGER :: mylevels
     LOGICAL :: my_force_level
-    LOGICAL  :: lacc
+    LOGICAL  :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     IF (ASSOCIATED(subset%vertical_levels) .AND. .NOT. PRESENT(levels)) THEN
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index, idx, level) SCHEDULE(dynamic)
       DO block = subset%start_block, subset%end_block
         CALL get_index_range(subset, block, start_index, end_index)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
         DO idx = start_index, end_index
           vint_field(idx,block) = 0.0_wp
           !$ACC LOOP SEQ
@@ -2350,7 +2346,7 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index, idx, level) SCHEDULE(dynamic)
       DO block = subset%start_block, subset%end_block
         CALL get_index_range(subset, block, start_index, end_index)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
         DO idx = start_index, end_index
            vint_field(idx,block) = 0.0_wp
           !$ACC LOOP SEQ

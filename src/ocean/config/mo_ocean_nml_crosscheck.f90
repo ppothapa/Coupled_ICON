@@ -17,7 +17,7 @@ MODULE mo_ocean_nml_crosscheck
   USE mo_exception,         ONLY: message, finish, warning
   USE mo_grid_config,       ONLY: init_grid_configuration
   USE mo_parallel_config,   ONLY: check_parallel_configuration, p_test_run, l_fast_sum, &
-      &                           use_dp_mpi2io
+      &                           use_dp_mpi2io, proc0_shift
   USE mo_run_config,        ONLY: nsteps, dtime, nlev
   USE mo_time_config,       ONLY: time_config, dt_restart
   USE mo_io_config,         ONLY: dt_checkpoint, write_initial_state, lnetcdf_flt64_output
@@ -127,6 +127,10 @@ CONTAINS
 
     IF (vert_mix_type /=1) &
        PPscheme_type = -1
+
+    IF (proc0_shift > 0 .AND. select_solver /= select_cg) THEN
+      CALL finish(method_name, "proc0_shift only works with the CG solver (select_cg=4)")
+    END IF
 
   END SUBROUTINE ocean_crosscheck
 

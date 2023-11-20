@@ -28,6 +28,7 @@ MODULE mo_ice_zerolayer
   USE mo_physical_constants,  ONLY: rhoi, rhos, rho_ref, ki, ks, ci, alf, zemiss_def, stbo, tmelt
   USE mo_sea_ice_nml,         ONLY: hci_layer, use_no_flux_gradients
   USE mo_sea_ice_types,       ONLY: t_sea_ice
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
   PRIVATE
@@ -55,10 +56,10 @@ CONTAINS
   !!
   !! The counterpart to the ice_growth subroutine in MPIOM.
   !!
-  SUBROUTINE ice_growth_zerolayer(p_patch, ice, use_acc)
+  SUBROUTINE ice_growth_zerolayer(p_patch, ice, lacc)
     TYPE(t_patch),             INTENT(IN), TARGET    :: p_patch
     TYPE(t_sea_ice),           INTENT(INOUT)         :: ice
-    LOGICAL, INTENT(IN), OPTIONAL                    :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL                    :: lacc
 
     ! Local variables
     REAL(wp), DIMENSION(nproma, ice%kice, p_patch%alloc_cell_blocks) ::        &
@@ -69,28 +70,15 @@ CONTAINS
     ! Loop indices
     TYPE(t_subset_range), POINTER :: all_cells
     INTEGER :: k, jb, jc, i_startidx_c, i_endidx_c
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC DATA CREATE(Q_surplus, hiold, hsold) IF(lacc)
+    !$ACC DATA CREATE(Q_surplus, hiold, hsold) IF(lzacc)
 
     !-------------------------------------------------------------------------------------------
     all_cells            => p_patch%cells%all
-    ! initialization
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-    Q_surplus   (:,:,:)    = 0.0_wp
-    !$ACC END KERNELS
-    ! Save ice and snow thickness before thermodynamic effects
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-    hiold (:,:,:) = ice%hi(:,:,:)
-    hsold (:,:,:) = ice%hs(:,:,:)
-    !$ACC END KERNELS
-!    ice%heatOceI(:,:,:) = 0.0_wp ! initialized in ice_zero
+
 
     !---------DEBUG DIAGNOSTICS-----------------------------------------------------------------
     CALL dbg_print('GrowZero bef.: Qtop'     , ice%Qtop     , str_module, 4, in_subset=p_patch%cells%owned)
@@ -103,9 +91,15 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, k, jc) SCHEDULE(dynamic)
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lzacc)
       DO k=1,ice%kice
         DO jc = i_startidx_c,i_endidx_c
+        ! initialization
+          Q_surplus   (jc, k, jb)    = 0.0_wp
+          ! Save ice and snow thickness before thermodynamic effects
+          hiold (jc, k, jb) = ice%hi(jc, k, jb)
+          hsold (jc, k, jb) = ice%hs(jc, k, jb)
+    !      ice%heatOceI(:,:,:) = 0.0_wp ! initialized in ice_zero
           IF (ice%hi(jc,k,jb) > 0._wp) THEN
             !     ------------------------------------------------
             ! (1) --------------- Update hi and hs ---------------
@@ -236,7 +230,7 @@ CONTAINS
             &   nonsolar,       &  ! net nonsolar fluxes = lat + sens + LWnet
             &   dnonsolardT,    &  ! gradient of nonsolar fluxes = dlatdT + dsensdT + dLWdT
             &   Tfw,            &  ! sea surface freezing temperature
-            &   use_acc)
+            &   lacc)
 
     INTEGER, INTENT(IN)    :: i_startidx_c, i_endidx_c, nbdim, kice
     REAL(wp),INTENT(IN)    :: pdtime
@@ -249,7 +243,7 @@ CONTAINS
     REAL(wp),INTENT(IN)    :: nonsolar   (nbdim,kice)
     REAL(wp),INTENT(IN)    :: dnonsolardT(nbdim,kice)
     REAL(wp),INTENT(IN)    :: Tfw        (nbdim)
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
     ! Local variables
     REAL(wp) ::             &
@@ -264,16 +258,12 @@ CONTAINS
     ! & I_0 -- fraction of the net SW radiation penetrating the ice (not in use)
 
     INTEGER :: k, jk, jc ! loop indices
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     ! initialization of the output
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP SEQ
     DO k = 1,kice
       !$ACC LOOP GANG VECTOR
@@ -294,7 +284,7 @@ CONTAINS
         nfg_flag = 1._wp
     ENDIF
 
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP SEQ
     DO k=1,kice
       !$ACC LOOP GANG VECTOR PRIVATE(k_effective, F_A, F_S, deltaT) &
@@ -314,7 +304,7 @@ CONTAINS
           IF (Tsurf(jc,k) + deltaT > 0.0_wp)  deltaT = -Tsurf(jc,k)
           ! now assign new Tsurf
           Tsurf(jc,k) = Tsurf(jc,k) + deltaT
-            
+
           ! Heat flux available for surface melting Qtop = -(F_A - F_S) evaluated at the new Tsurf.
           ! 1) if new Tsurf < 0, then surface fluxes are balanced, and Qtop == 0.
           ! 2) if new Tsurf = 0, then Qtop > 0 (goes into surface melting in ice_growth_zerolayer).
@@ -344,7 +334,7 @@ CONTAINS
   !! Initial release by Vladimir Lapin, MPI (2016-11)
   !
   SUBROUTINE set_ice_temp_zerolayer_analytical(i_startidx_c, i_endidx_c, nbdim, kice, &
-            &   Tsurf, hi, hs, Qtop, Qbot, Tfw, doy, use_acc)
+            &   Tsurf, hi, hs, Qtop, Qbot, Tfw, doy, lacc)
 
     INTEGER, INTENT(IN)    :: i_startidx_c, i_endidx_c, nbdim, kice
     REAL(wp),INTENT(INOUT) :: Tsurf      (nbdim,kice)
@@ -354,7 +344,7 @@ CONTAINS
     REAL(wp),INTENT(OUT)   :: Qbot       (nbdim,kice)
     REAL(wp),INTENT(IN)    :: Tfw        (nbdim)
     INTEGER, INTENT(IN)    :: doy
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
     ! Local variables
     REAL(wp) ::             &
       & F_A         ,       &  ! net atmospheric heat flux                  (positive=upward)
@@ -364,16 +354,12 @@ CONTAINS
       & deltaT                 ! temperature increment from the prev timestep
     ! Loop indices
     INTEGER :: k, jk, jc
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     ! initialization of output variables
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP SEQ
     DO k = 1,kice
       !$ACC LOOP GANG VECTOR
@@ -384,7 +370,7 @@ CONTAINS
     END DO
     !$ACC END PARALLEL
 
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP SEQ
     DO k=1,kice
       !$ACC LOOP GANG VECTOR PRIVATE(k_effective, F_A, F_S, deltaT) &

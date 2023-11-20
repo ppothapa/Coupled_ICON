@@ -20,6 +20,7 @@ MODULE mo_rte_rrtmgp_setup
   USE mo_cloud_gas_profiles, ONLY: init_gas_profiles
   USE mo_rte_kind,   ONLY: wl
   USE mo_rte_config, ONLY: rte_config_checks
+  USE mo_snow_ice_reff, ONLY: init_reff_funeedles
 
   IMPLICIT NONE
 
@@ -97,6 +98,7 @@ CONTAINS
     CALL stop_on_err(cloud_optics_sw%set_ice_roughness(2))
 
     CALL init_gas_profiles
+    CALL init_reff_funeedles
   END SUBROUTINE rte_rrtmgp_basic_setup
 
 

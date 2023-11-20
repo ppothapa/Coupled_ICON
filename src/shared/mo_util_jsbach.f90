@@ -1676,6 +1676,20 @@ MODULE mo_jsb_convect_tables_iface
 END MODULE mo_jsb_convect_tables_iface
 
 !------------------------------------------------------------------------------------------------------------
+!> Contains interfaces to thermodynamic functions from ICON
+!
+MODULE mo_jsb_thermo_iface
+
+  USE mo_aes_thermo, ONLY: potential_temperature, sat_pres_water, sat_pres_ice, specific_humidity
+
+  IMPLICIT NONE
+  PUBLIC
+
+  CHARACTER(len=*), PARAMETER :: modname = 'mo_jsb_thermo_iface'
+
+END MODULE mo_jsb_thermo_iface
+
+!------------------------------------------------------------------------------------------------------------
 !> Contains interfaces to ICON orbital and solar functions
 !
 MODULE mo_jsb_orbit_solar_iface
@@ -1748,6 +1762,17 @@ CONTAINS
   END SUBROUTINE compute_cos_zenith_angle
 
 END MODULE mo_jsb_orbit_solar_iface
+
+!------------------------------------------------------------------------------------------------------------
+!> Contains the function to compute surface exchange coefficients for tmx from JSBACH
+!
+MODULE mo_jsb_surface_exchange_iface
+
+  USE mo_vdf_diag_smag, ONLY: sfc_exchange_coefficients
+
+  PUBLIC :: sfc_exchange_coefficients
+
+END MODULE mo_jsb_surface_exchange_iface
 
 !------------------------------------------------------------------------------------------------------------
 #else

@@ -25,6 +25,7 @@ MODULE mo_aes_phy_diag
   USE mo_physical_constants,  ONLY: cpd, cpv, cvd, cvv, Tf, tmelt
   USE mo_run_config,          ONLY: iqv
   USE mo_aes_cop_config,      ONLY: aes_cop_config
+  USE mo_aes_vdf_config,      ONLY: aes_vdf_config
   USE mo_aes_sfc_indices,     ONLY: nsfc_type, iwtr, iice, ilnd
 
   IMPLICIT NONE
@@ -317,17 +318,19 @@ CONTAINS
     tend  => prm_tend (jg)
 
     !$ACC DATA PRESENT(tend%ta_phy, field%cpair, field%cvair)
-    
-    ! convert the temperature tendency from physics, as computed for constant pressure conditions,
-    ! to constant volume conditions, as needed for the coupling to the dynamics
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
-    DO jk = 1,nlev
-      DO jc=jcs,jce
-        tend% ta_phy(jc,jk,jb) = tend% ta_phy(jc,jk,jb) * field% cpair(jc,jk,jb) / field% cvair(jc,jk,jb)
+
+    IF (.NOT. aes_vdf_config(jg)%use_tmx) THEN
+      ! convert the temperature tendency from physics, as computed for constant pressure conditions,
+      ! to constant volume conditions, as needed for the coupling to the dynamics
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      DO jk = 1,nlev
+        DO jc=jcs,jce
+          tend% ta_phy(jc,jk,jb) = tend% ta_phy(jc,jk,jb) * field% cpair(jc,jk,jb) / field% cvair(jc,jk,jb)
+        END DO
       END DO
-    END DO
-    !$ACC END PARALLEL
+      !$ACC END PARALLEL
+    END IF
 
     !$ACC END DATA
     !$ACC WAIT(1)

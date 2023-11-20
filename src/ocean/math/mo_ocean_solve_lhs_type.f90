@@ -29,13 +29,13 @@ MODULE mo_ocean_solve_lhs_type
   END TYPE t_lhs_agen
 
   ABSTRACT INTERFACE
-    SUBROUTINE a_lhs_agen_wp(this, x, ax, use_acc)
+    SUBROUTINE a_lhs_agen_wp(this, x, ax, lacc)
       USE mo_kind, ONLY: wp
       IMPORT t_lhs_agen
       CLASS(t_lhs_agen), INTENT(INOUT) :: this
       REAL(KIND=wp), INTENT(IN) :: x(:,:)
       REAL(KIND=wp), INTENT(OUT) :: ax(:,:)
-      LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+      LOGICAL, INTENT(IN), OPTIONAL :: lacc
     END SUBROUTINE a_lhs_agen_wp
     SUBROUTINE a_lhs_matrix_shortcut(this, idx, blk, coeff)
       USE mo_kind, ONLY: wp

@@ -713,12 +713,11 @@ CONTAINS
         !$ACC END PARALLEL
 #ifdef _OPENACC
         lfound_all = .TRUE.
-        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc) REDUCTION(.AND.: lfound_all)
-        !$ACC LOOP GANG VECTOR
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc) REDUCTION(.AND.: lfound_all)
         DO jc = 1, nlen
           lfound_all = lfound_all .AND. l_found(jc)
         ENDDO
-        !$ACC END PARALLEL
+        !$ACC END PARALLEL LOOP
         !$ACC WAIT
 #endif
 
@@ -1094,12 +1093,11 @@ CONTAINS
         !$ACC END PARALLEL
 #ifdef _OPENACC
         lfound_all = .TRUE.
-        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) REDUCTION(.AND.: lfound_all)
-        !$ACC LOOP GANG VECTOR
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) REDUCTION(.AND.: lfound_all)
         DO jc = 1, nlen
           lfound_all = lfound_all .AND. l_found(jc)
         ENDDO
-        !$ACC END PARALLEL
+        !$ACC END PARALLEL LOOP
         !$ACC WAIT
 #endif
         IF (lfound_all) THEN

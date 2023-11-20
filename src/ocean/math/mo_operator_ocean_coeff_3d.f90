@@ -47,6 +47,8 @@ MODULE mo_operator_ocean_coeff_3d
   USE mo_grib2,               ONLY: t_grib2_var
   USE mo_util_dbg_prnt,       ONLY: dbg_print
   USE mo_grid_geometry_info
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
+
   IMPLICIT NONE
 
 #define d_norma_3d(v) SQRT(SUM(v%x * v%x))
@@ -223,27 +225,23 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  SUBROUTINE Get3DVectorTo2DLocal_array3D(vector, position_local, levels, subset, geometry_info, x, y, use_acc)
+  SUBROUTINE Get3DVectorTo2DLocal_array3D(vector, position_local, levels, subset, geometry_info, x, y, lacc)
     TYPE(t_cartesian_coordinates), POINTER :: vector(:,:,:)
     TYPE(t_geographical_coordinates) , TARGET :: position_local(:,:)
     INTEGER, POINTER :: levels(:,:) 
     TYPE(t_subset_range), POINTER :: subset 
     TYPE(t_grid_geometry_info), INTENT(in) :: geometry_info    
     REAL(wp), POINTER ::  x(:,:,:), y(:,:,:)
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
     
     INTEGER  :: blockNo, start_index, end_index, this_index, level
     REAL(wp) :: sinLon, cosLon, sinLat, cosLat
     REAL(wp) :: cartesian_x, cartesian_y, cartesian_z, y_help
-    LOGICAL  :: lacc
+    LOGICAL  :: lzacc
     
     CHARACTER(LEN=*), PARAMETER :: method_name='Get3DVectorTo2DLocal_array3D'
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
     
     SELECT CASE(geometry_info%geometry_type)
 
@@ -256,7 +254,7 @@ CONTAINS
 !ICON_OMP sinLat, cosLat, cartesian_x, cartesian_y, cartesian_z, y_help) ICON_OMP_DEFAULT_SCHEDULE
       DO blockNo = subset%start_block, subset%end_block
         CALL get_index_range(subset, blockNo, start_index, end_index)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO this_index =  start_index, end_index
         
           ! these should be calclulated once and stored in the coefficients structure
@@ -280,6 +278,7 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL LOOP
       ENDDO
+      !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
             
               
@@ -289,7 +288,7 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index,end_index, this_index, level) ICON_OMP_DEFAULT_SCHEDULE
       DO blockNo = subset%start_block, subset%end_block
         CALL get_index_range(subset, blockNo, start_index, end_index)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO this_index =  start_index, end_index
           DO level = 1, levels(this_index,blockNo)  
             x(this_index,level,blockNo) = vector(this_index,level,blockNo)%x(1)
@@ -298,6 +297,7 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL LOOP
       ENDDO
+      !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
       
     CASE DEFAULT

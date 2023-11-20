@@ -397,6 +397,9 @@ CONTAINS
     
     ! --- barycentric interpolation
     CALL this%baryctr%init(3, nproma, nblks_lonlat, .FALSE.)
+
+    ! global_idx is needed in device
+    !$ACC ENTER DATA CREATE(this%global_idx)
   END SUBROUTINE t_lon_lat_intp_init
 
 

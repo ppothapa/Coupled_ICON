@@ -2072,12 +2072,15 @@ version of MTIME library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
      [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([maintainer-mode])],
      [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([silent-rules])],
      [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([examples])],
+     [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([check])],
      [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([openmp])])
    ACX_SUBDIR_APPEND_ARGS([externals/mtime],
      [CFLAGS="$subdir_CFLAGS $ICON_MTIME_CFLAGS"],
      [FCFLAGS="$subdir_FCFLAGS $ICON_MTIME_FCFLAGS"],
      [--enable-static], [--disable-shared], [--disable-maintainer-mode],
      [--enable-silent-rules="$enable_silent_rules"], [--disable-examples],
+dnl Disable the broken unit test:
+     [--disable-check],
      [--enable-openmp="$enable_openmp"])
    AS_VAR_APPEND([bundled_includes], ["${FC_MOD_IN}externals/mtime/src "])
    BUNDLED_LIBFILES="externals/mtime/src/.libs/libmtime.a $BUNDLED_LIBFILES"])
@@ -2271,7 +2274,7 @@ library: either use the bundled version of FORTRAN-SUPPORT dnl
 accordingly])])],
 dnl
   [icon_subdir_srcdir="$srcdir/externals/fortran-support"
-   icon_subdir_unique_file="src/mo_util_backtrace.f90"
+   icon_subdir_unique_file="src/mo_util_backtrace.F90"
    AS_IF([test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"],
      [AC_MSG_ERROR([unable to find sources of the bundled version of dnl
 FORTRAN-SUPPORT library ($icon_subdir_unique_file) in '$icon_subdir_srcdir': dnl

@@ -1976,6 +1976,7 @@ CONTAINS
   !! Method:
   !!
   FUNCTION gamma_fct(x) RESULT(g)
+    !$ACC ROUTINE SEQ
 
     USE mo_kind, ONLY: wp
 

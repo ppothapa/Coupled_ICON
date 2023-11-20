@@ -6276,7 +6276,8 @@ fi ;; #(
     acx_cv_c_compiler_version=`$CC -V 2>&1 | sed -n 's/.*ersion \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'`
          if test -n "$acx_cv_c_compiler_version"; then :
   acx_cv_c_compiler_version="classic:${acx_cv_c_compiler_version}"
-           acx_cv_c_compiler_version=`$CC --version | sed -n 's/.*version \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'`
+else
+  acx_cv_c_compiler_version=`$CC --version | sed -n 's/.*version \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'`
             if test -n "$acx_cv_c_compiler_version"; then :
   acx_cv_c_compiler_version="clang:${acx_cv_c_compiler_version}"
 fi
@@ -9458,6 +9459,8 @@ esac
      ;; #(
   -enable-examples|-enable-examples=*|--enable-examples|--enable-examples=*|-disable-examples|--disable-examples) :
      ;; #(
+  -enable-check|-enable-check=*|--enable-check|--enable-check=*|-disable-check|--disable-check) :
+     ;; #(
   -enable-openmp|-enable-openmp=*|--enable-openmp|--enable-openmp=*|-disable-openmp|--disable-openmp) :
      ;; #(
   *) :
@@ -9471,7 +9474,7 @@ esac
 esac
      shift
    done
-   set dummy CFLAGS="$subdir_CFLAGS $ICON_MTIME_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_MTIME_FCFLAGS" --enable-static --disable-shared --disable-maintainer-mode --enable-silent-rules="$enable_silent_rules" --disable-examples --enable-openmp="$enable_openmp"; shift
+   set dummy CFLAGS="$subdir_CFLAGS $ICON_MTIME_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_MTIME_FCFLAGS" --enable-static --disable-shared --disable-maintainer-mode --enable-silent-rules="$enable_silent_rules" --disable-examples      --disable-check --enable-openmp="$enable_openmp"; shift
    for acx_tmp; do
      case $acx_tmp in #(
   *\'*) :
@@ -9892,7 +9895,7 @@ ${icon_usr_note}" "$LINENO" 5; }
 fi
 else
     icon_subdir_srcdir="$srcdir/externals/fortran-support"
-   icon_subdir_unique_file="src/mo_util_backtrace.f90"
+   icon_subdir_unique_file="src/mo_util_backtrace.F90"
    if test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"; then :
   as_fn_error $? "unable to find sources of the bundled version of FORTRAN-SUPPORT library ($icon_subdir_unique_file) in '$icon_subdir_srcdir': provide an external version of FORTRAN-SUPPORT library (--with-external-fortran-support) by setting FCFLAGS, LDFLAGS and LIBS accordingly" "$LINENO" 5
 fi

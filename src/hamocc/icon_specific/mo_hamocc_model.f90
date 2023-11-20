@@ -52,7 +52,7 @@ MODULE mo_hamocc_model
 
   USE mo_ocean_nml_crosscheck,   ONLY: ocean_crosscheck
   USE mo_ocean_nml,              ONLY: i_sea_ice, no_tracer, use_omip_forcing, lhamocc, &
-    & initialize_fromRestart, ncheckpoints, n_zlev
+    & initialize_fromRestart, n_zlev
 
   USE mo_model_domain,        ONLY: t_patch_3d, p_patch_local_parent
 
@@ -98,7 +98,7 @@ MODULE mo_hamocc_model
   USE mo_io_config,            ONLY: restartWritingParameters
   USE mo_bgc_icon_comm,        ONLY: hamocc_state
   USE mo_ocean_time_events,    ONLY: init_ocean_time_events, getCurrentDate_to_String,          &
-    & ocean_time_nextStep, isCheckpoint, isEndOfThisRun, newNullDatetime, get_OceanCurrentTime, &
+    & ocean_time_nextStep, isCheckpoint, isEndOfThisRun, newNullDatetime,  &
     & get_OceanCurrentTime_Pointer
   USE mtime,                   ONLY: datetime, datetimeToString, datetimeToPosixString, MAX_DATETIME_STR_LEN, deallocateDatetime
 

@@ -41,6 +41,7 @@ MODULE mo_ocean_tracer_transport_vert
   USE mo_sync,                      ONLY: sync_c, sync_patch_array
   USE mo_ocean_limiter,             ONLY: v_ppm_slimiter_mo_onblock 
   USE mo_ocean_tracer_transport_types,  ONLY: t_ocean_transport_state
+  USE mo_fortran_tools,             ONLY: set_acc_host_or_device
 
 IMPLICIT NONE
   
@@ -63,21 +64,21 @@ CONTAINS
     & trac_old,             &
     & transport_state,          &
     & operators_coeff,      &
-    & flux_div_vert, use_acc)
+    & flux_div_vert, lacc)
     
     TYPE(t_patch_3d ),TARGET :: patch_3d
     REAL(wp), INTENT(inout)           :: trac_old(:,:,:) ! (nproma,n_zlev,patch_3d%p_patch_2d(1)%alloc_cell_blocks)
     TYPE(t_ocean_transport_state), TARGET :: transport_state
     TYPE(t_operator_coeff), TARGET    :: operators_coeff
     REAL(wp), INTENT(inout)           :: flux_div_vert(:,:,:) ! (nproma, n_zlev, patch_3d%p_patch_2d(1)%alloc_cell_blocks) !new tracer
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
     
     !Local variables
     REAL(wp) :: deriv_fst, deriv_sec, adpo_weight_upw_cntr, adpo_weight_cntr_upw
     REAL(wp) :: prism_volume, transport_in, transport_out, adpo_r1, adpo_r2
     INTEGER :: startIndex, endIndex
     INTEGER :: jc, jk, jb
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     ! vertical advective tracer fluxes:
     REAL(wp), ALLOCATABLE :: z_adv_flux_v2(:,:,:) ! resulting flux
     REAL(wp), ALLOCATABLE :: z_adv_flux_v (:,:,:)  ! resulting flux
@@ -99,11 +100,7 @@ CONTAINS
     patch_2D         => patch_3d%p_patch_2d(1)
     cells_in_domain => patch_2D%cells%in_domain
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     ! CALL sync_patch_array(sync_c, patch_2D, trac_old)
     
@@ -121,7 +118,7 @@ CONTAINS
         & patch_3d%p_patch_1d(1)%prism_thick_c,     &
         & patch_3d%p_patch_1d(1)%inv_prism_thick_c, &
         & operators_coeff%verticalAdvectionPPMcoeffs, &
-        & flux_div_vert, use_acc=lacc)
+        & flux_div_vert, lacc=lzacc)
 
         stop_timer(timer_adv_vert,2)
         RETURN
@@ -142,7 +139,7 @@ CONTAINS
     & w, dtime, vertical_limiter_type,    &
     & cell_thickeness,  cell_invheight,   &
     & verticalAdvection_ppm_coefficients, &
-    & flux_div_vert, use_acc)
+    & flux_div_vert, lacc)
     
     TYPE(t_patch_3d ),TARGET, INTENT(in)   :: patch_3d   
     REAL(wp), INTENT(inout)           :: tracer(nproma,n_zlev, patch_3d%p_patch_2d(1)%alloc_cell_blocks)  !< in: advected cell centered variable
@@ -153,20 +150,16 @@ CONTAINS
     TYPE(t_verticalAdvection_ppm_coefficients) :: verticalAdvection_ppm_coefficients(patch_3d%p_patch_2d(1)%alloc_cell_blocks)
     REAL(wp), INTENT(inout)           :: flux_div_vert(:,:,:) ! (nproma, n_zlev, patch_3d%p_patch_2d(1)%alloc_cell_blocks) !new tracer
     INTEGER, INTENT(in)               :: vertical_limiter_type                                  !< parameter to select limiter
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
     !
     !-----------------------------------------------------------------------
     TYPE(t_subset_range), POINTER :: cells_in_domain
     INTEGER                       :: startIndex, endIndex, jb
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     !-----------------------------------------------------------------------
     cells_in_domain => patch_3d%p_patch_2d(1)%cells%in_domain
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
 #ifdef NAGFOR
     flux_div_vert(:,:,:) = 0.0_wp
@@ -185,7 +178,7 @@ CONTAINS
             & flux_div_vert(:,:,jb),          & ! out
             & startIndex, endIndex,           &
             & patch_3d%p_patch_1d(1)%dolic_c(:,jb), &
-            & use_acc=lacc)
+            & lacc=lzacc)
     ENDDO ! end loop over blocks
 !ICON_OMP_END_PARALLEL_DO
 
@@ -220,7 +213,7 @@ CONTAINS
     & cell_thickeness, cell_invheight,   &
     & ppmCoeffs,                         &
     & flux_div_vert,                     &
-    & startIndex, endIndex, cells_noOfLevels, use_acc)
+    & startIndex, endIndex, cells_noOfLevels, lacc)
 
     REAL(wp), INTENT(in)           :: tracer(nproma,n_zlev)      !< advected cell centered variable
     REAL(wp), INTENT(in)           :: w(nproma,n_zlev+1)         !<  in : vertical velocity
@@ -232,7 +225,7 @@ CONTAINS
     REAL(wp), INTENT(inout)        :: flux_div_vert(nproma, n_zlev) !new tracer
     INTEGER, INTENT(in)            :: startIndex, endIndex
     INTEGER, INTENT(in)            :: cells_noOfLevels(nproma)
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
     !
     REAL(wp) :: upward_tracer_flux(nproma,n_zlev+1)      !< tracer flux
     REAL(wp) :: z_face(nproma,n_zlev+1)   !< face values of transported field
@@ -253,7 +246,7 @@ CONTAINS
     !                          !< or the flux across the edge   !< (.FALSE./not specified)
     !REAL(wp) :: opt_topflx_tra(nproma,patch_3D%p_patch_2D(1)%alloc_cell_blocks)  !< vertical tracer flux at upper boundary
     INTEGER, PARAMETER :: islopel_vsm = 1
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     
     REAL(wp), POINTER ::  cellHeightRatio_This_toBelow(:,:)
     REAL(wp), POINTER ::  cellHeightRatio_This_toThisBelow(:,:)
@@ -278,13 +271,9 @@ CONTAINS
     firstLevel  = 1
     secondLevel = 2
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC DATA CREATE(upward_tracer_flux, z_face, z_face_low, z_face_up, z_slope) IF(lacc)
+    !$ACC DATA CREATE(upward_tracer_flux, z_face, z_face_low, z_face_up, z_slope) IF(lzacc)
 
     ! advection is done with an upwind scheme and a piecwise parabolic
     ! approx. of the subgrid distribution is used.
@@ -298,12 +287,12 @@ CONTAINS
 
     ! 2. Calculate monotonized slope
     !
-    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     z_slope(:, :) = 0._wp
     z_face(:, :)  = 0.0_wp
     !$ACC END KERNELS
 
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG(STATIC: 1) VECTOR
 ! !CDIR NODEP
     DO jc = startIndex, endIndex
@@ -429,14 +418,13 @@ CONTAINS
 
     ENDDO
     !$ACC END PARALLEL
-    !$ACC WAIT(1)
 
     ! 4. Limitation of first guess parabola (which is based on z_face)
     ! Note that z_face_up(k) does not need to equal z_face_low(k-1) after
     ! the limitation procedure.
     ! Therefore 2 additional fields z_face_up and z_face_low are
     ! introduced.
-    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     z_face_low(1:nproma,1:n_zlev) = 0.0_wp
     z_face_up (1:nproma,1:n_zlev) = 0.0_wp
     !$ACC END KERNELS
@@ -453,11 +441,11 @@ CONTAINS
         & startIndex,        &
         & endIndex,          &
         & cells_noOfLevels,  &
-        & use_acc=lacc)
+        & lacc=lzacc)
 
     ELSE
         ! simply copy face values to 'face_up' and 'face_low' arrays
-        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO jc = startIndex, endIndex
           !$ACC LOOP SEQ
@@ -471,12 +459,12 @@ CONTAINS
 
     ENDIF  !  p_ityp_vlimit
 
-    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     upward_tracer_flux(:,:) = 0.0_wp
     !$ACC END KERNELS
 
 ! !CDIR NODEP
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO jc = startIndex, endIndex
 ! !CDIR NODEP

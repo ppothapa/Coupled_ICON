@@ -24,9 +24,9 @@ PROGRAM icon
 #if defined (__INTEL_COMPILER) && ! defined (VARLIST_INITIZIALIZE_WITH_NAN)
   USE, INTRINSIC :: ieee_arithmetic
 #endif
-  USE mo_exception,           ONLY: message_text, message, finish
+  USE mo_exception,           ONLY: message_text, message, finish, enable_logging
   USE mo_io_units,            ONLY: filename_max
-  USE mo_mpi,                 ONLY: start_mpi , stop_mpi, my_process_is_global_root
+  USE mo_mpi,                 ONLY: start_mpi , stop_mpi, my_process_is_global_root, my_process_is_stdio
   USE mo_master_init,         ONLY: init_master_control
   USE mo_master_control,      ONLY: get_my_namelist_filename, get_my_process_type,      &
     &                               atmo_process, ocean_process, ps_radiation_process,  &
@@ -37,7 +37,6 @@ PROGRAM icon
 #endif
   USE mo_time_config,         ONLY: time_config
   USE mtime,                  ONLY: OPERATOR(>)
-  USE mo_util_signal
   USE mo_util_vcs,            ONLY: show_version
 
 #ifndef __NO_ICON_OCEAN__
@@ -83,12 +82,6 @@ PROGRAM icon
   LOGICAL                     :: halting_mode,  current_flags(size(ieee_all))
   REAL(wp)                    :: r
 #endif
-#endif
-
-#if defined (__xlC__)
-  INTEGER                     :: core_dump_flag
-  INTEGER                     :: signals(1)
-  INTEGER                     :: iret
 #endif
 
   ! handling of comand-line arguments:
@@ -141,24 +134,6 @@ PROGRAM icon
   !-------------------------------------------------------------------
   !set up signal trapping on IBM: export USE_SIGNAL_HANDLING=yes
 
-#if defined (__xlC__)
-  core_dump_flag = 0
-  signals(1)     = 0
-
-  iret = signal_trap(core_dump_flag, signals)
-
-  IF (iret == -2) THEN
-    CALL message('', 'Signal trapping disabled by environment')
-  ELSE IF (iret == -1) THEN
-     WRITE(message_text,'(a,i0)') 'Error: ', iret
-     CALL message('', message_text)
-  ELSE IF (iret == 0) THEN
-    CALL message('', 'FPE trapping is not set')
-  ELSE
-    WRITE(message_text,'(a,i0)') 'FPE trapping mode =', iret
-    CALL message('', message_text)
-  END IF
-#endif
 #if defined (__INTEL_COMPILER) || defined (__PGI) || defined (NAGFOR)
 #ifdef VARLIST_INITIZIALIZE_WITH_NAN
   WRITE(message_text,'(a,l1)') ' IEEE standard supported: ', ieee_support_standard(r)
@@ -216,6 +191,8 @@ PROGRAM icon
 
   my_namelist_filename = get_my_namelist_filename()
   my_process_component = get_my_process_type()
+
+  CALL enable_logging(my_process_is_stdio())
 
   SELECT CASE (my_process_component)
 

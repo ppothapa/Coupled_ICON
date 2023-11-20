@@ -926,7 +926,7 @@ CONTAINS
       REAL(wp), INTENT(IN)   :: D
       REAL(wp), INTENT(IN)   :: TSm1,TSm2,TC,DELRW,DENSA,GM1,GM,DGM,DGMW,  &
                      DGMI,DI,RE,AE,SEKDEL
-      REAL(wp), INTENT(OUT)  :: TS, FW
+      REAL(wp), INTENT(INOUT)  :: TS, FW
       INTEGER,  INTENT(INOUT):: ITYPE
       
       REAL(wp) ALF, ALV, ALS, CI, CW, AK

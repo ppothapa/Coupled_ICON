@@ -59,7 +59,7 @@ help:
 GIT= git
 TAR= tar
 
-# Includes only commited versions of the files:
+# Includes only committed versions of the files:
 dist:
 	@if test ! -d @top_srcdir@/.git; then echo "'@top_srcdir@' is not a git repository" >&2; exit 1; fi
 	$(GIT) -C @top_srcdir@ archive --prefix=@PACKAGE_TARNAME@/ --format tar -o @abs_top_builddir@/@PACKAGE_TARNAME@.tar HEAD

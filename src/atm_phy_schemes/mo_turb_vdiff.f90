@@ -2350,15 +2350,14 @@ CONTAINS
     ! Compute TTE at the new time step.
     !-------------------------------------------------------------------
     ztest = 0._wp
-    !$ACC PARALLEL DEFAULT(PRESENT) REDUCTION(+: ztest) ASYNC(1)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) REDUCTION(+: ztest) ASYNC(1)
     DO jk = 1,klevm1
       DO jl = jcs,kproma
         ptotte(jl,jk) = bb(jl,jk,itotte) + tpfac3*pztottevn(jl,jk)
         ztest = ztest+MERGE(1._wp,0._wp,ptotte(jl,jk)<0._wp)
       END DO
     END DO
-    !$ACC END PARALLEL
+    !$ACC END PARALLEL LOOP
 
     IF( vdiff_config%turb == VDIFF_TURB_3DSMAGORINSKY ) THEN
       ztest = 1._wp

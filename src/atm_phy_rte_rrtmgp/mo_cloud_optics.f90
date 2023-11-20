@@ -117,6 +117,7 @@ contains
     ! Local variables
     !
     integer               :: nbnd, nrghice, nsize_liq, nsize_ice
+    integer               :: i, j, k
 
     error_msg = this%init(band_lims_wvn, name="RRTMGP cloud optics")
     !
@@ -167,14 +168,28 @@ contains
     this%radice_upr = radice_upr
 
     ! Load LUT coefficients
-    !$ACC KERNELS ASYNC(1)
-    this%lut_extliq = lut_extliq
-    this%lut_ssaliq = lut_ssaliq
-    this%lut_asyliq = lut_asyliq
-    this%lut_extice = lut_extice
-    this%lut_ssaice = lut_ssaice
-    this%lut_asyice = lut_asyice
-    !$ACC END KERNELS
+    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1) &
+    !$ACC   COPYIN(lut_extliq, lut_ssaliq, lut_asyliq)
+    DO j=1, nbnd
+      DO i=1, nsize_ice
+        this%lut_extliq(i, j) = lut_extliq(i, j)
+        this%lut_ssaliq(i, j) = lut_ssaliq(i, j)
+        this%lut_asyliq(i, j) = lut_asyliq(i, j)
+      END DO
+    END DO
+    !$ACC END PARALLEL LOOP
+    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(3) DEFAULT(PRESENT) ASYNC(1) &
+    !$ACC   COPYIN(lut_extice, lut_ssaice, lut_asyice)
+    DO k=1, nrghice
+      DO j=1, nbnd
+        DO i=1, nsize_ice
+          this%lut_extice(i, j, k) = lut_extice(i, j, k)
+          this%lut_ssaice(i, j, k) = lut_ssaice(i, j, k)
+          this%lut_asyice(i, j, k) = lut_asyice(i, j, k)
+        END DO
+      END DO
+    END DO
+    !$ACC END PARALLEL LOOP
     !
     ! Set default ice roughness - min values
     !

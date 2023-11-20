@@ -38,6 +38,7 @@ MODULE mo_hamocc_diagnostics
 
    USE mo_name_list_output_init, ONLY: isRegistered
    USE mo_statistics, ONLY: levels_horizontal_mean
+   USE mo_fortran_tools, ONLY: set_acc_host_or_device
 #ifdef _OPENACC
    USE mo_mpi,                      ONLY: i_am_accel_node
    USE openacc
@@ -52,13 +53,13 @@ PUBLIC:: get_inventories, get_monitoring,get_omz
 
 CONTAINS
 
-SUBROUTINE get_omz(hamocc_state, p_patch_3d, pddpo, ssh, use_acc)
+SUBROUTINE get_omz(hamocc_state, p_patch_3d, pddpo, ssh, lacc)
 
 TYPE(t_hamocc_state) :: hamocc_state
 TYPE(t_patch_3d ),TARGET, INTENT(in)   :: p_patch_3d
 REAL(wp), INTENT(IN) :: pddpo(:,:,:)
 REAL(wp), INTENT(IN) :: ssh(:,:)
-LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
 ! Local variables
 INTEGER :: jc, jb, jk
@@ -67,13 +68,9 @@ TYPE(t_subset_range), POINTER :: all_cells
 INTEGER:: i_time_stat
 INTEGER:: max_lev, omz_depth_index
 REAL(wp):: ref_o2
-LOGICAL :: lacc
+LOGICAL :: lzacc
 
-IF (PRESENT(use_acc)) THEN
-  lacc = use_acc
-ELSE
-  lacc = .FALSE.
-END IF
+CALL set_acc_host_or_device(lzacc, lacc)
 
 all_cells => p_patch_3d%p_patch_2d(1)%cells%ALL
 i_time_stat=nold(1)
@@ -83,7 +80,7 @@ DO jb = all_cells%start_block, all_cells%end_block
 
     CALL get_index_range(all_cells, jb, start_index, end_index)
 
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO jc=start_index, end_index
      
@@ -117,7 +114,7 @@ END DO
 
 END SUBROUTINE get_omz
 
-  SUBROUTINE get_monitoring(hamocc_state, tracer, ssh, pddpo, p_patch_3d, use_acc)
+  SUBROUTINE get_monitoring(hamocc_state, tracer, ssh, pddpo, p_patch_3d, lacc)
 
     USE mo_memory_bgc, ONLY: n2prod, doccya_fac, rcar
     TYPE(t_hamocc_state) :: hamocc_state
@@ -125,7 +122,7 @@ END SUBROUTINE get_omz
     REAL(wp), INTENT(IN) :: pddpo(:,:,:)
     REAL(wp), INTENT(IN) :: tracer(:,:,:,:)
     TYPE(t_patch_3d),TARGET, INTENT(in)   :: p_patch_3d
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
     REAL(wp) :: glob_n2b, glob_pwn2b, glob_srf_thick
     REAL(wp) :: glob_det, glob_doc, glob_phy, glob_zoo, glob_cya
@@ -134,13 +131,9 @@ END SUBROUTINE get_omz
 
     TYPE(t_patch), POINTER :: patch_2d
     TYPE(t_subset_range), POINTER :: owned_cells
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     patch_2d => p_patch_3d%p_patch_2d(1)
     owned_cells    => patch_2d%cells%owned
@@ -561,7 +554,7 @@ END SUBROUTINE get_omz
     hamocc_state%p_tend%monitor%cyaldoc(1)      = hamocc_state%p_tend%monitor%cyaldet(1) * p2gtc * doccya_fac
     hamocc_state%p_tend%monitor%cyaldet(1)      = hamocc_state%p_tend%monitor%cyaldet(1) * p2gtc *(1._wp - doccya_fac)
 
-    CALL levels_horizontal_mean(pddpo(:,1,:), patch_2d%cells%area(:,:), owned_cells, glob_srf_thick, lopenacc=lacc)
+    CALL levels_horizontal_mean(pddpo(:,1,:), patch_2d%cells%area(:,:), owned_cells, glob_srf_thick, lopenacc=lzacc)
 
     ! mean values of surface concentrations
     hamocc_state%p_tend%monitor%sfalk(1)        = hamocc_state%p_tend%monitor%sfalk(1)/totalarea/glob_srf_thick

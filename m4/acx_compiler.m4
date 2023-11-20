@@ -306,7 +306,7 @@ AC_DEFUN([ACX_COMPILER_CC_VERSION_SIMPLE],
         [acx_cache_var=`AS_VAR_GET([_AC_CC]) -V 2>&1 | dnl
 [sed -n 's/.*ersion \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p']`
          AS_IF([test -n "$acx_cache_var"],
-           [acx_cache_var="classic:${acx_cache_var}"]
+           [acx_cache_var="classic:${acx_cache_var}"],
            [acx_cache_var=`AS_VAR_GET([_AC_CC]) --version | dnl
 [sed -n 's/.*version \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p']`
             AS_IF([test -n "$acx_cache_var"],

@@ -2349,13 +2349,12 @@ CONTAINS
     ! The melting of a seaice tile is a relatively rare event.
     l_update_required = .FALSE.
 !$NEC ivdep
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) REDUCTION(.OR.: l_update_required)
-    !$ACC LOOP GANG VECTOR PRIVATE(jc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) REDUCTION(.OR.: l_update_required) PRIVATE(jc)
     DO ic = 1, list_seaice_count
       jc = list_seaice_idx(ic)
       IF ( hice_n(jc) < hice_min ) l_update_required = .TRUE.
     ENDDO
-    !$ACC END PARALLEL
+    !$ACC END PARALLEL LOOP
     IF (.NOT. using_cuda_graph) THEN
       !$ACC WAIT(1)
     END IF

@@ -250,7 +250,6 @@ MODULE mo_mpi
   USE yaxt,                   ONLY: xt_initialize, xt_initialized
 #endif
   USE mo_exception,           ONLY: init_logger
-  USE mo_util_backtrace,      ONLY: ftn_util_backtrace
 
   IMPLICIT NONE
 
@@ -2687,7 +2686,6 @@ CONTAINS
                      nerr_unit=nerr, &
                      l_extra_output=(proc_split .AND. comm_lev > 0 .AND. get_glob_proc0() == p_pe_work),&
                      extra_info_prefix='PROC SPLIT', &
-                     callback_traceback=ftn_util_backtrace, &
                      callback_abort=abort_mpi)
 
   END SUBROUTINE start_mpi
@@ -2977,10 +2975,23 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    IF (loc_use_g2g) THEN
+      !$ACC HOST_DATA USE_DEVICE(t_buffer)
+      CALL mpi_send(t_buffer, icount, p_real_dp, p_destination, p_tag, &
+           &        p_comm, p_error)
+      !$ACC END HOST_DATA
+    ELSE
+      CALL mpi_send(t_buffer, icount, p_real_dp, p_destination, p_tag, &
+           &        p_comm, p_error)
+    END IF
+#else
     !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_send(t_buffer, icount, p_real_dp, p_destination, p_tag, &
-         p_comm, p_error)
+         &        p_comm, p_error)
     !$ACC END HOST_DATA
+#endif
 
 #ifdef DEBUG
     IF (p_error /= MPI_SUCCESS) THEN
@@ -3023,10 +3034,23 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    IF (loc_use_g2g) THEN
+      !$ACC HOST_DATA USE_DEVICE(t_buffer)
+      CALL mpi_send(t_buffer, icount, p_real_sp, p_destination, p_tag, &
+           &        p_comm, p_error)
+      !$ACC END HOST_DATA
+    ELSE
+      CALL mpi_send(t_buffer, icount, p_real_sp, p_destination, p_tag, &
+           &        p_comm, p_error)
+    END IF
+#else
     !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_send(t_buffer, icount, p_real_sp, p_destination, p_tag, &
-            p_comm, p_error)
+         &        p_comm, p_error)
     !$ACC END HOST_DATA
+#endif
 
 #ifdef DEBUG
     IF (p_error /= MPI_SUCCESS) THEN
@@ -3284,10 +3308,24 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    IF (loc_use_g2g) THEN
+      !$ACC HOST_DATA USE_DEVICE(t_buffer)
+      CALL mpi_send(t_buffer, icount, p_int, p_destination, p_tag, &
+           &        p_comm, p_error)
+      !$ACC END HOST_DATA
+    ELSE
+      CALL mpi_send(t_buffer, icount, p_int, p_destination, p_tag, &
+           &        p_comm, p_error)
+    END IF
+#else
     !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_send(t_buffer, icount, p_int, p_destination, p_tag, &
-         p_comm, p_error)
+         &        p_comm, p_error)
     !$ACC END HOST_DATA
+#endif
+
 
 #ifdef DEBUG
     IF (p_error /= MPI_SUCCESS) THEN
@@ -3472,10 +3510,23 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    IF (loc_use_g2g) THEN
+      !$ACC HOST_DATA USE_DEVICE(t_buffer)
+      CALL mpi_send(t_buffer, icount, p_bool, p_destination, p_tag, &
+           &        p_comm, p_error)
+      !$ACC END HOST_DATA
+    ELSE
+      CALL mpi_send(t_buffer, icount, p_bool, p_destination, p_tag, &
+           &        p_comm, p_error)
+    END IF
+#else
     !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_send(t_buffer, icount, p_bool, p_destination, p_tag, &
          p_comm, p_error)
     !$ACC END HOST_DATA
+#endif
 
 #ifdef DEBUG
     IF (p_error /= MPI_SUCCESS) THEN
@@ -3775,10 +3826,23 @@ CONTAINS
       CALL p_isend_nccl_real(t_buffer, p_destination, p_count)
 #endif
     ELSE
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+      IF (loc_use_g2g) THEN
+        !$ACC HOST_DATA USE_DEVICE(t_buffer)
+        CALL mpi_isend(t_buffer, icount, p_real_dp, p_destination, p_tag, &
+             &         p_comm, out_request, p_error)
+        !$ACC END HOST_DATA
+      ELSE
+        CALL mpi_isend(t_buffer, icount, p_real_dp, p_destination, p_tag, &
+             &         p_comm, out_request, p_error)
+      END IF
+#else
       !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
       CALL mpi_isend(t_buffer, icount, p_real_dp, p_destination, p_tag, &
            &         p_comm, out_request, p_error)
       !$ACC END HOST_DATA
+#endif
                 
       IF (PRESENT(request)) THEN
         request               = out_request
@@ -3828,10 +3892,23 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    IF (loc_use_g2g) THEN
+      !$ACC HOST_DATA USE_DEVICE(t_buffer)
+      CALL mpi_isend(t_buffer, icount, p_real_sp, p_destination, p_tag, &
+           &         p_comm, out_request, p_error)
+      !$ACC END HOST_DATA
+    ELSE
+      CALL mpi_isend(t_buffer, icount, p_real_sp, p_destination, p_tag, &
+           &         p_comm, out_request, p_error)
+    END IF
+#else
     !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_isend(t_buffer, icount, p_real_sp, p_destination, p_tag, &
          &         p_comm, out_request, p_error)
     !$ACC END HOST_DATA
+#endif
 
     IF (PRESENT(request)) THEN
       request               = out_request
@@ -4163,10 +4240,23 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    IF (loc_use_g2g) THEN
+      !$ACC HOST_DATA USE_DEVICE(t_buffer)
+      CALL mpi_isend(t_buffer, icount, p_int, p_destination, p_tag, &
+           &         p_comm, out_request, p_error)
+      !$ACC END HOST_DATA
+    ELSE
+      CALL mpi_isend(t_buffer, icount, p_int, p_destination, p_tag, &
+           &         p_comm, out_request, p_error)
+    END IF
+#else
     !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_isend(t_buffer, icount, p_int, p_destination, p_tag, &
          &         p_comm, out_request, p_error)
     !$ACC END HOST_DATA
+#endif
 
     IF (PRESENT(request)) THEN
       request               = out_request
@@ -4373,11 +4463,24 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    IF (loc_use_g2g) THEN
+      !$ACC HOST_DATA USE_DEVICE(t_buffer)
+      CALL mpi_isend(t_buffer, icount, p_bool, p_destination, p_tag, &
+           &         p_comm, p_request(p_irequest), p_error)
+      !$ACC END HOST_DATA
+    ELSE
+      CALL mpi_isend(t_buffer, icount, p_bool, p_destination, p_tag, &
+           &         p_comm, p_request(p_irequest), p_error)
+    END IF
+#else
     !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL p_inc_request
     CALL mpi_isend(t_buffer, icount, p_bool, p_destination, p_tag, &
          &         p_comm, p_request(p_irequest), p_error)
     !$ACC END HOST_DATA
+#endif
 
 #ifdef DEBUG
     IF (p_error /= MPI_SUCCESS) THEN
@@ -4609,10 +4712,23 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    IF (loc_use_g2g) THEN
+      !$ACC HOST_DATA USE_DEVICE(t_buffer)
+      CALL mpi_recv(t_buffer, icount, p_real_dp, p_source, p_tag, &
+           &        p_comm, p_status, p_error)
+      !$ACC END HOST_DATA
+    ELSE
+      CALL mpi_recv(t_buffer, icount, p_real_dp, p_source, p_tag, &
+           &        p_comm, p_status, p_error)
+    END IF
+#else
     !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_recv(t_buffer, icount, p_real_dp, p_source, p_tag, &
-         p_comm, p_status, p_error)
+         &        p_comm, p_status, p_error)
     !$ACC END HOST_DATA
+#endif
 
 #ifdef DEBUG
     IF (p_error /= MPI_SUCCESS) THEN
@@ -4654,10 +4770,23 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    IF (loc_use_g2g) THEN
+      !$ACC HOST_DATA USE_DEVICE(t_buffer)
+      CALL mpi_recv(t_buffer, icount, p_real_sp, p_source, p_tag, &
+           &        p_comm, p_status, p_error)
+      !$ACC END HOST_DATA
+    ELSE
+      CALL mpi_recv(t_buffer, icount, p_real_sp, p_source, p_tag, &
+           &        p_comm, p_status, p_error)
+    END IF
+#else
     !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_recv(t_buffer, icount, p_real_sp, p_source, p_tag, &
-            p_comm, p_status, p_error)
+         &        p_comm, p_status, p_error)
     !$ACC END HOST_DATA
+#endif
 
 #ifdef DEBUG
     IF (p_error /= MPI_SUCCESS) THEN
@@ -4954,10 +5083,23 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    IF (loc_use_g2g) THEN
+      !$ACC HOST_DATA USE_DEVICE(t_buffer)
+      CALL mpi_recv(t_buffer, icount, p_int, p_source, p_tag, &
+           &        p_comm, p_status, p_error)
+      !$ACC END HOST_DATA
+    ELSE
+      CALL mpi_recv(t_buffer, icount, p_int, p_source, p_tag, &
+           &        p_comm, p_status, p_error)
+    END IF
+#else
     !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_recv(t_buffer, icount, p_int, p_source, p_tag, &
-      &           p_comm, p_status, p_error)
+         &        p_comm, p_status, p_error)
     !$ACC END HOST_DATA
+#endif
 
 #ifdef DEBUG
     IF (p_error /= MPI_SUCCESS) THEN
@@ -5142,10 +5284,23 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    IF (loc_use_g2g) THEN
+      !$ACC HOST_DATA USE_DEVICE(t_buffer)
+      CALL mpi_recv(t_buffer, icount, p_bool, p_source, p_tag, &
+           &        p_comm, p_status, p_error)
+      !$ACC END HOST_DATA
+    ELSE
+      CALL mpi_recv(t_buffer, icount, p_bool, p_source, p_tag, &
+           &        p_comm, p_status, p_error)
+    END IF
+#else
     !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_recv(t_buffer, icount, p_bool, p_source, p_tag, &
-            p_comm, p_status, p_error)
+         &        p_comm, p_status, p_error)
     !$ACC END HOST_DATA
+#endif
 
 #ifdef DEBUG
     IF (p_error /= MPI_SUCCESS) THEN
@@ -5510,10 +5665,23 @@ CONTAINS
 #endif
     ELSE
       CALL p_inc_request
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+      IF (loc_use_g2g) THEN
+        !$ACC HOST_DATA USE_DEVICE(t_buffer)
+        CALL mpi_irecv(t_buffer, icount, p_real_dp, p_source, p_tag, &
+             &         p_comm, p_request(p_irequest), p_error)
+        !$ACC END HOST_DATA
+      ELSE
+        CALL mpi_irecv(t_buffer, icount, p_real_dp, p_source, p_tag, &
+             &         p_comm, p_request(p_irequest), p_error)
+      END IF
+#else
       !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
       CALL mpi_irecv(t_buffer, icount, p_real_dp, p_source, p_tag, &
-           p_comm, p_request(p_irequest), p_error)
+           &         p_comm, p_request(p_irequest), p_error)
       !$ACC END HOST_DATA
+#endif
     END IF
 
 #ifdef DEBUG
@@ -5555,11 +5723,24 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL p_inc_request
-    CALL MPI_IRECV(t_buffer, icount, p_real_sp, p_source, p_tag, &
-         p_comm, p_request(p_irequest), p_error)
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    IF (loc_use_g2g) THEN
+      !$ACC HOST_DATA USE_DEVICE(t_buffer)
+      CALL mpi_irecv(t_buffer, icount, p_real_sp, p_source, p_tag, &
+           &         p_comm, p_request(p_irequest), p_error)
+      !$ACC END HOST_DATA
+    ELSE
+      CALL mpi_irecv(t_buffer, icount, p_real_sp, p_source, p_tag, &
+           &         p_comm, p_request(p_irequest), p_error)
+    END IF
+#else
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
+    CALL mpi_irecv(t_buffer, icount, p_real_sp, p_source, p_tag, &
+         &         p_comm, p_request(p_irequest), p_error)
     !$ACC END HOST_DATA
+#endif
 
 #ifdef DEBUG
     IF (p_error /= MPI_SUCCESS) THEN
@@ -5832,10 +6013,23 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    IF (loc_use_g2g) THEN
+      !$ACC HOST_DATA USE_DEVICE(t_buffer)
+      CALL mpi_irecv(t_buffer, icount, p_int, p_source, p_tag, &
+           &         p_comm, out_request, p_error)
+      !$ACC END HOST_DATA
+    ELSE
+      CALL mpi_irecv(t_buffer, icount, p_int, p_source, p_tag, &
+           &         p_comm, out_request, p_error)
+    END IF
+#else
     !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_irecv(t_buffer, icount, p_int, p_source, p_tag, &
-         p_comm, out_request, p_error)
+         &         p_comm, out_request, p_error)
     !$ACC END HOST_DATA
+#endif
 
     IF (PRESENT(request)) THEN
       request               = out_request
@@ -6043,11 +6237,24 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL p_inc_request
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    IF (loc_use_g2g) THEN
+      !$ACC HOST_DATA USE_DEVICE(t_buffer)
+      CALL mpi_irecv(t_buffer, icount, p_bool, p_source, p_tag, &
+           &         p_comm, p_request(p_irequest), p_error)
+      !$ACC END HOST_DATA
+    ELSE
+      CALL mpi_irecv(t_buffer, icount, p_bool, p_source, p_tag, &
+           &         p_comm, p_request(p_irequest), p_error)
+    END IF
+#else
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_irecv(t_buffer, icount, p_bool, p_source, p_tag, &
-         p_comm, p_request(p_irequest), p_error)
+         &         p_comm, p_request(p_irequest), p_error)
     !$ACC END HOST_DATA
+#endif
 
 #ifdef DEBUG
     IF (p_error /= MPI_SUCCESS) THEN
@@ -8548,14 +8755,22 @@ CONTAINS
   END FUNCTION p_sum_sp_1d
 
   !------------------------------------------------------
-  FUNCTION p_sum_dp_1d (zfield, comm, root) RESULT (p_sum)
+  FUNCTION p_sum_dp_1d (zfield, comm, root, use_g2g) RESULT (p_sum)
 
     REAL(dp),          INTENT(in) :: zfield(:)
     INTEGER, OPTIONAL, INTENT(in) :: comm, root
     REAL(dp)                      :: p_sum (SIZE(zfield))
+    LOGICAL, OPTIONAL, INTENT(in) :: use_g2g
+    LOGICAL :: loc_use_g2g
 
 #ifndef NOMPI
     INTEGER :: p_comm, my_rank
+
+    IF (PRESENT(use_g2g)) THEN
+      loc_use_g2g = use_g2g
+    ELSE
+      loc_use_g2g = .FALSE.
+    END IF
 
     IF (PRESENT(comm)) THEN
        p_comm = comm
@@ -8572,8 +8787,14 @@ CONTAINS
         ! do not use the result on all the other ranks:
         IF (root /= my_rank) p_sum = zfield
       ELSE
+
+        !$ACC HOST_DATA USE_DEVICE(zfield) IF(loc_use_g2g)
+
         CALL mpi_allreduce (zfield, p_sum, SIZE(zfield), p_real_dp, &
              mpi_sum, p_comm, p_error)
+
+        !$ACC END HOST_DATA
+
       END IF
     ELSE
        p_sum = zfield

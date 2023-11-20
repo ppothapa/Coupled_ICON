@@ -90,7 +90,7 @@ platforms are provided in section [Tested platforms](#tested-platforms).
 
 - [MPICH](https://www.mpich.org), [OpenMPI](https://www.open-mpi.org) or any
 other [MPI](https://www.mpi-forum.org) implementation that provides compiler
-wrappers `mpicc` and `mpif90` for C and Fortran, repsectively, as well as the
+wrappers `mpicc` and `mpif90` for C and Fortran, respectively, as well as the
 job launcher `mpiexec`.
     > **_NOTE:_** The job launcher of [OpenMPI](https://www.open-mpi.org) fails
 to run more MPI processes than the number of real processor cores available on
@@ -105,7 +105,7 @@ versions available via the package managers) of
 affected with bugs that make the libraries unusable for ICON. A good way to make
 sure that the MPI library does not have significant defects is to switch to the
 root source directory of ICON and run the following commands (do not forget the
-aformentioned extra arguments for the configure wrapper if you are using
+aforementioned extra arguments for the configure wrapper if you are using
 [OpenMPI](https://www.open-mpi.org)):
     > ```bash
     > ./config/generic/gcc --enable-yaxt --enable-cdi-pio --enable-coupling
@@ -155,8 +155,8 @@ different operating systems using relevant
 Most of the required software packages are either already available on the
 system or installed together with [Xcode](https://developer.apple.com/xcode) and
 [Command Line Tools for Xcode](https://developer.apple.com/download/more/),
-which are [prerequsites for MacPorts](https://www.macports.org/install.php). The
-rest of the required software can be installed by running the following
+which are [prerequisites for MacPorts](https://www.macports.org/install.php).
+The rest of the required software can be installed by running the following
 commands:
 
 ```bash

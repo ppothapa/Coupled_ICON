@@ -22,16 +22,11 @@ MODULE mo_coupling_config
   LOGICAL :: config_coupled_to_waves = .FALSE.
   LOGICAL :: config_coupled_to_atmo  = .FALSE.
 
-  LOGICAL :: config_use_sens_heat_flux_hack
-  LOGICAL :: config_suppress_sens_heat_flux_hack_over_ice
 
   ! variables
   PUBLIC :: config_coupled_to_ocean
   PUBLIC :: config_coupled_to_waves
   PUBLIC :: config_coupled_to_atmo
-
-  PUBLIC :: config_use_sens_heat_flux_hack
-  PUBLIC :: config_suppress_sens_heat_flux_hack_over_ice
 
   ! functions
   PUBLIC :: is_coupled_run

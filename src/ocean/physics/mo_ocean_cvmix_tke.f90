@@ -116,6 +116,7 @@ MODULE mo_ocean_cvmix_tke
   USE mo_sea_ice_types,       ONLY: t_sea_ice, t_atmos_fluxes
   !USE turb_data,              ONLY: rhon ! air density
   !USE test,                   ONLY: test_test
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
   PRIVATE
@@ -203,7 +204,7 @@ CONTAINS
   END SUBROUTINE setup_tke
 
 #ifdef _OPENACC
-  SUBROUTINE calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10, concsum, use_acc)
+  SUBROUTINE calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10, concsum, lacc)
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
     TYPE(t_patch), POINTER :: patch_2D
     TYPE(t_hydro_ocean_state), TARGET     :: ocean_state
@@ -211,7 +212,7 @@ CONTAINS
     TYPE(t_ho_params), INTENT(inout)      :: params_oce
     REAL(wp), TARGET                     :: fu10   (:,:) ! t_atmos_for_ocean%fu10
     REAL(wp), TARGET                     :: concsum   (:,:) ! sea ice concentration
-    LOGICAL, INTENT(IN), OPTIONAL        :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL        :: lacc
 
     ! pointer for convenience 
     TYPE(t_subset_range), POINTER :: edges_in_domain, all_cells
@@ -267,22 +268,18 @@ CONTAINS
     REAL(wp) :: tmp_dzt(nproma, n_zlev+1)
     REAL(wp) :: tau_abs
 
-    LOGICAL  :: lacc
+    LOGICAL  :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     tke => params_oce%cvmix_params%tke(:,:,:)
 
     !$ACC DATA CREATE(tke_Av, tke_kv, tke_iw_alpha_c, tke_iwe, tke_iwe_forcing, forc_tke_surf_2D) &
     !$ACC   CREATE(forc_rho_surf_2D, bottom_fric_2D, tmp_dzw, tmp_dzt, s_c) &
     !$ACC   CREATE(rho_up, rho_down, pressure, Nsqr, Ssqr, tke_old) &
-    !$ACC   IF(lacc)
+    !$ACC   IF(lzacc)
 
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     tke_kv(:,:,:) = 0.0
     tke_Av(:,:,:) = 0.0
     tke_iw_alpha_c(:,:,:) = 0.0
@@ -290,17 +287,19 @@ CONTAINS
     tke_iwe_forcing(:,:,:) = 0.0
     !$ACC END KERNELS
 
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     forc_rho_surf_2D(:,:) = 0.0
     bottom_fric_2D(:,:) = 0.0
     !$ACC END KERNELS
+    !$ACC WAIT(1)
 
     IF(l_lc) THEN
       ! Langmuir turbulence variables
       tke_plc  => params_oce%cvmix_params%tke_plc(:,:,:)
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       tke_plc(:,:,:) = 0.0_wp
       !$ACC END KERNELS
+      !$ACC WAIT(1)
       hlc      => params_oce%cvmix_params%hlc(:,:)
       wlc      => params_oce%cvmix_params%wlc(:,:,:)
       u_stokes => params_oce%cvmix_params%u_stokes(:,:)
@@ -328,32 +327,36 @@ CONTAINS
     ! special settings if IDEMIX is used together with TKE
     IF ( vert_mix_type==vmix_idemix_tke ) THEN
       ! use iwe dissipation as forcing for tke
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       tke_iwe_forcing(:,:,:) = -1.0_wp * params_oce%cvmix_params%iwe_Tdis(:,:,:)
       !$ACC END KERNELS
+      !$ACC WAIT(1)
     ENDIF
 
     ! set zstar related parameters
     IF (vert_cor_type == 1) THEN
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       s_c(:,:) = ocean_state%p_prog(nold(1))%stretch_c(:,:)
       !$ACC END KERNELS
+      !$ACC WAIT(1)
     ELSE
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       s_c(:,:) = 1.0_wp
       !$ACC END KERNELS
+      !$ACC WAIT(1)
     ENDIF
 
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     DO jc = 1,nproma
       pressure(jc,1) = 1.0_wp
       pressure(jc,2:n_zlev) = patch_3d%p_patch_1d(1)%zlev_i(2:n_zlev) * ReferencePressureIndbars
     END DO
     !$ACC END PARALLEL LOOP
+    !$ACC WAIT(1)
 
     DO blockNo = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, blockNo, start_index, end_index)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO jc = start_index, end_index
         levels = dolic_c(jc,blockNo)
         IF (dolic_c(jc,blockNo) > 0) THEN
@@ -463,15 +466,17 @@ CONTAINS
       ENDDO
       !$ACC END PARALLEL LOOP
     ENDDO
+    !$ACC WAIT(1)
 
     DO blockNo = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, blockNo, start_index, end_index)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO jc = start_index, end_index
         tmp_dzw(jc,:) = prism_thick_c(jc,:,blockNo)*s_c(jc,blockNo)
         tmp_dzt(jc,:) = dz(jc,:,blockNo)*s_c(jc,blockNo)
       END DO
       !$ACC END PARALLEL LOOP
+      !$ACC WAIT(1)
       IF (l_lc) THEN
         CALL cvmix_coeffs_tke(                                                                  &
                               start_index = start_index,                                        &
@@ -509,7 +514,7 @@ CONTAINS
                               rho_ref = OceanReferenceDensity,                                  &
                               grav = grav,                                                      &
                               alpha_c = tke_iw_alpha_c(:,:,blockNo),                            &
-                              use_acc = lacc                                                    &
+                              lacc = lzacc                                                    &
                               )
       ELSE
         CALL cvmix_coeffs_tke(                                                                  &
@@ -547,19 +552,19 @@ CONTAINS
                               rho_ref = OceanReferenceDensity,                                  &
                               grav = grav,                                                      &
                               alpha_c = tke_iw_alpha_c(:,:,blockNo),                            &
-                              use_acc = lacc                                                    &
+                              lacc = lzacc                                                    &
                               )
       END IF
     END DO
 
     ! interpolate vert. visosity from cell center to edges
     DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       params_oce%a_veloc_v(:,:,blockNo) = 0.0
       !$ACC END KERNELS
 
       CALL get_index_range(edges_in_domain, blockNo, start_index, end_index)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO je = start_index, end_index
         levels       = patch_3d%p_patch_1d(1)%dolic_e(je, blockNo)
         cell_1_idx   = patch_2D%edges%cell_idx(je,blockNo,1)
@@ -574,11 +579,12 @@ CONTAINS
       ENDDO
       !$ACC END PARALLEL LOOP
     ENDDO
+    !$ACC WAIT(1)
 
     ! write tke vert. diffusivity to vert tracer diffusivities
     DO blockNo = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, blockNo, start_index, end_index)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO jc = start_index, end_index
         ! FIXME: nils: make loop over all tracer
         params_oce%a_tracer_v(jc,:,blockNo,1) = tke_kv(jc,:,blockNo)
@@ -586,6 +592,7 @@ CONTAINS
       ENDDO
       !$ACC END PARALLEL LOOP
     ENDDO
+    !$ACC WAIT(1)
 
     !$ACC END DATA
 

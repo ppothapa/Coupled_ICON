@@ -843,8 +843,8 @@ CONTAINS
 
       znphase = 0.0_wp
 
-      !$ACC PARALLEL ASYNC(1)
-      !$ACC LOOP GANG VECTOR PRIVATE(ztshft, ztt, ztest) REDUCTION(+: znphase) REDUCTION(*: zinbounds)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(ztshft, ztt, ztest) &
+      !$ACC   REDUCTION(+: znphase) REDUCTION(*: zinbounds) ASYNC(1)
       DO jl = jcs,size
 
         ztshft = FSEL(temp(jl)-tmelt,0._wp,1._wp)
@@ -870,12 +870,12 @@ CONTAINS
         zphase(jl) = ztest-0.5_wp
         znphase = znphase + ztest
       END DO
-      !$ACC END PARALLEL
+      !$ACC END PARALLEL LOOP
       nphase = INT(znphase)
 
     ELSE
-      !$ACC PARALLEL ASYNC(1)
-      !$ACC LOOP GANG VECTOR PRIVATE(ztshft, ztt) REDUCTION(*: zinbounds)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(ztshft, ztt) &
+      !$ACC   REDUCTION(*: zinbounds) ASYNC(1)
       DO jl = jcs,size
 
         ztshft = FSEL(temp(jl)-tmelt,0._wp,1._wp)
@@ -886,7 +886,7 @@ CONTAINS
         zinbounds = FSEL(ztmin-ztt,0._wp,zinbounds)
         zinbounds = FSEL(ztt-ztmax,0._wp,zinbounds)
       END DO
-      !$ACC END PARALLEL
+      !$ACC END PARALLEL LOOP
     END IF
 
     ! if one index was out of bounds -> print error and exit
@@ -1074,8 +1074,8 @@ CONTAINS
     ! first compute all lookup indices and check if they are all within allowed bounds
 
 !IBM* ASSERT(NODEPS)
-    !$ACC PARALLEL ASYNC(1)
-    !$ACC LOOP GANG VECTOR PRIVATE(jl, ztshft, ztt) REDUCTION(*: zinbounds)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(jl, ztshft, ztt) &
+    !$ACC   REDUCTION(*: zinbounds) ASYNC(1)
     DO nl = 1, kidx
       jl = list(nl)
       ztshft = FSEL(tmelt-temp(jl),1.0_wp,0.0_wp)
@@ -1086,7 +1086,7 @@ CONTAINS
       zinbounds = FSEL(ztmin-ztt,0.0_wp,zinbounds)
       zinbounds = FSEL(ztt-ztmax,0.0_wp,zinbounds)
     END DO
-    !$ACC END PARALLEL
+    !$ACC END PARALLEL LOOP
 
     ! if one index was out of bounds -> print error and exit
     IF (zinbounds == 0.0_wp) THEN
@@ -1266,10 +1266,10 @@ CONTAINS
   SUBROUTINE compute_qsat( kbdim, is, loidx, ppsfc, ptsfc, pqs, error_reporter )
 
     INTEGER, INTENT(IN)  :: kbdim, is
-    INTEGER ,INTENT(IN)  :: loidx(kbdim)!<
-    REAL(wp),INTENT(IN)  :: ppsfc (kbdim)   !< surface pressure
-    REAL(wp),INTENT(IN)  :: ptsfc (kbdim)   !< SST
-    REAL(wp),INTENT(INOUT) :: pqs   (kbdim)   !< saturation specific humidity
+    INTEGER ,INTENT(IN)  :: loidx(:)!<
+    REAL(wp),INTENT(IN)  :: ppsfc (:)   !< surface pressure
+    REAL(wp),INTENT(IN)  :: ptsfc (:)   !< SST
+    REAL(wp),INTENT(INOUT) :: pqs   (:)   !< saturation specific humidity
 
     PROCEDURE(i_error_reporter), OPTIONAL :: error_reporter
 
