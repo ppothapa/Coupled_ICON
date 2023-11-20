@@ -3298,10 +3298,7 @@ MODULE mo_initicon_utils
   END SUBROUTINE new_land_from_ocean
 
   !>
-  !! Interface for calling diangose condensate
-  !!
-  !! @par Revision History
-  !! Bjorn Stevens (2023-08-29)
+  !! Interface for calling diagnose condensate
   !!
   SUBROUTINE prepare_thermo_src_term(p_patch)
 
