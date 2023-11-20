@@ -62,10 +62,9 @@ MODULE mo_zaxis_type
     &   ZA_PRESSURE_400, ZA_PRESSURE_0, ZA_DEPTH_RUNOFF_S, ZA_DEPTH_RUNOFF_G,           &
     &   ZA_LAKE_BOTTOM, ZA_LAKE_BOTTOM_HALF, ZA_MIX_LAYER ,                             &
     &   ZA_SEDIMENT_BOTTOM_TW_HALF, ZA_DEPTH_BELOW_SEA, ZA_DEPTH_BELOW_SEA_HALF,        &
-    &   ZA_GENERIC_ICE, ZA_OCEAN_SEDIMENT, ZA_PRES_FL_SFC_200, ZA_PRES_FL_200_350,      &
-    &   ZA_PRES_FL_350_550, ZA_PRES_FL_SFC_100, ZA_PRES_FL_100_245, ZA_PRES_FL_245_390, &
-    &   ZA_PRES_FL_390_530, ZA_ATMOSPHERE, ZA_HEIGHT_2M_LAYER, ZA_ECHOTOP,              &
-    &   ZA_TROPOPAUSE, ZA_wshear, ZA_PRESSURE_LAPSERATE, ZA_SRH
+    &   ZA_GENERIC_ICE, ZA_OCEAN_SEDIMENT, ZA_PRES_FL_BOT_TOP, ZA_ATMOSPHERE,           &
+    &   ZA_HEIGHT_2M_LAYER, ZA_ECHOTOP, ZA_TROPOPAUSE, ZA_wshear,                       &
+    &   ZA_PRESSURE_LAPSERATE, ZA_SRH
 
   !> Derived type holding a the ICON-internal key for a single
   !  vertical axis type. See "t_zaxisTypeList" for details.
@@ -224,14 +223,8 @@ CONTAINS
     ZA_GENERIC_ICE             = za_list%register(cdi_zaxis_type=ZAXIS_GENERIC            , is_2D=.FALSE.)
     ! HAMOCC sediment
     ZA_OCEAN_SEDIMENT          = za_list%register(cdi_zaxis_type=ZAXIS_GENERIC            , is_2D=.FALSE.)
-    ! Volcanic Ash parameters, needed for ICON-ART
-    ZA_PRES_FL_SFC_200         = za_list%register(cdi_zaxis_type=ZAXIS_PRESSURE           , is_2D=.TRUE.)
-    ZA_PRES_FL_200_350         = za_list%register(cdi_zaxis_type=ZAXIS_PRESSURE           , is_2D=.TRUE.)
-    ZA_PRES_FL_350_550         = za_list%register(cdi_zaxis_type=ZAXIS_PRESSURE           , is_2D=.TRUE.)
-    ZA_PRES_FL_SFC_100         = za_list%register(cdi_zaxis_type=ZAXIS_PRESSURE           , is_2D=.TRUE.)
-    ZA_PRES_FL_100_245         = za_list%register(cdi_zaxis_type=ZAXIS_PRESSURE           , is_2D=.TRUE.)
-    ZA_PRES_FL_245_390         = za_list%register(cdi_zaxis_type=ZAXIS_PRESSURE           , is_2D=.TRUE.)
-    ZA_PRES_FL_390_530         = za_list%register(cdi_zaxis_type=ZAXIS_PRESSURE           , is_2D=.TRUE.)
+    ! needed for ICON-ART
+    ZA_PRES_FL_BOT_TOP         = za_list%register(cdi_zaxis_type=ZAXIS_PRESSURE           , is_2D=.TRUE.)
     ZA_ATMOSPHERE              = za_list%register(cdi_zaxis_type=ZAXIS_ATMOSPHERE         , is_2D=.TRUE.)
     ZA_HEIGHT_2M_LAYER         = za_list%register(cdi_zaxis_type=ZAXIS_HEIGHT             , is_2D=.TRUE.)
     ZA_TROPOPAUSE              = za_list%register(cdi_zaxis_type=ZAXIS_GENERIC            , is_2D=.TRUE.)    
