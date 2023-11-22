@@ -25,7 +25,7 @@ module mo_ice_fem_init
   USE mo_kind,          ONLY: wp
   USE mo_run_config,    ONLY: dtime
   USE mo_sea_ice_nml,   ONLY: Tevp_inv, i_ice_advec
-  USE mo_ice_fem_evp_old,   ONLY: init_evp_solver_coeffs_old
+!  USE mo_ice_fem_evp_old,   ONLY: init_evp_solver_coeffs_old
   USE mo_ice_fem_evp,       ONLY: init_evp_solver_coeffs
   USE mo_ice_fem_advection, ONLY: fem_fct_ice_init
 
@@ -59,7 +59,7 @@ subroutine ice_init_fem
   end if
 
   ! inialize coefficients for EVP solver
-  call init_evp_solver_coeffs_old
+!  call init_evp_solver_coeffs_old
   call init_evp_solver_coeffs
 
 end subroutine ice_init_fem
