@@ -2109,21 +2109,28 @@ CONTAINS
   FUNCTION calc_mixed_layer_depth(vertical_density_gradient,critical_value,min_lev,max_lev,thickness, depth_of_first_layer) &
     & result(mixed_layer_depth)
     !$ACC ROUTINE SEQ
-    REAL(wp), TARGET :: vertical_density_gradient(n_zlev)
+#if defined(__NVCOMPILER_MAJOR__) && __NVCOMPILER_MAJOR__ <= 21
+    REAL(wp), INTENT(in)  :: vertical_density_gradient(n_zlev)
+#else
+    REAL(wp), INTENT(in)  :: vertical_density_gradient(:)
+#endif
     REAL(wp), INTENT(in)  :: critical_value
     INTEGER,  INTENT(in)  :: min_lev
     INTEGER,  INTENT(in)  :: max_lev
+#if defined(__NVCOMPILER_MAJOR__) && __NVCOMPILER_MAJOR__ <= 21
     REAL(wp), INTENT(in)  :: thickness(n_zlev)
+#else
+    REAL(wp), INTENT(in)  :: thickness(:)
+#endif
     REAL(wp), INTENT(in)  :: depth_of_first_layer
 
     REAL(wp) :: sigh        ,zzz
     REAL(wp) :: mixed_layer_depth
-    REAL(wp) :: masked_vertical_density_gradient(n_zlev)
+    REAL(wp) :: masked_vertical_density_gradient
     INTEGER :: jk
 
     sigh              = critical_value
     mixed_layer_depth = depth_of_first_layer
-    masked_vertical_density_gradient = MAX(vertical_density_gradient,0.0_wp)
 
     ! This diagnostic calculates the mixed layer depth.
     ! It uses the incremental density increase between two
@@ -2135,10 +2142,11 @@ CONTAINS
     ! stabio(k) = insitu density gradient
     ! sigh = remaining density difference
 
-    DO jk = MAX(2,min_lev), max_lev
+    DO jk = min_lev+1, max_lev
       IF (sigh .GT. 1.e-6_wp) THEN
-        zzz               = MIN(sigh/(ABS(masked_vertical_density_gradient(jk))+1.0E-19_wp),thickness(jk))
-        sigh              = MAX(0._wp, sigh-zzz*masked_vertical_density_gradient(jk))
+        masked_vertical_density_gradient = MAX(vertical_density_gradient(jk),0.0_wp)
+        zzz               = MIN(sigh / (masked_vertical_density_gradient + 1.0E-19_wp), thickness(jk))
+        sigh              = sigh - zzz*masked_vertical_density_gradient
         mixed_layer_depth = mixed_layer_depth + zzz
       ELSE
         sigh = 0._wp
@@ -2556,8 +2564,8 @@ CONTAINS
   SUBROUTINE calc_mld(patch_3d, mld, zgrad_rho, min_lev,sigcrit, lacc)
 
     TYPE(t_patch_3d), TARGET, INTENT(in)     :: patch_3d
-    REAL(wp), TARGET, Intent(inout)          :: mld(:,:)
-    REAL(wp), TARGET, Intent(in)             :: zgrad_rho(:,:,:)
+    REAL(wp), INTENT(inout)                  :: mld(:,:)
+    REAL(wp), INTENT(in)                     :: zgrad_rho(:,:,:)
     INTEGER,  INTENT(in)                     :: min_lev
     REAL(wp)                                 :: sigcrit
     LOGICAL, INTENT(IN), OPTIONAL :: lacc
@@ -2587,7 +2595,7 @@ CONTAINS
              sigcrit, &
              min_lev, &
              patch_3d%p_patch_1d(1)%dolic_c(jc,blockNo), &
-             patch_3d%p_patch_1d(1)%prism_thick_c(jc,:,blockNo), &
+             patch_3d%p_patch_1d(1)%prism_center_dist_c(jc,:,blockNo), &
              patch_3d%p_patch_1d(1)%zlev_m(min_lev))
 
       ENDDO
