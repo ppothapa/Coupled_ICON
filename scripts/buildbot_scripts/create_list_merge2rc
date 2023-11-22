@@ -35,27 +35,25 @@ $addexp "checksuite.icon-dev/check.atm_qubicc_onlyfor"    --machines "levante" -
 $addexp "checksuite.icon-dev/check.atm_heldsuarez"        --machines "levante" --list $listname --runflags "ntasks=16 queue=shared,compute"
 $addexp "checksuite.icon-dev/check.atm_ape"               --machines "levante" --list $listname --runflags "queue=compute"
 $addexp "checksuite.icon-dev/check.atm_sma"               --machines "levante" --list $listname --runflags "queue=compute"
-$addexp "checksuite.icon-dev/check.atm_bubble_test"       --machines "levante" --list $listname --runflags "queue=shared"
-$addexp "checksuite.icon-dev/check.atm_bubble_test_update" --machines "levante" --list $listname --runflags "queue=shared"
-$addexp "checksuite.icon-dev/check.atm_bubble_land_test"  --machines "levante" --list $listname --runflags "queue=shared"
+$addexp "checksuite.icon-dev/check.atm_bubble_test"       --machines "levante" --list $listname --runflags "ntasks=16 queue=shared"
+$addexp "checksuite.icon-dev/check.atm_bubble_test_update" --machines "levante" --list $listname --runflags "ntasks=16 queue=shared"
+./rmexp "checksuite.icon-dev/check.atm_bubble_test_update" --builders "levante_nag_serial" --list $listname
+$addexp "checksuite.icon-dev/check.atm_bubble_land_test"  --machines "levante" --list $listname --runflags "ntasks=16 queue=shared"
 # add qubicc update test on Levante (netcdf) only
 $addexp "checksuite.icon-dev/check.atm_qubicc_nc_update"  --machines "levante" --list $listname --runflags "ntasks=16 queue=compute memory=32G"
+./rmexp "checksuite.icon-dev/check.atm_qubicc_nc_update"  --builders "levante_nag_serial" --list $listname
 
 # add qubicc test with tolerances on netcdf to daint
 $addexp "checksuite.icon-dev/check.atm_qubicc_nc"         --machines "daint" --list $listname --runflags "cpu_time=00:30:00"
 # add qubicc tests without tolerances on netcdf to daint
 $addexp "checksuite.icon-dev/check.atm_qubicc_nc_update"  --machines "daint" --list $listname
+./rmexp "checksuite.icon-dev/check.atm_qubicc_nc_update"  --builders "DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
 $addexp "checksuite.icon-dev/check.atm_qubicc_nc_nofor"   --machines "daint" --list $listname
 $addexp "checksuite.icon-dev/check.atm_qubicc_nc_onlyfor" --machines "daint" --list $listname
 # other tests
 $addexp "checksuite.icon-dev/check.atm_heldsuarez"        --machines "daint" --list $listname
 $addexp "checksuite.icon-dev/check.atm_ape"               --machines "daint" --list $listname
 
-# no update test for qubicc on levante_nag's
-./rmexp "checksuite.icon-dev/check.atm_qubicc_nc_update"  --builders "levante_nag_serial levante_nag" --list $listname
-./rmexp "checksuite.icon-dev/check.atm_qubicc_nc_update"  --builders "DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
-# no update test for bubble on levante_nag's
-./rmexp "checksuite.icon-dev/check.atm_bubble_test_update"  --builders "levante_nag_serial levante_nag" --list $listname
 #sma fails in a hybrid mixed build
 ./rmexp "checksuite.icon-dev/check.atm_sma"  --builders "levante_intel_hybrid_mixed" --list $listname
 
