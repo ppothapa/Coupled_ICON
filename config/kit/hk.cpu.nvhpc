@@ -1,0 +1,10 @@
+#!/bin/bash
+set -eu
+unset CDPATH
+ulimit -c 0
+
+SCRIPT_DIR=$(cd "$(dirname "$0")"; pwd)
+
+export HK_GPU_MPIRUN_FLAGS='--mca mpi_cuda_support 0'
+export HK_GPU_FCFLAGS='-noacc'
+${SCRIPT_DIR}/hk.common.nvhpc --disable-gpu "$@"

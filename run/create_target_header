@@ -1783,73 +1783,122 @@ EOF
 }
 
 #=============================================================================
-set_run_target_fh2()
-{
-    icon_data_rootFolder=${icon_data_rootFolder:=/pfs/work6/workspace/scratch/ln1297-boundary_mistral2-0/pool/data/ICON}
-
-    set_default use_nproma 8
-    set_default use_nproma_sub 8
-    set_default use_nblocks_c 0
-    use_nodes=1
-  
-    if [[ $use_mpi == "yes" ]]
-    then
-	set_default use_mpi_procs_pernode 2
-    fi
-    if [[ $use_openmp == "yes" ]]
-    then
-	set_default use_openmp_threads 2
-    else
-	set_default use_openmp_threads 1
-    fi
-    output_script_name=$(basename $output_script)
-    #| sed -r "s/(.+)\/.+/\1/"
-    stripped_output="LOG.$output_script_name.err"
-    cat >> "$output_script" << EOF
-
-#SBATCH --nodes=4
-#SBATCH --time=1:00:00
-#SBATCH --ntasks-per-node=20
-#SBATCH --partition=develop
-
-EOF
-
-    start_header
-}
-
-#=============================================================================
 set_run_target_hk()
 {
-    icon_data_rootFolder=${icon_data_rootFolder:=/pfs/work6/workspace/scratch/ln1297-boundary_mistral2-0/pool/data/ICON}
+    icon_data_rootFolder=${icon_data_rootFolder:=/hkfs/home/dataset/datasets/icon/pool/data/ICON}
 
     set_default use_nproma 8
     set_default use_nproma_sub 8
     set_default use_nblocks_c 0
-    use_nodes=1
-  
-    if [[ $use_mpi == "yes" ]]
-    then
-	set_default use_mpi_procs_pernode 2
+    set_default use_nodes 1
+    set_default use_num_io_procs 1
+    set_default use_cpu_time 01:00:00
+
+    if [[ $use_mpi == "yes" ]]; then
+        set_default use_mpi_procs_pernode 76
     fi
-    if [[ $use_openmp == "yes" ]]
-    then
-	set_default use_openmp_threads 2
+    if [[ $use_openmp == "yes" ]]; then
+        set_default use_openmp_threads 2
     else
-	set_default use_openmp_threads 1
+        set_default use_openmp_threads 1
     fi
-    output_script_name=$(basename "$output_script")
-    #| sed -r "s/(.+)\/.+/\1/"
-    stripped_output="LOG.$output_script_name.err"
+
+    if [[ -n "$BB_SYSTEM" ]]; then
+    # this buildbot, do not use job id
+        job_log_name="LOG.$job_name"
+    else
+        job_log_name="LOG.$job_name.%j"
+    fi
+
+    if [[ -n "$BB_SYSTEM" ]]; then
+        # this is buldbot, do not run more than 45 minutes
+        limit="00:45:00"
+        limit_time_bb # sets use_cpu_time
+    fi
+
+
+    cdo='cdo'
+    cdo_diff='diffn'
+
     cat >> "$output_script" << EOF
-
-#SBATCH --nodes=4
-#SBATCH --time=1:00:00
-#SBATCH --ntasks-per-node=76
-#SBATCH --partition=develop
-
+#SBATCH --output=$output_folder/$job_log_name.o
+#SBATCH --error=$output_folder/$job_log_name.o
+#SBATCH --job-name=$job_name
+#SBATCH --nodes=${use_nodes}
+#SBATCH --partition=dev_cpuonly
+#SBATCH --account=hk-project-glori-init
+#SBATCH --ntasks-per-node=$use_mpi_procs_pernode
+#SBATCH --time=$use_cpu_time
 EOF
 
     start_header
+
+    cat >> "$output_script" << EOF
+export PATH=/hkfs/home/dataset/datasets/icon/sw/cdo-2.3.0/bin:\${PATH}
+export ECCODES_DEFINITION_PATH=/hkfs/home/dataset/datasets/icon/sw/definitions/2.31.0/definitions.edzw-2.31.0-2:/hkfs/home/dataset/datasets/icon/sw/definitions/2.31.0/definitions
+export NVCOMPILER_TERM=trace
+export OMPI_MCA_btl=self,tcp
+EOF
+}
+
+set_run_target_hk_gpu()
+{
+    icon_data_rootFolder=${icon_data_rootFolder:=/hkfs/home/dataset/datasets/icon/pool/data/ICON}
+
+    set_default use_nproma 8192
+    set_default use_nproma_sub 512
+    set_default use_nblocks_c 0
+    set_default use_nodes 1
+    set_default use_num_io_procs 1
+    set_default use_cpu_time 01:00:00
+    set_default use_ecrad_isolver 2 # McICA for OpenACC
+
+    if [[ $use_mpi == "yes" ]]; then
+        set_default use_mpi_procs_pernode 4
+    fi
+    if [[ $use_openmp == "yes" ]]; then
+        set_default use_openmp_threads 2
+    else
+        set_default use_openmp_threads 1
+    fi
+
+    if [[ -n "$BB_SYSTEM" ]]; then
+    # this buildbot, do not use job id
+        job_log_name="LOG.$job_name"
+    else
+        job_log_name="LOG.$job_name.%j"
+    fi
+
+    if [[ -n "$BB_SYSTEM" ]]; then
+        # this is buldbot, do not run more than 45 minutes
+        limit="00:45:00"
+        limit_time_bb # sets use_cpu_time
+    fi
+
+    cdo='cdo'
+    cdo_diff='diffn'
+
+    cat >> "$output_script" << EOF
+#SBATCH --nodes=${use_nodes}
+#SBATCH --output=$output_folder/$job_log_name.o
+#SBATCH --error=$output_folder/$job_log_name.o
+#SBATCH --job-name=$job_name
+#SBATCH --partition=dev_accelerated
+#SBATCH --account=hk-project-glori-init
+#SBATCH --ntasks-per-node=$use_mpi_procs_pernode
+#SBATCH --gres=gpu:4
+#SBATCH --time=$use_cpu_time
+EOF
+
+    start_header
+
+    cat >> "$output_script" << EOF
+export PATH=/hkfs/home/dataset/datasets/icon/sw/cdo-2.3.0/bin:\${PATH}
+export ECCODES_DEFINITION_PATH=/hkfs/home/dataset/datasets/icon/sw/definitions/2.31.0/definitions.edzw-2.31.0-2:/hkfs/home/dataset/datasets/icon/sw/definitions/2.31.0/definitions
+export NVCOMPILER_TERM=trace
+
+export NVCOMPILER_ACC_SYNCHRONOUS=1 # 2023-11-06: there is some bug in the code or compiler setup (e.g. dwd IAU test)
+EOF
 }
 
 #=============================================================================

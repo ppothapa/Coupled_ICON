@@ -230,15 +230,23 @@ case "$use_site" in
   ;;
 
   kit.edu)
-    use_load_profile='. /etc/profile ; . /opt/lmod/lmod/init/ksh'
-    use_submit='sbatch'
     use_load_profile='. /etc/profile'
-    use_mpi_startrun="$(type -p mpirun)"
-    use_load_modules="$(echo $(module --terse list 2>&1))"
+    use_shell='/usr/bin/bash'
+    use_submit='sbatch'
+    use_sync_submit='sbatch --wait'
+    use_load_profile='. /etc/profile'
+    use_mpi_startrun='@MPI_LAUNCH@ -n ${SLURM_NPROCS}'
+    use_load_modules=""
     case "$use_host" in
       uc2*) use_target='uc2' ;;
       fh2*) use_target='fh2' ;;
-      hk*)  use_target='hk'  ;;
+      hk*)  
+        if test xyes = x"${use_gpu}"; then 
+            use_target='hk_gpu';
+            use_mpi_startrun='@MPI_LAUNCH@ -n ${SLURM_NPROCS} ${basedir}/run/run_wrapper/hk.sh'
+        else 
+            use_target='hk'; 
+        fi
     esac
   ;;
 

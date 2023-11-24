@@ -319,6 +319,13 @@ $addexp "checksuite.infrastructure/aurora/exp.icon_esm_r2b4.run" --builders "lev
 $addexp "checksuite.infrastructure/aurora/exp.icon_atm_r2b4.run" --builders "levante_aurora" --list $listname
 $addexp "checksuite.infrastructure/aurora/exp.host_and_vector_only_tests.run" --builders "levante_aurora" --list $listname
 
+# HoreKa at KIT
+./set_builder_flags Active --builders 'horeka_gpu_nvhpc horeka_cpu_nvhpc horeka_gcc horeka_intel' --list $listname
+$addexp "checksuite.icon-dev/check.atm_bubble_test" --machines "horeka" --list $listname
+$addexp "exp.dwd_run_ICON_09_R2B4N5_EPS" --machines "horeka" --list $listname # TODO: setup check. test with probtest on Horeka
+$addexp "checksuite.nwp/nwpexp.run_ICON-ART_01_R3B08_lam_initmode7_pollen" --machines "horeka" --list $listname
+./rmexp "checksuite.nwp/nwpexp.run_ICON-ART_01_R3B08_lam_initmode7_pollen"  --builders "horeka_gpu_nvhpc" --list $listname # Does not run on GPUs yet
+
 #lets see the list
 ./lslist $listname
 #-----------------------------------------------------------
