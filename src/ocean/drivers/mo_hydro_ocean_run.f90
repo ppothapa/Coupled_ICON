@@ -33,7 +33,7 @@ MODULE mo_hydro_ocean_run
     &  lswr_jerlov, lsediment_only, &
     &  Cartesian_Mixing, GMRedi_configuration, OceanReferenceDensity_inv, &
     &  atm_pressure_included_in_ocedyn, &
-    &  vert_mix_type, vmix_pp, vmix_kpp, lcheck_salt_content, &
+    &  vert_mix_type, vmix_pp, lcheck_salt_content, &
     &  use_draftave_for_transport_h, &
     & vert_cor_type, use_tides, check_total_volume
   USE mo_ocean_nml,              ONLY: iforc_oce, Coupled_FluxFromAtmo
@@ -1175,8 +1175,7 @@ CONTAINS
         !$ACC   COPYIN(ocean_state(jg)%transport_state%mass_flux_e, ocean_state(jg)%transport_state%w, ocean_state(jg)%transport_state%vn) &
         !$ACC   COPYIN(ocean_state(jg)%p_diag, ocean_state(jg)%p_diag%w) &
         !$ACC   COPYIN(ocean_state(jg)%p_diag%mass_flx_e, ocean_state(jg)%p_diag%vn_time_weighted) &
-        !$ACC   COPYIN(p_phys_param%cvmix_params, p_phys_param%cvmix_params%nl_trans_tend_heat) &
-        !$ACC   COPYIN(p_phys_param%cvmix_params%nl_trans_tend_salt, p_oce_sfc%TopBC_Temp_vdiff, p_oce_sfc%TopBC_Salt_vdiff) IF(lzacc)
+        !$ACC   COPYIN(p_oce_sfc%TopBC_Temp_vdiff, p_oce_sfc%TopBC_Salt_vdiff) IF(lzacc)
 
         DO i = patch_3D%p_patch_2D(1)%cells%ALL%start_block, patch_3D%p_patch_2D(1)%cells%ALL%end_block
           !$ACC ENTER DATA COPYIN(operators_coefficients%verticalAdvectionPPMcoeffs(i)%cellHeightRatio_This_toBelow) &
@@ -1341,13 +1340,13 @@ CONTAINS
 
         !$ACC UPDATE DEVICE(p_phys_param%A_veloc_v, p_phys_param%a_tracer_v) IF(lzacc)
   
-        !$ACC UPDATE DEVICE(p_phys_param%cvmix_params%tke, p_phys_param%cvmix_params%tke_Lmix) &
-        !$ACC   DEVICE(p_phys_param%cvmix_params%tke_Ttot, p_phys_param%cvmix_params%tke_Tbck) &
-        !$ACC   DEVICE(p_phys_param%cvmix_params%tke_Tbpr, p_phys_param%cvmix_params%tke_Tspr) &
-        !$ACC   DEVICE(p_phys_param%cvmix_params%tke_Tdif, p_phys_param%cvmix_params%tke_Tdis) &
-        !$ACC   DEVICE(p_phys_param%cvmix_params%tke_Twin, p_phys_param%cvmix_params%tke_Pr) &
-        !$ACC   DEVICE(p_phys_param%cvmix_params%cvmix_dummy_1, p_phys_param%cvmix_params%cvmix_dummy_2) &
-        !$ACC   DEVICE(p_phys_param%cvmix_params%cvmix_dummy_3) IF(lzacc)
+        !$ACC UPDATE DEVICE(p_phys_param%vmix_params%tke, p_phys_param%vmix_params%tke_Lmix) &
+        !$ACC   DEVICE(p_phys_param%vmix_params%tke_Ttot, p_phys_param%vmix_params%tke_Tbck) &
+        !$ACC   DEVICE(p_phys_param%vmix_params%tke_Tbpr, p_phys_param%vmix_params%tke_Tspr) &
+        !$ACC   DEVICE(p_phys_param%vmix_params%tke_Tdif, p_phys_param%vmix_params%tke_Tdis) &
+        !$ACC   DEVICE(p_phys_param%vmix_params%tke_Twin, p_phys_param%vmix_params%tke_Pr) &
+        !$ACC   DEVICE(p_phys_param%vmix_params%vmix_dummy_1, p_phys_param%vmix_params%vmix_dummy_2) &
+        !$ACC   DEVICE(p_phys_param%vmix_params%vmix_dummy_3) IF(lzacc)
 #endif
 #endif
 
@@ -1595,12 +1594,6 @@ CONTAINS
         !$ACC WAIT(1)
       ENDIF
 
-      IF (vert_mix_type .EQ. vmix_kpp ) THEN
-         old_tracer_collection%tracer(1)%vertical_trasnport_tendencies => p_phys_param%cvmix_params%nl_trans_tend_heat
-         IF (no_tracer > 1) &
-           old_tracer_collection%tracer(2)%vertical_trasnport_tendencies => p_phys_param%cvmix_params%nl_trans_tend_salt
-      END IF
-
       ! fill boundary conditions
       old_tracer_collection%tracer(1)%top_bc => p_oce_sfc%TopBC_Temp_vdiff
       IF (no_tracer > 1) &
@@ -1682,13 +1675,7 @@ CONTAINS
       transport_state%w           => ocean_state%p_diag%w  ! w_time_weighted
       transport_state%mass_flux_e => ocean_state%p_diag%mass_flx_e
       transport_state%vn          => ocean_state%p_diag%vn_time_weighted
-      ! fill boundary conditions
 
-      IF (vert_mix_type .EQ. vmix_kpp ) THEN
-        old_tracer_collection%tracer(1)%vertical_trasnport_tendencies => p_phys_param%cvmix_params%nl_trans_tend_heat
-        IF (no_tracer > 1) &
-          old_tracer_collection%tracer(2)%vertical_trasnport_tendencies => p_phys_param%cvmix_params%nl_trans_tend_salt
-      END IF
 
       ! fill boundary conditions
       old_tracer_collection%tracer(1)%top_bc => p_oce_sfc%TopBC_Temp_vdiff

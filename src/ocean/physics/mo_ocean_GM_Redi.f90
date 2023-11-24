@@ -30,7 +30,7 @@ MODULE mo_ocean_GM_Redi
     & k_tracer_GM_kappa_parameter,EOS_TYPE,&
     & GMRedi_configuration,GMRedi_combined, GM_only,Redi_only,Cartesian_Mixing, &
     & tapering_scheme,tapering_DanaMcWilliams,tapering_Large,tapering_Griffies, &
-    & vert_mix_type, vmix_pp, vmix_kpp, vmix_tke, vmix_idemix_tke,OceanReferenceDensity,ReferencePressureIndbars, & ! by_Oliver
+    & vert_mix_type, vmix_pp, vmix_tke, vmix_idemix_tke,OceanReferenceDensity,ReferencePressureIndbars, & ! by_Oliver
     & S_max, S_d, S_critical, c_speed, GMRedi_usesRelativeMaxSlopes,vert_cor_type,            &
     & RossbyRadius_max, RossbyRadius_min,switch_off_diagonal_vert_expl,lvertical_GM,Nmin,     & ! by_Oliver: added lvertical_GM, Nmin
     & GMREDI_COMBINED_DIAGNOSTIC,GM_INDIVIDUAL_DIAGNOSTIC,REDI_INDIVIDUAL_DIAGNOSTIC,&
@@ -2418,14 +2418,6 @@ SUBROUTINE vertical_GM(patch_3d, ocean_state, param, op_coeff, kappa)
     ! Nmin is used from namelist
 
     ! N2 has to be calculated (pp,tke) since it is not a global variable yet. 
-    !  In case of kpp, we can simply point to N2 to avoid redundant calculation.
-    ! FIXME: can be removed once N2 is a global variable.
-!    SELECT CASE(vert_mix_type)
-
-!      CASE(vmix_kpp)
-!         ! N2 was already calculated in KPP module
-!         N2 => param%cvmix_params%N2(:,:,:)
-!      CASE(vmix_pp,vmix_tke)
 
 
          ! N2 has to be calculated (for all cases)
@@ -2454,10 +2446,6 @@ SUBROUTINE vertical_GM(patch_3d, ocean_state, param, op_coeff, kappa)
          END DO
          N2 => Nsqr(:,:,:)  
  
-!      CASE default
-!         write(*,*) "Unknown vert_mix_type!"
-!         stop
-!      END SELECT
 
     ! mixed layer depth
     mld => ocean_state%p_diag%mld 

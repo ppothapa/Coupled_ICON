@@ -13,7 +13,7 @@
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
-MODULE mo_ocean_cvmix_idemix
+MODULE mo_ocean_idemix
   !-------------------------------------------------------------------------
   !-------------------------------------------------------------------------
   USE mo_kind,                ONLY: wp
@@ -103,11 +103,11 @@ MODULE mo_ocean_cvmix_idemix
     & timer_extra10, timer_extra11
   USE mo_statistics,          ONLY: global_minmaxmean
   USE mo_io_config,           ONLY: lnetcdf_flt64_output
-  USE mo_math_types,      ONLY: t_cartesian_coordinates
-  USE cvmix_idemix,              ONLY: init_idemix, cvmix_coeffs_idemix!, integrate_idemix
+  USE mo_math_types,          ONLY: t_cartesian_coordinates
+  USE mo_ocean_idemix_base,   ONLY: init_idemix, coeffs_idemix!, integrate_idemix
   USE mo_sea_ice_types,       ONLY: t_sea_ice, t_atmos_fluxes
   !USE test,                   ONLY: test_test
-  USE mo_read_interface,    ONLY: read_2D_1Time, on_cells, t_stream_id, &
+  USE mo_read_interface,      ONLY: read_2D_1Time, on_cells, t_stream_id, &
     & read_netcdf_broadcast_method, openInputFile, closeFile
 
   IMPLICIT NONE
@@ -258,7 +258,7 @@ CONTAINS
     dummy_zeros = 0.0
     debug = .false.
 
-    iwe => params_oce%cvmix_params%iwe(:,:,:)
+    iwe => params_oce%vmix_params%iwe(:,:,:)
     iwe_kv = 0.0
     iwe_Av = 0.0
 
@@ -314,9 +314,9 @@ CONTAINS
       !  write(*,*) 'temp(jc,:,blockNo) = ', temp(jc,:,blockNo)
       !endif
 
-      ! main cvmix call to calculate idemix
+      ! main call to calculate idemix
       if (kbot(jc,blockNo)>0) then
-      CALL cvmix_coeffs_idemix(                                                      &
+      CALL coeffs_idemix(                                                            &
                    ! parameter
                    dzw             = dzw(jc,:,blockNo),                              &
                    dzt             = dz(jc,:,blockNo),                               &
@@ -328,37 +328,37 @@ CONTAINS
                    ! essentials 
                    iwe_old         = iwe(jc,:,blockNo),                              & ! in
                    iwe_new         = iwe(jc,:,blockNo),                              & ! out
-                   forc_iw_surface = iwe_surf_forc(jc,blockNo),                 & ! in
-                   forc_iw_bottom  = iwe_bott_forc(jc,blockNo),                  & ! in
+                   forc_iw_surface = iwe_surf_forc(jc,blockNo),                      & ! in
+                   forc_iw_bottom  = iwe_bott_forc(jc,blockNo),                      & ! in
                    ! FIXME: nils: better output IDEMIX Ri directly
-                   alpha_c         = params_oce%cvmix_params%iwe_alpha_c(jc,:,blockNo), & ! out (for Ri IMIX)
+                   alpha_c         = params_oce%vmix_params%iwe_alpha_c(jc,:,blockNo), & ! out (for Ri IMIX)
                    ! only for Osborn shortcut 
-                   ! FIXME: nils: put this to cvmix_tke
+                   ! FIXME: nils: put this to tke
                    KappaM_out      = iwe_Av(jc,:,blockNo),                           & ! out
                    KappaH_out      = iwe_kv(jc,:,blockNo),                           & ! out
-                   Nsqr            = Nsqr(:),                             & ! in
+                   Nsqr            = Nsqr(:),                                        & ! in
                    ! diagnostics
-                   iwe_Ttot        = params_oce%cvmix_params%iwe_Ttot(jc,:,blockNo), &
-                   iwe_Tdif        = params_oce%cvmix_params%iwe_Tdif(jc,:,blockNo), &
-                   iwe_Thdi        = params_oce%cvmix_params%iwe_Thdi(jc,:,blockNo), &
-                   iwe_Tdis        = params_oce%cvmix_params%iwe_Tdis(jc,:,blockNo), &
-                   iwe_Tsur        = params_oce%cvmix_params%iwe_Tsur(jc,:,blockNo), &
-                   iwe_Tbot        = params_oce%cvmix_params%iwe_Tbot(jc,:,blockNo), &
-                   c0              = params_oce%cvmix_params%iwe_c0(jc,:,blockNo),   &
-                   v0              = params_oce%cvmix_params%iwe_v0(jc,:,blockNo),   &
+                   iwe_Ttot        = params_oce%vmix_params%iwe_Ttot(jc,:,blockNo), &
+                   iwe_Tdif        = params_oce%vmix_params%iwe_Tdif(jc,:,blockNo), &
+                   iwe_Thdi        = params_oce%vmix_params%iwe_Thdi(jc,:,blockNo), &
+                   iwe_Tdis        = params_oce%vmix_params%iwe_Tdis(jc,:,blockNo), &
+                   iwe_Tsur        = params_oce%vmix_params%iwe_Tsur(jc,:,blockNo), &
+                   iwe_Tbot        = params_oce%vmix_params%iwe_Tbot(jc,:,blockNo), &
+                   c0              = params_oce%vmix_params%iwe_c0(jc,:,blockNo),   &
+                   v0              = params_oce%vmix_params%iwe_v0(jc,:,blockNo),   &
                    ! debugging
                    debug           = debug,                                          &
                    !i = jc,                                                           &
                    !j = blockNo,                                                      &
                    !tstep_count = tstep_count,                                        &
-                   cvmix_int_1     = params_oce%cvmix_params%cvmix_dummy_1(jc,:,blockNo), &
-                   cvmix_int_2     = params_oce%cvmix_params%cvmix_dummy_2(jc,:,blockNo), &
-                   cvmix_int_3     = params_oce%cvmix_params%cvmix_dummy_3(jc,:,blockNo)  &
+                   int_1     = params_oce%vmix_params%vmix_dummy_1(jc,:,blockNo), &
+                   int_2     = params_oce%vmix_params%vmix_dummy_2(jc,:,blockNo), &
+                   int_3     = params_oce%vmix_params%vmix_dummy_3(jc,:,blockNo)  &
                    )
 
       end if
     !if (jc==8 .and. blockNo==10) then
-    !!  write(*,*) params_oce%cvmix_params%cvmix_dummy_1(jc,:,blockNo)
+    !!  write(*,*) params_oce%vmix_params%vmix_dummy_1(jc,:,blockNo)
     !  write(*,*) 'dzw = ', dzw(jc,:,blockNo)
     !  write(*,*) 'dzt = ', dz(jc,:,blockNo)
     !  stop
@@ -372,10 +372,10 @@ CONTAINS
     if (n_hor_iwe_prop_iter>0) then
 
       CALL sync_patch_array(sync_c, patch_2D, iwe)
-      CALL sync_patch_array(sync_c, patch_2D, params_oce%cvmix_params%iwe_v0)
+      CALL sync_patch_array(sync_c, patch_2D, params_oce%vmix_params%iwe_v0)
 
       ! temporarily store old iwe values for diag
-      params_oce%cvmix_params%iwe_Thdi(:,:,:) = iwe(:,:,:) 
+      params_oce%vmix_params%iwe_Thdi(:,:,:) = iwe(:,:,:) 
 
       ! restrict iwe_v0 to fullfill stability criterium
       !DO j=1,je
@@ -401,9 +401,9 @@ CONTAINS
         DO je = start_index, end_index
           DO jk = 1, patch_3d%p_patch_1d(1)%dolic_e(je,blockNo)+1
             v0_e(je,jk,blockNo) = &
-              & 0.5_wp * (    params_oce%cvmix_params%iwe_v0(  &
+              & 0.5_wp * (    params_oce%vmix_params%iwe_v0(  &
               &   idx_c(je,blockNo,1),jk,blk_c(je,blockNo,1) ) &
-              &             + params_oce%cvmix_params%iwe_v0(  &
+              &             + params_oce%vmix_params%iwe_v0(  &
               &   idx_c(je,blockNo,2),jk,blk_c(je,blockNo,2) ) )
           ENDDO
         ENDDO
@@ -413,7 +413,7 @@ CONTAINS
       DO n=1,n_hor_iwe_prop_iter
 
         ! derive product v0*iwe
-        v0_iwe_c(:,:,:) = params_oce%cvmix_params%iwe_v0(:,:,:)*iwe(:,:,:)
+        v0_iwe_c(:,:,:) = params_oce%vmix_params%iwe_v0(:,:,:)*iwe(:,:,:)
         !v0_iwe_c(:,:,:) = 0.0_wp
         !DO blockNo = all_cells%start_block, all_cells%end_block
         !  CALL get_index_range(all_cells, blockNo, start_index, end_index)
@@ -492,8 +492,8 @@ CONTAINS
       ENDDO ! n=1,n_hor_iwe_prop_iter
 
       ! derive diagnostic of hor. wave propagation and total tendency
-      params_oce%cvmix_params%iwe_Thdi(:,:,:) = (iwe(:,:,:) - params_oce%cvmix_params%iwe_Thdi(:,:,:))/dtime
-      params_oce%cvmix_params%iwe_Ttot(:,:,:) = params_oce%cvmix_params%iwe_Ttot(:,:,:) + params_oce%cvmix_params%iwe_Thdi(:,:,:)
+      params_oce%vmix_params%iwe_Thdi(:,:,:) = (iwe(:,:,:) - params_oce%vmix_params%iwe_Thdi(:,:,:))/dtime
+      params_oce%vmix_params%iwe_Ttot(:,:,:) = params_oce%vmix_params%iwe_Ttot(:,:,:) + params_oce%vmix_params%iwe_Thdi(:,:,:)
     end if
 ! end: iwe hor prop 
 
@@ -522,4 +522,4 @@ CONTAINS
     !write(*,*) 'fu10 = ', fu10(8,10) 
   END SUBROUTINE calc_idemix
   
-END MODULE mo_ocean_cvmix_idemix
+END MODULE mo_ocean_idemix

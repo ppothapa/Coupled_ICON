@@ -227,7 +227,7 @@ cat >> ${ocean_namelist} << EOF2
   Salinity_HorizontalDiffusion_Reference     = 0 !  40
 /
 &ocean_vertical_diffusion_nml
-  vert_mix_type                            = 2 ! 1=PP, 2=TKE, 3=KPP
+  vert_mix_type                            = 2 ! 1=PP, 2=TKE
   PPscheme_type                            = 0
 /
 &ocean_GentMcWilliamsRedi_nml

@@ -20,7 +20,7 @@ MODULE mo_ocean_tracer_zstar
   USE mo_ocean_nml,                    ONLY: n_zlev, &
     & l_with_vert_tracer_advection, l_with_vert_tracer_diffusion, &
     & GMRedi_configuration, Cartesian_Mixing, &
-    & vert_mix_type, vmix_kpp
+    & vert_mix_type
   USE mo_parallel_config,              ONLY: nproma
   USE mo_run_config,                   ONLY: dtime
   USE mo_model_domain,                 ONLY: t_patch, t_patch_3d
@@ -1314,10 +1314,6 @@ CONTAINS
     END DO
     !ICON_OMP_END_PARALLEL_DO
 
-    !! FIXME: these changes not ported to z*
-    IF (vert_mix_type .EQ. vmix_kpp ) THEN
-      CALL finish("Changes not yet implemented for z*")
-    END IF
 
     !Vertical mixing: implicit and with coefficient a_v
     !that is the sum of PP-coeff and implicit part of Redi-scheme

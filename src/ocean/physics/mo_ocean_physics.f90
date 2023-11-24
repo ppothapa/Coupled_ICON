@@ -36,7 +36,7 @@ MODULE mo_ocean_physics
     & BiharmonicViscosity_reference,                          &
     & tracer_RichardsonCoeff, velocity_RichardsonCoeff,                    &
     & use_wind_mixing,                                        &
-    & vert_mix_type, vmix_pp, vmix_tke, vmix_kpp, vmix_idemix_tke,         & ! by_nils / by_ogut
+    & vert_mix_type, vmix_pp, vmix_tke, vmix_idemix_tke,         & ! by_nils / by_ogut
     & HorizontalViscosity_SmoothIterations,                   &
     & convection_InstabilityThreshold,                        &
     & RichardsonDiffusion_threshold,                          &
@@ -97,9 +97,8 @@ MODULE mo_ocean_physics
   USE mo_statistics,          ONLY: global_minmaxmean
   USE mo_io_config,           ONLY: lnetcdf_flt64_output
   USE mo_ocean_pp_scheme,     ONLY: update_PP_scheme, update_PP_scheme_zstar
-  USE mo_ocean_cvmix_tke,     ONLY: calc_tke, setup_tke
-  USE mo_ocean_cvmix_idemix,  ONLY: calc_idemix, setup_idemix
-  USE mo_ocean_cvmix_kpp,     ONLY: calc_kpp, setup_kpp
+  USE mo_ocean_tke,           ONLY: calc_tke, setup_tke
+  USE mo_ocean_idemix,        ONLY: calc_idemix, setup_idemix
   USE mo_ocean_physics_types, ONLY: t_ho_params, v_params, &
    & WindMixingDecay, WindMixingLevel
   USE mo_sea_ice_types,       ONLY: t_sea_ice, t_atmos_fluxes
@@ -274,18 +273,14 @@ CONTAINS
       CALL message(method_name,'Setup vmix_pp scheme.')
 
     CASE(vmix_tke) ! by_nils
-!      write(*,*) 'Setup cvmix/tke scheme.'
-      CALL message(method_name,'Setup cvmix/tke scheme.')
+!      write(*,*) 'Setup tke scheme.'
+      CALL message(method_name,'Setup tke scheme.')
       CALL setup_tke()
     CASE(vmix_idemix_tke) ! by_nils
-!      write(*,*) 'Setup cvmix/idemix_tke scheme.'
-      CALL message(method_name,'Setup cvmix/idemix_tke scheme.')
+!      write(*,*) 'Setup idemix_tke scheme.'
+      CALL message(method_name,'Setup idemix_tke scheme.')
       CALL setup_idemix(patch_3d)
       CALL setup_tke()
-    CASE(vmix_kpp) ! by_ogut
-!      write(*,*) 'Setup cvmix/kpp scheme.'
-      CALL message(method_name,'Setup cvmix/kpp scheme.')
-      CALL setup_kpp()
     CASE default
 !      write(*,*) "Unknown vert_mix_type!"
 !      stop
@@ -907,8 +902,6 @@ CONTAINS
       CALL calc_idemix(patch_3d, ocean_state, params_oce, op_coeffs, atmos_fluxes)
       !CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes)
       CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10, concsum)
-    CASE(3) ! by_ogut
-      CALL calc_kpp(patch_3d, ocean_state, params_oce, atmos_fluxes, p_oce_sfc, concsum)
     CASE default
       write(*,*) "Unknown vert_mix_type!"
     END SELECT
@@ -992,8 +985,6 @@ CONTAINS
       !write(*,*) 'Do calc_idemix...'
       CALL calc_idemix(patch_3d, ocean_state, params_oce, op_coeffs, atmos_fluxes)
       CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10, concsum)
-    CASE(3) ! by_ogut
-      CALL calc_kpp(patch_3d, ocean_state, params_oce, atmos_fluxes, p_oce_sfc, concsum)
     CASE default
       write(*,*) "Unknown vert_mix_type!"
     END SELECT

@@ -139,7 +139,7 @@ cat > ${ocean_namelist} << EOF
   include_last     = .false.
   output_grid      = .TRUE.
   filename_format  = "<output_filename>_<datetime2>"
-  ml_varlist       = 'group:oce_cvmix_tke'
+  ml_varlist       = 'group:oce_vmix_tke'
 /
 &dbg_index_nml
   idbg_mxmn=0                     ! initialize MIN/MAX  debug output
@@ -203,7 +203,7 @@ cat > ${ocean_namelist} << EOF
   Salinity_HorizontalDiffusion_Reference     = 0 !  40
 /
 &ocean_vertical_diffusion_nml
-  vert_mix_type                            = 2  ! 1: PP; 2: TKE; 3: KPP; 4 TKE+IDEMIX
+  vert_mix_type                            = 2  ! 1: PP; 2: TKE; ; 4 TKE+IDEMIX
   only_tke                                 = .true. ! .true. for TKE; .false. for TKE+IDEMIX
   PPscheme_type                            = 0
   !velocity_VerticalDiffusion_background    =   5.0E-5  ! [m2/s]  vertical background viscosity coefficient for velocity
@@ -219,7 +219,7 @@ cat > ${ocean_namelist} << EOF
   !lambda_wind                     = 0.03
   !tracer_TopWindMixing            = 0.5E-3 ! [m2/s] windmixing diffusivity in MPIOM-type pp-scheme
   !velocity_TopWindMixing          = 0.5E-3 ! [m2/s] windmixing viscosity in MPIOM-type pp-scheme
-  ! cvmix/tke parameters
+  ! vmix/tke parameters
   c_k        = 0.1
   c_eps      = 0.7
   alpha_tke  = 30.0
