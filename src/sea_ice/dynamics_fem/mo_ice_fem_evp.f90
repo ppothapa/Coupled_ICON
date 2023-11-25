@@ -252,7 +252,7 @@ subroutine stress_tensor(si_elem2D, si_idx_elem, lacc)
 ! velocity field. They are stored as elemental arrays (sigma11, sigma22 and
 ! sigma12).
 
-  USE mo_sea_ice_nml,         ONLY: delta_min, Tevp_inv, Pstar, c_pressure
+  USE mo_sea_ice_nml,         ONLY: delta_min, Tevp_inv, Pstar, c_pressure, luse_replacement_pressure
 
 implicit none
 
@@ -260,7 +260,7 @@ implicit none
     INTEGER, INTENT(IN), DIMENSION(:) :: si_idx_elem
     LOGICAL, INTENT(IN), OPTIONAL     :: lacc
 
-    REAL(wp)   :: eps11, eps12, eps22, pressure, delta, delta_inv!, aa
+    REAL(wp)   :: eps11, eps12, eps22, pressure, P, delta, delta_inv!, aa
     INTEGER    :: elnodes(3), elem, i
     REAL(wp)   :: asum, msum, dx(3), dy(3)
     REAL(wp)   :: r1, r2, r3, si1, si2
@@ -317,8 +317,13 @@ implicit none
       ! (done via correcting delta_inv)
      delta_inv=1.0_wp/max(delta,delta_min)
 
-     !pressure=pressure*delta*delta_inv    ! Limiting pressure --- may not
-     !                                     ! be needed. Should be tested
+     IF (luse_replacement_pressure) THEN
+       !pressure=pressure*delta*delta_inv    ! Limiting pressure --- may not
+       !                                     ! be needed. Should be tested
+       P=pressure*delta/(delta+delta_min)
+     ELSE
+       P=pressure
+     END IF
 
       ! ===== Limiting pressure/Delta  (zeta): still it may happen that zeta is too
       ! large in regions with fine mesh so that CFL criterion is violated.
@@ -331,10 +336,10 @@ implicit none
       !zeta=Clim_evp*voltriangle(elem)
       !end if
 
-      pressure=pressure*Tevp_inv
+      P=P*Tevp_inv
       zeta=zeta*Tevp_inv
 
-     r1=zeta*(eps11+eps22) - pressure
+     r1=zeta*(eps11+eps22) - P
      r2=zeta*(eps11-eps22)
      r3=zeta*eps12
      si1=sigma11(elem)+sigma22(elem)
@@ -415,8 +420,8 @@ end subroutine stress2rhs
 
 subroutine EVPdynamics(lacc)
 ! EVP implementation. Does cybcycling and boundary conditions.
-  USE mo_sea_ice_nml,           ONLY: evp_rheol_steps
-  USE mo_physical_constants,    ONLY: rhoi, rhos, Cd_io, rho_ref
+  USE mo_sea_ice_nml,           ONLY: evp_rheol_steps, Cd_io
+  USE mo_physical_constants,    ONLY: rhoi, rhos, rho_ref
 
   USE mo_ice_fem_icon_init,     ONLY: exchange_nod2D
 

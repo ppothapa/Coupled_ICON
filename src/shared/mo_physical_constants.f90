@@ -224,10 +224,7 @@ MODULE mo_physical_constants
     alb_sno_vis  = 0.96_wp,         & ! Albedo of dry snow (visible)
     alb_sno_nir  = 0.68_wp,         & ! Albedo of dry snow (near-infrared)
     !I_0          = 0.3             ! Ice-surface penetrating shortwave fraction
-    I_0          = 0.17_wp,         & ! Ice-surface penetrating shortwave fraction
-    Cd_ia        =  1.2e-3_wp,       & ! Ice-atmosphere drag coefficient
-    Cd_io        =  3.0e-3_wp,       & ! Ice-ocean drag coefficient
-    Ch_io        = 12.0e-3_wp         ! Ice-ocean heat transfer coefficient
+    I_0          = 0.17_wp            ! Ice-surface penetrating shortwave fraction
 
 !--------- parameters for NWP sea-ice model (we should agree on a single value)-----
 !_cdm>

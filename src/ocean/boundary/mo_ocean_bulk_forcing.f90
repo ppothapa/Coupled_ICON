@@ -46,13 +46,13 @@ MODULE mo_ocean_bulk_forcing
     &  forcing_set_runoff_to_zero, OMIP_FluxFromFile, OceanReferenceDensity,    &
     &  bulk_wind_stress_type, wind_stress_from_file, wind_stress_type_noocean,  &
     &  wind_stress_type_ocean, check_total_volume, coriolis_type, coriolis_fplane_latitude
-  USE mo_sea_ice_nml,         ONLY: stress_ice_zero
+  USE mo_sea_ice_nml,         ONLY: stress_ice_zero, Cd_ia, Cd_io
 
   USE mo_ocean_types,         ONLY: t_hydro_ocean_state
   USE mo_exception,           ONLY: finish, message, message_text
   USE mo_math_constants,      ONLY: rad2deg !, deg2rad
   USE mo_physical_constants,  ONLY: alv, tmelt, clw, stbo, zemiss_def
-  USE mo_physical_constants,  ONLY: rd, cpd, fr_fac, alf, cd_ia, Cd_io, rho_ref
+  USE mo_physical_constants,  ONLY: rd, cpd, fr_fac, alf, rho_ref
   USE mo_impl_constants,      ONLY: max_char_length, sea_boundary,f_plane_coriolis
   USE mo_grid_subset,         ONLY: t_subset_range, get_index_range
   USE mo_sea_ice_types,       ONLY: t_sea_ice, t_atmos_fluxes
