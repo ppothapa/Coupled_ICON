@@ -353,6 +353,7 @@ CONTAINS
         REAL(wp) :: total_salt, total_saltinseaice, total_saltinliquidwater
         INTEGER  :: blockNo, i
         LOGICAL  :: lzacc
+        CHARACTER(LEN = *), PARAMETER :: routine = 'mo_hydro_ocean_run:ocean_time_step'
 
         lzacc = .FALSE.
 
@@ -363,9 +364,13 @@ CONTAINS
         ! update model date and time mtime based
         current_time = ocean_time_nextStep()
 
-        CALL datetimeToString(current_time, datestring)
-        WRITE(message_text,'(a,i10,2a)') '  Begin of timestep =',jstep,'  datetime:  ', datestring
-        CALL message (routine, message_text)
+        IF (idbg_mxmn >= 1 .OR. debug_check_level > 3) THEN
+
+          CALL datetimeToString(current_time, datestring)
+          WRITE(message_text,'(a,i10,2a)') '  Begin of timestep =',jstep,'  datetime:  ', datestring
+          CALL message (TRIM(routine), message_text)
+
+        END IF
 
 !        IF (lcheck_salt_content) CALL check_total_salt_content(100,ocean_state(jg)%p_prog(nold(1))%tracer(:,:,:,2), patch_2d, &
 !         ocean_state(jg)%p_prog(nold(1))%h(:,:), patch_3D%p_patch_1d(1)%prism_thick_flat_sfc_c(:,:,:),&
@@ -822,6 +827,7 @@ CONTAINS
     SUBROUTINE ocean_time_step_zstar()
         INTEGER  :: blockNo, i
         LOGICAL  :: lzacc
+        CHARACTER(LEN = *), PARAMETER :: routine = 'mo_hydro_ocean_run:ocean_time_step_zstar'
 
         lzacc = .FALSE.
 
@@ -835,9 +841,13 @@ CONTAINS
         ! update model date and time mtime based
         current_time = ocean_time_nextStep()
 
-        CALL datetimeToString(current_time, datestring)
-        WRITE(message_text,'(a,i10,2a)') '  Begin of timestep =',jstep,'  datetime:  ', datestring
-        CALL message (TRIM(routine), message_text)
+        IF (idbg_mxmn >= 1 .OR. debug_check_level > 3) THEN
+
+          CALL datetimeToString(current_time, datestring)
+          WRITE(message_text,'(a,i10,2a)') '  Begin of timestep =',jstep,'  datetime:  ', datestring
+          CALL message (TRIM(routine), message_text)
+
+        END IF
 
 !        IF (lcheck_salt_content) CALL check_total_salt_content_zstar(110, &
 !          & ocean_state(jg)%p_prog(nold(1))%tracer(:,:,:,2), patch_2d, &
@@ -1473,6 +1483,9 @@ CONTAINS
 
 
     SUBROUTINE sed_only_time_step()
+
+        CHARACTER(LEN = *), PARAMETER :: routine = 'mo_hydro_ocean_run:sed_only_time_step'
+
         ! fill transport state
         ocean_state(jg)%transport_state%patch_3d    => patch_3d
 
@@ -1483,9 +1496,11 @@ CONTAINS
         ! update model date and time mtime based
         current_time = ocean_time_nextStep()
 
-        CALL datetimeToString(current_time, datestring)
-        WRITE(message_text,'(a,i10,2a)') '  Begin of timestep =',jstep,'  datetime:  ', datestring
-        CALL message (TRIM(routine), message_text)
+        IF (idbg_mxmn >= 1 .OR. debug_check_level > 3) THEN
+          CALL datetimeToString(current_time, datestring)
+          WRITE(message_text,'(a,i10,2a)') '  Begin of timestep =',jstep,'  datetime:  ', datestring
+          CALL message (TRIM(routine), message_text)
+        END IF
 
         ! Add here the calls for Hamocc
         CALL ocean_to_hamocc_interface(ocean_state(jg), ocean_state(jg)%transport_state, &

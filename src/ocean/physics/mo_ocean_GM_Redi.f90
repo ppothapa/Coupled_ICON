@@ -399,12 +399,10 @@ CONTAINS
       IF(typeOfTracers == "ocean" ) THEN
       
 	IF( tracer_index==1)THEN
-	  Do level=1,n_zlev
-	    CALL dbg_print('Old vert coeff: A_v', param%a_tracer_v(:,level,:, tracer_index),&
-	    & this_mod_name, 4, patch_2D%cells%in_domain)
-	    !CALL dbg_print('Old vert coeff: A_v', ocean_state%p_diag%vertical_mixing_coeff_GMRedi_implicit,&
-	    !& this_mod_name, 4, patch_2D%cells%in_domain)
-	  End do
+	  CALL dbg_print('Old vert coeff: A_v', param%a_tracer_v(:,:,:, tracer_index),&
+	  & this_mod_name, 4, patch_2D%cells%in_domain)
+	  !CALL dbg_print('Old vert coeff: A_v', ocean_state%p_diag%vertical_mixing_coeff_GMRedi_implicit,&
+	  !& this_mod_name, 4, patch_2D%cells%in_domain)
 	ENDIF
 	  !
 	  !2.) Here we combine the vertical GMRedicoefficient that is treated implicitely (mapped_vertical_diagonal_impl, this
@@ -429,10 +427,8 @@ CONTAINS
 	CALL sync_patch_array(sync_c, patch_2D, param%a_tracer_v(:,:,:,tracer_index))
            
         IF(tracer_index==1)THEN
-          Do level=1,n_zlev
-            CALL dbg_print('New vert coeff: A_v', param%a_tracer_v(:,level,:, tracer_index),&
-            & this_mod_name, 4, patch_2D%cells%in_domain)
-          END DO 
+          CALL dbg_print('New vert coeff: A_v', param%a_tracer_v(:,:,:, tracer_index),&
+          & this_mod_name, 4, patch_2D%cells%in_domain)
         ENDIF
         
       ENDIF!IF(typeOfTracers == "ocean" ) 
@@ -459,20 +455,14 @@ CONTAINS
             
     ENDIF  
     !---------DEBUG DIAGNOSTICS-------------------------------------------
-!    Do level=1,n_zlev
 !    idt_src=1  ! output print level (1-5, fix)
-!    CALL dbg_print('InGMRedi: vert center',flux_vert_center(:,level,:),&
+!    CALL dbg_print('InGMRedi: vert center',flux_vert_center,&
 !    & str_module, idt_src, in_subset=cells_in_domain)
-!    END DO    
-    Do level=1,n_zlev
     idt_src=3  ! output print level (1-5, fix)
-    CALL dbg_print('InGMRedi: GMRedi_vert',GMRedi_flux_vert(:,level,:),&
+    CALL dbg_print('InGMRedi: GMRedi_vert',GMRedi_flux_vert,&
     & str_module, idt_src, in_subset=cells_in_domain)
-    END DO
-    Do level=1,n_zlev
-    CALL dbg_print('InGMRedi: GMRedi_horz',GMRedi_flux_horz(:,level,:),&
+    CALL dbg_print('InGMRedi: GMRedi_horz',GMRedi_flux_horz,&
     & str_module, idt_src, in_subset=edges_in_domain)
-    END DO
     !---------------------------------------------------------------------
     
 
@@ -937,24 +927,14 @@ CONTAINS
   !---------------------------------------------------------------------
   !---------DEBUG DIAGNOSTICS-------------------------------------------
   idt_src=3  ! output print level (1-5, fix)
-  CALL dbg_print('calc_slopes: squared',(ocean_state%p_aux%slopes_squared(:,:,:)),&
+  CALL dbg_print('calc_slopes: squared',ocean_state%p_aux%slopes_squared,&
     & str_module,idt_src, in_subset=cells_in_domain)
-   DO level=1,n_zlev
-     CALL dbg_print('calc_slopes: slobe abs',sqrt(ocean_state%p_aux%slopes_squared(:,level,:)),&
-       & str_module,idt_src, in_subset=cells_in_domain)
-       
-  END DO
-
-   DO level=1,n_zlev       
-       CALL dbg_print('calc_slopes: slopes dz',ocean_state%p_aux%slopes_drdz(:,level,:),&
-       & str_module,idt_src, in_subset=cells_in_domain)
-  END DO
-
-
-   DO level=1,n_zlev       
-       CALL dbg_print('calc_slopes: slopes dx',ocean_state%p_aux%slopes_drdx(:,level,:),&
-       & str_module,idt_src, in_subset=cells_in_domain)
-  END DO
+  CALL dbg_print('calc_slopes: slope abs',sqrt(ocean_state%p_aux%slopes_squared(:,:,:)),&
+    & str_module,idt_src, in_subset=cells_in_domain)
+  CALL dbg_print('calc_slopes: slopes dz',ocean_state%p_aux%slopes_drdz,&
+    & str_module,idt_src, in_subset=cells_in_domain)
+  CALL dbg_print('calc_slopes: slopes dx',ocean_state%p_aux%slopes_drdx,&
+    & str_module,idt_src, in_subset=cells_in_domain)
   
    !---------------------------------------------------------------------
  !  DO level= 1, n_zlev  
@@ -1658,18 +1638,13 @@ CONTAINS
 
     ENDIF
 
-      Do level=1,n_zlev    
-	  CALL dbg_print('calc_mixing_tensor: horz diag', taper_diagonal_horz(:,level,:),&
-	  & this_mod_name, 3, patch_2D%cells%in_domain)
-      END DO   
-      Do level=1,n_zlev
-	  CALL dbg_print('calc_mixing_tensor: vert diag expl', taper_diagonal_vert_expl(:,level,:),&
-	  & this_mod_name, 3, patch_2D%cells%in_domain)
-      END DO    
-      Do level=1,n_zlev
-	  CALL dbg_print('calc_mixing_tensor: vert diag impl', taper_diagonal_vert_impl(:,level,:),&
-	  & this_mod_name, 3, patch_2D%cells%in_domain)
-      END DO
+    CALL dbg_print('mix_tensor: horz diag', taper_diagonal_horz,&
+    & this_mod_name, 3, patch_2D%cells%in_domain)
+    CALL dbg_print('mix_tensor: vert diag expl', taper_diagonal_vert_expl,&
+    & this_mod_name, 3, patch_2D%cells%in_domain)
+    CALL dbg_print('mix_tensor: vert diag impl', taper_diagonal_vert_impl,&
+    & this_mod_name, 3, patch_2D%cells%in_domain)
+
   END SUBROUTINE calc_entries_mixing_tensor
   !-------------------------------------------------------------------------
   
@@ -2850,12 +2825,10 @@ END SUBROUTINE vertical_GM
       ! This is only neccessary once for temperature and salinity, the HAMOCC tracers use these value  
       IF(typeOfTracers == "ocean" )THEN
         IF(tracer_index==1)THEN
-          Do level=1,n_zlev
-            CALL dbg_print('Old vert coeff: A_v', param%a_tracer_v(:,level,:, tracer_index),&
-            & this_mod_name, 4, patch_2D%cells%in_domain)
-            !CALL dbg_print('Old vert coeff: A_v', ocean_state%p_diag%vertical_mixing_coeff_GMRedi_implicit,&
-            !& this_mod_name, 4, patch_2D%cells%in_domain)
-          End do
+          CALL dbg_print('Old vert coeff: A_v', param%a_tracer_v(:,:,:, tracer_index),&
+          & this_mod_name, 4, patch_2D%cells%in_domain)
+          !CALL dbg_print('Old vert coeff: A_v', ocean_state%p_diag%vertical_mixing_coeff_GMRedi_implicit,&
+          !& this_mod_name, 4, patch_2D%cells%in_domain)
         ENDIF
         !
         !2.) Here we combine the vertical GMRedicoefficient that is treated implicitely (mapped_vertical_diagonal_impl, this
@@ -2881,10 +2854,8 @@ END SUBROUTINE vertical_GM
            
 
         IF(tracer_index==1)THEN
-          Do level=1,n_zlev
-            CALL dbg_print('New vert coeff: A_v', param%a_tracer_v(:,level,:, tracer_index),&
-            & this_mod_name, 4, patch_2D%cells%in_domain)
-          END DO 
+          CALL dbg_print('New vert coeff: A_v', param%a_tracer_v(:,:,:, tracer_index),&
+          & this_mod_name, 4, patch_2D%cells%in_domain)
         ENDIF 
       ENDIF!IF(typeOfTracers == "ocean" )THEN 
       
@@ -2910,15 +2881,15 @@ END SUBROUTINE vertical_GM
             
     ENDIF  
     !---------DEBUG DIAGNOSTICS-------------------------------------------
-    Do level=1,n_zlev
+    !Do level=1,n_zlev
     idt_src=3  ! output print level (1-5, fix)
-    CALL dbg_print('InGMRedi: GMRedi_vert',GMredi_flux_vert(:,level,:),&
+    CALL dbg_print('InGMRedi_zstar: GMRedi_vert',GMredi_flux_vert,&
     & str_module, idt_src, in_subset=cells_in_domain)
-    END DO
-    Do level=1,n_zlev
-    CALL dbg_print('InGMRedi: GMRedi_horz',GMredi_flux_horz(:,level,:),&
+    !END DO
+    !Do level=1,n_zlev
+    CALL dbg_print('InGMRedi_zstar: GMRedi_horz',GMredi_flux_horz,&
     & str_module, idt_src, in_subset=edges_in_domain)
-    END DO
+    !END DO
     !---------------------------------------------------------------------
     
 
