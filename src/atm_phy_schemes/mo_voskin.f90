@@ -96,8 +96,10 @@ USE mo_kind         ,ONLY : JPRB=>wp ,JPIM=>i4
 USE mo_cuparameters ,ONLY : lhook    ,dr_hook  ,&           !yomcst  (& yos_exc)
       & RKAP     ,RG       ,RETV     ,RLVTT    ,&           !yoevdf  (& yos_exc)
       & RCPD                                                !yomcst  (& yos_cst)
-USE mo_edmf_param   ,ONLY : &
-      & LEOCWA   ,LEOCCO                                    !yoephy  (& yos_exc)
+
+!! There parameters turn on warm layer (WA) and cold skin (CO).
+!! There could be added as namelist parameters but here are constants
+!!      & LEOCWA   ,LEOCCO                                    !yoephy  (& yos_exc)
 
 IMPLICIT NONE
 
@@ -131,11 +133,16 @@ REAL(KIND=JPRB) :: ZBUO(KLON),ZU(KLON),ZALPHA(KLON),ZDCOOL(KLON),&
                  & ZDWARM(KLON),ZUST(KLON)
 REAL(KIND=JPRB) :: ZHOOK_HANDLE
 
+LOGICAL :: LEOCWA, LEOCCO
+
 !     1. Initialize constants for ocean warm layer and cool skin
 
 !     1.1 General
 
 IF (LHOOK) CALL DR_HOOK('VOSKIN_MOD:VOSKIN',0,ZHOOK_HANDLE)
+
+LEOCCO=.TRUE.      !    turn on cold skin  - if vokin ON
+LEOCWA=.TRUE.      !    turn on warm layer - if vokin ON
 
 CHVER="C"          !    formulation A,B, or C
 ZNUW=1.E-6_JPRB    !    kinematic viscosity of water        (m2/s)

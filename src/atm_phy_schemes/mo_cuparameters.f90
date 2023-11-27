@@ -1196,7 +1196,7 @@ ENDIF
 !     -------
 phy_params%rdepths=tune_rdepths
 IF ((lshallow_only .OR. lgrayzone_deepconv) .AND. .NOT. lrestune_off) &
-   phy_params%rdepths = phy_params%rdepths/MAX(1._jprb,SQRT(5.e3_jprb/rsltn))
+   phy_params%rdepths = phy_params%rdepths/MAX(1._jprb,SQRT(5.e3_jprb/MAX(2.e3_jprb,rsltn)))
 
 
 !     RPRCON:    COEFFICIENTS FOR DETERMINING CONVERSION FROM CLOUD WATER
@@ -1259,7 +1259,7 @@ ENDIF
 ! tuning parameter for organized entrainment of deep convection
 phy_params%entrorg = tune_entrorg
 IF (lshallow_only .AND. .NOT. lrestune_off .OR. lgrayzone_deepconv ) &
-   phy_params%entrorg = phy_params%entrorg*MAX(1._jprb,SQRT(5.e3_jprb/rsltn))
+   phy_params%entrorg = phy_params%entrorg*MAX(1._jprb,SQRT(5.e3_jprb/MAX(2.e3_jprb,rsltn)))
 
 ! resolution-dependent settings for 'excess values' of temperature and QV used for convection triggering (test parcel ascent)
 

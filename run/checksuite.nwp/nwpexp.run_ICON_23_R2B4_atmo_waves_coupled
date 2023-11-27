@@ -705,7 +705,7 @@ cat > ${wave_namelist} <<EOF
  msg_level            = 15
  ltestcase            = .FALSE.       ! run testcase
  ldynamics            = .TRUE.
- ltransport           = .TRUE.
+ ltransport           = .FALSE.
  ntracer              = $((${nd}*${nf}))
  output               = "nml"
 /

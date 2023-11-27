@@ -26,7 +26,6 @@ MODULE mo_nwp_gpu_util
   USE mo_run_config,              ONLY: iqv, iqc, iqi, iqg, iqr, iqs, ldass_lhn
   USE mo_nonhydro_state,          ONLY: p_nh_state
   USE mo_nwp_lnd_state,           ONLY: p_lnd_state
-  USE mo_run_config,              ONLY: ldass_lhn
   USE mo_atm_phy_nwp_config,      ONLY: t_atm_phy_nwp_config
   USE mo_fortran_tools,           ONLY: assert_acc_device_only
 #ifdef _OPENACC

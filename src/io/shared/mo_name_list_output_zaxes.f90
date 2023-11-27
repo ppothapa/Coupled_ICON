@@ -93,6 +93,7 @@ MODULE mo_name_list_output_zaxes
   PUBLIC :: setup_hl_axis_atmo
   PUBLIC :: setup_il_axis_atmo
   PUBLIC :: setup_zaxes_oce
+  PUBLIC :: vertical_axis
 
   PUBLIC :: single_level_axis
 

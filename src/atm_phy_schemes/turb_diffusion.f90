@@ -264,6 +264,7 @@ USE turb_data, ONLY : &
     imode_tkesso,&  ! mode of calculat. the SSO source term for TKE production
                     ! 1: original implementation
                     ! 2: with a Ri-dependent reduction factor for Ri>1
+                    ! 3: as 2, but additional reduction for mesh sizes < 2 km
     imode_tkvmini,& ! mode of calculating the minimal turbulent diff. coeffecients
                     ! 1: with a constant value
                     ! 2: with a stability dependent correction
@@ -1982,6 +1983,8 @@ my_thrd_id = omp_get_thread_num()
             frm(i,k)=frm(i,k) + src(i)/tkvm(i,k)
           ELSE IF (imode_tkesso == 2) THEN ! Reduce TKE production in the presence of large Richardson numbers
             frm(i,k)=frm(i,k) + src(i)/tkvm(i,k)*MIN(1.0_wp,MAX(0.01_wp,xri(i,k)))
+          ELSE IF (imode_tkesso == 3) THEN ! Reduce TKE production in the presence of large Richardson numbers
+            frm(i,k)=frm(i,k) + src(i)/tkvm(i,k)*MIN(1.0_wp,MAX(0.01_wp,xri(i,k)))*MIN(1.0_wp,l_hori(i)/2000._wp)
           END IF
 
         END IF

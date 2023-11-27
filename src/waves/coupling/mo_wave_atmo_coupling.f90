@@ -22,7 +22,7 @@ MODULE mo_wave_atmo_coupling
     &                                    timer_coupling_put, timer_coupling_get, &
     &                                    timer_coupling_1stget
   USE mo_sync,                     ONLY: SYNC_C, sync_patch_array
-  USE mo_wave_atmo_coupling_frame, ONLY: lyac_very_1st_get, nbr_inner_cells, field_id, &
+  USE mo_wave_atmo_coupling_frame, ONLY: lyac_very_1st_get, field_id, &
     &                                    collection_size, CPF_U10M, CPF_V10M, CPF_FR_SEAICE, &
     &                                    CPF_Z0
   USE mo_yac_finterface,           ONLY: yac_fput, yac_fget, yac_dble_ptr,       &

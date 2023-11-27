@@ -66,7 +66,8 @@ startDate='2001-1-15'
 startTime='24:00:00'
 timeUnit='1months'
 
-cdo -s -r -P 4 remapbic,"${TARGETGRID}:2" -settaxis,${startDate},${startTime},${timeUnit} ${sourceFile} t1.nc
+GRIDNUM=`cdo sinfov ${TARGETGRID} | grep nvertex=3 | awk '{print $1}'` 
+cdo -s -r -P 4 remapbic,"${TARGETGRID}:${GRIDNUM}" -settaxis,${startDate},${startTime},${timeUnit} ${sourceFile} t1.nc
 cdo mul -gec,0.0 t1.nc t1.nc t2.nc
 cdo add -mulc,0.0 -ltc,0.0 t1.nc t2.nc ${OFILE}
 rm -rf t1.nc t2.nc

@@ -33,7 +33,7 @@ MODULE mo_run_config
   PUBLIC :: radarnmlfile
   PUBLIC :: lvert_nest, num_lev, nshift, nsteps, dtime
   PUBLIC :: ltimer, timers_level, activate_sync_timers, msg_level
-  PUBLIC :: iqv, iqc, iqi, iqs, iqr, iqtvar, nqtendphy, iqt, ico2, ich4, in2o, io3
+  PUBLIC :: iqv, iqc, iqi, iqs, iqr, nqtendphy, iqt, ico2, ich4, in2o, io3
   PUBLIC :: iqni, iqg, iqm_max
   PUBLIC :: iqh, iqnh, iqnr, iqns, iqng, iqnc, inccn, ininpot, ininact, iqgl, iqhl, iqbin, iqb_i, iqb_e, iqb_s
   PUBLIC :: iqtke
@@ -112,7 +112,6 @@ MODULE mo_run_config
     INTEGER :: iqg       = 0  !< graupel
     INTEGER :: iqr       = 0  !< rain water
     INTEGER :: iqs       = 0  !< snow
-    INTEGER :: iqtvar    = 0  !< total water variance
     INTEGER :: nqtendphy = 0  !< number of water species for which physical tendencies are stored
     INTEGER :: iqm_max   = 0  !< highest tracer index carrying a mass-related moisture variable
   

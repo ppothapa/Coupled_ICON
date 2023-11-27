@@ -56,7 +56,7 @@ USE sfc_terra_data,         ONLY: cadp
 USE mo_mpi,                 ONLY: my_process_is_mpi_seq
 USE sfc_flake,              ONLY: flake_coldinit
 USE sfc_flake_data,         ONLY: tpl_T_r, C_T_min, rflk_depth_bs_ref
-USE mo_fortran_tools,       ONLY: init, copy, set_acc_host_or_device, assert_acc_host_only
+USE mo_fortran_tools,       ONLY: init, copy, set_acc_host_or_device, assert_acc_host_only, assert_lacc_equals_i_am_accel_node
 USE mo_io_config,           ONLY: var_in_output
 
 ! ACC LOOP Comment "comment_collapse"
@@ -1283,6 +1283,7 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
 !-----------------------------------------------------------------------
 
   CALL set_acc_host_or_device(lzacc, lacc)
+  CALL assert_lacc_equals_i_am_accel_node("downscale_rad_output", lzacc)
 
   IF (msg_level >= 10) THEN
     WRITE(message_text,'(a,i2,a,i2)') 'Downscaling of radiation output fields',&
@@ -1465,24 +1466,27 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
     p_swflx_dn_clr => rg_swflx_dn_clr
   
 !$OMP PARALLEL
-    CALL init(zrg_aux3d(:,1:nshift,:))
-    CALL copy(rg_aclcov(:,:), zrg_aux3d(:,iclcov,:))
-    CALL copy(tsfc_rg(:,:), zrg_aux3d(:,itsfc,:))
-    CALL copy(albdif_rg(:,:), zrg_aux3d(:,ialb,:))
-    CALL copy(emis_rad_rg(:,:), zrg_aux3d(:,iemis,:))
-    CALL copy(cosmu0_rg(:,:), zrg_aux3d(:,icosmu0,:))
-    CALL copy(rg_lwflx_up_sfc(:,:), zrg_aux3d(:,ilwsfc,:))
-    CALL copy(rg_trsol_up_toa(:,:), zrg_aux3d(:,itrutoa,:))
-    CALL copy(rg_trsol_up_sfc(:,:), zrg_aux3d(:,itrusfc,:))
-    CALL copy(rg_trsol_dn_sfc_diff(:,:), zrg_aux3d(:,itrdiff,:))
-    CALL copy(rg_trsol_clr_sfc(:,:), zrg_aux3d(:,itrclrsfc,:))
-    CALL copy(rg_lwflx_clr_sfc(:,:), zrg_aux3d(:,ilwclrsfc,:))
-    CALL copy(rg_trsol_nir_sfc(:,:), zrg_aux3d(:,itrnirsfc,:))
-    CALL copy(rg_trsol_vis_sfc(:,:), zrg_aux3d(:,itrvissfc,:))
-    CALL copy(rg_trsol_par_sfc(:,:), zrg_aux3d(:,itrparsfc,:))
-    CALL copy(rg_fr_nir_sfc_diff(:,:), zrg_aux3d(:,ifrnirsfcdf,:))
-    CALL copy(rg_fr_vis_sfc_diff(:,:), zrg_aux3d(:,ifrvissfcdf,:))
-    CALL copy(rg_fr_par_sfc_diff(:,:), zrg_aux3d(:,ifrparsfcdf,:))
+#ifdef _OPENACC
+    CALL init(zrg_trdiffsolall(:,:,:), opt_acc_async=.TRUE.)
+#endif
+    CALL init(zrg_aux3d(:,1:nshift,:), opt_acc_async=.TRUE.)
+    CALL copy(rg_aclcov(:,:), zrg_aux3d(:,iclcov,:), opt_acc_async=.TRUE.)
+    CALL copy(tsfc_rg(:,:), zrg_aux3d(:,itsfc,:), opt_acc_async=.TRUE.)
+    CALL copy(albdif_rg(:,:), zrg_aux3d(:,ialb,:), opt_acc_async=.TRUE.)
+    CALL copy(emis_rad_rg(:,:), zrg_aux3d(:,iemis,:), opt_acc_async=.TRUE.)
+    CALL copy(cosmu0_rg(:,:), zrg_aux3d(:,icosmu0,:), opt_acc_async=.TRUE.)
+    CALL copy(rg_lwflx_up_sfc(:,:), zrg_aux3d(:,ilwsfc,:), opt_acc_async=.TRUE.)
+    CALL copy(rg_trsol_up_toa(:,:), zrg_aux3d(:,itrutoa,:), opt_acc_async=.TRUE.)
+    CALL copy(rg_trsol_up_sfc(:,:), zrg_aux3d(:,itrusfc,:), opt_acc_async=.TRUE.)
+    CALL copy(rg_trsol_dn_sfc_diff(:,:), zrg_aux3d(:,itrdiff,:), opt_acc_async=.TRUE.)
+    CALL copy(rg_trsol_clr_sfc(:,:), zrg_aux3d(:,itrclrsfc,:), opt_acc_async=.TRUE.)
+    CALL copy(rg_lwflx_clr_sfc(:,:), zrg_aux3d(:,ilwclrsfc,:), opt_acc_async=.TRUE.)
+    CALL copy(rg_trsol_nir_sfc(:,:), zrg_aux3d(:,itrnirsfc,:), opt_acc_async=.TRUE.)
+    CALL copy(rg_trsol_vis_sfc(:,:), zrg_aux3d(:,itrvissfc,:), opt_acc_async=.TRUE.)
+    CALL copy(rg_trsol_par_sfc(:,:), zrg_aux3d(:,itrparsfc,:), opt_acc_async=.TRUE.)
+    CALL copy(rg_fr_nir_sfc_diff(:,:), zrg_aux3d(:,ifrnirsfcdf,:), opt_acc_async=.TRUE.)
+    CALL copy(rg_fr_vis_sfc_diff(:,:), zrg_aux3d(:,ifrvissfcdf,:), opt_acc_async=.TRUE.)
+    CALL copy(rg_fr_par_sfc_diff(:,:), zrg_aux3d(:,ifrparsfcdf,:), opt_acc_async=.TRUE.)
 !$OMP END PARALLEL
 
     !$ACC END DATA

@@ -118,6 +118,7 @@ USE mo_run_config,              ONLY: msg_level, iqv, iqc, iqi
 USE mo_math_laplace,            ONLY: nabla2_scalar
 USE mo_sync,                    ONLY: SYNC_C, sync_patch_array_mult, global_sum, global_sum_array
 USE mo_intp_data_strc,          ONLY: t_int_state
+USE mo_fortran_tools,           ONLY: init
 
 !===============================================================================
 
@@ -331,6 +332,15 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
   !$ACC   PRESENT(prm_diag%ttend_lhn, prm_diag%qvtend_lhn, prm_diag%lhn_diag, prm_nwp_tend) &
   !$ACC   PRESENT(prm_nwp_tend%ddt_temp_pconv, pt_diag, pt_diag%temp, p_metrics, p_metrics%z_ifc, p_metrics%z_mc) &
   !$ACC   PRESENT(pt_patch, pt_patch%cells%area)
+
+#ifdef _OPENACC
+  CALL init(wobs_space(:,:), opt_acc_async=.TRUE.)
+  CALL init(zprmod(:,:), opt_acc_async=.TRUE.)
+  CALL init(zprmod_ref(:,:), opt_acc_async=.TRUE.)
+  CALL init(zprmod_ref_f(:,:), opt_acc_async=.TRUE.)
+  CALL init(zprrad(:,:), opt_acc_async=.TRUE.)
+  CALL init(zprrad_f(:,:), opt_acc_async=.TRUE.)
+#endif
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jc,jk,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
@@ -1517,22 +1527,7 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,lhn_fields,pr_obs,hzerocl, &
 
 !! reset counters
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jc,jn,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
-  DO jb = i_startblk, i_endblk
-    CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
-        &                i_startidx, i_endidx, i_rlstart, i_rlend)
-
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
-    DO jn = 0, 4
-      DO jc = i_startidx, i_endidx
-        num_t_obs(jc,jb,jn) = 0
-      END DO
-    END DO
-    !$ACC END PARALLEL
-
-  END DO
-!$OMP END DO
+  CALL init(num_t_obs(:,:,:), opt_acc_async=.TRUE.)
 !$OMP END PARALLEL
 
 

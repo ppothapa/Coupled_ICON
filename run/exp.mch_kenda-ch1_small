@@ -2,7 +2,7 @@
 
 # ===========================================================================
 # 
-# Name: exp.mch_icon-ch2_dace.run
+# Name: exp.mch_kenda-ch1_small
 #
 # Purpose: Run script for ICON at on a domain similar to the current COSMO-1E domain
 #          This is a low resolution version used for development purpose.
@@ -41,6 +41,7 @@ icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/mch"
 # =======================
 
 # Folder containing required grid information
+# 2km provides a bigger surface, thus more observations.
 grids_folder=${icon_data_poolFolder}/grids/icon-ch2_dace
 
 # Folder containing input files

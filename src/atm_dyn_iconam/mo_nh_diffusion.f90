@@ -53,10 +53,9 @@ MODULE mo_nh_diffusion
                                     sync_patch_array_mult, sync_patch_array_mult_mp
   USE mo_physical_constants,  ONLY: cvd_o_rd, grav
   USE mo_timer,               ONLY: timer_nh_hdiffusion, timer_start, timer_stop
+  USE mo_fortran_tools,       ONLY: init
   USE mo_vertical_grid,       ONLY: nrdmax
-#ifdef _OPENACC
   USE mo_mpi,                 ONLY: i_am_accel_node
-#endif
 
   IMPLICIT NONE
 
@@ -330,11 +329,10 @@ MODULE mo_nh_diffusion
 
     ELSE IF ( diffu_type == 5 .AND. discr_vn == 1 .AND. .NOT. diffusion_config(jg)%lsmag_3d) THEN
 
-      IF (p_test_run) THEN
-        !$ACC KERNELS PRESENT(u_vert, v_vert) ASYNC(1) IF(i_am_accel_node)
-        u_vert = 0._vp
-        v_vert = 0._vp
-        !$ACC END KERNELS
+      ! needs to be always initialized with OpenACC
+      IF (p_test_run .OR. i_am_accel_node) THEN
+        CALL init(u_vert, opt_acc_async=.TRUE.)
+        CALL init(v_vert, opt_acc_async=.TRUE.)
       ENDIF
 
       !  RBF reconstruction of velocity at vertices

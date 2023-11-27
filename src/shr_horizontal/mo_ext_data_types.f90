@@ -79,6 +79,10 @@ MODULE mo_ext_data_types
                                ! 0. for ocean, 1.0 indicates 100% land or lakes (AES physics)
                                ! index1=1,nproma, index2=1,nblks_c
 
+    REAL(wp), POINTER ::   &   !< smoothed land fraction for adaptive tuning of sea ice bottom heat flux and sea ice albedo
+      &  fr_land_smt(:,:)      ! 0. for water, 1.0 indicates 100% land
+                               ! index1=1,nproma, index2=1,nblks_c
+
     REAL(wp), POINTER ::    &  !< fraction land glacier in a grid element [ ]
       &  fr_glac(:,:)          ! 1.0 indicates 100% glacier
                                ! index1=1,nproma, index2=1,nblks_c
@@ -299,6 +303,24 @@ MODULE mo_ext_data_types
 
     REAL(wp), POINTER ::   &   !< ozone mixing ratio                        [ kg kg^-1 ]
       &  o3(:,:,:)             ! index1=1,nproma, index2=nlev,index3=1,nblks_c
+
+    REAL(wp), POINTER ::   &   !< Black Carbon emission for 2D-aerosol [ kg m-2 s-1 ]
+      &  emi_bc(:,:)           ! index1=1,nproma, index2=1,nblks_c
+
+    REAL(wp), POINTER ::   &   !< Organic Carbon emission for 2D-aerosol [ kg m-2 s-1 ]
+      &  emi_oc(:,:)           ! index1=1,nproma, index2=1,nblks_c
+
+    REAL(wp), POINTER ::   &   !< Sulfur dioxide emission for 2D-aerosol [ kg m-2 s-1 ]
+      &  emi_so2(:,:)          ! index1=1,nproma, index2=1,nblks_c
+
+    REAL(wp), POINTER ::   &   !< Black Carbon emission from wildfires for 2D-aerosol [ kg m-2 s-1 ]
+      &  bcfire(:,:)           ! index1=1,nproma, index2=1,nblks_c
+
+    REAL(wp), POINTER ::   &   !< Organic Carbon emission from wildfires for 2D-aerosol [ kg m-2 s-1 ]
+      &  ocfire(:,:)           ! index1=1,nproma, index2=1,nblks_c
+
+    REAL(wp), POINTER ::   &   !< Sulfur dioxide emission from wildfires for 2D-aerosol [ kg m-2 s-1 ]
+      &  so2fire(:,:)          ! index1=1,nproma, index2=1,nblks_c
 
     REAL(wp), POINTER ::   &   !< longwave surface emissivity             [ ]
       &  emis_rad(:,:)         ! index1=1,nproma, index2=1,nblks_c

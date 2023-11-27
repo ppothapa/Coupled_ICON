@@ -28,7 +28,6 @@ MODULE mo_init_wave_physics
   USE mo_physical_constants,   ONLY: grav
   USE mo_math_constants,       ONLY: pi2, rpi_2, deg2rad, rad2deg
   USE mo_loopindices,          ONLY: get_indices_c
-  USE mo_parallel_config,      ONLY: nproma
 
   USE mo_wave_types,           ONLY: t_wave_prog, t_wave_diag
   USE mo_wave_forcing_types,   ONLY: t_wave_forcing

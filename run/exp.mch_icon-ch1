@@ -291,6 +291,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  itype_pres_msl              =                          5         ! method for computation of mean sea level pressure
  itype_rh                    =                          1         ! method for computation of relative humidity
  lmask_boundary              =                     .FALSE.        ! mask out interpolation zone in output
+ itype_convindices           =                          2         ! full computation of Most Unstable indeces
  itype_dursun                =                          1         ! 0 or 1 only with new MR ldursun_mch for output of dursun_m/_r
  gust_interval               =                      3600.         ! Interval over which wind gusts are maximized
  maxt_interval               =                    "PT01H"         ! Interval over which max/min 2-m temperatures are calculated

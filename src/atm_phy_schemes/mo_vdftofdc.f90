@@ -1,5 +1,5 @@
 !
-! Turbulent orographic form drag for EDMF DUALM
+! Turbulent orographic form drag
 !
 !-----------------------------------------------------------------------------
 !

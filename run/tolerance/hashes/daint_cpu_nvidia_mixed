@@ -4,10 +4,20 @@
 icon_data_rootFolder: /users/icontest/pool/data/ICON
 builder: daint_cpu_nvidia_mixed
 # The list below maps each experiment to its current experiment_hash
+#<<<<<<< HEAD
 "atm_qubicc_nc_test": 15ee108aee97ff0164cb0c5c304beef698a640fd
-"mch_bench_r19b07_dev_sppt": 05c042a15e9939a3777f827877ed30529298a7f1
-"mch_opr_r04b07": 867f9d30e20e0ad80f05b628805693a2d79e53db
-"mch_opr_r04b07_lhn_00": efde8e3cb3bc7cc59e6d8657bf591460fc33143f
-"mch_opr_r04b07_sstice_inst": 1abd622f8fd92a3a6fe8b1a8c00ea71f95552c39
-"mch_opr_r19b07_lpi": d20dc4dfde8f7d8dd7c51c1b062125d3f3d00b3d
-"mch_opr_r19b07_midnight": 62ee0caf18df03ff3d66b7d06396e48810d49700
+#"mch_bench_r19b07_dev_sppt": 05c042a15e9939a3777f827877ed30529298a7f1
+#"mch_opr_r04b07": 867f9d30e20e0ad80f05b628805693a2d79e53db
+#"mch_opr_r04b07_lhn_00": efde8e3cb3bc7cc59e6d8657bf591460fc33143f
+#"mch_opr_r04b07_sstice_inst": 1abd622f8fd92a3a6fe8b1a8c00ea71f95552c39
+#"mch_opr_r19b07_lpi": d20dc4dfde8f7d8dd7c51c1b062125d3f3d00b3d
+#"mch_opr_r19b07_midnight": 62ee0caf18df03ff3d66b7d06396e48810d49700
+#=======
+#"atm_qubicc_nc_test": b3cd8308ece7c0202420808bebc6b5bb6c67e6a4
+"mch_bench_r19b07_dev_sppt": 862126eed3bbb9b9c4d721fa82dae5c45d598557
+"mch_opr_r04b07": cc06c3b7124d47db2c781062f965ebf4a8516477
+"mch_opr_r04b07_lhn_00": d54aa2dafd22cea1ac4ac77c0497b9cc0338f09d
+"mch_opr_r04b07_sstice_inst": 205353a47fe314d137afbeb38f7e2b9752dbed4c
+"mch_opr_r19b07_lpi": d5973c3f0f94279f823bb04f0f937affc3b6e183
+"mch_opr_r19b07_midnight": 3c08ecdd1ea73b3c0fc72aaadfefcc1f19ddf1b2
+#>>>>>>> icon-nwp/master

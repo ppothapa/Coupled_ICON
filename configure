@@ -593,6 +593,7 @@ CUDA_ENABLED
 GPU_ENABLED
 OPENMP_ENABLED
 MPI_ENABLED
+HD_ENABLED
 ART_ENABLED
 EMVORADO_ENABLED
 DACE_ENABLED_OR_NEEDED
@@ -616,6 +617,7 @@ INSTALL_PROGRAM
 ICON_DELAYED_CONFIG_RULES
 icon_bundled_cmake_subdirs
 icon_bundled_config_subdirs
+ICON_HD_FCFLAGS
 ICON_FORTRAN_SUPPORT_CFLAGS
 ICON_FORTRAN_SUPPORT_FCFLAGS
 ICON_TIXI_CFLAGS
@@ -728,7 +730,6 @@ enable_rpaths
 enable_silent_rules
 enable_delayed_config
 enable_atmo
-enable_edmf
 enable_les
 enable_upatmo
 enable_ocean
@@ -744,6 +745,7 @@ enable_rttov
 enable_dace
 enable_emvorado
 enable_art
+enable_hd
 enable_mpi
 enable_mpi_checks
 enable_active_target_sync
@@ -822,6 +824,7 @@ ICON_TIXI_FCFLAGS
 ICON_TIXI_CFLAGS
 ICON_FORTRAN_SUPPORT_FCFLAGS
 ICON_FORTRAN_SUPPORT_CFLAGS
+ICON_HD_FCFLAGS
 AR
 ARFLAGS
 RANLIB
@@ -839,7 +842,8 @@ externals/ppm
 externals/cdi
 externals/mtime
 externals/yac
-externals/tixi'
+externals/tixi
+externals/hd'
 
 # Initialize some variables set by options.
 ac_init_help=
@@ -1491,8 +1495,6 @@ Optional Features:
 Model Features:
   --enable-atmo           enable the atmosphere component of ICON
                           [default=yes]
-  --enable-edmf           enable the EDMF turbulence component of ICON
-                          [default=yes]
   --enable-les            enable the Large-Eddy Simulation component of ICON
                           [default=yes]
   --enable-upatmo         enable the upper atmosphere component of ICON
@@ -1518,6 +1520,12 @@ Model Features:
                           [default=no]
   --enable-art            enable the aerosols and reactive trace component ART
                           [default=no]
+  --enable-hd             enable the Hydrological Discharge (HD) model. The
+                          value of the argument must be one of the following
+                          [default=no]:
+                            05deg|yes  enable for the 0.5-degree global domain
+                            5min       enable for the 5min global domain
+                            no         disable the HD model
 
 Infrastructural Features:
   --enable-mpi            enable MPI (parallelization) support [default=yes]
@@ -1723,6 +1731,10 @@ Some influential environment variables:
               Fortran compiler flags to be appended to CFLAGS when configuring
               the bundled version of FORTRAN-SUPPORT library
               [default=$ICON_BUNDLED_CFLAGS]
+  ICON_HD_FCFLAGS
+              Fortran compiler flags to be appended to FCFLAGS when
+              configuring the bundled version of HD model
+              [default=$ICON_BUNDLED_FCFLAGS]
   AR          archiver command
   ARFLAGS     archiver flags
   RANLIB      archive indexer command
@@ -2954,16 +2966,6 @@ else
 fi
 
 
-# Check whether --enable-edmf was given.
-if test "${enable_edmf+set}" = set; then :
-  enableval=$enable_edmf; if test x"$enableval" != xno; then :
-  enable_edmf=yes
-fi
-else
-  enable_edmf=yes
-fi
-
-
 # Check whether --enable-les was given.
 if test "${enable_les+set}" = set; then :
   enableval=$enable_les; if test x"$enableval" != xno; then :
@@ -3115,6 +3117,21 @@ if test "${enable_art+set}" = set; then :
 fi
 else
   enable_art=no
+fi
+
+
+# Check whether --enable-hd was given.
+if test "${enable_hd+set}" = set; then :
+  enableval=$enable_hd; case $enableval in #(
+  yes) :
+    enable_hd=05deg ;; #(
+  05deg|5min|no) :
+     ;; #(
+  *) :
+    as_fn_error $? "unexpected value for the argument --enable-hd='$enableval'; valid values are '05deg', 'yes' (same as '05deg'), '5min', 'no'" "$LINENO" 5 ;;
+esac
+else
+  enable_hd=no
 fi
 
 
@@ -5265,10 +5282,6 @@ as_fn_append FCFLAGS " ${FC_PP_DEF}__ICON__"
 
 if test "x$enable_atmo" = xno; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}__NO_ICON_ATMO__"
-fi
-
-if test "x$enable_edmf" = xno; then :
-  as_fn_append FCFLAGS " ${FC_PP_DEF}__NO_ICON_EDMF__"
 fi
 
 if test "x$enable_les" = xno; then :
@@ -9964,6 +9977,122 @@ if test -n "$bundled_includes"; then :
   FCFLAGS="${bundled_includes}${FCFLAGS}"
 fi
 
+############################# BUNDLED EXECUTABLES ##############################
+
+if test x"$enable_hd" != xno; then :
+  icon_subdir_srcdir="$srcdir/externals/hd"
+   icon_subdir_unique_file="code/src/hd_driver.f90"
+   if test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"; then :
+  as_fn_error $? "unable to find sources of the bundled version of HD model ($icon_subdir_unique_file) in '$icon_subdir_srcdir': disable building of the bundled Hydrological Discharge (HD) model (--without-bundled-hd)" "$LINENO" 5
+fi
+            ICON_HD_FCFLAGS=${ICON_HD_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
+                           acx_subdir_srcdirs_fn "externals/hd"
+   acx_subdir_run_cmd_externals_hd="'$ac_srcdir/configure'"
+   acx_subdir_run_dir_externals_hd="externals/hd"
+   acx_subdir_build_type_externals_hd='config'
+         acx_subdir_pre_adjust_config_args
+      acx_subdir_run_args_externals_hd=$acx_subdir_pre_adjusted_config_args
+      if test "x$cache_file" = x'/dev/null'; then :
+  acx_tmp=$cache_file
+else
+  case $cache_file in #(
+  [\\/]* | ?:[\\/]*) :
+    acx_tmp=$cache_file ;; #(
+  *) :
+    acx_tmp="$ac_top_build_prefix$cache_file" ;;
+esac
+         acx_tmp="$acx_tmp.externals.hd"
+fi
+      set dummy "--cache-file=$acx_tmp" "--srcdir=$ac_srcdir"; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+     as_fn_append acx_subdir_run_args_externals_hd " '$acx_tmp'"
+   done
+      as_fn_append extra_src_subdirs " externals/hd"
+   acx_subdir_run_condition_externals_hd=no
+      eval "set dummy $acx_subdir_run_args_externals_hd"; shift
+   acx_subdir_run_args_externals_hd=
+   while test $# != 0; do
+     acx_tmp=$1
+     case $acx_tmp in #(
+  BUILD_ENV=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*) :
+     ;; #(
+  MPI_FCFLAGS=*|MPI_FCLIBS=*|NETCDF_FCFLAGS=*|NETCDF_FCLIBS=*) :
+     ;; #(
+  YAC_FCFLAGS=*|YAC_FCLIBS=*|PKG_CONFIG=*) :
+     ;; #(
+  -enable-rpaths|-enable-rpaths=*|--enable-rpaths|--enable-rpaths=*|-disable-rpaths|--disable-rpaths) :
+     ;; #(
+  -enable-silent-rules|-enable-silent-rules=*|--enable-silent-rules|--enable-silent-rules=*|-disable-silent-rules|--disable-silent-rules) :
+     ;; #(
+  -enable-mpi|-enable-mpi=*|--enable-mpi|--enable-mpi=*|-disable-mpi|--disable-mpi) :
+     ;; #(
+  -enable-resolution|-enable-resolution=*|--enable-resolution|--enable-resolution=*|-disable-resolution|--disable-resolution) :
+     ;; #(
+  -enable-coupling|-enable-coupling=*|--enable-coupling|--enable-coupling=*|-disable-coupling|--disable-coupling) :
+     ;; #(
+  *) :
+           case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+        as_fn_append acx_subdir_run_args_externals_hd " '$acx_tmp'" ;;
+esac
+     shift
+   done
+      set dummy FCFLAGS="$subdir_FCFLAGS $ICON_HD_FCFLAGS" MPI_FCFLAGS= MPI_FCLIBS= NETCDF_FCFLAGS= NETCDF_FCLIBS= YAC_FCLIBS= PKG_CONFIG= --enable-rpaths="$enable_rpaths" --enable-silent-rules="$enable_silent_rules" --enable-mpi="$enable_mpi" --enable-resolution="$enable_hd" --enable-coupling="$enable_coupling"; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+     as_fn_append acx_subdir_run_args_externals_hd " '$acx_tmp'"
+   done
+      if test "x$enable_coupling" = xyes; then :
+  if test "x$with_external_yac" = xyes; then :
+  set dummy YAC_FCFLAGS=; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+     as_fn_append acx_subdir_run_args_externals_hd " '$acx_tmp'"
+   done
+else
+  icon_hd_yac_lib="${icon_abs_top_builddir}/externals/yac/src/libyac.a"
+            if test "x$with_external_mtime" = xno; then :
+  as_fn_append icon_hd_yac_lib " ${icon_abs_top_builddir}/externals/mtime/src/.libs/libmtime.a"
+fi
+            if test "x$with_external_yaxt" = xno; then :
+  as_fn_append icon_hd_yac_lib " ${icon_abs_top_builddir}/externals/yaxt/src/.libs/libyaxt_c.a"
+fi
+            set dummy YAC_FCFLAGS="${FC_MOD_IN}${icon_abs_top_builddir}/externals/yac/src" acx_cv_fc_module_MO_YAC_FINTERFACE=yes acx_cv_fc_lib_func_YAC_FGET_VERSION="${icon_hd_yac_lib}"; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+     as_fn_append acx_subdir_run_args_externals_hd " '$acx_tmp'"
+   done
+fi
+fi
+fi
+
+######################## BUNDLED PACKAGES FINALIZATION #########################
+
 icon_bundled_config_subdirs=''
 
 icon_bundled_cmake_subdirs=''
@@ -10641,6 +10770,14 @@ if test "x$enable_art" = xyes; then :
 
 else
   ART_ENABLED='#'
+
+fi
+
+if test "x$enable_hd" = xno; then :
+  HD_ENABLED='#'
+
+else
+  HD_ENABLED=''
 
 fi
 
