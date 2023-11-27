@@ -777,8 +777,10 @@ cat >> ${atmo_namelist} << EOF
  ml_varlist             = 'group:dwd_fg_atm_vars','group:dwd_fg_sfc_vars','-z_ifc','gust10','rh_2m','pres_msl',
                           'clcl','clct','clcm','clch','group:cloud_diag','clc','-vn','-w','-theta_v','-tke','-rho',
                           'tot_prec','asodird_s','asodifd_s','asodifu_s',
-                          '-qc_sgs', '-tot_qc_dia', ! 2023-08-30: temporarily disable these 2 variables as they give false alarm in probtest.
-                          '-h_snow', '-hsnow_max' ! 2023-10-24: temporarily disable h_snow and hsnow_max as their probtest CPU spread is too small
+                          '-qc_sgs', '-tot_qc_dia',
+                          '-h_snow', '-hsnow_max'
+                          ! 2023-08-30: temporarily disable qc_sgs, tot_qc_dia as they give false alarm in probtest.
+                          ! 2023-10-24: temporarily disable h_snow and hsnow_max as their probtest CPU spread is too small
 !output_grid            = .TRUE.
 /
 ! //// ICON Global Forecast in Bacy - End //// !
