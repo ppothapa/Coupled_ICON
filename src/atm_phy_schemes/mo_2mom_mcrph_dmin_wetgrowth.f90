@@ -933,7 +933,6 @@ CONTAINS
 
     temp = MAX(MIN(T,temp0(nt)),temp0(1))
     
-!    CALL locate(temp0,nt,temp,jt)
     jt = MAX(MIN(FLOOR((temp-temp0(1))/dtemp) + 1, nt-1), 1)
 
     Cwater = linint(C0(jt),C0(jt+1),temp0(jt),temp0(jt+1),temp)
@@ -1093,7 +1092,6 @@ CONTAINS
 
     temp = MAX(MIN(T,temp0(nt)),temp0(1))
     
-!    CALL locate(temp0,nt,temp,jt)
     jt = MAX(MIN(FLOOR((temp-temp0(1))/dtemp) + 1, nt-1), 1)
 
     Lh_m = linint(L0(jt),L0(jt+1),temp0(jt),temp0(jt+1),temp)
@@ -1133,7 +1131,6 @@ CONTAINS
 
     temp = MAX(MIN(T,temp0(nt)),temp0(1))
     
-!    CALL locate(temp0,nt,temp,jt)
     jt = MAX(MIN(FLOOR((temp-temp0(1))/dtemp) + 1, nt-1), 1)
 
     Lh_s = linint(L0(jt),L0(jt+1),temp0(jt),temp0(jt+1),temp)
@@ -1173,7 +1170,6 @@ CONTAINS
 
     temp = MAX(MIN(T,temp0(nt)),temp0(1))
     
-!    CALL locate(temp0,nt,temp,jt)
     jt = MAX(MIN(FLOOR((temp-temp0(1))/dtemp) + 1, nt-1), 1)
 
     Lh_e = linint(L0(jt),L0(jt+1),temp0(jt),temp0(jt+1),temp)

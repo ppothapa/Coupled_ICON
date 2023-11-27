@@ -116,7 +116,6 @@ MODULE mo_2mom_mcrph_processes
   USE mo_2mom_mcrph_config,         ONLY: t_cfg_2mom
   USE mo_2mom_mcrph_config_default, ONLY: cfg_2mom_default
   USE mo_2mom_mcrph_util, ONLY: &
-       & gfct,                       &  ! Gamma function (becomes intrinsic in Fortran2008)
        & rat2do3,                    &  ! rational function for lwf-melting scheme
        & dyn_visc_sutherland,        &  ! used in lwf melting scheme
        & Dv_Rasmussen,               &  ! used in lwf melting scheme
@@ -483,10 +482,10 @@ CONTAINS
     INTEGER, INTENT(IN)        :: n
     CLASS(particle), INTENT(IN) :: parti
 
-    vent_coeff_a = parti%a_ven * gfct((parti%nu+n+parti%b_geo)/parti%mu)                 &
-         &                     / gfct((parti%nu+1.0_wp)/parti%mu)                        &
-         &                   * ( gfct((parti%nu+1.0_wp)/parti%mu)                        &
-         &                     / gfct((parti%nu+2.0_wp)/parti%mu) )**(parti%b_geo+n-1.0_wp)
+    vent_coeff_a = parti%a_ven * GAMMA((parti%nu+n+parti%b_geo)/parti%mu)                 &
+         &                     / GAMMA((parti%nu+1.0_wp)/parti%mu)                        &
+         &                   * ( GAMMA((parti%nu+1.0_wp)/parti%mu)                        &
+         &                     / GAMMA((parti%nu+2.0_wp)/parti%mu) )**(parti%b_geo+n-1.0_wp)
   END FUNCTION vent_coeff_a
 
   ! bulk ventilation coefficient, Eq. (89) of SB2006
@@ -498,10 +497,10 @@ CONTAINS
     REAL(wp), PARAMETER :: m_f = 0.500 ! see PK, S.541. Do not change.
 
     vent_coeff_b = parti%b_ven                                                  &
-         & * gfct((parti%nu+n+(m_f+1.0)*parti%b_geo+m_f*parti%b_vel)/parti%mu)  &
-         &             / gfct((parti%nu+1.0)/parti%mu)                          &
-         &           * ( gfct((parti%nu+1.0)/parti%mu)                          &
-         &             / gfct((parti%nu+2.0)/parti%mu)                          &
+         & * GAMMA((parti%nu+n+(m_f+1.0)*parti%b_geo+m_f*parti%b_vel)/parti%mu)  &
+         &             / GAMMA((parti%nu+1.0)/parti%mu)                          &
+         &           * ( GAMMA((parti%nu+1.0)/parti%mu)                          &
+         &             / GAMMA((parti%nu+2.0)/parti%mu)                          &
          &             )**((m_f+1.0_wp)*parti%b_geo+m_f*parti%b_vel+n-1.0_wp)
   END FUNCTION vent_coeff_b
 
@@ -511,8 +510,8 @@ CONTAINS
     INTEGER, INTENT(in)           :: n
     CLASS(particle), INTENT(in)   :: p
 
-    moment_gamma  = gfct((n+p%nu+1.0_wp)/p%mu) / gfct((p%nu+1.0_wp)/p%mu)        &
-         &      * ( gfct((  p%nu+1.0_wp)/p%mu) / gfct((p%nu+2.0_wp)/p%mu) )**n
+    moment_gamma  = GAMMA((n+p%nu+1.0_wp)/p%mu) / GAMMA((p%nu+1.0_wp)/p%mu)        &
+         &      * ( GAMMA((  p%nu+1.0_wp)/p%mu) / GAMMA((p%nu+2.0_wp)/p%mu) )**n
   END FUNCTION moment_gamma
 
   ! fractional mass moment of particle size distribution, i.e., this is
@@ -522,8 +521,8 @@ CONTAINS
     REAL(wp), INTENT(in) :: fexp
     CLASS(particle), INTENT(in)   :: p
 
-    fracmoment_gamma  = gfct((fexp+p%nu+1.0_wp)/p%mu) / gfct((p%nu+1.0_wp)/p%mu)        &
-         &          * ( gfct((     p%nu+1.0_wp)/p%mu) / gfct((p%nu+2.0_wp)/p%mu) )**fexp
+    fracmoment_gamma  = GAMMA((fexp+p%nu+1.0_wp)/p%mu) / GAMMA((p%nu+1.0_wp)/p%mu)        &
+         &          * ( GAMMA((     p%nu+1.0_wp)/p%mu) / GAMMA((p%nu+2.0_wp)/p%mu) )**fexp
   END FUNCTION fracmoment_gamma
 
   ! coefficient for slope of PSD, i.e., for lambda in Eq. (80) of SB2006
@@ -532,7 +531,7 @@ CONTAINS
     REAL(wp), INTENT(in) :: x
     CLASS(particle), INTENT(in)   :: p
 
-    lambda_gamma  = ( gfct((p%nu+1.0_wp)/p%mu) / gfct((p%nu+2.0_wp)/p%mu) * x)**(-p%mu)
+    lambda_gamma  = ( GAMMA((p%nu+1.0_wp)/p%mu) / GAMMA((p%nu+2.0_wp)/p%mu) * x)**(-p%mu)
   END FUNCTION lambda_gamma
 
   ! coefficient for general collision integral, Eq. (90) of SB2006
@@ -541,10 +540,10 @@ CONTAINS
     CLASS(particle), INTENT(in) :: p1
     INTEGER, INTENT(in)         :: n
 
-    coll_delta = gfct((2.0_wp*p1%b_geo+p1%nu+1.0_wp+n)/p1%mu)      &
-         &                     / gfct((p1%nu+1.0_wp  )/p1%mu)      &
-         &        * gfct((p1%nu+1.0)/p1%mu)**(2.0_wp*p1%b_geo+n)   &
-         &        / gfct((p1%nu+2.0)/p1%mu)**(2.0_wp*p1%b_geo+n)
+    coll_delta = GAMMA((2.0_wp*p1%b_geo+p1%nu+1.0_wp+n)/p1%mu)      &
+         &                     / GAMMA((p1%nu+1.0_wp  )/p1%mu)      &
+         &        * GAMMA((p1%nu+1.0)/p1%mu)**(2.0_wp*p1%b_geo+n)   &
+         &        / GAMMA((p1%nu+2.0)/p1%mu)**(2.0_wp*p1%b_geo+n)
     RETURN
   END FUNCTION coll_delta
 
@@ -569,14 +568,14 @@ CONTAINS
     CLASS(particle), INTENT(in) :: p1,p2
     INTEGER, INTENT(in)         :: n
 
-    coll_delta_12 = 2.0_wp * gfct((p1%b_geo+p1%nu+1.0_wp)/p1%mu)       &
-         &                          / gfct((p1%nu+1.0_wp)/p1%mu)       &
-         &                * gfct((p1%nu+1.0)/p1%mu)**(p1%b_geo)        &
-         &                / gfct((p1%nu+2.0)/p1%mu)**(p1%b_geo)        &
-         &              * gfct((p2%b_geo+p2%nu+1.0_wp+n)/p2%mu)        &
-         &                        /gfct((p2%nu+1.0_wp  )/p2%mu)        &
-         &                * gfct((p2%nu+1.0_wp)/p2%mu)**(p2%b_geo+n)   &
-         &                / gfct((p2%nu+2.0_wp)/p2%mu)**(p2%b_geo+n)
+    coll_delta_12 = 2.0_wp * GAMMA((p1%b_geo+p1%nu+1.0_wp)/p1%mu)       &
+         &                          / GAMMA((p1%nu+1.0_wp)/p1%mu)       &
+         &                * GAMMA((p1%nu+1.0)/p1%mu)**(p1%b_geo)        &
+         &                / GAMMA((p1%nu+2.0)/p1%mu)**(p1%b_geo)        &
+         &              * GAMMA((p2%b_geo+p2%nu+1.0_wp+n)/p2%mu)        &
+         &                        /GAMMA((p2%nu+1.0_wp  )/p2%mu)        &
+         &                * GAMMA((p2%nu+1.0_wp)/p2%mu)**(p2%b_geo+n)   &
+         &                / GAMMA((p2%nu+2.0_wp)/p2%mu)**(p2%b_geo+n)
     RETURN
   END FUNCTION coll_delta_12
 
@@ -585,10 +584,10 @@ CONTAINS
     CLASS(particle), INTENT(in) :: p1
     INTEGER, INTENT(in)         :: n
 
-    coll_theta = gfct((2.0_wp*p1%b_vel+2.0_wp*p1%b_geo+p1%nu+1.0_wp+n)/p1%mu)    &
-         &                     / gfct((2.0_wp*p1%b_geo+p1%nu+1.0_wp+n)/p1%mu)    &
-         &                     * gfct((p1%nu+1.0_wp)/p1%mu)**(2.0_wp*p1%b_vel)   &
-         &                     / gfct((p1%nu+2.0_wp)/p1%mu)**(2.0_wp*p1%b_vel)
+    coll_theta = GAMMA((2.0_wp*p1%b_vel+2.0_wp*p1%b_geo+p1%nu+1.0_wp+n)/p1%mu)    &
+         &                     / GAMMA((2.0_wp*p1%b_geo+p1%nu+1.0_wp+n)/p1%mu)    &
+         &                     * GAMMA((p1%nu+1.0_wp)/p1%mu)**(2.0_wp*p1%b_vel)   &
+         &                     / GAMMA((p1%nu+2.0_wp)/p1%mu)**(2.0_wp*p1%b_vel)
     RETURN
   END FUNCTION coll_theta
 
@@ -615,14 +614,14 @@ CONTAINS
     CLASS(particle), INTENT(in) :: p1,p2
     INTEGER, INTENT(in)         :: n
 
-    coll_theta_12 = 2.0_wp * gfct((p1%b_vel+2.0_wp*p1%b_geo+p1%nu+1.0_wp)/p1%mu)  &
-         &                          / gfct((2.0_wp*p1%b_geo+p1%nu+1.0_wp)/p1%mu)  &
-         &                   * gfct((p1%nu+1.0_wp)/p1%mu)**(p1%b_vel)             &
-         &                   / gfct((p1%nu+2.0_wp)/p1%mu)**(p1%b_vel)             &
-         &                * gfct((p2%b_vel+2.0_wp*p2%b_geo+p2%nu+1.0_wp+n)/p2%mu) &
-         &                         / gfct((2.0_wp*p2%b_geo+p2%nu+1.0_wp+n)/p2%mu) &
-         &                   * gfct((p2%nu+1.0_wp)/p2%mu)**(p2%b_vel)             &
-         &                   / gfct((p2%nu+2.0_wp)/p2%mu)**(p2%b_vel)
+    coll_theta_12 = 2.0_wp * GAMMA((p1%b_vel+2.0_wp*p1%b_geo+p1%nu+1.0_wp)/p1%mu)  &
+         &                          / GAMMA((2.0_wp*p1%b_geo+p1%nu+1.0_wp)/p1%mu)  &
+         &                   * GAMMA((p1%nu+1.0_wp)/p1%mu)**(p1%b_vel)             &
+         &                   / GAMMA((p1%nu+2.0_wp)/p1%mu)**(p1%b_vel)             &
+         &                * GAMMA((p2%b_vel+2.0_wp*p2%b_geo+p2%nu+1.0_wp+n)/p2%mu) &
+         &                         / GAMMA((2.0_wp*p2%b_geo+p2%nu+1.0_wp+n)/p2%mu) &
+         &                   * GAMMA((p2%nu+1.0_wp)/p2%mu)**(p2%b_vel)             &
+         &                   / GAMMA((p2%nu+2.0_wp)/p2%mu)**(p2%b_vel)
     RETURN
   END FUNCTION coll_theta_12
 
@@ -780,9 +779,9 @@ CONTAINS
     
     CHARACTER(len=*), PARAMETER :: sroutine = 'init_2mom_sedi_vel'
     
-    thisCoeffs%coeff_alfa_n = this%a_vel * gfct((this%nu+this%b_vel+1.0)/this%mu) / gfct((this%nu+1.0)/this%mu)
-    thisCoeffs%coeff_alfa_q = this%a_vel * gfct((this%nu+this%b_vel+2.0)/this%mu) / gfct((this%nu+2.0)/this%mu)
-    thisCoeffs%coeff_lambda = gfct((this%nu+1.0)/this%mu)/gfct((this%nu+2.0)/this%mu)
+    thisCoeffs%coeff_alfa_n = this%a_vel * GAMMA((this%nu+this%b_vel+1.0)/this%mu) / GAMMA((this%nu+1.0)/this%mu)
+    thisCoeffs%coeff_alfa_q = this%a_vel * GAMMA((this%nu+this%b_vel+2.0)/this%mu) / GAMMA((this%nu+2.0)/this%mu)
+    thisCoeffs%coeff_lambda = GAMMA((this%nu+1.0)/this%mu)/GAMMA((this%nu+2.0)/this%mu)
     
     IF (isprint) THEN
       WRITE (txt,'(2A)') "    name  = ",this%name ; CALL message(sroutine,TRIM(txt))
@@ -801,9 +800,9 @@ CONTAINS
     CLASS(particle), INTENT(in) :: parti
 
     D_average_factor = &
-         ( gfct( (parti%b_geo+parti%nu+1.0_wp)/parti%mu ) / &
-           gfct( (parti%nu+1.0_wp)/parti%mu ) ) * &
-         ( gfct( (parti%nu+1.0_wp)/parti%mu ) / gfct( (parti%nu+2.0_wp)/parti%mu ) ) ** parti%b_geo
+         ( GAMMA( (parti%b_geo+parti%nu+1.0_wp)/parti%mu ) / &
+           GAMMA( (parti%nu+1.0_wp)/parti%mu ) ) * &
+         ( GAMMA( (parti%nu+1.0_wp)/parti%mu ) / GAMMA( (parti%nu+2.0_wp)/parti%mu ) ) ** parti%b_geo
   END FUNCTION D_average_factor
 
   !*******************************************************************************
@@ -2533,10 +2532,10 @@ CONTAINS
     ELSE
       !.. see Eq. (3.44) of Seifert (2002)
       cloud_coeffs%k_au = kc_autocon / cloud%x_max * (1.0_wp / 20.0_wp)  &
-           & * ( 2.0_wp * gfct((nu+4.0_wp)/mu)**1                           &
-           &            * gfct((nu+2.0_wp)/mu)**1 * gfct((nu+1.0_wp)/mu)**2    &
-           &   - 1.0_wp * gfct((nu+3.0_wp)/mu)**2 * gfct((nu+1.0_wp)/mu)**2 )  &
-           &   / gfct((nu+2.0_wp)/mu)**4
+           & * ( 2.0_wp * GAMMA((nu+4.0_wp)/mu)**1                           &
+           &            * GAMMA((nu+2.0_wp)/mu)**1 * GAMMA((nu+1.0_wp)/mu)**2    &
+           &   - 1.0_wp * GAMMA((nu+3.0_wp)/mu)**2 * GAMMA((nu+1.0_wp)/mu)**2 )  &
+           &   / GAMMA((nu+2.0_wp)/mu)**4
       cloud_coeffs%k_sc = kc_autocon * cloud_coeffs%c_z
     ENDIF
 

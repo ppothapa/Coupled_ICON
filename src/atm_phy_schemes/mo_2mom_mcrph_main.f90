@@ -81,7 +81,6 @@ MODULE mo_2mom_mcrph_main
        & particle_coeffs, collection_coeffs, rain_riming_coeffs, dep_imm_coeffs, &
        & ltabdminwgg, ltab_estick_ice, ltab_estick_snow, ltab_estick_parti
   USE mo_2mom_mcrph_util, ONLY: &
-       & gfct,                       &  ! Gamma function (becomes intrinsic in Fortran2008)
        & gamlookuptable,             &  ! For look-up table of incomplete Gamma function
        & nlookup, nlookuphr_dummy,   &  !   array size of table
        & incgfct_lower_lookupcreate, &  !   create table

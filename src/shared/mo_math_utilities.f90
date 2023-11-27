@@ -82,7 +82,6 @@ MODULE mo_math_utilities
   PUBLIC :: gnomonic_proj
   PUBLIC :: orthogr_proj
   PUBLIC :: az_eqdist_proj
-  PUBLIC :: gamma_fct
 !   PUBLIC :: sphere_cell_mean_char_length
   PUBLIC :: ccw
   PUBLIC :: line_intersect
@@ -1890,55 +1889,12 @@ CONTAINS
   END FUNCTION betacf
   !-----------------------------------------------------------------------
 
-
-  !-----------------------------------------------------------------------
-  FUNCTION gammln(xx)
-
-    !! Description:
-    !!
-    !! Gamma function calculation
-    !! returns the value ln[g(xx)] for xx > 0.
-    !!
-    !! Method:
-    !!   See Numerical Recipes
-    !
-    USE mo_kind, ONLY: wp
-
-    IMPLICIT NONE
-
-    REAL(wp)             :: gammln
-    REAL(wp), INTENT(in) :: xx
-
-    INTEGER :: j
-
-    REAL(wp) :: ser, tmp, x, y
-    REAL(wp), PARAMETER :: cof(6) = (/ &
-      & 76.18009172947146_wp, -86.50532032941677_wp, &
-      & 24.01409824083091_wp, -1.231739572450155_wp, &
-      & 0.1208650973866179e-2_wp, -0.5395239384953e-5_wp /)
-    REAL(wp), PARAMETER :: stp = 2.5066282746310005_wp
-
-    x = xx
-    y = x
-    tmp = x+5.5_wp
-    tmp = (x+0.5_wp)*LOG(tmp)-tmp
-    ser = 1.000000000190015_wp
-    DO j =1, 6
-      y = y+1.0_wp
-      ser = ser+cof(j)/y
-    ENDDO
-    gammln = tmp+LOG(stp*ser/x)
-
-  END FUNCTION gammln
-  !-----------------------------------------------------------------------
-
-
   !-----------------------------------------------------------------------
   FUNCTION betai(p,q,x)
 
     !! Description:
     !!
-    !! Uses betacf, gammln; returns the incomplete beta function I x (a; b).
+    !! Uses betacf; returns the incomplete beta function I x (a; b).
     !!
     !! Method:
     !!   See Numerical Recipes (Fortran)
@@ -1952,10 +1908,10 @@ CONTAINS
       & x      ! integration limit
     !  local scalars:
     REAL(wp) :: bt
-    !  REAL FUNCTION (wp):: betacf,gammln
+    !  REAL FUNCTION (wp):: betacf
 
     IF (x > 0.0_wp .AND. x < 1.0_wp ) THEN  ! factors in front of the continued fraction.
-      bt = EXP(gammln(p+q)-gammln(p)-gammln(q)+p*LOG(x)+q*LOG(1.0_wp-x))
+      bt = EXP(LOG(GAMMA(p+q))-LOG(GAMMA(p))-LOG(GAMMA(q))+p*LOG(x)+q*LOG(1.0_wp-x))
     ELSE
       bt = 0.0_wp
     ENDIF
@@ -1967,77 +1923,6 @@ CONTAINS
 
   END FUNCTION betai
   !-----------------------------------------------------------------------
-
-  !-----------------------------------------------------------------------
-  !>
-  !! Description:
-  !!       Gamma function from Numerical Recipes (F77),
-  !!       reformulated to enable inlining and vectorisation.
-  !! Method:
-  !!
-  FUNCTION gamma_fct(x) RESULT(g)
-
-    USE mo_kind, ONLY: wp
-
-    IMPLICIT NONE
-
-    REAL(wp) :: g
-    REAL(wp), INTENT(IN) :: x
-
-    REAL(wp) :: tmp, p
-
-    REAL(wp), PARAMETER :: c1 =  76.18009173_wp
-    REAL(wp), PARAMETER :: c2 = -86.50532033_wp
-    REAL(wp), PARAMETER :: c3 =  24.01409822_wp
-    REAL(wp), PARAMETER :: c4 = -1.231739516_wp
-    REAL(wp), PARAMETER :: c5 =  0.120858003e-2_wp
-    REAL(wp), PARAMETER :: c6 = -0.536382e-5_wp
-    REAL(wp), PARAMETER :: stp = 2.50662827465_wp
-
-    tmp = x + 4.5_wp;
-    p = stp * (1.0_wp + c1/x + c2/(x+1.0_wp) + c3/(x+2.0_wp) + c4/(x+3.0_wp) + c5/(x+4.0_wp) + c6/(x+5.0_wp))
-    g = EXP( (x-0.5_wp) * LOG(tmp) - tmp + LOG(p) )
-
-  END FUNCTION gamma_fct
-  !-------------------------------------------------------------------------
-
-  !-----------------------------------------------------------------------
-  !>
-  !! Description:
-  !!  Original Gamma-function from Numerical Recipes (F77), left in the code for reference
-  !! Method:
-  !!
-  FUNCTION gamma_fct_orig(x) RESULT(g)
-
-    USE mo_kind, ONLY: wp
-
-    IMPLICIT NONE
-
-    REAL (wp):: g
-
-    REAL (wp):: cof(6) = (/76.18009173_wp, -86.50532033_wp, &
-      & 24.01409822_wp, -1.231739516_wp, &
-      & 0.120858003E-2_wp, -0.536382E-5_wp/)
-    REAL (wp):: stp=2.50662827465_wp,                           &
-      & x, xx, tmp, ser, gamma
-
-    INTEGER ::  j
-
-    xx  = x  - 1.0_wp
-    tmp = xx + 5.5_wp
-    tmp = (xx + 0.5_wp) * LOG(tmp) - tmp
-    ser = 1.0_wp
-    DO j = 1, 6
-      xx  = xx  + 1.0_wp
-      ser = ser + cof(j) / xx
-    ENDDO
-    gamma = tmp + LOG(stp*ser)
-    gamma = EXP(gamma)
-
-    g = gamma
-
-  END FUNCTION gamma_fct_orig
-  !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
   !! Calculates the domain mean of the characteristical

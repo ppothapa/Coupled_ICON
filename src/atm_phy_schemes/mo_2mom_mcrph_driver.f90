@@ -39,7 +39,6 @@ MODULE mo_2mom_mcrph_driver
 
 USE mo_kind,                 ONLY: wp
 USE mo_math_constants,       ONLY: pi
-USE mo_math_utilities,       ONLY: gamma_fct  
 USE mo_physical_constants,   ONLY: &
     rhoh2o,           & ! density of liquid water
     alv,              & ! latent heat of vaporization
@@ -79,7 +78,6 @@ USE mo_2mom_mcrph_processes,  ONLY:                                &
 USE mo_2mom_mcrph_config_default, ONLY: cfg_2mom_default
 
 USE mo_2mom_mcrph_util, ONLY:                            &
-     &                       gfct,                       &  ! Gamma function (becomes intrinsic in Fortran2008)
      &                       init_dmin_wg_gr_ltab_equi,  &
      &                       dmin_wetgrowth_fit_check, luse_dmin_wetgrowth_table, lprintout_comp_table_fit
 
@@ -1462,8 +1460,8 @@ CONTAINS
 
       ! Broadening for not monodisperse
       IF ( .NOT. monodisperse ) THEN 
-        bf =  gamma_fct( (3.0_wp * b_geo + nu + 1.0_wp)/ mu) / gamma_fct( (2.0_wp * b_geo + nu + 1.0_wp)/ mu) * &
-          & ( gamma_fct( (nu + 1.0_wp)/ mu) / gamma_fct( (nu + 2.0_wp)/ mu) )**b_geo
+        bf =  GAMMA( (3.0_wp * b_geo + nu + 1.0_wp)/ mu) / GAMMA( (2.0_wp * b_geo + nu + 1.0_wp)/ mu) * &
+          & ( GAMMA( (nu + 1.0_wp)/ mu) / GAMMA( (nu + 2.0_wp)/ mu) )**b_geo
 
         reff_calc%reff_coeff(1) = reff_calc%reff_coeff(1)*bf        
       END IF      
@@ -1478,11 +1476,11 @@ CONTAINS
 
       ! Broadening for not monodisperse. Generalized gamma distribution
       IF ( .NOT. monodisperse ) THEN 
-        bf  =  gamma_fct( ( b_geo + 2.0_wp * nu + 3.0_wp)/ mu/2.0_wp ) / gamma_fct( (nu + 2.0_wp)/ mu) * &
-           & ( gamma_fct( (nu + 1.0_wp)/ mu) / gamma_fct( (nu + 2.0_wp)/ mu) )**( (b_geo-1.0_wp)/2.0_wp)
+        bf  =  GAMMA( ( b_geo + 2.0_wp * nu + 3.0_wp)/ mu/2.0_wp ) / GAMMA( (nu + 2.0_wp)/ mu) * &
+           & ( GAMMA( (nu + 1.0_wp)/ mu) / GAMMA( (nu + 2.0_wp)/ mu) )**( (b_geo-1.0_wp)/2.0_wp)
 
-        bf2 =  gamma_fct( (-b_geo + nu + 2.0_wp)/ mu ) / gamma_fct( (nu + 2.0_wp)/ mu) * &
-           & ( gamma_fct( (nu + 1.0_wp)/ mu) / gamma_fct( (nu + 2.0_wp)/ mu) )**( -b_geo)
+        bf2 =  GAMMA( (-b_geo + nu + 2.0_wp)/ mu ) / GAMMA( (nu + 2.0_wp)/ mu) * &
+           & ( GAMMA( (nu + 1.0_wp)/ mu) / GAMMA( (nu + 2.0_wp)/ mu) )**( -b_geo)
 
         reff_calc%reff_coeff(1) = reff_calc%reff_coeff(1)*bf
         reff_calc%reff_coeff(3) = reff_calc%reff_coeff(3)*bf2
