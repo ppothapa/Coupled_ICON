@@ -1,5 +1,3 @@
-! Contains the interface needed to call AWI FEM sea ice model
-! as well as advection and interpolation routines.
 !
 !
 ! ICON
@@ -42,9 +40,9 @@ MODULE mo_ice_new_dynamics
     &                               ice_free_drift_only,ice_laplace_dynamics, &
     &                               ice_stabilization
   USE mo_ocean_surface_types, ONLY: t_atmos_for_ocean, t_ocean_surface
-  USE mo_physical_constants,  ONLY: grav, rho_ref, sfc_press_pascal, rhoi, rhos, cd_io, cd_ia
+  USE mo_physical_constants,  ONLY: grav, rho_ref, sfc_press_pascal, rhoi, rhos
   USE mo_sea_ice_types,       ONLY: t_sea_ice, t_atmos_fluxes
-  USE mo_sea_ice_nml,         ONLY: i_ice_advec, pstar, n_ice_iter, delta_min
+  USE mo_sea_ice_nml,         ONLY: i_ice_advec, pstar, n_ice_iter, delta_min, Cd_io, Cd_ia
   USE mo_ice_fem_advection,   ONLY: fct_ice_solve, ice_TG_rhs
   USE mo_math_types,          ONLY: t_cartesian_coordinates
   USE mo_math_utilities,      ONLY: gvec2cvec, cvec2gvec

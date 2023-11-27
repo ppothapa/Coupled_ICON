@@ -1369,7 +1369,7 @@ cat >> ${oce_namelist} << EOF
   !velocity_TopWindMixing                     = 2.31480E-6
 !
 !  Parameters for TKE-type vertical mixing
-  ! cvmix/tke parameters
+  ! vmix/tke parameters
   c_k        = 0.3
   c_eps      = 0.7
   alpha_tke  = 30.0

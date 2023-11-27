@@ -1244,7 +1244,7 @@ cat >> ${oce_namelist} << EOF
   !  velocity_TopWindMixing                     = 1.0E-5
   tracer_TopWindMixing                       = 2.31480E-6  ! eqals 0.5e-3 m2s-1 (MPIOM)
   velocity_TopWindMixing                     = 2.31480E-6
-  ! cvmix/tke parameters
+  ! vmix/tke parameters
   c_k        = 0.1
   c_eps      = 0.7
   alpha_tke  = 30.0

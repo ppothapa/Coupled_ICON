@@ -108,6 +108,12 @@ MODULE mo_sea_ice_nml
   INTEGER         :: iunit
   LOGICAL, PUBLIC :: initialize_seaice_fromfile = .false.
 
+  REAL(wp),PUBLIC :: Cd_io             ! Ice-ocean drag coefficient
+  REAL(wp),PUBLIC :: Cd_ia             ! Air-ice drag coefficient
+  REAL(wp),PUBLIC :: Ch_io             ! Ice-ocean heat transfer coefficient
+
+  LOGICAL, PUBLIC :: luse_replacement_pressure = .FALSE. ! use replacement pressure in strain rate computation
+
   NAMELIST /sea_ice_nml/ &
     &  kice, &
     &  i_ice_therm, &
@@ -141,7 +147,10 @@ MODULE mo_sea_ice_nml
     &  init_analytic_conc_param , &
     &  init_analytic_hi_param, &
     &  init_analytic_hs_param, &
-
+    &  Cd_io, &
+    &  Cd_ia, &
+    &  Ch_io, &
+    &  luse_replacement_pressure, &
     &  ice_VP_rheology, &
     &  ice_EVP1, &
     &  delta_min, &
@@ -180,7 +189,9 @@ CONTAINS
     hci_layer   = 0.10_wp
     leadclose_1 = 0.5_wp
     leadclose_2n = 0.0_wp
-
+    Cd_ia        =  1.2e-3_wp      ! Ice-atmosphere drag coefficient
+    Cd_io        =  3.0e-3_wp      ! Ice-ocean drag coefficient
+    Ch_io        = 12.0e-3_wp      ! Ice-ocean heat transfer coefficient
 
   ! albedo scheme for OMIP, tuned for MPIOM
     albedoW_sim  = 0.10_wp         ! albedo of the ocean used in sea ice model
@@ -195,7 +206,7 @@ CONTAINS
     Pstar       = 27500._wp        ! MPIOM uses 20000 [N/m^2]
     ellipse     = 2.0_wp
     c_pressure  = 20.0_wp
-
+    luse_replacement_pressure = .FALSE. ! if .true. use replacement pressure in strain rate computations
 
 
     ramp_wind    = 1.0_wp

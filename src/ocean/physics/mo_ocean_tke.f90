@@ -14,7 +14,7 @@
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
-MODULE mo_ocean_cvmix_tke
+MODULE mo_ocean_tke
   !-------------------------------------------------------------------------
   !-------------------------------------------------------------------------
   USE mo_kind,                ONLY: wp
@@ -62,7 +62,7 @@ MODULE mo_ocean_cvmix_tke
     &  TracerDiffusion_LeithWeight, &!Salinity_ConvectionRestrict, &
     !&  max_turbulenece_TracerDiffusion_amplification, &
     &  ReferencePressureIndbars,    &
-    ! cvmix_tke parameter
+    ! tke parameter
     &  c_k,                         &
     &  c_eps,                       &
     &  alpha_tke,                   &
@@ -111,8 +111,8 @@ MODULE mo_ocean_cvmix_tke
     & timer_extra10, timer_extra11
   USE mo_statistics,          ONLY: global_minmaxmean
   USE mo_io_config,           ONLY: lnetcdf_flt64_output
-  USE mo_math_types,      ONLY: t_cartesian_coordinates
-  USE cvmix_tke,              ONLY: init_tke, cvmix_coeffs_tke!, integrate_tke
+  USE mo_math_types,          ONLY: t_cartesian_coordinates
+  USE mo_ocean_tke_base,      ONLY: init_tke, coeffs_tke!, integrate_tke
   USE mo_sea_ice_types,       ONLY: t_sea_ice, t_atmos_fluxes
   !USE turb_data,              ONLY: rhon ! air density
   !USE test,                   ONLY: test_test
@@ -125,7 +125,7 @@ MODULE mo_ocean_cvmix_tke
   PUBLIC :: setup_tke
 
 
-  CHARACTER(LEN=*), PARAMETER :: module_name = 'mo_ocean_cvmix_tke'
+  CHARACTER(LEN=*), PARAMETER :: module_name = 'mo_ocean_tke'
 
 
 CONTAINS
@@ -133,7 +133,7 @@ CONTAINS
 
   SUBROUTINE setup_tke()
     ! FIXME: So far this routine is not called!!!
-    ! If it is called delet definitions from cvmix_tke
+    ! If it is called delet definitions from mo_ocean_tke_base
     !REAL(wp) :: c_k
     !REAL(wp) :: c_eps
     !REAL(wp) :: alpha_tke
@@ -272,7 +272,7 @@ CONTAINS
 
     CALL set_acc_host_or_device(lzacc, lacc)
 
-    tke => params_oce%cvmix_params%tke(:,:,:)
+    tke => params_oce%vmix_params%tke(:,:,:)
 
     !$ACC DATA CREATE(tke_Av, tke_kv, tke_iw_alpha_c, tke_iwe, tke_iwe_forcing, forc_tke_surf_2D) &
     !$ACC   CREATE(forc_rho_surf_2D, bottom_fric_2D, tmp_dzw, tmp_dzt, s_c) &
@@ -295,14 +295,14 @@ CONTAINS
 
     IF(l_lc) THEN
       ! Langmuir turbulence variables
-      tke_plc  => params_oce%cvmix_params%tke_plc(:,:,:)
+      tke_plc  => params_oce%vmix_params%tke_plc(:,:,:)
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       tke_plc(:,:,:) = 0.0_wp
       !$ACC END KERNELS
       !$ACC WAIT(1)
-      hlc      => params_oce%cvmix_params%hlc(:,:)
-      wlc      => params_oce%cvmix_params%wlc(:,:,:)
-      u_stokes => params_oce%cvmix_params%u_stokes(:,:)
+      hlc      => params_oce%vmix_params%hlc(:,:)
+      wlc      => params_oce%vmix_params%wlc(:,:,:)
+      u_stokes => params_oce%vmix_params%u_stokes(:,:)
       depth_CellInterface => patch_3d%p_patch_1d(1)%depth_CellInterface(:,:,:)
     ENDIF
 
@@ -328,7 +328,7 @@ CONTAINS
     IF ( vert_mix_type==vmix_idemix_tke ) THEN
       ! use iwe dissipation as forcing for tke
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-      tke_iwe_forcing(:,:,:) = -1.0_wp * params_oce%cvmix_params%iwe_Tdis(:,:,:)
+      tke_iwe_forcing(:,:,:) = -1.0_wp * params_oce%vmix_params%iwe_Tdis(:,:,:)
       !$ACC END KERNELS
       !$ACC WAIT(1)
     ENDIF
@@ -478,7 +478,7 @@ CONTAINS
       !$ACC END PARALLEL LOOP
       !$ACC WAIT(1)
       IF (l_lc) THEN
-        CALL cvmix_coeffs_tke(                                                                  &
+        CALL coeffs_tke(                                                                        &
                               start_index = start_index,                                        &
                               end_index = end_index,                                            &
                               nproma = nproma,                                                  &
@@ -487,24 +487,24 @@ CONTAINS
                               tke_new = tke(:,:,blockNo),                                       &
                               KappaM_out = tke_Av(:,:,blockNo),                                 &
                               KappaH_out = tke_kv(:,:,blockNo),                                 &
-                              cvmix_int_1 = params_oce%cvmix_params%cvmix_dummy_1(:,:,blockNo), &
-                              cvmix_int_2 = params_oce%cvmix_params%cvmix_dummy_2(:,:,blockNo), &
-                              cvmix_int_3 = params_oce%cvmix_params%cvmix_dummy_3(:,:,blockNo), &
+                              int_1 = params_oce%vmix_params%vmix_dummy_1(:,:,blockNo),       &
+                              int_2 = params_oce%vmix_params%vmix_dummy_2(:,:,blockNo),       &
+                              int_3 = params_oce%vmix_params%vmix_dummy_3(:,:,blockNo),       &
                               dzw = tmp_dzw(:,:),                                               &
                               dzt = tmp_dzt(:,:),                                               &
                               max_nlev = n_zlev,                                                &
                               Ssqr = Ssqr(:,:),                                                 &
                               Nsqr = Nsqr(:,:),                                                 &
-                              tke_Tbpr = params_oce%cvmix_params%tke_Tbpr(:,:,blockNo),         &
-                              tke_Tspr = params_oce%cvmix_params%tke_Tspr(:,:,blockNo),         &
-                              tke_Tdif = params_oce%cvmix_params%tke_Tdif(:,:,blockNo),         &
-                              tke_Tdis = params_oce%cvmix_params%tke_Tdis(:,:,blockNo),         &
-                              tke_Twin = params_oce%cvmix_params%tke_Twin(:,:,blockNo),         &
-                              tke_Tiwf = params_oce%cvmix_params%tke_Tiwf(:,:,blockNo),         &
-                              tke_Tbck = params_oce%cvmix_params%tke_Tbck(:,:,blockNo),         &
-                              tke_Ttot = params_oce%cvmix_params%tke_Ttot(:,:,blockNo),         &
-                              tke_Lmix = params_oce%cvmix_params%tke_Lmix(:,:,blockNo),         &
-                              tke_Pr   = params_oce%cvmix_params%tke_Pr(:,:,blockNo),           &
+                              tke_Tbpr = params_oce%vmix_params%tke_Tbpr(:,:,blockNo),         &
+                              tke_Tspr = params_oce%vmix_params%tke_Tspr(:,:,blockNo),         &
+                              tke_Tdif = params_oce%vmix_params%tke_Tdif(:,:,blockNo),         &
+                              tke_Tdis = params_oce%vmix_params%tke_Tdis(:,:,blockNo),         &
+                              tke_Twin = params_oce%vmix_params%tke_Twin(:,:,blockNo),         &
+                              tke_Tiwf = params_oce%vmix_params%tke_Tiwf(:,:,blockNo),         &
+                              tke_Tbck = params_oce%vmix_params%tke_Tbck(:,:,blockNo),         &
+                              tke_Ttot = params_oce%vmix_params%tke_Ttot(:,:,blockNo),         &
+                              tke_Lmix = params_oce%vmix_params%tke_Lmix(:,:,blockNo),         &
+                              tke_Pr   = params_oce%vmix_params%tke_Pr(:,:,blockNo),           &
                               tke_plc  = tke_plc(:,:,blockNo),                                  &
                               forc_tke_surf = forc_tke_surf_2D(:,blockNo),                      &
                               E_iw = tke_iwe(:,:,blockNo),                                      &
@@ -514,10 +514,10 @@ CONTAINS
                               rho_ref = OceanReferenceDensity,                                  &
                               grav = grav,                                                      &
                               alpha_c = tke_iw_alpha_c(:,:,blockNo),                            &
-                              lacc = lzacc                                                    &
+                              lacc = lzacc                                                      &
                               )
       ELSE
-        CALL cvmix_coeffs_tke(                                                                  &
+        CALL coeffs_tke(                                                                        &
                               start_index = start_index,                                        &
                               end_index = end_index,                                            &
                               nproma = nproma,                                                  &
@@ -526,24 +526,24 @@ CONTAINS
                               tke_new = tke(:,:,blockNo),                                       &
                               KappaM_out = tke_Av(:,:,blockNo),                                 &
                               KappaH_out = tke_kv(:,:,blockNo),                                 &
-                              cvmix_int_1 = params_oce%cvmix_params%cvmix_dummy_1(:,:,blockNo), &
-                              cvmix_int_2 = params_oce%cvmix_params%cvmix_dummy_2(:,:,blockNo), &
-                              cvmix_int_3 = params_oce%cvmix_params%cvmix_dummy_3(:,:,blockNo), &
+                              int_1 = params_oce%vmix_params%vmix_dummy_1(:,:,blockNo),       &
+                              int_2 = params_oce%vmix_params%vmix_dummy_2(:,:,blockNo),       &
+                              int_3 = params_oce%vmix_params%vmix_dummy_3(:,:,blockNo),       &
                               dzw = tmp_dzw(:,:),                                               &
                               dzt = tmp_dzt(:,:),                                               &
                               max_nlev = n_zlev,                                                &
                               Ssqr = Ssqr(:,:),                                                 &
                               Nsqr = Nsqr(:,:),                                                 &
-                              tke_Tbpr = params_oce%cvmix_params%tke_Tbpr(:,:,blockNo),         &
-                              tke_Tspr = params_oce%cvmix_params%tke_Tspr(:,:,blockNo),         &
-                              tke_Tdif = params_oce%cvmix_params%tke_Tdif(:,:,blockNo),         &
-                              tke_Tdis = params_oce%cvmix_params%tke_Tdis(:,:,blockNo),         &
-                              tke_Twin = params_oce%cvmix_params%tke_Twin(:,:,blockNo),         &
-                              tke_Tiwf = params_oce%cvmix_params%tke_Tiwf(:,:,blockNo),         &
-                              tke_Tbck = params_oce%cvmix_params%tke_Tbck(:,:,blockNo),         &
-                              tke_Ttot = params_oce%cvmix_params%tke_Ttot(:,:,blockNo),         &
-                              tke_Lmix = params_oce%cvmix_params%tke_Lmix(:,:,blockNo),         &
-                              tke_Pr   = params_oce%cvmix_params%tke_Pr(:,:,blockNo),           &
+                              tke_Tbpr = params_oce%vmix_params%tke_Tbpr(:,:,blockNo),         &
+                              tke_Tspr = params_oce%vmix_params%tke_Tspr(:,:,blockNo),         &
+                              tke_Tdif = params_oce%vmix_params%tke_Tdif(:,:,blockNo),         &
+                              tke_Tdis = params_oce%vmix_params%tke_Tdis(:,:,blockNo),         &
+                              tke_Twin = params_oce%vmix_params%tke_Twin(:,:,blockNo),         &
+                              tke_Tiwf = params_oce%vmix_params%tke_Tiwf(:,:,blockNo),         &
+                              tke_Tbck = params_oce%vmix_params%tke_Tbck(:,:,blockNo),         &
+                              tke_Ttot = params_oce%vmix_params%tke_Ttot(:,:,blockNo),         &
+                              tke_Lmix = params_oce%vmix_params%tke_Lmix(:,:,blockNo),         &
+                              tke_Pr   = params_oce%vmix_params%tke_Pr(:,:,blockNo),           &
                               forc_tke_surf = forc_tke_surf_2D(:,blockNo),                      &
                               E_iw = tke_iwe(:,:,blockNo),                                      &
                               dtime = dtime,                                                    &
@@ -552,7 +552,7 @@ CONTAINS
                               rho_ref = OceanReferenceDensity,                                  &
                               grav = grav,                                                      &
                               alpha_c = tke_iw_alpha_c(:,:,blockNo),                            &
-                              lacc = lzacc                                                    &
+                              lacc = lzacc                                                      &
                               )
       END IF
     END DO
@@ -667,9 +667,9 @@ CONTAINS
     !REAL(wp) :: tke_Ttot(nproma, n_zlev+1, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
     !REAL(wp) :: tke_Lmix(nproma, n_zlev+1, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
     !REAL(wp) :: tke_Pr(nproma, n_zlev+1, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
-    !REAL(wp) :: cvmix_dummy_1(nproma, n_zlev+1, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
-    !REAL(wp) :: cvmix_dummy_2(nproma, n_zlev+1, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
-    !REAL(wp) :: cvmix_dummy_3(nproma, n_zlev+1, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
+    !REAL(wp) :: dummy_1(nproma, n_zlev+1, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
+    !REAL(wp) :: dummy_2(nproma, n_zlev+1, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
+    !REAL(wp) :: dummy_3(nproma, n_zlev+1, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
     REAL(wp) :: tke_iw_alpha_c(nproma, n_zlev+1, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
     REAL(wp) :: tke_iwe(nproma, n_zlev+1, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
     REAL(wp) :: tke_iwe_forcing(nproma, n_zlev+1, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
@@ -684,7 +684,7 @@ CONTAINS
     dummy_zeros = 0.0
 
     !tke = 0.0
-    tke => params_oce%cvmix_params%tke(:,:,:)
+    tke => params_oce%vmix_params%tke(:,:,:)
     !tke_Tbpr = 0.0
     !tke_Tspr = 0.0
     !tke_Tdif = 0.0
@@ -695,9 +695,9 @@ CONTAINS
     !tke_Ttot = 0.0
     !tke_Lmix = 0.0
     !tke_Pr = 0.0
-    !cvmix_dummy_1 = 0.0
-    !cvmix_dummy_2 = 0.0
-    !cvmix_dummy_3 = 0.0
+    !dummy_1 = 0.0
+    !dummy_2 = 0.0
+    !dummy_3 = 0.0
     tke_kv = 0.0
     tke_Av = 0.0
     tke_iw_alpha_c = 0.0
@@ -708,11 +708,11 @@ CONTAINS
 
     IF(l_lc) THEN
       ! Langmuir turbulence variables
-      tke_plc  => params_oce%cvmix_params%tke_plc(:,:,:)
+      tke_plc  => params_oce%vmix_params%tke_plc(:,:,:)
       tke_plc = 0.0_wp
-      hlc      => params_oce%cvmix_params%hlc(:,:)
-      wlc      => params_oce%cvmix_params%wlc(:,:,:)
-      u_stokes => params_oce%cvmix_params%u_stokes(:,:)
+      hlc      => params_oce%vmix_params%hlc(:,:)
+      wlc      => params_oce%vmix_params%wlc(:,:,:)
+      u_stokes => params_oce%vmix_params%u_stokes(:,:)
       depth_CellInterface => patch_3d%p_patch_1d(1)%depth_CellInterface(:,:,:)
     ENDIF
 
@@ -737,7 +737,7 @@ CONTAINS
     ! special settings if IDEMIX is used together with TKE
     IF ( vert_mix_type==vmix_idemix_tke ) THEN
       ! use iwe dissipation as forcing for tke
-      tke_iwe_forcing(:,:,:) = -1.0_wp * params_oce%cvmix_params%iwe_Tdis(:,:,:)
+      tke_iwe_forcing(:,:,:) = -1.0_wp * params_oce%vmix_params%iwe_Tdis(:,:,:)
     ENDIF
 
     ! set zstar related parameters
@@ -881,50 +881,50 @@ CONTAINS
 
           ENDIF
 
-      ! main cvmix call to calculate tke
+      ! main vmix call to calculate tke
 
           IF (l_lc) THEN
 
-            CALL cvmix_coeffs_tke( &
+            CALL coeffs_tke(                                                           &
                  ! parameter
-                 i = jc,                                       &
-                 j = blockNo,                                  &
-                 tstep_count = tstep_count,             &
-                 tke_old      = tke_old(:),             & ! in
-                 tke_new      = tke(jc,:,blockNo),             & ! out
-                 KappaM_out   = tke_Av(jc,:,blockNo),         & ! out
-                 KappaH_out   = tke_kv(jc,:,blockNo),         & ! out
-                 cvmix_int_1  = params_oce%cvmix_params%cvmix_dummy_1(jc,:,blockNo),   & !
-                 cvmix_int_2  = params_oce%cvmix_params%cvmix_dummy_2(jc,:,blockNo),   & !
-                 cvmix_int_3  = params_oce%cvmix_params%cvmix_dummy_3(jc,:,blockNo),   & !
-                 dzw          = prism_thick_c(jc,:,blockNo)*s_c(jc,blockNo),             &
-                 dzt          = dz(jc,:,blockNo)*s_c(jc,blockNo),              &
-                 nlev         = dolic_c(jc,blockNo),                   &
-                 max_nlev     = n_zlev,               &
-                 Ssqr         = Ssqr(:),            & ! in
-                 Nsqr         = Nsqr(:),            & ! in
-                 tke_Tbpr     = params_oce%cvmix_params%tke_Tbpr(jc,:,blockNo),        &
-                 tke_Tspr     = params_oce%cvmix_params%tke_Tspr(jc,:,blockNo),        &
-                 tke_Tdif     = params_oce%cvmix_params%tke_Tdif(jc,:,blockNo),        &
-                 tke_Tdis     = params_oce%cvmix_params%tke_Tdis(jc,:,blockNo),        &
-                 tke_Twin     = params_oce%cvmix_params%tke_Twin(jc,:,blockNo),        &
-                 tke_Tiwf     = params_oce%cvmix_params%tke_Tiwf(jc,:,blockNo),        &
-                 tke_Tbck     = params_oce%cvmix_params%tke_Tbck(jc,:,blockNo),        &
-                 tke_Ttot     = params_oce%cvmix_params%tke_Ttot(jc,:,blockNo),        &
-                 tke_Lmix     = params_oce%cvmix_params%tke_Lmix(jc,:,blockNo),        &
-                 tke_Pr       = params_oce%cvmix_params%tke_Pr(jc,:,blockNo),          &
+                 i            = jc,                                                    &
+                 j            = blockNo,                                               &
+                 tstep_count  = tstep_count,                                           &
+                 tke_old      = tke_old(:),                                            & ! in
+                 tke_new      = tke(jc,:,blockNo),                                     & ! out
+                 KappaM_out   = tke_Av(jc,:,blockNo),                                  & ! out
+                 KappaH_out   = tke_kv(jc,:,blockNo),                                  & ! out
+                 int_1        = params_oce%vmix_params%vmix_dummy_1(jc,:,blockNo),   & !
+                 int_2        = params_oce%vmix_params%vmix_dummy_2(jc,:,blockNo),   & !
+                 int_3        = params_oce%vmix_params%vmix_dummy_3(jc,:,blockNo),   & !
+                 dzw          = prism_thick_c(jc,:,blockNo)*s_c(jc,blockNo),           &
+                 dzt          = dz(jc,:,blockNo)*s_c(jc,blockNo),                      &
+                 nlev         = dolic_c(jc,blockNo),                                   &
+                 max_nlev     = n_zlev,                                                &
+                 Ssqr         = Ssqr(:),                                               & ! in
+                 Nsqr         = Nsqr(:),                                               & ! in
+                 tke_Tbpr     = params_oce%vmix_params%tke_Tbpr(jc,:,blockNo),        &
+                 tke_Tspr     = params_oce%vmix_params%tke_Tspr(jc,:,blockNo),        &
+                 tke_Tdif     = params_oce%vmix_params%tke_Tdif(jc,:,blockNo),        &
+                 tke_Tdis     = params_oce%vmix_params%tke_Tdis(jc,:,blockNo),        &
+                 tke_Twin     = params_oce%vmix_params%tke_Twin(jc,:,blockNo),        &
+                 tke_Tiwf     = params_oce%vmix_params%tke_Tiwf(jc,:,blockNo),        &
+                 tke_Tbck     = params_oce%vmix_params%tke_Tbck(jc,:,blockNo),        &
+                 tke_Ttot     = params_oce%vmix_params%tke_Ttot(jc,:,blockNo),        &
+                 tke_Lmix     = params_oce%vmix_params%tke_Lmix(jc,:,blockNo),        &
+                 tke_Pr       = params_oce%vmix_params%tke_Pr(jc,:,blockNo),          &
                  tke_plc      = tke_plc(jc,:,blockNo),                                 & !by_Oliver
-                 forc_tke_surf= forc_tke_surf_2D(jc,blockNo),  &
-                 E_iw         = tke_iwe(jc,:,blockNo),         & ! for IDEMIX Ri
-                 dtime        = dtime,  &
-                 bottom_fric  = bottom_fric_2D(jc,blockNo),    &
-                 iw_diss      = tke_iwe_forcing(jc,:,blockNo),  &
-                 forc_rho_surf= forc_rho_surf_2D(jc,blockNo),  &
-                 rho_ref      = OceanReferenceDensity,           &
-                 grav         = grav,                      &
+                 forc_tke_surf= forc_tke_surf_2D(jc,blockNo),                          &
+                 E_iw         = tke_iwe(jc,:,blockNo),                                 & ! for IDEMIX Ri
+                 dtime        = dtime,                                                 &
+                 bottom_fric  = bottom_fric_2D(jc,blockNo),                            &
+                 iw_diss      = tke_iwe_forcing(jc,:,blockNo),                         &
+                 forc_rho_surf= forc_rho_surf_2D(jc,blockNo),                          &
+                 rho_ref      = OceanReferenceDensity,                                 &
+                 grav         = grav,                                                  &
                  ! essentials
-                 ! FIXME: nils: better calc IDEMIX Ri directly in ! CVMIX/IDEMIX
-                 alpha_c      = tke_iw_alpha_c(jc,:,blockNo)  & ! for IDEMIX Ri
+                 ! FIXME: nils: better calc IDEMIX Ri directly in ! VMIX/IDEMIX
+                 alpha_c      = tke_iw_alpha_c(jc,:,blockNo)                           & ! for IDEMIX Ri
                  ! forcing
                  ! diagnostics
                  ! debugging
@@ -939,45 +939,45 @@ CONTAINS
 
           ELSE
 
-            CALL cvmix_coeffs_tke( &
+            CALL coeffs_tke(                                                           &
                  ! parameter
-                 i = jc,                                       &
-                 j = blockNo,                                  &
-                 tstep_count = tstep_count,             &
-                 tke_old      = tke_old(:),             & ! in
-                 tke_new      = tke(jc,:,blockNo),             & ! out
-                 KappaM_out   = tke_Av(jc,:,blockNo),         & ! out
-                 KappaH_out   = tke_kv(jc,:,blockNo),         & ! out
-                 cvmix_int_1  = params_oce%cvmix_params%cvmix_dummy_1(jc,:,blockNo),   & !
-                 cvmix_int_2  = params_oce%cvmix_params%cvmix_dummy_2(jc,:,blockNo),   & !
-                 cvmix_int_3  = params_oce%cvmix_params%cvmix_dummy_3(jc,:,blockNo),   & !
-                 dzw          = prism_thick_c(jc,:,blockNo)*s_c(jc,blockNo),             &
-                 dzt          = dz(jc,:,blockNo)*s_c(jc,blockNo),              &
-                 nlev         = dolic_c(jc,blockNo),                   &
-                 max_nlev     = n_zlev,               &
-                 Ssqr         = Ssqr(:),            & ! in
-                 Nsqr         = Nsqr(:),            & ! in
-                 tke_Tbpr     = params_oce%cvmix_params%tke_Tbpr(jc,:,blockNo),        &
-                 tke_Tspr     = params_oce%cvmix_params%tke_Tspr(jc,:,blockNo),        &
-                 tke_Tdif     = params_oce%cvmix_params%tke_Tdif(jc,:,blockNo),        &
-                 tke_Tdis     = params_oce%cvmix_params%tke_Tdis(jc,:,blockNo),        &
-                 tke_Twin     = params_oce%cvmix_params%tke_Twin(jc,:,blockNo),        &
-                 tke_Tiwf     = params_oce%cvmix_params%tke_Tiwf(jc,:,blockNo),        &
-                 tke_Tbck     = params_oce%cvmix_params%tke_Tbck(jc,:,blockNo),        &
-                 tke_Ttot     = params_oce%cvmix_params%tke_Ttot(jc,:,blockNo),        &
-                 tke_Lmix     = params_oce%cvmix_params%tke_Lmix(jc,:,blockNo),        &
-                 tke_Pr       = params_oce%cvmix_params%tke_Pr(jc,:,blockNo),          &
-                 forc_tke_surf= forc_tke_surf_2D(jc,blockNo),  &
-                 E_iw         = tke_iwe(jc,:,blockNo),         & ! for IDEMIX Ri
-                 dtime        = dtime,  &
-                 bottom_fric  = bottom_fric_2D(jc,blockNo),    &
-                 iw_diss      = tke_iwe_forcing(jc,:,blockNo),  & 
-                 forc_rho_surf= forc_rho_surf_2D(jc,blockNo),  &
-                 rho_ref      = OceanReferenceDensity,           &
-                 grav         = grav,                      &
+                 i            = jc,                                                    &
+                 j            = blockNo,                                               &
+                 tstep_count  = tstep_count,                                           &
+                 tke_old      = tke_old(:),                                            & ! in
+                 tke_new      = tke(jc,:,blockNo),                                     & ! out
+                 KappaM_out   = tke_Av(jc,:,blockNo),                                  & ! out
+                 KappaH_out   = tke_kv(jc,:,blockNo),                                  & ! out
+                 int_1        = params_oce%vmix_params%vmix_dummy_1(jc,:,blockNo),   & !
+                 int_2        = params_oce%vmix_params%vmix_dummy_2(jc,:,blockNo),   & !
+                 int_3        = params_oce%vmix_params%vmix_dummy_3(jc,:,blockNo),   & !
+                 dzw          = prism_thick_c(jc,:,blockNo)*s_c(jc,blockNo),           &
+                 dzt          = dz(jc,:,blockNo)*s_c(jc,blockNo),                      &
+                 nlev         = dolic_c(jc,blockNo),                                   &
+                 max_nlev     = n_zlev,                                                &
+                 Ssqr         = Ssqr(:),                                               & ! in
+                 Nsqr         = Nsqr(:),                                               & ! in
+                 tke_Tbpr     = params_oce%vmix_params%tke_Tbpr(jc,:,blockNo),        &
+                 tke_Tspr     = params_oce%vmix_params%tke_Tspr(jc,:,blockNo),        &
+                 tke_Tdif     = params_oce%vmix_params%tke_Tdif(jc,:,blockNo),        &
+                 tke_Tdis     = params_oce%vmix_params%tke_Tdis(jc,:,blockNo),        &
+                 tke_Twin     = params_oce%vmix_params%tke_Twin(jc,:,blockNo),        &
+                 tke_Tiwf     = params_oce%vmix_params%tke_Tiwf(jc,:,blockNo),        &
+                 tke_Tbck     = params_oce%vmix_params%tke_Tbck(jc,:,blockNo),        &
+                 tke_Ttot     = params_oce%vmix_params%tke_Ttot(jc,:,blockNo),        &
+                 tke_Lmix     = params_oce%vmix_params%tke_Lmix(jc,:,blockNo),        &
+                 tke_Pr       = params_oce%vmix_params%tke_Pr(jc,:,blockNo),          &
+                 forc_tke_surf= forc_tke_surf_2D(jc,blockNo),                          &
+                 E_iw         = tke_iwe(jc,:,blockNo),                                 & ! for IDEMIX Ri
+                 dtime        = dtime,                                                 &
+                 bottom_fric  = bottom_fric_2D(jc,blockNo),                            &
+                 iw_diss      = tke_iwe_forcing(jc,:,blockNo),                         & 
+                 forc_rho_surf= forc_rho_surf_2D(jc,blockNo),                          &
+                 rho_ref      = OceanReferenceDensity,                                 &
+                 grav         = grav,                                                  &
                  ! essentials
-                 ! FIXME: nils: better calc IDEMIX Ri directly in ! CVMIX/IDEMIX
-                 alpha_c      = tke_iw_alpha_c(jc,:,blockNo)  & ! for IDEMIX Ri
+                 ! FIXME: nils: better calc IDEMIX Ri directly in ! VMIX/IDEMIX
+                 alpha_c      = tke_iw_alpha_c(jc,:,blockNo)                           & ! for IDEMIX Ri
                  ! forcing
                  ! diagnostics
                  ! debugging
@@ -1094,4 +1094,4 @@ CONTAINS
 
   END SUBROUTINE nils_test
 
-END MODULE mo_ocean_cvmix_tke
+END MODULE mo_ocean_tke

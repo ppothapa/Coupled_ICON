@@ -28,7 +28,7 @@ MODULE mo_ocean_tracer
     & GMRedi_configuration,                                               &
     & Cartesian_Mixing, tracer_threshold_min, tracer_threshold_max,       &
     & tracer_update_mode, l_with_horz_tracer_diffusion,                   &
-    & vert_mix_type,vmix_kpp
+    & vert_mix_type
   USE mo_util_dbg_prnt,             ONLY: dbg_print
   USE mo_parallel_config,           ONLY: nproma
   USE mo_run_config,                ONLY: dtime, ltimer, debug_check_level
@@ -571,37 +571,6 @@ CONTAINS
       !$ACC END PARALLEL
       !$ACC WAIT(1)
 
-      IF (vert_mix_type .EQ. vmix_kpp .and. typeOfTracers == "ocean") THEN
-        !by_Oliver: account for nonlocal transport term for heat and scalar
-        !(salinity) if KPP scheme is used
-
-        !$ACC DATA COPYIN(old_transport_tendencies) IF(lzacc)
-#ifdef __LVECTOR__
-        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-        !$ACC LOOP GANG VECTOR COLLAPSE(2)
-        DO level = 2, max_dolic_c
-          DO jc = start_cell_index, end_cell_index
-            IF (dolic_c(jc,jb) < level) CYCLE
-#else
-        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-        !$ACC LOOP GANG VECTOR
-        DO jc = start_cell_index, end_cell_index
-          DO level = 2, dolic_c(jc,jb)
-#endif 
-            new_tracer_concentration(jc,level,jb) =                          &
-              &  old_tracer_concentration(jc,level,jb)                       &
-              &  - (delta_t / prism_thick_c(jc,level,jb))    &
-              &  * (  div_adv_flux_horz(jc,level,jb)  &
-              &     + div_adv_flux_vert(jc,level,jb)  &
-              &     - div_diff_flux_horz(jc,level,jb) &
-              &     - old_transport_tendencies(jc,level,jb))
-          END DO
-        END DO
-        !$ACC END PARALLEL
-        !$ACC WAIT(1)
-        !$ACC END DATA
-      ELSE
-
 #ifdef __LVECTOR__
         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
@@ -624,7 +593,6 @@ CONTAINS
         END DO
         !$ACC END PARALLEL
         !$ACC WAIT(1)
-      END IF
 
     END DO
 !ICON_OMP_END_PARALLEL_DO

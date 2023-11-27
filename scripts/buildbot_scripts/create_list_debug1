@@ -7,6 +7,7 @@ listname=debug1
 
 ./create_all_builders $listname
 
+#  de-activate builders - must be commented if lists for debugging are switched on
 ./set_builder_flags Inactive --builders "$(./lslist $listname --builders-only)" --list $listname
 
 ./lslist $listname

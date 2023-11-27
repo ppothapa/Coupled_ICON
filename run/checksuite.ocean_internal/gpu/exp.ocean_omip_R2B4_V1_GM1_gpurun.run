@@ -308,7 +308,7 @@ fx_date="${start_date}"
 #
 #-----------------------------------------------------------------------------
 #set the vertical mixing scheme
-vert_mix="TKE"                                        #PP, TKE, KPP, TKEIDEMIX
+vert_mix="TKE"                                        #PP, TKE, TKEIDEMIX
 
 #
 #-----------------------------------------------------------------------------
@@ -583,7 +583,7 @@ cat >> ${ocean_namelist} << EOF
   include_last                    = .FALSE.
   output_grid                     = .TRUE.
   operation                       = "mean"
-  ml_varlist                      = 'group:oce_cvmix_tke'
+  ml_varlist                      = 'group:oce_vmix_tke'
 /
 
 EOF
@@ -772,7 +772,7 @@ if  [ x${vert_mix} = xPP ] ; then
 
 cat >> ${ocean_namelist} << EOF
 &ocean_vertical_diffusion_nml
-  vert_mix_type                               = 1       ! 1: PP; 2: TKE; 3: KPP; 4 TKE+IDEMIX
+  vert_mix_type                               = 1       ! 1: PP; 2: TKE; ; 4 TKE+IDEMIX
   PPscheme_type                               = 0
   velocity_VerticalDiffusion_background       = 5.0E-5  ! [m2/s]  vertical background viscosity coefficient for velocity
   Temperature_VerticalDiffusion_background    = 1.0E-5  ! [m2/s]  vertical background diffusion coefficient for temperature
@@ -794,9 +794,9 @@ elif  [ x${vert_mix} = xTKE ] ; then
 
 cat >> ${ocean_namelist} << EOF
 &ocean_vertical_diffusion_nml
-  vert_mix_type                   = 2  ! 1: PP; 2: TKE; 3: KPP; 4 TKE+IDEMIX
+  vert_mix_type                   = 2  ! 1: PP; 2: TKE; ; 4 TKE+IDEMIX
   only_tke                        = .TRUE. ! .TRUE. for TKE; .FALSE. for TKE+IDEMIX
-  ! cvmix/tke parameters
+  ! vmix/tke parameters
   c_k                             = 0.3
   c_eps                           = 0.7
   alpha_tke                       = 30.0

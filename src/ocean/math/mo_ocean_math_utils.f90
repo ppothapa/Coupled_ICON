@@ -17,6 +17,7 @@ MODULE mo_ocean_math_utils
   PRIVATE
 
   PUBLIC :: solve_tridiag_block
+  PUBLIC :: solve_tridiag
 
   INTERFACE solve_tridiag_block
     MODULE PROCEDURE solve_tridiag_block_wp
@@ -156,5 +157,43 @@ SUBROUTINE solve_tridiag_block_wp (a, b, c, d, x, n, eliminate_upper, use_acc)
     END IF
     !$ACC END DATA
   END SUBROUTINE solve_tridiag_block_wp
+
+
+  SUBROUTINE solve_tridiag(a,b,c,d,x,n)
+    !---------------------------------------------------------------------------------
+    !        a - sub-diagonal (means it is the diagonal below the main diagonal)
+    !        b - the main diagonal
+    !        c - sup-diagonal (means it is the diagonal above the main diagonal)
+    !        d - right part
+    !        x - the answer
+    !        n - number of equations
+    !---------------------------------------------------------------------------------
+    INTEGER, INTENT(IN) :: n
+    REAL(wp), DIMENSION(n), INTENT(IN) :: a, b, c, d
+    REAL(wp), DIMENSION(n), INTENT(OUT) :: x
+    REAL(wp), DIMENSION(n) :: cp, dp
+    REAL(wp) :: m, fxa
+    INTEGER :: i
+  
+    ! initialize c-prime and d-prime
+    cp(1) = c(1)/b(1)
+    dp(1) = d(1)/b(1)
+
+    ! solve for vectors c-prime and d-prime
+    DO i = 2,n
+      m = b(i)-cp(i-1)*a(i)
+      fxa = 1.0_wp/m
+      cp(i) = c(i)*fxa
+      dp(i) = (d(i)-dp(i-1)*a(i))*fxa
+    END DO
+
+    ! initialize x
+    x(n) = dp(n)
+
+    ! solve for x from the vectors c-prime and d-prime
+    DO i = n-1, 1, -1
+      x(i) = dp(i)-cp(i)*x(i+1)
+    END DO
+  END SUBROUTINE solve_tridiag
 
 END MODULE mo_ocean_math_utils 
