@@ -175,9 +175,9 @@ CONTAINS
     !------------------------------------------------------------------
     ! Set default values
     !------------------------------------------------------------------
-    i_settling        = 0             ! constant sinking
+    i_settling        = 1             ! constant sinking
 
-    hion_solver       = 0             ! standard solver
+    hion_solver       = 1             
     !$ACC UPDATE DEVICE(hion_solver) ASYNC(1)
    
     isac = 1       ! no sediment acceleration

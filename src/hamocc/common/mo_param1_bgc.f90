@@ -22,7 +22,7 @@ MODULE mo_param1_bgc
 
 
   ! advected tracers
-  INTEGER, PARAMETER :: i_base_adv = 17,              &
+  INTEGER, PARAMETER :: i_base_adv = 18,              &
        &                isco212    = 1,               &
        &                ialkali    = 2,               &
        &                iphosph    = 3,               &
@@ -39,7 +39,8 @@ MODULE mo_param1_bgc
        &                iiron      = 14,              &               
        &                idms       = 15,              &
        &                ih2s       = 16,              &
-       &                iagesc     = 17
+       &                idust      = 17,              &
+       &                iagesc     = 18
 
   ! extended N-cycle parameters
   INTEGER :: iammo, iano2, i_amm_adv
@@ -50,7 +51,6 @@ MODULE mo_param1_bgc
   ! non-advected (fast sinking) tracers
   INTEGER ::             icalc,         &
        &                 iopal,         &
-       &                 idust,         &
        &                 i_base  
 
 
@@ -182,7 +182,7 @@ MODULE mo_param1_bgc
 CONTAINS
 
   SUBROUTINE set_tracer_indices
-    USE mo_hamocc_nml, ONLY : l_N_cycle
+    USE mo_hamocc_nml, ONLY : l_N_cycle,i_settling
 
       ! water column tracers (advected)
       iammo      = MERGE(i_base_adv+1,0,l_N_cycle)
@@ -194,9 +194,12 @@ CONTAINS
       ! within the 4D tracer array
       icalc    = ntraad+1
       iopal    = ntraad+2
-      idust    = ntraad+3
-      i_base   = 3
+      i_base   = 2
       n_bgctra = ntraad + i_base
+
+      IF (i_settling==2) THEN
+          ntraad=n_bgctra
+      END IF
       
       ! porewater tracers
       ipownh4  = MERGE(npowa_base+1,0,l_N_cycle)
