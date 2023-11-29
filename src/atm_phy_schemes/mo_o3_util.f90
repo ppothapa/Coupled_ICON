@@ -259,7 +259,8 @@ CONTAINS
     o3_time_int(jcs:jce,:) = tiw%weight1*ext_o3(jcs:jce,:,tiw%month1_index+1)+ &
                              tiw%weight2*ext_o3(jcs:jce,:,tiw%month2_index+1)
     !$ACC END KERNELS
-    
+    !$ACC WAIT(1)
+
   END SUBROUTINE o3_timeint
 
   SUBROUTINE o3_pl2ml ( jcs,jce,kbdim,nlev_pres,klev,&

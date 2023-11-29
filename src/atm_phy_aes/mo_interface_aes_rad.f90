@@ -193,6 +193,7 @@ CONTAINS
               & aer_aod_9731   = field%aer_aod_9731(:,:,jb)&!< out  aerosol optical density at 9731
               & )
               !
+          !$ACC WAIT(1)
           !$ACC END DATA
         !
         END IF

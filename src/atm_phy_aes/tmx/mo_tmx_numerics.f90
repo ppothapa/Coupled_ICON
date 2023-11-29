@@ -239,6 +239,7 @@ CONTAINS
     ENDDO
 !$OMP END PARALLEL DO
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
   END SUBROUTINE diffuse_scalar_vertical_implicit

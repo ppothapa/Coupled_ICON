@@ -190,6 +190,7 @@ SUBROUTINE interpol_vec_grf (p_pp, p_pc, p_grf, p_vn_in, p_vn_out)
   ! Store results in p_vn_out
   CALL exchange_data_grf(p_pc%comm_pat_coll_interpol_vec_grf,1,nlev_c, &
     RECV1=p_vn_out,SEND1=vn_aux)
+  !$ACC WAIT(1)
   !$ACC END DATA ! vn_aux
 
 END SUBROUTINE interpol_vec_grf

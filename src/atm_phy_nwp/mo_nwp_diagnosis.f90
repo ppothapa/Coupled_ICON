@@ -2010,6 +2010,7 @@ CONTAINS
     ENDIF
 
     IF (ltimer) CALL timer_stop(timer_nh_diagnostics)
+    !$ACC WAIT
     !$ACC END DATA
   END SUBROUTINE nwp_opt_diagnostics_2
 

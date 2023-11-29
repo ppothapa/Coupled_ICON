@@ -306,6 +306,7 @@ CONTAINS
       ENDDO !jb
 
       IF (PRESENT(zsct)) zsct = tsi_radt
+      !$ACC WAIT(1)
       !$ACC END DATA
 
     ELSEIF (izenith == 4) THEN

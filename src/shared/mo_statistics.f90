@@ -1319,6 +1319,7 @@ CONTAINS
       total_sum    = total_sum    + sum_value( myThreadNo)
     ENDDO
     !$ACC END PARALLEL LOOP
+    !$ACC WAIT(1)
     !$ACC END DATA
     DEALLOCATE(sum_value)
 

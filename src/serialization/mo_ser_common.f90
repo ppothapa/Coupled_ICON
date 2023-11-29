@@ -1226,7 +1226,7 @@ MODULE mo_ser_common
     END DO
 
     call report(name, report_rel_diff, report_abs_diff, report_cur, report_ref, report_idx, n_fail, size(cur))
-
+    !$ACC WAIT(1)
   END SUBROUTINE compare_l_1d
 
   SUBROUTINE compare_l_2d(name, cur, lopenacc)
@@ -1265,7 +1265,7 @@ MODULE mo_ser_common
     END DO
 
     call report(name, report_rel_diff, report_abs_diff, report_cur, report_ref, report_idx, n_fail, size(cur))
-
+    !$ACC WAIT(1)
   END SUBROUTINE compare_l_2d
 
   SUBROUTINE compare_l_3d(name, cur, lopenacc)
@@ -1306,7 +1306,7 @@ MODULE mo_ser_common
     END DO
 
     call report(name, report_rel_diff, report_abs_diff, report_cur, report_ref, report_idx, n_fail, size(cur))
-
+    !$ACC WAIT(1)
   END SUBROUTINE compare_l_3d
 
   SUBROUTINE compare_l_4d(name, cur, lopenacc)
@@ -1349,7 +1349,7 @@ MODULE mo_ser_common
     END DO
 
     call report(name, report_rel_diff, report_abs_diff, report_cur, report_ref, report_idx, n_fail, size(cur))
-
+    !$ACC WAIT(1)
   END SUBROUTINE compare_l_4d
 
 ! For ser_component INTERFACE

@@ -199,6 +199,7 @@ CONTAINS
             &                                patch                              , &
             &                                mask_sftof                         , &
             &                                .FALSE., lopenacc = .TRUE. )
+          !$ACC WAIT(1)
           !$ACC END DATA
           DEALLOCATE(mask_sftof)
 

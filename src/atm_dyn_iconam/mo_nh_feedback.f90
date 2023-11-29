@@ -1555,6 +1555,7 @@ CONTAINS
         &                        f3din4=p_parent_prog%w)
     ENDIF
 
+    !$ACC WAIT
     !$ACC END DATA
     !$ACC END DATA
     !$ACC END DATA

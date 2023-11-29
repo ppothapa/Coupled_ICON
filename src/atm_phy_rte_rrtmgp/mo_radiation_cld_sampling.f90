@@ -131,6 +131,7 @@ CONTAINS
     END DO
     !$ACC END PARALLEL LOOP
 
+    !$ACC WAIT
     !$ACC END DATA
   END SUBROUTINE sample_cld_state
 

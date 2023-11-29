@@ -1248,6 +1248,7 @@ CONTAINS
         &                wfacpbl1, kpbl1, wfacpbl2, kpbl2,                    &
         &                ZERO_HEIGHT, EXTRAPOL_DIST,                          &
         &                lacc=.TRUE.)
+      !$ACC WAIT
       !$ACC END DATA
 
     CASE (PRES_MSL_METHOD_GME) ! GME-type extrapolation
@@ -1287,6 +1288,7 @@ CONTAINS
         &                    nblks_c, npromz_c, p_patch%nlev,                 & ! in
         &                    wfacpbl1, kpbl1, zextrap, itype_pres_msl,        & ! in
         &                    lacc=.TRUE.)                                       ! in
+      !$ACC WAIT
       !$ACC END DATA
 
     CASE DEFAULT

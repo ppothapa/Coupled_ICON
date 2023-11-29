@@ -648,6 +648,7 @@ CONTAINS
                              & vdiff_config%rturb_prandtl)
         END IF
       END IF
+      !$ACC WAIT
       !$ACC END DATA
 
     END SELECT    !select turbulent scheme

@@ -2250,6 +2250,7 @@ CONTAINS
 !$OMP END PARALLEL
 
     ! remove local variables from gpu
+    !$ACC WAIT(1)
     !$ACC END DATA
   END SUBROUTINE nwp_lake
 
