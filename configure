@@ -596,7 +596,7 @@ MPI_ENABLED
 HD_ENABLED
 ART_ENABLED
 EMVORADO_ENABLED
-DACE_ENABLED_OR_NEEDED
+DACE_ENABLED
 JSBACH_ENABLED
 DELAYED_CONFIG_ENABLED
 DEFAULT_VERBOSITY
@@ -3700,16 +3700,11 @@ if test "x$enable_jsbach" = xyes; then :
 fi
 fi
 
-icon_dace_enabled_or_needed=no
-if test x"$enable_dace" = xyes || test x"$enable_emvorado" = xyes; then :
-  icon_dace_enabled_or_needed=yes
-fi
-
-if test "x$icon_dace_enabled_or_needed" = xyes; then :
+if test "x$enable_dace" = xyes; then :
   icon_subdir_srcdir="$srcdir/externals/dace_icon"
    icon_subdir_unique_file="src_for_icon/mo_fdbk_tables.f90"
    if test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"; then :
-  as_fn_error $? "unable to find sources of the DACE modules for data assimilation ($icon_subdir_unique_file) in '$icon_subdir_srcdir': disable the modules (--disable-dace) and the radar forward operator EMVORADO (--disable-emvorado)" "$LINENO" 5
+  as_fn_error $? "unable to find sources of the DACE modules for data assimilation ($icon_subdir_unique_file) in '$icon_subdir_srcdir': disable the component (--disable-dace)" "$LINENO" 5
 fi
 fi
 
@@ -3718,6 +3713,10 @@ if test "x$enable_emvorado" = xyes; then :
    icon_subdir_unique_file="src_emvorado/radar_organize.f90"
    if test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"; then :
   as_fn_error $? "unable to find sources of the radar forward operator EMVORADO ($icon_subdir_unique_file) in '$icon_subdir_srcdir': disable the operator (--disable-emvorado)" "$LINENO" 5
+fi
+   if test "x$enable_dace" = xno; then :
+  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: the radar forward operator EMVORADO is enabled but the DACE modules for data assimilation are disabled: EMVORADO will not be able to produce the FEEDBACK (fdbk) files for data assimilation" >&5
+$as_echo "$as_me: WARNING: the radar forward operator EMVORADO is enabled but the DACE modules for data assimilation are disabled: EMVORADO will not be able to produce the FEEDBACK (fdbk) files for data assimilation" >&2;}
 fi
 fi
 
@@ -5341,7 +5340,10 @@ if test "x$enable_dace" = xyes; then :
 fi
 
 if test "x$enable_emvorado" = xyes; then :
-  as_fn_append FCFLAGS " ${FC_PP_DEF}HAVE_RADARFWO ${FC_PP_DEF}NUDGING ${FC_PP_DEF}TWOMOM_SB_NEW"
+  as_fn_append FCFLAGS " ${FC_PP_DEF}HAVE_RADARFWO ${FC_PP_DEF}TWOMOM_SB_NEW"
+   if test "x$enable_dace" = xyes; then :
+  as_fn_append FCFLAGS " ${FC_PP_DEF}NUDGING"
+fi
 fi
 
 if test "x$enable_art" = xyes; then :
@@ -7390,7 +7392,7 @@ fi
 { $as_echo "$as_me:${as_lineno-$LINENO}: result: $icon_cv_have_mpi" >&5
 $as_echo "$icon_cv_have_mpi" >&6; }
    if test "x$icon_cv_have_mpi" = xyes; then :
-  if test x"$icon_dace_enabled_or_needed" = xyes || test x"$enable_rttov" = xyes; then :
+  if test x"$enable_dace" = xyes || test x"$enable_rttov" = xyes; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}HAVE_MPI_MOD"
 fi
 else
@@ -10749,11 +10751,11 @@ else
 
 fi
 
-if test "x$icon_dace_enabled_or_needed" = xyes; then :
-  DACE_ENABLED_OR_NEEDED=''
+if test "x$enable_dace" = xyes; then :
+  DACE_ENABLED=''
 
 else
-  DACE_ENABLED_OR_NEEDED='#'
+  DACE_ENABLED='#'
 
 fi
 

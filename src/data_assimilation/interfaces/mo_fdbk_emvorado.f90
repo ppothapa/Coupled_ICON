@@ -35,6 +35,7 @@ MODULE mo_fdbk_emvorado
 !
 !-------------------------------------------------------------------------------
 
+#ifdef __DACE__
 USE mo_kind,          ONLY: sp
 
 USE mo_fdbk,          ONLY: t_fdbk
@@ -43,8 +44,12 @@ USE mo_t_netcdf_file, ONLY: nlen
 
 USE mo_netcdf_param   ! provides access to the parameters defined
                       ! in 'netcdf.inc' of the NetCDF package
+#endif
 
 IMPLICIT  NONE
+
+#ifdef __DACE__
+
 !================
 ! public entities
 !================
@@ -1197,5 +1202,7 @@ CONTAINS
 END SUBROUTINE write_report_radar_2
 
 !-------------------------------------------------------------------------------
+
+#endif
 
 END MODULE mo_fdbk_emvorado

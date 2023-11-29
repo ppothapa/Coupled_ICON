@@ -610,18 +610,13 @@ AS_VAR_IF([enable_jsbach], [yes],
 ($icon_subdir_unique_file) in '$icon_subdir_srcdir': disable the component dnl
 (--disable-jsbach)])])])
 
-icon_dace_enabled_or_needed=no
-AS_IF([test x"$enable_dace" = xyes || test x"$enable_emvorado" = xyes],
-  [icon_dace_enabled_or_needed=yes])
-
-AS_VAR_IF([icon_dace_enabled_or_needed], [yes],
+AS_VAR_IF([enable_dace], [yes],
   [icon_subdir_srcdir="$srcdir/externals/dace_icon"
    icon_subdir_unique_file="src_for_icon/mo_fdbk_tables.f90"
    AS_IF([test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"],
      [AC_MSG_ERROR([unable to find sources of the DACE modules for data dnl
 assimilation ($icon_subdir_unique_file) in '$icon_subdir_srcdir': disable dnl
-the modules (--disable-dace) and the radar forward operator EMVORADO dnl
-(--disable-emvorado)])])])
+the component (--disable-dace)])])])
 
 AS_VAR_IF([enable_emvorado], [yes],
   [icon_subdir_srcdir="$srcdir/externals/emvorado"
@@ -629,7 +624,11 @@ AS_VAR_IF([enable_emvorado], [yes],
    AS_IF([test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"],
      [AC_MSG_ERROR([unable to find sources of the radar forward operator dnl
 EMVORADO ($icon_subdir_unique_file) in '$icon_subdir_srcdir': disable the dnl
-operator (--disable-emvorado)])])])
+operator (--disable-emvorado)])])
+   AS_VAR_IF([enable_dace], [no],
+     [AC_MSG_WARN([the radar forward operator EMVORADO is enabled but the dnl
+DACE modules for data assimilation are disabled: EMVORADO will not be able dnl
+to produce the FEEDBACK (fdbk) files for data assimilation])])])
 
 AS_VAR_IF([enable_art], [yes],
   [icon_subdir_srcdir="$srcdir/externals/art"
@@ -820,8 +819,9 @@ AS_VAR_IF([enable_dace], [yes],
 
 AS_VAR_IF([enable_emvorado], [yes],
   [AS_VAR_APPEND([FCFLAGS],
-     [" ${FC_PP_DEF}HAVE_RADARFWO ${FC_PP_DEF}NUDGING dnl
-${FC_PP_DEF}TWOMOM_SB_NEW"])])
+     [" ${FC_PP_DEF}HAVE_RADARFWO ${FC_PP_DEF}TWOMOM_SB_NEW"])
+   AS_VAR_IF([enable_dace], [yes],
+     [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}NUDGING"])])])
 
 AS_VAR_IF([enable_art], [yes],
   [AS_VAR_APPEND([FCFLAGS],
@@ -1111,8 +1111,7 @@ available], [icon_cv_have_mpi],
        call mpi_init(error)]])],
         [icon_cv_have_mpi=yes])])
    AS_VAR_IF([icon_cv_have_mpi], [yes],
-     [AS_IF([test x"$icon_dace_enabled_or_needed" = xyes || dnl
-test x"$enable_rttov" = xyes],
+     [AS_IF([test x"$enable_dace" = xyes || test x"$enable_rttov" = xyes],
         [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}HAVE_MPI_MOD"])])],
      [AC_MSG_FAILURE([unable to link a test program using the Fortran 90 dnl
 interface of MPI library: either disable MPI support (--disable-mpi) and the dnl
@@ -2529,9 +2528,9 @@ AS_VAR_IF([enable_jsbach], [yes],
   [AC_SUBST([JSBACH_ENABLED], [''])],
   [AC_SUBST([JSBACH_ENABLED], ['#'])])
 
-AS_VAR_IF([icon_dace_enabled_or_needed], [yes],
-  [AC_SUBST([DACE_ENABLED_OR_NEEDED], [''])],
-  [AC_SUBST([DACE_ENABLED_OR_NEEDED], ['#'])])
+AS_VAR_IF([enable_dace], [yes],
+  [AC_SUBST([DACE_ENABLED], [''])],
+  [AC_SUBST([DACE_ENABLED], ['#'])])
 
 AS_VAR_IF([enable_emvorado], [yes],
   [AC_SUBST([EMVORADO_ENABLED], [''])],
