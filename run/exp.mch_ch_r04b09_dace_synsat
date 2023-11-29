@@ -87,8 +87,8 @@ atmo_namelist=NAMELIST_${EXPNAME}_atm
 lnd_namelist=NAMELIST_${EXPNAME}_lnd
 
 # files needed for synsats
-add_link_file ${icon_data_poolFolder}/../nwp/externals/rttov/const/rt13coeffs_rttov7pred54L/rtcoef_msg_2_seviri.dat rtcoef_msg_2_seviri.dat
-add_link_file ${icon_data_poolFolder}/../nwp/externals/rttov/const/rt13coeffs_rttov7pred54L/sccldcoef_msg_2_seviri.dat sccldcoef_msg_2_seviri.dat
+add_link_file ${icon_data_poolFolder}/../buildbot_data/nwp/externals/rttov/const/rt13coeffs_rttov7pred54L/rtcoef_msg_2_seviri.dat rtcoef_msg_2_seviri.dat
+add_link_file ${icon_data_poolFolder}/../buildbot_data/nwp/externals/rttov/const/rt13coeffs_rttov7pred54L/sccldcoef_msg_2_seviri.dat sccldcoef_msg_2_seviri.dat
 
 #--------------------------------------------------------------------------------------------------
 
