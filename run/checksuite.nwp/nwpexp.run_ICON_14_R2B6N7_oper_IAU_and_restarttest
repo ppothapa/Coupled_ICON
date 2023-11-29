@@ -83,7 +83,7 @@ ln -sf $EXTPDIR/icon_extpar_0028_R02B07_N02_20180625_tiles.nc extpar_iconR2B07_D
 ln -sf ${ICONDIR}/externals/ecrad/data ecrad_data
 
 # files needed for RTTOV
-ln -sf ${ICONDIR}/data/rttov/const/rt13coeffs_rttov7pred54L/* .
+ln -sf ${icon_data_poolFolder}/externals/rttov/const/rt13coeffs_rttov7pred54L/* .
 
 
 
