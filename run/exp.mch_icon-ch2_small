@@ -248,6 +248,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  output_nml_dict             =              "${dict_file}"        ! translates the output nml names to icon names
  netcdf_dict                 =              "${dict_file}"        ! specifies the names in the output netcdf file
  lnetcdf_flt64_output        =                      .TRUE.        ! double precision output
+ itype_hzerocl               =                          2         ! 1: orography, 2: undef, 3: extrapolation below ground
  itype_pres_msl              =                          5         ! method for computation of mean sea level pressure
  itype_rh                    =                          1         ! method for computation of relative humidity
  lmask_boundary              =                     .FALSE.        ! mask out interpolation zone in output

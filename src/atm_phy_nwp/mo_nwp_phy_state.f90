@@ -116,7 +116,7 @@ USE mo_action,               ONLY: ACTION_RESET, new_action, actions
 USE mo_io_config,            ONLY: lflux_avg, lnetcdf_flt64_output, gust_interval, &
   &                                celltracks_interval, echotop_meta, &
   &                                maxt_interval, precip_interval, t_var_in_output, &
-  &                                totprec_d_interval, &
+  &                                totprec_d_interval, itype_hzerocl, &
   &                                uh_max_zmin, uh_max_zmax, luh_max_out, uh_max_nlayer, &
   &                                sunshine_interval, n_wshear, n_srh
 USE mtime,                   ONLY: max_timedelta_str_len, getPTStringFromMS
@@ -5133,12 +5133,20 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
     cf_desc    = t_cf_var('hzerocl', '', 'height of 0 deg C level', datatype_flt)
     grib2_desc = grib2_var(0, 3, 6, ibits, GRID_UNSTRUCTURED, GRID_CELL)             &
       &           + t_grib2_int_key("typeOfSecondFixedSurface", 101)
-    CALL add_var( diag_list, 'hzerocl', diag%hzerocl,                                &
-      &           GRID_UNSTRUCTURED_CELL, ZA_ISOTHERM_ZERO, cf_desc, grib2_desc,     &
-      &           ldims=shape2d, lrestart=.FALSE.,                                   &
-!!$      &           lmiss=.TRUE., missval=-999._wp,                                    &
-      &           hor_interp=create_hor_interp_metadata(                             &
-      &                      hor_intp_type=HINTP_TYPE_LONLAT_NNB), lopenacc=.TRUE. )
+    IF (itype_hzerocl == 2) THEN
+      CALL add_var( diag_list, 'hzerocl', diag%hzerocl,                                &
+        &           GRID_UNSTRUCTURED_CELL, ZA_ISOTHERM_ZERO, cf_desc, grib2_desc,     &
+        &           ldims=shape2d, lrestart=.FALSE.,                                   &
+        &           lmiss=.TRUE., missval=-999.0_wp,                                   &
+        &           hor_interp=create_hor_interp_metadata(                             &
+        &                      hor_intp_type=HINTP_TYPE_LONLAT_NNB), lopenacc=.TRUE. )
+    ELSE
+      CALL add_var( diag_list, 'hzerocl', diag%hzerocl,                                &
+        &           GRID_UNSTRUCTURED_CELL, ZA_ISOTHERM_ZERO, cf_desc, grib2_desc,     &
+        &           ldims=shape2d, lrestart=.FALSE.,                                   &
+        &           hor_interp=create_hor_interp_metadata(                             &
+        &                      hor_intp_type=HINTP_TYPE_LONLAT_NNB), lopenacc=.TRUE. )
+    END IF
     __acc_attach(diag%hzerocl)
 
 
