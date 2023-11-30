@@ -381,7 +381,8 @@ rc[nb]l*|vh1l*)
   ;;
 *)
   # This is the only grid with JSBACH files and an NWP extpar... They don't really fit but whatever.
-  grid_dir=${icon_data_rootFolder}/grids/private/rene/mpim/0013
+  grid_dir=${icon_data_rootFolder}/grids/public/mpim/0013
+
   add_link_file $grid_dir/nwp/icon_extpar_0013_R02B04_G_20180820_tiles.nc extpar_icon_grid.nc
   add_link_file $grid_dir/initial_condition/r0001/ifs2icon_1979010100_R02B04_G.nc ic_atmosphere.nc
   add_link_file $grid_dir/icon_grid_0013_R02B04_G.nc  icon_grid.nc
