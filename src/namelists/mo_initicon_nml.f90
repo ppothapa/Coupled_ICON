@@ -114,7 +114,6 @@ CONTAINS
   INTEGER  :: nlevsoil_in   ! number of soil levels of input data
 
   REAL(wp) :: zpbl1, zpbl2  ! AGL heights used for vertical gradient computation
-  LOGICAL  :: l_sst_in      ! logical switch, if sea surface temperature is provided as input
   LOGICAL  :: lread_ana     ! If .TRUE., read analysis fields are read from analysis file
                             ! dwdana_filename. If .FALSE., ICON is soleyly started 
                             ! from first guess fields.   
@@ -223,7 +222,7 @@ CONTAINS
     &  fire2d_filename             !< Allowed keywords: <species>, <gridfile>, <nroot>, <nroot0>, <jlev>, <idom>, <yyyymmdd>
 
   NAMELIST /initicon_nml/ init_mode, zpbl1, zpbl2, l_coarse2fine_mode,      &
-                          nlevsoil_in, l_sst_in, lread_ana,                 &
+                          nlevsoil_in, lread_ana,                           &
                           lconsistency_checks,                              &
                           ifs2icon_filename, dwdfg_filename,                &
                           dwdana_filename, filetype, dt_iau, dt_shift,      &
@@ -423,10 +422,6 @@ CONTAINS
     CALL finish( TRIM(routine),'Invalid value for itype_vert_expol.' )
   END SELECT
 
-  ! 
-  WRITE(message_text,'(a)') &
-    &  'Namelist switch l_sst_in is obsolete and will soon be removed!'
-  CALL message("WARNING",message_text)
 
   !------------------------------------------------------------
   ! 5.0 Fill the configuration state
