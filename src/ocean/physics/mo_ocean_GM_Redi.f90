@@ -2659,15 +2659,15 @@ END SUBROUTINE vertical_GM
     REAL(wp), INTENT(inout)                  :: GMredi_flux_horz(:,:,:)
     REAL(wp), INTENT(inout)                  :: GMredi_flux_vert(:,:,:)
     TYPE(t_ocean_tracer), TARGET             :: tracer
-    INTEGER, INTENT(IN)                      :: tracer_index 
+    INTEGER, INTENT(IN)                      :: tracer_index
     CHARACTER(LEN=*), INTENT(in)             :: typeOfTracers
-    REAL(wp),                   INTENT(IN)   :: stretch_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks) 
+    REAL(wp),                   INTENT(IN)   :: stretch_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
     REAL(wp),                   INTENT(IN)   :: stretch_e(nproma, patch_3D%p_patch_2d(1)%nblks_e)
-    
+
     !Local variables
-    INTEGER :: start_cell_index, end_cell_index, cell_index,level,start_level,end_level,blockNo
-    INTEGER :: start_edge_index, end_edge_index, edge_index   
-    INTEGER :: il_c1, ib_c1, il_c2, ib_c2  
+    INTEGER :: start_cell_index, end_cell_index, cell_index,level,start_level,end_level,blockNo,max_level
+    INTEGER :: start_edge_index, end_edge_index, edge_index
+    INTEGER :: il_c1, ib_c1, il_c2, ib_c2
     TYPE(t_subset_range), POINTER :: all_cells, cells_in_domain, edges_in_domain
     TYPE(t_patch), POINTER :: patch_2D
     REAL(wp) :: flux_vert_center(nproma, n_zlev,patch_3D%p_patch_2d(1)%alloc_cell_blocks)
@@ -2712,14 +2712,21 @@ END SUBROUTINE vertical_GM
 
       tracer_gradient_horz_vec_center => ocean_state%p_aux%PgradTracer_horz_center
       tracer_gradient_vert_center     => ocean_state%p_aux%DerivTracer_vert_center
-    
+
       !! Convert vertical gradients from d/ds to d/dz
-!ICON_OMP_PARALLEL_DO PRIVATE(start_cell_index, end_cell_index, cell_index, level, end_level) ICON_OMP_DEFAULT_SCHEDULE
+!ICON_OMP_PARALLEL_DO PRIVATE(start_cell_index, end_cell_index, cell_index, level, end_level, max_level) ICON_OMP_DEFAULT_SCHEDULE
     DO blockNo = cells_in_domain%start_block, cells_in_domain%end_block
       CALL get_index_range(cells_in_domain, blockNo, start_cell_index, end_cell_index)
+#ifdef __LVECTOR__
+      max_level = MAXVAL(patch_3D%p_patch_1D(1)%dolic_c(start_cell_index:end_cell_index,blockNo))
+      DO level = start_level, max_level
+        DO cell_index = start_cell_index, end_cell_index
+          IF (level > patch_3D%p_patch_1D(1)%dolic_c(cell_index,blockNo)) CYCLE
+#else
       DO cell_index = start_cell_index, end_cell_index
         end_level = patch_3d%p_patch_1d(1)%dolic_c(cell_index, blockNo)
         DO level = start_level, end_level
+#endif
           tracer_gradient_vert_center(cell_index, level, blockNo) &
             & = (1.0_wp/stretch_c(cell_index, blockNo)) * tracer_gradient_vert_center(cell_index, level, blockNo)
          END DO
@@ -2729,39 +2736,51 @@ END SUBROUTINE vertical_GM
 
     ENDIF
 
-    DO blockNo = all_cells%start_block, all_cells%end_block        
-      CALL get_index_range(all_cells, blockNo, start_cell_index, end_cell_index)      
+    DO blockNo = all_cells%start_block, all_cells%end_block
+      CALL get_index_range(all_cells, blockNo, start_cell_index, end_cell_index)
+#ifdef __LVECTOR__
+      DO level = 1, n_zlev
+        DO cell_index = start_cell_index, end_cell_index
+#else
       DO cell_index = start_cell_index, end_cell_index
         DO level = 1, n_zlev
+#endif
           flux_vec_horz_center(cell_index,level,blockNo)%x = 0.0_wp
         ENDDO
       ENDDO
     ENDDO
-      
+
     !The code below has to be executed for temperature, salinity and HAMMOC tracers, i.e. for all tracers.
     !
-!ICON_OMP_DO_PARALLEL PRIVATE(start_cell_index,end_cell_index, cell_index, level) ICON_OMP_DEFAULT_SCHEDULE
-    DO blockNo = cells_in_domain%start_block, cells_in_domain%end_block        
-      CALL get_index_range(cells_in_domain, blockNo, start_cell_index, end_cell_index)      
+!ICON_OMP_DO_PARALLEL PRIVATE(start_cell_index,end_cell_index, cell_index, level, max_level) ICON_OMP_DEFAULT_SCHEDULE
+    DO blockNo = cells_in_domain%start_block, cells_in_domain%end_block
+      CALL get_index_range(cells_in_domain, blockNo, start_cell_index, end_cell_index)
       DO cell_index = start_cell_index, end_cell_index
  
         !GMRedi Flux at top layer: with tapering this is the just horizontal diffusion
-        DO level = start_level, MIN(patch_3D%p_patch_1D(1)%dolic_c(cell_index,blockNo),start_level)
-          flux_vec_horz_center(cell_index,start_level,blockNo)%x &
-          &=taper_diagonal_horz(cell_index,start_level,blockNo)  &
-          &*tracer_gradient_horz_vec_center(cell_index,start_level,blockNo)%x
+        IF(patch_3D%p_patch_1D(1)%dolic_c(cell_index,blockNo)>=start_level)THEN
+           flux_vec_horz_center(cell_index,start_level,blockNo)%x &
+                   &=taper_diagonal_horz(cell_index,start_level,blockNo)  &
+                   &*tracer_gradient_horz_vec_center(cell_index,start_level,blockNo)%x
 
           ! the top level flux_vert_center will be filled from the second level, if it exists
           flux_vert_center(cell_index,start_level,blockNo) = 0.0_wp
-          
-        ENDDO
+        ENDIF
+#ifdef __LVECTOR__
+     ENDDO
 
-        DO level = start_level+1, patch_3D%p_patch_1D(1)%dolic_c(cell_index,blockNo)
-          
+     max_level = MAXVAL(patch_3D%p_patch_1D(1)%dolic_c(start_cell_index:end_cell_index,blockNo))
+     DO level = start_level+1, max_level
+       DO cell_index = start_cell_index, end_cell_index
+         IF (level > patch_3D%p_patch_1D(1)%dolic_c(cell_index,blockNo)) CYCLE
+#else
+       DO level = start_level+1, patch_3D%p_patch_1D(1)%dolic_c(cell_index,blockNo)
+#endif
+
           !horizontal GM-Redi Flux
           IF(ocean_state%p_aux%slopes_squared(cell_index,level,blockNo)==0.0_wp)THEN
           tracer_gradient_horz_vec_center(cell_index,level,blockNo)%x(:)=0.0_wp
-          ENDIF 
+          ENDIF
           flux_vec_horz_center(cell_index,level,blockNo)%x &
           &=taper_diagonal_horz(cell_index,level,blockNo)  &
           &*tracer_gradient_horz_vec_center(cell_index,level,blockNo)%x&
@@ -2792,21 +2811,27 @@ END SUBROUTINE vertical_GM
     ! use a vector communicator
     CALL sync_patch_array_mult(sync_c, patch_2D, 3, &
         & flux_vec_horz_center(:,:,:)%x(1), flux_vec_horz_center(:,:,:)%x(2), flux_vec_horz_center(:,:,:)%x(3))
-    !    
+    !
     CALL map_cell2edges_3D( patch_3D,flux_vec_horz_center, GMredi_flux_horz, op_coeff)
 
-!ICON_OMP_DO_PARALLEL PRIVATE(start_edge_index,end_edge_index, edge_index, level) ICON_OMP_DEFAULT_SCHEDULE
-        DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block     
-          CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)      
+!ICON_OMP_DO_PARALLEL PRIVATE(start_edge_index,end_edge_index, edge_index, level, max_level) ICON_OMP_DEFAULT_SCHEDULE
+        DO blockNo = edges_in_domain%start_block, edges_in_domain%end_block
+          CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
+#ifdef __LVECTOR__
+          max_level = MAXVAL(patch_3D%p_patch_1D(1)%dolic_e(start_edge_index:end_edge_index,blockNo))
+          DO level = start_level, max_level
+            DO edge_index = start_edge_index, end_edge_index
+              IF ( level > patch_3D%p_patch_1D(1)%dolic_e(edge_index,blockNo) ) CYCLE
+#else
           DO edge_index = start_edge_index, end_edge_index
             DO level = start_level, patch_3D%p_patch_1D(1)%dolic_e(edge_index,blockNo)
-            
+#endif
               GMredi_flux_horz(edge_index,level,blockNo)   &
               & = GMredi_flux_horz(edge_index,level,blockNo)  &
               & * patch_3D%p_patch_1d(1)%prism_thick_e(edge_index,level,blockNo)  &
               & * stretch_e(edge_index, blockNo)
-            END DO                  
-          END DO                
+            END DO
+          END DO
         END DO
 !ICON_OMP_END_DO_PARALLEL
 
@@ -2833,53 +2858,66 @@ END SUBROUTINE vertical_GM
         !
         !2.) Here we combine the vertical GMRedicoefficient that is treated implicitely (mapped_vertical_diagonal_impl, this
         !term involves the slopes-squared times the isopycnal mixing coefficient and is potentially large, therefore
-        !it is discretized implicitely) with the vertical mixing coefficient from the PP-scheme. 
+        !it is discretized implicitely) with the vertical mixing coefficient from the PP-scheme.
         !We follow the approach in POP, where these two contributions are added
         !(see Reference manual POP, sect 5.1.3, in particular p. 41, after eq (150)).
         !
-!ICON_OMP_DO_PARALLEL PRIVATE(start_cell_index,end_cell_index, cell_index, level) ICON_OMP_DEFAULT_SCHEDULE
-        DO blockNo = cells_in_domain%start_block, cells_in_domain%end_block     
-          CALL get_index_range(cells_in_domain, blockNo, start_cell_index, end_cell_index)      
+!ICON_OMP_DO_PARALLEL PRIVATE(start_cell_index,end_cell_index, cell_index, level, max_level) ICON_OMP_DEFAULT_SCHEDULE
+        DO blockNo = cells_in_domain%start_block, cells_in_domain%end_block
+          CALL get_index_range(cells_in_domain, blockNo, start_cell_index, end_cell_index)
+#ifdef __LVECTOR__
+          max_level = MAXVAL(patch_3D%p_patch_1D(1)%dolic_c(start_cell_index:end_cell_index,blockNo))
+          DO level = start_level, max_level
+            DO cell_index = start_cell_index, end_cell_index
+              IF ( level > patch_3D%p_patch_1D(1)%dolic_c(cell_index,blockNo) ) CYCLE
+#else
           DO cell_index = start_cell_index, end_cell_index
             DO level = start_level, patch_3D%p_patch_1D(1)%dolic_c(cell_index,blockNo)
+#endif
               param%a_tracer_v(cell_index,level,blockNo, tracer_index) =  &
               & param%a_tracer_v(cell_index,level,blockNo, tracer_index) + &
               & ocean_state%p_diag%vertical_mixing_coeff_GMRedi_implicit(cell_index,level,blockNo)
-            END DO                  
-          END DO                
+            END DO
+          END DO
         END DO
 !ICON_OMP_END_DO_PARALLEL
 
     CALL sync_patch_array(sync_c, patch_2D, param%a_tracer_v(:,:,:,tracer_index))
-           
+
 
         IF(tracer_index==1)THEN
           CALL dbg_print('New vert coeff: A_v', param%a_tracer_v(:,:,:, tracer_index),&
           & this_mod_name, 4, patch_2D%cells%in_domain)
-        ENDIF 
-      ENDIF!IF(typeOfTracers == "ocean" )THEN 
-      
+        ENDIF
+      ENDIF!IF(typeOfTracers == "ocean" )THEN
+
       ELSEIF(.NOT.INCLUDE_SLOPE_SQUARED_IMPLICIT)THEN
-        
-!ICON_OMP_DO PRIVATE(start_cell_index,end_cell_index, cell_index, level) ICON_OMP_DEFAULT_SCHEDULE
+
+!ICON_OMP_DO PRIVATE(start_cell_index,end_cell_index, cell_index, level, max_level) ICON_OMP_DEFAULT_SCHEDULE
         DO blockNo = cells_in_domain%start_block, cells_in_domain%end_block
-      
+
           CALL get_index_range(cells_in_domain, blockNo, start_cell_index, end_cell_index)
-      
+#ifdef __LVECTOR__
+          max_level = MAXVAL(patch_3D%p_patch_1D(1)%dolic_c(start_cell_index:end_cell_index,blockNo))
+          DO level = start_level+1, max_level
+            DO cell_index = start_cell_index, end_cell_index
+              IF ( level > patch_3D%p_patch_1D(1)%dolic_c(cell_index,blockNo) ) CYCLE
+#else
           DO cell_index = start_cell_index, end_cell_index
             DO level = start_level+1, patch_3D%p_patch_1D(1)%dolic_c(cell_index,blockNo)
+#endif
               !vertical GM-Redi Flux
                GMredi_flux_vert(cell_index,level,blockNo)   &
                 &=flux_vert_center(cell_index,level,blockNo) &
                 & + tracer_gradient_vert_center(cell_index,level,blockNo)&
                 & *taper_diagonal_vert_impl(cell_index,level,blockNo)
 
-            END DO                  
-          END DO                
+            END DO
+          END DO
         END DO
 !ICON_OMP_END_DO
-            
-    ENDIF  
+
+    ENDIF
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     !Do level=1,n_zlev
     idt_src=3  ! output print level (1-5, fix)

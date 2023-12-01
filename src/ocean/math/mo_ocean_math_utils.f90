@@ -12,6 +12,7 @@ MODULE mo_ocean_math_utils
 
   USE mo_kind, ONLY: wp
   USE mo_exception, ONLY: finish
+  USE mo_fortran_tools, ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
   PRIVATE
@@ -37,7 +38,7 @@ CONTAINS
 !!
 !! \notice Although they are irrelevant to the solution, `a(i,1)` and `c(i,n(i))` have to be finite
 !! floating-point values.
-SUBROUTINE solve_tridiag_block_wp (a, b, c, d, x, n, eliminate_upper, use_acc)
+SUBROUTINE solve_tridiag_block_wp (a, b, c, d, x, n, eliminate_upper, lacc)
     REAL(wp), INTENT(IN) :: a(:,:) !< Subdiagonal entries (nsys,nrow).
     REAL(wp), INTENT(IN) :: b(:,:) !< Diagonal entries (nsys,nrow).
     REAL(wp), INTENT(IN) :: c(:,:) !< Superdiagonal entries (nsys,nrow).
@@ -45,28 +46,24 @@ SUBROUTINE solve_tridiag_block_wp (a, b, c, d, x, n, eliminate_upper, use_acc)
     REAL(wp), INTENT(INOUT) :: x(:,:) !< Solutions (nsys,nrow).
     INTEGER, INTENT(IN) :: n(:) !< Number of rows (nsys).
     LOGICAL, INTENT(IN) :: eliminate_upper !< Solve by eliminating the upper diagonal, not the lower.
-    LOGICAL, OPTIONAL, INTENT(IN) :: use_acc
+    LOGICAL, OPTIONAL, INTENT(IN) :: lacc
 
     REAL(wp) :: cp(SIZE(a,1), SIZE(a,2))
     REAL(wp) :: dp(SIZE(a,1), SIZE(a,2))
     REAL(wp) :: fxa
     integer :: i, j, maxn
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC DATA CREATE(cp, dp) IF(lacc)
+    !$ACC DATA CREATE(cp, dp) IF(lzacc)
 
     maxn = MAXVAL(n)
 
     IF (eliminate_upper) THEN
 
       ! initialize a-prime (cp) and d-prime
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO j = 1, SIZE(a,1)
         IF (n(j) > 0) THEN
@@ -112,7 +109,7 @@ SUBROUTINE solve_tridiag_block_wp (a, b, c, d, x, n, eliminate_upper, use_acc)
     ELSE ! eliminate_upper
 
       ! initialize c-prime and d-prime
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO j = 1, SIZE(a,1)
         IF (n(j) > 0) THEN
