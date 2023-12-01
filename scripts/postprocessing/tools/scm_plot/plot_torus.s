@@ -7,7 +7,7 @@
 
 # --- setup -----------------------------------------------------------
 
-turb='edmf'   # 'edmf' or 'turbdiff'
+turb='turbdiff'
 code='14217'
 case='rico'   # 'cbl' or 'rico'
 title="RICO"

@@ -36,6 +36,7 @@ MODULE mo_process_topo
   PUBLIC :: compute_smooth_topo
   PUBLIC :: smooth_topo
   PUBLIC :: smooth_topo_real_data, postproc_sso
+  PUBLIC :: smooth_frland
 
 CONTAINS
 
@@ -439,6 +440,56 @@ CONTAINS
 
   END SUBROUTINE smooth_topo_real_data
 
+  !-----------------------------------------------------------------------
+  !!
+  !! Smoothed land fraction for adaptive tuning of sea ice bottom heat flux
+  !!
+  SUBROUTINE smooth_frland (p_patch, p_int, fr_land, fr_land_smt)
+
+    TYPE(t_patch)      , INTENT(INOUT) :: p_patch
+    TYPE(t_int_state)  , INTENT(IN)    :: p_int
+    REAL(wp)           , INTENT(IN)    :: fr_land(:,:)
+    REAL(wp)           , INTENT(OUT)   :: fr_land_smt(:,:)
+
+    ! local variables
+    INTEGER  :: jb, jc, jb1, jc1, iter, j
+    INTEGER  :: i_startblk, nblks_c, i_startidx, i_endidx
+    REAL(wp) :: zaux(nproma,p_patch%nblks_c)
+
+    nblks_c    = p_patch%nblks_c
+
+    i_startblk = p_patch%cells%start_blk(3,1)
+
+    fr_land_smt(:,:) = fr_land(:,:)
+    zaux(:,:)        = fr_land(:,:)
+
+    DO iter = 1, NINT(200.e3_wp/p_patch%geometry_info%mean_characteristic_length)
+
+      DO jb = i_startblk,nblks_c
+
+        CALL get_indices_c(p_patch, jb, i_startblk, nblks_c, &
+                           i_startidx, i_endidx, 3)
+
+        zaux(i_startidx:i_endidx,jb) = 0._wp
+
+        DO j=1, p_int%cell_environ%max_nmbr_nghbr_cells
+          DO jc = i_startidx, i_endidx
+            IF (j <= p_int%cell_environ%nmbr_nghbr_cells(jc,jb)) THEN
+              jc1 = p_int%cell_environ%idx(jc,jb,j)
+              jb1 = p_int%cell_environ%blk(jc,jb,j)
+              zaux(jc,jb) = zaux(jc,jb) + fr_land_smt(jc1,jb1)/REAL(p_int%cell_environ%nmbr_nghbr_cells(jc,jb),wp)
+            ENDIF
+          ENDDO
+        ENDDO
+
+      ENDDO  !jb
+
+      CALL sync_patch_array(SYNC_C, p_patch, zaux)
+      fr_land_smt(:,:) = zaux(:,:)
+
+    ENDDO
+
+  END SUBROUTINE smooth_frland
 
   !-----------------------------------------------------------------------
   !! Reduce SSO stdh and slope over glaciers depending on the ratio between SSO slope and resolved slope

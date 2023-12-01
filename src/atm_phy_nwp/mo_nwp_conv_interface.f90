@@ -27,7 +27,7 @@ MODULE mo_nwp_conv_interface
   USE mo_kind,                 ONLY: wp
   USE mo_parallel_config,      ONLY: nproma
   USE mo_model_domain,         ONLY: t_patch
-  USE mo_impl_constants,       ONLY: min_rlcell_int, iedmf
+  USE mo_impl_constants,       ONLY: min_rlcell_int
   USE mo_impl_constants_grf,   ONLY: grf_bdywidth_c
   USE mo_loopindices,          ONLY: get_indices_c
   USE mo_nonhydro_types,       ONLY: t_nh_prog, t_nh_diag,&
@@ -357,14 +357,12 @@ CONTAINS
         !> Convection
         !-------------------------------------------------------------------------
 
-        IF ( atm_phy_nwp_config(jg)%inwp_turb /= iedmf ) THEN ! DUALM is allowed to turn off shallow convection
-          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-          !$ACC LOOP VECTOR
-          DO jc = i_startidx,i_endidx                         ! ldshcv is set in mo_nwp_turb_sfc_interface.f90
-            prm_diag%ldshcv(jc,jb) = .TRUE.                   ! here: option to overwrite DUALM choice
-          ENDDO
-          !$ACC END PARALLEL
-        ENDIF
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+        !$ACC LOOP VECTOR
+        DO jc = i_startidx,i_endidx                         ! ldshcv is set in mo_nwp_turb_sfc_interface.f90
+          prm_diag%ldshcv(jc,jb) = .TRUE.                   ! here: option to overwrite DUALM choice
+        ENDDO
+        !$ACC END PARALLEL
 
         ! Preparing fields for stochastic convection routines
         IF (lstoch_expl .or. lstoch_sde .or. lstoch_deep) THEN

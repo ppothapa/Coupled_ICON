@@ -45,6 +45,7 @@ MODULE mo_io_nml
                                  & config_runoff_interval         => runoff_interval        , &
                                  & config_itype_dursun            => itype_dursun           , &
                                  & config_itype_convindices       => itype_convindices      , &
+                                 & config_itype_hzerocl           => itype_hzerocl          , &
                                  & config_sunshine_interval       => sunshine_interval      , &
                                  & config_melt_interval           => melt_interval          , &
                                  & config_maxt_interval           => maxt_interval          , &
@@ -133,6 +134,10 @@ CONTAINS
                                           !    if direct radiation > 200 W/m^2 and relative sunshine duration in % is computed
     INTEGER :: itype_convindices          ! if 1 CAPE_MU/CIN_MU are approximated via the CAPE/CIN of the parcel with maximum equivalent temperature
                                           ! if 2 the full computation is done
+    INTEGER :: itype_hzerocl              ! Specifies height of freezing level if T < 0 Celsius in the whole atmospheric column
+                                          ! 1: set hzerocl to orography height (default)
+                                          ! 2: set hzerocl to -999.0_wp (undef)
+                                          ! 3: set hzerocl to extrapolated value below ground (assuming -6.5 K/km)
     LOGICAL :: lflux_avg                  ! if .FALSE. the output fluxes are accumulated
                                           !  from the beginning of the run
                                           ! if .TRUE. the output fluxex are average values
@@ -198,8 +203,8 @@ CONTAINS
       &              nrestart_streams, dt_lpi, dt_celltracks,             &
       &              dt_hailcast, wdur_min_hailcast,                      &
       &              dt_radar_dbz, sunshine_interval, itype_dursun,       &
-      &              itype_convindices, melt_interval, wshear_uv_heights, &
-      &              srh_heights
+      &              itype_convindices, itype_hzerocl, melt_interval,     &
+      &              wshear_uv_heights, srh_heights
 
     !-----------------------
     ! 1. default settings
@@ -235,6 +240,7 @@ CONTAINS
     inextra_3d              = 0     ! no extra output 3D fields
     itype_dursun            = 0
     itype_convindices       = 1
+    itype_hzerocl           = 1
     lflux_avg               = .TRUE.
     itype_pres_msl          = PRES_MSL_METHOD_GME
     itype_rh                = RH_METHOD_WMO       ! WMO: water only
@@ -317,6 +323,7 @@ CONTAINS
     config_runoff_interval(:)      = runoff_interval(:)
     config_itype_dursun            = itype_dursun
     config_itype_convindices       = itype_convindices
+    config_itype_hzerocl           = itype_hzerocl
     config_sunshine_interval(:)    = sunshine_interval(:)
     config_melt_interval(:)        = melt_interval(:)
     config_maxt_interval(:)        = maxt_interval(:)

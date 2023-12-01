@@ -23,7 +23,7 @@ MODULE mo_nwp_sfc_interface
   USE mo_kind,                ONLY: wp
   USE mo_exception,           ONLY: message, message_text, finish
   USE mo_model_domain,        ONLY: t_patch
-  USE mo_impl_constants,      ONLY: min_rlcell_int, iedmf, icosmo, max_dom
+  USE mo_impl_constants,      ONLY: min_rlcell_int, icosmo, max_dom
   USE mo_impl_constants_grf,  ONLY: grf_bdywidth_c
   USE mo_loopindices,         ONLY: get_indices_c
   USE mo_ext_data_types,      ONLY: t_external_data
@@ -309,7 +309,7 @@ CONTAINS
 
     ! canopy-type needed by TERRA:
     SELECT CASE (atm_phy_nwp_config(jg)%inwp_turb)
-    CASE(icosmo,iedmf)
+    CASE(icosmo)
        icant=2 !canopy-treatment related to Raschendorfer-transfer-scheme
     CASE DEFAULT
        icant=1 !canopy-treatment related to Louis-transfer-scheme
@@ -1894,7 +1894,7 @@ CONTAINS
         hsnow_now(ic) = p_prog_wtr_now%h_snow_si(jc,jb)
         albsi_now(ic) = p_prog_wtr_now%alb_si(jc,jb)             ! sea-ice albedo [-]
         IF (icpl_da_seaice >= 2) THEN ! adaptive parameter tuning for bottom heat flux
-          fhflx(ic) = MIN(1._wp,MAX(0._wp,-8._wp*p_diag%t_avginc(jc,jb)))
+          fhflx(ic) = prm_diag%hflux_si_fac(jc,jb)
         ELSE
           fhflx(ic) = 0._wp
         ENDIF

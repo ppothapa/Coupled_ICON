@@ -85,6 +85,14 @@ case $EXPERIMENT in
         --file-id dace "*fofTEMP*.nc"
         )
         ;;
+    *mch_icon-ch2_small*)
+        probtest_file_id=(
+        --file-id NetCDF "*atm_3d_ml*.nc"
+        --file-id NetCDF "*lfff0*c"
+        --file-id NetCDF "*lfff0*p"
+        --file-id NetCDF "*lfff0*z"
+        )
+        ;;
     *mch_opr_r04b07_lhn_12*)
         probtest_file_id=(
         --file-id NetCDF "*atm_3d_ml*.nc"

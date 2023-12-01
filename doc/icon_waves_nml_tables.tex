@@ -10,6 +10,50 @@
 
 \section{Ocean waves specific namelist parameters}
 
+%------------------------------------------------------------------------------
+% energy_propagation_nml:
+%------------------------------------------------------------------------------
+\subsection{energy\_propagation\_nml (used if run\_nml/ltransport=.TRUE.)}
+
+\begin{longtab}
+
+%\hline
+itype\_limit&
+I&
+0& & Type of limiter for wave energy transport:& \tabularnewline
+& & & & 0: no limiter& \tabularnewline
+& & & & 3: monotonic flux limiter (FCT)& \tabularnewline
+& & & & 4: positive definite flux limiter& \tabularnewline
+
+
+%\hline
+beta\_fct&
+R& 1.005& & global boost factor for range of permissible values $\left[q_{max},q_{min}\right]$ in the monotonic flux limiter. A value larger
+than 1 allows for (small) over and undershoots, while a value of $1$ gives strict monotonicity (at the price of increased diffusivity). &
+itype\_limit = 3
+\tabularnewline
+
+
+%\hline
+igrad\_c\_miura&
+I& 1& & Method for gradient reconstruction at cell center for 2nd order miura scheme& \tabularnewline
+& & & & 1: Least-squares (linear, non-consv)& \tabularnewline
+& & & & 2: Green-Gauss& \tabularnewline
+& & & & 3: based on shape function derivatives for a three-node triangular element (Fish. J and T. Belytschko, 2007) &
+\tabularnewline
+
+%\hline
+lgrid\_refr     &
+L& .TRUE. &     & .TRUE.: calculate grid refraction & 
+\tabularnewline
+%\hline
+
+\end{longtab}
+
+Defined and used in: \verb+src/waves/config/mo_energy_propagation_nml.f90+
+
+
+
 \subsection{waves\_nml (used if configurated with --enable-waves and model\_type=98 in master\_model\_nml)}
 
 \begin{longtab}
@@ -46,7 +90,6 @@
  lbottom\_fric\_sf&L& .TRUE.&     & .TRUE.: calculate bottom friction source function term & \tabularnewline
  lwave\_stress1  &L& .TRUE. &     & .TRUE.: calculate wave stress & \tabularnewline
  lwave\_stress2  &L& .TRUE. &     & .TRUE.: update wave stress & \tabularnewline
- lgrid\_refr     &L& .TRUE. &     & .TRUE.: calculate grid refraction & \tabularnewline
  forc\_file\_prefix &C&     &     & common prefix of forcing files & \tabularnewline
                     & &     &     & if not empty, the names of forcing files will be consctructed as: & \tabularnewline
                     & &     &     & forc\_file\_prefix+\_wind.nc - for 10m wind & coupled\_mode= .FALSE. in coupling\_mode\_nml \tabularnewline
@@ -56,3 +99,4 @@
                     & &     &     & Data for all time steps in the current simulation should be prepared in a single file. Variables should be named \texttt{u\_10m}, \texttt{v\_10m}, \texttt{fr\_seaice}, \texttt{uosc}, \texttt{vosc} & \tabularnewline
 \end{longtab}
 
+Defined and used in: \verb+src/waves/config/mo_wave_nml.f90+

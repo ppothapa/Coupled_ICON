@@ -918,6 +918,12 @@ CONTAINS
     CALL init(zrg_lwflx_up_sfc(:,:)     , opt_acc_async=.TRUE.)
     CALL init(zrg_lwflx_clr_sfc(:,:)    , opt_acc_async=.TRUE.)
     CALL init(zrg_aclcov(:,:)           , opt_acc_async=.TRUE.)
+#ifdef _OPENACC
+    CALL init(zrg_cosmu0                , opt_acc_async=.TRUE.)
+    CALL init(zrg_tsfc                  , opt_acc_async=.TRUE.)
+    CALL init(zrg_emis_rad              , opt_acc_async=.TRUE.)
+    CALL init(zrg_albdif                , opt_acc_async=.TRUE.)
+#endif
 
     IF (atm_phy_nwp_config(jg)%l_3d_rad_fluxes) THEN
       CALL init(zrg_lwflx_up    (:,:,:), 0._wp, opt_acc_async=.TRUE.)

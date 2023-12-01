@@ -49,7 +49,7 @@ MODULE mo_nwp_gscp_interface
   USE mo_parallel_config,      ONLY: nproma
 
   USE mo_model_domain,         ONLY: t_patch
-  USE mo_impl_constants,       ONLY: min_rlcell_int, iss, iorg, iso4, idu, iedmf
+  USE mo_impl_constants,       ONLY: min_rlcell_int, iss, iorg, iso4, idu
   USE mo_impl_constants_grf,   ONLY: grf_bdywidth_c
   USE mo_loopindices,          ONLY: get_indices_c
 
@@ -60,7 +60,7 @@ MODULE mo_nwp_gscp_interface
   USE mo_run_config,           ONLY: msg_level, iqv, iqc, iqi, iqr, iqs,       &
                                      iqni, iqg, iqh, iqnr, iqns,               &
                                      iqng, iqnh, iqnc, inccn, ininpot, ininact,&
-                                     iqtvar, iqgl, iqhl,                       &
+                                     iqgl, iqhl,                               &
                                      iqb_i, iqb_e
   USE mo_atm_phy_nwp_config,   ONLY: atm_phy_nwp_config, iprog_aero
   USE gscp_kessler,            ONLY: kessler
@@ -882,30 +882,10 @@ CONTAINS
         IF (timers_level > 10) CALL timer_start(timer_phys_micro_satad) 
         IF (lsatad) THEN
 
-          IF ( atm_phy_nwp_config(jg)%inwp_turb == iedmf ) THEN   ! EDMF DUALM: no satad in PBL
- 
-            CALL satad_v_3d(                                 &           
-               & maxiter  = 10                            ,& !> IN
-               & tol      = 1.e-3_wp                      ,& !> IN
-               & te       = p_diag%temp       (:,:,jb)    ,& !> INOUT
-               & qve      = ptr_tracer (:,:,jb,iqv),& !> INOUT
-               & qce      = ptr_tracer (:,:,jb,iqc),& !> INOUT
-               & rhotot   = p_prog%rho        (:,:,jb)    ,& !> IN
-               & qtvar    = ptr_tracer (:,:,jb,iqtvar) ,& !> IN
-               & idim     = nproma                        ,& !> IN
-               & kdim     = nlev                          ,& !> IN
-               & ilo      = i_startidx                    ,& !> IN
-               & iup      = i_endidx                      ,& !> IN
-               & klo      = kstart_moist(jg)              ,& !> IN
-               & kup      = nlev                           & !> IN
-               )
-
-          ELSE
-
 #ifdef _OPENACC
-            CALL satad_v_3d_gpu(                             &
+          CALL satad_v_3d_gpu(                             &
 #else
-            CALL satad_v_3d(                                 &
+          CALL satad_v_3d(                                 &
 #endif
                & maxiter  = 10                            ,& !> IN
                & tol      = 1.e-3_wp                      ,& !> IN
@@ -920,8 +900,6 @@ CONTAINS
                & klo      = kstart_moist(jg)              ,& !> IN
                & kup      = nlev                           & !> IN
                )
-
-          ENDIF
 
         ENDIF
 

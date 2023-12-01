@@ -69,6 +69,10 @@ MODULE mo_io_config
   INTEGER :: itype_convindices          ! if 1 CAPE_MU/CIN_MU are approximated via the CAPE/CIN of the parcel with maximum equivalent temperature
                                         ! if 2 the full computation is done
 
+  INTEGER :: itype_hzerocl              ! Specifies height of freezing level if T < 0 Celsius in the whole atmospheric column
+                                        ! 1: set hzerocl to orography height (default)
+                                        ! 2: set hzerocl to -999.0_wp (undef)
+                                        ! 3: set hzerocl to extrapolated value below ground (assuming -6.5 K/km)
 
   INTEGER :: itype_pres_msl             ! Specifies method for computation of mean sea level pressure
   INTEGER :: itype_rh                   ! Specifies method for computation of relative humidity

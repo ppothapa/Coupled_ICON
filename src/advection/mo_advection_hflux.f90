@@ -40,7 +40,7 @@ MODULE mo_advection_hflux
 
   USE mo_kind,                ONLY: wp, vp
   USE mo_exception,           ONLY: finish, message, message_text
-  USE mo_impl_constants,      ONLY: SUCCESS,                                    &
+  USE mo_impl_constants,      ONLY: SUCCESS, grf_bdywidth_e,                    &
     &                               min_rledge_int, min_rlcell_int, NO_HADV,    &
     &                               MIURA, MIURA3, FFSL, FFSL_HYB, MCYCL,       &
     &                               MIURA_MCYCL, MIURA3_MCYCL, FFSL_MCYCL,      &
@@ -1319,11 +1319,17 @@ CONTAINS
       !
       IF ( p_itype_hlimit == ifluxl_sm .OR. p_itype_hlimit == ifluxl_m ) THEN
         !
+        ! note that starting the flux limitation at grf_bdywidth_e(=9) is
+        ! not sufficient in this case, as substep 2 requires a limited
+        ! flux divergence for cell row grf_bdywidth_c(=4).
+        !
         CALL hflx_limiter_pd( p_patch, p_int, z_dtsub          , & !in
           &                   z_tracer(:,:,:,nnow)             , & !in
           &                   z_rho(:,:,:,nnow)                , & !in
           &                   z_tracer_mflx(:,:,:,nsub)        , & !inout
-          &                   slev, elev, opt_rlend=i_rlend      )
+          &                   slev, elev                       , & !in
+          &                   opt_rlstart=grf_bdywidth_e-1     , & !in
+          &                   opt_rlend=i_rlend      )             !in
       ENDIF
 
 

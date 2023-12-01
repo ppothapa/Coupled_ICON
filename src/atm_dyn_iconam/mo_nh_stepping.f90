@@ -55,7 +55,8 @@ MODULE mo_nh_stepping
   USE mo_model_domain,             ONLY: p_patch, t_patch, p_patch_local_parent
   USE mo_time_config,              ONLY: t_time_config
   USE mo_grid_config,              ONLY: n_dom, lfeedback, ifeedback_type, l_limited_area, &
-    &                                    n_dom_start, lredgrid_phys, start_time, end_time, patch_weight
+    &                                    n_dom_start, lredgrid_phys, start_time, end_time, &
+    &                                    patch_weight, nroot
   USE mo_gribout_config,           ONLY: gribout_config
   USE mo_nh_testcases_nml,         ONLY: is_toy_chem, ltestcase_update
   USE mo_nh_dcmip_terminator,      ONLY: dcmip_terminator_interface
@@ -119,7 +120,9 @@ MODULE mo_nh_stepping
   USE mo_advection_aerosols,       ONLY: aerosol_2D_advection, setup_aerosol_advection
   USE mo_aerosol_util,             ONLY: aerosol_2D_diffusion
   USE mo_ensemble_pert_config,     ONLY: compute_ensemble_pert, use_ensemble_pert
-  USE mo_nwp_aerosol,              ONLY: cams_reader, cams_intp    
+  USE mo_aerosol_sources_types,    ONLY: p_fire_source_info
+  USE mo_aerosol_sources,          ONLY: inquire_fire2d_data
+  USE mo_nwp_aerosol,              ONLY: cams_reader, cams_intp
 #endif
   USE mo_iau,                      ONLY: compute_iau_wgt
 #ifndef __NO_AES__
@@ -159,7 +162,7 @@ MODULE mo_nh_stepping
   USE mo_nh_init_nest_utils,       ONLY: initialize_nest
   USE mo_hydro_adjust,             ONLY: hydro_adjust_const_thetav
   USE mo_initicon_types,           ONLY: t_pi_atm
-  USE mo_initicon_config,          ONLY: init_mode, timeshift, init_mode_soil, dt_iau
+  USE mo_initicon_config,          ONLY: init_mode, timeshift, init_mode_soil, dt_iau, fire2d_filename
   USE mo_synsat_config,            ONLY: lsynsat
   USE mo_rttov_interface,          ONLY: rttov_driver, copy_rttov_ubc
 #ifndef __NO_ICON_LES__
@@ -1137,6 +1140,18 @@ MODULE mo_nh_stepping
         !$ACC END DATA
 
       END IF
+
+      IF (iprog_aero > 2) THEN
+#ifdef _OPENACC
+        CALL finish('perform_nh_timeloop:','iprog_aero > 2 not available on GPU')
+#endif
+        ! Update wildfire emission dataset if a new dataset is available
+        DO jg = 1, n_dom
+          CALL inquire_fire2d_data(p_patch(jg), nroot, fire2d_filename, p_fire_source_info(jg), &
+            &                      mtime_current, .FALSE.)
+        ENDDO
+      ENDIF
+      
 #endif  /* __NO_NWP__ */
 
     ENDIF  ! iforcing == inwp

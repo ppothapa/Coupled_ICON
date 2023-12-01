@@ -18,21 +18,24 @@ MODULE mo_coupling_config
   !! Namelist input to steer the coupling modes
   !! note that default is potentially overwritten in corresponding Namelist routine(s)
   !!
-  LOGICAL :: config_coupled_to_ocean = .FALSE.
-  LOGICAL :: config_coupled_to_waves = .FALSE.
-  LOGICAL :: config_coupled_to_atmo  = .FALSE.
+  LOGICAL :: config_coupled_to_ocean     = .FALSE.
+  LOGICAL :: config_coupled_to_waves     = .FALSE.
+  LOGICAL :: config_coupled_to_atmo      = .FALSE.
+  LOGICAL :: config_coupled_to_hydrodisc = .FALSE.
 
 
   ! variables
   PUBLIC :: config_coupled_to_ocean
   PUBLIC :: config_coupled_to_waves
   PUBLIC :: config_coupled_to_atmo
+  PUBLIC :: config_coupled_to_hydrodisc
 
   ! functions
   PUBLIC :: is_coupled_run
   PUBLIC :: is_coupled_to_ocean
   PUBLIC :: is_coupled_to_waves
   PUBLIC :: is_coupled_to_atmo
+  PUBLIC :: is_coupled_to_hydrodisc
 
 CONTAINS
 
@@ -41,7 +44,8 @@ CONTAINS
 
     is_coupled_run = config_coupled_to_ocean .OR.  &
       &              config_coupled_to_waves .OR.  &
-      &              config_coupled_to_atmo
+      &              config_coupled_to_atmo  .OR.  &
+      &              config_coupled_to_hydrodisc
 
   END FUNCTION is_coupled_run
 
@@ -65,6 +69,14 @@ CONTAINS
     is_coupled_to_atmo = config_coupled_to_atmo
 
   END FUNCTION is_coupled_to_atmo
+
+  !------------------------------------------------------------------------
+  !------------------------------------------------------------------------
+  LOGICAL FUNCTION is_coupled_to_hydrodisc()
+
+    is_coupled_to_hydrodisc = config_coupled_to_hydrodisc
+
+  END FUNCTION is_coupled_to_hydrodisc
 
   !------------------------------------------------------------------------
 

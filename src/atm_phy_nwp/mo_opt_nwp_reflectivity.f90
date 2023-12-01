@@ -29,7 +29,6 @@ MODULE mo_opt_nwp_reflectivity
   USE mo_2mom_mcrph_main,       ONLY: init_2mom_scheme,      &
     &                                 rain_coeffs  ! contains the parameters for the mue-Dm-relation
   USE mo_2mom_mcrph_types,      ONLY: particle, particle_frozen
-  USE mo_2mom_mcrph_util,       ONLY: gfct
   USE mo_2mom_mcrph_processes,  ONLY: moment_gamma, rain_mue_dm_relation
   USE mo_exception,             ONLY: finish, message
   USE mo_fortran_tools,         ONLY: set_acc_host_or_device
@@ -203,7 +202,7 @@ CONTAINS
       mue_rain_c = mu_rain
       nor = 8.0e6_wp * EXP(3.2_wp*mue_rain_c) * (0.01_wp)**(-mue_rain_c)
       p_r = (7.0_wp+mue_rain_c) / (4.0_wp+mue_rain_c)
-      z_r = nor*gfct(7.0_wp+mue_rain_c) * (pi*rho_w*nor*gfct(4.0_wp+mue_rain_c)/6.0_wp)**(-p_r)
+      z_r = nor*GAMMA(7.0_wp+mue_rain_c) * (pi*rho_w*nor*GAMMA(4.0_wp+mue_rain_c)/6.0_wp)**(-p_r)
       
       ! Parameters for snow and graupel:
       IF (igscp == 1 .or. igscp == 3) THEN
@@ -211,7 +210,7 @@ CONTAINS
         ams = zams_ci
         bms = zbms
         p_s = (2.0_wp*bms+1.0_wp)/(bms+1.0_wp)
-        z_s = mom_fac*ams**2 * gfct(2.0_wp*bms+1.0_wp) * (ams*gfct(bms+1.0_wp))**(-p_s)
+        z_s = mom_fac*ams**2 * GAMMA(2.0_wp*bms+1.0_wp) * (ams*GAMMA(bms+1.0_wp))**(-p_s)
 
         IF (lmessage_light) THEN
           WRITE (*, *) TRIM(routine)//": cloud ice scheme (using rain and snow)"
@@ -238,10 +237,10 @@ CONTAINS
         nog = 4.E6_wp
         p_s = (2.0_wp*bms+1.0_wp)/(bms+1.0_wp)
         p_g = (2.0_wp*bmg+1.0_wp)/(bmg+1.0_wp)
-        z_s = mom_fac*ams**2 * gfct(2.0_wp*bms+1.0_wp) *       &
-                         (ams*gfct(bms+1.0_wp))**(-p_s)
-        z_g = mom_fac*amg**2 * nog*gfct(2.0_wp*bmg+1.0_wp) *       &
-                         (amg*nog*gfct(bmg+1.0_wp))**(-p_g)
+        z_s = mom_fac*ams**2 * GAMMA(2.0_wp*bms+1.0_wp) *       &
+                         (ams*GAMMA(bms+1.0_wp))**(-p_s)
+        z_g = mom_fac*amg**2 * nog*GAMMA(2.0_wp*bmg+1.0_wp) *       &
+                         (amg*nog*GAMMA(bmg+1.0_wp))**(-p_g)
         
         IF (lmessage_light) THEN
           WRITE (*, *) TRIM(routine)//": graupel scheme (using rain, snow, graupel)"

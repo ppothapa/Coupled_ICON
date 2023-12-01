@@ -10,7 +10,6 @@ MODULE mo_snow_ice_reff
 
   USE mo_kind              , ONLY: wp
   USE mo_physical_constants, ONLY: rhoi, tmelt
-  USE mo_math_utilities    , ONLY: gamma_fct
   USE mo_aes_graupel       , ONLY: snow_number, snow_lambda, ice_number
 
   IMPLICIT NONE
@@ -55,12 +54,12 @@ CONTAINS
     reff_coeff_fu_snow(4) = -1.0_wp/b_geo_snow
 
     ! Broadening for not monodisperse. Generalized gamma distribution
-    bf1  =  gamma_fct( ( b_geo_snow + 2.0_wp * nu + 3.0_wp)/mu/2.0_wp ) / gamma_fct( (b_geo_snow + nu + 1.0_wp)/ mu) * &
-         & ( gamma_fct( (nu + 1.0_wp)/mu) / gamma_fct( (b_geo_snow + nu + 1.0_wp)/mu) )** &
+    bf1  =  GAMMA( ( b_geo_snow + 2.0_wp * nu + 3.0_wp)/mu/2.0_wp ) / GAMMA( (b_geo_snow + nu + 1.0_wp)/ mu) * &
+         & ( GAMMA( (nu + 1.0_wp)/mu) / GAMMA( (b_geo_snow + nu + 1.0_wp)/mu) )** &
          & ( (1.0_wp-b_geo_snow)/2.0_wp/b_geo_snow)
 
-    bf3 =  gamma_fct( (b_geo_snow + nu )/mu ) / gamma_fct( (b_geo_snow + nu + 1.0_wp)/mu) * &
-         & ( gamma_fct( (nu + 1.0_wp)/mu ) / gamma_fct( (b_geo_snow + nu + 1.0_wp)/mu) )**( -1.0_wp/b_geo_snow)
+    bf3 =  GAMMA( (b_geo_snow + nu )/mu ) / GAMMA( (b_geo_snow + nu + 1.0_wp)/mu) * &
+         & ( GAMMA( (nu + 1.0_wp)/mu ) / GAMMA( (b_geo_snow + nu + 1.0_wp)/mu) )**( -1.0_wp/b_geo_snow)
 
     reff_coeff_fu_snow(1) = reff_coeff_fu_snow(1)*bf1
     reff_coeff_fu_snow(3) = reff_coeff_fu_snow(3)*bf3

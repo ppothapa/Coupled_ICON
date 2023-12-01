@@ -50,7 +50,7 @@ MODULE mo_nonhydro_state
   USE mo_dynamics_config,      ONLY: nsav1, nsav2, lmoist_thdyn
   USE mo_parallel_config,      ONLY: nproma
   USE mo_run_config,           ONLY: iforcing, ntracer, iqm_max, iqt,           &
-    &                                iqv, iqc, iqi, iqr, iqs, iqtvar,           &
+    &                                iqv, iqc, iqi, iqr, iqs,                   &
     &                                ico2, ich4, in2o, io3,                     &
     &                                iqni, iqg, iqh, iqnr, iqns,                & 
     &                                iqng, iqnh, iqnc, inccn, ininpot, ininact, &
@@ -1348,30 +1348,6 @@ MODULE mo_nonhydro_state
                     &             lower_limit=0._wp  ),                              &
                     & in_group=groups("atmo_ml_vars", "atmo_pl_vars", "atmo_zl_vars")  )
           __acc_attach(p_prog%tracer_ptr(ininpot)%p_3d)
-        END IF
-
-        ! EDMF: total water variance
-        IF ( iqtvar /= 0 ) THEN
-          tlen = LEN_TRIM(advconf%tracer_names(iqtvar))
-          tracer_name = vname_prefix(1:vntl)//advconf%tracer_names(iqtvar)(1:tlen)//suffix
-          CALL add_ref( p_prog_list, tracer_container_name,                            &
-            &           tracer_name, p_prog%tracer_ptr(iqtvar)%p_3d,                   &
-            &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                          &
-            &           t_cf_var(tracer_name(1:vntl+tlen),                             &
-            &            'kg2 kg-2','total water variance', datatype_flt),             &
-            &           grib2_var(192, 201, 39, ibits, GRID_UNSTRUCTURED, GRID_CELL),  &
-            &           ref_idx=iqtvar,                                                &
-            &           ldims=shape3d_c,                                               &
-            &           tlev_source=TLEV_NNOW_RCF,                                     & ! output from nnow_rcf slice
-            &           tracer_info=create_tracer_metadata(lis_tracer=.TRUE.,          &
-            &                       name = tracer_name),                               &
-            &           vert_interp=create_vert_interp_metadata(                       &
-            &                       vert_intp_type=vintp_types("P","Z","I"),           &
-            &                       vert_intp_method=VINTP_METHOD_LIN,                 &
-            &                       l_loglin=.FALSE.,                                  &
-            &                       l_extrapol=.FALSE., l_pd_limit=.FALSE.,            &
-            &                       lower_limit=0._wp  )  )
-          __acc_attach(p_prog%tracer_ptr(iqtvar)%p_3d)
         END IF
 
 

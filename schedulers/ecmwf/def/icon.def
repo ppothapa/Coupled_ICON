@@ -40,7 +40,7 @@ set USER_ICON_DIR icon-nwp             #---location of script, plot and sms file
 set DEIA_ICON_DIR icon-nwp             #---location of build and binary in deia account (git, build, cp)
 
 # no. of time steps (10x86400s/360s)
-set NSTEPS        2400   # 10d forecast:  R2B5-turbdiff-1920, R2B5-edmf=1200/1152, R2B6-2400
+set NSTEPS        2400   # 10d forecast:  R2B5-turbdiff-1920, R2B6-2400
 
 # simulation modes: 1:oper, 2:monthly 10day forecasts, 3:climate (1year), 4:B-matrix
 set SIMMODE       2
@@ -51,7 +51,6 @@ set NENS          0   # default for no ensemble run
 set NMEM          0   # default for no ensemble run
 
 # Processors: CRAY totaltasks: 12 x nodes (for 2 hyperthreads and 4 openMP threads)
-                          # EDMF: 384        768
 set ICONTOTALTASKS  768   # R2B5: 192, R2B6: 384, R2B7: ? ,  R2B8: ?
 set ICONNODES        16   # R2B5: 16,  R2B6: 32,  R2B7: 32,  R2B8: 64
 set ICONTASKSPERNODE 32   #       32         32         32          8

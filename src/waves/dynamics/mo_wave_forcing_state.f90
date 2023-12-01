@@ -26,7 +26,7 @@ MODULE mo_wave_forcing_state
   USE mo_grib2,                ONLY: t_grib2_var, grib2_var
   USE mo_parallel_config,      ONLY: nproma
   USE mo_cdi,                  ONLY: DATATYPE_FLT32, DATATYPE_FLT64, DATATYPE_PACK16, &
-       &                             GRID_UNSTRUCTURED, DATATYPE_INT
+       &                             GRID_UNSTRUCTURED
   USE mo_io_config,            ONLY: lnetcdf_flt64_output
   USE mo_var_groups,           ONLY: groups
   USE mo_cdi_constants,        ONLY: GRID_UNSTRUCTURED_CELL, GRID_CELL, &
@@ -176,16 +176,28 @@ CONTAINS
          &        ldims=shape2d_e, in_group=groups("wave_forcing") )
 
     cf_desc    = t_cf_var('vsoce_c', 'm s-1 ','meridional ocean surface current at cells', datatype_flt)
-    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    grib2_desc = grib2_var(10, 1, 2, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( p_forcing_list, 'vsoce_c', p_forcing%vsoce_c,                  &
          &        GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,       &
          &        ldims=shape2d_c, in_group=groups("wave_forcing") )
 
     cf_desc    = t_cf_var('vsoce_e', 'm s-1 ','meridional ocean surface current at edges', datatype_flt)
-    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_EDGE)
+    grib2_desc = grib2_var(10, 1, 3, ibits, GRID_UNSTRUCTURED, GRID_EDGE)
     CALL add_var( p_forcing_list, 'vsoce_e', p_forcing%vsoce_e,                  &
          &        GRID_UNSTRUCTURED_EDGE, ZA_SURFACE, cf_desc, grib2_desc,       &
          &        ldims=shape2d_e, in_group=groups("wave_forcing") )
+
+    cf_desc    = t_cf_var('sp_soce_c', 'm s-1 ','ocean surface current velocity at cells', datatype_flt)
+    grib2_desc = grib2_var(10, 1, 1, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( p_forcing_list, 'sp_soce_c', p_forcing%sp_soce_c,              &
+         &        GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,       &
+         &        ldims=shape2d_c, in_group=groups("wave_forcing") )
+
+    cf_desc    = t_cf_var('dir_soce_c', 'deg','ocean surface current direction at cells', datatype_flt)
+    grib2_desc = grib2_var(10, 1, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( p_forcing_list, 'dir_soce_c', p_forcing%dir_soce_c,            &
+         &        GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,       &
+         &        ldims=shape2d_c, in_group=groups("wave_forcing") )
 
   END SUBROUTINE new_wave_forcing_state_list
 

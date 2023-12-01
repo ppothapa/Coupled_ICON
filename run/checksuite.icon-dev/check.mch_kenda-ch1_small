@@ -40,10 +40,11 @@ export RESTART_DATE='20230115T110000Z'
 # m = mpi test
 # o = omp test
 # t = tolerance test
+# c = compute-sanitizer test
 #
 # default: MD='t'
 #
-export MD='t'
+export MD='tc'
 
 #--------------------------------------------------------------------------------
 # 

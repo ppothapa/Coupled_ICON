@@ -63,6 +63,7 @@ $addexp "checksuite.les/exp.ac3_les_20210211.run" --builders "levante_intel_hybr
 
 # DWD wave model test on levante
 $addexp "checksuite.nwp/nwpexp.run_ICON_18_R2B4_waves"             --builders "levante_intel_hybrid levante_nag"  --list $listname
+$addexp "checksuite.nwp/nwpexp.run_ICON_18_R2B4_waves_adv_nophys"  --builders "levante_intel_hybrid levante_nag"  --list $listname
 $addexp "checksuite.nwp/nwpexp.run_ICON_21_R2B4_waves_standalone"  --builders "levante_intel_hybrid levante_nag"  --list $listname
 # DWD coupled tests on levante
 $addexp "checksuite.infrastructure/coupling/exp.run_ICON_17_R2B4_AO_coupled_LEVANTE.run" --builders "levante_gcc levante_intel_hybrid" --list $listname
@@ -107,7 +108,8 @@ $addexp "checksuite.ocean_internal/technical/exp.test_multioutput_model_40km" \
 ./rmexp checksuite.ocean_internal/technical/exp.test_ocean_omip_technical --builders "DAINT_GPU_nvidia" --list $listname
 
 # add tolerance check to CSCS builders
-$addexp "checksuite.icon-dev/check.mch_kenda-ch1_small"                    --builders "balfrin_cpu_nvidia balfrin_gpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia_mixed" --list $listname
+$addexp "checksuite.icon-dev/check.mch_kenda-ch1_small"                   --builders "balfrin_cpu_nvidia balfrin_gpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia_mixed" --list $listname
+$addexp "checksuite.icon-dev/check.mch_icon-ch2_small"                    --builders "balfrin_cpu_nvidia balfrin_gpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia_mixed" --list $listname
 $addexp "checksuite.icon-dev/check.mch_ch_lowres"                         --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia balfrin_gpu_nvidia_mixed DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 $addexp "checksuite.icon-dev/check.mch_opr_r04b07*"                       --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia balfrin_gpu_nvidia_mixed DAINT_CPU_nvidia DAINT_GPU_nvidia DAINT_CPU_nvidia_mixed DAINT_GPU_nvidia_mixed" --list $listname
 $addexp "checksuite.icon-dev/check.mch_ch_r04b09_dace"                    --builders "balfrin_cpu_nvidia balfrin_gpu_nvidia DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
@@ -128,6 +130,8 @@ $addexp "checksuite.icon-dev/check.mch_opr_r19b07_midnight"               --buil
 $addexp "checksuite.icon-dev/check.mch_opr_r19b07_2m"                     --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia balfrin_gpu_nvidia_mixed DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 # add tolerance check for 2-moment scheme using gscp=5
 $addexp "checksuite.icon-dev/check.mch_opr_r19b07_2m_gscp5"               --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
+# add tolerance check for the explicit 2-moment scheme
+$addexp "checksuite.icon-dev/check.mch_opr_r19b07_2m_expl"                --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia balfrin_gpu_nvidia_mixed DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 # add tolerance check for 3d-turbulence scheme
 $addexp "checksuite.icon-dev/check.mch_opr_r19b07_turb"                   --builders "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed balfrin_gpu_nvidia balfrin_gpu_nvidia_mixed DAINT_CPU_nvidia DAINT_GPU_nvidia" --list $listname
 # add tracer only test to DAINT builders (for checking equivalence of vertical transport code for GPU vs CPU)
@@ -184,14 +188,11 @@ $addexp checksuite.nwp/nwpexp.run_ICON_11_R3B08_lam_initmode7_restarttest      -
 $addexp checksuite.nwp/nwpexp.run_ICON_14_R2B6N7_oper_IAU_and_restarttest      --builders DWD_nec_hybrid --list $listname
 $addexp checksuite.nwp/nwpexp.run_ICON_19_R2B4_cmip_forcing                    --builders DWD_nec_hybrid --list $listname
 # wave tests
-$addexp checksuite.nwp/nwpexp.run_ICON_18_R2B4_waves                           --builders DWD_nec_hybrid   --list $listname
-$addexp checksuite.nwp/nwpexp.run_ICON_21_R2B4_waves_standalone                --builders DWD_nec_hybrid   --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_18_R2B4_waves                           --builders DWD_nec_hybrid --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_18_R2B4_waves_adv_nophys                --builders DWD_nec_hybrid --list $listname
+$addexp checksuite.nwp/nwpexp.run_ICON_21_R2B4_waves_standalone                --builders DWD_nec_hybrid --list $listname
 # clm tests
 $addexp checksuite.clm/clmexp.ICON_CLM                                         --builders DWD_nec_hybrid --list $listname
-
-# JSBACH-NWP test, has to be down here because the GPU builders get deactivated at the top and activated later.
-jsbach_nwp_builders='DWD_nec DWD_nec_hybrid levante_gcc levante_intel levante_gpu_nvhpc'
-$addexp checksuite.icon-dev/check.atm_nwp_jsbach_test --builders "${jsbach_nwp_builders}" --list $listname
 
 #-----------------------------------------------------------
 # ICON Coupled Setups

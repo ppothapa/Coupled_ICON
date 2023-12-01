@@ -2,7 +2,7 @@
 
 # ===========================================================================
 # 
-# Name: exp.mch_icon-ch2_dace.run
+# Name: exp.mch_kenda-ch1_small
 #
 # Purpose: Run script for ICON at on a domain similar to the current COSMO-1E domain
 #          This is a low resolution version used for development purpose.
@@ -41,6 +41,7 @@ icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/mch"
 # =======================
 
 # Folder containing required grid information
+# 2km provides a bigger surface, thus more observations.
 grids_folder=${icon_data_poolFolder}/grids/icon-ch2_dace
 
 # Folder containing input files
@@ -138,7 +139,6 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
 ! dynamics_nml: dynamical core -----------------------------------------------
 &dynamics_nml
  iequations                  =                          3         ! type of equations and prognostic variables
- idiv_method                 =                          1         ! method for divergence computation
  divavg_cntrwgt              =                          0.50      ! weight of central cell for divergence averaging
  lcoriolis                   =                      .TRUE.        ! Coriolis force
 /
@@ -268,7 +268,6 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  divdamp_order               =                         24         ! order of divergence damping 
  divdamp_type                =                         32         ! gdm default: 3 type of divergence damping
  divdamp_fac                 =                          0.004     ! scaling factor for divergence damping
- l_open_ubc                  =                     .FALSE.        ! .TRUE.=use open upper boundary condition
  igradp_method               =                          3         ! discretization of horizontal pressure gradient
  l_zdiffu_t                  =                      .TRUE.        ! specifies computation of Smagorinsky temperature diffusion
  thslp_zdiffu                =                          0.02      ! slope threshold (temperature diffusion)

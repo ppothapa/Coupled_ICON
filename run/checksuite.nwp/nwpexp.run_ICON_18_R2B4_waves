@@ -114,7 +114,7 @@ cat > ${wave_namelist} << EOF
  msg_level            = 15
  ltestcase            = .TRUE.       ! run testcase
  ldynamics            = .TRUE.
- ltransport           = .TRUE.
+ ltransport           = .FALSE.      ! no horizontal propagation of wave energy
  ntracer              = $((${nd}*${nf}))
  output               = "nml"
 /
