@@ -45,19 +45,6 @@ MODULE mo_dynamics_nml
 
   INTEGER  :: iequations
 
-  ! way of computing the divergence operator in the triangular model -------------
-
-  INTEGER  :: idiv_method    ! !!! OBSOLETE !!!
-                             ! 1: Hydrostatic atmospheric model: 
-                             !    Gauss integral with original normal 
-                             !    velocity components
-                             ! 1: Non-Hydrostatic atmospheric model: 
-                             !    Gauss integral with averged normal 
-                             !    velocity components
-                             ! Thus, in a linear equilateral grid, methods 1 and 2 for
-                             ! the non-hydrostatic model are the same.
-                             ! 2: divergence averaging with bilinear averaging
-
   REAL(wp) :: divavg_cntrwgt ! weight of central cell for divergence averaging
 
   LOGICAL  :: lcoriolis      ! if .TRUE.,  the Coriolis force is switched on
@@ -67,8 +54,7 @@ MODULE mo_dynamics_nml
   LOGICAL  :: ldeepatmo      ! if .TRUE., deep-atmosphere modification is applied 
                              ! to the governing equations, on which the dynamical core is based
 
-  NAMELIST/dynamics_nml/ iequations,                  &
-                         idiv_method, divavg_cntrwgt, &
+  NAMELIST/dynamics_nml/ iequations, divavg_cntrwgt, &
                          lcoriolis, lmoist_thdyn, ldeepatmo
 
 CONTAINS
@@ -85,12 +71,11 @@ CONTAINS
     ! Set up the default values
     !------------------------------------------------------------
     iequations     = INH_ATMOSPHERE
-    idiv_method    = 1   !!! OBSOLETE !!!
     divavg_cntrwgt = 0.5_wp
     lcoriolis      = .TRUE.
     lmoist_thdyn   = .FALSE.
     ldeepatmo      = .FALSE.
- 
+
     !------------------------------------------------------------------------
     ! If this is a resumed integration, overwrite the defaults above by 
     ! values in the restart file
@@ -119,14 +104,6 @@ CONTAINS
       END IF
     END SELECT
     CALL close_nml
-
-    !-----------------------------------------------------
-    ! Sanity check
-    !-----------------------------------------------------
-
-    WRITE(message_text,'(a)') &
-      &  'Namelist switch idiv_method is obsolete and will soon be removed!'
-    CALL message("WARNING",message_text)
 
 
     !-----------------------------------------------------

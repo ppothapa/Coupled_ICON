@@ -72,6 +72,7 @@ MODULE mo_initicon_config
   PUBLIC :: itype_vert_expol
   PUBLIC :: pinit_seed
   PUBLIC :: pinit_amplitude
+  PUBLIC :: fire2d_filename
 
   ! Subroutines
   PUBLIC :: configure_initicon
@@ -225,6 +226,9 @@ MODULE mo_initicon_config
   ! perturb initial conditions. perturbation is only applied for pinit_seed /= 0
   INTEGER(i8) :: pinit_seed = 0_i8
   REAL(wp) :: pinit_amplitude = 0._wp
+
+  CHARACTER(LEN=filename_max) :: & !< Filename that contains wildfire precursor emissions (2d-aerosol, iprog_aero=3)
+    &  fire2d_filename             !< Allowed keywords: <species>, <gridfile>, <nroot>, <nroot0>, <jlev>, <idom>, <yyyymmdd>
 
 CONTAINS
 

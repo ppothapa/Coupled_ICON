@@ -76,12 +76,12 @@ dt_restart=`expr ${ndays_restart} \* 86400`
 ndays_checkpoint=400             # save restart file and continue
 dt_checkpoint=`expr ${ndays_checkpoint} \* 86400`
 
-# model timing                             (EDMF, safer 450s)
-dtime=900       # advect, phys   R2B4:900  R2B5:450 (720) R2B6:360  R2B7:180  R2B8:90
-dtconv=1800     # conv, SSO, GWD R2B4:1800 R2B5:900       R2B6:720  R2B7:360  R2B8:360
-dtrad=3600      # rad            R2B4:3600 R2B5:3600      R2B6:3600 R2B7:1800 R2B8:1800
-ndyn_substeps=4 # dyn/adv        R2B4:4    R2B5:5   (5)   R2B6:5    R2B7:5    R2B8:5
-ninc_mtgrm=192  # output interval 48h               (25)
+# model timing
+dtime=900       # advect, phys   R2B4:900  R2B5:450  R2B6:360  R2B7:180  R2B8:90
+dtconv=1800     # conv, SSO, GWD R2B4:1800 R2B5:900  R2B6:720  R2B7:360  R2B8:360
+dtrad=3600      # rad            R2B4:3600 R2B5:3600 R2B6:3600 R2B7:1800 R2B8:1800
+ndyn_substeps=4 # dyn/adv        R2B4:4    R2B5:5    R2B6:5    R2B7:5    R2B8:5
+ninc_mtgrm=192  # output interval 48h               
 ndays=11000     # number of days to run
 nsteps=`expr ${ndays} \* 86400 / ${dtime}`
 
@@ -266,7 +266,7 @@ cat > ${atmo_namelist} << EOF
  inwp_convection              = 1
  inwp_radiation               = 1
  inwp_cldcover                = 1   ! 0: no cld, 1: new diagnostic, 3: COSMO, 5: grid scale
- inwp_turb                    = 1   ! 1/10: Raschendorfer, 2: GME, 3: EDMF-DUALM (ntracer+1,ntiles=8)
+ inwp_turb                    = 1   ! 1/10: Raschendorfer, 2: GME
  inwp_satad                   = 1
  inwp_sso                     = 1
  inwp_gwd                     = 1

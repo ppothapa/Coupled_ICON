@@ -70,34 +70,6 @@ TYPE(lookupt_2D) :: ltab2D
 CONTAINS
 
 
-FUNCTION gfct3(x)
-  !*******************************************************************************
-  !                                                                              *
-  !  Gamma-function from Numerical Recipes (F77)                                 *
-  !*******************************************************************************
-  IMPLICIT NONE
-
-  REAL(KIND=ireals) :: gfct3
-
-  REAL(KIND=ireals), INTENT(in) :: x
-
-  REAL(KIND=ireals) :: tmp, p
-
-  REAL(KIND=ireals), PARAMETER :: c1 =  76.18009173_ireals
-  REAL(KIND=ireals), PARAMETER :: c2 = -86.50532033_ireals
-  REAL(KIND=ireals), PARAMETER :: c3 =  24.01409822_ireals
-  REAL(KIND=ireals), PARAMETER :: c4 = -1.231739516_ireals
-  REAL(KIND=ireals), PARAMETER :: c5 =  0.120858003e-2_ireals
-  REAL(KIND=ireals), PARAMETER :: c6 = -0.536382e-5_ireals
-  REAL(KIND=ireals), PARAMETER :: stp = 2.50662827465_ireals
-     
-  tmp = x + 4.5_ireals;
-  p = stp * (1_ireals + c1/x + c2/(x+1_ireals) + c3/(x+2_ireals) + c4/(x+3_ireals) + c5/(x+4_ireals) + c6/(x+5_ireals))
-  gfct3 = p * EXP( (x-0.5_ireals) * LOG(tmp) - tmp )
-
-  RETURN
-END FUNCTION gfct3
-
 SUBROUTINE nccn_lookupcreate_segalkhain_4D ( ltab )
 
   IMPLICIT NONE

@@ -886,13 +886,15 @@ CONTAINS
          1382._dp, 1449._dp, 1520._dp, 1591._dp, &
          1662._dp, 1738._dp, 1813._dp, 1884._dp, &
          1959._dp, 2031._dp, 2106._dp /)
+    REAL(dp), PARAMETER :: dtemp = temp0(2) - temp0(1)
 
     INTEGER  :: jt
     REAL(dp) :: temp, C
 
-    temp = MAX(MIN(T,273.16_dp),173.16_dp)
+    temp = MAX(MIN(T,temp0(nt)),temp0(1))
     
-    CALL locate(temp0,nt,temp,jt)
+!    CALL locate(temp0,nt,temp,jt)
+    jt = MAX(MIN(FLOOR((temp-temp0(1))/dtemp) + 1, nt-1), 1)
 
     Cice = linint(C0(jt),C0(jt+1),temp0(jt),temp0(jt+1),temp)
 
@@ -924,14 +926,14 @@ CONTAINS
          5400._dp, 4770._dp, 4520._dp, 4350._dp, &
          4270._dp, 4217.8_dp, 4192.3_dp, 4181.8_dp, &
          4178.5_dp, 4178.5_dp, 4180.6_dp /)
-
+    REAL(dp), PARAMETER :: dtemp = temp0(2) - temp0(1)
 
     INTEGER  :: jt
     REAL(dp) :: temp, C
 
-    temp = MAX(MIN(T,323.16_dp),223.16_dp)
+    temp = MAX(MIN(T,temp0(nt)),temp0(1))
     
-    CALL locate(temp0,nt,temp,jt)
+    jt = MAX(MIN(FLOOR((temp-temp0(1))/dtemp) + 1, nt-1), 1)
 
     Cwater = linint(C0(jt),C0(jt+1),temp0(jt),temp0(jt+1),temp)
 
@@ -1083,13 +1085,14 @@ CONTAINS
     REAL(dp), PARAMETER :: L0(nt) = 1.e6 * (/ &
          0.2035_dp, 0.2357_dp, 0.2638_dp, &
          0.2889_dp, 0.3119_dp, 0.3337_dp /)
+    REAL(dp), PARAMETER :: dtemp = temp0(2) - temp0(1)
 
     INTEGER  :: jt
     REAL(dp) :: temp
 
-    temp = MAX(MIN(T,273.16_dp),223.16_dp)
+    temp = MAX(MIN(T,temp0(nt)),temp0(1))
     
-    CALL locate(temp0,nt,temp,jt)
+    jt = MAX(MIN(FLOOR((temp-temp0(1))/dtemp) + 1, nt-1), 1)
 
     Lh_m = linint(L0(jt),L0(jt+1),temp0(jt),temp0(jt+1),temp)
 
@@ -1121,13 +1124,14 @@ CONTAINS
          2.8236_dp, 2.8278_dp, 2.8316_dp, 2.8345_dp, &
          2.8366_dp, 2.8383_dp, 2.8387_dp, 2.8387_dp, &
          2.8383_dp, 2.8366_dp, 2.8345_dp /)
+    REAL(dp), PARAMETER :: dtemp = temp0(2) - temp0(1)
 
     INTEGER  :: jt
     REAL(dp) :: temp
 
-    temp = MAX(MIN(T,273.16_dp),173.16_dp)
+    temp = MAX(MIN(T,temp0(nt)),temp0(1))
     
-    CALL locate(temp0,nt,temp,jt)
+    jt = MAX(MIN(FLOOR((temp-temp0(1))/dtemp) + 1, nt-1), 1)
 
     Lh_s = linint(L0(jt),L0(jt+1),temp0(jt),temp0(jt+1),temp)
 
@@ -1159,13 +1163,14 @@ CONTAINS
          2.6348_dp, 2.6030_dp, 2.5749_dp, 2.5494_dp, &
          2.5247_dp, 2.50084_dp, 2.4774_dp, 2.4535_dp, &
          2.4300_dp, 2.4062_dp, 2.3823_dp /)
+    REAL(dp), PARAMETER :: dtemp = temp0(2) - temp0(1)
 
     INTEGER  :: jt
     REAL(dp) :: temp
 
-    temp = MAX(MIN(T,323.16_dp),223.16_dp)
+    temp = MAX(MIN(T,temp0(nt)),temp0(1))
     
-    CALL locate(temp0,nt,temp,jt)
+    jt = MAX(MIN(FLOOR((temp-temp0(1))/dtemp) + 1, nt-1), 1)
 
     Lh_e = linint(L0(jt),L0(jt+1),temp0(jt),temp0(jt+1),temp)
 

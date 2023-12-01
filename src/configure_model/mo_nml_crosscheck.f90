@@ -20,7 +20,7 @@ MODULE mo_nml_crosscheck
   USE mo_exception,                ONLY: message, message_text, finish
   USE mo_impl_constants,           ONLY: inwp, tracer_only, inh_atmosphere,                &
     &                                    iaes, RAYLEIGH_CLASSIC, inoforcing,               &
-    &                                    iedmf, icosmo, iprog, MODE_IAU, MODE_IAU_OLD,     &
+    &                                    icosmo, iprog, MODE_IAU, MODE_IAU_OLD,            &
     &                                    max_echotop, max_wshear, max_srh,                 &
     &                                    LSS_JSBACH, LSS_TERRA, ivdiff
   USE mo_time_config,              ONLY: time_config, dt_restart
@@ -80,7 +80,7 @@ MODULE mo_nml_crosscheck
   USE mo_nudging_nml,              ONLY: check_nudging
   USE mo_upatmo_config,            ONLY: check_upatmo
   USE mo_name_list_output_config,  ONLY: is_variable_in_output_dom
-  USE mo_coupling_config,          ONLY: is_coupled_to_ocean, is_coupled_to_waves
+  USE mo_coupling_config,          ONLY: is_coupled_to_ocean, is_coupled_to_waves, is_coupled_to_hydrodisc
 
   USE mo_assimilation_config,      ONLY: assimilation_config
   USE mo_scm_nml,                  ONLY: i_scm_netcdf, scm_sfc_temp, scm_sfc_qv, scm_sfc_mom
@@ -225,8 +225,7 @@ CONTAINS
     ENDIF
 
     IF ( ( nh_test_name=='APE_nwp'.OR. nh_test_name=='dcmip_tc_52' ) .AND.  &
-      &  ( ANY(atm_phy_nwp_config(:)%inwp_surface > 0 ) ) .AND.             &
-      &  ( ANY(atm_phy_nwp_config(:)%inwp_turb    /= iedmf ) ) ) THEN
+      &  ( ANY(atm_phy_nwp_config(:)%inwp_surface > 0) ) ) THEN
       CALL finish(routine, &
         & 'surface scheme must be switched off, when running the APE test')
     ENDIF
@@ -308,7 +307,7 @@ CONTAINS
 
       DO jg =1,n_dom
 
-        IF ((atm_phy_nwp_config(1)%inwp_turb /= iedmf) .AND. (atm_phy_nwp_config(jg)%inwp_gscp /= 8)) THEN
+        IF (atm_phy_nwp_config(jg)%inwp_gscp /= 8) THEN
           IF( atm_phy_nwp_config(jg)%inwp_satad == 0       .AND. &
           & ((atm_phy_nwp_config(jg)%inwp_convection >0 ) .OR. &
           &  (atm_phy_nwp_config(jg)%inwp_gscp > 0 )   ) ) &
@@ -561,20 +560,6 @@ CONTAINS
     !--------------------------------------------------------------------
     ! Tracers and diabatic forcing
     !--------------------------------------------------------------------
-
-    IF (atm_phy_nwp_config(1)%inwp_turb == iedmf) THEN ! EDMF turbulence
-#ifdef __NO_ICON_EDMF__
-      CALL finish( routine, 'EDMF turbulence desired, but compilation with --disable-edmf' )
-#endif
-
-      DO jg =1,n_dom
-        turbdiff_config(jg)%ldiff_qi = .TRUE.  !! turbulent diffusion of QI on (by EDMF)
-      ENDDO
-
-      !dmk    ntiles_lnd = 5     !! EDMF currently only works with 5 land tiles - consistent with TESSEL
-      !! even if the land model is inactive ntiles_lnd should be 5
-    ENDIF
-
 
     ! General
     SELECT CASE (iequations)
@@ -867,9 +852,9 @@ CONTAINS
 
     CHARACTER(len=*), PARAMETER :: routine =  modname//'::coupled_crosscheck'
 
-    IF ( ntiles_lnd == 1 .AND. is_coupled_to_ocean() .AND. .NOT. &
+    IF ( ntiles_lnd == 1 .AND. ( is_coupled_to_ocean() .OR. is_coupled_to_hydrodisc() ) .AND. .NOT. &
         & (iforcing == inwp .AND. ALL(atm_phy_nwp_config(1:n_dom)%inwp_turb == ivdiff)) ) THEN
-       CALL finish(routine, "Coupled atm/ocean runs not supported with ntiles=1 when not using VDIFF")
+       CALL finish(routine, "Coupled atm/hydrodisc/ocean runs not supported with ntiles=1 when not using VDIFF")
     ENDIF
 
     IF ( sstice_mode /= 1 .AND. is_coupled_to_ocean() ) THEN
@@ -877,6 +862,10 @@ CONTAINS
     ENDIF
 
 #ifdef _OPENACC
+    IF ( is_coupled_to_hydrodisc() ) THEN
+      CALL finish(routine, "Coupled atm/hydrodisc/ocean runs are not available on GPU")
+    END IF
+
     IF ( is_coupled_to_waves() ) THEN
       CALL finish(routine, "Coupled atm/wave runs are not available on GPU")
     END IF

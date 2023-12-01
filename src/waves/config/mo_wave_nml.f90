@@ -83,8 +83,6 @@ CONTAINS
 
     INTEGER :: jtot_tauhf          ! dimension of wave_config%wtauhf. it must be odd !!!
 
-    INTEGER :: dt_wave             ! PROPAGATION TIMESTEP !@waves: add units, s?
-
     CHARACTER(LEN=filename_max) :: forc_file_prefix ! prefix of forcing file name
                                            ! the real file name will be constructed as:
                                            ! forc_file_prefix+'_wind' for U and V 10 meter wind (m/s)
@@ -99,7 +97,6 @@ CONTAINS
     LOGICAL :: lbottom_fric_sf ! if .TRUE., calculate bottom_friction source function term
     LOGICAL :: lwave_stress1   ! if .TRUE., calculate wave stress, first call
     LOGICAL :: lwave_stress2   ! if .TRUE., calculate wave stress, second call
-    LOGICAL :: lgrid_refr      ! if .TRUE., calculate grid refraction
 
 
     NAMELIST /wave_nml/ &
@@ -109,7 +106,7 @@ CONTAINS
          roair, RNUAIR, RNUAIRM, ROWATER, XEPS, XINVEPS, &
          XKAPPA, XNLEV, BETAMAX, ZALP, jtot_tauhf, ALPHA_CH, depth, niter_smooth, &
          linput_sf1, linput_sf2, ldissip_sf, lnon_linear_sf, lbottom_fric_sf, &
-         lwave_stress1, lwave_stress2, lgrid_refr
+         lwave_stress1, lwave_stress2
 
     !-----------------------------------------------------------
     ! 1. default settings
@@ -148,8 +145,6 @@ CONTAINS
     XKAPPA     = 0.40_wp        !! VON KARMAN CONSTANT.
     XNLEV      = 10.0_wp        !! WINDSPEED REF. LEVEL.
 
-    dt_wave    = 600            !! PROPAGATION TIMESTEP, s
-
     forc_file_prefix = ''
 
     linput_sf1 =       .TRUE. !< if .TRUE., calculate wind input source function term, first call
@@ -159,8 +154,6 @@ CONTAINS
     lbottom_fric_sf =  .TRUE. !< if .TRUE., calculate bottom_friction source function term
     lwave_stress1  =   .TRUE. !< if .TRUE., calculate wave stress, first call
     lwave_stress2  =   .TRUE. !< if .TRUE., calculate wave stress, second call
-    lgrid_refr =       .TRUE. !< if .TRUE., calculate grid refraction
-
 
 
     !------------------------------------------------------------------
@@ -244,7 +237,6 @@ CONTAINS
       wave_config(jg)%lbottom_fric_sf   = lbottom_fric_sf
       wave_config(jg)%lwave_stress1     = lwave_stress1
       wave_config(jg)%lwave_stress2     = lwave_stress2
-      wave_config(jg)%lgrid_refr        = lgrid_refr
 
     ENDDO
 

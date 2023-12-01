@@ -295,6 +295,7 @@ INTEGER :: &
   imode_tkesso =1, &  ! mode of calculat. the SSO source term for TKE production
                       ! 1: original implementation
                       ! 2: with a Ri-dependent reduction factor for Ri>1
+                      ! 3: as 2, but additional reduction for mesh sizes < 2 km
   imode_tkvmini =2, & ! mode of calculating the minimal turbulent diff. coeffecients
                       ! 1: with a constant value
                       ! 2: with a stability dependent correction
@@ -377,7 +378,9 @@ TYPE modvar !model variable
              sv(:)   => NULL(), & !surface     values (concentration of flux density)
              at(:,:) => NULL()    !atmospheric time tendencies
      LOGICAL                                 ::         &
-             fc                !surface values are flux densities
+             fc                   !surface values are flux densities
+     INTEGER                                 ::         &
+             kstart  = 1          !start level for vertical diffusion
 END TYPE modvar
 
 TYPE turvar !turbulence variables

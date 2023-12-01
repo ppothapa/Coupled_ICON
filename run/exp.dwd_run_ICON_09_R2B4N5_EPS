@@ -185,7 +185,6 @@ cat > ${atmo_namelist} << EOF
  num_io_procs                 = 0         ! 0: no dedicated I/O processor
 ! num_io_procs_radar = 5   ! 0: no dedicated I/O processor
  num_restart_procs            = 0
- itype_comm                   = 1
  iorder_sendrecv              = 3                 ! (1), 3: best value for CRAY
 !   proc0_shift         = 1
 !   use_omp_input       = .true.
@@ -430,14 +429,12 @@ dt_gwd                        = 1440.,
  vwind_offctr                 = 0.2
  damp_height                  = 43500
  rayleigh_coeff               = 2.0
- lhdiff_rcf                   = .true.
  divdamp_fac                  = 0.032         ! factor 8 iff divdamp_order=2 !!!
  divdamp_order                = 2       ! use 24 for forecast, 2 for IAU
  divdamp_type                 = 32        ! (3): 2 for assimilation cycle
  divdamp_trans_start          = 2500. ! use 2500. in assimilation cycle
  divdamp_trans_end            = 5000.   ! use 5000. in assimilation cycle
  ndyn_substeps                = 5
- l_open_ubc                   = .false.
  igradp_method                = 3
  l_zdiffu_t                   = .true.
  thslp_zdiffu                 = 0.02
@@ -728,7 +725,8 @@ cat >> ${atmo_namelist} << EOF
  include_last           = .FALSE.
  output_filename        = 'iga_fg'                ! file name base
  filename_format        = '<output_filename>_DOM<physdom>_<levtype>_<hhhmmss>'
- ml_varlist             = 'group:dwd_fg_atm_vars','group:dwd_fg_sfc_vars','-z_ifc','t_seasfc','t_avginc','rh_avginc','t_wgt_avginc','vabs_avginc','-temp','-u','-v','-pres','-pres_sfc','-t_2m','-td_2m','-u_10m','-v_10m','-fr_land','-t_g','-w_i','-t_so','-w_so','-plantevap','-w_so_ice','-t_snow','-w_snow','-rho_snow','-rho_snow_mult','-t_snow_mult','-wtot_snow','-wliq_snow','-dzh_snow','-qv_s','-h_snow','-freshsnow','-snowfrac_lc'
+ ml_varlist             = 'group:dwd_fg_atm_vars','group:dwd_fg_sfc_vars','-z_ifc','t_seasfc','t_avginc','rh_avginc','t_wgt_avginc','vabs_avginc','-temp','-u','-v','-pres','-pres_sfc','-t_2m','-td_2m','-u_10m','-v_10m','-fr_land','-t_g','-w_i','-t_so','-w_so','-plantevap','-w_so_ice','-t_snow','-w_snow','-rho_snow','-rho_snow_mult','-t_snow_mult','-wtot_snow','-wliq_snow','-dzh_snow','-qv_s','-h_snow','-freshsnow','-snowfrac_lc',
+                           '-hsnow_max' ! 2023-10-24: temporarily disable hsnow_max as the probtest CPU spread is too small
 !output_grid            = .TRUE.
 /
 
@@ -747,7 +745,8 @@ cat >> ${atmo_namelist} << EOF
  include_last           = .FALSE.
  output_filename        = 'iga_fg'                   ! file name base
  filename_format        = '<output_filename>_DOM<physdom>_<levtype>_tiles_<hhhmmss>'
- ml_varlist             = 'group:dwd_fg_sfc_vars_t'
+ ml_varlist             = 'group:dwd_fg_sfc_vars_t',
+                          '-h_snow_t_4' ! 2023-10-24: temporarily disable h_snow_t_4 as the probtest CPU spread is too small
 !output_grid            = .TRUE.
 /
 ! //// ICON Global Analysis in Bacy - End //// !
@@ -775,7 +774,10 @@ cat >> ${atmo_namelist} << EOF
  ml_varlist             = 'group:dwd_fg_atm_vars','group:dwd_fg_sfc_vars','-z_ifc','gust10','rh_2m','pres_msl',
                           'clcl','clct','clcm','clch','group:cloud_diag','clc','-vn','-w','-theta_v','-tke','-rho',
                           'tot_prec','asodird_s','asodifd_s','asodifu_s',
-                          '-qc_sgs', '-tot_qc_dia' ! 2023-08-30: temporarily disable these 2 variables as they give false alarm in probtest.
+                          '-qc_sgs', '-tot_qc_dia',
+                          '-h_snow', '-hsnow_max'
+                          ! 2023-08-30: temporarily disable qc_sgs, tot_qc_dia as they give false alarm in probtest.
+                          ! 2023-10-24: temporarily disable h_snow and hsnow_max as their probtest CPU spread is too small
 !output_grid            = .TRUE.
 /
 ! //// ICON Global Forecast in Bacy - End //// !

@@ -25,60 +25,61 @@ MODULE mo_nwp_tuning_nml
   USE mo_restart_nml_and_att, ONLY: open_tmpfile, store_and_close_namelist,     &
     &                               open_and_restore_namelist, close_tmpfile
   USE mo_nml_annotate,        ONLY: temp_defaults, temp_settings
-  USE mo_nwp_tuning_config,   ONLY: config_tune_gkwake    => tune_gkwake,    &
-    &                               config_tune_gkdrag    => tune_gkdrag,    &
-    &                               config_tune_gkdrag_enh => tune_gkdrag_enh, &
-    &                               config_tune_gfrcrit   => tune_gfrcrit,   &
-    &                               config_tune_grcrit    => tune_grcrit,    &
-    &                               config_tune_grcrit_enh => tune_grcrit_enh, &
-    &                               config_tune_minsso    => tune_minsso,    &
-    &                               config_tune_minsso_gwd => tune_minsso_gwd, &
-    &                               config_tune_blockred  => tune_blockred,  &
-    &                               config_tune_gfluxlaun => tune_gfluxlaun, &
-    &                               config_tune_gcstar    => tune_gcstar,    &    
-    &                               config_tune_zceff_min => tune_zceff_min, &
-    &                               config_tune_v0snow    => tune_v0snow,    &
-    &                               config_tune_zvz0i     => tune_zvz0i,     &
-    &                               config_tune_icesedi_exp => tune_icesedi_exp, &
-    &                               config_tune_entrorg     => tune_entrorg,     &
-    &                               config_tune_rprcon      => tune_rprcon,      &
-    &                               config_tune_rdepths     => tune_rdepths,     &
-    &                               config_tune_capdcfac_et => tune_capdcfac_et, &
-    &                               config_tune_capdcfac_tr => tune_capdcfac_tr, &
-    &                               config_tune_capethresh  => tune_capethresh,  &
-    &                               config_tune_rhebc_land  => tune_rhebc_land,  &  
-    &                               config_tune_rhebc_ocean => tune_rhebc_ocean, &  
-    &                               config_tune_rcucov      => tune_rcucov,      &  
-    &                               config_tune_rhebc_land_trop  => tune_rhebc_land_trop,  &  
-    &                               config_tune_rhebc_ocean_trop => tune_rhebc_ocean_trop, &  
-    &                               config_tune_rcucov_trop      => tune_rcucov_trop,      &  
-    &                               config_tune_texc        => tune_texc,        &  
-    &                               config_tune_qexc        => tune_qexc,        &
-    &                               config_tune_rcapqadv    => tune_rcapqadv,    &
-    &                               config_tune_minsnowfrac => tune_minsnowfrac, &  
-    &                               config_tune_box_liq   => tune_box_liq,       &
-    &                               config_tune_box_liq_asy => tune_box_liq_asy, &
-    &                               config_tune_box_liq_sfc_fac => tune_box_liq_sfc_fac, &
-    &                               config_allow_overcast   => allow_overcast, &
-    &                               config_tune_thicklayfac => tune_thicklayfac, &
-    &                               config_tune_sgsclifac => tune_sgsclifac,     &
-    &                               config_icpl_turb_clc  => icpl_turb_clc,      &
-    &                               config_tune_dust_abs  => tune_dust_abs,      &  
-    &                               config_tune_difrad_3dcont => tune_difrad_3dcont, &  
-    &                               config_tune_gust_factor => tune_gust_factor, &  
-    &                               config_itune_gust_diag => itune_gust_diag, &  
-    &                               config_tune_gustsso_lim => tune_gustsso_lim, &  
-    &                               config_itune_albedo   => itune_albedo,       &
-    &                               config_itune_o3       => itune_o3,           &
-    &                               config_lcalib_clcov   => lcalib_clcov,       &
-    &                               config_max_calibfac_clcl => max_calibfac_clcl, &
-    &                               config_max_freshsnow_inc => max_freshsnow_inc, &
-    &                               config_tune_eiscrit      => tune_eiscrit,    &
-    &                               config_tune_sc_eis       => tune_sc_eis,     &
-    &                               config_tune_sc_invmin    => tune_sc_invmin,  &
-    &                               config_tune_sc_invmax    => tune_sc_invmax,  &
-    &                               config_tune_dursun_scaling => tune_dursun_scaling, &
-    &                               config_tune_sbmccn => tune_sbmccn
+  USE mo_nwp_tuning_config,   ONLY: config_tune_gkwake           => tune_gkwake,           &
+    &                               config_tune_gkdrag           => tune_gkdrag,           &
+    &                               config_tune_gkdrag_enh       => tune_gkdrag_enh,       &
+    &                               config_tune_gfrcrit          => tune_gfrcrit,          &
+    &                               config_tune_grcrit           => tune_grcrit,           &
+    &                               config_tune_grcrit_enh       => tune_grcrit_enh,       &
+    &                               config_tune_minsso           => tune_minsso,           &
+    &                               config_tune_minsso_gwd       => tune_minsso_gwd,       &
+    &                               config_tune_blockred         => tune_blockred,         &
+    &                               config_tune_gfluxlaun        => tune_gfluxlaun,        &
+    &                               config_tune_gcstar           => tune_gcstar,           &
+    &                               config_tune_zceff_min        => tune_zceff_min,        &
+    &                               config_tune_v0snow           => tune_v0snow,           &
+    &                               config_tune_zvz0i            => tune_zvz0i,            &
+    &                               config_tune_icesedi_exp      => tune_icesedi_exp,      &
+    &                               config_tune_entrorg          => tune_entrorg,          &
+    &                               config_tune_rprcon           => tune_rprcon,           &
+    &                               config_tune_rdepths          => tune_rdepths,          &
+    &                               config_tune_capdcfac_et      => tune_capdcfac_et,      &
+    &                               config_tune_capdcfac_tr      => tune_capdcfac_tr,      &
+    &                               config_tune_capethresh       => tune_capethresh,       &
+    &                               config_tune_rhebc_land       => tune_rhebc_land,       &
+    &                               config_tune_rhebc_ocean      => tune_rhebc_ocean,      &
+    &                               config_tune_rcucov           => tune_rcucov,           &
+    &                               config_tune_rhebc_land_trop  => tune_rhebc_land_trop,  &
+    &                               config_tune_rhebc_ocean_trop => tune_rhebc_ocean_trop, &
+    &                               config_tune_rcucov_trop      => tune_rcucov_trop,      &
+    &                               config_tune_texc             => tune_texc,             &
+    &                               config_tune_qexc             => tune_qexc,             &
+    &                               config_tune_rcapqadv         => tune_rcapqadv,         &
+    &                               config_tune_minsnowfrac      => tune_minsnowfrac,      &
+    &                               config_tune_box_liq          => tune_box_liq,          &
+    &                               config_tune_box_liq_asy      => tune_box_liq_asy,      &
+    &                               config_tune_box_liq_sfc_fac  => tune_box_liq_sfc_fac,  &
+    &                               config_allow_overcast        => allow_overcast,        &
+    &                               config_tune_thicklayfac      => tune_thicklayfac,      &
+    &                               config_tune_sgsclifac        => tune_sgsclifac,        &
+    &                               config_icpl_turb_clc         => icpl_turb_clc,         &
+    &                               config_tune_dust_abs         => tune_dust_abs,         &
+    &                               config_tune_difrad_3dcont    => tune_difrad_3dcont,    &
+    &                               config_tune_gust_factor      => tune_gust_factor,      &
+    &                               config_itune_gust_diag       => itune_gust_diag,       &
+    &                               config_tune_gustsso_lim      => tune_gustsso_lim,      &
+    &                               config_itune_albedo          => itune_albedo,          &
+    &                               config_itune_slopecorr       => itune_slopecorr,       &
+    &                               config_itune_o3              => itune_o3,              &
+    &                               config_lcalib_clcov          => lcalib_clcov,          &
+    &                               config_max_calibfac_clcl     => max_calibfac_clcl,     &
+    &                               config_max_freshsnow_inc     => max_freshsnow_inc,     &
+    &                               config_tune_eiscrit          => tune_eiscrit,          &
+    &                               config_tune_sc_eis           => tune_sc_eis,           &
+    &                               config_tune_sc_invmin        => tune_sc_invmin,        &
+    &                               config_tune_sc_invmax        => tune_sc_invmax,        &
+    &                               config_tune_dursun_scaling   => tune_dursun_scaling,   &
+    &                               config_tune_sbmccn           => tune_sbmccn
   
   IMPLICIT NONE
   PRIVATE
@@ -190,7 +191,7 @@ MODULE mo_nwp_tuning_nml
     &  tune_box_liq_asy            ! (in case of inwp_cldcover = 1)
 
   REAL(wp) :: &                    !< Tuning factor for box_liq reduction near the surface
-    & tune_box_liq_sfc_fac         ! (in case of inwp_cldcover = 1)
+    & tune_box_liq_sfc_fac(max_dom)! (in case of inwp_cldcover = 1)
 
   REAL(wp) :: &                    !< Tuning factor for steeper dependence CLC(RH). This is an unphysical ad-hoc
     & allow_overcast               ! parameter to improve the cloud cover in the Mediterranean.
@@ -217,6 +218,9 @@ MODULE mo_nwp_tuning_nml
 
   INTEGER :: &                     !< (MODIS) albedo tuning
     &  itune_albedo                ! 0: no tuning
+
+  INTEGER :: &                     !< slope-dependent tuning of parameters affecting stable PBLs
+    &  itune_slopecorr             ! 1: slope-dependent reduction of rlam_heat and near-surface tkhmin
 
   INTEGER :: &                     !< type of artificial ozone tuning 
     &  itune_o3                    ! 0: no tuning
@@ -271,7 +275,8 @@ MODULE mo_nwp_tuning_nml
     &                      tune_gustsso_lim, tune_eiscrit, itune_o3,              &
     &                      tune_sc_eis, tune_sc_invmin, tune_sc_invmax,           &
     &                      tune_capethresh, tune_gkdrag_enh, tune_grcrit_enh,     &
-    &                      tune_minsso_gwd, tune_dursun_scaling, tune_sbmccn
+    &                      tune_minsso_gwd, tune_dursun_scaling, tune_sbmccn,     &
+    &                      itune_slopecorr
 
 CONTAINS
 
@@ -395,7 +400,7 @@ CONTAINS
     tune_box_liq     = 0.05_wp     ! box width scale of liquid clouds
     tune_thicklayfac = 0.005_wp    ! factor [1/m] for increasing the box with for layer thicknesses exceeding 150 m
     tune_box_liq_asy = 3._wp       ! asymmetry factor for liquid cloud parameterization
-    tune_box_liq_sfc_fac = 1._wp   ! Tuning factor for box_liq reduction near the surface
+    tune_box_liq_sfc_fac(:) = 1._wp   ! Tuning factor for box_liq reduction near the surface
     allow_overcast   = 1._wp       ! Tuning factor for steeper dependence CLC(RH)
     tune_sgsclifac   = 0._wp       ! Scaling factor for subgrid-scale contribution to diagnosed cloud ice
     lcalib_clcov     = .TRUE.      ! use calibration of layer-wise cloud cover diagnostics over land
@@ -410,6 +415,7 @@ CONTAINS
     tune_difrad_3dcont = 0.5_wp    ! tuning factor for 3D contribution to diagnosed diffuse radiation (no impact on prognostic results!)
     itune_albedo    = 0            ! original (measured) albedo
     itune_o3        = 2            ! standard ozone tuning for EcRad
+    itune_slopecorr  = 0           ! slope-dependent reduction of rlam_heat and near-surface tkhmin
     !
     ! IAU increment tuning
     max_freshsnow_inc = 0.025_wp   ! maximum allowed positive freshsnow increment
@@ -561,6 +567,7 @@ CONTAINS
     config_itune_gust_diag       = itune_gust_diag
     config_tune_gustsso_lim      = tune_gustsso_lim
     config_itune_albedo          = itune_albedo
+    config_itune_slopecorr       = itune_slopecorr
     config_itune_o3              = itune_o3
     config_lcalib_clcov          = lcalib_clcov
     config_max_calibfac_clcl     = max_calibfac_clcl

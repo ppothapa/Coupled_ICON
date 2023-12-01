@@ -35,15 +35,15 @@ MODULE mo_ext_data_init
                                    isub_seaice, isub_lake, sstice_mode, sst_td_filename,            &
                                    ci_td_filename, itype_lndtbl, c_soil, c_soil_urb, cskinc,        &
                                    lterra_urb, itype_eisa, cr_bsmin, itype_evsl
-  USE mo_atm_phy_nwp_config, ONLY: atm_phy_nwp_config
+  USE mo_atm_phy_nwp_config, ONLY: atm_phy_nwp_config, iprog_aero
   USE mo_extpar_config,      ONLY: itopo, itype_lwemiss, extpar_filename, generate_filename,    &
     &                              generate_td_filename, extpar_varnames_map_file,              &
     &                              n_iter_smooth_topo, i_lctype, nclass_lu, nhori, nmonths_ext, &
     &                              itype_vegetation_cycle, read_nc_via_cdi, pp_sso
-  USE mo_initicon_config,    ONLY: icpl_da_sfcevap, dt_ana, icpl_da_skinc
+  USE mo_initicon_config,    ONLY: icpl_da_sfcevap, dt_ana, icpl_da_skinc, icpl_da_seaice, icpl_da_snowalb
   USE mo_radiation_config,   ONLY: irad_o3, albedo_type, islope_rad,    &
     &                              irad_aero, iRadAeroTegen, iRadAeroART
-  USE mo_process_topo,       ONLY: smooth_topo_real_data, postproc_sso
+  USE mo_process_topo,       ONLY: smooth_topo_real_data, postproc_sso, smooth_frland
   USE mo_model_domain,       ONLY: t_patch
   USE mo_exception,          ONLY: message, message_text, finish
   USE mo_grid_config,        ONLY: n_dom, nroot
@@ -254,7 +254,7 @@ CONTAINS
             ENDIF
             !ext_data(jg)%atm%i_lc_water        = 21
   
-            !Special setup for EDMF
+            !Special setup for tiles
             ext_data(jg)%atm%soiltyp_t(:,:,:) = soiltyp_scm ! soil type
             ext_data(jg)%atm%frac_t(:,:,:)    = 0._wp       ! set all tiles to 0
             ext_data(jg)%atm%frac_t(:,:,isub_water) = 1._wp ! set only ocean to 1
@@ -293,7 +293,7 @@ CONTAINS
             ext_data(jg)%atm%topography_c(:,:)= 0.0_wp      ! topographic height
             i_lctype(jg) = GLOBCOVER2009
   
-            !Special setup for EDMF
+            !Special setup for tiles
             ext_data(jg)%atm%soiltyp_t(:,:,:) = 8           ! soil type
             ext_data(jg)%atm%frac_t(:,:,:)    = 0._wp       ! set all tiles to 0
             ext_data(jg)%atm%frac_t(:,:,isub_water) = 1._wp ! set only ocean to 1
@@ -333,6 +333,7 @@ CONTAINS
 
       CALL message(routine,'Finished reading external data' )
 
+
       DO jg = 1, n_dom
          IF ( iforcing == inwp ) THEN
             IF (pp_sso > 0) THEN
@@ -362,6 +363,16 @@ CONTAINS
             ENDIF
          ENDIF ! n_iter_smooth_topo(jg) > 0
 
+         IF ( iforcing == inwp ) THEN
+           ! smooth land fraction for adaptive tuning of sea ice bottom heat flux and sea ice albedo
+           IF (icpl_da_seaice >= 2 .OR. icpl_da_snowalb >= 2) THEN
+             CALL smooth_frland (p_patch(jg),                &
+               &                 p_int_state(jg),            &
+               &                 ext_data(jg)%atm%fr_land,   &
+               &                 ext_data(jg)%atm%fr_land_smt)
+           ENDIF
+         ENDIF
+
          ! calculate gradient of orography for resolved surface drag
          !
          call grad_fe_cell  ( ext_data(jg)%atm%topography_c, &
@@ -369,6 +380,7 @@ CONTAINS
            &                  p_int_state(jg),               &
            &                  ext_data(jg)%atm%grad_topo )
       END DO
+
 
       IF ( iforcing == inwp ) THEN
 
@@ -1295,6 +1307,11 @@ CONTAINS
           ext_data(jg)%atm%sso_stdh_raw(:,:) = ext_data(jg)%atm%sso_stdh(:,:)
 
 
+          IF ( iprog_aero > 1) THEN
+            CALL read_extdata('emi_bc',  arr2d=ext_data(jg)%atm%emi_bc )
+            CALL read_extdata('emi_oc',  arr2d=ext_data(jg)%atm%emi_oc )
+            CALL read_extdata('emi_so2', arr2d=ext_data(jg)%atm%emi_so2)
+          ENDIF
           ! Read time dependent data
           IF ( irad_aero == iRadAeroTegen .OR. irad_aero == iRadAeroART) THEN
             CALL read_extdata('AER_SS',   arr3d=ext_data(jg)%atm_td%aer_ss)

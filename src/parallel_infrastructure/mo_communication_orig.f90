@@ -51,7 +51,7 @@ USE mo_timer,                ONLY: timer_start, timer_stop, timer_exch_data, &
      &                             timer_barrier, &
      &                             timer_exch_data_wait
 USE mo_fortran_tools,        ONLY: t_ptr_3d, t_ptr_3d_sp, t_ptr_2d, t_ptr_1d_int, &
-     &                             insert_dimension
+     &                             insert_dimension, init
 USE mo_run_config,           ONLY: msg_level, activate_sync_timers
 USE mo_decomposition_tools,  ONLY: t_glb2loc_index_lookup, get_local_index
 USE mo_parallel_config,      ONLY: blk_no, idx_no, idx_1d
@@ -2283,6 +2283,19 @@ CONTAINS
     !$ACC   PRESENT(p_pat) &
     !$ACC   ASYNC(get_comm_acc_queue()) IF(lzacc)
 
+#ifdef _OPENACC
+    ! the `init` subroutine is not used here as this needs to be run with `ASYNC(get_comm_acc_queue())` and not `ASYNC(1)`
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc) ASYNC(get_comm_acc_queue())
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+    DO k = 1, p_pat%n_recv
+      DO i = 1, ndim2tot
+          recv_buf(i,k) = 0._dp
+      ENDDO
+    ENDDO
+    !$ACC END PARALLEL
+    !$ACC WAIT(get_comm_acc_queue())
+#endif
+
     IF (lzacc .and. .not. use_staging) CALL comm_group_start()
 
     IF (iorder_sendrecv == 1 .OR. iorder_sendrecv == 3) THEN
@@ -2591,6 +2604,19 @@ CONTAINS
 #endif
     !$ACC   PRESENT(recv_src, recv_dst_blk, recv_dst_idx, send_src_blk, send_src_idx) &
     !$ACC   ASYNC(get_comm_acc_queue()) IF(lzacc)
+
+#ifdef _OPENACC
+    ! the `init` subroutine is not used here as this needs to be run with `ASYNC(get_comm_acc_queue())` and not `ASYNC(1)`
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc) ASYNC(get_comm_acc_queue())
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+    DO k = 1, p_pat%n_recv
+      DO i = 1, ndim2tot_sp
+        recv_buf_sp(i,k) = 0._sp
+      ENDDO
+    ENDDO
+    !$ACC END PARALLEL
+    !$ACC WAIT(get_comm_acc_queue())
+#endif
 
     IF (lzacc .and. .not. use_staging) CALL comm_group_start()
 
@@ -2946,6 +2972,10 @@ CONTAINS
 #endif
     !$ACC   PRESENT(recv, recv_src, recv_dst_blk, recv_dst_idx, send_src_blk, send_src_idx) &
     !$ACC   IF(lzacc)
+
+#ifdef _OPENACC
+    CALL init(recv_buf, opt_acc_async=.TRUE.)
+#endif
 
     IF ((iorder_sendrecv == 1 .OR. iorder_sendrecv == 3)) THEN
       ! Set up irecv's for receive buffers

@@ -60,8 +60,8 @@ cp $ICONDIR/data/ECHAM6_CldOptProps.nc rrtm_cldopt.nc
 cp $ICONDIR/data/rrtmg_lw.nc .
 
 
-ln -sf $ICONDIR/data/rttov/const/rt12coeffs_rttov7pred54L/rtcoef_msg_2_seviri.dat .
-ln -sf $ICONDIR/data/rttov/const/rt12coeffs_rttov7pred54L/sccldcoef_msg_2_seviri.dat .
+ln -sf ${icon_data_poolFolder}/externals/rttov/const/rt12coeffs_rttov7pred54L/rtcoef_msg_2_seviri.dat .
+ln -sf ${icon_data_poolFolder}/externals/rttov/const/rt12coeffs_rttov7pred54L/sccldcoef_msg_2_seviri.dat .
 
 
 # ----------------------------------------------------------------------

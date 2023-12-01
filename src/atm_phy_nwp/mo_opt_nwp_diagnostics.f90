@@ -5742,49 +5742,51 @@ CONTAINS
   !!  !!
   !!
 
-  SUBROUTINE compute_field_visibility(ptr_patch,p_prog,p_diag,prm_diag, jg, vis_out)
+  SUBROUTINE compute_field_visibility(ptr_patch, p_prog, p_diag, prm_diag, jg, vis_out, lacc)
 
-    TYPE(t_patch),        INTENT(IN)     :: ptr_patch        
-    TYPE(t_nh_prog),      INTENT(IN)     :: p_prog                 !< nonhydrostatic state
-    TYPE(t_nh_diag),      INTENT(IN)     :: p_diag   
-    
-    REAL(WP), INTENT(OUT)   :: vis_out(:,:) ! output variable
-
-    INTEGER, INTENT(IN)                  :: jg  ! domain ID of the grid
-
-    TYPE(t_nwp_phy_diag), INTENT(INOUT)  :: prm_diag ! physics variables
+    TYPE(t_patch),        INTENT(IN)            :: ptr_patch
+    TYPE(t_nh_prog),      INTENT(IN)            :: p_prog       ! nonhydrostatic state
+    TYPE(t_nh_diag),      INTENT(IN)            :: p_diag
+    TYPE(t_nwp_phy_diag), INTENT(INOUT)         :: prm_diag     ! physics variables
+    INTEGER,              INTENT(IN)            :: jg           ! domain ID of the grid
+    REAL(wp),             INTENT(OUT)           :: vis_out(:,:) ! output variable
+    LOGICAL,              INTENT(IN), OPTIONAL  :: lacc         ! if true, use openacc
 
     !local variables
-    REAL(wp),POINTER ::   qv(:,:,:)  ! specific humidity (subgrid) 
-    REAL(wp),POINTER ::   qc(:,:,:)  ! cloud water (subgrid) 
-    REAL(wp),POINTER ::   qi(:,:,:)  ! cloud ice (subgrid) 
-    REAL(wp),POINTER ::   qr(:,:,:)  ! cloud water (subgrid) 
-    REAL(wp),POINTER ::   qs(:,:,:)  ! cloud water (subgrid) 
-    REAL(wp),POINTER ::   qg(:,:,:)  ! cloud water (subgrid) 
-    REAL(wp),POINTER ::   rho(:,:,:) ! total density (inkluding hydrometeors)
+    REAL(wp), POINTER ::   qv(:,:,:) ! specific humidity (subgrid)
+    REAL(wp), POINTER ::   qc(:,:,:) ! cloud water (subgrid)
+    REAL(wp), POINTER ::   qi(:,:,:) ! cloud ice (subgrid)
+    REAL(wp), POINTER ::   qr(:,:,:) ! cloud water (subgrid)
+    REAL(wp), POINTER ::   qs(:,:,:) ! cloud water (subgrid)
+    REAL(wp), POINTER ::   qg(:,:,:) ! cloud water (subgrid)
+    REAL(wp), POINTER ::  rho(:,:,:) ! total density (inkluding hydrometeors)
 
     ! specific tracer concentrations
     REAL(wp) :: Ccmax, Cimax, Crmax, Csmax, Cgmax
 
     ! parameters for vis parametrization
-    REAL(wp), parameter :: a_c = 144.7_wp, b_c = 0.88_wp  
-    REAL(wp), parameter :: a_i = 327.8_wp, b_i = 1.0_wp  
-    REAL(wp), parameter :: a_r = 2.24_wp,  b_r = 0.75_wp  
-    REAL(wp), parameter :: a_s_wet = 6.0_wp, a_s_dry = 10.0_wp, b_s = 1.0_wp  
-    REAL(wp), parameter :: a_g = 4.0_wp, b_g = 0.75_wp  
-    REAL(WP)            :: a_s, temp_fac, beta
+    REAL(wp), PARAMETER :: a_c = 144.7_wp, b_c = 0.88_wp
+    REAL(wp), PARAMETER :: a_i = 327.8_wp, b_i = 1.0_wp
+    REAL(wp), PARAMETER :: a_r = 2.24_wp, b_r = 0.75_wp
+    REAL(wp), PARAMETER :: a_s_wet = 6.0_wp, a_s_dry = 10.0_wp, b_s = 1.0_wp
+    REAL(wp), PARAMETER :: a_g = 4.0_wp, b_g = 0.75_wp
+    REAL(wp)            :: a_s, temp_fac, beta
     
     INTEGER, PARAMETER :: top_lev = 3  ! number of levels from ground used for vis diagnostic
 
     REAL(wp) :: vis, vis_night, visrh, qrh
     REAL(wp) :: pvsat, pv, rhmax, visrh_clip, &
 	     &  shear, shear_fac, czen, zen_fac
-    real(wp),allocatable :: rh(:)
+    REAL(wp), ALLOCATABLE :: rh(:,:)
 
     INTEGER :: i_rlstart,  i_rlend
     INTEGER :: i_startblk, i_endblk
     INTEGER :: i_startidx, i_endidx
-    INTEGER :: jc,  jk, jb,  nlev
+    INTEGER :: jc, jk, jb, nlev
+
+    LOGICAL :: lzacc ! non-optional version of lacc
+
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     ! local pointers
     rho => p_prog%rho
@@ -5793,11 +5795,11 @@ CONTAINS
     qi  => prm_diag%tot_ptr(iqi)%p_3d
     qr  => p_prog%tracer_ptr(iqr)%p_3d
     qs  => p_prog%tracer_ptr(iqs)%p_3d
-    IF(atm_phy_nwp_config(jg)%lhave_graupel)  qg => p_prog%tracer_ptr(iqg)%p_3d
+    IF(atm_phy_nwp_config(jg)%lhave_graupel) qg => p_prog%tracer_ptr(iqg)%p_3d
 
     ! some parameters
     nlev = size(qv,2)
-    allocate(rh(nlev-top_lev+1:nlev))
+    allocate(rh(nproma,nlev-top_lev+1:nlev))
     visrh_clip = 1.0_wp ! clip RH-VIS at this km
 
     ! without halo or boundary  points:
@@ -5807,6 +5809,9 @@ CONTAINS
     i_startblk = ptr_patch%cells%start_block( i_rlstart )
     i_endblk   = ptr_patch%cells%end_block  ( i_rlend   )
 
+    !$ACC DATA PRESENT(qc, qg, qi, qr, qs, qv, rho, vis_out) &
+    !$ACC   CREATE(rh) IF(lzacc)
+
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jc,jk,pvsat,pv,rh,rhmax,visrh,qrh,vis,vis_night,shear,shear_fac,&
 !$OMP     Ccmax,Cimax,Crmax,Csmax,Cgmax,temp_fac,a_s,beta,czen,zen_fac), ICON_OMP_RUNTIME_SCHEDULE
@@ -5814,48 +5819,56 @@ CONTAINS
 
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
-      DO jc = i_startidx, i_endidx
 
-        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        !!!  I) VIS due to relative humidity   !!!!!!!!!!
-        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!       
-
-        ! compute RH in lowest 'top_level' levels
-        DO jk = nlev, nlev-top_lev+1, -1   
-	      pvsat  = esat_water(p_diag%temp(jc,jk,jb))
-	      pv     = p_diag%pres(jc,jk,jb)*qv(jc,jk,jb)/( rdv + o_m_rdv * qv(jc,jk,jb) )
-	      rh(jk) = 100.0_wp* MIN(1.0_wp,pv/pvsat)
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !!!  I) VIS due to relative humidity   !!!!!!!!!!
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(pvsat, pv)
+      DO jk = nlev-top_lev+1, nlev
+        DO jc = i_startidx, i_endidx
+          ! compute RH in lowest 'top_level' levels
+          pvsat     = esat_water(p_diag%temp(jc,jk,jb))
+          pv        = p_diag%pres(jc,jk,jb)*qv(jc,jk,jb)/(rdv + o_m_rdv * qv(jc,jk,jb))
+          rh(jc,jk) = 100.0_wp * MIN(1.0_wp, pv/pvsat)
         END DO
+      END DO
+      !$ACC END PARALLEL
 
-	    ! maximum lower two levels
-	    rhmax = max(rh(nlev), rh(nlev-1) )
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR PRIVATE(a_s, beta) &
+      !$ACC   PRIVATE(Ccmax, Cgmax, Cimax, Crmax, Csmax) &
+      !$ACC   PRIVATE(czen, rhmax, shear, shear_fac, temp_fac) &
+      !$ACC   PRIVATE(vis, visrh, vis_night, zen_fac)
+      DO jc = i_startidx, i_endidx
+        ! maximum lower two levels
+        rhmax = MAX(rh(jc,nlev), rh(jc,nlev-1))
 
         ! vis due to haze parametrized as function of rh only, form found via fit to
         ! SYNOP station data over Germany from 11/2021
         IF (rhmax <= 40.0_wp) THEN
-          visrh =  88950.37269485_wp - 327.73380915_wp*rhmax
+          visrh = 88950.37269485_wp - 327.73380915_wp*rhmax
         ELSE IF (rhmax <= 98.2_wp) THEN
-          visrh =  2.74158753e-04_wp*rhmax**5 -8.04508715e-02_wp*rhmax**4 &
-            &   + 9.4148139_wp*rhmax**3 -5.78127237e+02_wp*rhmax**2       &
-		    &   + 1.82682914e+04_wp*rhmax - 1.54588988e+05_wp 
-        ELSE  
-          visrh =  -1171.04931497_wp*rhmax + 117111.72541055_wp 
+          visrh = 2.74158753e-04_wp*rhmax**5 - 8.04508715e-02_wp*rhmax**4 &
+            &   + 9.4148139_wp*rhmax**3 - 5.78127237e+02_wp*rhmax**2      &
+            &   + 1.82682914e+04_wp*rhmax - 1.54588988e+05_wp
+        ELSE
+          visrh = -1171.04931497_wp*rhmax + 117111.72541055_wp
         END IF
-        visrh = visrh/1000.0_wp !convert to units of km
+        visrh = visrh/1000.0_wp ! convert to units of km
 
         ! clip below X km
-        visrh = MAX(visrh,visrh_clip)  
+        visrh = MAX(visrh, visrh_clip)
 
         ! add term to increase RH vis term for
         ! low-level wind shear increasing from 4 to 6 ms-1
         ! (using Evan Kuchera's paper as a guideline)
         ! calculate term for shear in the lowest about 15 mb
         ! 15mb about 120 meters, so try lev nlev-2
-        shear     = sqrt(  (p_diag%u(jc,nlev-2,jb) - p_diag%u(jc,nlev,jb))**2 &
+        shear     = SQRT(  (p_diag%u(jc,nlev-2,jb) - p_diag%u(jc,nlev,jb))**2 &
           &       + (p_diag%v(jc,nlev-2,jb) - p_diag%v(jc,nlev,jb))**2  )
-        shear_fac = MIN( 1.0_wp, MAX(0.0_wp,(shear-4.0_wp)/2.0_wp) )
+        shear_fac = MIN( 1.0_wp, MAX(0.0_wp, (shear-4.0_wp)/2.0_wp) )
         IF (visrh < 10.0_wp) visrh = visrh + (10.0_wp-visrh) * shear_fac
-
 
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         !!!  II) VIS due to hydrometeors       !!!!!!!!!!
@@ -5890,24 +5903,23 @@ CONTAINS
         !!
         !!      vis = -ln(epsilon)/beta      [found in Kunkel (1984)]
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
         ! conversion to volumetric conentration.
         ! rho = V/m_tot (V is given by the grid anyway
         ! specific quantities q_k = m_k/m_tot -> C_k = q_k * rho  	
         ! maximize hydrometeors over lowest 'top_lev' levels, final unit= g/m^3
-        Ccmax = maxval(qc(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
-        Cimax = maxval(qi(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
-        Crmax = maxval(qr(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
-        Csmax = maxval(qs(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
+        Ccmax = MAXVAL(qc(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
+        Cimax = MAXVAL(qi(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
+        Crmax = MAXVAL(qr(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
+        Csmax = MAXVAL(qs(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
         IF (atm_phy_nwp_config(jg)%lhave_graupel) THEN
-          Cgmax = maxval(qg(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
+          Cgmax = MAXVAL(qg(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
         ELSE
           Cgmax = 0.0_wp
         END IF
 
         ! snow coefficient temperature dependent
-        temp_fac  = MIN( 1.0_wp, MAX((p_diag%temp(jc,nlev,jb)-271.15_wp),0.0_wp) )
-        a_s        = a_s_dry * (1.0_wp-temp_fac) + a_s_wet * temp_fac
+        temp_fac  = MIN( 1.0_wp, MAX((p_diag%temp(jc,nlev,jb)-271.15_wp), 0.0_wp) )
+        a_s       = a_s_dry * (1.0_wp-temp_fac) + a_s_wet * temp_fac
 
         ! calculate extinction coefficient  
         beta = a_c * Ccmax**b_c & ! cloud water	
@@ -5918,30 +5930,34 @@ CONTAINS
           &  + 1.0e-10_wp         ! small offsett to prevent zero division
 
         ! vis after koschmieder formula with 2 percent of initial beam intensity
-        vis = min(90.0_wp, -log(0.02)/beta)
+        vis = MIN(90.0_wp, -log(0.02)/beta)
 
         ! zenith angle
         czen = prm_diag%cosmu0(jc,jb)
 
         ! Dec 2003 - Roy Rasmussen (NCAR) expression for night vs. day vis
         ! 1.609 factor is number of km in mile.
-        vis_night = 1.69_wp *  ( (vis/1.609_wp)**0.86_wp ) * 1.609_wp
-        zen_fac   = MIN( 0.1_wp, MAX(czen, 0.0_wp) ) /  0.1_wp
+        vis_night = 1.69_wp * ( (vis/1.609_wp)**0.86_wp ) * 1.609_wp
+        zen_fac   = MIN( 0.1_wp, MAX(czen, 0.0_wp) ) / 0.1_wp
         vis       = zen_fac * vis + (1.0_wp-zen_fac) * vis_night
 
         ! take minumum from vis and visrh
-        vis = min(vis, visrh) 
+        vis = MIN(vis, visrh)
 
         ! convert to meter
         vis = vis * 1000.0_wp
 
         ! write to diagnostic field
         vis_out(jc,jb) = vis
-
       END DO ! jc
+      !$ACC END PARALLEL
+
     END DO ! jb
 !$OMP END DO NOWAIT    
 !$OMP END PARALLEL
+
+    !$ACC WAIT(1)
+    !$ACC END DATA
 
   END SUBROUTINE compute_field_visibility
 

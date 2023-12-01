@@ -154,12 +154,6 @@ MODULE mo_parallel_nml
     ! i.e. overlapping of reading data, communicating data and computing statistics
     LOGICAL :: use_omp_input
 
-    ! !!! OBSOLETE !!! Type of (halo) communication:
-    ! 1 = synchronous communication with local memory for exchange buffers
-    ! 3 = asynchronous communication within dynamical core with global memory
-    !     for exchange buffers (not yet implemented)
-    INTEGER :: itype_comm
-
     ! Order of send/receive sequence in exchange routines
     ! 1 = irecv, send
     ! 2 = isend, recv
@@ -201,8 +195,8 @@ MODULE mo_parallel_nml
       & p_test_run, num_test_pe, l_test_openmp,       &
       & num_restart_procs, proc0_shift,         &
       & num_io_procs,      pio_type,            &
-      & num_io_procs_radar, &
-      & itype_comm,        iorder_sendrecv,     &
+      & num_io_procs_radar,                     &
+      & iorder_sendrecv,                        &
       & nproma, nblocks_c,                      &
       & nproma_sub, nblocks_sub,                &
       & use_icon_comm, &
@@ -287,12 +281,6 @@ MODULE mo_parallel_nml
     ! i.e. overlapping of reading data, communicating data and computing statistics
     use_omp_input = .FALSE.
 
-    ! !!! OBSOLETE !!! Type of (halo) communication:
-    ! 1 = synchronous communication with local memory for exchange buffers
-    ! 3 = asynchronous communication within dynamical core with global memory
-    !     for exchange buffers (not yet implemented)
-    itype_comm = 1
-
     ! Order of send/receive sequence in exchange routines
     ! 1 = irecv, send
     ! 2 = isend, recv
@@ -349,13 +337,6 @@ MODULE mo_parallel_nml
       END IF
     END SELECT
     CALL close_nml
-
-    !----------------------------------------------------
-    ! Sanity check
-    !----------------------------------------------------
-    WRITE(message_text,'(a)') &
-      &  'Namelist switch itype_comm is obsolete and will soon be removed!'
-    CALL message("WARNING",message_text)
 
 
     !-----------------------------------------------------

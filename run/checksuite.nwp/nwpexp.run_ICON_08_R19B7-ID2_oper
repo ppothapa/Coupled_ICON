@@ -52,7 +52,7 @@ ln -sf $LBCDIR/ilbff*.grb .
 ln -sf $ICONDIR/externals/ecrad/data/* .
 
 # files needed for synsats
-cp $ICONDIR/data/rttov/const/rt13coeffs_rttov7pred54L/*.dat .
+cp ${icon_data_poolFolder}/externals/rttov/const/rt13coeffs_rttov7pred54L/*.dat .
 
 # radar data
 ln -sf $DATADIR/radar_dx.nc .

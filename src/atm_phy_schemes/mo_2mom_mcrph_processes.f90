@@ -116,7 +116,6 @@ MODULE mo_2mom_mcrph_processes
   USE mo_2mom_mcrph_config,         ONLY: t_cfg_2mom
   USE mo_2mom_mcrph_config_default, ONLY: cfg_2mom_default
   USE mo_2mom_mcrph_util, ONLY: &
-       & gfct,                       &  ! Gamma function (becomes intrinsic in Fortran2008)
        & rat2do3,                    &  ! rational function for lwf-melting scheme
        & dyn_visc_sutherland,        &  ! used in lwf melting scheme
        & Dv_Rasmussen,               &  ! used in lwf melting scheme
@@ -137,7 +136,7 @@ MODULE mo_2mom_mcrph_processes
        & set_qnh_expPSD_N0const,     &
        & estick_ltab_equi
 
-  USE mo_fortran_tools, ONLY: set_acc_host_or_device
+  USE mo_fortran_tools, ONLY: set_acc_host_or_device, assert_acc_device_only, init
 
   IMPLICIT NONE
 
@@ -483,10 +482,10 @@ CONTAINS
     INTEGER, INTENT(IN)        :: n
     CLASS(particle), INTENT(IN) :: parti
 
-    vent_coeff_a = parti%a_ven * gfct((parti%nu+n+parti%b_geo)/parti%mu)                 &
-         &                     / gfct((parti%nu+1.0_wp)/parti%mu)                        &
-         &                   * ( gfct((parti%nu+1.0_wp)/parti%mu)                        &
-         &                     / gfct((parti%nu+2.0_wp)/parti%mu) )**(parti%b_geo+n-1.0_wp)
+    vent_coeff_a = parti%a_ven * GAMMA((parti%nu+n+parti%b_geo)/parti%mu)                 &
+         &                     / GAMMA((parti%nu+1.0_wp)/parti%mu)                        &
+         &                   * ( GAMMA((parti%nu+1.0_wp)/parti%mu)                        &
+         &                     / GAMMA((parti%nu+2.0_wp)/parti%mu) )**(parti%b_geo+n-1.0_wp)
   END FUNCTION vent_coeff_a
 
   ! bulk ventilation coefficient, Eq. (89) of SB2006
@@ -498,10 +497,10 @@ CONTAINS
     REAL(wp), PARAMETER :: m_f = 0.500 ! see PK, S.541. Do not change.
 
     vent_coeff_b = parti%b_ven                                                  &
-         & * gfct((parti%nu+n+(m_f+1.0)*parti%b_geo+m_f*parti%b_vel)/parti%mu)  &
-         &             / gfct((parti%nu+1.0)/parti%mu)                          &
-         &           * ( gfct((parti%nu+1.0)/parti%mu)                          &
-         &             / gfct((parti%nu+2.0)/parti%mu)                          &
+         & * GAMMA((parti%nu+n+(m_f+1.0)*parti%b_geo+m_f*parti%b_vel)/parti%mu)  &
+         &             / GAMMA((parti%nu+1.0)/parti%mu)                          &
+         &           * ( GAMMA((parti%nu+1.0)/parti%mu)                          &
+         &             / GAMMA((parti%nu+2.0)/parti%mu)                          &
          &             )**((m_f+1.0_wp)*parti%b_geo+m_f*parti%b_vel+n-1.0_wp)
   END FUNCTION vent_coeff_b
 
@@ -511,8 +510,8 @@ CONTAINS
     INTEGER, INTENT(in)           :: n
     CLASS(particle), INTENT(in)   :: p
 
-    moment_gamma  = gfct((n+p%nu+1.0_wp)/p%mu) / gfct((p%nu+1.0_wp)/p%mu)        &
-         &      * ( gfct((  p%nu+1.0_wp)/p%mu) / gfct((p%nu+2.0_wp)/p%mu) )**n
+    moment_gamma  = GAMMA((n+p%nu+1.0_wp)/p%mu) / GAMMA((p%nu+1.0_wp)/p%mu)        &
+         &      * ( GAMMA((  p%nu+1.0_wp)/p%mu) / GAMMA((p%nu+2.0_wp)/p%mu) )**n
   END FUNCTION moment_gamma
 
   ! fractional mass moment of particle size distribution, i.e., this is
@@ -522,8 +521,8 @@ CONTAINS
     REAL(wp), INTENT(in) :: fexp
     CLASS(particle), INTENT(in)   :: p
 
-    fracmoment_gamma  = gfct((fexp+p%nu+1.0_wp)/p%mu) / gfct((p%nu+1.0_wp)/p%mu)        &
-         &          * ( gfct((     p%nu+1.0_wp)/p%mu) / gfct((p%nu+2.0_wp)/p%mu) )**fexp
+    fracmoment_gamma  = GAMMA((fexp+p%nu+1.0_wp)/p%mu) / GAMMA((p%nu+1.0_wp)/p%mu)        &
+         &          * ( GAMMA((     p%nu+1.0_wp)/p%mu) / GAMMA((p%nu+2.0_wp)/p%mu) )**fexp
   END FUNCTION fracmoment_gamma
 
   ! coefficient for slope of PSD, i.e., for lambda in Eq. (80) of SB2006
@@ -532,7 +531,7 @@ CONTAINS
     REAL(wp), INTENT(in) :: x
     CLASS(particle), INTENT(in)   :: p
 
-    lambda_gamma  = ( gfct((p%nu+1.0_wp)/p%mu) / gfct((p%nu+2.0_wp)/p%mu) * x)**(-p%mu)
+    lambda_gamma  = ( GAMMA((p%nu+1.0_wp)/p%mu) / GAMMA((p%nu+2.0_wp)/p%mu) * x)**(-p%mu)
   END FUNCTION lambda_gamma
 
   ! coefficient for general collision integral, Eq. (90) of SB2006
@@ -541,10 +540,10 @@ CONTAINS
     CLASS(particle), INTENT(in) :: p1
     INTEGER, INTENT(in)         :: n
 
-    coll_delta = gfct((2.0_wp*p1%b_geo+p1%nu+1.0_wp+n)/p1%mu)      &
-         &                     / gfct((p1%nu+1.0_wp  )/p1%mu)      &
-         &        * gfct((p1%nu+1.0)/p1%mu)**(2.0_wp*p1%b_geo+n)   &
-         &        / gfct((p1%nu+2.0)/p1%mu)**(2.0_wp*p1%b_geo+n)
+    coll_delta = GAMMA((2.0_wp*p1%b_geo+p1%nu+1.0_wp+n)/p1%mu)      &
+         &                     / GAMMA((p1%nu+1.0_wp  )/p1%mu)      &
+         &        * GAMMA((p1%nu+1.0)/p1%mu)**(2.0_wp*p1%b_geo+n)   &
+         &        / GAMMA((p1%nu+2.0)/p1%mu)**(2.0_wp*p1%b_geo+n)
     RETURN
   END FUNCTION coll_delta
 
@@ -569,14 +568,14 @@ CONTAINS
     CLASS(particle), INTENT(in) :: p1,p2
     INTEGER, INTENT(in)         :: n
 
-    coll_delta_12 = 2.0_wp * gfct((p1%b_geo+p1%nu+1.0_wp)/p1%mu)       &
-         &                          / gfct((p1%nu+1.0_wp)/p1%mu)       &
-         &                * gfct((p1%nu+1.0)/p1%mu)**(p1%b_geo)        &
-         &                / gfct((p1%nu+2.0)/p1%mu)**(p1%b_geo)        &
-         &              * gfct((p2%b_geo+p2%nu+1.0_wp+n)/p2%mu)        &
-         &                        /gfct((p2%nu+1.0_wp  )/p2%mu)        &
-         &                * gfct((p2%nu+1.0_wp)/p2%mu)**(p2%b_geo+n)   &
-         &                / gfct((p2%nu+2.0_wp)/p2%mu)**(p2%b_geo+n)
+    coll_delta_12 = 2.0_wp * GAMMA((p1%b_geo+p1%nu+1.0_wp)/p1%mu)       &
+         &                          / GAMMA((p1%nu+1.0_wp)/p1%mu)       &
+         &                * GAMMA((p1%nu+1.0)/p1%mu)**(p1%b_geo)        &
+         &                / GAMMA((p1%nu+2.0)/p1%mu)**(p1%b_geo)        &
+         &              * GAMMA((p2%b_geo+p2%nu+1.0_wp+n)/p2%mu)        &
+         &                        /GAMMA((p2%nu+1.0_wp  )/p2%mu)        &
+         &                * GAMMA((p2%nu+1.0_wp)/p2%mu)**(p2%b_geo+n)   &
+         &                / GAMMA((p2%nu+2.0_wp)/p2%mu)**(p2%b_geo+n)
     RETURN
   END FUNCTION coll_delta_12
 
@@ -585,10 +584,10 @@ CONTAINS
     CLASS(particle), INTENT(in) :: p1
     INTEGER, INTENT(in)         :: n
 
-    coll_theta = gfct((2.0_wp*p1%b_vel+2.0_wp*p1%b_geo+p1%nu+1.0_wp+n)/p1%mu)    &
-         &                     / gfct((2.0_wp*p1%b_geo+p1%nu+1.0_wp+n)/p1%mu)    &
-         &                     * gfct((p1%nu+1.0_wp)/p1%mu)**(2.0_wp*p1%b_vel)   &
-         &                     / gfct((p1%nu+2.0_wp)/p1%mu)**(2.0_wp*p1%b_vel)
+    coll_theta = GAMMA((2.0_wp*p1%b_vel+2.0_wp*p1%b_geo+p1%nu+1.0_wp+n)/p1%mu)    &
+         &                     / GAMMA((2.0_wp*p1%b_geo+p1%nu+1.0_wp+n)/p1%mu)    &
+         &                     * GAMMA((p1%nu+1.0_wp)/p1%mu)**(2.0_wp*p1%b_vel)   &
+         &                     / GAMMA((p1%nu+2.0_wp)/p1%mu)**(2.0_wp*p1%b_vel)
     RETURN
   END FUNCTION coll_theta
 
@@ -615,14 +614,14 @@ CONTAINS
     CLASS(particle), INTENT(in) :: p1,p2
     INTEGER, INTENT(in)         :: n
 
-    coll_theta_12 = 2.0_wp * gfct((p1%b_vel+2.0_wp*p1%b_geo+p1%nu+1.0_wp)/p1%mu)  &
-         &                          / gfct((2.0_wp*p1%b_geo+p1%nu+1.0_wp)/p1%mu)  &
-         &                   * gfct((p1%nu+1.0_wp)/p1%mu)**(p1%b_vel)             &
-         &                   / gfct((p1%nu+2.0_wp)/p1%mu)**(p1%b_vel)             &
-         &                * gfct((p2%b_vel+2.0_wp*p2%b_geo+p2%nu+1.0_wp+n)/p2%mu) &
-         &                         / gfct((2.0_wp*p2%b_geo+p2%nu+1.0_wp+n)/p2%mu) &
-         &                   * gfct((p2%nu+1.0_wp)/p2%mu)**(p2%b_vel)             &
-         &                   / gfct((p2%nu+2.0_wp)/p2%mu)**(p2%b_vel)
+    coll_theta_12 = 2.0_wp * GAMMA((p1%b_vel+2.0_wp*p1%b_geo+p1%nu+1.0_wp)/p1%mu)  &
+         &                          / GAMMA((2.0_wp*p1%b_geo+p1%nu+1.0_wp)/p1%mu)  &
+         &                   * GAMMA((p1%nu+1.0_wp)/p1%mu)**(p1%b_vel)             &
+         &                   / GAMMA((p1%nu+2.0_wp)/p1%mu)**(p1%b_vel)             &
+         &                * GAMMA((p2%b_vel+2.0_wp*p2%b_geo+p2%nu+1.0_wp+n)/p2%mu) &
+         &                         / GAMMA((2.0_wp*p2%b_geo+p2%nu+1.0_wp+n)/p2%mu) &
+         &                   * GAMMA((p2%nu+1.0_wp)/p2%mu)**(p2%b_vel)             &
+         &                   / GAMMA((p2%nu+2.0_wp)/p2%mu)**(p2%b_vel)
     RETURN
   END FUNCTION coll_theta_12
 
@@ -780,9 +779,9 @@ CONTAINS
     
     CHARACTER(len=*), PARAMETER :: sroutine = 'init_2mom_sedi_vel'
     
-    thisCoeffs%coeff_alfa_n = this%a_vel * gfct((this%nu+this%b_vel+1.0)/this%mu) / gfct((this%nu+1.0)/this%mu)
-    thisCoeffs%coeff_alfa_q = this%a_vel * gfct((this%nu+this%b_vel+2.0)/this%mu) / gfct((this%nu+2.0)/this%mu)
-    thisCoeffs%coeff_lambda = gfct((this%nu+1.0)/this%mu)/gfct((this%nu+2.0)/this%mu)
+    thisCoeffs%coeff_alfa_n = this%a_vel * GAMMA((this%nu+this%b_vel+1.0)/this%mu) / GAMMA((this%nu+1.0)/this%mu)
+    thisCoeffs%coeff_alfa_q = this%a_vel * GAMMA((this%nu+this%b_vel+2.0)/this%mu) / GAMMA((this%nu+2.0)/this%mu)
+    thisCoeffs%coeff_lambda = GAMMA((this%nu+1.0)/this%mu)/GAMMA((this%nu+2.0)/this%mu)
     
     IF (isprint) THEN
       WRITE (txt,'(2A)') "    name  = ",this%name ; CALL message(sroutine,TRIM(txt))
@@ -801,9 +800,9 @@ CONTAINS
     CLASS(particle), INTENT(in) :: parti
 
     D_average_factor = &
-         ( gfct( (parti%b_geo+parti%nu+1.0_wp)/parti%mu ) / &
-           gfct( (parti%nu+1.0_wp)/parti%mu ) ) * &
-         ( gfct( (parti%nu+1.0_wp)/parti%mu ) / gfct( (parti%nu+2.0_wp)/parti%mu ) ) ** parti%b_geo
+         ( GAMMA( (parti%b_geo+parti%nu+1.0_wp)/parti%mu ) / &
+           GAMMA( (parti%nu+1.0_wp)/parti%mu ) ) * &
+         ( GAMMA( (parti%nu+1.0_wp)/parti%mu ) / GAMMA( (parti%nu+2.0_wp)/parti%mu ) ) ** parti%b_geo
   END FUNCTION D_average_factor
 
   !*******************************************************************************
@@ -2533,10 +2532,10 @@ CONTAINS
     ELSE
       !.. see Eq. (3.44) of Seifert (2002)
       cloud_coeffs%k_au = kc_autocon / cloud%x_max * (1.0_wp / 20.0_wp)  &
-           & * ( 2.0_wp * gfct((nu+4.0_wp)/mu)**1                           &
-           &            * gfct((nu+2.0_wp)/mu)**1 * gfct((nu+1.0_wp)/mu)**2    &
-           &   - 1.0_wp * gfct((nu+3.0_wp)/mu)**2 * gfct((nu+1.0_wp)/mu)**2 )  &
-           &   / gfct((nu+2.0_wp)/mu)**4
+           & * ( 2.0_wp * GAMMA((nu+4.0_wp)/mu)**1                           &
+           &            * GAMMA((nu+2.0_wp)/mu)**1 * GAMMA((nu+1.0_wp)/mu)**2    &
+           &   - 1.0_wp * GAMMA((nu+3.0_wp)/mu)**2 * GAMMA((nu+1.0_wp)/mu)**2 )  &
+           &   / GAMMA((nu+2.0_wp)/mu)**4
       cloud_coeffs%k_sc = kc_autocon * cloud_coeffs%c_z
     ENDIF
 
@@ -5557,10 +5556,10 @@ CONTAINS
   ! Sedimentation subroutines for ICON
   !*******************************************************************************
 
-  SUBROUTINE sedi_icon_rain (rain,rain_coeffs,qp,np,precrate,precrate3D,qc,rhocorr,adz,dt, &
-      &                      its,ite,kts,kte,cmax) !
+  SUBROUTINE sedi_icon_rain (rain_in,rain_coeffs,qp,np,precrate,precrate3D,qc,rhocorr,adz,dt, &
+      &                      its,ite,kts,kte,cmax,lacc)
 
-    CLASS(particle), INTENT(in)             :: rain
+    CLASS(particle), TARGET,INTENT(in)      :: rain_in
     TYPE(particle_rain_coeffs), INTENT(in)  :: rain_coeffs
     INTEGER,  INTENT(IN)                    :: its,ite,kts,kte
     REAL(wp), DIMENSION(:,:), INTENT(INOUT) :: qp,np,precrate3D
@@ -5568,6 +5567,7 @@ CONTAINS
     REAL(wp), DIMENSION(:),   INTENT(INOUT) :: precrate
     REAL(wp), INTENT(IN)                    :: dt
     REAL(wp), INTENT(INOUT), OPTIONAL       :: cmax
+    CLASS(particle),POINTER                 :: rain ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     INTEGER  :: i, k
     REAL(wp) :: x_p,D_m,D_p,mue,v_n,v_q
@@ -5576,15 +5576,26 @@ CONTAINS
 
 !!$ Activate the new explicit and more stable boxtracking sedimentation method:
 !!$  (http://www.cosmo-model.org/content/model/documentation/core/docu_sedi_twomom.pdf)
-    LOGICAL, PARAMETER :: lboxtracking = .true.
+    LOGICAL, PARAMETER :: lboxtracking = .true. ! lboxtracking = .false. is not supported on GPU
 
-#ifdef _OPENACC
-    CALL finish("sedi_icon_rain", "Routine has not been ported to openACC yet.")
-#endif
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
-    v_n_sedi(:,kts-1) = 0.0_wp
-    v_q_sedi(:,kts-1) = 0.0_wp
-       
+    !-----------------------------------------------------------------------
+    CALL assert_acc_device_only("sedi_icon_rain", lacc)
+
+    !$ACC DATA CREATE(v_n_sedi, v_q_sedi)
+
+    rain => rain_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+    !$ACC LOOP GANG VECTOR
+    DO i = its,ite
+      v_n_sedi(i,kts-1) = 0.0_wp
+      v_q_sedi(i,kts-1) = 0.0_wp
+    ENDDO
+    !$ACC END PARALLEL
+
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(x_p, D_m, mue, D_p, v_n, v_q)
     DO k = kts,kte
       DO i = its,ite
 
@@ -5618,6 +5629,7 @@ CONTAINS
         ENDIF
       END DO
     END DO
+    !$ACC END PARALLEL
 
     IF (lboxtracking) THEN
       CALL sedi_icon_box_core(v_n_sedi, v_q_sedi, adz, dt, its, ite, kts, kte, &
@@ -5627,12 +5639,15 @@ CONTAINS
                           np, qp, precrate, precrate3D, cmax)
     END IF
 
+    !$ACC WAIT
+    !$ACC END DATA
+
   END SUBROUTINE sedi_icon_rain
 
-  SUBROUTINE sedi_icon_sphere (ptype,pcoeffs,qp,np,precrate,precrate3D,rhocorr,adz,dt, &
-      &                  its,ite,kts,kte,cmax) !
+  SUBROUTINE sedi_icon_sphere (ptype_in,pcoeffs,qp,np,precrate,precrate3D,rhocorr,adz,dt, &
+      &                  its,ite,kts,kte,cmax,lacc)
 
-    CLASS(particle), INTENT(in)             :: ptype
+    CLASS(particle),TARGET, INTENT(in)      :: ptype_in
     CLASS(particle_sphere), INTENT(in)      :: pcoeffs
     INTEGER, INTENT(IN)                     :: its,ite,kts,kte
     REAL(wp), DIMENSION(:,:), INTENT(INOUT) :: qp,np,precrate3D
@@ -5640,6 +5655,7 @@ CONTAINS
     REAL(wp), DIMENSION(:),   INTENT(INOUT) :: precrate
     REAL(wp), INTENT(IN)                    :: dt
     REAL(wp), INTENT(INOUT), OPTIONAL       :: cmax
+    CLASS(particle),POINTER                 :: ptype ! ACCWA (nvhpc 22.7, IPSF, see above)
 
     INTEGER  :: i, k
     REAL(wp) :: x_p,v_n,v_q,lam
@@ -5648,15 +5664,28 @@ CONTAINS
 
 !!$ Activate the new explicit and more stable boxtracking sedimentation method:
 !!$  (http://www.cosmo-model.org/content/model/documentation/core/docu_sedi_twomom.pdf)
-    LOGICAL, PARAMETER :: lboxtracking = .true.
+    LOGICAL, PARAMETER :: lboxtracking = .true. ! lboxtracking = .false. is not supported on GPU
 
-#ifdef _OPENACC
-    CALL finish("sedi_icon_sphere", "Routine has not been ported to openACC yet.")
-#endif
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
-    v_n_sedi(:, kts-1) = 0.0_wp
-    v_q_sedi(:, kts-1) = 0.0_wp
+    !-----------------------------------------------------------------------
+    CALL assert_acc_device_only("sedi_icon_sphere", lacc)
 
+    !$ACC DATA CREATE(v_n_sedi, v_q_sedi)
+
+    ptype => ptype_in ! ACCWA (nvhpc 22.7, IPSF, see above)
+
+
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+    !$ACC LOOP GANG VECTOR
+    DO i = its,ite
+      v_n_sedi(i, kts-1) = 0.0_wp
+      v_q_sedi(i, kts-1) = 0.0_wp
+    ENDDO
+    !$ACC END PARALLEL
+
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(x_p, lam, v_n, v_q)
     DO k = kts,kte
       DO i = its,ite
         IF (qp(i,k) > q_crit) THEN
@@ -5681,6 +5710,7 @@ CONTAINS
         END IF
       END DO
     END DO
+    !$ACC END PARALLEL
 
     IF (lboxtracking) THEN
       CALL sedi_icon_box_core(v_n_sedi, v_q_sedi, adz, dt, its, ite, kts, kte, &
@@ -5690,12 +5720,18 @@ CONTAINS
                           np, qp, precrate, precrate3D, cmax)
     END IF
 
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO k=kts,kte
       DO i = its,ite
         np(i,k) = MIN(np(i,k), qp(i,k)/ptype%x_min)
         np(i,k) = MAX(np(i,k), qp(i,k)/ptype%x_max)
       END DO
     END DO
+    !$ACC END PARALLEL
+
+    !$ACC WAIT
+    !$ACC END DATA
 
   END SUBROUTINE sedi_icon_sphere
 
@@ -5721,7 +5757,7 @@ CONTAINS
 
 !!$ Activate the new explicit and more stable boxtracking sedimentation method:
 !!$  (http://www.cosmo-model.org/content/model/documentation/core/docu_sedi_twomom.pdf)
-    LOGICAL, PARAMETER :: lboxtracking = .true.
+    LOGICAL, PARAMETER :: lboxtracking = .true. ! lboxtracking = .false. is not supported on GPU
 
 #ifdef _OPENACC
     CALL finish("sedi_icon_sphere_lwf", "Routine has not been ported to openACC yet.")
@@ -5917,6 +5953,10 @@ CONTAINS
     INTEGER :: i, k, kk, k_c, k_p
     REAL(wp) :: cmax_temp, odt, cmax_j
 
+#ifdef _OPENACC
+    CALL finish("mo_2mom_mcrph_processes", "sedi_icon_core is not supported on GPU")
+#endif
+
     dz(its:ite,kts:kte) = 1.0_wp / adz(its:ite,kts:kte)
 
     odt = 1.0_wp / dt
@@ -6020,6 +6060,10 @@ CONTAINS
     INTEGER :: i, k, kk, k_c, k_p
     REAL(wp) :: cmax_temp, odt
 
+#ifdef _OPENACC
+    CALL finish("mo_2mom_mcrph_processes", "sedi_icon_core is not supported on GPU")
+#endif
+
     dz(its:ite,kts:kte) = 1.0_wp / adz(its:ite,kts:kte)
 
     odt = 1.0_wp / dt
@@ -6108,6 +6152,10 @@ CONTAINS
     REAL(wp), DIMENSION(its:ite,kts:kte)   :: s_nv, s_qv
     REAL(wp), DIMENSION(its:ite,kts:kte+1) :: dz
     REAL(wp)                               :: cmax_temp, cmax_j, odt
+
+#ifdef _OPENACC
+    CALL finish("mo_2mom_mcrph_processes", "The NEC version of sedi_icon_box_core is not supported on GPU")
+#endif
 
     dz(its:ite,kts:kte) = 1.0_wp / adz(its:ite,kts:kte)
     ! .. dummy value for level kte+1, does not have an effect but is needed
@@ -6226,16 +6274,33 @@ CONTAINS
     REAL(wp), DIMENSION(its:ite,kts:kte+1) :: dz
     REAL(wp)                               :: cmax_temp, odt, dz_loc
 
-    dz(its:ite,kts:kte) = 1.0_wp / adz(its:ite,kts:kte)
-    ! .. dummy value for level kte+1, does not have an effect but is needed
-    !    to prevent an array bound violation below:
-    dz(its:ite,kte+1) = dz(its:ite,kte)
+    !$ACC DATA CREATE(q_fluss, n_fluss, s_nv, s_qv, dz)
+
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+    DO k = kts, kte
+      DO i = its,ite
+        dz(i,k) = 1.0_wp / adz(i,k)
+        IF (k == kte) THEN
+          ! .. dummy value for level kte+1, does not have an effect but is needed
+          !    to prevent an array bound violation below:
+          dz(i,k+1) = dz(i,k)
+        ENDIF
+      ENDDO
+    ENDDO
+    !$ACC END PARALLEL
 
     odt = 1.0_wp / dt
 
-    ! .. Upper boundary condition on fluxes:
-    q_fluss(:, 1-IAND(kts, 1))  = 0.0_wp
-    n_fluss(:, 1-IAND(kts, 1))  = 0.0_wp
+
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+    !$ACC LOOP GANG VECTOR
+    DO i = its,ite
+      ! .. Upper boundary condition on fluxes:
+      q_fluss(i, 1-IAND(kts, 1))  = 0.0_wp
+      n_fluss(i, 1-IAND(kts, 1))  = 0.0_wp
+    ENDDO
+    !$ACC END PARALLEL
 
     IF (PRESENT(cmax)) THEN
       cmax_temp = cmax
@@ -6243,10 +6308,13 @@ CONTAINS
       cmax_temp = 0.0_wp
     END IF
 
-    s_nv(:,:) = 0.0_wp
-    s_qv(:,:) = 0.0_wp
+    CALL init(s_nv, opt_acc_async=.TRUE.)
+    CALL init(s_qv, opt_acc_async=.TRUE.)
 
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) REDUCTION(MAX: cmax_temp)
+    !$ACC LOOP SEQ
     DO k = kts, kte
+      !$ACC LOOP GANG VECTOR PRIVATE(v_nv, v_qv, kk, dz_loc) REDUCTION(MAX: cmax_temp)
       DO i = its,ite
 
         v_nv = v_n_sedi(i,k)
@@ -6277,19 +6345,28 @@ CONTAINS
 
       END DO
     END DO
+    !$ACC END PARALLEL
 
     ! .. Divide the time-aggregated flux by dt to get the time-averaged
     !    flux and give a negative sign because fluxes are directed downward:
 
-    s_nv(:,:) = -s_nv(:,:) * odt
-    s_qv(:,:) = -s_qv(:,:) * odt
-
-
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO k = kts, kte
+      DO i = its,ite
+        s_nv(i,k) = -s_nv(i,k) * odt
+        s_qv(i,k) = -s_qv(i,k) * odt
+      END DO
+    END DO
+    !$ACC END PARALLEL
 
+
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+    !$ACC LOOP SEQ
+    DO k = kts, kte
       k_c = IAND(k, 1)
       k_p = 1-IAND(k, 1)
-
+      !$ACC LOOP GANG VECTOR
       DO i = its,ite
 
         ! .. Flux-limiter to avoid negative values:
@@ -6304,10 +6381,19 @@ CONTAINS
 
       ENDDO
     END DO
+    !$ACC END PARALLEL
 
     IF (PRESENT(cmax)) cmax = cmax_temp
 
-    precrate(its:ite) = - q_fluss(its:ite,IAND(kte, 1)) ! precipitation rate at ground
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+    !$ACC LOOP GANG VECTOR
+    DO i = its,ite
+      precrate(i) = - q_fluss(i,IAND(kte, 1)) ! precipitation rate at ground
+    ENDDO
+    !$ACC END PARALLEL
+
+    !$ACC WAIT
+    !$ACC END DATA
 
   END SUBROUTINE sedi_icon_box_core
 #endif

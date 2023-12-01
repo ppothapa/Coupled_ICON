@@ -41,12 +41,12 @@ MODULE mo_nwp_diagnosis
   USE mo_parallel_config,    ONLY: nproma, proc0_offloading
   USE mo_lnd_nwp_config,     ONLY: nlev_soil, ntiles_total
   USE mo_nwp_lnd_types,      ONLY: t_lnd_diag, t_wtr_prog, t_lnd_prog
-  USE mo_physical_constants, ONLY: tmelt, grav, cpd, vtmpc1
+  USE mo_physical_constants, ONLY: tmelt, grav, cpd, vtmpc1, dtdz_standardatm
   USE mo_atm_phy_nwp_config, ONLY: atm_phy_nwp_config
   USE mo_advection_config,   ONLY: advection_config
   USE mo_io_config,          ONLY: lflux_avg, uh_max_zmin, uh_max_zmax, &
     &                              luh_max_out, uh_max_nlayer, var_in_output, &
-    &                              itype_dursun, itype_convindices, t_var_in_output
+    &                              itype_dursun, itype_convindices, itype_hzerocl, t_var_in_output
   USE mo_sync,               ONLY: global_max, global_min
   USE mo_vertical_coord_table,  ONLY: vct_a
   USE mo_satad,              ONLY: sat_pres_water, spec_humi
@@ -1310,7 +1310,7 @@ CONTAINS
 
       !
       ! height of 0 deg C level "hzerocl". Take uppermost freezing level in case of multiple 
-      ! occurrences, use orography height if temperature is below freezing in all levels
+      ! occurrences, use method specified by itype_herzocl in case of no occurance
       !
       ! Initialization with orography height
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
@@ -1323,16 +1323,35 @@ CONTAINS
       DO jk = kstart_moist+1, nlev
         !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx 
-          IF ( prm_diag%hzerocl(jc,jb) <= p_metrics%z_ifc(jc,nlevp1,jb)) THEN ! freezing level found
-            IF (pt_diag%temp(jc,jk-1,jb) < tmelt .AND. pt_diag%temp(jc,jk,jb) >= tmelt) THEN
-              prm_diag%hzerocl(jc,jb) = p_metrics%z_mc(jc,jk-1,jb) -            &
-            &      ( p_metrics%z_mc(jc,jk-1,jb) - p_metrics%z_mc(jc,jk,jb) )*  &
-            &      (    pt_diag%temp(jc,jk-1,jb) - tmelt ) /                   &
-            &      (    pt_diag%temp(jc,jk-1,jb) - pt_diag%temp(jc,jk,jb) )
-            END IF
+          IF ( prm_diag%hzerocl(jc,jb) /= p_metrics%z_ifc(jc,nlevp1,jb)) THEN ! freezing level found
+            CYCLE
+          ELSE IF ( pt_diag%temp(jc,jk-1,jb) < tmelt .AND. pt_diag%temp(jc,jk,jb) >= tmelt ) THEN
+            prm_diag%hzerocl(jc,jb) = p_metrics%z_mc(jc,jk-1,jb) -             &
+            &      ( p_metrics%z_mc(jc,jk-1,jb) - p_metrics%z_mc(jc,jk,jb) ) * &
+            &      ( pt_diag%temp  (jc,jk-1,jb) - tmelt ) /                    &
+            &      ( pt_diag%temp  (jc,jk-1,jb) - pt_diag%temp  (jc,jk,jb) )
           END IF
         ENDDO
       ENDDO
+
+      IF (itype_hzerocl == 2) THEN
+        ! where no freezing level found, set hzerocl to -999.0_wp (undef)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = i_startidx, i_endidx
+          IF (prm_diag%hzerocl(jc,jb) == p_metrics%z_ifc(jc,nlevp1,jb)) THEN ! no freezing level found
+            prm_diag%hzerocl(jc,jb) = -999.0_wp
+          END IF
+        ENDDO
+      ELSE IF (itype_hzerocl == 3) THEN
+        ! where no freezing level found, set hzerocl to extrapolated value below ground (assuming -6.5 K/km)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = i_startidx, i_endidx
+          IF (prm_diag%hzerocl(jc,jb) == p_metrics%z_ifc(jc,nlevp1,jb)) THEN ! no freezing level found
+            prm_diag%hzerocl(jc,jb) = MAX(0._wp, &
+            &    p_metrics%z_mc(jc,nlev,jb) + (tmelt - pt_diag%temp(jc,nlev,jb))/dtdz_standardatm)
+          END IF
+        ENDDO
+      END IF
       !$ACC END PARALLEL
 
 

@@ -24,7 +24,7 @@ MODULE mo_advection_utils
 
   USE mo_kind,                  ONLY: wp
   USE mo_impl_constants,        ONLY: MAX_CHAR_LENGTH, inwp, ICOSMO,     &
-    &                                 IEDMF, IPROG, VNAME_LEN,           &
+    &                                 IPROG, VNAME_LEN,                  &
     &                                 MAX_CHAR_LENGTH
   USE mo_exception,             ONLY: message, message_text, finish
   USE mo_fortran_tools,         ONLY: t_ptr_2d3d
@@ -242,7 +242,7 @@ CONTAINS
     &                             advection_config,                            &
     &                             iqv, iqc, iqi, iqr, iqs, iqt, iqg, iqni,     &
     &                             iqh, iqnr, iqns, iqng, iqnh, iqnc,           &
-    &                             iqgl, iqhl, inccn, iqtvar, ininact, ininpot, &
+    &                             iqgl, iqhl, inccn, ininact, ininpot,         &
     &                             iqtke, iqm_max, ntracer, nqtendphy, nclass_gscp, &
     &                             iqbin, iqb_i, iqb_e, iqb_s)
     INTEGER,                  INTENT(IN)    :: iforcing, n_dom
@@ -255,7 +255,7 @@ CONTAINS
     TYPE(t_advection_config), INTENT(INOUT) :: advection_config(:)
     INTEGER,                  INTENT(INOUT) :: iqv, iqc, iqi, iqr, iqs, iqt, iqg, &
       &                                        iqni, iqh, iqnr, iqns, iqng, iqnh, &
-      &                                        iqnc, iqgl, iqhl, inccn, iqtvar,   &
+      &                                        iqnc, iqgl, iqhl, inccn,           &
       &                                        ininact, ininpot, iqtke,           &
       &                                        iqb_i, iqb_e, iqb_s
     INTEGER, DIMENSION(:),    INTENT(INOUT) :: iqbin
@@ -507,13 +507,6 @@ CONTAINS
 
       END SELECT ! microphysics schemes
 
-
-      IF (inwp_turb(1) == iedmf) THEN ! EDMF turbulence
-        iqtvar = iqt ; advection_config(:)%tracer_names(iqtvar) = 'qtvar' !! qt variance
-        iqt    = iqt + 1   !! start index of other tracers than hydrometeors
-
-        ntracer = ntracer + 1  !! increase total number of tracers by 1
-      ENDIF
 
       IF ( (advection_config(1)%iadv_tke) > 0 ) THEN
         IF ( ANY( (/icosmo,iprog/) == inwp_turb(1) ) ) THEN

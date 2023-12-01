@@ -90,12 +90,6 @@ AC_ARG_ENABLE([atmo],
   [AS_IF([test x"$enableval" != xno], [enable_atmo=yes])],
   [enable_atmo=yes])
 
-AC_ARG_ENABLE([edmf],
-  [AS_HELP_STRING([--enable-edmf],
-     [enable the EDMF turbulence component of ICON @<:@default=yes@:>@])],
-  [AS_IF([test x"$enableval" != xno], [enable_edmf=yes])],
-  [enable_edmf=yes])
-
 AC_ARG_ENABLE([les],
   [AS_HELP_STRING([--enable-les],
      [enable the Large-Eddy Simulation component of ICON @<:@default=yes@:>@])],
@@ -193,6 +187,21 @@ AC_ARG_ENABLE([art],
 @<:@default=no@:>@])],
   [AS_IF([test x"$enableval" != xno], [enable_art=yes])],
   [enable_art=no])
+
+AC_ARG_ENABLE([hd],
+[  --enable-hd             enable the Hydrological Discharge (HD) model. The
+                          value of the argument must be one of the following
+                          @<:@default=no@:>@:
+                            05deg|yes  enable for the 0.5-degree global domain
+                            5min       enable for the 5min global domain
+                            no         disable the HD model],
+[AS_CASE([$enableval],
+   [yes], [enable_hd=05deg],
+   [05deg|5min|no], [],
+   [AC_MSG_ERROR([unexpected value for the argument dnl
+--enable-hd='$enableval'; valid values are '05deg', 'yes' (same dnl
+as '05deg'), '5min', 'no'])])],
+[enable_hd=no])
 
 m4_divert_once([HELP_ENABLE], [[
 Infrastructural Features:]])
@@ -601,18 +610,13 @@ AS_VAR_IF([enable_jsbach], [yes],
 ($icon_subdir_unique_file) in '$icon_subdir_srcdir': disable the component dnl
 (--disable-jsbach)])])])
 
-icon_dace_enabled_or_needed=no
-AS_IF([test x"$enable_dace" = xyes || test x"$enable_emvorado" = xyes],
-  [icon_dace_enabled_or_needed=yes])
-
-AS_VAR_IF([icon_dace_enabled_or_needed], [yes],
+AS_VAR_IF([enable_dace], [yes],
   [icon_subdir_srcdir="$srcdir/externals/dace_icon"
    icon_subdir_unique_file="src_for_icon/mo_fdbk_tables.f90"
    AS_IF([test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"],
      [AC_MSG_ERROR([unable to find sources of the DACE modules for data dnl
 assimilation ($icon_subdir_unique_file) in '$icon_subdir_srcdir': disable dnl
-the modules (--disable-dace) and the radar forward operator EMVORADO dnl
-(--disable-emvorado)])])])
+the component (--disable-dace)])])])
 
 AS_VAR_IF([enable_emvorado], [yes],
   [icon_subdir_srcdir="$srcdir/externals/emvorado"
@@ -620,7 +624,11 @@ AS_VAR_IF([enable_emvorado], [yes],
    AS_IF([test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"],
      [AC_MSG_ERROR([unable to find sources of the radar forward operator dnl
 EMVORADO ($icon_subdir_unique_file) in '$icon_subdir_srcdir': disable the dnl
-operator (--disable-emvorado)])])])
+operator (--disable-emvorado)])])
+   AS_VAR_IF([enable_dace], [no],
+     [AC_MSG_WARN([the radar forward operator EMVORADO is enabled but the dnl
+DACE modules for data assimilation are disabled: EMVORADO will not be able dnl
+to produce the FEEDBACK (fdbk) files for data assimilation])])])
 
 AS_VAR_IF([enable_art], [yes],
   [icon_subdir_srcdir="$srcdir/externals/art"
@@ -764,9 +772,6 @@ AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__ICON__"])
 AS_VAR_IF([enable_atmo], [no],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_ICON_ATMO__"])])
 
-AS_VAR_IF([enable_edmf], [no],
-  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_ICON_EDMF__"])])
-
 AS_VAR_IF([enable_les], [no],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_ICON_LES__"])])
 
@@ -814,8 +819,9 @@ AS_VAR_IF([enable_dace], [yes],
 
 AS_VAR_IF([enable_emvorado], [yes],
   [AS_VAR_APPEND([FCFLAGS],
-     [" ${FC_PP_DEF}HAVE_RADARFWO ${FC_PP_DEF}NUDGING dnl
-${FC_PP_DEF}TWOMOM_SB_NEW"])])
+     [" ${FC_PP_DEF}HAVE_RADARFWO ${FC_PP_DEF}TWOMOM_SB_NEW"])
+   AS_VAR_IF([enable_dace], [yes],
+     [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}NUDGING"])])])
 
 AS_VAR_IF([enable_art], [yes],
   [AS_VAR_APPEND([FCFLAGS],
@@ -1105,8 +1111,7 @@ available], [icon_cv_have_mpi],
        call mpi_init(error)]])],
         [icon_cv_have_mpi=yes])])
    AS_VAR_IF([icon_cv_have_mpi], [yes],
-     [AS_IF([test x"$icon_dace_enabled_or_needed" = xyes || dnl
-test x"$enable_rttov" = xyes],
+     [AS_IF([test x"$enable_dace" = xyes || test x"$enable_rttov" = xyes],
         [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}HAVE_MPI_MOD"])])],
      [AC_MSG_FAILURE([unable to link a test program using the Fortran 90 dnl
 interface of MPI library: either disable MPI support (--disable-mpi) and the dnl
@@ -2322,6 +2327,58 @@ dnl Set non-existing build type to avoid extra compiler flags:
 dnl Prepend the include search flags to FCFLAGS:
 AS_IF([test -n "$bundled_includes"], [FCFLAGS="${bundled_includes}${FCFLAGS}"])
 
+############################# BUNDLED EXECUTABLES ##############################
+
+AS_IF([test x"$enable_hd" != xno],
+  [icon_subdir_srcdir="$srcdir/externals/hd"
+   icon_subdir_unique_file="code/src/hd_driver.f90"
+   AS_IF([test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"],
+     [AC_MSG_ERROR([unable to find sources of the bundled version of dnl
+HD model ($icon_subdir_unique_file) in '$icon_subdir_srcdir': disable dnl
+building of the bundled Hydrological Discharge (HD) model dnl
+(--without-bundled-hd)])])
+      AC_ARG_VAR([ICON_HD_FCFLAGS],
+        [Fortran compiler flags to be appended to FCFLAGS when configuring the
+bundled version of HD model @<:@default=$ICON_BUNDLED_FCFLAGS@:>@])dnl
+      ICON_HD_FCFLAGS=${ICON_HD_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
+      ACX_SUBDIR_INIT_CONFIG([externals/hd], [no-run])
+      ACX_SUBDIR_REMOVE_ARGS([externals/hd],
+        [BUILD_ENV=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*],
+        [MPI_FCFLAGS=*|MPI_FCLIBS=*|NETCDF_FCFLAGS=*|NETCDF_FCLIBS=*],
+        [YAC_FCFLAGS=*|YAC_FCLIBS=*|PKG_CONFIG=*],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([rpaths])],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([silent-rules])],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([mpi])],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([resolution])],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([coupling])])
+      ACX_SUBDIR_APPEND_ARGS([externals/hd],
+        [FCFLAGS="$subdir_FCFLAGS $ICON_HD_FCFLAGS"],
+        [MPI_FCFLAGS=], [MPI_FCLIBS=], [NETCDF_FCFLAGS=], [NETCDF_FCLIBS=],
+        [YAC_FCLIBS=], [PKG_CONFIG=], [--enable-rpaths="$enable_rpaths"],
+        [--enable-silent-rules="$enable_silent_rules"],
+        [--enable-mpi="$enable_mpi"], [--enable-resolution="$enable_hd"],
+        [--enable-coupling="$enable_coupling"])
+      AS_VAR_IF([enable_coupling], [yes],
+        [AS_VAR_IF([with_external_yac], [yes],
+           [ACX_SUBDIR_APPEND_ARGS([externals/hd], [YAC_FCFLAGS=])],
+           [icon_hd_yac_lib=dnl
+"${icon_abs_top_builddir}/externals/yac/src/libyac.a"
+            AS_VAR_IF([with_external_mtime], [no],
+              [AS_VAR_APPEND([icon_hd_yac_lib],
+                 [dnl
+" ${icon_abs_top_builddir}/externals/mtime/src/.libs/libmtime.a"])])
+            AS_VAR_IF([with_external_yaxt], [no],
+              [AS_VAR_APPEND([icon_hd_yac_lib],
+                 [dnl
+" ${icon_abs_top_builddir}/externals/yaxt/src/.libs/libyaxt_c.a"])])
+            ACX_SUBDIR_APPEND_ARGS([externals/hd],
+              [YAC_FCFLAGS=dnl
+"${FC_MOD_IN}${icon_abs_top_builddir}/externals/yac/src"],
+              [acx_cv_fc_module_MO_YAC_FINTERFACE=yes],
+              [acx_cv_fc_lib_func_YAC_FGET_VERSION="${icon_hd_yac_lib}"])])])])
+
+######################## BUNDLED PACKAGES FINALIZATION #########################
+
 dnl Generate lists of the build directories of all active Autoconf-based and
 dnl CMake-based bundled libraries:
 AC_SUBST([icon_bundled_config_subdirs], [''])
@@ -2471,9 +2528,9 @@ AS_VAR_IF([enable_jsbach], [yes],
   [AC_SUBST([JSBACH_ENABLED], [''])],
   [AC_SUBST([JSBACH_ENABLED], ['#'])])
 
-AS_VAR_IF([icon_dace_enabled_or_needed], [yes],
-  [AC_SUBST([DACE_ENABLED_OR_NEEDED], [''])],
-  [AC_SUBST([DACE_ENABLED_OR_NEEDED], ['#'])])
+AS_VAR_IF([enable_dace], [yes],
+  [AC_SUBST([DACE_ENABLED], [''])],
+  [AC_SUBST([DACE_ENABLED], ['#'])])
 
 AS_VAR_IF([enable_emvorado], [yes],
   [AC_SUBST([EMVORADO_ENABLED], [''])],
@@ -2482,6 +2539,10 @@ AS_VAR_IF([enable_emvorado], [yes],
 AS_VAR_IF([enable_art], [yes],
   [AC_SUBST([ART_ENABLED], [''])],
   [AC_SUBST([ART_ENABLED], ['#'])])
+
+AS_VAR_IF([enable_hd], [no],
+  [AC_SUBST([HD_ENABLED], ['#'])],
+  [AC_SUBST([HD_ENABLED], [''])])
 
 AS_VAR_IF([enable_mpi], [yes],
   [AC_SUBST([MPI_ENABLED], [''])],

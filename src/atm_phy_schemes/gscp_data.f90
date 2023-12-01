@@ -29,8 +29,6 @@ USE mo_physical_constants, ONLY: r_v   => rv    , & !> gas constant for water va
                                  t0    => tmelt,  & !! melting temperature of ice/snow
                                  rhoi               !! Density of ice (kg/m^3)
 
-USE mo_math_utilities    , ONLY: gamma_fct
-
 USE mo_exception,          ONLY: finish, message, message_text
 USE mo_reff_types,         ONLY: t_reff_calc
 
@@ -321,14 +319,14 @@ SUBROUTINE gscp_set_coefficients (igscp, idbg, tune_zceff_min, tune_v0snow, tune
   ENDIF
 
   zconst = zkcau / (20.0_wp*zxstar) * (zcnue+2.0_wp)*(zcnue+4.0_wp)/(zcnue+1.0_wp)**2
-  ccsrim = 0.25_wp*pi*zecs*v0snow*gamma_fct(zv1s+3.0_wp)
-  ccsagg = 0.25_wp*pi*v0snow*gamma_fct(zv1s+3.0_wp)
-  ccsdep = 0.26_wp*gamma_fct((zv1s+5.0_wp)/2.0_wp)*SQRT(1.0_wp/zeta)
+  ccsrim = 0.25_wp*pi*zecs*v0snow*GAMMA(zv1s+3.0_wp)
+  ccsagg = 0.25_wp*pi*v0snow*GAMMA(zv1s+3.0_wp)
+  ccsdep = 0.26_wp*GAMMA((zv1s+5.0_wp)/2.0_wp)*SQRT(1.0_wp/zeta)
   ccsvxp = -(zv1s/(zbms+1.0_wp)+1.0_wp)
-  ccsvel = zams*v0snow*gamma_fct(zbms+zv1s+1.0_wp)      &
-          *(zams*gamma_fct(zbms+1.0_wp))**ccsvxp
+  ccsvel = zams*v0snow*GAMMA(zbms+zv1s+1.0_wp)      &
+          *(zams*GAMMA(zbms+1.0_wp))**ccsvxp
   ccsvxp = ccsvxp + 1.0_wp
-  ccslam = zams*gamma_fct(zbms+1.0_wp)
+  ccslam = zams*GAMMA(zbms+1.0_wp)
   ccslxp = 1.0_wp / (zbms+1.0_wp)
   ccswxp = zv1s*ccslxp
   ccsaxp = -(zv1s+3.0_wp)
@@ -338,15 +336,15 @@ SUBROUTINE gscp_set_coefficients (igscp, idbg, tune_zceff_min, tune_v0snow, tune
   ccidep = 4.0_wp * zami**(-x1o3)
   zn0r   = 8.0E6_wp * EXP(3.2_wp*mu_rain) * (0.01_wp)**(-mu_rain)  ! empirical relation adapted from Ulbrich (1983)
   zn0r   = zn0r * rain_n0_factor                                   ! apply tuning factor to zn0r variable
-  zar    = pi*zrhow/6.0_wp * zn0r * gamma_fct(mu_rain+4.0_wp)      ! pre-factor in lambda of rain
+  zar    = pi*zrhow/6.0_wp * zn0r * GAMMA(mu_rain+4.0_wp)      ! pre-factor in lambda of rain
   zcevxp = (mu_rain+2.0_wp)/(mu_rain+4.0_wp)
-  zcev   = 2.0_wp*pi*zdv/zhw*zn0r*zar**(-zcevxp) * gamma_fct(mu_rain+2.0_wp)
+  zcev   = 2.0_wp*pi*zdv/zhw*zn0r*zar**(-zcevxp) * GAMMA(mu_rain+2.0_wp)
   zbevxp = (2.0_wp*mu_rain+5.5_wp)/(2.0_wp*mu_rain+8.0_wp)-zcevxp
   zbev   =  0.26_wp * SQRT(    zrho0*130.0_wp/zeta)*zar**(-zbevxp) &
-           * gamma_fct((2.0_wp*mu_rain+5.5_wp)/2.0_wp) / gamma_fct(mu_rain+2.0_wp)
+           * GAMMA((2.0_wp*mu_rain+5.5_wp)/2.0_wp) / GAMMA(mu_rain+2.0_wp)
 
   zvzxp  = 0.5_wp/(mu_rain+4.0_wp)
-  zvz0r  = 130.0_wp*gamma_fct(mu_rain+4.5_wp)/gamma_fct(mu_rain+4.0_wp)*zar**(-zvzxp)
+  zvz0r  = 130.0_wp*GAMMA(mu_rain+4.5_wp)/GAMMA(mu_rain+4.0_wp)*zar**(-zvzxp)
 
   IF (PRESENT(idbg)) THEN
     IF (idbg > 10) THEN
@@ -476,8 +474,8 @@ END SUBROUTINE gscp_set_coefficients
 
       ! Broadening for not monodisperse
       IF ( .NOT. monodisperse ) THEN 
-        bf =  gamma_fct( (nu + 4.0_wp)/ mu) / gamma_fct( (nu + 3.0_wp)/ mu) * &
-          & ( gamma_fct( (nu + 1.0_wp)/ mu) / gamma_fct( (b_geo + nu + 1.0_wp)/ mu) )**(1.0_wp/b_geo)
+        bf =  GAMMA( (nu + 4.0_wp)/ mu) / GAMMA( (nu + 3.0_wp)/ mu) * &
+          & ( GAMMA( (nu + 1.0_wp)/ mu) / GAMMA( (b_geo + nu + 1.0_wp)/ mu) )**(1.0_wp/b_geo)
         reff_calc%reff_coeff(1) = reff_calc%reff_coeff(1)*bf
       END IF       
      
@@ -490,13 +488,13 @@ END SUBROUTINE gscp_set_coefficients
       reff_calc%reff_coeff(3) = SQRT(3.0_wp)/4.0_wp*a_geo**(1.0_wp/b_geo)
       reff_calc%reff_coeff(4) = -1.0_wp/b_geo
 
-      ! Broadening for not monodisperse. Generalized gamma distribution
+      ! Broadening for not monodisperse. Generalized GAMMA distribution
       IF ( .NOT. monodisperse ) THEN 
-        bf  =  gamma_fct( ( b_geo + 2.0_wp * nu + 3.0_wp)/ mu/2.0_wp ) / gamma_fct( (b_geo + nu + 1.0_wp)/ mu) * &
-           & ( gamma_fct( (nu + 1.0_wp)/ mu) / gamma_fct( (b_geo + nu + 1.0_wp)/ mu) )**( (1.0_wp-b_geo)/2.0_wp/b_geo)
+        bf  =  GAMMA( ( b_geo + 2.0_wp * nu + 3.0_wp)/ mu/2.0_wp ) / GAMMA( (b_geo + nu + 1.0_wp)/ mu) * &
+           & ( GAMMA( (nu + 1.0_wp)/ mu) / GAMMA( (b_geo + nu + 1.0_wp)/ mu) )**( (1.0_wp-b_geo)/2.0_wp/b_geo)
 
-        bf2 =  gamma_fct( (b_geo + nu )/ mu ) / gamma_fct( (b_geo + nu + 1.0_wp)/ mu) * &
-           & ( gamma_fct( (nu + 1.0_wp)/ mu ) / gamma_fct( (b_geo + nu + 1.0_wp)/ mu) )**( -1.0_wp/b_geo)
+        bf2 =  GAMMA( (b_geo + nu )/ mu ) / GAMMA( (b_geo + nu + 1.0_wp)/ mu) * &
+           & ( GAMMA( (nu + 1.0_wp)/ mu ) / GAMMA( (b_geo + nu + 1.0_wp)/ mu) )**( -1.0_wp/b_geo)
 
         reff_calc%reff_coeff(1) = reff_calc%reff_coeff(1)*bf
         reff_calc%reff_coeff(3) = reff_calc%reff_coeff(3)*bf2
@@ -508,8 +506,8 @@ END SUBROUTINE gscp_set_coefficients
 
     ! Calculate coefficients to calculate n from qn, in case N0 is available
     IF ( N0 > 0.0_wp) THEN 
-      reff_calc%ncn_coeff(1) =  gamma_fct ( ( nu + 1.0_wp)/mu) / a_geo / gamma_fct (( b_geo + nu + 1.0_wp)/mu) * & 
-           &( a_geo * N0 / mu * gamma_fct ( (b_geo + nu + 1.0_wp)/mu) ) ** ( b_geo / (nu + b_geo +1.0_wp)) 
+      reff_calc%ncn_coeff(1) =  GAMMA ( ( nu + 1.0_wp)/mu) / a_geo / GAMMA (( b_geo + nu + 1.0_wp)/mu) * & 
+           &( a_geo * N0 / mu * GAMMA ( (b_geo + nu + 1.0_wp)/mu) ) ** ( b_geo / (nu + b_geo +1.0_wp)) 
       reff_calc%ncn_coeff(2) = (nu +1.0_wp)/(nu + b_geo + 1.0_wp)  
       ! Scaling coefficent of N0 (only for snow)
       reff_calc%ncn_coeff(3) = b_geo/(nu + b_geo + 1.0_wp)         

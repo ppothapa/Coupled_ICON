@@ -1412,11 +1412,8 @@ CONTAINS
           &   out_var%r_ptr(:,:,out_var_idx,1,1), lacc=i_am_accel_node)   ! unused dimensions are filled up with 1
 
     CASE (TASK_COMPUTE_VIS)
-#ifdef _OPENACC
-      CALL finish(routine, 'not yet ported postproc TASK_COMPUTE_VIS for variable '//TRIM(p_info%name) )
-#endif
       CALL compute_field_visibility( p_patch, p_prog, p_diag, prm_diag, jg,          &
-          &   out_var%r_ptr(:,:,out_var_idx,1,1))   ! unused dimensions are filled up with 1
+          &   out_var%r_ptr(:,:,out_var_idx,1,1), lacc=i_am_accel_node)   ! unused dimensions are filled up with 1
 
     CASE (TASK_COMPUTE_INVERSION)
       CALL compute_field_inversion_height( p_patch, jg, ptr_task%data_input%p_nh_state%metrics, p_prog, p_diag,prm_diag,   &

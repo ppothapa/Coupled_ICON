@@ -15,23 +15,22 @@
 
 MODULE mo_wave_read_namelists
 
-  USE mo_mpi,                ONLY: my_process_is_stdio
-  USE mo_namelist,           ONLY: open_nml_output, close_nml_output
-  USE mo_nml_annotate,       ONLY: log_nml_settings
-  USE mo_time_nml,           ONLY: read_time_namelist
-  USE mo_parallel_nml,       ONLY: read_parallel_namelist
-  USE mo_run_nml,            ONLY: read_run_namelist
-  USE mo_gribout_nml,        ONLY: read_gribout_namelist
-  USE mo_io_nml,             ONLY: read_io_namelist
+  USE mo_mpi,                   ONLY: my_process_is_stdio
+  USE mo_namelist,              ONLY: open_nml_output, close_nml_output
+  USE mo_nml_annotate,          ONLY: log_nml_settings
+  USE mo_time_nml,              ONLY: read_time_namelist
+  USE mo_parallel_nml,          ONLY: read_parallel_namelist
+  USE mo_run_nml,               ONLY: read_run_namelist
+  USE mo_gribout_nml,           ONLY: read_gribout_namelist
+  USE mo_io_nml,                ONLY: read_io_namelist
   USE mo_name_list_output_init, ONLY: read_name_list_output_namelists
-  USE mo_grid_nml,           ONLY: read_grid_namelist
-  USE mo_grid_config,        ONLY: init_grid_configuration
-  USE mo_coupling_nml,       ONLY: read_coupling_namelist
-  USE mo_extpar_nml,         ONLY: read_extpar_namelist
-  USE mo_advection_nml,      ONLY: read_transport_namelist
-  USE mo_wave_nml,           ONLY: read_wave_namelist
-  USE mo_interpol_nml,       ONLY: read_interpol_namelist
-  USE mo_sleve_nml,          ONLY: read_sleve_namelist
+  USE mo_grid_nml,              ONLY: read_grid_namelist
+  USE mo_grid_config,           ONLY: init_grid_configuration
+  USE mo_coupling_nml,          ONLY: read_coupling_namelist
+  USE mo_extpar_nml,            ONLY: read_extpar_namelist
+  USE mo_wave_nml,              ONLY: read_wave_namelist
+  USE mo_interpol_nml,          ONLY: read_interpol_namelist
+  USE mo_energy_propagation_nml,ONLY: read_energy_propagation_nml
 
   IMPLICIT NONE
 
@@ -66,11 +65,10 @@ CONTAINS
 
     CALL read_grid_namelist           (wave_namelist_filename(1:tlen))
     CALL read_interpol_namelist       (wave_namelist_filename(1:tlen))
-    CALL read_sleve_namelist          (wave_namelist_filename(1:tlen))
 
     CALL init_grid_configuration()
 
-    CALL read_transport_namelist      (wave_namelist_filename(1:tlen))
+    CALL read_energy_propagation_nml  (wave_namelist_filename(1:tlen))
 
     CALL read_wave_namelist           (wave_namelist_filename(1:tlen))
 

@@ -308,7 +308,6 @@ MODULE mo_impl_constants
   ! identifiers for different NWP turbulent schemes
   INTEGER, PARAMETER :: icosmo  =  1
   INTEGER, PARAMETER :: igme    =  2
-  INTEGER, PARAMETER :: iedmf   =  3
   INTEGER, PARAMETER :: iprog   =  4  
   INTEGER, PARAMETER :: ismag   =  5
   INTEGER, PARAMETER :: ivdiff  =  6 !< VDIFF turbulent diffusion scheme

@@ -67,7 +67,7 @@ MODULE mo_atmo_model
     &                                   grid_generatingCenter,                                & ! grid generating center
     &                                   grid_generatingSubcenter,                             & ! grid generating subcenter
     &                                   iforcing, luse_radarfwo,                              &
-    &                                   iqc, iqt, iqv, iqi, iqs, iqr, iqtvar, ltimer,         &
+    &                                   iqc, iqt, iqv, iqi, iqs, iqr, ltimer,                 &
     &                                   iqni, iqg, iqm_max, iqtke, iqh, iqnr, iqns, iqng,     &
     &                                   iqnh, iqnc, iqgl, iqhl, inccn, ininact, ininpot,      &
     &                                   lart, nqtendphy, ntracer,                             &
@@ -127,7 +127,7 @@ MODULE mo_atmo_model
 
   ! coupling
 #ifdef YAC_coupling
-  USE mo_coupling_config,           ONLY: is_coupled_to_ocean, is_coupled_to_waves
+  USE mo_coupling_config,           ONLY: is_coupled_to_ocean, is_coupled_to_waves, is_coupled_to_hydrodisc
   USE mo_atmo_coupling_frame,       ONLY: construct_atmo_coupling
   USE mo_atmo_wave_coupling_frame,  ONLY: construct_atmo_wave_coupling
 #endif
@@ -197,8 +197,8 @@ CONTAINS
     ! construct the coupler
     !
 #ifdef YAC_coupling
-    IF ( is_coupled_to_ocean() ) THEN
-      CALL construct_atmo_coupling(p_patch(1:)) ! atmo-ocean
+    IF ( ANY( (/is_coupled_to_ocean(), is_coupled_to_hydrodisc()/) ) )   THEN
+      CALL construct_atmo_coupling(p_patch(1:))
     ELSEIF ( is_coupled_to_waves() ) THEN
       CALL construct_atmo_wave_coupling(p_patch(1:)) ! atmo-wave
     ENDIF
@@ -206,7 +206,7 @@ CONTAINS
 
 
     !---------------------------------------------------------------------
-    ! 12. The hydrostatic model has been deleted. Only the non-hydrostatic 
+    ! 12. The hydrostatic model has been deleted. Only the non-hydrostatic
     !     model is available.
     !---------------------------------------------------------------------
     SELECT CASE(iequations)
@@ -225,7 +225,7 @@ CONTAINS
     IF (process_mpi_radario_size > 0) THEN
       IF (ltimer) THEN
 #ifndef NOMPI
-        ! To synchronize the EMVORADO async. IO timing output, so that this 
+        ! To synchronize the EMVORADO async. IO timing output, so that this
         !  timing printout appears after the "normal" timing printout for the workers
         CALL radar_mpi_barrier ()
 #endif
@@ -441,14 +441,14 @@ CONTAINS
       ! -------------------------------------------------------------------------
       !
       ! - Initialize data here which must be available on
-      !   all radar PEs (workers + radario). 
+      !   all radar PEs (workers + radario).
       !
       ! - also detach the separate radario-procs after this initialisation here.
       !
       ! -------------------------------------------------------------------------
 
       IF (my_process_is_radario()) THEN
-        
+
         ! We have to call configure_gribout(...) also on the separate radar-IO-procs
         !  due to composite-output. For this, grid_generatingCenter and grid_generatingSubcenter
         !  have to be received on the radar-IO procs from the workers first. Both things are done here.
@@ -461,9 +461,9 @@ CONTAINS
         ! This is a pure radar IO PE, so the below "detach_emvorado_io" will never return.
         ! So we STOP the already started timer "timer_model_init", because it is useless on this PE:
         IF (timers_level > 1) CALL timer_stop(timer_model_init)
-        
+
         CALL detach_emvorado_io (n_dom, luse_radarfwo(1:n_dom))
-        
+
       END IF
     END IF
 #endif
@@ -540,7 +540,7 @@ CONTAINS
     CALL construct_icon_communication(p_patch, n_dom)
     !    ENDIF
 
-    
+
     !--------------------------------------------
     ! Setup the information for the physical patches
     CALL setup_phys_patches
@@ -621,7 +621,7 @@ CONTAINS
       ! Only workers reach this point here. Send
       !  grid_generatingCenter and grid_generatingSubcenter to the radar I/O PEs:
       CALL exchg_with_detached_emvorado_io(grid_generatingCenter, grid_generatingSubcenter)
-      
+
     END IF
 #endif
 #endif
@@ -659,7 +659,7 @@ CONTAINS
       &                       advection_config,                            &
       &                       iqv, iqc, iqi, iqr, iqs, iqt, iqg, iqni,     &
       &                       iqh, iqnr, iqns, iqng, iqnh, iqnc,           &
-      &                       iqgl, iqhl, inccn, iqtvar, ininact, ininpot, &
+      &                       iqgl, iqhl, inccn, ininact, ininpot,         &
       &                       iqtke, iqm_max, ntracer, nqtendphy,          &
       &                       atm_phy_nwp_config(:)%nclass_gscp,           &
       &                       iqbin, iqb_i, iqb_e, iqb_s)

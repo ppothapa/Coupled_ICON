@@ -30,7 +30,7 @@ MODULE mo_wave_ext_data_types
   !
   TYPE :: t_external_wave
 
-    ! ocean topography <=> bathymetric height used in the ocean 
+    ! ocean topography <=> bathymetric height used in the ocean
     ! cell centers and edges only
     !
     REAL(wp), POINTER ::   &  !<  bathymetric height at cell centers [m]

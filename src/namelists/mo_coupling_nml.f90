@@ -26,7 +26,7 @@ MODULE mo_coupling_nml
   USE mo_namelist,        ONLY: open_nml, close_nml, position_nml, POSITIONED
   USE mo_exception,       ONLY: finish
   USE mo_coupling_config, ONLY: config_coupled_to_ocean, config_coupled_to_waves,       &
-    &                           config_coupled_to_atmo
+    &                           config_coupled_to_hydrodisc, config_coupled_to_atmo
   USE mo_coupling,        ONLY: coupler_config_files_exist
 
   IMPLICIT NONE
@@ -51,22 +51,24 @@ CONTAINS
     !
     ! Local variables
     !
-    LOGICAL :: coupled_to_ocean, coupled_to_waves, coupled_to_atmo
+    LOGICAL :: coupled_to_ocean, coupled_to_waves, coupled_to_atmo, coupled_to_hydrodisc
     LOGICAL :: coupled_mode
     INTEGER :: istat
 
     CHARACTER(len=max_char_length), PARAMETER :: &
          &   routine = 'mo_coupling_nml:read_coupling_namelist'
 
-    NAMELIST /coupling_mode_nml/ coupled_to_ocean, coupled_to_waves, coupled_to_atmo
+    NAMELIST /coupling_mode_nml/ coupled_to_ocean, coupled_to_waves, coupled_to_atmo, &
+         coupled_to_hydrodisc
 
     !--------------------------------------------------------------------
     ! 1. Set default values
     !--------------------------------------------------------------------
 
-    coupled_to_ocean = .FALSE.
-    coupled_to_waves = .FALSE.
-    coupled_to_atmo  = .FALSE.
+    coupled_to_ocean     = .FALSE.
+    coupled_to_waves     = .FALSE.
+    coupled_to_atmo      = .FALSE.
+    coupled_to_hydrodisc = .FALSE.
 
     !--------------------------------------------------------------------
     ! 2. Read user's (new) specifications (done so far by all MPI processes)
@@ -85,15 +87,16 @@ CONTAINS
 
 #endif
 
-    config_coupled_to_ocean = coupled_to_ocean
-    config_coupled_to_waves = coupled_to_waves
-    config_coupled_to_atmo  = coupled_to_atmo
+    config_coupled_to_ocean     = coupled_to_ocean
+    config_coupled_to_waves     = coupled_to_waves
+    config_coupled_to_atmo      = coupled_to_atmo
+    config_coupled_to_hydrodisc = coupled_to_hydrodisc
 
     !----------------------------------------------------
     ! 3. Sanity checks
     !----------------------------------------------------
 
-    coupled_mode = ANY((/coupled_to_ocean,coupled_to_waves,coupled_to_atmo/))
+    coupled_mode = ANY((/coupled_to_ocean,coupled_to_waves,coupled_to_atmo,coupled_to_hydrodisc/))
 
     IF (coupled_mode .AND. .NOT. coupler_config_files_exist()) THEN
       CALL finish( &

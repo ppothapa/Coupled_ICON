@@ -29,7 +29,6 @@ MODULE mo_reff_main
 
   USE mo_kind              ,   ONLY: wp, i4
   USE mo_math_constants    ,   ONLY: pi
-  USE mo_math_utilities    ,   ONLY: gamma_fct  
   USE mo_physical_constants,   ONLY: rhoh2o     ! Water density  
   USE mo_exception,            ONLY: message, message_text, finish
 
@@ -249,8 +248,8 @@ MODULE mo_reff_main
 
        IF ( reff_calc%dsd_type == 2) THEN  ! Polydisperse
          ! Broadening due to choosing a radial gamma distribution with fixed gamma, nu 
-         bf =gamma_fct ( (nu + 4.0_wp)/mu ) / gamma_fct ( (nu + 3.0_wp)/mu ) * &
-              & ( gamma_fct ( (nu + 1.0_wp)/mu ) / gamma_fct ( (nu + 4.0_wp)/mu ) )**(1.0_wp/3.0_wp)
+         bf = GAMMA ( (nu + 4.0_wp)/mu ) / GAMMA ( (nu + 3.0_wp)/mu ) * &
+              & ( GAMMA ( (nu + 1.0_wp)/mu ) / GAMMA ( (nu + 4.0_wp)/mu ) )**(1.0_wp/3.0_wp)
          reff_calc%reff_coeff(1) = reff_calc%reff_coeff(1) * bf
         
        END IF
