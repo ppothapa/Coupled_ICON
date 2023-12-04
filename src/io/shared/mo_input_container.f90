@@ -834,6 +834,7 @@ CONTAINS
         CHARACTER(*), PARAMETER :: routine = modname//":ValueList_init"
         INTEGER :: i, error
 
+        IF(ALLOCATED(me%values)) DEALLOCATE(me%values)
         ALLOCATE(me%values(8), STAT = error)
         IF(error /= SUCCESS) CALL finish(routine, "memory allocation error")
         me%valueCount = 0
