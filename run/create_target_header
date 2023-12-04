@@ -1900,8 +1900,6 @@ EOF
 export PATH=/hkfs/home/dataset/datasets/icon/sw/cdo-2.3.0/bin:\${PATH}
 export ECCODES_DEFINITION_PATH=/hkfs/home/dataset/datasets/icon/sw/definitions/2.31.0/definitions.edzw-2.31.0-2:/hkfs/home/dataset/datasets/icon/sw/definitions/2.31.0/definitions
 export NVCOMPILER_TERM=trace
-
-export NVCOMPILER_ACC_SYNCHRONOUS=1 # 2023-11-06: there is some bug in the code or compiler setup (e.g. dwd IAU test)
 EOF
 }
 
