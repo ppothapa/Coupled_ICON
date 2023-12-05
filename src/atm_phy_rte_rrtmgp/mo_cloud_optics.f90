@@ -190,6 +190,8 @@ contains
       END DO
     END DO
     !$ACC END PARALLEL LOOP
+    !$ACC WAIT(1)
+
     !
     ! Set default ice roughness - min values
     !

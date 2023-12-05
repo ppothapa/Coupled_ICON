@@ -1620,6 +1620,7 @@ CONTAINS
           & swflx_dn_sfc_diff=prm_diag%swflx_dn_sfc_diff(:,jb), & ! out shortwave diffuse downward flux at the surface [W/m2]
           & lacc=lzacc                                          )
 #ifdef __PGI_WORKAROUND
+    !$ACC WAIT(1)
     !$ACC END DATA ! CREATE(gp_count_t)
 #endif
 
@@ -1687,6 +1688,7 @@ CONTAINS
 
       !$ser verbatim IF (.not. linit) CALL serialize_all(nproma, jg, "radheat", .FALSE., opt_lupdate_cpu=.TRUE., opt_dt=mtime_datetime)
 
+    !$ACC WAIT(1)
     !$ACC END DATA ! CREATE(cosmu0_slope)
 
       IF (timers_level > 2) CALL timer_stop(timer_radheat)
@@ -2518,6 +2520,7 @@ CONTAINS
 
     IF (ltimer) CALL timer_stop(timer_physics)
 
+    !$ACC WAIT(1)
     !$ACC END DATA ! copyin
     !$ACC END DATA ! create
 

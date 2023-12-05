@@ -317,6 +317,7 @@ CONTAINS
         !$ACC END PARALLEL
        END IF
        !
+       !$ACC WAIT(1)
        !$ACC END DATA
        !
     ELSE

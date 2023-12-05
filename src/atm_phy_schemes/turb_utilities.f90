@@ -1781,6 +1781,7 @@ LOGICAL :: add_adv_inc, lvar_fcd, rogh_lay, alt_gama, corr
 !----------------------------------------------------------------------
   END DO !k
   !$ACC END PARALLEL
+  !$ACC WAIT(acc_async_queue)
   !$ACC END DATA
 
 END SUBROUTINE solve_turb_budgets
@@ -3338,7 +3339,7 @@ LOGICAL :: ldepth, lrpdep, lauxil
       !$ACC EXIT DATA DETACH(pvar(n)%bl, pvar(n)%ml) ASYNC(1) IF(lzacc)
 #endif
    END DO
-
+   !$ACC WAIT(1)
    !$ACC END DATA
 
 END SUBROUTINE bound_level_interp

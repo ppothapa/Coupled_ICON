@@ -114,7 +114,12 @@ MODULE mo_ocean_diagnostics
   PUBLIC :: diag_heat_salt_tendency
 
   INTERFACE calc_moc
-    MODULE PROCEDURE calc_moc_hfl_internal
+! 2023-11 dzo-DKRZ: Temporary until the difference in atlantic_moc and global_moc between both functions is solved
+#if defined(__LVECTOR__) && !defined(__LVEC_BITID__)
+    MODULE PROCEDURE calc_moc_hfl_internal_vector
+#else
+    MODULE PROCEDURE calc_moc_hfl_internal_scalar
+#endif
   END INTERFACE
 
   TYPE t_oce_section
@@ -728,8 +733,6 @@ CONTAINS
         w = p_diag%w_deriv
       ENDIF
 
-      !$ACC DATA COPY(w) IF(lzacc)
-
       ! energy/enstrophy
       global_mean_potEnergy = 0.0_wp
       IF (isRegistered('pot_energy_global')) THEN
@@ -843,8 +846,6 @@ CONTAINS
 
         CALL timer_stop(timer_calc_moc)
       ENDIF
-
-      !$ACC END DATA
 
       IF ( isRegistered('heat_content_liquid_water') .OR. isRegistered('heat_content_seaice') &
            .OR. isRegistered('heat_content_snow')   .OR. isRegistered('heat_content_total') &
@@ -1512,7 +1513,374 @@ CONTAINS
   ! TODO: calculate the 1 deg resolution meridional distance
   !!
 
-  SUBROUTINE calc_moc_hfl_internal (patch_2d, patch_3d, w, heatflux_total, &
+  SUBROUTINE calc_moc_hfl_internal_vector (patch_2d, patch_3d, w, heatflux_total, &
+             frshflux_volumetotal, delta_thetao, delta_so, delta_snow, delta_ice, &
+             global_moc, atlant_moc, pacind_moc, global_hfl, atlant_hfl, pacind_hfl, &
+             global_wfl, atlant_wfl, pacind_wfl, &
+             global_hfbasin, atlant_hfbasin, pacind_hfbasin, &
+             global_sltbasin, atlant_sltbasin, pacind_sltbasin, amoc26n, lacc)
+
+    TYPE(t_patch),    TARGET, INTENT(in)  :: patch_2d
+    TYPE(t_patch_3d ),TARGET, INTENT(in)  :: patch_3d
+
+    REAL(wp), INTENT(in)  :: w(:,:,:)   ! vertical velocity (nproma,nlev+1,alloc_cell_blocks)
+    REAL(wp), INTENT(in)  :: heatflux_total(:,:)   ! heatflux_total (nproma,alloc_cell_blocks)
+    REAL(wp), INTENT(in)  :: frshflux_volumetotal(:,:)   ! fw flux (nproma,alloc_cell_blocks)
+    REAL(wp), INTENT(in)  :: delta_snow(:,:)       ! tendency of snow thickness (nproma,alloc_cell_blocks)
+    REAL(wp), INTENT(in)  :: delta_ice(:,:)        ! tendendy of ice  thickness (nproma,alloc_cell_blocks)
+    REAL(wp), INTENT(in)  :: delta_thetao(:,:,:)   ! temperature tendency (nproma,nlev+1,alloc_cell_blocks)
+    REAL(wp), INTENT(in)  :: delta_so(:,:,:)   ! salinity tendency (nproma,nlev+1,alloc_cell_blocks)
+    REAL(wp), INTENT(inout)  :: amoc26n(:)
+
+    REAL(wp), INTENT(out) :: global_moc(:,:), atlant_moc(:,:), pacind_moc(:,:) ! (n_zlev,nlat_moc)
+
+    ! implied ocean heat transport calculated from surface fluxes
+    REAL(wp), INTENT(out) :: global_hfl(:,:), atlant_hfl(:,:), pacind_hfl(:,:) ! (1,nlat_moc)
+
+    ! implied ocean fw transport calculated from surface fluxes
+    REAL(wp), INTENT(out) :: global_wfl(:,:), atlant_wfl(:,:), pacind_wfl(:,:) ! (1,nlat_moc)
+
+    ! northward ocean heat transport calculated from tendencies
+    REAL(wp), INTENT(out) :: global_hfbasin(:,:), atlant_hfbasin(:,:), pacind_hfbasin(:,:) ! (1,nlat_moc)
+
+    ! northward ocean salt transport calculated from tendencies
+    REAL(wp), INTENT(out) :: global_sltbasin(:,:), atlant_sltbasin(:,:), pacind_sltbasin(:,:) ! (1,nlat_moc)
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
+
+    ! local variables
+    INTEGER, PARAMETER ::  latSmooth = 3   !  latitudinal smoothing area is 2*jbrei-1 rows of 1 deg
+    REAL(wp), PARAMETER :: smoothWeight = 1.0_wp / REAL(2*latSmooth + 1, wp)
+    INTEGER :: jb, level, start_index, end_index, jc, ilat, l, ic
+    INTEGER :: mpi_comm
+
+    REAL(wp) :: lat, deltaMoc, deltahfl, deltawfl, deltahfbasin, deltasltbasin
+    REAL(wp) :: mocs_lat(nproma,patch_2d%nblks_c,9)
+    REAL(wp) :: mocs_2d(nlat_moc,12)
+    REAL(wp) :: mocs_3d(n_zlev,nlat_moc,3)
+
+    INTEGER :: dist, weight
+
+    REAL(wp) :: factor_to_sv
+
+    TYPE(t_subset_range), POINTER :: cells
+    INTEGER, POINTER, CONTIGUOUS :: vertical_levels(:,:)
+    INTEGER, POINTER, CONTIGUOUS :: basin_c(:,:)
+    REAL(wp), POINTER, CONTIGUOUS :: area(:,:)
+    REAL(wp), POINTER, CONTIGUOUS :: wet_c(:,:,:)
+
+    TYPE t_idxlist_weighted
+      INTEGER, ALLOCATABLE :: idx(:)
+      INTEGER, ALLOCATABLE :: blk(:)
+      REAL(wp), ALLOCATABLE :: wgt(:)
+      INTEGER :: len
+    END TYPE
+
+    INTEGER, ALLOCATABLE :: itmp(:)
+    INTEGER, ALLOCATABLE :: btmp(:)
+    REAL(wp), ALLOCATABLE :: wtmp(:)
+
+    TYPE(t_idxlist_weighted), ALLOCATABLE, SAVE :: idxlist(:)
+    TYPE(t_patch_3d), POINTER, SAVE :: idxlist_patch
+
+    CHARACTER(LEN=*), PARAMETER :: routine = 'mo_ocean_diagnostics:calc_moc'
+
+    LOGICAL  :: lzacc
+    !-----------------------------------------------------------------------
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+#ifdef _OPENACC
+    IF (lzacc) CALL finish(routine, 'OpenACC version currently not implemented')
+#endif
+
+    mpi_comm = MERGE(p_comm_work_test, p_comm_work, p_test_run)
+
+    mocs_2d(:,:) = 0._wp
+    mocs_3d(:,:,:) = 0._wp
+
+    global_moc(:,:) = 0.0_wp
+    pacind_moc(:,:) = 0.0_wp
+    atlant_moc(:,:) = 0.0_wp
+
+    global_hfl(:,:) = 0.0_wp
+    pacind_hfl(:,:) = 0.0_wp
+    atlant_hfl(:,:) = 0.0_wp
+
+    global_wfl(:,:) = 0.0_wp
+    pacind_wfl(:,:) = 0.0_wp
+    atlant_wfl(:,:) = 0.0_wp
+
+    global_hfbasin(:,:) = 0.0_wp
+    pacind_hfbasin(:,:) = 0.0_wp
+    atlant_hfbasin(:,:) = 0.0_wp
+
+    global_sltbasin(:,:) = 0.0_wp
+    pacind_sltbasin(:,:) = 0.0_wp
+    atlant_sltbasin(:,:) = 0.0_wp
+
+
+    ! limit cells to in-domain because of summation
+    cells   => patch_2d%cells%in_domain
+
+    vertical_levels => cells%vertical_levels
+    area => patch_2d%cells%area
+    basin_c => patch_3d%basin_c
+    wet_c => patch_3d%wet_c
+
+    ! lat: corresponding latitude row of 1 deg extension
+    !            1 south pole
+    ! nlat_moc=180 north pole
+
+    ! distribute MOC over (2*jbrei)+1 latitude rows
+    !  - no weighting with latitudes done
+    !  - lat: index of 180 X 1 deg meridional resolution
+    IF (.NOT. ALLOCATED(idxlist)) THEN
+      ALLOCATE(idxlist(nlat_moc))
+      DO ilat = 1, nlat_moc
+
+        ALLOCATE( &
+            & idxlist(ilat)%idx(nproma * patch_2d%nblks_c), &
+            & idxlist(ilat)%blk(nproma * patch_2d%nblks_c), &
+            & idxlist(ilat)%wgt(nproma * patch_2d%nblks_c) &
+          )
+
+        ic = 0
+
+        DO jb = cells%start_block, cells%end_block
+          CALL get_index_range(cells, jb, start_index, end_index)
+
+          DO jc = start_index, end_index
+            IF (vertical_levels(jc,jb) < 1) CYCLE
+
+            lat = patch_2d%cells%center(jc,jb)%lat * rad2deg
+
+            dist = ABS(ilat - NINT(REAL(nlat_moc, wp)*0.5_wp + lat))
+
+            IF (dist <= latSmooth) THEN
+              ! Smeared contributions from points close to the poles are added multiple times in the
+              ! scalar version. We replicate this here, although a change of the smoothWeight might
+              ! be more appropriate, as it does not bias the smoothing towards the poles.
+              IF (ilat == 1 .OR. ilat == nlat_moc) THEN
+                weight = ABS(dist - latSmooth) + 1
+              ELSE
+                weight = 1
+              END IF
+              ic = ic + 1
+              idxlist(ilat)%idx(ic) = jc
+              idxlist(ilat)%blk(ic) = jb
+              idxlist(ilat)%wgt(ic) = weight * smoothWeight
+            END IF
+          END DO
+        END DO
+
+        ALLOCATE(itmp(ic), btmp(ic), wtmp(ic))
+        itmp(:) = idxlist(ilat)%idx(1:ic)
+        btmp(:) = idxlist(ilat)%blk(1:ic)
+        wtmp(:) = idxlist(ilat)%wgt(1:ic)
+
+        CALL MOVE_ALLOC(itmp, idxlist(ilat)%idx)
+        CALL MOVE_ALLOC(btmp, idxlist(ilat)%blk)
+        CALL MOVE_ALLOC(wtmp, idxlist(ilat)%wgt)
+        idxlist(ilat)%len = ic
+
+      END DO
+
+      idxlist_patch => patch_3d
+    END IF
+
+    IF (.NOT. ASSOCIATED(idxlist_patch, target=patch_3d)) THEN
+      CALL finish(routine, 'Can only be called for a single patch due to index-list caching.')
+    END IF
+
+
+    DO jb = cells%start_block, cells%end_block
+      CALL get_index_range(cells, jb, start_index, end_index)
+
+      ! Surface variables
+      !NEC$ nolstval
+      DO jc = start_index, end_index
+        IF (1 <= vertical_levels(jc,jb)) THEN
+          deltahfl = area(jc,jb) * heatflux_total(jc,jb) * wet_c(jc,1,jb)
+
+          deltawfl = area(jc,jb) * frshflux_volumetotal(jc,jb) * wet_c(jc,1,jb)
+
+          ! Global HFL
+          mocs_lat(jc,jb,1) = - deltahfl
+          ! Global WFL
+          mocs_lat(jc,jb,4) = - deltawfl
+
+          IF (basin_c(jc,jb) == 1) THEN
+            ! Atlantic HFL
+            mocs_lat(jc,jb,2) = - deltahfl
+            ! Atlantic WFL
+            mocs_lat(jc,jb,5) = - deltawfl
+          ELSE
+            mocs_lat(jc,jb,2) = 0._wp
+            mocs_lat(jc,jb,5) = 0._wp
+          END IF
+
+          IF (basin_c(jc,jb) >= 2) THEN
+            ! Pacind HFL
+            mocs_lat(jc,jb,3) = - deltahfl
+            ! Pacind WFL
+            mocs_lat(jc,jb,6) = - deltawfl
+          ELSE
+            mocs_lat(jc,jb,3) = 0._wp
+            mocs_lat(jc,jb,6) = 0._wp
+          ENDIF
+        ELSE
+          mocs_lat(jc,jb,1:6) = 0._wp
+        END IF
+      END DO ! jc
+    END DO ! jb
+
+    ! Collapse the contribution of each cell.
+    DO ilat = 1, nlat_moc
+      DO ic = 1, idxlist(ilat)%len
+        !NEC$ assoc
+        DO l = 1, 6
+          mocs_2d(ilat,l) = mocs_2d(ilat,l) &
+              & + mocs_lat(idxlist(ilat)%idx(ic), idxlist(ilat)%blk(ic), l) * idxlist(ilat)%wgt(ic)
+        END DO
+      END DO
+    END DO
+
+    DO level = 1, n_zlev
+      DO jb = cells%start_block, cells%end_block
+        CALL get_index_range(cells, jb, start_index, end_index)
+
+        !NEC$ nolstval
+        DO jc = start_index, end_index
+          IF (level <= vertical_levels(jc,jb)) THEN
+            deltaMoc = area(jc,jb) * OceanReferenceDensity * w(jc,level,jb)
+
+            deltahfbasin = area(jc,jb) * delta_thetao(jc,level,jb)
+
+            deltasltbasin = area(jc,jb) * delta_so(jc,level,jb)
+
+            IF (level .EQ. 1) THEN
+              deltahfbasin = deltahfbasin                                &
+                   + area(jc,jb) * ( delta_ice(jc,jb) + delta_snow(jc,jb) )
+            ENDIF
+
+            ! Global MOC
+            mocs_lat(jc,jb,1) = - deltaMoc
+            ! Global HFBasin
+            mocs_lat(jc,jb,4) = - deltahfbasin
+            ! Global SLTBasin
+            mocs_lat(jc,jb,7) = - deltasltbasin
+
+            IF (basin_c(jc,jb) == 1) THEN
+              ! Atlantic MOC
+              mocs_lat(jc,jb,2) = - deltaMoc
+              ! Atlantic HFBasin
+              mocs_lat(jc,jb,5) = - deltahfbasin
+              ! Atlantic SLTBasin
+              mocs_lat(jc,jb,8) = - deltasltbasin
+            ELSE
+              mocs_lat(jc,jb,2) = 0._wp
+              mocs_lat(jc,jb,5) = 0._wp
+              mocs_lat(jc,jb,8) = 0._wp
+            END IF
+
+            IF (basin_c(jc,jb) >= 2) THEN
+              ! Pacind MOC
+              mocs_lat(jc,jb,3) = - deltaMoc
+              ! Pacind HFBasin
+              mocs_lat(jc,jb,6) = - deltahfbasin
+              ! Pacind SLTBasin
+              mocs_lat(jc,jb,9) = - deltasltbasin
+            ELSE
+              mocs_lat(jc,jb,3) = 0._wp
+              mocs_lat(jc,jb,6) = 0._wp
+              mocs_lat(jc,jb,9) = 0._wp
+            END IF
+          ELSE
+            !NEC$ unroll_complete
+            mocs_lat(jc,jb,1:9) = 0._wp
+          END IF
+        END DO ! jc
+      END DO ! jb
+
+      ! Collapse the contribution of each cell.
+      DO ilat = 1, nlat_moc
+        DO ic = 1, idxlist(ilat)%len
+          ! 3D fields
+          !NEC$ assoc
+          DO l = 1, 3
+            mocs_3d(level,ilat,l) = mocs_3d(level,ilat,l) &
+                & + mocs_lat(idxlist(ilat)%idx(ic), idxlist(ilat)%blk(ic), l) * idxlist(ilat)%wgt(ic)
+          END DO
+
+          ! The hfbasin and sltbasin vars are summed over levels.
+          ! Results are located in mocs_2d(1:nlat_moc,7:12)
+          !NEC$ assoc
+          DO l = 4, 9
+            mocs_2d(ilat,l+3) = mocs_2d(ilat,l+3) &
+                & + mocs_lat(idxlist(ilat)%idx(ic), idxlist(ilat)%blk(ic), l) * idxlist(ilat)%wgt(ic)
+          END DO
+        END DO
+      END DO
+
+    END DO ! level
+
+    ! compute point-wise sum over all mpi ranks and store results
+    mocs_2d = p_sum(mocs_2d,mpi_comm)
+    mocs_3d = p_sum(mocs_3d,mpi_comm)
+
+    global_moc(1:n_zlev,:) = mocs_3d(:,:,1)
+    atlant_moc(1:n_zlev,:) = mocs_3d(:,:,2)
+    pacind_moc(1:n_zlev,:) = mocs_3d(:,:,3)
+
+    global_hfl(1,:) = mocs_2d(:,1)
+    atlant_hfl(1,:) = mocs_2d(:,2)
+    pacind_hfl(1,:) = mocs_2d(:,3)
+    global_wfl(1,:) = mocs_2d(:,4)
+    atlant_wfl(1,:) = mocs_2d(:,5)
+    pacind_wfl(1,:) = mocs_2d(:,6)
+    global_hfbasin(1,:) = mocs_2d(:,7)
+    atlant_hfbasin(1,:) = mocs_2d(:,8)
+    pacind_hfbasin(1,:) = mocs_2d(:,9)
+    global_sltbasin(1,:) = mocs_2d(:,10)
+    atlant_sltbasin(1,:) = mocs_2d(:,11)
+    pacind_sltbasin(1,:) = mocs_2d(:,12)
+
+    ! compute partial sums along meridian
+    DO l=nlat_moc-1,1,-1   ! fixed to 1 deg meridional resolution
+      global_moc(:,l)=global_moc(:,l+1)+global_moc(:,l)
+      atlant_moc(:,l)=atlant_moc(:,l+1)+atlant_moc(:,l)
+      pacind_moc(:,l)=pacind_moc(:,l+1)+pacind_moc(:,l)
+      global_hfl(:,l)=global_hfl(:,l+1)+global_hfl(:,l)
+      atlant_hfl(:,l)=atlant_hfl(:,l+1)+atlant_hfl(:,l)
+      pacind_hfl(:,l)=pacind_hfl(:,l+1)+pacind_hfl(:,l)
+      global_hfbasin(:,l)=global_hfbasin(:,l+1)+global_hfbasin(:,l)
+      atlant_hfbasin(:,l)=atlant_hfbasin(:,l+1)+atlant_hfbasin(:,l)
+      pacind_hfbasin(:,l)=pacind_hfbasin(:,l+1)+pacind_hfbasin(:,l)
+      global_wfl(:,l)=global_wfl(:,l+1)+global_wfl(:,l)
+      atlant_wfl(:,l)=atlant_wfl(:,l+1)+atlant_wfl(:,l)
+      pacind_wfl(:,l)=pacind_wfl(:,l+1)+pacind_wfl(:,l)
+      global_sltbasin(:,l)=global_sltbasin(:,l+1)+global_sltbasin(:,l)
+      atlant_sltbasin(:,l)=atlant_sltbasin(:,l+1)+atlant_sltbasin(:,l)
+      pacind_sltbasin(:,l)=pacind_sltbasin(:,l+1)+pacind_sltbasin(:,l)
+    END DO
+
+    !find atlantic moc at 26n , depth=1000m
+    factor_to_sv=1.0_wp/OceanReferenceDensity*1e-6_wp
+    amoc26n(1)=atlant_moc(get_level_index_by_depth(patch_3d, 1000.0_wp),116)*factor_to_sv
+
+
+    ! calculate ocean heat transport as residual from the tendency in heat content (dH/dt)
+    ! minus the integral of surface heat flux
+
+    global_hfbasin(:,:)=global_hfl(:,:)-global_hfbasin(:,:)
+    atlant_hfbasin(:,:)=atlant_hfl(:,:)-atlant_hfbasin(:,:)
+    pacind_hfbasin(:,:)=pacind_hfl(:,:)-pacind_hfbasin(:,:)
+
+  END SUBROUTINE calc_moc_hfl_internal_vector
+  !-------------------------------------------------------------------------
+
+
+  SUBROUTINE calc_moc_hfl_internal_scalar (patch_2d, patch_3d, w, heatflux_total, &
              frshflux_volumetotal, delta_thetao, delta_so, delta_snow, delta_ice, &
              global_moc, atlant_moc, pacind_moc, global_hfl, atlant_hfl, pacind_hfl, &
              global_wfl, atlant_wfl, pacind_wfl, &
@@ -1570,7 +1938,7 @@ CONTAINS
     n=MAX(12,n_zlev) !needs at leat 12 levels to store the wfl/hfl/hfbasin variables
     ALLOCATE(allmocs(4,n,nlat_moc))
 
-    !$ACC DATA CREATE(allmocs)
+    !$ACC DATA CREATE(allmocs) IF(lzacc)
 
     !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     allmocs(:,:,:)  = 0.0_wp
@@ -1604,7 +1972,7 @@ CONTAINS
 
     DO BLOCK = cells%start_block, cells%end_block
       CALL get_index_range(cells, BLOCK, start_index, end_index)
-      ! 2023-08 psam-DKRZ: An alternate implementation with ACC LOOP GANG needs the use of atomic update, 
+      ! 2023-08 psam-DKRZ: An alternate implementation with ACC LOOP GANG needs the use of atomic update,
       ! but it does not give bit-identical results compared to the CPU results
       !$ACC PARALLEL DEFAULT(PRESENT) &
       !$ACC   PRIVATE(deltaMoc, deltahfbasin, deltasltbasin, deltahfl, deltawfl, ilat) ASYNC(1) IF(lzacc)
@@ -1645,7 +2013,7 @@ CONTAINS
           DO l = -latSmooth, latSmooth
             ilat = NINT(REAL(nlat_moc, wp)*0.5_wp + lat + REAL(l, wp))
             ilat = MAX(1,MIN(ilat,nlat_moc))
-            
+
             global_moc(level,ilat) =       global_moc(level,ilat) - deltaMoc*smoothWeight
             atlant_moc(level,ilat) = atlant_moc(level,ilat) - MERGE(deltaMoc*smoothWeight, &
                  0.0_wp, patch_3D%basin_c(idx,BLOCK) == 1)
@@ -1779,7 +2147,7 @@ CONTAINS
     !$ACC END DATA
     DEALLOCATE (allmocs)
 
-  END SUBROUTINE calc_moc_hfl_internal
+  END SUBROUTINE calc_moc_hfl_internal_scalar
   !-------------------------------------------------------------------------
 
 
@@ -2574,6 +2942,13 @@ CONTAINS
     TYPE(t_patch), POINTER                   :: patch_2d
     TYPE(t_subset_range), POINTER            :: owned_cells
 
+#ifdef __LVECTOR__
+    REAL(wp) :: sigh(nproma)
+    REAL(wp) :: masked_vertical_density_gradient
+    REAL(wp) :: delta_h
+    INTEGER :: jk
+    INTEGER :: max_lev
+#endif
 
     INTEGER  :: blockNo, jc, start_index, end_index
     LOGICAL  :: lzacc
@@ -2583,6 +2958,9 @@ CONTAINS
 
     patch_2d => patch_3D%p_patch_2d(1)
     owned_cells => patch_2d%cells%owned
+
+#ifndef __LVECTOR__
+    ! Non-vector variant
 
     !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index) SCHEDULE(dynamic)
     DO blockNo = owned_cells%start_block, owned_cells%end_block
@@ -2604,6 +2982,59 @@ CONTAINS
     !$ACC WAIT(1)
     !ICON_OMP_END_PARALLEL_DO
 
+#else
+    ! Vector variant
+
+    !$ACC DATA CREATE(sigh) IF(lzacc)
+
+    !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index, jc, jk, max_lev, &
+    !ICON_OMP   & masked_vertical_density_gradient, delta_h, sigh) SCHEDULE(dynamic)
+    DO blockNo = owned_cells%start_block, owned_cells%end_block
+      CALL get_index_range(owned_cells, blockNo, start_index, end_index)
+
+      ! This diagnostic calculates the mixed layer depth.
+      ! It uses the incremental density increase between two
+      ! levels and substracts it from the initial density criterion (sigcrit)
+      ! and adds the level thickness (zzz) to zmld. This is done till
+      ! the accumulated density increase between the surface and
+      ! layer k is sigcrit or sigh = O, respectively.
+
+      ! stabio(k) = insitu density gradient
+      ! sigh = remaining density difference
+
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      mld(start_index:end_index,blockNo) = patch_3d%p_patch_1d(1)%zlev_m(min_lev)
+      sigh(start_index:end_index) = sigcrit
+
+      max_lev = MAXVAL(patch_3d%p_patch_1d(1)%dolic_c(start_index:end_index,blockNo))
+      !$ACC END KERNELS
+      !$ACC WAIT(1)
+
+      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      DO jk = min_lev+1, max_lev
+        DO jc = start_index, end_index
+          IF (jk <= patch_3d%p_patch_1d(1)%dolic_c(jc,blockNo)) THEN
+            IF (sigh(jc) > 1.e-6_wp) THEN
+              masked_vertical_density_gradient = MAX(zgrad_rho(jc,jk,blockNo), 0.0_wp)
+              delta_h = MIN( &
+                  & sigh(jc) / (masked_vertical_density_gradient + 1.0E-19_wp), &
+                  & patch_3d%p_patch_1d(1)%prism_center_dist_c(jc,jk,blockNo) &
+                )
+              sigh(jc) = sigh(jc) - delta_h * masked_vertical_density_gradient
+              mld(jc,blockNo) = mld(jc,blockNo) + delta_h
+            ELSE
+              sigh(jc) = 0._wp
+            END IF
+          END IF
+        END DO
+      END DO
+      !$ACC END PARALLEL LOOP
+    END DO
+    !$ACC WAIT(1)
+    !ICON_OMP_END_PARALLEL_DO
+
+    !$ACC END DATA
+#endif
   END SUBROUTINE calc_mld
 
   !>

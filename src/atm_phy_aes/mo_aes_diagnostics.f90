@@ -131,6 +131,7 @@ CONTAINS
           & patch%cells%owned, &
           & radtop_gmean, lopenacc=.TRUE.)
 
+      !$ACC WAIT(1)
       !$ACC END DATA
 
       NULLIFY(field)

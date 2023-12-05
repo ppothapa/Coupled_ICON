@@ -2250,6 +2250,7 @@ CONTAINS
       idx_lst(ic) = idx_lst_lp(idx_lst(ic))
     ENDDO
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
   END SUBROUTINE update_idx_lists_lnd

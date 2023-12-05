@@ -830,7 +830,7 @@ SUBROUTINE set_bc_aeropt_kinne (    current_date,                         &
         END DO
      END DO
   END DO
-
+  !$ACC WAIT(1)
   !$ACC END DATA
   
 END SUBROUTINE set_bc_aeropt_kinne

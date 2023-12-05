@@ -1034,6 +1034,7 @@ CONTAINS
         p_diagp%grf_tend_mflx, p_diagc%grf_tend_mflx )
 
     ENDIF
+    !$ACC WAIT
     !$ACC END DATA ! aux3dp, aux3dc, theta_prc, rho_prc
 
   END SUBROUTINE boundary_interpolation
@@ -1353,6 +1354,7 @@ CONTAINS
       CALL sync_patch_array_mult(SYNC_C,p_pc,ntracer_nudge,f4din=p_diag%grf_tend_tracer(:,:,:,1:ntracer_nudge))
     ENDIF
 
+    !$ACC WAIT
     !$ACC END DATA ! parent_thv, diff_thv, ...
     !$ACC END DATA ! parent_tr, diff_tr
 

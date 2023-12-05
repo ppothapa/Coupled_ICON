@@ -394,6 +394,7 @@ IF (test_memory_copies /= bgc_memory_copies) &
 ! O2 min depth & value diagnostics
 CALL get_omz(hamocc_state, p_patch_3d, pddpo, ssh, lacc=lzacc)
 
+!$ACC WAIT
 !$ACC END DATA
 
 ELSE

@@ -467,6 +467,7 @@ CONTAINS
     ENDDO
     !$ACC END PARALLEL
 
+    !$ACC WAIT(1)
     !$ACC END DATA
   END SUBROUTINE clamp_pressure
 
@@ -1066,6 +1067,7 @@ CONTAINS
         !$ACC END PARALLEL
 
       ENDDO
+      !$ACC WAIT
       !$ACC END DATA
       DEALLOCATE(cloud_mask)
 
@@ -1081,6 +1083,7 @@ CONTAINS
       CALL stop_on_err(clouds_bnd_lw%increment(atmos_lw))
     END IF
 
+    !$ACC WAIT
     !$ACC END DATA
     DEALLOCATE(clouds_bnd_lw%tau)
     !$ACC END DATA
@@ -1323,6 +1326,7 @@ CONTAINS
         !$ACC END PARALLEL
 
       ENDDO
+      !$ACC WAIT
       !$ACC END DATA
       DEALLOCATE(cloud_mask)
       
