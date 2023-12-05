@@ -5,9 +5,9 @@
 # Name: exp.mch_pollen_test
 #
 # Purpose: Run script for ICON on a domain similar to the current COSMO-1E domain
-#          This is a low resolution version used for development purpose. The 
+#          This is a low resolution version used for development purpose. The
 #          experiment tests ICON together with ART. In particular, the test checks
-#          the pollen species betula (abbreviated as BETU in the code).
+#          the pollen species: betu, cory.
 #
 # Author: Chiristoph Müller (MeteoSwiss)
 #
@@ -102,13 +102,14 @@ add_link_file ${latbc_path}/lbff00090000.nc .
 add_link_file ${latbc_path}/lbff00100000.nc .
 
 # pollen specific input files
-add_required_file ${latbc_path}/xml_nl/diagnostics-BETU.xml .
-add_required_file ${latbc_path}/xml_nl/modes-BETU.xml .
-add_required_file ${latbc_path}/xml_nl/tracers-BETU.xml .
+add_required_file ${latbc_path}/xml_nl/diagnostics-CORY_BETU.xml .
+add_required_file ${latbc_path}/xml_nl/modes-CORY_BETU.xml .
+add_required_file ${latbc_path}/xml_nl/tracers-CORY_BETU.xml .
 
 add_required_file ${latbc_path}/norm.T.stns.betu.atab .
-add_required_file ${latbc_path}/ART_POC_iconR19B08-grid_0001 .
-add_required_file ${latbc_path}/ART_POV_iconR19B08-grid_0001 .
+add_required_file ${latbc_path}/norm.T.stns.cory.atab .
+add_required_file ${latbc_path}/grid_cory_betu/ART_POC_iconR19B08-grid_0001 .
+add_required_file ${latbc_path}/grid_cory_betu/ART_POV_iconR19B08-grid_0001 .
 
 
 # dictionary file for output variable names
@@ -367,9 +368,9 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  lart_diag_out        = .true.
  iart_init_aero       = 0
  cart_input_folder    = '.'
- cart_modes_xml       = './modes-BETU.xml'
- cart_aerosol_xml     = './tracers-BETU.xml'
- cart_diagnostics_xml = './diagnostics-BETU.xml'
+ cart_modes_xml       = './modes-CORY_BETU.xml'
+ cart_aerosol_xml     = './tracers-CORY_BETU.xml'
+ cart_diagnostics_xml = './diagnostics-CORY_BETU.xml'
  lart_chem            = .false.
  lart_chemtracer      = .false.
  iart_aci_warm        = 0
@@ -396,8 +397,10 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  output_bounds    = ${output_bounds}        ! start, end, increment
  steps_per_file   = ${steps_per_file}
  mode                 = 1                 ! 1: forecast mode (relative t-axis), 2: climate mode (absolute t-axis)
- ml_varlist           = 'pollbetu','aod_dust_550nm','ustar_thres','ustar','BETUrprec','BETUreso','BETUress','BETUsdes',
-                        'BETUctsum', 'BETUsaisn', 'BETUsaisl', 'BETUfe', 'BETUsaisa'
+ ml_varlist           = 'pollbetu','BETUreso','BETUress','BETUsdes',
+                        'BETUctsum', 'BETUsaisn', 'BETUsaisl', 'BETUfe', 'BETUsaisa',
+                        'pollcory','CORYreso','CORYress','CORYsdes',
+                        'CORYctsum', 'CORYsaisn', 'CORYsaisl', 'CORYfe', 'CORYsaisa'
 /
 
 ! radiation_nml: radiation scheme ---------------------------------------------
