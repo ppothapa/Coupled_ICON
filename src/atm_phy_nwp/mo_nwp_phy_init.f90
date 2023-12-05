@@ -1826,7 +1826,7 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
     IF (msg_level >= 12)  CALL message(modname, 'Cosmo turbulence initialized')
 
 
-  ELSE IF (  atm_phy_nwp_config(jg)%inwp_turb == igme) THEN
+  ELSE IF (  atm_phy_nwp_config(jg)%inwp_turb == igme .AND. linit_mode) THEN
 
     IF (msg_level >= 12)  CALL message(modname, 'init GME turbulence')
 
@@ -1849,7 +1849,9 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
       DO jt = 1, ntiles_total+ntiles_water
         prm_diag%gz0_t(i_startidx:i_endidx,jb,jt) = prm_diag%gz0(i_startidx:i_endidx,jb)
       ENDDO
-
+      !Note:
+      !Although only '%gz0' (as a grid-surface mean) is required for the turbulence part,
+      ! the tile-specific roughnes-length '%gz0_t' is still used in the soil/surfce part!
     ENDDO
 !$OMP END DO
 !$OMP END PARALLEL
@@ -1865,7 +1867,18 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
         CALL finish(routine, 'Only constant roughness length allowed idealized LES cases!')
       END IF
     ELSE
-      !Default: Already set above
+      DO jb = i_startblk, i_endblk
+
+        CALL get_indices_c(p_patch, jb, i_startblk, i_endblk, &
+          &                i_startidx, i_endidx, rl_start, rl_end)
+
+        DO jt = 1, ntiles_total+ntiles_water
+          prm_diag%gz0_t(i_startidx:i_endidx,jb,jt) = prm_diag%gz0(i_startidx:i_endidx,jb)
+        ENDDO
+        !Note: 
+        !Although only '%gz0' (as a grid-surface mean) is required for the turbulence part,
+        ! the tile-specific roughnes-length '%gz0_t' is still used in the soil/surfce part!
+      ENDDO
     END IF
 
   END IF
