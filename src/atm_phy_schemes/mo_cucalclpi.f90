@@ -1,42 +1,17 @@
-! $RCSfile$
-! $Revision$ $Date$
+!
+!**** *CUCALCLPI*  ROUTINE FOR LPI COMPUTATION
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
-!>
-!! <Short description of module for listings and indices>
-!! Description:
-!!**** *CUCALCLPI*  ROUITINE FOR LPI COMPUTATION
-!!
-!!  @author  Guido Schroeder               02/02/2021    
-!!
-!!     PURPOSE
-!!     -------
-
-!!     THIS ROUTINE COMPUTES THE LIGHTNIN POTENTIAL INDEX AS IN 
-!!     LYNN AND YAIR (2010). IT ALSO MAKES USE OF SOME IDEAS OF LOPEZ (2016)
-!!     FOR THE LIGHTNING FLASH DENSITY COMPUTATION.
-
-
-!!     METHOD
-!!     -------
-
-!!     IN CONTRAST TO THE ORIGINAL PAPER OF LYNN AND YAIR THE
-!!     UPDRAFT PROFILE OF THE CONVECION SCHEME IS USED TO 
-!!     COMPUTE THE LPI.
-!!     THE UPDRAFT TEMPERATURE, LIQUID AND FROZEN WATER AS WELL AS
-!!     THE KINETIC ENERGY OF THE UPDRAFT ARE USED.
-
-!! @par Revision History
-!! Initial implementation into ICON  by Guido Schroeder, DWD (2021-02-02)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
 MODULE mo_cucalclpi
   
   USE mo_kind   ,ONLY: JPRB=>wp     , &

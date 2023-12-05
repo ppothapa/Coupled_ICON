@@ -1,46 +1,34 @@
-!===============================================================================!
 !
-!! Module to compute effective radius consistent with microphysics, cloud scheme 
-!! and convection scheme choice (not yet!).
-!! The effective radius calculated here can be used by the radiation module ECRAD,
-!! and by some satellite forward operators (like VISOP)
-!!
-!! The idea is to keep a consistent effective radius for the whole model and forward 
-!! operators. For this reason the coefficients and concentration can be claculated 
-!! in the microphysics (the module only provides an interface).
-!!
-!! Description:
-!! The module also contains adapted versions of the  routines developed 
-!! by Simon Gruber and Uli Blahak for the optical properties in RRTM 
-!! (only the effective radius, not the optical porperties),
+! Module to compute effective radius consistent with microphysics, cloud scheme
+! and convection scheme choice (not yet!).
+! The effective radius calculated here can be used by the radiation module ECRAD,
+! and by some satellite forward operators (like VISOP)
 !
-!!
-!!
-!! @author Alberto de Lozar, DWD
-!!                     alberto.lozar-de@dwd.de
+! The idea is to keep a consistent effective radius for the whole model and forward
+! operators. For this reason the coefficients and concentration can be claculated
+! in the microphysics (the module only provides an interface).
 !
-!! @par Revision History
-!! First Version. Alberto de Lozar, DWD 2019-10-10
-!!
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!===============================================================================!
-
-
+! Description:
+! The module also contains adapted versions of the  routines developed
+! by Simon Gruber and Uli Blahak for the optical properties in RRTM
+! (only the effective radius, not the optical porperties),
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_reff_main
 
   USE mo_kind              ,   ONLY: wp, i4
   USE mo_math_constants    ,   ONLY: pi
-  USE mo_math_utilities    ,   ONLY: gamma_fct  
   USE mo_physical_constants,   ONLY: rhoh2o     ! Water density  
   USE mo_exception,            ONLY: message, message_text, finish
 
@@ -260,8 +248,8 @@ MODULE mo_reff_main
 
        IF ( reff_calc%dsd_type == 2) THEN  ! Polydisperse
          ! Broadening due to choosing a radial gamma distribution with fixed gamma, nu 
-         bf =gamma_fct ( (nu + 4.0_wp)/mu ) / gamma_fct ( (nu + 3.0_wp)/mu ) * &
-              & ( gamma_fct ( (nu + 1.0_wp)/mu ) / gamma_fct ( (nu + 4.0_wp)/mu ) )**(1.0_wp/3.0_wp)
+         bf = GAMMA ( (nu + 4.0_wp)/mu ) / GAMMA ( (nu + 3.0_wp)/mu ) * &
+              & ( GAMMA ( (nu + 1.0_wp)/mu ) / GAMMA ( (nu + 4.0_wp)/mu ) )**(1.0_wp/3.0_wp)
          reff_calc%reff_coeff(1) = reff_calc%reff_coeff(1) * bf
         
        END IF
@@ -294,7 +282,7 @@ MODULE mo_reff_main
 
       END IF
 
-      !$ACC UPDATE DEVICE(reff_calc%reff_coeff)
+      !$ACC UPDATE DEVICE(reff_calc%reff_coeff) ASYNC(1)
     
   END SUBROUTINE init_reff_calc
 

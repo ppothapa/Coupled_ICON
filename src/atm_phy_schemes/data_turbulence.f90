@@ -1,62 +1,23 @@
-!+ Data module for variables of the turbulence parameterization
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!------------------------------------------------------------------------------
-
-MODULE data_turbulence
-
-!------------------------------------------------------------------------------
 !
 ! Description:
 !  This module contains variables that are used in the turbulence
 !  parameterizations. With these variables a tuning of the scheme is
 !  possible.
 !
-! Current Code Owner: DWD, Matthias Raschendorfer
-!  phone:  +49  69  8062 2708
-!  fax:    +49  69  8062 3721
-!  email:  Matthias.Raschendorfer@dwd.de
+! ICON
 !
-! History:
-! Version    Date       Name
-! ---------- ---------- ----
-! 3.21       2006/12/04 Ulrich Schaettler
-!  Initial release
-! V3_23        2007/03/30 Matthias Raschendorfer
-!  Importing 'rat_lam' from data_soil
-!  and 'clc_diag', 'q_crit', 'akt' from data_constants.
-!  Introduction of some parameters from turb_param.incf.
-!  Initialization of all parameters with default values.
-! V4_10        2009/09/11 Matthias Raschendorfer
-!  Introduction of 'a_hshr' and 'a_stab'.
-! V4_13        2010/05/11 Michael Gertz
-!  Adaptions to SVN
-! V4_15        2010/11/19 Oliver Fuhrer
-!  Reduced maximal value of securi to 0.5 because of possible numerical
-!  instabilities otherwise
-! V4_18        2011/05/26 Ulrich Schaettler
-!  Changed the code owner
-! @VERSION@    @DATE@     Matthias Raschendorfer
-!              2010/12/30                          
-!  Adaptions for use in both COSMO and ICON and introduction of INTEGER parameter 'it_end'
-!              2011/12/08 Matthias Raschendorfer
-!  Introduction of 'impl_s' and 'impl_t'
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
 !
-! Code Description:
-! Language: Fortran 90.
-! Software Standards: "European Standards for Writing and
-! Documenting Exchangeable Fortran 90 Code".
-!==============================================================================
-!
-! Declarations:
-!
-! Modules used:
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
+MODULE data_turbulence
+
+!------------------------------------------------------------------------------
 
 USE mo_kind, ONLY :  &
      ireals   => wp, &

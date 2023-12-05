@@ -1,28 +1,17 @@
-!>
-!! @brief turbulent diagnosis for LES physics 
-!!
-!! <Describe the concepts of the procedures and algorithms used in the module.>
-!! <Details of procedures are documented below with their definitions.>
-!! <Include any applicable external references inline as module::procedure,>
-!! <external_procedure(), or by using @see.>
-!! <Don't forget references to literature.>
-!!
-!! @author <name, affiliation>
-!! @author <name, affiliation>
-!!
-!!
-!! @par Revision History
-!! first implementation  by Anurag Dipankar, MPIM (2014-01)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! turbulent diagnosis for LES physics
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -93,8 +82,6 @@ CONTAINS
   !! Most of the diagnostics are from mo_nwp_diagnosis/nwp_diag_for_output
   !! routine. Some of them which were very specific to NWP have been deleted.
   !!
-  !! @par Revision History
-  !!
   SUBROUTINE les_cloud_diag(  kstart_moist,               & !in
                             & ih_clch, ih_clcm,           & !in
                             & phy_params,                 & !in
@@ -117,13 +104,16 @@ CONTAINS
     TYPE(t_nh_metrics), INTENT(in)        :: p_metrics
     TYPE(t_nwp_phy_diag)   , INTENT(inout):: prm_diag
 
+
     REAL(wp), PARAMETER :: qc_min = 1.e-8_wp
     REAL(wp), PARAMETER :: grav_o_cpd = grav/cpd
     REAL(wp), PARAMETER :: zundef = -999._wp   ! undefined value for 0 deg C level
 
     REAL(wp):: zbuoy, zqsat, zcond
-    REAL(wp):: ri_no
+    REAL(wp):: ri_no(nproma,p_patch%nlev)
     REAL(wp):: ztp(nproma), zqp(nproma)
+
+    REAL(wp), PARAMETER :: missing_value_z_pbl  = 0.0_wp ! in case no z_pbl can be defined
 
     LOGICAL :: found_cltop, found_clbas
     INTEGER :: nlev
@@ -203,20 +193,32 @@ CONTAINS
 
 !  -included calculation of boundary layer height (Anurag Dipankar, MPI Octo 2013).
 !   using Bulk richardson number approach. 
-       DO jc = i_startidx, i_endidx           
-         DO jk = nlev-1, kstart_moist, -1
 
-            ri_no = (grav/p_prog%theta_v(jc,nlev,jb)) * &
-                    ( p_prog%theta_v(jc,jk,jb)-p_prog%theta_v(jc,nlev,jb) ) *  &
-                    ( p_metrics%z_mc(jc,jk,jb)-p_metrics%z_mc(jc,nlev,jb) ) /  &
-                    MAX( 1.e-6_wp,(p_diag%u(jc,jk,jb)**2+p_diag%v(jc,jk,jb)**2) )
+       DO jc = i_startidx, i_endidx
+         ri_no(jc,nlev) = missing_value_z_pbl
+        ENDDO
 
-            IF(ri_no > 0.28_wp)THEN
-               prm_diag%z_pbl(jc,jb) = p_metrics%z_mc(jc,jk,jb)
-               EXIT
-            END IF
-         END DO 
-       ENDDO
+
+       DO jk = nlev-1, kstart_moist, -1
+         DO jc = i_startidx, i_endidx
+
+            ri_no(jc,jk) = (grav/p_prog%theta_v(jc,nlev,jb)) * &
+              &      ( p_prog%theta_v(jc,jk,jb)-p_prog%theta_v(jc,nlev,jb) ) *  &
+              &      ( p_metrics%z_mc(jc,jk,jb)-p_metrics%z_mc(jc,nlev,jb) ) /  &
+              &      MAX( 1.e-6_wp,(p_diag%u(jc,jk,jb)**2+p_diag%v(jc,jk,jb)**2) ) 
+       
+            IF (ri_no(jc,jk) > 0.28_wp) THEN
+              IF (ri_no(jc,jk+1) <= 0.28_wp) THEN
+                prm_diag%z_pbl(jc,jb) = p_metrics%z_mc(jc,jk,jb)
+              ENDIF
+            ENDIF
+            IF ((jk == kstart_moist) .AND. (ri_no(jc,jk) <= 0.28_wp)) THEN
+              prm_diag%z_pbl(jc,jb) = missing_value_z_pbl
+            ENDIF
+
+         END DO
+       END DO
+
        !
        ! height of ccloud base and top: hbas_con, htop_con
        ! 
@@ -324,13 +326,6 @@ CONTAINS
 
   !>
   !! <Calculates 1D and 0D turbulent diagnostics>
-  !!
-  !! <Describe the purpose of the subroutine and its algorithm(s).>
-  !! <Include any applicable external references inline as module::procedure,>
-  !! <external_procedure(), or by using @see.>
-  !! <Don't forget references to literature.>
-  !!
-  !! @par Revision History
   !!
   SUBROUTINE calculate_turbulent_diagnostics(             &
                             & p_patch,                    & !in
@@ -981,13 +976,6 @@ CONTAINS
 !>
   !! <write out profile>
   !!
-  !! <Describe the purpose of the subroutine and its algorithm(s).>
-  !! <Include any applicable external references inline as module::procedure,>
-  !! <external_procedure(), or by using @see.>
-  !! <Don't forget references to literature.>
-  !!
-  !! @par Revision History
-  !!
   SUBROUTINE write_vertical_profiles(outvar, this_datetime)
     REAL(wp),                INTENT(IN)  :: outvar(:,:)
     TYPE(datetime), POINTER, INTENT(IN)  :: this_datetime
@@ -1019,13 +1007,6 @@ CONTAINS
 !>
   !! <write out time series>
   !!
-  !! <Describe the purpose of the subroutine and its algorithm(s).>
-  !! <Include any applicable external references inline as module::procedure,>
-  !! <external_procedure(), or by using @see.>
-  !! <Don't forget references to literature.>
-  !!
-  !! @par Revision History
-  !!
   SUBROUTINE write_time_series(outvar, this_datetime)
     REAL(wp),                INTENT(IN) :: outvar(:)
     TYPE(datetime), POINTER, INTENT(IN) :: this_datetime
@@ -1056,13 +1037,6 @@ CONTAINS
 !===========================================================================
 !>
   !! <initialize turbulent output>
-  !!
-  !! <Describe the purpose of the subroutine and its algorithm(s).>
-  !! <Include any applicable external references inline as module::procedure,>
-  !! <external_procedure(), or by using @see.>
-  !! <Don't forget references to literature.>
-  !!
-  !! @par Revision History
   !!
   SUBROUTINE init_les_turbulent_output(p_patch, p_metrics, this_datetime, l_rh, ldelete)
    TYPE(t_patch),   TARGET, INTENT(in)   :: p_patch    !<grid/patch info.
@@ -1417,13 +1391,6 @@ CONTAINS
 !===========================================================================
 !>
   !! <close turbulent output>
-  !!
-  !! <Describe the purpose of the subroutine and its algorithm(s).>
-  !! <Include any applicable external references inline as module::procedure,>
-  !! <external_procedure(), or by using @see.>
-  !! <Don't forget references to literature.>
-  !!
-  !! @par Revision History
   !!
   SUBROUTINE close_les_turbulent_output(jg)
    INTEGER, INTENT(IN) :: jg

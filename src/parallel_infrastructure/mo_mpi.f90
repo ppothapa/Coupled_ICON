@@ -1,194 +1,197 @@
-!> Basic module initializing the MPI communication and handling most
-!> of the MPI calls (wrapper functions).
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
-!!
-!!  Processors are divided into
-!!    1.    worker PEs    : majority of MPI tasks, doing the actual work
-!!    2.    I/O PEs       : dedicated I/O server tasks          (only for parallel_nml::num_io_procs > 0)
-!!    3.    one test PE   : for verification runs               (only for parallel_nml::p_test_run == .TRUE.)
-!!    4.    restart PEs   : for asynchronous restart writing    (only for dedicatedRestartProcs > 0)
-!!    5.    prefetch PEs  : for prefetching of data             (only for parallel_nml::num_prefetch_proc > 0)
-!!    6.    radar I/O PEs : for some async. tasks of radar      (only for parallel_nml::num_io_procs_radar > 0)
-!!                          forward operator EMVORADO (asynchr. processing: I/O and postprocessing tasks like
-!!                          radar composites, bubble generator, superobservations)
-!!
-!!  The communicators are split like this:
-!!
-!!          0    p_work_pe0    p_io_pe0    p_restart_pe0    p_pref_pe0    p_radario_pe0   process_mpi_all_size
-!!
-!!          |         |            |             |               |                |              |
-!!          V         V            V             V               V                V              V
-!!
-!!          +---------------------------------------------------------------------+---------------+
-!!          !                      process_mpi_all_comm                                           !
-!!          +---------+------------+-------------+---------------+----------------+---------------+
-!!          | test PE | worker PEs |   I/O PEs   |  restart PEs  |  prefetch PEs  | radar I/O PEs |
-!!          +---------+------------+-------------+---------------+----------------+---------------+
-!!          |    A    |     B      |     C       |      D        |       E        |               | p_comm_work
-!!          |    A    |     A      |             |               |                |               | p_comm_work_test
-!!          |    A    |     B      |     B       |               |                | (see the      | p_comm_work_io
-!!          |    A    |            |     B       |               |                |    Note^^     | p_comm_io (B is worker PE 0 if num_io_procs == 0)
-!!          |         |     A      |             |      A        |                |      below)   | p_comm_work_restart
-!!          |         |     A      |             |               |       A        |               | p_comm_work_pref
-!!          +---------+------------+-------------+---------------+----------------+---------------+
-!!
-!!  Note that there are actually two different p_comm_work_io communicators:
-!!  One that spans the worker AND I/O PEs as the NAME implies, AND one that IS ONLY defined on the test PE.
-!!  Similarly, there IS another ghost communicator p_comm_io defined on the test PE.
-!!  This has the consequence that `my_process_is_io()` IS NOT equivalent to `p_comm_io /= MPI_COMM_NULL`
-!!
-!!  Process groups with specific main procs, all of these are called from mo_atmo_model:
-!!    * I/O (mo_name_list_output): name_list_io_main_proc()
-!!    * restart (mo_async_restart): restart_main_proc()
-!!    * prefetch (mo_async_latbc): prefetch_main_proc()
-!!
-!!
-!!  List of MPI communicators:
-!!  --------------------------
-!!
-!!       global_mpi_communicator
-!!
-!!         description  : MPI communicator spanning all PEs running  (= MPI_COMM_WORLD).
-!!         size         : global_mpi_size
-!!         this PE's ID : my_global_mpi_id (= get_my_global_mpi_id())
-!!
-!!
-!!       process_mpi_all_comm  (= get_my_mpi_all_communicator())
-!!
-!!         description  : MPI communicator containing all PEs that are running this
-!!                        model component. Different from global_mpi_communicator,
-!!                        if master_nml::no_of_models > 1
-!!         size         : process_mpi_all_size
-!!         this PE's ID : my_process_mpi_all_id (= get_my_mpi_all_id())
-!!
-!!
-!!       p_comm_work  (=get_my_mpi_work_communicator())
-!!
-!!         description  : MPI communicator for work group. On I/O and test PEs this
-!!                        defaults to process_mpi_all_comm.
-!!         size         : num_work_procs (on worker PEs: num_work_procs==p_n_work)
-!!         this PE's ID : p_pe_work (= get_my_mpi_work_id())
-!!
-!!       In the case of the NEC hybrid mode (detached PE0), the sub-communicator p_comm_work_only encompasses
-!!       all true worker PEs (excluding PE0), otherwise, p_comm_work_only is identical to p_comm_work
-!!
-!!
-!!       ... less important MPI communicators ...
-!!
-!!       p_comm_work_test (size = 0/1)
-!!         description  : MPI communicator spanning work group and test PE
-!!                        in verification mode parallel_nml::p_test_run == .TRUE.
-!!       p_comm_work_io
-!!         description  : MPI communicator spanning work group and I/O PEs
-!!       p_comm_io
-!!         description  : MPI communicator spanning I/O PEs
-!!       p_comm_work_2_io
-!!         description  : Inter(!)communicator work PEs - I/O PEs
-!!       p_comm_work_pref
-!!         description  : MPI Communicator spanning work group and prefetch PEs
-!!       p_comm_work_2_pref
-!!         description  : Inter(!)communicator work PEs - prefetching PEs
-!!
-!!
-!!  Processor splitting:
-!!  --------------------
-!!
-!!       In order to improve the parallel load balancing, the domains
-!!       of the first refinement level can be distributed to disjoint
-!!       processor subsets. This distribution process is weighted by
-!!       the namelist parameter grid_nml::patch_weight.  Since the
-!!       processor sets are disjoint, MPI calls happen independently on
-!!       each PE subset.
-!!
-!!       For global operations (sum, min, max in mo_sync), each patch
-!!       contains additional data members which are initialized in
-!!       mo_complete_subdivision::set_patch_communicators:
-!!
-!!       p_patch % comm
-!!         description  : MPI communicator for this patch. If no processor
-!!                        splitting enabled: p_patch%comm==p_comm_work.
-!!         size         : p_patch%n_proc
-!!         this PE's ID : p_patch%rank
-!!
-!!       p_patch % proc0
-!!         description  : global id of processor with rank 0 (within the
-!!                        working set p_comm_work)
-!!
-!!       The global communicator which is currently in use is stored by
-!!       a call to mo_mpi::push_glob_comm in the data structure
-!!       mo_mpi::glob_comm(0:max_lev), where the level number is equal
-!!       to 0 for the global grid, 1 for the first generation of child
-!!       domains etc.
-!!
-!!
-!! Split of process_mpi_all_comm and stdio process:
-!! ------------------------------------------------
-!!
-!!    The process_mpi_all_comm is the whole model communicator and is split
-!!    to test/work/io/restart, in this order
-!!
-!!    The process_mpi_stdio_id is always the 0 process of the process_mpi_all_comm
-!!    If is p_test, then the testing process is also the stdio process
-!!
-!!    The my_process_is_mpi_workroot() is true for the 0 process of the
-!!    p_comm_work communicator, this communicator does not include the test process,
-!!    the io and the restart processes. This communicator and and the mpi_workroot
-!!    process should be used in the case of gather and scatter procedures that do
-!!    not use the io process (the third part). This will be different from using
-!!    the stdio process only in the case of p_test
-!!
-!!
-!! ^^A Note on radar I/O PEs:
-!! --------------------------
-!!
-!!   If ANY(run_nml::luse_radarfwo(1:max_dom)) and parallel_nml::num_io_procs_radar > 0,
-!!   These PEs are appended at the very end of the PE list, but are not used by ICON itself.
-!!   They are provided exclusively to the radar forward operator EMVORADO for
-!!   Input/Output of observed and simulated radar data and postprocessing tasks
-!!   such as computing superobservations for data assimilation,
-!!   generating radar reflectivity composites for model verification and visualization,
-!!   or the "warm bubble generator" for triggering missing convective cells.
-!!   From this set of PEs, EMVORADO creates different communicators internally on its own,
-!!   triggered by a "CALL init_emvorado_mpi()". These communicators
-!!   are only used in EMVORADO and its interface (src/data_assimilation/interfaces/) and consist of:
-!!
-!!     - a clone of p_comm_work                    : icomm_cart_fwo
-!!     - a communicator for the radar I/O Pes      : icomm_radario
-!!     - a combined communicator                   : icomm_radar = icomm_cart_fwo + icomm_radario
-!!
-!!   In case EMVORADO runs asynchronously for more than 1 (N) different model domains, i.e.,
-!!   run_nml::luse_radarfwo(1:N) = .TRUE. and parallel_nml::num_io_procs_radar > 0,
-!!   and if parallel_nml::num_io_procs_radar > N,
-!!   there are also separate radar I/O sub-communicators for each model domain:
-!!
-!!     - a subset of icomm_radario for each domain : icomm_radario_dom(i), i=1...N
-!!     - a combined communicator for each domain   : icomm_radar_dom(i) = icomm_cart_fwo + icomm_radario_dom(i), i=1...N
-!!     - icomm_radario is still available as the superset of all icomm_radario_dom(i)
-!!     - icomm_radar is still available as icomm_cart_fwo + icomm_radario
-!!
-!!   This enables to run the radar I/O and postprocessing for each domain
-!!   separately and in parallel, minimizing communication latency on the worker
-!!   procs.
-!!
-!!   Although ICON does not need to access these communicators explicitly,
-!!   it checks at a few places if the PE does belong to icomm_radar or icomm_radario.
-!!   For this purpose, the following is provided PUBLIC below:
-!!
-!!   process_mpi_radario_size        : equals parallel_nml::num_io_procs_radar
-!!   process_mpi_all_radarioroot_id  : ID of root of icomm_radario in the global communicator (= p_radario_pe0)
-!!   my_process_is_radar()           : returns .TRUE. if PE belongs to icomm_radar
-!!   my_process_is_radario()         : returns .TRUE. if PE belongs to icomm_radario
-!!   my_process_is_mpi_radarioroot() : returns .TRUE. if PE is root of icomm_radario
-!!
+! Basic module initializing the MPI communication and handling most
+! of the MPI calls (wrapper functions).
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+!
+!
+!  Processors are divided into
+!    1.    worker PEs    : majority of MPI tasks, doing the actual work
+!    2.    I/O PEs       : dedicated I/O server tasks          (only for parallel_nml::num_io_procs > 0)
+!    3.    one test PE   : for verification runs               (only for parallel_nml::p_test_run == .TRUE.)
+!    4.    restart PEs   : for asynchronous restart writing    (only for dedicatedRestartProcs > 0)
+!    5.    prefetch PEs  : for prefetching of data             (only for parallel_nml::num_prefetch_proc > 0)
+!    6.    radar I/O PEs : for some async. tasks of radar      (only for parallel_nml::num_io_procs_radar > 0)
+!                          forward operator EMVORADO (asynchr. processing: I/O and postprocessing tasks like
+!                          radar composites, bubble generator, superobservations)
+!
+!  The communicators are split like this:
+!
+!          0    p_work_pe0    p_io_pe0    p_restart_pe0    p_pref_pe0    p_radario_pe0   process_mpi_all_size
+!
+!          |         |            |             |               |                |              |
+!          V         V            V             V               V                V              V
+!
+!          +---------------------------------------------------------------------+---------------+
+!          !                      process_mpi_all_comm                                           !
+!          +---------+------------+-------------+---------------+----------------+---------------+
+!          | test PE | worker PEs |   I/O PEs   |  restart PEs  |  prefetch PEs  | radar I/O PEs |
+!          +---------+------------+-------------+---------------+----------------+---------------+
+!          |    A    |     B      |     C       |      D        |       E        |               | p_comm_work
+!          |    A    |     A      |             |               |                |               | p_comm_work_test
+!          |    A    |     B      |     B       |               |                | (see the      | p_comm_work_io
+!          |    A    |            |     B       |               |                |    Note^^     | p_comm_io (B is worker PE 0 if num_io_procs == 0)
+!          |         |     A      |             |      A        |                |      below)   | p_comm_work_restart
+!          |         |     A      |             |               |       A        |               | p_comm_work_pref
+!          +---------+------------+-------------+---------------+----------------+---------------+
+!
+!  Note that there are actually two different p_comm_work_io communicators:
+!  One that spans the worker AND I/O PEs as the NAME implies, AND one that IS ONLY defined on the test PE.
+!  Similarly, there IS another ghost communicator p_comm_io defined on the test PE.
+!  This has the consequence that `my_process_is_io()` IS NOT equivalent to `p_comm_io /= MPI_COMM_NULL`
+!
+!  Process groups with specific main procs, all of these are called from mo_atmo_model:
+!    * I/O (mo_name_list_output): name_list_io_main_proc()
+!    * restart (mo_async_restart): restart_main_proc()
+!    * prefetch (mo_async_latbc): prefetch_main_proc()
+!
+!
+!  List of MPI communicators:
+!  --------------------------
+!
+!       global_mpi_communicator
+!
+!         description  : MPI communicator spanning all PEs running  (= MPI_COMM_WORLD).
+!         size         : global_mpi_size
+!         this PE's ID : my_global_mpi_id (= get_my_global_mpi_id())
+!
+!
+!       process_mpi_all_comm  (= get_my_mpi_all_communicator())
+!
+!         description  : MPI communicator containing all PEs that are running this
+!                        model component. Different from global_mpi_communicator,
+!                        if master_nml::no_of_models > 1
+!         size         : process_mpi_all_size
+!         this PE's ID : my_process_mpi_all_id (= get_my_mpi_all_id())
+!
+!
+!       p_comm_work  (=get_my_mpi_work_communicator())
+!
+!         description  : MPI communicator for work group. On I/O and test PEs this
+!                        defaults to process_mpi_all_comm.
+!         size         : num_work_procs (on worker PEs: num_work_procs==p_n_work)
+!         this PE's ID : p_pe_work (= get_my_mpi_work_id())
+!
+!       In the case of the NEC hybrid mode (detached PE0), the sub-communicator p_comm_work_only encompasses
+!       all true worker PEs (excluding PE0), otherwise, p_comm_work_only is identical to p_comm_work
+!
+!
+!       ... less important MPI communicators ...
+!
+!       p_comm_work_test (size = 0/1)
+!         description  : MPI communicator spanning work group and test PE
+!                        in verification mode parallel_nml::p_test_run == .TRUE.
+!       p_comm_work_io
+!         description  : MPI communicator spanning work group and I/O PEs
+!       p_comm_io
+!         description  : MPI communicator spanning I/O PEs
+!       p_comm_work_2_io
+!         description  : Inter(!)communicator work PEs - I/O PEs
+!       p_comm_work_pref
+!         description  : MPI Communicator spanning work group and prefetch PEs
+!       p_comm_work_2_pref
+!         description  : Inter(!)communicator work PEs - prefetching PEs
+!
+!
+!  Processor splitting:
+!  --------------------
+!
+!       In order to improve the parallel load balancing, the domains
+!       of the first refinement level can be distributed to disjoint
+!       processor subsets. This distribution process is weighted by
+!       the namelist parameter grid_nml::patch_weight.  Since the
+!       processor sets are disjoint, MPI calls happen independently on
+!       each PE subset.
+!
+!       For global operations (sum, min, max in mo_sync), each patch
+!       contains additional data members which are initialized in
+!       mo_complete_subdivision::set_patch_communicators:
+!
+!       p_patch % comm
+!         description  : MPI communicator for this patch. If no processor
+!                        splitting enabled: p_patch%comm==p_comm_work.
+!         size         : p_patch%n_proc
+!         this PE's ID : p_patch%rank
+!
+!       p_patch % proc0
+!         description  : global id of processor with rank 0 (within the
+!                        working set p_comm_work)
+!
+!       The global communicator which is currently in use is stored by
+!       a call to mo_mpi::push_glob_comm in the data structure
+!       mo_mpi::glob_comm(0:max_lev), where the level number is equal
+!       to 0 for the global grid, 1 for the first generation of child
+!       domains etc.
+!
+!
+! Split of process_mpi_all_comm and stdio process:
+! ------------------------------------------------
+!
+!    The process_mpi_all_comm is the whole model communicator and is split
+!    to test/work/io/restart, in this order
+!
+!    The process_mpi_stdio_id is always the 0 process of the process_mpi_all_comm
+!    If is p_test, then the testing process is also the stdio process
+!
+!    The my_process_is_mpi_workroot() is true for the 0 process of the
+!    p_comm_work communicator, this communicator does not include the test process,
+!    the io and the restart processes. This communicator and and the mpi_workroot
+!    process should be used in the case of gather and scatter procedures that do
+!    not use the io process (the third part). This will be different from using
+!    the stdio process only in the case of p_test
+!
+!
+! ^^A Note on radar I/O PEs:
+! --------------------------
+!
+!   If ANY(run_nml::luse_radarfwo(1:max_dom)) and parallel_nml::num_io_procs_radar > 0,
+!   These PEs are appended at the very end of the PE list, but are not used by ICON itself.
+!   They are provided exclusively to the radar forward operator EMVORADO for
+!   Input/Output of observed and simulated radar data and postprocessing tasks
+!   such as computing superobservations for data assimilation,
+!   generating radar reflectivity composites for model verification and visualization,
+!   or the "warm bubble generator" for triggering missing convective cells.
+!   From this set of PEs, EMVORADO creates different communicators internally on its own,
+!   triggered by a "CALL init_emvorado_mpi()". These communicators
+!   are only used in EMVORADO and its interface (src/data_assimilation/interfaces/) and consist of:
+!
+!     - a clone of p_comm_work                    : icomm_cart_fwo
+!     - a communicator for the radar I/O Pes      : icomm_radario
+!     - a combined communicator                   : icomm_radar = icomm_cart_fwo + icomm_radario
+!
+!   In case EMVORADO runs asynchronously for more than 1 (N) different model domains, i.e.,
+!   run_nml::luse_radarfwo(1:N) = .TRUE. and parallel_nml::num_io_procs_radar > 0,
+!   and if parallel_nml::num_io_procs_radar > N,
+!   there are also separate radar I/O sub-communicators for each model domain:
+!
+!     - a subset of icomm_radario for each domain : icomm_radario_dom(i), i=1...N
+!     - a combined communicator for each domain   : icomm_radar_dom(i) = icomm_cart_fwo + icomm_radario_dom(i), i=1...N
+!     - icomm_radario is still available as the superset of all icomm_radario_dom(i)
+!     - icomm_radar is still available as icomm_cart_fwo + icomm_radario
+!
+!   This enables to run the radar I/O and postprocessing for each domain
+!   separately and in parallel, minimizing communication latency on the worker
+!   procs.
+!
+!   Although ICON does not need to access these communicators explicitly,
+!   it checks at a few places if the PE does belong to icomm_radar or icomm_radario.
+!   For this purpose, the following is provided PUBLIC below:
+!
+!   process_mpi_radario_size        : equals parallel_nml::num_io_procs_radar
+!   process_mpi_all_radarioroot_id  : ID of root of icomm_radario in the global communicator (= p_radario_pe0)
+!   my_process_is_radar()           : returns .TRUE. if PE belongs to icomm_radar
+!   my_process_is_radario()         : returns .TRUE. if PE belongs to icomm_radario
+!   my_process_is_mpi_radarioroot() : returns .TRUE. if PE is root of icomm_radario
+!
 
 !This IS a small helper to avoid a full #ifdef ... #ELSE ... #endif sequence where we
 !can just replace the MPI symbol with something constant.
@@ -246,6 +249,7 @@ MODULE mo_mpi
 #ifdef HAVE_YAXT
   USE yaxt,                   ONLY: xt_initialize, xt_initialized
 #endif
+  USE mo_exception,           ONLY: init_logger
 
   IMPLICIT NONE
 
@@ -2677,6 +2681,13 @@ CONTAINS
     CALL set_process_mpi_name(global_mpi_name)
     CALL set_process_mpi_communicator(global_mpi_communicator)
 
+    CALL init_logger(proc_id=get_my_global_mpi_id(), &
+                     l_write_output=my_process_is_stdio(), &
+                     nerr_unit=nerr, &
+                     l_extra_output=(proc_split .AND. comm_lev > 0 .AND. get_glob_proc0() == p_pe_work),&
+                     extra_info_prefix='PROC SPLIT', &
+                     callback_abort=abort_mpi)
+
   END SUBROUTINE start_mpi
   !------------------------------------------------------------------------------
 
@@ -2964,10 +2975,23 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    IF (loc_use_g2g) THEN
+      !$ACC HOST_DATA USE_DEVICE(t_buffer)
+      CALL mpi_send(t_buffer, icount, p_real_dp, p_destination, p_tag, &
+           &        p_comm, p_error)
+      !$ACC END HOST_DATA
+    ELSE
+      CALL mpi_send(t_buffer, icount, p_real_dp, p_destination, p_tag, &
+           &        p_comm, p_error)
+    END IF
+#else
     !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_send(t_buffer, icount, p_real_dp, p_destination, p_tag, &
-         p_comm, p_error)
+         &        p_comm, p_error)
     !$ACC END HOST_DATA
+#endif
 
 #ifdef DEBUG
     IF (p_error /= MPI_SUCCESS) THEN
@@ -3010,10 +3034,23 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    IF (loc_use_g2g) THEN
+      !$ACC HOST_DATA USE_DEVICE(t_buffer)
+      CALL mpi_send(t_buffer, icount, p_real_sp, p_destination, p_tag, &
+           &        p_comm, p_error)
+      !$ACC END HOST_DATA
+    ELSE
+      CALL mpi_send(t_buffer, icount, p_real_sp, p_destination, p_tag, &
+           &        p_comm, p_error)
+    END IF
+#else
     !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_send(t_buffer, icount, p_real_sp, p_destination, p_tag, &
-            p_comm, p_error)
+         &        p_comm, p_error)
     !$ACC END HOST_DATA
+#endif
 
 #ifdef DEBUG
     IF (p_error /= MPI_SUCCESS) THEN
@@ -3271,10 +3308,24 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    IF (loc_use_g2g) THEN
+      !$ACC HOST_DATA USE_DEVICE(t_buffer)
+      CALL mpi_send(t_buffer, icount, p_int, p_destination, p_tag, &
+           &        p_comm, p_error)
+      !$ACC END HOST_DATA
+    ELSE
+      CALL mpi_send(t_buffer, icount, p_int, p_destination, p_tag, &
+           &        p_comm, p_error)
+    END IF
+#else
     !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_send(t_buffer, icount, p_int, p_destination, p_tag, &
-         p_comm, p_error)
+         &        p_comm, p_error)
     !$ACC END HOST_DATA
+#endif
+
 
 #ifdef DEBUG
     IF (p_error /= MPI_SUCCESS) THEN
@@ -3459,10 +3510,23 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    IF (loc_use_g2g) THEN
+      !$ACC HOST_DATA USE_DEVICE(t_buffer)
+      CALL mpi_send(t_buffer, icount, p_bool, p_destination, p_tag, &
+           &        p_comm, p_error)
+      !$ACC END HOST_DATA
+    ELSE
+      CALL mpi_send(t_buffer, icount, p_bool, p_destination, p_tag, &
+           &        p_comm, p_error)
+    END IF
+#else
     !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_send(t_buffer, icount, p_bool, p_destination, p_tag, &
          p_comm, p_error)
     !$ACC END HOST_DATA
+#endif
 
 #ifdef DEBUG
     IF (p_error /= MPI_SUCCESS) THEN
@@ -3762,10 +3826,23 @@ CONTAINS
       CALL p_isend_nccl_real(t_buffer, p_destination, p_count)
 #endif
     ELSE
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+      IF (loc_use_g2g) THEN
+        !$ACC HOST_DATA USE_DEVICE(t_buffer)
+        CALL mpi_isend(t_buffer, icount, p_real_dp, p_destination, p_tag, &
+             &         p_comm, out_request, p_error)
+        !$ACC END HOST_DATA
+      ELSE
+        CALL mpi_isend(t_buffer, icount, p_real_dp, p_destination, p_tag, &
+             &         p_comm, out_request, p_error)
+      END IF
+#else
       !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
       CALL mpi_isend(t_buffer, icount, p_real_dp, p_destination, p_tag, &
            &         p_comm, out_request, p_error)
       !$ACC END HOST_DATA
+#endif
                 
       IF (PRESENT(request)) THEN
         request               = out_request
@@ -3815,10 +3892,23 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    IF (loc_use_g2g) THEN
+      !$ACC HOST_DATA USE_DEVICE(t_buffer)
+      CALL mpi_isend(t_buffer, icount, p_real_sp, p_destination, p_tag, &
+           &         p_comm, out_request, p_error)
+      !$ACC END HOST_DATA
+    ELSE
+      CALL mpi_isend(t_buffer, icount, p_real_sp, p_destination, p_tag, &
+           &         p_comm, out_request, p_error)
+    END IF
+#else
     !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_isend(t_buffer, icount, p_real_sp, p_destination, p_tag, &
          &         p_comm, out_request, p_error)
     !$ACC END HOST_DATA
+#endif
 
     IF (PRESENT(request)) THEN
       request               = out_request
@@ -4150,10 +4240,23 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    IF (loc_use_g2g) THEN
+      !$ACC HOST_DATA USE_DEVICE(t_buffer)
+      CALL mpi_isend(t_buffer, icount, p_int, p_destination, p_tag, &
+           &         p_comm, out_request, p_error)
+      !$ACC END HOST_DATA
+    ELSE
+      CALL mpi_isend(t_buffer, icount, p_int, p_destination, p_tag, &
+           &         p_comm, out_request, p_error)
+    END IF
+#else
     !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_isend(t_buffer, icount, p_int, p_destination, p_tag, &
          &         p_comm, out_request, p_error)
     !$ACC END HOST_DATA
+#endif
 
     IF (PRESENT(request)) THEN
       request               = out_request
@@ -4360,11 +4463,24 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    IF (loc_use_g2g) THEN
+      !$ACC HOST_DATA USE_DEVICE(t_buffer)
+      CALL mpi_isend(t_buffer, icount, p_bool, p_destination, p_tag, &
+           &         p_comm, p_request(p_irequest), p_error)
+      !$ACC END HOST_DATA
+    ELSE
+      CALL mpi_isend(t_buffer, icount, p_bool, p_destination, p_tag, &
+           &         p_comm, p_request(p_irequest), p_error)
+    END IF
+#else
     !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL p_inc_request
     CALL mpi_isend(t_buffer, icount, p_bool, p_destination, p_tag, &
          &         p_comm, p_request(p_irequest), p_error)
     !$ACC END HOST_DATA
+#endif
 
 #ifdef DEBUG
     IF (p_error /= MPI_SUCCESS) THEN
@@ -4596,10 +4712,23 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    IF (loc_use_g2g) THEN
+      !$ACC HOST_DATA USE_DEVICE(t_buffer)
+      CALL mpi_recv(t_buffer, icount, p_real_dp, p_source, p_tag, &
+           &        p_comm, p_status, p_error)
+      !$ACC END HOST_DATA
+    ELSE
+      CALL mpi_recv(t_buffer, icount, p_real_dp, p_source, p_tag, &
+           &        p_comm, p_status, p_error)
+    END IF
+#else
     !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_recv(t_buffer, icount, p_real_dp, p_source, p_tag, &
-         p_comm, p_status, p_error)
+         &        p_comm, p_status, p_error)
     !$ACC END HOST_DATA
+#endif
 
 #ifdef DEBUG
     IF (p_error /= MPI_SUCCESS) THEN
@@ -4641,10 +4770,23 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    IF (loc_use_g2g) THEN
+      !$ACC HOST_DATA USE_DEVICE(t_buffer)
+      CALL mpi_recv(t_buffer, icount, p_real_sp, p_source, p_tag, &
+           &        p_comm, p_status, p_error)
+      !$ACC END HOST_DATA
+    ELSE
+      CALL mpi_recv(t_buffer, icount, p_real_sp, p_source, p_tag, &
+           &        p_comm, p_status, p_error)
+    END IF
+#else
     !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_recv(t_buffer, icount, p_real_sp, p_source, p_tag, &
-            p_comm, p_status, p_error)
+         &        p_comm, p_status, p_error)
     !$ACC END HOST_DATA
+#endif
 
 #ifdef DEBUG
     IF (p_error /= MPI_SUCCESS) THEN
@@ -4941,10 +5083,23 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    IF (loc_use_g2g) THEN
+      !$ACC HOST_DATA USE_DEVICE(t_buffer)
+      CALL mpi_recv(t_buffer, icount, p_int, p_source, p_tag, &
+           &        p_comm, p_status, p_error)
+      !$ACC END HOST_DATA
+    ELSE
+      CALL mpi_recv(t_buffer, icount, p_int, p_source, p_tag, &
+           &        p_comm, p_status, p_error)
+    END IF
+#else
     !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_recv(t_buffer, icount, p_int, p_source, p_tag, &
-      &           p_comm, p_status, p_error)
+         &        p_comm, p_status, p_error)
     !$ACC END HOST_DATA
+#endif
 
 #ifdef DEBUG
     IF (p_error /= MPI_SUCCESS) THEN
@@ -5129,10 +5284,23 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    IF (loc_use_g2g) THEN
+      !$ACC HOST_DATA USE_DEVICE(t_buffer)
+      CALL mpi_recv(t_buffer, icount, p_bool, p_source, p_tag, &
+           &        p_comm, p_status, p_error)
+      !$ACC END HOST_DATA
+    ELSE
+      CALL mpi_recv(t_buffer, icount, p_bool, p_source, p_tag, &
+           &        p_comm, p_status, p_error)
+    END IF
+#else
     !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_recv(t_buffer, icount, p_bool, p_source, p_tag, &
-            p_comm, p_status, p_error)
+         &        p_comm, p_status, p_error)
     !$ACC END HOST_DATA
+#endif
 
 #ifdef DEBUG
     IF (p_error /= MPI_SUCCESS) THEN
@@ -5497,10 +5665,23 @@ CONTAINS
 #endif
     ELSE
       CALL p_inc_request
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+      IF (loc_use_g2g) THEN
+        !$ACC HOST_DATA USE_DEVICE(t_buffer)
+        CALL mpi_irecv(t_buffer, icount, p_real_dp, p_source, p_tag, &
+             &         p_comm, p_request(p_irequest), p_error)
+        !$ACC END HOST_DATA
+      ELSE
+        CALL mpi_irecv(t_buffer, icount, p_real_dp, p_source, p_tag, &
+             &         p_comm, p_request(p_irequest), p_error)
+      END IF
+#else
       !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
       CALL mpi_irecv(t_buffer, icount, p_real_dp, p_source, p_tag, &
-           p_comm, p_request(p_irequest), p_error)
+           &         p_comm, p_request(p_irequest), p_error)
       !$ACC END HOST_DATA
+#endif
     END IF
 
 #ifdef DEBUG
@@ -5542,11 +5723,24 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL p_inc_request
-    CALL MPI_IRECV(t_buffer, icount, p_real_sp, p_source, p_tag, &
-         p_comm, p_request(p_irequest), p_error)
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    IF (loc_use_g2g) THEN
+      !$ACC HOST_DATA USE_DEVICE(t_buffer)
+      CALL mpi_irecv(t_buffer, icount, p_real_sp, p_source, p_tag, &
+           &         p_comm, p_request(p_irequest), p_error)
+      !$ACC END HOST_DATA
+    ELSE
+      CALL mpi_irecv(t_buffer, icount, p_real_sp, p_source, p_tag, &
+           &         p_comm, p_request(p_irequest), p_error)
+    END IF
+#else
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
+    CALL mpi_irecv(t_buffer, icount, p_real_sp, p_source, p_tag, &
+         &         p_comm, p_request(p_irequest), p_error)
     !$ACC END HOST_DATA
+#endif
 
 #ifdef DEBUG
     IF (p_error /= MPI_SUCCESS) THEN
@@ -5819,10 +6013,23 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    IF (loc_use_g2g) THEN
+      !$ACC HOST_DATA USE_DEVICE(t_buffer)
+      CALL mpi_irecv(t_buffer, icount, p_int, p_source, p_tag, &
+           &         p_comm, out_request, p_error)
+      !$ACC END HOST_DATA
+    ELSE
+      CALL mpi_irecv(t_buffer, icount, p_int, p_source, p_tag, &
+           &         p_comm, out_request, p_error)
+    END IF
+#else
     !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_irecv(t_buffer, icount, p_int, p_source, p_tag, &
-         p_comm, out_request, p_error)
+         &         p_comm, out_request, p_error)
     !$ACC END HOST_DATA
+#endif
 
     IF (PRESENT(request)) THEN
       request               = out_request
@@ -6030,11 +6237,24 @@ CONTAINS
       loc_use_g2g = .false.
     END IF
 
-    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL p_inc_request
+! ACCWA (Cray Fortran <= 16.0.1.1) : ACC IF generate wrong assembly which segfaults CAST-32453
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    IF (loc_use_g2g) THEN
+      !$ACC HOST_DATA USE_DEVICE(t_buffer)
+      CALL mpi_irecv(t_buffer, icount, p_bool, p_source, p_tag, &
+           &         p_comm, p_request(p_irequest), p_error)
+      !$ACC END HOST_DATA
+    ELSE
+      CALL mpi_irecv(t_buffer, icount, p_bool, p_source, p_tag, &
+           &         p_comm, p_request(p_irequest), p_error)
+    END IF
+#else
+    !$ACC HOST_DATA USE_DEVICE(t_buffer) IF(loc_use_g2g)
     CALL mpi_irecv(t_buffer, icount, p_bool, p_source, p_tag, &
-         p_comm, p_request(p_irequest), p_error)
+         &         p_comm, p_request(p_irequest), p_error)
     !$ACC END HOST_DATA
+#endif
 
 #ifdef DEBUG
     IF (p_error /= MPI_SUCCESS) THEN
@@ -8535,14 +8755,22 @@ CONTAINS
   END FUNCTION p_sum_sp_1d
 
   !------------------------------------------------------
-  FUNCTION p_sum_dp_1d (zfield, comm, root) RESULT (p_sum)
+  FUNCTION p_sum_dp_1d (zfield, comm, root, use_g2g) RESULT (p_sum)
 
     REAL(dp),          INTENT(in) :: zfield(:)
     INTEGER, OPTIONAL, INTENT(in) :: comm, root
     REAL(dp)                      :: p_sum (SIZE(zfield))
+    LOGICAL, OPTIONAL, INTENT(in) :: use_g2g
+    LOGICAL :: loc_use_g2g
 
 #ifndef NOMPI
     INTEGER :: p_comm, my_rank
+
+    IF (PRESENT(use_g2g)) THEN
+      loc_use_g2g = use_g2g
+    ELSE
+      loc_use_g2g = .FALSE.
+    END IF
 
     IF (PRESENT(comm)) THEN
        p_comm = comm
@@ -8559,8 +8787,14 @@ CONTAINS
         ! do not use the result on all the other ranks:
         IF (root /= my_rank) p_sum = zfield
       ELSE
+
+        !$ACC HOST_DATA USE_DEVICE(zfield) IF(loc_use_g2g)
+
         CALL mpi_allreduce (zfield, p_sum, SIZE(zfield), p_real_dp, &
              mpi_sum, p_comm, p_error)
+
+        !$ACC END HOST_DATA
+
       END IF
     ELSE
        p_sum = zfield

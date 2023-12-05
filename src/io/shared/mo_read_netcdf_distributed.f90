@@ -1,26 +1,22 @@
-!>
-!!
-!! This module provides methods for reading a NetCDF file in a distributed way.
-!! This approach reduces memory consumption
-!!
-!! @par Revision History
-!! Initial version by Moritz Hanke, December 2013
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! This module provides methods for reading a NetCDF file in a distributed way.
+! This approach reduces memory consumption
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 #include "omp_definitions.inc"
 
 MODULE mo_read_netcdf_distributed
 
   USE mo_kind, ONLY: wp, sp
-  USE mo_exception, ONLY: finish, message, em_warn
+  USE mo_exception, ONLY: finish, message
   USE mo_mpi, ONLY: p_n_work, p_pe_work, p_bcast, p_comm_work, p_max
   USE ppm_extents, ONLY: extent
   USE mo_decomposition_tools, ONLY: t_grid_domain_decomp_info, &

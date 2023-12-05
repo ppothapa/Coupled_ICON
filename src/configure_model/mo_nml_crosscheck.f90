@@ -1,29 +1,26 @@
-!>
-!! This module checks the read-in namelist parameters and, in case of
-!! inconsistencies, it tries to correct these.
-!!
-!!
-!! @author Kristina Froehlich, MPI-M (2011-07-12)
-!! @author Hui Wan, MPI-M (2011-07-12)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! This module checks the read-in namelist parameters and, in case of
+! inconsistencies, it tries to correct these.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_nml_crosscheck
 
 
   USE, INTRINSIC :: iso_c_binding, ONLY: c_int64_t
   USE mo_kind,                     ONLY: wp
-  USE mo_exception,                ONLY: message, message_text, finish, em_info
+  USE mo_exception,                ONLY: message, message_text, finish
   USE mo_impl_constants,           ONLY: inwp, tracer_only, inh_atmosphere,                &
     &                                    iaes, RAYLEIGH_CLASSIC, inoforcing,               &
-    &                                    iedmf, icosmo, iprog, MODE_IAU, MODE_IAU_OLD,     &
+    &                                    icosmo, iprog, MODE_IAU, MODE_IAU_OLD,            &
     &                                    max_echotop, max_wshear, max_srh,                 &
     &                                    LSS_JSBACH, LSS_TERRA, ivdiff
   USE mo_time_config,              ONLY: time_config, dt_restart
@@ -40,15 +37,17 @@ MODULE mo_nml_crosscheck
     &                                    ltransport, ltestcase, ltimer,                    &
     &                                    activate_sync_timers, timers_level, lart,         &
     &                                    msg_level, luse_radarfwo
-  USE mo_dynamics_config,          ONLY: iequations, idiv_method, ldeepatmo
+  USE mo_dynamics_config,          ONLY: iequations, ldeepatmo, lmoist_thdyn
   USE mo_advection_config,         ONLY: advection_config
   USE mo_nonhydrostatic_config,    ONLY: itime_scheme_nh => itime_scheme,                  &
     &                                    rayleigh_type, ivctype, iadv_rhotheta
   USE mo_atm_phy_nwp_config,       ONLY: atm_phy_nwp_config, icpl_aero_conv, iprog_aero
   USE mo_lnd_nwp_config,           ONLY: ntiles_lnd, lsnowtile, sstice_mode, llake
   USE mo_aes_phy_config,           ONLY: aes_phy_config
+  USE mo_aes_vdf_config,           ONLY: aes_vdf_config
   USE mo_radiation_config,         ONLY: irad_aero, iRadAeroNone, iRadAeroConst,           &
     &                                    iRadAeroTegen, iRadAeroART, iRadAeroConstKinne,   &
+    &                                    iRadAeroCAMSclim,                                 &
     &                                    iRadAeroKinne, iRadAeroVolc, iRadAeroKinneVolc,   &
     &                                    iRadAeroKinneVolcSP, iRadAeroKinneSP,             &
     &                                    irad_o3, irad_h2o, irad_co2, irad_ch4,            &
@@ -61,7 +60,7 @@ MODULE mo_nml_crosscheck
     &                                    ecrad_use_general_cloud_optics
   USE mo_turbdiff_config,          ONLY: turbdiff_config
   USE mo_initicon_config,          ONLY: init_mode, dt_iau, ltile_coldstart, timeshift,    &
-    &                                    itype_vert_expol
+    &                                    itype_vert_expol, iterate_iau
   USE mo_nh_testcases_nml,         ONLY: nh_test_name, layer_thickness
   USE mo_meteogram_config,         ONLY: meteogram_output_config, check_meteogram_configuration
   USE mo_grid_config,              ONLY: lplane, n_dom, l_limited_area, start_time,        &
@@ -81,8 +80,9 @@ MODULE mo_nml_crosscheck
   USE mo_nudging_nml,              ONLY: check_nudging
   USE mo_upatmo_config,            ONLY: check_upatmo
   USE mo_name_list_output_config,  ONLY: is_variable_in_output_dom
-  USE mo_coupling_config,          ONLY: is_coupled_run
+  USE mo_coupling_config,          ONLY: is_coupled_to_ocean, is_coupled_to_waves, is_coupled_to_hydrodisc
 
+  USE mo_assimilation_config,      ONLY: assimilation_config
   USE mo_scm_nml,                  ONLY: i_scm_netcdf, scm_sfc_temp, scm_sfc_qv, scm_sfc_mom
 #ifndef __NO_ICON_LES__
   USE mo_ls_forcing_nml,           ONLY: is_ls_forcing
@@ -225,12 +225,15 @@ CONTAINS
     ENDIF
 
     IF ( ( nh_test_name=='APE_nwp'.OR. nh_test_name=='dcmip_tc_52' ) .AND.  &
-      &  ( ANY(atm_phy_nwp_config(:)%inwp_surface > 0 ) ) .AND.             &
-      &  ( ANY(atm_phy_nwp_config(:)%inwp_turb    /= iedmf ) ) ) THEN
+      &  ( ANY(atm_phy_nwp_config(:)%inwp_surface > 0) ) ) THEN
       CALL finish(routine, &
         & 'surface scheme must be switched off, when running the APE test')
     ENDIF
 
+    IF ( nh_test_name=='HS_nh'.AND. lmoist_thdyn ) THEN
+      CALL finish(routine, &
+        & 'lmoist_thdyn must be .FALSE. when running the Held-Suarez test')
+    ENDIF
 
     !--------------------------------------------------------------------
     ! SCM single column model
@@ -277,8 +280,6 @@ CONTAINS
         CALL finish(routine, 'Deep-atmosphere configuration is incompatible with plane or torus modes')
       ELSEIF (iadv_rhotheta /= 2) THEN
         CALL finish(routine, 'Deep-atmosphere configuration requires iadv_rhotheta = 2')
-      ELSEIF (idiv_method /= 1) THEN
-        CALL finish(routine, 'Deep-atmosphere configuration requires idiv_method = 1')
       ENDIF
     ENDIF ! IF (ldeepatmo)
 
@@ -306,7 +307,7 @@ CONTAINS
 
       DO jg =1,n_dom
 
-        IF ((atm_phy_nwp_config(1)%inwp_turb /= iedmf) .AND. (atm_phy_nwp_config(jg)%inwp_gscp /= 8)) THEN
+        IF (atm_phy_nwp_config(jg)%inwp_gscp /= 8) THEN
           IF( atm_phy_nwp_config(jg)%inwp_satad == 0       .AND. &
           & ((atm_phy_nwp_config(jg)%inwp_convection >0 ) .OR. &
           &  (atm_phy_nwp_config(jg)%inwp_gscp > 0 )   ) ) &
@@ -340,10 +341,9 @@ CONTAINS
         ENDIF
 
         IF ( (atm_phy_nwp_config(jg)%icpl_rad_reff == 2)  .AND.  & 
-             ( (atm_phy_nwp_config(jg)%inwp_radiation/= 4)  .OR.  &  
-             (ecrad_igas_model /=1) ) ) THEN
+              (atm_phy_nwp_config(jg)%inwp_radiation/= 4) ) THEN
           CALL finish( routine, 'Wrong value for: icpl_rad_reff. Coupling effective radius for all '//  &  
-                                 'hydrometeors only works with ECRAD and ECCKD gas model!')
+                                 'hydrometeors only works with ECRAD!')
         ENDIF
 
 
@@ -409,8 +409,8 @@ CONTAINS
               &  CALL finish(routine,'For inwp_radiation = 4, irad_cfc11 has to be 0, 2 or 4')
             IF (.NOT. ANY( irad_cfc12   == (/0,2,4/)       ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, irad_cfc12 has to be 0, 2 or 4')
-            IF (.NOT. ANY( irad_aero    == (/iRadAeroNone, iRadAeroConst, iRadAeroTegen, iRadAeroART, &
-              &                              iRadAeroConstKinne, iRadAeroKinne, iRadAeroVolc,         &
+            IF (.NOT. ANY( irad_aero    == (/iRadAeroNone, iRadAeroConst, iRadAeroTegen, iRadAeroART,           &
+              &                              iRadAeroConstKinne, iRadAeroKinne, iRadAeroVolc, iRadAeroCAMSclim, &
               &                              iRadAeroKinneVolc, iRadAeroKinneVolcSP, iRadAeroKinneSP/) ) ) THEN
               WRITE(message_text,'(a,i2,a)') 'irad_aero = ', irad_aero,' is invalid for inwp_radiation=4'
               CALL finish(routine,message_text)
@@ -551,24 +551,15 @@ CONTAINS
       ENDDO
     END IF
 
+#ifdef _OPENACC
+    IF ( irad_aero == iRadAeroCAMSclim) THEN
+        CALL finish(routine,'CAMS 3D climatology irad_aero=7 is currently not supported on GPU.')
+    END IF
+#endif
 
     !--------------------------------------------------------------------
     ! Tracers and diabatic forcing
     !--------------------------------------------------------------------
-
-    IF (atm_phy_nwp_config(1)%inwp_turb == iedmf) THEN ! EDMF turbulence
-#ifdef __NO_ICON_EDMF__
-      CALL finish( routine, 'EDMF turbulence desired, but compilation with --disable-edmf' )
-#endif
-
-      DO jg =1,n_dom
-        turbdiff_config(jg)%ldiff_qi = .TRUE.  !! turbulent diffusion of QI on (by EDMF)
-      ENDDO
-
-      !dmk    ntiles_lnd = 5     !! EDMF currently only works with 5 land tiles - consistent with TESSEL
-      !! even if the land model is inactive ntiles_lnd should be 5
-    ENDIF
-
 
     ! General
     SELECT CASE (iequations)
@@ -619,14 +610,12 @@ CONTAINS
     IF (activate_sync_timers .AND. .NOT. ltimer) THEN
       activate_sync_timers = .FALSE.
       CALL message(routine, "namelist parameter 'activate_sync_timers' has &
-        &been set to .FALSE., because global 'ltimer' flag is disabled.", &
-        level=em_info)
+        &been set to .FALSE., because global 'ltimer' flag is disabled.")
     END IF
     IF (timers_level > 9 .AND. .NOT. activate_sync_timers) THEN
       activate_sync_timers = .TRUE.
       CALL message(routine, "namelist parameter 'activate_sync_timers' has &
-        &been set to .TRUE., because global 'timers_level' is > 9.", &
-        level=em_info)
+        &been set to .TRUE., because global 'timers_level' is > 9.")
     END IF
 
     DO jg =1,n_dom
@@ -786,6 +775,20 @@ CONTAINS
       &                l_limited_area, ivctype, flat_height, itype_vert_expol, init_mode, &
       &                atm_phy_nwp_config(:)%inwp_turb, atm_phy_nwp_config(:)%inwp_radiation)
 
+    !--------------------------------------------------------------------
+    ! assimiliation
+    !--------------------------------------------------------------------
+    IF ( MODE_IAU == init_mode ) THEN
+      IF( ANY(assimilation_config(:)%dace_coupling) .AND. .NOT. iterate_iau ) THEN 
+        ! The MEC in dace_coupling needs the fully initialized state to compute the
+        ! model equivalents for vv=0.
+        CALL finish(routine,                                        &
+        &  'assimilation: dace_coupling requires iterate_iau')
+        ! One might loosen this check slightly by allowing non-iterative IAU if
+        ! dace_time_ctrl(0) > 0. However this case should be tested before
+        ! modifying this crosscheck.
+      ENDIF
+    ENDIF
 
     ! ********************************************************************************
     !
@@ -832,6 +835,11 @@ CONTAINS
             CALL message(routine, 'Setting llake = .FALSE. since ljsb = .FALSE.')
             aes_phy_config(jg)%llake = .FALSE.
          END IF
+      ELSE
+        IF (aes_vdf_config(jg)%use_tmx) THEN
+          CALL message(routine, 'Setting llake = .FALSE. since using tmx (lakes are treated inside JSBACH)')
+          aes_phy_config(jg)%llake = .FALSE.
+        END IF
       END IF
     END DO
 #endif
@@ -844,14 +852,28 @@ CONTAINS
 
     CHARACTER(len=*), PARAMETER :: routine =  modname//'::coupled_crosscheck'
 
-    IF ( ntiles_lnd == 1 .AND. is_coupled_run() .AND. .NOT. &
+    IF ( ntiles_lnd == 1 .AND. ( is_coupled_to_ocean() .OR. is_coupled_to_hydrodisc() ) .AND. .NOT. &
         & (iforcing == inwp .AND. ALL(atm_phy_nwp_config(1:n_dom)%inwp_turb == ivdiff)) ) THEN
-       CALL finish(routine, "Coupled atm/ocean runs not supported with ntiles=1 when not using VDIFF")
+       CALL finish(routine, "Coupled atm/hydrodisc/ocean runs not supported with ntiles=1 when not using VDIFF")
     ENDIF
 
-    IF ( sstice_mode /= 1 .AND. is_coupled_run() ) THEN
+    IF ( sstice_mode /= 1 .AND. is_coupled_to_ocean() ) THEN
        CALL finish(routine, "Coupled atm/ocean runs only supported with sstice_mode=1 named SSTICE_ANA")
     ENDIF
+
+#ifdef _OPENACC
+    IF ( is_coupled_to_hydrodisc() ) THEN
+      CALL finish(routine, "Coupled atm/hydrodisc/ocean runs are not available on GPU")
+    END IF
+
+    IF ( is_coupled_to_waves() ) THEN
+      CALL finish(routine, "Coupled atm/wave runs are not available on GPU")
+    END IF
+
+    IF ( is_coupled_to_ocean() ) THEN
+      CALL finish(routine, "Coupled atm/ocean runs are not available on GPU")
+    END IF
+#endif
 
   END SUBROUTINE coupled_crosscheck
   !---------------------------------------------------------------------------------------

@@ -1,114 +1,82 @@
 #!/bin/bash
 
-##################################################################
-###        Configure wrapper for NEC SX AURORA                 ###
-###                   VECTOR ENGINE                            ###
-###                Test system at DKRZ                         ###
-##################################################################
-
 set -eu
+unset CDPATH
+ulimit -c 0
 
-SCRIPT_DIR=$(cd "$(dirname "$0")">/dev/null; pwd)
-ICON_DIR=$(cd "${SCRIPT_DIR}/../..">/dev/null; pwd)
+script_dir=$(cd "$(dirname "$0")"; pwd)
+icon_dir=$(cd "${script_dir}/../.."; pwd)
 
-# Load lists of inlining files.
-source "${SCRIPT_DIR}/../dwd/inlinelist.sh"
+cmp_ver='12.2.0'
+mpi_ver='3.2.0'
 
-# make module command available
-MODULE_SETTINGS=". ${MODULESHOME}/init/sh; module purge"
+modules="vh/gcc/${cmp_ver} ve/mpi/${mpi_ver}"
 
-NCCVER=3.5.1  # NEC compiler version
-MPIVER=3.2.0  # NEC MPI version
-NLCVER=2.3.0  # NEC NLC, contains Lapack + co
+ZLIB_LIBS='-lz'
 
-MODULES='vh/gcc/12.2.0' #'sx/default nfort/4.0.0 nc++/4.0.0 mpi/2.22.0 netcdf4/4.7.3-sx hdf5/1.10.5-sx eccodes/2.25.0-sx aec/1.0.3-sx nlc/2.3.0 libxml2/2.9.10-sx szip/2.1.1-sx zlib/1.2.11-sx'
+HDF5_ROOT="/opt/dkrz/vh/hdf5/1.10.5_gnu-${cmp_ver}_mpi-${mpi_ver}_localdisk"
+HDF5_LIBS='-lhdf5hl_fortran -lhdf5_hl -lhdf5_fortran -lhdf5'
 
-export PATH=$PATH
+NETCDF_ROOT="/opt/dkrz/vh/netcdf-c/4.7.4_gnu-${cmp_ver}_mpi-${mpi_ver}_localdisk"
+NETCDF_LIBS='-lnetcdf'
 
-### Libraries ###
+NETCDFF_ROOT="/opt/dkrz/vh/netcdf-fortran/4.5.4_gnu-${cmp_ver}_mpi-${mpi_ver}_localdisk"
+NETCDFF_LIBS='-lnetcdff'
 
-# NETCD
-NETCDFF_ROOT="/opt/dkrz/vh/netcdf-fortran/4.5.4_gnu-12.2.0_mpi-3.2.0_localdisk/"
-NETCDF_ROOT="/opt/dkrz/vh/netcdf-c/4.7.4_gnu-12.2.0_mpi-3.2.0_localdisk/"
-NETCDFF_LIBS="-L${NETCDFF_ROOT}/lib -lnetcdff"
-NETCDF_LIBS="-L${NETCDF_ROOT}/lib -lnetcdf"
+BLAS_LAPACK_ROOT="/work/k20200/sw/aurora/linux-rocky8-skylake_avx512/gcc-${cmp_ver}/openblas-0.3.23-ncapi3svqnylp3ypbqcspmfimizhksyx"
+BLAS_LAPACK_LIBS='-lopenblas'
 
-# HDF5
-HDF5_ROOT="/opt/dkrz/vh/hdf5/1.10.5_gnu-12.2.0_mpi-3.2.0_localdisk/"
-HDF5_LIBS="-L${HDF5_ROOT}/lib -lhdf5hl_fortran -lhdf5_fortran -lhdf5_hl -lhdf5"
+ECCODES_ROOT='/opt/dkrz/vh/eccodes/2.18.0_gnu-8.5.0_serial_localdisk'
+ECCODES_LIBS='-leccodes_f90 -leccodes'
 
-# BLAS, LAPACK
-LAPACK_ROOT="/work/k20200/sw/aurora/linux-rocky8-skylake_avx512/gcc-12.2.0/openblas-0.3.23-ncapi3svqnylp3ypbqcspmfimizhksyx"
-LAPACK_LIBS="-L${LAPACK_ROOT}/lib -lopenblas"
+FYAML_ROOT='/opt/dkrz/vh/libfyaml/0.7.12_gcc-8.5.0'
+FYAML_LIBS='-lfyaml'
 
-# ECCODES - note that we use a double underscore because ECCODES_LIBS may be overwritten by system settings
-ECCODES_ROOT="/opt/dkrz/vh/eccodes/2.18.0_gnu-8.5.0_serial_localdisk"
-ECCODES__LIBS="-L${ECCODES_ROOT}/lib -leccodes_f90 -leccodes"
-
-#YAML
-FYAML_ROOT="/opt/dkrz/vh/libfyaml/0.7.12_gcc-8.5.0"
-FYAML_LIBS="-L${FYAML_ROOT}/lib -lfyaml"
-
-# AEC
-AEC_ROOT="/opt/dkrz/vh/libaec/1.0.6_gnu-8.5.0"
-AEC_LIB="-L${AEC_ROOT}/lib -laec"
-
-# SZIP
-SZIP_ROOT="/opt/dkrz/vh/szlib/2.1.1_gnu-12.2.0"
-SZIP_LIB="-L${SZIP_ROOT}/lib -lsz"
-
-# ZLIB
-ZLIB_ROOT="/work/k20200/sw/aurora/linux-rocky8-skylake_avx512/gcc-12.2.0/zlib-1.2.13-cbwwpprhaammlsnt547n7ohvg2534oe7"
-ZLIB_LIB="-L${ZLIB_ROOT}/lib -lz" 
-
-# RTTOV #NR Not implemented on aurora@dkrz
-RTTOV_ROOT=
-RTTOV_LIBS=  #"-lrttov13"
-
-# flags needed for static linking
-STATICLINK_FLAGS='' # '-static -add-gcc-rpath'
+XML2_CPPFLAGS='-I/usr/include/libxml2'
+XML2_LIBS='-lxml2'
 
 ################################################################################
 
+BUILD_ENV=". ${MODULESHOME}/init/sh; module purge; module load ${modules}; export LD_LIBRARY_PATH=\"${HDF5_ROOT}/lib:${NETCDF_ROOT}/lib:${NETCDFF_ROOT}/lib:${BLAS_LAPACK_ROOT}/lib:${ECCODES_ROOT}/lib:${FYAML_ROOT}/lib:\${LD_LIBRARY_PATH-}\";"
 
-BUILD_ENV="export LD_LIBRARY_PATH=\"${HDF5_ROOT}/lib:${NETCDF_ROOT}/lib:${NETCDFF_ROOT}/lib:${ECCODES_ROOT}/lib64:${FYAML_ROOT}/lib:${AEC_ROOT}/lib:${SZIP_ROOT}/lib:${ZLIB_ROOT}/lib:${LAPACK_ROOT}/lib\"; export PATH=\"${HDF5_ROOT}/bin:\${PATH}\"; export ICON_DIR=$(cd "${SCRIPT_DIR}/../..">/dev/null; pwd); source /usr/share/Modules/init/bash; module load ${MODULES};"
-echo ${BUILD_ENV}
+CC='mpincc -vh'
+CFLAGS='-g -march=native -mpc64'
+ICON_CFLAGS='-O3'
+ICON_BUNDLED_CFLAGS='-O2'
 
-# We need some of the environment variables set by the modules now:
-eval "$BUILD_ENV"
+CPPFLAGS="-I${HDF5_ROOT}/include -I${NETCDF_ROOT}/include -I${ECCODES_ROOT}/include -I${FYAML_ROOT}/include ${XML2_CPPFLAGS}"
 
-echo ${MODULEPATH}
+FC='mpinfort -vh'
+FCFLAGS="-I${HDF5_ROOT}/include -I${NETCDFF_ROOT}/include -I${ECCODES_ROOT}/include -g -fbacktrace -march=native -mpc64 -O2 -fmodule-private -fimplicit-none -fno-range-check -fmax-identifier-length=63 -fall-intrinsics -Wall -Wcharacter-truncation -Wunderflow -Wunused-parameter -Wno-surprising"
 
-# C compiler wrapper  for NEC SX-Aurora vector host
-CC="/opt/nec/ve/mpi/${MPIVER}/bin/mpincc -vh"
-CFLAGS="-std=gnu99 -mavx2 -mno-fma -O3 -g"
-ICON_CFLAGS=""
-ICON_BUNDLED_CFLAGS="-O2"
-CPPFLAGS="-I${ECCODES_ROOT}/include -I${HDF5_ROOT}/include -I${NETCDF_ROOT}/include -I${FYAML_ROOT}/include"
+ICON_FCFLAGS='-D__COMM_OPT__ -D__BLOCK_GET__ -D__NEC_VH__ -std=f2008 -fallow-argument-mismatch'
 
-# Fortran compiler wrapper for NEC SX-Aurora vector host
-FC="/opt/nec/ve/mpi/${MPIVER}/bin/mpinfort -vh"
-NMPI_FC="/opt/nec/ve/nfort/${NCCVER}/bin/nfort -vh" 
-FCFLAGS="-I${ECCODES_ROOT}/include -I${HDF5_ROOT}/include -I${NETCDFF_ROOT}/include -std=legacy -fno-range-check -fbacktrace -g -fmodule-private -fimplicit-none -fmax-identifier-length=63 -ffree-line-length-none -Wall -Wcharacter-truncation -Wconversion -Wunderflow -Wunused-parameter  -Wno-surprising -fall-intrinsics -mavx2 -O2 -mno-fma -mpc64  -D__COMM_OPT__ -D__BLOCK_GET__ -D__NEC_VH__"
+ICON_DACE_FCFLAGS='-fallow-argument-mismatch'
+ICON_DACE_PATH='externals/dace_icon'
 
-ICON_FCFLAGS=""
+ICON_BUNDLED_FCFLAGS='-std=f2008'
 
-ICON_OCEAN_FCFLAGS="-O2"
-ICON_ECRAD_FCFLAGS="-finline-functions"
+ICON_ECRAD_FCFLAGS='-finline-functions'
 
-LDFLAGS="-L${ZLIB_ROOT}/lib -L${AEC_ROOT}/lib -L${SZIP_ROOT}/lib -L${HDF5_ROOT}/lib -L${NETCDF_ROOT}/lib -L${NETCDFF_ROOT}/lib -L${ECCODES_ROOT}/lib -L${LAPACK_ROOT}/lib -L${FYAML_ROOT}/lib -L/opt/nec/ve/nfort/${NCCVER}/lib -shared-mpi"
+# The current version of MTIME in use does not apply the line length flag
+# automatically:
+ICON_MTIME_FCFLAGS='-std=f2008 -ffree-line-length-none'
 
-LIBS="-Wl,--as-needed ${FYAML_LIBS} ${RTTOV_LIBS} ${LAPACK_LIBS} ${ECCODES__LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS} ${HDF5_LIBS} ${SZIP_LIB} ${AEC_LIB} ${ZLIB_LIB} ${STATICLINK_FLAGS}"
+LDFLAGS="-L${HDF5_ROOT}/lib -L${NETCDF_ROOT}/lib -L${NETCDFF_ROOT}/lib -L${BLAS_LAPACK_ROOT}/lib -L${ECCODES_ROOT}/lib -L${FYAML_ROOT}/lib -shared-mpi"
 
-MPI_LAUNCH=""  # needed e.g. for yac configuration ?? 
+# The compiler does not inject RPATHs to its runtime libraries:
+extra_rpath_dirs=$(unset LD_RUN_PATH; { eval "${BUILD_ENV}"; } >/dev/null 2>&1; echo "${LD_RUN_PATH}")
+LDFLAGS+=" -Wl,-rpath,${extra_rpath_dirs}"
 
-# full operational NWP configuration including ecRad and DACE+EMVORADO coupling
-EXTRA_CONFIG_ARGS="--disable-mpi-checks --disable-rpaths --enable-active-target-sync --enable-mixed-precision --disable-loop-exchange --enable-grib2 --enable-mpi --disable-openmp --enable-ecrad --disable-art"
+LIBS="-Wl,--as-needed ${XML2_LIBS} ${FYAML_LIBS} ${ECCODES_LIBS} ${BLAS_LAPACK_LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS} ${HDF5_LIBS} ${ZLIB_LIBS}"
+
+MPI_LAUNCH='mpirun -vh'
+
+EXTRA_CONFIG_ARGS='--enable-fcgroup-DACE --enable-active-target-sync --enable-mixed-precision --disable-loop-exchange --enable-grib2 --enable-mpi --disable-openmp --enable-ecrad --disable-art'
 
 ################################################################################
 
-
-"${ICON_DIR}/configure" \
+"${icon_dir}/configure" \
 BUILD_ENV="${BUILD_ENV}" \
 CC="${CC}" \
 CFLAGS="${CFLAGS}" \
@@ -116,10 +84,13 @@ CPPFLAGS="${CPPFLAGS}" \
 FC="${FC}" \
 FCFLAGS="${FCFLAGS}" \
 ICON_BUNDLED_CFLAGS="${ICON_BUNDLED_CFLAGS}" \
+ICON_BUNDLED_FCFLAGS="${ICON_BUNDLED_FCFLAGS}" \
 ICON_CFLAGS="${ICON_CFLAGS}" \
-ICON_FCFLAGS="${ICON_FCFLAGS}" \
-ICON_OCEAN_FCFLAGS="${ICON_OCEAN_FCFLAGS}" \
+ICON_DACE_FCFLAGS="${ICON_DACE_FCFLAGS}" \
+ICON_DACE_PATH="${ICON_DACE_PATH}" \
 ICON_ECRAD_FCFLAGS="${ICON_ECRAD_FCFLAGS}" \
+ICON_FCFLAGS="${ICON_FCFLAGS}" \
+ICON_MTIME_FCFLAGS="${ICON_MTIME_FCFLAGS}" \
 LDFLAGS="${LDFLAGS}" \
 LIBS="${LIBS}" \
 MPI_LAUNCH="${MPI_LAUNCH}" \
@@ -134,17 +105,16 @@ for arg in "$@"; do
   esac
 done
 
-#Hack to switch back to RTTOV12 (in addition to replacing 'rttov13' with 'rttov12' in this script)':
-#sed -i 's;_RTTOV_VERSION=13;_RTTOV_VERSION=12;' icon.mk
-
-
 # Copy runscript-related files when building out-of-source:
-if test $(pwd) != $(cd "${ICON_DIR}"; pwd); then
+if test $(pwd) != $(cd "${icon_dir}"; pwd); then
   echo "Copying runscript input files from the source directory..."
-  rsync -uavz ${ICON_DIR}/run . --exclude='*in' --exclude='.*'
-  rsync -uavz ${ICON_DIR}/externals . --exclude='.git' --exclude='*.f90' --exclude='*.F90' --exclude='*.c' --exclude='*.h' --exclude='*.Po' --exclude='tests' --exclude='*.mod' --exclude='*.o'
-  rsync -uavz ${ICON_DIR}/make_runscripts .
-  ln -sf ${ICON_DIR}/data
-  ln -sf ${ICON_DIR}/vertical_coord_tables
+  rsync -uavz ${icon_dir}/run . --exclude='*.in' --exclude='.*' --exclude='standard_*'
+  ln -sf -t run/ ${icon_dir}/run/standard_*
+  ln -sf set-up.info run/SETUP.config
+  rsync -uavz ${icon_dir}/externals . --exclude='.git' --exclude='*.f90' --exclude='*.F90' --exclude='*.c' --exclude='*.h' --exclude='*.Po' --exclude='tests' --exclude='*.mod' --exclude='*.o'
+  rsync -uavz ${icon_dir}/make_runscripts .
+  rsync -uavz ${icon_dir}/scripts .
+  ln -sf ${icon_dir}/data
+  ln -sf ${icon_dir}/vertical_coord_tables
 fi
 

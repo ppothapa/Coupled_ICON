@@ -1,16 +1,16 @@
-!>
-!! @page pagecontrolmodelf901 Main program for the ICON hamocc model
-!!
-!! @par Revision History
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! @page pagecontrolmodelf901 Main program for the ICON hamocc model
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_hamocc_model
 
   USE mo_exception,           ONLY: message, message_text, finish
@@ -52,7 +52,7 @@ MODULE mo_hamocc_model
 
   USE mo_ocean_nml_crosscheck,   ONLY: ocean_crosscheck
   USE mo_ocean_nml,              ONLY: i_sea_ice, no_tracer, use_omip_forcing, lhamocc, &
-    & initialize_fromRestart, ncheckpoints, n_zlev
+    & initialize_fromRestart, n_zlev
 
   USE mo_model_domain,        ONLY: t_patch_3d, p_patch_local_parent
 
@@ -98,7 +98,7 @@ MODULE mo_hamocc_model
   USE mo_io_config,            ONLY: restartWritingParameters
   USE mo_bgc_icon_comm,        ONLY: hamocc_state
   USE mo_ocean_time_events,    ONLY: init_ocean_time_events, getCurrentDate_to_String,          &
-    & ocean_time_nextStep, isCheckpoint, isEndOfThisRun, newNullDatetime, get_OceanCurrentTime, &
+    & ocean_time_nextStep, isCheckpoint, isEndOfThisRun, newNullDatetime,  &
     & get_OceanCurrentTime_Pointer
   USE mtime,                   ONLY: datetime, datetimeToString, datetimeToPosixString, MAX_DATETIME_STR_LEN, deallocateDatetime
 

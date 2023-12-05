@@ -35,10 +35,7 @@ make_and_change_to_experiment_dir # function in ../add_run_routines
 START_MODEL="${START_MODEL:=$START $MODEL}"
 
 # set icon_data_poolFolder
-icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}"
-if [[ -d "$icon_data_poolFolder/buildbot_data/nwp" ]]; then
-  icon_data_poolFolder="$icon_data_poolFolder/buildbot_data/nwp"
-fi
+icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/buildbot_data/nwp"
 
 export PATH=${PATH}:~routfor/routfox/bin
 
@@ -55,10 +52,8 @@ EXP="NWP"    # experiment identifier
 DATAROOT="${icon_data_poolFolder}/Checksuite_data"
 
 # directory for grid and extpar files
-GRIDDIR=/hpc/rwork0/routfor/routfox/icon/grids/public/edzw # grid directory
-if [[ ! -d "$GRIDDIR" ]]; then
-  GRIDDIR="$icon_data_poolFolder/grids/public/edzw"
-fi
+GRIDDIR="${icon_data_poolFolder}/grids/public/edzw"
+# GRIDDIR links to /hpc/rwork0/routfor/routfox/icon/grids/public/edzw on RCL
 EXTPDIR="$GRIDDIR" # external parameter directory
 
 # absolute path to input directory
@@ -88,7 +83,7 @@ ln -sf $EXTPDIR/icon_extpar_0028_R02B07_N02_20180625_tiles.nc extpar_iconR2B07_D
 ln -sf ${ICONDIR}/externals/ecrad/data ecrad_data
 
 # files needed for RTTOV
-ln -sf ${ICONDIR}/data/rttov/const/rt13coeffs_rttov7pred54L/* .
+ln -sf ${icon_data_poolFolder}/externals/rttov/const/rt13coeffs_rttov7pred54L/* .
 
 
 
@@ -141,115 +136,108 @@ while [ $iter -le $tot_iter ]; do
 
 if [ $iter -eq 1 ] ; then
 
-echo "##############################################################"
-echo "###            Reference run with iterative IAU            ###"
-echo "##############################################################"
+  echo "##############################################################"
+  echo "###            Reference run with iterative IAU            ###"
+  echo "##############################################################"
 
-OMP_NUM_THREADS=1
-let PPN=${CPE}*${NE}/${OMP_NUM_THREADS}
-let NE1=${NE}-1
+  OMP_NUM_THREADS=1
 
-# reference run with iterative IAU
-nproma=$nproma_default # was 760 for NEC
-lrestart=".FALSE."
-num_restart_procs="2"
-iterate_iau=".TRUE."
-restart_interval="P1D"
-checkpoint_interval="P1D"
-restart_write_mode=""
-start_date="2018-10-01T00:00:00Z"
-stop_date="2018-10-01T13:30:00Z"
+  # reference run with iterative IAU
+  nproma=$nproma_default # was 760 for NEC
+  lrestart=".FALSE."
+  num_restart_procs="2"
+  iterate_iau=".TRUE."
+  restart_interval="P1D"
+  checkpoint_interval="P1D"
+  restart_write_mode=""
+  start_date="2018-10-01T00:00:00Z"
+  stop_date="2018-10-01T13:30:00Z"
 
 elif [ $iter -eq 2 ] ; then
 
-echo "#############################################################"
-echo "###     Run without iterative IAU, write restart file     ###"
-echo "#############################################################"
+  echo "#############################################################"
+  echo "###     Run without iterative IAU, write restart file     ###"
+  echo "#############################################################"
 
-OMP_NUM_THREADS=1
-let PPN=${CPE}*${NE}/${OMP_NUM_THREADS}
-let NE1=${NE}-1
+  OMP_NUM_THREADS=1
 
-# run without iterative IAU, which writes restart file after 7H
-nproma=$nproma_default # was 760 for NEC
-lrestart=".FALSE."
-num_restart_procs="2"
-iterate_iau=".FALSE."
-restart_interval="P1D"
-checkpoint_interval="PT7H"
-restart_write_mode="dedicated procs multifile"
-start_date="2018-10-01T00:00:00Z"
-stop_date="2018-10-01T13:30:00Z"
+  # run without iterative IAU, which writes restart file after 7H
+  nproma=$nproma_default # was 760 for NEC
+  lrestart=".FALSE."
+  num_restart_procs="2"
+  iterate_iau=".FALSE."
+  restart_interval="P1D"
+  checkpoint_interval="PT7H"
+  restart_write_mode="dedicated procs multifile"
+  start_date="2018-10-01T00:00:00Z"
+  stop_date="2018-10-01T13:30:00Z"
 
 elif [ $iter -eq 3 ] ; then
 
-echo "#############################################################"
-echo "###                      Restart run                      ###"
-echo "#############################################################"
+  echo "#############################################################"
+  echo "###                      Restart run                      ###"
+  echo "#############################################################"
 
-OMP_NUM_THREADS=1
-let PPN=${CPE}*${NE}/${OMP_NUM_THREADS}
-let NE1=${NE}-1
+  OMP_NUM_THREADS=1
 
-# restart run
-nproma=$nproma_default # was 760 for NEC
-lrestart=".TRUE."
-num_restart_procs="2"
-iterate_iau=".FALSE."
-restart_interval="P1D"
-checkpoint_interval="P1D"
-restart_write_mode="dedicated procs multifile"
-start_date="2018-10-01T00:00:00Z"
-stop_date="2018-10-01T13:30:00Z"
+  # restart run
+  nproma=$nproma_default # was 760 for NEC
+  lrestart=".TRUE."
+  num_restart_procs="2"
+  iterate_iau=".FALSE."
+  restart_interval="P1D"
+  checkpoint_interval="P1D"
+  restart_write_mode="dedicated procs multifile"
+  start_date="2018-10-01T00:00:00Z"
+  stop_date="2018-10-01T13:30:00Z"
 
 elif [ $iter -eq 4 ] ; then
 
-echo "#############################################################"
-echo "###                       nproma run                      ###"
-echo "#############################################################"
+  echo "#############################################################"
+  echo "###                       nproma run                      ###"
+  echo "#############################################################"
 
-OMP_NUM_THREADS=1
-let PPN=${CPE}*${NE}/${OMP_NUM_THREADS}
-let NE1=${NE}-1
+  OMP_NUM_THREADS=1
 
-# This setup peforms a short (+2h) run without iterative IAU
-# with a modified nproma (760 has a comparable speed to 752)
-let "nproma=$nproma_default+8" # was 752 for NEC
-lrestart=".FALSE."
-num_restart_procs="2"
-iterate_iau=".FALSE."
-restart_interval="P1D"
-checkpoint_interval="PT7H"
-restart_write_mode="dedicated procs multifile"
-start_date="2018-10-01T00:00:00Z"
-stop_date="2018-10-01T02:00:00Z"
+  # This setup peforms a short (+2h) run without iterative IAU
+  # with a modified nproma (760 has a comparable speed to 752)
+  let "nproma=$nproma_default+8" # was 752 for NEC
+  lrestart=".FALSE."
+  num_restart_procs="2"
+  iterate_iau=".FALSE."
+  restart_interval="P1D"
+  checkpoint_interval="PT7H"
+  restart_write_mode="dedicated procs multifile"
+  start_date="2018-10-01T00:00:00Z"
+  stop_date="2018-10-01T02:00:00Z"
 
 else
 
-echo "#############################################################"
-echo "###                        OMP run                        ###"
-echo "#############################################################"
+  echo "#############################################################"
+  echo "###                        OMP run                        ###"
+  echo "#############################################################"
 
-OMP_NUM_THREADS=2
-let PPN=${CPE}*${NE}/${OMP_NUM_THREADS}
-let NE1=${NE}-1
+  OMP_NUM_THREADS=2
 
-# This setup peforms a short (+2h) run without iterative IAU
-# The number of openmp threads is set to 2 (which is 1 for the reference)
-nproma=$nproma_default # was 760 for NEC
-lrestart=".FALSE."
-num_restart_procs="2"
-iterate_iau=".FALSE."
-restart_interval="P1D"
-checkpoint_interval="PT7H"
-restart_write_mode="dedicated procs multifile"
-start_date="2018-10-01T00:00:00Z"
-stop_date="2018-10-01T02:00:00Z"
+  # This setup peforms a short (+2h) run without iterative IAU
+  # The number of openmp threads is set to 2 (which is 1 for the reference)
+  nproma=$nproma_default # was 760 for NEC
+  lrestart=".FALSE."
+  num_restart_procs="2"
+  iterate_iau=".FALSE."
+  restart_interval="P1D"
+  checkpoint_interval="PT7H"
+  restart_write_mode="dedicated procs multifile"
+  start_date="2018-10-01T00:00:00Z"
+  stop_date="2018-10-01T02:00:00Z"
 
 fi
 
+# update PPN
+let PPN=${CPE}*${NE}/${OMP_NUM_THREADS}
+
 # Run information
-echo "PPN etc. $NN $NE $CPE $PPN"
+echo "NE CPE PPN: $NE $CPE $PPN"
 
 # ----------------------------------------------------------------------
 # create ICON master namelist
@@ -491,7 +479,6 @@ cat > ${atmo_namelist} << EOF
 /
 &dynamics_nml
  iequations			= 3
- idiv_method			= 1
  divavg_cntrwgt			= 0.50
  lcoriolis			= .TRUE.
 /
@@ -621,6 +608,12 @@ cat > ${atmo_namelist} << EOF
                       60.00,  80.00, 'Snow Test Russia',
 /
 EOF
+
+
+#
+# configure START_MODEL_function
+#
+ICON_COMPONENT1_VH_procs=$((num_restart_procs + num_io_procs + num_prefetch_proc + num_io_procs_radar))
 
 $START_MODEL
 EXIT_STATUS=$?

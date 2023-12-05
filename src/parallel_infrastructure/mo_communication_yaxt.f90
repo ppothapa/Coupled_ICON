@@ -1,21 +1,19 @@
 !#define HAVE_YAXT
-!>
-!!               This module provides the yaxt based communication routines.
-!!
-!!               This module provides the yaxt based communication routines
-!! for parallel runs
-!!
-!! @par Revision History
-!! Initial version by Moritz Hanke, April 2016
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+
+! This module provides the yaxt based communication routines
+! for parallel runs
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "icon_definitions.inc"
@@ -283,9 +281,6 @@ END FUNCTION MY_IS_CONTIGUOUS_SP_4D
 
 !-------------------------------------------------------------------------
 !
-!
-
-!>
 !! Sets up a communication pattern for exchanging data.
 !!
 !! Note: This setup routine works only for the trivial communication
@@ -317,10 +312,6 @@ END FUNCTION MY_IS_CONTIGUOUS_SP_4D
 !!                    faster if inplace == true
 !!
 !! send_decomp_info domain decomposition information for the SENDER array
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! yaxt version by Moritz Hanke, April 2016
 !!
 SUBROUTINE setup_comm_pattern(p_pat, dst_n_points, dst_owner, &
                               dst_global_index, send_glb2loc_index, &
@@ -934,12 +925,7 @@ END SUBROUTINE setup_comm_pattern_collection
 
 !-------------------------------------------------------------------------
 !
-!>
 !! Deletes a communication pattern
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Oct 2011
-!! yaxt version by Moritz Hanke, April 2016
 !!
 !
 SUBROUTINE delete_comm_pattern(p_pat)
@@ -953,6 +939,7 @@ SUBROUTINE delete_comm_pattern(p_pat)
 
    IF (ALLOCATED(p_pat%dst_mask)) THEN
      dst_mask => p_pat%dst_mask(:)
+     !$ACC WAIT(1)
      !$ACC EXIT DATA DELETE(dst_mask)
    END IF
 #endif
@@ -1012,15 +999,7 @@ END SUBROUTINE delete_comm_pattern_collection
 
 !-------------------------------------------------------------------------
 !
-!
-!>
 !! Does data exchange according to a communication pattern (in p_pat).
-!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! Modified by Guenther Zaengl for vectorization
-!! yaxt version by Moritz Hanke, April 2016
 !!
 !================================================================================================
 ! REAL SECTION ----------------------------------------------------------------------------------
@@ -1057,9 +1036,10 @@ SUBROUTINE exchange_data_r3d(p_pat, recv, send, add)
     lzacc = i_am_accel_node
 #else
     lzacc = .FALSE.
-    !$ACC UPDATE HOST(recv) IF(i_am_accel_node)
-    !$ACC UPDATE HOST(send) IF((i_am_accel_node) .AND. PRESENT(send))
-    !$ACC UPDATE HOST(add) IF((i_am_accel_node) .AND. PRESENT(add))
+    !$ACC UPDATE HOST(recv) ASYNC(1) IF(i_am_accel_node)
+    !$ACC UPDATE HOST(send) ASYNC(1) IF((i_am_accel_node) .AND. PRESENT(send))
+    !$ACC UPDATE HOST(add) ASYNC(1) IF((i_am_accel_node) .AND. PRESENT(add))
+    !$ACC WAIT(1)
 #endif
 #endif
 
@@ -1120,10 +1100,9 @@ SUBROUTINE exchange_data_r3d(p_pat, recv, send, add)
 
      END IF
    END IF
-   !$ACC WAIT(1)
 
 #if defined(_OPENACC) && ! defined(__USE_G2G)
-   !$ACC UPDATE DEVICE(recv) IF(i_am_accel_node)
+   !$ACC UPDATE DEVICE(recv) ASYNC(1) IF(i_am_accel_node)
 #endif
 
    stop_sync_timer(timer_exch_data)
@@ -1174,7 +1153,7 @@ CONTAINS
     REAL(dp), TARGET :: send(n)
 
     !$ACC DATA CREATE(send) IF(lzacc)
-    !$ACC KERNELS IF(lzacc)
+    !$ACC KERNELS ASYNC(1) IF(lzacc)
     send = recv
     !$ACC END KERNELS
 #ifdef _OPENACC
@@ -1187,6 +1166,7 @@ CONTAINS
 #ifdef _OPENACC
     END IF
 #endif
+    !$ACC WAIT(1)
     !$ACC END DATA
 
   END SUBROUTINE xt_redist_s_exchange1_contiguous_copy
@@ -1225,9 +1205,10 @@ SUBROUTINE exchange_data_s3d(p_pat, recv, send, add)
     lzacc = i_am_accel_node
 #else
     lzacc = .FALSE.
-    !$ACC UPDATE HOST(recv) IF(i_am_accel_node)
-    !$ACC UPDATE HOST(send) IF((i_am_accel_node) .AND. PRESENT(send))
-    !$ACC UPDATE HOST(add) IF((i_am_accel_node) .AND. PRESENT(add))
+    !$ACC UPDATE HOST(recv) ASYNC(1) IF(i_am_accel_node)
+    !$ACC UPDATE HOST(send) ASYNC(1) IF((i_am_accel_node) .AND. PRESENT(send))
+    !$ACC UPDATE HOST(add) ASYNC(1) IF((i_am_accel_node) .AND. PRESENT(add))
+    !$ACC WAIT(1)
 #endif
 #endif
 
@@ -1289,10 +1270,9 @@ SUBROUTINE exchange_data_s3d(p_pat, recv, send, add)
 
      END IF
    END IF
-   !$ACC WAIT(1)
 
 #if defined(_OPENACC) && ! defined(__USE_G2G)
-   !$ACC UPDATE DEVICE(recv) IF(i_am_accel_node)
+   !$ACC UPDATE DEVICE(recv) ASYNC(1) IF(i_am_accel_node)
 #endif
 
    stop_sync_timer(timer_exch_data)
@@ -1343,7 +1323,7 @@ CONTAINS
     REAL(sp), TARGET :: send(n)
 
     !$ACC DATA CREATE(send) IF(lzacc)
-    !$ACC KERNELS IF(lzacc)
+    !$ACC KERNELS ASYNC(1) IF(lzacc)
     send = recv
     !$ACC END KERNELS
 #ifdef _OPENACC
@@ -1356,6 +1336,7 @@ CONTAINS
 #ifdef _OPENACC
     END IF
 #endif
+    !$ACC WAIT(1)
     !$ACC END DATA
 
   END SUBROUTINE xt_redist_s_exchange1_contiguous_copy
@@ -1397,9 +1378,10 @@ SUBROUTINE exchange_data_i3d(p_pat, recv, send, add)
     lzacc = i_am_accel_node
 #else
     lzacc = .FALSE.
-    !$ACC UPDATE HOST(recv) IF(i_am_accel_node)
-    !$ACC UPDATE HOST(send) IF((i_am_accel_node) .AND. PRESENT(send))
-    !$ACC UPDATE HOST(add) IF((i_am_accel_node) .AND. PRESENT(add))
+    !$ACC UPDATE HOST(recv) ASYNC(1) IF(i_am_accel_node)
+    !$ACC UPDATE HOST(send) ASYNC(1) IF((i_am_accel_node) .AND. PRESENT(send))
+    !$ACC UPDATE HOST(add) ASYNC(1) IF((i_am_accel_node) .AND. PRESENT(add))
+    !$ACC WAIT(1)
 #endif
 #endif
 
@@ -1460,10 +1442,9 @@ SUBROUTINE exchange_data_i3d(p_pat, recv, send, add)
 
      END IF
    END IF
-   !$ACC WAIT(1)
 
 #if defined(_OPENACC) && ! defined(__USE_G2G)
-   !$ACC UPDATE DEVICE(recv) IF(i_am_accel_node)
+   !$ACC UPDATE DEVICE(recv) ASYNC(1) IF(i_am_accel_node)
 #endif
 
    stop_sync_timer(timer_exch_data)
@@ -1514,7 +1495,7 @@ CONTAINS
     INTEGER, TARGET :: send(n)
 
     !$ACC DATA CREATE(send) IF(lzacc)
-    !$ACC KERNELS IF(lzacc)
+    !$ACC KERNELS ASYNC(1) IF(lzacc)
     send = recv
     !$ACC END KERNELS
 #ifdef _OPENACC
@@ -1527,6 +1508,7 @@ CONTAINS
 #ifdef _OPENACC
     END IF
 #endif
+    !$ACC WAIT(1)
     !$ACC END DATA
 
   END SUBROUTINE xt_redist_s_exchange1_contiguous_copy
@@ -1566,8 +1548,9 @@ SUBROUTINE exchange_data_l3d(p_pat, recv, send)
     lzacc = i_am_accel_node
 #else
     lzacc = .FALSE.
-    !$ACC UPDATE HOST(recv) IF(i_am_accel_node)
-    !$ACC UPDATE HOST(send) IF((i_am_accel_node) .AND. PRESENT(send))
+    !$ACC UPDATE HOST(recv) ASYNC(1) IF(i_am_accel_node)
+    !$ACC UPDATE HOST(send) ASYNC(1) IF((i_am_accel_node) .AND. PRESENT(send))
+    !$ACC WAIT(1)
 #endif
 #endif
 
@@ -1597,7 +1580,7 @@ SUBROUTINE exchange_data_l3d(p_pat, recv, send)
    ENDIF
 
 #if defined(_OPENACC) && ! defined(__USE_G2G)
-   !$ACC UPDATE DEVICE(recv) IF(i_am_accel_node)
+   !$ACC UPDATE DEVICE(recv) ASYNC(1) IF(i_am_accel_node)
 #endif
 
    stop_sync_timer(timer_exch_data)
@@ -1659,7 +1642,7 @@ CONTAINS
     CALL xt_slice_c_loc(recv, recv_ptr)
 
     !$ACC DATA CREATE(send) IF(lzacc)
-    !$ACC KERNELS IF(lzacc)
+    !$ACC KERNELS ASYNC(1) IF(lzacc)
     send = recv
     !$ACC END KERNELS
 #ifdef _OPENACC
@@ -1672,21 +1655,14 @@ CONTAINS
 #ifdef _OPENACC
     END IF
 #endif
+    !$ACC WAIT(1)
     !$ACC END DATA
 
   END SUBROUTINE xt_redist_s_exchange1_contiguous_copy
 
 END SUBROUTINE exchange_data_l3d
 
-!>
 !! Does data exchange according to a communication pattern (in p_pat).
-!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! Optimized version by Guenther Zaengl to process 4D fields or up to seven 3D fields
-!! in one step
-!! yaxt version by Moritz Hanke, April 2016
 !!
 SUBROUTINE exchange_data_mult_dp(p_pat, ndim2tot, recv, send, nshift)
 
@@ -1788,15 +1764,7 @@ SUBROUTINE exchange_data_mult_dp_top(p_pat, ndim2tot, recv, send, nshift)
 
 END SUBROUTINE exchange_data_mult_dp_top
 
-  !>
   !! Does data exchange according to a communication pattern (in p_pat).
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
-  !! Optimized version by Guenther Zaengl to process 4D fields or up to seven 3D fields
-  !! in one step
-  !! yaxt version by Moritz Hanke, April 2016
   !!
   SUBROUTINE exchange_data_mult_dp_bottom(p_pat, cpy_size, nlev, needs_cpy, &
     recv, send, nshift)
@@ -1842,7 +1810,7 @@ END SUBROUTINE exchange_data_mult_dp_top
           CYCLE
 #else
           p_recv => recv(i)%p
-          !$ACC UPDATE HOST(p_recv) IF(lzacc)
+          !$ACC UPDATE HOST(p_recv) ASYNC(1) IF(lzacc)
 #endif
         END IF
 #endif
@@ -1874,7 +1842,7 @@ END SUBROUTINE exchange_data_mult_dp_top
             CYCLE
 #else
             p_send => send(i)%p
-            !$ACC UPDATE HOST(p_send) IF(lzacc)
+            !$ACC UPDATE HOST(p_send) ASYNC(1) IF(lzacc)
 #endif
           END IF
 #endif
@@ -1897,6 +1865,7 @@ END SUBROUTINE exchange_data_mult_dp_top
         END IF
       END DO
     ELSE IF (cpy_recv) THEN
+      !$ACC WAIT(1) IF(lzacc) !GV: UPDATE HOST(p_recv) finished
       DO i = 1, nfields
         nblk = SIZE(recv(i)%p, 3)
         ofs = cpy_psum + 1
@@ -1911,7 +1880,7 @@ END SUBROUTINE exchange_data_mult_dp_top
           device_cpy = acc_malloc(INT(nproma * nl * nblk, c_size_t) * &
                                   INT(p_real_dp_byte, c_size_t))
           CALL acc_map_data(cpy, device_cpy, nproma * nl * nblk)
-          !$ACC KERNELS PRESENT(cpy, p_recv)
+          !$ACC KERNELS PRESENT(cpy, p_recv) ASYNC(1)
           cpy(:, :, :) = p_recv
           !$ACC END KERNELS
           src_data_cptr(i) = device_cpy
@@ -1964,24 +1933,16 @@ END SUBROUTINE exchange_data_mult_dp_top
     IF (lzacc) THEN
       DO i = 1, nfields
         p_recv => recv(i)%p
-        !$ACC UPDATE DEVICE(p_recv) IF(lzacc)
+        !$ACC UPDATE DEVICE(p_recv) ASYNC(1) IF(lzacc)
       END DO
     END IF
 #endif
 #endif
   END SUBROUTINE exchange_data_mult_dp_bottom
 
-  !>
-!! Does data exchange according to a communication pattern (in p_pat).
-!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! Optimized version by Guenther Zaengl to process 4D fields or up to seven 3D fields
-!! in one step
-!! yaxt version by Moritz Hanke, April 2016
-!!
-SUBROUTINE exchange_data_mult_sp(p_pat, ndim2tot, &
+  !! Does data exchange according to a communication pattern (in p_pat).
+  !!
+  SUBROUTINE exchange_data_mult_sp(p_pat, ndim2tot, &
    recv, send, nshift)
 
    CLASS(t_comm_pattern_yaxt), INTENT(INOUT) :: p_pat
@@ -2065,15 +2026,7 @@ SUBROUTINE exchange_data_mult_sp(p_pat, ndim2tot, &
 
 END SUBROUTINE exchange_data_mult_sp
 
-  !>
   !! Does data exchange according to a communication pattern (in p_pat).
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
-  !! Optimized version by Guenther Zaengl to process 4D fields or up to seven 3D fields
-  !! in one step
-  !! yaxt version by Moritz Hanke, April 2016
   !!
   SUBROUTINE exchange_data_mult_sp_bottom(p_pat, cpy_size, nlev, needs_cpy, &
     recv, send, nshift)
@@ -2119,7 +2072,7 @@ END SUBROUTINE exchange_data_mult_sp
           CYCLE
 #else
           p_recv => recv(i)%p
-          !$ACC UPDATE HOST(p_recv) IF(lzacc)
+          !$ACC UPDATE HOST(p_recv) ASYNC(1) IF(lzacc)
 #endif
         END IF
 #endif
@@ -2151,7 +2104,7 @@ END SUBROUTINE exchange_data_mult_sp
             CYCLE
 #else
             p_send => send(i)%p
-            !$ACC UPDATE HOST(p_send) IF(lzacc)
+            !$ACC UPDATE HOST(p_send) ASYNC(1) IF(lzacc)
 #endif
           END IF
 #endif
@@ -2174,6 +2127,7 @@ END SUBROUTINE exchange_data_mult_sp
         END IF
       END DO
     ELSE IF (cpy_recv) THEN
+      !$ACC WAIT(1) IF(lzacc) !GV: UPDATE HOST(p_recv) finished
       DO i = 1, nfields
         nblk = SIZE(recv(i)%p, 3)
         ofs = cpy_psum + 1
@@ -2188,7 +2142,7 @@ END SUBROUTINE exchange_data_mult_sp
           device_cpy = acc_malloc(INT(nproma * nl * nblk, c_size_t) * &
                                   INT(p_real_sp_byte, c_size_t))
           CALL acc_map_data(cpy, device_cpy, nproma * nl * nblk)
-          !$ACC KERNELS PRESENT(cpy, p_recv)
+          !$ACC KERNELS PRESENT(cpy, p_recv) ASYNC(1)
           cpy(:, :, :) = p_recv
           !$ACC END KERNELS
           src_data_cptr(i) = device_cpy
@@ -2241,22 +2195,14 @@ END SUBROUTINE exchange_data_mult_sp
     IF (lzacc) THEN
       DO i = 1, nfields
         p_recv => recv(i)%p
-        !$ACC UPDATE DEVICE(p_recv) IF(lzacc)
+        !$ACC UPDATE DEVICE(p_recv) ASYNC(1) IF(lzacc)
       END DO
     END IF
 #endif
 #endif
   END SUBROUTINE exchange_data_mult_sp_bottom
 
-!>
 !! Does data exchange according to a communication pattern (in p_pat).
-!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! Optimized version by Guenther Zaengl to process 4D fields and 3D fields with either single
-!! precision or double precision
-!! yaxt version by Moritz Hanke, April 2016
 !!
 SUBROUTINE exchange_data_mult_mixprec(p_pat, nfields_dp, ndim2tot_dp, &
      nfields_sp, ndim2tot_sp, recv_dp, send_dp, recv_sp, send_sp, nshift)
@@ -2284,14 +2230,7 @@ SUBROUTINE exchange_data_mult_mixprec(p_pat, nfields_dp, ndim2tot_dp, &
 
 END SUBROUTINE exchange_data_mult_mixprec
 
-!>
 !! Does data exchange according to a communication pattern (in p_pat).
-!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! Optimized version by Guenther Zaengl to process a 4D field whose extra dimension
-!! is on the first index
 !!
 SUBROUTINE exchange_data_4de1(p_pat, nfields, ndim2tot, recv, send)
 
@@ -2321,8 +2260,9 @@ SUBROUTINE exchange_data_4de1(p_pat, nfields, ndim2tot, recv, send)
 #else
     lzacc = .FALSE.
     IF (i_am_accel_node) THEN
-      !$ACC UPDATE HOST(recv)
-      !$ACC UPDATE HOST(send) IF(PRESENT(send))
+      !$ACC UPDATE HOST(recv) ASYNC(1)
+      !$ACC UPDATE HOST(send) ASYNC(1) IF(PRESENT(send))
+      !$ACC WAIT(1)
     END IF
 #endif
 #endif
@@ -2416,7 +2356,7 @@ SUBROUTINE exchange_data_4de1(p_pat, nfields, ndim2tot, recv, send)
      DEALLOCATE(recv_buffer)
 #if defined(_OPENACC) && ! defined(__USE_G2G)
      IF (i_am_accel_node) THEN
-      !$ACC UPDATE DEVICE(recv) IF(i_am_accel_node)
+      !$ACC UPDATE DEVICE(recv) ASYNC(1) IF(i_am_accel_node)
      END IF
 #endif
      RETURN
@@ -2454,7 +2394,7 @@ SUBROUTINE exchange_data_4de1(p_pat, nfields, ndim2tot, recv, send)
 
 #if defined(_OPENACC) && ! defined(__USE_G2G)
    IF (i_am_accel_node) THEN
-    !$ACC UPDATE DEVICE(recv) IF(i_am_accel_node)
+    !$ACC UPDATE DEVICE(recv) ASYNC(1) IF(i_am_accel_node)
    END IF
 #endif
 
@@ -2505,7 +2445,7 @@ CONTAINS
     REAL(dp), TARGET :: send(n)
 
     !$ACC DATA CREATE(send) IF(lzacc)
-    !$ACC KERNELS IF(lzacc)
+    !$ACC KERNELS ASYNC(1) IF(lzacc)
     send = recv
     !$ACC END KERNELS
 #ifdef _OPENACC
@@ -2518,21 +2458,14 @@ CONTAINS
 #ifdef _OPENACC
     END IF
 #endif
+    !$ACC WAIT(1)
     !$ACC END DATA
 
   END SUBROUTINE xt_redist_s_exchange1_contiguous_copy
 
 END SUBROUTINE exchange_data_4de1
 
-!>
 !! Does data exchange according to a communication pattern (in p_pat).
-!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! Optimized version by Guenther Zaengl to process up to two 4D fields or up to six 3D fields
-!! for an array-sized communication pattern (as needed for boundary interpolation) in one step
-!! yaxt version by Moritz Hanke, April 2016
 !!
 SUBROUTINE exchange_data_grf(p_pat_coll, nfields, ndim2tot, recv, send)
 
@@ -2564,9 +2497,11 @@ SUBROUTINE exchange_data_grf(p_pat_coll, nfields, ndim2tot, recv, send)
     IF (i_am_accel_node) THEN
       DO i = 1, nfields
         p => recv(i)%p
-        !$ACC UPDATE HOST(p)
+        !$ACC UPDATE HOST(p) ASYNC(1)
+        !$ACC WAIT(1)
         p => send(i)%p
-        !$ACC UPDATE HOST(p)
+        !$ACC UPDATE HOST(p) ASYNC(1)
+        !$ACC WAIT(1)
       END DO
     END IF
 #endif
@@ -2612,9 +2547,11 @@ SUBROUTINE exchange_data_grf(p_pat_coll, nfields, ndim2tot, recv, send)
     IF (i_am_accel_node) THEN
       DO i = 1, nfields
         p => recv(i)%p
-        !$ACC UPDATE DEVICE(p)
+        !$ACC UPDATE DEVICE(p) ASYNC(1)
+        !$ACC WAIT(1)
         p => send(i)%p
-        !$ACC UPDATE DEVICE(p)
+        !$ACC UPDATE DEVICE(p) ASYNC(1)
+        !$ACC WAIT(1)
       END DO
     END IF
 #endif
@@ -2718,14 +2655,9 @@ END SUBROUTINE exchange_data_grf
 !
 !
 
-!>
 !! Interface for 2D arrays for exchange_data.
 !!
 !! Just reshapes the arrays and calls exchange_data.
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!! yaxt version by Moritz Hanke, April 2016
 !!
 !================================================================================================
 ! REAL SECTION ----------------------------------------------------------------------------------

@@ -1,21 +1,20 @@
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!>
-!! Preliminary read and time interpolation of solar irradiance data
-!!
-!! This is  a clone of the respective ECHAM routine
-!!
-!! Read spectrally resolved solar irradiance yearly, apply primitive time
-!! interpolation to monthly mean values and apply
-!!
-!! J.S. Rast, MPI, March 2010, original version for echam6
-!! L. Kornblueh, MPI, April 2013, adapted as temporary reader in ICON
-!!
+! This is  a clone of the respective ECHAM routine
+!
+! Read spectrally resolved solar irradiance yearly, apply primitive time
+! interpolation to monthly mean values and apply
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_bc_solar_irradiance
 
   USE mo_kind,            ONLY: dp, i8
@@ -113,12 +112,12 @@ CONTAINS
        CALL nf_check(p_nf_get_vara_double (ncid, nvarid, start, cnt, ssi_radt_m))
        lread_solar_radt=.FALSE.
        last_year_radt=year
-       !$ACC UPDATE DEVICE(tsi_radt_m, ssi_radt_m)
+       !$ACC UPDATE DEVICE(tsi_radt_m, ssi_radt_m) ASYNC(1)
     ELSE
        CALL nf_check(p_nf_get_vara_double(ncid, nvarid, start, cnt, tsi_m))
        lread_solar=.FALSE.
        last_year=year
-       !$ACC UPDATE DEVICE(tsi_m)
+       !$ACC UPDATE DEVICE(tsi_m) ASYNC(1)
     END IF
 
     CALL nf_check(p_nf_close(ncid))
@@ -143,7 +142,7 @@ CONTAINS
       END IF
       IF (.NOT.PRESENT(ssi)) THEN
         CALL finish ('ssi_time_interpolation of mo_bc_solar_irradiance', &
-                     'Interpolation to radiation time step needs ssi',exit_no=1)
+                     'Interpolation to radiation time step needs ssi')
       ELSE
         tsi    = tiw%weight1 * tsi_radt_m(tiw%month1_index) + tiw%weight2 * tsi_radt_m(tiw%month2_index)
         ssi(:) = tiw%weight1*ssi_radt_m(:,tiw%month1_index) + tiw%weight2*ssi_radt_m(:,tiw%month2_index)
@@ -151,7 +150,7 @@ CONTAINS
         IF (msg_level >= 11) CALL message('','Interpolated total solar irradiance and spectral ' &
           &          //'bands for radiation transfer, tsi= '//ctsi)
         !$ACC ENTER DATA PCREATE(ssi)
-        !$ACC UPDATE DEVICE(ssi)
+        !$ACC UPDATE DEVICE(ssi) ASYNC(1)
       END IF
     ELSE
       IF (PRESENT(ssi)) THEN

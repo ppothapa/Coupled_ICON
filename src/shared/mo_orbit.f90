@@ -1,50 +1,61 @@
-#ifdef __xlC__
-@PROCESS STRICT
-#endif
-!>
-!! @par Copyright
-!! This code is subject to the MPI-M-Software - License - Agreement in it's most recent form.
-!! Please see URL http://www.mpimet.mpg.de/en/science/models/model-distribution.html and the
-!! file COPYING in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the headers of the routines.
-!!
-!! @brief Computation of orbital parameters for use in radiative transfer
-!! calculation (among other things)
-!!
-!! @par Description
-!!   Module provides routines, thorugh to calculate the distance to, right
-!!   ascension and declination of the sun.  Two orbital models are provided:
-!!   <ol>
-!!     <li> orbit_vsop87 : standard and accurate model
-!!     <li> orbit_kepler : simple model, appropriate for idealized work 
-!!   </ol>
-!! as well as an inquiry function for the declination (if it has been
-!! calculated).
-!!
-!! @author Sebastian Rast, MPI-M, Hamburg (2015-02-17)
-!!
-!! $ID: n/a$
-!!
-!! @par Origin
-!!   Adaption of code of echam6.3 to ICON.
-!!   Rewrite and synthesis of ECHAM5 code, merging old ECHAM5 modules
-!!   mo_orbit and mo_vsop87.  Many subroutines restructured and converted to 
-!!   pure functions.  Interface function "orbit" was removed and declination
-!!   now only available through inquiry.  Added bounds checking for input
-!!   time of orbit_vsop87 to insure reasonable output.
-!! 
-!! @par Code modified from original source written or modified by S.J. Lorenz,
-!!   Uni Bremen, (1996-07, 1998-07); U. Schlese, DKRZ, (1998-09)  L. Kornblueh,
-!!   MPI-M  (1998-12, 2003-02), Bjorn Stevens, (2009-09-19).
-!!
+! Computation of orbital parameters for use in radiative transfer
+! calculations (among other things)
 !
+! The code in this module provides routines to calculate the
+! distance to, the right ascension, and the declination of the sun.
+!
+! Two orbital models are provided:
+!   - orbit_vsop87 : standard and accurate model
+!   - orbit_kepler : simple model, appropriate for idealized work as
+!                    well as an inquiry function for the  declination
+!                    (if it has been calculated).
+!
+! The code is based on the following published articles and books and
+! do neither describe patented, copyrighted, or licensed algorithms or
+! code.
+!
+! P. Bretagnon and G. Francou. Planetary theories in rectangular and
+! spherical variables - VSOP 87 solutions. Astronomy and Astrophysics,
+! 202:309-315, 1988.
+!
+! Simon, J.L., P. Bretagnon, et al., "Numerical expressions for precession 
+! formulae and mean elements for the Moon and the planets", Astron. and 
+! Astrophys. 282 (1994) 663-683.
+!
+! J. Laskar, F. Joutel, and F. Boudin. Orbital, precessional, and
+! insolation quantities for the earth from -20 myr to +10 myr. Astronomy
+! and Astrophysics, 270:522-533, 1993.
+!
+! Laskar, J.: 1986, "Secular Terms of Classical Planetary Theories
+! Using the Results of General Theory". Astron. and Astrophys. 157,59
+!
+! A. Berger. Obliquity and precession for the last 5,000,000
+! years. Astronomy and Astrophysics, 51:127-135, 1976.
+!
+! Monin, A. S.: An Introduction to the Theory of Climate  D. Reidel 
+! Publishing Company, Dordrecht, 1986 (pp 10-12).
+!
+! J. Meeus. Astronomical Algorithms. Willmann-Bell, Richmond, 2 edition,
+! 1998.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_orbit
 
   USE mo_kind,           ONLY : wp, i8
   USE mo_math_constants, ONLY : pi           ,& ! pi
        &                        twopi => pi2 ,& ! pi*2
        &                        deg2rad         ! pi/180
-  USE mo_exception,      ONLY : finish, message, message_text, em_param, warning, print_value
+  USE mo_exception,      ONLY : finish, message, message_text,warning, print_value
   USE mtime,             ONLY : julianday, newJulianday, deallocateJulianday, getJulianDayFromDatetime, &
        &                        newDateTime, deallocateDateTime, datetime, no_of_ms_in_a_day, &
        &                        getNoOfDaysInYearDateTime
@@ -75,13 +86,7 @@ CONTAINS
   !!   This routine computes three orbital parameters depending on the time of
   !!   the day as well as of the year (both in radians). The main parameters 
   !!   are the eccentricity (cecc); the obliquity (cobld) and the longitude of
-  !!   of perihelion (clonp)
-  !!
-  !! @see
-  !!   Meeus, J.: Astronomische Algorithmen, 2ed Johann Ambrosius Barth,
-  !!    Leipzig, 1994 (pp 199-222).
-  !!   Monin, A. S.: An Introduction to the Theory of Climate  D. Reidel 
-  !!    Publishing Company, Dordrecht, 1986 (pp 10-12).
+  !!   of perihelion (clonp).
   !
   SUBROUTINE orbit_kepler (cecc, cobld, clonp, time, rasc_sun, decl_sun, dist_sun)
 
@@ -108,7 +113,7 @@ CONTAINS
     phl_rad = clonp*deg2rad
     WRITE(message_text, '(a14,f9.3,a23,f9.3)') &
          & ' eccentricity=',cecc,'  obliquity in degrees=',cobld
-    CALL message('orbit_kepler (mo_radiation_orbit):',message_text,level=em_param)
+    CALL message('orbit_kepler (mo_radiation_orbit):',message_text)
     !
     ! Calculation of eccentric anomaly (big_e) of vernal equinox using
     ! Lacaille's formula.
@@ -171,16 +176,8 @@ CONTAINS
   !!   The model is based on the Variations Seculaires des Orbites Plan
   !!   Planetaires (VSOP) method, as implemented in the VSOP87 model. The VSOP 
   !!   model provides the sun-earth distance, right ascention and declination
-  !!   of the sun and the hour angle as output.  This the standard orbital model
-  !!   used by ECHAM/ICON
-  !!
-  !! @see
-  !!   Bretagnon, P. and G. Francou, "Planetary theories in rectangular and 
-  !!    spherical variables. VSOP87 solutions" (PDF 840KB), Astron. and
-  !!     Astrophys. 202 (1988) 309-315.
-  !!   Simon, J.L., P. Bretagnon, et al., "Numerical expressions for precession 
-  !!    formulae and mean elements for the Moon and the planets", Astron. and 
-  !!    Astrophys. 282 (1994) 663-683.
+  !!   of the sun and the hour angle as output.  This is the standard orbital 
+  !!   model used by ECHAM/ICON.
   !
   SUBROUTINE orbit_vsop87 (julian_day, rasc_sun, decl_sun, dist_sun)
 
@@ -437,9 +434,6 @@ CONTAINS
   !>
   !! @brief Calculates obliquity given Julian time
   !! 
-  !! @see
-  !!   Laskar, J.: 1986, "Secular Terms of Classical Planetary Theories
-  !!   Using the Results of General Theory". Astron. and Astrophys. 157,59
   !
   PURE FUNCTION obliquity(t) 
 
@@ -851,7 +845,8 @@ CONTAINS
       time_of_day = (REAL(jd%ms,wp)/REAL(no_of_ms_in_a_day,wp)-0.5_wp)*twopi
       CALL deallocateJulianday(jd)
       CALL deallocateDateTime(valid_datetime)
-   ELSE !Kepler orbit that needs fraction with respect to vernal equinox in rad
+    ELSE
+      ! Kepler orbit that needs fraction with respect to vernal equinox in rad
       ! mtime routines should be able to handle different calendars...
       jd => newJulianday(0_i8, 0_i8)
       CALL getJulianDayFromDatetime(valid_datetime, jd)

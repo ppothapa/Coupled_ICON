@@ -1,22 +1,18 @@
-!>
-!! @brief Ensemble perturbations of nwp physics
-!!
-!! configuration setup for ensemble physics perturbations
-!!
-!! @author Guenther Zaengl, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Guenther Zaengl, DWD (2015-04-23)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! @brief Ensemble perturbations of nwp physics
+!
+! configuration setup for ensemble physics perturbations
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_ensemble_pert_config
 
   USE mo_kind,               ONLY: wp
@@ -235,13 +231,9 @@ MODULE mo_ensemble_pert_config
   CONTAINS
 
 
-  !>
   !! Application of the ensemble perturbation to the config/namelist variables 
   !!
   !! This is done based on random numbers determined by the ensemble member ID
-  !!
-  !! @par Revision History
-  !! Initial revision by Guenther Zaengl, DWD (2015-04-23)
   !!
   SUBROUTINE configure_ensemble_pert(ext_data, mtime_date)
 
@@ -259,7 +251,7 @@ MODULE mo_ensemble_pert_config
       CALL RANDOM_SEED(rnd_size)
       ALLOCATE(rnd_seed(rnd_size))
 
-      ! Initialize randum number generator with an integer sequence depending on the ensemble member ID
+      ! Initialize random number generator with an integer sequence depending on the ensemble member ID
       ipn = gribout_config(1)%perturbationNumber
       DO i = 1, rnd_size
         rnd_seed(i) = (135+i)*ipn - (21+i**2)*(5+MOD(ipn,10))**2 + 3*i**3
@@ -284,7 +276,23 @@ MODULE mo_ensemble_pert_config
       linit = .TRUE.
       CALL set_scalar_ens_pert(timedep_pert<2, lacc=.FALSE.)
 
-      ! Reinitialization of randum number generator in order to make external parameter perturbations
+      ! Renitialize random number generator with the same seed as before, 
+      ! excluding the time dependence applied to the physics perturbations in the case of timedep_pert=1
+      ipn = gribout_config(1)%perturbationNumber
+      DO i = 1, rnd_size
+        rnd_seed(i) = (135+i)*ipn - (21+i**2)*(5+MOD(ipn,10))**2 + 3*i**3
+      ENDDO
+
+      CALL RANDOM_SEED(PUT=rnd_seed)
+      DO i = 1, 10+ipn
+        CALL RANDOM_NUMBER(rnd_num)
+      ENDDO
+
+      ! Apply perturbations to LHN (data assimilation) tuning parameters
+      linit = .TRUE.
+      CALL set_lhn_pert(.FALSE., lacc=.FALSE.)
+
+      ! Reinitialization of random number generator in order to make external parameter perturbations
       ! independent of the number of RANDOM_NUMBER calls so far
       DO i = 1, rnd_size
         rnd_seed(i) = (139+i)*ipn - (23+i**2)*(5+MOD(ipn,12))**2 + 4*i**3
@@ -369,11 +377,7 @@ MODULE mo_ensemble_pert_config
   END SUBROUTINE configure_ensemble_pert
 
 
-  !>
   !! Save unperturbed parameters in order to allow calculating time-dependent perturbations
-  !!
-  !! @par Revision History
-  !! Initial revision by Guenther Zaengl, DWD (2020-11-16)
   !!
   SUBROUTINE save_unperturbed_params
 
@@ -443,11 +447,7 @@ MODULE mo_ensemble_pert_config
   END SUBROUTINE save_unperturbed_params
 
 
-  !>
-  !! Initialization/application of scalar ensemble perturbations
-  !!
-  !! @par Revision History
-  !! Initial revision by Guenther Zaengl, DWD (2020-11-16)
+  !! Initialization/application of scalar ensemble physics perturbations
   !!
   SUBROUTINE set_scalar_ens_pert(lprint, lacc)
 
@@ -603,19 +603,6 @@ MODULE mo_ensemble_pert_config
     rnd_fac = range_cwimax_ml**(2._wp*(rnd_num-0.5_wp))
     cwimax_ml = cwimax_ml_sv * rnd_fac
 
-    ! LHN
-    CALL random_gen(rnd_lhn_coef, rnd_num)
-    assimilation_config(1:max_dom)%lhn_coef = lhn_coef_sv(1:max_dom) + 2._wp*(rnd_num-0.5_wp)*range_lhn_coef
-
-    CALL random_gen(rnd_lhn_artif_fac, rnd_num)
-    assimilation_config(1:max_dom)%fac_lhn_artif_tune = lhn_artif_fac_sv(1:max_dom) + 2._wp*(rnd_num-0.5_wp)*range_lhn_artif_fac
-
-    CALL random_gen(rnd_fac_lhn_down, rnd_num)
-    assimilation_config(1:max_dom)%fac_lhn_down = MIN(1._wp, fac_lhn_down_sv(1:max_dom) + 2._wp*(rnd_num-0.5_wp)*range_fac_lhn_down)
-
-    CALL random_gen(rnd_fac_lhn_up, rnd_num)
-    assimilation_config(1:max_dom)%fac_lhn_up = MAX(1._wp, fac_lhn_up_sv(1:max_dom) + 2._wp*(rnd_num-0.5_wp)*range_fac_lhn_up)
-
 #ifdef _OPENACC
     IF(acc_is_present(tune_gkdrag)) CALL finish("set_scalar_ens_pert", & 
         "Internal error. `tune_gkdrag` is supposed to be on CPU only.")
@@ -695,7 +682,7 @@ MODULE mo_ensemble_pert_config
     DO jg = 1, n_dom
       ! atm_phy_nwp_config is copied onto the device in an early phase so that it is present while this
       ! routine is still called with lacc=.FALSE.. Thus IF_PRESENT is used in the following UPDATE.
-      !$ACC UPDATE DEVICE(atm_phy_nwp_config(jg)%rain_n0_factor) IF_PRESENT
+      !$ACC UPDATE DEVICE(atm_phy_nwp_config(jg)%rain_n0_factor) ASYNC(1) IF_PRESENT
 
       !$ACC UPDATE IF(lacc) &
       !$ACC   DEVICE(turbdiff_config(jg)%tkhmin) &
@@ -711,13 +698,8 @@ MODULE mo_ensemble_pert_config
       !$ACC   DEVICE(turbdiff_config(jg)%q_crit) &
       !$ACC   DEVICE(turbdiff_config(jg)%alpha0) &
       !$ACC   DEVICE(turbdiff_config(jg)%alpha0_max) &
-      !$ACC   DEVICE(turbdiff_config(jg)%alpha0_pert)
-
-      !$ACC UPDATE IF(ldass_lhn .AND. lacc) &
-      !$ACC   DEVICE(assimilation_config(jg)%lhn_coef) &
-      !$ACC   DEVICE(assimilation_config(jg)%fac_lhn_artif_tune) &
-      !$ACC   DEVICE(assimilation_config(jg)%fac_lhn_down) &
-      !$ACC   DEVICE(assimilation_config(jg)%fac_lhn_up)
+      !$ACC   DEVICE(turbdiff_config(jg)%alpha0_pert) &
+      !$ACC   ASYNC(1)
     ENDDO
 #endif
 
@@ -749,20 +731,66 @@ MODULE mo_ensemble_pert_config
       WRITE(message_text,'(2f8.4,e11.4)') tune_minsnowfrac, c_soil, cwimax_ml
       CALL message('Perturbed values, minsnowfrac, c_soil, cwimax_ml', TRIM(message_text))
 
+    ENDIF
+
+  END SUBROUTINE set_scalar_ens_pert
+
+
+  !! Initialization/application of LHN perturbations
+  !!
+  SUBROUTINE set_lhn_pert(lprint, lacc)
+
+    LOGICAL, INTENT(in) :: lprint ! print control output
+    LOGICAL, INTENT(in) :: lacc ! If true, update data on device
+
+    REAL(wp) :: rnd_num
+    INTEGER :: jg, i
+#ifdef _OPENACC
+    INTEGER :: nbytes
+#endif
+
+    ! For identity with previous implementation
+    IF (linit) THEN
+      DO i = 1, 33
+        CALL RANDOM_NUMBER(rnd_num)
+      ENDDO
+    ENDIF
+
+    CALL random_gen(rnd_lhn_coef, rnd_num, .TRUE.)
+    assimilation_config(1:max_dom)%lhn_coef = lhn_coef_sv(1:max_dom) + 2._wp*(rnd_num-0.5_wp)*range_lhn_coef
+
+    CALL random_gen(rnd_lhn_artif_fac, rnd_num, .TRUE.)
+    assimilation_config(1:max_dom)%fac_lhn_artif_tune = lhn_artif_fac_sv(1:max_dom) + 2._wp*(rnd_num-0.5_wp)*range_lhn_artif_fac
+
+    CALL random_gen(rnd_fac_lhn_down, rnd_num, .TRUE.)
+    assimilation_config(1:max_dom)%fac_lhn_down = MIN(1._wp, fac_lhn_down_sv(1:max_dom) + 2._wp*(rnd_num-0.5_wp)*range_fac_lhn_down)
+
+    CALL random_gen(rnd_fac_lhn_up, rnd_num, .TRUE.)
+    assimilation_config(1:max_dom)%fac_lhn_up = MAX(1._wp, fac_lhn_up_sv(1:max_dom) + 2._wp*(rnd_num-0.5_wp)*range_fac_lhn_up)
+
+#ifdef _OPENACC
+    DO jg = 1, n_dom
+      !$ACC UPDATE IF(ldass_lhn .AND. lacc) &
+      !$ACC   DEVICE(assimilation_config(jg)%lhn_coef) &
+      !$ACC   DEVICE(assimilation_config(jg)%fac_lhn_artif_tune) &
+      !$ACC   DEVICE(assimilation_config(jg)%fac_lhn_down) &
+      !$ACC   DEVICE(assimilation_config(jg)%fac_lhn_up) &
+      !$ACC   ASYNC(1)
+    ENDDO
+#endif
+
+    IF (lprint) THEN
+
       WRITE(message_text,'(4f8.5)') assimilation_config(1)%lhn_coef, assimilation_config(1)%fac_lhn_artif_tune, &
         assimilation_config(1)%fac_lhn_down, assimilation_config(1)%fac_lhn_up
       CALL message('Perturbed values, lhn_coef, fac_lhn_artif_tune, fac_lhn_down, fac_lhn_up', TRIM(message_text))
 
     ENDIF
 
-  END SUBROUTINE set_scalar_ens_pert
+  END SUBROUTINE set_lhn_pert
 
 
-  !>
   !! Computation of array-based ensemble perturbation fields
-  !!
-  !! @par Revision History
-  !! Initial revision by Guenther Zaengl, DWD (2016-04-08)
   !!
   SUBROUTINE compute_ensemble_pert(p_patch, ext_data, prm_diag, phy_params, mtime_date, lrecomp, lacc)
 
@@ -852,6 +880,8 @@ MODULE mo_ensemble_pert_config
 !$OMP END DO
     ENDDO
 !$OMP END PARALLEL
+      linit = .FALSE.
+      CALL set_lhn_pert(.NOT. lrecomp, lacc=lacc)
 
     IF (timedep_pert == 2) THEN
       linit = .FALSE.
@@ -870,7 +900,7 @@ MODULE mo_ensemble_pert_config
           phy_params(jg)%gkdrag_enh  = tune_gkdrag_enh(jg)
           phy_params(jg)%gkwake      = tune_gkwake(jg)
           phy_params(jg)%gfrcrit     = tune_gfrcrit(jg)
-          !$ACC UPDATE DEVICE(phy_params(jg)) ! phy_params contains only statically allocated (scalar) components
+          !$ACC UPDATE DEVICE(phy_params(jg:jg)) ASYNC(1) ! phy_params contains only statically allocated (scalar) components
         ENDDO
         ! in addition, GWD and microphysics parameters need to be updated
         gfluxlaun = tune_gfluxlaun
@@ -881,12 +911,21 @@ MODULE mo_ensemble_pert_config
   END SUBROUTINE compute_ensemble_pert
 
   ! Auxiliary routine to switch between equally distributed and discrete random numbers
-  SUBROUTINE random_gen(rnd_in, rnd_val)
+  SUBROUTINE random_gen(rnd_in, rnd_val, lhn_mode)
 
     REAL(wp), INTENT(INOUT) :: rnd_in
     REAL(wp), INTENT(OUT) :: rnd_val
+    LOGICAL,  INTENT(IN), OPTIONAL :: lhn_mode
 
     REAL(wp) :: rnd_aux, phaseshift
+    LOGICAL  :: force_type1
+
+    ! LHN perturbations need to be independent of itype_pert_gen
+    IF (PRESENT(lhn_mode)) THEN
+      force_type1 = lhn_mode
+    ELSE
+      force_type1 = .FALSE.
+    ENDIF
 
     IF (linit) THEN
 
@@ -896,7 +935,7 @@ MODULE mo_ensemble_pert_config
 #if defined (__SX__) || defined (__NEC_VH__)
       CALL p_bcast(rnd_aux, p_io, p_comm_work)
 #endif
-      IF (itype_pert_gen == 1) THEN
+      IF (itype_pert_gen == 1 .OR. force_type1) THEN
         rnd_val = rnd_aux
       ELSE IF (itype_pert_gen == 2) THEN
         IF (rnd_aux < 0.25_wp) THEN

@@ -1,26 +1,23 @@
-!! -------------------------------------------------------------------------
-!>
-!! Module containing type defintions and constructors for GRIB2 tile output
-!!
-!! GRIB2 tile output can be written by using either the official WMO tile 
-!! templates 55, 59, ..., or the local DWD templates 40455, 40456. These 
-!! templates do not differ only in terms of the template number but also 
-!! wrt the naming of tile-specific keys.
-!! The aim of the templates below is to enable ICON to make use of either 
-!! WMO or DWD templates for writing GRIB2 tile output.
-!!
-!! @author Daniel Reinert, DWD
-!!
-!! @par Revision History
-!! Initial implementation by  D. Reinert (2019)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+! Module containing type defintions and constructors for GRIB2 tile output
+!
+! GRIB2 tile output can be written by using either the official WMO tile
+! templates 55, 59, ..., or the local DWD templates 40455, 40456. These
+! templates do not differ only in terms of the template number but also
+! wrt the naming of tile-specific keys.
+! The aim of the templates below is to enable ICON to make use of either
+! WMO or DWD templates for writing GRIB2 tile output.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_grib2_tile
 
   IMPLICIT NONE

@@ -1,18 +1,16 @@
-!>
-!! @brief Main program for the ICON atmospheric model
-!!
-!! @author
-!!  Leonidas Linardakis (MPI-M)
-!!  Hui Wan             (MPI-M)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! @brief Main program for the ICON atmospheric model
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_atmo_model
 
   ! basic modules
@@ -59,7 +57,7 @@ MODULE mo_atmo_model
   USE mo_initicon_config,         ONLY: configure_initicon
   USE mo_io_config,               ONLY: restartWritingParameters
   USE mo_lnd_nwp_config,          ONLY: configure_lnd_nwp
-  USE mo_dynamics_config,         ONLY: configure_dynamics, iequations
+  USE mo_dynamics_config,         ONLY: configure_dynamics, iequations, lmoist_thdyn
   USE mo_run_config,              ONLY: configure_run,                                        &
     &                                   ltimer, ltestcase,                                    &
     &                                   ldynamics, ltransport,                                &
@@ -69,7 +67,7 @@ MODULE mo_atmo_model
     &                                   grid_generatingCenter,                                & ! grid generating center
     &                                   grid_generatingSubcenter,                             & ! grid generating subcenter
     &                                   iforcing, luse_radarfwo,                              &
-    &                                   iqc, iqt, iqv, iqi, iqs, iqr, iqtvar, ltimer,         &
+    &                                   iqc, iqt, iqv, iqi, iqs, iqr, ltimer,                 &
     &                                   iqni, iqg, iqm_max, iqtke, iqh, iqnr, iqns, iqng,     &
     &                                   iqnh, iqnc, iqgl, iqhl, inccn, ininact, ininpot,      &
     &                                   lart, nqtendphy, ntracer,                             &
@@ -97,8 +95,7 @@ MODULE mo_atmo_model
   USE mo_advection_utils,         ONLY: init_tracer_settings
 
   ! horizontal grid, domain decomposition, memory
-  USE mo_grid_config,             ONLY: n_dom, n_dom_start,                                   &
-    &                                   dynamics_parent_grid_id, n_phys_dom, l_scm_mode
+  USE mo_grid_config,             ONLY: n_dom, n_dom_start, n_phys_dom, l_scm_mode
   USE mo_model_domain,            ONLY: p_patch, p_patch_local_parent
   USE mo_build_decomposition,     ONLY: build_decomposition
   USE mo_complete_subdivision,    ONLY: setup_phys_patches
@@ -130,8 +127,9 @@ MODULE mo_atmo_model
 
   ! coupling
 #ifdef YAC_coupling
-  USE mo_coupling_config,         ONLY: is_coupled_run
-  USE mo_atmo_coupling_frame,     ONLY: construct_atmo_coupling
+  USE mo_coupling_config,           ONLY: is_coupled_to_ocean, is_coupled_to_waves, is_coupled_to_hydrodisc
+  USE mo_atmo_coupling_frame,       ONLY: construct_atmo_coupling
+  USE mo_atmo_wave_coupling_frame,  ONLY: construct_atmo_wave_coupling
 #endif
 
   ! I/O
@@ -199,14 +197,16 @@ CONTAINS
     ! construct the coupler
     !
 #ifdef YAC_coupling
-    IF ( is_coupled_run() ) THEN
+    IF ( ANY( (/is_coupled_to_ocean(), is_coupled_to_hydrodisc()/) ) )   THEN
       CALL construct_atmo_coupling(p_patch(1:))
+    ELSEIF ( is_coupled_to_waves() ) THEN
+      CALL construct_atmo_wave_coupling(p_patch(1:)) ! atmo-wave
     ENDIF
 #endif
 
 
     !---------------------------------------------------------------------
-    ! 12. The hydrostatic model has been deleted. Only the non-hydrostatic 
+    ! 12. The hydrostatic model has been deleted. Only the non-hydrostatic
     !     model is available.
     !---------------------------------------------------------------------
     SELECT CASE(iequations)
@@ -225,7 +225,7 @@ CONTAINS
     IF (process_mpi_radario_size > 0) THEN
       IF (ltimer) THEN
 #ifndef NOMPI
-        ! To synchronize the EMVORADO async. IO timing output, so that this 
+        ! To synchronize the EMVORADO async. IO timing output, so that this
         !  timing printout appears after the "normal" timing printout for the workers
         CALL radar_mpi_barrier ()
 #endif
@@ -441,14 +441,14 @@ CONTAINS
       ! -------------------------------------------------------------------------
       !
       ! - Initialize data here which must be available on
-      !   all radar PEs (workers + radario). 
+      !   all radar PEs (workers + radario).
       !
       ! - also detach the separate radario-procs after this initialisation here.
       !
       ! -------------------------------------------------------------------------
 
       IF (my_process_is_radario()) THEN
-        
+
         ! We have to call configure_gribout(...) also on the separate radar-IO-procs
         !  due to composite-output. For this, grid_generatingCenter and grid_generatingSubcenter
         !  have to be received on the radar-IO procs from the workers first. Both things are done here.
@@ -461,9 +461,9 @@ CONTAINS
         ! This is a pure radar IO PE, so the below "detach_emvorado_io" will never return.
         ! So we STOP the already started timer "timer_model_init", because it is useless on this PE:
         IF (timers_level > 1) CALL timer_stop(timer_model_init)
-        
+
         CALL detach_emvorado_io (n_dom, luse_radarfwo(1:n_dom))
-        
+
       END IF
     END IF
 #endif
@@ -540,7 +540,7 @@ CONTAINS
     CALL construct_icon_communication(p_patch, n_dom)
     !    ENDIF
 
-    
+
     !--------------------------------------------
     ! Setup the information for the physical patches
     CALL setup_phys_patches
@@ -621,7 +621,7 @@ CONTAINS
       ! Only workers reach this point here. Send
       !  grid_generatingCenter and grid_generatingSubcenter to the radar I/O PEs:
       CALL exchg_with_detached_emvorado_io(grid_generatingCenter, grid_generatingSubcenter)
-      
+
     END IF
 #endif
 #endif
@@ -659,10 +659,14 @@ CONTAINS
       &                       advection_config,                            &
       &                       iqv, iqc, iqi, iqr, iqs, iqt, iqg, iqni,     &
       &                       iqh, iqnr, iqns, iqng, iqnh, iqnc,           &
-      &                       iqgl, iqhl, inccn, iqtvar, ininact, ininpot, &
+      &                       iqgl, iqhl, inccn, ininact, ininpot,         &
       &                       iqtke, iqm_max, ntracer, nqtendphy,          &
       &                       atm_phy_nwp_config(:)%nclass_gscp,           &
       &                       iqbin, iqb_i, iqb_e, iqb_s)
+
+    IF (lmoist_thdyn .AND. .NOT.(iqv>0)) THEN
+      CALL finish( routine, 'Trying to run moist thermodynamics without moisture')
+    ENDIF
 
 #ifdef __ICON_ART
     !------------------------------------------------------------------

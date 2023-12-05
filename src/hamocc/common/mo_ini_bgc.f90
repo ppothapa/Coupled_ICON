@@ -1,8 +1,17 @@
- 
-!>
-!! @brief set start values for bgc variables
-!!
-!!
+
+! @brief set start values for bgc variables
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_ini_bgc
 
   USE mo_kind, ONLY        : wp
@@ -275,7 +284,7 @@ CONTAINS
   calcon = 1.03e-2_wp
 
   rrrcl = salchl * 1.025_wp * bor1 * bor2
-  !$ACC UPDATE DEVICE(rrrcl)
+  !$ACC UPDATE DEVICE(rrrcl) ASYNC(1)
 
   END SUBROUTINE SET_PARAMETERS_BGC
 
@@ -332,7 +341,7 @@ CONTAINS
     dremopal = dremopal * dtb  ! 1/d      
     dremn2o  = dremn2o * dtb      ! 1/d
     dremcalc = dremcalc *dtb    ! 
-    !$ACC UPDATE DEVICE(dremcalc)
+    !$ACC UPDATE DEVICE(dremcalc) ASYNC(1)
     denitrification = denitrification *dtb 
     denit_sed = denit_sed *dtb    ! sediment denitrification rate
     sred_sed = sred_sed *dtb    ! sediment sulfate reduction rate

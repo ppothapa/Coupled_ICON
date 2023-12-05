@@ -1,20 +1,22 @@
-!>
-!!               This module provides the communication routines for parallel runs
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-! (GZ, 2013-08-30): So far, the Cray compiler is the only one for which an OpenMP parallelization
-! of copying data into / back from the MPI-buffer seems to give a benefit. Further compilers may
-! be added here once the OpenMP implementation is sufficiently efficient
+! This module provides the communication routines for parallel runs
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+!
+!
+! (GZ, 2013-08-30): So far, the Cray compiler is the only one for
+! which an OpenMP parallelization of copying data into / back from the
+! MPI-buffer seems to give a benefit. Further compilers may be added
+! here once the OpenMP implementation is sufficiently efficient
 #if ((defined(_CRAYFTN) && !defined(_OPENACC)) || defined(__INTEL_COMPILER))
 #define __OMPPAR_COPY__
 #endif
@@ -49,7 +51,7 @@ USE mo_timer,                ONLY: timer_start, timer_stop, timer_exch_data, &
      &                             timer_barrier, &
      &                             timer_exch_data_wait
 USE mo_fortran_tools,        ONLY: t_ptr_3d, t_ptr_3d_sp, t_ptr_2d, t_ptr_1d_int, &
-     &                             insert_dimension
+     &                             insert_dimension, init
 USE mo_run_config,           ONLY: msg_level, activate_sync_timers
 USE mo_decomposition_tools,  ONLY: t_glb2loc_index_lookup, get_local_index
 USE mo_parallel_config,      ONLY: blk_no, idx_no, idx_1d
@@ -211,9 +213,6 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !
-  !
-
-  !>
   !! Sets up a communication pattern for exchanging data.
   !!
   !! Note: This setup routine works only for the trivial communication
@@ -245,9 +244,6 @@ CONTAINS
   !!                    faster if inplace == true
   !!
   !! send_decomp_info domain decomposition information for the SENDER array
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
   !!
   SUBROUTINE setup_comm_pattern(p_pat, dst_n_points, dst_owner, &
                                 dst_global_index, send_glb2loc_index, &
@@ -732,19 +728,14 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !
-  !>
   !! Deletes a communication pattern, i.e. deallocates all arrays
   !! and sets all other members to 0
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Oct 2011
-  !!
   !
   SUBROUTINE delete_comm_pattern(p_pat)
 
     CLASS(t_comm_pattern_orig), TARGET, INTENT(INOUT) :: p_pat
 
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(p_pat%send_src_idx, p_pat%send_src_blk) &
     !$ACC   DELETE(p_pat%recv_dst_idx, p_pat%recv_dst_blk) &
     !$ACC   DELETE(p_pat%recv_src)
@@ -806,9 +797,6 @@ CONTAINS
   !> Consistency check of communication pattern.
   !! Sends pattern info to working PE 0, which checks this data
   !! for consistency wrt. send/receive counts.
-  !!
-  !! @par Revision History
-  !! Initial implementation  by  F. Prill, DWD (2012-01-20)
   !!
   SUBROUTINE check_comm_pattern(p_pat)
     CLASS(t_comm_pattern_orig), INTENT(INOUT) :: p_pat
@@ -960,14 +948,7 @@ CONTAINS
   
   !-------------------------------------------------------------------------
   !
-  !
-  !>
   !! Does data exchange according to a communication pattern (in p_pat).
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
-  !! Modified by Guenther Zaengl for vectorization
   !!
   !================================================================================================
   ! REAL SECTION ----------------------------------------------------------------------------------
@@ -1086,9 +1067,9 @@ CONTAINS
 #endif
     ENDIF
 
-    !$ACC UPDATE HOST(send_buf) WAIT(get_comm_acc_queue()) IF(use_staging)
-
     ! Send our data
+    !$ACC UPDATE HOST(send_buf) ASYNC(get_comm_acc_queue()) IF(use_staging)
+    !$ACC WAIT(get_comm_acc_queue())
     CALL acc_wait_comms(get_comm_acc_queue())
     IF (iorder_sendrecv == 1) THEN
       DO np = 1, p_pat%np_send ! loop over PEs where to send the data
@@ -1133,7 +1114,7 @@ CONTAINS
 
     IF (lzacc .and. .not. use_staging) CALL comm_group_end()
 
-    !$ACC UPDATE DEVICE(recv_buf) WAIT(get_comm_acc_queue()) IF(use_staging)
+    !$ACC UPDATE DEVICE(recv_buf) ASYNC(get_comm_acc_queue()) IF(use_staging)
     stop_sync_timer(timer_exch_data_wait)
 
     IF (itype_exch_barrier == 2 .OR. itype_exch_barrier == 3) THEN
@@ -1223,14 +1204,7 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !
-  !
-  !>
   !! Does data exchange according to a communication pattern (in p_pat).
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
-  !! Modified by Guenther Zaengl for vectorization
   !!
   !================================================================================================
   ! REAL SECTION ----------------------------------------------------------------------------------
@@ -1348,9 +1322,9 @@ CONTAINS
 #endif
     ENDIF
 
-    !$ACC UPDATE HOST(send_buf) WAIT(get_comm_acc_queue()) IF(use_staging)
-
     ! Send our data
+    !$ACC UPDATE HOST(send_buf) ASYNC(get_comm_acc_queue()) IF(use_staging)
+    !$ACC WAIT(get_comm_acc_queue())
     CALL acc_wait_comms(get_comm_acc_queue())
     IF (iorder_sendrecv == 1) THEN
       DO np = 1, p_pat%np_send ! loop over PEs where to send the data
@@ -1396,7 +1370,7 @@ CONTAINS
 
     IF (lzacc .and. .not. use_staging) CALL comm_group_end()
 
-    !$ACC UPDATE DEVICE(recv_buf) WAIT(get_comm_acc_queue()) IF(use_staging)
+    !$ACC UPDATE DEVICE(recv_buf) ASYNC(get_comm_acc_queue()) IF(use_staging)
     stop_sync_timer(timer_exch_data_wait)
 
     IF (itype_exch_barrier == 2 .OR. itype_exch_barrier == 3) THEN
@@ -1774,7 +1748,6 @@ CONTAINS
         send_buf(1,i) = send_ptr(send_src_idx(i),1,send_src_blk(i))
       ENDDO
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
     ELSE
 #if defined( __SX__ ) || defined( _OPENACC )
 !$NEC outerloop_unroll(4)
@@ -1786,7 +1759,6 @@ CONTAINS
         ENDDO
       ENDDO
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
 #else
 #ifdef __OMPPAR_COPY__
 !$OMP PARALLEL DO
@@ -1800,8 +1772,9 @@ CONTAINS
 #endif
     ENDIF
 
-    !$ACC UPDATE HOST(send_buf) IF(use_staging)
     ! Send our data
+    !$ACC UPDATE HOST(send_buf) ASYNC(1) IF(use_staging)
+    !$ACC WAIT(1)
     IF (iorder_sendrecv == 1) THEN
       DO np = 1, p_pat%np_send ! loop over PEs where to send the data
 
@@ -1843,7 +1816,7 @@ CONTAINS
     ! Wait for all outstanding requests to finish
     start_sync_timer(timer_exch_data_wait)
     CALL p_wait
-    !$ACC UPDATE DEVICE(recv_buf) IF(use_staging)
+    !$ACC UPDATE DEVICE(recv_buf) ASYNC(1) IF(use_staging)
     stop_sync_timer(timer_exch_data_wait)
 
     IF (itype_exch_barrier == 2 .OR. itype_exch_barrier == 3) THEN
@@ -1864,7 +1837,6 @@ CONTAINS
             recv_buf(k,recv_src(i)) + add(recv_dst_idx(i),k,recv_dst_blk(i))
         ENDDO
         !$ACC END PARALLEL
-        !$ACC WAIT(1)
       ELSE
 #if defined( __SX__ ) || defined( _OPENACC )
         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
@@ -1877,7 +1849,6 @@ CONTAINS
           ENDDO
         ENDDO
         !$ACC END PARALLEL
-        !$ACC WAIT(1)
 #else
 #ifdef __OMPPAR_COPY__
 !$OMP PARALLEL DO
@@ -1900,7 +1871,6 @@ CONTAINS
           recv(recv_dst_idx(i),k,recv_dst_blk(i)) = recv_buf(k,recv_src(i))
         ENDDO
         !$ACC END PARALLEL
-        !$ACC WAIT(1)
       ELSE
 #if defined( __SX__ ) || defined( _OPENACC )
         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
@@ -1912,7 +1882,6 @@ CONTAINS
           ENDDO
         ENDDO
         !$ACC END PARALLEL
-        !$ACC WAIT(1)
 #else
 #ifdef __OMPPAR_COPY__
 !$OMP PARALLEL DO
@@ -1927,6 +1896,7 @@ CONTAINS
       ENDIF
     ENDIF
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     stop_sync_timer(timer_exch_data)
@@ -2112,17 +2082,16 @@ CONTAINS
     ENDIF
 
     IF (ndim2 == 1) THEN
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(get_comm_acc_queue()) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO i = 1, p_pat%n_send
         send_buf(1,i) = send_ptr(send_src_idx(i),1,send_src_blk(i))
       ENDDO
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
     ELSE
 #if defined( __SX__ ) || defined( _OPENACC )
 !$NEC outerloop_unroll(4)
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(get_comm_acc_queue()) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k = 1, ndim2
         DO i = 1, p_pat%n_send
@@ -2130,7 +2099,6 @@ CONTAINS
         ENDDO
       ENDDO
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
 #else
 #ifdef __OMPPAR_COPY__
 !$OMP PARALLEL DO
@@ -2144,8 +2112,10 @@ CONTAINS
 #endif
     ENDIF
 
-    !$ACC UPDATE HOST(send_buf) IF(use_staging)
     ! Send our data
+    !$ACC UPDATE HOST(send_buf) ASYNC(get_comm_acc_queue()) IF(use_staging)
+    !$ACC WAIT(get_comm_acc_queue())
+    CALL acc_wait_comms(get_comm_acc_queue())
     IF (iorder_sendrecv == 1) THEN
       DO np = 1, p_pat%np_send ! loop over PEs where to send the data
 
@@ -2187,7 +2157,7 @@ CONTAINS
     ! Wait for all outstanding requests to finish
     start_sync_timer(timer_exch_data_wait)
     CALL p_wait
-    !$ACC UPDATE DEVICE(recv_buf) IF(use_staging)
+    !$ACC UPDATE DEVICE(recv_buf) ASYNC(get_comm_acc_queue()) IF(use_staging)
     stop_sync_timer(timer_exch_data_wait)
 
     IF (itype_exch_barrier == 2 .OR. itype_exch_barrier == 3) THEN
@@ -2200,16 +2170,15 @@ CONTAINS
 
     IF (ndim2 == 1) THEN
       k = 1
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(get_comm_acc_queue()) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO i = 1, p_pat%n_pnts
         recv(recv_dst_idx(i),k,recv_dst_blk(i)) = recv_buf(k,recv_src(i))
       ENDDO
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
     ELSE
 #if defined( __SX__ ) || defined( _OPENACC )
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(get_comm_acc_queue()) IF(lzacc)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
 !$NEC outerloop_unroll(4)
       DO k = 1, ndim2
@@ -2218,7 +2187,6 @@ CONTAINS
         ENDDO
       ENDDO
       !$ACC END PARALLEL
-      !$AC WAIT(1)
 #else
 #ifdef __OMPPAR_COPY__
 !$OMP PARALLEL DO
@@ -2232,20 +2200,14 @@ CONTAINS
 #endif
     ENDIF
 
+    CALL acc_wait_comms(get_comm_acc_queue())
     !$ACC END DATA
 
     stop_sync_timer(timer_exch_data)
 
   END SUBROUTINE exchange_data_l3d
 
-  !>
   !! Does data exchange according to a communication pattern (in p_pat).
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
-  !! Optimized version by Guenther Zaengl to process 4D fields or up to seven 3D fields
-  !! in one step
   !!
   SUBROUTINE exchange_data_mult(p_pat, ndim2tot, &
        recv, send, nshift)
@@ -2320,6 +2282,19 @@ CONTAINS
 #endif
     !$ACC   PRESENT(p_pat) &
     !$ACC   ASYNC(get_comm_acc_queue()) IF(lzacc)
+
+#ifdef _OPENACC
+    ! the `init` subroutine is not used here as this needs to be run with `ASYNC(get_comm_acc_queue())` and not `ASYNC(1)`
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc) ASYNC(get_comm_acc_queue())
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+    DO k = 1, p_pat%n_recv
+      DO i = 1, ndim2tot
+          recv_buf(i,k) = 0._dp
+      ENDDO
+    ENDDO
+    !$ACC END PARALLEL
+    !$ACC WAIT(get_comm_acc_queue())
+#endif
 
     IF (lzacc .and. .not. use_staging) CALL comm_group_start()
 
@@ -2416,8 +2391,9 @@ CONTAINS
 #endif
 #endif
 
-    !$ACC UPDATE HOST(send_buf) WAIT(get_comm_acc_queue()) IF(use_staging)
     ! Send our data
+    !$ACC UPDATE HOST(send_buf) ASYNC(get_comm_acc_queue()) IF(use_staging)
+    !$ACC WAIT(get_comm_acc_queue())
     CALL acc_wait_comms(get_comm_acc_queue())
     IF (iorder_sendrecv == 1) THEN
       DO np = 1, p_pat%np_send ! loop over PEs where to send the data
@@ -2460,7 +2436,7 @@ CONTAINS
     ! Wait for all outstanding requests to finish
     start_sync_timer(timer_exch_data_wait)
     CALL p_wait
-    !$ACC UPDATE DEVICE(recv_buf) WAIT(get_comm_acc_queue()) IF(use_staging)
+    !$ACC UPDATE DEVICE(recv_buf) ASYNC(get_comm_acc_queue()) IF(use_staging)
     stop_sync_timer(timer_exch_data_wait)
 
     IF (lzacc .and. .not. use_staging) CALL comm_group_end()
@@ -2517,14 +2493,7 @@ CONTAINS
 
   END SUBROUTINE exchange_data_mult
 
-  !>
   !! Does data exchange according to a communication pattern (in p_pat).
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
-  !! Optimized version by Guenther Zaengl to process 4D fields and 3D fields with either single
-  !! precision or double precision
   !!
   SUBROUTINE exchange_data_mult_mixprec(p_pat, nfields_dp, ndim2tot_dp, &
        nfields_sp, ndim2tot_sp, recv_dp, send_dp, recv_sp, send_sp, nshift)
@@ -2635,6 +2604,19 @@ CONTAINS
 #endif
     !$ACC   PRESENT(recv_src, recv_dst_blk, recv_dst_idx, send_src_blk, send_src_idx) &
     !$ACC   ASYNC(get_comm_acc_queue()) IF(lzacc)
+
+#ifdef _OPENACC
+    ! the `init` subroutine is not used here as this needs to be run with `ASYNC(get_comm_acc_queue())` and not `ASYNC(1)`
+    !$ACC PARALLEL DEFAULT(PRESENT) IF(lzacc) ASYNC(get_comm_acc_queue())
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+    DO k = 1, p_pat%n_recv
+      DO i = 1, ndim2tot_sp
+        recv_buf_sp(i,k) = 0._sp
+      ENDDO
+    ENDDO
+    !$ACC END PARALLEL
+    !$ACC WAIT(get_comm_acc_queue())
+#endif
 
     IF (lzacc .and. .not. use_staging) CALL comm_group_start()
 
@@ -2781,9 +2763,10 @@ CONTAINS
 #endif
 #endif
 
-    !$ACC UPDATE HOST(send_buf_sp, send_buf_dp) WAIT(get_comm_acc_queue()) IF(use_staging)
-    CALL acc_wait_comms(get_comm_acc_queue())
     ! Send our data
+    !$ACC UPDATE HOST(send_buf_sp, send_buf_dp) ASYNC(get_comm_acc_queue()) IF(use_staging)
+    !$ACC WAIT(get_comm_acc_queue())
+    CALL acc_wait_comms(get_comm_acc_queue())
     IF (iorder_sendrecv == 1) THEN
       DO np = 1, p_pat%np_send ! loop over PEs where to send the data
 
@@ -2834,7 +2817,7 @@ CONTAINS
     ! Wait for all outstanding requests to finish
     start_sync_timer(timer_exch_data_wait)
     CALL p_wait
-    !$ACC UPDATE DEVICE(recv_buf_sp, recv_buf_dp) WAIT(get_comm_acc_queue()) IF(use_staging)
+    !$ACC UPDATE DEVICE(recv_buf_sp, recv_buf_dp) ASYNC(get_comm_acc_queue()) IF(use_staging)
     stop_sync_timer(timer_exch_data_wait)
 
     IF (lzacc .and. .not. use_staging) CALL comm_group_end()
@@ -2912,14 +2895,7 @@ CONTAINS
   END SUBROUTINE exchange_data_mult_mixprec
 
 
-  !>
   !! Does data exchange according to a communication pattern (in p_pat).
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
-  !! Optimized version by Guenther Zaengl to process a 4D field whose extra dimension
-  !! is on the first index
   !!
   SUBROUTINE exchange_data_4de1(p_pat, nfields, ndim2tot, recv, send)
 
@@ -2997,6 +2973,10 @@ CONTAINS
     !$ACC   PRESENT(recv, recv_src, recv_dst_blk, recv_dst_idx, send_src_blk, send_src_idx) &
     !$ACC   IF(lzacc)
 
+#ifdef _OPENACC
+    CALL init(recv_buf, opt_acc_async=.TRUE.)
+#endif
+
     IF ((iorder_sendrecv == 1 .OR. iorder_sendrecv == 3)) THEN
       ! Set up irecv's for receive buffers
       DO np = 1, p_pat%np_recv ! loop over PEs from where to receive the data
@@ -3058,15 +3038,15 @@ CONTAINS
       ENDIF
     ENDDO
     !$ACC END PARALLEL
-    !$ACC WAIT(1)
 
 #if defined( __OMPPAR_COPY__ ) && !defined( _OPENACC )
 !$OMP END PARALLEL DO
 #endif
 #endif
 
-    !$ACC UPDATE HOST(send_buf) IF(use_staging)
     ! Send our data
+    !$ACC UPDATE HOST(send_buf) ASYNC(1) IF(use_staging)
+    !$ACC WAIT(1)
     IF (iorder_sendrecv == 1) THEN
       DO np = 1, p_pat%np_send ! loop over PEs where to send the data
 
@@ -3110,7 +3090,7 @@ CONTAINS
     CALL p_wait
     stop_sync_timer(timer_exch_data_wait)
 
-    !$ACC UPDATE DEVICE(recv_buf) IF(use_staging)
+    !$ACC UPDATE DEVICE(recv_buf) ASYNC(1) IF(use_staging)
 
     IF (itype_exch_barrier == 2 .OR. itype_exch_barrier == 3) THEN
       start_sync_timer(timer_barrier)
@@ -3151,10 +3131,10 @@ CONTAINS
 !$OMP END PARALLEL DO
 #else
     !$ACC END PARALLEL
-    !$ACC WAIT(1)
 #endif
 #endif
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     stop_sync_timer(timer_exch_data)
@@ -3162,14 +3142,7 @@ CONTAINS
   END SUBROUTINE exchange_data_4de1
 
 
-  !>
   !! Does data exchange according to a communication pattern (in p_pat).
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
-  !! Optimized version by Guenther Zaengl to process up to two 4D fields or up to six 3D fields
-  !! for an array-sized communication pattern (as needed for boundary interpolation) in one step
   !!
   SUBROUTINE exchange_data_grf(p_pat_coll, nfields, ndim2tot, recv, send)
 
@@ -3200,10 +3173,14 @@ CONTAINS
       auxs_buf(:,:),auxr_buf(:,:)
 
     INTEGER :: i, j, k, ik, jb, jl, n, np, irs, ire, iss, ise, &
-      npats, isum, ioffset, isum1, n4d, pid, num_send, num_recv, &
+      isum, ioffset, isum1, n4d, pid, num_send, num_recv, &
       comm_size, idx_1d_i, accum, accum2
     INTEGER, ALLOCATABLE :: pelist_send(:), pelist_recv(:)
-
+#ifdef __SX__
+    INTEGER, PARAMETER :: npats = 4 ! needed for vectorization
+#else
+    INTEGER :: npats
+#endif
     TYPE(t_p_comm_pattern_orig), POINTER :: p_pat(:)
 #ifdef _OPENACC
     LOGICAL :: lzacc, use_g2g, use_staging
@@ -3239,9 +3216,11 @@ CONTAINS
     ENDIF
 
     start_sync_timer(timer_exch_data)
-
+#ifdef __SX__
+    IF (npats /= SIZE(p_pat))       CALL finish('exchange_data_grf', 'invalid number of comm patterns')
+#else
     npats = SIZE(p_pat)  ! Number of communication patterns provided on input
-
+#endif
     !-----------------------------------------------------------------------
 
     ! some adjustmens to the standard communication patterns in order to make
@@ -3285,9 +3264,7 @@ CONTAINS
         ise = p_pat(n)%p%send_limits(np+1)
         IF(ise >= iss) THEN
           num_send = num_send + 1
-          DO j = 1, npats
-            pelist_send(num_send) = np
-          ENDDO
+          pelist_send(num_send) = np
           EXIT ! count each processor only once
         ENDIF
       ENDDO
@@ -3297,9 +3274,7 @@ CONTAINS
         ire = p_pat(n)%p%recv_limits(np+1)
         IF(ire >= irs) THEN
           num_recv = num_recv + 1
-          DO j = 1, npats
-            pelist_recv(num_recv) = np
-          ENDDO
+          pelist_recv(num_recv) = np
           EXIT ! count each processor only once
         ENDIF
       ENDDO
@@ -3407,7 +3382,6 @@ CONTAINS
       DO n = 1, nfields
         !$ACC LOOP SEQ
         DO np = 1, npats
-!$NEC novector
           !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
           DO k = 1, ndim2(n)
             DO i = 1, n_send(np)
@@ -3460,16 +3434,17 @@ CONTAINS
             ise = p_pat(n)%p%send_limits(pid+1) + ioffset_s(n)
             isum1 = ise - iss + 1
             IF (isum1 > 0) THEN
-            !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
 !
 !  TODO:  Makes sure this is set up correctly
+              !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
               auxs_buf(:,isum+1:isum+isum1) = send_buf(:,iss:ise)
               !$ACC END KERNELS
               isum = isum+isum1
             ENDIF
           ENDDO
 
-          !$ACC UPDATE HOST(auxs_buf(:,ioffset+1:ioffset+isum)) IF(use_staging)
+          !$ACC UPDATE HOST(auxs_buf(:,ioffset+1:ioffset+isum)) ASYNC(1) IF(use_staging)
+          !$ACC WAIT(1)
 
           IF(isum > ioffset) CALL p_send(auxs_buf(1,ioffset+1), pid, 1, &
             p_count=(isum-ioffset)*ndim2tot, comm=p_pat_coll%patterns(1)%p%comm, use_g2g=use_g2g)
@@ -3489,14 +3464,15 @@ CONTAINS
             ise = p_pat(n)%p%send_limits(pid+1) + ioffset_s(n)
             isum1 = ise - iss + 1
             IF (isum1 > 0) THEN
-              !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
+              !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
               auxs_buf(:,isum+1:isum+isum1) = send_buf(:,iss:ise)
               !$ACC END KERNELS
               isum = isum+isum1
             ENDIF
           ENDDO
 
-          !$ACC UPDATE HOST(auxs_buf(:,ioffset+1:ioffset+isum)) IF(use_staging)
+          !$ACC UPDATE HOST(auxs_buf(:,ioffset+1:ioffset+isum)) ASYNC(1) IF(use_staging)
+          !$ACC WAIT(1)
 
           IF(isum > ioffset) CALL p_isend(auxs_buf(1,ioffset+1), pid, 1, &
             p_count=(isum-ioffset)*ndim2tot, comm=p_pat_coll%patterns(1)%p%comm, use_g2g=use_g2g)
@@ -3540,7 +3516,7 @@ CONTAINS
 #ifdef __OMPPAR_COPY__
 !$OMP DO
 #endif
-              !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
+              !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
               DO i = 1, isum1
                 auxs_buf(:,isum+i) = send_buf(:,iss-1+i)
               ENDDO
@@ -3552,7 +3528,8 @@ CONTAINS
             ENDIF
           ENDDO
 
-          !$ACC UPDATE HOST(auxs_buf(:,ioffset+1:ioffset+isum)) IF(use_staging)
+          !$ACC UPDATE HOST(auxs_buf(:,ioffset+1:ioffset+isum)) ASYNC(1) IF(use_staging)
+          !$ACC WAIT(1)
 !$OMP MASTER
           IF(isum > ioffset) CALL p_isend(auxs_buf(1,ioffset+1), pid, 1, &
             p_count=(isum-ioffset)*ndim2tot, comm=p_pat_coll%patterns(1)%p%comm, use_g2g=use_g2g)
@@ -3577,7 +3554,7 @@ CONTAINS
         stop_sync_timer(timer_barrier)
       ENDIF
 
-      !$ACC UPDATE DEVICE(auxr_buf) IF(use_staging)
+      !$ACC UPDATE DEVICE(auxr_buf) ASYNC(1) IF(use_staging)
 
       ! Copy exchanged data back to receive buffer
 
@@ -3627,7 +3604,6 @@ CONTAINS
       DO n = 1, nfields
         !$ACC LOOP SEQ
         DO np = 1, npats
-!$NEC novector
           !$ACC LOOP GANG(STATIC: 1) VECTOR COLLAPSE(2)
           DO k = 1, ndim2(n)
             DO i = 1, n_pnts(np)
@@ -3668,6 +3644,7 @@ CONTAINS
     ENDIF  ! .NOT. my_process_is_mpi_seq()
 
 #ifdef _OPENACC
+    !$ACC WAIT(1)
     DO n = 1, nfields
       !$ACC EXIT DATA DETACH(recv(n)%p, send(n)%p) IF(lzacc)
     ENDDO
@@ -3687,15 +3664,9 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !
-  !
-  !>
   !! Interface for 2D arrays for exchange_data.
   !!
   !! Just reshapes the arrays and calls exchange_data.
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
-  !!
   !================================================================================================
   ! REAL SECTION ----------------------------------------------------------------------------------
   !
@@ -3745,15 +3716,9 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !
-  !
-  !>
   !! Interface for 2D arrays for exchange_data.
   !!
   !! Just reshapes the arrays and calls exchange_data.
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
-  !!
   !================================================================================================
   ! REAL SECTION ----------------------------------------------------------------------------------
   !

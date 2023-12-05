@@ -35,7 +35,7 @@ cp ${icon_dir}/configure ${tmp_dir}/configure
 
 diff -u "${tmp_dir}/configure" "${icon_dir}/configure" >&2 || {
   cat >&2 <<_EOF
-ERROR: the configure script is incosistent with the contents of configure.ac
+ERROR: the configure script is inconsistent with the contents of configure.ac
 #      (see above)
 _EOF
   exit 1

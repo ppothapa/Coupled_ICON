@@ -1,10 +1,9 @@
-!------------------------------------------------------------------------------
-!>
+!
 ! Description:
-
+!
 ! this is the spectral-bin microphysics scheme based on the hebrew university
 ! cloud model (hucm), originally formulated and coded by alexander khain
-! (email: alexander.khain@mail.huji.ac.il);
+!
 ! the wrf bin microphysics scheme (fast sbm or fsbm) solves equations for four
 ! size distribution FUNCTIONs: aerosols, drop (including rain drops), snow and
 ! graupel/hail (from which mass mixing ratio qna, qc, qr, qs, qg/qh and
@@ -22,7 +21,7 @@
 ! representing smallest aerosols (nucleation mode), intermediate-size
 ! (accumulation mode) and largest aerosols (coarse mode). the bc/ic for aerosols
 ! ,as well as aerosols vertical distribution profile -- are set from within the
-! fsbm-2 scheme (see the 'domain_id' parameter). the domain_id forces bc to be applied 
+! fsbm-2 scheme (see the 'domain_id' parameter). the domain_id forces bc to be applied
 ! for the parent domain only.
 
 ! the user can set the liquid water content threshold (lwc) in which rimed snow
@@ -33,11 +32,6 @@
 
 ! we thank and acknowledge contribution from jiwen fan (pnnl), alexander rhyzkov
 ! (cimms/nssl), jeffery snyder (cimms/nssl), jimy dudhia (ncar) and dave gill! (ncar).
-
-! the previous wrf fsbm version (fsbm-1) was coded by barry lynn (email:
-! barry.h.lynn@gmail.com); this updated wrf sbm version (fsbm-2) was coded and
-! is maintained by jacob shpund (email: kobby.shpund@mail.huji.ac.il).
-! please feel free to reachout with questions about the scheme.
 
 ! useful references:
 ! -------------------
@@ -57,32 +51,31 @@
 
 ! when using the fsbm-2 version please cite:
 ! -------------------------------------------
-! shpund, j., khain, a., lynn, b., fan, j., han, b., ryzhkov, a., snyder, j., 
-! dudhia, j. and gill, d., 2019. simulating a mesoscale convective system using wrf 
-! with a new spectral bin microphysics: 1: hail vs graupel. 
+! shpund, j., khain, a., lynn, b., fan, j., han, b., ryzhkov, a., snyder, j.,
+! dudhia, j. and gill, d., 2019. simulating a mesoscale convective system using wrf
+! with a new spectral bin microphysics: 1: hail vs graupel.
 ! journal of geophysical research: atmospheres.
-
-!---- note by jiwen fan
+! note by jiwen fan
 ! (1) the main SUBROUTINE is fast_sbm where all the microphysics processes are
-!     called 
+!     called
 ! (2) for aerosol setup, seach "aerosol setup", where one can set up aerosol sd,
 ! composition information (molecular weight, ions, and density). for sd, there
 ! is a choice for a lognormal distribution, or read from an observed sd.
 ! (3) my postdoc yuwei zhang has added cloud related diagnostics (mainly process
-! rates) and added an option to read in the observed sd. observed sd data should be 
-! processed following! a format of the file "ccn_size_33bin.dat" which is in 
+! rates) and added an option to read in the observed sd. observed sd data should be
+! processed following! a format of the file "ccn_size_33bin.dat" which is in
 ! size (cm), dn (# cm-3), and dndlogd for 33bins
-!!
-!! @author Pavel Khain, IMS
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_sbm_main
 

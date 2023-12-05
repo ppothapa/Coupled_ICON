@@ -1,26 +1,19 @@
-!>
-!! Namelist for scalar transport
-!!
-!! These subroutines are called by  read_atmo_namelists and do the transport 
-!! setup.
-!!
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2011-04-20)
-!! - moved here from mo_advection_utils
-!! Modification by Daniel Reinert, DWD (2011-04-20)
-!! - some updates on the structure
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Namelist for scalar transport
+!
+! These subroutines are called by  read_atmo_namelists and do the transport
+! setup.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_advection_nml
 
   USE mo_kind,                ONLY: wp
@@ -61,7 +54,6 @@ MODULE mo_advection_nml
 
   INTEGER :: &                     !< selects horizontal transport scheme
     &  ihadv_tracer(max_ntracer)   !< 0:  no horizontal advection
-                                   !< 1:  1st order upwind
                                    !< 2:  2nd order miura
                                    !< 3:  3rd order miura with quadr./cubic reconstr.
                                    !< 4:  Flux form semi lagrange (FFSL)
@@ -144,8 +136,6 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !
-  !
-  !>
   !! Read Namelist for tracer transport. 
   !!
   !! This subroutine 
@@ -156,9 +146,6 @@ CONTAINS
   !! - reads the user's (new) specifications
   !! - stores the Namelist for restart
   !! - fills the configuration state (partly)   
-  !!
-  !! @par Revision History
-  !! Initial Revision by Daniel Reinert, DWD (2011-05-07)
   !!
   SUBROUTINE read_transport_namelist( filename )
 

@@ -1,20 +1,19 @@
-!>
-!!  This module contains the routines needed for nesting in the nonhydrostatic.
-!!  version.
-!!
-!! @par Revision History
-!!  Developed and tested by Guenther Zaengl, DWD (2010-02-10)
-!!  OpenACC added by Marek Jacob, DWD (2021-08-18)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+!
+!  This module contains the routines needed for nesting in the nonhydrostatic.
+!  version.
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -25,9 +24,8 @@ MODULE mo_nh_nest_utilities
   !
   USE mo_kind,                ONLY: wp, vp
   USE mo_exception,           ONLY: message_text, message, finish
-  USE mo_model_domain,        ONLY: t_patch, t_grid_cells, t_grid_edges, p_patch_local_parent, &
-    p_patch
-  USE mo_grid_config,         ONLY: n_dom
+  USE mo_model_domain,        ONLY: t_patch, t_grid_cells, t_grid_edges, p_patch_local_parent, p_patch
+  USE mo_grid_config,         ONLY: n_dom, n_dom_start
   USE mo_intp_data_strc,      ONLY: t_int_state, p_int_state, p_int_state_local_parent
   USE mo_grf_intp_data_strc,  ONLY: t_gridref_state, p_grf_state, p_grf_state_local_parent
   USE mo_gridref_config,      ONLY: grf_intmethod_c, grf_intmethod_e, grf_intmethod_ct, grf_scalfbk, grf_tracfbk
@@ -43,21 +41,17 @@ MODULE mo_nh_nest_utilities
   USE mo_prepadv_types,       ONLY: t_prepare_adv
   USE mo_nonhydrostatic_config,ONLY: ndyn_substeps_var
   USE mo_atm_phy_nwp_config,  ONLY: iprog_aero
-  USE mo_impl_constants,      ONLY: min_rlcell_int, min_rledge_int, min_rlcell, min_rledge
+  USE mo_impl_constants,      ONLY: SUCCESS, min_rlcell_int, min_rledge_int, min_rlcell, min_rledge
   USE mo_loopindices,         ONLY: get_indices_c, get_indices_e
-  USE mo_impl_constants_grf,  ONLY: grf_bdyintp_start_c,                       &
-    grf_bdyintp_end_c,                         &
-    grf_fbk_start_c,                           &
-    grf_bdywidth_c, grf_bdywidth_e,            &
-    grf_nudgintp_start_c, grf_nudgintp_start_e,&
-    grf_nudge_start_c
+  USE mo_impl_constants_grf,  ONLY: grf_bdyintp_start_c, grf_bdyintp_end_c, grf_bdywidth_c, &
+    &                               grf_bdywidth_e, grf_nudgintp_start_c, grf_nudgintp_start_e, &
+    &                               grf_nudge_start_c
   USE mo_mpi,                 ONLY: my_process_is_mpi_parallel
 #ifdef _OPENACC  
   USE mo_mpi,                 ONLY: i_am_accel_node
 #endif
   USE mo_communication,       ONLY: exchange_data, exchange_data_mult
-  USE mo_sync,                ONLY: SYNC_C, SYNC_E, sync_patch_array, &
-    global_sum_array3, sync_patch_array_mult
+  USE mo_sync,                ONLY: SYNC_C, SYNC_E, sync_patch_array, sync_patch_array_mult
   USE mo_physical_constants,  ONLY: rd, cvd_o_rd, p0ref, vtmpc1, rd_o_cpd
   USE mo_limarea_config,      ONLY: latbc_config
   USE mo_initicon_types,      ONLY: t_pi_atm
@@ -85,116 +79,68 @@ MODULE mo_nh_nest_utilities
   CHARACTER(len=*), PARAMETER :: modname = 'mo_nh_nest_utilities'
 CONTAINS
 
+
   !>
-  !! Computes geometric information needed for the conservation correction
-  !! in the feedback routine
+  !! Computes correction term needed to use perturbation density for
+  !! lateral boundary nudging (for use with 1-way nesting).
   !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD, 2010-05-05
-  !! (Note: since we have not modified 'src/atm_dyn_iconam/mo_nh_feedback: feedback' 
-  !! for the deep atmosphere, there is no reason to modify 'fbk_dom_volume'.)
-  !!
-  SUBROUTINE complete_nesting_setup
+  SUBROUTINE complete_nesting_setup(p_patch, p_patch_local_parent, p_grf_state_local_parent, p_nh_state)
 
+    TYPE(t_patch),                 INTENT(IN)    :: p_patch(1:)
+    TYPE(t_patch),         TARGET, INTENT(IN)    :: p_patch_local_parent(n_dom_start+1:)
+    TYPE(t_gridref_state), TARGET, INTENT(IN)    :: p_grf_state_local_parent(n_dom_start+1:)
+    TYPE(t_nh_state),              INTENT(INOUT) :: p_nh_state(1:)
 
-    TYPE(t_patch),      POINTER     :: p_pp => NULL()
-    TYPE(t_patch),      POINTER     :: p_pc => NULL()
-    TYPE(t_patch),      POINTER     :: p_lp => NULL()
-    TYPE(t_grid_cells), POINTER     :: p_gcp => NULL()
-
-    REAL(wp), ALLOCATABLE :: cell_volume(:,:,:)
-    REAL(vp), ALLOCATABLE :: z_rho_ref(:,:,:)
+    ! local
+    TYPE(t_patch), POINTER     :: p_pp => NULL()   ! local parent patch of child domain
+    REAL(vp),      ALLOCATABLE :: z_rho_ref(:,:,:)
 
     INTEGER :: jg, ji, jgc, jb, jc, jk, jks
-    INTEGER :: i_startblk, i_endblk, i_startidx, i_endidx, i_nchdom
-    INTEGER :: nlev, nlev_c, nshift
+    INTEGER :: i_startblk, i_endblk, i_startidx, i_endidx
+    INTEGER :: nlev, nshift
+    INTEGER :: nlev_c                  ! number of vertical levels for child domain
+    INTEGER :: ist
+    INTEGER,  POINTER :: iidx(:,:,:), iblk(:,:,:)
+    REAL(wp), POINTER :: p_fbkwgt(:,:,:)
 
-    INTEGER, DIMENSION(:,:,:), POINTER :: iidx, iblk
-    REAL(wp), DIMENSION(:,:,:), POINTER :: p_fbkwgt
-
-    ALLOCATE(p_nh_state(1)%metrics%fbk_dom_volume(p_patch(1)%nlev))
-    p_nh_state(1)%metrics%fbk_dom_volume(:) = 0._wp
+    CHARACTER(len=*), PARAMETER ::  &
+      &  routine = modname//':complete_nesting_setup'
 
     DO jg = 1, n_dom-1
 
-      p_pp   => p_patch(jg)
-      p_gcp  => p_pp%cells
+      nlev = p_patch(jg)%nlev
 
-      nlev = p_pp%nlev
+      ! skip the following, if no child domain exists
+      IF (p_patch(jg)%n_childdom == 0) CYCLE
 
-      i_nchdom = p_pp%n_childdom
-      IF (i_nchdom == 0) CYCLE
+      ! compute correction term needed to use perturbation density for boundary nudging
+      ! correction term lives on local-parent grid of domain jgc
+      !
+      DO ji = 1, p_patch(jg)%n_childdom
 
-      DO ji = 1, i_nchdom
+        jgc    =  p_patch(jg)%child_id(ji)
 
-        jgc    =  p_pp%child_id(ji)
-        p_pc   => p_patch(jgc)
-
-        ! Note: the number of levels of fbk_dom_volume is that of the parent grid
-        ALLOCATE(p_nh_state(jgc)%metrics%fbk_dom_volume(nlev))
-
-        ! Copy layer thicknesses to local parent of current child
-
-        p_lp => p_patch_local_parent(jgc)
-        ALLOCATE(p_lp%cells%ddqz_z_full(nproma, p_lp%nlev, p_lp%nblks_c))
-        p_lp%cells%ddqz_z_full(:,:,:) = 0._wp ! Safety only
-        CALL exchange_data(p_lp%comm_pat_glb_to_loc_c, p_lp%cells%ddqz_z_full, &
-          &                p_nh_state(jg)%metrics%ddqz_z_full)
-
-        i_startblk = p_gcp%start_blk(1,1)
-        i_endblk   = p_gcp%end_blk(min_rlcell_int,i_nchdom)
-
-        ALLOCATE(cell_volume(nproma, nlev, i_endblk))
-
-        cell_volume = 0._wp
-
-        DO jb = i_startblk, i_endblk
-
-          CALL get_indices_c(p_pp, jb, i_startblk, i_endblk, i_startidx, i_endidx, &
-            1, min_rlcell_int)
-
-          DO jk = 1, nlev
-            DO jc = i_startidx, i_endidx
-              ! Sum must be taken over owned points of nest overlap region only
-              IF (p_gcp%refin_ctrl(jc,jb) <= grf_fbk_start_c .AND. p_gcp%child_id(jc,jb) == jgc .AND. &
-                p_gcp%decomp_info%owner_mask(jc,jb)) &
-                cell_volume(jc,jk,jb) = p_gcp%area(jc,jb)*p_nh_state(jg)%metrics%ddqz_z_full(jc,jk,jb)
-            ENDDO
-          ENDDO
-
-        ENDDO
-
-        p_nh_state(jgc)%metrics%fbk_dom_volume(:) = global_sum_array3(1,.FALSE.,cell_volume)
-
-        DEALLOCATE(cell_volume)
-
-      ENDDO
-
-      ! Second part: compute correction term needed to use perturbation density for boundary nudging
-
-      DO ji = 1, i_nchdom
-
-        jgc    =  p_pp%child_id(ji)
-        p_pc   => p_patch(jgc)
-
-        nlev_c = p_pc%nlev
-        nshift = p_pc%nshift
+        nlev_c = p_patch(jgc)%nlev
+        nshift = p_patch(jgc)%nshift
 
         p_fbkwgt => p_grf_state_local_parent(jgc)%fbk_wgt_bln
-        p_gcp => p_patch_local_parent(jgc)%cells
-        p_pp  => p_patch_local_parent(jgc)
+        p_pp     => p_patch_local_parent(jgc)
 
-        iidx  => p_gcp%child_idx
-        iblk  => p_gcp%child_blk
+        iidx  => p_pp%cells%child_idx
+        iblk  => p_pp%cells%child_blk
 
-        i_startblk = p_gcp%start_blk(grf_nudgintp_start_c+1,ji)
-        i_endblk   = p_gcp%end_blk(min_rlcell_int,ji)
+        i_startblk = p_pp%cells%start_blk(grf_nudgintp_start_c+1,ji)
+        i_endblk   = p_pp%cells%end_blk(min_rlcell_int,ji)
 
         ALLOCATE(p_nh_state(jgc)%metrics%rho_ref_corr(nproma, nlev_c, p_pp%nblks_c), &
-          &      z_rho_ref(nproma, nlev, p_pp%nblks_c))
+          &      z_rho_ref(nproma, nlev, p_pp%nblks_c), STAT=ist)
+        IF (ist /= SUCCESS) THEN
+          CALL finish(routine, 'allocation of rho_ref_corr and z_rho_ref failed')
+        ENDIF
         z_rho_ref(:,:,:) = 0._vp
         p_nh_state(jgc)%metrics%rho_ref_corr(:,:,:) = 0._vp
 
+        ! copy rho_ref of domain jg to local-parent grid of domain jgc
         CALL exchange_data(p_pp%comm_pat_glb_to_loc_c, RECV=z_rho_ref, &
           &                SEND=p_nh_state(jg)%metrics%rho_ref_mc)
 
@@ -217,12 +163,15 @@ CONTAINS
           ENDDO
         ENDDO
 
-!
-! rho_ref_corr is one of several variables which is not defined with ADD_VAR, and needs to be explicitly copied to DEVICE
-!
+        !
+        ! rho_ref_corr is not defined with ADD_VAR, and needs to be explicitly copied to DEVICE
+        !
         !$ACC ENTER DATA COPYIN(p_nh_state(jgc)%metrics%rho_ref_corr)
 
-        DEALLOCATE(z_rho_ref)
+        DEALLOCATE(z_rho_ref, STAT=ist)
+        IF (ist /= SUCCESS) THEN
+          CALL finish(routine, 'deallocation of z_rho_ref failed')
+        ENDIF
 
       ENDDO
     ENDDO
@@ -235,9 +184,6 @@ CONTAINS
   !>
   !! Saves the dynamic prognostic variables needed afterwards for computing
   !! the lateral boundary tendencies for nested domains
-  !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD, 2015-10-08
   !!
   SUBROUTINE save_progvars (jg,p_nh_prog,p_nh_save)
 
@@ -381,9 +327,6 @@ CONTAINS
   !! Computes the time tendencies of the prognostic variables needed for
   !! interpolation to the lateral boundaries of the nested domains
   !! In addition, compute upper boundary condition for vertical nesting.
-  !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD, 2010-02-10
   !!
   SUBROUTINE compute_tendencies (jg,n_new,n_now,n_new_rcf,n_now_rcf,&
     &                            rdt,rdt_mflx)
@@ -722,9 +665,6 @@ CONTAINS
   !! In addition, interpolates prognostic variables to child upper boundary  
   !! for vertical nesting.
   !!
-  !! @par Revision History
-  !! Developed  by Guenther Zaengl, DWD, 2008-07-10
-  !!
   SUBROUTINE boundary_interpolation (jg,jgc,ntp_dyn,ntc_dyn,ntp_tr,ntc_tr, &
     p_patch, p_nh_state, prep_adv, p_grf_state)
 
@@ -834,7 +774,7 @@ CONTAINS
     IF (l_child_vertnest) THEN
 
       IF (p_test_run) THEN
-        !$ACC KERNELS IF(i_am_accel_node)
+        !$ACC KERNELS ASYNC(1) IF(i_am_accel_node)
         aux3dp = 0._wp
         aux3dc = 0._wp
         !$ACC END KERNELS
@@ -1111,8 +1051,6 @@ CONTAINS
   !!    variables.
   !! 3. Interpolation of difference fields to the child grid
   !!
-  !! @par Revision History
-  !! Developed  by Guenther Zaengl, DWD, 2010-06-18
   SUBROUTINE prep_bdy_nudging(jgp, jg)
 
     CHARACTER(len=*), PARAMETER :: routine = modname//':prep_bdy_nudging'
@@ -1437,8 +1375,6 @@ CONTAINS
   !!    variables.
   !! 3. Interpolation of difference fields to the child grid
   !!
-  !! @par Revision History
-  !! Developed  by Guenther Zaengl, DWD, 2011-12-08
   SUBROUTINE prep_rho_bdy_nudging(jgp, jg)
 
 
@@ -1596,9 +1532,6 @@ CONTAINS
 
   !>
   !! This routine executes LATERAL boundary nudging for the limited-area mode.
-  !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD, 2013-21-10
   !!
   SUBROUTINE limarea_nudging_latbdy (p_patch, p_prog, ptr_tracer, p_metrics, p_diag, &
                                   p_int, p_latbc_const, p_latbc_old, p_latbc_new, lc1, lc2)
@@ -1912,9 +1845,6 @@ CONTAINS
   !>
   !! This routine executes UPPER boundary nudging for the limited-area mode.
   !!
-  !! @par Revision History
-  !! Developed  by Guenther Zaengl, DWD, 2013-21-10
-  !!
   SUBROUTINE limarea_nudging_upbdy (p_patch, p_prog, ptr_tracer, p_metrics, p_diag, &
                                   p_int, p_latbc_const, p_latbc_old, p_latbc_new, lc1, lc2)
 
@@ -2130,9 +2060,6 @@ CONTAINS
   !! This routine interpolates lateral boundary data (or more generally forcing data) 
   !! from the base domain to a specific child domain (jg), and all childs contained therein.
   !!
-  !! @par Revision History
-  !! Developed  by Guenther Zaengl, DWD, 2021-07-10
-  !!
   RECURSIVE SUBROUTINE intp_nestubc_nudging (p_patch, latbc_data, jg)
 
     TYPE(t_patch),       INTENT(INOUT) :: p_patch(:)
@@ -2240,8 +2167,6 @@ CONTAINS
   !! This routine executes boundary nudging for one-way nested domains
   !!
   !!
-  !! @par Revision History
-  !! Developed  by Guenther Zaengl, DWD, 2010-06-18
   SUBROUTINE nest_boundary_nudging(jg, nnew, nnew_rcf)
 
 
@@ -2388,8 +2313,6 @@ CONTAINS
   !! This routine executes boundary nudging for density (for use with 2-way nesting)
   !!
   !!
-  !! @par Revision History
-  !! Developed  by Guenther Zaengl, DWD, 2011-12-08
   SUBROUTINE density_boundary_nudging(jg, nnew)
 
 

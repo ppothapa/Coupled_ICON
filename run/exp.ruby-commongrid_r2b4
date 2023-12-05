@@ -364,7 +364,7 @@ add_required_file ${basedir}/run/coupling_${EXPNAME}.yaml     ./coupling.yaml
 cat > ${atm_namelist} << EOF
 !
 &coupling_mode_nml
-  coupled_mode     = .TRUE.
+ coupled_to_ocean  = .TRUE.
 /
 &parallel_nml
  nproma            = ${nproma_atm}
@@ -904,8 +904,8 @@ if [[ "$output_phy_3d" == "yes" ]]; then
                     'tend_va'      , 'tend_va_dyn'  , 'tend_va_phy'  ,
                     'tend_va_vdf'  , 'tend_va_gwd'  , 'tend_va_sso'  ,
                     'tend_va_cnv'  ,
-                    'tend_qhus'    , 'tend_qhus_dyn', 'tend_qhus_phy',
-                    'tend_qhus_cld', 'tend_qhus_cnv', 'tend_qhus_vdf'
+                    'tend_hus'     , 'tend_hus_dyn' , 'tend_hus_phy' ,
+                    'tend_hus_cld' , 'tend_hus_cnv' , 'tend_hus_vdf'
 /
 EOF
 fi
@@ -1028,7 +1028,7 @@ fi
 cat > ${oce_namelist} << EOF
 !
 &coupling_mode_nml
-  coupled_mode               = .TRUE.
+ coupled_to_atmo             = .TRUE.
 /
 &parallel_nml
  nproma                      = ${nproma_oce}

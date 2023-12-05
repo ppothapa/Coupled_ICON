@@ -1,16 +1,14 @@
-!>
-!!        
-!! @par Revision History
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_initicon_nml
 !-------------------------------------------------------------------------
 !
@@ -55,6 +53,7 @@ MODULE mo_initicon_nml
     & config_icpl_da_snowalb     => icpl_da_snowalb,     &
     & config_icpl_da_sfcfric     => icpl_da_sfcfric,     &
     & config_icpl_da_tkhmin      => icpl_da_tkhmin,      &
+    & config_icpl_da_seaice      => icpl_da_seaice,      &
     & config_dt_ana              => dt_ana,              &
     & config_adjust_tso_tsnow    => adjust_tso_tsnow,    &
     & config_filetype            => filetype,            &
@@ -68,7 +67,8 @@ MODULE mo_initicon_nml
     & config_ana_varnames_map_file => ana_varnames_map_file, &
     & config_pinit_seed          => pinit_seed,          &
     & config_pinit_amplitude     => pinit_amplitude,     &
-    & config_lcouple_ocean_coldstart => lcouple_ocean_coldstart
+    & config_lcouple_ocean_coldstart => lcouple_ocean_coldstart, &
+    & config_fire2d_filename     => fire2d_filename
 
   USE mo_nml_annotate,       ONLY: temp_defaults, temp_settings
 
@@ -84,12 +84,7 @@ CONTAINS
 !-------------------------------------------------------------------------
 !
 !
- !>
  !!  Initialization of the initicon coordinate namelist
- !!
- !!
- !! @par Revision History
- !!  Initial version by Guenther Zaengl (2011-07-11)
 
  SUBROUTINE read_initicon_namelist( filename )
     
@@ -119,7 +114,6 @@ CONTAINS
   INTEGER  :: nlevsoil_in   ! number of soil levels of input data
 
   REAL(wp) :: zpbl1, zpbl2  ! AGL heights used for vertical gradient computation
-  LOGICAL  :: l_sst_in      ! logical switch, if sea surface temperature is provided as input
   LOGICAL  :: lread_ana     ! If .TRUE., read analysis fields are read from analysis file
                             ! dwdana_filename. If .FALSE., ICON is soleyly started 
                             ! from first guess fields.   
@@ -148,6 +142,8 @@ CONTAINS
   INTEGER  :: icpl_da_sfcfric  ! Coupling between data assimilation and surface friction (roughness length and SSO blocking)
 
   INTEGER  :: icpl_da_tkhmin   ! Coupling between data assimilation and near-surface profiles of minimum vertical diffusion
+
+  INTEGER  :: icpl_da_seaice   ! Coupling between data assimilation and sea ice
 
   REAL(wp) :: dt_ana           ! Time interval of assimilation cycle [s] (relevant for icpl_da_sfcevap >= 2)
 
@@ -222,8 +218,11 @@ CONTAINS
   INTEGER(i8) :: pinit_seed = 0_i8
   REAL(wp) :: pinit_amplitude = 0._wp
 
+  CHARACTER(LEN=filename_max) :: & !< Filename that contains wildfire precursor emissions (2d-aerosol, iprog_aero=3)
+    &  fire2d_filename             !< Allowed keywords: <species>, <gridfile>, <nroot>, <nroot0>, <jlev>, <idom>, <yyyymmdd>
+
   NAMELIST /initicon_nml/ init_mode, zpbl1, zpbl2, l_coarse2fine_mode,      &
-                          nlevsoil_in, l_sst_in, lread_ana,                 &
+                          nlevsoil_in, lread_ana,                           &
                           lconsistency_checks,                              &
                           ifs2icon_filename, dwdfg_filename,                &
                           dwdana_filename, filetype, dt_iau, dt_shift,      &
@@ -237,7 +236,7 @@ CONTAINS
                           pinit_amplitude, icpl_da_sfcevap, dt_ana,         &
                           icpl_da_skinc, icpl_da_snowalb, adjust_tso_tsnow, &
                           icpl_da_sfcfric, lcouple_ocean_coldstart,         &
-                          icpl_da_tkhmin
+                          icpl_da_tkhmin, icpl_da_seaice, fire2d_filename
 
   !------------------------------------------------------------
   ! 2.0 set up the default values for initicon
@@ -315,12 +314,17 @@ CONTAINS
   icpl_da_tkhmin   = 0  ! Coupling between data assimilation and near-surface profile of minimum vertical diffusion for heat
                         ! 0: off, 1:on
 
+  icpl_da_seaice   = 0  ! Coupling between data assimilation and sea ice
+                        ! 0: off, 1:adjustment of t_seaice to filtered DA increment, 2: 1+ adaptive tuning of bottom heat flux
+
   adjust_tso_tsnow = .FALSE. ! If .TRUE., apply T increments for lowest model level also to snow and upper soil layers
 
   dt_ana  = 10800._wp   ! Time interval of assimilation cycle (relevant for icpl_da_sfcevap >= 2; set 3600 s for ICON-D2
 
   pinit_seed        = 0_i8        ! <0: do not perturb initial data. >0: perturb initial data with this as seed
   pinit_amplitude   = 0._wp       ! amplitude of the initial perturbation for numerical tolerance test
+
+  fire2d_filename = 'gfas2d_emi_<species>_<gridfile>_<yyyymmdd>.nc'
 
   !------------------------------------------------------------
   ! 3.0 Read the initicon namelist.
@@ -392,7 +396,11 @@ CONTAINS
 
   ! this is needed because the I/O of the filtered T increment is controlled via icpl_da_sfcevap >= 3
   IF (icpl_da_snowalb >= 1 .AND. icpl_da_sfcevap < 3) THEN
-    WRITE(message_text,'(a)') 'icpl_da_snowalb = 1 must be combined with icpl_da_sfcevap >= 3'
+    WRITE(message_text,'(a)') 'icpl_da_snowalb >= 1 must be combined with icpl_da_sfcevap >= 3'
+    CALL finish(TRIM(routine),message_text)
+  ENDIF
+  IF (icpl_da_seaice >= 1 .AND. icpl_da_sfcevap < 3) THEN
+    WRITE(message_text,'(a)') 'icpl_da_seaice >= 1 must be combined with icpl_da_sfcevap >= 3'
     CALL finish(TRIM(routine),message_text)
   ENDIF
 
@@ -414,10 +422,6 @@ CONTAINS
     CALL finish( TRIM(routine),'Invalid value for itype_vert_expol.' )
   END SELECT
 
-  ! 
-  WRITE(message_text,'(a)') &
-    &  'Namelist switch l_sst_in is obsolete and will soon be removed!'
-  CALL message("WARNING",message_text)
 
   !------------------------------------------------------------
   ! 5.0 Fill the configuration state
@@ -447,6 +451,7 @@ CONTAINS
   config_icpl_da_snowalb     = icpl_da_snowalb
   config_icpl_da_sfcfric     = icpl_da_sfcfric
   config_icpl_da_tkhmin      = icpl_da_tkhmin
+  config_icpl_da_seaice      = icpl_da_seaice
   config_dt_ana              = dt_ana
   config_adjust_tso_tsnow    = adjust_tso_tsnow
   config_lvert_remap_fg      = lvert_remap_fg
@@ -462,6 +467,7 @@ CONTAINS
   config_pinit_seed            = pinit_seed
   config_pinit_amplitude       = pinit_amplitude
   config_lcouple_ocean_coldstart = lcouple_ocean_coldstart
+  config_fire2d_filename       = TRIM(fire2d_filename)
 
   DO jg=1,max_dom
     initicon_config(jg)%ana_checklist = check_ana(jg)%list

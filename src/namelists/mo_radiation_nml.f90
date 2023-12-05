@@ -1,26 +1,17 @@
-!>
-!! This module provides parameters controlling the radiation interface.
-!!
-!! @author Bjorn Stevens, MPI-M, Hamburg (2009-09-19):
-!!
-!!
-!! @par Revision History
-!! - New module, extracted from mo_radiation, Martin Schultz, FZJ, Juelich (2010-04-13)
-!! - Added parameter for local solar constant, Hauke Schmidt, MPI-M, Hamburg (2010-0?-??)
-!! - Added decl_sun_cur (for MOZ photolysis), Martin Schultz, FZJ, Juelich (2010-06-02)
-!! - Modified for ICON, Marco Giorgetta, MPI-M, Hamburg (2010-07-24)
-!!   - added subroutine read_radiation_nml
-!! - Modified for ICON, Hui Wan, MPI-M, Hamburg (2010-11-06)
-!!   - added namelist variable dt_rad
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! This module provides parameters controlling the radiation interface.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_radiation_nml
 
     USE mo_radiation_config, ONLY: config_isolrad    => isolrad,                        &
@@ -42,6 +33,7 @@ MODULE mo_radiation_nml
                                  & config_irad_cfc12 => irad_cfc12,                     &
                                  & config_irad_aero  => irad_aero,                      &
                                  & config_lrad_yac   => lrad_yac,                       &
+                                 & config_cams_clim_filename => cams_clim_filename,     &
                                  & config_lrad_aero_diag => lrad_aero_diag,             &
                                  & config_ghg_filename   => ghg_filename,               &
                                  & config_vmr_co2    => vmr_co2,                        &
@@ -161,6 +153,10 @@ MODULE mo_radiation_nml
   !
   CHARACTER(LEN=filename_max)  :: ghg_filename
   !
+  !> NetCDF file with CAMS 3D climatology
+  !
+  CHARACTER(LEN=filename_max) :: cams_clim_filename
+  !
   ! --- Default gas volume mixing ratios - 1990 values (CMIP5)
   !
   REAL(wp) :: vmr_co2
@@ -213,6 +209,7 @@ MODULE mo_radiation_nml
     &                      lrad_yac,              &
     &                      lrad_aero_diag,        &
     &                      ghg_filename,          &
+    &                      cams_clim_filename,    &
     &                      izenith, icld_overlap, &
     &                      cos_zenith_fixed,      &
     &                      decorr_pole,           &
@@ -231,7 +228,6 @@ MODULE mo_radiation_nml
 
 CONTAINS
 
-  !>
   !! Read Namelist for radiation. 
   !!
   !! This subroutine 
@@ -242,9 +238,6 @@ CONTAINS
   !! - reads the user's (new) specifications
   !! - stores the Namelist for restart
   !! - fills the configuration state (partly)    
-  !!
-  !! @par Revision History
-  !!  by Daniel Reinert, DWD (2011-06-07)
   !!
   SUBROUTINE read_radiation_namelist( filename )
 
@@ -279,6 +272,8 @@ CONTAINS
     irad_aero   = iRadAeroConst
     lrad_yac    = .FALSE.
     lrad_aero_diag = .FALSE.
+
+    cams_clim_filename = 'CAMS_clim_R<nroot0>B<jlev>_DOM<idom>.nc'
 
     ghg_filename= 'bc_greenhouse_gases.nc'
 
@@ -360,6 +355,7 @@ CONTAINS
     config_irad_aero  = irad_aero
     config_lrad_yac   = lrad_yac
     config_lrad_aero_diag = lrad_aero_diag
+    config_cams_clim_filename = TRIM(cams_clim_filename)
     config_ghg_filename   = ghg_filename
     config_vmr_co2    = vmr_co2
     config_vmr_ch4    = vmr_ch4
@@ -398,7 +394,7 @@ CONTAINS
     ENDIF
     __acc_attach(csalb)
 
-    !$ACC UPDATE DEVICE(config_decorr_pole, config_decorr_equator)
+    !$ACC UPDATE DEVICE(config_decorr_pole, config_decorr_equator) ASYNC(1)
 
     !-----------------------------------------------------
     ! 5. Store the namelist for restart

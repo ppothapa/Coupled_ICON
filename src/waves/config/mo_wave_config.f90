@@ -1,20 +1,18 @@
-!>
-!! Waves config.
-!! The content is mostly adopted from the WAM 4.5.4.
-!!
-!! @author Mikhail Dobrynin, DWD
-!!
-!! @par Revision History
-!! Initial revision by Mikhail Dobrynin, DWD (21.12.2022)
+! Waves config.
+! The content is mostly adopted from the WAM 4.5.4.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
 MODULE mo_wave_config
 
   USE mo_kind,                 ONLY: wp
@@ -23,8 +21,7 @@ MODULE mo_wave_config
   USE mo_math_constants,       ONLY: pi2, rad2deg, dbl_eps
   USE mo_physical_constants,   ONLY: grav, rhoh2o
   USE mo_wave_constants,       ONLY: EX_TAIL
-  USE mo_fortran_tools,        ONLY: DO_DEALLOCATE
-  USE mo_idx_list,             ONLY: t_idx_list1D
+  USE mo_fortran_tools,        ONLY: DO_DEALLOCATE, t_ptr_1d_int
   USE mo_io_units,             ONLY: filename_max
   USE mo_util_string,          ONLY: t_keyword_list, associate_keyword, with_keywords, &
     &                                int2string
@@ -82,10 +79,10 @@ MODULE mo_wave_config
 
     CHARACTER(LEN=filename_max) :: forc_file_prefix ! prefix of forcing file name
                                            ! the real file name will be constructed as:
-                                           ! forc_file_prefix+'_wind' for U and V 10 meter wind (m/s)
-                                           ! forc_file_prefix+'_ice'  for sea ice concentration (fraction of 1)
-                                           ! forc_file_prefix+'_slh'  for sea level height (m)
-                                           ! forc_file_prefix+'_osc'  for U and V ocean surface currents (m/s)
+                                           ! forc_file_prefix+'_wind.nc' for U and V 10 meter wind (m/s)
+                                           ! forc_file_prefix+'_ice.nc'  for sea ice concentration (fraction of 1)
+                                           ! forc_file_prefix+'_slh.nc'  for sea level height (m)
+                                           ! forc_file_prefix+'_osc.nc'  for U and V ocean surface currents (m/s)
 
     LOGICAL :: linput_sf1      ! if .TRUE., calculate wind input source function term, first call
     LOGICAL :: linput_sf2      ! if .TRUE., calculate wind input source function term, second call
@@ -94,7 +91,6 @@ MODULE mo_wave_config
     LOGICAL :: lbottom_fric_sf ! if .TRUE., calculate bottom_friction source function term
     LOGICAL :: lwave_stress1   ! if .TRUE., calculate wave stress, first call
     LOGICAL :: lwave_stress2   ! if .TRUE., calculate wave stress, second call
-    LOGICAL :: lgrid_refr      ! if .TRUE., calculate grid refraction
 
 
     ! derived variables and fields
@@ -129,19 +125,17 @@ MODULE mo_wave_config
       &  wtauhf(:)           ! integration weight for tau_phi_hf
 
     INTEGER, ALLOCATABLE :: &
-      &  freq_ind(:),      & ! index of frequency (1:ntracer=ndirs*nfreq)
-      &  dir_ind(:),       & ! index of direction (1:ntracer=ndirs*nfreq)
+      &  freq_ind(:),      & ! index of frequency as a function of tracer index (1:ntracer=ndirs*nfreq)
+      &  dir_ind(:),       & ! index of direction as a function of tracer index (1:ntracer=ndirs*nfreq)
+      &  tracer_ind(:,:),  & ! tracer index as a function of direction and frequency index
       &  dir_neig_ind(:,:)   ! index of direction neighbor (2,1:ndirs)
+
+    TYPE(t_ptr_1d_int), ALLOCATABLE :: & ! list of tracer IDs as a function of the frequency index
+      &  list_tr(:)
 
     LOGICAL :: lread_forcing ! set to .TRUE. if a forcing file prefix has been specified (forc_file_prefix)
 
   CONTAINS
-    !
-    ! get tracer index as a function of direction and frequency index
-    PROCEDURE :: get_tracer_id       => wave_config_get_tracer_id
-    !
-    ! get list of tracer ids for a given frequency index
-    PROCEDURE :: get_tracer_ids_freq => wave_config_get_tracer_ids_freq
     !
     ! destruct wave_config object
     PROCEDURE :: destruct            => wave_config_destruct
@@ -152,62 +146,13 @@ MODULE mo_wave_config
 CONTAINS
 
   !>
-  !! return tracer index as a function of direction and frequency index
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dybrynin, DWD (2023-01-30)
-  !!
-  FUNCTION wave_config_get_tracer_id(me, jdir, jfreq) RESULT(tracer_id)
-    CLASS(t_wave_config) :: me
-    INTEGER, INTENT(IN)  :: jdir
-    INTEGER, INTENT(IN)  :: jfreq
-
-    INTEGER :: tracer_id
-
-    tracer_id = (jfreq-1) * me%ndirs + jdir
-
-  END FUNCTION wave_config_get_tracer_id
-
-
-  !>
-  !! return list of tracer ids for a given frequency index
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2023-01-30)
-  !!
-  SUBROUTINE wave_config_get_tracer_ids_freq(me, jfreq, list)
-
-    CLASS(t_wave_config)              :: me
-    INTEGER,            INTENT(IN)    :: jfreq   !< frequency index
-    TYPE(t_idx_list1D), INTENT(INOUT) :: list
-
-    INTEGER :: jt      ! loop index
-    INTEGER :: cnt
-
-    IF (.NOT.ALLOCATED(list%idx)) THEN
-      CALL list%construct(SIZE(me%freq_ind))
-    ENDIF
-
-    cnt = 0
-    DO jt=1,SIZE(me%freq_ind)
-      IF (me%freq_ind(jt) == jfreq) THEN
-        cnt = cnt + 1
-        list%idx(cnt) = jt
-      ENDIF
-    ENDDO
-
-    list%ncount = cnt
-  END SUBROUTINE wave_config_get_tracer_ids_freq
-
-
-  !>
   !! deallocate memory used by object of type t_wave_config
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2023-02-02)
   !!
   SUBROUTINE wave_config_destruct(me)
     CLASS(t_wave_config) :: me
+    INTEGER :: jf
+    INTEGER :: ist
+    CHARACTER(*), PARAMETER :: routine = modname//'::wave_config_destruct'
 
     CALL DO_DEALLOCATE(me%freqs)
     CALL DO_DEALLOCATE(me%dfreqs)
@@ -221,8 +166,15 @@ CONTAINS
     CALL DO_DEALLOCATE(me%RHOWG_DFIM)
     CALL DO_DEALLOCATE(me%freq_ind)
     CALL DO_DEALLOCATE(me%dir_ind)
+    CALL DO_DEALLOCATE(me%tracer_ind)
     CALL DO_DEALLOCATE(me%dir_neig_ind)
     CALL DO_DEALLOCATE(me%wtauhf)
+
+    DO jf=1,SIZE(me%list_tr)
+      me%list_tr(jf)%p => NULL()
+    ENDDO
+    DEALLOCATE(me%list_tr, stat=ist)
+    IF (ist/=SUCCESS) CALL finish(routine, "deallocation failed for list_tr")
 
   END SUBROUTINE wave_config_destruct
 
@@ -234,9 +186,6 @@ CONTAINS
   !! which depend on the waves-NAMELIST and potentially other namelists.
   !! This routine is called, after all namelists have been read and a
   !! synoptic consistency check has been done.
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2023-02-01)
   !!
   SUBROUTINE configure_wave(n_dom, ntracer)
 
@@ -253,6 +202,24 @@ CONTAINS
 
     CHARACTER(*), PARAMETER :: routine = modname//'::configure_waves'
 
+    CALL message (' ','')
+    CALL message ('!','')
+    CALL message ('!!','')
+    CALL message ('!!!!','')
+    CALL message ('!!!!!!','')
+    CALL message ('!!!!!!!!','')
+    CALL message ('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!','')
+    CALL message ('!     ICON-WAVES IS STILL UNDER DEVELOPMENT                              !','')
+    CALL message ('!     THIS CODE IS FOR TECHNICAL TESTING ONLY                            !','')
+    CALL message ('!     THE IMPLEMENTATION OF WAVE PHYSICS IS NOT YET COMPLETED            !','')
+    CALL message ('!     THE ENERGY PROPAGATION DOES NOT WORK FOR THE 3 OUTERMOST CELL ROWS !','')
+    CALL message ('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!','')
+    CALL message ('!!!!!!!!','')
+    CALL message ('!!!!!!','')
+    CALL message ('!!!!','')
+    CALL message ('!!','')
+    CALL message ('!','')
+    CALL message (' ','')
 
     DO jg=1,n_dom
 
@@ -282,9 +249,11 @@ CONTAINS
         &      stat=ist)
       IF (ist/=SUCCESS) CALL finish(routine, "allocation for fields of type REAL failed")
 
-      ALLOCATE(wc%freq_ind     (ntracer),    &
-        &      wc%dir_ind      (ntracer),    &
-        &      wc%dir_neig_ind (2,wc%ndirs), &
+      ALLOCATE(wc%freq_ind     (ntracer),            &
+        &      wc%dir_ind      (ntracer),            &
+        &      wc%tracer_ind   (wc%ndirs,wc%nfreqs), &
+        &      wc%dir_neig_ind (2,wc%ndirs),         &
+        &      wc%list_tr      (wc%nfreqs),          &
         &      stat=ist)
       IF (ist/=SUCCESS) CALL finish(routine, "allocation for fields of type INTEGER failed")
 
@@ -340,15 +309,22 @@ CONTAINS
       wc%dfreqs_freqs  = wc%dfreqs * wc%freqs
       wc%dfreqs_freqs2 = wc%dfreqs_freqs * wc%freqs
 
-      ! index of frequency and directions in ntracer loop
-      jfjd = 1
+      ! compute mappings between direction IDs, frequency IDs and tracer IDs
+      !
       DO jf = 1,wc%nfreqs
         DO jd = 1,wc%ndirs
+
+          ! tracer ID as a function of frequency ID and direction ID
+          jfjd = jd + (jf-1) * wc%ndirs
+          wc%tracer_ind(jd,jf) = jfjd
+
+          ! frequency and direction IDs as a function of tracer ID
           wc%freq_ind(jfjd) = jf
           wc%dir_ind(jfjd)  = jd
 
-          jfjd = jfjd + 1
         END DO
+        ! list of tracer IDs as a function of frequency ID
+        wc%list_tr(jf)%p => wc%tracer_ind(:,jf)
       END DO
 
       ! calculate direction neighbor index

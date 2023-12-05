@@ -1,21 +1,17 @@
-!>
-!! Contains utility routines for reading NetCDF and GRIB2 files (using
-!! the CDI library) and communicating fields in parallel.
-!!
-!! @author F. Prill, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision: 2013-02-19 : F. Prill, DWD
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Contains utility routines for reading NetCDF and GRIB2 files (using
+! the CDI library) and communicating fields in parallel.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_util_cdi
 
   USE ISO_C_BINDING,         ONLY: C_INT, C_CHAR
@@ -640,9 +636,6 @@ CONTAINS
   !
   !  Note: This implementation uses a 2D buffer.
   !
-  !  @par Revision History
-  !  Initial revision by F. Prill, DWD (2013-02-19)
-  !
   SUBROUTINE read_cdi_3d_real_tiles(parameters, varname, nlevs, var_out, tileinfo, opt_lvalue_add, opt_lev_dim)
     TYPE(t_inputParameters), INTENT(INOUT) :: parameters
     CHARACTER(len=*),        INTENT(IN)    :: varname        !< Var name of field to be read
@@ -706,9 +699,6 @@ CONTAINS
   !> Read 3D dataset from file.
   !
   !  Note: This implementation uses a 2D buffer.
-  !
-  !  @par Revision History
-  !  Initial revision by F. Prill, DWD (2013-02-19)
   !
   SUBROUTINE read_cdi_3d_real(parameters, varname, nlevs, var_out, opt_lvalue_add, opt_lev_dim)
     TYPE(t_inputParameters), INTENT(INOUT) :: parameters
@@ -945,10 +935,6 @@ CONTAINS
   !-------------------------------------------------------------------------
   !> Read 2D dataset from file, implementation for REAL fields
   !
-  !  @par Revision History
-  !
-  !  Initial revision by F. Prill, DWD (2013-02-19)
-  !
   SUBROUTINE read_cdi_2d_real_tiles (parameters, varname, var_out, tileinfo)
     TYPE(t_inputParameters), INTENT(INOUT) :: parameters
     CHARACTER(len=*),        INTENT(IN)    :: varname        !< Var name of field to be read
@@ -996,10 +982,6 @@ CONTAINS
   !-------------------------------------------------------------------------
   !> Read 2D dataset from file, implementation for REAL fields
   !
-  !  @par Revision History
-  !
-  !  Initial revision by F. Prill, DWD (2013-02-19)
-  !
   SUBROUTINE read_cdi_2d_real (parameters, varname, var_out)
     TYPE(t_inputParameters), INTENT(INOUT) :: parameters
     CHARACTER(len=*),        INTENT(IN)    :: varname        !< Var name of field to be read
@@ -1011,10 +993,6 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !> Read 2D dataset from file, implementation for INTEGER fields
-  !
-  !  @par Revision History
-  !
-  !  Initial revision by F. Prill, DWD (2013-02-19)
   !
 
   SUBROUTINE read_cdi_2d_int_tiles(parameters, varname, var_out, tileinfo)
@@ -1046,10 +1024,6 @@ CONTAINS
   !-------------------------------------------------------------------------
   !> Read 2D dataset from file, implementation for INTEGER fields
   !
-  !  @par Revision History
-  !
-  !  Initial revision by F. Prill, DWD (2013-02-19)
-  !
 
   SUBROUTINE read_cdi_2d_int(parameters, varname, var_out)
     TYPE(t_inputParameters), INTENT(INOUT) :: parameters
@@ -1062,10 +1036,6 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !> Read 2D dataset from file, implementation for REAL fields
-  !
-  !  @par Revision History
-  !
-  !  Initial revision by F. Prill, DWD (2013-02-19)
   !
   SUBROUTINE read_cdi_2d_time_tiles (parameters, ntime, varname, var_out, tileinfo)
     TYPE(t_inputParameters), INTENT(INOUT)  :: parameters
@@ -1116,10 +1086,6 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !> Read 2D dataset from file, implementation for REAL fields
-  !
-  !  @par Revision History
-  !
-  !  Initial revision by F. Prill, DWD (2013-02-19)
   !
   SUBROUTINE read_cdi_2d_time (parameters, ntime, varname, var_out)
     TYPE(t_inputParameters), INTENT(INOUT) :: parameters

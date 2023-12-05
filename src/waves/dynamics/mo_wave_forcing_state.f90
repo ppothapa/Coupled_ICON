@@ -1,18 +1,17 @@
-!>
-!! Allocation/deallocation of wave forcing state
-!!
-!! This module contains routines for setting up the external data state.
-!!
-!! @author Mikhail Dobrynin, DWD, 18.06.19
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Allocation/deallocation of wave forcing state
+!
+! This module contains routines for setting up the external data state.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_wave_forcing_state
   USE mo_exception,            ONLY: message, finish
@@ -27,7 +26,7 @@ MODULE mo_wave_forcing_state
   USE mo_grib2,                ONLY: t_grib2_var, grib2_var
   USE mo_parallel_config,      ONLY: nproma
   USE mo_cdi,                  ONLY: DATATYPE_FLT32, DATATYPE_FLT64, DATATYPE_PACK16, &
-       &                             GRID_UNSTRUCTURED, DATATYPE_INT
+       &                             GRID_UNSTRUCTURED
   USE mo_io_config,            ONLY: lnetcdf_flt64_output
   USE mo_var_groups,           ONLY: groups
   USE mo_cdi_constants,        ONLY: GRID_UNSTRUCTURED_CELL, GRID_CELL, &
@@ -107,33 +106,33 @@ CONTAINS
 
     !forcing group
     !wind 10
-    cf_desc    = t_cf_var('u10m', 'm s-1 ','zonal wind in 10m', datatype_flt)
-    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    cf_desc    = t_cf_var('u10m', 'm s-1 ','U-Component of wind in 10m', datatype_flt)
+    grib2_desc = grib2_var(0, 2, 2, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( p_forcing_list, 'u10m', p_forcing%u10m,                         &
          &        GRID_UNSTRUCTURED_CELL, ZA_HEIGHT_10M, cf_desc, grib2_desc,       &
          &        ldims=shape2d_c, in_group=groups("wave_forcing") )
 
-    cf_desc    = t_cf_var('v10m', 'm s-1 ','meridional wind in 10m', datatype_flt)
-    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    cf_desc    = t_cf_var('v10m', 'm s-1 ','V-Component of wind in 10m', datatype_flt)
+    grib2_desc = grib2_var(0, 2, 3, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( p_forcing_list, 'v10m', p_forcing%v10m,                         &
          &        GRID_UNSTRUCTURED_CELL, ZA_HEIGHT_10M, cf_desc, grib2_desc,       &
          &        ldims=shape2d_c, in_group=groups("wave_forcing") )
 
-    cf_desc    = t_cf_var('sp10m', 'm s-1 ','wind speed in 10m', datatype_flt)
-    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    cf_desc    = t_cf_var('sp10m', 'm s-1 ','Wind speed (SP_10M)', datatype_flt)
+    grib2_desc = grib2_var(0, 2, 1, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( p_forcing_list, 'sp10m', p_forcing%sp10m,                      &
          &        GRID_UNSTRUCTURED_CELL, ZA_HEIGHT_10M, cf_desc, grib2_desc,       &
          &        ldims=shape2d_c, in_group=groups("wave_forcing") )
 
-    cf_desc    = t_cf_var('dir10m', 'deg ','wind direction in 10m', datatype_flt)
-    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    cf_desc    = t_cf_var('dir10m', 'deg ','Wind direction (DD_10M)', datatype_flt)
+    grib2_desc = grib2_var(0, 2, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( p_forcing_list, 'dir10m', p_forcing%dir10m,                       &
          &        GRID_UNSTRUCTURED_CELL, ZA_HEIGHT_10M, cf_desc, grib2_desc,       &
          &        ldims=shape2d_c, in_group=groups("wave_forcing") )
 
     !sea ice
     cf_desc    = t_cf_var('sea_ice_c', 'frac','sea ice fraction at cells', datatype_flt)
-    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    grib2_desc = grib2_var(10, 2, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( p_forcing_list, 'sea_ice_c', p_forcing%sea_ice_c,              &
          &        GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,       &
          &        ldims=shape2d_c, in_group=groups("wave_forcing") )
@@ -177,24 +176,33 @@ CONTAINS
          &        ldims=shape2d_e, in_group=groups("wave_forcing") )
 
     cf_desc    = t_cf_var('vsoce_c', 'm s-1 ','meridional ocean surface current at cells', datatype_flt)
-    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    grib2_desc = grib2_var(10, 1, 2, ibits, GRID_UNSTRUCTURED, GRID_CELL)
     CALL add_var( p_forcing_list, 'vsoce_c', p_forcing%vsoce_c,                  &
          &        GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,       &
          &        ldims=shape2d_c, in_group=groups("wave_forcing") )
 
     cf_desc    = t_cf_var('vsoce_e', 'm s-1 ','meridional ocean surface current at edges', datatype_flt)
-    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_EDGE)
+    grib2_desc = grib2_var(10, 1, 3, ibits, GRID_UNSTRUCTURED, GRID_EDGE)
     CALL add_var( p_forcing_list, 'vsoce_e', p_forcing%vsoce_e,                  &
          &        GRID_UNSTRUCTURED_EDGE, ZA_SURFACE, cf_desc, grib2_desc,       &
          &        ldims=shape2d_e, in_group=groups("wave_forcing") )
+
+    cf_desc    = t_cf_var('sp_soce_c', 'm s-1 ','ocean surface current velocity at cells', datatype_flt)
+    grib2_desc = grib2_var(10, 1, 1, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( p_forcing_list, 'sp_soce_c', p_forcing%sp_soce_c,              &
+         &        GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,       &
+         &        ldims=shape2d_c, in_group=groups("wave_forcing") )
+
+    cf_desc    = t_cf_var('dir_soce_c', 'deg','ocean surface current direction at cells', datatype_flt)
+    grib2_desc = grib2_var(10, 1, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( p_forcing_list, 'dir_soce_c', p_forcing%dir_soce_c,            &
+         &        GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,       &
+         &        ldims=shape2d_c, in_group=groups("wave_forcing") )
 
   END SUBROUTINE new_wave_forcing_state_list
 
   !>
   !! Destruction of wave forcing variable lists and memory deallocation
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2023-02-10)
   !!
   SUBROUTINE destruct_wave_forcing_state()
 

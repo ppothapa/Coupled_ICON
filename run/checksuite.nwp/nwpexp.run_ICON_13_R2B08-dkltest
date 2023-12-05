@@ -10,10 +10,7 @@ make_and_change_to_experiment_dir # function in ../add_run_routines
 START_MODEL="${START_MODEL:=$START $MODEL}"
 
 # set icon_data_poolFolder
-icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}"
-if [[ -d "$icon_data_poolFolder/buildbot_data/nwp" ]]; then
-  icon_data_poolFolder="$icon_data_poolFolder/buildbot_data/nwp"
-fi
+icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/buildbot_data/nwp"
 
 # base directory for ICON sources, binary and auxilary data:
 ICONDIR="${basedir}" # basedir can be set with create_target_header
@@ -305,7 +302,7 @@ cat > ${atmo_namelist} << EOF
  inwp_convection              = 0,0,0
  inwp_radiation               = 1,
  inwp_cldcover                = 1     ! 0: no cld, 1: new diagnostic, 3: COSMO, 5: grid scale
- inwp_turb                    = 1     ! 1/10: Raschendorfer, 2: GME, 3: EDMF-DUALM (ntracer+1,ntiles=8)
+ inwp_turb                    = 1     ! 1/10: Raschendorfer, 2: GME
  inwp_satad                   = 1
  inwp_sso                     = 0
  inwp_gwd                     = 0
@@ -396,7 +393,6 @@ cat > ${atmo_namelist} << EOF
 /
 &dynamics_nml
  iequations                   = 3
- idiv_method                  = 1
  divavg_cntrwgt               = 0.50
  lcoriolis                    = .TRUE.
 /
@@ -481,6 +477,11 @@ c_t_lk              C_T_LK
 t_b1_lk             T_B1_LK
 h_b1_lk             H_B1_LK
 EOF2
+
+#
+# configure START_MODEL_function
+#
+ICON_COMPONENT1_VH_procs=$((num_restart_procs + num_io_procs + num_prefetch_proc + num_io_procs_radar))
 
 # ----------------------------------------------------------------------
 # run the model!

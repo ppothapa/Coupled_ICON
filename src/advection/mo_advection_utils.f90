@@ -1,32 +1,21 @@
-!>
-!! Some utilities which are specific to the transport algorithm.
-!!
-!! Module contains some functions and procedures which are specifically related
-!! to the transport schemes. These subroutines or functions are needed at
-!! various places within the transport scheme. Therefore outsourcing these
-!! routines protects from possible circular dependencies.
-!!
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2010-03-04)
-!! Modification by Daniel Reinert, DWD (2010-04-23)
-!! - implemented generalized Lax-Friedrich flux function
-!!   laxfr_upflux_v, which allows to use the same transport
-!!   code for pressure and height based vertical coordinate
-!!   systems.
-!! Modification by Daniel Reinert, DWD (2016-01-12)
-!! - removed obsolete routine tupdate_tracer
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Some utilities which are specific to the transport algorithm.
+!
+! Module contains some functions and procedures which are specifically related
+! to the transport schemes. These subroutines or functions are needed at
+! various places within the transport scheme. Therefore outsourcing these
+! routines protects from possible circular dependencies.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -35,7 +24,7 @@ MODULE mo_advection_utils
 
   USE mo_kind,                  ONLY: wp
   USE mo_impl_constants,        ONLY: MAX_CHAR_LENGTH, inwp, ICOSMO,     &
-    &                                 IEDMF, IPROG, VNAME_LEN,           &
+    &                                 IPROG, VNAME_LEN,                  &
     &                                 MAX_CHAR_LENGTH
   USE mo_exception,             ONLY: message, message_text, finish
   USE mo_fortran_tools,         ONLY: t_ptr_2d3d
@@ -94,9 +83,6 @@ CONTAINS
   !! For passive advection, equivalent to
   !! any other first order upwind flux.
   !!
-  !! @par Revision History
-  !! Developed  by L.Bonaventura  (2004).
-  !!
   FUNCTION laxfr_upflux( p_vn, p_psi1, p_psi2 )  RESULT(p_upflux)
     !
 
@@ -128,14 +114,6 @@ CONTAINS
   !! For passive advection, equivalent to any other first
   !! order upwind flux.
   !! Applicable to height based vertical coordinate systems. 
-  !!
-  !! @par Revision History
-  !! Developed  by L.Bonaventura  (2004).
-  !! Modification by Daniel Reinert, DWD (2010-04-23)
-  !! - generalized for p- and z-based vertical coordinate systems
-  !! Modification by Daniel Reinert, DWD (2019-02-18)
-  !! - revert generalization for p- and z-based vertical coordinate systems.
-  !!   From now on only valid for z-based coordinate systems.
   !!
   FUNCTION laxfr_upflux_v( p_w, p_psi1, p_psi2 )  RESULT(p_upflux)
     !
@@ -264,7 +242,7 @@ CONTAINS
     &                             advection_config,                            &
     &                             iqv, iqc, iqi, iqr, iqs, iqt, iqg, iqni,     &
     &                             iqh, iqnr, iqns, iqng, iqnh, iqnc,           &
-    &                             iqgl, iqhl, inccn, iqtvar, ininact, ininpot, &
+    &                             iqgl, iqhl, inccn, ininact, ininpot,         &
     &                             iqtke, iqm_max, ntracer, nqtendphy, nclass_gscp, &
     &                             iqbin, iqb_i, iqb_e, iqb_s)
     INTEGER,                  INTENT(IN)    :: iforcing, n_dom
@@ -277,7 +255,7 @@ CONTAINS
     TYPE(t_advection_config), INTENT(INOUT) :: advection_config(:)
     INTEGER,                  INTENT(INOUT) :: iqv, iqc, iqi, iqr, iqs, iqt, iqg, &
       &                                        iqni, iqh, iqnr, iqns, iqng, iqnh, &
-      &                                        iqnc, iqgl, iqhl, inccn, iqtvar,   &
+      &                                        iqnc, iqgl, iqhl, inccn,           &
       &                                        ininact, ininpot, iqtke,           &
       &                                        iqb_i, iqb_e, iqb_s
     INTEGER, DIMENSION(:),    INTENT(INOUT) :: iqbin
@@ -504,7 +482,7 @@ CONTAINS
             advection_config(jg)%tracer_names(iqbin(iqb)) = qbinname(iqb)
           ENDDO
         END DO
-        !$ACC UPDATE DEVICE(iqbin)
+        !$ACC UPDATE DEVICE(iqbin) ASYNC(1)
 
         iqni    = 7+iqb_e+1 ; advection_config(:)%tracer_names(iqni)    = 'qni'
         iqnr    = 7+iqb_e+2 ; advection_config(:)%tracer_names(iqnr)    = 'qnr'
@@ -529,13 +507,6 @@ CONTAINS
 
       END SELECT ! microphysics schemes
 
-
-      IF (inwp_turb(1) == iedmf) THEN ! EDMF turbulence
-        iqtvar = iqt ; advection_config(:)%tracer_names(iqtvar) = 'qtvar' !! qt variance
-        iqt    = iqt + 1   !! start index of other tracers than hydrometeors
-
-        ntracer = ntracer + 1  !! increase total number of tracers by 1
-      ENDIF
 
       IF ( (advection_config(1)%iadv_tke) > 0 ) THEN
         IF ( ANY( (/icosmo,iprog/) == inwp_turb(1) ) ) THEN

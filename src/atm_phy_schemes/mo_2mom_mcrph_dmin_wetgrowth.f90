@@ -1,7 +1,6 @@
 !NEC$ options "-finline-max-depth=3 -finline-max-function-size=1000"
-!===============================================================================!
 !
-! Two-moment bulk microphysics by Axel Seifert, Klaus Beheng and Uli Blahak
+! Two-moment bulk microphysics after Seifert, Beheng and Blahak
 !
 ! Description:
 !
@@ -10,29 +9,24 @@
 ! of a particle undergoing riming, evaporation and collisions with
 ! other frozen particles. There is also code to write the table to a netcdf file.
 !
-! Method: See Appendix A of 
+! Method: See Appendix A of
 !
 ! A. Khain, D. Rosenfeld, A. Pokrovsky, U. Blahak, A. Ryzhkov, 2011:
 ! The role of CCN in precipitation and hail in a mid-latitude storm as seen
 ! in simulations using a spectral (bin) microphysics model in a 2D dynamic frame,
 ! Atmospheric Research, 99, 129-146
 !
-! Current Code Owner: Uli Blahak, DWD
-!                     ulrich.blahak@dwd.de
 !
-! Language: Fortran 2003
+! ICON
 !
-!===============================================================================!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!===============================================================================!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_2mom_mcrph_dmin_wetgrowth
 
@@ -892,13 +886,15 @@ CONTAINS
          1382._dp, 1449._dp, 1520._dp, 1591._dp, &
          1662._dp, 1738._dp, 1813._dp, 1884._dp, &
          1959._dp, 2031._dp, 2106._dp /)
+    REAL(dp), PARAMETER :: dtemp = temp0(2) - temp0(1)
 
     INTEGER  :: jt
     REAL(dp) :: temp, C
 
-    temp = MAX(MIN(T,273.16_dp),173.16_dp)
+    temp = MAX(MIN(T,temp0(nt)),temp0(1))
     
-    CALL locate(temp0,nt,temp,jt)
+!    CALL locate(temp0,nt,temp,jt)
+    jt = MAX(MIN(FLOOR((temp-temp0(1))/dtemp) + 1, nt-1), 1)
 
     Cice = linint(C0(jt),C0(jt+1),temp0(jt),temp0(jt+1),temp)
 
@@ -930,14 +926,14 @@ CONTAINS
          5400._dp, 4770._dp, 4520._dp, 4350._dp, &
          4270._dp, 4217.8_dp, 4192.3_dp, 4181.8_dp, &
          4178.5_dp, 4178.5_dp, 4180.6_dp /)
-
+    REAL(dp), PARAMETER :: dtemp = temp0(2) - temp0(1)
 
     INTEGER  :: jt
     REAL(dp) :: temp, C
 
-    temp = MAX(MIN(T,323.16_dp),223.16_dp)
+    temp = MAX(MIN(T,temp0(nt)),temp0(1))
     
-    CALL locate(temp0,nt,temp,jt)
+    jt = MAX(MIN(FLOOR((temp-temp0(1))/dtemp) + 1, nt-1), 1)
 
     Cwater = linint(C0(jt),C0(jt+1),temp0(jt),temp0(jt+1),temp)
 
@@ -1089,13 +1085,14 @@ CONTAINS
     REAL(dp), PARAMETER :: L0(nt) = 1.e6 * (/ &
          0.2035_dp, 0.2357_dp, 0.2638_dp, &
          0.2889_dp, 0.3119_dp, 0.3337_dp /)
+    REAL(dp), PARAMETER :: dtemp = temp0(2) - temp0(1)
 
     INTEGER  :: jt
     REAL(dp) :: temp
 
-    temp = MAX(MIN(T,273.16_dp),223.16_dp)
+    temp = MAX(MIN(T,temp0(nt)),temp0(1))
     
-    CALL locate(temp0,nt,temp,jt)
+    jt = MAX(MIN(FLOOR((temp-temp0(1))/dtemp) + 1, nt-1), 1)
 
     Lh_m = linint(L0(jt),L0(jt+1),temp0(jt),temp0(jt+1),temp)
 
@@ -1127,13 +1124,14 @@ CONTAINS
          2.8236_dp, 2.8278_dp, 2.8316_dp, 2.8345_dp, &
          2.8366_dp, 2.8383_dp, 2.8387_dp, 2.8387_dp, &
          2.8383_dp, 2.8366_dp, 2.8345_dp /)
+    REAL(dp), PARAMETER :: dtemp = temp0(2) - temp0(1)
 
     INTEGER  :: jt
     REAL(dp) :: temp
 
-    temp = MAX(MIN(T,273.16_dp),173.16_dp)
+    temp = MAX(MIN(T,temp0(nt)),temp0(1))
     
-    CALL locate(temp0,nt,temp,jt)
+    jt = MAX(MIN(FLOOR((temp-temp0(1))/dtemp) + 1, nt-1), 1)
 
     Lh_s = linint(L0(jt),L0(jt+1),temp0(jt),temp0(jt+1),temp)
 
@@ -1165,13 +1163,14 @@ CONTAINS
          2.6348_dp, 2.6030_dp, 2.5749_dp, 2.5494_dp, &
          2.5247_dp, 2.50084_dp, 2.4774_dp, 2.4535_dp, &
          2.4300_dp, 2.4062_dp, 2.3823_dp /)
+    REAL(dp), PARAMETER :: dtemp = temp0(2) - temp0(1)
 
     INTEGER  :: jt
     REAL(dp) :: temp
 
-    temp = MAX(MIN(T,323.16_dp),223.16_dp)
+    temp = MAX(MIN(T,temp0(nt)),temp0(1))
     
-    CALL locate(temp0,nt,temp,jt)
+    jt = MAX(MIN(FLOOR((temp-temp0(1))/dtemp) + 1, nt-1), 1)
 
     Lh_e = linint(L0(jt),L0(jt+1),temp0(jt),temp0(jt+1),temp)
 

@@ -1,78 +1,71 @@
-!! -------------------------------------------------------------------------
-!>
-!! Module handling synchronous and asynchronous output; supporting
-!! multiple I/O PEs and horizontal interpolation.
-!!
-!! @author R. Johanni
-!!
-!! @par Revision History
-!! Initial implementation  by  R. Johanni  (2011)
-!! Major changes: F. Prill, DWD (2012-2013)
-!!
-!! @todo In asynchronous I/O mode, windows are created but not freed
-!!
-!! @todo Several fields are allocated but not freed at the end of the
-!!       simulation. A pseudo-destructor should be implemented!
-!!
-!! @note: The spelling "name_list" (with underscore) is intended to make
-!!        clear that this does not pertain to a FORTRAN namelist but rather
-!!        to a list of names of output variables
-!!
-!! -------------------------------------------------------------------------
-!!
-!! The "namelist_output" module was originally written by Rainer
-!! Johanni. Some data structures used therein are duplicates of those
-!! created in the other parts of the model: In general, variable
-!! fields are introduced in ICON through the "add_var" mechanism in
-!! the module "shared/mo_var_list". This mechanism allocates "r_ptr"
-!! POINTERs for REAL(wp) variable fields, see the data structure in
-!! "t_var_list_element" (mo_var_list_element.f90). The "p_nh_state"
-!! variables, for example, then point to the same location. In the
-!! output, however, there exists a data structure "t_var_desc"
-!! (variable descriptor) which also contains an "r_ptr" POINTER. This
-!! also points to the original "r_ptr" location in memory.
-!!
-!! Exceptions and caveats for this described mechanism:
-!!
-!! - INTEGER fields are stored in "i_ptr" POINTERs.
-!! - After gathering the output data, so-called "post-ops" are
-!!   performed which modify the copied data (for example scaling from/to
-!!   percent values).
-!! - In asynchronous output mode, the "r_ptr" POINTERs are meaningless
-!!   on those PEs which are dedicated for output. These are NULL
-!!   pointers then.
-!!
-!!
-!! MPI roles in asynchronous communication:
-!!
-!! - Compute PEs create local memory windows, buffering all variables
-!!   for all output files (for the local horizontal grid partition).
-!!
-!! - Asynchronous I/O servers create trivial local memory windows of
-!!   size 1.
-!!
-!! - Additionally, when writing, the asynchronous I/O servers allocate
-!!   a 3D buffer for a single variable. This temporary field serves as
-!!   a target buffer for the one-sided MPI_GET operation.
-!!
-!! Transfer of meta-info:
-!!
-!!  Since parts of the variable's "info-field" TYPE(t_var_metadata) may change
-!!  during simulation, the following mechanism updates the metadata on the
-!!  asynchronous output PEs:
-!!  For each output file, a separate MPI window is created on work PE#0, where
-!!  the work root stores the current variable meta-info. This is then retrieved
-!!  via an additional MPI_GET by the I/O PEs.
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!! -------------------------------------------------------------------------
+! Module handling synchronous and asynchronous output; supporting
+! multiple I/O PEs and horizontal interpolation.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+! 
+!
+! @todo In asynchronous I/O mode, windows are created but not freed
+!
+! @todo Several fields are allocated but not freed at the end of the
+!       simulation. A pseudo-destructor should be implemented!
+! @note: The spelling "name_list" (with underscore) is intended to make
+!        clear that this does not pertain to a FORTRAN namelist but rather
+!        to a list of names of output variables
+!
+! -------------------------------------------------------------------------
+!
+! The "namelist_output" module was originally written by Rainer
+! Johanni. Some data structures used therein are duplicates of those
+! created in the other parts of the model: In general, variable
+! fields are introduced in ICON through the "add_var" mechanism in
+! the module "shared/mo_var_list". This mechanism allocates "r_ptr"
+! POINTERs for REAL(wp) variable fields, see the data structure in
+! "t_var_list_element" (mo_var_list_element.f90). The "p_nh_state"
+! variables, for example, then point to the same location. In the
+! output, however, there exists a data structure "t_var_desc"
+! (variable descriptor) which also contains an "r_ptr" POINTER. This
+! also points to the original "r_ptr" location in memory.
+!
+! Exceptions and caveats for this described mechanism:
+!
+! - INTEGER fields are stored in "i_ptr" POINTERs.
+! - After gathering the output data, so-called "post-ops" are
+!   performed which modify the copied data (for example scaling from/to
+!   percent values).
+! - In asynchronous output mode, the "r_ptr" POINTERs are meaningless
+!   on those PEs which are dedicated for output. These are NULL
+!   pointers then.
+!
+! MPI roles in asynchronous communication:
+!
+! - Compute PEs create local memory windows, buffering all variables
+!   for all output files (for the local horizontal grid partition).
+!
+! - Asynchronous I/O servers create trivial local memory windows of
+!   size 1.
+!
+! - Additionally, when writing, the asynchronous I/O servers allocate
+!   a 3D buffer for a single variable. This temporary field serves as
+!   a target buffer for the one-sided MPI_GET operation.
+!
+! Transfer of meta-info:
+!
+!  Since parts of the variable's "info-field" TYPE(t_var_metadata) may change
+!  during simulation, the following mechanism updates the metadata on the
+!  asynchronous output PEs:
+!  For each output file, a separate MPI window is created on work PE#0, where
+!  the work root stores the current variable meta-info. This is then retrieved
+!  via an additional MPI_GET by the I/O PEs.
+
 MODULE mo_name_list_output
 
   ! constants
@@ -1402,12 +1395,13 @@ CONTAINS
     
 
     IF      (ASSOCIATED(r_ptr_5d)) THEN
-      !$ACC UPDATE HOST(r_ptr) IF(i_am_accel_node .AND. acc_is_present(r_ptr))
+      !$ACC UPDATE HOST(r_ptr) ASYNC(1) IF(i_am_accel_node .AND. acc_is_present(r_ptr))
     ELSE IF (ASSOCIATED(s_ptr_5d)) THEN
-      !$ACC UPDATE HOST(s_ptr) IF(i_am_accel_node .AND. acc_is_present(s_ptr))
+      !$ACC UPDATE HOST(s_ptr) ASYNC(1) IF(i_am_accel_node .AND. acc_is_present(s_ptr))
     ELSE IF (ASSOCIATED(i_ptr_5d)) THEN
-      !$ACC UPDATE HOST(i_ptr) IF(i_am_accel_node .AND. acc_is_present(i_ptr))
+      !$ACC UPDATE HOST(i_ptr) ASYNC(1) IF(i_am_accel_node .AND. acc_is_present(i_ptr))
     ENDIF
+    !$ACC WAIT(1) IF(i_am_accel_node)
 
     RETURN
 999 CALL finish(routine,message_text)

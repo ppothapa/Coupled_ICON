@@ -1,28 +1,26 @@
+! RTTOV interface for the case, that RTTOV is not available
 !
-!+ RTTOV interface for the case, that RTTOV is not available
+! ICON
 !
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_rtifc_nort
+
+!------------------------------------------------------------------------------
 !
 ! Description:
 !   This module contains version specific stuff for the mo_rtifc module for
 !   the case that RTTOV is not available. All subroutines just set
 !   the exit status to "ERR_NO_RTTOV_LIB".
 !
-! Current Code Owner: DWD, Robin Faulwetter
-!    phone: +49 69 8062 2746
-!    fax:   +49 69 8062 3721
-!    email:  robin.faulwetter@dwd.de
-!
-! History:
-! Version      Date       Name
-! ------------ ---------- ----
-! @VERSION@    @DATE@     Robin Faulwetter
-!  Initial release
-!
-! Code Description:
-! Language: Fortran 2003.
-! Software Standards:
-!=================================================
+!------------------------------------------------------------------------------
 
 !---------------
 ! MACRO SETTINGS

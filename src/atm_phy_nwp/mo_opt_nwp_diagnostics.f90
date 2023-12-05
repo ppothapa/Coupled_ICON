@@ -1,19 +1,20 @@
 !NEC$ options "-finline-max-depth=3 -finline-max-function-size=1000"
-!>
-!! Routines for optional diagnostic output variables in NWP
-!! (formerly located in mo_util_phys)
-!!
-!! @par Revision History
-!!  Initial revision  :  G. Zaengl, DWD (2020-02-17)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Routines for optional diagnostic output variables in NWP
+! (formerly located in mo_util_phys)
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -73,9 +74,11 @@ MODULE mo_opt_nwp_diagnostics
   USE mo_util_phys,             ONLY: inversion_height_index  
   USE mo_nwp_tuning_config,     ONLY: tune_dursun_scaling
 #ifdef HAVE_RADARFWO
-  USE radar_data_mie,             ONLY: ldebug_dbz
+  USE radar_data_mie,             ONLY: ldebug_dbz, T0C_emvorado => T0C_fwo
   USE radar_interface,            ONLY: initialize_tmax_atomic_1mom, &
     &                                   initialize_tmax_atomic_2mom, &
+    &                                   initialize_tmin_atomic_1mom, &
+    &                                   initialize_tmin_atomic_2mom, &
     &                                   init_1mom_types, init_2mom_types      
   USE radar_mie_iface_cosmo_1mom, ONLY: radar_mie_1mom_vec, &
     &                                   radar_rayleigh_oguchi_1mom_vec
@@ -145,10 +148,6 @@ CONTAINS
   !!   the lowest model level (ke) and linearly interpolated to the height where
   !!   the wet bulb temperature is >= wbl (=+1.3C after P. Haechler, MeteoSwiss).
   !!   A flag (-999) is set to indicate that no snowlmt was found.
-  !!
-  !! @par Revision History
-  !! Inherited from COSMO 5.0 by Daniel Reinert, DWD (2015-03-27)
-  !! 
   !!
   SUBROUTINE calsnowlmt ( snowlmt, temp, pres, qv, hhl, hhlr, istart, iend, wbl, lacc)
 
@@ -292,8 +291,6 @@ CONTAINS
 
   !> computation of vertical velocity (dp/dt)
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2014-03-28) 
   SUBROUTINE compute_field_omega(ptr_patch, p_prog, out_var, &
     &                            opt_slev, opt_elev, opt_rlstart, opt_rlend, lacc)
 
@@ -368,9 +365,6 @@ CONTAINS
   !!
   !! Conversion of soil moisture into soil moisture index
   !! smi = (soil moisture - wilting point) / (field capacity - wilting point)
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-05-03) 
   !!
   SUBROUTINE compute_field_smi(ptr_patch, diag_lnd, ext_data, out_var, &
     &                            opt_rlstart, opt_rlend, lacc)
@@ -677,9 +671,6 @@ CONTAINS
   !!   Wicker L, J. Kain, S. Weiss and D. Bright, A Brief Description of the
   !!          Supercell Detection Index, (available from
   !!   http://www.spc.noaa.gov/exper/Spring_2005/SDI-docs.pdf)
-  !!
-  !! @par Revision History
-  !! Initial revision by Michael Baldauf, DWD (2019-05-13) 
   !!
   SUBROUTINE compute_field_sdi( ptr_patch, jg, ptr_patch_local_parent, p_int,    &
                                 p_metrics, p_prog, p_diag,                 &
@@ -1105,9 +1096,6 @@ CONTAINS
   !!       - B. Lynn, Y. Yair, 2010: Prediction of lightning flash density with the WRF model,
   !!           Adv. Geosci., 23, 11-16
   !! adapted from the COSMO-implementation by Uli Blahak.
-  !!
-  !! @par Revision History
-  !! Initial revision by Michael Baldauf, DWD (2019-05-27) 
   !!
   SUBROUTINE compute_field_lpi( ptr_patch, jg, ptr_patch_local_parent, p_int,   &
                                 p_metrics, p_prog, p_prog_rcf, p_diag,          &
@@ -1537,9 +1525,6 @@ CONTAINS
   !! Do a maximization step for the calculation of the LPI_MAX.
   !!
   !!
-  !! @par Revision History
-  !! Initial revision by Michael Baldauf, DWD (2019-09-17) 
-  !!
   SUBROUTINE maximize_field_lpi( ptr_patch, jg, ptr_patch_local_parent, p_int,   &
                                 p_metrics, p_prog, p_prog_rcf, p_diag,           &
                                 lpi_max, lacc )
@@ -1603,9 +1588,6 @@ CONTAINS
   !>
   !! Calculate the ceiling height
   !! = height above MSL, for which cloud coverage > 4/8
-  !!
-  !! @par Revision History
-  !! Initial revision by Michael Baldauf, DWD (2019-10-21) 
   !!
   SUBROUTINE compute_field_ceiling( ptr_patch, jg,    &
                                 p_metrics, prm_diag,  &
@@ -1682,9 +1664,6 @@ CONTAINS
   !!
   !! This subroutine is quite similar to compute_field_htop_sc.
   !!
-  !! @par Revision History
-  !! Initial revision by Michael Baldauf, DWD (2019-10-22) 
-  !!
   SUBROUTINE compute_field_hbas_sc( ptr_patch,        &
                                 p_metrics, prm_diag,  &
                                 hbas_sc, lacc)
@@ -1751,9 +1730,6 @@ CONTAINS
   !!
   !! This subroutine is quite similar to compute_field_hbas_sc.
   !!
-  !! @par Revision History
-  !! Initial revision by Michael Baldauf, DWD (2019-10-22) 
-  !!
   SUBROUTINE compute_field_htop_sc( ptr_patch,        &
                                 p_metrics, prm_diag,  &
                                 htop_sc, lacc)
@@ -1816,10 +1792,6 @@ CONTAINS
 
   !>
   !! Calculate total column integrated water in kg m-2 (twater)
-  !!
-  !! @par Revision History
-  !! Initial revision by Michael Baldauf, DWD (2019-10-23)
-  !! Rewrite which uses a water tracer index list by Daniel Reinert, DWD (2022-11-16)
   !!
   SUBROUTINE compute_field_twater( p_patch, ddqz_z_full, rho, tracer,  &
                                    idx_list_condensate, twater, opt_slev, lacc )
@@ -1932,9 +1904,6 @@ CONTAINS
   !>
   !! Calculate specific content of precipitation particles
   !!
-  !! @par Revision History
-  !! Initial revision by Michael Baldauf, DWD (2019-10-23) 
-  !!
   SUBROUTINE compute_field_q_sedim( ptr_patch, jg, p_prog_rcf, q_sedim, lacc )
 
     IMPLICIT NONE
@@ -2020,9 +1989,6 @@ CONTAINS
   !! Here, compute columnwise amximum of these input fields and the newly computed fields.
   !! 
   !! Implementation analogous to those of Uli Blahak in COSMO.
-  !!
-  !! @par Revision History
-  !! Initial revision by Michael Baldauf, DWD (2019-10-23) 
   !!
   SUBROUTINE compute_field_tcond_max( ptr_patch, jg,                      &
                                    p_metrics, p_prog, p_prog_rcf, p_diag, &
@@ -2184,11 +2150,6 @@ CONTAINS
   !!
   !! Implementation analogous to those of Uli Blahak in COSMO.
   !!
-  !! @par Revision History
-  !! Initial revision by Michael Baldauf, DWD (2019-10-23) 
-  !! Inserted variable boundaries for vertical integration, Vera Maurer, DWD (2021-03-10)
-  !! Vertical integration changed by Uli Blahak, DWD (2021-03-20)
-  !!
   SUBROUTINE compute_field_uh_max( ptr_patch,                 &
                                    p_metrics, p_prog, p_diag, &
                                    zmin_in, zmax_in,          &
@@ -2288,10 +2249,6 @@ CONTAINS
   !!
   !! Implementation analogous to those of Uli Blahak in COSMO.
   !!
-  !! @par Revision History
-  !! Initial revision by Michael Baldauf, DWD (2019-10-23)
-  !! Vertical integration changed by Uli Blahak, DWD (2021-03-20)
-  !!
   SUBROUTINE compute_field_vorw_ctmax( ptr_patch,          &
                                        p_metrics, p_diag,  &
                                        vorw_ctmax, lacc )
@@ -2377,9 +2334,6 @@ CONTAINS
   !! Calculate W_CTMAX (Maximum updraft track during the last hour)
   !!
   !! Implementation analogous to those of Uli Blahak in COSMO.
-  !!
-  !! @par Revision History
-  !! Initial revision by Michael Baldauf, DWD (2019-10-23) 
   !!
   SUBROUTINE compute_field_w_ctmax( ptr_patch,             &
                                     p_metrics, p_prog,     &
@@ -2668,10 +2622,6 @@ CONTAINS
   !!  certain height z_limit AGL (usually 3000.0 m) and use this model
   !!  level as starting height for the test parcel.
   !!
-  !! @par Revision History
-  !! Initial revision by Ulrich Blahak, DWD (2022-04-06) 
-  !!
-  
   SUBROUTINE cal_cape_cin_mu(i_startidx, i_endidx, kmoist, z_limit, te, qve, prs, hhl,  &
                              cape_mu, cin_mu, lacc )
 
@@ -3328,15 +3278,6 @@ CONTAINS
     !!    Preprints, 21st Conf. On Severe Local Storms, San Antonio, Amer. Meteor. Soc.
     !!    http://members.cox.net/jondavies1/LLthermo.PDF
     !!
-    !! @par Revision History
-    !! Inherited from COSMO by Helmut Frank, DWD (2015-05-13)
-    !! Corrected formula for specific humid at saturation (U. Blahak, 2022-04-12)
-    !! Split routine into two:
-    !!    1) Computation of starting values Tstart, pstart in a prior subroutine,
-    !!        e.g. cal_cape_cin() or cal_cape_cin_mu()
-    !!    2) Ascent based on these starting values (this routine)
-    !!
-    !!
 
     ! Input data
     !----------- 
@@ -3906,9 +3847,6 @@ CONTAINS
   !> Wrapper routine to get the 3D radar reflectivity field depending on the microphysics scheme
   !!  and store it in p_diag%dbz3d(:,:,:)
   !!
-  !! @par Revision History
-  !! Initial revision  :  U. Blahak, DWD (2020-01-20)
-  
   SUBROUTINE compute_field_dbz3d_lin(jg, ptr_patch, p_prog,  p_prog_rcf, p_diag, prm_diag, dbz3d_lin, lacc)
 
     INTEGER, INTENT(in)  :: jg
@@ -3928,9 +3866,9 @@ CONTAINS
     INTEGER  :: i_rlstart, i_rlend, i_startblk, i_endblk, i_startidx, i_endidx, i_startidx_1, i_endidx_2, &
          &      jc, jk, jb, ilow, iup, jlow, jup, klow, kup, itype_gscp_emvo
 
-    REAL(wp), ALLOCATABLE, DIMENSION(:,:) :: Tmax_i, Tmax_s, Tmax_g, Tmax_h
+    REAL(wp), ALLOCATABLE, DIMENSION(:,:) :: Tmax_i, Tmax_s, Tmax_g, Tmax_h, Tmin_g, Tmin_h
     REAL(wp), ALLOCATABLE, DIMENSION(:,:,:), TARGET :: dummy0
-    REAL(wp), POINTER, DIMENSION(:,:,:)   :: t, rho_tot, qc, qr, qi, qs, qg, qh, qnc, qnr, qni, qns, qng, qnh, qgl, qhl
+    REAL(wp), POINTER, DIMENSION(:,:,:)   :: t, p, rho_tot, qc, qr, qi, qs, qg, qh, qnc, qnr, qni, qns, qng, qnh, qgl, qhl
 
     LOGICAL :: lzacc             ! OpenACC flag
     CALL set_acc_host_or_device(lzacc, lacc)
@@ -4150,6 +4088,7 @@ CONTAINS
       CASE ( 1, 2, 3 )
 
         t   => p_diag%temp(:,:,:)
+        p   => p_diag%pres(:,:,:)
         rho_tot => p_prog%rho(:,:,:)
         qc  => p_prog_rcf%tracer(:,:,:,iqc)
         qr  => p_prog_rcf%tracer(:,:,:,iqr)
@@ -4163,6 +4102,13 @@ CONTAINS
           qg => dummy0(:,:,:)
         END IF
 
+        IF (atm_phy_nwp_config(jg)%inwp_gscp == 1) THEN
+          itype_gscp_emvo = 140 ! "140" is the corresponding itype_gscp in COSMO and EMVORADO
+        ELSE
+          itype_gscp_emvo = 150 ! "150" is the corresponding itype_gscp in COSMO and EMVORADO
+        END IF
+        CALL init_1mom_types(itype_gscp_loc=itype_gscp_emvo, rho_w=rhoh2o)
+
         ALLOCATE (Tmax_i(nproma,ptr_patch%nblks_c), Tmax_s(nproma,ptr_patch%nblks_c), Tmax_g(nproma,ptr_patch%nblks_c))
         CALL initialize_tmax_atomic_1mom(qx=qi, t=t, neigh=0.0_wp, qthresh=synradar_meta%qthresh_i, &
              &                           Tmax_min=synradar_meta%Tmax_min_i, Tmax_max=synradar_meta%Tmax_max_i, Tmax_x=Tmax_i)
@@ -4171,12 +4117,13 @@ CONTAINS
         CALL initialize_tmax_atomic_1mom(qx=qg, t=t, neigh=0.0_wp, qthresh=synradar_meta%qthresh_g, &
              &                           Tmax_min=synradar_meta%Tmax_min_g, Tmax_max=synradar_meta%Tmax_max_g, Tmax_x=Tmax_g)
 
-        IF (atm_phy_nwp_config(jg)%inwp_gscp == 1) THEN
-          itype_gscp_emvo = 140 ! "140" is the corresponding itype_gscp in COSMO and EMVORADO
+        ALLOCATE (Tmin_g(nproma,ptr_patch%nblks_c))
+        IF (synradar_meta%ldynamic_wetgrowth_gh .AND. synradar_meta%Tmeltbegin_g < T0C_emvorado) THEN
+          CALL initialize_tmin_atomic_1mom(hydrotype='graupel', qx=qg, t=t, p=p, ql=qc+qr, qf=qi+qs, rho=rho_tot, &
+                                           Tmin_min=synradar_meta%Tmeltbegin_g, Tmin_x=Tmin_g)
         ELSE
-          itype_gscp_emvo = 150 ! "150" is the corresponding itype_gscp in COSMO and EMVORADO
+          Tmin_g = synradar_meta%Tmeltbegin_g
         END IF
-        CALL init_1mom_types(itype_gscp_loc=itype_gscp_emvo, rho_w=rhoh2o)
 
         SELECT CASE ( synradar_meta%itype_refl )
         CASE ( 1, 5, 6 )
@@ -4200,6 +4147,7 @@ CONTAINS
                ctype_wetsnow        = synradar_meta%ctype_wetsnow_mie, &
                ctype_drygraupel     = synradar_meta%ctype_drygraupel_mie, &
                ctype_wetgraupel     = synradar_meta%ctype_wetgraupel_mie, &
+               ldynamic_wetgrowth_gh= synradar_meta%ldynamic_wetgrowth_gh, &
                Tmeltbegin_i         = synradar_meta%Tmeltbegin_i, &
                meltdegTmin_i        = synradar_meta%meltdegTmin_i, &
                Tmax_min_i           = synradar_meta%Tmax_min_i, &
@@ -4226,6 +4174,7 @@ CONTAINS
                Tmax_i               = Tmax_i(:,:), &
                Tmax_s               = Tmax_s(:,:), &
                Tmax_g               = Tmax_g(:,:), &
+               Tmin_g               = Tmin_g(:,:), &
                ilow=ilow, iup=iup, jlow=jlow, jup=jup, klow=klow, kup=kup, &
                lalloc_qi            = .TRUE., &
                lalloc_qs            = .TRUE., &
@@ -4266,6 +4215,7 @@ CONTAINS
                Tmax_i         = Tmax_i(:,:), &
                Tmax_s         = Tmax_s(:,:), &
                Tmax_g         = Tmax_g(:,:), &
+               Tmin_g         = Tmin_g(:,:), &
                ilow=ilow, iup=iup, jlow=jlow, jup=jup, klow=klow, kup=kup, &
                lalloc_qi      = .TRUE., &
                lalloc_qs      = .TRUE., &
@@ -4281,12 +4231,13 @@ CONTAINS
 
         END SELECT
 
-        DEALLOCATE (Tmax_i, Tmax_s, Tmax_g)
+        DEALLOCATE (Tmax_i, Tmax_s, Tmax_g, Tmin_g)
         IF (ALLOCATED(dummy0)) DEALLOCATE(dummy0)
 
       CASE ( 4, 5, 6, 7, 8)
 
         t   => p_diag%temp(:,:,:)
+        p   => p_diag%pres(:,:,:)
         rho_tot => p_prog%rho(:,:,:)
         qc  => p_prog_rcf%tracer(:,:,:,iqc)
         qr  => p_prog_rcf%tracer(:,:,:,iqr)
@@ -4310,6 +4261,8 @@ CONTAINS
           qhl => dummy0(:,:,:)
         END IF
 
+        CALL init_2mom_types()
+
         ALLOCATE ( Tmax_i(nproma,ptr_patch%nblks_c), Tmax_s(nproma,ptr_patch%nblks_c), &
              Tmax_g(nproma,ptr_patch%nblks_c), Tmax_h(nproma,ptr_patch%nblks_c) )
         CALL initialize_tmax_atomic_2mom( qx=qi, qnx=qni, t=t, neigh=0.0_wp, &
@@ -4318,14 +4271,26 @@ CONTAINS
         CALL initialize_tmax_atomic_2mom( qx=qs, qnx=qns, t=t, neigh=0.0_wp, &
              &                            qthresh=synradar_meta%qthresh_s, qnthresh=synradar_meta%qnthresh_s, &
              &                            Tmax_min=synradar_meta%Tmax_min_s, Tmax_max=synradar_meta%Tmax_max_s, Tmax_x=Tmax_s )
-        CALL initialize_tmax_atomic_2mom( qx=qg, qnx=qng, t=t, neigh=0.0_wp, &
+        CALL initialize_tmax_atomic_2mom( qx=qg+qgl, qnx=qng, t=t, neigh=0.0_wp, &
              &                            qthresh=synradar_meta%qthresh_g, qnthresh=synradar_meta%qnthresh_g, &
              &                            Tmax_min=synradar_meta%Tmax_min_g, Tmax_max=synradar_meta%Tmax_max_g, Tmax_x=Tmax_g )
-        CALL initialize_tmax_atomic_2mom( qx=qh, qnx=qnh, t=t, neigh=0.0_wp, &
+        CALL initialize_tmax_atomic_2mom( qx=qh+qhl, qnx=qnh, t=t, neigh=0.0_wp, &
              &                            qthresh=synradar_meta%qthresh_h, qnthresh=synradar_meta%qnthresh_h, &
              &                            Tmax_min=synradar_meta%Tmax_min_h, Tmax_max=synradar_meta%Tmax_max_h, Tmax_x=Tmax_h )
 
-        CALL init_2mom_types()
+        ALLOCATE (Tmin_g(nproma,ptr_patch%nblks_c), Tmin_h(nproma,ptr_patch%nblks_c))
+        IF (synradar_meta%ldynamic_wetgrowth_gh .AND. synradar_meta%Tmeltbegin_g < T0C_emvorado) THEN
+          CALL initialize_tmin_atomic_2mom(hydrotype='graupel', qx=qg+qgl, qnx=qng, t=t, p=p, ql=qc+qr, qf=qi+qs, rho=rho_tot, &
+                                           Tmin_min=synradar_meta%Tmeltbegin_g, Tmin_x=Tmin_g)
+        ELSE
+          Tmin_g = synradar_meta%Tmeltbegin_g
+        END IF
+        IF (synradar_meta%ldynamic_wetgrowth_gh .AND. synradar_meta%Tmeltbegin_h < T0C_emvorado) THEN
+          CALL initialize_tmin_atomic_2mom(hydrotype='hail', qx=qh+qhl, qnx=qnh, t=t, p=p, ql=qc+qr, qf=qi+qs, rho=rho_tot, &
+                                           Tmin_min=synradar_meta%Tmeltbegin_h, Tmin_x=Tmin_h)
+        ELSE
+          Tmin_h = synradar_meta%Tmeltbegin_h
+        END IF
 
         SELECT CASE ( synradar_meta%itype_refl )
         CASE ( 1, 5, 6 )
@@ -4350,6 +4315,7 @@ CONTAINS
                ctype_wetgraupel  = synradar_meta%ctype_wetgraupel_mie, &
                ctype_dryhail     = synradar_meta%ctype_dryhail_mie, &
                ctype_wethail     = synradar_meta%ctype_wethail_mie, &
+               ldynamic_wetgrowth_gh= synradar_meta%ldynamic_wetgrowth_gh, &
                Tmeltbegin_i      = synradar_meta%Tmeltbegin_i, &
                meltdegTmin_i     = synradar_meta%meltdegTmin_i, &
                Tmax_min_i        = synradar_meta%Tmax_min_i, &
@@ -4391,6 +4357,8 @@ CONTAINS
                Tmax_s            = Tmax_s(:,:), &
                Tmax_g            = Tmax_g(:,:), &
                Tmax_h            = Tmax_h(:,:), &
+               Tmin_g            = Tmin_g(:,:), &
+               Tmin_h            = Tmin_h(:,:), &
                ilow=ilow, iup=iup, jlow=jlow, jup=jup, klow=klow, kup=kup, &
                lalloc_qi         = .TRUE., &
                lalloc_qs         = .TRUE., &
@@ -4443,6 +4411,8 @@ CONTAINS
                Tmax_s         = Tmax_s(:,:), &
                Tmax_g         = Tmax_g(:,:), &
                Tmax_h         = Tmax_h(:,:), &
+               Tmin_g         = Tmin_g(:,:), &
+               Tmin_h         = Tmin_h(:,:), &
                ilow=ilow, iup=iup, jlow=jlow, jup=jup, klow=klow, kup=kup, &
                lalloc_qi      = .TRUE., &
                lalloc_qs      = .TRUE., &
@@ -4460,7 +4430,7 @@ CONTAINS
 
         END SELECT
 
-        DEALLOCATE (Tmax_i, Tmax_s, Tmax_g, Tmax_h)
+        DEALLOCATE (Tmax_i, Tmax_s, Tmax_g, Tmax_h, Tmin_g, Tmin_h)
         IF (ALLOCATED(dummy0)) DEALLOCATE(dummy0)
 
       CASE DEFAULT
@@ -4478,9 +4448,6 @@ CONTAINS
 
   !>
   !! Compute column maximum reflectivity from dbz3d_lin
-  !!
-  !! @par Revision History
-  !! Initial revision by Ulrich Blahak, DWD (2020-01-23) 
   !!
   SUBROUTINE compute_field_dbzcmax( ptr_patch, jg, dbz3d_lin, dbz_cmax, lacc )
 
@@ -4547,9 +4514,6 @@ CONTAINS
   !>
   !! Compute column maximum radar reflectivity from dbz3d_lin and maximize over time
   !!
-  !! @par Revision History
-  !! Initial revision by Ulrich Blahak, DWD (2020-01-23) 
-  !!
   SUBROUTINE maximize_field_dbzctmax( ptr_patch, jg, dbz3d_lin, dbz_ctmax, lacc )
 
     IMPLICIT NONE
@@ -4609,9 +4573,6 @@ CONTAINS
 
   !>
   !! Compute radar reflectivity around approx 850 hPa from dbz3d_lin.
-  !!
-  !! @par Revision History
-  !! Initial revision by Ulrich Blahak, DWD (2020-01-23) 
   !!
   SUBROUTINE compute_field_dbz850( ptr_patch, k850, dbz3d_lin, dbz_850, lacc )
 
@@ -4683,9 +4644,6 @@ CONTAINS
   !! each location is sampled by at least 2 radar stations, and measuring heights vary between about
   !! 500 m AGL and 2500 m AGL, depending on the station height, the elevation angle used for
   !! the composite, and the local orography.
-  !!
-  !! @par Revision History
-  !! Initial revision by Ulrich Blahak, DWD (2020-08-10) 
   !!
   SUBROUTINE compute_field_dbzlmx( ptr_patch, jg, z_agl_low, z_agl_up, p_metrics, dbz3d_lin, dbzlmx, lacc )
 
@@ -4760,9 +4718,6 @@ CONTAINS
 
   !>
   !! Compute ECHOTOPs in Pa from linear dbz3d_lin
-  !!
-  !! @par Revision History
-  !! Initial revision by Ulrich Blahak, DWD (2020-01-23) 
   !!
   SUBROUTINE compute_field_echotop( ptr_patch, jg, p_diag, dbz3d_lin, echotop_p, lacc )
 
@@ -4872,9 +4827,6 @@ CONTAINS
 
   !>
   !! Compute ECHOTOPs in m MSL from linear dbz3d_lin
-  !!
-  !! @par Revision History
-  !! Initial revision by Ulrich Blahak, DWD (2020-01-23) 
   !!
   SUBROUTINE compute_field_echotopinm( ptr_patch, jg, p_metrics, dbz3d_lin, echotop_z, lacc )
 
@@ -5005,10 +4957,6 @@ CONTAINS
   !!
   !! Note: use dursun_thresh=120.0_wp and dursun_thresh_width=0.01_wp to
   !!       reproduce original behaviour, according to WMO
-  !!
-  !! @par Revision History
-  !! Initial revision by Burkhardt Rockel, Hereon (2021-06-17) 
-  !! More sunshine duration fields by Guy de Morsier, MeteoSwiss (2021-11-02)
   !!
   SUBROUTINE compute_field_dursun( pt_patch, dt_phy, dursun,                    &
     &                              swflxsfc, swflx_up_sfc, swflx_dn_sfc_diff,   &
@@ -5302,9 +5250,6 @@ CONTAINS
   !! Compute vertical wind shear of either u or v component as the difference between a height AGL and the lowest model level.
   !! This is done for a number of heights and is stored in a pseudo 3D field.
   !!
-  !! @par Revision History
-  !! Initial revision by Ulrich Blahak, DWD (2022-04-06) 
-  !!
   SUBROUTINE compute_field_wshear( ptr_patch, p_metrics, u_or_v, wshear_heights, wshear )
 
     IMPLICIT NONE
@@ -5368,9 +5313,6 @@ CONTAINS
   !! Compute the temperature lapse rate between two pressure levels:
   !!
   !!   dTdz = T(pu) - T(pl)
-  !!
-  !! @par Revision History
-  !! Initial revision by Ulrich Blahak, DWD (2022-04-06) 
   !!
   SUBROUTINE compute_field_lapserate( ptr_patch, p_metrics, p_diag, pu, pl, lapserate )
 
@@ -5493,9 +5435,6 @@ CONTAINS
   !!    lower layer = [z_low_shear-dz_shear/2 , z_low_shear+dz_shear/2 ] (m AGL)
   !!    upper layer = [z_up_shear -dz_shear/2 , z_up_shear +dz_shear/2 ] (m AGL)
   !!  The upper limit for SRH integration is z_up_srh (m AGL).
-  !!
-  !! @par Revision History
-  !! Initial revision by Ulrich Blahak, DWD (2022-04-13) 
   !!
   SUBROUTINE compute_field_srh( ptr_patch, p_metrics, p_diag, &
        z_up_srh, z_up_meanwind, z_low_shear, z_up_shear, dz_shear, &
@@ -5692,9 +5631,6 @@ CONTAINS
   !!  full layer thickness in case one or both layers are below the surface or above the model top.
   !!  Re-scaling means that voids are filled with the average of the present heights in the integral.
   !!
-  !! @par Revision History
-  !! Initial revision by Ulrich Blahak, DWD (2022-04-13) 
-  !!
   
   SUBROUTINE vert_integral_vec_1d (istart, iend, kstart, hhl, f, zlow, zup, fint, &
                                    l_agl, l_calc_mean, l_rescale_to_full_thickness)
@@ -5765,18 +5701,10 @@ CONTAINS
   !>
   !! compute near surface visibility
   !!
-  !! @par Revision History
-  !! Initial revision by Tobias Goecke, DWD (2022-03-29) 
-  !!
   !! Description:
   !!  This routine computes horizontal visibility [km] at the
   !!   surface or lowest model layer from qv, qc, qr, qi, qs, and qg.
   !! 
-  !! 
-  !! It was adapted to ICON by Tobias Goecke (DWD).
-  !! Before thatiIt was adapted for COSMO by Jochen Foerstner (DWD) for the Brazilian Navy
-  !! Original Code: CALVIS_GSD.f (part of the post-processing package of WRF)
-  !!
   !!------------------------------------------------------------------------------
   !!
   !! SUBPROGRAM:    CALVIS      CALCULATE HORIZONTAL VISIBILITY
@@ -5814,80 +5742,64 @@ CONTAINS
   !!  !!
   !!
 
-  SUBROUTINE compute_field_visibility(ptr_patch,p_prog,p_diag,prm_diag, jg, vis_out)
+  SUBROUTINE compute_field_visibility(ptr_patch, p_prog, p_diag, prm_diag, jg, vis_out, lacc)
 
-    TYPE(t_patch),        INTENT(IN)     :: ptr_patch        
-    TYPE(t_nh_prog)      , INTENT(IN)    :: p_prog                 !< nonhydrostatic state
-    TYPE(t_nh_diag),      INTENT(IN)     :: p_diag   ! diagnostic va  !!   The extinction coefficient for each water species present is
-    
-    REAL(WP), INTENT(OUT)   :: vis_out(:,:) ! output variable
-
-    INTEGER, INTENT(IN)                  :: jg  ! domain ID of the grid
-  !!   calculated, and then all applicable betas are summed to yield
-  !!   a single beta. Then the following relationship is used to
-  !!   determine visibility (in km), where epsilon is the threshhold
-  !!   of contrast, usually taken to be .02:
-  !!
-  !!      vis = -ln(epsilon)/beta      [found in Kunkel (1984)]riables
-    TYPE(t_nwp_phy_diag), INTENT(INOUT)  :: prm_diag ! physics variables
+    TYPE(t_patch),        INTENT(IN)            :: ptr_patch
+    TYPE(t_nh_prog),      INTENT(IN)            :: p_prog       ! nonhydrostatic state
+    TYPE(t_nh_diag),      INTENT(IN)            :: p_diag
+    TYPE(t_nwp_phy_diag), INTENT(INOUT)         :: prm_diag     ! physics variables
+    INTEGER,              INTENT(IN)            :: jg           ! domain ID of the grid
+    REAL(wp),             INTENT(OUT)           :: vis_out(:,:) ! output variable
+    LOGICAL,              INTENT(IN), OPTIONAL  :: lacc         ! if true, use openacc
 
     !local variables
-    REAL(wp),POINTER ::   qv(:,:,:)  ! specific humidity (subgrid) 
-    REAL(wp),POINTER ::   qc(:,:,:)  ! cloud water (subgrid) 
-    REAL(wp),POINTER ::   qi(:,:,:)  ! cloud ice (subgrid) 
-    REAL(wp),POINTER ::   qr(:,:,:)  ! cloud water (subgrid) 
-    REAL(wp),POINTER ::   qs(:,:,:)  ! cloud water (subgrid) 
-    REAL(wp),POINTER ::   qg(:,:,:)  ! cloud water (subgrid) 
-    REAL(wp),POINTER ::   rho(:,:,:)  ! total density (inkluding hydrometeors)
+    REAL(wp), POINTER ::   qv(:,:,:) ! specific humidity (subgrid)
+    REAL(wp), POINTER ::   qc(:,:,:) ! cloud water (subgrid)
+    REAL(wp), POINTER ::   qi(:,:,:) ! cloud ice (subgrid)
+    REAL(wp), POINTER ::   qr(:,:,:) ! cloud water (subgrid)
+    REAL(wp), POINTER ::   qs(:,:,:) ! cloud water (subgrid)
+    REAL(wp), POINTER ::   qg(:,:,:) ! cloud water (subgrid)
+    REAL(wp), POINTER ::  rho(:,:,:) ! total density (inkluding hydrometeors)
 
     ! specific tracer concentrations
     REAL(wp) :: Ccmax, Cimax, Crmax, Csmax, Cgmax
 
     ! parameters for vis parametrization
-    REAL(wp), parameter :: a_c = 144.7_wp, b_c = 0.88_wp  
-    REAL(wp), parameter :: a_i = 327.8_wp, b_i = 1.0_wp  
-    REAL(wp), parameter :: a_r = 2.24_wp, b_r = 0.75_wp  
-    REAL(wp), parameter :: a_s_wet = 6.0_wp, a_s_dry = 10.0_wp, b_s = 1.0_wp  
-    REAL(wp), parameter :: a_g = 4.0_wp, b_g = 0.75_wp  
-    REAL(WP)            :: a_s, temp_fac, beta
+    REAL(wp), PARAMETER :: a_c = 144.7_wp, b_c = 0.88_wp
+    REAL(wp), PARAMETER :: a_i = 327.8_wp, b_i = 1.0_wp
+    REAL(wp), PARAMETER :: a_r = 2.24_wp, b_r = 0.75_wp
+    REAL(wp), PARAMETER :: a_s_wet = 6.0_wp, a_s_dry = 10.0_wp, b_s = 1.0_wp
+    REAL(wp), PARAMETER :: a_g = 4.0_wp, b_g = 0.75_wp
+    REAL(wp)            :: a_s, temp_fac, beta
     
     INTEGER, PARAMETER :: top_lev = 3  ! number of levels from ground used for vis diagnostic
 
     REAL(wp) :: vis, vis_night, visrh, qrh
     REAL(wp) :: pvsat, pv, rhmax, visrh_clip, &
 	     &  shear, shear_fac, czen, zen_fac
-    real(wp),allocatable :: rh(:)
+    REAL(wp), ALLOCATABLE :: rh(:,:)
 
     INTEGER :: i_rlstart,  i_rlend
     INTEGER :: i_startblk, i_endblk
     INTEGER :: i_startidx, i_endidx
-    INTEGER :: jc,  jk, jb,  nlev
+    INTEGER :: jc, jk, jb, nlev
 
-    LOGICAL :: use_subgrid_clouds,  use_visrh
-    INTEGER :: which_visrh
+    LOGICAL :: lzacc ! non-optional version of lacc
 
-    use_subgrid_clouds = .True.
-    use_visrh          = .True.
-    which_visrh        = 0 ! 0: AIRS, 1: old WRF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     ! local pointers
     rho => p_prog%rho
-    if (use_subgrid_clouds) then
-      qv  => prm_diag%tot_ptr(iqv)%p_3d
-      qc  => prm_diag%tot_ptr(iqc)%p_3d
-      qi  => prm_diag%tot_ptr(iqi)%p_3d
-    else
-      qv  => p_prog%tracer_ptr(iqv)%p_3d
-      qc  => p_prog%tracer_ptr(iqc)%p_3d
-      qi  => p_prog%tracer_ptr(iqi)%p_3d
-    end if
+    qv  => prm_diag%tot_ptr(iqv)%p_3d
+    qc  => prm_diag%tot_ptr(iqc)%p_3d
+    qi  => prm_diag%tot_ptr(iqi)%p_3d
     qr  => p_prog%tracer_ptr(iqr)%p_3d
     qs  => p_prog%tracer_ptr(iqs)%p_3d
-    if(atm_phy_nwp_config(jg)%lhave_graupel)  qg => p_prog%tracer_ptr(iqg)%p_3d
+    IF(atm_phy_nwp_config(jg)%lhave_graupel) qg => p_prog%tracer_ptr(iqg)%p_3d
 
     ! some parameters
     nlev = size(qv,2)
-    allocate(rh(nlev-top_lev+1:nlev))
+    allocate(rh(nproma,nlev-top_lev+1:nlev))
     visrh_clip = 1.0_wp ! clip RH-VIS at this km
 
     ! without halo or boundary  points:
@@ -5897,6 +5809,9 @@ CONTAINS
     i_startblk = ptr_patch%cells%start_block( i_rlstart )
     i_endblk   = ptr_patch%cells%end_block  ( i_rlend   )
 
+    !$ACC DATA PRESENT(qc, qg, qi, qr, qs, qv, rho, vis_out) &
+    !$ACC   CREATE(rh) IF(lzacc)
+
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jc,jk,pvsat,pv,rh,rhmax,visrh,qrh,vis,vis_night,shear,shear_fac,&
 !$OMP     Ccmax,Cimax,Crmax,Csmax,Cgmax,temp_fac,a_s,beta,czen,zen_fac), ICON_OMP_RUNTIME_SCHEDULE
@@ -5905,140 +5820,144 @@ CONTAINS
       CALL get_indices_c( ptr_patch, jb, i_startblk, i_endblk,     &
                           i_startidx, i_endidx, i_rlstart, i_rlend)
 
-      DO jc = i_startidx, i_endidx
-
-        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        !!!  I) VIS due to relative humidity   !!!!!!!!!!
-        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!       
-	  
-        ! compute RH in lowest 'top_level' levels
-        DO jk = nlev, nlev-top_lev+1, -1   
-	  pvsat = esat_water(p_diag%temp(jc,jk,jb))
-	  pv = p_diag%pres(jc,jk,jb)*qv(jc,jk,jb)/( rdv + o_m_rdv * qv(jc,jk,jb) )
-	  rh(jk) = 100.0_wp* MIN(1.0_wp,pv/pvsat)
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !!!  I) VIS due to relative humidity   !!!!!!!!!!
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(pvsat, pv)
+      DO jk = nlev-top_lev+1, nlev
+        DO jc = i_startidx, i_endidx
+          ! compute RH in lowest 'top_level' levels
+          pvsat     = esat_water(p_diag%temp(jc,jk,jb))
+          pv        = p_diag%pres(jc,jk,jb)*qv(jc,jk,jb)/(rdv + o_m_rdv * qv(jc,jk,jb))
+          rh(jc,jk) = 100.0_wp * MIN(1.0_wp, pv/pvsat)
         END DO
+      END DO
+      !$ACC END PARALLEL
 
-	! maximum lower two levels
-	rhmax = max(rh(nlev), rh(nlev-1) )
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+      !$ACC LOOP GANG VECTOR PRIVATE(a_s, beta) &
+      !$ACC   PRIVATE(Ccmax, Cgmax, Cimax, Crmax, Csmax) &
+      !$ACC   PRIVATE(czen, rhmax, shear, shear_fac, temp_fac) &
+      !$ACC   PRIVATE(vis, visrh, vis_night, zen_fac)
+      DO jc = i_startidx, i_endidx
+        ! maximum lower two levels
+        rhmax = MAX(rh(jc,nlev), rh(jc,nlev-1))
 
-	SELECT CASE(which_visrh)
-	CASE(0) ! AIRS
-	  ! empirical relation for depence of vis on rh,
-	  ! vis_airs in table 2 of Gultepe (2009). doi: 10.1175/2008BAMS2354.1
-	  visrh = 0.5_wp * (-0.0177_wp*rhmax**2 + 1.462_wp*rhmax + 30.8_wp)
+        ! vis due to haze parametrized as function of rh only, form found via fit to
+        ! SYNOP station data over Germany from 11/2021
+        IF (rhmax <= 40.0_wp) THEN
+          visrh = 88950.37269485_wp - 327.73380915_wp*rhmax
+        ELSE IF (rhmax <= 98.2_wp) THEN
+          visrh = 2.74158753e-04_wp*rhmax**5 - 8.04508715e-02_wp*rhmax**4 &
+            &   + 9.4148139_wp*rhmax**3 - 5.78127237e+02_wp*rhmax**2      &
+            &   + 1.82682914e+04_wp*rhmax - 1.54588988e+05_wp
+        ELSE
+          visrh = -1171.04931497_wp*rhmax + 117111.72541055_wp
+        END IF
+        visrh = visrh/1000.0_wp ! convert to units of km
 
-	CASE(1)	
-          !  tobias goecke (DWD) 20211118 ?
-          qrh =   MAX(0.0_wp,    MIN( 1.0_wp  , ( rhmax-15.0_wp )/80.0_wp  )  )
-          visrh = 60.0_wp * EXP(-2.5_wp*qrh)
+        ! clip below X km
+        visrh = MAX(visrh, visrh_clip)
 
-	END SELECT
-
-	visrh = MAX(visrh,visrh_clip) ! clip below X km 
-
-	!  -- add term to increase RH vis term for
-        !     low-level wind shear increasing from 4 to 6 ms-1
-        !     (using Evan Kuchera's paper as a guideline)
-
-        ! -- calculate term for shear in the lowest about 15 mb
-	
-	! 15mb about 120 meters, so try lev nlev-2
-	shear = sqrt(  (p_diag%u(jc,nlev-2,jb) - p_diag%u(jc,nlev,jb))**2        &
-	         &     + (p_diag%v(jc,nlev-2,jb) - p_diag%v(jc,nlev,jb))**2  )
-
-        shear_fac = MIN( 1.0_wp, MAX(0.0_wp,(shear-4.0_wp)/2.0_wp) )
-
+        ! add term to increase RH vis term for
+        ! low-level wind shear increasing from 4 to 6 ms-1
+        ! (using Evan Kuchera's paper as a guideline)
+        ! calculate term for shear in the lowest about 15 mb
+        ! 15mb about 120 meters, so try lev nlev-2
+        shear     = SQRT(  (p_diag%u(jc,nlev-2,jb) - p_diag%u(jc,nlev,jb))**2 &
+          &       + (p_diag%v(jc,nlev-2,jb) - p_diag%v(jc,nlev,jb))**2  )
+        shear_fac = MIN( 1.0_wp, MAX(0.0_wp, (shear-4.0_wp)/2.0_wp) )
         IF (visrh < 10.0_wp) visrh = visrh + (10.0_wp-visrh) * shear_fac
 
-
         !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	!!!  II) VIS due to hydrometeors       !!!!!!!!!!
-	!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-          !!   The routine uses the following
-          !!   expressions for extinction coefficient, beta (in km**-1),
-          !!   with C being the mass concentration (in g/m**3):
-          !!
-          !!      cloud water:  beta = 144.7 * C ** (0.8800)
-          !!      rain water:   beta =  2.24 * C ** (0.7500)
-          !!      cloud ice:    beta = 327.8 * C ** (1.0000)
-          !!      snow:         beta = 10.36 * C ** (0.7776)
-          !!      graupel:      beta =  8.0  * C ** (0.7500)
-          !!
-          !!   These expressions were obtained from the following sources:
-          !!
-          !!      for cloud water: from Kunkel (1984)
-          !!      for rainwater: from M-P dist'n, with N0=8e6 m**-4 and
-          !!         rho_w=1000 kg/m**3
-          !!      for cloud ice: assume randomly oriented plates which follow
-          !!         mass-diameter relationship from Rutledge and Hobbs (1983)
-          !!      for snow: from Stallabrass (1985), assuming beta = -ln(.02)/vis
-          !!      for graupel: guestimate by John Brown and Stan Benjamin,
-          !!         similar to snow, but a smaller extinction coef seemed
-          !!         reasonable.  27 Aug 99
-          !!
-          !!   The extinction coefficient for each water species present is
-          !!   calculated, and then all applicable betas are summed to yield
-          !!   a single beta. Then the following relationship is used to
-          !!   determine visibility (in km), where epsilon is the threshhold
-          !!   of contrast, usually taken to be .02:
-          !!
-          !!      vis = -ln(epsilon)/beta      [found in Kunkel (1984)]
-          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-	!conversion to volumetric conentration.
+        !!!  II) VIS due to hydrometeors       !!!!!!!!!!
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        !!   The routine uses the following
+        !!   expressions for extinction coefficient, beta (in km**-1),
+        !!   with C being the mass concentration (in g/m**3):
+        !!
+        !!      cloud water:  beta = 144.7 * C ** (0.8800)
+        !!      rain water:   beta =  2.24 * C ** (0.7500)
+        !!      cloud ice:    beta = 327.8 * C ** (1.0000)
+        !!      snow:         beta = 10.36 * C ** (0.7776)
+        !!      graupel:      beta =  8.0  * C ** (0.7500)
+        !!
+        !!   These expressions were obtained from the following sources:
+        !!
+        !!      for cloud water: from Kunkel (1984)
+        !!      for rainwater: from M-P dist'n, with N0=8e6 m**-4 and
+        !!         rho_w=1000 kg/m**3
+        !!      for cloud ice: assume randomly oriented plates which follow
+        !!         mass-diameter relationship from Rutledge and Hobbs (1983)
+        !!      for snow: from Stallabrass (1985), assuming beta = -ln(.02)/vis
+        !!      for graupel: guestimate by John Brown and Stan Benjamin,
+        !!         similar to snow, but a smaller extinction coef seemed
+        !!         reasonable.  27 Aug 99
+        !!
+        !!   The extinction coefficient for each water species present is
+        !!   calculated, and then all applicable betas are summed to yield
+        !!   a single beta. Then the following relationship is used to
+        !!   determine visibility (in km), where epsilon is the threshhold
+        !!   of contrast, usually taken to be .02:
+        !!
+        !!      vis = -ln(epsilon)/beta      [found in Kunkel (1984)]
+        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        ! conversion to volumetric conentration.
         ! rho = V/m_tot (V is given by the grid anyway
         ! specific quantities q_k = m_k/m_tot -> C_k = q_k * rho  	
-	!maximize hydrometeors over lowest 'top_lev' levels, final unit= g/m^3
-	Ccmax = maxval(qc(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
-	Cimax = maxval(qi(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
-	Crmax = maxval(qr(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
-	Csmax = maxval(qs(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
-	if(atm_phy_nwp_config(jg)%lhave_graupel) then
-	  Cgmax = maxval(qg(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
-	else
+        ! maximize hydrometeors over lowest 'top_lev' levels, final unit= g/m^3
+        Ccmax = MAXVAL(qc(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
+        Cimax = MAXVAL(qi(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
+        Crmax = MAXVAL(qr(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
+        Csmax = MAXVAL(qs(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
+        IF (atm_phy_nwp_config(jg)%lhave_graupel) THEN
+          Cgmax = MAXVAL(qg(jc,nlev-top_lev+1:nlev,jb)*rho(jc,nlev-top_lev+1:nlev,jb))*1000.0_wp
+        ELSE
           Cgmax = 0.0_wp
-	end if
+        END IF
 
-	! snow coefficient temperature dependent
-        temp_fac  = MIN( 1.0_wp, MAX((p_diag%temp(jc,nlev,jb)-271.15_wp),0.0_wp) )
-        a_s = a_s_dry * (1.0_wp-temp_fac) + a_s_wet * temp_fac
+        ! snow coefficient temperature dependent
+        temp_fac  = MIN( 1.0_wp, MAX((p_diag%temp(jc,nlev,jb)-271.15_wp), 0.0_wp) )
+        a_s       = a_s_dry * (1.0_wp-temp_fac) + a_s_wet * temp_fac
 
         ! calculate extinction coefficient  
- 	beta = a_c * Ccmax**b_c & ! cloud water	
-	     + a_i * Cimax**b_i & ! cloud ice
-             + a_r * Crmax**b_r & ! rain
-             + a_s * Csmax**b_s	& ! snow
-	     + a_g * Cgmax**b_g & ! graupel   
-	     + 1.0e-10_wp         ! small offsett to prevent zero division
+        beta = a_c * Ccmax**b_c & ! cloud water	
+          &  + a_i * Cimax**b_i & ! cloud ice
+          &  + a_r * Crmax**b_r & ! rain
+          &  + a_s * Csmax**b_s & ! snow
+          &  + a_g * Cgmax**b_g & ! graupel   
+          &  + 1.0e-10_wp         ! small offsett to prevent zero division
 
         ! vis after koschmieder formula with 2 percent of initial beam intensity
-	vis = min(90.0_wp, -log(0.02)/beta)
+        vis = MIN(90.0_wp, -log(0.02)/beta)
 
-	! zenith angle
-	czen = prm_diag%cosmu0(jc,jb)
- 
-   	! -- Dec 2003 - Roy Rasmussen (NCAR) expression for night vs. day vis
-        !   1.609 factor is number of km in mile.
-	vis_night = 1.69_wp *  ( (vis/1.609_wp)**0.86_wp ) * 1.609_wp
-        zen_fac = MIN( 0.1_wp, MAX(czen, 0.0_wp) ) /  0.1_wp
-        vis = zen_fac * vis + (1.0_wp-zen_fac) * vis_night
+        ! zenith angle
+        czen = prm_diag%cosmu0(jc,jb)
 
-        if (use_visrh) then
-          ! take minumum from vis and visrh
-	  vis = min(vis, visrh) 
-	end if
+        ! Dec 2003 - Roy Rasmussen (NCAR) expression for night vs. day vis
+        ! 1.609 factor is number of km in mile.
+        vis_night = 1.69_wp * ( (vis/1.609_wp)**0.86_wp ) * 1.609_wp
+        zen_fac   = MIN( 0.1_wp, MAX(czen, 0.0_wp) ) / 0.1_wp
+        vis       = zen_fac * vis + (1.0_wp-zen_fac) * vis_night
 
-	! convert to meter
+        ! take minumum from vis and visrh
+        vis = MIN(vis, visrh)
+
+        ! convert to meter
         vis = vis * 1000.0_wp
 
-	! write to diagnostic field
-	vis_out(jc,jb) = vis
+        ! write to diagnostic field
+        vis_out(jc,jb) = vis
+      END DO ! jc
+      !$ACC END PARALLEL
 
-      END DO! jc
-      
-    END DO! jb
+    END DO ! jb
 !$OMP END DO NOWAIT    
 !$OMP END PARALLEL
+
+    !$ACC WAIT(1)
+    !$ACC END DATA
 
   END SUBROUTINE compute_field_visibility
 
@@ -6046,9 +5965,6 @@ CONTAINS
   !! It follows Van Wevweberg et al. Month Weath. Rev. 2021
   !! This function just produces the variable for output
   !! The calculations are done in compute_field_inversion_height
-  !>
-  !  !! @par Revision History
-  !! Initial revision by Alberto de Lozar, DWD (2023-01-18) 
 
   SUBROUTINE compute_field_inversion_height(ptr_patch,jg,p_metrics,p_prog,p_diag,prm_diag,inv_height)
 

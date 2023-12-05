@@ -44,7 +44,7 @@ icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/mch"
 grids_folder=${icon_data_poolFolder}/grids/opr_r04b07_sea/
 
 # Folder containing lateral boundary conditions
-latbc_path=${icon_data_poolFolder}/input/opr_r04b07_sea/
+latbc_path=${icon_data_poolFolder}/input/opr_r04b07_sea/60s/
 
 dynamics_grid_filename=sea_domain_DOM01.nc
 atmo_dyn_grids="'${dynamics_grid_filename}',"
@@ -54,11 +54,11 @@ atmo_rad_grids="'${radiation_grid_filename}',"
 
 # start and end date+time
 start_date=${start_date:="2022-12-01T00:00:00Z"}
-  end_date=${end_date:="2022-12-01T02:00:00Z"}
+  end_date=${end_date:="2022-12-01T00:01:00Z"}
 
 # output intervals
-output_bounds="0.,10000000.,3600."
-steps_per_file=3
+output_bounds="0.,10000000.,10."
+steps_per_file=7
 
 # namelist files
 atmo_namelist=NAMELIST_${EXPNAME}_atm
@@ -89,8 +89,8 @@ add_link_file ${latbc_path}/${laf_file_name} .
 add_required_file ${latbc_path}/lateral_boundary.grid.nc lateral_boundary.grid.nc
 
 # lateral boundary data
-add_link_file ${latbc_path}/efsf00010000_lbc.nc .
-add_link_file ${latbc_path}/efsf00020000_lbc.nc .
+add_link_file ${latbc_path}/efsf00000030_lbc.nc .
+add_link_file ${latbc_path}/efsf00000100_lbc.nc .
 
 # dictionary file for output variable names
 dict_file="dict.output.mch"
@@ -179,7 +179,6 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
 ! dynamics_nml: dynamical core -----------------------------------------------
 &dynamics_nml
  iequations                  =                          3         ! type of equations and prognostic variables
- idiv_method                 =                          1         ! method for divergence computation
  divavg_cntrwgt              =                          0.50      ! weight of central cell for divergence averaging
  lcoriolis                   =                      .TRUE.        ! Coriolis force
 /
@@ -248,9 +247,10 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  output_nml_dict             =              "${dict_file}"        ! translates the output nml names to icon names
  netcdf_dict                 =              "${dict_file}"        ! specifies the names in the output netcdf file
  lnetcdf_flt64_output        =                      .TRUE.        ! double precision output
+ itype_hzerocl               =                          2         ! 1: orography, 2: undef, 3: extrapolation below ground
  itype_pres_msl              =                          5         ! method for computation of mean sea level pressure
  itype_rh                    =                          1         ! method for computation of relative humidity
- lmask_boundary              =                      .FALSE.       ! mask out interpolation zone in output
+ lmask_boundary              =                     .FALSE.        ! mask out interpolation zone in output
  itype_dursun                =                          1         ! 0 or 1 only with new MR ldursun_mch for output of dursun_m/_r
  gust_interval               =                      3600.         ! Interval over which wind gusts are maximized
  maxt_interval               =                    "PT01H"         ! Interval over which max/min 2-m temperatures are calculated
@@ -259,7 +259,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
 ! limarea_nml: settings for limited area mode ---------------------------------
 &limarea_nml
  itype_latbc                 =                          1         ! 1: time-dependent lateral boundary conditions
- dtime_latbc                 =                       3600.        ! time difference between 2 consecutive boundary data
+ dtime_latbc                 =                         30.        ! time difference between 2 consecutive boundary data
  latbc_boundary_grid         =   "lateral_boundary.grid.nc"       ! Grid file defining the lateral boundary
  latbc_path                  =              "${latbc_path}"       ! Absolute path to boundary data
  latbc_varnames_map_file     =            'map_file.latbc'

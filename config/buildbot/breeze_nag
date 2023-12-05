@@ -20,12 +20,12 @@ MAKE_PROCS=8
 if [ ! -z "${BB_NAME-}" ]; then
   (
     mkdir -p build && cd build
-    ${ICON_DIR}/config/mpim/${LINUX_CODENAME}.nag --enable-rttov --disable-dace --disable-emvorado --disable-coupling
+    ${ICON_DIR}/config/mpim/${LINUX_CODENAME}.nag --enable-rttov --disable-dace --disable-emvorado
     make -j ${MAKE_PROCS}
   )
 fi
 
-${ICON_DIR}/config/mpim/${LINUX_CODENAME}.nag --enable-yaxt --disable-openmp --enable-rte-rrtmgp --enable-serialization --enable-rttov --enable-dace --enable-emvorado --disable-coupling
+${ICON_DIR}/config/mpim/${LINUX_CODENAME}.nag --enable-yaxt --disable-openmp --enable-rte-rrtmgp --enable-serialization --enable-rttov --enable-dace --enable-emvorado
 
 make -j ${MAKE_PROCS}
 

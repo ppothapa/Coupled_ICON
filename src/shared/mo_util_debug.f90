@@ -1,21 +1,18 @@
-!>
-!! This module contains debugging utilities, especially subroutines
-!! for writing REAL arrays to NetCDF files (for debugging purposes).
-!!
-!! @author F. Prill, DWD
-!!
-!! @par Revision History
-!! Initial implementation,            F. Prill, DWD (2011-11-14)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! This module contains debugging utilities, especially subroutines
+! for writing REAL arrays to NetCDF files (for debugging purposes).
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_util_debug
 
 ! enable the following directive for disabling

@@ -1,67 +1,37 @@
-!>
-!! Computation of horizontal tracer flux
-!!
-!! This routine computes the upwind fluxes for all edges of a uniform
-!! resolution patch. In case of different patches on a grid at the
-!! same level in the grid hierarchy, no correction is needed
-!! (the appropriate values must be then placed in the external halos).
-!! The upwind flux function can be replaced by any other flux
-!! function (e.g. Engquist-Osher, Godunov), in passive advection
-!! case they are all equivalent. These routines compute only
-!! the correct edge value of 'c*u' without multiplying by
-!! the edge length, so that then the divergence operator
-!! can be applied without modifications when computing the
-!! flux divergence in the conservative transport formula.
-!!
-!! Possible options for horizontal tracer flux computation include
-!! - first order Godunov method (UP1)
-!! - second order MUSCL method
-!! - MIURA with second order accurate reconstruction
-!! - MIURA with third order accurate reconstruction
-!!
-!! For MUSCL the piecewise linear approximation is used:
-!! See e.g. Lin et al. (1994), Mon. Wea. Rev., 122, 1575-1593
-!! An improved, fully 2D version without splitting error is
-!! implemeted, too.
-!! See Miura, H. (2007), Mon. Wea. Rev., 135, 4038-4044
-!!
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!! Developed by L.Bonaventura  (2004).
-!! Adapted to new grid structure by L. Bonaventura, MPI-M, August 2005.
-!! Modification by Daniel Reinert, DWD (2009-08-09)
-!! - implementation of second order MUSCL
-!! Modification by Daniel Reinert, DWD (2009-11-09)
-!! - implementation of second order MIURA
-!! Modification by Daniel Reinert, DWD (2010-02-23)
-!! - swapped slope limiter into new subroutine h_miura_slimiter_mo
-!! Modification by Daniel Reinert, DWD (2010-04-23)
-!! - moved slope and flux limiter to new module mo_advection_limiter
-!! Modification by Daniel Reinert, DWD (2010-05-12)
-!! - included MIURA scheme with third order accurate reconstruction
-!! Modification by Daniel Reinert, DWD (2010-11-09)
-!! - removed MUSCL-type computation of horizontal fluxes
-!! Modification by Daniel Reinert, DWD (2011-09-20)
-!! - new Miura-type advection scheme with internal time-step subcycling
-!! Modification by Daniel Reinert, DWD (2012-05-04)
-!! - removed optional slope limiter
-!! Modification by Daniel Reinert, DWD (2013-09-30)
-!! - new option: FFSL + Miura-type advection with subcycling
-!! Modification by Will Sawyer, CSCS (2016-02-26)
-!! - added OpenACC support
-!! - added temp variables of type t_lsq to circumvent OpenACC compiler bug
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Computation of horizontal tracer flux
+!
+! This routine computes the upwind fluxes for all edges of a uniform
+! resolution patch. In case of different patches on a grid at the
+! same level in the grid hierarchy, no correction is needed
+! (the appropriate values must be then placed in the external halos).
+! The upwind flux function can be replaced by any other flux
+! function (e.g. Engquist-Osher, Godunov), in passive advection
+! case they are all equivalent. These routines compute only
+! the correct edge value of 'c*u' without multiplying by
+! the edge length, so that then the divergence operator
+! can be applied without modifications when computing the
+! flux divergence in the conservative transport formula.
+!
+! Possible options for horizontal tracer flux computation include
+! - MIURA with linear, quadratic, or cubic reconstruction
+! - FFSL with linear, quadratic, or cubic reconstruction
+!
+! See e.g. Lin et al. (1994), Mon. Wea. Rev., 122, 1575-1593
+! An improved, fully 2D version without splitting error is
+! implemeted, too.
+! See Miura, H. (2007), Mon. Wea. Rev., 135, 4038-4044
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -70,9 +40,9 @@ MODULE mo_advection_hflux
 
   USE mo_kind,                ONLY: wp, vp
   USE mo_exception,           ONLY: finish, message, message_text
-  USE mo_impl_constants,      ONLY: SUCCESS,                   &
-    &                               min_rledge_int, min_rlcell_int,             &
-    &                               UP, MIURA, MIURA3, FFSL, FFSL_HYB, MCYCL,   &
+  USE mo_impl_constants,      ONLY: SUCCESS, grf_bdywidth_e,                    &
+    &                               min_rledge_int, min_rlcell_int, NO_HADV,    &
+    &                               MIURA, MIURA3, FFSL, FFSL_HYB, MCYCL,       &
     &                               MIURA_MCYCL, MIURA3_MCYCL, FFSL_MCYCL,      &
     &                               FFSL_HYB_MCYCL, ifluxl_m, ifluxl_sm
   USE mo_model_domain,        ONLY: t_patch
@@ -117,7 +87,6 @@ MODULE mo_advection_hflux
 
 
   PUBLIC :: hor_upwind_flux
-  PUBLIC :: upwind_hflux_up
   PUBLIC :: upwind_hflux_miura
   PUBLIC :: upwind_hflux_miura3
 
@@ -136,21 +105,10 @@ CONTAINS
   !!
   !! Calculation of horizontal upwind flux at triangle edges on half levels
   !! using either
-  !! - the first order Godunov method (UP1)
   !! - the MIURA method with linear reconstruction (essentially 2D)
   !! - the MIURA method with linear reconstruction and internal subcycling
   !! - the MIURA method with quadr/cubic reconstruction (essentially 2D)
   !! - the FFSL method with quadr/cubic reconstruction (essentially 2D)
-  !!
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2010-02-10)
-  !! Modification by Daniel Reinert (2010-11-05)
-  !! - tracer loop moved from step_advection to hor_upwind_flux
-  !! Modification by Daniel Reinert (2010-11-09)
-  !! - removed MUSCL-type horizontal advection
-  !! Modification by Daniel Reinert, DWD (2013-09-30)
-  !! - new option: FFSL + Miura-type advection with subcycling
   !!
   !
   ! !LITERATURE
@@ -164,7 +122,7 @@ CONTAINS
     CHARACTER(len=*), PARAMETER ::  &
       &  routine = modname//':hor_upwind_flux'
 
-    TYPE(t_patch), TARGET, INTENT(INOUT) ::  &     !< patch on which computation is performed
+    TYPE(t_patch), TARGET, INTENT(IN) ::  &     !< patch on which computation is performed
       &  p_patch
 
     TYPE(t_int_state), TARGET, INTENT(IN) ::  & !< pointer to data structure for interpolation
@@ -262,7 +220,7 @@ CONTAINS
     ! routines. The resulting tangential velocity field is then passed to
     ! the flux routines.
 
-    IF ( ANY(advconf%ihadv_tracer(:)/= UP) ) THEN
+    IF ( ANY(advconf%ihadv_tracer(:)/= NO_HADV) ) THEN
 
       i_rlend_vt = MIN(i_rlend, min_rledge_int - 1)
 
@@ -342,23 +300,9 @@ CONTAINS
       ! Select desired flux calculation method
       SELECT CASE( advconf%ihadv_tracer(jt) )
 
-      CASE( UP )      ! ihadv_tracer = 1
-        ! CALL first order upwind
-        ! DA: this routine is not (yet) async
-        !$ACC WAIT
-        CALL upwind_hflux_up(                             &
-          &         p_patch      = p_patch,               & !in
-          &         p_cc         = p_cc(:,:,:,jt),        & !in
-          &         p_mass_flx_e = p_mass_flx_e,          & !in
-          &         p_upflux     = p_upflux(:,:,:,jt),    & !inout
-          &         opt_slev     = advconf%iadv_slev(jt), & !in
-          &         opt_rlend    = i_rlend                ) !in
-
-
       CASE( MIURA )   ! ihadv_tracer = 2
 
         ! CALL MIURA with second order accurate reconstruction
-        ! DA: this routine IS async, no wait.
         CALL upwind_hflux_miura(                                &
           &         p_patch         = p_patch,                  & !in
           &         p_cc            = p_cc(:,:,:,jt),           & !in
@@ -381,8 +325,6 @@ CONTAINS
         iadv_min_slev = advconf%miura3_h%iadv_min_slev
 
         ! CALL MIURA with third order accurate reconstruction
-        ! DA: this routine is not (yet) async
-        !$ACC WAIT
         CALL upwind_hflux_miura3( p_patch, p_cc(:,:,:,jt), p_mass_flx_e, &! in
           &                p_vn, z_real_vt, p_dtime, p_int,              &! in
           &                lcompute%miura3_h(jt), lcleanup%miura3_h(jt), &! in
@@ -404,7 +346,8 @@ CONTAINS
         WRITE(message_text,'(a)') 'GPU mode: performing upwind_hflux_ffsl on host; for performance use upwind_hflux_miura'
         CALL message(routine,message_text)
         !$ACC UPDATE HOST(p_cc(:,:,:,jt), p_mass_flx_e, p_vn, p_rhodz_now, p_rhodz_new, z_real_vt) &
-        !$ACC   IF(i_am_accel_node)
+        !$ACC   ASYNC(1) IF(i_am_accel_node)
+        !$ACC WAIT(1) IF(i_am_accel_node)
         save_i_am_accel_node = i_am_accel_node
         i_am_accel_node = .FALSE.     ! deactivate GPUs throughout upwind_hflux_ffsl
 #endif
@@ -412,7 +355,6 @@ CONTAINS
         ! CALL Flux form semi Lagrangian scheme (extension of MIURA3-scheme)
         ! with second or third order accurate reconstruction
         ! DA: this routine is not (yet) async
-        !$ACC WAIT
         CALL upwind_hflux_ffsl( p_patch, p_cc(:,:,:,jt),              &! in
           &                 p_rhodz_now, p_rhodz_new, p_mass_flx_e,   &! in
           &                 p_vn, z_real_vt, p_dtime, p_int,          &! in
@@ -426,7 +368,7 @@ CONTAINS
 
 #ifdef _OPENACC
         i_am_accel_node =  save_i_am_accel_node    ! reactivate GPUs if appropriate
-        !$ACC UPDATE DEVICE(p_upflux(:,:,:,jt)) IF(i_am_accel_node)
+        !$ACC UPDATE DEVICE(p_upflux(:,:,:,jt)) ASYNC(1) IF(i_am_accel_node)
 #endif
 
       CASE( FFSL_HYB )  ! ihadv_tracer = 5
@@ -435,8 +377,6 @@ CONTAINS
 
         ! CALL hybrid FFSL/miura3 scheme (i.e. if a prescribed CFL threshold
         ! is exceeded, the scheme switches from MIURA3 to FFSL
-        ! DA: this routine is not (yet) async
-        !$ACC WAIT
         CALL hflux_ffsl_hybrid( p_patch, p_cc(:,:,:,jt),            &! in
           &                 p_rhodz_now, p_rhodz_new, p_mass_flx_e, &! in
           &                 p_vn, z_real_vt, p_dtime, p_int,        &! in
@@ -452,8 +392,6 @@ CONTAINS
       CASE ( MCYCL )   ! ihadv_tracer = 20
 
         ! CALL MIURA with second order accurate reconstruction and subcycling
-        ! DA: this routine is not (yet) async
-        !$ACC WAIT
         CALL upwind_hflux_miura_cycl(                           &
           &         p_patch         = p_patch,                  & !in
           &         p_cc            = p_cc(:,:,:,jt),           & !in
@@ -504,8 +442,6 @@ CONTAINS
         ! with substepping. This prevents us from computing the backward
         ! trajectories multiple times when combining the substepping scheme with
         ! different other schemes.
-        ! DA: this routine is not (yet) async
-        !$ACC WAIT
         CALL upwind_hflux_miura_cycl(                           &
           &         p_patch         = p_patch,                  & !in
           &         p_cc            = p_cc(:,:,:,jt),           & !in
@@ -531,8 +467,6 @@ CONTAINS
 
         ! CALL standard MIURA3 for lower atmosphere and the subcycling version of
         ! MIURA for upper atmosphere
-        ! DA: this routine is not (yet) async
-        !$ACC WAIT
         CALL upwind_hflux_miura3( p_patch, p_cc(:,:,:,jt), p_mass_flx_e, &! in
           &              p_vn, z_real_vt, p_dtime, p_int,                &! in
           &              lcompute%miura3_h(jt), lcleanup%miura3_h(jt),   &! in
@@ -552,8 +486,6 @@ CONTAINS
         ! with substepping. This prevents us from computing the backward
         ! trajectories multiple times when combining the substepping scheme with
         ! different other schemes.
-        ! DA: this routine is not (yet) async
-        !$ACC WAIT
         CALL upwind_hflux_miura_cycl(                           &
           &         p_patch         = p_patch,                  & !in
           &         p_cc            = p_cc(:,:,:,jt),           & !in
@@ -583,7 +515,8 @@ CONTAINS
         WRITE(message_text,'(a)') 'GPU mode: performing upwind_hflux_ffsl on host; for performance use upwind_hflux_miura'
         CALL message(routine,message_text)
         !$ACC UPDATE HOST(p_cc(:,:,:,jt), p_mass_flx_e, p_vn, p_rhodz_now, p_rhodz_new, z_real_vt) &
-        !$ACC   IF(i_am_accel_node)
+        !$ACC   ASYNC(1) IF(i_am_accel_node)
+        !$ACC WAIT(1) IF(i_am_accel_node)
         save_i_am_accel_node = i_am_accel_node
         i_am_accel_node = .FALSE.     ! deactivate GPUs throughout hflux_ffsl
 #endif
@@ -591,7 +524,6 @@ CONTAINS
         ! CALL standard FFSL for lower atmosphere and the subcycling version of
         ! MIURA for upper atmosphere
         ! DA: this routine is not (yet) async
-        !$ACC WAIT
         CALL upwind_hflux_ffsl( p_patch, p_cc(:,:,:,jt),              &! in
           &                 p_rhodz_now, p_rhodz_new, p_mass_flx_e,   &! in
           &                 p_vn, z_real_vt, p_dtime, p_int,          &! in
@@ -607,7 +539,7 @@ CONTAINS
 
 #ifdef _OPENACC
         i_am_accel_node =  save_i_am_accel_node    ! reactivate GPUs if appropriate
-        !$ACC UPDATE DEVICE(p_upflux(:,:,:,jt)) IF(i_am_accel_node)
+        !$ACC UPDATE DEVICE(p_upflux(:,:,:,jt)) ASYNC(1) IF(i_am_accel_node)
 #endif
 
         IF (qvsubstep_elev > 0) THEN
@@ -616,8 +548,6 @@ CONTAINS
         ! with substepping. This prevents us from computing the backward
         ! trajectories multiple times when combining the substepping scheme with
         ! different other schemes.
-        ! DA: this routine is not (yet) async
-        !$ACC WAIT
         CALL upwind_hflux_miura_cycl(                           &
           &         p_patch         = p_patch,                  & !in
           &         p_cc            = p_cc(:,:,:,jt),           & !in
@@ -643,8 +573,6 @@ CONTAINS
 
         ! CALL hybrid FFSL/MIURA3 for lower atmosphere and the subcycling
         ! version of MIURA for upper atmosphere
-        ! DA: this routine is not (yet) async
-        !$ACC WAIT
         CALL hflux_ffsl_hybrid( p_patch, p_cc(:,:,:,jt),            &! in
           &                 p_rhodz_now, p_rhodz_new, p_mass_flx_e, &! in
           &                 p_vn, z_real_vt, p_dtime, p_int,        &! in
@@ -665,8 +593,6 @@ CONTAINS
         ! with substepping. This prevents us from computing the backward
         ! trajectories multiple times when combining the substepping scheme with
         ! different other schemes.
-        ! DA: this routine is not (yet) async
-        !$ACC WAIT
         CALL upwind_hflux_miura_cycl(                           &
           &         p_patch         = p_patch,                  & !in
           &         p_cc            = p_cc(:,:,:,jt),           & !in
@@ -699,148 +625,6 @@ CONTAINS
   END SUBROUTINE hor_upwind_flux
 
 
-
-
-  !-----------------------------------------------------------------------
-  !>
-  !! The first order Godunov scheme
-  !!
-  !! Calculation of time averaged horizontal tracer fluxes using the first
-  !! order Godunov method.
-  !!
-  !! @par Revision History
-  !! Developed by L.Bonaventura  (2004).
-  !! Adapted to new grid structure by L. Bonaventura, MPI-M, August 2005.
-  !! Modification by Daniel Reinert, DWD (2010-02-09)
-  !! - transferred to separate subroutine
-  !!
-  SUBROUTINE upwind_hflux_up( p_patch, p_cc, p_mass_flx_e, p_upflux, &
-    &                       opt_rlstart, opt_rlend, opt_slev, opt_elev )
-
-    TYPE(t_patch), TARGET, INTENT(IN) ::  &    !< patch on which computation is performed
-      &  p_patch
-
-    REAL(wp), INTENT(IN) ::     &  !< advected cell centered variable
-      &  p_cc(:,:,:)               !< dim: (nproma,nlev,nblks_c)
-
-    REAL(wp), INTENT(IN) ::     &  !< contravariant horizontal mass flux
-      &  p_mass_flx_e(:,:,:)       !< dim: (nproma,nlev,nblks_e)
-
-    REAL(wp), INTENT(INOUT) ::  &  !< variable in which the upwind flux is stored
-      &  p_upflux(:,:,:)           !< dim: (nproma,nlev,nblks_e)
-
-    INTEGER, INTENT(IN), OPTIONAL :: & !< optional: refinement control start level
-     &  opt_rlstart                    !< only valid for calculation of 'edge value'
-
-    INTEGER, INTENT(IN), OPTIONAL :: & !< optional: refinement control end level
-     &  opt_rlend                      !< (to avoid calculation of halo points)
-
-    INTEGER, INTENT(IN), OPTIONAL ::  & !< optional vertical start level
-      &  opt_slev
-
-    INTEGER, INTENT(IN), OPTIONAL ::  & !< optional vertical end level
-      &  opt_elev
-
-    INTEGER, DIMENSION(:,:,:), POINTER :: &  !< Pointer to line and block indices (array)
-      &  iilc, iibc
-    INTEGER  :: slev, elev           !< vertical start and end level
-    INTEGER  :: i_startblk, i_endblk, i_startidx, i_endidx
-    INTEGER  :: i_rlstart, i_rlend, i_nchdom
-    INTEGER  :: je, jk, jb         !< index of edge, vert level, block
-
-    !-----------------------------------------------------------------------
-
-    ! check optional arguments
-    IF ( PRESENT(opt_slev) ) THEN
-      slev = opt_slev
-    ELSE
-      slev = 1
-    END IF
-    IF ( PRESENT(opt_elev) ) THEN
-      elev = opt_elev
-    ELSE
-      elev = p_patch%nlev
-    END IF
-
-    IF ( PRESENT(opt_rlstart) ) THEN
-      i_rlstart = opt_rlstart
-    ELSE
-      i_rlstart = 2
-    ENDIF
-
-    IF ( PRESENT(opt_rlend) ) THEN
-      i_rlend = opt_rlend
-    ELSE
-      i_rlend = min_rledge_int - 1
-    ENDIF
-
-    ! number of child domains
-    i_nchdom = MAX(1,p_patch%n_childdom)
-
-    !
-    ! advection is done with 1st order upwind scheme,
-    ! i.e. a picewise constant approx. of the cell centered values
-    ! is used.
-    !
-
-    i_startblk = p_patch%edges%start_blk(i_rlstart,1)
-    i_endblk   = p_patch%edges%end_blk(i_rlend,i_nchdom)
-
-    ! line and block indices of two neighboring cells
-    iilc => p_patch%edges%cell_idx
-    iibc => p_patch%edges%cell_blk
-
-    ! loop through all patch edges (and blocks)
-
-    !$ACC DATA PRESENT(p_cc, p_mass_flx_e) PRESENT(p_upflux) &
-    !$ACC   PRESENT(iilc, iibc) IF(i_am_accel_node)
-
-!$OMP PARALLEL
-!$OMP DO PRIVATE(jb,je,jk,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
-    DO jb = i_startblk, i_endblk
-
-      CALL get_indices_e(p_patch, jb, i_startblk, i_endblk,   &
-        &                i_startidx, i_endidx, i_rlstart, i_rlend)
-
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
-#ifdef __LOOP_EXCHANGE
-      DO je = i_startidx, i_endidx
-        DO jk = slev, elev
-#else
-      DO jk = slev, elev
-        DO je = i_startidx, i_endidx
-#endif
-          !
-          ! compute the first order upwind flux; notice
-          ! that only the p_cc*p_mass_flx_e value at cell edge is computed
-          ! multiplication by edge length is avoided to
-          ! compute final conservative update using the discrete
-          ! div operator
-          !
-          IF ( p_mass_flx_e(je,jk,jb) .GE. 0.0_wp ) THEN
-            p_upflux(je,jk,jb) = p_mass_flx_e(je,jk,jb) * p_cc(iilc(je,jb,2),jk,iibc(je,jb,2))
-          ELSE
-            p_upflux(je,jk,jb) = p_mass_flx_e(je,jk,jb) * p_cc(iilc(je,jb,1),jk,iibc(je,jb,1))
-          ENDIF
-
-        END DO  ! end loop over edges
-
-      END DO  ! end loop over levels
-      !$ACC END PARALLEL
-
-    END DO  ! end loop over blocks
-    !$ACC WAIT(1)
-
-!$OMP END DO NOWAIT
-!$OMP END PARALLEL
-
-    !$ACC END DATA
-
-  END SUBROUTINE upwind_hflux_up
-
-
-
   !-------------------------------------------------------------------------
   !>
   !! The second order MIURA scheme
@@ -848,22 +632,6 @@ CONTAINS
   !! Calculation of time averaged horizontal tracer fluxes at triangle edges
   !! using a Flux form semi-lagrangian (FFSL)-method based on the second order
   !! MIURA-scheme.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2009-11-09)
-  !! Modification by Daniel Reinert, DWD (2010-02-10)
-  !! - transferred to separate subroutine
-  !! Modification by Daniel Reinert, DWD (2010-03-16)
-  !! - implemented new computation of backward trajectories on a local tangential
-  !!  plane for each edge-midpoint (much faster than the old version)
-  !! - moved calculation of backward trajectories and barycenter into subroutine
-  !!   back_traj_o1 in module mo_advection_utils. Added second order accurate
-  !!   computation of backward trajectories (subroutine back_traj_o2)
-  !! Modification by Daniel Reinert, DWD (2016-11-24)
-  !! - computation of backward trajectories moved one level up which simplifys 
-  !!   flow control. It is now simpler to ensure that backward trajectories are only 
-  !!   computed once per time step and that the backward trajectory information is 
-  !!   available at all points and levels.
   !!
   !! @par LITERATURE
   !! - Miura, H. (2007), Mon. Weather Rev., 135, 4038-4044
@@ -880,7 +648,7 @@ CONTAINS
     CHARACTER(len=*), PARAMETER ::  &
       &  routine = modname//':upwind_hflux_miura'
 
-    TYPE(t_patch), TARGET, INTENT(INOUT) ::  &   !< patch on which computation is performed
+    TYPE(t_patch), TARGET, INTENT(IN) ::  &   !< patch on which computation is performed
       &  p_patch
 
     TYPE(t_int_state), TARGET, INTENT(IN) ::  &  !< pointer to data structure for interpolation
@@ -1066,16 +834,12 @@ CONTAINS
 
     ELSE IF (p_igrad_c_miura == 2) THEN
       ! Green-Gauss method
-      ! DA: this routine is not (yet) async
-      !$ACC WAIT
       CALL grad_green_gauss_cell( p_cc, p_patch, p_int, z_grad, opt_slev=slev, &
         &                         opt_elev=elev, opt_rlend=i_rlend_c )
 
 
     ELSE IF (p_igrad_c_miura == 3) THEN
       ! gradient based on three-node triangular element
-      ! DA: this routine is not (yet) async
-      !$ACC WAIT
       CALL grad_fe_cell( p_cc, p_patch, p_int, z_grad, opt_slev=slev, &
         &                opt_elev=elev, opt_rlend=i_rlend_c )
 
@@ -1238,21 +1002,6 @@ CONTAINS
   !! MIURA-scheme. This particular version of the scheme includes a time
   !! subcyling-option.
   !!
-  !! @par Revision History
-  !! - Initial revision by Daniel Reinert, DWD (2011-09-20)
-  !! Modification by Daniel Reinert, DWD (2012-01-25)
-  !! - bug fix for positive definite limiter. Limiter is now called after each
-  !!   substep.
-  !! Modification by Daniel Reinert, DWD (2013-09-27)
-  !! - increased number of subcycling steps from 2 to 3 (hard coded)
-  !! Modification by Daniel Reinert, DWD (2013-10-09)
-  !! - reduce vertical dimension of local arrays from nlev to elev
-  !! Modification by Daniel Reinert, DWD (2016-11-24)
-  !! - computation of backward trajectories moved one level up to simplify 
-  !!   flow control. It is now simpler to ensure that backward trajectories are only 
-  !!   computed once per time step and that the backward trajectory information is 
-  !!   available at all points and levels.
-  !!
   !! @par LITERATURE
   !! - Miura, H. (2007), Mon. Weather Rev., 135, 4038-4044
   !! - Skamarock, W.C. (2010), Conservative Transport schemes for Spherical Geodesic
@@ -1268,7 +1017,7 @@ CONTAINS
     CHARACTER(len=*), PARAMETER ::  &
       &  routine = modname//':upwind_hflux_miura_cycl'
 
-    TYPE(t_patch), TARGET, INTENT(INOUT) ::  &   !< patch on which computation is performed
+    TYPE(t_patch), TARGET, INTENT(IN) ::  &   !< patch on which computation is performed
       &  p_patch
 
     TYPE(t_int_state), TARGET, INTENT(IN) ::  &  !< pointer to data structure for interpolation
@@ -1570,12 +1319,17 @@ CONTAINS
       !
       IF ( p_itype_hlimit == ifluxl_sm .OR. p_itype_hlimit == ifluxl_m ) THEN
         !
+        ! note that starting the flux limitation at grf_bdywidth_e(=9) is
+        ! not sufficient in this case, as substep 2 requires a limited
+        ! flux divergence for cell row grf_bdywidth_c(=4).
+        !
         CALL hflx_limiter_pd( p_patch, p_int, z_dtsub          , & !in
           &                   z_tracer(:,:,:,nnow)             , & !in
           &                   z_rho(:,:,:,nnow)                , & !in
           &                   z_tracer_mflx(:,:,:,nsub)        , & !inout
-          &                   slev, elev, opt_rlend=i_rlend    , & !in
-          &                   opt_acc_async=.TRUE.               ) !in
+          &                   slev, elev                       , & !in
+          &                   opt_rlstart=grf_bdywidth_e-1     , & !in
+          &                   opt_rlend=i_rlend      )             !in
       ENDIF
 
 
@@ -1751,11 +1505,6 @@ CONTAINS
   !! Unlike the standard Miura scheme, a third or fourth order accurate
   !! (i.e. quadratic, cubic) least squares reconstruction is applied.
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2010-05-12)
-  !!  Modification by Daniel Reinert, DWD (2010-10-14)
-  !! - added possibility of cubic reconstruction
-  !!
   !! @par !LITERATURE
   !! - Miura, H. (2007), Mon. Weather Rev., 135, 4038-4044
   !! - Ollivier-Gooch, C. (2002), JCP, 181, 729-752 (for lsq reconstruction)
@@ -1772,7 +1521,7 @@ CONTAINS
     CHARACTER(len=*), PARAMETER ::  &
       &  routine = modname//':upwind_hflux_miura3'
 
-    TYPE(t_patch), INTENT(INOUT) ::  &  !< patch on which computation is performed
+    TYPE(t_patch), INTENT(IN) ::  &  !< patch on which computation is performed
       &  p_patch
 
     TYPE(t_int_state), TARGET, INTENT(IN) ::  &  !< pointer to data structure for interpolation
@@ -1936,7 +1685,7 @@ CONTAINS
     !$ACC DATA PRESENT(opt_rhodz_new) IF(PRESENT(opt_rhodz_new) .AND. i_am_accel_node)
 
     IF (p_test_run) THEN
-      !$ACC KERNELS IF(i_am_accel_node)
+      !$ACC KERNELS ASYNC(1) IF(i_am_accel_node)
       z_lsq_coeff(:,:,:,:) = 0._wp
       !$ACC END KERNELS
     ENDIF
@@ -2218,6 +1967,7 @@ CONTAINS
       ! deallocate temporary arrays for quadrature, departure region and
       ! upwind cell indices
 
+      !$ACC WAIT(1)
       !$ACC EXIT DATA DELETE(z_quad_vector_sum, z_dreg_area, z_cell_idx, z_cell_blk) &
       !$ACC   IF(i_am_accel_node)
 
@@ -2230,6 +1980,7 @@ CONTAINS
       ENDIF
     END IF
 
+    !$ACC WAIT(1)
     !$ACC END DATA
     !$ACC END DATA
     !$ACC END DATA
@@ -2246,9 +1997,6 @@ CONTAINS
   !! The scheme provides the time averaged horizontal tracer fluxes at triangle
   !! edges. A third or fourth order accurate (i.e. quadratic, cubic) least squares
   !! reconstruction can be selected.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2012-04-12)
   !!
   !! @par !LITERATURE
   !! - Miura, H. (2007), Mon. Weather Rev., 135, 4038-4044
@@ -2267,7 +2015,7 @@ CONTAINS
     CHARACTER(len=*), PARAMETER ::  &
       &  routine = modname//':upwind_hflux_ffsl'
 
-    TYPE(t_patch), INTENT(INOUT) ::  &  !< patch on which computation is performed
+    TYPE(t_patch), INTENT(IN) ::  &  !< patch on which computation is performed
       &  p_patch
 
     TYPE(t_int_state), TARGET, INTENT(IN) ::  &  !< pointer to data structure for interpolation
@@ -2769,9 +2517,6 @@ CONTAINS
   !! edges. A third or fourth order accurate (i.e. quadratic, cubic) least squares
   !! reconstruction can be selected.
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2013-11-01)
-  !!
   !! @par !LITERATURE
   !! - Miura, H. (2007), Mon. Weather Rev., 135, 4038-4044
   !! - Ollivier-Gooch, C. (2002), JCP, 181, 729-752 (for lsq reconstruction)
@@ -2789,7 +2534,7 @@ CONTAINS
     CHARACTER(len=*), PARAMETER ::  &
       &  routine = modname//':upwind_hflux_hybrid'
 
-    TYPE(t_patch), INTENT(INOUT) ::  &  !< patch on which computation is performed
+    TYPE(t_patch), INTENT(IN) ::  &  !< patch on which computation is performed
       &  p_patch
 
     TYPE(t_int_state), TARGET, INTENT(IN) ::  &  !< pointer to data structure for interpolation
@@ -2975,7 +2720,7 @@ CONTAINS
     !$ACC   CREATE(z_lsq_coeff, dreg_patch0) IF(i_am_accel_node)
 
     IF (p_test_run) THEN
-      !$ACC KERNELS IF(i_am_accel_node)
+      !$ACC KERNELS ASYNC(1) IF(i_am_accel_node)
       z_lsq_coeff(:,:,:,:) = 0._wp
       !$ACC END KERNELS
     ENDIF
@@ -3113,6 +2858,7 @@ CONTAINS
 
       ENDIF
 
+      !$ACC WAIT(1)
       !$ACC EXIT DATA DELETE(dreg_patch1, dreg_patch2) &
       !$ACC   IF(i_am_accel_node)
       DEALLOCATE(dreg_patch1, dreg_patch2)
@@ -3318,7 +3064,6 @@ CONTAINS
     !    to limit computed fluxes.
     !    The flux limiter is based on work by Zalesak (1979)
     !
-    !$ACC WAIT
     IF (.NOT. l_out_edgeval .AND. p_itype_hlimit == ifluxl_m) THEN
       CALL hflx_limiter_mo( p_patch, p_int, p_dtime, p_cc,              & !in
         &                   p_rhodz_now, p_rhodz_new, p_mass_flx_e,     & !in

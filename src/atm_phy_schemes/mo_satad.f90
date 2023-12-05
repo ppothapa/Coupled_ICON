@@ -1,48 +1,44 @@
-!>
-!!  Description:
-!!  This module provides service utilities for meteorological calculations.
-!!
-!! Routines (module procedure)
-!!
-!!     - satad_V_3D
-!!       Corrects the temperature, the specific humidity and the cloud water
-!!      content for condensation/evaporation.
-!!
-!!    - qsat_rho
-!!      Specific humidity at water saturation (with respect to flat surface)
-!!      depending on the temperature "temp" and the total density "rhotot")
-!!
-!!    - dqsatdT_rho
-!!       Partial derivative of the specific humidity at water saturation with
-!!       respect to the temperature at constant total density.
-!!
-!!      @author Ulrich Blahak
-!!
-!!    the following functions should  later be replaced by lookup tables
-!!     from mo_convect_tables!!!
-!!
-!!     - pres_sat_water
-!!       Saturation water vapour pressure
-!!
-!!     - pres_sat_ice
-!!       Saturation water vapour pressure
-!!
-!!     - spec_humi
-!!       Specific humidity at saturation pressure
-!!
+!
+!  Description:
+!  This module provides service utilities for meteorological calculations.
+!
+! Routines (module procedure)
+!
+!     - satad_V_3D
+!       Corrects the temperature, the specific humidity and the cloud water
+!      content for condensation/evaporation.
+!
+!    - qsat_rho
+!      Specific humidity at water saturation (with respect to flat surface)
+!      depending on the temperature "temp" and the total density "rhotot")
+!
+!    - dqsatdT_rho
+!       Partial derivative of the specific humidity at water saturation with
+!       respect to the temperature at constant total density.
+!
+!    the following functions should  later be replaced by lookup tables
+!     from mo_convect_tables!
+!     - pres_sat_water
+!       Saturation water vapour pressure
+!
+!     - pres_sat_ice
+!       Saturation water vapour pressure
+!
+!     - spec_humi
+!       Specific humidity at saturation pressure
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
-!!
-!! @par Revision History
-!! first implementation and modification for ICON by Kristina Froehlich, DWD (2010-09-15)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
 MODULE mo_satad
 
 
@@ -112,9 +108,8 @@ CONTAINS
 
 SUBROUTINE satad_v_3D (maxiter, tol, te, qve, qce,    & ! IN, INOUT
                        rhotot,                        & ! IN
-                       qtvar,                         & ! IN optional
-     idim, kdim, ilo, iup, klo, kup,                  & ! IN
-                                           errstat)     ! optional
+                       idim, kdim, ilo, iup, klo, kup,& ! IN
+                       errstat)                         ! optional
 
   !-------------------------------------------------------------------------------
   !
@@ -170,9 +165,6 @@ SUBROUTINE satad_v_3D (maxiter, tol, te, qve, qce,    & ! IN, INOUT
   REAL    (KIND=ireals),    INTENT (IN),  DIMENSION(:,:) ::  &  !  dim (idim,kdim)
        rhotot    ! density containing dry air and water constituents
 
-  REAL    (KIND=ireals),    INTENT (IN), OPTIONAL, DIMENSION(:,:)       ::  &  !  dim (idim,kdim)
-       qtvar     ! total water variance - needed only for EDMF
-
 !KF error status temporarly set to optional
   INTEGER (KIND=iintegers), INTENT (OUT),  OPTIONAL  ::  &
        errstat                ! Error status of the saturation adjustment
@@ -201,7 +193,7 @@ SUBROUTINE satad_v_3D (maxiter, tol, te, qve, qce,    & ! IN, INOUT
        twork, tworkold
 
 
-  LOGICAL :: ll_satad, lqtvar
+  LOGICAL :: ll_satad
 
 
   !------------ End of header ----------------------------------------------------
@@ -213,12 +205,6 @@ SUBROUTINE satad_v_3D (maxiter, tol, te, qve, qce,    & ! IN, INOUT
   ! Initialization
 
   IF (PRESENT(errstat)) errstat = 0_iintegers
-
-  IF (PRESENT(qtvar)) THEN
-    lqtvar = .TRUE.
-  ELSE
-    lqtvar = .FALSE.
-  ENDIF
 
   zqwmin = 1.0E-20_ireals
 
@@ -256,11 +242,6 @@ SUBROUTINE satad_v_3D (maxiter, tol, te, qve, qce,    & ! IN, INOUT
       DO i = ilo , iup
 
        ll_satad = .TRUE.
-       IF (lqtvar) THEN
-         IF ( qtvar(i,k) > 0.0001_ireals * (qve(i,k)+qce(i,k))**2 ) THEN ! satad not in EDMF boundary layer
-           ll_satad = .false.                                            ! sqrt(qtvar) > 0.001
-         ENDIF
-       ENDIF
 
        IF ( ll_satad ) THEN
 
@@ -370,10 +351,9 @@ SUBROUTINE satad_v_3D (maxiter, tol, te, qve, qce,    & ! IN, INOUT
 END SUBROUTINE satad_v_3D
 
 SUBROUTINE satad_v_3D_gpu (maxiter, tol, te, qve, qce,    & ! IN, INOUT
-                       rhotot,                        & ! IN
-                       qtvar,                         & ! IN optional
-     idim, kdim, ilo, iup, klo, kup,                  & ! IN
-                                           errstat)     ! optional
+                           rhotot,                        & ! IN
+                           idim, kdim, ilo, iup, klo, kup,& ! IN
+                           errstat)                         ! optional
 
   !-------------------------------------------------------------------------------
   !
@@ -430,9 +410,6 @@ SUBROUTINE satad_v_3D_gpu (maxiter, tol, te, qve, qce,    & ! IN, INOUT
   REAL    (KIND=ireals),    INTENT (IN),  DIMENSION(:,:) ::  &  !  dim (idim,kdim)
        rhotot    ! density containing dry air and water constituents
 
-  REAL    (KIND=ireals),    INTENT (IN), OPTIONAL, DIMENSION(:,:)       ::  &  !  dim (idim,kdim)
-       qtvar     ! total water variance - needed only for EDMF
-
 !KF error status temporarly set to optional
   INTEGER (KIND=iintegers), INTENT (OUT),  OPTIONAL  ::  &
        errstat                ! Error status of the saturation adjustment
@@ -460,7 +437,7 @@ SUBROUTINE satad_v_3D_gpu (maxiter, tol, te, qve, qce,    & ! IN, INOUT
   REAL (KIND=ireals), PARAMETER :: cp_v = 1850._ireals ! specific heat of water vapor J
                                                        !at constant pressure
                                                        ! (Landolt-Bornstein)
-  LOGICAL :: ll_satad, lqtvar
+  LOGICAL :: ll_satad
 
 
   !------------ End of header ----------------------------------------------------
@@ -472,12 +449,6 @@ SUBROUTINE satad_v_3D_gpu (maxiter, tol, te, qve, qce,    & ! IN, INOUT
   ! Initialization
 
   IF (PRESENT(errstat)) errstat = 0_iintegers
-
-  IF (PRESENT(qtvar)) THEN
-    lqtvar = .TRUE.
-  ELSE
-    lqtvar = .FALSE.
-  ENDIF
 
   zqwmin = 1.0E-20_ireals
 
@@ -504,11 +475,6 @@ SUBROUTINE satad_v_3D_gpu (maxiter, tol, te, qve, qce,    & ! IN, INOUT
       qtest = qsat_rho(Ttest, rhotot(i,k))
 
       ll_satad = .TRUE.
-      IF (lqtvar) THEN
-        IF ( qtvar(i,k) > 0.0001_ireals * (qve(i,k)+qce(i,k))**2 ) THEN ! satad not in EDMF boundary layer
-          ll_satad = .false.                                            ! sqrt(qtvar) > 0.001
-        ENDIF
-      ENDIF
 
       iter_mask = .FALSE.
       twork = 0.0_ireals

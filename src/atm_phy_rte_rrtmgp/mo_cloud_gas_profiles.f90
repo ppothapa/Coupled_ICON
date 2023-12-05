@@ -1,32 +1,27 @@
-!>
-!! @par Copyright
-!! This code is subject to the MPI-M-Software - License - Agreement in it's most recent form.
-!! Please see URL http://www.mpimet.mpg.de/en/science/models/model-distribution.html and the
-!! file COPYING in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the headers of the routines.
-!!
-!! @brief Module determining gas profiles used in radiative transfer
-!!
-!! @author Sebastian Rast, MPI-M, Hamburg (2019-07-23):
-!!
-!! $ID: n/a$
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+! Module determining gas profiles used in radiative transfer
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_cloud_gas_profiles
 
   USE mo_kind,                 ONLY: wp
   USE mo_impl_constants,       ONLY: max_dom
   USE mo_run_config,           ONLY: ntracer
   USE mo_parallel_config,      ONLY: nproma
+  USE mo_aes_phy_config,       ONLY: aes_phy_config
+  USE mo_aes_cov_config,       ONLY: aes_cov_config
   USE mo_aes_rad_config,       ONLY: aes_rad_config
-  USE mo_run_config,           ONLY: iqv, iqc, iqi, ico2, io3
-  USE mo_bc_greenhouse_gases,  ONLY: ghg_co2mmr, ghg_ch4mmr, ghg_n2ommr, ghg_cfcmmr
+  USE mo_run_config,           ONLY: iqv, iqc, iqi, iqs, ico2, io3
+  USE mo_bc_greenhouse_gases,  ONLY: ghg_co2vmr, ghg_ch4vmr, ghg_n2ovmr, ghg_cfcvmr
   USE mo_bc_ozone,             ONLY: ext_ozone
   USE mo_o3_util,              ONLY: o3_pl2ml, o3_timeint
   USE mo_physical_constants,   ONLY: amd, amw, amco2, amch4, amn2o, amo2, amo3, amc11, amc12
@@ -38,7 +33,8 @@ MODULE mo_cloud_gas_profiles
 
   PRIVATE
 
-  PUBLIC              :: gas_profiles, cloud_profiles, init_gas_profiles
+  PUBLIC              :: gas_profiles, cloud_profiles, snow_profiles, &
+                       & init_gas_profiles
   
   INTEGER, PARAMETER  :: ngases=8
   TYPE t_gas
@@ -190,54 +186,63 @@ CONTAINS
 
     TYPE (t_gas),POINTER:: dom_gas(:) !< gas(:,jg)
 
-    REAL(wp)            :: ghg_cfcmmr1, ghg_cfcmmr2
+    REAL(wp)            :: ghg_cfcvmr1, ghg_cfcvmr2
 
 !   Remark: the order of gases is relevant for this subroutine only.
 
 ! general settings (do not depend on time, but on the domain)
     dom_gas => gas(:,jg)
-        
+
     !$ACC DATA PRESENT(xvmr_vap, xvmr_co2, xvmr_ch4, xvmr_o2, xvmr_o3, xvmr_n2o, xvmr_cfc) &
     !$ACC   PRESENT(xq_trc, dom_gas) &
     !$ACC   CREATE(gas_profile)
 
 ! settings depending on time
 
-    ! Pass ghg_cfcmmr as kernel parameters, without explicit copying
-    ghg_cfcmmr1 = ghg_cfcmmr(1)
-    ghg_cfcmmr2 = ghg_cfcmmr(2)
+    ! Pass ghg_cfcvmr as kernel parameters, without explicit copying
+    ghg_cfcvmr1 = ghg_cfcvmr(1)
+    ghg_cfcvmr2 = ghg_cfcvmr(2)
     !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
 !   CO2
-    dom_gas(2)%vmr_scenario = ghg_co2mmr
+    dom_gas(2)%vmr_scenario = ghg_co2vmr
 !   CH4
-    dom_gas(3)%vmr_scenario = ghg_ch4mmr
+    dom_gas(3)%vmr_scenario = ghg_ch4vmr
 !   N2O
-    dom_gas(6)%vmr_scenario = ghg_n2ommr
+    dom_gas(6)%vmr_scenario = ghg_n2ovmr
 !   CFC11
-    dom_gas(7)%vmr_scenario = ghg_cfcmmr1
+    dom_gas(7)%vmr_scenario = ghg_cfcvmr1
 !   CFC12
-    dom_gas(8)%vmr_scenario = ghg_cfcmmr2
+    dom_gas(8)%vmr_scenario = ghg_cfcvmr2
     !$ACC END KERNELS
 
     DO igas=1,ngases
       SELECT CASE (dom_gas(igas)%irad)
       CASE (0) ! gas concentration is 0
-        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
-        gas_profile(jcs:jce,:,igas) = 0.0_wp
-        !$ACC END KERNELS
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1)
+        DO jk=1,klev
+          gas_profile(jcs:jce,jk,igas) = 0.0_wp
+        END DO
+        !$ACC END PARALLEL LOOP
       CASE (1) ! gas is taken from interactive (so transported) tracer
         !note that trasported species are in MMR ...
-        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
-        gas_profile(jcs:jce,:,igas) = xq_trc(jcs:jce,:,igas) * dom_gas(igas)%mmr2vmr
-        !$ACC END KERNELS
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1)
+        DO jk=1,klev
+          gas_profile(jcs:jce,jk,igas) = xq_trc(jcs:jce,jk,dom_gas(igas)%itrac) * dom_gas(igas)%mmr2vmr
+        END DO
+        !$ACC END PARALLEL LOOP
+
       CASE (2,12) ! gas concentration is set from namelist value
-        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
-        gas_profile(jcs:jce,:,igas) = dom_gas(igas)%vmr
-        !$ACC END KERNELS
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1)
+        DO jk=1,klev
+            gas_profile(jcs:jce,jk,igas) = dom_gas(igas)%vmr
+        END DO
+        !$ACC END PARALLEL LOOP
       CASE (3,13) ! gas concentration is taken from greenhouse dom_gas scenario
-        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
-        gas_profile(jcs:jce,:,igas) = dom_gas(igas)%vmr_scenario
-        !$ACC END KERNELS
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1)
+        DO jk=1,klev
+          gas_profile(jcs:jce,jk,igas) = dom_gas(igas)%vmr_scenario
+        END DO
+        !$ACC END PARALLEL LOOP
       
       !  O3
       CASE (4) ! ozone is constant in time in climatology, first time is used
@@ -277,6 +282,7 @@ CONTAINS
               &          o3_time_int = zo3_timint,              &
               &          o3_clim     = gas_profile(:,:,igas),   &
               &          opt_use_acc = use_acc                  )
+        !$ACC WAIT
         !$ACC END DATA
         DEALLOCATE(zo3_timint)
       END SELECT
@@ -328,80 +334,125 @@ CONTAINS
     END DO
     !$ACC END PARALLEL LOOP
     
+    !$ACC WAIT
     !$ACC END DATA
   END SUBROUTINE gas_profiles
 
   SUBROUTINE cloud_profiles(jg,            jcs,           jce,         &
-       &                    klev,          xq_trc,xm_air, cld_frc,     &
-       &                    xm_liq,        xm_ice,        xc_frc,      &
-       &                    cld_cvr                                    )
+       &                    klev,          xq_trc,        xm_air,      &
+       &                    xm_liq,        xm_ice,        xc_frc       )
     INTEGER, INTENT(IN)    :: jg             ! domain index
     INTEGER, INTENT(IN)    :: jcs            ! start index in block of col.
     INTEGER, INTENT(IN)    :: jce            ! end index in block of col.
     INTEGER, INTENT(IN)    :: klev           ! number of vertical levels
     REAL(wp), INTENT(IN)   :: xq_trc(:,:,:)  ! tracer mass mixing ratios
     REAL(wp), INTENT(IN)   :: xm_air(:,:)    ! air mass in layer
-    REAL(wp), INTENT(IN)   :: cld_frc(:,:)   ! cloud fraction in layer
     REAL(wp), INTENT(OUT)  :: xm_liq(:,:)    ! cloud water
     REAL(wp), INTENT(OUT)  :: xm_ice(:,:)    ! cloud ice
     REAL(wp), INTENT(OUT)  :: xc_frc(:,:)    ! cloud fraction in layer
-    REAL(wp), INTENT(OUT)  :: cld_cvr(:)     ! total cloud cover
+
+    INTEGER                    :: jl, jk, jks
+    REAL(wp)                   :: frad, xrad
+    REAL(wp)                   :: cqx
+
+    !$ACC DATA PRESENT(xm_liq, xm_ice, xq_trc, xm_air, xc_frc)
+    !
+    SELECT CASE (aes_rad_config(jg)%irad_h2o)
+    !
+    CASE (0) ! no clouds in radiation
+      !
+      !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
+      DO jk=1,klev
+        DO jl = jcs,jce
+          xc_frc(jl,jk) = 0.0_wp
+          xm_liq(jl,jk) = 0.0_wp
+          xm_ice(jl,jk) = 0.0_wp
+        END DO
+      END DO
+      !$ACC END PARALLEL LOOP
+      !
+    CASE (1) ! clouds in radiation in layers jks_cloudy to klev, where the mass fraction of
+      !        cloud water + cloud ice in air exceeds cqx, with the cloud mass scaled by frad_h2o
+      !  
+      jks  = aes_phy_config(jg)%jks_cloudy
+      cqx  = aes_cov_config(jg)%cqx
+      frad = aes_rad_config(jg)%frad_h2o
+      !
+      IF (frad == 0.0_wp) THEN
+         xrad = 0.0_wp
+      ELSE
+         xrad = 1.0_wp
+      END IF
+      
+      !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
+      DO jk=1,jks-1 ! no clouds in layers 1 to jks-1
+        DO jl = jcs,jce
+          xc_frc(jl,jk) = 0.0_wp
+          xm_liq(jl,jk) = 0.0_wp
+          xm_ice(jl,jk) = 0.0_wp
+        END DO
+      END DO
+      !$ACC END PARALLEL LOOP
+      !
+      !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
+      DO jk=jks,klev ! clouds in layers jks to klev
+        DO jl = jcs,jce
+          !
+          ! clouds exist (=1) where the mass fraction of clouds in air exceed cqx, if frad /= 0,
+          ! otherwise no clouds in radiation
+          xc_frc(jl,jk) = xrad*MERGE(1.0_wp, 0.0_wp, xq_trc(jl,jk,iqc) + xq_trc(jl,jk,iqi) >= cqx)
+          !
+          ! apply this cloud cover as mask, scale cloud mass in layer by frad, and make >= 0
+          xm_liq(jl,jk) = xc_frc(jl,jk)*MAX(xq_trc(jl,jk,iqc)*xm_air(jl,jk)*frad,0._wp) 
+          xm_ice(jl,jk) = xc_frc(jl,jk)*MAX(xq_trc(jl,jk,iqi)*xm_air(jl,jk)*frad,0._wp)
+          !
+        END DO
+      END DO
+      !$ACC END PARALLEL LOOP
+      !
+    END SELECT
+    !
+    !$ACC WAIT
+    !$ACC END DATA
+  END SUBROUTINE cloud_profiles
+
+  SUBROUTINE snow_profiles(jg,            jcs,           jce,         &
+       &                   klev,          xq_trc,xm_air, xm_snw       )
+    INTEGER, INTENT(IN)    :: jg             ! domain index
+    INTEGER, INTENT(IN)    :: jcs            ! start index in block of col.
+    INTEGER, INTENT(IN)    :: jce            ! end index in block of col.
+    INTEGER, INTENT(IN)    :: klev           ! number of vertical levels
+    REAL(wp), INTENT(IN)   :: xq_trc(:,:,:)  ! in  tracer  mass fraction [kg/kg]
+    REAL(wp), INTENT(IN)   :: xm_air(:,:)    ! air mass in layer
+    REAL(wp), INTENT(OUT)  :: xm_snw(:,:)    ! snow     
 
     INTEGER                    :: jl, jk
     REAL(wp)                   :: frad
 
     frad = aes_rad_config(jg)% frad_h2o
 
-    !$ACC DATA PRESENT(xm_liq, xm_ice, xq_trc, xm_air, xc_frc, cld_frc, cld_cvr)
+    !$ACC DATA PRESENT(xm_snw, xq_trc, xm_air)
     SELECT CASE (aes_rad_config(jg)%irad_h2o)
     CASE (0)
-      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
-      xm_liq(jcs:jce,:)=0._wp
-      xm_ice(jcs:jce,:)=0._wp
-      !$ACC END KERNELS
+      !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
+      DO jk=1,klev
+        DO jl = jcs,jce
+            xm_snw(jl,jk) = 0._wp
+        END DO
+      END DO
+      !$ACC END PARALLEL LOOP
     CASE (1)
-      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
-      xm_liq(jcs:jce,:) = MAX(xq_trc(jcs:jce,:,iqc)*xm_air(jcs:jce,:)*frad,0._wp)
-      xm_ice(jcs:jce,:) = MAX(xq_trc(jcs:jce,:,iqi)*xm_air(jcs:jce,:)*frad,0._wp)
-      !$ACC END KERNELS
+      !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
+      DO jk=1,klev
+        DO jl = jcs,jce
+            xm_snw(jl,jk) = MAX(xq_trc(jl,jk,iqs) * xm_air(jl,jk) * frad, 0._wp)
+        END DO
+      END DO
+      !$ACC END PARALLEL LOOP
     END SELECT
-    !
-    ! --- cloud cover
-    ! 
-    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
-    DO jk=1,klev
-      DO jl = jcs,jce
-        xc_frc(jl,jk) = MERGE(cld_frc(jl,jk), 0._wp, &
-            xm_liq(jl,jk) > 0.0_wp .OR. xm_ice(jl,jk) > 0.0_wp)
-      END DO
-    END DO
-    !$ACC END PARALLEL LOOP
-    !
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-    !$ACC LOOP GANG(STATIC: 1) VECTOR
-    DO jl = jcs, jce
-      cld_cvr(jl) = 1.0_wp - xc_frc(jl,1)
-    END DO
-
-    !$ACC LOOP SEQ
-    DO jk = 2, klev
-      !$ACC LOOP GANG(STATIC: 1) VECTOR
-      DO jl = jcs, jce
-        cld_cvr(jl) = cld_cvr(jl)                                  &
-            &    *(1.0_wp-MAX(xc_frc(jl,jk),xc_frc(jl,jk-1)))      &
-            &    /(1.0_wp-MIN(xc_frc(jl,jk-1),1.0_wp-EPSILON(1.0_wp)))
-      END DO
-    END DO
-
-    !$ACC LOOP GANG(STATIC: 1) VECTOR
-    DO jl = jcs, jce
-      cld_cvr(jl) = 1.0_wp-cld_cvr(jl)
-    END DO
-    !$ACC END PARALLEL
-
     !$ACC WAIT
     !$ACC END DATA
-  END SUBROUTINE cloud_profiles
+  END SUBROUTINE snow_profiles
 
   SUBROUTINE tanh_profile(jcs,      jce,                 &
        &                  pressure, vpp,     gas_profile )

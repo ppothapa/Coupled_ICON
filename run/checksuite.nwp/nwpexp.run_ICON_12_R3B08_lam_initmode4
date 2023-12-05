@@ -10,10 +10,7 @@ make_and_change_to_experiment_dir # function in ../add_run_routines
 START_MODEL="${START_MODEL:=$START $MODEL}"
 
 # set icon_data_poolFolder
-icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}"
-if [[ -d "$icon_data_poolFolder/buildbot_data/nwp" ]]; then
-  icon_data_poolFolder="$icon_data_poolFolder/buildbot_data/nwp"
-fi
+icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/buildbot_data/nwp"
 
 # base directory for ICON sources, binary and auxilary data:
 ICONDIR="${basedir}" # basedir can be set with create_target_header
@@ -63,6 +60,9 @@ ln -sf $INIDIR/init_DOM02_ML_20170112T000000Z.nc init_DOM02_ML_20170112T000000Z.
 
 # files needed for radiation
 ln -sf ${ICONDIR}/externals/ecrad/data ecrad_data
+
+# files needed for aerosol climatology
+ln -sf ${GRIDDIR}/icon_cams_clim_lam_test_DOM01.nc icon_cams_clim_lam_test_DOM01.nc
 
 # Dictionary for the mapping: GRIB2/Netcdf input names <-> ICON internal names
 ln -s ${GRIDDIR}/map_file.latbc .
@@ -170,7 +170,6 @@ cat > NAMELIST_NWP << EOF
 ! dynamics_nml: dynamical core -----------------------------------------------
 &dynamics_nml
  iequations                  =                          3         ! type of equations and prognostic variables
- idiv_method                 =                          1         ! method for divergence computation
  divavg_cntrwgt              =                          0.50      ! weight of central cell for divergence averaging
  lcoriolis                   =                      .TRUE.        ! Coriolis force
 /
@@ -294,8 +293,8 @@ cat > NAMELIST_NWP << EOF
  efdt_min_raylfric           =                       7200.        ! minimum e-folding time of Rayleigh friction
  itype_z0                    =                          2         ! type of roughness length data
  icapdcycl                   =                          3         ! apply CAPE modification to improve diurnalcycle over tropical land
- icpl_aero_conv              =                          1         ! coupling between autoconversion and Tegen aerosol climatology
- icpl_aero_gscp              =                          1         ! coupling between autoconversion and Tegen aerosol climatology
+ icpl_aero_conv              =                          0         ! coupling between autoconversion and Tegen aerosol climatology
+ icpl_aero_gscp              =                          0         ! coupling between autoconversion and Tegen aerosol climatology
  lrtm_filename               =                'rrtmg_lw.nc'       ! longwave absorption coefficients for RRTM_LW
  cldopt_filename             =             'rrtm_cldopt.nc'       ! RRTM cloud optical properties
  dt_rad                      =                         720.       ! time step for radiation in s
@@ -336,7 +335,8 @@ cat > NAMELIST_NWP << EOF
 ! radiation_nml: radiation scheme ---------------------------------------------
 &radiation_nml
  irad_o3                     =                          7         ! ozone climatology
- irad_aero                   =                          6         ! aerosols
+ irad_aero                   =                          7         ! CAMS climatology
+ cams_clim_filename          =      'icon_cams_clim_lam_test_DOM<idom>.nc'
  albedo_type                 =                          2         ! type of surface albedo
  vmr_co2                     =                    390.e-06
  vmr_ch4                     =                   1800.e-09
@@ -393,6 +393,11 @@ cat > NAMELIST_NWP << EOF
 EOF
 
 
+
+#
+# configure START_MODEL_function
+#
+ICON_COMPONENT1_VH_procs=$((num_restart_procs + num_io_procs + num_prefetch_proc + num_io_procs_radar))
 
 # ----------------------------------------------------------------------
 # run the model!

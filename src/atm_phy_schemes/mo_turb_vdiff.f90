@@ -1,20 +1,18 @@
-!>
-!! @brief VDIFF turbulent mixing scheme
-!!
-!! @author Hui Wan, MPI-M
-!!
-!! @par Revision History
-!! First versions by Hui Wan, MPI-M (2010-09, 2011-04)
-!! Separated into self-contained module by Roland Wirth, DWD (2021-07)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! VDIFF turbulent mixing scheme
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 #if defined __xlC__ && !defined NOXLFPROCESS
 @PROCESS HOT
 #endif
@@ -754,9 +752,6 @@ CONTAINS
   !! \Delta t \rho_{sfc} \f$, and the flux is given by \f$ \rho C v (x_a - x_{sfc}) \f$, we have
   !! to divide the prefactor by \f$ \alpha \Delta t \f$.
   !!
-  !! @par Revision History
-  !! Initial Revision by R. Wirth, DWD (2021-09)
-  !!
   SUBROUTINE vdiff_surface_flux (jcs, kproma, dtime, pfactor_sfc, pcf, pen, pfn, x_sfc, flx)
 
     INTEGER, INTENT(IN) :: jcs !< Start cell index.
@@ -831,8 +826,6 @@ CONTAINS
   !! Assumes that `aa` and `bb` are in the state right after `vdiff_down`, i.e., before
   !! `vdiff_update_boundary` gets called.
   !!
-  !! @par Revision History
-  !! Initial revision by R. Wirth, DWD (2022-09)
   SUBROUTINE vdiff_get_richtmyer_coeff_momentum( &
         & jcs, kproma, klev, ksfc_type, aa, bb, pfactor_sfc, pcfm_tile, pmair, pen_uv, pfn_u, &
         & pfn_v &
@@ -901,11 +894,8 @@ CONTAINS
   !! of the system for all variables (Gaussian elimination for the other variables has already
   !! been performed by `rhs_elim`, called by `vdiff_down`).
   !!
-  !! @note When omitting the momentum fluxes, the routine implicitly (through the way the matrices
+  !! Note When omitting the momentum fluxes, the routine implicitly (through the way the matrices
   !!   are set up initially) assumes a no-slip boundary condition `u_sfc=0`, not a zero-flux one.
-  !!
-  !! @par Revision History
-  !! Initial revision by R. Wirth, DWD (2021-09)
   !!
   SUBROUTINE vdiff_update_boundary( &
         & jcs, kproma, klev, dtime, pmair, shflx, qflx, aa, aa_btm, s_btm, q_btm, bb, &
@@ -1283,6 +1273,7 @@ CONTAINS
 
     INTEGER :: ist
 
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(matrix_idx, ibtmoffset_mtrx, ibtmoffset_var)
     DEALLOCATE( matrix_idx,ibtmoffset_mtrx,ibtmoffset_var, STAT=ist)
     IF (ist/=SUCCESS) CALL finish('cleanup_vdiff_solver','Deallocation failed')
@@ -2359,15 +2350,14 @@ CONTAINS
     ! Compute TTE at the new time step.
     !-------------------------------------------------------------------
     ztest = 0._wp
-    !$ACC PARALLEL DEFAULT(PRESENT) REDUCTION(+: ztest) ASYNC(1)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) REDUCTION(+: ztest) ASYNC(1)
     DO jk = 1,klevm1
       DO jl = jcs,kproma
         ptotte(jl,jk) = bb(jl,jk,itotte) + tpfac3*pztottevn(jl,jk)
         ztest = ztest+MERGE(1._wp,0._wp,ptotte(jl,jk)<0._wp)
       END DO
     END DO
-    !$ACC END PARALLEL
+    !$ACC END PARALLEL LOOP
 
     IF( vdiff_config%turb == VDIFF_TURB_3DSMAGORINSKY ) THEN
       ztest = 1._wp

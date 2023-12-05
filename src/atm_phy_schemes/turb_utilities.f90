@@ -1,5 +1,15 @@
-!+ Source module for turbulence utility routines
-!==============================================================================
+! Source module for turbulence utility routines
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE  turb_utilities
 
@@ -33,45 +43,6 @@ MODULE  turb_utilities
 !     - zqvap_old (zpvap, zpres) : satur. specif. humid. (old version)
 !     - zdqsdt_old (ztemp, zqsat): d_qsat/d_temp (old version)
 !  
-! Current Code Owner: DWD, Matthias Raschendorfer
-!  phone:  +49  69  8062 2708
-!  fax:    +49  69  8236 1493
-!  email:  Matthias.Raschendorfer@dwd.de
-!  
-! History:
-! Version      Date       Name
-! ------------ ---------- ----
-! V5_4a        2016-05-10 Matthias Raschendorfer
-!  Initial release for new version of common COSMO-ICON physics
-! V5_4d        2016-12-12 Matthias Raschendorfer
-!  Renamed SUB 'turb_param' to turb_setup and extended it in order to avoid code
-!   doubling in SUB 'turbdiff' and SUB 'turbtran'. By this, the initialization
-!   of 'tfh', 'tfm' and 'rcld' is done not only for 'turbtran', but also for 
-!   'turbdiff', to make sure that it is also done, if another transfer-scheme
-!   is running.
-! V5_4e        2017-03-23 Ulrich Schaettler
-!  Computation of several constants in turb_setup have to be done also for ntstep > 0
-!   because of restarts
-! V5_4f        2017-09-01 Matthias Raschendorfer
-!  Modified initialization for fc_min
-!  a_stab related correction only for first iteration
-! V5_4h        2017-12-15 Xavier Lapillonne
-!  Ported turbulence to GPU
-! V5_5b        2018-10-29 Christophe Charpilloz, Katie Osterried
-!  OpenACC porting for lbdclim parts
-! V5_6         2019-02-27 Philippe Marti, Valentin Clement, Xavier Lapillonne
-!                         Ulrich Schaettler
-!  CLAW directive to enhance OpenACC port performance
-!  Updated with ICON Version d7e0252 (US)
-!    - output for GPU actions only for _OPENACC
-!    - modifications for definition of some argument lists
-!  Removed CLAW directives 2023-04-06 Reiner Schnur
-!
-! Code Description:
-! Language: Fortran 90.
-! Software Standards: "European Standards for Writing and
-! Documenting Exchangeable Fortran 90 Code".
-!==============================================================================
 !
 ! Documentation of changes to former versions of these subroutines:
 !
@@ -311,6 +282,12 @@ REAL (KIND=wp), PARAMETER :: &
     z1d2 = z1/z2 , &
     z1d3 = z1/z3
 
+#ifdef ICON_USE_CUDA_GRAPH
+  LOGICAL, PARAMETER :: using_cuda_graph = .TRUE.
+#else
+  LOGICAL, PARAMETER :: using_cuda_graph = .FALSE.
+#endif
+
 !==============================================================================
 
 CONTAINS
@@ -445,7 +422,8 @@ LOGICAL, INTENT(IN), OPTIONAL :: lacc ! flag for using GPU code
     ! h_can is a primary external parameter. The initial values of h_can are 0.
     ! If we don't change this, no canopy will be resolved in the vertical direction.
 
-    !$ACC UPDATE HOST(hhl, h_can)
+    !$ACC UPDATE HOST(hhl, h_can) ASYNC(1)
+    !$ACC WAIT(1)
 
     kcm=ke
     DO k = ke, 1, -1
@@ -783,7 +761,10 @@ INTEGER :: i,k
        tur_rcpl=0.0_wp
      END IF
 
-   !$ACC END DATA
+     IF (.NOT. using_cuda_graph) THEN
+       !$ACC WAIT(acc_async_queue)
+     END IF
+     !$ACC END DATA
 
 END SUBROUTINE turb_setup
 
@@ -1219,6 +1200,9 @@ INTEGER :: &
 
    END IF
    !$ACC END PARALLEL
+   IF (.NOT. using_cuda_graph) THEN
+      !$ACC WAIT(acc_async_queue)
+   END IF
    !$ACC END DATA
    !$ACC END DATA
 
@@ -2182,6 +2166,9 @@ LOGICAL ::  &
 
   END DO
   !$ACC END PARALLEL
+  IF (.NOT. using_cuda_graph) THEN
+    !$ACC WAIT(acc_async_queue)
+  END IF
   !$ACC END DATA
 
 END SUBROUTINE turb_cloud
@@ -3337,11 +3324,13 @@ LOGICAL :: ldepth, lrpdep, lauxil
       !$ACC END PARALLEL
    END IF
 
+   IF (.NOT. using_cuda_graph) THEN
+     !$ACC WAIT(1)
+   END IF
    ! See comment above
    DO n=1,nvars
 #ifdef _PGI_LEGACY_WAR
       IF(lzacc) THEN 
-         !$ACC WAIT(1)
          CALL acc_detach(pvar(n)%bl)
          CALL acc_detach(pvar(n)%ml)
       END IF
@@ -3350,7 +3339,6 @@ LOGICAL :: ldepth, lrpdep, lauxil
 #endif
    END DO
 
-   !$ACC WAIT
    !$ACC END DATA
 
 END SUBROUTINE bound_level_interp

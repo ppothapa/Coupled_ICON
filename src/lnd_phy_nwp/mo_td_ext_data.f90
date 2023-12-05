@@ -1,25 +1,20 @@
-!>
-!! Subroutines needed for updating the climatological boundary conditions 
-!! in NWP physics.
-!!
-!! includes, e.g. updating time dependent SST and Sea Ice fraction
-!!
-!!
-!!
-!! @author Pilar Ripodas, DWD, Offenbach (2012-12)
-!!
-!!
-!! @par Revision History
-!! Initial release by  Pilar Ripodas, DWD, Offenbach (2012-12)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Subroutines needed for updating the climatological boundary conditions
+! in NWP physics.
+!
+! includes, e.g. updating time dependent SST and Sea Ice fraction
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_td_ext_data
 
   USE mo_kind,                ONLY: wp
@@ -83,11 +78,6 @@ CONTAINS
   !! In addition, some fields which directly depend on the above ones
   !! are updated as well, in order to have a consistent state.
   !! Prominent examples are the sea index lists, t_g, t_s, plcov, sai, tai.
-  !!
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-11-30)
-  !! Callees moved here from mo_nh_stepping:perform_nh_timeloop
   !!
   SUBROUTINE update_nwp_phy_bcs (p_patch, ext_data, p_lnd_state, p_nh_state, &
     &                                ref_datetime, target_datetime, mtime_old )
@@ -235,9 +225,6 @@ CONTAINS
   !!  means (ext_data_mode = 2) or from the actual monthly means (ext_data_mode = 3).
   !!  Another option not yet implemented (ext_data_mode = 4) will set SST and
   !!  sea ice cover to the actual (day, month, year) daily mean
-  !!
-  !! @par Revision History
-  !! Developed  by P. Ripodas (2012-12)
   !!
   SUBROUTINE set_sst_and_seaice (lread, target_datetime, datetime_old, ext_data_mode,  &
                                   &  p_patch, ext_data, p_lnd_state)
@@ -411,22 +398,11 @@ CONTAINS
       ! do nothing
     END SELECT
 
-    !$ACC UPDATE DEVICE(p_lnd_state%diag_lnd%t_seasfc, p_lnd_state%diag_lnd%fr_seaice)
+    !$ACC UPDATE DEVICE(p_lnd_state%diag_lnd%t_seasfc, p_lnd_state%diag_lnd%fr_seaice) ASYNC(1)
 
   END SUBROUTINE set_sst_and_seaice
 !-----------------------------------------------------------------------
 
-  !>
-  !! <Short description of the subroutine for listings and indices>
-  !!
-  !! <Describe the purpose of the subroutine and its algorithm(s).>
-  !! <Include any applicable external references inline as module::procedure,>
-  !! <external_procedure(), or by using @see.>
-  !! <Don't forget references to literature.>
-  !!
-  !! @par Revision History
-  !! <Description of activity> by <name, affiliation> (<YYYY-MM-DD>)
-  !!
   SUBROUTINE read_td_ext_data_file (m1,m2,y1,y2,p_patch,ext_data)
 
     INTEGER, INTENT(IN)                  :: m1,m2,y1,y2 ! month and year of the

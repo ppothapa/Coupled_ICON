@@ -1,42 +1,36 @@
-!>
-!! Soil Vegetation Atmosphere Transfer (SVAT) scheme TERRA
-!! Source Module  "sfc_terra.f90"
-!! "Nihil in TERRA sine causa fit." (Cicero)
-!!------------------------------------------------------------------------------
-!!-----------------------------------------------------------------------------
-!!
-!! @par Description:
-!!   The module "sfc_terra.f90" performs calculations related to the
-!!   parameterization of soil processes. It contains the subroutine terra, which 
-!!   is the combination of the former parts terra1 and terra2 of the COSMO-Model.
-!!
-!!   All parametric scalar and array data for this soil model routine are
-!!   defined in the data module sfc_terra_data.f90.
-!!   All global fields that are used by the soil model are passed through the
-!!   argument list.
-!!   All global scalar variables of the model that are used by the soil model 
-!!   routine terra are imported by USE statements below.
-!!
-!! @author E. Heise, R. Schrodin, B. Ritter
-!! @author E. Machulskaya, F. Ament, J. Helmert
-!!
-!! @par reference   This is an adaptation of subroutine terra_multlay in file
-!!  src_soil_multlay.f90 of the lm_f90 library (COSMO code). Equation numbers refer to
-!!  Doms, Foerstner, Heise, Herzog, Raschendorfer, Schrodin, Reinhardt, Vogel
-!!    (September 2005): "A Description of the Nonhydrostatic Regional Model LM",
-!!
-!! @par Revision History
-!! implemented into ICON by K. Froehlich, E. Machulskaya, and J. Helmert (2010-11-XX)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!==============================================================================
+! Soil Vegetation Atmosphere Transfer (SVAT) scheme TERRA
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+!
+! Source Module  "sfc_terra.f90"
+! "Nihil in TERRA sine causa fit." (Cicero)!!
+!
+! @par Description:
+!   The module "sfc_terra.f90" performs calculations related to the
+!   parameterization of soil processes. It contains the subroutine terra, which
+!   is the combination of the former parts terra1 and terra2 of the COSMO-Model.
+!
+!   All parametric scalar and array data for this soil model routine are
+!   defined in the data module sfc_terra_data.f90.
+!   All global fields that are used by the soil model are passed through the
+!   argument list.
+!   All global scalar variables of the model that are used by the soil model
+!   routine terra are imported by USE statements below.
+!
+! @par reference   This is an adaptation of subroutine terra_multlay in file
+!  src_soil_multlay.f90 of the lm_f90 library (COSMO code). Equation numbers refer to
+!  Doms, Foerstner, Heise, Herzog, Raschendorfer, Schrodin, Reinhardt, Vogel
+!    (September 2005): "A Description of the Nonhydrostatic Regional Model LM",
 
 MODULE sfc_terra
 
@@ -159,6 +153,11 @@ PUBLIC :: terra
 ! Public variables
 !------------------------------------------------------------------------------
 
+#ifdef ICON_USE_CUDA_GRAPH
+  LOGICAL, PARAMETER :: using_cuda_graph = .TRUE.
+#else
+  LOGICAL, PARAMETER :: using_cuda_graph = .FALSE.
+#endif
 
 !------------------------------------------------------------------------------
 ! Parameters and variables which are global in this module
@@ -2498,7 +2497,7 @@ ENDDO
             zrla   = 1.0_wp/MAX(cdash*SQRT(zustar),eps_div)
           CASE (2)   ! Raschendorfer transfer scheme: laminar canopy resistance already considered
             zrla   = 0.0_wp
-          CASE DEFAULT ! 3: EDMF: additional laminar canopy resistance
+          CASE DEFAULT ! additional laminar canopy resistance for other schemes
             zrla   = 1.0_wp/MAX(tch(i)*zuv,eps_div)
         END SELECT
 
@@ -3817,6 +3816,7 @@ ENDDO
 
   IF (lmulti_snow) THEN
 
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
     !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO i = ivstart, ivend
       ! Estimate thermal surface fluxes:
@@ -4112,6 +4112,7 @@ ENDDO
       zfor_snow_mult(i)  = (zrnet_snow + zshfl_snow(i) + zlhfl_snow(i) + lh_f*zrr(i))*zf_snow(i)
     END DO
 
+  !$ACC END PARALLEL
   ELSE  ! single-layer snow model
 
     ! TERRA_URB: Set anthropogenic heat flux
@@ -4229,8 +4230,9 @@ ENDDO
     !$ACC END PARALLEL
 
     IF (msg_level >= 20) THEN
-      !$ACC UPDATE ASYNC(acc_async_queue) HOST(soiltyp_subs, zshfl_s, zlhfl_s, zrhoch, zth_low, t)
-      !$ACC UPDATE ASYNC(acc_async_queue) HOST(zts_pm, zverbo, zf_snow, qv, qv_s, tch, tcm, zts)
+      !$ACC UPDATE HOST(soiltyp_subs, zshfl_s, zlhfl_s, zrhoch, zth_low, t) ASYNC(acc_async_queue)
+      !$ACC UPDATE HOST(zts_pm, zverbo, zf_snow, qv, qv_s, tch, tcm, zts) ASYNC(acc_async_queue)
+      !$ACC WAIT(acc_async_queue)
       DO i = ivstart, ivend
         IF (soiltyp_subs(i) == 1) THEN  !1=glacier and Greenland
           IF ( ABS( zshfl_s(i) )  >  500.0_wp  .OR. &
@@ -4717,9 +4719,10 @@ ENDDO
   !$ACC END PARALLEL
 
   IF (msg_level >= 20) THEN
-    !$ACC UPDATE ASYNC(acc_async_queue) HOST(zshfl_s, zlhfl_s, zf_snow, zrhoch, t, zts, zts_pm, zverbo, qv, qv_s)
-    !$ACC UPDATE ASYNC(acc_async_queue) HOST(zshfl_snow, zlhfl_snow, zth_low, ztsnow)
-    !$ACC UPDATE ASYNC(acc_async_queue) HOST(zwsnow, zrr, zrs, zdwsndt)
+    !$ACC UPDATE HOST(zshfl_s, zlhfl_s, zf_snow, zrhoch, t, zts, zts_pm, zverbo, qv, qv_s) ASYNC(acc_async_queue)
+    !$ACC UPDATE HOST(zshfl_snow, zlhfl_snow, zth_low, ztsnow) ASYNC(acc_async_queue)
+    !$ACC UPDATE HOST(zwsnow, zrr, zrs, zdwsndt) ASYNC(acc_async_queue)
+    !$ACC WAIT(acc_async_queue)
     DO i = ivstart, ivend
 !     IF (soiltyp_subs(i) == 1) THEN  !1=glacier and Greenland
       IF ( ABS( zshfl_s(i)    * (1.0_wp-zf_snow(i)) )  >  700.0_wp .OR. &
@@ -5566,6 +5569,10 @@ ENDDO
     !$ACC END PARALLEL
   ENDIF
 
+  IF (.NOT. using_cuda_graph) THEN
+    !$ACC WAIT(acc_async_queue)
+  END IF
+
 ! for optional fields related to soil water budget
   !$ACC END DATA
 
@@ -5577,12 +5584,15 @@ ENDDO
   !$ACC END DATA
 
   IF (msg_level >= 19) THEN
-    !$ACC UPDATE WAIT(acc_async_queue) HOST(ivend)
+    !$ACC UPDATE HOST(ivend) ASYNC(acc_async_queue)
+    IF (.NOT. using_cuda_graph) THEN
+      !$ACC WAIT(acc_async_queue)
+    END IF
     DO i = ivstart, ivend
 
-!     IF (ABS(t_s_now(i)-t_s_new(i)) > 15.0_wp .or. ABS(t_sk_now(i)-t_sk_new(i)) > 15.0_wp) THEN
-!     consistent to the first debug output, we ask for a specific grid point
-     IF (i== mvid .AND. iblock == mbid .AND. my_cart_id == mcid) THEN
+     IF (ABS(t_s_now(i)-t_s_new(i)) > 15.0_wp .or. ABS(t_sk_now(i)-t_sk_new(i)) > 15.0_wp) THEN
+!     the setting below was only useful in the frame of the COSMO model
+!     IF (i== mvid .AND. iblock == mbid .AND. my_cart_id == mcid) THEN
 
         WRITE(*,'(A        )') '                                '
         WRITE(*,'(A,2I5)'  ) 'SFC-DIAGNOSIS terra output:  iblock = ', iblock, i
@@ -5723,4 +5733,3 @@ END FUNCTION watrdiff_RT
 !------------------------------------------------------------------------------
 
 END MODULE sfc_terra
-

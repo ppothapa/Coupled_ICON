@@ -1,24 +1,22 @@
 !OPTION! -cont
-!! this command should fix the problem of copying arrays in a subroutine call
-!>
-!! This module is the interface between nwp_nh_interface to the
-!! convection parameterisation(s):
-!! inwp_conv == 1 == Tiedtke-Bechtold convection
-!!
-!! @author Kristina Froehlich, DWD, Offenbach (2010-01-25)
-!!
-!! @par Revision History
-!! Initial Kristina Froehlich, DWD, Offenbach (2010-01-25)
-!! Add gust   by Helmut Frank, DWD, Offenbach (2013-03-13)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! this command should fix the problem of copying arrays in a subroutine call
+!
+! This module is the interface between nwp_nh_interface to the
+! convection parameterisation(s):
+! inwp_conv == 1 == Tiedtke-Bechtold convection
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -29,7 +27,7 @@ MODULE mo_nwp_conv_interface
   USE mo_kind,                 ONLY: wp
   USE mo_parallel_config,      ONLY: nproma
   USE mo_model_domain,         ONLY: t_patch
-  USE mo_impl_constants,       ONLY: min_rlcell_int, iedmf
+  USE mo_impl_constants,       ONLY: min_rlcell_int
   USE mo_impl_constants_grf,   ONLY: grf_bdywidth_c
   USE mo_loopindices,          ONLY: get_indices_c
   USE mo_nonhydro_types,       ONLY: t_nh_prog, t_nh_diag,&
@@ -359,14 +357,12 @@ CONTAINS
         !> Convection
         !-------------------------------------------------------------------------
 
-        IF ( atm_phy_nwp_config(jg)%inwp_turb /= iedmf ) THEN ! DUALM is allowed to turn off shallow convection
-          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-          !$ACC LOOP VECTOR
-          DO jc = i_startidx,i_endidx                         ! ldshcv is set in mo_nwp_turb_sfc_interface.f90
-            prm_diag%ldshcv(jc,jb) = .TRUE.                   ! here: option to overwrite DUALM choice
-          ENDDO
-          !$ACC END PARALLEL
-        ENDIF
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+        !$ACC LOOP VECTOR
+        DO jc = i_startidx,i_endidx                         ! ldshcv is set in mo_nwp_turb_sfc_interface.f90
+          prm_diag%ldshcv(jc,jb) = .TRUE.                   ! here: option to overwrite DUALM choice
+        ENDDO
+        !$ACC END PARALLEL
 
         ! Preparing fields for stochastic convection routines
         IF (lstoch_expl .or. lstoch_sde .or. lstoch_deep) THEN

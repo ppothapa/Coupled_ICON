@@ -1,18 +1,16 @@
-!>
-!!
-!! @author Hui Wan, MPI-M
-!!
-!! @par Revision History
-!! First version by Hui Wan (2011-08)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_surface
 
   USE mo_kind,              ONLY: wp, i1
@@ -29,8 +27,6 @@ MODULE mo_surface
   USE mo_physical_constants,ONLY: grav, Tf, alf, albedoW, stbo, tmelt, rhos!!$, rhoi
   USE mo_physical_constants,ONLY: cvd, cpd
   USE mo_coupling_config,   ONLY: is_coupled_run
-  USE mo_coupling_config,   ONLY: config_use_sens_heat_flux_hack
-  USE mo_coupling_config,   ONLY: config_suppress_sens_heat_flux_hack_over_ice
   USE mo_aes_phy_config,    ONLY: aes_phy_config
   USE mo_aes_phy_memory,    ONLY: cdimissval
   USE mo_aes_vdf_config,    ONLY: aes_vdf_config
@@ -87,7 +83,7 @@ CONTAINS
                            & plhflx_gbm, pshflx_gbm,            &! out
                            & pevap_gbm,                         &! out
                            & pu_stress_tile,   pv_stress_tile,  &! out
-                           & plhflx_tile, pshflx_tile,          &! inout
+                           & plhflx_tile, pshflx_tile,          &! out
                            & pevap_tile,                        &! out
                            & pco2nat,                           &! out
                            !! optional
@@ -253,6 +249,7 @@ CONTAINS
     INTEGER     :: is       (      ksfc_type) !< counter for masks
 
     INTEGER  :: jsfc, jk, jkm1, im, k, jl, jls, js
+
     REAL(wp) :: se_sum(kbdim), qv_sum(kbdim), wgt_sum(kbdim), wgt(kbdim)
     REAL(wp) :: zca(kbdim,ksfc_type), zcs(kbdim,ksfc_type)
     REAL(wp) :: zfrc_oce(kbdim)
@@ -325,7 +322,7 @@ CONTAINS
     !$ACC END PARALLEL LOOP
 
     CALL generate_index_list_batched(pfrc_test(:,:), loidx, jcs, kproma, is, 1)
-    !$ACC UPDATE WAIT(1) SELF(is)
+    !$ACC UPDATE HOST(is) ASYNC(1)
 
     ! Compute factor for conversion temperature to dry static energy
     !DO jsfc=1,ksfc_type
@@ -579,7 +576,9 @@ CONTAINS
        !$ACC   HOST(albnirdif_tile, ztsfc_lwtr, zevap_lwtr, zlhflx_lwtr) &
        !$ACC   HOST(zshflx_lwtr, zalbedo_lwtr, ztsfc_lice, zevap_lice) &
        !$ACC   HOST(zlhflx_lice, zshflx_lice, zalbedo_lice, lake_ice_frc) &
-       !$ACC   HOST(pco2_flux_tile)
+       !$ACC   HOST(pco2_flux_tile) &
+       !$ACC   ASYNC(1)
+       !$ACC WAIT(1)
 
        call fs_create_savepoint('jsb_interface_output1', ppser_savepoint)
        call fs_write_field(ppser_serializer, ppser_savepoint, 't_eff_srf', ztsfc_lnd_eff(jcs:kproma))
@@ -669,7 +668,9 @@ CONTAINS
         !$ACC   HOST(zcpt_lnd, pcair, pcsat, zevap_lnd, zlhflx_lnd) &
         !$ACC   HOST(zshflx_lnd, zgrnd_hflx, zgrnd_hcap, z0h_lnd, z0m_tile) &
         !$ACC   HOST(q_snocpymlt, albvisdir_tile, albnirdir_tile, albvisdif_tile) &
-        !$ACC   HOST(albnirdif_tile, pco2_flux_tile)
+        !$ACC   HOST(albnirdif_tile, pco2_flux_tile) &
+        !$ACC   ASYNC(1)
+        !$ACC WAIT(1)
 
         call fs_create_savepoint('jsb_interface_output1', ppser_savepoint)
         call fs_write_field(ppser_serializer, ppser_savepoint, 't_srf', ztsfc_lnd(jcs:kproma))
@@ -1080,8 +1081,9 @@ CONTAINS
       ! Net longwave - we don't have tiles yet
       ! First all ice classes
 
-      IF (config_use_sens_heat_flux_hack .AND. &
-          .NOT. config_suppress_sens_heat_flux_hack_over_ice) THEN
+      IF (aes_phy_config(jg)%use_shflx_adjustment .AND. &
+          .NOT. aes_phy_config(jg)%suppress_shflx_adjustment_over_ice) THEN
+  
 
         !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
         DO k=1,kice
@@ -1100,8 +1102,8 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL LOOP
 
-      ELSE ! .NOT. config_use_sens_heat_flux_hack .OR.
-           ! config_suppress_sens_heat_flux_hack_over_ice
+      ELSE ! .NOT. aes_phy_config(jg)%use_shflx_adjustment .OR.
+           ! aes_phy_config(jg)%suppress_shflx_adjustment_over_ice
 
         !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
         DO k=1,kice
@@ -1120,8 +1122,8 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL LOOP
 
-      ENDIF ! config_use_sens_heat_flux_hack .AND.
-            ! .NOT. config_suppress_sens_heat_flux_hack_over_ice
+      ENDIF ! aes_phy_config(jg)%use_shflx_adjustment .AND.
+            ! .NOT. aes_phy_config(jg)%suppress_shflx_adjustment_over_ice
 
       !$ACC WAIT
       CALL ice_fast(jcs, kproma, kbdim, kice, pdtime, &
@@ -1140,7 +1142,7 @@ CONTAINS
         &   albvisdif_ice,      & ! out
         &   albnirdir_ice,      & ! out
         &   albnirdif_ice,      & ! out
-        &   use_acc=.TRUE.)       ! in
+        &   lacc=.TRUE.)          ! in
 
       ! Update the thickness of snow on ice in atmosphere only simulation.
       ! In coupled experiments this is done by the ocean model in either

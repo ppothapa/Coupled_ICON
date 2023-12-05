@@ -1,6 +1,16 @@
-
-!+ Module acc_device_management
-!------------------------------------------------------------------------------
+! Module acc_device_management
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_acc_device_management
 
@@ -29,29 +39,7 @@ MODULE mo_acc_device_management
 !  - finalizeAccDevice      : finalize device
 !  - printGPUMem            : print current GPU usage
 !
-! Current Code Owner: MeteoSwiss, Oliver Fuhrer
-!  phone:  +41 58 460 9359
-!  fax:    +41 58 460 9278
-!  email:  oliver.fuhrer@meteoswiss.ch
-!
-! History:
-! Version      Date       Name
-! ------------ ---------- ----
-! V5_4         2016-03-10 Oliver Fuhrer, Xavier Lapillonne
-!  Initial release
-! V5_4h        2017-12-15 Ulrich Schaettler
-!  Removed INTEGER declaration, which appeared twice
-! V5_6         2019-02-27 Xavier Lapillonne
-!  Introduced printing of rank id in debug output
-! V5_6b        2019-10-16 Xavier Lapillonne
-!  Changed device mapping to use local slurm id
-! 2.6.3	       2021-03-15 Adapted for ICON blue
-!
-! Code Description:
-! Language: Fortran 90.
-! Software Standards: "European Standards for Writing and
-! Documenting Exchangeable Fortran 90 Code".
-!==============================================================================
+!------------------------------------------------------------------------------
 
 #ifdef _OPENACC
 
@@ -694,12 +682,13 @@ SUBROUTINE runSmallAccKernel()
 ! Begin Subroutine runSmallAccKernel
 !------------------------------------------------------------------------------
   
-  !$ACC PARALLEL
+  !$ACC PARALLEL ASYNC(1)
   !$ACC LOOP
   DO idummy = 1,16
     dummy(idummy) = idummy
   ENDDO
   !$ACC END PARALLEL
+  !$ACC WAIT(1)
   IF (myid == 0) THEN
 #ifdef _OPENACC
     WRITE(*,'(a)') 'INFO: Running with OpenAcc directives'

@@ -1,6 +1,17 @@
+! abstract type for lhs-matrix generators
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 MODULE mo_ocean_solve_lhs_type
 
-! abstract type for lhs-matrix generators
   IMPLICIT NONE
 
   PRIVATE
@@ -18,13 +29,13 @@ MODULE mo_ocean_solve_lhs_type
   END TYPE t_lhs_agen
 
   ABSTRACT INTERFACE
-    SUBROUTINE a_lhs_agen_wp(this, x, ax, use_acc)
+    SUBROUTINE a_lhs_agen_wp(this, x, ax, lacc)
       USE mo_kind, ONLY: wp
       IMPORT t_lhs_agen
       CLASS(t_lhs_agen), INTENT(INOUT) :: this
       REAL(KIND=wp), INTENT(IN) :: x(:,:)
       REAL(KIND=wp), INTENT(OUT) :: ax(:,:)
-      LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+      LOGICAL, INTENT(IN), OPTIONAL :: lacc
     END SUBROUTINE a_lhs_agen_wp
     SUBROUTINE a_lhs_matrix_shortcut(this, idx, blk, coeff)
       USE mo_kind, ONLY: wp

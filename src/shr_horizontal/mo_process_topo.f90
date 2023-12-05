@@ -1,30 +1,17 @@
-!>
-!! Contains routine for topography smoothing
-!!
-!! Contains routine for topography smoothing
-!! <Details of procedures are documented below with their definitions.>
-!! <Include any applicable external references inline as module::procedure,>
-!! <external_procedure(), or by using @see.>
-!! <Don't forget references to literature.>
-!!
-!! @author Guenther Zaengl, DWD
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2012-02-23)
-!! Modification by Daniel Reinert, DWD (2012-02-23)
-!! - Routine smooth_topography moved here from mo_ext_data
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Contains routine for topography smoothing
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_process_topo
 
   USE mo_kind,               ONLY: wp
@@ -49,19 +36,16 @@ MODULE mo_process_topo
   PUBLIC :: compute_smooth_topo
   PUBLIC :: smooth_topo
   PUBLIC :: smooth_topo_real_data, postproc_sso
+  PUBLIC :: smooth_frland
 
 CONTAINS
 
   !-------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------
-  !>
   !! Computes the smoothed topography needed e.g. for the SLEVE coordinate.
   !! May be bypassed once an option for reading the smooth topography from data
   !! is available
-  !!
-  !! @par Revision History
-  !! Initial release by Guenther Zaengl, DWD, (2010-07-21)
   !!
   SUBROUTINE compute_smooth_topo(p_patch, p_int, topo_c, niter, topo_smt_c)
 
@@ -121,14 +105,10 @@ CONTAINS
 
 
   !-----------------------------------------------------------------------
-  !>
   !! Topography smoothing
   !!
   !! Topography smoothing by selectively applying nabla2 and nabla4 
   !! operators.
-  !!
-  !! @par Revision History
-  !! Developed by G. Zaengl
   !!
   SUBROUTINE smooth_topo (p_patch, p_int, topography_c)
 
@@ -171,7 +151,7 @@ CONTAINS
       ! neighbors exceeds a certain threshold value
 
       DO iter_sub = 1, niter ! perform niter iterations
-                             ! note: a variable number of iterations (with an exit condition) potentially 
+                             ! note: a variable number of iterations (with an exit condition) potentially
                              ! causes trouble with MPI reproducibility
 
         z_heightdiff_threshold = heightdiff_threshold(jg)
@@ -373,13 +353,11 @@ CONTAINS
 
     ENDDO !iter
 
-   END SUBROUTINE smooth_topo
+  END SUBROUTINE smooth_topo
 
 
 
   !-----------------------------------------------------------------------
-  !>
-  !! Topography smoothing for real-case runs
   !!
   !! Topography smoothing for real-case runs. Apart from smoothing the 
   !! topography field, 
@@ -388,26 +366,21 @@ CONTAINS
   !! - the SSO standard deviation field is updated based on the smoothed 
   !!   topography
   !!
-  !! @par Revision History
-  !! Developed by G. Zaengl  (2004).
-  !! Modification by Daniel Reinert, DWD (2016-07-06)
-  !! - bring sea points back to zero height after smoothing
-  !!
-  SUBROUTINE smooth_topo_real_data (p_patch, p_int, fr_land, fr_lake, topography_c, sso_stdh)
+  SUBROUTINE smooth_topo_real_data (p_patch, p_int, fr_land, topography_c, fr_lake, sso_stdh)
 
     TYPE(t_patch)      , INTENT(INOUT) :: p_patch
     TYPE(t_int_state)  , INTENT(IN)    :: p_int
     REAL(wp)           , INTENT(IN)    :: fr_land(:,:)
-    REAL(wp)           , INTENT(IN)    :: fr_lake(:,:)
     REAL(wp)           , INTENT(INOUT) :: topography_c(:,:)
-    REAL(wp)           , INTENT(INOUT) :: sso_stdh(:,:)
+    REAL(wp), OPTIONAL , INTENT(IN)    :: fr_lake(:,:)
+    REAL(wp), OPTIONAL , INTENT(INOUT) :: sso_stdh(:,:)
 
     ! local variables
     INTEGER  :: jb, jc
     INTEGER  :: i_startblk, nblks_c, i_startidx, i_endidx
     REAL(wp) :: z_topo_c_sv(nproma,p_patch%nblks_c)
     REAL(wp) :: zhdiff
-
+    LOGICAL  :: is_present_fr_lake
 
     nblks_c    = p_patch%nblks_c
 
@@ -416,15 +389,15 @@ CONTAINS
     ! save original raw topography
     z_topo_c_sv(:,:) = topography_c(:,:)
 
-
     ! topography smoothing
     !
     CALL smooth_topo(p_patch, p_int, topography_c)
 
-
     ! bring sea-points back to zero height (i.e. to original extpar values)
     !
     IF (lrevert_sea_height) THEN
+
+      is_present_fr_lake = PRESENT(fr_lake)
 
       DO jb = i_startblk,nblks_c
 
@@ -433,9 +406,13 @@ CONTAINS
 
         DO jc=i_startidx, i_endidx
           !
-          ! bring grid cell back to zero height, if it is entirely covered by sea. 
-          IF ( (fr_land(jc,jb) + fr_lake(jc,jb)) == 0._wp ) THEN
-            topography_c(jc,jb) = z_topo_c_sv(jc,jb)
+          ! bring grid cell back to zero height, if it is entirely covered by sea.
+          IF (is_present_fr_lake) THEN
+            ! NPW physics
+            IF ((fr_land(jc,jb) + fr_lake(jc,jb)) == 0._wp) topography_c(jc,jb) = z_topo_c_sv(jc,jb)
+          ELSE
+            ! AES physics
+            IF (fr_land(jc,jb) < EPSILON(1._wp)) topography_c(jc,jb) = z_topo_c_sv(jc,jb)
           ENDIF
         ENDDO  !jc
 
@@ -444,7 +421,7 @@ CONTAINS
 
     ! re-compute SSO_STDH based on smoothed topography
     !
-    IF (pp_sso <= 1) THEN
+    IF (PRESENT(sso_stdh) .AND. pp_sso <= 1) THEN
 
       DO jb = i_startblk,nblks_c
 
@@ -463,17 +440,63 @@ CONTAINS
 
   END SUBROUTINE smooth_topo_real_data
 
+  !-----------------------------------------------------------------------
+  !!
+  !! Smoothed land fraction for adaptive tuning of sea ice bottom heat flux
+  !!
+  SUBROUTINE smooth_frland (p_patch, p_int, fr_land, fr_land_smt)
+
+    TYPE(t_patch)      , INTENT(INOUT) :: p_patch
+    TYPE(t_int_state)  , INTENT(IN)    :: p_int
+    REAL(wp)           , INTENT(IN)    :: fr_land(:,:)
+    REAL(wp)           , INTENT(OUT)   :: fr_land_smt(:,:)
+
+    ! local variables
+    INTEGER  :: jb, jc, jb1, jc1, iter, j
+    INTEGER  :: i_startblk, nblks_c, i_startidx, i_endidx
+    REAL(wp) :: zaux(nproma,p_patch%nblks_c)
+
+    nblks_c    = p_patch%nblks_c
+
+    i_startblk = p_patch%cells%start_blk(3,1)
+
+    fr_land_smt(:,:) = fr_land(:,:)
+    zaux(:,:)        = fr_land(:,:)
+
+    DO iter = 1, NINT(200.e3_wp/p_patch%geometry_info%mean_characteristic_length)
+
+      DO jb = i_startblk,nblks_c
+
+        CALL get_indices_c(p_patch, jb, i_startblk, nblks_c, &
+                           i_startidx, i_endidx, 3)
+
+        zaux(i_startidx:i_endidx,jb) = 0._wp
+
+        DO j=1, p_int%cell_environ%max_nmbr_nghbr_cells
+          DO jc = i_startidx, i_endidx
+            IF (j <= p_int%cell_environ%nmbr_nghbr_cells(jc,jb)) THEN
+              jc1 = p_int%cell_environ%idx(jc,jb,j)
+              jb1 = p_int%cell_environ%blk(jc,jb,j)
+              zaux(jc,jb) = zaux(jc,jb) + fr_land_smt(jc1,jb1)/REAL(p_int%cell_environ%nmbr_nghbr_cells(jc,jb),wp)
+            ENDIF
+          ENDDO
+        ENDDO
+
+      ENDDO  !jb
+
+      CALL sync_patch_array(SYNC_C, p_patch, zaux)
+      fr_land_smt(:,:) = zaux(:,:)
+
+    ENDDO
+
+  END SUBROUTINE smooth_frland
 
   !-----------------------------------------------------------------------
-  !>
   !! Reduce SSO stdh and slope over glaciers depending on the ratio between SSO slope and resolved slope
   !!
   !! This should preferably done in extpar, but the results with a globally modified calculation of 
   !! the SSO parameters (by removing the grid-scale slope before calculating stdh and SSO-slope) 
   !! were quite ambivalent
-  !!
-  !! @par Revision History
-  !! Developed by G. Zaengl  (2020-07-13).
   !!
   SUBROUTINE postproc_sso (p_patch, p_int, fr_glac, topography_c, sso_stdh, sso_sigma)
 

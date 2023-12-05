@@ -10,7 +10,8 @@ digraph ICON {
 		"ICON" -> {"STDC++"; "CUDA"; "ROCm"; "MPI"; "ZLIB"; "HDF5";
 			       "NetCDF-Fortran"; "RTE+RRTMGP"; "ECRAD"; "BLAS";
 			       "LAPACK"; "RTTOV"; "SCT"; "YAXT"; "ECCODES";
-			       "CDI"; "SERIALBOX"; "MTIME"; "YAC"; "ICON-TIXI"};
+			       "CDI"; "SERIALBOX"; "MTIME"; "YAC"; "ICON-TIXI";
+			       "FORTRAN-SUPPORT"};
 
 		"STDC++";
 
@@ -65,6 +66,8 @@ digraph ICON {
 
 		"ICON-TIXI" [shape=box];
 		"ICON-TIXI" -> {"XML2"};
+
+		"FORTRAN-SUPPORT" [shape=box; fillcolor="#47A1F1"];
 
 		"AEC / SZIP" [fillcolor="#DEF1D1"];
 		"AEC / SZIP";

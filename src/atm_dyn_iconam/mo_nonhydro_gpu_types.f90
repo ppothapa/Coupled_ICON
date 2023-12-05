@@ -1,40 +1,18 @@
-!>
+!
+! Type definition for the GPU implementation of the dynamical core of ICONAM.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
-!! Type definition for the GPU implementation of the dynamical core of ICONAM.
-!!
-!! @author William Sawyer (CSCS)
-!!
-!! @par Revision History
-!! Initial release by William Sawyer (2015)
-!!
-!! @par Copyright
-!! 2002-2009 by DWD and MPI-M
-!! This software is provided for non-commercial use only.
-!! See the LICENSE and the WARRANTY conditions.
-!!
-!! @par License
-!! The use of ICON is hereby granted free of charge for an unlimited time,
-!! provided the following rules are accepted and applied:
-!! <ol>
-!! <li> You may use or modify this code for your own non commercial and non
-!!    violent purposes.
-!! <li> The code may not be re-distributed without the consent of the authors.
-!! <li> The copyright notice and statement of authorship must appear in all
-!!    copies.
-!! <li> You accept the warranty conditions (see WARRANTY).
-!! <li> In case you intend to use the code commercially, we oblige you to sign
-!!    an according license agreement with DWD and MPI-M.
-!! </ol>
-!!
-!! @par Warranty
-!! This code has been tested up to a certain level. Defects and weaknesses,
-!! which may be included in the code, do not establish any warranties by the
-!! authors.
-!! The authors do not make any warranty, express or implied, or assume any
-!! liability or responsibility for the use, acquisition or application of this
-!! software.
-!!
-!!
 MODULE mo_nonhydro_gpu_types
 
 #if defined( _OPENACC )
@@ -52,6 +30,10 @@ MODULE mo_nonhydro_gpu_types
   USE mo_grf_intp_data_strc,   ONLY: t_gridref_single_state, t_gridref_state
   USE mo_var_list_gpu,         ONLY: gpu_update_var_list
   USE mo_run_config,           ONLY: ltestcase, num_lev
+
+  USE mo_intp_lonlat_types,   ONLY: lonlat_grids
+  USE mo_interpol_config,     ONLY: support_baryctr_intp
+  USE mo_grid_config,         ONLY: n_dom
   IMPLICIT NONE
   PRIVATE 
 
@@ -84,6 +66,8 @@ CONTAINS
 
     CALL transfer_int_state( p_int_state, .TRUE. )
     CALL transfer_int_state( p_int_state_local_parent, .TRUE. )
+
+    CALL transfer_lonlat_grids(.TRUE.)
 
     CALL transfer_patch( p_patch, .TRUE. )
     CALL transfer_patch( p_patch_local_parent, .TRUE. )
@@ -120,11 +104,13 @@ CONTAINS
     ! Delete all data on GPU
     !
     CALL assert_acc_device_only("d2h_icon", lacc)
+    !$ACC WAIT
 
     CALL transfer_nh_state( p_nh_state, .FALSE. )
     CALL transfer_prep_adv( prep_adv, .FALSE. )
     CALL transfer_patch( p_patch, .FALSE. )
     CALL transfer_patch( p_patch_local_parent, .FALSE. )
+    CALL transfer_lonlat_grids(.FALSE.)    
     CALL transfer_int_state( p_int_state, .FALSE. )
     CALL transfer_int_state( p_int_state_local_parent, .FALSE. )
     CALL transfer_advection_config( advection_config, .FALSE. )
@@ -134,8 +120,16 @@ CONTAINS
       CALL transfer_aes( p_patch, .FALSE. )
     END IF
 
+    !$ACC WAIT(1)
+#if defined(_CRAYFTN) && _RELEASE_MAJOR <= 16
+    ! ACCWA (Cray Fortran 16.0.1) : p_int_state and p_int_state_local_parent are interpreted
+    !  as already deleted; I think this is bug so treat as a workaround for time being
+    !$ACC EXIT DATA DELETE(p_patch, p_patch_local_parent) &
+    !$ACC   DELETE(p_nh_state, prep_adv, advection_config, les_config, num_lev)
+#else
     !$ACC EXIT DATA DELETE(p_int_state, p_int_state_local_parent, p_patch, p_patch_local_parent) &
     !$ACC   DELETE(p_nh_state, prep_adv, advection_config, les_config, num_lev)
+#endif
 
   END SUBROUTINE d2h_icon
 
@@ -180,6 +174,7 @@ CONTAINS
 
       ELSE
 
+        !$ACC WAIT(1)
         !$ACC EXIT DATA &
         !$ACC   DELETE(p_int(j)%c_bln_avg, p_int(j)%c_lin_e, p_int(j)%cells_aw_verts) &
         !$ACC   DELETE(p_int(j)%e_bln_c_s, p_int(j)%e_flx_avg, p_int(j)%geofac_div) &
@@ -266,6 +261,7 @@ CONTAINS
 
       ELSE
 
+        !$ACC WAIT(1)
         !$ACC EXIT DATA &
         !$ACC   DELETE(p_patch(j)%cells%decomp_info%owner_mask) &
         !$ACC   DELETE(p_patch(j)%cells%ddqz_z_full, p_patch(j)%cells%area) &
@@ -333,10 +329,12 @@ CONTAINS
       IF ( host_to_device ) THEN      
         !$ACC ENTER DATA COPYIN(advection_config(j)%trHydroMass%list, advection_config(j)%trAdvect%list)
       ELSE
+        !$ACC WAIT(1)
         !$ACC EXIT DATA DELETE(advection_config(j)%trHydroMass%list, advection_config(j)%trAdvect%list)
       ENDIF
 
     ENDDO
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(advection_config) IF(.NOT. host_to_device)
 
   END SUBROUTINE transfer_advection_config
@@ -348,8 +346,12 @@ CONTAINS
 
     INTEGER :: j
 
-    !$ACC ENTER DATA COPYIN(les_config) IF(host_to_device)
-    !$ACC EXIT DATA DELETE(les_config) IF(.NOT. host_to_device)
+    IF ( host_to_device ) THEN
+        !$ACC ENTER DATA COPYIN(les_config)
+    ELSE
+        !$ACC WAIT(1)
+        !$ACC EXIT DATA DELETE(les_config)
+    ENDIF
 
   END SUBROUTINE transfer_les_config
 
@@ -415,6 +417,7 @@ CONTAINS
 
       ELSE
 
+        !$ACC WAIT(1)
         DO j=1, SIZE(p_grf)
           CALL devcpy_grf_single_state( p_grf(j)%p_dom, l_h2d )
 
@@ -457,6 +460,7 @@ CONTAINS
 
         ELSE
 
+          !$ACC WAIT(1)
           !$ACC EXIT DATA &
           !$ACC   DELETE(p_grf(j)%grf_dist_pc2cc, p_grf(j)%grf_dist_pe2ce, p_grf(j)%idxlist_bdyintp_c) &
           !$ACC   DELETE(p_grf(j)%idxlist_bdyintp_e, p_grf(j)%idxlist_ubcintp_c, p_grf(j)%idxlist_ubcintp_e, p_grf(j)%blklist_bdyintp_c) &
@@ -474,6 +478,62 @@ CONTAINS
 
     END SUBROUTINE devcpy_grf_single_state
 
+
+    SUBROUTINE transfer_lonlat_grids(l_h2d)
+      LOGICAL, INTENT(IN) :: l_h2d    ! true host-to-device, false device-to-host
+      INTEGER :: jg, i
+
+      ! The derived type components are (de)allocated and created/deleted on
+      ! the device in their *init / *finalize routines
+
+      IF (l_h2d) THEN
+
+        DO jg=1,n_dom
+          DO i=1, lonlat_grids%ngrids
+            IF (lonlat_grids%list(i)%l_dom(jg) .AND. lonlat_grids%list(i)%intp(jg)%l_initialized) THEN
+              !$ACC ENTER DATA CREATE(lonlat_grids%list(i)%intp(jg:jg))
+              !$ACC UPDATE &
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%rbf_vec%stencil) &
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%rbf_vec%idx) &
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%rbf_vec%blk) &
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%rbf_vec%coeff) &
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%rbf_c2l%stencil) &
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%rbf_c2l%idx) &
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%rbf_c2l%blk) &
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%rbf_c2l%coeff) &
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%rbf_c2l%l_cutoff) &
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%nnb%stencil) &
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%nnb%idx) &
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%nnb%blk) &
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%nnb%coeff) &
+              !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%nnb%l_cutoff) &
+              !$ACC   ASYNC(1)
+
+              IF (support_baryctr_intp) THEN
+                !$ACC UPDATE &
+                !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%baryctr%stencil) &
+                !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%baryctr%idx) &
+                !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%baryctr%blk) &
+                !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%baryctr%coeff) &
+                !$ACC   DEVICE(lonlat_grids%list(i)%intp(jg)%baryctr%l_cutoff) &
+                !$ACC   ASYNC(1)
+              ENDIF
+            ENDIF
+          ENDDO
+        ENDDO
+      ELSE
+        DO jg=1,n_dom
+          DO i=1, lonlat_grids%ngrids
+            IF (lonlat_grids%list(i)%l_dom(jg) .AND. lonlat_grids%list(i)%intp(jg)%l_initialized) THEN
+              !ptr_int_lonlat => lonlat_grids%list(i)%intp(jg)%rbf_c2l
+              !$ACC WAIT(1)
+              !$ACC EXIT DATA DELETE(lonlat_grids%list(i)%intp(jg:jg))
+            ENDIF
+          ENDDO
+        ENDDO
+      ENDIF
+
+    END SUBROUTINE transfer_lonlat_grids
 #endif
 
 

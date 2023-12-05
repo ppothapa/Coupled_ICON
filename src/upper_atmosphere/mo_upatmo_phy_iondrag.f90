@@ -1,72 +1,66 @@
-!>
-!! Computes ion drag that is exerted on the horizontal wind fields u and v above 100 km of altitude
-!!
-!! This routine computes the physical tendencies of the horizontal
-!! wind fields and temperature due to ion drag above 100 km of altitude.
-!! The tendencies for winds are obtained from a semi-implicit time-stepping
-!! procedure that is precise to order (dtime)^2.
-!!
-!!      f(t+dtime)-f(t-dtime)    - M * ( f(t+dtime) + f(t-dtime) )
-!!      --------------------- =        ---------------------------
-!!             2*dtime                              2
-!!
-!!
-!! f is is the 2D wind vector (u,v) and M is a 2x2 matrix representing the
-!! drag coefficients.
-!! The values for the matrix M are calculated using the method of
-!! Hong and Lindzen, 1976: JAS, 33, 135-153.  for minimum solar forcing.
-!! The Lorenz terms (zldrag) are from m.charron and mimic those of Hong and 
-!! Lindzen (fig. 4).
-!!
-!!           _                     _
-!!          |                       |
-!!          | zdrag        zldrag   |
-!!      M = |                       |
-!!          | -zldrag   zcoef*zdrag |
-!!          |_                     _|
-!!           _   _
-!!          |     |
-!!          |  u  |
-!!      f = |     |
-!!          |  v  |
-!!          |_   _|
-!!
-!!
-!! INPUT ARGUMENTS:
-!! ---------------
-!!
-!!  pum1     : zonal wind (t-dt)
-!!  pvm1     : meridional wind (t-dt)
-!!  pqm1     : humidity (t-dt)
-!!  pgeom1   : geopotential above surface (t-dt)
-!!
-!!
-!! INPUT/OUTPUT ARGUMENTS:
-!! ----------------------
-!!
-!!  pvol     : tendency of meridional wind
-!!  pvom     : tendency of zonal wind
-!!  ptte     : tendency of temperature
-!!
-!! @par Revision History
-!! Modification by H. Schmidt - MPI - 20020702
-!! - bug fix: msis variable index counts from bottom to top
-!! Modification by H. Schmidt - MPI - 20030311
-!! - nproma
-!!
-!! Modification by G. Zhou - MPI - 20160608
-!! - rewrite for ICON
-!! Modification by G. Zhou - MPI - 20160620
-!! - make use of vertically-varying gravity
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Computes ion drag that is exerted on the horizontal wind fields u and v above 100 km of altitude
+!
+! This routine computes the physical tendencies of the horizontal
+! wind fields and temperature due to ion drag above 100 km of altitude.
+! The tendencies for winds are obtained from a semi-implicit time-stepping
+! procedure that is precise to order (dtime)^2.
+!
+!      f(t+dtime)-f(t-dtime)    - M * ( f(t+dtime) + f(t-dtime) )
+!      --------------------- =        ---------------------------
+!             2*dtime                              2
+!
+! f is is the 2D wind vector (u,v) and M is a 2x2 matrix representing the
+! drag coefficients.
+! The values for the matrix M are calculated using the method of
+! Hong and Lindzen, 1976: JAS, 33, 135-153.  for minimum solar forcing.
+! The Lorenz terms (zldrag) are from m.charron and mimic those of Hong and
+! Lindzen (fig. 4).
+!
+!           _                     _
+!          |                       |
+!          | zdrag        zldrag   |
+!      M = |                       |
+!          | -zldrag   zcoef*zdrag |
+!          |_                     _|
+!           _   _
+!          |     |
+!          |  u  |
+!      f = |     |
+!          |  v  |
+!          |_   _|
+!
+! INPUT ARGUMENTS:
+! ---------------
+!
+!  pum1     : zonal wind (t-dt)
+!  pvm1     : meridional wind (t-dt)
+!  pqm1     : humidity (t-dt)
+!  pgeom1   : geopotential above surface (t-dt)
+!
+! INPUT/OUTPUT ARGUMENTS:
+! ----------------------
+!
+!  pvol     : tendency of meridional wind
+!  pvom     : tendency of zonal wind
+!  ptte     : tendency of temperature
+!
+! Modification by G. Zhou - MPI - 20160608
+! - rewrite for ICON
+! Modification by G. Zhou - MPI - 20160620
+! - make use of vertically-varying gravity
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_upatmo_phy_iondrag
 
   USE mo_kind,                 ONLY: wp

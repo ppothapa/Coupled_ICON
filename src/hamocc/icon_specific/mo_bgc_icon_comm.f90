@@ -1,4 +1,14 @@
-       
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 #include "omp_definitions.inc"
 
    MODULE mo_bgc_icon_comm
@@ -13,7 +23,7 @@
        &                                 bgc_land, bgc_ind, &
        &                                 bgc_soce, bgc_npac, bgc_carb,inv_dtb
 
-      USE mo_exception, ONLY      : message, finish
+      USE mo_exception, ONLY      : message, finish,message_to_own_unit
 
       USE mo_model_domain,   ONLY: t_patch_3D, t_patch
 
@@ -42,6 +52,8 @@
       USE mo_bgc_memory_types,   ONLY: t_bgc_memory, t_sediment_memory, t_aggregates_memory
 
       USE mo_var_list_gpu,        ONLY: gpu_update_var_list
+
+      USE mo_fortran_tools,      ONLY: set_acc_host_or_device
  
       IMPLICIT NONE
 
@@ -83,7 +95,7 @@
 !================================================================================== 
     
       SUBROUTINE update_icon(local_bgc_mem, start_idx, end_idx, &
-&             klevs, pddpo, jb, ptracer, pco2flx, use_acc)
+&             klevs, pddpo, jb, ptracer, pco2flx, lacc)
 
       USE mo_param1_bgc, ONLY: n_bgctra,kcflux_cpl
 
@@ -92,24 +104,20 @@
       INTEGER, INTENT(in)::klevs(nproma), jb
       REAL(wp),INTENT(in) :: pddpo(nproma,n_zlev) !< size of scalar grid cell (3rd REAL) [m]
       REAL(wp),INTENT(inout) :: pco2flx(nproma)
-      LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+      LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
       INTEGER :: jc, jk, kpke
       INTEGER :: start_idx, end_idx
       INTEGER :: itrac
-      LOGICAL :: lacc
+      LOGICAL :: lzacc
       CHARACTER(LEN=max_char_length), PARAMETER :: &
                 routine = 'update_icon'
 
      ! CALL message(TRIM(routine), 'start' )
 
-     IF (PRESENT(use_acc)) THEN
-       lacc = use_acc
-     ELSE
-       lacc = .FALSE.
-     END IF
+     CALL set_acc_host_or_device(lzacc, lacc)
  
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc=start_idx,end_idx 
         kpke=klevs(jc)
@@ -131,7 +139,7 @@
 !================================================================================== 
       SUBROUTINE update_bgc(local_bgc_mem, local_sediment_mem, start_index, end_index, &
                           & klevs, pddpo, jb, ptracer, pco2mr, p_diag, p_sed, p_tend,  &
-                          & max_klevs, use_acc)
+                          & max_klevs, lacc)
 
      USE mo_bgc_bcond,  ONLY: ext_data_bgc
 
@@ -158,22 +166,18 @@
       TYPE(t_hamocc_tend) :: p_tend
       REAL(wp),INTENT(in) :: pddpo(nproma,n_zlev) !< size of scalar grid cell (3rd REAL) [m]
       INTEGER, INTENT(IN) :: max_klevs
-      LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+      LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
       INTEGER :: jc, jk
       INTEGER :: start_index, end_index
       INTEGER :: itrac
       CHARACTER(LEN=max_char_length), PARAMETER :: &
                 routine = 'update_icon'
-      LOGICAL :: lacc
+      LOGICAL :: lzacc
 
-      IF (PRESENT(use_acc)) THEN
-        lacc = use_acc
-      ELSE
-        lacc = .FALSE.
-      END IF
+      CALL set_acc_host_or_device(lzacc, lacc)
 
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc=start_index,end_index
         IF (pddpo(jc, 1) .GT. EPSILON(0.5_wp)) THEN
@@ -283,7 +287,7 @@
 
 !================================================================================== 
   SUBROUTINE set_bgc_tendencies_output(local_bgc_mem, local_sediment_mem, local_aggregate_memory, start_idx, end_idx, &
-&             klevs,pddpo,jb,p_tend, p_diag, p_sed, p_agg, max_klevs, use_acc)
+&             klevs,pddpo,jb,p_tend, p_diag, p_sed, p_agg, max_klevs, lacc)
       
       USE mo_param1_bgc, ONLY: kphosy, ksred, kremin, kdenit, &
  &                             kcflux, koflux, knflux, knfixd, &
@@ -327,19 +331,15 @@
       INTEGER, INTENT(in) :: start_idx, end_idx,jb
       INTEGER, INTENT(IN) :: max_klevs
       REAL(wp),INTENT(in) :: pddpo(nproma,n_zlev) !< size of scalar grid cell (3rd REAL) [m]
-      LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+      LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
 
       INTEGER :: jc, jk
-      LOGICAL :: lacc
+      LOGICAL :: lzacc
 
-      IF (PRESENT(use_acc)) THEN
-        lacc = use_acc
-      ELSE
-        lacc = .FALSE.
-      END IF
+      CALL set_acc_host_or_device(lzacc, lacc)
  
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO jc=start_idx,end_idx 
         IF (pddpo(jc, 1) .GT. EPSILON(0.5_wp)) THEN
@@ -756,12 +756,12 @@
 
    cpara_name='========PARAMETER SETUP'
    cpara_val="============="
-   CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
+   CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
 
    ! Phytoplankton
    cpara_name='PHYTOPLANKTON'
    cpara_val="========"
-   CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
+   CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
    CALL to_bgcout("phytomi",phytomi)
    CALL to_bgcout("dyphy",dyphy)
    CALL to_bgcout("bkphy",bkphy)
@@ -770,7 +770,7 @@
    ! Zooplankton
    cpara_name='ZOOPLANKTON'
    cpara_val="========"
-   CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
+   CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
    CALL to_bgcout("grami",grami)
    CALL to_bgcout("zinges",zinges)
    CALL to_bgcout("grazra",grazra*inv_dtb)
@@ -779,7 +779,7 @@
    ! Cyanobacteria
    cpara_name='CYANOBACTERIA'
    cpara_val="========"
-   CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
+   CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
    CALL to_bgcout("l_cyadyn",l_cyadyn)
    CALL to_bgcout("n2_fixation",n2_fixation)
    CALL to_bgcout("n2_fixation",n2_fixation)
@@ -797,7 +797,7 @@
    ! Detritus
    cpara_name='DETRITUS'
    cpara_val="========"
-   CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
+   CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
    CALL to_bgcout("i_settling",i_settling)
    CALL to_bgcout("drempoc 1/d",drempoc*inv_dtb)
    CALL to_bgcout("denitrification 1/d",denitrification*inv_dtb)
@@ -816,7 +816,7 @@
 
    cpara_name='Ncycle'
    cpara_val="========"
-   CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
+   CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
    CALL to_bgcout("bkno3",bkno3)
    CALL to_bgcout("bkfe",bkfe)
    CALL to_bgcout("bkpo4",bkpo4)
@@ -842,7 +842,7 @@
    ! DOC
    cpara_name='DOC'
    cpara_val="========"
-   CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
+   CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
    CALL to_bgcout("remido",remido*inv_dtb)
    IF (i_settling==2) THEN
        CALL to_bgcout("l_doc_q10",l_doc_q10)     
@@ -854,7 +854,7 @@
    ! Opal
    cpara_name='Si/Opal'
    cpara_val="========"
-   CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
+   CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
    CALL to_bgcout("bkopal",bkopal)
    CALL to_bgcout("dremopal 1/d",dremopal*inv_dtb)
    CALL to_bgcout("ropal",ropal)
@@ -886,13 +886,13 @@
    ! Calc
    cpara_name='Calc'
    cpara_val="========"
-   CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
+   CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
    CALL to_bgcout("dremcalc 1/d",dremcalc*inv_dtb)
    CALL to_bgcout("sinkspeed_calc",sinkspeed_calc*inv_dtb)
 
    cpara_name='======================='
    cpara_val="==========="
-   CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
+   CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
   END SUBROUTINE print_bgc_parameters
 !================================================================================== 
 
@@ -907,17 +907,17 @@
  ! CALL to_bgcout("wdust",wdust)
    cpara_name='========WPOC [m/d]'
    cpara_val="============="
-   CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
+   CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
    
    DO k=1,n_zlev
     write(cpara_name,'(i2)')k
     write(cpara_val,'(f6.2)')wpoc(1,k)/dtb
-    CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
+    CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
    enddo
 
    cpara_name='======================='
    cpara_val="==========="
-   CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
+   CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc )
   
   END SUBROUTINE print_wpoc
 
@@ -934,7 +934,7 @@ SUBROUTINE to_bgcout_real(cname,val)
   ELSE
     write(cpara_val, '(ES22.15)') val
   ENDIF
-  CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc)
+  CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc)
 END SUBROUTINE
 
 SUBROUTINE to_bgcout_logical(cname,val)
@@ -944,7 +944,7 @@ SUBROUTINE to_bgcout_logical(cname,val)
 
   cpara_name=cname
   cpara_val=merge(".true. ",".false.",val)
-  CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc)
+  CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc)
 END SUBROUTINE
 
 SUBROUTINE to_bgcout_int(cname,val)
@@ -954,7 +954,7 @@ SUBROUTINE to_bgcout_int(cname,val)
 
   cpara_name=cname
   write(cpara_val, '(i0)') val
-  CALL message(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc)
+  CALL message_to_own_unit(TRIM(cpara_name), TRIM(cpara_val), io_stdo_bgc)
 END SUBROUTINE
 
 

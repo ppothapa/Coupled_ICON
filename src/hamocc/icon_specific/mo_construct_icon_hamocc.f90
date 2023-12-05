@@ -1,5 +1,14 @@
-
-
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 #include "omp_definitions.inc"
 
 MODULE mo_construct_icon_hamocc
@@ -10,7 +19,7 @@ MODULE mo_construct_icon_hamocc
 
   USE mo_kind, ONLY           : wp
   USE mo_hamocc_nml, ONLY     : l_init_bgc
-  USE mo_exception, ONLY      : message, finish, debug_messages_on
+  USE mo_exception, ONLY      : message, finish
   USE mo_control_bgc, ONLY    : dtb, dtbgc, inv_dtbgc, ndtdaybgc,  &
        &                        ldtrunbgc, bgc_zlevs, bgc_nproma, &
        &                        inv_dtb
@@ -297,14 +306,16 @@ IF (test_memory_copies /= bgc_memory_copies) &
     !$ACC   DEVICE(local_bgc_memory%bgctend, local_bgc_memory%kbo, local_bgc_memory%bolay, local_bgc_memory%strahl) &
     !$ACC   DEVICE(local_bgc_memory%swr_frac, local_bgc_memory%meanswr, local_bgc_memory%bgcflux, local_bgc_memory%aksurf) &
     !$ACC   DEVICE(local_bgc_memory%wpoc, local_bgc_memory%wcal, local_bgc_memory%wopal, local_bgc_memory%wdust) &
-    !$ACC   DEVICE(local_bgc_memory%sedfluxo)
+    !$ACC   DEVICE(local_bgc_memory%sedfluxo) &
+    !$ACC   ASYNC(1)
 
     !$ACC UPDATE DEVICE(local_sediment_memory%silpro, local_sediment_memory%produs) &
     !$ACC   DEVICE(local_sediment_memory%prcaca, local_sediment_memory%prorca, local_sediment_memory%burial) &
     !$ACC   DEVICE(local_sediment_memory%sedlay, local_sediment_memory%powtra, local_sediment_memory%sedhpl) &
-    !$ACC   DEVICE(local_sediment_memory%powh2obud, local_sediment_memory%pown2bud, local_sediment_memory%sedtend)
+    !$ACC   DEVICE(local_sediment_memory%powh2obud, local_sediment_memory%pown2bud, local_sediment_memory%sedtend) &
+    !$ACC   ASYNC(1)
 
-    !$ACC UPDATE DEVICE(local_aggregate_memory%aggdiag)
+    !$ACC UPDATE DEVICE(local_aggregate_memory%aggdiag) ASYNC(1)
 
     call gpu_update_var_list('hamocc_aggregate_list', .true., lacc=.true.)
     call gpu_update_var_list('hamocc_tendency_list' , .true., lacc=.true.)

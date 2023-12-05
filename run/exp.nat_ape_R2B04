@@ -101,7 +101,7 @@ cat > ${atmo_namelist} << EOF
  inwp_convection = 1
  inwp_radiation  = 1        ! 1: RRTM, 2: Ritter-Geleyn
  inwp_cldcover   = 1        ! 0: no cld, 1: grid scale, 3: COSMO
- inwp_turb       = 1        ! 1: Raschendorfer, 3: EDMF-DUALM, 4: ECHAM
+ inwp_turb       = 1        ! 1: Raschendorfer
  inwp_satad      = 1
  inwp_sso        = 0
  inwp_gwd        = 1
@@ -152,7 +152,6 @@ cat > ${atmo_namelist} << EOF
 /
 &dynamics_nml
  iequations      = 3  
- idiv_method     = 1
  divavg_cntrwgt  = 0.50
  lcoriolis       = .TRUE.
 /

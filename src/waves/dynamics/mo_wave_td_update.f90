@@ -1,20 +1,18 @@
-!! Contains the subroutines for updating time-dependent
-!! wave physics parameters
-!!
-!! @author Mikhail Dobrynin
+! Contains the subroutines for updating time-dependent
+! wave physics parameters
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
-
-!! Revision History
-!! Initial revision by Mikhail Dobrynin, DWD  (2023.06.05)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -35,8 +33,9 @@ MODULE mo_wave_td_update
   PRIVATE
 
   PUBLIC :: update_bathymetry_gradient
-  PUBLIC :: update_wind_speed_and_direction
+  PUBLIC :: update_speed_and_direction
   PUBLIC :: update_ice_free_mask
+  PUBLIC :: update_water_depth
 
   CHARACTER(LEN=*), PARAMETER :: modname = 'mo_wave_td_update'
 
@@ -45,9 +44,6 @@ CONTAINS
   !>
   !! calculate bathymetry gradient
   !!
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2023-06-05)
   !!
   SUBROUTINE update_bathymetry_gradient(p_patch, p_int_state, bathymetry_c, geo_bath_grad_c)
 
@@ -70,21 +66,56 @@ CONTAINS
 
   END SUBROUTINE update_bathymetry_gradient
 
+
   !>
-  !! calculate wind speed and direction (deg) from U and V
+  !! calculate water depth from bathymetry and sea level height
   !!
   !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2023-06-05)
-  !!
-  SUBROUTINE update_wind_speed_and_direction(p_patch, u10, v10, wsp, wdir)
+  SUBROUTINE update_water_depth(p_patch, bathymetry_c, sea_level_c, depth_c)
 
     TYPE(t_patch),     INTENT(IN)    :: p_patch
-    REAL(wp),          INTENT(IN)    :: u10(:,:), v10(:,:) ! wind components at 10m above sea
-    REAL(wp),          INTENT(INOUT) :: wsp(:,:)           ! wind speed at 10m above sea
-    REAL(wp),          INTENT(INOUT) :: wdir(:,:)          ! wind direction
+    REAL(wp),          INTENT(IN)    :: bathymetry_c(:,:)
+    REAL(wp),          INTENT(IN)    :: sea_level_c(:,:)
+    REAL(wp),          INTENT(INOUT) :: depth_c(:,:)
 
-    CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER :: routine = modname//':update_wind_speed_and_direction'
+    CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER :: routine = modname//':update_depth'
+
+    INTEGER :: jc, jb
+    INTEGER :: i_rlstart, i_rlend, i_startblk, i_endblk
+    INTEGER :: i_startidx, i_endidx
+
+    i_rlstart  = 1
+    i_rlend    = min_rlcell
+    i_startblk = p_patch%cells%start_block(i_rlstart)
+    i_endblk   = p_patch%cells%end_block(i_rlend)
+
+!$OMP PARALLEL
+!$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx)
+    DO jb = i_startblk, i_endblk
+      CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,      &
+        &                 i_startidx, i_endidx, i_rlstart, i_rlend)
+      DO jc = i_startidx, i_endidx
+        depth_c(jc,jb) = bathymetry_c(jc,jb) + sea_level_c(jc,jb)
+      END DO
+    END DO
+!$OMP END DO NOWAIT
+!$OMP END PARALLEL
+
+  END SUBROUTINE update_water_depth
+
+
+  !>
+  !! calculate speed and direction (deg) from U and V
+  !!
+  !!
+  SUBROUTINE update_speed_and_direction(p_patch, u, v, sp, dir)
+
+    TYPE(t_patch),     INTENT(IN)    :: p_patch
+    REAL(wp),          INTENT(IN)    :: u(:,:), v(:,:) ! U and V components
+    REAL(wp),          INTENT(INOUT) :: sp(:,:)        ! speed
+    REAL(wp),          INTENT(INOUT) :: dir(:,:)       ! direction
+
+    CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER :: routine = modname//':update_speed_and_direction'
 
     INTEGER :: jc, jb
     INTEGER :: i_rlstart, i_rlend, i_startblk, i_endblk
@@ -103,21 +134,18 @@ CONTAINS
         &                 i_startidx, i_endidx, i_rlstart, i_rlend)
       DO jc = i_startidx, i_endidx
 
-        uc = SIGN(MAX(ABS(u10(jc,jb)),dbl_eps),u10(jc,jb))
-        !IF (uc.eq.0) uc = dbl_eps
-        vc = SIGN(MAX(ABS(v10(jc,jb)),dbl_eps),v10(jc,jb))
-        !IF (vc.eq.0) vc = dbl_eps
+        uc = SIGN(MAX(ABS(u(jc,jb)),dbl_eps),u(jc,jb))
+        vc = SIGN(MAX(ABS(v(jc,jb)),dbl_eps),v(jc,jb))
 
-        wsp(jc,jb) = SQRT( uc**2 + vc**2 )
-        wdir(jc,jb) = ATAN2(vc,uc)*rad2deg
+        sp(jc,jb) = SQRT( uc**2 + vc**2 )
+        dir(jc,jb) = ATAN2(vc,uc)*rad2deg
 
       END DO
     END DO
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
-  END SUBROUTINE update_wind_speed_and_direction
-
+  END SUBROUTINE update_speed_and_direction
 
   !>
   !! Calculation of ice mask
@@ -125,8 +153,6 @@ CONTAINS
   !! Set the ice-free mask to 1
   !! if the sea ice concentration less than the threshold value trhl_ice
   !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2023-05-31)
   SUBROUTINE update_ice_free_mask(p_patch, sea_ice_c, ice_free_mask)
 
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &

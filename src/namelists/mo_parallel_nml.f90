@@ -1,19 +1,17 @@
-!>
-!!     Contains namelists for parallel run control.
-!!
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Contains namelists for parallel run control.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_parallel_nml
 
   USE mo_io_units,            ONLY: nnml, nnml_output
@@ -83,11 +81,7 @@ MODULE mo_parallel_nml
   CONTAINS
 
   !-------------------------------------------------------------------------
-  !>
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
-  !! Adapted for I/O PEs, Rainer Johanni, Nov 2010
-  !! Leonidas Linardakis, namelist restructuring, Jul 2011
+  !
   SUBROUTINE read_parallel_namelist( filename )
 
     ! ------------------------------------------------------------------------
@@ -160,12 +154,6 @@ MODULE mo_parallel_nml
     ! i.e. overlapping of reading data, communicating data and computing statistics
     LOGICAL :: use_omp_input
 
-    ! !!! OBSOLETE !!! Type of (halo) communication:
-    ! 1 = synchronous communication with local memory for exchange buffers
-    ! 3 = asynchronous communication within dynamical core with global memory
-    !     for exchange buffers (not yet implemented)
-    INTEGER :: itype_comm
-
     ! Order of send/receive sequence in exchange routines
     ! 1 = irecv, send
     ! 2 = isend, recv
@@ -207,8 +195,8 @@ MODULE mo_parallel_nml
       & p_test_run, num_test_pe, l_test_openmp,       &
       & num_restart_procs, proc0_shift,         &
       & num_io_procs,      pio_type,            &
-      & num_io_procs_radar, &
-      & itype_comm,        iorder_sendrecv,     &
+      & num_io_procs_radar,                     &
+      & iorder_sendrecv,                        &
       & nproma, nblocks_c,                      &
       & nproma_sub, nblocks_sub,                &
       & use_icon_comm, &
@@ -293,12 +281,6 @@ MODULE mo_parallel_nml
     ! i.e. overlapping of reading data, communicating data and computing statistics
     use_omp_input = .FALSE.
 
-    ! !!! OBSOLETE !!! Type of (halo) communication:
-    ! 1 = synchronous communication with local memory for exchange buffers
-    ! 3 = asynchronous communication within dynamical core with global memory
-    !     for exchange buffers (not yet implemented)
-    itype_comm = 1
-
     ! Order of send/receive sequence in exchange routines
     ! 1 = irecv, send
     ! 2 = isend, recv
@@ -355,13 +337,6 @@ MODULE mo_parallel_nml
       END IF
     END SELECT
     CALL close_nml
-
-    !----------------------------------------------------
-    ! Sanity check
-    !----------------------------------------------------
-    WRITE(message_text,'(a)') &
-      &  'Namelist switch itype_comm is obsolete and will soon be removed!'
-    CALL message("WARNING",message_text)
 
 
     !-----------------------------------------------------

@@ -593,9 +593,10 @@ CUDA_ENABLED
 GPU_ENABLED
 OPENMP_ENABLED
 MPI_ENABLED
+HD_ENABLED
 ART_ENABLED
 EMVORADO_ENABLED
-DACE_ENABLED_OR_NEEDED
+DACE_ENABLED
 JSBACH_ENABLED
 DELAYED_CONFIG_ENABLED
 DEFAULT_VERBOSITY
@@ -616,6 +617,9 @@ INSTALL_PROGRAM
 ICON_DELAYED_CONFIG_RULES
 icon_bundled_cmake_subdirs
 icon_bundled_config_subdirs
+ICON_HD_FCFLAGS
+ICON_FORTRAN_SUPPORT_CFLAGS
+ICON_FORTRAN_SUPPORT_FCFLAGS
 ICON_TIXI_CFLAGS
 ICON_TIXI_FCFLAGS
 ICON_YAC_CFLAGS
@@ -726,7 +730,6 @@ enable_rpaths
 enable_silent_rules
 enable_delayed_config
 enable_atmo
-enable_edmf
 enable_les
 enable_upatmo
 enable_ocean
@@ -742,6 +745,7 @@ enable_rttov
 enable_dace
 enable_emvorado
 enable_art
+enable_hd
 enable_mpi
 enable_mpi_checks
 enable_active_target_sync
@@ -768,8 +772,8 @@ enable_intel_consistency
 enable_pgi_inlib
 enable_nccl
 enable_cuda_graphs
-with_external_ecrad
 with_external_rte_rrtmgp
+with_external_ecrad
 with_external_sct
 with_external_yaxt
 with_external_ppm
@@ -777,6 +781,7 @@ with_external_cdi
 with_external_mtime
 with_external_yac
 with_external_tixi
+with_external_fortran_support
 '
       ac_precious_vars='build_alias
 host_alias
@@ -817,6 +822,9 @@ ICON_YAC_FCFLAGS
 ICON_YAC_CFLAGS
 ICON_TIXI_FCFLAGS
 ICON_TIXI_CFLAGS
+ICON_FORTRAN_SUPPORT_FCFLAGS
+ICON_FORTRAN_SUPPORT_CFLAGS
+ICON_HD_FCFLAGS
 AR
 ARFLAGS
 RANLIB
@@ -834,7 +842,8 @@ externals/ppm
 externals/cdi
 externals/mtime
 externals/yac
-externals/tixi'
+externals/tixi
+externals/hd'
 
 # Initialize some variables set by options.
 ac_init_help=
@@ -1486,8 +1495,6 @@ Optional Features:
 Model Features:
   --enable-atmo           enable the atmosphere component of ICON
                           [default=yes]
-  --enable-edmf           enable the EDMF turbulence component of ICON
-                          [default=yes]
   --enable-les            enable the Large-Eddy Simulation component of ICON
                           [default=yes]
   --enable-upatmo         enable the upper atmosphere component of ICON
@@ -1513,6 +1520,12 @@ Model Features:
                           [default=no]
   --enable-art            enable the aerosols and reactive trace component ART
                           [default=no]
+  --enable-hd             enable the Hydrological Discharge (HD) model. The
+                          value of the argument must be one of the following
+                          [default=no]:
+                            05deg|yes  enable for the 0.5-degree global domain
+                            5min       enable for the 5min global domain
+                            no         disable the HD model
 
 Infrastructural Features:
   --enable-mpi            enable MPI (parallelization) support [default=yes]
@@ -1597,9 +1610,9 @@ Optimization Features:
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
   --without-PACKAGE       do not use PACKAGE (same as --with-PACKAGE=no)
-  --with-external-ecrad   use external ECRAD library [default=no]
   --with-external-rte-rrtmgp
                           use external RTE+RRTMGP library [default=no]
+  --with-external-ecrad   use external ECRAD library [default=no]
   --with-external-sct     use external SCT library [default=no]
   --with-external-yaxt    use external YAXT library [default=no]
   --with-external-ppm     use external PPM library [default=no]
@@ -1607,6 +1620,8 @@ Optional Packages:
   --with-external-mtime   use external MTIME library [default=no]
   --with-external-yac     use external YAC library [default=no]
   --with-external-tixi    use external TIXI library [default=no]
+  --with-external-fortran-support
+                          use external FORTRAN-SUPPORT library [default=no]
 
 Some influential environment variables:
   BUILD_ENV   initialization code to set up the building environment (must be
@@ -1708,6 +1723,18 @@ Some influential environment variables:
   ICON_TIXI_CFLAGS
               C compiler flags to be appended to CFLAGS when configuring the
               bundled version of TIXI library [default=$ICON_BUNDLED_CFLAGS]
+  ICON_FORTRAN_SUPPORT_FCFLAGS
+              Fortran compiler flags to be appended to FCFLAGS when
+              configuring the bundled version of FORTRAN-SUPPORT library
+              [default=$ICON_BUNDLED_FCFLAGS]
+  ICON_FORTRAN_SUPPORT_CFLAGS
+              Fortran compiler flags to be appended to CFLAGS when configuring
+              the bundled version of FORTRAN-SUPPORT library
+              [default=$ICON_BUNDLED_CFLAGS]
+  ICON_HD_FCFLAGS
+              Fortran compiler flags to be appended to FCFLAGS when
+              configuring the bundled version of HD model
+              [default=$ICON_BUNDLED_FCFLAGS]
   AR          archiver command
   ARFLAGS     archiver flags
   RANLIB      archive indexer command
@@ -2226,6 +2253,126 @@ $as_echo "$ac_res" >&6; }
   eval $as_lineno_stack; ${as_lineno_stack:+:} unset as_lineno
 
 } # ac_fn_hip_check_header_compile
+
+acx_subdir_pre_adjust_cmake_args ()
+{
+if ${acx_subdir_pre_adjusted_cmake_args+:} false; then :
+
+else
+  acx_subdir_pre_adjusted_cmake_args="'-Wno-dev' '--no-warn-unused-cli' '-GUnix Makefiles'"
+            eval "set dummy $ac_configure_args"; shift
+                                    acx_subdir_cmake_vars_to_transform=
+            for acx_tmp; do
+              case $acx_tmp in #(
+  AR=*|RANLIB=*|CFLAGS=*|CXXFLAGS=*|CPPFLAGS=*|FCFLAGS=*|LDFLAGS=*|LIBS=*) :
+    acx_arg_name=`expr "x$acx_tmp" : 'x\([^=]*\)='`
+                 as_fn_append acx_subdir_cmake_vars_to_transform " $acx_arg_name"
+                 acx_arg_cmd_value=`expr "x$acx_tmp" : '[^=]*=\(.*\)'`
+                 eval acx_arg_${acx_arg_name}=\$acx_arg_cmd_value ;; #(
+  *) :
+     ;;
+esac
+            done
+                        for acx_arg_name in AR RANLIB; do
+              case " $acx_subdir_cmake_vars_to_transform " in #(
+  *" $acx_arg_name "*) :
+    acx_prog_search_abspath=unknown
+                 eval acx_prog_exec=\$acx_arg_${acx_arg_name}
+                 case $acx_prog_exec in #(
+  *[\\/]*) :
+    if as_fn_executable_p $acx_prog_exec; then :
+  acx_prog_search_abspath=$acx_prog_exec
+fi ;; #(
+  *) :
+    as_save_IFS=$IFS; IFS=$PATH_SEPARATOR
+for as_dir in $PATH
+do
+  IFS=$as_save_IFS
+  test -z "$as_dir" && as_dir=.
+    if as_fn_executable_p "$as_dir/$acx_prog_exec"; then :
+  acx_prog_search_abspath="$as_dir/$acx_prog_exec"
+                          break
+fi
+  done
+IFS=$as_save_IFS
+ ;;
+esac
+                 if test "x$acx_prog_search_abspath" = xunknown; then :
+  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: unable to convert argument $acx_arg_name to its CMake equivalent(s): absolute path to \"$acx_prog_exec\" is not found" >&5
+$as_echo "$as_me: WARNING: unable to convert argument $acx_arg_name to its CMake equivalent(s): absolute path to \"$acx_prog_exec\" is not found" >&2;}
+else
+  eval acx_arg_${acx_arg_name}_ABSPATH=\$acx_prog_search_abspath
+                    as_fn_append acx_subdir_cmake_vars_to_transform " ${acx_arg_name}_ABSPATH"
+fi ;; #(
+  *) :
+     ;;
+esac
+            done
+                        case " $acx_subdir_cmake_vars_to_transform " in #(
+  *' CPPFLAGS '*) :
+    for acx_arg_name in CFLAGS CXXFLAGS; do
+                 case " $acx_subdir_cmake_vars_to_transform " in #(
+  *" $acx_arg_name "*) :
+    as_fn_append acx_arg_${acx_arg_name} " $acx_arg_CPPFLAGS" ;; #(
+  *) :
+    eval acx_arg_${acx_arg_name}=\$acx_arg_CPPFLAGS
+                    as_fn_append acx_subdir_cmake_vars_to_transform " $acx_arg_name" ;;
+esac
+               done ;; #(
+  *) :
+     ;;
+esac
+                        if test "x$prefix" = xNONE; then :
+  acx_arg_PREFIX=$ac_default_prefix
+else
+  acx_arg_PREFIX=$prefix
+fi
+            as_fn_append acx_subdir_cmake_vars_to_transform ' PREFIX'
+            for acx_arg_name in $acx_subdir_cmake_vars_to_transform; do
+              acx_subdir_cmake_vars_to_set=
+              case $acx_arg_name in #(
+  AR) :
+    acx_subdir_cmake_vars_to_set='' ;; #(
+  RANLIB) :
+    acx_subdir_cmake_vars_to_set='' ;; #(
+  CFLAGS) :
+    acx_subdir_cmake_vars_to_set='CMAKE_C_FLAGS' ;; #(
+  CXXFLAGS) :
+    acx_subdir_cmake_vars_to_set='CMAKE_CXX_FLAGS' ;; #(
+  CPPFLAGS) :
+    acx_subdir_cmake_vars_to_set='' ;; #(
+  FCFLAGS) :
+    acx_subdir_cmake_vars_to_set='CMAKE_Fortran_FLAGS' ;; #(
+  LDFLAGS) :
+    acx_subdir_cmake_vars_to_set='CMAKE_EXE_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS' ;; #(
+  LIBS) :
+    acx_subdir_cmake_vars_to_set='CMAKE_C_STANDARD_LIBRARIES CMAKE_CXX_STANDARD_LIBRARIES CMAKE_Fortran_STANDARD_LIBRARIES' ;; #(
+  AR_ABSPATH) :
+    acx_subdir_cmake_vars_to_set='CMAKE_AR CMAKE_C_COMPILER_AR CMAKE_CXX_COMPILER_AR CMAKE_Fortran_COMPILER_AR' ;; #(
+  RANLIB_ABSPATH) :
+    acx_subdir_cmake_vars_to_set='CMAKE_RANLIB CMAKE_C_COMPILER_RANLIB CMAKE_CXX_COMPILER_RANLIB CMAKE_Fortran_COMPILER_RANLIB' ;; #(
+  PREFIX) :
+    acx_subdir_cmake_vars_to_set='CMAKE_INSTALL_PREFIX' ;; #(
+  *) :
+     ;;
+esac
+              if test -n "$acx_subdir_cmake_vars_to_set"; then :
+  eval acx_subdir_quoted_value=\$acx_arg_${acx_arg_name}
+                 case $acx_subdir_quoted_value in #(
+  *\'*) :
+    acx_subdir_quoted_value=`$as_echo "$acx_subdir_quoted_value" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+                 for acx_subdir_cmake_var in $acx_subdir_cmake_vars_to_set; do
+                   as_fn_append acx_subdir_pre_adjusted_cmake_args " '-D$acx_subdir_cmake_var=$acx_subdir_quoted_value'"
+                 done
+fi
+              { eval acx_arg_${acx_arg_name}=; unset acx_arg_${acx_arg_name};}
+            done
+
+fi
+} # acx_subdir_pre_adjust_cmake_args
 cat >config.log <<_ACEOF
 This file contains any messages produced by compilers while
 running configure, to aid debugging if configure makes a mistake.
@@ -2819,16 +2966,6 @@ else
 fi
 
 
-# Check whether --enable-edmf was given.
-if test "${enable_edmf+set}" = set; then :
-  enableval=$enable_edmf; if test x"$enableval" != xno; then :
-  enable_edmf=yes
-fi
-else
-  enable_edmf=yes
-fi
-
-
 # Check whether --enable-les was given.
 if test "${enable_les+set}" = set; then :
   enableval=$enable_les; if test x"$enableval" != xno; then :
@@ -2878,6 +3015,10 @@ else
   enable_jsbach_hd=auto
 fi
 
+
+if test "x$enable_jsbach_hd" = xauto; then :
+  enable_jsbach_hd=$enable_jsbach
+fi
 
 # Check whether --enable-waves was given.
 if test "${enable_waves+set}" = set; then :
@@ -2979,6 +3120,21 @@ else
 fi
 
 
+# Check whether --enable-hd was given.
+if test "${enable_hd+set}" = set; then :
+  enableval=$enable_hd; case $enableval in #(
+  yes) :
+    enable_hd=05deg ;; #(
+  05deg|5min|no) :
+     ;; #(
+  *) :
+    as_fn_error $? "unexpected value for the argument --enable-hd='$enableval'; valid values are '05deg', 'yes' (same as '05deg'), '5min', 'no'" "$LINENO" 5 ;;
+esac
+else
+  enable_hd=no
+fi
+
+
 
 
 # Check whether --enable-mpi was given.
@@ -3064,6 +3220,7 @@ esac
 else
   enable_gpu=no
 fi
+
 
 case $enable_gpu in #(
   openacc+*) :
@@ -3424,17 +3581,6 @@ fi
 
 
 
-# Check whether --with-external-ecrad was given.
-if test "${with_external_ecrad+set}" = set; then :
-  withval=$with_external_ecrad; if test x"$withval" != xno; then :
-  with_external_ecrad=yes
-fi
-else
-  with_external_ecrad=no
-fi
-
-
-
 # Check whether --with-external-rte-rrtmgp was given.
 if test "${with_external_rte_rrtmgp+set}" = set; then :
   withval=$with_external_rte_rrtmgp; if test x"$withval" != xno; then :
@@ -3442,6 +3588,17 @@ if test "${with_external_rte_rrtmgp+set}" = set; then :
 fi
 else
   with_external_rte_rrtmgp=no
+fi
+
+
+
+# Check whether --with-external-ecrad was given.
+if test "${with_external_ecrad+set}" = set; then :
+  withval=$with_external_ecrad; if test x"$withval" != xno; then :
+  with_external_ecrad=yes
+fi
+else
+  with_external_ecrad=no
 fi
 
 
@@ -3522,27 +3679,15 @@ else
 fi
 
 
-############################# OPTIONS CROSSCHECKS ##############################
 
-case $enable_jsbach_hd in #(
-  yes) :
-    if test "x$enable_jsbach" = xno; then :
-  as_fn_error $? "you are trying to configure with the JSBACH HD scheme but the
-land component JSBACH is disabled. Either disable the hydrological discharge
-scheme of the JSBACH land component (--disable-jsbach-hd) or enable the land
-component JSBACH (--enable-jsbach)." "$LINENO" 5
-fi ;; #(
-  no) :
-     ;; #(
-  auto) :
-    if test "x$enable_jsbach" = xyes; then :
-  enable_jsbach_hd=yes
+# Check whether --with-external-fortran-support was given.
+if test "${with_external_fortran_support+set}" = set; then :
+  withval=$with_external_fortran_support; if test x"$withval" != xno; then :
+  with_external_fortran_support=yes
+fi
 else
-  enable_jsbach_hd=no
-fi ;; #(
-  *) :
-     ;;
-esac
+  with_external_fortran_support=no
+fi
 
 
 ############################# CODEBASE EXTENSIONS ##############################
@@ -3555,16 +3700,11 @@ if test "x$enable_jsbach" = xyes; then :
 fi
 fi
 
-icon_dace_enabled_or_needed=no
-if test x"$enable_dace" = xyes || test x"$enable_emvorado" = xyes; then :
-  icon_dace_enabled_or_needed=yes
-fi
-
-if test "x$icon_dace_enabled_or_needed" = xyes; then :
+if test "x$enable_dace" = xyes; then :
   icon_subdir_srcdir="$srcdir/externals/dace_icon"
    icon_subdir_unique_file="src_for_icon/mo_fdbk_tables.f90"
    if test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"; then :
-  as_fn_error $? "unable to find sources of the DACE modules for data assimilation ($icon_subdir_unique_file) in '$icon_subdir_srcdir': disable the modules (--disable-dace) and the radar forward operator EMVORADO (--disable-emvorado)" "$LINENO" 5
+  as_fn_error $? "unable to find sources of the DACE modules for data assimilation ($icon_subdir_unique_file) in '$icon_subdir_srcdir': disable the component (--disable-dace)" "$LINENO" 5
 fi
 fi
 
@@ -3573,6 +3713,10 @@ if test "x$enable_emvorado" = xyes; then :
    icon_subdir_unique_file="src_emvorado/radar_organize.f90"
    if test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"; then :
   as_fn_error $? "unable to find sources of the radar forward operator EMVORADO ($icon_subdir_unique_file) in '$icon_subdir_srcdir': disable the operator (--disable-emvorado)" "$LINENO" 5
+fi
+   if test "x$enable_dace" = xno; then :
+  { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: the radar forward operator EMVORADO is enabled but the DACE modules for data assimilation are disabled: EMVORADO will not be able to produce the FEEDBACK (fdbk) files for data assimilation" >&5
+$as_echo "$as_me: WARNING: the radar forward operator EMVORADO is enabled but the DACE modules for data assimilation are disabled: EMVORADO will not be able to produce the FEEDBACK (fdbk) files for data assimilation" >&2;}
 fi
 fi
 
@@ -4300,7 +4444,7 @@ elif $FC --version 2>&1 | grep '^AMD clang version' >/dev/null 2>&1; then :
   acx_cv_fc_compiler_vendor=amd
 elif $FC -V 2>&1 | grep '^f18 compiler' >/dev/null 2>&1; then :
   acx_cv_fc_compiler_vendor=flang
-elif $FC --version 2>&1 | grep '^clang version' >/dev/null 2>&1; then :
+elif $FC --version 2>&1 | grep 'clang version' >/dev/null 2>&1; then :
   acx_cv_fc_compiler_vendor=flang
 else
   acx_cv_fc_compiler_vendor=unknown
@@ -4341,46 +4485,46 @@ else
   case $acx_cv_fc_compiler_vendor in #(
   intel) :
     acx_cv_fc_compiler_version=`$FC --version 2>/dev/null | sed -n 's/^ifort (IFORT) \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'`
-         if test -z "$acx_cv_fc_compiler_version"; then :
+         if test -n "$acx_cv_fc_compiler_version"; then :
+  acx_cv_fc_compiler_version="classic:${acx_cv_fc_compiler_version}"
+else
   acx_cv_fc_compiler_version=`$FC --version 2>/dev/null | sed -n 's/^ifx (IFORT) \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'`
             if test -n "$acx_cv_fc_compiler_version"; then :
   acx_cv_fc_compiler_version="oneapi:${acx_cv_fc_compiler_version}"
 fi
-else
-  acx_cv_fc_compiler_version="classic:${acx_cv_fc_compiler_version}"
 fi ;; #(
   nag) :
     acx_cv_fc_compiler_version=`$FC -V 2>&1 | sed -n 's/^NAG Fortran Compiler Release \([0-9][0-9]*\.[0-9][0-9]*\).*Build \([0-9][0-9]*\)/\1.\2/p'` ;; #(
   portland) :
     acx_cv_fc_compiler_version=`$FC -V 2>/dev/null | sed -n 's/\(pgfortran\|pgf90\) \([0-9][0-9]*\.[0-9][0-9]*\)-\([0-9][0-9]*\).*/\2.\3/p'`
-         if test -z "$acx_cv_fc_compiler_version"; then :
+         if test -n "$acx_cv_fc_compiler_version"; then :
+  acx_cv_fc_compiler_version="pg:${acx_cv_fc_compiler_version}"
+else
   acx_cv_fc_compiler_version=`$FC -V 2>/dev/null | sed -n 's/nvfortran \([0-9][0-9]*\.[0-9][0-9]*\)-\([0-9][0-9]*\).*/\1.\2/p'`
             if test -n "$acx_cv_fc_compiler_version"; then :
   acx_cv_fc_compiler_version="nv:${acx_cv_fc_compiler_version}"
 fi
-else
-  acx_cv_fc_compiler_version="pg:${acx_cv_fc_compiler_version}"
 fi ;; #(
   cray) :
-    acx_cv_fc_compiler_version=`$FC -V 2>&1 | sed -n 's/.*ersion \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'` ;; #(
+    acx_cv_fc_compiler_version=`$FC -V 2>&1 | sed -n 's/.*[vV]ersion \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'` ;; #(
   nec) :
     acx_cv_fc_compiler_version=`$FC --version 2>&1 | sed -n 's/^nfort (NFORT) \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'` ;; #(
   gnu) :
-    acx_cv_fc_compiler_version=`$FC -dumpfullversion 2>/dev/null`
-         if test $? -ne 0 || test -z "$acx_cv_fc_compiler_version"; then :
-  acx_cv_fc_compiler_version=`$FC -dumpversion 2>/dev/null`
+    acx_cv_fc_compiler_version=`$FC -dumpfullversion 2>/dev/null | sed -n '/^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$/p'`
+         if test -z "$acx_cv_fc_compiler_version"; then :
+  acx_cv_fc_compiler_version=`$FC -dumpversion 2>/dev/null | sed -n '/^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$/p'`
 fi ;; #(
   amd) :
     acx_cv_fc_compiler_version=`$FC --version 2>/dev/null | sed -n 's/.*AOCC_\([0-9][0-9]*\)[._]\([0-9][0-9]*\)[._]\([0-9][0-9]*\).*/\1.\2.\3/p'` ;; #(
   flang) :
     acx_cv_fc_compiler_version=`$FC -V 2>&1 | sed -n 's/.*version \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)/\1/p'`
-         if test -z "$acx_cv_fc_compiler_version"; then :
+         if test -n "$acx_cv_fc_compiler_version"; then :
+  acx_cv_fc_compiler_version="f18:${acx_cv_fc_compiler_version}"
+else
   acx_cv_fc_compiler_version=`$FC --version 2>/dev/null | sed -n 's/.*version \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'`
             if test -n "$acx_cv_fc_compiler_version"; then :
   acx_cv_fc_compiler_version="classic:${acx_cv_fc_compiler_version}"
 fi
-else
-  acx_cv_fc_compiler_version="f18:${acx_cv_fc_compiler_version}"
 fi ;; #(
   *) :
     acx_cv_fc_compiler_version=unknown ;;
@@ -5139,10 +5283,6 @@ if test "x$enable_atmo" = xno; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}__NO_ICON_ATMO__"
 fi
 
-if test "x$enable_edmf" = xno; then :
-  as_fn_append FCFLAGS " ${FC_PP_DEF}__NO_ICON_EDMF__"
-fi
-
 if test "x$enable_les" = xno; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}__NO_ICON_LES__"
 fi
@@ -5161,6 +5301,10 @@ fi
 
 if test "x$enable_jsbach_hd" = xno; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}__NO_JSBACH_HD__"
+else
+  if test "x$enable_jsbach" = xno; then :
+  as_fn_error $? "unsupported combination of the configure options: you are trying to configure with the JSBACH HD scheme but the land component JSBACH is disabled: either disable the hydrological discharge scheme of the JSBACH land component (--disable-jsbach-hd) or enable the land component JSBACH (--enable-jsbach)" "$LINENO" 5
+fi
 fi
 
 if test "x$enable_waves" = xno; then :
@@ -5196,7 +5340,10 @@ if test "x$enable_dace" = xyes; then :
 fi
 
 if test "x$enable_emvorado" = xyes; then :
-  as_fn_append FCFLAGS " ${FC_PP_DEF}HAVE_RADARFWO ${FC_PP_DEF}NUDGING ${FC_PP_DEF}TWOMOM_SB_NEW"
+  as_fn_append FCFLAGS " ${FC_PP_DEF}HAVE_RADARFWO ${FC_PP_DEF}TWOMOM_SB_NEW"
+   if test "x$enable_dace" = xyes; then :
+  as_fn_append FCFLAGS " ${FC_PP_DEF}NUDGING"
+fi
 fi
 
 if test "x$enable_art" = xyes; then :
@@ -6102,7 +6249,7 @@ elif $CC --version 2>&1 | grep '^AMD clang version' >/dev/null 2>&1; then :
   acx_cv_c_compiler_vendor=amd
 elif $CC --version 2>&1 | grep '^Apple \(LLVM\|clang\) version' >/dev/null 2>&1; then :
   acx_cv_c_compiler_vendor=apple
-elif $CC --version 2>&1 | grep '^clang version' >/dev/null 2>&1; then :
+elif $CC --version 2>&1 | grep 'clang version' >/dev/null 2>&1; then :
   acx_cv_c_compiler_vendor=clang
 else
   acx_cv_c_compiler_vendor=unknown
@@ -6120,49 +6267,49 @@ else
   case $acx_cv_c_compiler_vendor in #(
   intel) :
     acx_cv_c_compiler_version=`$CC --version 2>/dev/null | sed -n 's/^icc (ICC) \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'`
-         if test -z "$acx_cv_c_compiler_version"; then :
+         if test -n "$acx_cv_c_compiler_version"; then :
+  acx_cv_c_compiler_version="classic:${acx_cv_c_compiler_version}"
+else
   acx_cv_c_compiler_version=`$CC --version 2>/dev/null | sed -n 's/^Intel.*oneAPI.*Compiler \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'`
             if test -n "$acx_cv_c_compiler_version"; then :
   acx_cv_c_compiler_version="oneapi:${acx_cv_c_compiler_version}"
 fi
-else
-  acx_cv_c_compiler_version="classic:${acx_cv_c_compiler_version}"
 fi ;; #(
   nag) :
     acx_cv_c_compiler_version=`$CC -V 2>&1 | sed -n 's/^NAG Fortran Compiler Release \([0-9][0-9]*\.[0-9][0-9]*\).*Build \([0-9][0-9]*\)/\1.\2/p'` ;; #(
   portland) :
     acx_cv_c_compiler_version=`$CC -V 2>/dev/null | sed -n 's/pgcc \((.*) \)\?\([0-9][0-9]*\.[0-9][0-9]*\)-\([0-9][0-9]*\).*/\2.\3/p'`
-         if test -z "$acx_cv_c_compiler_version"; then :
+         if test -n "$acx_cv_c_compiler_version"; then :
+  acx_cv_c_compiler_version="pg:${acx_cv_c_compiler_version}"
+else
   acx_cv_c_compiler_version=`$CC -V 2>/dev/null | sed -n 's/nvc \([0-9][0-9]*\.[0-9][0-9]*\)-\([0-9][0-9]*\).*/\1.\2/p'`
             if test -n "$acx_cv_c_compiler_version"; then :
   acx_cv_c_compiler_version="nv:${acx_cv_c_compiler_version}"
 fi
-else
-  acx_cv_c_compiler_version="pg:${acx_cv_c_compiler_version}"
 fi ;; #(
   cray) :
     acx_cv_c_compiler_version=`$CC -V 2>&1 | sed -n 's/.*ersion \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'`
-         if test -z "$acx_cv_c_compiler_version"; then :
+         if test -n "$acx_cv_c_compiler_version"; then :
+  acx_cv_c_compiler_version="classic:${acx_cv_c_compiler_version}"
+else
   acx_cv_c_compiler_version=`$CC --version | sed -n 's/.*version \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'`
             if test -n "$acx_cv_c_compiler_version"; then :
   acx_cv_c_compiler_version="clang:${acx_cv_c_compiler_version}"
 fi
-else
-  acx_cv_c_compiler_version="classic:${acx_cv_c_compiler_version}"
 fi ;; #(
   nec) :
     acx_cv_c_compiler_version=`$CC --version 2>&1 | sed -n 's/^ncc (NCC) \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'` ;; #(
   gnu) :
-    acx_cv_c_compiler_version=`$CC -dumpfullversion 2>/dev/null`
-         if test $? -ne 0 || test -z "$acx_cv_c_compiler_version"; then :
-  acx_cv_c_compiler_version=`$CC -dumpversion 2>/dev/null`
+    acx_cv_c_compiler_version=`$CC -dumpfullversion 2>/dev/null | sed -n '/^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$/p'`
+         if test -z "$acx_cv_c_compiler_version"; then :
+  acx_cv_c_compiler_version=`$CC -dumpversion 2>/dev/null | sed -n '/^[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$/p'`
 fi ;; #(
   amd) :
     acx_cv_c_compiler_version=`$CC --version 2>/dev/null | sed -n 's/.*AOCC_\([0-9][0-9]*\)[._]\([0-9][0-9]*\)[._]\([0-9][0-9]*\).*/\1.\2.\3/p'` ;; #(
   apple) :
     acx_cv_c_compiler_version=`$CC --version 2>/dev/null | sed -E -n 's/^Apple (LLVM|clang) version ([0-9]+\.[0-9]+\.[0-9]+).*/\2/p'` ;; #(
   clang) :
-    acx_cv_c_compiler_version=`$CC --version 2>/dev/null | sed -n 's/.*version \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'` ;; #(
+    acx_cv_c_compiler_version=`$CC --version 2>/dev/null | sed -n 's/.*clang version \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\).*/\1/p'` ;; #(
   *) :
     acx_cv_c_compiler_version=unknown ;;
 esac
@@ -6176,7 +6323,7 @@ $as_echo "$acx_cv_c_compiler_version" >&6; }
 
 
 
-for ac_header in stdlib.h stdio.h math.h time.h ctype.h string.h signal.h   limits.h errno.h assert.h stdbool.h unistd.h fcntl.h pwd.h stdint.h   sys/types.h sys/stat.h sys/param.h sys/resource.h sys/utsname.h   sys/time.h sys/times.h dirent.h
+for ac_header in stdlib.h stdio.h math.h time.h ctype.h string.h assert.h   stdbool.h dirent.h errno.h fcntl.h sys/stat.h sys/types.h unistd.h
 do :
   as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
 ac_fn_c_check_header_compile "$LINENO" "$ac_header" "$as_ac_Header" "// override default includes
@@ -6197,28 +6344,12 @@ fi
 done
 
 
-for ac_header in execinfo.h ucontext.h link.h
-do :
-  as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
-ac_fn_c_check_header_compile "$LINENO" "$ac_header" "$as_ac_Header" "// override default includes
-"
-if eval test \"x\$"$as_ac_Header"\" = x"yes"; then :
-  cat >>confdefs.h <<_ACEOF
-#define `$as_echo "HAVE_$ac_header" | $as_tr_cpp` 1
-_ACEOF
-
-fi
-
-done
-
-
-
-
 ######################## C++ COMPILER COMMAND AND FLAGS ########################
 
 CXXFLAGS=${CXXFLAGS-}
 subdir_CXXFLAGS=$CXXFLAGS
 
+export CXX
 
 
 ###################### SECONDARY GPU COMPILERS AND FLAGS #######################
@@ -7261,7 +7392,7 @@ fi
 { $as_echo "$as_me:${as_lineno-$LINENO}: result: $icon_cv_have_mpi" >&5
 $as_echo "$icon_cv_have_mpi" >&6; }
    if test "x$icon_cv_have_mpi" = xyes; then :
-  if test x"$icon_dace_enabled_or_needed" = xyes || test x"$enable_rttov" = xyes; then :
+  if test x"$enable_dace" = xyes || test x"$enable_rttov" = xyes; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}HAVE_MPI_MOD"
 fi
 else
@@ -9343,6 +9474,8 @@ esac
      ;; #(
   -enable-examples|-enable-examples=*|--enable-examples|--enable-examples=*|-disable-examples|--disable-examples) :
      ;; #(
+  -enable-check|-enable-check=*|--enable-check|--enable-check=*|-disable-check|--disable-check) :
+     ;; #(
   -enable-openmp|-enable-openmp=*|--enable-openmp|--enable-openmp=*|-disable-openmp|--disable-openmp) :
      ;; #(
   *) :
@@ -9356,7 +9489,7 @@ esac
 esac
      shift
    done
-   set dummy CFLAGS="$subdir_CFLAGS $ICON_MTIME_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_MTIME_FCFLAGS" --enable-static --disable-shared --disable-maintainer-mode --enable-silent-rules="$enable_silent_rules" --disable-examples --enable-openmp="$enable_openmp"; shift
+   set dummy CFLAGS="$subdir_CFLAGS $ICON_MTIME_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_MTIME_FCFLAGS" --enable-static --disable-shared --disable-maintainer-mode --enable-silent-rules="$enable_silent_rules" --disable-examples      --disable-check --enable-openmp="$enable_openmp"; shift
    for acx_tmp; do
      case $acx_tmp in #(
   *\'*) :
@@ -9745,9 +9878,222 @@ ac_compiler_gnu=$ac_cv_fc_compiler_gnu
      ;;
 esac
 
+if test "x$with_external_fortran_support" = xyes; then :
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether Fortran support library is available" >&5
+$as_echo_n "checking whether Fortran support library is available... " >&6; }
+if ${icon_cv_have_fortran_support+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  icon_cv_have_fortran_support=no
+      cat > conftest.$ac_ext <<_ACEOF
+      program main
+
+      use mo_util_backtrace, only: ftn_util_backtrace
+      implicit none
+      call ftn_util_backtrace()
+      end
+_ACEOF
+if ac_fn_fc_try_link "$LINENO"; then :
+  icon_cv_have_fortran_support=yes
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $icon_cv_have_fortran_support" >&5
+$as_echo "$icon_cv_have_fortran_support" >&6; }
+   if test "x$icon_cv_have_fortran_support" = xno; then :
+  { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+as_fn_error $? "unable to link a test program using Fortran support library: either use the bundled version of FORTRAN-SUPPORT (--without-external-fortran-support) or set FCFLAGS, LDFLAGS and LIBS accordingly
+See \`config.log' for more details
+${icon_usr_note}" "$LINENO" 5; }
+fi
+else
+    icon_subdir_srcdir="$srcdir/externals/fortran-support"
+   icon_subdir_unique_file="src/mo_util_backtrace.F90"
+   if test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"; then :
+  as_fn_error $? "unable to find sources of the bundled version of FORTRAN-SUPPORT library ($icon_subdir_unique_file) in '$icon_subdir_srcdir': provide an external version of FORTRAN-SUPPORT library (--with-external-fortran-support) by setting FCFLAGS, LDFLAGS and LIBS accordingly" "$LINENO" 5
+fi
+   ICON_FORTRAN_SUPPORT_FCFLAGS=${ICON_FORTRAN_SUPPORT_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
+      ICON_FORTRAN_SUPPORT_CFLAGS=${ICON_FORTRAN_SUPPORT_CFLAGS-$ICON_BUNDLED_CFLAGS}
+                  acx_subdir_run_cmd_externals_fortran_support="\"\${CMAKE}\""
+   acx_subdir_run_dir_externals_fortran_support="externals/fortran-support/build"
+   acx_subdir_build_type_externals_fortran_support='cmake'
+         acx_subdir_pre_adjust_cmake_args
+      acx_subdir_run_args_externals_fortran_support=$acx_subdir_pre_adjusted_cmake_args
+         acx_subdir_srcdirs_fn "externals/fortran-support/build"
+         case $ac_srcdir in #(
+  .) :
+    acx_tmp='..' ;; #(
+  *) :
+    acx_tmp="$ac_top_srcdir/externals/fortran-support" ;;
+esac
+      case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+      as_fn_append acx_subdir_run_args_externals_fortran_support " '$acx_tmp'"
+      as_fn_append extra_src_subdirs " externals/fortran-support"
+   acx_subdir_run_condition_externals_fortran_support=no
+   eval "set dummy $acx_subdir_run_args_externals_fortran_support"; shift
+   acx_subdir_run_args_externals_fortran_support=
+   while test $# != 0; do
+     acx_tmp=$1
+     case $acx_tmp in #(
+       -DCMAKE_C_FLAGS=*|-DCMAKE_Fortran_FLAGS=*) :
+     ;; #(
+       -DCMAKE_CXX_*=*) :
+     ;; #(
+       -DCMAKE_SHARED_LINKER_FLAGS=*|-DCMAKE_MODULE_LINKER_FLAGS=*) :
+     ;; #(
+       -DCMAKE_*_COMPILER_AR=*|-DCMAKE_*_COMPILER_RANLIB=*) :
+     ;; #(
+  *) :
+           case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+        as_fn_append acx_subdir_run_args_externals_fortran_support " '$acx_tmp'" ;;
+esac
+     shift
+   done
+   set dummy      -DCMAKE_C_FLAGS="$subdir_CFLAGS $ICON_FORTRAN_SUPPORT_CFLAGS $subdir_CPPFLAGS" -DCMAKE_Fortran_FLAGS="$subdir_FCFLAGS $ICON_FORTRAN_SUPPORT_FCFLAGS"      -DBUILD_SHARED_LIBS:BOOL=OFF -DBUILD_TESTING:BOOL=OFF      -DCMAKE_BUILD_TYPE:STRING=NOEXTRAFLAGS; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+     as_fn_append acx_subdir_run_args_externals_fortran_support " '$acx_tmp'"
+   done
+   as_fn_append bundled_includes "${FC_MOD_IN}externals/fortran-support/build/src/mod "
+   BUNDLED_LIBFILES="externals/fortran-support/build/src/libfortran-support.a $BUNDLED_LIBFILES"
+fi
+
 if test -n "$bundled_includes"; then :
   FCFLAGS="${bundled_includes}${FCFLAGS}"
 fi
+
+############################# BUNDLED EXECUTABLES ##############################
+
+if test x"$enable_hd" != xno; then :
+  icon_subdir_srcdir="$srcdir/externals/hd"
+   icon_subdir_unique_file="code/src/hd_driver.f90"
+   if test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"; then :
+  as_fn_error $? "unable to find sources of the bundled version of HD model ($icon_subdir_unique_file) in '$icon_subdir_srcdir': disable building of the bundled Hydrological Discharge (HD) model (--without-bundled-hd)" "$LINENO" 5
+fi
+            ICON_HD_FCFLAGS=${ICON_HD_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
+                           acx_subdir_srcdirs_fn "externals/hd"
+   acx_subdir_run_cmd_externals_hd="'$ac_srcdir/configure'"
+   acx_subdir_run_dir_externals_hd="externals/hd"
+   acx_subdir_build_type_externals_hd='config'
+         acx_subdir_pre_adjust_config_args
+      acx_subdir_run_args_externals_hd=$acx_subdir_pre_adjusted_config_args
+      if test "x$cache_file" = x'/dev/null'; then :
+  acx_tmp=$cache_file
+else
+  case $cache_file in #(
+  [\\/]* | ?:[\\/]*) :
+    acx_tmp=$cache_file ;; #(
+  *) :
+    acx_tmp="$ac_top_build_prefix$cache_file" ;;
+esac
+         acx_tmp="$acx_tmp.externals.hd"
+fi
+      set dummy "--cache-file=$acx_tmp" "--srcdir=$ac_srcdir"; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+     as_fn_append acx_subdir_run_args_externals_hd " '$acx_tmp'"
+   done
+      as_fn_append extra_src_subdirs " externals/hd"
+   acx_subdir_run_condition_externals_hd=no
+      eval "set dummy $acx_subdir_run_args_externals_hd"; shift
+   acx_subdir_run_args_externals_hd=
+   while test $# != 0; do
+     acx_tmp=$1
+     case $acx_tmp in #(
+  BUILD_ENV=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*) :
+     ;; #(
+  MPI_FCFLAGS=*|MPI_FCLIBS=*|NETCDF_FCFLAGS=*|NETCDF_FCLIBS=*) :
+     ;; #(
+  YAC_FCFLAGS=*|YAC_FCLIBS=*|PKG_CONFIG=*) :
+     ;; #(
+  -enable-rpaths|-enable-rpaths=*|--enable-rpaths|--enable-rpaths=*|-disable-rpaths|--disable-rpaths) :
+     ;; #(
+  -enable-silent-rules|-enable-silent-rules=*|--enable-silent-rules|--enable-silent-rules=*|-disable-silent-rules|--disable-silent-rules) :
+     ;; #(
+  -enable-mpi|-enable-mpi=*|--enable-mpi|--enable-mpi=*|-disable-mpi|--disable-mpi) :
+     ;; #(
+  -enable-resolution|-enable-resolution=*|--enable-resolution|--enable-resolution=*|-disable-resolution|--disable-resolution) :
+     ;; #(
+  -enable-coupling|-enable-coupling=*|--enable-coupling|--enable-coupling=*|-disable-coupling|--disable-coupling) :
+     ;; #(
+  *) :
+           case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+        as_fn_append acx_subdir_run_args_externals_hd " '$acx_tmp'" ;;
+esac
+     shift
+   done
+      set dummy FCFLAGS="$subdir_FCFLAGS $ICON_HD_FCFLAGS" MPI_FCFLAGS= MPI_FCLIBS= NETCDF_FCFLAGS= NETCDF_FCLIBS= YAC_FCLIBS= PKG_CONFIG= --enable-rpaths="$enable_rpaths" --enable-silent-rules="$enable_silent_rules" --enable-mpi="$enable_mpi" --enable-resolution="$enable_hd" --enable-coupling="$enable_coupling"; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+     as_fn_append acx_subdir_run_args_externals_hd " '$acx_tmp'"
+   done
+      if test "x$enable_coupling" = xyes; then :
+  if test "x$with_external_yac" = xyes; then :
+  set dummy YAC_FCFLAGS=; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+     as_fn_append acx_subdir_run_args_externals_hd " '$acx_tmp'"
+   done
+else
+  icon_hd_yac_lib="${icon_abs_top_builddir}/externals/yac/src/libyac.a"
+            if test "x$with_external_mtime" = xno; then :
+  as_fn_append icon_hd_yac_lib " ${icon_abs_top_builddir}/externals/mtime/src/.libs/libmtime.a"
+fi
+            if test "x$with_external_yaxt" = xno; then :
+  as_fn_append icon_hd_yac_lib " ${icon_abs_top_builddir}/externals/yaxt/src/.libs/libyaxt_c.a"
+fi
+            set dummy YAC_FCFLAGS="${FC_MOD_IN}${icon_abs_top_builddir}/externals/yac/src" acx_cv_fc_module_MO_YAC_FINTERFACE=yes acx_cv_fc_lib_func_YAC_FGET_VERSION="${icon_hd_yac_lib}"; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+     as_fn_append acx_subdir_run_args_externals_hd " '$acx_tmp'"
+   done
+fi
+fi
+fi
+
+######################## BUNDLED PACKAGES FINALIZATION #########################
 
 icon_bundled_config_subdirs=''
 
@@ -9766,7 +10112,7 @@ done
 ICON_DELAYED_CONFIG_RULES=''
 
 if test "x$enable_delayed_config" = xyes; then :
-     ICON_DELAYED_CONFIG_RULES="export FC CC$as_nl$as_nl"
+     ICON_DELAYED_CONFIG_RULES="export FC CC CXX$as_nl$as_nl"
    icon_rule_sep=''
    for icon_bundled_srcdir in $extra_src_subdirs; do
      eval icon_bundled_builddir=\$acx_subdir_run_dir_`$as_echo "$icon_bundled_srcdir" | $as_tr_sh`
@@ -10405,11 +10751,11 @@ else
 
 fi
 
-if test "x$icon_dace_enabled_or_needed" = xyes; then :
-  DACE_ENABLED_OR_NEEDED=''
+if test "x$enable_dace" = xyes; then :
+  DACE_ENABLED=''
 
 else
-  DACE_ENABLED_OR_NEEDED='#'
+  DACE_ENABLED='#'
 
 fi
 
@@ -10426,6 +10772,14 @@ if test "x$enable_art" = xyes; then :
 
 else
   ART_ENABLED='#'
+
+fi
+
+if test "x$enable_hd" = xno; then :
+  HD_ENABLED='#'
+
+else
+  HD_ENABLED=''
 
 fi
 

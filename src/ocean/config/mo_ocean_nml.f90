@@ -1,17 +1,17 @@
-!>
-!!        Contains the variables to set up the ocean model.
-!!
-!!        
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Contains the variables to set up the ocean model.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_ocean_nml
 !-------------------------------------------------------------------------
   USE mo_kind,               ONLY: wp, sp
@@ -320,14 +320,8 @@ MODULE mo_ocean_nml
   LOGICAL  :: use_smooth_ocean_boundary  = .TRUE.
   LOGICAL  :: createSolverMatrix  = .FALSE.
 
-  ! adjoint run setup
-  ! number of checkpoints
-  INTEGER :: ncheckpoints           = -1
-  INTEGER, PARAMETER :: RUN_FORWARD            = 0
-  INTEGER, PARAMETER :: RUN_ADJOINT            = 1
-  INTEGER :: run_mode               = 0
   INTEGER :: minVerticalLevels       = 2
-  
+
   NAMELIST/ocean_dynamics_nml/&
     &                 ab_beta                      , &
     &                 ab_const                     , &
@@ -383,8 +377,6 @@ MODULE mo_ocean_nml
     &                 HorizonatlVelocity_VerticalAdvection_form, &
     &                 solver_FirstGuess            , &
     &                 use_smooth_ocean_boundary    , &
-    &                 run_mode                     , &
-    &                 ncheckpoints                 , &
     &                 createSolverMatrix           , &
     &                 minVerticalLevels
 
@@ -435,8 +427,7 @@ MODULE mo_ocean_nml
   INTEGER, PARAMETER :: vmix_pp  = 1
   INTEGER, PARAMETER :: vmix_tke = 2
   INTEGER, PARAMETER :: vmix_idemix_tke = 4
-  INTEGER, PARAMETER :: vmix_kpp = 3
-  INTEGER  :: vert_mix_type = vmix_pp  ! 1: PP; 2: TKE; 3: KPP ! by_nils/by_ogut
+  INTEGER  :: vert_mix_type = vmix_pp  ! 1: PP; 2: TKE; ! by_nils/by_ogut
 
   REAL(wp) :: tracer_convection_MixingCoefficient        = 0.1_wp     ! convection diffusion coefficient for tracer, used in PP scheme
   REAL(wp) :: convection_InstabilityThreshold            = -5.0E-8_wp ! used in PP scheme
@@ -489,7 +480,7 @@ MODULE mo_ocean_nml
   REAL(wp) :: HorizontalViscosity_ScaleWeight = 0.5_wp
   INTEGER  :: LeithViscosity_SmoothIterations = 0
   REAL(wp) :: LeithViscosity_SpatialSmoothFactor = 0.5_wp
-  ! cvmix_tke parameters ! by_nils
+  ! vmix_tke parameters ! by_nils
   REAL(wp) :: c_k = 0.1_wp
   REAL(wp) :: c_eps = 0.7_wp
   REAL(wp) :: alpha_tke = 30.0_wp
@@ -507,7 +498,7 @@ MODULE mo_ocean_nml
   REAL(wp) :: clc = 0.15_wp
   LOGICAL  :: use_ubound_dirichlet = .false.
   LOGICAL  :: use_lbound_dirichlet = .false.
-  ! cvmix_idemix parameters ! by_nils
+  ! vmix_idemix parameters ! by_nils
   REAL(wp) :: tau_v = 86400.0_wp
   REAL(wp) :: tau_h = 1296000.0_wp
   REAL(wp) :: gamma = 1.570_wp
@@ -520,63 +511,6 @@ MODULE mo_ocean_nml
   CHARACTER(LEN=40) :: name_iwe_surforc='niw_forc'
   CHARACTER(filename_max) :: fpath_iwe_botforc = 'idemix_bottom_forcing.nc'
   CHARACTER(LEN=40) :: name_iwe_botforc='wave_dissipation'
-  ! cvmix_kpp parameters ! by_oliver
-  REAL(wp) :: Ri_crit=0.3                    ! critical bulk-Rickardson number (Rib) used to diagnose OBL depth
-  REAL(wp) :: vonKarman=0.40                 ! von Karman constant(dimensionless)
-  REAL(wp) :: cs=98.96                       ! parameter for computing velocity scale function (dimensionless)
-  REAL(wp) :: cs2=6.32739901508              ! parameter for multiplying by non-local term
-  REAL(wp) :: minOBLdepth=0.0                ! if non-zero, sets the minimum depth for the OBL (m)
-  REAL(wp) :: minVtsqr=1e-10                 ! minimum for the squared unresolved velocity used in Rib CVMix calculation (m2/s2)
-  REAL(wp) :: langmuir_Efactor=1.0           ! Langmuir enhancement factor for turb. vertical velocity scale (w_s)
-  REAL(wp) :: surf_layer_ext=0.10            ! fraction of OBL depth considered as the surface layer (nondim) (epsilon=0.1)
-  LOGICAL  :: enhance_diffusion=.FALSE.      ! True => add enhanced diffusivity at base of boundary layer (not recommended).
-  LOGICAL  :: computeEkman=.FALSE.           ! True => compute Ekman depth limit for OBLdepth
-  LOGICAL  :: computeMoninObukhov=.FALSE.    ! True => compute Monin-Obukhov limit for OBLdepth
-  LOGICAL  :: llangmuirEF=.FALSE.            ! True => apply Langmuir enhancement factor to w_s
-  LOGICAL  :: lenhanced_entr=.FALSE.         ! True => enhance entrainment by adding Stokes shear to 
-                                             !          the unresolved vertial shear (not used atm)
-  LOGICAL  :: CS_is_one=.FALSE.              ! match diffusvity coefficients at OBL base (not recommended)
-  CHARACTER(LEN=10) :: interpType="cubic"    ! Type of interpolation in determining OBL depth: linear,quadratic,cubic
-  CHARACTER(LEN=30) :: MatchTechnique="SimpleShapes" ! Method used in CVMix for setting diffusivity and NLT profile functions:
-                                                     ! SimpleShapes      = sigma*(1-sigma)^2 for both diffusivity and NLT
-                                                     ! MatchGradient     = sigma*(1-sigma)^2 for NLT; 
-                                                     !                      diffusivity profile from matching
-                                                     ! MatchBoth         = match gradient for both diffusivity and 
-                                                     ! ParabolicNonLocal = sigma*(1-sigma)^2 for diffusivity;(1-sigma)^2 for NLT
-  CHARACTER(LEN=30) :: internal_mix_scheme="KPP"     ! Ri-number dependent mixing scheme below the OBL: 'PP' or 'KPP'
-  LOGICAL  :: lnonlocal_trans=.TRUE.         ! If True, non-local transport terms are calculated (and applied).
-                                             ! Set to .FALSE. only for testing purposes!
-  LOGICAL  :: fixedOBLdepth=.FALSE.          ! If True, will fix the OBL depth at fixedOBLdepth_value
-  LOGICAL  :: lconvection=.TRUE.             ! If True, convection param. 'enhanced diff.' is called below the OBL
-  LOGICAL  :: lnl_trans_under_sea_ice=.TRUE. ! If True, non-local transport tendencies are calculated below sea ice
-  LOGICAL  :: diag_WS=.FALSE.                ! If True, the turbulent velocity scale will be recalculated with correct OBL depth
-  LOGICAL  :: diag_vtsqr=.TRUE.              ! If True, vertical turbulent shear acting on OBL depth will be diagnosed
-  LOGICAL  :: diag_G=.TRUE.                  ! If True, the non-dimensional shape function G(sigma)=sigma(1-sigma)**2 is diagnosed
-                                             ! Note: the internally used G may be different from this form if NLT_shape 
-                                             !       is set other than "CVMIX".
-  REAL(wp) :: min_thickness=0.0              ! minimum thickness to avoid division by small numbers in 
-                                             !  the vicinity of vanished layers
-  REAL(wp) :: deepOBLoffset=0.0              ! If non-zero, is a distance from the bottom that the OBL can not penetrate through (m)
-  REAL(wp) :: fixedOBLdepth_value=30.0       ! value for the fixed OBL depth when fixedOBLdepth==True.
-  CHARACTER(LEN=30) :: SW_METHOD="SW_METHOD_ALL_SW" ! Sets method for using shortwave radiation in surface buoyancy flux
-                                             ! Alternatives:
-                                             ! SW_METHOD_ALL_SW
-                                             ! SW_METHOD_MXL_SW
-                                             ! SW_METHOD_LV1_SW
-  CHARACTER(LEN=30) :: NLT_shape="CVMIX"     ! Use a different shape function (G) for non-local transport; overwrites the result from CVMix.
-                                             ! Allowed values are:
-                                             ! CVMIX     - Uses the profiles from CVmix specified by MATCH_TECHNIQUE
-                                             ! LINEAR    - A linear profile, 1-sigma
-                                             ! PARABOLIC - A parablic profile,(1-sigma)^2
-                                             ! CUBIC     - A cubic profile, (1-sigma)^2(1+2*sigma)
-                                             ! CUBIC_LMD - The original KPP profile
-                                             ! default='CVMIX'
-  REAL(wp) :: KPP_nu_zero = 5e-3             ! leading coefficient of shear mixing formula, units: m^2/s: default= 5e-3
-  REAL(wp) :: KPP_Ri_zero = 0.7              ! critical Richardson number value, units: unitless (0.7 in LMD94)
-  REAL(wp) :: KPP_loc_exp = 3.0              ! Exponent of unitless factor of diffusities,units:unitless (3 in LMD94)
-  REAL(wp) :: PP_nu_zero = 0.01              !
-  REAL(wp) :: PP_alpha   = 5.0               !
-  REAL(wp) :: PP_loc_exp = 2.0               !
 
   LOGICAL :: use_bc_SAL_potential = .false.
 
@@ -641,7 +575,7 @@ MODULE mo_ocean_nml
     &  tracer_convection_MixingCoefficient ,    &
     &  convection_InstabilityThreshold, &
     &  RichardsonDiffusion_threshold, &
-    ! cvmix_tke parameters ! by_nils
+    ! vmix_tke parameters ! by_nils
     &  c_k,                         &
     &  c_eps,                       &
     &  alpha_tke,                   &
@@ -659,7 +593,7 @@ MODULE mo_ocean_nml
     &  clc,                         &
     &  use_ubound_dirichlet,        &
     &  use_lbound_dirichlet,        &
-    ! cvmix_idemix parameters ! by_nils
+    ! vmix_idemix parameters ! by_nils
     &  tau_v,                       &
     &  tau_h,                       &
     &  gamma,                       &
@@ -671,44 +605,7 @@ MODULE mo_ocean_nml
     &  fpath_iwe_surforc,           &
     &  name_iwe_surforc,            &
     &  fpath_iwe_botforc,           &
-    &  name_iwe_botforc,            &
-    ! cvmix_kpp parameters ! by_oliver
-    !(FIXME: reduce number of namelist entries)
-    &  Ri_crit,                     &
-    &  vonKarman,                   &
-    &  cs,                          &
-    &  cs2,                         &
-    &  minOBLdepth,                 & 
-    &  minVtsqr,                    &
-    &  langmuir_Efactor,            &
-    &  surf_layer_ext,              &
-    &  enhance_diffusion,           &
-    &  computeEkman,                &
-    &  computeMoninObukhov,         &
-    &  llangmuirEF,                 &
-    &  lenhanced_entr,              &
-    &  CS_is_one,                   &
-    &  interpType,                  &
-    &  MatchTechnique,              &
-    &  internal_mix_scheme,         &
-    &  lnonlocal_trans,             &
-    &  fixedOBLdepth,               &
-    &  lconvection,                 &
-    &  lnl_trans_under_sea_ice,     &
-    &  diag_WS,                     &
-    &  diag_vtsqr,                  &
-    &  diag_G,                      &
-    &  min_thickness,               &
-    &  deepOBLoffset,               &
-    &  fixedOBLdepth_value,         &
-    &  SW_METHOD,                   &
-    &  NLT_shape,                   &
-    &  KPP_nu_zero,                 &
-    &  KPP_Ri_zero,                 &
-    &  KPP_loc_exp,                 &
-    &  PP_nu_zero,                  &
-    &  PP_alpha,                    &
-    &  PP_loc_exp!,                 & 
+    &  name_iwe_botforc
 
   !Parameters for GM-Redi configuration
   REAL(wp) :: k_tracer_dianeutral_parameter   = 1.0E-4_wp  !dianeutral tracer diffusivity for GentMcWilliams-Redi parametrization
@@ -1355,7 +1252,8 @@ MODULE mo_ocean_nml
       CALL finish(method_name, 'wrong laplacian_form parameter')
     ENDIF
       
-    !$ACC UPDATE DEVICE(n_zlev)
+    !$ACC UPDATE DEVICE(n_zlev) ASYNC(1)
+    !$ACC WAIT(1) ! can be removed when all ACC compute regions are ASYNC(1)
     IF( n_zlev < 1 ) &
       & CALL finish(method_name,  'n_zlev < 1')
     IF( iswm_oce == 1 .AND. n_zlev > 1 ) THEN
@@ -1544,10 +1442,13 @@ MODULE mo_ocean_nml
        if(lbgcadv) nbgcadv =  ntraad
     endif
 
-    !$ACC UPDATE DEVICE(eos_type)
-    !$ACC UPDATE DEVICE(OceanReferenceDensity)
-    !$ACC UPDATE DEVICE(LinearThermoExpansionCoefficient)
-    !$ACC UPDATE DEVICE(LinearHalineContractionCoefficient)
+    !$ACC UPDATE &
+    !$ACC   DEVICE(eos_type) &
+    !$ACC   DEVICE(OceanReferenceDensity) &
+    !$ACC   DEVICE(LinearThermoExpansionCoefficient) &
+    !$ACC   DEVICE(LinearHalineContractionCoefficient) &
+    !$ACC   ASYNC(1)
+    !$ACC WAIT(1) ! can be removed when all ACC compute regions are ASYNC(1)
 
 END SUBROUTINE read_ocean_namelist
 

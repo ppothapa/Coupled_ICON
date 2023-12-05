@@ -1,28 +1,22 @@
-!>
-!! NWP surface tile utility functions
-!!
-!! Surface tile utility functions. Many of them are dealing with the 
-!! request of tile metainformation and its conversion between the 
-!! model-internal tile structure and the output tile structure according 
-!! to GRIB2 Product Definition Template (PDT) 4.55. 
-!!
-!!
-!! @author Daniel Reinert, DWD
-!! @author Florian Prill, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2018-07-11)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! NWP surface tile utility functions
+!
+! Surface tile utility functions. Many of them are dealing with the
+! request of tile metainformation and its conversion between the
+! model-internal tile structure and the output tile structure according
+! to GRIB2 Product Definition Template (PDT) 4.55.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_nwp_sfc_tiles
 
   USE mo_impl_constants,     ONLY: MAX_CHAR_LENGTH
@@ -158,14 +152,7 @@ MODULE mo_nwp_sfc_tiles
 CONTAINS
 
 
-  !>
   !! Setup list of active surface tiles
-  !!
-  !! Setup list of active surface tiles
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2018-07-11)
-  !!
   SUBROUTINE setup_tile_list (tile_list, ntiles_lnd, lsnowtile, isub_water, isub_lake, isub_seaice)
 
     TYPE(t_tile_list), TARGET, INTENT(INOUT) :: tile_list !< list of tiles
@@ -351,14 +338,8 @@ CONTAINS
 
 
 
-  !>
-  !! For a given tile attribute, return ICON-internal varname suffix
-  !!
   !! For a given tile attribute, return ICON-internal varname suffix '_t_X'
   !! For a trivial tile attribute it returns an empty string.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2018-07-13)
   !!
   FUNCTION tile_att_getTileSuffix(tile_att) RESULT (tileSuffix)
 
@@ -385,13 +366,7 @@ CONTAINS
   END FUNCTION tile_att_getTileSuffix
 
   
-  !>
-  !! Initialize tile
-  !!
   !! Initializes tile of type t_tile
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2018-07-11)
   !!
   SUBROUTINE tile_init (tile, tile_id, opt_name)
 
@@ -430,15 +405,9 @@ CONTAINS
   END SUBROUTINE tile_init
 
 
-  !>
-  !! Append set of attributes to tile
-  !!
   !! Appends set of attributes to tile. In addition 
   !! the new attribute set is concatenated with the 'parent' 
   !! tile by pointing to it.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2018-07-11)
   !!
   SUBROUTINE tile_append_att (tile, tile_id_icon, tile_att)
 
@@ -484,13 +453,7 @@ CONTAINS
 
 
 
-  !>
   !! Get total number of attributes for a given tile
-  !!
-  !! Get total number of attributes for a given tile
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2018-07-11)
   !!
   INTEGER FUNCTION tile_getNumberOfTileAttributes(tile) RESULT(natt)
 
@@ -527,13 +490,7 @@ CONTAINS
   END FUNCTION tile_list_getNumberOfTileAttributes
 
 
-  !>
   !! Destructor for variable of type t_tile
-  !!
-  !! Destructor for variable of type t_tile
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2018-07-11)
   !!
   SUBROUTINE tile_destruct (tile)
     CLASS(t_tile), INTENT(INOUT) :: tile     !< passed-object dummy argument
@@ -563,9 +520,6 @@ CONTAINS
   !! Note that the number of tiles returned by this routine adheres to the 
   !! output (GRIB2) tile structure and not the model-internal structure. 
   !! I.e. snowtiles and the sea-ice tile are not considered as separate tiles.
-  !! 
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2018-07-11)
   !!
   INTEGER FUNCTION tile_list_getNumberOfTiles(tile_list,varClass) RESULT(numberOfTiles)
 
@@ -666,15 +620,9 @@ CONTAINS
   END FUNCTION tile_list_getTileAtt
 
 
-  !>
-  !! Visualize basic surface tile setup
-  !!
   !! Visualize basic surface tile setup. 
   !! Graphical visualization of mapping between internal tile ids 
   !! and grib2 tile information.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2018-07-13)
   !!
   SUBROUTINE tile_list_printSetup (tile_list)
     !
@@ -760,17 +708,11 @@ CONTAINS
   END SUBROUTINE tile_list_printSetup
 
 
-  !>
-  !! Destructor for variable of type t_tile_list
-  !!
   !! Destructor for variable of type t_tile_list
   !! Note that we have voted against a type-bound procedure 
   !! and binding name here. Likely, this makes it easier to 
   !! identify the position in the code where this routine is 
   !! called.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2018-07-11)
   !!
   SUBROUTINE tile_list_destruct (tile_list)
 

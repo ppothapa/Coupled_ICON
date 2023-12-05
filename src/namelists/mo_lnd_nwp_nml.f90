@@ -1,27 +1,20 @@
-!>
-!!  Namelist for surface physics
-!!
-!!  these Subroutines are called by control model and construct the
-!!  surface scheme composition
-!!
-!! @author <Kristina Froehlich, DWD>
-!!
-!!
-!! @par Revision History
-!! First implementation by Kristina Froehlich, DWD (2010-06-20>)
-!!
-!! Modifications by Dmitrii Mironov, DWD (2016-08-04)
-!! - Namelist variable (logical switch) is introduced to allow the use 
-!!   of a rate equation for the sea-ice albedo.
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Namelist for surface physics
+!
+! these Subroutines are called by control model and construct the
+! surface scheme composition
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_lnd_nwp_nml
 
   USE mo_kind,                ONLY: wp
@@ -44,6 +37,7 @@ MODULE mo_lnd_nwp_nml
     &                               config_hice_max           => hice_max          , &
     &                               config_lseaice            => lseaice           , &
     &                               config_lprog_albsi        => lprog_albsi       , &
+    &                               config_lbottom_hflux      => lbottom_hflux     , &
     &                               config_llake              => llake             , &
     &                               config_lmelt              => lmelt             , &
     &                               config_lmelt_var          => lmelt_var         , &
@@ -92,8 +86,6 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !
-  !
-  !>
   !! Read Namelist for NWP land physics. 
   !!
   !! This subroutine 
@@ -104,9 +96,6 @@ CONTAINS
   !! - reads the user's (new) specifications
   !! - stores the Namelist for restart
   !! - fills the configuration state (partly)    
-  !!
-  !! @par Revision History
-  !!  by Daniel Reinert, DWD (2011-06-07)
   !!
   SUBROUTINE read_nwp_lnd_namelist( filename )
 
@@ -131,6 +120,7 @@ CONTAINS
     REAL(wp)::  frsea_thrhld      !< fraction threshold for creating a sea grid point
     REAL(wp)::  hice_min          !< minimum sea-ice thickness [m]
     REAL(wp)::  hice_max          !< maximum sea-ice thickness [m]
+    LOGICAL ::  lbottom_hflux     !< use simple parameterization for heat flux through sea ice bottom
     REAL(wp)::  max_toplaydepth   !< maximum depth of uppermost snow layer for multi-layer snow scheme
     INTEGER ::  itype_trvg        !< type of vegetation transpiration parameterization
     INTEGER ::  itype_evsl        !< type of parameterization of bare soil evaporation (see Schulz and Vogel 2020)
@@ -178,7 +168,7 @@ CONTAINS
          &               frlnd_thrhld, lseaice, lprog_albsi, llake, lmelt     , &
          &               frlndtile_thrhld, frlake_thrhld                      , &
          &               frsea_thrhld, lmelt_var, lmulti_snow                 , &
-         &               hice_min, hice_max                                   , &
+         &               hice_min, hice_max, lbottom_hflux                    , &
          &               itype_trvg, idiag_snowfrac, max_toplaydepth          , &
          &               itype_evsl                                           , &
          &               itype_lndtbl                                         , &
@@ -226,6 +216,7 @@ CONTAINS
                              ! tile for a grid point
     hice_min       = 0.05_wp ! minimum sea-ice thickness [m]
     hice_max       = 3.0_wp  ! maximum sea-ice thickness [m]
+    lbottom_hflux  = .FALSE. ! true: use simple parameterization for heat flux through sea ice bottom
     lmelt          = .TRUE.  ! soil model with melting process
     lmelt_var      = .TRUE.  ! freezing temperature dependent on water content
     lmulti_snow    = .FALSE. ! .TRUE. = run the multi-layer snow model, .FALSE. = use single-layer scheme
@@ -395,6 +386,7 @@ CONTAINS
     config_frsea_thrhld       = frsea_thrhld
     config_hice_min           = hice_min
     config_hice_max           = hice_max
+    config_lbottom_hflux      = lbottom_hflux
     config_lseaice            = lseaice
     config_lprog_albsi        = lprog_albsi 
     config_llake              = llake
@@ -433,7 +425,7 @@ CONTAINS
     config_ci_td_filename     = ci_td_filename
     config_nlev_soil          = nlev_soil
     config_czbot_w_so         = czbot_w_so
-    !$ACC UPDATE DEVICE(config_itype_interception)
+    !$ACC UPDATE DEVICE(config_itype_interception) ASYNC(1)
 
     !-----------------------------------------------------
     ! 6. Store the namelist for restart

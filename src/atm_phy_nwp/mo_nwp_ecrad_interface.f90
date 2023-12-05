@@ -1,36 +1,35 @@
-!>
-!! This module is the interface between ICON:nwp_radiation to the radiation scheme ecRad
-!!
-!! - There are two interfaces within this module: nwp_ecrad_radiation and
-!!   nwp_ecrad_radiation_reduced. The former provides the interface to ecrad on the full
-!!   ICON dynamics grid. The latter one provides the interface on a grid with a reduced
-!!   spatial resolution.
-!! - The decision which of the two interface routines is used, is done via the namelist
-!!   switch lredgrid_phys. Based on the value of lredgrid_phys, the correct interface
-!!   is called by mo_nwp_rad_interface:nwp_radiation.
-!! - The interfaces have to fill the different ecRad input types (ecrad_aerosol,
-!!   ecrad_single_level, ecrad_thermodynamics, ecrad_gas, ecrad_cloud) with data from
-!!   ICON variables. Then, the ecRad radiation code is called. At the end, the fluxes
-!!   calculated by ecRad and stored in the ecrad_flux structure are copied to ICON variables.
-!! - The difference between nwp_ecrad_radiation and nwp_ecrad_radiation_reduced is mostly
-!!   an upscaling at the beginning and a downscaling at the end of the interface.
-!! - The transfer of data from ICON to ecRad and vice versa is performed within
-!!   routines from mo_nwp_ecrad_utilities and mo_nwp_ecrad_prep_aerosol, independent of
-!!   the choice to use a reduced radiation grid or not.
-!!
-!! @author Daniel Rieger, Deutscher Wetterdienst, Offenbach
-!!
-!! @par Revision History
-!! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-01-31)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! This module is the interface between ICON:nwp_radiation to the radiation scheme ecRad
+!
+! - There are two interfaces within this module: nwp_ecrad_radiation and
+!   nwp_ecrad_radiation_reduced. The former provides the interface to ecrad on the full
+!   ICON dynamics grid. The latter one provides the interface on a grid with a reduced
+!   spatial resolution.
+! - The decision which of the two interface routines is used, is done via the namelist
+!   switch lredgrid_phys. Based on the value of lredgrid_phys, the correct interface
+!   is called by mo_nwp_rad_interface:nwp_radiation.
+! - The interfaces have to fill the different ecRad input types (ecrad_aerosol,
+!   ecrad_single_level, ecrad_thermodynamics, ecrad_gas, ecrad_cloud) with data from
+!   ICON variables. Then, the ecRad radiation code is called. At the end, the fluxes
+!   calculated by ecRad and stored in the ecrad_flux structure are copied to ICON variables.
+! - The difference between nwp_ecrad_radiation and nwp_ecrad_radiation_reduced is mostly
+!   an upscaling at the beginning and a downscaling at the end of the interface.
+! - The transfer of data from ICON to ecRad and vice versa is performed within
+!   routines from mo_nwp_ecrad_utilities and mo_nwp_ecrad_prep_aerosol, independent of
+!   the choice to use a reduced radiation grid or not.
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -42,9 +41,9 @@ MODULE mo_nwp_ecrad_interface
   USE mo_exception,              ONLY: finish, message
   USE mo_math_constants,         ONLY: pi
   USE mo_model_domain,           ONLY: t_patch, p_patch_local_parent
-  USE mo_impl_constants,         ONLY: min_rlcell_int
+  USE mo_impl_constants,         ONLY: min_rlcell_int, n_camsaermr
   USE mo_impl_constants_grf,     ONLY: grf_bdywidth_c, grf_ovlparea_start_c, grf_fbk_start_c
-  USE mo_fortran_tools,          ONLY: init, assert_acc_device_only
+  USE mo_fortran_tools,          ONLY: init, assert_acc_device_only,t_ptr_2d
   USE mo_parallel_config,        ONLY: nproma, nproma_sub, nblocks_sub
   USE mo_loopindices,            ONLY: get_indices_c
   USE mo_grid_config,            ONLY: l_limited_area, nexlevs_rrg_vnest
@@ -59,7 +58,7 @@ MODULE mo_nwp_ecrad_interface
                                    &   iRadAeroNone, iRadAeroConst, iRadAeroTegen,            &
                                    &   iRadAeroART, iRadAeroConstKinne, iRadAeroKinne,        &
                                    &   iRadAeroVolc, iRadAeroKinneVolc,  iRadAeroKinneVolcSP, &
-                                   &   iRadAeroKinneSP
+                                   &   iRadAeroKinneSP, iRadAeroCAMSclim
   USE mo_phys_nest_utilities,    ONLY: t_upscale_fields, upscale_rad_input, downscale_rad_output
   USE mtime,                     ONLY: datetime
 #ifdef __ECRAD
@@ -104,11 +103,6 @@ CONTAINS
   !!  ... allocates the ecRad data types
   !!  ... fills the ecRad data types with current atmospheric and external data
   !!  ... saves the output to ICON physics data structure
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-01-31)
-  !! Add separate (diffuse) near-IR, visible, and PAR fluxes by Roland Wirth, Deutscher
-  !!     Wetterdienst, Offenbach (2021-09-15)
   !!
   SUBROUTINE nwp_ecrad_radiation ( current_datetime, pt_patch, ext_data,      &
     &  zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, od_lw, od_sw, ssa_sw,               &
@@ -160,7 +154,7 @@ CONTAINS
     REAL(wp)                 :: &
       &  fact_reffc               !< Factor in the calculation of cloud droplet effective radius
     INTEGER                  :: &
-      &  jc, jb, jk, jw,        & !< Loop indices
+      &  jc, jb, jk, jw, jt,    & !< Loop indices
       &  jg,                    & !< Domain index
       &  nlev, nlevp1,          & !< Number of vertical levels (full, half)
       &  rl_start, rl_end,      & !<
@@ -192,6 +186,8 @@ CONTAINS
     REAL(wp), DIMENSION(:),    POINTER :: &
       &  ptr_fr_glac => NULL(), ptr_fr_land => NULL()
 
+    TYPE(t_ptr_2d), ALLOCATABLE :: ptr_camsaermr(:)
+
     CALL assert_acc_device_only(routine, lacc)
 
     !$ACC DATA CREATE(ecrad_aerosol, ecrad_cloud, ecrad_flux, ecrad_gas, ecrad_single_level, ecrad_thermodynamics) &
@@ -212,7 +208,7 @@ CONTAINS
     i_startblk = pt_patch%cells%start_block(rl_start)
     i_endblk   = pt_patch%cells%end_block(rl_end)
 
-!$OMP PARALLEL PRIVATE(cosmu0mask, opt_ptrs_lw, opt_ptrs_sw, jw,                     &
+!$OMP PARALLEL PRIVATE(cosmu0mask, opt_ptrs_lw, opt_ptrs_sw, jw, ptr_camsaermr, jt,  &
 !$OMP                  zlwflx_up,     zlwflx_dn,     zswflx_up,     zswflx_dn,       &
 !$OMP                  zlwflx_up_clr, zlwflx_dn_clr, zswflx_up_clr, zswflx_dn_clr,   &
 !$OMP                  ecrad_aerosol,ecrad_single_level, ecrad_thermodynamics,       &
@@ -257,7 +253,12 @@ CONTAINS
 
     IF ( ecrad_conf%use_aerosols ) THEN
       ! Allocate aerosol container
-      CALL ecrad_aerosol%allocate_direct(ecrad_conf, nproma_sub, 1, nlev)
+      IF ( irad_aero == iRadAeroCAMSclim ) THEN
+        CALL ecrad_aerosol%allocate( nproma_sub, 1, nlev, ecrad_conf%n_aerosol_types)
+        ALLOCATE(ptr_camsaermr(n_camsaermr))
+      ELSE
+        CALL ecrad_aerosol%allocate_direct(ecrad_conf, nproma_sub, 1, nlev)
+      ENDIF
     ENDIF
 
     CALL ecrad_flux%allocate(ecrad_conf, 1, nproma_sub, nlev)
@@ -300,6 +301,12 @@ CONTAINS
           ptr_reff_qc => prm_diag%reff_qc(jcs:jce,:,jb)
           ptr_reff_qi => prm_diag%reff_qi(jcs:jce,:,jb)
         ENDIF
+
+        IF (irad_aero == iRadAeroCAMSclim) THEN
+          DO jt = 1, n_camsaermr
+            ptr_camsaermr(jt)%p => pt_diag%camsaermr(jcs:jce,:,jb,jt)
+          ENDDO
+        END IF
 
         IF (atm_phy_nwp_config(jg)%icpl_rad_reff == 2) THEN ! Option to use all hydrometeors reff individually
           ! Set extra hydropmeteors
@@ -394,6 +401,10 @@ CONTAINS
               &                         zaeq3(jcs:jce,:,jb), zaeq4(jcs:jce,:,jb),  &
               &                         zaeq5(jcs:jce,:,jb),                       &
               &                         ecrad_conf, ecrad_aerosol, lacc=.TRUE.)
+          CASE(iRadAeroCAMSclim)
+            ! Fill aerosol configuration type with CAMS 3D climatology/forecasted aerosols
+            CALL nwp_ecrad_prep_aerosol(1, nlev, i_startidx_rad, i_endidx_rad,      &
+              &                         ecrad_aerosol, ptr_camsaermr)
           CASE(iRadAeroConstKinne,iRadAeroKinne,iRadAeroVolc,iRadAeroKinneVolc,iRadAeroKinneVolcSP,iRadAeroKinneSP, &
             &  iRadAeroART)
             DO jw = 1, ecrad_conf%n_bands_lw
@@ -498,6 +509,7 @@ CONTAINS
       CALL opt_ptrs_sw(jw)%finalize()
     ENDDO
     DEALLOCATE( opt_ptrs_lw, opt_ptrs_sw )
+    IF (irad_aero == iRadAeroCAMSclim) DEALLOCATE( ptr_camsaermr )
 !$OMP END PARALLEL
 
     !$ACC END DATA
@@ -514,10 +526,6 @@ CONTAINS
   !!  ... fills the ecRad data types with current atmospheric and external data
   !!  ... saves the output to ICON physics data structure
   !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2019-01-31)
-  !! Add separate (diffuse) near-IR, visible, and PAR fluxes by Roland Wirth, Deutscher
-  !!     Wetterdienst, Offenbach (2021-09-15)
   !! Open TODOs: dust_tunefac not considered so far
   !!
   ! The following pragma sets the optimization level to O1 for Nvidia compilers
@@ -581,7 +589,7 @@ CONTAINS
     INTEGER                  :: &
       &  nblks_par_c,           & !< nblks for reduced grid (parent domain)
       &  nblks_lp_c,            & !< nblks for reduced grid (local parent)
-      &  jb, jc, jw,            & !< loop indices
+      &  jb, jc, jw, jt,        & !< loop indices
       &  jg,                    & !< domain id
       &  nlev,                  & !< number of full levels
       &  nlev_rg, nlev_rgp1,    & !< number of full and half levels at reduced grid
@@ -653,7 +661,7 @@ CONTAINS
     ! Indices and pointers of extra (optional) fields that are needed by radiation
     ! and therefore have to be aggregated to the radiation grid
     INTEGER :: irg_acdnc, irg_fr_glac, irg_fr_land,  irg_qr, irg_qs, irg_qg,  &
-      &        irg_reff_qr, irg_reff_qs, irg_reff_qg
+      &        irg_reff_qr, irg_reff_qs, irg_reff_qg, irg_camsaermr(n_camsaermr)
     INTEGER, DIMENSION (ecrad_conf%n_bands_lw) :: irg_od_lw
     INTEGER, DIMENSION (ecrad_conf%n_bands_sw) :: irg_od_sw, irg_ssa_sw, irg_g_sw
     REAL(wp), DIMENSION(:,:),  POINTER :: &
@@ -662,8 +670,10 @@ CONTAINS
       &  ptr_reff_qc => NULL(), ptr_reff_qi => NULL(), ptr_reff_qr => NULL(), &
       &  ptr_reff_qs => NULL(), ptr_reff_qg => NULL()
 
-    TYPE(t_opt_ptrs),ALLOCATABLE      :: &
+    TYPE(t_opt_ptrs),ALLOCATABLE :: &
       &  opt_ptrs_lw(:), opt_ptrs_sw(:)    !< Contains pointers to aerosol optical properties
+    TYPE(t_ptr_2d), ALLOCATABLE :: &
+      &  ptr_camsaermr(:)                  !< Contains pointers to cams mass mixing ratios
 
     REAL(wp), DIMENSION(:),    POINTER :: &
       &  ptr_fr_glac => NULL(), ptr_fr_land => NULL()
@@ -806,19 +816,20 @@ CONTAINS
 
 
     ! Set indices for extra fields in the upscaling routine
-    irg_acdnc     = 0
-    irg_fr_land   = 0
-    irg_fr_glac   = 0
-    irg_qr        = 0
-    irg_qs        = 0
-    irg_qg        = 0
-    irg_reff_qr   = 0
-    irg_reff_qs   = 0
-    irg_reff_qg   = 0
-    irg_od_lw     = 0
-    irg_od_sw     = 0
-    irg_ssa_sw    = 0
-    irg_g_sw      = 0
+    irg_acdnc        = 0
+    irg_fr_land      = 0
+    irg_fr_glac      = 0
+    irg_qr           = 0
+    irg_qs           = 0
+    irg_qg           = 0
+    irg_reff_qr      = 0
+    irg_reff_qs      = 0
+    irg_reff_qg      = 0
+    irg_od_lw        = 0
+    irg_od_sw        = 0
+    irg_ssa_sw       = 0
+    irg_g_sw         = 0
+    irg_camsaermr(:) = 0
 
     CALL input_extra_flds%construct(nlev_rg)  ! Extra fields in upscaling routine: 3D fields with nlev_rg
     CALL input_extra_2D%construct(1)          ! Extra fields in upscaling routine: 2D fields
@@ -857,6 +868,12 @@ CONTAINS
         CALL input_extra_flds%assign(g_sw(:,:,:,jw), irg_g_sw(jw))
       ENDDO
     END IF
+
+     IF (irad_aero == iRadAeroCAMSclim) THEN
+       DO jt = 1, n_camsaermr
+         CALL input_extra_flds%assign(pt_diag%camsaermr(:,:,:,jt), irg_camsaermr(jt))
+       ENDDO
+     END IF
 
     !$ACC DATA COPYIN(input_extra_flds, input_extra_2D, input_extra_reff)
     CALL input_extra_flds%acc_attach()
@@ -901,6 +918,12 @@ CONTAINS
     CALL init(zrg_lwflx_up_sfc(:,:)     , opt_acc_async=.TRUE.)
     CALL init(zrg_lwflx_clr_sfc(:,:)    , opt_acc_async=.TRUE.)
     CALL init(zrg_aclcov(:,:)           , opt_acc_async=.TRUE.)
+#ifdef _OPENACC
+    CALL init(zrg_cosmu0                , opt_acc_async=.TRUE.)
+    CALL init(zrg_tsfc                  , opt_acc_async=.TRUE.)
+    CALL init(zrg_emis_rad              , opt_acc_async=.TRUE.)
+    CALL init(zrg_albdif                , opt_acc_async=.TRUE.)
+#endif
 
     IF (atm_phy_nwp_config(jg)%l_3d_rad_fluxes) THEN
       CALL init(zrg_lwflx_up    (:,:,:), 0._wp, opt_acc_async=.TRUE.)
@@ -962,8 +985,8 @@ CONTAINS
     i_startblk = ptr_pp%cells%start_block(rl_start)
     i_endblk   = ptr_pp%cells%end_block(rl_end)
 
-!$OMP PARALLEL PRIVATE(cosmu0mask, opt_ptrs_lw, opt_ptrs_sw, jw,                &
-!$OMP                  ecrad_aerosol, ecrad_single_level, ecrad_thermodynamics, &
+!$OMP PARALLEL PRIVATE(cosmu0mask, opt_ptrs_lw, opt_ptrs_sw, jw, jt, ptr_camsaermr, &
+!$OMP                  ecrad_aerosol, ecrad_single_level, ecrad_thermodynamics,     &
 !$OMP                  ecrad_gas, ecrad_cloud, ecrad_flux)
 
     CALL ecrad_single_level%allocate(nproma_sub, 2, 1, .true.) !< use_sw_albedo_direct, 2 bands
@@ -997,7 +1020,12 @@ CONTAINS
 
     IF ( ecrad_conf%use_aerosols ) THEN
       ! Allocate aerosol container
-      CALL ecrad_aerosol%allocate_direct(ecrad_conf, nproma_sub, 1, nlev_rg)
+      IF ( irad_aero == iRadAeroCAMSclim) THEN
+        CALL ecrad_aerosol%allocate( nproma_sub, 1, nlev_rg, ecrad_conf%n_aerosol_types)
+        ALLOCATE(ptr_camsaermr(n_camsaermr))
+      ELSE
+        CALL ecrad_aerosol%allocate_direct(ecrad_conf, nproma_sub, 1, nlev_rg)
+      ENDIF
     ENDIF
 
     CALL ecrad_flux%allocate(ecrad_conf, 1, nproma_sub, nlev_rg)
@@ -1061,6 +1089,15 @@ CONTAINS
         IF ( irg_reff_qr > 0 ) ptr_reff_qr => zrg_extra_reff(jcs:jce,:,jb,irg_reff_qr)
         IF ( irg_reff_qs > 0 ) ptr_reff_qs => zrg_extra_reff(jcs:jce,:,jb,irg_reff_qs)
         IF ( irg_reff_qg > 0 ) ptr_reff_qg => zrg_extra_reff(jcs:jce,:,jb,irg_reff_qg)
+
+        IF (irad_aero == iRadAeroCAMSclim) THEN
+          IF ( ALL(irg_camsaermr(:)  > 0) ) THEN
+            DO jt = 1, n_camsaermr
+              ptr_camsaermr(jt)%p  => zrg_extra_flds(jcs:jce,:,jb,irg_camsaermr(jt))
+            ENDDO
+          ENDIF
+        ENDIF
+
         IF ( ALL(irg_od_lw(:)  > 0) ) THEN
           DO jw = 1, ecrad_conf%n_bands_lw
             opt_ptrs_lw(jw)%ptr_od  => zrg_extra_flds(jcs:jce,:,jb,irg_od_lw(jw))
@@ -1137,6 +1174,10 @@ CONTAINS
               &                         zrg_aeq3(jcs:jce,:,jb), zrg_aeq4(jcs:jce,:,jb),   &
               &                         zrg_aeq5(jcs:jce,:,jb),                           &
               &                         ecrad_conf, ecrad_aerosol, lacc=.TRUE.)
+          CASE(iRadAeroCAMSclim)
+            ! Fill aerosol configuration type with CAMS 3D climatology/forecasted aerosols
+            CALL nwp_ecrad_prep_aerosol(1, nlev_rg, i_startidx_rad, i_endidx_rad,  &
+              &                         ecrad_aerosol, ptr_camsaermr)  
           CASE(iRadAeroConstKinne,iRadAeroKinne,iRadAeroVolc,iRadAeroKinneVolc,iRadAeroKinneVolcSP,iRadAeroKinneSP, &
             &  iRadAeroART)
             CALL nwp_ecrad_prep_aerosol(1, nlev_rg, i_startidx_rad, i_endidx_rad,         &
@@ -1213,6 +1254,7 @@ CONTAINS
       CALL opt_ptrs_sw(jw)%finalize()
     ENDDO
     DEALLOCATE( opt_ptrs_lw, opt_ptrs_sw )
+    IF (irad_aero == iRadAeroCAMSclim) DEALLOCATE( ptr_camsaermr )
 !$OMP END PARALLEL
 
 ! Downscale radiative fluxes from reduced radiation grid to full grid

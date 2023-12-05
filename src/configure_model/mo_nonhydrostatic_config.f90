@@ -1,27 +1,15 @@
-!>
-!! <Short description of module for listings and indices>
-!!
-!! <Describe the concepts of the procedures and algorithms used in the module.>
-!! <Details of procedures are documented below with their definitions.>
-!! <Include any applicable external references inline as module::procedure,>
-!! <external_procedure(), or by using @see.>
-!! <Don't forget references to literature.>
-!!
-!! @author <name, affiliation>
-!! @author <name, affiliation>
-!!
-!!
-!! @par Revision History
-!! <Description of activity> by <name, affiliation> (<YYYY-MM-DD>)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_nonhydrostatic_config
 
   USE mo_kind,                    ONLY: wp
@@ -93,7 +81,6 @@ MODULE mo_nonhydrostatic_config
     INTEGER :: igradp_method    ! Method for computing the horizontal presure gradient
     REAL(wp):: exner_expol      ! Temporal extrapolation of Exner for computation of
                                 ! horizontal pressure gradient
-    LOGICAL :: l_masscorr_nest  ! Apply mass conservation correction also to nested domain
     LOGICAL :: l_zdiffu_t       ! .true.: apply truly horizontal temperature diffusion 
                                 ! over steep slopes
     REAL(wp):: thslp_zdiffu     ! threshold slope above which temperature diffusion is applied
@@ -117,16 +104,10 @@ MODULE mo_nonhydrostatic_config
 
 CONTAINS
 
-  !>
-  !! Setup of additional nonhydrostatic control variables
-  !!
   !! Setup of additional nonhydrostatic control variables depending on the 
   !! nonhydrostatic-NAMELIST and potentially other namelists. This routine is 
   !! called, after all namelists have been read and a synoptic consistency 
   !! check has been done.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2011-08-04)
   !!
   SUBROUTINE configure_nonhydrostatic(jg, nlev, nshift_total)
   !

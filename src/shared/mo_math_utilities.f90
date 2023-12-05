@@ -1,75 +1,24 @@
+! Contains the implementation of various mathematical algorithms
+! used by the shallow water model.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 ! LL: xlc has trouble optimizing routines with implicit shaped parameters
 ! #ifdef __xlC__
 ! @process nohot
 ! ! @PROCESS NOOPTIMIZE
 ! #endif
-!>
-!!   Contains the implementation of various mathematical algorithms.
-!!
-!!   Contains the implementation of various mathematical algorithms
-!!   used by the shallow water model.
-!!
-!! @par Revision History
-!!  Developed  by Luca Bonaventura (2002-4).
-!!  Modified to ProTeX-style by  Luca Bonaventura and Thomas Heinze (2004).
-!!  Adapted to new data structure by Thomas Heinze,
-!!  Peter Korn and Luca Bonaventura (2005).
-!!  Modification by Thomas Heinze (2006-02-21):
-!!  - renamed m_modules to mo_modules
-!!  Modification by Peter Korn and Luca Bonaventura (2006-07-21):
-!!  - moved here linear algebra subroutines and other auxiliary functions
-!!  - added some Protex documentation and great cleanup
-!!  Modification by Thomas Heinze (2006-09-07):
-!!  - added functions barycenter and bary_center
-!!  Modification by Thomas Heinze (2006-10-19):
-!!  - added functions vector_product and integral_over_triangle
-!!  Modification by Tobias Ruppert and Thomas Heinze (2006-11-14):
-!!  - added functions solve_chol and choldec
-!!  - renamed function solve to solve_lu
-!!  Modification by Thomas Heinze (2006-11-16):
-!!  - added functions cvec2gvec and gvec2cvec
-!!  Modification by Peter Korn, MPI-M, (2006-11-23):
-!!  - replaced vertex_index by vertex_idx
-!!  Modification by Hui Wan (2007-02-22):
-!!  - functions barycenter and bary_center removed.
-!!    (These two functions used TYPE grid, thus should not be put
-!!     in to shr_general.)
-!!  - function ll2xyz removed because it had been replaced by
-!!    gc2cc and was not used anymore.
-!!  - type cartesian_coordinates and type geographical_coordinates
-!!    moved to this module from mo_model_domain
-!!  - functions func_f and dxg moved from mo_functions to here
-!!  Problem related to the range of longitude in the spherical coordnate
-!!  identified by Th. Heinze and P. Ripodas (2007-02-26). Correction in 'cc2gc'
-!!  made by H. Wan (2007-02-27).
-!!  Modification by Thomas Heinze, DWD, (2007-07-26):
-!!  - including all the improvements of Tobias Ruppert's diploma thesis
-!!  - several changes according to the programming guide
-!!  - functions func_f and dxg moved from here to mo_interpolation
-!!  Modification by Daniel Reinert, DWD, (2009-10-30)
-!!  - added subroutine gnomonic_proj which uses a gnomonic projection in
-!!    order to project a point (lat_1,lon_1) onto a tangent plane with
-!!    the origin at (lat_0,lon_0). The results are the local cartesian
-!!    coordinates (x_1,y_1)
-!!  - added subroutine orthogr_proj. performs orthographic projection of
-!!    point (lat_1,lon_1) onto a tangent plane with the origin at (lat_0,lon_0).
-!!  Modification by Daniel Reinert, DWD, (2012-04-04)
-!!  - added function which can be used to check whether to line segments
-!!    intersect (in 2D cartesian system)
-!!  Modification by Daniel Reinert, DWD, (2012-04-05)
-!!  - added function which computes the intersection point between 2 lines
-!!    (2D cartesian)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+
 MODULE mo_math_utilities
   !-------------------------------------------------------------------------
   !
@@ -133,7 +82,6 @@ MODULE mo_math_utilities
   PUBLIC :: gnomonic_proj
   PUBLIC :: orthogr_proj
   PUBLIC :: az_eqdist_proj
-  PUBLIC :: gamma_fct
 !   PUBLIC :: sphere_cell_mean_char_length
   PUBLIC :: ccw
   PUBLIC :: line_intersect
@@ -264,7 +212,6 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !>
   !! Converts zonal @f$p\_gu@f$ and meridional vector components @f$p\_gv@f$ into cartesian.
   !!
   !! Converts zonal @f$p\_gu@f$ and meridional vector components @f$p\_gv@f$ into cartesian
@@ -278,9 +225,6 @@ CONTAINS
   !! \end{pmatrix} \cdot
   !! \begin{pmatrix} p\_gu \\ p\_gv \end{pmatrix}
   !! @f}
-  !!
-  !! @par Revision History
-  !! Original version by Tobias Ruppert and Thomas Heinze, DWD (2006-11-14)
   !!
   ELEMENTAL SUBROUTINE gvec2cvec (p_gu, p_gv, p_long, p_lat, p_cu, p_cv, p_cw, geometry_info)
     !$ACC ROUTINE SEQ
@@ -327,7 +271,6 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !>
   !! Converts cartesian velocity vector @f$(p\_cu, p\_cv, p\_cw)@f$.
   !!
   !! Converts cartesian velocity vector @f$(p\_cu, p\_cv, p\_cw)@f$
@@ -341,9 +284,6 @@ CONTAINS
   !! \end{pmatrix} \cdot
   !! \begin{pmatrix} p\_cu \\ p\_cv \\ p\_cw \end{pmatrix}
   !! @f}
-  !!
-  !! @par Revision History
-  !! Original version by Thomas Heinze, DWD (2006-11-16)
   !!
   ELEMENTAL SUBROUTINE cvec2gvec (p_cu, p_cv, p_cw, p_long, p_lat, p_gu, p_gv, geometry_info)
     !$ACC ROUTINE SEQ
@@ -389,12 +329,8 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !>
   !! Converts  vectors (in)  cartesian coordinate representation
   !! to tangent vectors.
-  !!
-  !! @par Revision History
-  !! Developed  by Luca Bonaventura  (2005).
   FUNCTION cc2tv(xx,position) result (tt)
 
     TYPE(t_cartesian_coordinates), INTENT(in) :: xx
@@ -549,11 +485,7 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! Computes normal vector to plane determined by the vectors x0,x1.
-  !!
-  !! @par Revision History
-  !! Developed  by Luis Kornblueh  (2004).
   ELEMENTAL FUNCTION normal_vector (x0, x1) result(x2)
 
     TYPE(t_cartesian_coordinates), INTENT(in) :: x0, x1
@@ -583,12 +515,7 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! Computes length of geodesic arc with endpoints @f$p\_x, p\_y@f$.
-  !!
-  !! @par Revision History
-  !! Developed by Th.Heinze (2006-09-19).
-  !! Previous version by Luis Kornblueh (2004) discarded.
   !!
   ELEMENTAL FUNCTION arc_length_sphere (p_x, p_y)  result (p_arc)
 
@@ -615,14 +542,7 @@ CONTAINS
   END FUNCTION arc_length_sphere
 
   !-------------------------------------------------------------------------
-  !>
   !! Computes length of geodesic arc with endpoints @f$p\_x, p\_y@f$.
-  !!
-  !! @par Revision History
-  !! Developed by Th.Heinze (2006-09-19).
-  !! Previous version by Luis Kornblueh (2004) discarded.
-  !! Modified by Anurag Dipankar, MPIM (2012-12-27)
-  !! -Elemental form of the function wasn't allowing call to another routines
   FUNCTION arc_length_generic (p_x, p_y, geometry_info)  result (p_arc)
 
     TYPE(t_cartesian_coordinates), INTENT(in) :: p_x, p_y  ! endpoints
@@ -656,12 +576,7 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !>
   !! Computes length of geodesic arc with endpoints x0,x1.
-  !!
-  !! @par Revision History
-  !! Developed by Th.Heinze (2006-09-19).
-  !! Previous version by Luis Kornblueh (2004) discarded.
   ELEMENTAL FUNCTION arc_length_on_unitsphere (x0, x1) result(arc)
 
     TYPE(t_cartesian_coordinates), INTENT(in) :: x0, x1
@@ -681,15 +596,9 @@ CONTAINS
   !-----------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !>
   !! Computes length of geodesic arc with endpoints @f$p\_x, p\_y@f$.
   !!
   !! Vectorizable version
-  !!
-  !! @par Revision History
-  !! Developed by Th.Heinze (2006-09-19).
-  !! Previous version by Luis Kornblueh (2004) discarded.
-  !! Vectorizable version developed by Guenther Zaengl, DWD (2009-04-20)
   !!
   PURE FUNCTION arc_length_v_sphere (p_x, p_y)  result (p_arc)
     REAL(wp), INTENT(in) :: p_x(3), p_y(3)  ! endpoints
@@ -716,17 +625,9 @@ CONTAINS
   END FUNCTION arc_length_v_sphere
 
   !-------------------------------------------------------------------------
-  !>
   !! Computes length of geodesic arc with endpoints @f$p\_x, p\_y@f$.
   !!
   !! Vectorizable version
-  !!
-  !! @par Revision History
-  !! Developed by Th.Heinze (2006-09-19).
-  !! Previous version by Luis Kornblueh (2004) discarded.
-  !! Vectorizable version developed by Guenther Zaengl, DWD (2009-04-20)
-  !! Modified by Anurag Dipankar, MPIM (2012-12-27)
-  !! -Elemental form of the function wasn't allowing call to another routines
   FUNCTION arc_length_v_generic (p_x, p_y, geometry_info)  result (p_arc)
     REAL(wp), INTENT(in) :: p_x(3), p_y(3)  ! endpoints
     TYPE(t_grid_geometry_info), INTENT(in) :: geometry_info
@@ -760,11 +661,7 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-----------------------------------------------------------------------
-  !>
   !! Computes the cosine of the length of geodesic arc with endpoints x0,x1.
-  !!
-  !! @par Revision History
-  !! Developed by Almut Gassmann (2007-03-13).
   ELEMENTAL FUNCTION cos_arc_length (x0, x1) result(carc)
    TYPE(t_cartesian_coordinates), INTENT(in) :: x0, x1
     REAL(wp) :: carc
@@ -859,11 +756,7 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-----------------------------------------------------------------------
-  !>
   !! Computes the sin between two vectors x0, x1
-  !!
-  !! @par Revision History
-  !! Developed by Leonidas Linardakis (2010-05-13).
   ELEMENTAL FUNCTION sin_cc (x0, x1)
     TYPE(t_cartesian_coordinates), INTENT(in) :: x0, x1
     REAL(wp) :: sin_cc
@@ -878,11 +771,7 @@ CONTAINS
   !-----------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !>
   !! Computes spherical area of a triangle
-  !!
-  !! @par Revision History
-  !! Developed  by Luis Kornblueh  (2004).
   ELEMENTAL FUNCTION triangle_area (x0, x1, x2) result(area)
 
     TYPE(t_cartesian_coordinates), INTENT(in) :: x0, x1, x2
@@ -947,11 +836,7 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !>
   !! Determines the circum_center of triangle with vertices v0,v1,v2.
-  !!
-  !! @par Revision History
-  !! Developed  by Luis Kornblueh  (2004).
   ELEMENTAL FUNCTION circum_center (v0, v1, v2) result(center)
     !> the coordinates of the three triangle vertices (unit vectors)
     !! in counter clockwise order.
@@ -984,11 +869,7 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !>
   !! Determines the bary_center of triangle with vertices v0,v1,v2.
-  !!
-  !! @par Revision History
-  !! original version by Thomas Heinze (2006-08-17).
   !!
   !! @par Remarks
   !! currently not used in the code, just for testing purposes
@@ -1021,14 +902,10 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !>
   !! Finds the intersection of two great circles.
   !!
   !! Cannot be made elemental, as long as the
   !! subroutine calls to message and finish are maintained.
-  !!
-  !! @par Revision History
-  !! Developed  by Luis Kornblueh  (2004).
   !!
   ELEMENTAL FUNCTION spherical_intersection (p0, p1, v0, v1) result(p)
     TYPE(t_cartesian_coordinates), INTENT(in) :: p0, p1
@@ -1104,14 +981,10 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! Finds the intersection of two great circles.
   !!
   !! Cannot be made elemental, as long as the
   !! subroutine calls to message and finish are maintained.
-  !!
-  !! @par Revision History
-  !! Developed  by Luis Kornblueh  (2004).
   !!
   ELEMENTAL FUNCTION spherical_intersection2 (p0, p1, v0, v1) result(p)
     TYPE(t_cartesian_coordinates), INTENT(in) :: p0, p1
@@ -1249,11 +1122,7 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! Computes the norma of the vector product of x0,x1.
-  !!
-  !! @par Revision History
-  !! Developed  by Leonidas Linardakis (2020).
   ELEMENTAL FUNCTION norma_of_vector_product (x0, x1) result(r)
 
     TYPE(t_cartesian_coordinates), INTENT(in) :: x0, x1
@@ -1321,9 +1190,6 @@ CONTAINS
   !!  <li>  Get rotated geographical coordinates @f$(\lambda_{dis}, \varphi_{dis})@f$
   !!  of new Cartesian ones by <i>cc2gc</i>
   !!  </ol>
-  !!
-  !! @par Revision History
-  !! Developed and tested by Th. Heinze (2006-07-20)
   !!
   PURE SUBROUTINE disp_new(longin, latin, reflongin, reflatin, dislong, dislat)
 
@@ -1396,7 +1262,6 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !>
   !! Compute the zonal and meridional components of a vector with respect.
   !!
   !! Compute the zonal and meridional components of a vector with respect
@@ -1407,9 +1272,6 @@ CONTAINS
   !! 2) apply the rotation to the vector in cartesian components
   !! 3) transform the rotated vector in geographical coordinates, using
   !! the new values of latitude and longitude.
-  !!
-  !! @par Revision History
-  !! Developed by Marco Restelli (2008-03-04)
   !!
   SUBROUTINE disp_new_vect(p_gu,p_gv,lon,lat,barlon,barlat, &
     & new_lon,new_lat,new_p_gu,new_p_gv)
@@ -1450,13 +1312,7 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !>
   !! Converts cartesian coordinates to geographical.
-  !!
-  !!
-  !! @par Revision History
-  !! Developed  by Luis Kornblueh  (2004).
-  !! Completely new version by Thomas Heinze (2006-07-20)
   !!
   ELEMENTAL FUNCTION cc2gc_sphere(p_x) result (p_pos)
 
@@ -1557,12 +1413,7 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !>
   !! Converts geographical to cartesian coordinates.
-  !!
-  !!
-  !! @par Revision History
-  !! Developed  by Luis Kornblueh  (2004).
   !!
   ELEMENTAL FUNCTION gc2cc_sphere (p_pos)  result(p_x)
     TYPE(t_geographical_coordinates), INTENT(in) :: p_pos     ! geo. coordinates
@@ -1636,11 +1487,7 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !>
   !!  Calculates dot product of to cartesian coordinates.
-  !!
-  !! @par Revision History
-  !! Developed by Thomas Heinze (2006-07-05).
   !!
   ELEMENTAL FUNCTION cc_dot_product(cc_x1, cc_x2)  result (p_prod)
     !$ACC ROUTINE SEQ
@@ -1654,12 +1501,7 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !>
   !!  Calculates 2 norm for vectors in cartesian coordinates.
-  !!
-  !!
-  !! @par Revision History
-  !! Developed by Marco Restelli (2007-11-22)
   !!
   ELEMENTAL FUNCTION cc_norm(cc_x1)  result (norm)
     !$ACC ROUTINE SEQ
@@ -1673,12 +1515,7 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !>
   !! Computes vector product of x0,x1.
-  !!
-  !!
-  !! @par Revision History
-  !! Developed  by Luis Kornblueh  (2004).
   !!
   ELEMENTAL FUNCTION vector_product (x0, x1) result(x2)
 
@@ -1729,7 +1566,6 @@ CONTAINS
   !-----------------------------------------------------------------------
 
   !-----------------------------------------------------------------------
-  !>
   !! Calculates integral @f$\int_{\tau} \Psi@f$ over spherical triangle @f$\tau@f$.
   !!
   !! Calculates integral @f$\int_{\tau} \Psi@f$ over spherical triangle @f$\tau@f$
@@ -1738,9 +1574,6 @@ CONTAINS
   !!  I(\Psi, \tau) &= \frac{1}{6} \sum_{i=1}^3 \omega_i \Psi_i
   !! @f}
   !! See Boal and Sayas (2004), page 66 for details.
-  !!
-  !! @par Revision History
-  !! Original version by Thomas Heinze (2006-10-19).
   !!
   FUNCTION integral_over_triangle (weight, values) result(p_integ)
 
@@ -1757,12 +1590,8 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !>
   !! Rotate counterclockwise (seen from positive axis direction)
   !! vector x1 around axis z for phirot radians
-  !!
-  !! @par Revision History
-  !! Developed  by Luca Bonaventura  (2005).
   ELEMENTAL FUNCTION rotate_z (p_phirot,x1) result(x2)
 
     REAL(wp), INTENT(in) :: p_phirot
@@ -1777,12 +1606,9 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !>
   !! Rotate counterclockwise (seen from positive axis direction)
   !! vector x1 around axis y for phirot radians
   !!
-  !! @par Revision History
-  !! Developed  by Luca Bonaventura  (2005).
   ELEMENTAL FUNCTION rotate_y (p_phirot,x1) result(x2)
 
     !-----------------------------------------------------------------------
@@ -1798,12 +1624,9 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !>
   !! Rotate counterclockwise (seen from positive axis direction)
   !! vector x1 around axis x for phirot radians
   !!
-  !! @par Revision History
-  !! Developed  by Luca Bonaventura  (2005).
   ELEMENTAL FUNCTION rotate_x (p_phirot,x1) result(x2)
 
     !-----------------------------------------------------------------------
@@ -1819,7 +1642,6 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !>
   !! Rotates latitude and longitude for more accurate computation.
   !!
   !! Rotates latitude and longitude for more accurate computation
@@ -1827,9 +1649,6 @@ CONTAINS
   !!
   !! See the routine "mo_lonlat_grid::rotate_latlon_grid" for a
   !! detailed description of the transformation process.
-  !!
-  !! @par Revision History
-  !!  developed by Guenther Zaengl, 2009-03-13
   !!
   SUBROUTINE rotate_latlon( lat, lon, pollat, pollon )
 
@@ -1851,15 +1670,11 @@ CONTAINS
 
 
   !-----------------------------------------------------------------------
-  !>
   !! Provides rotation angle between coordinate systems
   !!
   !! Provides sin(delta) and cos(delta), the entries of the rotation matrix
   !! for vectors from the geographical to the rotated coordinate system,
   !! of which the pole is known.
-  !!
-  !! @par Revision History
-  !!  developed by Almut Gassmann, MPI-M, 2010-01-20
   !!
   SUBROUTINE rotate_latlon_vec( lon, lat, pollon, pollat, sin_d, cos_d )
     !
@@ -1882,7 +1697,6 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !>
   !! gnomonic projection for unit sphere.
   !!
   !! Projects a point
@@ -1899,9 +1713,6 @@ CONTAINS
   !! - scale factor in a direction perpendicular to a line radiating from
   !!   the center increases as distances increase from the center
   !! - all great circles are shown as straight lines
-  !!
-  !! @par Revision History
-  !! developed by Daniel Reinert, DWD, 2009-10-30
   !!
   SUBROUTINE gnomonic_proj( lon_c, lat_c, lon, lat, x, y )
     !
@@ -1931,7 +1742,6 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! azimuthal equidistant projection for unit sphere.
   !!
   !! Projects a point
@@ -1947,10 +1757,6 @@ CONTAINS
   !! - radial scale is true
   !! - scale factor in a direction perpendicular to a line radiating from
   !!   the center linearly increases as distances increase from the center
-  !!
-  !!
-  !! @par Revision History
-  !! developed by Daniel Reinert, DWD, 2011-04-27
   !!
   SUBROUTINE az_eqdist_proj( lon_c, lat_c, lon, lat, x, y )
     !
@@ -1995,9 +1801,6 @@ CONTAINS
   !! - radial scale factor decreases as distances increase from the center
   !! - scale in a direction perpendicular to a line radiating from the center is true
   !!
-  !! @par Revision History
-  !! developed by Daniel Reinert, DWD, 2009-10-30
-  !!
   SUBROUTINE orthogr_proj( lon_c, lat_c, lon, lat, x, y )
     !
     ! !LITERATURE:
@@ -2031,8 +1834,6 @@ CONTAINS
     !!
     !! Method:
     !!   See Numerical Recipes (Fortran)
-    !!
-    !! @author   A. Tompkins, MPI, 2000
     !!
     USE mo_kind,      ONLY: wp
     USE mo_exception, ONLY: finish
@@ -2088,62 +1889,15 @@ CONTAINS
   END FUNCTION betacf
   !-----------------------------------------------------------------------
 
-
-  !-----------------------------------------------------------------------
-  FUNCTION gammln(xx)
-
-    !! Description:
-    !!
-    !! Gamma function calculation
-    !! returns the value ln[g(xx)] for xx > 0.
-    !!
-    !! Method:
-    !!   See Numerical Recipes
-    !!
-    !! @author  A. Tompkins, MPI, 2000
-    !
-    USE mo_kind, ONLY: wp
-
-    IMPLICIT NONE
-
-    REAL(wp)             :: gammln
-    REAL(wp), INTENT(in) :: xx
-
-    INTEGER :: j
-
-    REAL(wp) :: ser, tmp, x, y
-    REAL(wp), PARAMETER :: cof(6) = (/ &
-      & 76.18009172947146_wp, -86.50532032941677_wp, &
-      & 24.01409824083091_wp, -1.231739572450155_wp, &
-      & 0.1208650973866179e-2_wp, -0.5395239384953e-5_wp /)
-    REAL(wp), PARAMETER :: stp = 2.5066282746310005_wp
-
-    x = xx
-    y = x
-    tmp = x+5.5_wp
-    tmp = (x+0.5_wp)*LOG(tmp)-tmp
-    ser = 1.000000000190015_wp
-    DO j =1, 6
-      y = y+1.0_wp
-      ser = ser+cof(j)/y
-    ENDDO
-    gammln = tmp+LOG(stp*ser/x)
-
-  END FUNCTION gammln
-  !-----------------------------------------------------------------------
-
-
   !-----------------------------------------------------------------------
   FUNCTION betai(p,q,x)
 
     !! Description:
     !!
-    !! Uses betacf, gammln; returns the incomplete beta function I x (a; b).
+    !! Uses betacf; returns the incomplete beta function I x (a; b).
     !!
     !! Method:
     !!   See Numerical Recipes (Fortran)
-    !!
-    !! @author   A. Tompkins, MPI, 2000
     !!
     USE mo_kind, ONLY: wp
 
@@ -2154,10 +1908,10 @@ CONTAINS
       & x      ! integration limit
     !  local scalars:
     REAL(wp) :: bt
-    !  REAL FUNCTION (wp):: betacf,gammln
+    !  REAL FUNCTION (wp):: betacf
 
     IF (x > 0.0_wp .AND. x < 1.0_wp ) THEN  ! factors in front of the continued fraction.
-      bt = EXP(gammln(p+q)-gammln(p)-gammln(q)+p*LOG(x)+q*LOG(1.0_wp-x))
+      bt = EXP(LOG(GAMMA(p+q))-LOG(GAMMA(p))-LOG(GAMMA(q))+p*LOG(x)+q*LOG(1.0_wp-x))
     ELSE
       bt = 0.0_wp
     ENDIF
@@ -2170,86 +1924,9 @@ CONTAINS
   END FUNCTION betai
   !-----------------------------------------------------------------------
 
-  !-----------------------------------------------------------------------
-  !>
-  !! Description:
-  !!       Gamma function from Numerical Recipes (F77),
-  !!       reformulated to enable inlining and vectorisation.
-  !! Method:
-  !!
-  FUNCTION gamma_fct(x) RESULT(g)
-
-    USE mo_kind, ONLY: wp
-
-    IMPLICIT NONE
-
-    REAL(wp) :: g
-    REAL(wp), INTENT(IN) :: x
-
-    REAL(wp) :: tmp, p
-
-    REAL(wp), PARAMETER :: c1 =  76.18009173_wp
-    REAL(wp), PARAMETER :: c2 = -86.50532033_wp
-    REAL(wp), PARAMETER :: c3 =  24.01409822_wp
-    REAL(wp), PARAMETER :: c4 = -1.231739516_wp
-    REAL(wp), PARAMETER :: c5 =  0.120858003e-2_wp
-    REAL(wp), PARAMETER :: c6 = -0.536382e-5_wp
-    REAL(wp), PARAMETER :: stp = 2.50662827465_wp
-
-    tmp = x + 4.5_wp;
-    p = stp * (1.0_wp + c1/x + c2/(x+1.0_wp) + c3/(x+2.0_wp) + c4/(x+3.0_wp) + c5/(x+4.0_wp) + c6/(x+5.0_wp))
-    g = EXP( (x-0.5_wp) * LOG(tmp) - tmp + LOG(p) )
-
-  END FUNCTION gamma_fct
   !-------------------------------------------------------------------------
-
-  !-----------------------------------------------------------------------
-  !>
-  !! Description:
-  !!  Original Gamma-function from Numerical Recipes (F77), left in the code for reference
-  !! Method:
-  !!
-  FUNCTION gamma_fct_orig(x) RESULT(g)
-
-    USE mo_kind, ONLY: wp
-
-    IMPLICIT NONE
-
-    REAL (wp):: g
-
-    REAL (wp):: cof(6) = (/76.18009173_wp, -86.50532033_wp, &
-      & 24.01409822_wp, -1.231739516_wp, &
-      & 0.120858003E-2_wp, -0.536382E-5_wp/)
-    REAL (wp):: stp=2.50662827465_wp,                           &
-      & x, xx, tmp, ser, gamma
-
-    INTEGER ::  j
-
-    xx  = x  - 1.0_wp
-    tmp = xx + 5.5_wp
-    tmp = (xx + 0.5_wp) * LOG(tmp) - tmp
-    ser = 1.0_wp
-    DO j = 1, 6
-      xx  = xx  + 1.0_wp
-      ser = ser + cof(j) / xx
-    ENDDO
-    gamma = tmp + LOG(stp*ser)
-    gamma = EXP(gamma)
-
-    g = gamma
-
-  END FUNCTION gamma_fct_orig
-  !-------------------------------------------------------------------------
-
-  !-------------------------------------------------------------------------
-  !>
   !! Calculates the domain mean of the characteristical
   !! length scale of the area. Needed for physics.
-  !!
-  !! @par Revision History
-  !! Implemented by Kristina Froehlich, DWD (2010-10-29).
-  !! moved to a more general place, Kristina Froehlich, MPI-M (2011-10-06)
-  !! Changed to use total number odf cells insted of root/level by LL, MPI-M (2012-12)
   !! Not used since the charecteristic lenntgh os now part of the grid_geometry_info. LL, MPI-M (2012-12)
 !   SUBROUTINE sphere_cell_mean_char_length( total_number_of_cells, mean_charlen ) ! output
 !
@@ -2270,9 +1947,6 @@ CONTAINS
   !! whether, in travelling from the first to the second to the third
   !! we turn counterclockwise or clockwise.
   !! Can be used to check whether two line segments intersect, or not.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert  (2012-04-03)
   !!
   !! @par LITERATURE
   !! Sedgewick, R. (1988): Algorithms, 2nd edition, pp. 350
@@ -2328,9 +2002,6 @@ CONTAINS
   !!
   !! Checks whether two lines intersect (2D cartesian geometry)
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert  (2012-04-05)
-  !!
   !! @par LITERATURE
   !! Sedgewick, R. (1988): Algorithms, 2nd edition, pp. 351
   !!
@@ -2373,9 +2044,6 @@ CONTAINS
   !! with
   !! m = (y_2-y_1)/(x_2-x_1)
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert  (2012-04-03)
-  !!
   FUNCTION line_intersect( line1, line2 ) result(intersect)
     !$ACC ROUTINE SEQ
 
@@ -2404,9 +2072,6 @@ CONTAINS
   !-------------------------------------------------------------------------
   !>
   !! TDMA tridiagonal matrix solver for a_i*x_(i-1) + b_i*x_i + c_i*x_(i+1) = d_i
-  !!
-  !! @par Revision History
-  !! Initial revision by Anurag Dipankar(2013, Jan)
   !!
   !!       a - sub-diagonal (means it is the diagonal below the main diagonal)
   !!       b - the main diagonal
@@ -2446,11 +2111,6 @@ CONTAINS
   !-------------------------------------------------------------------------
   !>
   !! TDMA tridiagonal matrix solver for a_i*x_(i-1) + b_i*x_i + c_i*x_(i+1) = d_i
-  !!
-  !! @par Revision History
-  !! Initial revision by Anurag Dipankar(2013, Jan)
-  !! Modification by Daniel Reinert, DWD (2015-11-23)
-  !! - version which vectorizes over horizontal dimension
   !!
   !!       a - sub-diagonal (means it is the diagonal below the main diagonal)
   !!       b - the main diagonal
@@ -2518,12 +2178,6 @@ CONTAINS
   !-------------------------------------------------------------------------
   !
   !!! Helper functions for computing the vertical layer structure
-  !>
-  !!
-  !!
-  !! @par Revision History
-  !! Developed  by  Stephan Lorenz, MPI-M (2011).
-  !!
   SUBROUTINE set_zlev(zlev_i, zlev_m, n_zlev, dzlev_m)
     INTEGER , INTENT(IN)  :: n_zlev
     REAL(wp), INTENT(OUT) :: zlev_i(n_zlev+1), zlev_m(n_zlev)

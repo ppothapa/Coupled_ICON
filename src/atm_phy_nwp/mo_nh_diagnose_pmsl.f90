@@ -1,13 +1,17 @@
-!! Contains utilities for diagnose mean sea level pressure.
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Contains utilities for diagnose mean sea level pressure.
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -44,12 +48,6 @@ CONTAINS
   !------------------------------------------------------------------
   !> SUBROUTINE diagnose_pmsl_gme
   !  Compute mean sea level pressure from the surface pressure.
-  !
-  ! @par Revision History
-  ! Initial version by F. Prill, DWD (2012-07-16)
-  !
-  ! Based on GME's "pp_extrap.f90" which is a modified GM routine by
-  ! J.Haseler (ECMWF).
   !
   ! Cf. also
   ! Trenberth, K.E., Berry, J.C., Buja, L.E. 1993:
@@ -196,9 +194,6 @@ CONTAINS
   !> SUBROUTINE diagnose_pmsl_ifs
   !  Compute mean sea level pressure from the surface pressure.
   !
-  ! @par Revision History
-  ! Initial version by Guenther Zaengl, DWD (2013-04-11)
-  !
   ! Based on IFS's "ppmer.f90"
   !
   ! The method is basically the same as for the GME routine above, with the
@@ -342,11 +337,6 @@ CONTAINS
   !!  step 1: from surface level of input data 500 m (zpbl1) upward
   !!  step 2: from there to zpbl1 meters above sea level
   !!  step 3: from there down to sea level
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2012-07-17)
-  !!
-  !!
   !!
   SUBROUTINE diagnose_pmsl(pres_in, tempv_in, z3d_in, pmsl_out, nblks, npromz, nlevs_in, &
                            wfacpbl1, kpbl1, wfacpbl2, kpbl2, z_target, extrapol_dist, lacc)

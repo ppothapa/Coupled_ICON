@@ -1,27 +1,23 @@
-!> 
-!! @brief configuration setup for output name lists
-!!
-!! Configuration setup for output name lists
-!!
-!! @author R.Johanni, F. Prill
-!!
-!! @note This is only a preliminary implementation of a configure state
-!!       for output name lists; based on R. Johanni's name list
-!!       handling which was originally implemented in
-!!       "shared/mo_name_list_output"
-!!
-!! @par Revision History
-!! Moved configure state from shared/mo_name_list_output:
-!! F. Prill, DWD (2012-01-26)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! @brief configuration setup for output name lists
+!
+! Configuration setup for output name lists
+!
+! @note This is only a preliminary implementation of a configure state
+!       for output name lists; based on R. Johanni's name list
+!       handling which was originally implemented in
+!       "shared/mo_name_list_output"
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_name_list_output_config
 
   USE mo_kind,                  ONLY: wp

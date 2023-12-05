@@ -1,3 +1,13 @@
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 MODULE random_rewrite
 
   USE mo_kind, ONLY : JPRB=>wp ,JPIM=>i4
@@ -95,7 +105,6 @@ MODULE random_rewrite
 !             Private Bag 10, Clayton South MDC
 !             Clayton 3169, Victoria, Australia
 !     Phone: (+61) 3 9545-8016      Fax: (+61) 3 9545-8080
-!     e-mail: amiller @ bigpond.net.au
 
 REAL(KIND=JPRB), PRIVATE      :: zero = 0.0_JPRB, half = 0.5_JPRB, one = 1.0_JPRB
                       

@@ -1,36 +1,17 @@
-!>
-!!  Module contains some constants relevant for implementational issues.
-!!
-!!
-!! @par Revision History
-!!  Developed  by Peter Korn (2005)
-!!  Modification by Thomas Heinze (2006-02-21):
-!!  - renamed m_modules to mo_modules
-!!  Modification by Peter Korn (2006-08):
-!!  - added identifier for edges, cells, vertices (used for memory allocation)
-!! @par
-!!  Modification by Peter Korn (2006-12):
-!!   - added identifier for variables (used for land-sea mask application)
-!!  Modification by Hui Wan (2007-02):
-!!  - added "nproma" and some comments
-!!  Modification by Guenther Zaengl (2008-10-23):
-!!  - added parameters defining the range of the refin_ctrl flags
-!!    (these are also set in the patch generator and must match each other)
-!! @par
-!!  Modification by Hui Wan (2009-08-07)
-!!  - added identifiers for time stepping methods.
-!!  Modifications by Daniel Reinert (2010-10-06)
-!!  - added identifiers for NWP physics time control
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Module contains some constants relevant for implementational issues.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_impl_constants
 !-------------------------------------------------------------------------
 !
@@ -327,7 +308,6 @@ MODULE mo_impl_constants
   ! identifiers for different NWP turbulent schemes
   INTEGER, PARAMETER :: icosmo  =  1
   INTEGER, PARAMETER :: igme    =  2
-  INTEGER, PARAMETER :: iedmf   =  3
   INTEGER, PARAMETER :: iprog   =  4  
   INTEGER, PARAMETER :: ismag   =  5
   INTEGER, PARAMETER :: ivdiff  =  6 !< VDIFF turbulent diffusion scheme
@@ -339,6 +319,9 @@ MODULE mo_impl_constants
   INTEGER, PARAMETER :: iso4  =  4
   INTEGER, PARAMETER :: idu   =  5
   INTEGER, PARAMETER :: nclass_aero = 5
+
+  ! Number of CAMS aerosols 
+  INTEGER, PARAMETER :: n_camsaermr = 11
 
   ! external parameter for radiation
 
@@ -357,7 +340,6 @@ MODULE mo_impl_constants
   !
   ! identifier for horizontal transport scheme
   INTEGER, PARAMETER :: NO_HADV = 0
-  INTEGER, PARAMETER :: UP      = 1
   INTEGER, PARAMETER :: MIURA   = 2
   INTEGER, PARAMETER :: MIURA3  = 3
   INTEGER, PARAMETER :: FFSL    = 4

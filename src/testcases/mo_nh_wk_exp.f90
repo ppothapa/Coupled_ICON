@@ -1,27 +1,26 @@
-!>
-!!  Subroutine to initialized the Weisman Klemp test case 
-!!   for the NH-Core in limited area mode
-!!
-!!
-!! @par Revision History
-!! - first version by P. Ripodas , DWD, (2011-08)
-!!
-!! @par Literature
-!! -M. L. Weisman and J. B. Klemp, 1982
-!!  The Dependence of Numerically Simulated Convective Storms on 
-!!  Vertical Wind Shear and Buoyancy.
-!!  Monthly Weather Review, 110,504-520
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Subroutine to initialized the Weisman Klemp test case
+! for the NH-Core in limited area mode
+!
+! Literature
+! -M. L. Weisman and J. B. Klemp, 1982
+!  The Dependence of Numerically Simulated Convective Storms on
+!  Vertical Wind Shear and Buoyancy.
+!  Monthly Weather Review, 110,504-520
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_nh_wk_exp
+
 !-------------------------------------------------------------------------
 !
 !    ProTeX FORTRAN source: Style 2
@@ -111,9 +110,6 @@ MODULE mo_nh_wk_exp
   !! The topography is set to 0, but the possibility  to have 
   !!  a different topography is open
   !!
-  !! @par Revision History
-  !!
-  !!
   SUBROUTINE init_nh_topo_wk( topo_c, nblks_c, npromz_c )
 
     INTEGER,  INTENT (IN) ::  nblks_c, npromz_c
@@ -144,9 +140,6 @@ MODULE mo_nh_wk_exp
   !>
   !! Initialization of prognostic state vector for the Weisman Klemp  test case 
   !! 
-  !!
-  !! @par Revision History
-  !!
   !!
   SUBROUTINE init_nh_env_wk( ptr_patch, ptr_nh_prog, ptr_nh_diag, &
     &                                p_metrics, p_int, l_hydro_adjust )
@@ -382,9 +375,6 @@ MODULE mo_nh_wk_exp
   !>
   !! Initialization of thermal buble  for the Weisman Klemp  test case 
   !! 
-  !!
-  !! @par Revision History
-  !!
   !!
   SUBROUTINE init_nh_buble_wk( ptr_patch, p_metrics, ptr_nh_prog, ptr_nh_diag )
 

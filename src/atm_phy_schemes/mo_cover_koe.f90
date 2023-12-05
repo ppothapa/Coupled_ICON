@@ -1,32 +1,28 @@
-!>
-!! Computation of cloud cover and grid mean cloud liquid water and cloud ice
-!!
-!! This routine takes information from turbulence, convection and grid-scale
-!! to produce cloud properties used in radiation (and microphysics).
-!!
-!! Possible future options
-!! - simple diagnostic (from turbulence, convection and grid scale)
-!! - prognostic total water variance AND prognostic ice
-!!
-!!
-!! @author Martin Koehler, DWD
-!!
-!!
-!! @par Revision History
-!! Developed by Martin Koehler  (starting 2010-08-23)
-!! Modification by Martin Koehler, DWD (2010-11-20)
-!! - options 0,1,2,3 ready
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Computation of cloud cover and grid mean cloud liquid water and cloud ice
+!
+! This routine takes information from turbulence, convection and grid-scale
+! to produce cloud properties used in radiation (and microphysics).
+!
+! Possible future options
+! - simple diagnostic (from turbulence, convection and grid scale)
+! - prognostic total water variance AND prognostic ice
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
+!----------------------------
 #include "consistent_fma.inc"
+!----------------------------
+
 MODULE mo_cover_koe
 
   USE mo_kind,               ONLY: wp, vp, i4
@@ -49,16 +45,14 @@ MODULE mo_cover_koe
 
   USE mo_cover_cosmo,        ONLY: cover_cosmo
 
-  USE mo_impl_constants,     ONLY: iedmf
-
   USE mo_nwp_tuning_config,  ONLY: tune_box_liq, tune_box_liq_asy, tune_thicklayfac, tune_sgsclifac, icpl_turb_clc, &
-                                   tune_box_liq_sfc_fac, allow_overcast, tune_sc_eis, tune_sc_invmin, tune_sc_invmax
+                                   allow_overcast, tune_sc_eis, tune_sc_invmin, tune_sc_invmax
 
   USE mo_ensemble_pert_config, ONLY: box_liq_sv, thicklayfac_sv, box_liq_asy_sv
 
   USE mo_impl_constants,      ONLY: max_dom
 
-  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device, assert_acc_host_only
 
   IMPLICIT NONE
 
@@ -71,12 +65,17 @@ MODULE mo_cover_koe
 !  Cloud cover derived type with physics configuration options
    
   TYPE t_cover_koe_config
+    ! NOTE: Currently, all components of this type are statically allocated.
+    !       If you want to introduce dynamically allocated components, please
+    !       adjust the `$ACC UPDATE DEVICE(cover_koe_config(jg:jg))` in mo_nwp_phy_init.
+    !
     INTEGER(KIND=i4)        ::     icldscheme    ! cloud cover option
     LOGICAL                 ::     lsgs_cond     ! subgrid-scale condensation 
     INTEGER(KIND=i4)        ::     inwp_turb     ! turbulence scheme number
     INTEGER(KIND=i4)        ::     inwp_gscp     ! microphysics scheme number
     INTEGER(KIND=i4)        ::     inwp_cpl_re   ! coupling reff (for qs altering qi)
     INTEGER(KIND=i4)        ::     inwp_reff     ! reff option (for qs altering qi)
+    REAL   (KIND=wp)        ::     tune_box_liq_sfc_fac ! tuning factor for near-surface reduction of liquid box width
   END TYPE t_cover_koe_config
 
 !-------------------------------------------------------------------------
@@ -88,10 +87,6 @@ CONTAINS
 !-------------------------------------------------------------------------
 !
 !  Cloud cover and cloud water/ice calculation.
-!
-!
-!  @par Revision History
-!  Initial version by Martin Koehler, DWD (2010-08-23)
 !
 !  Options:
 !  (0) no clouds
@@ -123,7 +118,7 @@ SUBROUTINE cover_koe( &
   & rhoc_tend                       , & ! in:    convective rhoc tendency
   & kcinv                           , & ! in:    inversion height index
   & linversion                      , & ! in:    inversion logical
-  & qv, qc, qi, qs, qtvar, qc_sgs   , & ! inout: prognostic cloud variables
+  & qv, qc, qi, qs, qc_sgs          , & ! inout: prognostic cloud variables
   & lacc                            , & ! in:    parameter to prevent openacc during init
   & ttend_clcov                     , & ! out:   temperature tendency due to sgs condensation
   & cc_tot, qv_tot, qc_tot, qi_tot    ) ! out:   cloud output diagnostic
@@ -154,8 +149,7 @@ REAL(KIND=wp), DIMENSION(:,:), INTENT(IN) ::  &
   & qv               , & ! specific water vapor content                  (kg/kg)
   & qc               , & ! specific cloud water content                  (kg/kg)
   & qi               , & ! specific cloud ice   content                  (kg/kg)
-  & qs               , & ! specific snow        content                  (kg/kg)
-  & qtvar                ! total water variance (qt'2)                   (kg2/kg2)
+  & qs                   ! specific snow        content                  (kg/kg)
 
 REAL(KIND=wp), DIMENSION(:), INTENT(IN) ::  &
   & ps               , & ! surface pressure
@@ -325,7 +319,7 @@ DO jk = kstart,klev
     ! derivative of qsat_w w.r.t. temperature
     zdqlsat_dT(jl,jk) = dqsdt(tt(jl,jk), zqlsat(jl,jk))
     ! limit on box width near the surface, reaches unperturbed tune_box_liq (default 0.05) at 500 m AGL
-    zagl_lim(jl,jk) = tune_box_liq_sfc_fac * box_liq_sv * (0.5_wp + 1.e-3_wp*pgeo(jl,jk)*grav_i)
+    zagl_lim(jl,jk) = cover_koe_config%tune_box_liq_sfc_fac * box_liq_sv * (0.5_wp + 1.e-3_wp*pgeo(jl,jk)*grav_i)
   ENDDO
 ENDDO
 !$ACC END PARALLEL
@@ -519,36 +513,16 @@ CASE( 1 )
   ENDDO
   !$ACC END PARALLEL
 
-
-  IF (cover_koe_config%inwp_turb == iedmf) THEN
-    DO jk = kstart,klev
-      DO jl = kidia,kfdia
-!       IF (SQRT(qtvar(jl,jk)) / MAX(qv(jl,jk)+qc(jl,jk)+qi(jl,jk),0.000001_wp) > 0.01_wp) THEN
-        IF (SQRT(qtvar(jl,jk)) > 0.001_wp * (qv(jl,jk)+qc(jl,jk)+qi(jl,jk)) ) THEN
-! for EDMF DUALM: take values written within EDMF - only done within high qtvar grid points
-          cc_tot(jl,jk) = cc_tot(jl,jk)
-          qc_tot(jl,jk) = qc_tot(jl,jk)
-          qi_tot(jl,jk) = qi_tot(jl,jk)
-        ELSE
-! combination strat/conv cloud
-          cc_tot(jl,jk)  = max( cc_turb(jl,jk), cc_conv(jl,jk) )
-          qc_tot(jl,jk)  = max( qc_turb(jl,jk), qc_conv(jl,jk) )
-          qi_tot(jl,jk)  = max( qi_turb(jl,jk), qi_conv(jl,jk) )
-        ENDIF
-      ENDDO
+  !$ACC PARALLEL IF(lzacc) DEFAULT(PRESENT) ASYNC(1)
+  !$ACC LOOP GANG VECTOR COLLAPSE(2)
+  DO jk = kstart,klev
+    DO jl = kidia,kfdia
+      cc_tot(jl,jk)  = max( cc_turb(jl,jk), cc_conv(jl,jk) )
+      qc_tot(jl,jk)  = max( qc_turb(jl,jk), qc_conv(jl,jk) )
+      qi_tot(jl,jk)  = max( qi_turb(jl,jk), qi_conv(jl,jk) )
     ENDDO
-  ELSE ! use always combination of strat/conv cloud
-    !$ACC PARALLEL IF(lzacc) DEFAULT(PRESENT) ASYNC(1)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
-    DO jk = kstart,klev
-      DO jl = kidia,kfdia
-        cc_tot(jl,jk)  = max( cc_turb(jl,jk), cc_conv(jl,jk) )
-        qc_tot(jl,jk)  = max( qc_turb(jl,jk), qc_conv(jl,jk) )
-        qi_tot(jl,jk)  = max( qi_turb(jl,jk), qi_conv(jl,jk) )
-      ENDDO
-    ENDDO
-    !$ACC END PARALLEL
-  ENDIF
+  ENDDO
+  !$ACC END PARALLEL
 
 
 !-----------------------------------------------------------------------

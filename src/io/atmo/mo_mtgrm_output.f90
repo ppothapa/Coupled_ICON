@@ -1,120 +1,114 @@
-!>
-!! Data structures and subroutines for meteogram output.
-!!
-!! The sampling intervals for meteogram data are independent
-!! from global output steps. Values are buffered in memory until
-!! the next field output is invoked.
-!! Before each write operation, data is gathered from all working
-!! PEs by the IO PE and written to a NetCDF file.
-!!
-!!
-!! How to add new variables for sampling:
-!! --------------------------------------
-!! In SR "meteogram_setup_variables", insert
-!!
-!! a) for volume variables:
-!!      CALL add_atmo_var(meteogram_config, var_list, VAR_GROUP_ATMO_ML, &
-!!                        "myvarname", "myvarunit", "long name", &
-!!                        var_info, <state_var>)
-!!
-!!      where "VAR_GROUP_ATMO_ML" (or "VAR_GROUP_ATMO_HL" or
-!!      "VAR_GROUP_SOIL_HL", ...)  determines the level heights of this
-!!      variable.  The argument <state_var> denotes a 2D, 3D, or 4D
-!!      pointer to the corresponding data.
-!!
-!! b) for surface variables:
-!!      CALL add_sfc_var(meteogram_config, var_list, VAR_GROUP_SFC, &
-!!                       "myvarname", "myvarunit", "long name", &
-!!                       sfc_var_info, <state_var>)
-!!
-!! How to add additional diagnostic quantities
-!! -------------------------------------------
-!! In SR "meteogram_setup_variables", insert
-!!
-!!      CALL add_atmo/sfc_var (meteogram_config, var_list, IBSET(VAR_GROUP_XX, FLAG_DIAG), &
-!!         &                   "myvarname", "myvarunit", "long name", &
-!!         &                   var_info, <var>)
-!! where <var> denotes a variable of _equal_size_.
-!!
-!! The computation of the diagnostic quantities should be placed inside
-!!  SR compute_diagnostics()
-!! based on sampled values. Here, one may use the utility functions get_var/get_sfcvar for
-!! convencience.
-!!
-!! Roles in MPI communication:
-!! ---------------------------
-!! Depending on the namelist parameter "ldistributed" and the number
-!! of output PEs (i.e. asynchronous or synchronous I/O mode) the MPI
-!! tasks have the following functions:
-!!
-!! 1) use_async_name_list_io == .FALSE. (synchronous I/O)
-!!
-!!    1a) ldistributed == .TRUE.
-!!
-!!        All MPI tasks are writing their own files from their
-!!        individual out_buf.
-!!        Thus, all PEs have the flag "l_is_writer" enabled.
-!!
-!!    1b) ldistributed == .FALSE.
-!!
-!!        All PEs are sampling meteogram data and send it to a single
-!!        writing PE (all PEs have the flag "l_is_sender" enabled).
-!!        One of the working PEs is collecting all meteogram data in its
-!!        out_buf structure, opens, writes, and
-!!        closes the NetCDF file. The MPI rank of this PE is
-!!        "process_mpi_all_workroot_id", this PE has the flag
-!!        "l_is_collecting_pe" enabled.
-!! 2) use_async_name_list_io == .TRUE. => num_io_procs > 0 (asynchronous I/O without CDI-PIO)
-!!
-!!    2a) ldistributed == .TRUE.
-!!
-!!        Invalid case, caught by namelist cross checks
-!!
-!!    2b) ldistributed == .FALSE.
-!!
-!!        The last I/O PE collects data from working PEs and writes
-!!        the NetCDF output. Thus, this PE has "l_is_collecting_pe"
-!!        and "l_is_writer" enabled.  Since this output PE has no
-!!        information on variable (levels) and patches, it has also
-!!        the flag "is_pure_io_pe" enabled and receives this setup
-!!        from a dedicated working PE (highest worker rank with data
-!!        or highest worker rank if no PE has any station
-!!        assigned). The latter has "l_is_varlist_sender" enabled.
-!!
-!! Known limitations:
-!! ------------------
-!!
-!! - So far, only NetCDF file format is supported.
-!!
-!! - ASCII output data (similar to COSMO) must be generated in a
-!!   post-processing step.
-!!
-!! - In case of an application crash, latest meteogram data, which has
-!!   not yet been written to hard disk, will be lost. The recommended
-!!   work-around is to choose the max_time_stamps namelist
-!!   configuration variable to match the restart frequency of the model.
-!!
-!! @author F. Prill, DWD
-!!
-!! @par Revision History
-!! Initial implementation,            F. Prill, DWD (2011-08-22)
-!! Adaptation to asynchronous output, F. Prill, DWD (2011-11-11)
-!! Last I/O PE does output,           M. Hanke, DKRZ(2015-07-27)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
-!! TODO[FP] : use the same GNAT data structure as for the RBF
-!!            coefficient computation!
-!! TODO[FP] : use cdi functionality instead of direct NetCDF access.
-!! TODO[FP] : MPI communication of height levels and header info is
-!!            necessary only once at the beginning.
+! Data structures and subroutines for meteogram output.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+!
+!
+! The sampling intervals for meteogram data are independent
+! from global output steps. Values are buffered in memory until
+! the next field output is invoked.
+! Before each write operation, data is gathered from all working
+! PEs by the IO PE and written to a NetCDF file.
+!
+! How to add new variables for sampling:
+! --------------------------------------
+! In SR "meteogram_setup_variables", insert
+!
+! a) for volume variables:
+!      CALL add_atmo_var(meteogram_config, var_list, VAR_GROUP_ATMO_ML, &
+!                        "myvarname", "myvarunit", "long name", &
+!                        var_info, <state_var>)
+!
+!      where "VAR_GROUP_ATMO_ML" (or "VAR_GROUP_ATMO_HL" or
+!      "VAR_GROUP_SOIL_HL", ...)  determines the level heights of this
+!      variable.  The argument <state_var> denotes a 2D, 3D, or 4D
+!      pointer to the corresponding data.
+!
+! b) for surface variables:
+!      CALL add_sfc_var(meteogram_config, var_list, VAR_GROUP_SFC, &
+!                       "myvarname", "myvarunit", "long name", &
+!                       sfc_var_info, <state_var>)
+!
+! How to add additional diagnostic quantities
+! -------------------------------------------
+! In SR "meteogram_setup_variables", insert
+!
+!      CALL add_atmo/sfc_var (meteogram_config, var_list, IBSET(VAR_GROUP_XX, FLAG_DIAG), &
+!         &                   "myvarname", "myvarunit", "long name", &
+!         &                   var_info, <var>)
+! where <var> denotes a variable of _equal_size_.
+!
+! The computation of the diagnostic quantities should be placed inside
+!  SR compute_diagnostics()
+! based on sampled values. Here, one may use the utility functions get_var/get_sfcvar for
+! convencience.
+!
+! Roles in MPI communication:
+! ---------------------------
+! Depending on the namelist parameter "ldistributed" and the number
+! of output PEs (i.e. asynchronous or synchronous I/O mode) the MPI
+! tasks have the following functions:
+!
+! 1) use_async_name_list_io == .FALSE. (synchronous I/O)
+!
+!    1a) ldistributed == .TRUE.
+!
+!        All MPI tasks are writing their own files from their
+!        individual out_buf.
+!        Thus, all PEs have the flag "l_is_writer" enabled.
+!
+!    1b) ldistributed == .FALSE.
+!
+!        All PEs are sampling meteogram data and send it to a single
+!        writing PE (all PEs have the flag "l_is_sender" enabled).
+!        One of the working PEs is collecting all meteogram data in its
+!        out_buf structure, opens, writes, and
+!        closes the NetCDF file. The MPI rank of this PE is
+!        "process_mpi_all_workroot_id", this PE has the flag
+!        "l_is_collecting_pe" enabled.
+! 2) use_async_name_list_io == .TRUE. => num_io_procs > 0 (asynchronous I/O without CDI-PIO)
+!
+!    2a) ldistributed == .TRUE.
+!
+!        Invalid case, caught by namelist cross checks
+!
+!    2b) ldistributed == .FALSE.
+!
+!        The last I/O PE collects data from working PEs and writes
+!        the NetCDF output. Thus, this PE has "l_is_collecting_pe"
+!        and "l_is_writer" enabled.  Since this output PE has no
+!        information on variable (levels) and patches, it has also
+!        the flag "is_pure_io_pe" enabled and receives this setup
+!        from a dedicated working PE (highest worker rank with data
+!        or highest worker rank if no PE has any station
+!        assigned). The latter has "l_is_varlist_sender" enabled.
+!
+! Known limitations:
+! ------------------
+!
+! - So far, only NetCDF file format is supported.
+!
+! - ASCII output data (similar to COSMO) must be generated in a
+!   post-processing step.
+!
+! - In case of an application crash, latest meteogram data, which has
+!   not yet been written to hard disk, will be lost. The recommended
+!   work-around is to choose the max_time_stamps namelist
+!   configuration variable to match the restart frequency of the model.
+!
+! TODO[FP] : use the same GNAT data structure as for the RBF
+!            coefficient computation!
+! TODO[FP] : use cdi functionality instead of direct NetCDF access.
+! TODO[FP] : MPI communication of height levels and header info is
+!            necessary only once at the beginning.
 
 MODULE mo_meteogram_output
 
@@ -429,11 +423,7 @@ MODULE mo_meteogram_output
 
 CONTAINS
 
-  !>
   !! Set up list of variables for sampling.
-  !!
-  !! @par Revision History
-  !! Initial implementation  by  F. Prill, DWD (2011-11-09)
   !!
   SUBROUTINE meteogram_setup_variables(meteogram_config, jg, iforcing, &
     &                                  ext_data, prog, diag, &
@@ -1116,11 +1106,7 @@ CONTAINS
     diag_var_indices%i_SOBS     = get_var("SOBS"    , cf_lnd)
   END SUBROUTINE setup_diag_var_indices
 
-  !>
   !! @return Index of (3d) variable with given name.
-  !!
-  !! @par Revision History
-  !! Initial implementation  by  F. Prill, DWD (2011-08-22)
   !!
   FUNCTION get_var(zname, cf)
     INTEGER :: get_var
@@ -1145,11 +1131,7 @@ CONTAINS
     ! IF (get_var == -1)  CALL finish (routine, 'Invalid name: '//TRIM(zname))
   END FUNCTION get_var
 
-  !>
   !! Computation of additional diagnostic quantities for meteogram.
-  !!
-  !! @par Revision History
-  !! Initial implementation  by  F. Prill, DWD (2011-11-25)
   !!
   SUBROUTINE compute_diagnostics(diag_var_indices, i_tstep, &
     ithis_nlocal_pts, out_buf, buf_idx)
@@ -1228,16 +1210,12 @@ CONTAINS
   END SUBROUTINE compute_diagnostics
 
 
-  !>
   !! Initialize meteogram data buffer, allocating storage.
   !! This is a collective operation.
   !!
   !! Note: Patch information, model state, etc. are optional
   !!       parameters here since this SR may also be called by pure
   !!       I/O PEs in asynchronous output mode.
-  !!
-  !! @par Revision History
-  !! Initial implementation  by  F. Prill, DWD (2011-08-22)
   !!
   SUBROUTINE meteogram_init(meteogram_output_config, jg,     &
     &                       ptr_patch, ext_data, p_nh_state, &
@@ -1790,11 +1768,7 @@ CONTAINS
     END DO
   END SUBROUTINE allocate_heights
 
-  !>
   !! @return .TRUE. if meteogram data will be recorded for this step.
-  !!
-  !! @par Revision History
-  !! Initial implementation  by  F. Prill, DWD (2011-08-22)
   !!
   FUNCTION meteogram_is_sample_step(meteogram_output_config, cur_step)
     LOGICAL :: meteogram_is_sample_step
@@ -1812,15 +1786,11 @@ CONTAINS
   END FUNCTION meteogram_is_sample_step
 
 
-  !>
   !! Adds values for current model time to buffer. Also flushes the
   !! buffer when full and adds time stamp
   !!
   !! For gathered NetCDF output, this is a collective operation,
   !! otherwise this is a local operation.
-  !!
-  !! @par Revision History
-  !! Initial implementation  by  F. Prill, DWD (2011-08-22)
   !!
   SUBROUTINE meteogram_sample_vars(jg, cur_step, cur_datetime, lacc)
     !> patch index
@@ -1975,13 +1945,9 @@ CONTAINS
 
   END SUBROUTINE sample_station_vars
 
-  !>
   !! Destroy meteogram data structure.
   !! For gathered NetCDF output, this is a collective operation,
   !! otherwise this is a local operation.
-  !!
-  !! @par Revision History
-  !! Initial implementation  by  F. Prill, DWD (2011-08-22)
   !!
   SUBROUTINE meteogram_finalize(jg, lacc)
     INTEGER, INTENT(IN)         :: jg    !< patch index
@@ -2007,15 +1973,12 @@ CONTAINS
     END IF
   END SUBROUTINE meteogram_finalize
 
-  !>
+
   !! IO PE gathers all buffer information from working PEs and copies
   !! the contents to the global meteogram buffer.
   !! Afterwards, all working PEs flush their local buffers.
   !!
   !! For gathered NetCDF output, this is a collective operation.
-  !!
-  !! @par Revision History
-  !! Initial implementation  by  F. Prill, DWD (2011-09-10)
   !!
   SUBROUTINE meteogram_collect_buffers(mtgrm, jg)
     ! patch buffer
@@ -2260,13 +2223,9 @@ CONTAINS
       * p_pack_size_real_dp(max_time_stamps, io_collect_comm)
   END FUNCTION station_pack_size
 
-  !>
   !! The IO PE creates and opens a disk file for output.
   !! For gathered NetCDF output, this is a collective operation,
   !! otherwise this is a local operation for the IO PE.
-  !!
-  !! @par Revision History
-  !! Initial implementation  by  F. Prill, DWD (2011-08-22)
   !!
   SUBROUTINE meteogram_open_file(meteogram_output_config, mtgrm, jg, invariants)
     !> station data from namelist
@@ -2779,15 +2738,12 @@ CONTAINS
     END IF
 
   END SUBROUTINE meteogram_append_file
-  !>
+
   !! The IO PE writes the global meteogram buffer to the output
   !! file. Afterwards, the global meteogram buffer is cleared.
   !!
   !! For gathered NetCDF output, this is a collective operation,
   !! otherwise this is a local operation for the IO PE.
-  !!
-  !! @par Revision History
-  !! Initial implementation  by  F. Prill, DWD (2011-08-22)
   !!
   SUBROUTINE meteogram_flush_file(jg, lacc)
     INTEGER, INTENT(IN)         :: jg       !< patch index
@@ -2806,7 +2762,7 @@ CONTAINS
     DO ivar=1,SIZE(mtgrm(jg)%sfc_var_info)
       !$ACC UPDATE HOST(mtgrm(jg)%out_buf%sfc_vars(ivar)%a) ASYNC(1) IF(lzacc)
     END DO
-    !$ACC WAIT
+    !$ACC WAIT(1)
 
     ! In "non-distributed" mode, station data is gathered by PE #0
     ! which writes a single file:
@@ -2912,14 +2868,9 @@ CONTAINS
 
   END SUBROUTINE disk_flush
 
-
-  !>
   !! The IO PE closes the meteogram output file.
   !! For gathered NetCDF output, this is a collective operation,
   !! otherwise this is a local operation for the IO PE.
-  !!
-  !! @par Revision History
-  !! Initial implementation  by  F. Prill, DWD (2011-08-22)
   !!
   SUBROUTINE meteogram_close_file(jg, lacc)
     INTEGER, INTENT(IN)  :: jg    !< patch index
@@ -2937,13 +2888,8 @@ CONTAINS
     END IF
   END SUBROUTINE meteogram_close_file
 
-
-  !>
   !! @return file name of meteogram file.
   !! This is a local operation.
-  !!
-  !! @par Revision History
-  !! Initial implementation  by  F. Prill, DWD (2011-08-22)
   !!
   SUBROUTINE meteogram_create_filename (meteogram_output_config, jg)
 

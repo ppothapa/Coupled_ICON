@@ -37,6 +37,7 @@ ARFLAGS= @ARFLAGS@
 RANLIB= @RANLIB@
 CC= @CC@
 FC= @FC@
+CXX= @CXX@
 CUDACXX= @CUDACXX@
 HIPCXX= @HIPCXX@
 PYTHON= @PYTHON@
@@ -98,8 +99,8 @@ all_files:= $(call find_files,$(subdirs),'*.f90' '*.inc' '*.incf' '*.c' '*.cu')
 @JSBACH_ENABLED@JSBACH_dsl_files:= $(call find_files,$(JSBACH_subdir),'*.f90')
 
 # DACE sources:
-@DACE_ENABLED_OR_NEEDED@DACE_subdir:= externals/dace_icon/src_for_icon
-@DACE_ENABLED_OR_NEEDED@all_files+= $(call find_files,$(DACE_subdir),'*.f90' '*.inc' '*.incf' '*.c')
+@DACE_ENABLED@DACE_subdir:= externals/dace_icon/src_for_icon
+@DACE_ENABLED@all_files+= $(call find_files,$(DACE_subdir),'*.f90' '*.inc' '*.incf' '*.c')
 
 # EMVORADO sources:
 @EMVORADO_ENABLED@EMVORADO_subdir:= externals/emvorado
@@ -378,10 +379,6 @@ srclist: $(dep_files)
 # Check rule:
 check: all check-bundled
 
-# Installation rule:
-install: all
-	$(INSTALL) -d $(DESTDIR)@bindir@ && $(INSTALL) $(exec_files) $(DESTDIR)@bindir@
-
 # A general rule for clean recipes is to delete only those files that have been
 # created explicitly, abandoning the idea of trying to delete all possible side
 # effect files, e.g. Cray's *.i and *.lst files, MacOS's *.dSYM directories,
@@ -444,6 +441,11 @@ distclean: clean
 	  done; \
 	fi
 	rm -f icon.mk
+
+# Installation rule:
+install: all
+	$(INSTALL) -d $(DESTDIR)@bindir@ && $(INSTALL) $(exec_files) $(DESTDIR)@bindir@
+@HD_ENABLED@	$(silent_none)$(MAKE) -C externals/hd $@ V=$(V)
 
 # Explicit bundled libraries configuration rule:
 config-bundled: $(addsuffix /Makefile,$(bundled_subdirs))
@@ -550,7 +552,7 @@ sanitize-mod-proxies:
 # We need to tolerate the absence of makefiles in the bundled
 # libraries when running clean rules. If the delayed configuration is disabled,
 # we tolerate the absence of the makefiles for the 'distclean' target only.
-# Otherwise, we additionaly enable the tolerance for the 'mostlyclean' and
+# Otherwise, we additionally enable the tolerance for the 'mostlyclean' and
 # 'clean' targets because they can be requested before the bundled directories
 # get configured:
 nomakefile_bundled_targets:= distclean
@@ -580,6 +582,9 @@ externals/yac: $(filter externals/mtime externals/yaxt,$(bundled_subdirs))
 
 # Build the bundled yaxt and ppm before building the bundled cdi:
 externals/cdi: $(filter externals/yaxt externals/ppm,$(bundled_subdirs))
+
+# Build the bundled yac before the bundled hd:
+externals/hd: $(filter externals/yac,$(bundled_subdirs))
 
 # Configure delayed bundled libraries:
 @ICON_DELAYED_CONFIG_RULES@
@@ -623,22 +628,12 @@ version.c: force-create-version
 c_binding.d: icon.mk
 	$(silent_DEPGEN):;{ \
 	  echo '$(call get_obj_names,src/io/restart/mo_c_restart_util.f90):| support/util_multifile_restart.@OBJEXT@'; \
-	  echo '$(call get_obj_names,src/io/shared/mo_util_file.f90):| support/util_file.@OBJEXT@'; \
-	  echo '$(call get_obj_names,src/io/shared/mo_util_nml.f90):| support/nml_annotate.@OBJEXT@'; \
-	  echo '$(call get_obj_names,src/shared/mo_expression.f90):| support/util_arithmetic_expr.@OBJEXT@'; \
-	  echo '$(call get_obj_names,src/shared/mo_util_backtrace.f90):| support/util_backtrace.@OBJEXT@'; \
-	  echo '$(call get_obj_names,src/shared/mo_util_texthash.f90):| support/util_hash.@OBJEXT@'; \
-	  echo '$(call get_obj_names,src/shared/mo_util_stride.f90):| support/util_stride.@OBJEXT@'; \
-	  echo '$(call get_obj_names,src/shared/mo_util_string_parse.f90):| support/util_string_parse.@OBJEXT@'; \
-	  echo '$(call get_obj_names,src/shared/mo_util_sysinfo.f90):| support/util_sysinfo.@OBJEXT@'; \
-	  echo '$(call get_obj_names,src/shared/mo_util_system.f90):| support/util_system.@OBJEXT@'; \
-	  echo '$(call get_obj_names,src/shared/mo_util_timer.f90):| support/util_timer.@OBJEXT@'; \
-	  echo '$(call get_obj_names,src/shared/mo_util_uuid.f90):| support/util_uuid.@OBJEXT@'; \
+	  echo '$(call get_obj_names,support/mo_util_uuid.f90):| support/util_uuid.@OBJEXT@'; \
 	  echo '$(call get_obj_names,src/shared/mo_util_vcs.f90):| version.@OBJEXT@'; \
 	} >$@
 @ART_ENABLED@	$(silent_none)echo '$(call get_obj_names,src/art/shared/mo_art_util_vcs.f90):| version.@OBJEXT@' >>$@
 @GPU_ENABLED@	$(silent_none)echo '$(call get_obj_names,src/shared/mo_index_list.f90):| src/shared_cuda/index_list_cuda.@OBJEXT@' >>$@
-@DACE_ENABLED_OR_NEEDED@	$(silent_none)echo '$(call get_obj_names,$(DACE_subdir)/mo_wigos.f90):| $(DACE_subdir)/dace_md5_ifc.@OBJEXT@ $(DACE_subdir)/md5.@OBJEXT@' >>$@
+@DACE_ENABLED@	$(silent_none)echo '$(call get_obj_names,$(DACE_subdir)/mo_wigos.f90):| $(DACE_subdir)/dace_md5_ifc.@OBJEXT@ $(DACE_subdir)/md5.@OBJEXT@' >>$@
 
 # Dummy dependency file generation rule (called by config.status):
 dummy-depend: | $(dir_files)

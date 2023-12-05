@@ -1,23 +1,19 @@
-!>
-!! This module contains utility routines needed for the initialization of the
-!! NH model
-!!
-!! @author Guenther Zaengl, DWD
-!!
-!!
-!! @par Revision History
-!! First version by Guenther Zaengl, DWD (2011-06-29)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-
-!----------------------------
+!
+! This module contains utility routines needed for the initialization of the
+! NH model
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 #include "omp_definitions.inc"
 !----------------------------
 
@@ -175,11 +171,6 @@ CONTAINS
   !! Required input fields: pressure, virtual temperature
   !! Output: density, Exner pressure, virtual potential temperature
   !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-06-29)
-  !!
-  !!
-  !!
   SUBROUTINE convert_thdvars(p_patch, pres, temp_v, &
                              rho, exner, theta_v    )
 
@@ -235,11 +226,6 @@ CONTAINS
   !!
   !! Required input fields: omega, pressure, temperature
   !! Output: vertical wind speed
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-20)
-  !!
-  !!
   !!
   SUBROUTINE convert_omega2w(omega, w, pres, temp, nblks, npromz, nlev, opt_lmask)
 
@@ -321,11 +307,6 @@ CONTAINS
   !!
   !! Required input fields: u and v on cell points
   !! Output: vn on edge points
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-11)
-  !!
-  !!
   !!
   SUBROUTINE interp_uv_2_vn(p_patch, p_int, u, v, vn )
 
@@ -431,11 +412,6 @@ CONTAINS
   !! Required input fields: vn, z_ifc
   !! Output: w
   !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-11)
-  !!
-  !!
-  !!
   SUBROUTINE init_w(p_patch, p_int, vn, z_ifc, w)
 
 
@@ -529,11 +505,6 @@ CONTAINS
   !!
   !! Required input fields: vn, w, z_ifc
   !! Output: w
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-18)
-  !!
-  !!
   !!
   SUBROUTINE adjust_w(p_patch, p_int, vn, z_ifc, w)
 
@@ -634,9 +605,6 @@ CONTAINS
   !>
   !! Computes perturbation exner pressure by subtracting the
   !! exner reference state from the actual exner pressure.
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD
   !!
   SUBROUTINE compute_exner_pert(exner, exner_ref, exner_pr, use_acc)
     REAL(wp), INTENT(IN)    :: exner(:,:,:)         !< exner pressure

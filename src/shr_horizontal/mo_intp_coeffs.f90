@@ -1,4 +1,19 @@
-
+! Contains the implementation of interpolation and reconstruction
+! routines used by the shallow water model, including the RBF
+! reconstruction routines.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+  
 #ifdef __xlC__
 ! @PROCESS nosmp
 ! @PROCESS NOOPTimize
@@ -8,134 +23,6 @@
 !#ifdef __PGI
 ! !pgi$g opt=1
 !#endif
-!>
-!! Contains the implementation of interpolation and reconstruction.
-!!
-!! Contains the implementation of interpolation and reconstruction
-!! routines used by the shallow water model, including the RBF
-!! reconstruction routines.
-!!
-!! @par Revision History
-!! Developed  by Luca Bonaventura and Will Sawyer (2002-4).
-!! Modified to ProTeX-style by  Luca Bonaventura and Thomas Heinze (2004).
-!! Adapted to new data structure by Thomas Heinze,
-!! Peter Korn and Luca Bonaventura (2005).
-!! Modification by Thomas Heinze (2006-02-21):
-!! - renamed m_modules to mo_modules
-!! Modification by Thomas Heinze (2006-07-05):
-!! - modified cell2edge_lin_int_coeff
-!! - created cc_dot_product
-!! Modification by Peter Korn and Luca Bonaventura(2006-07-28):
-!! - moved several auxiliary functions to mo_math_utilities
-!! - introduced recoded rbf interpolation for vector fields
-!! - added lraviart switch to force RT interpolation to be used
-!! Modification by Thomas Heinze  and Luca Bonaventura(2006-10-05):
-!! - merged with 'Milano' version by P. Korn
-!! Modification by Pilar Ripodas (2006-11):
-!! - new subroutine rbf_vec_interpol_car with the cartesian
-!!   coordinates as output
-!! Modification by Peter Korn, MPI-M, (2006-11-23):
-!! - replacements in TYPE patch: ic by l2g_c, ie by l2g_e, iv by l2g_v,
-!!   iic by g2l_c, iie by g2l_e, iiv by g2l_v
-!! - replaced edge_index by edge_idx
-!! - replaced vertex_index by vertex_idx
-!! - replaced cell_index by cell_idx
-!! - replaced neighbor_index by neighbor_idx
-!! Modification by Pilar Ripodas (2006-12):
-!! - dt_tan_vec and dt_tan_rt_vec are wrong. They are renamed to
-!!   dt_tan_vec_old and dt_tan_rt_vec_old and should not be used
-!! - New subroutines dt_tan_vec_h and dt_tan_vec_kin and
-!!   dt_tan_vec_gen are produced and
-!!   moved to mo_sw_state.f90
-!!  Modification by Peter Korn, MPI-M (2007-02)
-!!  Modification by Hui Wan, MPI-M (2007-02-22)
-!!  - changes in the USE section because
-!!    the coordinate types had been move from mo_model_domain
-!!    to mo_math_utilities;
-!!  Modification by Almut Gassmann, MPI-M (2007-04)
-!!  - removed reference to unused halo_verts
-!!  - summing over all halos of the various parallel patches (Quick and Dirty!)
-!!  Modification by Almut Gassmann, MPI-M (2007-04)
-!!  - abandon grid for the sake of patch
-!!  Modification by Thomas Heinze, DWD (2007-07-26)
-!!  - including all the improvements of Tobias Ruppert's diploma thesis
-!!  - several changes according to the programming guide
-!!  Modification by Pilar Ripodas, DWD (2007-07):
-!!  - substruct the outgoing component of the reconstructed
-!!    vector in subroutine "rbf_vec_interpol_car"
-!!  Modification by Thomas Heinze, DWD (2007-08-02)
-!!  - replaced rbf_kern_dim by rbf_kern_dim_c
-!!  - replaced rbf_vec_dim by rbf_vec_dim_c
-!!  - replaced rbf_mat_dim by rbf_mat_dim_c
-!!  - replaced rbf_vec_scale by rbf_vec_scale_c
-!!  - replaced rbf_vec_pdeg_c by rbf_vec_rbf_vec_pdeg_c_c
-!!  Modification by Hui Wan, MPI-M (2007-08-02; 2007-11-30)
-!!  - added interpolation coefficients c_aw_e and e_aw_c
-!!    and the initialization subroutine aw_int_coeff.
-!!  - added subroutine edges2cells_scalar
-!!  Modification by Jochen Foerstner, DWD (2008-05-05)
-!!  - four new subroutines
-!!      rbf_vec_index_vertex
-!!      rbf_vec_compute_coeff_vertex
-!!      rbf_vec_interpol_car_vertex
-!!      prepare_simpson
-!!    to reconstruct a Cartesian vector at the vertices using
-!!    RBF interpolation and to prepare quadrature via the
-!!    Simpson's rule.
-!!  Modification by Marco Restelli, MPI (2008-07-17)
-!!  - included the subroutines
-!!      cells2vertex_scalar, cells2vertex_coeff, ravtom_normgrad2,
-!!      ls_normgrad2, ls_normgrad2_ii, edges2points_vector
-!!    to compute polynomial fitting with sufficient accuracy as
-!!    required in SW-alpha model.
-!!  Modification by Jochen Foerstner, DWD (2008-09-12)
-!!  - moved SUBROUTINE ravtom_normgrad2 to mo_math_operators
-!!    because of conflicting use statements.
-!!  Modification by Almut Gassmann, MPI-M (2008-10-09)
-!!  - added features for helicity bracket reconstruction
-!!  Modification by Guenther Zaengl, DWD (2008-10-23)
-!!  - added interpolation routines needed for mesh refinement
-!!  Modification by Almut Gassmann, MPI-M (2009-01-29)
-!!  - conforming scalar interpolation routines and adjusting coefficients
-!!  Modification by Guenther Zaengl, DWD (2009-02-11)
-!!  - all routines needed for grid refinement are moved into the new
-!!    module mo_grf_interpolation
-!!  Modification by Guenther Zaengl, DWD (2009-02-13)
-!!  - RBFs are changed to direct reconstruction of velocity components on
-!!    the sphere, avoiding the detour over the 3D Cartesian space
-!!  Modification by Almut Gassmann, DWD (2009-03-17)
-!!  - remove lraviart
-!!  Modification by Almut Gassmann, MPI-M (2009-04-23)
-!!  - remove all Raviart Thomas stuff, add edge to verts averaging
-!!  Modification by Daniel Reinert, DWD (2009-07-20)
-!!  - added subroutine grad_lsq_compute_coeff_cell to prepare
-!!    (2D) gradient reconstruction at circumcenter via the least squares
-!!    method.
-!!  Modification by Almut Gassmann, MPI-M (2009-10-05)
-!!  - set RBF vec dimensions to predefined values (edges:4,vertices:6,cells:9);
-!!    All other switches and belongings are deleted. The reason is that
-!!    the Hollingsworth instability requires 4 edges, cell reconstruction
-!!    is only needed for output and vertices are only used in the bracket
-!!    version, where the dimension at the vertices should be 6
-!!  Modification by Daniel Reinert, DWD (2009-12-10)
-!!  - replaced grad_lsq_compute_coeff_cell by lsq_compute_coeff_cell
-!!    which initializes either a second order or a third order least squares
-!!    reconstruction.
-!!  Modification by Almut Gassmann, MPI-M (2010-01-12)
-!!  - generalize p_int%primal_normal_ec and p_int%edge_cell_length to hexagons
-!!  Modification by Almut Gassmann, MPI-M (2012-04-19)
-!!  - added routine init_tplane_c, which projects vertices and mass points onto
-!!    a plane tangent to cell centers.
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -189,15 +76,8 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! Computes the weighting coefficients for cell averaging with
   !! variable interpolation factors. Results are stored in ptr_patch%cells%avg_wgt
-  !!
-  !! @par Revision History
-  !!  developed by Guenther Zaengl, 2008-12-05
-  !! @par
-  !!  modification by Guenther Zaengl, 2009-09-02
-  !!  revised weights to achieve mass conservation
   !!
   SUBROUTINE init_cellavg_wgt( ptr_patch, ptr_int )
     TYPE(t_patch), TARGET, INTENT(inout) :: ptr_patch
@@ -228,7 +108,6 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !>
   !! Computes the weighting coefficients for cell averaging with
   !! variable interpolation factors. Results are stored in ptr_patch%cells%avg_wgt
   !!
@@ -237,10 +116,6 @@ CONTAINS
   !! are not aliased into a checkerboard pattern between upward- and downward
   !! directed cells. The third condition is sum(w(i)) = 1., and the weight
   !! of the local point is 0.5 (see above).
-  !!
-  !! @par Revision History
-  !!  developed by Anurag Dipankar, MPI-M(2012-12-12)
-  !!  adapted by Leonidas Linardakis, MPI-M(2012-12-12)
   SUBROUTINE calculate_uniform_bilinear_cellavg_wgt( patch, interpolation_state )
     !  patch on which computation is performed
     TYPE(t_patch), TARGET, INTENT(inout) :: patch
@@ -276,7 +151,6 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !>
   !! Computes the weighting coefficients for cell averaging with
   !! variable interpolation factors. Results are stored in ptr_patch%cells%avg_wgt
   !!
@@ -285,9 +159,6 @@ CONTAINS
   !! are not aliased into a checkerboard pattern between upward- and downward
   !! directed cells. The third condition is sum(w(i)) = 1., and the weight
   !! of the local point is 0.5 (see above).
-  !!
-  !! @par Revision History
-  !!  developed by Guenther Zaengl, 2008-12-05
   !!
   SUBROUTINE calculate_bilinear_cellavg_wgt( ptr_patch, ptr_int )
     !  patch on which computation is performed
@@ -1078,7 +949,6 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! Computes the coefficients for lateral boundary nudging needed for
   !! one-way nesting and the limited-area mode
   !! The nudging coefficients are defined via three namelist variables:
@@ -1087,9 +957,6 @@ CONTAINS
   !! nudge_efold_width: e-folding width of exponential decay of coefficients
   !! (in units of grid cell rows)
   !! nudge_zone_width: Total width of nudging zone (in units of grid cell rows)
-  !!
-  !! @par Revision History
-  !!  developed by Guenther Zaengl, 2010-06-21
   !!
   SUBROUTINE init_nudgecoeffs( ptr_patch, ptr_int )
     !
@@ -1203,23 +1070,10 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !>
   !! Precomputes the geometrical factors used in the divergence, rotation.
   !!
   !! Precomputes the geometrical factors used in the divergence, rotation
   !! and nabla_2_scalar operators in order to improve computational efficiency
-  !!
-  !! @par Revision History
-  !!  developed by Guenther Zaengl, 2009-03-17
-  !!  Modification by Almut Gassmann, 2009-12-19
-  !!  - Vorticity is computed on quads in case of the hexagonal grid
-  !!  Modification by Almut Gassmann, 2010-02-05
-  !!  - Added feature for poor men's 3rd order advection, where a directional
-  !!    laplace is needed at the edges.
-  !!  Modification by Almut Gassmann, 2010-06-11
-  !!  - Further works for providing directional gradients of velocities
-  !!  Modifications by Daniel Reinert, DWD, 2023-05-25
-  !!  - remove computations that are specific to the hexagonal grid
   !!
   SUBROUTINE init_geo_factors( ptr_patch, ptr_int )
     !
@@ -1631,7 +1485,6 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! Completes the computation of geometric information for a given patch, such as
   !! - the control volume associated to an edge
   !! - the local orientation of the edge primal normal and dual normal at the
@@ -1655,13 +1508,6 @@ CONTAINS
   !! ptr_int% primal_normal_ec
   !!          edge_cell_length
   !!          cell_vert_dist
-  !!
-  !! @par Revision History
-  !!  developed by Guenther Zaengl, 2009-03-31
-  !! Modification by Anurag Dipankar, MPIM, 2012-12-28
-  !! -Removed the calculation of ptr_int%cart_edge/cell_coord as this
-  !!  information is now stored in patch. Also adapted some calculations
-  !!  for geometry based info
   SUBROUTINE complete_patchinfo( ptr_patch, ptr_int )
     !
     !  patch on which computation is performed
@@ -2237,7 +2083,6 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !----------------------------------------------------------------------------
-  !>
   !! Initializes a tangential plane at each edge midpoint. Necessary  for efficient
   !! calculation of backward trajectories and the corresponding 'upstream area'.
   !!
@@ -2260,11 +2105,6 @@ CONTAINS
   !! pos_on_tplane_e(:,:,1:2,:) :: neighboring cell centers
   !! pos_on_tplane_e(:,:,3:6,:) :: edge midpoints of the quadrilateral
   !! pos_on_tplane_e(:,:,7:8,:) :: edge vertices
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2010-03-12)
-  !! Modification by Daniel Reinert, DWD (2010-05-12)
-  !! - added projection of edge vertices onto tangential plane
   !!
   SUBROUTINE calculate_tangent_plane_at_edge (ptr_patch, ptr_int)
 
@@ -2568,9 +2408,6 @@ CONTAINS
   !----------------------------------------------------------------------------
 
   !----------------------------------------------------------------------------
-  !>
-  !! @par Revision History
-  !! Taken from "calculate_tangent_plane_at_edge" for flat torus case
   !!
   SUBROUTINE calculate_planar_distance_at_edge (ptr_patch, ptr_int)
 
@@ -2757,7 +2594,6 @@ CONTAINS
 
 
   !----------------------------------------------------------------------------
-  !>
   !!AD> This is old "init_tplane_c" routine now renamed!
   !!
   !! Initializes a tangential plane at each cell circumcenter. Necessary for efficient
@@ -2782,11 +2618,6 @@ CONTAINS
   !! - npts 4-5: coordinates of neighboring cell centers (share vertex 1 and 2, respectively)
   !!   - only those 2 neighbors that do not share the given edge.
   !!   - no "projection error" added to cell center
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2012-03-12)
-  !! Modification by Daniel Reinert, DWD, (2012-04-12):
-  !! - added projection of cell centers
   !!
   SUBROUTINE init_tplane_c_sphere (ptr_patch, ptr_int)
 #ifdef __INTEL_COMPILER
@@ -3133,14 +2964,9 @@ CONTAINS
   !----------------------------------------------------------------------------
 
   !----------------------------------------------------------------------------
-  !>
   !!AD> This is torus version of "init_tplane_c_sphere"- everything remains same
   !!    just that for flat torus geometry there is no need of gnomonic projection.
   !!    Radial vector between two point is just coordinate difference
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2012-03-12)
-  !! Modified by Anurag Dipankar, MPIM (2013-04) for torus geometry
 
   SUBROUTINE init_tplane_c_torus (ptr_patch, ptr_int)
 
@@ -3452,16 +3278,12 @@ CONTAINS
 
 
   !----------------------------------------------------------------------------
-  !>
   !! Primal cell quadrature points and weights
   !!
   !! Computes quadrature points and weights for triangular grid cells.
   !! Quadrature points and weights are provided for accurately integrating
   !! linear, quadratic and cubic functions. This is necessary for initializing
   !! idealized testcases.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2010-11-16)
   !!
   !! @par Literature
   !! Numerical Methods in Engineering with Python, Jaan Kiusalaas (2005),

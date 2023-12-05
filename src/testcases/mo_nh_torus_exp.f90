@@ -1,23 +1,19 @@
-!>
-!!  Subroutine to initialize the CBL case for HDCP2
-!!
-!!
-!! @par Revision History
-!! - first version by Anurag Dipankar , MPIM, (2012-12-12)
-!! - RCEMIP routines added by James Ruppert, MPIM, 2018-07-08
-!! @par Literature
-!! -
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Subroutine to initialize the CBL case for HDCP2
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_nh_torus_exp
+
 !-------------------------------------------------------------------------
 !
 !    ProTeX FORTRAN source: Style 2
@@ -88,9 +84,6 @@ MODULE mo_nh_torus_exp
   !>
   !! Initialization of prognostic state vector for the nh CBL test case 
   !!  without moisture
-  !!
-  !! @par Revision History
-  !!
   !!
   SUBROUTINE init_nh_state_cbl( ptr_patch, ptr_nh_prog,  ptr_nh_ref, ptr_nh_diag,  &
     &                           ptr_int, ptr_metrics)
@@ -246,9 +239,6 @@ MODULE mo_nh_torus_exp
   !! Initialization of prognostic state vector for the nh GATE test case 
   !! with moisture
   !!
-  !! @par Revision History
-  !!
-  !!
   SUBROUTINE init_torus_ascii_sounding ( ptr_patch, ptr_nh_prog,  ptr_nh_ref,  &
                                          ptr_nh_diag, ptr_int, ptr_metrics)
 
@@ -373,9 +363,6 @@ MODULE mo_nh_torus_exp
 
   !>
   !! Initialization of prognostic state vector for with SCM netcdf intput file init_SCM.nc.
-  !!
-  !! @par Revision History
-  !!
   !!
   SUBROUTINE init_torus_netcdf_sounding ( ptr_patch, ptr_nh_prog,  ptr_nh_ref, ptr_nh_diag,  &
                                           ptr_int, ptr_metrics, ext_data)
@@ -551,9 +538,6 @@ MODULE mo_nh_torus_exp
   !>
   !! Initialization of prognostic state vector for the nh RICO test case 
   !!  with moisture
-  !!
-  !! @par Revision History
-  !!
   !!
   SUBROUTINE init_nh_state_rico( ptr_patch, ptr_nh_prog,  ptr_nh_ref, ptr_nh_diag,  &
     &                           ptr_int, ptr_metrics)
@@ -1313,14 +1297,6 @@ MODULE mo_nh_torus_exp
 
   !>
   !! Initialization of prognostic state vector for the analytical RCEMIP test case. 
-  !! 
-  !! James Ruppert
-  !! james.ruppert@mpimet.mpg.de
-  !! 8 July 2018
-  !!
-  !! @par Revision History
-  !!
-  !!
   SUBROUTINE init_torus_rcemip_analytical_sounding ( ptr_patch, ptr_nh_prog,  ptr_nh_ref, ptr_nh_diag,  &
                                         ptr_int, ptr_metrics)
 
@@ -1479,9 +1455,6 @@ MODULE mo_nh_torus_exp
   !! on a torus. It is simplified form of Wesimann Klemp testcase from
   !! G. H. Bryan and J. M. Fritsch, "A benchmark simulation for moist
   !! nonhydrostatic numerical models", MWR, 2002
-  !!
-  !! @par Revision History
-  !!
   !!
   SUBROUTINE init_warm_bubble( ptr_patch, ptr_nh_prog, ptr_nh_diag, ptr_metrics)
 

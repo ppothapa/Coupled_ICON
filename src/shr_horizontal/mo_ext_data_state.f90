@@ -1,34 +1,18 @@
-!>
-!! Allocation/deallocation of external parameter state
-!!
-!! This module contains routines for setting up the external data state.
-!!
-!! @author Daniel Reinert, DWD
-!! @author Hermann Asensio, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2010-07-12)
-!! Modification by Hermann Asensio, DWD (2010-07-16)
-!!  - add miscellaneous variables for external parameters
-!! Modification by Daniel Reinert, DWD (2011-05-03)
-!! - Memory allocation method changed from explicit allocation to Luis'
-!!   infrastructure
-!! Modification by Daniel Reinert, DWD (2012-02-23)
-!! - Routine smooth_topography moved to a new module named mo_smooth_topo
-!! Modification by Daniel Reinert, DWD (2012-03-22)
-!! - Type declaration moved to new module mo_ext_data_types
-!! Modification by Daniel Reinert, DWD (2015-06-11)
-!! - reading and other stuff moved to new module mo_ext_data_init
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Allocation/deallocation of external parameter state
+!
+! This module contains routines for setting up the external data state.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -59,8 +43,10 @@ MODULE mo_ext_data_state
   USE mo_io_config,          ONLY: lnetcdf_flt64_output
   USE mo_grid_config,        ONLY: n_dom
   USE mo_run_config,         ONLY: iforcing
+  USE mo_initicon_config,    ONLY: icpl_da_seaice, icpl_da_snowalb
   USE mo_lnd_nwp_config,     ONLY: ntiles_total, ntiles_water, llake,       &
     &                              sstice_mode, lterra_urb
+  USE mo_atm_phy_nwp_config, ONLY: iprog_aero
   USE mo_radiation_config,   ONLY: irad_o3, albedo_type, islope_rad
   USE mo_extpar_config,      ONLY: i_lctype, nclass_lu, nhori,              &
     &                              nmonths_ext, itype_vegetation_cycle, itype_lwemiss
@@ -117,9 +103,6 @@ CONTAINS
   !>
   !! Top-level procedure for building external data structure
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2010-07-12)
-  !!
   SUBROUTINE construct_ext_data (p_patch, ext_data)
 
     TYPE(t_patch),          INTENT(IN)    :: p_patch(:)
@@ -173,10 +156,6 @@ CONTAINS
   !! elements).
   !!
   !! Initialization of elements with zero.
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Reinert (2011-05-03)
-  !! Statements that assign initial value added by Hui Wan (MPI-M, 2011-05-30)
   !!
   SUBROUTINE new_ext_data_atm_list ( p_patch, p_ext_atm, p_ext_atm_list, &
     &                                listname)
@@ -251,9 +230,16 @@ CONTAINS
       &     p_ext_atm%horizon,         &
       &     p_ext_atm%skyview,         &
       &     p_ext_atm%o3,              &
+      &     p_ext_atm%emi_bc,          &
+      &     p_ext_atm%emi_oc,          &
+      &     p_ext_atm%emi_so2,         &
+      &     p_ext_atm%bcfire,          &
+      &     p_ext_atm%ocfire,          &
+      &     p_ext_atm%so2fire,         &
       &     p_ext_atm%llsm_atm_c,      &
       &     p_ext_atm%llake_c,         &
       &     p_ext_atm%fr_land,         &
+      &     p_ext_atm%fr_land_smt,     &
       &     p_ext_atm%fr_glac,         &
       &     p_ext_atm%z0,              &
       &     p_ext_atm%fr_lake,         &
@@ -433,6 +419,76 @@ CONTAINS
         &           grib2_desc, ldims=shape3d_c, loutput=.TRUE., lopenacc=.TRUE. )
       __acc_attach(p_ext_atm%o3)
 
+      IF (iprog_aero > 1) THEN
+        ! BC emission (precursor for anthr. 2D-aerosol emission)
+        !
+        ! emi_bc        p_ext_atm%emi_bc(nproma,nblks_c)
+        cf_desc    = t_cf_var('emi_bc', 'kg m-2 s-1', &
+          &                   'emi_bc', datatype_flt)
+        grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+        CALL add_var( p_ext_atm_list, 'emi_bc', p_ext_atm%emi_bc,                      &
+          &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,                     &
+          &           grib2_desc, ldims=shape2d_c, loutput=.TRUE., lopenacc=.TRUE. )
+        __acc_attach(p_ext_atm%emi_bc)
+
+        ! OC emission (precursor for anthr. 2D-aerosol emission)
+        !
+        ! emi_oc        p_ext_atm%emi_oc(nproma,nblks_c)
+        cf_desc    = t_cf_var('emi_oc', 'kg m-2 s-1', &
+          &                   'emi_oc', datatype_flt)
+        grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+        CALL add_var( p_ext_atm_list, 'emi_oc', p_ext_atm%emi_oc,                      &
+          &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,                     &
+          &           grib2_desc, ldims=shape2d_c, loutput=.TRUE., lopenacc=.TRUE. )
+        __acc_attach(p_ext_atm%emi_oc)
+
+        ! SO2 emission (precursor for anthr. 2D-aerosol emission)
+        !
+        ! emi_so2       p_ext_atm%emi_so2(nproma,nblks_c)
+        cf_desc    = t_cf_var('emi_so2', 'kg m-2 s-1', &
+          &                   'emi_so2', datatype_flt)
+        grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+        CALL add_var( p_ext_atm_list, 'emi_so2', p_ext_atm%emi_so2,                    &
+          &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,                     &
+          &           grib2_desc, ldims=shape2d_c, loutput=.TRUE., lopenacc=.TRUE. )
+        __acc_attach(p_ext_atm%emi_so2)
+
+        IF (iprog_aero > 2) THEN
+          ! BC emission (precursor for wildfire 2D-aerosol emission)
+          !
+          ! bcfire        p_ext_atm%bcfire(nproma,nblks_c)
+          cf_desc    = t_cf_var('bcfire', 'kg m-2 s-1', &
+            &                   'bcfire', datatype_flt)
+          grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+          CALL add_var( p_ext_atm_list, 'bcfire', p_ext_atm%bcfire,                      &
+            &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,                     &
+            &           grib2_desc, ldims=shape2d_c, loutput=.TRUE., lopenacc=.TRUE. )
+          __acc_attach(p_ext_atm%bcfire)
+
+          ! OC emission (precursor for wildfire 2D-aerosol emission)
+          !
+          ! ocfire        p_ext_atm%ocfire(nproma,nblks_c)
+          cf_desc    = t_cf_var('ocfire', 'kg m-2 s-1', &
+            &                   'ocfire', datatype_flt)
+          grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+          CALL add_var( p_ext_atm_list, 'ocfire', p_ext_atm%ocfire,                      &
+            &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,                     &
+            &           grib2_desc, ldims=shape2d_c, loutput=.TRUE., lopenacc=.TRUE. )
+          __acc_attach(p_ext_atm%ocfire)
+
+          ! SO2 emission (precursor for wildfire 2D-aerosol emission)
+          !
+          ! so2fire       p_ext_atm%so2fire(nproma,nblks_c)
+          cf_desc    = t_cf_var('so2fire', 'kg m-2 s-1', &
+            &                   'so2fire', datatype_flt)
+          grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+          CALL add_var( p_ext_atm_list, 'so2fire', p_ext_atm%so2fire,                    &
+            &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,                     &
+            &           grib2_desc, ldims=shape2d_c, loutput=.TRUE., lopenacc=.TRUE. )
+          __acc_attach(p_ext_atm%so2fire)
+        ENDIF
+      ENDIF
+
       ! external parameter for NWP forcing
 
       ! land sea mask for cells (LOGICAL)
@@ -474,6 +530,18 @@ CONTAINS
         &           lopenacc=.TRUE. )
       __acc_attach(p_ext_atm%fr_land)
 
+      IF (icpl_da_seaice >= 2 .OR. icpl_da_snowalb >= 2) THEN
+        ! smoothed land fraction for adaptive tuning of sea ice bottom heat flux and sea ice albedo
+        !
+        ! fr_land_smt      p_ext_atm%fr_land_smt(nproma,nblks_c)
+        cf_desc    = t_cf_var('smoothed land_area_fraction', '-', 'Fraction land smooth', datatype_flt)
+        grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+        CALL add_var( p_ext_atm_list, 'fr_land_smt', p_ext_atm%fr_land_smt,   &
+          &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,    &
+          &           grib2_desc, ldims=shape2d_c, loutput=.TRUE.,    &
+          &           isteptype=TSTEP_CONSTANT,                       &
+          &           lopenacc=.TRUE. )
+      ENDIF
 
       ! glacier area fraction
       !
@@ -1492,7 +1560,19 @@ CONTAINS
 
       END IF  ! albedo_type
 
-    END IF! iforcing
+    ELSE ! iforcing /= inwp
+
+      ! notsea  p_ext_atm%fr_land(nproma,nblks_c)
+      cf_desc    = t_cf_var('fraction of land', '', &
+        &                   'fraction of the grid cell that is not ocean, i.e. land+lakes', datatype_flt)
+      grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( p_ext_atm_list, 'notsea', p_ext_atm%fr_land,             &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,             &
+        &           grib2_desc, ldims=shape2d_c, loutput=.FALSE.,            &
+        &           isteptype=TSTEP_CONSTANT)
+      __acc_attach(p_ext_atm%fr_land)
+
+    END IF ! iforcing
 
     ! atmosphere land-sea-mask at surface on cell centers
     ! lsm_ctr_c  p_ext_atm%lsm_ctr_c(nproma,nblks_c)
@@ -1524,9 +1604,6 @@ CONTAINS
   !! elements).
   !!
   !! Initialization of elements with zero.
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Reinert (2011-05-03)
   !!
   SUBROUTINE new_ext_data_atm_td_list ( p_patch, p_ext_atm_td, &
     &                               p_ext_atm_td_list, listname)
@@ -1853,13 +1930,7 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! Destruct external data data structure and lists
-  !!
-  !! Destruct external data data structure and lists
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2011-05-04)
   !!
   SUBROUTINE destruct_ext_data
 
@@ -1890,6 +1961,7 @@ CONTAINS
       ENDDO
     END IF
 
+    !$ACC WAIT(1)
     DO jg = 1,n_dom
       !$ACC EXIT DATA DELETE(ext_data(jg)%atm%z0_lcc, ext_data(jg)%atm%z0_lcc_min, ext_data(jg)%atm%plcovmax_lcc) &
       !$ACC   DELETE(ext_data(jg)%atm%laimax_lcc, ext_data(jg)%atm%rootdmax_lcc, ext_data(jg)%atm%stomresmin_lcc) &

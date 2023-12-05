@@ -1,46 +1,41 @@
-!>
-!! Routines for defining, initializing and executing action events
-!!
-!! Routines for defining, initializing and executing action events
-!!
-!! *****************************************************************
-!!            RECIPE FOR CREATING A NEW ACTION EVENT
-!! *****************************************************************
-!! 1. Define a new actionTyp in mo_action
-!! 2. Assign new actionTyp to variables of your choice.
-!!    E.g. add the following code snippet to an add_var/add_ref of your choice:
-!!    action_list=actions(new_action(ACTION_XXX,'PTXXH'), new_action(...), ...)
-!!    ACTION_XXX is the actionTyp defined in step 1, and PTXXH is the
-!!    interval at which the action should be triggered.
-!! 3. Create an extension of the abstract type t_action_obj and overwrite
-!!    the deferred procedure 'kernel' with your action-specific kernel-routine
-!!    (to be defined in step 5).
-!! 4. Create a variable (object) of the type defined in step 3.
-!! 5. Write your own action-Routine (action-kernel). This is the routine which actually does
-!!    the work. (see e.g. routine 'reset_kernel' for actionTyp=ACTION_RESET)
-!! 6. Initialize the new action object by invoking the type-bound procedure 'initialize'.
-!!    (CALL act_obj%initialize(actionTyp)). The actiontyp defines the specific action to be
-!!    initialized. By this, you assign all matching fields to your particular action.
-!!    I.e. this is the reverse operation of assigning actions to fields as done in step 2.
-!! 7. Execute your newly defined action object at a suitable place by invoking the
-!!    type-bound procedure 'execute' (CALL act_obj%execute(slack)). 'Slack' is the user-defined
-!!    maximum allowed time mismatch for executing the action.
-!!
-!!
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2014-01-09)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Routines for defining, initializing and executing action events
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+!
+!
+! *****************************************************************
+!            RECIPE FOR CREATING A NEW ACTION EVENT
+! *****************************************************************
+! 1. Define a new actionTyp in mo_action
+! 2. Assign new actionTyp to variables of your choice.
+!    E.g. add the following code snippet to an add_var/add_ref of your choice:
+!    action_list=actions(new_action(ACTION_XXX,'PTXXH'), new_action(...), ...)
+!    ACTION_XXX is the actionTyp defined in step 1, and PTXXH is the
+!    interval at which the action should be triggered.
+! 3. Create an extension of the abstract type t_action_obj and overwrite
+!    the deferred procedure 'kernel' with your action-specific kernel-routine
+!    (to be defined in step 5).
+! 4. Create a variable (object) of the type defined in step 3.
+! 5. Write your own action-Routine (action-kernel). This is the routine which actually does
+!    the work. (see e.g. routine 'reset_kernel' for actionTyp=ACTION_RESET)
+! 6. Initialize the new action object by invoking the type-bound procedure 'initialize'.
+!    (CALL act_obj%initialize(actionTyp)). The actiontyp defines the specific action to be
+!    initialized. By this, you assign all matching fields to your particular action.
+!    I.e. this is the reverse operation of assigning actions to fields as done in step 2.
+! 7. Execute your newly defined action object at a suitable place by invoking the
+!    type-bound procedure 'execute' (CALL act_obj%execute(slack)). 'Slack' is the user-defined
+!    maximum allowed time mismatch for executing the action.
+
 MODULE mo_action
 
   USE mo_kind,               ONLY: wp, i8
@@ -138,9 +133,6 @@ CONTAINS
   !! Loop over all variables and collect the variables names
   !! corresponding to the action @p action%actionTyp
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2014-01-13)
-  !!
   SUBROUTINE action_collect_vars(act_obj, actionTyp)
     CLASS(t_action_obj) :: act_obj
     INTEGER, INTENT(IN) :: actionTyp
@@ -216,9 +208,6 @@ CONTAINS
 
   !>
   !! Screen print out of action event setup.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2015-01-06)
   SUBROUTINE action_print_setup (act_obj)
     CLASS(t_action_obj)  :: act_obj  !< action for which setup will be printed
     TYPE(t_table)   :: table
@@ -266,9 +255,6 @@ CONTAINS
   !! be executed at the datetime given. This routine does not make any assumption
   !! about the details of the action to be executed. The action itself is encapsulated
   !! in the kernel-routine.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2014-09-11)
   !!
   SUBROUTINE action_execute(act_obj, slack, mtime_date)
     CLASS(t_action_obj)       :: act_obj
@@ -337,9 +323,6 @@ CONTAINS
   !! be executed at the datetime given. This routine does not make any assumption
   !! about the details of the action to be executed. The action itself is encapsulated
   !! in the kernel-routine.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2014-09-11)
   !!
   SUBROUTINE action_execute_SX(act_obj, slack, mtime_date)
     CLASS(t_action_obj)       :: act_obj
@@ -421,11 +404,6 @@ CONTAINS
   !>
   !! Reset-action kernel
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2014-09-12)
-  !! Modification by Daniel Reinert, DWD (2014-12-17)
-  !! - extend reset kernel to integer fields
-  !!
   SUBROUTINE reset_kernel(act_obj, ivar)
     CLASS (t_reset_obj)  :: act_obj
     INTEGER, INTENT(IN) :: ivar    ! element number
@@ -455,11 +433,6 @@ CONTAINS
   !!
   !! Initialize single variable specific action. A variable named 'var_action'
   !! of type t_var_action_element is initialized.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2014-01-13)
-  !! Modification by Daniel Reinert, DWD (2014-12-03)
-  !! - add optional start and end time arguments
   !!
   FUNCTION new_action(actionTyp, intvl, opt_start, opt_end, opt_ref) RESULT(var_action)
     INTEGER, INTENT(IN)                :: actionTyp ! type of action
@@ -534,9 +507,6 @@ CONTAINS
   !!
   !! Generate list (array) of variable specific actions.
   !! Creates array 'action_list' of type t_var_action
-  !
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2014-01-13)
   !!
   FUNCTION actions(a01, a02, a03, a04, a05)  RESULT(action_list)
     TYPE(t_var_action_element), INTENT(IN), OPTIONAL :: a01, a02, a03, a04, a05

@@ -1,22 +1,20 @@
-!>
-!! Provide an implementation of the sea-ice model.
-!!
-!! Provide an implementation of the parameters of the surface module (sea ice)
-!! used between the atmopshere and the hydrostatic ocean model.
-!!
-!! @author Peter Korn, MPI
-!! @author Dirk Notz, MPI
-!!
-!! @par Revision History
-!!  Original version by Peter Korn, MPI-M (2009)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+! Provide an implementation of the sea-ice model.
+!
+! Provide an implementation of the parameters of the surface module (sea ice)
+! used between the atmopshere and the hydrostatic ocean model.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 #ifndef _OPENMP
@@ -53,6 +51,7 @@ MODULE mo_sea_ice
   USE mo_grid_subset,         ONLY: t_subset_range, get_index_range
   USE mo_util_dbg_prnt,       ONLY: dbg_print
   USE mo_dbg_nml,             ONLY: idbg_mxmn, idbg_val
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -80,30 +79,21 @@ CONTAINS
   !! !! ice_conc_change: Calculates the changes in concentration as well as the grid-cell average
   !                     thickness of new ice forming in open-water areas
   !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2010-07). Originally code written by
-  !! Dirk Notz, following MPI-OM. Code transfered to ICON.
-  !! Einar Olason, renamed and added support for changing concentration
-  !!
-  SUBROUTINE ice_conc_change(p_patch, ice, p_os, use_acc)
+  SUBROUTINE ice_conc_change(p_patch, ice, p_os, lacc)
 
     TYPE(t_patch),             INTENT(IN), TARGET :: p_patch
     TYPE (t_sea_ice),          INTENT(INOUT)      :: ice
     TYPE(t_hydro_ocean_state), INTENT(IN)         :: p_os
-    LOGICAL, INTENT(IN), OPTIONAL                 :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL                 :: lacc
 
     TYPE(t_subset_range), POINTER :: all_cells
     INTEGER                       :: k, jb, jc, i_startidx_c, i_endidx_c
  !  REAL(wp) :: sst(nproma,p_patch%alloc_cell_blocks)
  !  REAL(wp) :: sss(nproma,p_patch%alloc_cell_blocks)
     REAL(wp) :: Tfw(nproma,p_patch%alloc_cell_blocks) ! Ocean freezing temperature [C]
-    LOGICAL  :: lacc
+    LOGICAL  :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     all_cells            => p_patch%cells%all
 
@@ -111,15 +101,15 @@ CONTAINS
 
     CALL dbg_print('IceConcCh: IceConc beg' ,ice%conc, str_module, 4, in_subset=p_patch%cells%owned)
 
-    !$ACC DATA CREATE(Tfw) IF(lacc)
+    !$ACC DATA CREATE(Tfw) IF(lzacc)
 
     ! Calculate the sea surface freezing temperature                        [C]
     IF ( no_tracer < 2 .OR. use_constant_tfreez ) THEN
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
       Tfw(:,:) = Tf
       !$ACC END KERNELS
     ELSE
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
       Tfw(:,:) = -mu * p_os%p_prog(nold(1))%tracer(:,1,:,2)
       !$ACC END KERNELS
     ENDIF
@@ -128,21 +118,27 @@ CONTAINS
     ! TODO ram - remove all instances of p_patch%cells%area(:,:) and test
     ! See also dynamics_fem/mo_ice_fem_interface.f90
     DO k=1,ice%kice
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-      ice%vol (:,k,:) = ice%hi(:,k,:)*ice%conc(:,k,:)*p_patch%cells%area(:,:)
-      ice%vols(:,k,:) = ice%hs(:,k,:)*ice%conc(:,k,:)*p_patch%cells%area(:,:)
-      !$ACC END KERNELS
-    ENDDO
+!ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc, jb) ICON_OMP_DEFAULT_SCHEDULE
+      DO jb = all_cells%start_block, all_cells%end_block
+        CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
+        DO jc = i_startidx_c,i_endidx_c
+          ice%vol (jc,k,jb) = ice%hi(jc,k,jb)*ice%conc(jc,k,jb)*p_patch%cells%area(jc,jb)
+          ice%vols(jc,k,jb) = ice%hs(jc,k,jb)*ice%conc(jc,k,jb)*p_patch%cells%area(jc,jb)
+        END DO
+        !$ACC END PARALLEL LOOP
+      END DO
+!ICON_OMP_END_PARALLEL_DO
+    END DO
 
     CALL dbg_print('IceConcCh: vol  at beg' ,ice%vol , str_module, 4, in_subset=p_patch%cells%owned)
     CALL dbg_print('IceConcCh: vols at beg' ,ice%vols, str_module, 4, in_subset=p_patch%cells%owned)
 
-!ICON_OMP_PARALLEL
-!ICON_OMP_DO PRIVATE(i_startidx_c, i_endidx_c, jc) ICON_OMP_DEFAULT_SCHEDULE 
+!ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc) ICON_OMP_DEFAULT_SCHEDULE
     ! Concentration change due to new ice formation
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
       DO jc = i_startidx_c,i_endidx_c
         IF (ice%newice(jc,jb) > 0._wp .AND. v_base%lsm_c(jc,1,jb) <= sea_boundary) THEN
           ! New volume - we just preserve volume:
@@ -150,7 +146,7 @@ CONTAINS
           !                   newice must not be multiplied by 1-conc
           ice%vol  (jc,1,jb) = ice%vol(jc,1,jb) + ice%newice(jc,jb)*p_patch%cells%area(jc,jb)
 
-          ! Hibler's way to change the concentration 
+          ! Hibler's way to change the concentration
           !  - the formulation here uses the default values of leadclose parameters 2 and 3 in MPIOM:
           !    1 and 0 respectively, which recovers the Hibler model: conc=conc+newice/hnull
           ! Fixed 2. April (2014) - we don't need to multiply with 1-A here, like Hibler does, because it's
@@ -172,7 +168,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL LOOP
     END DO
-!ICON_OMP_END_DO
+!ICON_OMP_END_PARALLEL_DO
 
 #ifndef _OPENMP
     CALL dbg_print('IceConcCh: conc leadcl' ,ice%conc, str_module, 4, in_subset=p_patch%cells%owned)
@@ -180,22 +176,27 @@ CONTAINS
     CALL dbg_print('IceConcCh: hs   leadcl' ,ice%hs  , str_module, 4, in_subset=p_patch%cells%owned)
 #endif
 
-!ICON_OMP_WORKSHARE
     ! This is where concentration, and thickness change due to ice melt (we must conserve volume)
     ! A.k.a. lateral melt
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-    WHERE ( ice%hiold(:,1,:) > ice%hi(:,1,:) .AND. ice%hi(:,1,:) > 0._wp )
-      ! Hibler's way to change the concentration due to lateral melting (leadclose parameter 1)
-      ice%conc(:,1,:) = MAX( 0._wp, ice%conc(:,1,:) &
-        &        - ( ice%hiold(:,1,:)-ice%hi(:,1,:) )*ice%conc(:,1,:)*leadclose_1/ice%hiold(:,1,:) )
+!ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc, jb) ICON_OMP_DEFAULT_SCHEDULE
+    DO jb = all_cells%start_block, all_cells%end_block
+      CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
+      DO jc = i_startidx_c,i_endidx_c
+        IF (ice%hiold(jc,1,jb) > ice%hi(jc,1,jb) .AND. ice%hi(jc,1,jb) > 0._wp) THEN
+          ! Hibler's way to change the concentration due to lateral melting (leadclose parameter 1)
+          ice%conc(jc,1,jb) = MAX( 0._wp, ice%conc(jc,1,jb) &
+          &        - ( ice%hiold(jc,1,jb)-ice%hi(jc,1,jb) )*ice%conc(jc,1,jb)*leadclose_1/ice%hiold(jc,1,jb) )
 
-      ! New ice and snow thickness
-      ice%hi  (:,1,:) = ice%vol (:,1,:)/( ice%conc(:,1,:)*p_patch%cells%area(:,:) )
-      ice%hs  (:,1,:) = ice%vols(:,1,:)/( ice%conc(:,1,:)*p_patch%cells%area(:,:) )
-      !TODO: Re-calculate temperatures to conserve energy when we change the ice thickness
-    ENDWHERE
-    !$ACC END KERNELS
-!ICON_OMP_END_WORKSHARE
+          ! New ice and snow thickness
+          ice%hi  (jc,1,jb) = ice%vol (jc,1,jb)/( ice%conc(jc,1,jb)*p_patch%cells%area(jc,jb) )
+          ice%hs  (jc,1,jb) = ice%vols(jc,1,jb)/( ice%conc(jc,1,jb)*p_patch%cells%area(jc,jb) )
+          !TODO: Re-calculate temperatures to conserve energy when we change the ice thickness
+        END IF
+      END DO
+      !$ACC END PARALLEL LOOP
+    END DO
+!ICON_OMP_END_PARALLEL_DO
 
 #ifndef _OPENMP
     CALL dbg_print('IceConcCh: conc latMlt' ,ice%conc, str_module, 4, in_subset=p_patch%cells%owned)
@@ -205,36 +206,52 @@ CONTAINS
 
     ! Ice cannot grow thinner than hmin
     ! Changed 27. March
-!ICON_OMP_WORKSHARE
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-    WHERE ( ice%hi(:,1,:) < hmin .AND. ice%hi(:,1,:) > 0._wp )
-      ice%hi  (:,1,:) = hmin
-      ice%conc(:,1,:) = ice%vol(:,1,:) / ( ice%hi(:,1,:)*p_patch%cells%area(:,:) )
-      ice%hs  (:,1,:) = ice%vols(:,1,:)/( ice%conc(:,1,:)*p_patch%cells%area(:,:) )
-    ENDWHERE
-    !$ACC END KERNELS
-!ICON_OMP_END_WORKSHARE
+!ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc, jb) ICON_OMP_DEFAULT_SCHEDULE
+    DO jb = all_cells%start_block, all_cells%end_block
+      CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
+      DO jc = i_startidx_c,i_endidx_c
+        IF (ice%hi(jc,1,jb) < hmin .AND. ice%hi(jc,1,jb) > 0._wp) THEN
+          ice%hi  (jc,1,jb) = hmin
+          ice%conc(jc,1,jb) = ice%vol(jc,1,jb) / ( ice%hi(jc,1,jb)*p_patch%cells%area(jc,jb) )
+          ice%hs  (jc,1,jb) = ice%vols(jc,1,jb)/( ice%conc(jc,1,jb)*p_patch%cells%area(jc,jb) )
+        END IF
+      END DO
+      !$ACC END PARALLEL LOOP
+    END DO
+!ICON_OMP_END_PARALLEL_DO
 
-!ICON_OMP_WORKSHARE
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-    WHERE (ice%hi(:,1,:) <= 0._wp)
-      ice%Tsurf(:,1,:) = Tfw(:,:)
-      ice%T1   (:,1,:) = Tfw(:,:)
-      ice%T2   (:,1,:) = Tfw(:,:)
-      ice%conc (:,1,:) = 0.0_wp
-      ice%hi   (:,1,:) = 0.0_wp
-      ice%hs   (:,1,:) = 0.0_wp
-      ice%E1   (:,1,:) = 0.0_wp
-      ice%E2   (:,1,:) = 0.0_wp
-      ice%vol  (:,1,:) = 0.0_wp
-    ENDWHERE
-    !$ACC END KERNELS
-!ICON_OMP_END_WORKSHARE
-!ICON_OMP_END_PARALLEL
+!ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc, jb) ICON_OMP_DEFAULT_SCHEDULE
+    DO jb = all_cells%start_block, all_cells%end_block
+      CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
+      DO jc = i_startidx_c,i_endidx_c
+        IF (ice%hi(jc,1,jb) <= 0._wp) THEN
+          ice%Tsurf(jc,1,jb) = Tfw(jc,jb)
+          ice%T1   (jc,1,jb) = Tfw(jc,jb)
+          ice%T2   (jc,1,jb) = Tfw(jc,jb)
+          ice%conc (jc,1,jb) = 0.0_wp
+          ice%hi   (jc,1,jb) = 0.0_wp
+          ice%hs   (jc,1,jb) = 0.0_wp
+          ice%E1   (jc,1,jb) = 0.0_wp
+          ice%E2   (jc,1,jb) = 0.0_wp
+          ice%vol  (jc,1,jb) = 0.0_wp
+        END IF
+      END DO
+      !$ACC END PARALLEL LOOP
+    END DO
+!ICON_OMP_END_PARALLEL_DO
 
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-    ice%concSum(:,:)  = SUM(ice%conc(:,:,:), 2)
-    !$ACC END KERNELS
+!ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc, jb) ICON_OMP_DEFAULT_SCHEDULE
+    DO jb = all_cells%start_block, all_cells%end_block
+      CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
+      DO jc = i_startidx_c,i_endidx_c
+        ice%concSum(jc,jb) = SUM(ice%conc(jc,:,jb))
+      END DO
+      !$ACC END PARALLEL LOOP
+    END DO
+!ICON_OMP_END_PARALLEL_DO
 
     CALL dbg_print('IceConcCh: IceConc end' ,ice%conc, str_module, 3, in_subset=p_patch%cells%owned)
     CALL dbg_print('IceConcCh: hi   at end' ,ice%hi  , str_module, 4, in_subset=p_patch%cells%owned)

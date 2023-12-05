@@ -1,54 +1,16 @@
-!>
-!! Initialization routine for multi-layer soil model
-!!
-!! <Describe the concepts of the procedures and algorithms used in the module.>
-!! <Details of procedures are documented below with their definitions.>
-!! <Include any applicable external references inline as module::procedure,>
-!! <external_procedure(), or by using @see.>
-!! <Don't forget references to literature.>
-!!
-!! @author Juergen Helmert, DWD
-!! @author Ekaterina Machulskaya, DWD
-!! @author Guenther Zaengl, DWD
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!! Moved to separate module from sfc_terra.f90 by Daniel Reinert, DWED (2014-04-01)
-!!
+! Initialization routine for multi-layer soil model
 !
-! Current Code Owner: DWD, Juergen Helmert
-!  phone:  +49  69  8062 2704
-!  fax:    +49  69  8062 3721
-!  email:  juergen.helmert@dwd.de
 !
-! History:
-! Version    Date       Name
-! ---------- ---------- ----
-! V5_4e        2017-03-23 Ulrich Schaettler
-!  Initial release for COSMO
-! V5_4h        2017-12-15 Ulrich Schaettler
-!  Replace zdzhs with global variables
-!  Rename czmls in interface to zmls (as it is used throughout terra_init)
-! V5_5         2018-02-23 Ulrich Schaettler
-!  Modifications to run the full block of parameterizations on GPU
-! V5_6         2019-02-27 Ulrich Schaettler
-!  Single precision version: replaced eps_soil with eps_temp at 2 places
-!   (included work done by MCH for src_soil_multlay earlier)
-! V5_6a        2019-05-21 Jan-Peter Schulz
-!  Introduce skin temperature approach (JPS)
-! @VERSION@    @DATE@     Ulrich Schaettler
-!  Re-unification with ICON
+! ICON
 !
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!==============================================================================
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE sfc_terra_init
 
@@ -92,10 +54,6 @@ CONTAINS
 !! Performs initialization of soil model TERRA. Depending on the initialization mode 
 !! chosen, a coldstart- , warmstart-  or warmstart with snow increments (IAU)-initialization
 !! is performed
-!!
-!!
-!! @par Revision History
-!! Initial Revision by Juergen Helmert, DWD (2011)
 !!
 SUBROUTINE terra_init (            & 
                 init_mode,         & ! 1 = coldstart, 2 = warmstart, 3 = warmstart with snow increments (IAU)
@@ -995,10 +953,6 @@ SUBROUTINE terra_init (            &
 !!
 !! Method:
 !!  Simple linear relation between snow water and snow depth using snow density
-!!
-!! @par Revision History
-!! Adapted to ICON by Daniel Reinert, DWD (2014-04-01)
-!! Original implementation by Michael Buchhold (see below)
 
 SUBROUTINE get_wsnow(h_snow, rho_snow, t_snow, istart, iend, soiltyp, w_snow)
 

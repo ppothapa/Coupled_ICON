@@ -1,3 +1,13 @@
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_icon_fluxes_sw
 
@@ -116,7 +126,16 @@ CONTAINS
     band2gpt(:,:) = spectral_disc%get_band_lims_gpoint()
 
     ! This routine is called from within RRTMGP, so it shouldn't be async
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) COPYIN(band2gpt) VECTOR_LENGTH(64)
+    !$ACC WAIT
+
+    !ACCWA Cray CCE (<=16.0.1) needs explicit present clauses
+    !$ACC PARALLEL ASYNC(1) DEFAULT(NONE) PRESENT(this) &
+    !$ACC   PRESENT(this%vis_dn_dir_sfc, this%par_dn_dir_sfc, this%nir_dn_dir_sfc) &
+    !$ACC   PRESENT(this%vis_dn_dff_sfc, this%par_dn_dff_sfc, this%nir_dn_dff_sfc) &
+    !$ACC   PRESENT(this%vis_up_sfc, this%par_up_sfc, this%nir_up_sfc) &
+    !$ACC   PRESENT(gpt_flux_dn_dir, gpt_flux_up, gpt_flux_dn) &
+    !$ACC   FIRSTPRIVATE(ncol, nbndsw, isfc) &
+    !$ACC   COPYIN(band2gpt) VECTOR_LENGTH(64)
     !$ACC LOOP GANG VECTOR PRIVATE(limits)
     DO jl = 1, ncol
       this%vis_dn_dir_sfc(jl) = 0.0_wp
@@ -174,6 +193,7 @@ CONTAINS
 
   SUBROUTINE del(this)
     TYPE(ty_icon_fluxes_sw), INTENT(INOUT) :: this
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(this%frc_par, this%frc_vis, this%band_weight)
     !$ACC EXIT DATA DELETE(this)
   END SUBROUTINE del

@@ -1,28 +1,25 @@
-!>
-!!  Aqua Planet experiments for the NH-Core
-!!
-!!
-!! @par Revision History
-!! - first version by P. Ripodas , DWD, (2010-09)
-!!
-!! @par Literature
-!! - Neale, R. B. and Hoskins B. J.(2001): "A standard test for AGCMs
-!!   including their physical parametrizations:I: The Proposal", Atmospheric
-!!   Science Letters (2001)
-!! - Neale, R. B. and Hoskins B. J.(2001): "A standard test for AGCMs
-!!   including their physical parametrizations: II: Results for The Met
-!!   Office Model", Atmospheric Science Letters (2001)
-!! -
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Aqua Planet experiments for the NH-Core
+!
+! Literature
+! - Neale, R. B. and Hoskins B. J.(2001): "A standard test for AGCMs
+!   including their physical parametrizations:I: The Proposal", Atmospheric
+!   Science Letters (2001)
+! - Neale, R. B. and Hoskins B. J.(2001): "A standard test for AGCMs
+!   including their physical parametrizations: II: Results for The Met
+!   Office Model", Atmospheric Science Letters (2001)
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_nh_ape_exp
 !-------------------------------------------------------------------------
 !
@@ -65,9 +62,6 @@ CONTAINS
 !
   !>
   !!               Initialization of prognostic state vector.
-  !!
-  !!
-  !! @par Revision History
   !!
   !!
   SUBROUTINE init_nh_state_prog_APE( ptr_patch, ptr_nh_prog, ptr_nh_diag, &

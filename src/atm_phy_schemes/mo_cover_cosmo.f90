@@ -1,10 +1,14 @@
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_cover_cosmo
 
 USE mo_kind, ONLY: &
@@ -35,37 +39,7 @@ USE mo_convect_tables, ONLY: &
 
 USE mo_cloud_diag,         ONLY: cloud_diag
 
-
 !--------------------------------------------------------------------------------
-! module variables from subroutine organized_radiation now used as arguments:
-
-!USE data_modelconfig, ONLY :   &
-!    ie,           & ! number of grid points in zonal direction
-!    je,           & ! number of grid points in meridional direction
-!    ke,           & ! number of grid points in vertical direction
-
-!USE data_radiation, ONLY : &
-!    jstartrad,       & !    fesft are computed on all grid points, to compute an
-!    jendparrad,      & ! end-index just for preparations
-!    istartrad,       & ! start- and end-indices for computing the radiation
-!    iendrad,         & !   (when running on a coarser grid, the input values for
-
-!USE data_fields     , ONLY :   &
-!    t          ,    & ! temperature                                   (  k  )
-!    ps         ,    & ! surface pressure                              ( pa  )
-!    p0         ,    & ! reference pressure at full levels             ( pa  )
-!    pp         ,    & ! deviation from the reference pressure         ( pa  )
-!    qc         ,    & ! specific cloud water content                  (kg/kg)
-!    qi         ,    & ! specific cloud ice content                    (kg/kg)
-!    t_g        ,    & ! weighted surface temperature                  (  k  )
-!    clc_sgs    ,    & ! subgrid-scale stratiform cloud cover          ( --- )
-!    clc_con    )      ! cloud cover due to convection                 ( --- )
-
-!USE data_runcontrol , ONLY :   &
-!    icldm_rad,    & ! mode of cloud representation in radiation  parametr.
-!    lprog_qi,     & ! if .TRUE., running with cloud ice
-!--------------------------------------------------------------------------------
-
 
 IMPLICIT NONE
 
@@ -90,14 +64,6 @@ CONTAINS
   !      qc,total=qc,sgs+qi,sgs
   !      qi,total=qc,sgs+qi,sgs
   !    This overestimates the SGS cloud water.
-  !
-  !  @par Revision History
-  !  Initial version by Martin Koehler, DWD (2010-08-23)
-  !  Revision by Martin Koehler, DWD (2011-11)
-  !    * take out p<500hPa limit in thin cirrus correction
-  !
-  !  LITERATURE
-  !  ....
   !
   !------------------------------------------------------------------------------
 

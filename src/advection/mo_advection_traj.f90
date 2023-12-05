@@ -1,47 +1,23 @@
-!>
-!! Some utilities which are specific to the transport algorithm.
-!! Routines are mostly dealing with the computation of backward 
-!! trajectories and/or departure regions.
-!!
-!! Module contains some functions and procedures which are specifically related
-!! to the transport schemes. These subroutines or functions are needed at
-!! various places within the transport scheme. Therefore outsourcing these
-!! routines protects from possible circular dependencies.
-!!
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2010-03-04)
-!! Modification by Daniel Reinert, DWD (2010-04-23)
-!! - implemented generalized Lax-Friedrich flux function
-!!   laxfr_upflux_v, which allows to use the same transport
-!!   code for pressure and height based vertical coordinate
-!!   systems.
-!! Modification by Daniel Reinert, DWD (2010-05-17)
-!! - added subroutines back_traj_dreg_o1, prep_gauss_quadrature and function
-!!   jac which are part of the Gauss-Legendre quadrature applied in the
-!!   Miura-scheme.
-!! Modification by Daniel Reinert, DWD (2010-10-14)
-!! - added subroutine prep_gauss_quadrature_c for integrating a cubic polynomial.
-!!   Renamed old prep_gauss_quadrature to prep_gauss_quadrature_q
-!! Modification by Daniel Reinert, DWD (2011-04-21)
-!! - moved setup_transport to mo_advection_nml
-!! Modification by Daniel Reinert, DWD (2013-10-30)
-!! - moved divide_flux_area to mo_advection_geometry
-!! Modification by William Sawyer, CSCS (2016-02-26)
-!! - OpenACC implementation
-!! Modification by Daniel Reinert, DWD (2022-05-07)
-!! - removed obsolete 2nd order backward trajectory computation
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Some utilities which are specific to the transport algorithm.
+! Routines are mostly dealing with the computation of backward
+! trajectories and/or departure regions.
+!
+! Module contains some functions and procedures which are specifically related
+! to the transport schemes. These subroutines or functions are needed at
+! various places within the transport scheme. Therefore outsourcing these
+! routines protects from possible circular dependencies.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -113,10 +89,6 @@ CONTAINS
   !!
   !! Allocates all components of the object of class t_back_traj
   !!
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2016-11-23)
-  !!
   SUBROUTINE construct(obj, nproma, nlev, nblks, ncoord)
     CLASS(t_back_traj) :: obj
     INTEGER, INTENT(IN) :: nproma
@@ -147,9 +119,6 @@ CONTAINS
   !!
   !! Deallocates all components of the object of class t_back_traj
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2016-11-23)
-  !!
   SUBROUTINE destruct(obj)
     CLASS(t_back_traj) :: obj
     !
@@ -160,6 +129,7 @@ CONTAINS
 
     IF (ASSOCIATED(obj%cell_idx)) THEN
 
+      !$ACC WAIT(1)
       !$ACC EXIT DATA DELETE(obj%cell_idx, obj%cell_blk, obj%distv_bary) IF(i_am_accel_node)
       !$ACC EXIT DATA DELETE(obj) IF(i_am_accel_node)
 
@@ -187,9 +157,6 @@ CONTAINS
   !! east and local north. Note that this subroutine has specifically been designed
   !! for the MIURA scheme with second order (linear) reconstruction of the subgrid 
   !! distribution.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2010-03-17)
   !!
   SUBROUTINE btraj_compute_o1( btraj, ptr_p, ptr_int, p_vn, p_vt, p_dthalf, &
     &                          opt_rlstart, opt_rlend, opt_slev, opt_elev,  &
@@ -397,15 +364,6 @@ CONTAINS
   !!       tests indicated that re-computing these coordinates is faster than fetching 
   !!       precomputed ones from memory. 
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2010-05-12)
-  !! Modification by Daniel Reinert, DWD (2012-04-24)
-  !! - bug fix: counterclockwise numbering is now ensured independent of the 
-  !!   edge system-orientation.
-  !! Modification by Daniel Reinert, DWD (2013-11-01)
-  !! - optionally derive list of edges for which the standard Miura scheme is 
-  !!   potentially insufficient
-  !!
   SUBROUTINE btraj_dreg( ptr_p, ptr_int, p_vn, p_vt, p_dt, lcounterclock, &
        &                   p_cell_idx, p_cell_blk, p_coords_dreg_v,       &
        &                   opt_rlstart, opt_rlend, opt_slev, opt_elev,    &
@@ -547,7 +505,7 @@ CONTAINS
     !$ACC   IF(i_am_accel_node)
 
     IF (llist_gen) THEN
-      !$ACC KERNELS IF(i_am_accel_node)
+      !$ACC KERNELS ASYNC(1) IF(i_am_accel_node)
       opt_falist%len(:) = 0
       !$ACC END KERNELS
     ENDIF
@@ -658,8 +616,7 @@ CONTAINS
 
         ! Default code path
         ! store list dimension
-        !$ACC WAIT(1)
-        !$ACC KERNELS COPYIN(ie)
+        !$ACC KERNELS ASYNC(1) COPYIN(ie)
         opt_falist%len(jb) = ie
         !$ACC END KERNELS
 #else
@@ -815,8 +772,8 @@ CONTAINS
       !$ACC END PARALLEL
     END DO    ! loop over blocks
 
-    !$ACC WAIT
-    !$ACC UPDATE HOST(opt_falist%len) IF(i_am_accel_node .AND. llist_gen)
+    !$ACC UPDATE HOST(opt_falist%len) ASYNC(1) IF(i_am_accel_node .AND. llist_gen)
+    !$ACC WAIT(1) IF(i_am_accel_node)
     !$ACC END DATA
 
 !$OMP END DO NOWAIT

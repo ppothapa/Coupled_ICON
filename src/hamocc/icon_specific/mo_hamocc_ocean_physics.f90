@@ -1,5 +1,15 @@
-      
-#include "icon_definitions.inc" 
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+#include "icon_definitions.inc"
    MODULE mo_hamocc_ocean_physics
 
     USE mo_kind,                         ONLY: wp
@@ -35,7 +45,7 @@
     USE mo_control_bgc,            ONLY: bgc_zlevs, bgc_nproma
 
     USE mo_hamocc_nml,             ONLY: l_bgc_check,io_stdo_bgc
-    USE mo_exception, ONLY: message
+    USE mo_exception, ONLY: message_to_own_unit
     USE mo_hamocc_diagnostics,  ONLY: get_inventories
     USE mo_bgc_icon, ONLY: bgc_icon
     
@@ -47,6 +57,8 @@
     ! OpenACC data movement - to be deleted later on
     USE mo_bgc_memory_types, ONLY: t_bgc_memory, t_sediment_memory, t_aggregates_memory, &
                                  & bgc_local_memory, sediment_local_memory, aggregates_memory
+
+    USE mo_fortran_tools, ONLY: set_acc_host_or_device
 
 
     IMPLICIT NONE
@@ -86,7 +98,7 @@
     INTEGER :: local_memory_idx
 
     INTEGER :: i, jk, jb, start_index, end_index
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
     INTEGER, DIMENSION(:,:,:), POINTER :: cell_idx, cell_blk
     REAL(wp), DIMENSION(:,:), POINTER :: stretch_c
@@ -101,7 +113,7 @@
     all_edges => patch_3d%p_patch_2D(1)%edges%all
 
     ! 2023-01 dzo-DKRZ: Use OpenACC directives in called functions for GPU runs
-    lacc = .TRUE.
+    lzacc = .TRUE.
 
     !----------------------------------------------------------------------
 
@@ -164,20 +176,20 @@
       CALL dilute_hamocc_tracers_zstar(patch_3d, ocean_to_hamocc_state%top_dilution_coeff, &
                   &              ocean_to_hamocc_state%stretch_c, hamocc_state%p_prog(nold(1)))
     ELSE
-      CALL dilute_hamocc_tracers(patch_3d, ocean_to_hamocc_state%top_dilution_coeff, hamocc_state%p_prog(nold(1)), use_acc=lacc)
+      CALL dilute_hamocc_tracers(patch_3d, ocean_to_hamocc_state%top_dilution_coeff, hamocc_state%p_prog(nold(1)), lacc=lzacc)
     ENDIF
     !------------------------------------------------------------------------
     
-    CALL update_bgc_bcond(patch_3d, ext_data_bgc, current_time, use_acc=lacc)   
+    CALL update_bgc_bcond(patch_3d, ext_data_bgc, current_time, lacc=lzacc)   
 
     !------------------------------------------------------------------------
     ! call HAMOCC
     if(ltimer) call timer_start(timer_bgc_tot)
-    CALL bgc_icon(patch_3d, hamocc_ocean_state, ssh, pddpo, ptiestu, use_acc=lacc)
+    CALL bgc_icon(patch_3d, hamocc_ocean_state, ssh, pddpo, ptiestu, lacc=lzacc)
     if(ltimer) call timer_stop(timer_bgc_tot)
 
     IF (l_bgc_check) THEN
-      CALL message('3. after bgc + fluxes and weathering', 'inventories', io_stdo_bgc)
+      CALL message_to_own_unit('3. after bgc + fluxes and weathering', 'inventories', io_stdo_bgc)
       CALL get_inventories(hamocc_state, ssh, pddpo, hamocc_state%p_prog(nold(1))%tracer, patch_3d, 0._wp, 0._wp)
     ENDIF
 
@@ -217,7 +229,7 @@
     ELSE
       IF (GMRedi_configuration == Cartesian_Mixing) THEN
         CALL advect_ocean_tracers(old_tracer_collection, new_tracer_collection, transport_state, &
-             &  operators_coefficients, use_acc=lacc)
+             &  operators_coefficients, lacc=lzacc)
       ELSE
         IF (my_process_is_hamocc() ) THEN
           CALL finish("concurrent HAMOCC", "GMRedi is not possible at present")
@@ -232,16 +244,17 @@
 
 
     IF (l_bgc_check) THEN
-      CALL message('4. after transport', 'inventories', io_stdo_bgc)
+      CALL message_to_own_unit('4. after transport', 'inventories', io_stdo_bgc)
       CALL get_inventories(hamocc_state, ssh_new, pddpo_new, hamocc_state%p_prog(nnew(1))%tracer, patch_3d, 0._wp, 0._wp)
     ENDIF
     !------------------------------------------------------------------------
 
     ! Update on the host the ocean variables modified inside HAMOCC
-    !$ACC UPDATE HOST(hamocc_to_ocean_state%swr_fraction, hamocc_to_ocean_state%co2_flux)
+    !$ACC UPDATE HOST(hamocc_to_ocean_state%swr_fraction, hamocc_to_ocean_state%co2_flux) ASYNC(1)
 
      CALL get_monitoring( hamocc_state, hamocc_state%p_prog(nnew(1))%tracer, ssh_new, pddpo_new, patch_3d)
     !------------------------------------------------------------------------
+    !$ACC WAIT(1)
     !$ACC END DATA
 
     END SUBROUTINE tracer_biochemistry_transport
@@ -270,32 +283,28 @@
     END SUBROUTINE offline_sediment
 
 
-    SUBROUTINE DILUTE_HAMOCC_TRACERS(p_patch_3D, top_dilution_coeff, hamocc_state_prog, use_acc)
+    SUBROUTINE DILUTE_HAMOCC_TRACERS(p_patch_3D, top_dilution_coeff, hamocc_state_prog, lacc)
     ! HAMOCC tracer dilution using old and new h
 
     TYPE(t_patch_3D ),TARGET, INTENT(IN)     :: p_patch_3D
     TYPE(t_hamocc_prog), INTENT(inout)       :: hamocc_state_prog
     REAL(wp), INTENT(in)                     :: top_dilution_coeff(nproma,p_patch_3D%p_patch_2D(1)%alloc_cell_blocks)
-    LOGICAL, INTENT(IN), OPTIONAL            :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL            :: lacc
 
     ! Local variables
     INTEGER:: jb, jc, i_bgc_tra, i_startidx_c, i_endidx_c
     TYPE(t_subset_range), POINTER :: all_cells
     TYPE(t_patch), POINTER :: p_patch
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     p_patch => p_patch_3D%p_patch_2D(1)
     all_cells => p_patch%cells%all
 
     DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO jc = i_startidx_c, i_endidx_c
             IF (p_patch_3D%p_patch_1D(1)%dolic_c(jc,jb) > 0) THEN

@@ -1,21 +1,16 @@
-!! @brief Subroutine interface_aes_vdf calls the vertical diffusion and the surface schemes.
-!!
-!! @author Hui Wan, MPI-M
-!! @author Marco Giorgetta, MPI-M
-!!
-!! @par Revision History
-!!  Original version from ECHAM6 (revision 2028)
-!!  Modified for ICOHAM by Hui Wan and Marco Giorgetta (2010)
-!!  Modified for ICONAM by Marco Giorgetta (2014)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Subroutine interface_aes_vdf calls the vertical diffusion and the surface schemes.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_interface_aes_vdf
 
@@ -230,8 +225,12 @@ CONTAINS
     !$ACC   CREATE(cfm_tile, cfh, cfh_tile, cfv, cftotte, cfthv, zaa) &
     !$ACC   CREATE(zaa_btm, zbb, zbb_btm, zfactor_sfc, ddt_u, ddt_v) &
     !$ACC   CREATE(zthvvar, ztottevn, zch_tile, kedisp, tend_ua_vdf) &
-    !$ACC   CREATE(tend_va_vdf, tend_wa_vdf, q_vdf, tend_qtrc_vdf, q_snocpymlt, zco2, zxt_emis) &
+    !$ACC   CREATE(tend_va_vdf, tend_wa_vdf, q_vdf, tend_qtrc_vdf, q_snocpymlt, zco2) &
+#if !(defined(_CRAYFTN) && _RELEASE_MAJOR <= 16)
+    !ACCWA zero sized arrays are not properly supported (CAST-33010) and cause here 
+    ! weird "present" error
     !$ACC   CREATE(tend_qtrc_vdf_dummy) &
+#endif
     !$ACC   CREATE(tend_ta_sfc, q_rlw_impl, tend_ta_rlw_impl, tend_ta_vdf) &
     !$ACC   CREATE(ts_tile, z0m_tile, ustar, wstar_tile, rlus) &
     !$ACC   CREATE(albvisdir_ice, albnirdir_ice, albvisdif_ice) &
@@ -239,7 +238,6 @@ CONTAINS
     !$ACC   CREATE(albvisdir, albnirdir, albvisdif, albnirdif) &
     !$ACC   CREATE(albvisdir_tile, albnirdir_tile, albvisdif_tile) &
     !$ACC   CREATE(albnirdif_tile, albedo, albedo_tile) &
-    !$ACC   CREATE(qi_hori_tend, ql_hori_tend, qv_hori_tend, ta_hori_tend) &
     !$ACC   CREATE(qnc_hori_tend, qni_hori_tend)
 
     IF ( is_dry_cbl ) THEN
@@ -252,7 +250,7 @@ CONTAINS
 
     !$NOser verbatim zaa = 0._wp
     !$NOser verbatim zbb = 0._wp
-    !$NOser verbatim !$ACC UPDATE DEVICE( zaa, zbb )
+    !$NOser verbatim !$ACC UPDATE DEVICE( zaa, zbb ) ASYNC(1)
 
 !!$    ! Emission of aerosols or other tracers (not implemented yet)
 !!$    IF (ntrac>0) THEN
@@ -315,7 +313,7 @@ CONTAINS
           END IF
           !
           ! DA: fuse all the 1D copies in a single ACC kernel
-          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+          !$ACC PARALLEL NO_CREATE(zxt_emis) DEFAULT(PRESENT) ASYNC(1)
           SELECT CASE (ccycle_config(jg)%iccycle)
              !
           CASE (0) ! no c-cycle

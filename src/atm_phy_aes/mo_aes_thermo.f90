@@ -1,15 +1,17 @@
-!>
-!! @brief Module containing thermodynamic functions used by the AES department in MPI-M
-!!
-!! @contact B. Stevens, MPI-M, 2022-06
-!!
-!! @par Copyright and License
-!!
-!! Copyright 2022 Max Planck Institute for Meteorology, B. Stevens
-!! 
-!! Code subject to BSD-3-C, SPDX short identifier: BSD-3-Clause, see file 
-!! BSD-3-C-license.pdf in the license-directory
-!!
+!
+! Module containing thermodynamic functions used by the AES department in MPI-M
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_aes_thermo
 
 USE mo_kind,               ONLY: wp     , &
@@ -24,7 +26,9 @@ USE mo_physical_constants, ONLY: rv     , & !> gas constant for water vapour
                                  clw    , & !! specific heat of water
                                  alv    , & !! latent heat of vaporization
                                  als    , & !! latent heat of sublimation
-                                 tmelt
+                                 tmelt  , &
+                                 rd_o_cpd, &
+                                 p0ref
 
   IMPLICIT NONE
 
@@ -39,7 +43,9 @@ USE mo_physical_constants, ONLY: rv     , & !> gas constant for water vapour
   PUBLIC  :: vaporization_energy   ! internal energy of vaporization
   PUBLIC  :: sublimation_energy    ! internal energy of sublimation
   PUBLIC  :: sat_pres_water        ! saturation pressure over water
+  PUBLIC  :: sat_pres_ice          ! saturation pressure over ice
   PUBLIC  :: specific_humidity     ! calculate specific humidity from vapor and total pressure
+  PUBLIC  :: potential_temperature ! calculate potential temperature
   
   REAL (KIND=wp), PARAMETER ::     &
        ci  = 2108.0_wp,            & !! specific heat of ice
@@ -217,6 +223,24 @@ PURE FUNCTION T_from_internal_energy(U,qv,qliq,qice,rho,dz)
   T_from_internal_energy  = (U + rho*dz*(qliq*lvc + qice*lsc))/cv
 
 END FUNCTION T_from_internal_energy
+
+!!!=============================================================================================
+
+#ifndef _OPENACC
+ELEMENTAL &
+#endif
+PURE FUNCTION potential_temperature(TK, pres)
+
+  REAL(wp) :: potential_temperature
+  REAL(wp), INTENT(in) :: &
+    & TK, &
+    & pres
+
+  !$ACC ROUTINE SEQ
+
+  potential_temperature = TK * EXP(rd_o_cpd * LOG(p0ref/pres))
+
+END FUNCTION potential_temperature
 
 !!!=============================================================================================
 

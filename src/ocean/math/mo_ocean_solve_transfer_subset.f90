@@ -1,3 +1,22 @@
+! provides extended communication / transfer infrastructure object
+! derived from abstract t_transfer - type to be used by solvers
+!
+! trivial transfer : group of solver-PEs is same as group od
+! solver-PEs arrays are just locally copied... (and converted between
+! different real-kinds, if necessary)
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 #if (defined(_OPENMP) && defined(OCE_SOLVE_OMP))
 #include "omp_definitions.inc"
 #endif
@@ -19,14 +38,10 @@ MODULE mo_ocean_solve_subset_transfer
   USE mo_communication, ONLY: t_comm_pattern, delete_comm_pattern, &
     & exchange_data, exchange_data_mult
   USE mo_communication_factory, ONLY: setup_comm_pattern
+  USE mo_fortran_tools, ONLY: set_acc_host_or_device
 #ifndef NOMPI
   USE mpi, ONLY: MPI_STATUS_IGNORE, MPI_STATUSES_IGNORE, MPI_COMM_NULL, MPI_UNDEFINED
 #endif
-
-! provides extended communication / transfer infrastructure object derived from abstract t_transfer - type
-! to be used by solvers
-! trivial transfer : group of solver-PEs is same as group od solver-PEs
-! arrays are just locally copied... (and converted between different real-kinds, if necessary)
 
   IMPLICIT NONE
   PRIVATE
@@ -338,11 +353,22 @@ CONTAINS
     this%is_init = .false.
   END SUBROUTINE subset_transfer_destruct
 
-  SUBROUTINE subset_transfer_into_once_2d_wp(this, data_in, data_out, tt)
+  SUBROUTINE subset_transfer_into_once_2d_wp(this, data_in, data_out, tt, lacc)
     CLASS(t_subset_transfer), INTENT(IN) :: this
     REAL(KIND=wp), INTENT(IN), DIMENSION(:,:) :: data_in
     REAL(KIND=wp), INTENT(OUT), DIMENSION(:,:), ALLOCATABLE :: data_out
     INTEGER, INTENT(IN) :: tt
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
+
+    LOGICAL :: lzacc
+    CHARACTER(LEN=*), PARAMETER :: routine = module_name// &
+                            & "::subset_transfer_into_once_2d_wp()"
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+#ifdef _OPENACC
+    if (lzacc) CALL finish(routine, "not ported to GPU yet")
+#endif
 
     IF (.NOT.ALLOCATED(data_out)) THEN
       ALLOCATE(data_out(this%nidx, this%nblk_a))
@@ -351,11 +377,22 @@ CONTAINS
     CALL this%into(data_in, data_out, tt)
   END SUBROUTINE subset_transfer_into_once_2d_wp
 
-  SUBROUTINE subset_transfer_into_once_3d_wp(this, data_in, data_out, tt)
+  SUBROUTINE subset_transfer_into_once_3d_wp(this, data_in, data_out, tt, lacc)
     CLASS(t_subset_transfer), INTENT(IN) :: this
     REAL(KIND=wp), INTENT(IN), DIMENSION(:,:,:), CONTIGUOUS :: data_in
     REAL(KIND=wp), INTENT(OUT), DIMENSION(:,:,:), ALLOCATABLE :: data_out
     INTEGER, INTENT(IN) :: tt
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
+
+    LOGICAL :: lzacc
+    CHARACTER(LEN=*), PARAMETER :: routine = module_name// &
+                            & "::subset_transfer_into_once_3d_wp()"
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+#ifdef _OPENACC
+    if (lzacc) CALL finish(routine, "not ported to GPU yet")
+#endif
 
     IF (.NOT.ALLOCATED(data_out)) THEN
       ALLOCATE(data_out(this%nidx, this%nblk, SIZE(data_in, 3)))
@@ -365,12 +402,23 @@ CONTAINS
   END SUBROUTINE subset_transfer_into_once_3d_wp
 
   SUBROUTINE subset_transfer_into_once_idx(this, data_in_idx, data_in_blk, &
-     &  data_out_idx, data_out_blk, tt)
+     &  data_out_idx, data_out_blk, tt, lacc)
     CLASS(t_subset_transfer), INTENT(IN) :: this
     INTEGER, INTENT(IN), DIMENSION(:,:,:), CONTIGUOUS :: data_in_idx, data_in_blk
     INTEGER, INTENT(OUT), DIMENSION(:,:,:), ALLOCATABLE :: &
       & data_out_idx, data_out_blk
     INTEGER, INTENT(IN) :: tt
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
+
+    LOGICAL :: lzacc
+    CHARACTER(LEN=*), PARAMETER :: routine = module_name// &
+                            & "::subset_transfer_into_once_idx()"
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+#ifdef _OPENACC
+    if (lzacc) CALL finish(routine, "not ported to GPU yet")
+#endif
 
     IF (.NOT.ALLOCATED(data_out_idx)) &
       & ALLOCATE(data_out_idx(this%nidx, this%nblk, SIZE(data_in_idx, 3)), &
@@ -378,26 +426,48 @@ CONTAINS
     CALL this%into(data_in_idx, data_in_blk, data_out_idx, data_out_blk, tt)
   END SUBROUTINE subset_transfer_into_once_idx
 
-  SUBROUTINE subset_transfer_into_2d_wp(this, data_in, data_out, tt)
+  SUBROUTINE subset_transfer_into_2d_wp(this, data_in, data_out, tt, lacc)
     CLASS(t_subset_transfer), INTENT(IN) :: this
     REAL(KIND=wp), INTENT(IN), DIMENSION(:,:) :: data_in
     REAL(KIND=wp), INTENT(OUT), DIMENSION(:,:), CONTIGUOUS :: data_out
     INTEGER, INTENT(IN) :: tt
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
+
+    LOGICAL :: lzacc
+    CHARACTER(LEN=*), PARAMETER :: routine = module_name// &
+                            & "::subset_transfer_into_2d_wp()"
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+#ifdef _OPENACC
+    if (lzacc) CALL finish(routine, "not ported to GPU yet")
+#endif
 
     IF (ltimer) CALL timer_start(this%timer_in(tt))
     CALL exchange_data(this%cpat_in, data_out, data_in)
     IF (ltimer) CALL timer_stop(this%timer_in(tt))
   END SUBROUTINE subset_transfer_into_2d_wp
 
-  SUBROUTINE subset_transfer_into_2d_wp_2(this, di1, do1, di2, do2, tt)
+  SUBROUTINE subset_transfer_into_2d_wp_2(this, di1, do1, di2, do2, tt, lacc)
     CLASS(t_subset_transfer), INTENT(IN) :: this
     REAL(KIND=wp), INTENT(IN), DIMENSION(:,:) :: di1, di2
     REAL(KIND=wp), INTENT(OUT), DIMENSION(:,:), CONTIGUOUS :: do1, do2
     INTEGER, INTENT(IN) :: tt
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
     REAL(KIND=wp), ALLOCATABLE, DIMENSION(:,:,:,:) :: to, ti
     INTEGER :: i
+    LOGICAL :: lzacc
+    CHARACTER(LEN=*), PARAMETER :: routine = module_name// &
+                            & "::subset_transfer_into_2d_wp_2()"
+
 #ifdef __INTEL_COMPILER
 !DIR$ ATTRIBUTES ALIGN : 64 :: to, ti
+#endif
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+#ifdef _OPENACC
+    if (lzacc) CALL finish(routine, "not ported to GPU yet")
 #endif
 
     IF (ltimer) CALL timer_start(this%timer_in(tt))
@@ -430,15 +500,26 @@ CONTAINS
     IF (ltimer) CALL timer_stop(this%timer_in(tt))
   END SUBROUTINE subset_transfer_into_2d_wp_2
 
-  SUBROUTINE subset_transfer_into_3d_wp(this, data_in, data_out, tt)
+  SUBROUTINE subset_transfer_into_3d_wp(this, data_in, data_out, tt, lacc)
     CLASS(t_subset_transfer), INTENT(IN) :: this
     REAL(KIND=wp), INTENT(IN), DIMENSION(:,:,:), CONTIGUOUS :: data_in
     REAL(KIND=wp), INTENT(OUT), DIMENSION(:,:,:), CONTIGUOUS :: data_out
     INTEGER, INTENT(IN) :: tt
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
     INTEGER :: i, j, n3
     REAL(KIND=wp), DIMENSION(:,:,:,:), ALLOCATABLE :: to
+    LOGICAL :: lzacc
+    CHARACTER(LEN=*), PARAMETER :: routine = module_name// &
+                            & "::subset_transfer_into_3d_wp()"
+
 #ifdef __INTEL_COMPILER
 !DIR$ ATTRIBUTES ALIGN : 64 :: to
+#endif
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+#ifdef _OPENACC
+    if (lzacc) CALL finish(routine, "not ported to GPU yet")
 #endif
 
     IF (ltimer) CALL timer_start(this%timer_in(tt))
@@ -463,16 +544,27 @@ CONTAINS
   END SUBROUTINE subset_transfer_into_3d_wp
 
   SUBROUTINE subset_transfer_into_idx(this, data_in_idx, data_in_blk, &
-     &  data_out_idx, data_out_blk, tt)
+     &  data_out_idx, data_out_blk, tt, lacc)
     CLASS(t_subset_transfer), INTENT(IN) :: this
     INTEGER, INTENT(IN), DIMENSION(:,:,:), CONTIGUOUS :: data_in_blk, data_in_idx
     INTEGER, INTENT(OUT), DIMENSION(:,:,:), CONTIGUOUS :: data_out_blk, data_out_idx
     INTEGER, DIMENSION(:,:), ALLOCATABLE :: glb_in, glb_out
     INTEGER, INTENT(IN) :: tt
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
     INTEGER :: i, iblk, iidx, jblk, jidx, gid
     LOGICAL :: found, notfound
+    LOGICAL :: lzacc
+    CHARACTER(LEN=*), PARAMETER :: routine = module_name// &
+                            & "::subset_transfer_into_idx()"
+
 #ifdef __INTEL_COMPILER
 !DIR$ ATTRIBUTES ALIGN : 64 :: glb_in, glb_out
+#endif
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+#ifdef _OPENACC
+    if (lzacc) CALL finish(routine, "not ported to GPU yet")
 #endif
 
     IF (ltimer) CALL timer_start(this%timer_in(tt))
@@ -520,20 +612,42 @@ CONTAINS
     IF (ltimer) CALL timer_stop(this%timer_in(tt))
   END SUBROUTINE subset_transfer_into_idx
 
-  SUBROUTINE subset_transfer_out_2d_wp(this, data_in, data_out)
+  SUBROUTINE subset_transfer_out_2d_wp(this, data_in, data_out, lacc)
     CLASS(t_subset_transfer), INTENT(IN) :: this
     REAL(KIND=wp), INTENT(IN), DIMENSION(:,:), CONTIGUOUS :: data_in
     REAL(KIND=wp), INTENT(OUT), DIMENSION(:,:), CONTIGUOUS :: data_out
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
+
+    LOGICAL :: lzacc
+    CHARACTER(LEN=*), PARAMETER :: routine = module_name// &
+                            & "::subset_transfer_out_2d_wp()"
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+#ifdef _OPENACC
+    if (lzacc) CALL finish(routine, "not ported to GPU yet")
+#endif
 
     IF (ltimer) CALL timer_start(this%timer_out)
     CALL exchange_data(this%cpat_out, data_out, data_in)
     IF (ltimer) CALL timer_stop(this%timer_out)
   END SUBROUTINE subset_transfer_out_2d_wp
 
-  SUBROUTINE subset_transfer_bcst_1d_wp(this, data_in, data_out)
+  SUBROUTINE subset_transfer_bcst_1d_wp(this, data_in, data_out, lacc)
     CLASS(t_subset_transfer), INTENT(IN) :: this
     REAL(KIND=wp), INTENT(IN), DIMENSION(:), CONTIGUOUS :: data_in
     REAL(KIND=wp), INTENT(OUT), DIMENSION(:), CONTIGUOUS :: data_out
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
+
+    LOGICAL :: lzacc
+    CHARACTER(LEN=*), PARAMETER :: routine = module_name// &
+                            & "::subset_transfer_bcst_1d_wp()"
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+#ifdef _OPENACC
+    if (lzacc) CALL finish(routine, "not ported to GPU yet")
+#endif
 
     IF (ltimer) CALL timer_start(this%timer_out)
     IF (this%is_leader_pe) data_out(:) = data_in(:)
@@ -541,10 +655,21 @@ CONTAINS
     IF (ltimer) CALL timer_stop(this%timer_out)
   END SUBROUTINE subset_transfer_bcst_1d_wp
 
-  SUBROUTINE subset_transfer_bcst_1d_i(this, data_in, data_out)
+  SUBROUTINE subset_transfer_bcst_1d_i(this, data_in, data_out, lacc)
     CLASS(t_subset_transfer), INTENT(IN) :: this
     INTEGER, INTENT(IN), DIMENSION(:), CONTIGUOUS :: data_in
     INTEGER, INTENT(OUT), DIMENSION(:), CONTIGUOUS :: data_out
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
+
+    LOGICAL :: lzacc
+    CHARACTER(LEN=*), PARAMETER :: routine = module_name// &
+                            & "::subset_transfer_bcst_1d_i()"
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+#ifdef _OPENACC
+    if (lzacc) CALL finish(routine, "not ported to GPU yet")
+#endif
 
     IF (ltimer) CALL timer_start(this%timer_out)
     IF (this%is_leader_pe) data_out(:) = data_in(:)

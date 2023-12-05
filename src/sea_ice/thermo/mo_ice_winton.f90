@@ -1,21 +1,20 @@
-!>
-!! Provide an implementation of the sea-ice model.
-!!
-!! Provide an implementation of the parameters of the surface module (sea ice)
-!! used between the atmopshere and the hydrostatic ocean model.
-!!
-!! @author 
-!! 
-!! @par Revision History
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Provide an implementation of the sea-ice model.
+!
+! Provide an implementation of the parameters of the surface module (sea ice)
+! used between the atmopshere and the hydrostatic ocean model.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_ice_winton
 
   USE mo_kind,                ONLY: wp
@@ -26,8 +25,9 @@ MODULE mo_ice_winton
     &                               mu ,ci, alf, I_0!,Tf
   USE mo_sea_ice_nml,         ONLY: hci_layer, sice
   USE mo_sea_ice_types,       ONLY: t_sea_ice
-  USE mo_grid_subset,         ONLY: t_subset_range, get_index_range 
+  USE mo_grid_subset,         ONLY: t_subset_range, get_index_range
   USE mo_util_dbg_prnt,       ONLY: dbg_print
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -43,11 +43,11 @@ CONTAINS
 
   !-------------------------------------------------------------------------------
   !
-  !  
+  !
   !>
   !! ! set_ice_temp_winton:: calculate new ice + snow temperatures according to sec.2a from
-  !!           Winton, M., 2000: A Reformulated Three-Layer Sea Ice Model,   
-  !!           J. Atmos. Oce. Tech., 17, 525-531. 
+  !!           Winton, M., 2000: A Reformulated Three-Layer Sea Ice Model,
+  !!           J. Atmos. Oce. Tech., 17, 525-531.
   !!
   !!           doi: 10.1175/1520-0426(2000)017<0525:ARTLSI> (put into google)
   !!
@@ -59,24 +59,20 @@ CONTAINS
   !! ice % Qtop     Heat flux available for melting at ice surface          [W/m^2]
   !!
   !!           all "dtime" in this function are atmospheric time step
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2010-07). Originally code written by
-  !! Dirk Notz, following MPI-OM. Code transfered to ICON.
-  !!
 
   SUBROUTINE set_ice_temp_winton(i_startidx_c, i_endidx_c, nbdim, kice, pdtime, &
-            &   Tsurf,          & ! Surface temperature [degC]                                   
-            &   T1,             & ! Temperature of upper layer [degC]                            
-            &   T2,             & ! Temperature of lower layer [degC]                            
-            &   hi,             & ! Ice thickness                                                
-            &   hs,             & ! Snow thickness                                               
-            &   Qtop,           & ! Energy flux available for surface melting [W/m2]             
-            &   Qbot,           & ! Energy flux available for bottom melting [W/m2]              
-            &   SWnet,          & ! Downwelling shortwave flux [W/m^2]                           
-            &   nonsolar,       & ! Latent and sensible heat flux and longwave radiation [W/m^2] 
-            &   dnonsolardT,    & ! Derivative of non-solar fluxes w.r.t. temperature [W/m^2/K]  
+            &   Tsurf,          & ! Surface temperature [degC]
+            &   T1,             & ! Temperature of upper layer [degC]
+            &   T2,             & ! Temperature of lower layer [degC]
+            &   hi,             & ! Ice thickness
+            &   hs,             & ! Snow thickness
+            &   Qtop,           & ! Energy flux available for surface melting [W/m2]
+            &   Qbot,           & ! Energy flux available for bottom melting [W/m2]
+            &   SWnet,          & ! Downwelling shortwave flux [W/m^2]
+            &   nonsolar,       & ! Latent and sensible heat flux and longwave radiation [W/m^2]
+            &   dnonsolardT,    & ! Derivative of non-solar fluxes w.r.t. temperature [W/m^2/K]
             &   Tfw,            & ! Freezing temperature of the ocean
-            &   use_acc)
+            &   lacc)
 
     INTEGER, INTENT(IN)    :: i_startidx_c, i_endidx_c, nbdim, kice
     REAL(wp),INTENT(IN)    :: pdtime
@@ -91,7 +87,7 @@ CONTAINS
     REAL(wp),INTENT(IN)    :: nonsolar   (nbdim,kice)
     REAL(wp),INTENT(IN)    :: dnonsolardT(nbdim,kice)
     REAL(wp),INTENT(IN)    :: Tfw        (nbdim)
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
     !!Local variables
     REAL(wp) ::      &
@@ -108,25 +104,21 @@ CONTAINS
       & K2,          & ! Winton's K 3/2 (eq. 10)
       & Tsurfm,      & ! Surface melting temperature
       & I              ! Penetrating shortwave radiation (taking snow cover into account)
-    
+
     REAL(wp) :: muS
     REAL(wp) :: idt2 ! 1 / (2*dt)
 
     INTEGER :: k, jk, jc ! loop indices
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     muS = mu*Sice
-    
+
    !-------------------------------------------------------------------------------
 
     ! initialization
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP SEQ
     DO k = 1,kice
       !$ACC LOOP GANG VECTOR
@@ -137,8 +129,8 @@ CONTAINS
     END DO
     !$ACC END PARALLEL
     idt2   =  1.0_wp / (2.0_wp*pdtime)
-    
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP SEQ
     DO k=1,kice
       !$ACC LOOP GANG VECTOR PRIVATE(B, A, K1, K2, D, iK1B, Tsurfm, A1a, A1) &
@@ -152,18 +144,18 @@ CONTAINS
           ELSE
             I = I_0
           END IF
-          
-          ! Calculate new ice temperature wherever there is ice 
-          ! nonsolar >0 and SWin > 0  for downward flux 
+
+          ! Calculate new ice temperature wherever there is ice
+          ! nonsolar >0 and SWin > 0  for downward flux
           ! dnonsolardT >0 for downward flux increasing with increasing Tsurf
           ! We add constant heat capacity to B to stabilize the atmosphere
-          
+
           B = -dnonsolardT(jc,k) + rhoi*hci_layer/pdtime*ci                             ! Eq.  8
           A = -nonsolar(jc,k) - SWnet(jc,k)*( 1._wp - I ) - Tsurf(jc,k)*B               ! Eq.  7
 
           K1 =  4.0_wp*ki*ks/( ks*hi(jc,k) + 4.0_wp*ki*hs(jc,k) )                       ! Eq.  5
           K2 =  2.0_wp*ki/hi(jc,k)                                                      ! Eq. 10
-          D  =  1.0_wp/( 6.0_wp*pdtime*K2 + rhoi*hi(jc,k)*ci )                 
+          D  =  1.0_wp/( 6.0_wp*pdtime*K2 + rhoi*hi(jc,k)*ci )
           iK1B =  1.0_wp/( K1 + B )
 
           ! Set temperature at which surface is fully liquid
@@ -182,7 +174,7 @@ CONTAINS
 
           T1(jc,k) = -( B1 + SQRT( B1*B1 - 4.0_wp*A1*C1 ) )/( 2.0_wp*A1 )               ! Eq.  6
           Tsurf(jc,k) = ( K1*T1(jc,k) - A )*iK1B
-          
+
           IF ( Tsurf(jc,k) > Tsurfm ) THEN
             A1 =  A1a + K1                                                              ! Eq. 19
             B1 =  B1a - K1*Tsurfm                                                       ! Eq. 20
@@ -193,7 +185,7 @@ CONTAINS
             ! Heatfluxes available for melting at ice surface for each atmopheric time step.
             Qtop(jc,k) = + K1*( T1(jc,k) - Tsurf(jc,k) ) - ( A + B*Tsurf(jc,k) )        ! Eq. 22
           END IF
-   
+
           T2(jc,k) = ( 2.0_wp*pdtime*K2*( T1(jc,k) + 2.0_wp*Tfw(jc) ) &
             &                                           + rhoi*hi(jc,k)*ci*T2(jc,k) )*D ! Eq. 15
 
@@ -213,7 +205,7 @@ CONTAINS
 
   !-------------------------------------------------------------------------------
   !
-  !  
+  !
   !>
   !! ! ice_growth_winton - change ice and snow thickness (Winton 2000, section 2b)
   !! This function changes:
@@ -226,16 +218,12 @@ CONTAINS
   !! ice % heatOceI to contain the energy that is available to the mixed layer
   !!                in previously ice covered areas if all ice is gone      [J]
   !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2010-07). Originally code written by
-  !! Dirk Notz, following MPI-OM. Code transfered to ICON.
-  !!
 
-  SUBROUTINE ice_growth_winton(p_patch, ice, use_acc)!, lat)
+  SUBROUTINE ice_growth_winton(p_patch, ice, lacc)!, lat)
     TYPE(t_patch)            , INTENT(IN), TARGET    :: p_patch
     TYPE(t_sea_ice)          , INTENT(INOUT)         :: ice
-    LOGICAL, INTENT(IN), OPTIONAL                    :: use_acc
-    !REAL(wp),                  INTENT(IN)    :: lat(:,:,:) 
+    LOGICAL, INTENT(IN), OPTIONAL                    :: lacc
+    !REAL(wp),                  INTENT(IN)    :: lat(:,:,:)
                                    !! lat. heat flux  [W/m^2] DIMENSION (ie,je,kice)
 
     !!Local variables
@@ -251,7 +239,7 @@ CONTAINS
       !
       & f1,          & ! Fraction of upper ice in new ice layer (Eq. 37)
       & h1,          & ! Thickness of upper ice layer                       [m]
-      & h2,          & ! Thickness of lower ice layer                       [m] 
+      & h2,          & ! Thickness of lower ice layer                       [m]
       !& new_snow3d,  & ! New snow fallen onto each ice category             [m]
       !& subli,       & ! Amount of ice+snow that is sublimated away         [kg/m^3]
       & Tbar,        & ! Dummy temperature for new temperature calculation  [C]
@@ -262,50 +250,46 @@ CONTAINS
     REAL(wp), DIMENSION (nproma,ice%kice, p_patch%nblks_c) :: Q_surplus ! for energy conservation
 
     TYPE(t_subset_range), POINTER :: all_cells
-    
+
     INTEGER :: k, jb, jc, i_startidx_c, i_endidx_c     ! loop indices
     REAL(wp) :: muS
 
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     muS = mu*Sice
 
-    !$ACC DATA CREATE(Q_surplus) IF(lacc)
+    !$ACC DATA CREATE(Q_surplus) IF(lzacc)
 
     ! Necessary initialisation
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
     Q_surplus(:,:,:) = 0.0_wp
     !$ACC END KERNELS
     surfmelti1       = 0.0_wp
     surfmelti2       = 0.0_wp
     !
-    all_cells => p_patch%cells%all 
+    all_cells => p_patch%cells%all
 
     !-------------------------------------------------------------------------------
     DO jb = 1,p_patch%nblks_c
-      CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c) 
-      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+      CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lzacc)
       DO k=1,ice%kice
         DO jc = i_startidx_c,i_endidx_c
           ! Do the following wherever there is ice
           IF (ice%hi(jc,k,jb) > 0._wp) THEN
-            
+
             ! Add oceanic heat flux to energy available at the bottom of the ice.
             ice%Qbot(jc,k,jb) = ice%Qbot(jc,k,jb) + ice%zHeatOceI(jc,k,jb)
-              
+
             h1 = ice%hi(jc,k,jb)/2.0_wp
             h2 = h1
-            
-            ! Apply mass increasing changes first. 
+
+            ! Apply mass increasing changes first.
             ! 1. Snow fall
             ice%hs(jc,k,jb) = ice%hs(jc,k,jb) + ice%totalsnowfall(jc,jb)*rho_ref/rhos
-            
+
             ! 2. Bottom ice-growth  (maybe add frazil ice?)
             ! #eoo# Eqns. 24, 27--29 and 31--36 appear to be missing rhoi or rhos to get the proper units
             ! for Delta h. But these are included in this program
@@ -317,13 +301,13 @@ CONTAINS
 
               h2 = h2 + delh2
             END IF
-            
-            ! Now mass decreasing changes. 
+
+            ! Now mass decreasing changes.
             ! 1. Evaporation
             ! #eoo# Not in Winton - does this count the latent fluxes twice?
-            
+
             !subli(jc,k,jb) = lat  / als * dtime;    ![kg/m^3]
-            !WHERE     (subli <= ice%hs*rhos )         
+            !WHERE     (subli <= ice%hs*rhos )
             !  ice%hs(jc,k,jb) = ice%hs - subli / rhos
             !ELSEWHERE (subli <= ice%hs*rhos + h1*rhoi )              ! if all snow is gone
             !  ice%hs(jc,k,jb) = 0.0_wp
@@ -338,36 +322,36 @@ CONTAINS
             !  h2(jc,k,jb) = 0.0_wp
             !  ice% evapwi(jc,k,jb) = (subli - ice%hs*rhos - (h1+h2)*rhoi) * als / alv
             !END WHERE
-            
-            
-            ! 2. surface ablation (if any) 
-            
+
+
+            ! 2. surface ablation (if any)
+
             ! Eq.  1 (energy upper layer)
             E1 = ci*( ice%T1(jc,k,jb) + muS ) - alf*( 1.0_wp + muS/ice%T1(jc,k,jb) )
             ! Eq. 25 (energy lower layer)
-            E2 = ci*( ice%T2(jc,k,jb) + muS ) - alf                        
-            
+            E2 = ci*( ice%T2(jc,k,jb) + muS ) - alf
+
             C1 = alf*rhos*ice%hs(jc,k,jb)
             C2 = E1*rhoi*h1
             C3 = E2*rhoi*h2
-            
+
             IF ( ice%Qtop(jc,k,jb) > 0.0_wp ) THEN
               surfmeltsn = MIN( ice%Qtop(jc,k,jb)*dtime/( alf*rhos ), ice%hs(jc,k,jb) )    ! Eq. 27
 
               ice%hs      (jc,k,jb) = ice%hs(jc,k,jb) - surfmeltsn
               ice%surfmelt(jc,k,jb) = surfmeltsn*rhos/rho_ref
-              
+
               IF ( C1 < ice%Qtop(jc,k,jb)*dtime ) THEN
                 surfmelti1 = MIN( ( ice%Qtop(jc,k,jb)*dtime - C1 )/( -E1*rhoi ), h1 )      ! Eq. 28
                 h1 = h1 - surfmelti1
                 ice%surfmelt(jc,k,jb) = ice%surfmelt(jc,k,jb) + surfmelti1*rhoi/rho_ref
-                
+
                 IF ( C1-C2 < ice%Qtop(jc,k,jb)*dtime ) THEN
                   ! Eq. 29
                   surfmelti2 = MIN(  ( ice%Qtop(jc,k,jb)*dtime - C1 + C2 ) / ( -E2*rhoi), h2 )
                   h2 = h2 - surfmelti2
                   ice%surfmelt(jc,k,jb) = ice%surfmelt(jc,k,jb) + surfmelti2*rhoi/rho_ref
-                  
+
                   IF ( C1-C2-C3 < ice%Qtop(jc,k,jb)*dtime ) THEN
                     ! Eq. 30
                     ice%heatOceI(jc,k,jb) = ice%Qtop(jc,k,jb) + ( -C1 + C2 + C3 )/dtime
@@ -377,20 +361,20 @@ CONTAINS
                 END IF
               END IF
 
-              ! Calculate average temperature of surface melt water 
+              ! Calculate average temperature of surface melt water
               ! T(snow) = 0C, T(ice) = -muS C
               ice%surfmeltT(jc,k,jb) = ( surfmelti1 + surfmelti2 )*(-muS)/ice%surfmelt(jc,k,jb)
             END IF
-            
+
             C1 = alf*rhos*ice%hs(jc,k,jb)
             C2 = E1*rhoi*h1
             C3 = E2*rhoi*h2
-            
+
             ! 3. bottom ablation (if any)
-            
+
             IF ( ice%Qbot(jc,k,jb) > 0.0_wp ) THEN
               h2 = h2 - MIN( ice%Qbot(jc,k,jb)*dtime/( -E2*rhoi), h2 )                     ! Eq. 31
-              
+
               IF ( -C3 < ice%Qbot(jc,k,jb)*dtime ) THEN
                 h1 = h1 - MIN( ( ice%Qbot(jc,k,jb)*dtime + C3 )/( -E1*rhoi ), h1 )         ! Eq. 32
                 IF ( -C2-C3 < ice%Qbot(jc,k,jb)*dtime ) THEN
@@ -406,17 +390,17 @@ CONTAINS
                 END IF
               END IF
             END IF
-            
+
             ! Calculate ice thickness and draft (ice+snow depth below water line)
             ice%hi(jc,k,jb) = h1 + h2
             draft           = ( rhoi*ice%hi(jc,k,jb) + rhos*ice%hs(jc,k,jb) )/rho_ref
             below_water     = draft - ice%hi(jc,k,jb)
-            
+
             ! snow -> ice conversion for snow below waterlevel
             ! Currently not quite physical: Snow is pushed together to form new ice, hence snow thickness
             ! decreases more than ice thickness by rhoi/rhos ( analogue to old growth.f90 sea-ice model )
             ! Salt content of snow ice is equal to that of normal ice, salt is removed from the ocean
-            ! Temperature of new upper ice is calculated as described in the paragraph below 
+            ! Temperature of new upper ice is calculated as described in the paragraph below
             ! Eq. 36
             IF ( below_water > 0.0_wp ) THEN
               ice%snow_to_ice(jc,k,jb) = below_water*rhoi/rhos
@@ -424,13 +408,13 @@ CONTAINS
               ! TODO: What about increase in ice thickness?
 
               f1   = h1/( h1 +below_water )
-              Tbar = f1*( ice%T1(jc,k,jb) - alf*muS/( ci*ice%T1(jc,k,jb) ) ) - ( 1.0_wp - f1 )*muS 
+              Tbar = f1*( ice%T1(jc,k,jb) - alf*muS/( ci*ice%T1(jc,k,jb) ) ) - ( 1.0_wp - f1 )*muS
 
               ice%T1(jc,k,jb) = 0.5_wp*( Tbar - SQRT(  Tbar*Tbar + 4.0_wp*muS*alf/ci ) )
               h1              = h1 + below_water
               ice%hi(jc,k,jb) = h1 + h2
             END IF
-            
+
             ! Even up upper and lower layer
             IF( h1 < h2 ) THEN
               f1 =  h1/( 0.5_wp*ice%hi(jc,k,jb) )                                          ! Eq. 39
@@ -442,7 +426,7 @@ CONTAINS
               ice%T2(jc,k,jb) =  f1*( ice%T1(jc,k,jb) - alf*muS/( ci*ice%T1(jc,k,jb) ) ) &
                 &              + ( 1.0_wp-f1 )*ice%T2(jc,k,jb)                             ! Eq. 40
             END IF
-            
+
             ! ice%T2 can get above bulk melting temperature. If this happens, use additional energy to
             ! melt equal thickness of upper and lower layer (last para.  section 2)
             ! Energy available for melting: -h2 * ci * (ice%T2+muS)
@@ -454,7 +438,7 @@ CONTAINS
                 &                       - alf*( 1.0_wp + muS/ice%T1(jc,k,jb) ) ) )
               ice%T2 (jc,k,jb) = -muS
             END IF
-            
+
             ! Is this necessary?
             IF (ice%hi(jc,k,jb) <= 0.0_wp) THEN
               ice%Tsurf(jc,k,jb) = ice%Tfw(jc,jb)
@@ -467,19 +451,19 @@ CONTAINS
             ELSE ! Combine fluxes for the ocean
               ice%heatOceI(jc,k,jb) = ice%heatOceI(jc,k,jb) - ice%zHeatOceI(jc,k,jb)
             END IF
-            
+
             ! Eq.  1 (energy upper layer)
             ice%E1(jc,k,jb) = ci*( ice%T1(jc,k,jb) + muS ) - alf*( 1.0_wp + muS/ice%T1(jc,k,jb) )
             ! Eq. 25 (energy lower layer)
             ice%E2(jc,k,jb) = ci*( ice%T2(jc,k,jb) + muS ) - alf
-            
+
             ! Energy balance: discrepancy in eqn. (2)
-            
+
 !            Q_surplus(jc,k,jb) =   (   ice%E1(jc,k,jb) - E1(jc,k,jb)            &
 !              &                      + ice%E2(jc,k,jb) - E2(jc,k,jb) ) / dtime  &
 !              &                  - (ice%Qtop(jc,k,jb) + ice%Qbot(jc,k,jb) )    &
 !              &                / (ice%hs(jc,k,jb)*rhos + ice%hi(jc,k,jb)*rhoi)
-            
+
           ELSE
             ice%heatOceI(jc,k,jb) = ice%Qtop(jc,k,jb) + ice%Qbot(jc,k,jb)
             ice%Tsurf(jc,k,jb) = ice%Tfw(jc,jb)
@@ -504,7 +488,7 @@ CONTAINS
   CALL dbg_print('GrowWinton: ice%Qbot' , ice%Qbot , 'ice_growth_winton',4, in_subset=p_patch%cells%owned)
   CALL dbg_print('GrowWinton: ice%Tsurf', ice%Tsurf, 'ice_growth_winton',4, in_subset=p_patch%cells%owned)
 !---------------------------------------------------------------------
-    
+
   END SUBROUTINE ice_growth_winton
 
 END MODULE mo_ice_winton

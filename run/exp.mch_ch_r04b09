@@ -70,8 +70,7 @@ add_required_file ${latbc_path}/igfff00030000_lbc.nc .
 
 # dictionary file for output variable names
 dict_file="dict.${EXPNAME}"
-cat dict.iconam.mpim  > ${dict_file}
-add_required_file ${basedir}/run/${dict_file}                           ./
+add_required_file ${basedir}/run/dict.iconam.mpim ${dict_file}
 
 # start and end date+time
 start_date=${start_date:="2018-09-21T00:00:00Z"}
@@ -95,7 +94,7 @@ atmo_namelist=NAMELIST_${EXPNAME}_atm
 # ----------------------------------------------------------------------
 
 
-cat > ${atmo_namelist} << EOF
+cat > ${basedir}/run/${atmo_namelist} << EOF
 ! parallel_nml: MPI parallelization -------------------------------------------
 &parallel_nml
  nproma                      =                   ${nproma}        ! loop chunk length
@@ -139,7 +138,6 @@ cat > ${atmo_namelist} << EOF
 ! dynamics_nml: dynamical core -----------------------------------------------
 &dynamics_nml
  iequations                  =                          3         ! type of equations and prognostic variables
- idiv_method                 =                          1         ! method for divergence computation
  divavg_cntrwgt              =                          0.50      ! weight of central cell for divergence averaging
  lcoriolis                   =                      .TRUE.        ! Coriolis force
 /

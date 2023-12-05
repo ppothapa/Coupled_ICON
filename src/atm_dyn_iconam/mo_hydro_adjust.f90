@@ -1,30 +1,21 @@
-!>
-!! Routines for computing hydrostatically balanced initial conditions
-!!
-!! A hydrostatically balanced state is achieved by integrating the discretized (!) 
-!! third equation of motion, assuming dw/dt=0.
-!!
-!! @author Guenther Zangl, DWD
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2019-09-19)
-!! - moved existing routines from mo_nh_init_utils into this newly created module
-!! Modification by Daniel Reinert,  DWD (2019-09-19)
-!! - add terative balancing routine
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-
-!----------------------------
+!
+! Routines for computing hydrostatically balanced initial conditions
+!
+! A hydrostatically balanced state is achieved by integrating the discretized (!)
+! third equation of motion, assuming dw/dt=0.
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 #include "omp_definitions.inc"
 !----------------------------
 
@@ -67,10 +58,6 @@ CONTAINS
   !! Virtual temperature is kept constant during the adjustment process
   !!
   !! Input/Output: density, Exner pressure, virtual potential temperature
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-06-29)
-  !!
   !!
   SUBROUTINE hydro_adjust(p_patch, p_nh_metrics, rho, exner, theta_v )
 
@@ -167,10 +154,6 @@ CONTAINS
   !! during the adjustment, leading to a simpler formula
   !!
   !! Input/Output: density, Exner pressure, virtual potential temperature
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2012-12-28)
-  !!
   !!
   SUBROUTINE hydro_adjust_const_thetav(p_patch, p_nh_metrics, lintegrate_topdown, rho, exner, theta_v)
 
@@ -281,10 +264,6 @@ CONTAINS
   !! boundary condition for exner must be provided. 
   !!
   !! Output: exner, theta_v, rho, qv
-  !!
-  !! @par Revision History
-  !! Initial version by Daniel Reinert, DWD(2019-08-09)
-  !!
   !!
   SUBROUTINE hydro_adjust_iterative(p_patch, p_nh_metrics, temp_ini, rh_ini,   &
     &                               exner, theta_v, rho, qv, luse_exner_fg,    &

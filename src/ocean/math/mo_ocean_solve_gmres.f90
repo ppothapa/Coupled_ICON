@@ -1,11 +1,26 @@
+! contains extension to solver backend type: GMRES
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 #if (defined(_OPENMP) && defined(OCE_SOLVE_OMP))
 #include "omp_definitions.inc"
 #endif
-! contains extension to solver backend type: GMRES
 
 MODULE mo_ocean_solve_gmres
   USE mo_kind, ONLY: sp, wp
+  USE mo_exception, ONLY: finish
   USE mo_ocean_solve_backend, ONLY: t_ocean_solve_backend
+  USE mo_fortran_tools, ONLY: set_acc_host_or_device
  
   IMPLICIT NONE
   
@@ -66,13 +81,20 @@ CONTAINS
   END SUBROUTINE ocean_solve_gmres_recover_arrays_wp
 
 ! actual GMRES-R(n) implementation
-  SUBROUTINE ocean_solve_gmres_cal_wp(this)
+  SUBROUTINE ocean_solve_gmres_cal_wp(this, lacc)
     CLASS(t_ocean_solve_gmres), INTENT(INOUT) :: this
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
     REAL(wp) :: tol, ci, h_aux
     INTEGER :: jb, nblk, nidx_e, i, k, i_final
     REAL(KIND=wp), POINTER, CONTIGUOUS :: v(:,:,:), x(:,:), b(:,:), &
       & w(:,:), z(:,:), h(:,:), s(:), c(:), res(:), vi(:,:)
-    LOGICAL :: done
+    LOGICAL :: done, lzacc
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+#ifdef _OPENACC
+    IF (lzacc) CALL finish(this_mod_name, 'OpenACC version currently not tested/validated')
+#endif
 
 ! set pointers to internal solver-arrays
     CALL this%recover_arrays(v, x, b, w, z, h, s, c, res)

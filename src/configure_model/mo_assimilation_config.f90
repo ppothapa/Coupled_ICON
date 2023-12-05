@@ -1,20 +1,16 @@
-!>
-!! @brief configuration setup for data assimilation
-!!
-!! @author Klaus Stephan, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Klaus Stephan , DWD (2014-12-18)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! @brief configuration setup for data assimilation
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_assimilation_config
   USE mo_kind,                 ONLY: wp, i8
   USE mo_impl_constants,       ONLY: max_dom, MODE_IAU, MODE_IAU_OLD
@@ -155,7 +151,7 @@ MODULE mo_assimilation_config
 
 
     IF (ANY((/MODE_IAU,MODE_IAU_OLD/)==init_mode)) THEN
-       idt_shift=INT(timeshift%dt_shift/dtime)
+       idt_shift=timeshift%dt_shift
     ELSE
        idt_shift=0
     ENDIF
@@ -209,10 +205,10 @@ MODULE mo_assimilation_config
 
 
     nt_end = MAX(assimilation_config(jg)%nlhn_end,assimilation_config(jg)%nlhnverif_end)
-    nt_end = MIN(nt_end,nsteps-idt_shift)
+    nt_end = MIN(nt_end,INT(REAL(nsteps,wp)*dtime-idt_shift))
     nt_start = MIN(assimilation_config(jg)%nlhn_start,assimilation_config(jg)%nlhnverif_start)
     nt_start = MIN(nt_end - 1,nt_start)
-    nobs = NINT((REAL(nt_end-nt_start)+3600._wp)/60._wp/assimilation_config(jg)%lhn_dt_obs) ! consider one hour more to be safe
+    nobs = NINT((REAL(nt_end-nt_start,wp)+3600._wp)/(assimilation_config(jg)%lhn_dt_obs*60._wp)) ! consider one hour more to be safe
     IF (nobs > 0) THEN
       assimilation_config(jg)%nobs_times = nobs
     ELSE
@@ -224,8 +220,8 @@ MODULE mo_assimilation_config
 
     if (assimilation_config(jg)%llhnverif) assimilation_config(jg)%lhn_diag=.true.
 
-    assimilation_config(jg)%nlhn_start      = INT(dt_ass)*NINT(REAL(assimilation_config(jg)%nlhn_start/dt_ass))
-    assimilation_config(jg)%nlhnverif_start = INT(dt_ass)*NINT(REAL(assimilation_config(jg)%nlhnverif_start/dt_ass))
+    assimilation_config(jg)%nlhn_start      = INT(dt_ass)*NINT(REAL(assimilation_config(jg)%nlhn_start,wp)/dt_ass)
+    assimilation_config(jg)%nlhnverif_start = INT(dt_ass)*NINT(REAL(assimilation_config(jg)%nlhnverif_start,wp)/dt_ass)
 
     ! LHN event
 

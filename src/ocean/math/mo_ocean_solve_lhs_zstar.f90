@@ -1,8 +1,19 @@
-  MODULE mo_surface_height_lhs_zstar
+! contains extended lhs-matrix-generator type
+! provides surface height lhs for free ocean surface solve
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
-    ! contains extended lhs-matrix-generator type
-    ! provides surface height lhs for free ocean surface solve
-   
+MODULE mo_surface_height_lhs_zstar
+
     USE mo_kind, ONLY: wp
     USE mo_exception, ONLY: finish
     USE mo_ocean_solve_lhs_type, ONLY: t_lhs_agen
@@ -22,6 +33,7 @@
     USE mo_model_domain, ONLY: t_patch_3d, t_patch
     USE mo_mpi,  ONLY: my_process_is_mpi_parallel
     USE mo_sync, ONLY: sync_e, sync_patch_array
+    USE mo_fortran_tools, ONLY: set_acc_host_or_device
 
   
       IMPLICIT NONE
@@ -99,19 +111,18 @@
       END SUBROUTINE lhs_surface_height_destruct
     
     ! interface routine for the left hand side computation
-      SUBROUTINE lhs_surface_height_zstar(this, x, ax, use_acc)
+      SUBROUTINE lhs_surface_height_zstar(this, x, ax, lacc)
         CLASS(t_surface_height_lhs_zstar), INTENT(INOUT) :: this
         REAL(wp), INTENT(IN) :: x(:,:)
         REAL(wp), INTENT(OUT) :: ax(:,:)
-        LOGICAL, INTENT(IN), OPTIONAL :: use_acc
-        LOGICAL :: lacc
+        LOGICAL, INTENT(IN), OPTIONAL :: lacc
+        LOGICAL :: lzacc
 
-        IF (PRESENT(use_acc)) THEN
-          lacc = use_acc
-          CALL finish("lhs_surface_height_zstar()", "OpenACC version not implemented yet")
-        ELSE
-          lacc = .FALSE.
-        END IF
+        CALL set_acc_host_or_device(lzacc, lacc)
+
+#ifdef _OPENACC
+        IF (lzacc) CALL finish("lhs_surface_height_zstar()", "OpenACC version not implemented yet")
+#endif
 
         IF (this%use_shortcut) &
           & CALL finish("t_surface_height_lhs::lhs_surface_height_wp", &
@@ -129,16 +140,21 @@
                 & this%patch_2d%nblks_e .NE. SIZE(this%z_e_wp, 2)) &
                 & DEALLOCATE(this%z_e_wp, this%z_grad_h_wp)
           END IF
-          IF (.NOT.ALLOCATED(this%z_e_wp)) &
-            & ALLOCATE(this%z_e_wp(nproma, this%patch_2d%nblks_e), &
+          IF (.NOT.ALLOCATED(this%z_e_wp)) THEN
+            ALLOCATE(this%z_e_wp(nproma, this%patch_2d%nblks_e), &
                 & this%z_grad_h_wp(nproma, this%patch_2d%nblks_e))
+            this%z_e_wp(:,:) = 0._wp
+            this%z_grad_h_wp(:,:) = 0._wp
+          END IF
           IF (ALLOCATED(this%stretch_e)) THEN
             IF (nproma .NE. SIZE(this%stretch_e, 1) .OR. &
                 & this%patch_2d%nblks_e .NE. SIZE(this%stretch_e, 2)) &
                 & DEALLOCATE(this%stretch_e)
           END IF
-          IF (.NOT.ALLOCATED(this%stretch_e)) &
-            & ALLOCATE(this%stretch_e(nproma, this%patch_2d%nblks_e))
+          IF (.NOT.ALLOCATED(this%stretch_e)) THEN
+            ALLOCATE(this%stretch_e(nproma, this%patch_2d%nblks_e))
+            this%stretch_e(:,:) = 1.0_wp
+          END IF
         END IF
  
         CALL this%internal_wp(x, ax)
@@ -187,7 +203,7 @@
         edges_in_domain => this%patch_2D%edges%in_domain
         gdt2_inv = REAL(1.0_wp / (grav*(dtime)**2),wp)
         gam_times_beta = REAL(ab_gam * ab_beta, wp)
-        lhs(1:nproma,cells_in_domain%end_block:) = 0.0_wp
+        lhs(1:nproma,cells_in_domain%end_block+1:) = 0.0_wp
 
         CALL grad_fd_norm_oce_2d_3d( x, this%patch_2D, this%op_coeffs_wp%grad_coeff(:,1,:), &
           & this%z_grad_h_wp(:,:), subset_range=this%patch_2D%edges%gradIsCalculable)
@@ -203,6 +219,9 @@
     !ICON_OMP_PARALLEL_DO PRIVATE(start_index,end_index, jc) ICON_OMP_DEFAULT_SCHEDULE
         DO blkNo = cells_in_domain%start_block, cells_in_domain%end_block
           CALL get_index_range(cells_in_domain, blkNo, start_index, end_index)
+          lhs(:start_index-1,blkNo) = 0._wp
+          lhs(end_index+1:,blkNo) = 0._wp
+
           IF (this%patch_2d%cells%max_connectivity .EQ. 3) THEN
             CALL div_oce_2D_onTriangles_onBlock(this%z_e_wp, this%patch_2D, &
               & this%op_coeffs_wp%div_coeff, lhs(:,blkNo), level=topLevel, &

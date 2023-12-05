@@ -1,17 +1,14 @@
-!>
-!! @author Hui Wan, MPI-M
-!!
-!! @par Revision History
-!! First version by Hui Wan, 2010-08-16
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_aes_phy_cleanup
 
   USE mtime,                       ONLY: OPERATOR(>)
@@ -31,9 +28,6 @@ CONTAINS
   !! Top-level routine for the cleanup for ECHAM6 physics.
   !! It calls a series of subroutines to deallocate parameter arrays with
   !! "allocatable" attribute.
-  !!
-  !! @par Revision History
-  !! Initial version by Hui Wan, MPI-M (2010-08)
   !!
   SUBROUTINE cleanup_aes_phy
 

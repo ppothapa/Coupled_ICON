@@ -1,23 +1,18 @@
-!>
-!! This Module is a description for listings and indices
-!! used for input prefetching routine.
-!!
-!! @author M. Pondkule (DWD)
-!!
-!!
-!! @par Revision History
-!! Initial release by M. Pondkule, DWD (2013-11-28)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! This Module is a description for listings and indices
+! used for input prefetching routine.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_async_latbc_types
 
   USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_ptr, C_F_POINTER
@@ -284,14 +279,11 @@ CONTAINS
       IF (ierror /= 0) CALL finish(routine, "mpi_win_free failed!")
     END IF
     IF (lprint_dbg) CALL p_barrier(comm=p_comm_work_pref) ! make sure all are here
-    IF  ((msg_level >= 15) .OR. lprint_dbg)  CALL message(routine, "Free MPI window memory")
+    IF  ((msg_level >= 15) .OR. lprint_dbg)  CALL message(routine, "Nullify MPI window pointer")
     IF (ASSOCIATED(patch_data%mem_win%mem_ptr_sp)) THEN
-      c_mem_ptr = TRANSFER(patch_data%mem_win%f_mem_ptr, c_mem_ptr)
-      CALL C_F_POINTER(c_mem_ptr, baseptr)
-      CALL mpi_free_mem(baseptr, ierror)
-      IF (ierror /= 0) CALL finish(routine, "mpi_free_mem failed!")
+      NULLIFY(patch_data%mem_win%mem_ptr_sp)
     END IF
-        IF (lprint_dbg) CALL p_barrier(comm=p_comm_work_pref) ! make sure all are here
+    IF (lprint_dbg) CALL p_barrier(comm=p_comm_work_pref) ! make sure all are here
     IF  ((msg_level >= 15) .OR. lprint_dbg)  CALL message(routine, "done.")
 #endif
   END SUBROUTINE t_patch_data_finalize
@@ -333,10 +325,6 @@ CONTAINS
   END SUBROUTINE t_latbc_state_finalize
 
   !-------------------------------------------------------------------------
-  !>
-  !! @par Revision History
-  !! Initial version by S. Brdar, DWD (2013-06-13)
-  !! Modified version by M. Pondkule, DWD (2013-04-17)
   !!
   SUBROUTINE t_latbc_data_finalize(latbc)
     CLASS(t_latbc_data), INTENT(INOUT) :: latbc
@@ -384,7 +372,6 @@ CONTAINS
 
 
     !-------------------------------------------------------------------------
-    !>
     !  Update linear interpolation weights (lc1, lc2) for the time interpolation 
     !  between two consecutive boundary forcing time slices.
     !
@@ -395,10 +382,6 @@ CONTAINS
     !   ---*------------------------X------------*----------------> time axis
     !    vDate_prev                            vDate_cur
     !
-    !
-    !! @par Revision History
-    !! Initial version by M. Pondkule, DWD (2014-08-15)
-    !!
     SUBROUTINE t_latbc_data_update_intp_wgt( latbc, datetime_current )
       CLASS(t_latbc_data), INTENT(INOUT)  :: latbc
       TYPE(datetime),      INTENT(IN)     :: datetime_current ! datetime for which interpolation 

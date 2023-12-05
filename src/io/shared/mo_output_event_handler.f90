@@ -1,114 +1,110 @@
-!> Routines for handling of regular output steps and ready file events
-!> on multiple I/O PEs.
-!!
-!! Note that this module contains the abstract implementation of the
-!! output event handling, while the actual control of the trigger
-!! mechanism is located in the module "mo_output_event_control".
-!!
-!! Detailed description:
-!!
-!! 1. The writing of regular output is triggered at so-called "output
-!!    event steps". Additional tasks for such an output event step may
-!!    be the opening of a new output file or the closing of an output
-!!    file. There may be several output events, each with a different
-!!    number of output event steps.
-!!
-!! 2. Output event steps happen at regular intervals. These are given
-!!    by an interval size and the time stamps for begin and end.  One
-!!    may think of each output event as being handled by its own
-!!    PE. The completion of an output event step is communicated via
-!!    non-blocking MPI messages to the root PE, which keeps track of
-!!    the overall event status.
-!!
-!! 3. Different output events/PEs may be joined together to form a
-!!    single new event. Then not every PE necessarily participates in
-!!    every event step. The purpose of joining/grouping events is that
-!!    certain actions can be triggered for the group, e.g. writing
-!!    "ready files".
-!!
-!!    A "ready file" is a technique for handling dependencies between
-!!    the NWP processes at DWD: When a program - parallel or
-!!    sequential, shell script or binary - produces some output which
-!!    is necessary for other running applications, then the completion
-!!    of the write process signals this by creating a small file
-!!    (size: a few bytes). Only when this file exists, the second
-!!    program starts reading its input data. Implicity, this assumes
-!!    that a file system creates (and closes) files in the same order
-!!    as they are written by the program.
-!!
-!!
-!! @note This event handling is *static*, i.e. all event occurrences
-!!       are pre-defined during the initialization. This is necessary
-!!       for generating a complete list of "ready" files and output
-!!       files at the beginning of the simulation.
-!!
-!!
-!! MPI ROLES
-!! ---------
-!!
-!! The output event handling requires communication between the I/O
-!! PEs and a root I/O MPI rank "ROOT_OUTEVENT" - usually chosen as
-!! rank 0 from the I/O PEs.
-!!
-!! Root PE: Parallel communication is necessary
-!!
-!! - During the setup phase:
-!!
-!!   The root I/O MPI rank asks all participating I/O PEs for their
-!!   output event info. This information about these events is
-!!   forwarded (broadcasted) to the worker PEs. Afterwards, each of
-!!   the I/O and worker PEs generates a unified output event,
-!!   indicating which PE performs a write process at which step. Thus,
-!!   every PE with the exception of the asynchronous restart PEs has
-!!   the same view on the sequence of output events.
-!!
-!!   see FUNCTION union_of_all_events
-!!
-!! - During the loop of output steps:
-!!
-!!   The root I/O rank places MPI_IRECV calls, thereby asking all
-!!   participating PEs for acknowledging the completion of the current
-!!   output step.
-!!
-!!   see  SUBROUTINE trigger_output_step_irecv
-!!        FUNCTION is_output_step_complete
-!!
-!! All I/O PEs: Parallel communication is performed
-!!
-!! - During setup:
-!!
-!!   Output events are generated and the necessary meta-data for
-!!   replication on the root I/O PE is send via MPI to the root
-!!   rank. An event name which is different from the string
-!!   DEFAULT_EVENT_NAME ( = "default") leads to the creation of ready
-!!   files during the output loop.
-!!
-!!   see FUNCTION new_parallel_output_event
-!!
-!! - During the loop of output steps:
-!!
-!!   The I/O PEs acknowledge the completion of their respective output
-!!   step by sending non-blocking MPI messages.  The non-blocking
-!!   messages have unique MPI tags that are computed as i_tag =
-!!   SENDRECV_TAG_OUTEVENT + this_pe + (local_event_no-1)*nranks
-!!
-!!   see SUBROUTINE pass_output_step
-!!
-!!
-!! @author F. Prill, DWD
-!!
-!! @par Revision History
-!! Initial implementation  by  F. Prill, DWD (2013-09-17)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!! -----------------------------------------------------------------------------------
+! Routines for handling of regular output steps and ready file events
+! on multiple I/O PEs.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+!
+!
+! Note that this module contains the abstract implementation of the
+! output event handling, while the actual control of the trigger
+! mechanism is located in the module "mo_output_event_control".
+!
+! Detailed description:
+!
+! 1. The writing of regular output is triggered at so-called "output
+!    event steps". Additional tasks for such an output event step may
+!    be the opening of a new output file or the closing of an output
+!    file. There may be several output events, each with a different
+!    number of output event steps.
+!
+! 2. Output event steps happen at regular intervals. These are given
+!    by an interval size and the time stamps for begin and end.  One
+!    may think of each output event as being handled by its own
+!    PE. The completion of an output event step is communicated via
+!    non-blocking MPI messages to the root PE, which keeps track of
+!    the overall event status.
+!
+! 3. Different output events/PEs may be joined together to form a
+!    single new event. Then not every PE necessarily participates in
+!    every event step. The purpose of joining/grouping events is that
+!    certain actions can be triggered for the group, e.g. writing
+!    "ready files".
+!
+!    A "ready file" is a technique for handling dependencies between
+!    the NWP processes at DWD: When a program - parallel or
+!    sequential, shell script or binary - produces some output which
+!    is necessary for other running applications, then the completion
+!    of the write process signals this by creating a small file
+!    (size: a few bytes). Only when this file exists, the second
+!    program starts reading its input data. Implicity, this assumes
+!    that a file system creates (and closes) files in the same order
+!    as they are written by the program.
+!
+! @note This event handling is *static*, i.e. all event occurrences
+!       are pre-defined during the initialization. This is necessary
+!       for generating a complete list of "ready" files and output
+!       files at the beginning of the simulation.
+!
+! MPI ROLES
+! ---------
+!
+! The output event handling requires communication between the I/O
+! PEs and a root I/O MPI rank "ROOT_OUTEVENT" - usually chosen as
+! rank 0 from the I/O PEs.
+!
+! Root PE: Parallel communication is necessary
+!
+! - During the setup phase:
+!
+!   The root I/O MPI rank asks all participating I/O PEs for their
+!   output event info. This information about these events is
+!   forwarded (broadcasted) to the worker PEs. Afterwards, each of
+!   the I/O and worker PEs generates a unified output event,
+!   indicating which PE performs a write process at which step. Thus,
+!   every PE with the exception of the asynchronous restart PEs has
+!   the same view on the sequence of output events.
+!
+!   see FUNCTION union_of_all_events
+!
+! - During the loop of output steps:
+!
+!   The root I/O rank places MPI_IRECV calls, thereby asking all
+!   participating PEs for acknowledging the completion of the current
+!   output step.
+!
+!   see  SUBROUTINE trigger_output_step_irecv
+!        FUNCTION is_output_step_complete
+!
+! All I/O PEs: Parallel communication is performed
+!
+! - During setup:
+!
+!   Output events are generated and the necessary meta-data for
+!   replication on the root I/O PE is send via MPI to the root
+!   rank. An event name which is different from the string
+!   DEFAULT_EVENT_NAME ( = "default") leads to the creation of ready
+!   files during the output loop.
+!
+!   see FUNCTION new_parallel_output_event
+!
+! - During the loop of output steps:
+!
+!   The I/O PEs acknowledge the completion of their respective output
+!   step by sending non-blocking MPI messages.  The non-blocking
+!   messages have unique MPI tags that are computed as i_tag =
+!   SENDRECV_TAG_OUTEVENT + this_pe + (local_event_no-1)*nranks
+!
+!   see SUBROUTINE pass_output_step
+
 MODULE mo_output_event_handler
   ! actual method (MPI-2)
 #ifndef NOMPI
@@ -279,7 +275,6 @@ CONTAINS
   !---------------------------------------------------------------
 
   !> Deallocate t_event_step data structure.
-  !  @author F. Prill, DWD
   !
   SUBROUTINE deallocate_event_step(event_step)
     TYPE(t_event_step), INTENT(INOUT) :: event_step
@@ -292,7 +287,6 @@ CONTAINS
 
 
   !> Deallocate t_output_event data structure.
-  ! @author F. Prill, DWD
   !
   SUBROUTINE deallocate_output_event(event)
     TYPE(t_output_event), ALLOCATABLE, INTENT(inout) :: event
@@ -315,8 +309,6 @@ CONTAINS
   !
   !  @note This subroutine recursively deallocates the complete
   !        singly-linked list rooted at @p event.
-  !
-  !  @author F. Prill, DWD
   !
   SUBROUTINE deallocate_par_output_event(event)
     TYPE(t_par_output_event), POINTER :: event
@@ -347,7 +339,6 @@ CONTAINS
   !---------------------------------------------------------------
 
   !> Screen print-out of an output event.
-  !  @author F. Prill, DWD
   !
   !  @note If an (optional) destination file is provided, we
   !        implicitly assume that this file has already been opened by
@@ -451,8 +442,6 @@ CONTAINS
   !  @note This subroutine recursively prints the complete
   !        singly-linked list rooted at @p event.
   !
-  !  @author F. Prill, DWD
-  !
   SUBROUTINE print_par_output_event(event, opt_filename, opt_dstfile)
     TYPE(t_par_output_event), TARGET,  INTENT(IN) :: event
     CHARACTER(LEN=*), OPTIONAL,        INTENT(IN) :: opt_filename    !< name of ASCII file (optional)
@@ -517,8 +506,6 @@ CONTAINS
   !  steps. This simulation-specific task is performed by a different
   !  subroutine, which is given as a function parameter
   !  "fct_time2simstep".
-  !
-  !  @author F. Prill, DWD
   !
   SUBROUTINE init_output_event(p_event, evd, i_pe, fct_time2simstep,    &
        &                       fct_generate_filenames)
@@ -1047,8 +1034,6 @@ CONTAINS
   !  e.g. ">2014-06-01T00:00:00.000", where ">" means that output
   !  should not include the start date.
   !
-  !  @author F. Prill, DWD
-  !
   FUNCTION new_parallel_output_event(name, begin_str, end_str, intvl_str,                               &
     &                                l_output_last, sim_step_info, fname_metadata, fct_time2simstep,    &
     &                                fct_generate_filenames, local_event_no, icomm,                     &
@@ -1175,8 +1160,6 @@ CONTAINS
 
   !> Receives event meta-data from all PEs within the given MPI
   !> communicator; creates the union of these events.
-  !
-  !  @author F. Prill, DWD
   !
   FUNCTION union_of_all_events(fct_time2simstep, fct_generate_filenames, &
     &                          icomm, root_outevent, &
@@ -1341,8 +1324,6 @@ CONTAINS
   !  certain actions can be triggered for the group, e.g. writing
   !  "ready files".
   !
-  !  @author F. Prill, DWD
-  !
   SUBROUTINE merge_events(event1, event2)
     TYPE(t_output_event), INTENT(INOUT) :: event1
     TYPE(t_output_event), INTENT(IN) :: event2
@@ -1448,7 +1429,6 @@ CONTAINS
 
 
   !> Appends the data of an event step to the data of another event step.
-  !  @author F. Prill, DWD
   !
   SUBROUTINE append_event_step(dst_event_step, src_event_step, l_create)
     TYPE(t_event_step), INTENT(INOUT)  :: dst_event_step  !< source event step
@@ -1508,7 +1488,6 @@ CONTAINS
   !---------------------------------------------------------------
 
   !> @return .TRUE. if the output event has exceeded its final step.
-  !  @author F. Prill, DWD
   !
   FUNCTION is_output_event_finished(event)
     LOGICAL :: is_output_event_finished
@@ -1518,7 +1497,6 @@ CONTAINS
 
 
   !> @return .TRUE. if the output event has exceeded its final step.
-  !  @author F. Prill, DWD
   !
   FUNCTION is_par_output_event_finished(event)
     LOGICAL :: is_par_output_event_finished
@@ -1531,8 +1509,6 @@ CONTAINS
   !> @return .TRUE. if the given step index matches the step index of
   !          the current event step, ie. if the current event step is
   !          active.
-  !
-  !  @author F. Prill, DWD
   !
   FUNCTION is_output_step(event, jstep)
     LOGICAL :: is_output_step
@@ -1558,8 +1534,6 @@ CONTAINS
   !  @note This function recursively checks the complete
   !        singly-linked list rooted at @p event.
   !
-  !  @author F. Prill, DWD
-  !
   FUNCTION is_par_output_step(event, jstep) RESULT(p)
     TYPE(t_par_output_event), POINTER, INTENT(IN) :: event  !< output event
     INTEGER,                           INTENT(IN) :: jstep  !< given step index
@@ -1582,7 +1556,6 @@ CONTAINS
   !  @note We do not use the wrapper routines from "mo_mpi" here,
   !        since we need direct control over the non-blocking P2P
   !        requests.
-  !  @author F. Prill, DWD
   !
   FUNCTION is_output_step_complete(event) RESULT(ret)
     LOGICAL :: ret
@@ -1610,7 +1583,6 @@ CONTAINS
 
 
   !> @return current date-time stamp string.
-  !  @author F. Prill, DWD
   !
   FUNCTION get_current_date(event) RESULT(current_date)
     TYPE(datetime) :: current_date
@@ -1631,7 +1603,6 @@ CONTAINS
 
 
   !> @return current date-time stamp string.
-  !  @author F. Prill, DWD
   !
   FUNCTION get_current_date_par(event) RESULT(current_date)
     TYPE(datetime) :: current_date
@@ -1641,7 +1612,6 @@ CONTAINS
 
 
   !> @return current output step.
-  !  @author F. Prill, DWD
   !
   FUNCTION get_current_step(event)
     INTEGER :: get_current_step
@@ -1651,7 +1621,6 @@ CONTAINS
 
 
   !> @return current output step.
-  !  @author F. Prill, DWD
   !
   FUNCTION get_current_step_par(event)
     INTEGER :: get_current_step_par
@@ -1665,7 +1634,6 @@ CONTAINS
 
 
   !> @return current filename string.
-  !  @author F. Prill, DWD
   !
   FUNCTION get_current_filename(event)
     CHARACTER(LEN=MAX_FILENAME_STR_LEN) :: get_current_filename
@@ -1690,7 +1658,6 @@ CONTAINS
 
 
   !> @return current file number.
-  !  @author F. Prill, DWD
   !
   FUNCTION get_current_jfile(event)
     INTEGER :: get_current_jfile
@@ -1720,7 +1687,6 @@ CONTAINS
 
   !> @return .TRUE. if this PE should write a ready file for the given
   !          event.
-  !  @author F. Prill, DWD
   !
   FUNCTION check_write_readyfile(event) RESULT(do_write)
     LOGICAL :: do_write
@@ -1733,8 +1699,6 @@ CONTAINS
 
   !> @return .TRUE. if current event step has the "open file" flag
   !          enabled.
-  !
-  !  @author F. Prill, DWD
   !
   FUNCTION check_open_file(event)
     LOGICAL :: check_open_file
@@ -1762,8 +1726,6 @@ CONTAINS
   !> @return .TRUE. if current event step has the "close file" flag
   !          enabled.
   !
-  !  @author F. Prill, DWD
-  !
   FUNCTION check_close_file(event)
     LOGICAL :: check_close_file
     TYPE(t_par_output_event), INTENT(IN) :: event
@@ -1775,8 +1737,6 @@ CONTAINS
 
   !> @return .TRUE. if current event step has the "close file" flag
   !          enabled.
-  !
-  !  @author F. Prill, DWD
   !
   FUNCTION check_close_file_step(event, istep) RESULT(check_close_file)
     LOGICAL :: check_close_file
@@ -1808,8 +1768,6 @@ CONTAINS
   !> @return .TRUE. if this PE is the event's root PE.  If no event
   !          data structure has been provided as an argument to this
   !          function, we test for ROOT_OUTEVENT.
-  !
-  !  @author F. Prill, DWD
   !
   FUNCTION is_event_root_pe(opt_event, opt_icomm)
     LOGICAL :: is_event_root_pe
@@ -2238,8 +2196,6 @@ CONTAINS
   !        since we need direct control over the non-blocking P2P
   !        requests.
   !
-  !  @author F. Prill, DWD
-  !
   SUBROUTINE pass_output_step(event)
     TYPE(t_par_output_event), INTENT(inout) :: event
     ! local variables
@@ -2299,8 +2255,6 @@ CONTAINS
   !  @note We do not use the wrapper routines from "mo_mpi" here,
   !        since we need direct control over the non-blocking P2P
   !        requests.
-  !
-  !  @author F. Prill, DWD
   !
   SUBROUTINE trigger_output_step_irecv(event)
     TYPE(t_par_output_event), INTENT(inout) :: event
@@ -2363,8 +2317,6 @@ CONTAINS
   !> Utility routine: blocking wait for pending "output completed"
   !> messages.
   !
-  !  @author F. Prill, DWD
-  !
   SUBROUTINE wait_for_pending_irecvs(event)
     TYPE(t_par_output_event), INTENT(inout) :: event
     ! local variables
@@ -2389,8 +2341,6 @@ CONTAINS
 
   !> Utility routine: blocking wait for pending "output completed"
   !> messages.
-  !
-  !  @author F. Prill, DWD
   !
   SUBROUTINE blocking_wait_for_irecvs(event)
     TYPE(t_par_output_event), POINTER :: event
@@ -2443,8 +2393,6 @@ CONTAINS
   !> Spool event state fast-forward to a given event step.
   !
   !  This functionality is, e.g., required for resume after restart.
-  !
-  !  @author F. Prill, DWD
   !
   SUBROUTINE set_event_to_simstep(event, jstep, l_isrestart, lrecover_open_file)
     TYPE(t_output_event),   INTENT(INOUT), TARGET :: event              !< output event data structure
@@ -2521,8 +2469,6 @@ CONTAINS
   !> Spool event state fast-forward to a given event step.
   !  Implementation for parallel events.
   !
-  !  @author F. Prill, DWD
-  !
   SUBROUTINE set_event_to_simstep_par(event, jstep, l_isrestart, lrecover_open_file)
     TYPE(t_par_output_event), TARGET    :: event              !< output event data structure
     INTEGER,                  INTENT(IN) :: jstep              !< simulation step
@@ -2539,8 +2485,6 @@ CONTAINS
 
   !> Utility routine: Loop over all event steps of a given event and
   !> modify all matching filenames.
-  !
-  !  @author F. Prill, DWD
   !
   SUBROUTINE modify_filename(event, old_name, new_name, start_step)
     TYPE(t_output_event), INTENT(INOUT), TARGET :: event              !< output event data structure    

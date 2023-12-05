@@ -1,47 +1,33 @@
 !NEC$ options "-finline-max-depth=3 -finline-max-function-size=1000"
-!!==============================================================================
-!!
-!! Two-moment mixed-phase bulk microphysics
-!!
-!! original version by Axel Seifert, May 2003
-!! with modifications by Ulrich Blahak, August 2007
-!!
-!!==============================================================================
-!!
-!! - uses intrinsic gamma function. In gfortran you may want to compile with
-!!   the option -fall-intrinsics
-!!
-!! @par Revision History
-!! Ported into UCLA-LES from COSMO by Axel Seifert (2011-07-20)
-!! Ported into ICON from UCLA-LES by Anurag Dipankar (2013-12-15)
-!! Ported back into COSMO from ICON by Axel Seifert (2016-01-11)
-!! Ported back into ICON from COSMO by Alberto de Lozar (2019-01-11)
-!!
-!!
-!!==============================================================================
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!==============================================================================
+!
+! Two-moment mixed-phase bulk microphysics
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_2mom_mcrph_driver
 
 !------------------------------------------------------------------------------
-!>
-!! Description:
-!!
-!!   The subroutines in the module "gscp" calculate the rates of change of
-!!   temperature, cloud condensate and water vapor due to cloud microphysical
-!!   processes related to the formation of grid scale clouds and precipitation.
-!!   In the COSMO model the microphysical subroutines are either
-!!   called from "organize_gscp" or from "organize_physics" itself.
-!!
+!
+! Description:
+!
+!   The subroutines in the module "gscp" calculate the rates of change of
+!   temperature, cloud condensate and water vapor due to cloud microphysical
+!   processes related to the formation of grid scale clouds and precipitation.
+!   In the COSMO model the microphysical subroutines are either
+!   called from "organize_gscp" or from "organize_physics" itself.
+!
+! - uses intrinsic gamma function. In gfortran you may want to compile with
+!   the option -fall-intrinsics
+!
 !==============================================================================
 !
 ! Declarations:
@@ -53,7 +39,6 @@ MODULE mo_2mom_mcrph_driver
 
 USE mo_kind,                 ONLY: wp
 USE mo_math_constants,       ONLY: pi
-USE mo_math_utilities,       ONLY: gamma_fct  
 USE mo_physical_constants,   ONLY: &
     rhoh2o,           & ! density of liquid water
     alv,              & ! latent heat of vaporization
@@ -93,7 +78,6 @@ USE mo_2mom_mcrph_processes,  ONLY:                                &
 USE mo_2mom_mcrph_config_default, ONLY: cfg_2mom_default
 
 USE mo_2mom_mcrph_util, ONLY:                            &
-     &                       gfct,                       &  ! Gamma function (becomes intrinsic in Fortran2008)
      &                       init_dmin_wg_gr_ltab_equi,  &
      &                       dmin_wetgrowth_fit_check, luse_dmin_wetgrowth_table, lprintout_comp_table_fit
 
@@ -101,6 +85,7 @@ USE mo_2mom_mcrph_types, ONLY: ltabdminwgg
 
 USE mo_2mom_prepare, ONLY: prepare_twomoment, post_twomoment
 USE mo_nwp_tuning_config,  ONLY: tune_sbmccn
+USE mo_fortran_tools, ONLY: init
 !==============================================================================
 
   IMPLICIT NONE
@@ -227,7 +212,7 @@ CONTAINS
 
     INTEGER  :: its,ite,kts,kte
     INTEGER  :: ii,kk
-    INTEGER  :: ntsedi     ! for sedimentation sub stepping
+    INTEGER  :: ntsedi_rain, ntsedi_graupel, ntsedi_hail     ! for sedimentation sub stepping
 
     REAL(wp) :: q_liq_new,q_vap_new
     REAL(wp) :: zf,hlp,dtemp_loc
@@ -272,6 +257,14 @@ CONTAINS
     lprogin   = PRESENT(ninpot)
     lprogmelt = PRESENT(qgl)
     
+#ifdef _OPENACC
+    IF (ldass_lhn) THEN
+      CALL finish(routine, 'LHN not available on GPU for two-moment microphysics')
+    ELSEIF (lprogmelt) THEN
+      CALL finish(routine, 'lprogmelt not available on GPU for two-moment microphysics')
+    ENDIF
+#endif
+
     IF (msg_level>5) CALL message (TRIM(routine), "called two_moment_mcrph")
 
     IF (PRESENT(ithermo_water)) THEN
@@ -290,12 +283,6 @@ CONTAINS
     rain  => rain_hyd
     ice   => ice_frz
     snow  => snow_frz
-
-    IF (lprogmelt) THEN
-#ifdef _OPENACC
-      CALL finish('clouds_twomoment_implicit', 'routine with progmelt not available on GPU')
-#endif
-    END IF
 
     IF (lprogmelt) THEN
        graupel => graupel_lwf   ! with prognostic melting 
@@ -331,6 +318,14 @@ CONTAINS
     DO kk = kts,kte
       DO ii = its,ite
         rdz(ii,kk) = 1._wp / dz(ii,kk)
+
+        IF (clipping) THEN
+              IF(qr(ii,kk) < 0.0_wp) qr(ii,kk) = 0.0_wp
+              IF(qi(ii,kk) < 0.0_wp) qi(ii,kk) = 0.0_wp
+              IF(qs(ii,kk) < 0.0_wp) qs(ii,kk) = 0.0_wp
+              IF(qg(ii,kk) < 0.0_wp) qg(ii,kk) = 0.0_wp
+              IF(qh(ii,kk) < 0.0_wp) qh(ii,kk) = 0.0_wp
+        END IF
       ENDDO
     ENDDO
     !$ACC END PARALLEL
@@ -339,20 +334,8 @@ CONTAINS
     IF (ldass_lhn) THEN
       qrsflux(:,:) = 0.0_wp
     END IF
-    
+
     IF (clipping) THEN
-      !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
-      DO kk = kts,kte
-        DO ii = its,ite
-          IF(qr(ii,kk) < 0.0_wp) qr(ii,kk) = 0.0_wp
-          IF(qi(ii,kk) < 0.0_wp) qi(ii,kk) = 0.0_wp
-          IF(qs(ii,kk) < 0.0_wp) qs(ii,kk) = 0.0_wp
-          IF(qg(ii,kk) < 0.0_wp) qg(ii,kk) = 0.0_wp
-          IF(qh(ii,kk) < 0.0_wp) qh(ii,kk) = 0.0_wp
-        ENDDO
-      ENDDO
-      !$ACC END PARALLEL
        IF (lprogmelt) THEN
           WHERE(qgl(its:ite,kts:kte) < 0.0_wp) qgl(its:ite,kts:kte) = 0.0_wp
           WHERE(qhl(its:ite,kts:kte) < 0.0_wp) qhl(its:ite,kts:kte) = 0.0_wp
@@ -423,29 +406,44 @@ CONTAINS
     IF (cfg_params%i2mom_solver.eq.0) THEN
 
 #ifdef _OPENACC
-      CALL finish('clouds_twomoment:','explicit solver not available on GPU')
+      IF(PRESENT(dtemp)) CALL finish('clouds_twomoment:','dtemp not available on GPU')
 #endif
+      ! ... save old variables for latent heat calculation
+      !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+      !$ACC LOOP GANG COLLAPSE(2)
+      DO kk = kts, kte
+        DO ii = its, ite
+          q_vap_old(ii,kk) = qv(ii,kk)
 
-       ! ... save old variables for latent heat calculation
-       q_vap_old(its:ite,kts:kte) = qv(its:ite,kts:kte)
+          IF (.NOT. lprogmelt) THEN
+               q_liq_old(ii,kk) = qc(ii,kk) + qr(ii,kk)
+          END IF
 
-       if (lprogmelt) then
-          q_liq_old(its:ite,kts:kte) = qc(its:ite,kts:kte) + qr(its:ite,kts:kte)  &
-               &                     + qgl(its:ite,kts:kte) + qhl(its:ite,kts:kte)
-       else
-          q_liq_old(its:ite,kts:kte) = qc(its:ite,kts:kte) + qr(its:ite,kts:kte)
-       end if
+        ENDDO
+      ENDDO
+      !$ACC END PARALLEL
+
+      IF (lprogmelt) THEN
+         q_liq_old(its:ite,kts:kte) = qc(its:ite,kts:kte) + qr(its:ite,kts:kte)  &
+              &                     + qgl(its:ite,kts:kte) + qhl(its:ite,kts:kte)
+      END IF
 
        IF (timers_level > 10) CALL timer_start(timer_phys_2mom_proc) 
        ! .. this subroutine calculates all the microphysical sources and sinks
        CALL clouds_twomoment(ik_slice, dt, lprogin, &
             atmo, cloud, rain, ice, snow, graupel, hail, ninact, nccn, ninpot)
+
        IF (timers_level > 10) CALL timer_stop(timer_phys_2mom_proc) 
 
        IF (lprogccn) THEN
-          WHERE(qc(its:ite,kts:kte) == 0.0_wp) cloud%n(its:ite,kts:kte) = 0.0_wp
+#ifdef _OPENACC
+        CALL finish('clouds_twomoment:','lprogccn not available on GPU')
+#endif
+        WHERE(qc(its:ite,kts:kte) == 0.0_wp) cloud%n(its:ite,kts:kte) = 0.0_wp
        END IF
 
+       !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT)
+       !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(led, lwe, convice, convliq, q_liq_new, dtemp_loc)
        DO kk = kts, kte
           DO ii = its, ite
 
@@ -480,6 +478,7 @@ CONTAINS
 
           ENDDO
        ENDDO
+       !$ACC END PARALLEL
 
        IF (timers_level > 10) CALL timer_start(timer_phys_2mom_sedi) 
 
@@ -627,6 +626,14 @@ CONTAINS
       INTEGER :: i, ii, k, kk
 
       logical, parameter :: lmicro_impl = .true.  ! microphysics within semi-implicit sedimentation loop?
+
+#ifdef _OPENACC
+    IF (ldass_lhn) THEN
+      CALL finish(routine, 'LHN not available on GPU for two-moment microphysics')
+    ELSEIF (lprogmelt) THEN
+      CALL finish(routine, 'lprogmelt not available on GPU for two-moment microphysics')
+    ENDIF
+#endif
 
       !$ACC DATA &
       !$ACC   CREATE(qr_flux_now, qr_flux_new, qr_sum, vr_sedq_new, vr_sedq_now, qr_impl, xr_now) &
@@ -952,85 +959,108 @@ CONTAINS
      REAL(wp) :: cmax, rdzmaxdt
      REAL(wp) :: prec3D_tmp(isize,ke)
 
-     cmax = 0.0_wp
+#ifdef _OPENACC
+    IF (ldass_lhn) THEN
+      CALL finish(routine, 'LHN not available on GPU for two-moment microphysics')
+    ELSEIF (lprogmelt) THEN
+      CALL finish(routine, 'lprogmelt not available on GPU for two-moment microphysics')
+    ENDIF
+#endif
 
-     IF (lfullyexplicit) THEN
-       rdzmaxdt = maxval(rdz(its:ite,kts:kte)) * dt
-       ntsedi = ceiling(rain%vsedi_max*rdzmaxdt)
-     ELSE
-       ntsedi = 1       
-     END IF
+    !$ACC DATA CREATE(prec3D_tmp)
 
-     prec_r(:) = 0.0_wp
-     prec_i(:) = 0.0_wp
-     prec_s(:) = 0.0_wp
-     prec_g(:) = 0.0_wp
-     prec_h(:) = 0.0_wp
+    cmax = 0.0_wp
+    ! Use for sub-stepping of hydrometeors, lfullyexplicit needs to be set to TRUE
+    IF (lfullyexplicit) THEN
+      rdzmaxdt = maxval(rdz(its:ite,kts:kte)) * dt
+      ntsedi_rain = ceiling(rain%vsedi_max*rdzmaxdt)
+      ntsedi_graupel = ceiling(graupel%vsedi_max*rdzmaxdt)
+      ntsedi_hail = ceiling(hail%vsedi_max*rdzmaxdt)
+    ELSE
+      ntsedi_rain = 1
+      ntsedi_graupel = 1
+      ntsedi_hail = 1
+    ENDIF
 
+     CALL init(prec_r, opt_acc_async=.TRUE.)
+     CALL init(prec_i, opt_acc_async=.TRUE.)
+     CALL init(prec_s, opt_acc_async=.TRUE.)
+     CALL init(prec_g, opt_acc_async=.TRUE.)
+     CALL init(prec_h, opt_acc_async=.TRUE.)
+
+     ! The following IF ANY conditions are important only for performance on CPU and don't work with OpenACC
+#ifndef _OPENACC
      IF (ANY(qr(its:ite,kts:kte)>0._wp)) THEN
+#endif
        IF (ldass_lhn) prec3D_tmp(:,:) = 0.0_wp
-       DO ii=1,ntsedi       
-         CALL sedi_icon_rain (rain,rain_coeffs,qr,qnr,prec_r,prec3D_tmp,qc,rhocorr,rdz,dt/ntsedi,its,ite,kts,kte,cmax)
+       DO ii=1,ntsedi_rain
+         CALL sedi_icon_rain(rain,rain_coeffs,qr,qnr,prec_r,prec3D_tmp,qc,rhocorr, &
+           & rdz,dt/ntsedi_rain,its,ite,kts,kte,cmax,lacc=.TRUE.)
        END DO
        IF (ldass_lhn) qrsflux(:,:) = qrsflux(:,:) + prec3D_tmp(:,:)
+#ifndef _OPENACC
      END IF
-     
+
      IF (ANY(qi(its:ite,kts:kte)>0._wp)) THEN
+#endif
        IF (ldass_lhn) prec3D_tmp(:,:) = 0.0_wp
-       CALL sedi_icon_sphere (ice,ice_coeffs,qi,qni,prec_i,prec3D_tmp,rhocorr,rdz,dt,its,ite,kts,kte)
+       CALL sedi_icon_sphere(ice,ice_coeffs,qi,qni,prec_i,prec3D_tmp,rhocorr,rdz,dt,its,ite,kts,kte,lacc=.TRUE.)
        IF (ldass_lhn) qrsflux(:,:) = qrsflux(:,:) + prec3D_tmp(:,:)
+#ifndef _OPENACC
      END IF
-     
+
      IF (ANY(qs(its:ite,kts:kte)>0._wp)) THEN
+#endif
        IF (ldass_lhn) prec3D_tmp(:,:) = 0.0_wp
-       CALL sedi_icon_sphere (snow,snow_coeffs,qs,qns,prec_s,prec3D_tmp,rhocorr,rdz,dt,its,ite,kts,kte)
+       CALL sedi_icon_sphere(snow,snow_coeffs,qs,qns,prec_s,prec3D_tmp,rhocorr,rdz,dt,its,ite,kts,kte,lacc=.TRUE.)
        IF (ldass_lhn) qrsflux(:,:) = qrsflux(:,:) + prec3D_tmp(:,:)
+#ifndef _OPENACC
      END IF
-     
+
      IF (ANY(qg(its:ite,kts:kte)>0._wp)) THEN
+#endif
        IF (ldass_lhn) prec3D_tmp(:,:) = 0.0_wp
-       IF (lfullyexplicit) THEN
-         ntsedi = ceiling(graupel%vsedi_max*rdzmaxdt)
-       else
-         ntsedi = 1
-       end if       
        IF (lprogmelt) THEN
-         DO ii=1,ntsedi
+         DO ii=1,ntsedi_graupel
            call sedi_icon_sphere_lwf(graupel_lwf,graupel_coeffs,qg,qng,qgl,&
-                &                    prec_g,prec3D_tmp,rhocorr,rdz,dt/ntsedi,its,ite,kts,kte,cmax)
+                &                    prec_g,prec3D_tmp,rhocorr,rdz,dt/ntsedi_graupel,its,ite,kts,kte,cmax)
          END DO
        ELSE
-         DO ii=1,ntsedi
-           CALL sedi_icon_sphere (graupel,graupel_coeffs,qg,qng,prec_g,prec3D_tmp,rhocorr,rdz,dt/ntsedi,its,ite,kts,kte,cmax)
+         DO ii=1,ntsedi_graupel
+           CALL sedi_icon_sphere(graupel,graupel_coeffs,qg,qng,prec_g,prec3D_tmp,rhocorr,rdz,dt/ntsedi_graupel, &
+             & its,ite,kts,kte,cmax,lacc=.TRUE.)
          END DO
        END IF
        IF (ldass_lhn) qrsflux(:,:) = qrsflux(:,:) + prec3D_tmp(:,:)
+#ifndef _OPENACC
      END IF
 
      IF (ANY(qh(its:ite,kts:kte)>0._wp)) THEN
+#endif
        IF (ldass_lhn) prec3D_tmp(:,:) = 0.0_wp
-       IF (lfullyexplicit) THEN
-         ntsedi = ceiling(hail%vsedi_max*rdzmaxdt)
-       else
-         ntsedi = 1
-       end if       
        IF (lprogmelt) THEN
-         DO ii=1,ntsedi
+         DO ii=1,ntsedi_hail
            call sedi_icon_sphere_lwf(hail_lwf,hail_coeffs,qh,qnh,qhl,&
-                &                    prec_h,prec3D_tmp,rhocorr,rdz,dt/ntsedi,its,ite,kts,kte,cmax)
+                &                    prec_h,prec3D_tmp,rhocorr,rdz,dt/ntsedi_hail,its,ite,kts,kte,cmax)
          END DO
        ELSE
-         DO ii=1,ntsedi
-           call sedi_icon_sphere (hail,hail_coeffs,qh,qnh,prec_h,prec3D_tmp,rhocorr,rdz,dt/ntsedi,its,ite,kts,kte,cmax)
+         DO ii=1,ntsedi_hail
+           call sedi_icon_sphere(hail,hail_coeffs,qh,qnh,prec_h,prec3D_tmp,rhocorr,rdz,dt/ntsedi_hail, &
+             & its,ite,kts,kte,cmax,lacc=.TRUE.)
          END DO
        END IF
        IF (ldass_lhn) qrsflux(:,:) = qrsflux(:,:) + prec3D_tmp(:,:)
+#ifndef _OPENACC
      END IF
+#endif
      
      IF (msg_level > 100)THEN
        WRITE (message_text,'(1X,A,f8.2)') ' sedimentation_explicit  cmax = ',cmax
        CALL message(routine, message_text)
      END IF
+
+    !$ACC WAIT
+    !$ACC END DATA
 
    END SUBROUTINE sedimentation_explicit
 
@@ -1430,8 +1460,8 @@ CONTAINS
 
       ! Broadening for not monodisperse
       IF ( .NOT. monodisperse ) THEN 
-        bf =  gamma_fct( (3.0_wp * b_geo + nu + 1.0_wp)/ mu) / gamma_fct( (2.0_wp * b_geo + nu + 1.0_wp)/ mu) * &
-          & ( gamma_fct( (nu + 1.0_wp)/ mu) / gamma_fct( (nu + 2.0_wp)/ mu) )**b_geo
+        bf =  GAMMA( (3.0_wp * b_geo + nu + 1.0_wp)/ mu) / GAMMA( (2.0_wp * b_geo + nu + 1.0_wp)/ mu) * &
+          & ( GAMMA( (nu + 1.0_wp)/ mu) / GAMMA( (nu + 2.0_wp)/ mu) )**b_geo
 
         reff_calc%reff_coeff(1) = reff_calc%reff_coeff(1)*bf        
       END IF      
@@ -1446,11 +1476,11 @@ CONTAINS
 
       ! Broadening for not monodisperse. Generalized gamma distribution
       IF ( .NOT. monodisperse ) THEN 
-        bf  =  gamma_fct( ( b_geo + 2.0_wp * nu + 3.0_wp)/ mu/2.0_wp ) / gamma_fct( (nu + 2.0_wp)/ mu) * &
-           & ( gamma_fct( (nu + 1.0_wp)/ mu) / gamma_fct( (nu + 2.0_wp)/ mu) )**( (b_geo-1.0_wp)/2.0_wp)
+        bf  =  GAMMA( ( b_geo + 2.0_wp * nu + 3.0_wp)/ mu/2.0_wp ) / GAMMA( (nu + 2.0_wp)/ mu) * &
+           & ( GAMMA( (nu + 1.0_wp)/ mu) / GAMMA( (nu + 2.0_wp)/ mu) )**( (b_geo-1.0_wp)/2.0_wp)
 
-        bf2 =  gamma_fct( (-b_geo + nu + 2.0_wp)/ mu ) / gamma_fct( (nu + 2.0_wp)/ mu) * &
-           & ( gamma_fct( (nu + 1.0_wp)/ mu) / gamma_fct( (nu + 2.0_wp)/ mu) )**( -b_geo)
+        bf2 =  GAMMA( (-b_geo + nu + 2.0_wp)/ mu ) / GAMMA( (nu + 2.0_wp)/ mu) * &
+           & ( GAMMA( (nu + 1.0_wp)/ mu) / GAMMA( (nu + 2.0_wp)/ mu) )**( -b_geo)
 
         reff_calc%reff_coeff(1) = reff_calc%reff_coeff(1)*bf
         reff_calc%reff_coeff(3) = reff_calc%reff_coeff(3)*bf2

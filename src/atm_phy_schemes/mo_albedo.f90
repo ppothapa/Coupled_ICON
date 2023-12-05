@@ -1,31 +1,20 @@
-!>
-!! Calculation of surface albedo
-!!
-!! Calculation of surface albedo taking soil type, vegetation 
-!! and snow/ice conditions into account.
-!!
-!! @author Thorsten Reinhardt, AGeoBw, Offenbach
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!!
-!! Initial Revision by Daniel Reinert, DWD (2012-03-19)
-!! Moved to a central place from mo_nwp_rad_interface and 
-!! mo_nwp_rrtm_interface.
-!!
-!! Modifications by Dmitrii Mironov, DWD (2016-08-11)
-!! - Changes related to the use of a rate equation 
-!!   for the sea-ice albedo.
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Calculation of surface albedo
+!
+! Calculation of surface albedo taking soil type, vegetation
+! and snow/ice conditions into account.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -82,21 +71,6 @@ CONTAINS
   !! Calculation of surface albedo based on tabulated shortwave bare soil 
   !! albedo data. In addition, soil type, vegetation and snow/ice conditions 
   !! are taken into account
-  !!
-  !! @par Revision History
-  !! Initial Revision by Thorsten Reinhardt, AGeoBw, Offenbach
-  !! Modification by Daniel Reinert, DWD (2012-03-19)
-  !! - Moved here from mo_nwp_rad_interface and mo_nwp_rrtm_interface.
-  !!   Adaption to TERRA-tile approach.
-  !! - Modification by Daniel Reinert, DWD (2013-07-03)
-  !!   Albedo for lake-ice points based on an empirical formula 
-  !!   proposed by Mironov and Ritter (2004)
-  !! - Modification by Daniel Reinert, DWD (2013-08-07)
-  !!   Added albedo for direct radiation (VIS and NIR spectral bands)
-  !! Modifications by Dmitrii Mironov, DWD (2016-08-11)
-  !! - Depending on the switch "lprog_albsi", 
-  !!   either prognostic sea-ice albedo (computed within the routines of the sea-ice scheme), 
-  !!   or diagnostic sea-ice albedo (computed here) is used. 
   !!
   SUBROUTINE sfc_albedo(pt_patch, ext_data, lnd_prog, wtr_prog, lnd_diag, prm_diag, lacc)
 
@@ -611,20 +585,6 @@ CONTAINS
   !! shortwave albedo albdif_t must be derived by spectral integration of the visible 
   !! and near-IR albedo.                         
   !! 
-  !! @par Revision History
-  !! Initial Revision by Daniel Reinert, DWD (2013-05-15)
-  !! - Modification by Daniel Reinert, DWD (2013-07-03)
-  !!   Albedo for lake-ice points based on an empirical formula proposed by 
-  !!   proposed by Mironov and Ritter (2004)
-  !! - Modification by Daniel Reinert, DWD (2013-08-07)
-  !!   Added albedo for direct radiation (VIS and NIR spectral bands)
-  !! - Modification by Daniel Reinert, DWD (2013-08-08)
-  !!   Added albedo for direct radiation (now separate computation for VIS and NIR spectral bands)
-  !! Modifications by Dmitrii Mironov, DWD (2016-08-11)
-  !! - Depending on the switch "lprog_albsi", 
-  !!   either prognostic sea-ice albedo (computed within the routines of the sea-ice scheme), 
-  !!   or diagnostic sea-ice albedo (computed here) is used. 
-  !!
   SUBROUTINE sfc_albedo_modis(pt_patch, ext_data, lnd_prog, wtr_prog, lnd_diag, prm_diag, lacc)
 
     TYPE(t_patch),          INTENT(   in):: pt_patch  !< grid/patch info.
@@ -1474,9 +1434,6 @@ CONTAINS
   !!
   !! albvisdif/albvisdir and albnirdif/albnirdir are exclusively used by the RRTM scheme
   !! 
-  !! @par Revision History
-  !! Initial Revision by Sophia Schaefer, DWD (2020-09-21)
-  !!
   SUBROUTINE sfc_albedo_scm(pt_patch, albedo_fixed, prm_diag, lacc)
 
     TYPE(t_patch),          INTENT(   in):: pt_patch     !< grid/patch info.
@@ -1537,9 +1494,6 @@ CONTAINS
   !! radiation scheme.
   !!
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2015-06-22)
-  !!
   FUNCTION sfc_albedo_dir_rg (cosmu0, alb_dif)  RESULT (alb_dir)
     !
     REAL(wp), INTENT(IN) :: cosmu0           !< cosine of solar zenith angle (SZA)
@@ -1565,9 +1519,6 @@ CONTAINS
   !! accoring to IFS (43r1)
   !!
   !! Reference: Taylor et al. (1996, QJRMS), based on aircraft data
-  !!
-  !! @par Revision History
-  !! Initial revision by Martin Koehler, DWD (2019-05-03)
   !!
   FUNCTION sfc_albedo_dir_taylor (cosmu0)  RESULT (alb_dir)
 
@@ -1596,9 +1547,6 @@ CONTAINS
   !! and in mountainous regions. Surfaces are regarded as 'rough', 
   !! if z0>= 15 cm or SSO standard deviation >= 150 m. 
   !!
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2015-06-22)
   !!
   FUNCTION sfc_albedo_dir_zaengl (cosmu0, alb_dif, z0, sso_stdh)  RESULT (alb_dir)
     !
@@ -1642,10 +1590,7 @@ CONTAINS
   !! Surface albedo for direct beam, according to Yang (2008).
   !!
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2015-06-22)
-  !!
-  !! @par Literature
+  !! Literature
   !! - Yang, F. et al. (2008), Dependence of Land Surface Albedo on Solar Zenith Angle:
   !!   Observations and Model Parameterization. J. App. Meteorology and Climatology, 47, 
   !!   2963-2982
@@ -1674,10 +1619,7 @@ CONTAINS
   !! Surface albedo for direct beam, according to Briegleb (1992).
   !!
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2015-06-22)
-  !!
-  !! @par Literature
+  !! Literature
   !! - Yang, F. et al. (2008), Dependence of Land Surface Albedo on Solar Zenith Angle:
   !!   Observations and Model Parameterization. J. App. Meteorology and Climatology, 47, 
   !!   2963-2982

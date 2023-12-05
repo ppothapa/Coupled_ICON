@@ -1,17 +1,19 @@
-!>
-!! @brief Module containing thermodynamic functions used by the AES department in MPI-M
-!!
-!! @contact B. Stevens, MPI-M, 2022-06, clode slightly refactored from gspc_graupel which
-!! is owned and maintained by A. Seifert, DWD, and has older origins as indicated in the
-!! original documentation.
-!!
-!! @par Copyright and License
-!!
-!! Copyright 2022 Max Planck Institute for Meteorology, B. Stevens
-!!
-!! Code subject to BSD-3-C, SPDX short identifier: BSD-3-Clause, see file
-!! BSD-3-C-license.pdf in the license-directory
-!!
+!
+! Module containing thermodynamic functions used by the AES department in MPI-M
+!
+! Code slightly refactored from gscp_graupel (DWD)
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_aes_graupel
 
 USE mo_kind,               ONLY: wp         , &
@@ -37,7 +39,7 @@ USE mo_aes_thermo, ONLY:        & !!
 
 IMPLICIT NONE
 PRIVATE
-PUBLIC :: graupel
+PUBLIC :: graupel, snow_number, snow_lambda, ice_number
 
 LOGICAL, PARAMETER :: &
   lrain        = .TRUE.  , & ! switch for disabling rain
@@ -184,7 +186,7 @@ CONTAINS
   !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
   !$ACC LOOP SEQ
   DO  k = ke,kstart,-1
-    !$ACC LOOP GANG VECTOR PRIVATE(jmx, iqx, k)
+    !$ACC LOOP GANG VECTOR PRIVATE(jmx, iqx)
     DO iv = ivstart, ivend
       IF ( (MAX(q(lqc)%x(iv,k),q(lqr)%x(iv,k),q(lqs)%x(iv,k),q(lqi)%x(iv,k),q(lqg)%x(iv,k)) > qmin)  &
               .OR. (t(iv,k)<tfrz_het2 .AND. q(lqv)%x(iv,k)> qsat_ice_rho(t(iv,k),rho(iv,k))) ) THEN

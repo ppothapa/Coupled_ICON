@@ -1,23 +1,17 @@
-!>
-!!  Subroutine to initialized the Jablonowski Williansom test case for the NH-Core
-!!
-!!
-!! @par Revision History
-!! - first version by P. Ripodas , DWD, (2011-08)
-!! - main parts extracted from the original mo_nh_testcases.f90
-!!
-!! @par Literature
-!! -
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Subroutine to initialized the Jablonowski Williansom test case for the NH-Core
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_nh_jabw_exp
 !-------------------------------------------------------------------------
 !
@@ -83,9 +77,6 @@ MODULE mo_nh_jabw_exp
 !
   !>
   !! Initialization of topography for the nh standard jabw test case 
-  !!
-  !! @par Revision History
-  !!
   !!
   SUBROUTINE init_nh_topo_jabw( ptr_patch, topo_c, nblks_c, npromz_c, &
                              &  u0, opt_m_height, opt_m_half_width )
@@ -153,9 +144,6 @@ MODULE mo_nh_jabw_exp
   !>
   !! Initialization of prognostic state vector for the nh standard jabw test case 
   !!  without moisture
-  !!
-  !! @par Revision History
-  !!
   !!
   SUBROUTINE init_nh_state_prog_jabw( ptr_patch, ptr_nh_prog, ptr_nh_diag, &
     &                                p_metrics, p_int, p_sfc, up, u0, temp0 )
@@ -327,8 +315,6 @@ MODULE mo_nh_jabw_exp
 ! 
 !>
   !! Defines passive traces for the nh jabw test case
-  !! @par Revision History
-  !!
   SUBROUTINE init_passive_tracers_nh_jabw( ptr_patch, ptr_nh_prog,           &
                                      &     rotate_axis_deg, tracer_inidist_list, p_sfc)  
 
@@ -443,9 +429,6 @@ MODULE mo_nh_jabw_exp
 !
   !>
   !! Initialization of tracers for the jabw test in case of inwp  
-  !!
-  !! @par Revision History
-  !!
   !!
   SUBROUTINE init_nh_inwp_tracers( ptr_patch, ptr_nh_prog, ptr_nh_diag, &
     &                              p_metrics, rh_at_1000hpa, qv_max,    &

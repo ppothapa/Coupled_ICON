@@ -1,30 +1,26 @@
-!! -------------------------------------------------------------------------
-!>
-!! Module containing utility routines for setting GRIB2 keys.
-!!
-!! @author Daniel Reinert, DWD
-!!
-!! @par Revision History
-!! Initial implementation  by  D. Reinert (2014)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+! Module containing utility routines for setting GRIB2 keys.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_grib2_util
 
   USE mo_impl_constants,     ONLY: MAX_CHAR_LENGTH
   USE mo_exception,          ONLY: finish
-  USE mo_cdi,                ONLY: streamInqVlist, vlistInqVarTypeOfGeneratingProcess,  &
-                                 & vlistInqVarTsteptype, vlistInqTaxis, taxisInqTunit,  &
-                                 & TSTEP_CONSTANT, TSTEP_AVG, TSTEP_ACCUM, TSTEP_MAX,   &
-                                 & TSTEP_MIN, TUNIT_SECOND, TUNIT_MINUTE, TUNIT_HOUR,   &
-                                 & vlistDefVarProductDefinitionTemplate,                &
-                                 & vlistDefVarTypeOfGeneratingProcess,                  &
-                                 & vlistDefVarIntKey
+  USE mo_cdi,                ONLY: streamInqVlist, cdiInqKeyInt, cdiDefKeyInt,          &
+    &                              vlistInqVarTsteptype, vlistInqTaxis, taxisInqTunit,  &
+    &                              TSTEP_CONSTANT, TSTEP_AVG, TSTEP_ACCUM, TSTEP_MAX,   &
+    &                              TSTEP_MIN, TUNIT_SECOND, TUNIT_MINUTE, TUNIT_HOUR,   &
+    &                              vlistDefVarIntKey, CDI_KEY_TYPEOFGENERATINGPROCESS,  &
+    &                              CDI_KEY_PRODUCTDEFINITIONTEMPLATE, CDI_NOERR
   USE mo_gribout_config,     ONLY: t_gribout_config
   USE mo_var_metadata_types, ONLY: t_var_metadata, CLASS_TILE, CLASS_SYNSAT, &
     &                              CLASS_CHEM, CLASS_TILE_LAND,              &
@@ -69,7 +65,8 @@ CONTAINS
     !
     ! Local
     INTEGER :: steptype
-
+    INTEGER :: res
+    CHARACTER(len=*), PARAMETER :: routine = 'set_GRIB2_additional_keys'
 
     ! inquire steptype (needed below)
     steptype = vlistInqVarTsteptype(vlistID, varID)
@@ -116,15 +113,19 @@ CONTAINS
       ! Use special date for invariant and climatological fields
       !
       IF ( steptype == TSTEP_CONSTANT ) THEN
-        ! invariant data 
-        CALL vlistDefVarTypeOfGeneratingProcess(vlistID, varID, 196)
+        ! invariant data
+        res = cdiDefKeyInt(vlistID, varID, CDI_KEY_TYPEOFGENERATINGPROCESS, 196)
       ELSE
-        CALL vlistDefVarTypeOfGeneratingProcess(vlistID, varID, grib_conf%typeOfGeneratingProcess)
+        res = cdiDefKeyInt(vlistID, varID, CDI_KEY_TYPEOFGENERATINGPROCESS, grib_conf%typeOfGeneratingProcess)
       ENDIF
     ELSE
       ! no special treatment of invariant and climatological fields
       !
-      CALL vlistDefVarTypeOfGeneratingProcess(vlistID, varID, grib_conf%typeOfGeneratingProcess)
+      res = cdiDefKeyInt(vlistID, varID, CDI_KEY_TYPEOFGENERATINGPROCESS, grib_conf%typeOfGeneratingProcess)
+    ENDIF
+    !
+    IF (res/=CDI_NOERR) THEN
+      CALL finish(routine, "error when defining typeOfGeneratingProcess")
     ENDIF
 
   END SUBROUTINE set_GRIB2_additional_keys
@@ -133,15 +134,9 @@ CONTAINS
 
   !------------------------------------------------------------------------------------------------
 
-  !>
   !! Set local GRIB2 keys (SECTION 2)
   !!
   !! Set DWD specific local keys (SECTION 2)
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2014-01-20)
-  !! Modification by Daniel Reinert, DWD (2015-01-20)
-  !! - extract local settings from routine set_additional_GRIB2_keys 
   !!
   SUBROUTINE set_GRIB2_local_keys(vlistID, varID, grib_conf)
     INTEGER,                INTENT(IN) :: vlistID, varID
@@ -208,15 +203,7 @@ CONTAINS
 
   !------------------------------------------------------------------------------------------------
 
-  !>
-  !! Set GRIB2 ensemble keys
-  !!
   !! Set GRIB2 ensemble keys (SECTION 4)
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2014-01-20)
-  !! Modification by Daniel Reinert, DWD (2015-01-20)
-  !! - extract ensemble settings from routine set_additional_GRIB2_keys
   !!
   !! ATTENTION: To be called AFTER set_GRIB2_additional_keys
   !!            due to its dependency on typeOfGeneratingProcess that may 
@@ -227,14 +214,18 @@ CONTAINS
     TYPE(t_gribout_config), INTENT(IN) :: grib_conf
 
     ! Local
-    INTEGER  :: typeOfGeneratingProcess 
+    INTEGER :: typeOfGeneratingProcess
+    INTEGER :: res
+    CHARACTER(len=*), PARAMETER :: routine = 'set_GRIB2_ensemble_keys'
   !----------------------------------------------------------------
 
     ! get typeOfGeneratingProcess
     ! We do not make use of grib_conf%typeOfGeneratingProcess, since 
     ! typeOfGeneratingProcess is modified for invariant fields.
-    typeOfGeneratingProcess = vlistInqVarTypeOfGeneratingProcess(vlistID, varID)
-
+    res = cdiInqKeyInt(vlistID, varID, CDI_KEY_TYPEOFGENERATINGPROCESS, typeOfGeneratingProcess)
+    IF (res/=CDI_NOERR) THEN
+      CALL finish(routine, "error when inquiring typeOfGeneratingProcess")
+    ENDIF
 
     IF (typeOfGeneratingProcess == 4) THEN  ! Ensemble forecast
 
@@ -254,13 +245,7 @@ CONTAINS
   END SUBROUTINE set_GRIB2_ensemble_keys
 
 
-  !>
-  !! Set synsat-specific keys
-  !!
   !! Set GRIB2 keys which are specific to synthetic satellite products.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2015-06-10)
   !!
   SUBROUTINE set_GRIB2_synsat_keys (vlistID, varID, info)
     
@@ -268,38 +253,42 @@ CONTAINS
     TYPE (t_var_metadata),  INTENT(IN) :: info
 
     ! Local
-    INTEGER  :: typeOfGeneratingProcess 
-    
+    INTEGER :: typeOfGeneratingProcess
+    INTEGER :: res
+    CHARACTER(len=*), PARAMETER :: routine = 'set_GRIB2_synsat_keys'
     ! ----------------------------------------------------------------
-    
+
     ! Skip inapplicable fields
     IF ( info%var_class /= CLASS_SYNSAT ) RETURN
 
     ! get typeOfGeneratingProcess
-    typeOfGeneratingProcess = vlistInqVarTypeOfGeneratingProcess(vlistID, varID)
+    res = cdiInqKeyInt(vlistID, varID, CDI_KEY_TYPEOFGENERATINGPROCESS, typeOfGeneratingProcess)
+    IF (res/=CDI_NOERR) THEN
+      CALL finish(routine, "error when inquiring typeOfGeneratingProcess")
+    ENDIF
 
-    ! change product definition template    
-    IF (typeOfGeneratingProcess == 4) THEN  
+    ! change product definition template
+    IF (typeOfGeneratingProcess == 4) THEN
       ! Ensemble forecast
-      CALL vlistDefVarProductDefinitionTemplate(vlistID, varID, 33)
+      res = cdiDefKeyInt(vlistID, varID, CDI_KEY_PRODUCTDEFINITIONTEMPLATE, 33)
     ELSE
       ! Deterministic forecast
-      CALL vlistDefVarProductDefinitionTemplate(vlistID, varID, 32)
+      res = cdiDefKeyInt(vlistID, varID, CDI_KEY_PRODUCTDEFINITIONTEMPLATE, 32)
     END IF
-    
+    !
+    IF (res/=CDI_NOERR) THEN
+      CALL finish(routine, "error when defining productDefinitionTemplate")
+    ENDIF
+
   END SUBROUTINE set_GRIB2_synsat_keys
 
 
-  !>
   !! Set keys specific to atmospheric chemical species
   !!
   !! Set GRIB2 keys which are specific to atmospheric chemical species.
   !! Here, only the PDT will be changed. Additional Template-specific 
   !! keys will be set at the end of 
   !! mo_name_list_output_init:add_variables_to_vlist
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2015-11-16)
   !!
   SUBROUTINE set_GRIB2_chem_keys (vlistID, varID, info)
     
@@ -309,7 +298,8 @@ CONTAINS
     ! Local
     INTEGER :: typeOfGeneratingProcess
     INTEGER :: productDefinitionTemplate     ! template number
-
+    INTEGER :: res
+    CHARACTER(len=*), PARAMETER :: routine = 'set_GRIB2_chem_keys'
     ! ----------------------------------------------------------------
     
     SELECT CASE (info%var_class)
@@ -329,29 +319,25 @@ CONTAINS
     END SELECT
 
     ! get typeOfGeneratingProcess
-    typeOfGeneratingProcess = vlistInqVarTypeOfGeneratingProcess(vlistID, varID)
+    res = cdiInqKeyInt(vlistID, varID, CDI_KEY_TYPEOFGENERATINGPROCESS, typeOfGeneratingProcess)
+    IF (res/=CDI_NOERR) THEN
+      CALL finish(routine, "error when inquiring typeOfGeneratingProcess")
+    ENDIF
 
     ! change product definition template in case of ensemble run
     IF (typeOfGeneratingProcess == 4)  &
       &  productDefinitionTemplate = productDefinitionTemplate + 1
 
     ! set product definition template
-    CALL vlistDefVarProductDefinitionTemplate(vlistID, varID, productDefinitionTemplate)
-    
+    res = cdiDefKeyInt(vlistID, varID, CDI_KEY_PRODUCTDEFINITIONTEMPLATE, productDefinitionTemplate)
+    IF (res/=CDI_NOERR) THEN
+      CALL finish(routine, "error when defining productDefinitionTemplate")
+    ENDIF
+
   END SUBROUTINE set_GRIB2_chem_keys
 
 
-  !>
-  !! Set tile-specific keys
-  !!
   !! Set GRIB2 keys which are specific to tile-variables.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2014-01-20)
-  !! Modification by Daniel Reinert, DWD (2019-05-13)
-  !! * Replace hardcoded GRIB2 tile keys (names) by grib2_template_tile%keys.
-  !!   Due to this generalization, it is possible to use either our local 
-  !!   DWD tile templates or the official WMO ones for writing tiled data sets. 
   !!
   SUBROUTINE set_GRIB2_tile_keys (vlistID, varID, info, i_lctype, grib2_template_tile)
 
@@ -362,16 +348,21 @@ CONTAINS
 
 #ifndef __NO_ICON_ATMO__
     ! local
+    INTEGER                   :: res
     INTEGER                   :: typeOfGeneratingProcess
     INTEGER                   :: productDefinitionTemplate        ! Tile template number 
     INTEGER                   :: natt
     TYPE(t_tileinfo_grb2)     :: tileinfo_grb2
+    CHARACTER(len=*), PARAMETER :: routine = 'set_GRIB2_tile_keys'
   !----------------------------------------------------------------
 
     ! Skip inapplicable fields
     IF ( ALL((/CLASS_TILE,CLASS_TILE_LAND/) /= info%var_class) ) RETURN
 
-    typeOfGeneratingProcess = vlistInqVarTypeOfGeneratingProcess(vlistID, varID)
+    res = cdiInqKeyInt(vlistID, varID, CDI_KEY_TYPEOFGENERATINGPROCESS, typeOfGeneratingProcess)
+    IF (res/=CDI_NOERR) THEN
+      CALL finish(routine, "error when inquiring typeOfGeneratingProcess")
+    ENDIF
 
     ! change product definition template
     !
@@ -402,7 +393,10 @@ CONTAINS
 !!$      ENDIF
 !!$    ENDIF
 
-    CALL vlistDefVarProductDefinitionTemplate(vlistID, varID, productDefinitionTemplate)
+    res = cdiDefKeyInt(vlistID, varID, CDI_KEY_PRODUCTDEFINITIONTEMPLATE, productDefinitionTemplate)
+    IF (res/=CDI_NOERR) THEN
+      CALL finish(routine, "error when defining productDefinitionTemplate")
+    ENDIF
 
     ! Set tile classification
     CALL vlistDefVarIntKey(vlistID, varID, TRIM(grib2_template_tile%keys%tileClassification), i_lctype)
@@ -458,8 +452,6 @@ CONTAINS
   !!                      |                      |
   !!  <-------------------><--------------------->
   !!     forecastTime         lengthOfTimeRange
-  !!
-  !!  @author D. Reinert, F. Prill (DWD)
   !!
   !!  CAVEATs
   !!  - we implicitly assume that actions are ordered according to increasing forecast time.
@@ -602,13 +594,9 @@ CONTAINS
 
 
   !------------------------------------------------------------------------------------------------
-  !>
   !! Set time-dependent local GRIB2 keys (SECTION 2)
   !!
   !! Set DWD specific time-dependent local keys (SECTION 2)
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2015-02-06)
   !!
   SUBROUTINE set_GRIB2_timedep_local_keys(streamID, varID, grib_conf)
     INTEGER,                INTENT(IN) :: streamID, varID

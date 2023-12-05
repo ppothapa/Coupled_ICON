@@ -1,19 +1,17 @@
-!>
-!! Contains the main stepping routine the 3-dim hydrostatic ocean model.
-!!
-!! @author Leonidas Linardakis, MPIM
-!!
+! Contains the main stepping routine the 3-dim hydrostatic ocean model.
 !
 !
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "icon_definitions.inc"
 #include "iconfor_dsl_definitions.inc"
@@ -263,7 +261,8 @@ CONTAINS
     TYPE(t_ocean_to_hamocc_state), POINTER           :: ocean_to_hamocc_state
     TYPE(t_hamocc_to_ocean_state), POINTER           :: hamocc_to_ocean_state
 
-    !$ACC UPDATE DEVICE(ocean_state%p_diag%swr_frac)
+    !$ACC UPDATE DEVICE(ocean_state%p_diag%swr_frac) ASYNC(1)
+    !$ACC WAIT(1) ! can be removed when all ACC compute regions are ASYNC(1)
 
     ocean_to_hamocc_state => hamocc_ocean_state%ocean_to_hamocc_state
     hamocc_to_ocean_state => hamocc_ocean_state%hamocc_to_ocean_state

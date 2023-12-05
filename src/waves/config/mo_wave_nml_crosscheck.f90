@@ -1,25 +1,24 @@
-!>
-!! This module checks the read-in namelist parameters and, in case of
-!! inconsistencies, it tries to correct these.
-!!
-!!
-!! @author Mikhail Dobrynin, DWD, 04.06.2019
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! This module checks the read-in namelist parameters and, in case of
+! inconsistencies, it tries to correct these.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_wave_crosscheck
 
   USE mo_exception,         ONLY: message, finish
   USE mo_parallel_config,   ONLY: check_parallel_configuration
   USE mo_coupling_config,   ONLY: is_coupled_run
-  USE mo_run_config,        ONLY: nsteps, ldynamics, ltransport, ntracer, num_lev, ltestcase
+  USE mo_run_config,        ONLY: nsteps, ldynamics, ntracer, num_lev, ltestcase
   USE mo_grid_config,       ONLY: n_dom
   USE mo_time_config,       ONLY: time_config, dt_restart
   USE mo_time_management,   ONLY: compute_timestep_settings,                        &
@@ -66,10 +65,6 @@ CONTAINS
 
     IF (.not.ldynamics) THEN
       CALL finish(TRIM(routine),'Error: ldynamics must be TRUE')
-    END IF
-
-    IF (.not.ltransport) THEN
-      CALL finish(TRIM(routine),'Error: ltransport must be TRUE')
     END IF
 
     DO jg=1,n_dom

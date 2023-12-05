@@ -1,15 +1,15 @@
-!>
-!!
-!! @author Pavel Khain, IMS
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_sbm_util
 
@@ -514,7 +514,7 @@ MODULE mo_sbm_util
        CALL lognormal_modes_aerosol(fccnr_con,fccnr_mar,nkr_aerosol,col,xl,xccn,rccn,scale_ccn_factor,2)
        WRITE(txt, '(a,i2)') 'fast_sbm_init : succesfull reading "lognormal_modes_aerosol" '
        CALL message(routine,TRIM(txt))
-!---yz2020mar:read aerosol size distribution from observation----@
+!---yz2020mar:read aerosol size distribution from observation----
     ELSE ! read an observed sd with a format of aerosol size (cm), dn (#cm-3) and dndlogd for 33bins (jinwe fan)
        IF (my_process_is_stdio()) THEN
          unitnr=find_next_free_unit(10,999)

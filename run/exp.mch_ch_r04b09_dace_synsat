@@ -71,8 +71,7 @@ add_required_file ${latbc_path}/igfff00030000_lbc.nc .
 
 # dictionary file for output variable names
 dict_file="dict.${EXPNAME}"
-cat dict.iconam.mpim  > ${dict_file}
-add_required_file ${basedir}/run/${dict_file}                           ./
+add_required_file ${basedir}/run/dict.iconam.mpim  ${dict_file}
 
 # start and end date+time
 start_date=${start_date:="2018-09-21T00:00:00Z"}
@@ -88,8 +87,8 @@ atmo_namelist=NAMELIST_${EXPNAME}_atm
 lnd_namelist=NAMELIST_${EXPNAME}_lnd
 
 # files needed for synsats
-add_link_file ${basedir}/data/rttov/const/rt13coeffs_rttov7pred54L/rtcoef_msg_2_seviri.dat rtcoef_msg_2_seviri.dat
-add_link_file ${basedir}/data/rttov/const/rt13coeffs_rttov7pred54L/sccldcoef_msg_2_seviri.dat sccldcoef_msg_2_seviri.dat
+add_link_file ${icon_data_poolFolder}/../buildbot_data/nwp/externals/rttov/const/rt13coeffs_rttov7pred54L/rtcoef_msg_2_seviri.dat rtcoef_msg_2_seviri.dat
+add_link_file ${icon_data_poolFolder}/../buildbot_data/nwp/externals/rttov/const/rt13coeffs_rttov7pred54L/sccldcoef_msg_2_seviri.dat sccldcoef_msg_2_seviri.dat
 
 #--------------------------------------------------------------------------------------------------
 
@@ -99,7 +98,8 @@ add_link_file ${basedir}/data/rttov/const/rt13coeffs_rttov7pred54L/sccldcoef_msg
 # create ICON master namelist
 # ----------------------------------------------------------------------------
 
-cat > icon_master.namelist << EOF
+cat > ${basedir}/run/icon_master.namelist << EOF
+
 
 ! master_nml: ----------------------------------------------------------------
 &master_nml
@@ -129,7 +129,7 @@ EOF
 # ----------------------------------------------------------------------
 
 
-cat > ${atmo_namelist} << EOF
+cat > ${basedir}/run/${atmo_namelist} << EOF
 ! parallel_nml: MPI parallelization -------------------------------------------
 &parallel_nml
  nproma                      =                   ${nproma}        ! loop chunk length
@@ -174,7 +174,6 @@ cat > ${atmo_namelist} << EOF
 ! dynamics_nml: dynamical core -----------------------------------------------
 &dynamics_nml
  iequations                  =                          3         ! type of equations and prognostic variables
- idiv_method                 =                          1         ! method for divergence computation
  divavg_cntrwgt              =                          0.50      ! weight of central cell for divergence averaging
  lcoriolis                   =                      .TRUE.        ! Coriolis force
 /
@@ -282,7 +281,6 @@ cat > ${atmo_namelist} << EOF
  divdamp_order               =                         24         ! order of divergence damping 
  divdamp_type                =                         3          ! type of divergence damping
  divdamp_fac                 =                          0.004     ! scaling factor for divergence damping
- l_open_ubc                  =                     .FALSE.        ! .TRUE.=use open upper boundary condition
  igradp_method               =                          3         ! discretization of horizontal pressure gradient
  l_zdiffu_t                  =                      .TRUE.        ! specifies computation of Smagorinsky temperature diffusion
  thslp_zdiffu                =                          0.02      ! slope threshold (temperature diffusion)

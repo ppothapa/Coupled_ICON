@@ -1,16 +1,18 @@
-!>
-!! @brief Contains subroutines for initializing the AES physics package.
-!!
-!! @par Revision History
-!! First version by Hui Wan, 2010-07-20
-!!
-!! @par Copyright and License
-!!
-!! Copyright 2022 Max Planck Institute for Meteorology
-!! 
-!! Code subject to BSD-3-C, SPDX short identifier: BSD-3-Clause, see file
-!! BSD-3-C-license.pdf in the license-directory
-!!
+!
+! Contains subroutines for initializing the AES physics package.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -57,14 +59,17 @@ MODULE mo_aes_phy_init
   USE mo_aes_rad_config,       ONLY: eval_aes_rad_config, print_aes_rad_config, aes_rad_config
 
   ! vertical diffusion
-  USE mo_aes_vdf_config,       ONLY: eval_aes_vdf_config, print_aes_vdf_config !!!, aes_vdf_config
+  USE mo_aes_vdf_config,       ONLY: eval_aes_vdf_config, print_aes_vdf_config, aes_vdf_config
   USE mo_turb_vdiff,           ONLY: vdiff_init
+  ! USE mo_vdf_diag_smag,        ONLY: sfc_exchange_coefficients
 
 #ifndef __NO_JSBACH__
   ! land surface
   USE mo_jsb_model_init,       ONLY: jsbach_init
   USE mo_jsb_interface,        ONLY: jsbach_get_var
+  ! USE mo_phy_schemes,          ONLY: register_exchange_coefficients_procedure
 #endif
+  USE mo_ext_data_state,       ONLY: ext_data
 
   ! carbon cycle
   USE mo_ccycle_config,        ONLY: print_ccycle_config, ccycle_config
@@ -126,11 +131,6 @@ CONTAINS
   !! Top-level routine for initialization of AES physics.
   !! It calls a series of subroutines to initialize tunable parameters,
   !! lookup tables, and the physics state vectors "prm_field" and "prm_tend".
-  !!
-  !! @par Revision History
-  !! Initial version by Hui Wan, MPI-M (2010-07)
-  !! name change to init_echam_phy by Levi Silvers
-  !! name change to init_aes_phy by M. Esch, MPI-M (2022-03)
   !!
   SUBROUTINE init_aes_phy_params( p_patch )
 
@@ -248,6 +248,9 @@ CONTAINS
             CALL jsbach_init(jg)
           END IF
         END DO ! jg
+        ! IF (aes_vdf_config(1)%use_tmx) THEN
+        !   CALL register_exchange_coefficients_procedure(sfc_exchange_coefficients)
+        ! END IF
       END IF ! 
 #endif
 
@@ -530,13 +533,18 @@ CONTAINS
 
         ! land, glacier and lake masks
         !
-        WRITE(message_text,'(2a)') 'Read notsea, glac and lake from file ', TRIM(land_frac_fn)
+        IF (aes_vdf_config(jg)%use_tmx) THEN
+          WRITE(message_text,'(2a)') 'Read notsea and glac from file ', TRIM(land_frac_fn)
+        ELSE
+          WRITE(message_text,'(2a)') 'Read notsea, glac and lake from file ', TRIM(land_frac_fn)
+        END IF
         CALL message(routine, message_text)
         !
+        ! notsea land-sea mask is already read in mo_ext_data_init:read_ext_data_atm because it is needed
+        ! early on for topography smoothing
+        prm_field(jg)%lsmask(:,:) = ext_data(jg)%atm%fr_land(:,:)
+        !
         CALL openInputFile(stream_id, land_frac_fn, p_patch(jg))
-        CALL read_2D(stream_id=stream_id, location=on_cells,&
-             &          variable_name='notsea',               &
-             &          fill_array=prm_field(jg)%lsmask(:,:))
         CALL read_2D(stream_id=stream_id, location=on_cells, &
              &          variable_name='glac',               &
              &          fill_array=prm_field(jg)% glac(:,:))
@@ -575,7 +583,7 @@ CONTAINS
           !
           CALL openInputFile(stream_id, land_phys_fn, p_patch(jg))
           !
-          IF (aes_phy_tc(jg)%dt_vdf > dt_zero) THEN
+          IF (aes_phy_tc(jg)%dt_vdf > dt_zero .AND. .NOT. aes_vdf_config(jg)%use_tmx) THEN
             !
             WRITE(message_text,'(2a)') 'Read roughness_length from file: ', TRIM(land_phys_fn)
             CALL message(routine, message_text)
@@ -743,9 +751,6 @@ CONTAINS
   !! Loop over all grid levels and give proper values to some components
   !! of the state vectors "prm_field" and "prm_tend".
   !!
-  !! @par Revision History
-  !! Initial version by Hui Wan, MPI-M (2010-07)
-  !!
   SUBROUTINE init_aes_phy_field( p_patch        ,&
     &                              temp           )
 
@@ -816,15 +821,25 @@ CONTAINS
       END IF
 
       ! vertical diffusion
-      IF (.NOT. isrestart()) THEN
+      IF (.NOT. isrestart() .AND. .NOT. aes_vdf_config(jg)%use_tmx) THEN
         IF (aes_phy_tc(jg)%dt_vdf > dt_zero) THEN
-          IF (iwtr<=nsfc_type) field% z0m_tile(:,:,iwtr) = 1e-3_wp !see init_surf in aes (or z0m_oce?)
-          IF (iice<=nsfc_type) field% z0m_tile(:,:,iice) = 1e-3_wp !see init_surf in aes (or z0m_ice?)
+          IF (iwtr<=nsfc_type) field% z0m_tile(:,:,iwtr) = aes_vdf_config(jg)%z0m_oce
+          IF (iice<=nsfc_type) field% z0m_tile(:,:,iice) = aes_vdf_config(jg)%z0m_ice
+          ! IF (aes_vdf_config(jg)%use_tmx) THEN
+          !   IF (iwtr<=nsfc_type) field% z0h_tile(:,:,iwtr) = aes_vdf_config(jg)%z0m_oce
+          !   IF (iice<=nsfc_type) field% z0h_tile(:,:,iice) = aes_vdf_config(jg)%z0m_ice
+          ! END IF
 !!!          IF (iwtr<=nsfc_type) field% z0m_tile(:,:,iwtr) = aes_vdf_config(jg)%z0m_oce
 !!!          IF (iice<=nsfc_type) field% z0m_tile(:,:,iice) = aes_vdf_config(jg)%z0m_ice
           IF (ilnd<=nsfc_type) THEN
-            field% z0m_tile(:,:,ilnd) = field%z0m(:,:) ! or maybe a larger value?
-            field% z0h_lnd(:,:)       = field%z0m(:,:) ! or maybe a larger value?
+            ! IF (aes_vdf_config(jg)%use_tmx) THEN
+            !   field% z0m_tile(:,:,ilnd) = field%z0m(:,:) ! or maybe a larger value?
+            !   field% z0h_tile(:,:,ilnd) = field%z0m(:,:) ! or maybe a larger value?
+            ! ELSE
+            ! IF (.NOT. aes_vdf_config(jg)%use_tmx) THEN
+              field% z0m_tile(:,:,ilnd) = field%z0m(:,:) ! or maybe a larger value?
+              field% z0h_lnd(:,:)       = field%z0m(:,:) ! or maybe a larger value?
+            ! END IF
           END IF
         END IF
       END IF
@@ -868,19 +883,23 @@ CONTAINS
         END IF
         !
         ! initial and re-start
-        field% albvisdir_tile(:,:,iice) = albi    ! albedo in the visible range for direct radiation
-        field% albnirdir_tile(:,:,iice) = albi    ! albedo in the NIR range for direct radiation
-        field% albvisdif_tile(:,:,iice) = albi    ! albedo in the visible range for diffuse radiation
-        field% albnirdif_tile(:,:,iice) = albi    ! albedo in the NIR range for diffuse radiation
+        IF(.NOT. isrestart() .OR. .NOT. aes_vdf_config(jg)%use_tmx) THEN
+          field% albvisdir_tile(:,:,iice) = albi    ! albedo in the visible range for direct radiation
+          field% albnirdir_tile(:,:,iice) = albi    ! albedo in the NIR range for direct radiation
+          field% albvisdif_tile(:,:,iice) = albi    ! albedo in the visible range for diffuse radiation
+          field% albnirdif_tile(:,:,iice) = albi    ! albedo in the NIR range for diffuse radiation
+        END IF
         field% albedo_tile   (:,:,iice) = albi
         !
         IF (.NOT. isrestart()) THEN
           ! The ice model should be able to handle different thickness classes,
           ! but for AMIP we ONLY USE one ice class.
-          field% albvisdir_ice(:,:,:) = albi ! albedo in the visible range for direct radiation
-          field% albnirdir_ice(:,:,:) = albi ! albedo in the NIR range for direct radiation
-          field% albvisdif_ice(:,:,:) = albi ! albedo in the visible range for diffuse radiation
-          field% albnirdif_ice(:,:,:) = albi ! albedo in the NIR range for diffuse radiation
+          IF (.NOT. aes_vdf_config(jg)%use_tmx) THEN
+            field% albvisdir_ice(:,:,:) = albi ! albedo in the visible range for direct radiation
+            field% albnirdir_ice(:,:,:) = albi ! albedo in the NIR range for direct radiation
+            field% albvisdif_ice(:,:,:) = albi ! albedo in the visible range for diffuse radiation
+            field% albnirdif_ice(:,:,:) = albi ! albedo in the NIR range for diffuse radiation
+          END IF
           field% Tsurf(:,:,:) = Tf
           field% T1   (:,:,:) = Tf
           field% T2   (:,:,:) = Tf
@@ -936,7 +955,9 @@ CONTAINS
 
         IF (.NOT. isrestart()) THEN
           CALL jsbach_get_var('seb_t',            jg, tile='land', arr2d=field%ts_tile       (:,:,ilnd))
-          CALL jsbach_get_var('turb_rough_m',     jg, tile='veg',  arr2d=field%z0m_tile      (:,:,ilnd))
+          IF (.NOT. aes_vdf_config(jg)%use_tmx) THEN
+            CALL jsbach_get_var('turb_rough_m',     jg, tile='veg',  arr2d=field%z0m_tile    (:,:,ilnd))
+          END IF
           CALL jsbach_get_var('rad_alb_vis_soil', jg, tile='veg',  arr2d=field%albvisdif_tile(:,:,ilnd))
           CALL jsbach_get_var('rad_alb_nir_soil', jg, tile='veg',  arr2d=field%albnirdif_tile(:,:,ilnd))
         END IF
@@ -950,8 +971,10 @@ CONTAINS
           IF (.NOT. isrestart()) THEN
             DO jc = jcs,jce
               field% ts            (jc,jb     ) = field%ts_tile(jc,jb,ilnd)
-              field% z0m           (jc,jb     ) = field%z0m_tile(jc,jb,ilnd)
-              field% z0h_lnd       (jc,jb     ) = field%z0m(jc,jb) / 3._wp
+              IF (.NOT. aes_vdf_config(jg)%use_tmx) THEN
+                field% z0m         (jc,jb     ) = field%z0m_tile(jc,jb,ilnd)
+                field% z0h_lnd     (jc,jb     ) = field%z0m(jc,jb) / 3._wp
+              END IF
               field% albvisdir_tile(jc,jb,ilnd) = field%albvisdif_tile(jc,jb,ilnd)
               field% albnirdir_tile(jc,jb,ilnd) = field%albnirdif_tile(jc,jb,ilnd)
               field% albvisdif     (jc,jb     ) = field%albvisdif_tile(jc,jb,ilnd)
@@ -1043,7 +1066,7 @@ CONTAINS
           !
         END DO
 !$OMP END PARALLEL DO
-        IF (.NOT. isrestart()) THEN
+        IF (.NOT. isrestart() .AND. .NOT. aes_vdf_config(jg)%use_tmx) THEN
           field% albvisdir_ice(:,:,:) = albi    ! albedo in the visible range for direct radiation
           field% albnirdir_ice(:,:,:) = albi    ! albedo in the NIR range for direct radiation
           field% albvisdif_ice(:,:,:) = albi    ! albedo in the visible range for diffuse radiation
@@ -1083,7 +1106,7 @@ CONTAINS
           !
         END DO
 !$OMP END PARALLEL DO
-        IF (.NOT. isrestart()) THEN
+        IF (.NOT. isrestart() .AND. .NOT. aes_vdf_config(jg)%use_tmx) THEN
           field% albvisdir_ice(:,:,:) = albi  ! albedo in the visible range for direct radiation
           field% albnirdir_ice(:,:,:) = albi  ! albedo in the NIR range for direct radiation
           field% albvisdif_ice(:,:,:) = albi  ! albedo in the visible range for diffuse radiation
@@ -1202,11 +1225,6 @@ CONTAINS
   !! Initialize ozone mass mixing ratios for Cariolle scheme. 
   !! An approximative initialization that considers the atmosphere as being dry is enough.
   !!
-  !! @par Revision History
-  !! Initial version by Sebastian Rast, MPI-M (2016-11)
-  !! Changes:
-  !! - separate subroutine, Marco Giorgetta, MPI-M (2018-03)
-  !!
   SUBROUTINE init_o3_lcariolle( mtime_current  ,&
     &                           p_patch        ,&
     &                           pres           ,&
@@ -1242,6 +1260,7 @@ CONTAINS
     jbs     = p_patch%cells%start_blk(rls,  1)
     jbe     = p_patch%cells%  end_blk(rle,ncd)
     !
+    !$OMP PARALLEL DO PRIVATE(jb,jcs,jce,pfull,avi,latc,vmr_o3) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = jbs,jbe
       !
       CALL get_indices_c(p_patch, jb,jbs,jbe, jcs,jce, rls,rle)
@@ -1258,6 +1277,7 @@ CONTAINS
       o3(jcs:jce,:,jb) = vmr_o3(jcs:jce,:)*amo3/amd
       !
     END DO
+    !$OMP END PARALLEL DO
     !
     l_cariolle_initialized_o3 = .TRUE.
 

@@ -36,8 +36,8 @@ NETCDF_LIBDIR="${LIB_DIRS}/netcdf-4.6.0/lib64"
 NETCDF_LIBS="-lnetcdff -lnetcdf"
 
 # eccodes resides under the LIB_DIRS eccodes-xxx:
-ECCODES_INCLUDE="${LIB_DIRS}/eccodes-2.23.0/include"
-ECCODES_LIBDIR="${LIB_DIRS}/eccodes-2.23.0/lib64"
+ECCODES_INCLUDE="${LIB_DIRS}/eccodes-2.28.0/include"
+ECCODES_LIBDIR="${LIB_DIRS}/eccodes-2.28.0/lib64"
 ECCODES_LIBS="-leccodes_f90 -leccodes"
 AEC_LIBDIR="${LIB_DIRS}/aec-1.0.4/lib64"
 AEC_LIBS="-laec"
@@ -72,7 +72,7 @@ XML2_LIBDIR="${LIB_DIRS}/libxml2-2.9.10/lib64"
 XML2_LIBS="-lxml2"
 
 # Assume that zlib (needed for EMVORADO) resides under the GLOBAL_LIB_ROOT:
-#ZLIB_LIBS="-lz"
+ZLIB_LIBS="-lz"
 
 STDCPP_LIBS='-lstdc++fs -lstdc++'
 # not sure if `-lstdc++fs ` is necessary
@@ -98,21 +98,26 @@ FCFLAGS="-I${HDF5_INCLUDE} -I${ECCODES_INCLUDE} -I${SERIALBOX2_INCLUDE} -I${NETC
   -Mrecursive \
   -Mallocatable=03 \
   -g \
-  -O2 \
   -traceback \
   -Mpcast \
 "
 
-ICON_FCFLAGS='-g -O2'
-#ICON_OCEAN_FCFLAGS="${ICON_FCFLAGS}"
+ICON_FCFLAGS='-O2'
+
+# The compiler fails to process some of the EMVORADO and DACE source files with
+# the default optimization level:
+ICON_WORKAROUND1_FCFLAGS="-O1 "
+ICON_WORKAROUND1_PATH='externals/dace_icon/src_for_icon/mo_rad.f90:externals/emvorado/src_iface_icon/radar_interface.f90'
 
 LDFLAGS="-L${HDF5_LIBDIR} -L${NETCDF_LIBDIR} -L${ECCODES_LIBDIR} -L${PGI_LIBDIR}"
 
 LIBS="-Wl,--as-needed ${BLAS_LAPACK_LIBS} ${NETCDF_LIBS} ${HDF5_LIBS} ${ECCODES_LIBS} ${SERIALBOX2_LIBS} ${STDCPP_LIBS}"
-#LIBS+=" ${ZLIB_LIBS} ${RTTOV_LIB}"
+LIBS+=" ${ZLIB_LIBS}"
+#LIBS+=" ${RTTOV_LIB}"
 
-EXTRA_CONFIG_ARGS='--host=none --without-external-yac --disable-ocean --disable-jsbach --disable-rttov '
-EXTRA_CONFIG_ARGS+=' --disable-loop-exchange --disable-coupling --disable-yaxt --disable-aes'
+EXTRA_CONFIG_ARGS='--host=none --without-external-yac --disable-rttov '
+EXTRA_CONFIG_ARGS+=' --enable-emvorado --enable-dace --enable-fcgroup-WORKAROUND1'
+EXTRA_CONFIG_ARGS+=' --disable-loop-exchange --disable-coupling --disable-yaxt --enable-mixed-precision'
 EXTRA_CONFIG_ARGS+=' --enable-ecrad --enable-grib2 --disable-rte-rrtmgp --enable-serialization=create'
 # --disable-openmp
 # --enable-claw
@@ -122,7 +127,6 @@ EXTRA_CONFIG_ARGS+=' --enable-ecrad --enable-grib2 --disable-rte-rrtmgp --enable
 EXTRA_CONFIG_ARGS+=' --disable-mpi-checks'
 
 ################################################################################
-#ICON_OCEAN_FCFLAGS="${ICON_OCEAN_FCFLAGS}" \
 
 "${ICON_DIR}/configure" \
 BUILD_ENV="${BUILD_ENV}" \
@@ -131,6 +135,8 @@ CFLAGS="${CFLAGS}" \
 CPPFLAGS="${CPPFLAGS}" \
 ICON_CFLAGS="${ICON_CFLAGS}" \
 ICON_BUNDLED_CFLAGS="${ICON_BUNDLED_CFLAGS}" \
+ICON_WORKAROUND1_FCFLAGS="${ICON_WORKAROUND1_FCFLAGS}" \
+ICON_WORKAROUND1_PATH="${ICON_WORKAROUND1_PATH}" \
 FC="${FC}" \
 FCFLAGS="${FCFLAGS}" \
 ICON_FCFLAGS="${ICON_FCFLAGS}" \
@@ -152,7 +158,7 @@ done
 # Copy runscript-related files when building out-of-source:
 if test $(pwd) != $(cd "${ICON_DIR}"; pwd); then
   echo "Copying runscript input files from the source directory..."
-  rsync -uavz ${ICON_DIR}/run . --exclude='*in' --exclude='.*'
+  rsync -uavz ${ICON_DIR}/run . --exclude='*.in' --exclude='.*'
   rsync -uavz ${ICON_DIR}/externals . --exclude='.git' --exclude='*.f90' --exclude='*.F90' --exclude='*.c' --exclude='*.h' --exclude='*.Po' --exclude='tests' --exclude='*.mod' --exclude='*.o'
   rsync -uavz ${ICON_DIR}/make_runscripts .
   ln -sf ${ICON_DIR}/data

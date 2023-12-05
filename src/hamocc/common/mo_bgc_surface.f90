@@ -1,11 +1,22 @@
+! @brief module contains gas exchange, weathering fluxes,
+!        dust & nitrogen deposition
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 MODULE mo_bgc_surface
-!! @file mo_bgc_surface.f90
-!! @brief module contains gas exchange, weathering fluxes,
-!!        dust & nitrogen deposition
 
   USE mo_kind, ONLY           : wp
   USE mo_control_bgc, ONLY    : dtbgc, bgc_nproma, bgc_zlevs
   USE mo_bgc_memory_types, ONLY  : t_bgc_memory
+  USE mo_fortran_tools, ONLY  : set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -17,7 +28,7 @@ MODULE mo_bgc_surface
 
 contains
 
-SUBROUTINE update_linage (local_bgc_mem, klev,start_idx,end_idx, pddpo, use_acc)
+SUBROUTINE update_linage (local_bgc_mem, klev,start_idx,end_idx, pddpo, lacc)
 
 ! update linear age tracer
   USE mo_param1_bgc, ONLY     : iagesc
@@ -31,21 +42,17 @@ SUBROUTINE update_linage (local_bgc_mem, klev,start_idx,end_idx, pddpo, use_acc)
   INTEGER, INTENT(in), TARGET    :: klev(bgc_nproma)       !<  vertical levels
 
   REAL(wp), INTENT(in), TARGET   :: pddpo(bgc_nproma,bgc_zlevs)      !< size of scalar grid cell (3rd dimension) [m]
-  LOGICAL, INTENT(IN), OPTIONAL  :: use_acc
+  LOGICAL, INTENT(IN), OPTIONAL  :: lacc
 
   INTEGER :: jc,k, kpke
   REAL(wp) :: fac001
-  LOGICAL :: lacc
+  LOGICAL :: lzacc
 
-  IF (PRESENT(use_acc)) THEN
-    lacc = use_acc
-  ELSE
-    lacc = .FALSE.
-  END IF
+  CALL set_acc_host_or_device(lzacc, lacc)
 
   fac001 = dtbgc/(86400._wp*365._wp) 
 
-  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
   !$ACC LOOP GANG VECTOR
   DO jc = start_idx, end_idx
      kpke=klev(jc)
@@ -62,7 +69,7 @@ SUBROUTINE update_linage (local_bgc_mem, klev,start_idx,end_idx, pddpo, use_acc)
 
 END SUBROUTINE update_linage 
 
-SUBROUTINE update_weathering (local_bgc_mem, start_idx,end_idx, pddpo, za, use_acc)
+SUBROUTINE update_weathering (local_bgc_mem, start_idx,end_idx, pddpo, za, lacc)
 ! apply weathering rates
 
   USE mo_memory_bgc, ONLY : calcinp, orginp, silinp
@@ -77,20 +84,16 @@ SUBROUTINE update_weathering (local_bgc_mem, start_idx,end_idx, pddpo, za, use_a
 
   REAL(wp), INTENT(in), TARGET   :: pddpo(bgc_nproma,bgc_zlevs)      !< size of scalar grid cell (3rd dimension) [m]
   REAL(wp), INTENT(in), TARGET   :: za(bgc_nproma)      !< surface height
-  LOGICAL, INTENT(IN), OPTIONAL  :: use_acc
+  LOGICAL, INTENT(IN), OPTIONAL  :: lacc
 
   ! Local variables
 
   INTEGER :: jc
-  LOGICAL :: lacc
+  LOGICAL :: lzacc
 
-  IF (PRESENT(use_acc)) THEN
-    lacc = use_acc
-  ELSE
-    lacc = .FALSE.
-  END IF
+  CALL set_acc_host_or_device(lzacc, lacc)
 
-  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
   !$ACC LOOP GANG VECTOR
   DO jc = start_idx, end_idx
 
@@ -112,7 +115,7 @@ SUBROUTINE update_weathering (local_bgc_mem, start_idx,end_idx, pddpo, za, use_a
 
 END SUBROUTINE
 
-SUBROUTINE nitrogen_deposition (local_bgc_mem, start_idx,end_idx, pddpo, za, nitinput, use_acc)
+SUBROUTINE nitrogen_deposition (local_bgc_mem, start_idx,end_idx, pddpo, za, nitinput, lacc)
 ! apply nitrogen deposition
   USE mo_param1_bgc, ONLY     : iano3, ialkali, kn2b,knitinp
   USE mo_bgc_constants, ONLY  : rmnit
@@ -126,21 +129,17 @@ SUBROUTINE nitrogen_deposition (local_bgc_mem, start_idx,end_idx, pddpo, za, nit
   REAL(wp),INTENT(in) :: nitinput(bgc_nproma )                         !< nitrogen input
   REAL(wp), INTENT(in), TARGET   :: pddpo(bgc_nproma,bgc_zlevs)      !< size of scalar grid cell (3rd dimension) [m]
   REAL(wp), INTENT(in), TARGET   :: za(bgc_nproma)                   !< surface height
-  LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+  LOGICAL, INTENT(IN), OPTIONAL :: lacc
   
   ! Local variables
 
   INTEGER :: jc
   REAL(wp) :: ninp
-  LOGICAL :: lacc
+  LOGICAL :: lzacc
 
-  IF (PRESENT(use_acc)) THEN
-    lacc = use_acc
-  ELSE
-    lacc = .FALSE.
-  END IF
+  CALL set_acc_host_or_device(lzacc, lacc)
 
-  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
   !$ACC LOOP GANG VECTOR
   DO jc = start_idx, end_idx
 
@@ -161,7 +160,7 @@ SUBROUTINE nitrogen_deposition (local_bgc_mem, start_idx,end_idx, pddpo, za, nit
 
 
 END SUBROUTINE
-SUBROUTINE dust_deposition (local_bgc_mem, start_idx,end_idx, pddpo, za, dustinp, use_acc)
+SUBROUTINE dust_deposition (local_bgc_mem, start_idx,end_idx, pddpo, za, dustinp, lacc)
 ! apply dust deposition
   USE mo_memory_bgc, ONLY      : perc_diron 
   USE mo_param1_bgc, ONLY     : iiron, idust
@@ -177,20 +176,16 @@ SUBROUTINE dust_deposition (local_bgc_mem, start_idx,end_idx, pddpo, za, dustinp
   REAL(wp),INTENT(in) :: dustinp(bgc_nproma )                        !< dust input
   REAL(wp), INTENT(in), TARGET   :: pddpo(bgc_nproma,bgc_zlevs)      !< size of scalar grid cell (3rd dimension) [m]
   REAL(wp), INTENT(in), TARGET   :: za(bgc_nproma)                   !< surface height
-  LOGICAL, INTENT(IN), OPTIONAL  :: use_acc
+  LOGICAL, INTENT(IN), OPTIONAL  :: lacc
 
   ! Local variables
 
   INTEGER :: jc
-  LOGICAL :: lacc
+  LOGICAL :: lzacc
 
-  IF (PRESENT(use_acc)) THEN
-    lacc = use_acc
-  ELSE
-    lacc = .FALSE.
-  END IF
+  CALL set_acc_host_or_device(lzacc, lacc)
 
-  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
   !$ACC LOOP GANG VECTOR
   DO jc = start_idx, end_idx
 
@@ -209,7 +204,7 @@ END SUBROUTINE
 
 
 SUBROUTINE gasex (local_bgc_mem, start_idx,end_idx, pddpo, za, ptho, psao,  &
-     &              pfu10, psicomo, use_acc)
+     &              pfu10, psicomo, lacc)
 !! @brief Computes sea-air gass exchange
 !!         for oxygen, O2, N2, N2O, DMS, and CO2.
 !!
@@ -244,7 +239,7 @@ SUBROUTINE gasex (local_bgc_mem, start_idx,end_idx, pddpo, za, ptho, psao,  &
   REAL(wp),INTENT(in) :: pfu10(bgc_nproma)           !< forcing field wind speed
   REAL(wp),INTENT(in) :: psicomo(bgc_nproma)         !< sea ice concentration
   REAL(wp),INTENT(in) :: za(bgc_nproma)              !< sea surface height
-  LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+  LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
   !! Local variables
 
@@ -256,17 +251,13 @@ SUBROUTINE gasex (local_bgc_mem, start_idx,end_idx, pddpo, za, ptho, psao,  &
   REAL(wp) :: oxflux,niflux,nlaughflux, dmsflux
   REAL(wp) :: ato2, atn2, atco2,pco2
   REAL(wp) :: thickness
-  LOGICAL :: lacc
+  LOGICAL :: lzacc
 
   ! for extended N-cycle
   REAL (wp):: kgammo,kh_nh3i,kh_nh3,pka_nh3,ka_nh3,nh3sw,ammoflux 
   REAL (wp):: ecoef,tabs
 
-  IF (PRESENT(use_acc)) THEN
-    lacc = use_acc
-  ELSE
-    lacc = .FALSE.
-  END IF
+  CALL set_acc_host_or_device(lzacc, lacc)
 
 
   !
@@ -274,7 +265,7 @@ SUBROUTINE gasex (local_bgc_mem, start_idx,end_idx, pddpo, za, ptho, psao,  &
   !
 
   k = 1      ! surface layer
-  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
   !$ACC LOOP GANG VECTOR
   DO j = start_idx, end_idx
 

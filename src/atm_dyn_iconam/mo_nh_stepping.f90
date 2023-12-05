@@ -1,22 +1,21 @@
-!>
-!! Initializes and controls the time stepping in the nonhydrostatic model.
-!!
-!!
-!! @par Revision History
-!! Initial release by Almut Gassmann, MPI-M (27009-02-06)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!! The time stepping does eventually perform an (iterative) Incremental Analysis 
-!! Update (IAU). See mo_iau.f90 for details.
-!!
-!!
+!
+! Initializes and controls the time stepping in the nonhydrostatic model.
+!
+! The time stepping does eventually perform an (iterative) Incremental Analysis
+! Update (IAU). See mo_iau.f90 for details.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -38,24 +37,26 @@ MODULE mo_nh_stepping
     &                                    divdamp_fac, divdamp_fac_o2, ih_clch, ih_clcm, kstart_moist, &
     &                                    ndyn_substeps, ndyn_substeps_var, ndyn_substeps_max, vcfl_threshold
   USE mo_diffusion_config,         ONLY: diffusion_config
-  USE mo_dynamics_config,          ONLY: nnow,nnew, nnow_rcf, nnew_rcf, nsav1, nsav2, idiv_method, ldeepatmo
+  USE mo_dynamics_config,          ONLY: nnow, nnew, nnow_rcf, nnew_rcf, nsav1, nsav2, lmoist_thdyn, ldeepatmo
   USE mo_io_config,                ONLY: is_totint_time, n_diag, var_in_output, checkpoint_on_demand
   USE mo_parallel_config,          ONLY: nproma, num_prefetch_proc, proc0_offloading
   USE mo_run_config,               ONLY: ltestcase, dtime, nsteps, ldynamics, ltransport,   &
     &                                    ntracer, iforcing, msg_level, test_mode,           &
     &                                    output_mode, lart, luse_radarfwo, ldass_lhn
   USE mo_advection_config,         ONLY: advection_config
-  USE mo_timer,                    ONLY: ltimer, timers_level, timer_start, timer_stop,   &
-    &                                    timer_total, timer_model_init, timer_nudging,    &
-    &                                    timer_bdy_interp, timer_feedback, timer_nesting, &
-    &                                    timer_integrate_nh, timer_nh_diagnostics,        &
-    &                                    timer_iconam_aes, timer_dace_coupling
+  USE mo_timer,                    ONLY: ltimer, timers_level, timer_start, timer_stop,        &
+    &                                    timer_total, timer_model_init, timer_nudging,         &
+    &                                    timer_bdy_interp, timer_feedback, timer_nesting,      &
+    &                                    timer_integrate_nh, timer_nh_diagnostics,             &
+    &                                    timer_iconam_aes, timer_dace_coupling, timer_rrg_interp
   USE mo_ext_data_state,           ONLY: ext_data
+  USE mo_radiation_config,         ONLY: irad_aero, iRadAeroCAMSclim
   USE mo_limarea_config,           ONLY: latbc_config
   USE mo_model_domain,             ONLY: p_patch, t_patch, p_patch_local_parent
   USE mo_time_config,              ONLY: t_time_config
   USE mo_grid_config,              ONLY: n_dom, lfeedback, ifeedback_type, l_limited_area, &
-    &                                    n_dom_start, lredgrid_phys, start_time, end_time, patch_weight
+    &                                    n_dom_start, lredgrid_phys, start_time, end_time, &
+    &                                    patch_weight, nroot
   USE mo_gribout_config,           ONLY: gribout_config
   USE mo_nh_testcases_nml,         ONLY: is_toy_chem, ltestcase_update
   USE mo_nh_dcmip_terminator,      ONLY: dcmip_terminator_interface
@@ -73,7 +74,7 @@ MODULE mo_nh_stepping
                                          prep_rho_bdy_nudging, density_boundary_nudging,&
                                          limarea_nudging_latbdy,                        &
                                          limarea_nudging_upbdy, save_progvars
-  USE mo_nh_feedback,              ONLY: feedback, relax_feedback, lhn_feedback
+  USE mo_nh_feedback,              ONLY: incr_feedback, relax_feedback, lhn_feedback
   USE mo_exception,                ONLY: message, message_text, finish
   USE mo_impl_constants,           ONLY: SUCCESS, inoforcing, iheldsuarez, inwp, iaes,         &
     &                                    MODE_IAU, MODE_IAU_OLD, SSTICE_CLIM,                  &
@@ -84,7 +85,7 @@ MODULE mo_nh_stepping
   USE mo_solve_nonhydro,           ONLY: solve_nh
   USE mo_update_dyn_scm,           ONLY: add_slowphys_scm
   USE mo_advection_stepping,       ONLY: step_advection
-  USE mo_nh_dtp_interface,         ONLY: prepare_tracer, compute_airmass
+  USE mo_prepadv_util,             ONLY: prepare_tracer
   USE mo_nh_diffusion,             ONLY: diffusion
   USE mo_memory_log,               ONLY: memory_log_add
   USE mo_mpi,                      ONLY: proc_split, push_glob_comm, pop_glob_comm, &
@@ -119,13 +120,20 @@ MODULE mo_nh_stepping
   USE mo_advection_aerosols,       ONLY: aerosol_2D_advection, setup_aerosol_advection
   USE mo_aerosol_util,             ONLY: aerosol_2D_diffusion
   USE mo_ensemble_pert_config,     ONLY: compute_ensemble_pert, use_ensemble_pert
+  USE mo_aerosol_sources_types,    ONLY: p_fire_source_info
+  USE mo_aerosol_sources,          ONLY: inquire_fire2d_data
+  USE mo_nwp_aerosol,              ONLY: cams_reader, cams_intp
 #endif
   USE mo_iau,                      ONLY: compute_iau_wgt
 #ifndef __NO_AES__
+  USE mo_omp_block_loop,           ONLY: omp_block_loop_cell
+  USE mo_diagnose_qvi,             ONLY: diagnose_qvi
+  USE mo_diagnose_uvi,             ONLY: diagnose_uvd, diagnose_uvp
+  USE mo_diagnose_ene,             ONLY: diagnose_ene
   USE mo_interface_iconam_aes,     ONLY: interface_iconam_aes
 #endif
   USE mo_phys_nest_utilities,      ONLY: interpol_phys_grf, feedback_phys_diag, interpol_rrg_grf, copy_rrg_ubc
-  USE mo_nh_diagnose_pres_temp,    ONLY: diagnose_pres_temp
+  USE mo_nh_diagnose_pres_temp,    ONLY: diagnose_pres_temp, compute_airmass
   USE mo_nh_held_suarez_interface, ONLY: held_suarez_nh_interface
   USE mo_master_config,            ONLY: isRestart, getModelBaseDir
   USE mo_restart_nml_and_att,      ONLY: getAttributesForRestarting
@@ -149,11 +157,12 @@ MODULE mo_nh_stepping
 #endif
 
   USE mo_reader_sst_sic,           ONLY: t_sst_sic_reader
+  USE mo_reader_cams,              ONLY: t_cams_reader
   USE mo_interpolate_time,         ONLY: t_time_intp
   USE mo_nh_init_nest_utils,       ONLY: initialize_nest
   USE mo_hydro_adjust,             ONLY: hydro_adjust_const_thetav
   USE mo_initicon_types,           ONLY: t_pi_atm
-  USE mo_initicon_config,          ONLY: init_mode, timeshift, init_mode_soil, dt_iau
+  USE mo_initicon_config,          ONLY: init_mode, timeshift, init_mode_soil, dt_iau, fire2d_filename
   USE mo_synsat_config,            ONLY: lsynsat
   USE mo_rttov_interface,          ONLY: rttov_driver, copy_rttov_ubc
 #ifndef __NO_ICON_LES__
@@ -221,6 +230,7 @@ MODULE mo_nh_stepping
   USE mo_extpar_config,            ONLY: generate_td_filename
   USE mo_nudging_config,           ONLY: nudging_config, l_global_nudging, indg_type
   USE mo_nudging,                  ONLY: nudging_interface
+  USE mo_initicon_utils,           ONLY: prepare_thermo_src_term
 
   !$ser verbatim USE mo_ser_all, ONLY: serialize_all
 
@@ -263,9 +273,6 @@ MODULE mo_nh_stepping
   !>
   !! Organizes nonhydrostatic time stepping
   !! Currently we assume to have only one grid level.
-  !!
-  !! @par Revision History
-  !! Initial release by Almut Gassmann, (2009-04-15)
   !!
   SUBROUTINE perform_nh_stepping (time_config, iau_iter, latbc, restartDescriptor)
     !
@@ -345,6 +352,10 @@ MODULE mo_nh_stepping
       ENDDO
     END IF
 
+    IF (irad_aero == iRadAeroCAMSclim) THEN
+      ALLOCATE(cams_reader(n_dom))
+      ALLOCATE(cams_intp(n_dom))
+    END IF
 
     IF (sstice_mode == SSTICE_INST) THEN
       ALLOCATE(sst_reader(n_dom))
@@ -473,9 +484,9 @@ MODULE mo_nh_stepping
       CALL init_slowphysics (mtime_current, 1, dtime, lacc=.TRUE.)
 
 #ifdef HAVE_RADARFWO
-      IF ( .NOT.my_process_is_mpi_test() .AND. ANY(luse_radarfwo(1:n_dom)) ) THEN
+      IF ( .NOT.my_process_is_mpi_test() .AND. ANY(luse_radarfwo(1:n_dom)) .AND. iau_iter /= 1) THEN
         ! Radar forward operator EMVORADO: radar simulation in the first timestep for each
-        !  radar-active model domain:
+        !  radar-active model domain. In case of iterate_iau, do this only in the second iau_iter:
         CALL emvorado_radarfwo (mtime_current, nnow(1:n_dom), nnow_rcf(1:n_dom), n_dom, luse_radarfwo(1:n_dom), 0, nsteps)
       END IF
 #endif
@@ -720,6 +731,8 @@ MODULE mo_nh_stepping
   IF (ALLOCATED(sic_reader)) DEALLOCATE(sic_reader)
   IF (ALLOCATED(sst_intp)) DEALLOCATE(sst_intp)
   IF (ALLOCATED(sic_intp)) DEALLOCATE(sic_intp)
+  IF (ALLOCATED(cams_reader)) DEALLOCATE(cams_reader)
+  IF (ALLOCATED(cams_intp)) DEALLOCATE(cams_intp)
 #endif
   END SUBROUTINE perform_nh_stepping
   !-------------------------------------------------------------------------
@@ -728,9 +741,6 @@ MODULE mo_nh_stepping
   !>
   !! Organizes nonhydrostatic time stepping
   !! Currently we assume to have only one grid level.
-  !!
-  !! @par Revision History
-  !! Initial release by Almut Gassmann, (2009-04-15)
   !!
   SUBROUTINE perform_nh_timeloop (time_config, iau_iter, latbc, restartDescriptor)
     !
@@ -1130,6 +1140,18 @@ MODULE mo_nh_stepping
         !$ACC END DATA
 
       END IF
+
+      IF (iprog_aero > 2) THEN
+#ifdef _OPENACC
+        CALL finish('perform_nh_timeloop:','iprog_aero > 2 not available on GPU')
+#endif
+        ! Update wildfire emission dataset if a new dataset is available
+        DO jg = 1, n_dom
+          CALL inquire_fire2d_data(p_patch(jg), nroot, fire2d_filename, p_fire_source_info(jg), &
+            &                      mtime_current, .FALSE.)
+        ENDDO
+      ENDIF
+      
 #endif  /* __NO_NWP__ */
 
     ENDIF  ! iforcing == inwp
@@ -1189,11 +1211,11 @@ MODULE mo_nh_stepping
     ! --------------------------------------------------------------------------------
     !
     ! Radar forward operator EMVORADO: radar simulation in each timestep for each
-    ! radar-active model domain
+    ! radar-active model domain. In case of iterate_iau, do output only in the second round:
     !
 #ifdef HAVE_RADARFWO
     IF (iforcing == inwp) THEN
-      IF (.NOT.my_process_is_mpi_test() .AND. ANY(luse_radarfwo(1:n_dom)) .AND. .NOT.iau_iter==1) THEN
+      IF (.NOT.my_process_is_mpi_test() .AND. ANY(luse_radarfwo(1:n_dom)) .AND. iau_iter/=1) THEN
         CALL emvorado_radarfwo (mtime_current, nnow(1:n_dom), nnow_rcf(1:n_dom), n_dom, &
                                 luse_radarfwo(1:n_dom), jstep, nsteps+jstep0)
       END IF
@@ -1650,14 +1672,6 @@ MODULE mo_nh_stepping
   !! divergent modes (Poisson bracket) are split using Strang splitting.
   !!
   !!
-  !! @par Revision History
-  !! Initial release by Almut Gassmann, MPI-M (2009-08-25)
-  !! Adaptation for grid refinement by Guenther Zaengl, DWD (2010-02-09)
-  !! Modification by Daniel Reinert, DWD (2010-04-15)
-  !!  - Implementation of tracer transport
-  !! Modification by Daniel Reinert, DWD (2010-07-23)
-  !!  - optional reduced calling frequency for transport and physics
-  !!
   RECURSIVE SUBROUTINE integrate_nh (time_config, datetime_local, jg, nstep_global,   &
     &                                iau_iter, dt_loc, mtime_dt_loc, num_steps, latbc )
 
@@ -1863,16 +1877,19 @@ MODULE mo_nh_stepping
             &                         jstep_adv(jg)%marchuk_order  )  !in
         ENDIF
 
-        ! Diagnose some velocity-related quantities for the tracer
-        ! transport scheme
-        CALL prepare_tracer( p_patch(jg), p_nh_state(jg)%prog(nnow(jg)),  &! in
-          &         p_nh_state(jg)%prog(nnew(jg)),                        &! in
-          &         p_nh_state(jg)%metrics, p_int_state(jg),              &! in
-          &         ndyn_substeps_var(jg), .TRUE., .TRUE.,                &! in
-          &         advection_config(jg)%lfull_comp,                      &! in
-          &         p_nh_state(jg)%diag,                                  &! inout
-          &         prep_adv(jg)%vn_traj, prep_adv(jg)%mass_flx_me,       &! inout
-          &         prep_adv(jg)%mass_flx_ic                              )! inout
+
+        ! prepare mass fluxes and velocities for tracer transport
+        !
+        CALL prepare_tracer( p_patch       = p_patch(jg),                    &! in
+          &                  p_now         = p_nh_state(jg)%prog(nnow(jg)),  &! in
+          &                  p_new         = p_nh_state(jg)%prog(nnew(jg)),  &! in
+          &                  p_metrics     = p_nh_state(jg)%metrics,         &! in
+          &                  p_nh_diag     = p_nh_state(jg)%diag,            &! in
+          &                  p_vn_traj     = prep_adv(jg)%vn_traj,           &! inout
+          &                  p_mass_flx_me = prep_adv(jg)%mass_flx_me,       &! inout
+          &                  p_mass_flx_ic = prep_adv(jg)%mass_flx_ic,       &! inout
+          &                  lacc          = .TRUE.                          )
+
 
         ! airmass_now
         CALL compute_airmass(p_patch   = p_patch(jg),                       & !in
@@ -2152,6 +2169,8 @@ MODULE mo_nh_stepping
                 &                      opt_calc_temp=.TRUE.,                            &
                 &                      opt_calc_pres=.TRUE.                             )
             !
+            CALL omp_block_loop_cell ( p_patch(jg), diagnose_uvd ) ! internal energy vertical integral after dynamics
+            !
             CALL interface_iconam_aes(     dt_loc                                    & !in
                 &                         ,datetime_local(jg)%ptr                    & !in
                 &                         ,p_patch(jg)                               & !in
@@ -2161,7 +2180,10 @@ MODULE mo_nh_stepping
                 &                         ,p_nh_state(jg)%prog(n_now_rcf)            & !inout
                 &                         ,p_nh_state(jg)%prog(n_new_rcf)            & !inout
                 &                         ,p_nh_state(jg)%diag                       )
-
+            !
+            CALL omp_block_loop_cell ( p_patch(jg), diagnose_qvi ) ! tracer mass and tracer mass tendency vertical integral
+            CALL omp_block_loop_cell ( p_patch(jg), diagnose_uvp ) ! internal energy vertical integral after physics
+            CALL omp_block_loop_cell ( p_patch(jg), diagnose_ene ) ! near surface energetics
             !
             IF (ltimer) CALL timer_stop(timer_iconam_aes)
 #endif
@@ -2169,8 +2191,10 @@ MODULE mo_nh_stepping
 
           ! Boundary interpolation of land state variables entering into radiation computation
           ! if a reduced grid is used in the child domain(s)
-          IF (ltimer)            CALL timer_start(timer_nesting)
-          IF (timers_level >= 2) CALL timer_start(timer_bdy_interp)
+          IF (p_patch(jg)%n_childdom > 0) THEN
+            IF (ltimer)            CALL timer_start(timer_nesting)
+            IF (timers_level >= 2) CALL timer_start(timer_rrg_interp)
+          ENDIF
           DO jn = 1, p_patch(jg)%n_childdom
 
             jgc = p_patch(jg)%child_id(jn)
@@ -2207,8 +2231,10 @@ MODULE mo_nh_stepping
             ENDIF
 
           ENDDO
-          IF (timers_level >= 2) CALL timer_stop(timer_bdy_interp)
-          IF (ltimer)            CALL timer_stop(timer_nesting)
+          IF (p_patch(jg)%n_childdom > 0) THEN
+            IF (timers_level >= 2) CALL timer_stop(timer_rrg_interp)
+            IF (ltimer)            CALL timer_stop(timer_nesting)
+          ENDIF
 
         ENDIF !iforcing
 
@@ -2424,7 +2450,7 @@ MODULE mo_nh_stepping
         ! clean up
         CALL deallocateTimedelta(mtime_dt_sub)
 
-        IF (ltimer)            CALL timer_start(timer_nesting)
+        IF (ltimer .AND. p_patch(jg)%n_childdom > 0) CALL timer_start(timer_nesting)
         DO jn = 1, p_patch(jg)%n_childdom
 
           ! Call feedback to copy averaged prognostic variables from refined mesh back
@@ -2435,7 +2461,7 @@ MODULE mo_nh_stepping
           IF (lfeedback(jgc)) THEN
             IF (timers_level >= 2) CALL timer_start(timer_feedback)
             IF (ifeedback_type == 1) THEN
-              CALL feedback(p_patch, p_nh_state, p_int_state, p_grf_state, p_lnd_state, &
+              CALL incr_feedback(p_patch, p_nh_state, p_int_state, p_grf_state, p_lnd_state, &
                 &           jgc, jg)
             ELSE
               !$ser verbatim CALL serialize_all(nproma, jg, "nesting_relax_feedback", .TRUE., opt_lupdate_cpu=.TRUE., opt_id=jstep)
@@ -2463,7 +2489,7 @@ MODULE mo_nh_stepping
             IF (timers_level >= 2) CALL timer_stop(timer_feedback)
           ENDIF
         ENDDO
-        IF (ltimer)            CALL timer_stop(timer_nesting)
+        IF (ltimer .AND. p_patch(jg)%n_childdom > 0) CALL timer_stop(timer_nesting)
 
       ENDIF
 
@@ -2622,9 +2648,6 @@ MODULE mo_nh_stepping
   !! Perform dynamical core substepping with respect to physics/transport.
   !! Number of substeps is given by ndyn_substeps.
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2014-10-28)
-  !!
   SUBROUTINE perform_dyn_substepping (time_config, p_patch, p_nh_state, p_int_state, prep_adv, &
     &                                 jstep, iau_iter, dt_phy, mtime_current)
 
@@ -2661,7 +2684,7 @@ MODULE mo_nh_stepping
     LOGICAL                  :: lsave_mflx
     LOGICAL                  :: lprep_adv         !.TRUE.: do computations for preparing tracer advection in solve_nh
     LOGICAL                  :: llast             !.TRUE.: this is the last substep
-    TYPE(timeDelta) :: time_diff
+    TYPE(timeDelta)          :: time_diff
     !-------------------------------------------------------------------------
 
     ! get domain ID
@@ -2670,7 +2693,7 @@ MODULE mo_nh_stepping
     ! compute dynamics timestep
     dt_dyn = dt_phy/ndyn_substeps_var(jg)
 
-    IF ( idiv_method == 1 .AND. (ltransport .OR. p_patch%n_childdom > 0 .AND. grf_intmethod_e == 6)) THEN
+    IF ( ltransport .OR. p_patch%n_childdom > 0 .AND. grf_intmethod_e == 6 ) THEN
       lprep_adv = .TRUE. ! do computations for preparing tracer advection in solve_nh
     ELSE
       lprep_adv = .FALSE.
@@ -2682,7 +2705,8 @@ MODULE mo_nh_stepping
       &                  rho       = p_nh_state%prog(nnow(jg))%rho, & !in
       &                  airmass   = p_nh_state%diag%airmass_now    ) !inout
 
-
+    ! get moisture term for thermodynamic equation 
+    IF (lmoist_thdyn) CALL prepare_thermo_src_term(p_patch)
 
     ! perform dynamics substepping
     !
@@ -2738,18 +2762,6 @@ MODULE mo_nh_stepping
       linit_dyn(jg) = .FALSE.
 
 
-      IF (advection_config(jg)%lfull_comp) &
-
-        CALL prepare_tracer( p_patch, p_nh_state%prog(nnow(jg)),        &! in
-          &                  p_nh_state%prog(nnew(jg)),                 &! in
-          &                  p_nh_state%metrics, p_int_state,           &! in
-          &                  ndyn_substeps_var(jg), llast, lclean_mflx, &! in
-          &                  advection_config(jg)%lfull_comp,           &! in
-          &                  p_nh_state%diag,                           &! inout
-          &                  prep_adv%vn_traj, prep_adv%mass_flx_me,    &! inout
-          &                  prep_adv%mass_flx_ic                       )! inout
-
-
       ! Finally, switch between time levels now and new for next iteration
       !
       ! Note, that we do not swap during the very last iteration.
@@ -2783,9 +2795,6 @@ MODULE mo_nh_stepping
   !! called, in order to have proper transfer coefficients available at the initial time step.
   !!
   !! This had to be moved ahead of the initial output for the physics fields to be more complete
-  !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD (2013-01-04)
   !!
   RECURSIVE SUBROUTINE init_slowphysics (mtime_current, jg, dt_loc, lacc)
 
@@ -2916,9 +2925,6 @@ MODULE mo_nh_stepping
   !!
   !! This routine encapsulates calls to diagnostic computations required at output
   !! times only
-  !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD (2012-05-09)
   !!
   SUBROUTINE diag_for_output_dyn ()
 
@@ -3148,10 +3154,6 @@ MODULE mo_nh_stepping
   !>
   !! Fills nest boundary cells for physics fields
   !!
-  !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD (2014-07-21)
-  !!
   SUBROUTINE fill_nestlatbc_phys(lacc)
 
     LOGICAL,   INTENT(IN)   :: lacc
@@ -3199,9 +3201,6 @@ MODULE mo_nh_stepping
   !!
   !! This routine handles the increased sound-wave damping (by increasing the vertical wind offcentering)
   !! and mixed second-order/fourth-order divergence damping during the initial spinup phase
-  !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD (2013-06-04)
   !!
   SUBROUTINE update_spinup_damping(elapsed_time)
 
@@ -3289,9 +3288,7 @@ MODULE mo_nh_stepping
 
 
   !-------------------------------------------------------------------------
-  !>
-  !! @par Revision History
-  !!
+
   SUBROUTINE deallocate_nh_stepping
 
   INTEGER :: ist,jg
@@ -3327,14 +3324,17 @@ MODULE mo_nh_stepping
       CALL sic_reader(jg)%deinit
     ENDDO
   ENDIF
+  IF (ALLOCATED(cams_reader)) THEN
+    DO jg = 1, n_dom
+      CALL cams_reader(jg)%deinit
+    ENDDO
+  ENDIF
 #endif
   END SUBROUTINE deallocate_nh_stepping
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !>
-  !! @par Revision History
-  !!
+
   SUBROUTINE allocate_nh_stepping(mtime_current)
 
     TYPE(datetime),     POINTER          :: mtime_current     !< current datetime (mtime)

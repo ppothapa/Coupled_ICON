@@ -179,7 +179,7 @@ function print_usage
     echo '-c : colour output'
     echo '-d : string containing the dates of the output files of the respective '
     echo '     experiment, default depends on experiment' 
-    echo '-e : name of the experiment to be checked, default = atm_qubicc_test'
+    echo '-e : name of the experiment to be checked, default = atm_ape_test'
     echo '-f : '"'yes'"': force make_runscripts even if base runscript exists (default)'
     echo '     '"'no'"': perform make_runscripts only if no runscripts are available'
     echo '-h : display help'
@@ -286,6 +286,11 @@ function diff_results
     
             for TYPE in $TYPES; do
 
+                TEMP_SUFFIX=$(cat /dev/urandom | env LC_ALL=C tr -cd 'a-f0-9' | head -c 16)
+
+                rm -f  FILE1_undefined_${TEMP_SUFFIX}; FILE1="FILE1_undefined_${TEMP_SUFFIX}"
+                rm -f  FILE2_undefined_${TEMP_SUFFIX}; FILE2="FILE2_undefined_${TEMP_SUFFIX}"
+
 		if  [ -f  "${MODEL_DIR1}/experiments/${DEXP1}/${DEXP1}_${TYPE}_${DATE}.nc" ]
                 then
                     FILE1="${MODEL_DIR1}/experiments/${DEXP1}/${DEXP1}_${TYPE}_${DATE}.nc"
@@ -306,10 +311,13 @@ function diff_results
                     fi
                 fi
 
-                TEMP_SUFFIX=$(cat /dev/urandom | env LC_ALL=C tr -cd 'a-f0-9' | head -c 16)
-                DIFF_FILE="cdo_diffn_${DEXP1}_${DEXP2}_${TYPE}_${DATE}_${TEMP_SUFFIX}.out"
+		if [ -f  "$FILE1" ] && [ -f  "$FILE2" ]
+		then
 
                 echo "Compare for TYPE=$TYPE"
+
+                DIFF_FILE="cdo_diffn_${DEXP1}_${DEXP2}_${TYPE}_${DATE}_${TEMP_SUFFIX}.out"
+
                 cdo diffn ${FILE1} ${FILE2} > ${DIFF_FILE}
 
 		# does FILE2 contain the same variables as FILE1?
@@ -344,6 +352,13 @@ function diff_results
                     # Thus the diff file can be deleted.
                     rm ${DIFF_FILE}
                 fi
+
+		else
+		    echo "File(s) for $TYPE not found:"
+		    if ! [ -f  "$FILE1" ]; then echo "FILE1 does not exist: ${MODEL_DIR1}/experiments/${DEXP1}/${DEXP1}_${TYPE}_${DATE}.<nc|grb>"; fi
+		    if ! [ -f  "$FILE2" ]; then echo "FILE2 does not exist: ${MODEL_DIR2}/experiments/${DEXP2}/${DEXP2}_${TYPE}_${DATE}.<nc|grb>"; fi
+                    DIFFERENT_TYPES="$DIFFERENT_TYPES $TYPE"
+		fi
 
             done
     
@@ -486,7 +501,7 @@ make_sure_cdo_exists_and_runs() {
 date
 
 # possible test modes
-MODES="b u r n m o t p ur un um uo rn rm ro nm no mo mp tp urn urm uro unm uno umo rnm rno rmo nmo tmp urnm urno urmo unmo rnmo urnmo rnmot"
+MODES="b u r n m o t p c ur un um uo rn rm ro nm no mo mp mc tp tc urn urm uro unm uno umo rnm rno rmo nmo tmp tmc urnm urno urmo unmo rnmo urnmo rnmot"
 
 while getopts ":cd:e:f:hm:o:r:s:t:u" OPT; do
     case $OPT in
@@ -507,15 +522,16 @@ while getopts ":cd:e:f:hm:o:r:s:t:u" OPT; do
             ;;
         m  ) MODE=$OPTARG 
             case $MODE in
-                'base')         MD='b';;
-                'update')       MD='u';;
-                'restart')      MD='r';;
-                'nproma')       MD='n';;
-                'mpi')          MD='m';;
-                'omp')          MD='o';;
-                'tolerance')    MD='t';;
-                'performance')  MD='p';;
-                *)              MD=$MODE;;
+                'base')              MD='b';;
+                'update')            MD='u';;
+                'restart')           MD='r';;
+                'nproma')            MD='n';;
+                'mpi')               MD='m';;
+                'omp')               MD='o';;
+                'tolerance')         MD='t';;
+                'performance')       MD='p';;
+                'compute-sanitizer') MD='c';;
+                *)                   MD=$MODE;;
             esac
 
             # Check if the given MODE arguments are correct
@@ -569,7 +585,7 @@ done
 # Ouput in colour
 COLOUR=${COLOUR='no'}
 # Experiment
-EXPERIMENT=${EXPERIMENT='atm_qubicc_test'}
+EXPERIMENT=${EXPERIMENT='atm_ape_test'}
 # Force to run "make_runscripts" for the specified experiment even
 # if the respective runscript is present 
 FORCE_MRS=${FORCE_MRS='yes'}
@@ -582,6 +598,7 @@ FORCE_MRS=${FORCE_MRS='yes'}
 # o = omp test
 # t = tolerance test
 # p = performance test
+# c = compute-sanitizer test
 #
 MD=${MD='rnmo'}
 # Force to overwrite existing experiments even if they are present
@@ -593,16 +610,6 @@ SUB_FILES=${SUB_FILES='no'}
 
 # Set defaults for file types, dates, and the restart date for the 
 # checks depending on the experiment.
-if [ "${EXPERIMENT}" == 'atm_qubicc_test' ]; then
-    TYPES=${TYPES='pfull_ml ta_ml rho_ml ua_ml va_ml wa_ml hus_ml atm2d_ml flx2d_ml ddt_ua_dyn_ml ddt_va_dyn_ml tend_ta_rlw_ml tend_ta_rsw_ml tend_ua_vdf_ml tend_va_vdf_ml tend_ta_vdf_ml tend_qhus_vdf_ml tend_qclw_vdf_ml tend_qcli_vdf_ml tend_ta_mig_ml tend_qhus_mig_ml tend_qclw_mig_ml tend_qcli_mig_ml'}
-    DATES=${DATES='19790101T000040Z 19790101T000120Z 19790101T000200Z 19790101T000240Z 19790101T000320Z 19790101T000400Z'}
-    RESTART_DATE=${RESTART_DATE='19790101T000200Z'}
-fi
-if [ "${EXPERIMENT}" == 'atm_qubicc_nc_test' ]; then
-    TYPES=${TYPES='pfull_ml ta_ml rho_ml ua_ml va_ml wa_ml hus_ml atm2d_ml flx2d_ml ddt_ua_dyn_ml ddt_va_dyn_ml tend_ta_rlw_ml tend_ta_rsw_ml tend_ua_vdf_ml tend_va_vdf_ml tend_ta_vdf_ml tend_qhus_vdf_ml tend_qclw_vdf_ml tend_qcli_vdf_ml tend_ta_mig_ml tend_qhus_mig_ml tend_qclw_mig_ml tend_qcli_mig_ml'}
-    DATES=${DATES='19790101T000040Z 19790101T000120Z 19790101T000200Z 19790101T000240Z 19790101T000320Z 19790101T000400Z'}
-    RESTART_DATE=${RESTART_DATE='19790101T000200Z'}
-fi
 if [ "${EXPERIMENT}" == 'atm_amip_les_test' ]; then
     TYPES=${TYPES='atm_2d_ml atm_3d_ml lnd_basic_ml'}
     DATES=${DATES='19790101T000000Z 19790101T000400Z 19790101T000800Z 19790101T001200Z 19790101T001600Z'}
@@ -927,7 +934,7 @@ if string_in_list $MD $CMODES; then
 fi # MODE
 
 
-CMODES="m um rm nm mo tm mp urm unm umo rnm rmo nmo tmp urnm urmo unmo rnmo urnmo rnmot"
+CMODES="m um rm nm mo tm mp mc urm unm umo rnm rmo nmo tmp tmc urnm urmo unmo rnmo urnmo rnmot"
 if string_in_list $MD $CMODES; then
     TEST='mpi'
     echo ' '
@@ -1140,7 +1147,7 @@ if string_in_list $MD $CMODES; then
     fi # TEST_POSSIBLE
 fi # MODE
 
-CMODES="t tm rnmot rt tp tmp"
+CMODES="t tm tc rnmot rt tp tmp tmc"
 if string_in_list $MD $CMODES; then
     TEST='tolerance'
     echo ' '
@@ -1176,6 +1183,32 @@ if string_in_list $MD $CMODES; then
         EXIT_STATUS=$(($EXIT_STATUS + 1))
     fi
 fi
+
+CMODES="c tc mc tmc"
+if string_in_list $MD $CMODES; then
+    TEST='compute-sanitizer'
+    echo ' '
+    echo "#################### perform $TEST test          ####################"
+    echo ' '
+
+    lowercase_bb_name=$(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]')
+    if [[ ${lowercase_bb_name} =~ "gpu" ]]; then
+        ${SCRIPT_DIR}/${RUN_SCRIPT} --compute-sanitizer
+        if [ "$?" == 0 ]; then
+            PASSED_TESTS="$PASSED_TESTS $TEST"
+            EXIT_STATUS=$(($EXIT_STATUS + 0))
+        else
+            FAILED_TESTS="$FAILED_TESTS $TEST"
+            EXIT_STATUS=$(($EXIT_STATUS + 1))
+        fi
+    else
+        echo "Warning: ${BB_NAME} does not seem to be a GPU builder."
+        echo "The compute-sanitizer test will not be executed."
+        PASSED_TESTS="$PASSED_TESTS $TEST"
+        EXIT_STATUS=$(($EXIT_STATUS + 0))
+    fi
+fi
+
 
 echo ' '
 echo ' '

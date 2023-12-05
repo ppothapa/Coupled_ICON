@@ -1,20 +1,31 @@
-!+ Source module for hailcast diagnostic
-!------------------------------------------------------------------------------
+! Source module for hailcast diagnostic
 !
 ! Licence notes
 ! The code in this file is a modified version of the Hailcast module
 ! of the WRF model which is published under the following license:
-! WRF was developed at the National Center for Atmospheric Research (NCAR) which is operated by 
-! the University Corporation for Atmospheric Research (UCAR). NCAR and UCAR make no proprietary 
-! claims, either statutory or otherwise, to this version and release of WRF and consider WRF to 
-! be in the public domain for use by any person or entity for any purpose without any fee or charge. 
-! UCAR requests that any WRF user include this notice on any partial or full copies of WRF. 
-! WRF is provided on an "AS IS" basis and any warranties, either express or implied, including but 
-! not limited to implied warranties of non-infringement, originality, merchantability and fitness for 
-! a particular purpose, are disclaimed. In no event shall UCAR be liable for any damages, whatsoever, 
-! whether direct, indirect, consequential or special, that arise out of or in connection with the access, 
+! WRF was developed at the National Center for Atmospheric Research (NCAR) which is operated by
+! the University Corporation for Atmospheric Research (UCAR). NCAR and UCAR make no proprietary
+! claims, either statutory or otherwise, to this version and release of WRF and consider WRF to
+! be in the public domain for use by any person or entity for any purpose without any fee or charge.
+! UCAR requests that any WRF user include this notice on any partial or full copies of WRF.
+! WRF is provided on an "AS IS" basis and any warranties, either express or implied, including but
+! not limited to implied warranties of non-infringement, originality, merchantability and fitness for
+! a particular purpose, are disclaimed. In no event shall UCAR be liable for any damages, whatsoever,
+! whether direct, indirect, consequential or special, that arise out of or in connection with the access,
 ! use or performance of WRF, including infringement actions.
 ! WRF is a registered trademark of the University Corporation for Atmospheric Research (UCAR).
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_diag_hailcast
 
@@ -915,7 +926,7 @@ CONTAINS
       REAL(wp), INTENT(IN)   :: D
       REAL(wp), INTENT(IN)   :: TSm1,TSm2,TC,DELRW,DENSA,GM1,GM,DGM,DGMW,  &
                      DGMI,DI,RE,AE,SEKDEL
-      REAL(wp), INTENT(OUT)  :: TS, FW
+      REAL(wp), INTENT(INOUT)  :: TS, FW
       INTEGER,  INTENT(INOUT):: ITYPE
       
       REAL(wp) ALF, ALV, ALS, CI, CW, AK

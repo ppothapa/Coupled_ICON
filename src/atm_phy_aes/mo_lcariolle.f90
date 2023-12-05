@@ -1,20 +1,16 @@
-
-!! Cariolle scheme.
-!! documentation: cr2016_10_22_rjs
-!!
-!! @author Sebastian Rast, MPI-M
-!!
-!! @par Revision History
-!!  Original version Sebastian Rast (2016)
-!!  revamp Harald Braun (Atos) (2021)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+! Cariolle scheme.
+! documentation: cr2016_10_22_rjs
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_lcariolle
 
@@ -22,6 +18,7 @@ MODULE mo_lcariolle
   USE mo_read_interface, ONLY: read_bcast_REAL_3D, read_1D,  &
     & closeFile, openInputFile
   USE mo_physical_constants, ONLY: avo
+  USE mo_fortran_tools, ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
   PRIVATE
@@ -98,6 +95,8 @@ CONTAINS
     CALL read_fill_array('a7', pvi%a7)
     CALL read_fill_array('a8', pvi%a8)
     CALL closeFile(file_id)
+    !$ACC ENTER DATA COPYIN(pvi, pvi%rlat, pvi%plev) &
+    !$ACC   COPYIN(pvi%a1, pvi%a2, pvi%a3, pvi%a4, pvi%a5, pvi%a6, pvi%a7, pvi%a8)
   CONTAINS
 
     SUBROUTINE read_fill_array(aname, arr)
@@ -140,13 +139,13 @@ CONTAINS
     REAL(wp)               :: at3(0:nlatx+1,nlevx)
     
     ! calculate linear interpolation weights for latitude interpolation
-    CALL lcariolle_lat_intp_li(                                           &
+    CALL lcariolle_lat_intp_li(                                      &
        & jcb,                 jce,                NCX,          &
        & avi%cell_center_lat, nlatx,              pvi%rlat,     &
        & pvi%delta_lat,       pvi%l_lat_sn,       wgt1_lat,     &
        & wgt2_lat,            inmw1_lat,          inmw2_lat     )
     ! calculate linear interpolation weights for pressure interpolation 
-    CALL lcariolle_pres_intp_li(                                          &
+    CALL lcariolle_pres_intp_li(                                     &
        & jcb,                 jce,                NCX,          &
        & nlev,                avi%pres,           nlevx,        &
        & pvi%plev,            wgt1_p,             wgt2_p,       &
@@ -184,27 +183,34 @@ CONTAINS
 !! interpolation with respect to pressure layers.
 !! documentation: cr2016_10_22_rjs
 !!
-  SUBROUTINE lcariolle_pres_intp_li (                               &
+  SUBROUTINE lcariolle_pres_intp_li (                                 &
              & jcb,              jce,                 NCX,            &
              & nlev,             plev,                nlev_clim,      &
              & plev_clim,        wgt1_p,              wgt2_p,         &
-             & inmw1_p,          inmw2_p                              )
-    INTEGER(wi),INTENT(IN)     :: &
+             & inmw1_p,          inmw2_p,                             &
+             & lacc)
+    INTEGER(wi),INTENT(IN)        :: &
          & jcb,jce,  & !< begin, end index of column
          & NCX,      & !< first dim of fields as in calling subprogram
          & nlev        !< number of levels in column
-    REAL(wp),INTENT(IN)        :: plev(NCX,nlev) !< pressure to interpolate on
-    INTEGER(wi),INTENT(IN)     :: nlev_clim      !< number of pressures in climat.
-    REAL(wp),INTENT(IN)        :: plev_clim(nlev_clim) !< climatological pressures
-    REAL(wp),INTENT(OUT)       :: wgt1_p(NCX,nlev),wgt2_p(NCX,nlev) !< intp. weights
-    INTEGER(wi),INTENT(OUT)    :: inmw1_p(NCX,nlev),inmw2_p(NCX,nlev) !< indices
-    INTEGER(wi)                :: ic,ilev,ii,ilev_low
+    REAL(wp),INTENT(IN)           :: plev(NCX,nlev) !< pressure to interpolate on
+    INTEGER(wi),INTENT(IN)        :: nlev_clim      !< number of pressures in climat.
+    REAL(wp),INTENT(IN)           :: plev_clim(nlev_clim) !< climatological pressures
+    REAL(wp),INTENT(OUT)          :: wgt1_p(NCX,nlev),wgt2_p(NCX,nlev) !< intp. weights
+    INTEGER(wi),INTENT(OUT)       :: inmw1_p(NCX,nlev),inmw2_p(NCX,nlev) !< indices
+    INTEGER(wi)                   :: ic,ilev,ii,ilev_low
+    LOGICAL, OPTIONAL, INTENT(in) :: lacc !< GPU flag
+    LOGICAL                       :: lzacc ! non-optional version of lacc
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR SEQ ASYNC(1) PRIVATE(ilev_low, ii) IF(lzacc)
     DO ic=jcb,jce
-      ilev_low=1           
+      ilev_low=1
       DO ilev=1,nlev
         ii=ilev_low
         DO
-    ! Pressures are assumed to be in irregular distances in the climatology
+          ! Pressures are assumed to be in irregular distances in the climatology
           IF (ii>nlev_clim) THEN
             inmw1_p(ic,ilev)=nlev_clim
             inmw2_p(ic,ilev)=nlev_clim
@@ -233,6 +239,7 @@ CONTAINS
         ilev_low=ii
       END DO
     END DO
+    !$ACC END PARALLEL LOOP
   END SUBROUTINE lcariolle_pres_intp_li
 
 !! Interpolation weights for linear interpolation from a
@@ -241,31 +248,42 @@ CONTAINS
 !! grid can be different. 
 !! documentation: cr2016_10_22_rjs
 !!
-  SUBROUTINE lcariolle_lat_intp_li(                                       &
+  SUBROUTINE lcariolle_lat_intp_li(                                         &
              & jcb,                jce,                   NCX,              &
              & cell_center_lat,    n_lat_clim,            r_lat_clim,       &
              & r_delta_lat_clim,   l_lat_clim_sn,         wgt1_lat,         &
-             & wgt2_lat,           inmw1_lat,             inmw2_lat         )
-    INTEGER(wi),INTENT(IN)    :: jcb, jce, & !< first, last point to interpolate on
-                               & NCX         !< length of array in calling subprog.
-    REAL(wp),INTENT(IN)       :: cell_center_lat(NCX) !< latitudes in radiant
-    INTEGER(wi),INTENT(IN)    :: n_lat_clim           !< number of lats in climatol.
-    REAL(wp),INTENT(IN)       :: r_lat_clim(0:n_lat_clim+1), & !< lats in climatology
+             & wgt2_lat,           inmw1_lat,             inmw2_lat,        &
+             & lacc)
+    INTEGER(wi),INTENT(IN)        :: jcb, jce, & !< first, last point to interpolate on
+                                   & NCX         !< length of array in calling subprog.
+    REAL(wp),INTENT(IN)           :: cell_center_lat(NCX) !< latitudes in radiant
+    INTEGER(wi),INTENT(IN)        :: n_lat_clim           !< number of lats in climatol.
+    REAL(wp),INTENT(IN)           :: r_lat_clim(0:n_lat_clim+1), & !< lats in climatology
                                                                !< in radiant
-                               & r_delta_lat_clim     !< spacing in climatology
-    LOGICAL,INTENT(IN)        :: l_lat_clim_sn        !< .true. if order is S->N,
-                                                      !< .false. otherwise
-    REAL(wp),INTENT(OUT)      :: wgt1_lat(NCX),wgt2_lat(NCX)   !< interpolation weights
-    INTEGER(wi),INTENT(OUT)   :: inmw1_lat(NCX),inmw2_lat(NCX) !< corresponding indices 
-    INTEGER(wi)               :: n_order
-    REAL(wp)                  :: r_delta_lat_clim_i
+                                   & r_delta_lat_clim     !< spacing in climatology
+    LOGICAL,INTENT(IN)            :: l_lat_clim_sn        !< .true. if order is S->N,
+                                                          !< .false. otherwise
+    REAL(wp),INTENT(OUT)          :: wgt1_lat(NCX),wgt2_lat(NCX)   !< interpolation weights
+    INTEGER(wi),INTENT(OUT)       :: inmw1_lat(NCX),inmw2_lat(NCX) !< corresponding indices 
+    INTEGER(wi)                   :: n_order
+    REAL(wp)                      :: r_delta_lat_clim_i
+    INTEGER                       :: ic
+    LOGICAL, OPTIONAL, INTENT(in) :: lacc !< GPU flag
+    LOGICAL                       :: lzacc
+
+    CALL set_acc_host_or_device(lzacc, lacc)
     
     n_order = MERGE(1, -1, l_lat_clim_sn)
     r_delta_lat_clim_i=1._wp/r_delta_lat_clim
-    inmw1_lat(jcb:jce)=MAX(INT(n_order*(cell_center_lat(jcb:jce)-r_lat_clim(1))*r_delta_lat_clim_i+1._wp),0)
-    inmw2_lat(jcb:jce)=inmw1_lat(jcb:jce)+1
-    wgt2_lat(jcb:jce)=n_order*(cell_center_lat(jcb:jce)-r_lat_clim(inmw1_lat(jcb:jce)))*r_delta_lat_clim_i
-    wgt1_lat(jcb:jce)=1.0_wp-wgt2_lat(jcb:jce)
+
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR ASYNC(1) IF(lzacc)
+    DO ic=jcb,jce
+       inmw1_lat(ic)=MAX(INT(n_order*(cell_center_lat(ic)-r_lat_clim(1))*r_delta_lat_clim_i+1._wp),0)
+       inmw2_lat(ic)=inmw1_lat(ic)+1
+       wgt2_lat(ic)=n_order*(cell_center_lat(ic)-r_lat_clim(inmw1_lat(ic)))*r_delta_lat_clim_i
+       wgt1_lat(ic)=1.0_wp-wgt2_lat(ic)
+    END DO
+    !$ACC END PARALLEL LOOP
   END SUBROUTINE lcariolle_lat_intp_li
 
 !! This subroutine calculates the ozone tendency according to equation (1)
@@ -274,19 +292,21 @@ CONTAINS
 !! comprise the full overhead ozone column.
 !! documentation: cr2016_10_22_rjs
 !!
-  SUBROUTINE lcariolle_do3dt(                                         &
-             & jcb,                 jce,             NCX,               &
-             & nlev,                time_ip,         avi,             do3dt)
-    INTEGER(wi),INTENT(IN) :: &
-         & jcb,jce,   & !< begin, end index of column
-         & NCX,       & !< first dim of fields as in calling subprogram
-         & nlev         !< number of levels in column
-    TYPE(t_time_interpolation), INTENT(IN) :: time_ip   !< contains linear interpolation weights
-    TYPE(t_avi),INTENT(IN) :: avi                       !< derived type containing all variables
-                                                        !< passed to submodel Cariolle
-    REAL(wp),INTENT(INOUT) :: do3dt(NCX,nlev)           !< tendency of ozone VMR per second
+  SUBROUTINE lcariolle_do3dt(                                    &
+             & jcb,             jce,          NCX,               &
+             & nlev,            time_ip,      avi,          do3dt)
+    INTEGER(wi),INTENT(IN)                 :: &
+                                            & jcb,jce, & !< begin, end index of column
+                                            & NCX,     & !< first dim of fields as in calling subprogram
+                                            & nlev       !< number of levels in column
+    TYPE(t_time_interpolation), INTENT(IN) :: time_ip    !< contains linear interpolation weights
+
+    TYPE(t_avi),INTENT(IN)    :: avi                     !< derived type containing all variables
+                                                         !< passed to submodel Cariolle
+    REAL(wp),   INTENT(INOUT) :: do3dt(NCX,nlev)         !< tendency of ozone VMR per second
+    
     INTEGER(wi)            :: ilev,ic
-    REAL(wp)               :: o3_column(NCX,nlev)       !< overhead ozone column 
+    REAL(wp)               :: o3_column(NCX,nlev)        !< overhead ozone column 
     REAL(wp)               :: wgt1_lat(NCX),wgt2_lat(NCX), &
                             & wgt1_p(NCX,nlev),wgt2_p(NCX,nlev)
     INTEGER(wi)            :: inmw1_lat(NCX),inmw2_lat(NCX), &
@@ -303,39 +323,83 @@ CONTAINS
                             & at3(0:nlatx+1,nlevx), at4(0:nlatx+1,nlevx), &
                             & at5(0:nlatx+1,nlevx), at6(0:nlatx+1,nlevx), &
                             & at7(0:nlatx+1,nlevx), at8(0:nlatx+1,nlevx)
-    
+    INTEGER                :: ilevx, ilatx
+
+    !$ACC DATA PRESENT(do3dt, avi, avi%o3_vmr, avi%vmr2molm2, avi%ldown, avi%cell_center_lat, avi%pres, avi%tmprt) &
+    !$ACC   CREATE(o3_column) &
+    !$ACC   CREATE(wgt1_lat, wgt2_lat, inmw1_lat, inmw2_lat) &
+    !$ACC   CREATE(at1, at2, at3, at4, at5, at6, at7, at8) &
+    !$ACC   CREATE(wgt1_p, wgt2_p, iw1_p, iw2_p) &
+    !$ACC   CREATE(al1, al2, al3, al4, al5, al6, al7, al8)
+
     ! calculate overhead ozone column for each model layer
-    CALL lcariolle_o3_column(                         &
-       & jcb,           jce,           NCX,           &
-       & nlev,          avi%o3_vmr,    avi%vmr2molm2, &
-       & avi%ldown,     o3_column                     )
-    o3_column(jcb:jce,1:nlev)=o3_column(jcb:jce,1:nlev)*avo*1.e-4_wp
+    CALL lcariolle_o3_column(       &
+       & jcb, jce, NCX, nlev,       &
+       & o3_vmr    = avi%o3_vmr,    &
+       & vmr2molm2 = avi%vmr2molm2, &
+       & ldown     = avi%ldown,     &
+       & o3_column = o3_column      )
+    !
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
+    DO ilev=1,nlev
+      DO ic=jcb,jce
+        o3_column(ic,ilev)=o3_column(ic,ilev)*avo*1.e-4_wp
+      END DO
+    END DO
+    !$ACC END PARALLEL LOOP
+   
     ! calculate linear interpolation weights for latitude interpolation
-    CALL lcariolle_lat_intp_li(                                                   &
-       & jcb,                 jce,                   NCX,               &
-       & avi%cell_center_lat, nlatx,                 pvi%rlat,          &
-       & pvi%delta_lat,       pvi%l_lat_sn,          wgt1_lat,          &
-       & wgt2_lat,            inmw1_lat,             inmw2_lat          )
-    ! calculate linear interpolation weights for pressure interpolation 
-    CALL lcariolle_pres_intp_li(                                        &
-       & jcb,                 jce,                   NCX,               &
-       & nlev,                avi%pres,              nlevx,             &
-       & pvi%plev,            wgt1_p,                wgt2_p,            &
-       & iw1_p,               iw2_p                                     )
+    CALL lcariolle_lat_intp_li(                  &
+       & jcb, jce, NCX,                          &
+       & cell_center_lat  = avi%cell_center_lat, &
+       & n_lat_clim       = nlatx,               &
+       & r_lat_clim       = pvi%rlat,            &
+       & r_delta_lat_clim = pvi%delta_lat,       &
+       & l_lat_clim_sn    = pvi%l_lat_sn,        &
+       & wgt1_lat         = wgt1_lat,            &
+       & wgt2_lat         = wgt2_lat,            &
+       & inmw1_lat        = inmw1_lat,           &
+       & inmw2_lat        = inmw2_lat,           &
+       & lacc             = .TRUE.               )
+    
+    ! calculate linear interpolation weights for pressure interpolation
+    CALL lcariolle_pres_intp_li( &
+       & jcb, jce, NCX, nlev,    &
+       & plev      = avi%pres,   &
+       & nlev_clim = nlevx,      &
+       & plev_clim = pvi%plev,   &
+       & wgt1_p    = wgt1_p,     &
+       & wgt2_p    = wgt2_p,     &
+       & inmw1_p   = iw1_p,      &
+       & inmw2_p   = iw2_p,      &
+       & lacc      = .TRUE.      )
+
     ! interpolate coefficients with respect to time
     wp1=time_ip%weight1
     wp2=time_ip%weight2
     ip1=time_ip%imonth1
     ip2=time_ip%imonth2
-    at1(:,:)=wp1*pvi%a1(:,:,ip1)+wp2*pvi%a1(:,:,ip2)
-    at2(:,:)=wp1*pvi%a2(:,:,ip1)+wp2*pvi%a2(:,:,ip2)
-    at3(:,:)=wp1*pvi%a3(:,:,ip1)+wp2*pvi%a3(:,:,ip2)
-    at4(:,:)=wp1*pvi%a4(:,:,ip1)+wp2*pvi%a4(:,:,ip2)
-    at5(:,:)=wp1*pvi%a5(:,:,ip1)+wp2*pvi%a5(:,:,ip2)
-    at6(:,:)=wp1*pvi%a6(:,:,ip1)+wp2*pvi%a6(:,:,ip2)
-    at7(:,:)=wp1*pvi%a7(:,:,ip1)+wp2*pvi%a7(:,:,ip2)
-    at8(:,:)=wp1*pvi%a8(:,:,ip1)+wp2*pvi%a8(:,:,ip2)
+    
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
+    DO ilevx=1,nlevx
+      DO ilatx=0,nlatx+1
+        at1(ilatx,ilevx)=wp1*pvi%a1(ilatx,ilevx,ip1)+wp2*pvi%a1(ilatx,ilevx,ip2)
+        at2(ilatx,ilevx)=wp1*pvi%a2(ilatx,ilevx,ip1)+wp2*pvi%a2(ilatx,ilevx,ip2)
+        at3(ilatx,ilevx)=wp1*pvi%a3(ilatx,ilevx,ip1)+wp2*pvi%a3(ilatx,ilevx,ip2)
+        at4(ilatx,ilevx)=wp1*pvi%a4(ilatx,ilevx,ip1)+wp2*pvi%a4(ilatx,ilevx,ip2)
+        at5(ilatx,ilevx)=wp1*pvi%a5(ilatx,ilevx,ip1)+wp2*pvi%a5(ilatx,ilevx,ip2)
+        at6(ilatx,ilevx)=wp1*pvi%a6(ilatx,ilevx,ip1)+wp2*pvi%a6(ilatx,ilevx,ip2)
+        at7(ilatx,ilevx)=wp1*pvi%a7(ilatx,ilevx,ip1)+wp2*pvi%a7(ilatx,ilevx,ip2)
+        at8(ilatx,ilevx)=wp1*pvi%a8(ilatx,ilevx,ip1)+wp2*pvi%a8(ilatx,ilevx,ip2)
+      END DO
+    END DO 
+    !$ACC END PARALLEL LOOP
+    
     ! latitude and pressure interpolation of at1,...,at8
+    !$ACC PARALLEL DEFAULT(PRESENT) PRIVATE(wgt1, wgt2, iw1, iw2, wp1, wp2, ip1, ip2) &
+    !$ACC   PRIVATE(a1_p1, a2_p1, a3_p1, a4_p1, a5_p1, a6_p1, a7_p1, a8_p1) &
+    !$ACC   PRIVATE(a1_p2, a2_p2, a3_p2, a4_p2, a5_p2, a6_p2, a7_p2, a8_p2) ASYNC(1)
+    !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO ilev=1,nlev
       DO ic=jcb,jce
         wgt1=wgt1_lat(ic)
@@ -346,7 +410,7 @@ CONTAINS
         wp2 =wgt2_p(ic,ilev)
         ip1 =iw1_p(ic,ilev)
         ip2 =iw2_p(ic,ilev)
-    ! latitude interpolation for pressure level 1 (iw1_p)
+        ! latitude interpolation for pressure level 1 (iw1_p)
         a1_p1 = wgt1*at1(iw1,ip1) + &
               & wgt2*at1(iw2,ip1)
         a2_p1 = wgt1*at2(iw1,ip1) + &
@@ -362,7 +426,7 @@ CONTAINS
         a7_p1 = wgt1*at7(iw1,ip1) + &
               & wgt2*at7(iw2,ip1)
         a8_p1 = wgt1*at8(iw1,ip1) + &
-              & wgt2*at8(iw2,ip1)
+             & wgt2*at8(iw2,ip1)
     ! latitude interpolation for pressure level 2 (iw2_p)
         a1_p2 = wgt1*at1(iw1,ip2) + &
               & wgt2*at1(iw2,ip2)
@@ -381,18 +445,21 @@ CONTAINS
         a8_p2 = wgt1*at8(iw1,ip2) + &
               & wgt2*at8(iw2,ip2)
     ! pressure level interpolation
-        al1(ic,ilev)=wp1*a1_p1+wp2*a1_p2
-        al2(ic,ilev)=wp1*a2_p1+wp2*a2_p2
-        al3(ic,ilev)=wp1*a3_p1+wp2*a3_p2
-        al4(ic,ilev)=wp1*a4_p1+wp2*a4_p2
-        al5(ic,ilev)=wp1*a5_p1+wp2*a5_p2
-        al6(ic,ilev)=wp1*a6_p1+wp2*a6_p2
-        al7(ic,ilev)=wp1*a7_p1+wp2*a7_p2
-        al8(ic,ilev)=wp1*a8_p1+wp2*a8_p2
+        al1(ic,ilev) = wp1*a1_p1 + wp2*a1_p2
+        al2(ic,ilev) = wp1*a2_p1 + wp2*a2_p2
+        al3(ic,ilev) = wp1*a3_p1 + wp2*a3_p2
+        al4(ic,ilev) = wp1*a4_p1 + wp2*a4_p2
+        al5(ic,ilev) = wp1*a5_p1 + wp2*a5_p2
+        al6(ic,ilev) = wp1*a6_p1 + wp2*a6_p2
+        al7(ic,ilev) = wp1*a7_p1 + wp2*a7_p2
+        al8(ic,ilev) = wp1*a8_p1 + wp2*a8_p2
       END DO
     END DO
+    !$ACC END PARALLEL
+    
     ! calculate equation (1) of Cariolle et al., Atmos. Chem. Phys. 7, 2183 (2007).
     ! first step: all terms except the A_8 term for polar stratospheric clouds
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
     DO ilev=1,nlev
       DO ic=jcb,jce
         do3dt(ic,ilev) = al1(ic,ilev) + &
@@ -401,14 +468,21 @@ CONTAINS
                        & al6(ic,ilev)*(o3_column(ic,ilev)-al7(ic,ilev))
       END DO
     END DO
+    !$ACC END PARALLEL LOOP
+    
     ! Add A_8 in case of polar stratospheric clouds and daylight for
     ! additional ozone destruction
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR COLLAPSE(2) ASYNC(1)
     DO ilev=1,nlev
-      WHERE (avi%lday(jcb:jce).AND.avi%tmprt(jcb:jce,ilev)<=195._wp)
-        do3dt(jcb:jce,ilev) = do3dt(jcb:jce,ilev) + &
-                            & al8(jcb:jce,ilev)*avi%o3_vmr(jcb:jce,ilev)
-      END WHERE
+      DO ic=jcb,jce
+        IF (avi%lday(ic).AND.avi%tmprt(ic,ilev)<=195._wp) THEN
+          do3dt(ic,ilev) = do3dt(ic,ilev) + al8(ic,ilev)*avi%o3_vmr(ic,ilev)
+        END IF
+      END DO
     END DO
+    !$ACC END PARALLEL LOOP
+    !$ACC WAIT
+    !$ACC END DATA
   END SUBROUTINE lcariolle_do3dt
 
 !! This subroutine calculates the overhead ozone column in mole/m^2
@@ -429,17 +503,33 @@ CONTAINS
     LOGICAL,INTENT(IN)      :: ldown               !< .true. if layers are counted from top
                                                    !< to bottom, .false. otherwise
     REAL(wp),INTENT(INOUT)  :: o3_column(NCX,nlev) !< overhead ozone column (mole/m^2)
-    INTEGER(wi)             :: ii,ilev,incr
+    INTEGER                 :: ic
+    INTEGER(wi)             :: ii,ilev,ilev0,incr
     
     ilev = MERGE(1, nlev, ldown)
     incr = MERGE(1, -1, ldown)
-    o3_column(jcb:jce,ilev) = 0.5_wp * o3_vmr(jcb:jce,ilev) * vmr2molm2(jcb:jce,ilev)
-    DO ii=1,nlev-1
-       ilev=ilev+incr
-       o3_column(jcb:jce,ilev) = o3_column(jcb:jce,ilev-incr) +                   &
-             & 0.5_wp * o3_vmr(jcb:jce,ilev-incr) * vmr2molm2(jcb:jce,ilev-incr) +&
-             & 0.5_wp * o3_vmr(jcb:jce,ilev) * vmr2molm2(jcb:jce,ilev)
+    !
+    !$ACC DATA PRESENT(o3_vmr, vmr2molm2, o3_column)
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) GANG VECTOR ASYNC(1)
+    DO ic = jcb,jce
+      o3_column(ic,ilev) = 0.5_wp * o3_vmr(ic,ilev) * vmr2molm2(ic,ilev)
     END DO
+    !$ACC END PARALLEL LOOP
+
+    ilev0 = ilev
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+    !$ACC LOOP SEQ
+    DO ii=1,nlev-1
+      !$ACC LOOP GANG VECTOR PRIVATE(ilev)
+      DO ic = jcb,jce
+        ilev = ilev0 + ii*incr  
+        o3_column(ic,ilev) = o3_column(ic,ilev-incr) +                   &
+              & 0.5_wp * o3_vmr(ic,ilev-incr) * vmr2molm2(ic,ilev-incr) +&
+              & 0.5_wp * o3_vmr(ic,ilev) * vmr2molm2(ic,ilev)
+      END DO
+    END DO
+    !$ACC END PARALLEL
+    !$ACC END DATA
   END SUBROUTINE lcariolle_o3_column
 
 END MODULE mo_lcariolle

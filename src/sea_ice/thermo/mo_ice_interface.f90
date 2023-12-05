@@ -1,20 +1,17 @@
-!>
-!! Provide interfaces to call sea ice ice model from the ocean and atmosphere.
-!!
-!! @author Dirk Notz, MPI
-!! @author Vladimir Lapin, MPI
-!!
-!! @par Revision History
-!! Original version by Peter Korn, MPI-M (2009)
-!! Modified by Vladimir Lapin, MPI-M (2017)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+! Provide interfaces to call sea ice ice model from the ocean and atmosphere.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -60,6 +57,7 @@ MODULE mo_ice_interface
   USE mo_ocean_nml,          ONLY: n_zlev
 
   USE mo_impl_constants,     ONLY: sea_boundary,sea, land, boundary
+  USE mo_fortran_tools,      ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -82,12 +80,7 @@ CONTAINS
   !! This function changes:
   !! p_ice      dynamics fields of sea ice
   !!
-  !! @par Revision History
-  !! Initial release by Vladimir Lapin, MPI-M (2016-11)
-  !! Modified by Helmuth Haak, MPI-M (2020-03)
-  !
-!<Optimize_Used>
-  SUBROUTINE ice_dynamics(p_patch_3D, p_ice, p_oce_sfc, atmos_fluxes, p_os, p_as, p_op_coeff, use_acc)
+  SUBROUTINE ice_dynamics(p_patch_3D, p_ice, p_oce_sfc, atmos_fluxes, p_os, p_as, p_op_coeff, lacc)
 
     TYPE(t_patch_3D ),TARGET,   INTENT(IN)      :: p_patch_3D
     TYPE(t_sea_ice),            INTENT(INOUT)   :: p_ice
@@ -96,13 +89,14 @@ CONTAINS
     TYPE(t_atmos_for_ocean),    INTENT(INOUT)   :: p_as
     TYPE(t_hydro_ocean_state),  INTENT(IN)      :: p_os
     TYPE(t_operator_coeff),     INTENT(IN)      :: p_op_coeff
-    LOGICAL, INTENT(IN), OPTIONAL               :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL               :: lacc
 
     ! Local variables
     TYPE(t_patch),  POINTER :: p_patch
     TYPE(t_subset_range), POINTER :: all_edges
     TYPE(t_subset_range), POINTER :: owned_cells
-    LOGICAL :: lacc
+    TYPE(t_subset_range), POINTER :: all_cells
+    LOGICAL :: lzacc
 
     TYPE(t_cartesian_coordinates) :: cvec_ice_velocity(nproma,p_patch_3D%p_patch_2D(1)%alloc_cell_blocks)
 
@@ -117,17 +111,15 @@ CONTAINS
 
     INTEGER  :: edge_block_1,edge_block_2,edge_block_3,edge_index_1,edge_index_2,edge_index_3
     INTEGER  :: edge_block_i,start_index,end_index,edge_index_i,cell_block,cell_index
+    INTEGER  :: jc, jb, i_startidx_c, i_endidx_c
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !-----------------------------------------------------------------------
     p_patch         => p_patch_3D%p_patch_2D(1)
     all_edges       => p_patch%edges%all
     owned_cells     => p_patch%cells%owned
+    all_cells       => p_patch%cells%all
 
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     CALL dbg_print('bef.icedyn: hi  ',p_ice%hi    ,str_module,2, in_subset=p_patch%cells%owned)
@@ -143,13 +135,12 @@ CONTAINS
 
       IF ( i_ice_dyn == 1 ) THEN
         ! solve for ice velocities (AWI FEM model wrapper)
-        CALL ice_fem_interface ( p_patch_3D, p_ice, p_os, p_as, atmos_fluxes, p_op_coeff, p_oce_sfc, use_acc=lacc )
+        CALL ice_fem_interface ( p_patch_3D, p_ice, p_os, p_as, atmos_fluxes, p_op_coeff, p_oce_sfc, lacc=lzacc )
       ENDIF
 
       IF ( i_ice_dyn == 2 ) THEN
         CALL ice_new_dynamics( p_patch_3D, p_ice, p_os, p_as, atmos_fluxes, p_op_coeff, p_oce_sfc)
       ENDIF
-
 
       CALL dbg_print('bef.iceadv: conc',p_ice%conc  ,str_module,2, in_subset=p_patch%cells%owned)
 
@@ -157,7 +148,7 @@ CONTAINS
       IF (i_ice_advec == 0) THEN
         IF (ltimer) CALL timer_start(timer_ice_advection)
 
-        CALL ice_advection_upwind( p_patch_3D, p_op_coeff, p_ice, use_acc=lacc )
+        CALL ice_advection_upwind( p_patch_3D, p_op_coeff, p_ice, lacc=lzacc )
 
         IF (ltimer) CALL timer_stop(timer_ice_advection)
       ELSEIF (i_ice_advec == 1) THEN
@@ -166,13 +157,13 @@ CONTAINS
       ENDIF
 
  !    ! fix possible overshoots/undershoots after advection (previously, ice_clean_up_dyn)
-      CALL ice_cut_off( p_patch, p_ice, use_acc=lacc )
+      CALL ice_cut_off( p_patch, p_ice, lacc=lzacc )
 
       IF (i_ice_dyn == 2) THEN
-        !$ACC DATA CREATE(cvec_ice_velocity, boundary_cell_marker, boundary_edge_marker, ice_x, ice_y, ice_z) IF(lacc)
+        !$ACC DATA CREATE(cvec_ice_velocity, boundary_cell_marker, boundary_edge_marker, ice_x, ice_y, ice_z) IF(lzacc)
 
         ! kartesischer Vektor auf Kantenmitte
-        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+        !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
         cvec_ice_velocity(:,:)%x(1)=0.0_wp
         cvec_ice_velocity(:,:)%x(2)=0.0_wp
         cvec_ice_velocity(:,:)%x(3)=0.0_wp
@@ -189,7 +180,7 @@ CONTAINS
 
         DO edge_block_i = all_edges%start_block, all_edges%end_block
           CALL get_index_range(all_edges, edge_block_i, start_index, end_index)
-          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(nix, tix, niy, tiy, niz, tiz) IF(lacc)
+          !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(nix, tix, niy, tiy, niz, tiz) IF(lzacc)
           DO edge_index_i =  start_index, end_index
             nix=p_patch%edges%primal_cart_normal(edge_index_i,edge_block_i)%x(1)
             tix=p_patch%edges%dual_cart_normal(edge_index_i,edge_block_i)%x(1)
@@ -216,7 +207,7 @@ CONTAINS
         DO cell_block = owned_cells%start_block, owned_cells%end_block
           CALL get_index_range(owned_cells, cell_block, start_index, end_index)
           !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(edge_index_1, edge_block_1) &
-          !$ACC   PRIVATE(edge_index_2, edge_block_2, edge_index_3, edge_block_3) IF(lacc)
+          !$ACC   PRIVATE(edge_index_2, edge_block_2, edge_index_3, edge_block_3) IF(lzacc)
           DO cell_index = start_index, end_index
 
             edge_index_1 = p_patch%cells%edge_idx(cell_index, cell_block, 1)
@@ -246,17 +237,23 @@ CONTAINS
       IF (timers_level > 1) CALL timer_stop(timer_extra40)
 
     ELSE
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-      p_ice%u(:,:) = 0._wp
-      p_ice%v(:,:) = 0._wp
-      !$ACC END KERNELS
+
+      DO jb = all_cells%start_block, all_cells%end_block
+        CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
+        DO jc = i_startidx_c, i_endidx_c
+          p_ice%u(jc,jb) = 0._wp
+          p_ice%v(jc,jb) = 0._wp
+        END DO
+        !$ACC END PARALLEL LOOP
+      END DO
+
     ENDIF
 
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     CALL dbg_print('aft.icedyn: hi  ',p_ice%hi    ,str_module,2, in_subset=p_patch%cells%owned)
     CALL dbg_print('aft.icedyn: hs  ',p_ice%hs    ,str_module,2, in_subset=p_patch%cells%owned)
     CALL dbg_print('aft.icedyn: conc',p_ice%conc  ,str_module,2, in_subset=p_patch%cells%owned)
-
 
   END SUBROUTINE ice_dynamics
 
@@ -270,12 +267,7 @@ CONTAINS
   !! p_ice      slow-thermodynamics fields of sea ice
   !! p_oce_sfc  heat and fresh-water fluxes, passed to the ocean
   !!
-  !! @par Revision History
-  !! Initial release by Vladimir Lapin, MPI-M (2016-11)
-  !! Modified by Helmuth Haak, MPI-M (2020-03)
-  !
-!<Optimize_Used>
-  SUBROUTINE ice_thermodynamics(p_patch_3D, p_ice, p_oce_sfc, atmos_fluxes, p_os, p_as, p_op_coeff, use_acc)
+  SUBROUTINE ice_thermodynamics(p_patch_3D, p_ice, p_oce_sfc, atmos_fluxes, p_os, p_as, p_op_coeff, lacc)
 
     TYPE(t_patch_3D ),TARGET,   INTENT(IN)      :: p_patch_3D
     TYPE(t_sea_ice),            INTENT(INOUT)   :: p_ice
@@ -284,35 +276,37 @@ CONTAINS
     TYPE(t_atmos_for_ocean),    INTENT(INOUT)   :: p_as
     TYPE(t_hydro_ocean_state),  INTENT(IN)      :: p_os
     TYPE(t_operator_coeff),     INTENT(IN)      :: p_op_coeff
-    LOGICAL, INTENT(IN), OPTIONAL               :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL               :: lacc
 
     ! Local variables
     TYPE(t_patch),  POINTER :: p_patch
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !-----------------------------------------------------------------------
     p_patch         => p_patch_3D%p_patch_2D(1)
+
+#ifndef _OPENMP
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     CALL dbg_print('bef.icethm: hi  ',p_ice%hi    ,str_module,2, in_subset=p_patch%cells%owned)
     CALL dbg_print('bef.icethm: hs  ',p_ice%hs    ,str_module,2, in_subset=p_patch%cells%owned)
     CALL dbg_print('bef.icethm: conc',p_ice%conc  ,str_module,2, in_subset=p_patch%cells%owned)
+    !---------------------------------------------------------------------
+#endif
 
     !---------------------------------------------------------------------
     ! (2) --------------- Slow sea ice thermodynamics --------------------
     !---------------------------------------------------------------------
-    CALL ice_slow_thermo(p_patch_3D, p_os, atmos_fluxes, p_ice, p_oce_sfc, use_acc=lacc)
+    CALL ice_slow_thermo(p_patch_3D, p_os, atmos_fluxes, p_ice, p_oce_sfc, lacc=lzacc)
 
+#ifndef _OPENMP
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     CALL dbg_print('aft.icethm: hi  ',p_ice%hi    ,str_module,2, in_subset=p_patch%cells%owned)
     CALL dbg_print('aft.icethm: hs  ',p_ice%hs    ,str_module,2, in_subset=p_patch%cells%owned)
     CALL dbg_print('aft.icethm: conc',p_ice%conc  ,str_module,2, in_subset=p_patch%cells%owned)
     !---------------------------------------------------------------------
+#endif
 
   END SUBROUTINE ice_thermodynamics
 
@@ -326,50 +320,42 @@ CONTAINS
   !! p_ice        - fast-thermodynamics fields (Qtop, Qbot, Tsurf)
   !! atmos_fluxes - ice albedos (albvisdir, albvisdif, albnirdir, albnirdif)
   !!
-  !! @par Revision History
-  !! Original code (mo_ocean_surface) by Stephan Lorenz, MPI-M (2015-04)
-  !! Modified by Vladimir Lapin, MPI-M (2016-11)
-  !
-!<Optimize_Used>
-  SUBROUTINE ice_fast_interface(p_patch, p_ice, atmos_fluxes, this_datetime, use_acc)
+  SUBROUTINE ice_fast_interface(p_patch, p_ice, atmos_fluxes, this_datetime, lacc)
 
     TYPE(t_patch), TARGET,      INTENT(IN)      :: p_patch
     TYPE(t_sea_ice),            INTENT(INOUT)   :: p_ice
     TYPE(t_atmos_fluxes),       INTENT(INOUT)   :: atmos_fluxes
     TYPE(datetime), POINTER,    INTENT(IN)      :: this_datetime
-    LOGICAL, INTENT(IN), OPTIONAL               :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL               :: lacc
     !
     ! local variables
-    INTEGER               :: jb, i_startidx_c, i_endidx_c
-    LOGICAL               :: lacc
+    INTEGER               :: jb, i_startidx_c, i_endidx_c, i, j
+    LOGICAL               :: lzacc
     REAL(wp), DIMENSION(SIZE(atmos_fluxes%lat,1), SIZE(atmos_fluxes%lat,2)) :: nonsolar
     REAL(wp), DIMENSION(SIZE(atmos_fluxes%dlatdT,1), SIZE(atmos_fluxes%dlatdT,2)) :: nonsolardT
 
     TYPE(t_subset_range), POINTER :: all_cells
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !-----------------------------------------------------------------------
     all_cells       => p_patch%cells%all
     !---------------------------------------------------------------------
 
-    !$ACC DATA CREATE(nonsolar, nonsolardT) IF(lacc)
+    !$ACC DATA CREATE(nonsolar, nonsolardT) IF(lzacc)
 
 !ICON_OMP_PARALLEL_DO PRIVATE(jb, i_startidx_c, i_endidx_c, nonsolar, nonsolardT) SCHEDULE(dynamic)
         DO jb = all_cells%start_block, all_cells%end_block
           CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
 
-          !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-          nonsolar(:,:)   = atmos_fluxes%lat(:,:,jb) + atmos_fluxes%sens(:,:,jb) + atmos_fluxes%LWnet(:,:,jb)
-          !$ACC END KERNELS
-
-          !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-          nonsolardT(:,:) = atmos_fluxes%dlatdT(:,:,jb) + atmos_fluxes%dsensdT(:,:,jb) + atmos_fluxes%dLWdT(:,:,jb)
-          !$ACC END KERNELS
+          DO j =1,p_ice%kice
+            !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
+            DO i=1,nproma
+              nonsolar(i,j)   = atmos_fluxes%lat(i,j,jb) + atmos_fluxes%sens(i,j,jb) + atmos_fluxes%LWnet(i,j,jb)
+              nonsolardT(i,j) = atmos_fluxes%dlatdT(i,j,jb) + atmos_fluxes%dsensdT(i,j,jb) + atmos_fluxes%dLWdT(i,j,jb)
+            END DO
+            !$ACC END PARALLEL LOOP
+          END DO
 
           CALL ice_fast(i_startidx_c, i_endidx_c, nproma, p_ice%kice, dtime, &
             &   p_ice% Tsurf(:,:,jb),   &          !  intent(inout)
@@ -382,41 +368,40 @@ CONTAINS
             &   atmos_fluxes%SWnet  (:,:,jb),   &  !  following: intent(in)
             &   nonsolar, &
             &   nonsolardT, &
-!            &   atmos_fluxes%lat(:,:,jb) + atmos_fluxes%sens(:,:,jb) + atmos_fluxes%LWnet(:,:,jb),   &
-!            &   atmos_fluxes%dlatdT(:,:,jb) + atmos_fluxes%dsensdT(:,:,jb) + atmos_fluxes%dLWdT(:,:,jb),   &
             &   p_ice% Tfw  (:,  jb),   &
             &   atmos_fluxes%albvisdir(:,:,jb), &  !  intent(out)
             &   atmos_fluxes%albvisdif(:,:,jb), &  !  intent(out)
             &   atmos_fluxes%albnirdir(:,:,jb), &  !  intent(out)
             &   atmos_fluxes%albnirdif(:,:,jb), &  !  intent(out)
             &   doy=getDayOfYearFromDateTime(this_datetime), &
-            &   use_acc = lacc)
-        ENDDO
+            &   lacc = lzacc)
+        END DO
 !ICON_OMP_END_PARALLEL_DO
 
         ! provide constant heat fluxes for special analytical cases
         ! to-do: move to more appropriate place, should not be done here
         SELECT CASE (atmos_flux_analytical_type)
         CASE (102)
-          !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+          !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
           p_ice%Qtop(:,1,:) = atmos_SWnet_const
           !$ACC END KERNELS
 
-          !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+          !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
           p_ice%Qbot(:,1,:) = 0.0_wp
           !$ACC END KERNELS
         CASE (103)
-          !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+          !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
           p_ice%Qtop(:,1,:) = 0.0_wp
           !$ACC END KERNELS
 
-          !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+          !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
           p_ice%Qbot(:,1,:) = atmos_sens_const
           !$ACC END KERNELS
         END SELECT
 
     !$ACC END DATA
 
+#ifndef _OPENMP
     !---------DEBUG DIAGNOSTICS-------------------------------------------
     CALL dbg_print('ice_fast: hi     ',p_ice%hi       ,str_module,3, in_subset=p_patch%cells%owned)
     CALL dbg_print('ice_fast: hs     ',p_ice%hs       ,str_module,3, in_subset=p_patch%cells%owned)
@@ -425,6 +410,7 @@ CONTAINS
     CALL dbg_print('aft.fast: Qtop   ',p_ice%Qtop     ,str_module,3, in_subset=p_patch%cells%owned)
     CALL dbg_print('aft.fast: Qbot   ',p_ice%Qbot     ,str_module,3, in_subset=p_patch%cells%owned)
     !---------------------------------------------------------------------
+#endif
 
   END SUBROUTINE ice_fast_interface
 
@@ -438,10 +424,6 @@ CONTAINS
   !! Qtop, Qbot                 - heat flux available for surface/bottom melting
   !! alb{vis/nir}{dir/dif}      - albedos
   !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2010-07). Originally code written by
-  !! Dirk Notz, following MPI-OM. Code transfered to ICON.
-  !
   SUBROUTINE ice_fast(i_startidx_c, i_endidx_c, nbdim, kice, pdtime, &
             &   Tsurf,          & ! Surface temperature [degC]
             &   T1,             & ! Temperature of upper layer [degC]
@@ -459,7 +441,7 @@ CONTAINS
             &   albnirdir,      & ! Albedo NIR, direct/parallel
             &   albnirdif,      & ! Albedo NIR, diffuse
             &   doy,            & ! Day of the year
-            &   use_acc)
+            &   lacc)
 
     INTEGER, INTENT(IN)    :: i_startidx_c, i_endidx_c, nbdim, kice
     REAL(wp),INTENT(IN)    :: pdtime
@@ -480,18 +462,14 @@ CONTAINS
     REAL(wp),INTENT(OUT)   :: albnirdif  (nbdim,kice)
 
     INTEGER, OPTIONAL,INTENT(IN)  :: doy
-    LOGICAL, OPTIONAL,INTENT(IN)  :: use_acc
+    LOGICAL, OPTIONAL,INTENT(IN)  :: lacc
 
     INTEGER :: jk, ji
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
     !-------------------------------------------------------------------------
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     IF (ltimer) CALL timer_start(timer_ice_fast)
 
@@ -499,21 +477,21 @@ CONTAINS
 
     CASE (1)
       CALL set_ice_temp_zerolayer(i_startidx_c, i_endidx_c, nbdim, kice, pdtime, &
-                            &   Tsurf, hi, hs, Qtop, Qbot, SWnet, nonsolar, dnonsolardT, Tfw, use_acc=lacc)
+                            &   Tsurf, hi, hs, Qtop, Qbot, SWnet, nonsolar, dnonsolardT, Tfw, lacc=lzacc)
 
     CASE (2)
       CALL set_ice_temp_winton(i_startidx_c, i_endidx_c, nbdim, kice, pdtime, &
-                    &   Tsurf, T1, T2, hi, hs, Qtop, Qbot, SWnet, nonsolar, dnonsolardT, Tfw, use_acc=lacc)
+                    &   Tsurf, T1, T2, hi, hs, Qtop, Qbot, SWnet, nonsolar, dnonsolardT, Tfw, lacc=lzacc)
 
     CASE (3)
       IF ( .NOT. PRESENT(doy) ) THEN
         CALL finish(TRIM('mo_ice_interface:ice_fast'),'i_ice_therm = 3 not allowed in this context')
       ENDIF
       CALL set_ice_temp_zerolayer_analytical(i_startidx_c, i_endidx_c, nbdim, kice, &
-            &   Tsurf, hi, hs, Qtop, Qbot, Tfw, doy, use_acc=lacc)
+            &   Tsurf, hi, hs, Qtop, Qbot, Tfw, doy, lacc=lzacc)
 
     CASE (4)
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO ji = 1, kice
         !$ACC LOOP GANG VECTOR
@@ -532,7 +510,7 @@ CONTAINS
 
     ! New albedo based on the new surface temperature
     CALL set_ice_albedo(i_startidx_c, i_endidx_c, nbdim, kice, Tsurf, hi, hs, &
-      & albvisdir, albvisdif, albnirdir, albnirdif, use_acc=lacc)
+      & albvisdir, albvisdif, albnirdir, albnirdif, lacc=lzacc)
 
     IF (ltimer) CALL timer_stop(timer_ice_fast)
 

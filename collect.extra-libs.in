@@ -7,11 +7,6 @@ for subdir in @icon_bundled_config_subdirs@ @icon_bundled_cmake_subdirs@; do
   extra_libs=''
 
   case $subdir in
-    externals/yac)
-      # The bundled version of YAC, which we link statically, might require
-      # additional linker flags enabling linking to the software implementation
-      # of the long double arithmetic:
-      extra_libs=`echo '@''LONG_DOUBLE_CLIBS@' | "$subdir/config.status" -q --file=- | sed 's/^ *//;s/ *$//'` ;;
     externals/sct)
       # The bundled version of SCT, which we link statically, might require
       # additional linker flags:
@@ -48,7 +43,7 @@ for subdir in @icon_bundled_config_subdirs@ @icon_bundled_cmake_subdirs@; do
       esac
       ;;
     externals/cdi)
-      # The bundled version of CDI, which we link statically, might require an
+      # The bundled version of CDI, which we link statically, might require
       # additional linker flags enabling linking to librt:
       extra_libs=`echo '@''LIBRT@' | "$subdir/config.status" -q --file=- | sed 's/^ *//;s/ *$//'`
       if test -z "$extra_libs"; then
@@ -73,7 +68,7 @@ for subdir in @icon_bundled_config_subdirs@ @icon_bundled_cmake_subdirs@; do
           @MKDIR_P@ conftest.dir && cd conftest.dir
           # If calling the libtool script of CDI is successful and the created
           # dummy libtool file 'libconftest.la' has '-lrt' among the
-          # 'dependency_libs', we set icon_CDI_extra_libs to '-lrt':
+          # 'dependency_libs', we set extra_libs to '-lrt':
           (eval $cdi_LINK) >/dev/null 2>&1
           if test $? -eq 0 && grep "dependency_libs=.*[ ']-lrt[ '].*" libconftest.la >/dev/null 2>&1; then
             extra_libs='-lrt'
@@ -82,7 +77,7 @@ for subdir in @icon_bundled_config_subdirs@ @icon_bundled_cmake_subdirs@; do
           rm -rf conftest.dir
         fi
       fi
-      # We do not need icon_CDI_extra_libs if its value is already in the LIBS:
+      # We do not need extra_libs if its value is already in the LIBS:
       if test -n "$extra_libs"; then
         set dummy @LIBS@; shift
           case ' '"$@"' ' in

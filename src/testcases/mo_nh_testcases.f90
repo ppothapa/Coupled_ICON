@@ -1,19 +1,17 @@
-!>
-!! Defines the artificial testcases for the nonhydrostatic atmospheric model.
-!! 
-!! 
-!! @par Revision History
-!! Initial release by Almut Gassmann (2008-03-18)
-!! 
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!! 
-!! 
+! Defines the artificial testcases for the nonhydrostatic atmospheric model.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_nh_testcases  
 !-------------------------------------------------------------------------  
 !  
@@ -29,7 +27,7 @@ MODULE mo_nh_testcases
 
   USE mo_nh_testcases_nml
 
-  USE mo_impl_constants,       ONLY: MAX_CHAR_LENGTH, inwp, icosmo, iedmf
+  USE mo_impl_constants,       ONLY: MAX_CHAR_LENGTH, inwp, icosmo
   USE mo_grid_config,          ONLY: lplane, n_dom, l_limited_area
   USE mo_model_domain,         ONLY: t_patch
   USE mo_ext_data_types,       ONLY: t_external_data
@@ -112,13 +110,6 @@ MODULE mo_nh_testcases
   !>
   !! Initialize topography for nonhydrostatic artificial testcases
   !! (not for single column model (SCM))
-  !! 
-  !! @par Revision History
-  !! Initial release by Almut Gassmann, MPI-M (2009-03-19)
-  !! Modification by Daniel Reinert, DWD (2010-07-15)
-  !! - moved initialization of topography into new subroutine 
-  !!   init_nh_testtopo, which is called after the domain-decomposition.
-  !!   (because of possible conflicts with the external-data type)
   !! 
   SUBROUTINE init_nh_testtopo (p_patch, ext_data)
 !
@@ -519,9 +510,6 @@ MODULE mo_nh_testcases
   !! (not for single column model (SCM))
   !! 
   !! Initializes meteorological fields
-  !! 
-  !! @par Revision History
-  !! Initial release by Almut Gassmann, MPI-M (2009-04-14)
   !! 
   SUBROUTINE init_nh_testcase (p_patch, p_nh_state, p_int, p_lnd_state, ext_data, ntl)
 !
@@ -1273,7 +1261,7 @@ MODULE mo_nh_testcases
      ! to virtual potential temperature inside init_nh_state_rce_tprescr_glb.
     DO jg = 1, n_dom
       nlev   = p_patch(jg)%nlev
-       write(0,*) 'before init_nh_state_rce_tprescr_glb'
+      CALL message(TRIM(routine),'before init_nh_state_rce_tprescr_glb')
       CALL init_nh_state_rce_tprescr_glb ( p_patch(jg), p_nh_state(jg)%prog(nnow(jg)), p_nh_state(jg)%ref,  &
                       & p_nh_state(jg)%diag, p_nh_state(jg)%metrics )
       
@@ -1288,14 +1276,14 @@ MODULE mo_nh_testcases
      ! u,v,w are initialized to zero.  initialize with temperature profile, add bubble to T and q
     DO jg = 1, n_dom
        nlev   = p_patch(jg)%nlev
-       write(0,*) 'before init_aes_bubble'
+      CALL message(TRIM(routine),'before init_aes_bubble')
       CALL init_aes_bubble ( p_patch(jg), p_nh_state(jg)%prog(nnow(jg)), p_nh_state(jg)%ref,  &
                       & p_nh_state(jg)%diag, p_nh_state(jg)%metrics )
       
       
       CALL duplicate_prog_state(p_nh_state(jg)%prog(nnow(jg)),p_nh_state(jg)%prog(nnew(jg)))
 !
-      CALL message(TRIM(routine),'End setup '//nh_test_name//' test')
+      CALL message(TRIM(routine),'End setup '//TRIM(nh_test_name)//' test')
     END DO !jg
     
 
@@ -1421,7 +1409,7 @@ MODULE mo_nh_testcases
   END SELECT
 
 
-  IF ( ANY( (/icosmo,iedmf/)==atm_phy_nwp_config(1)%inwp_turb ) .AND. &
+  IF ( ANY( (/icosmo/)==atm_phy_nwp_config(1)%inwp_turb ) .AND. &
      (nh_test_name=='APE_nwp' .OR. nh_test_name=='CBL' .OR. nh_test_name=='GATE' &
      .OR. nh_test_name=='RICO') ) THEN
     DO jg = 1, n_dom
@@ -1429,7 +1417,7 @@ MODULE mo_nh_testcases
     END DO !jg
     IF (atm_phy_nwp_config(1)%inwp_surface > 0) THEN ! Fields are not allocated otherwise
       DO jg = 1, n_dom
-        !Snow and sea ice initialization to avoid problems in EDMF
+        !Snow and sea ice initialization
         p_lnd_state(jg)%prog_lnd(nnow(jg))%t_g_t                  = th_cbl(1)
         p_lnd_state(jg)%prog_lnd(nnow(jg))%t_snow_t(:,:,:)        = th_cbl(1) !snow
         p_lnd_state(jg)%prog_lnd(nnow(jg))%t_g_t(:,:,isub_seaice) = th_cbl(1) !sea ice
@@ -1461,10 +1449,6 @@ MODULE mo_nh_testcases
   !! (for single column model (SCM))
   !! 
   !! Initializes meteorological fields
-  !! 
-  !! @par Revision History
-  !! Initial release by Martin Koehler, DWD (2021-10-13)
-  !! (modified version from init_nh_testcase for SCM)
   !! 
   SUBROUTINE init_nh_testcase_scm (p_patch, p_nh_state, p_int, p_lnd_state, ext_data)
 !
@@ -1522,13 +1506,13 @@ MODULE mo_nh_testcases
 
   ltestcase_update = .FALSE.
 
-  IF ( ANY( (/icosmo,iedmf/)==atm_phy_nwp_config(1)%inwp_turb ) ) THEN
+  IF ( ANY( (/icosmo/)==atm_phy_nwp_config(1)%inwp_turb ) ) THEN
     DO jg = 1, n_dom
       p_lnd_state(jg)%prog_lnd(nnow(jg))%t_g                    = th_cbl(1)
     END DO !jg
     IF (atm_phy_nwp_config(1)%inwp_surface > 0) THEN ! Fields are not allocated otherwise
       DO jg = 1, n_dom
-        !Snow and sea ice initialization to avoid problems in EDMF
+        !Snow and sea ice initialization
         p_lnd_state(jg)%prog_lnd(nnow(jg))%t_g_t                  = th_cbl(1)
         p_lnd_state(jg)%prog_lnd(nnow(jg))%t_snow_t(:,:,:)        = th_cbl(1) !snow
         p_lnd_state(jg)%prog_lnd(nnow(jg))%t_g_t(:,:,isub_seaice) = th_cbl(1) !sea ice

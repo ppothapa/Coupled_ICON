@@ -1,26 +1,23 @@
-!>
-!! Data types and variables used by the rte-rrtmgp radiation package.
-!!
-!! This module contains
-!! <ol>
-!! <li> definition of data types for organising rte-rrtmgp diagnostics,
-!! <li> the actual variables that are declared of these types, and
-!! <li> subroutines for (de-)allocating memory for the variables.
-!! </ol>
-!!
-!! @author Sebastian Rast (MPI-M, 2016-03-04)
-!!
-!! @par Revision History
-!! First version by Sebastian Rast (MPI-M, 2016-03-04)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Data types and variables used by the rte-rrtmgp radiation package.
+!
+! This module contains
+!  definition of data types for organising rte-rrtmgp diagnostics,
+!  the actual variables that are declared of these types, and
+!  subroutines for (de-)allocating memory for the variables.
+! 
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_radiation_forcing
   USE mo_kind,                ONLY: wp
   USE mo_radiation_forcing_memory, ONLY: psf=>prm_radiation_forcing
@@ -36,13 +33,9 @@ MODULE mo_radiation_forcing
   CONTAINS
 
   !-----------------------------------------------------------------------------
-  !>
-  !! prepare_forcing: calculate intermediate quantities for forcing calculation
-  !!
-  !! @par Revision History
-  !! original source by J.S.Rast (2016-03-4) based on code by M.A.Thomas and
-  !!  S.J.Lorenz
+  ! prepare_forcing: calculate intermediate quantities for forcing calculation
   !-----------------------------------------------------------------------------
+
   SUBROUTINE prepare_radiation_forcing(jg                                ,&
        & kproma           ,kbdim             ,klevp1           ,krow           ,&
        & pflx_dnlw        ,pflx_dnsw         ,pflx_dnlw_clr    ,pflx_dnsw_clr   )
@@ -65,13 +58,9 @@ MODULE mo_radiation_forcing
 
   END SUBROUTINE prepare_radiation_forcing
   !-----------------------------------------------------------------------------
-  !>
-  !! calculate_forcing: calculate radiative forcing 
-  !!
-  !! @par Revision History
-  !! original source by J.S.Rast (2010-04-16) based on code by M.A.Thomas and
-  !!  S.J.Lorenz
+  ! calculate_forcing: calculate radiative forcing 
   !-----------------------------------------------------------------------------
+
   SUBROUTINE calculate_radiation_forcing( jg                 &
        & ,jcs                ,jce              ,kbdim              &
        & ,klevp1             ,krow             ,pi0                &

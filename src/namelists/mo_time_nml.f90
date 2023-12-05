@@ -1,18 +1,14 @@
-!>
-!!        
-!! @par Revision History
-!!       Kristina Froehlich, MPI-M 2011-07-05
-!! first implementation for all time control variables
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_time_nml
 
   USE mo_kind,                  ONLY: wp
@@ -45,30 +41,11 @@ MODULE mo_time_nml
 CONTAINS
 
   !-------------------------------------------------------------------------
-  !>
   !!  Initialization of variables that contain general information.
   !!
   !!  Initialization of variables that contain general information
   !!  about the model run. The configuration is read from
   !!  namelist 'time_nml'.
-  !!
-  !! @par Revision History
-  !!  Reading of the namelist and checking of the validity were
-  !!  in some other modules in the earlier version of the shallow water model.
-  !!  Moved to this module by Hui Wan, MPI-M (2007-02-23)
-  !!  The character parameter <i>routine</i> was introduced and used
-  !!  for error information by Hui Wan, MPI-M (2007-02-23).
-  !!  Modified by Almut Gassmann, MPI-M (2008-09-23)
-  !!  - introduced  lidealized and lshallow_water
-  !!  Modified by Marco Giorgetta, MPI-M (2009-02-23)
-  !!  - lidealized replaced by ltestcase
-  !!  Modification by Constantin Junk, MPI-M (2010-02-22)
-  !!  - changes to consistency checks
-  !!  Modification by Daniel Reinert, DWD (2011-11-10)
-  !!  - in order for the restart to produce bitwise identical results, 
-  !!    it is necessary to read caltime/calday directly from restart. So 
-  !!    far, caltime/calday had been re-computed from the date. However, 
-  !!    this led to significant roundoff errors.
   !!
   SUBROUTINE read_time_namelist( filename )
 

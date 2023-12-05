@@ -1,22 +1,17 @@
-!>
-!! This module provides basic method to send
-!! and receive file data using asynchronous 
-!! communication.
-!!
-!! @author M. Pondkule (DWD)
-!!
-!! @par Revision History
-!! Initial release by M. Pondkule, DWD (2013-04-30)
-!! 
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! This module provides basic methods to send
+! and receive file data using asynchronous
+! communication.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_latbc_read_recv
 
@@ -53,9 +48,6 @@ CONTAINS
   !> Read 3D dataset from file.
   ! 
   !  Note: This implementation uses a 2D buffer.
-  ! 
-  !  @par Revision History
-  !  Initial revision by M. Pondkule, DWD (2014-05-19)
   ! 
   SUBROUTINE prefetch_cdi_3d(streamID, varname, latbc_data, nlevs, hgrid, ioff)
 #ifndef NOMPI
@@ -145,9 +137,6 @@ CONTAINS
   !-------------------------------------------------------------------------
   !> Read 2D dataset from file, implementation for REAL fields
   !
-  !  @par Revision History
-  !  Initial revision by M. Pondkule, DWD (2014-05-15) 
-  !
   SUBROUTINE prefetch_cdi_2d (streamID, varname, latbc_data, hgrid, ioff)
 #ifndef NOMPI
     INTEGER(KIND=MPI_ADDRESS_KIND), INTENT(INOUT) :: ioff(0:)
@@ -167,9 +156,6 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !> compute processor copy 2D or 3D dataset from memory window buffer.
-  ! 
-  !  @par Revision History
-  !  Initial revision by M. Pondkule, DWD (2014-05-15)
   ! 
   SUBROUTINE compute_data_receive (hgrid, nlevs, var_out, eoff, patch_data)
  

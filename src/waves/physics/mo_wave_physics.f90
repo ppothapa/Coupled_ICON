@@ -1,18 +1,17 @@
-!! Contains the subroutines with wave physics parametrisation
-!!
-!! @author Mikhail Dobrynin
-!!
-!! @par Revision History
-!! Initial revision by Mikhail Dobrynin, DWD  (2019.09.05)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Contains the subroutines with wave physics parametrisation
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -20,16 +19,13 @@
 MODULE mo_wave_physics
 
   USE mo_model_domain,        ONLY: t_patch
-  USE mo_grid_config,         ONLY: grid_sphere_radius
-  USE mo_exception,           ONLY: message
   USE mo_impl_constants,      ONLY: MAX_CHAR_LENGTH, min_rlcell, min_rledge
   USE mo_loopindices,         ONLY: get_indices_c, get_indices_e
-  USE mo_kind,                ONLY: wp, vp
+  USE mo_kind,                ONLY: wp
   USE mo_parallel_config,     ONLY: nproma
   USE mo_run_config,          ONLY: dtime
   USE mo_physical_constants,  ONLY: grav
   USE mo_math_constants,      ONLY: deg2rad, dbl_eps, pi, pi2
-  USE mo_idx_list,            ONLY: t_idx_list1D
   USE mo_fortran_tools,       ONLY: init
 
   USE mo_wave_types,          ONLY: t_wave_diag
@@ -44,20 +40,19 @@ MODULE mo_wave_physics
   PUBLIC :: input_source_function, dissipation_source_function
   PUBLIC :: last_prog_freq_ind
   PUBLIC :: impose_high_freq_tail
-  PUBLIC :: tm1_period
+  PUBLIC :: tm1_tm2_periods
   PUBLIC :: wm1_wm2_wavenumber
   PUBLIC :: new_spectrum
   PUBLIC :: total_energy
   PUBLIC :: wave_stress
-  PUBLIC :: mean_frequency_energy, set_energy2emin
+  PUBLIC :: mean_frequency_energy
   PUBLIC :: wave_group_velocity_c
   PUBLIC :: wave_group_velocity_e
   PUBLIC :: wave_group_velocity_nt
   PUBLIC :: wave_group_velocity_bnd
   PUBLIC :: wave_number_c
   PUBLIC :: wave_number_e
-  PUBLIC :: wave_refraction
-
+  PUBLIC :: set_energy2emin
 
   CHARACTER(LEN=*), PARAMETER :: modname = 'mo_wave_physics'
 
@@ -68,10 +63,6 @@ CONTAINS
   !!
   !! Calculation of shallow water cell centered
   !! wave group velocity
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2023-02-01)
-  !! Vectorization by Daniel Reinert, DWD (2023-02-13)
   !!
   SUBROUTINE wave_group_velocity_c(p_patch, p_config, wave_num_c, bathymetry_c, gv_c)
 
@@ -134,10 +125,6 @@ CONTAINS
   !! Calculation of shallow water edges centered
   !! wave group velocities
   !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2023-02-01)
-  !! Vectorization by Daniel Reinert, DWD (2023-02-13)
-  !!
   SUBROUTINE wave_group_velocity_e(p_patch, p_config, wave_num_e, bathymetry_e, gv_e)
 
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
@@ -199,10 +186,6 @@ CONTAINS
   !! edge-normal and -tangential projections of
   !! wave group velocities using spectral directions
   !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2023-02-01)
-  !! Vectorization by Daniel Reinert, DWD (2023-02-13)
-  !!
   SUBROUTINE wave_group_velocity_nt(p_patch, p_config, gv_e, gvn_e, gvt_e)
 
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
@@ -210,9 +193,9 @@ CONTAINS
 
     TYPE(t_patch),       INTENT(IN)   :: p_patch
     TYPE(t_wave_config), INTENT(IN)   :: p_config
-    REAL(wp),            INTENT(IN)   :: gv_e(:,:,:) !< group velocity (nproma,nblks_e,nfreqs)  ( m/s )
-    REAL(wp),            INTENT(INOUT):: gvn_e(:,:,:)!< normal group velocity (nproma,nblks_e,dirs*nfreqs)  ( m/s )
-    REAL(wp),            INTENT(INOUT):: gvt_e(:,:,:)!< tangential group velocity (nproma,nblks_e,ndirs*nfreqs)  ( m/s )
+    REAL(wp),            INTENT(IN)   :: gv_e(:,:,:)   !< group velocity (nproma,nblks_e,nfreqs)  ( m/s )
+    REAL(wp),            INTENT(INOUT):: gvn_e(:,:,:,:)!< normal group velocity (nproma,1,nblks_e,dirs*nfreqs)  ( m/s )
+    REAL(wp),            INTENT(INOUT):: gvt_e(:,:,:,:)!< tangential group velocity (nproma,1,nblks_e,ndirs*nfreqs)  ( m/s )
 
     INTEGER :: i_rlstart, i_rlend, i_startblk, i_endblk
     INTEGER :: i_startidx, i_endidx
@@ -236,16 +219,16 @@ CONTAINS
         &                 i_startidx, i_endidx, i_rlstart, i_rlend)
       DO jf = 1, nfreqs
         DO jd = 1, ndirs
-          jt = p_config%get_tracer_id(jd,jf)
+          jt = p_config%tracer_ind(jd,jf)
           DO je = i_startidx, i_endidx
             gvu = gv_e(je,jb,jf) * SIN(p_config%dirs(jd))
             gvv = gv_e(je,jb,jf) * COS(p_config%dirs(jd))
 
-            gvn_e(je,jb,jt) = &
+            gvn_e(je,1,jb,jt) = &
                  gvu * p_patch%edges%primal_normal(je,jb)%v1 + &
                  gvv * p_patch%edges%primal_normal(je,jb)%v2
 
-            gvt_e(je,jb,jt) = &
+            gvt_e(je,1,jb,jt) = &
                  gvu * p_patch%edges%dual_normal(je,jb)%v1 + &
                  gvv * p_patch%edges%dual_normal(je,jb)%v2
           END DO
@@ -265,9 +248,9 @@ CONTAINS
   !!
   !! Set the wave group velocity to zero at the boundary edge
   !! in case of wave energy propagation towards the ocean,
-  !! and set gn = deep water group velocity otherwise
+  !! and set gn = deep water group velocity otherwise.
   !!
-  !! we make use of the fact that the edge-normal velocity vector points
+  !! We make use of the fact that the edge-normal velocity vector points
   !! * towards the coast, if
   !!   cells%edge_orientation > 0 .AND. vn > 0
   !!   OR
@@ -281,10 +264,6 @@ CONTAINS
   !! * towards the coast, if (cells%edge_orientation * vn) > 0
   !! * towards the sea,   if (cells%edge_orientation * vn) < 0
   !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2023-02-15)
-  !! Vectorization by Daniel Reinert, DWD (2023-02-16)
-  !!
   SUBROUTINE wave_group_velocity_bnd(p_patch, p_config, gvn_e)
 
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
@@ -292,7 +271,7 @@ CONTAINS
 
     TYPE(t_patch),       INTENT(IN)   :: p_patch
     TYPE(t_wave_config), INTENT(IN)   :: p_config
-    REAL(wp),            INTENT(INOUT):: gvn_e(:,:,:)!< normal group velocity (nproma,nblks_e,dirs*nfreqs)  ( m/s )
+    REAL(wp),            INTENT(INOUT):: gvn_e(:,:,:,:)!< normal group velocity (nproma,nlev,nblks_e,dirs*nfreqs)  ( m/s )
 
     ! local variables
     REAL(wp):: gv
@@ -352,13 +331,13 @@ CONTAINS
         ! deep water group velocity
         gv = grav / (2.0_wp * pi2 * p_config%freqs(jf))
         DO jd = 1, ndirs
-          jt = p_config%get_tracer_id(jd,jf)
+          jt = p_config%tracer_ind(jd,jf)
 !$NEC ivdep
           DO ic = 1, cnt
             jje = ile(ic)
             jjb = ibe(ic)
-            is_towards_coastline = (e_orient(ic) * gvn_e(jje,jjb,jt)) > 0._wp
-            gvn_e(jje,jjb,jt) = MERGE(gv, 0.0_wp, is_towards_coastline)
+            is_towards_coastline = (e_orient(ic) * gvn_e(jje,1,jjb,jt)) > 0._wp
+            gvn_e(jje,1,jjb,jt) = MERGE(gv, 0.0_wp, is_towards_coastline)
           ENDDO  !jc
         ENDDO  !jd
       ENDDO  !jf
@@ -375,10 +354,6 @@ CONTAINS
 !!$  !! Set the wave group velocity to zero at the boundary edge
 !!$  !! in case of wave energy propagation towards the ocean,
 !!$  !! and set gn = deep water group velocity otherwise
-!!$  !!
-!!$  !! @par Revision History
-!!$  !! Initial revision by Mikhail Dobrynin, DWD (2023-02-15)
-!!$  !! Vectorization by Daniel Reinert, DWD (2023-02-xx)
 !!$  !!
 !!$  SUBROUTINE wave_group_velocity_bnd(p_patch, p_config, gvn_e)
 !!$
@@ -469,10 +444,6 @@ CONTAINS
   !!
   !! Adaptation of WAM 4.5 algorithm and code for calculation of total stress
   !! and sea surface roughness for ICON-waves (P.A.E.M. Janssen, 1990).
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-  !! Vectorization by Daniel Reinert, DWD (2023-01-30)
   !!
   SUBROUTINE air_sea(p_patch, wave_config, wsp10m, tauw, ustar, z0)
 
@@ -582,10 +553,6 @@ CONTAINS
   !! of the subroutine FEMEAN developed by S.D. HASSELMANN,
   !! optimized by L. Zambresky and H. Guenther, GKSS, 2001                              !
   !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-01-30)
-  !!
   SUBROUTINE mean_frequency_energy(p_patch, wave_config, tracer, llws, emean, emeanws, femean, femeanws)
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER :: &
          & routine =  modname//'mean_frequency_energy'
@@ -604,7 +571,6 @@ CONTAINS
     INTEGER :: jc,jb,jf,jk
     INTEGER :: jt                       !< tracer index
     INTEGER :: n                        !< loop index
-    TYPE(t_idx_list1D) :: list_tr       !< list of tracer ids
 
     REAL(wp) :: temp(nproma,wave_config%nfreqs), temp_1(nproma,wave_config%nfreqs)
     TYPE(t_wave_config), POINTER :: wc => NULL()
@@ -618,25 +584,22 @@ CONTAINS
     ! save some paperwork
     wc => wave_config
 
-    CALL list_tr%construct(SIZE(wc%freq_ind))
 
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jc,jf,n,jt,i_startidx,i_endidx,temp,temp_1,list_tr) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP DO PRIVATE(jb,jc,jf,n,jt,i_startidx,i_endidx,temp,temp_1) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
       CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,           &
         &                 i_startidx, i_endidx, i_rlstart, i_rlend)
 
       DO jf = 1,wc%nfreqs
 
-        CALL wc%get_tracer_ids_freq(jf,list_tr)
-
         DO jc = i_startidx, i_endidx
           temp(jc,jf)   = 0._wp
           temp_1(jc,jf) = 0._wp
         ENDDO
 
-        DO n=1,list_tr%ncount
-          jt = list_tr%idx(n)
+        DO n=1,SIZE(wc%list_tr(jf)%p)
+          jt = wc%list_tr(jf)%p(n)
           DO jc = i_startidx, i_endidx
             temp(jc,jf) = temp(jc,jf) + tracer(jc,jk,jb,jt)
             IF (llws(jc,jb,jt)==1) THEN
@@ -667,8 +630,6 @@ CONTAINS
 !$OMP ENDDO NOWAIT
 !$OMP END PARALLEL
 
-    CALL list_tr%finalize()
-
   END SUBROUTINE mean_frequency_energy
 
   !>
@@ -679,10 +640,6 @@ CONTAINS
   !! Adaptation of WAM 4.5 code of the subroutine TOTAL_ENERGY
   !! developed by S.D. HASSELMANN, optimized by L. Zambresky
   !! and H. Guenther, GKSS, 2001
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-01-30)
   !!
   SUBROUTINE total_energy(p_patch, wave_config, tracer, llws, emean, emeanws)
     ! in  p_patch, p_prog%tracer, wave_config%freq_ind, wave_config%MO_TAIL
@@ -704,7 +661,6 @@ CONTAINS
     INTEGER :: jc,jb,jf,jk
     INTEGER :: jt                       !< tracer index
     INTEGER :: n                        !< loop index
-    TYPE(t_idx_list1D) :: list_tr       !< list of tracer ids
 
     REAL(wp):: sum1(nproma,wave_config%nfreqs), sum2(nproma,wave_config%nfreqs)
     TYPE(t_wave_config), POINTER :: wc => NULL()
@@ -718,10 +674,9 @@ CONTAINS
     ! save some paperwork
     wc => wave_config
 
-    CALL list_tr%construct(SIZE(wc%freq_ind))
 
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jc,jf,jt,n,i_startidx,i_endidx,sum1,sum2,list_tr) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP DO PRIVATE(jb,jc,jf,jt,n,i_startidx,i_endidx,sum1,sum2) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
       CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,           &
         &                 i_startidx, i_endidx, i_rlstart, i_rlend)
@@ -730,16 +685,14 @@ CONTAINS
       ! compute sum of all tracers that match a specific frequency
       DO jf = 1,wc%nfreqs
 
-        CALL wc%get_tracer_ids_freq(jf, list_tr)
-
         ! initialization
         DO jc = i_startidx, i_endidx
           sum1(jc,jf) = 0._wp
           sum2(jc,jf) = 0._wp
         ENDDO
 
-        DO n=1,list_tr%ncount
-          jt = list_tr%idx(n)
+        DO n=1,SIZE(wc%list_tr(jf)%p)
+          jt = wc%list_tr(jf)%p(n)
           DO jc = i_startidx, i_endidx
             sum1(jc,jf) = sum1(jc,jf) + tracer(jc,jk,jb,jt)
             IF (llws(jc,jb,jt) == 1) THEN
@@ -773,8 +726,6 @@ CONTAINS
 !$OMP ENDDO NOWAIT
 !$OMP END PARALLEL
 
-    CALL list_tr%finalize()
-
   END SUBROUTINE total_energy
 
 
@@ -796,10 +747,6 @@ CONTAINS
   !!       R SNYDER ET AL,1981.
   !!       G. KOMEN, S. HASSELMANN AND K. HASSELMANN, JPO, 1984.
   !!       P. JANSSEN, JPO, 1985
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-05-02)
   !!
   SUBROUTINE wave_stress(p_patch, wave_config, p_diag, dir10m, tracer)
      CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
@@ -886,7 +833,7 @@ CONTAINS
         END DO
 
         DO jd = 1, wc%ndirs
-          jtd =  wc%get_tracer_id(jd,jf)
+          jtd = wc%tracer_ind(jd,jf)
           DO jc = i_startidx, i_endidx
             sinplus = MAX(p_diag%sl(jc,jb,jtd),0._wp)
             sumt(jc) = sumt(jc) + sinplus
@@ -916,9 +863,7 @@ CONTAINS
 
       DO jd = 1, wc%ndirs
         DO jc = i_startidx, i_endidx
-!!! Manual inlining of wc%get_tracer_id
-!!!          jtd = wc%get_tracer_id(jd,p_diag%last_prog_freq_ind(jc,jb))
-          jtd = (p_diag%last_prog_freq_ind(jc,jb)-1) * wc%ndirs + jd
+          jtd = wc%tracer_ind(jd,p_diag%last_prog_freq_ind(jc,jb))
 
           cosw = MAX(COS(wc%dirs(jd)-dir10m(jc,jb)*deg2rad),0.0_wp)
           temp1(jc) = temp1(jc) + tracer(jc,jk,jb,jtd) * cosw**3
@@ -962,10 +907,6 @@ CONTAINS
   !! Calculation of high frequency stress.
   !!
   !! Adaptation of WAM 4.5 code.
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-04-26)
   !!
   SUBROUTINE high_frequency_stress(wave_config, i_startidx, i_endidx, last_prog_freq_ind, &
     &                              ustar, z0, xlevtail, tauhf1, phihf1)
@@ -1054,19 +995,16 @@ CONTAINS
   !! TM1_TM2_PERIODS_B
   !! Integration of spectra and adding of tail factors.
   !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-04-26)
-  !!
-  SUBROUTINE tm1_period(p_patch, wave_config, tracer, emean, tm1, f1mean)
+  SUBROUTINE tm1_tm2_periods(p_patch, wave_config, tracer, emean, tm1, tm2, f1mean)
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
-         &  routine = modname//'tm1_period'
+         &  routine = modname//'tm1_tm2_period'
 
     TYPE(t_patch),               INTENT(IN)    :: p_patch
     TYPE(t_wave_config), TARGET, INTENT(IN)    :: wave_config
     REAL(wp),                    INTENT(IN)    :: tracer(:,:,:,:) !< energy spectral bins (nproma,nlev,nblks_c,ntracer)
     REAL(wp),                    INTENT(IN)    :: emean(:,:)      !< total energy (nproma,nblks_c)
     REAL(wp),                    INTENT(INOUT) :: tm1(:,:)        !< tm1 period (nproma,nblks_c)
+    REAL(wp),                    INTENT(INOUT) :: tm2(:,:)        !< tm2 period (nproma,nblks_c)
     REAL(wp),                    INTENT(INOUT) :: f1mean(:,:)     !< tm1 frequency (nproma,nblks_c)
 
     ! local
@@ -1077,7 +1015,6 @@ CONTAINS
     INTEGER :: n                        !< loop index
     REAL(wp):: temp(nproma,wave_config%nfreqs)
 
-    TYPE(t_idx_list1D) :: list_tr       !< list of tracer ids
     TYPE(t_wave_config), POINTER :: wc => NULL()
 
     i_rlstart  = 1
@@ -1089,25 +1026,21 @@ CONTAINS
     ! save some paperwork
     wc => wave_config
 
-    CALL list_tr%construct(SIZE(wc%freq_ind))
-
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jc,jf,jt,n,i_startidx,i_endidx,temp,list_tr) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP DO PRIVATE(jb,jc,jf,jt,n,i_startidx,i_endidx,temp) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
       CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,           &
            &                 i_startidx, i_endidx, i_rlstart, i_rlend)
       ! compute sum of all tracers that match a specific frequency
       DO jf = 1,wc%nfreqs
 
-        CALL wc%get_tracer_ids_freq(jf, list_tr)
-
         ! initialization
         DO jc = i_startidx, i_endidx
           temp(jc,jf) = 0._wp
         END DO
 
-        DO n=1,list_tr%ncount
-          jt = list_tr%idx(n)
+        DO n=1,SIZE(wc%list_tr(jf)%p)
+          jt = wc%list_tr(jf)%p(n)
           DO jc = i_startidx, i_endidx
             temp(jc,jf) = temp(jc,jf) + tracer(jc,jk,jb,jt)
           END DO
@@ -1118,12 +1051,14 @@ CONTAINS
       ! tail part
       DO jc = i_startidx, i_endidx
         tm1(jc,jb) = wc%MP1_TAIL * temp(jc,wc%nfreqs)
+        tm2(jc,jb) = wc%MP2_TAIL * temp(jc,wc%nfreqs)
       END DO
 
       ! add all other frequencies
       DO jf = 1,wc%nfreqs
         DO jc = i_startidx, i_endidx
           tm1(jc,jb) = tm1(jc,jb) + temp(jc,jf) * wc%dfim_fr(jf)
+          tm2(jc,jb) = tm2(jc,jb) + temp(jc,jf) * wc%dfim_fr2(jf)
         END DO
       END DO
 
@@ -1131,8 +1066,10 @@ CONTAINS
       DO jc = i_startidx, i_endidx
         IF (emean(jc,jb).gt.EMIN) THEN
           tm1(jc,jb) = emean(jc,jb) / tm1(jc,jb)
+          tm2(jc,jb) = SQRT(emean(jc,jb) / tm2(jc,jb))
         ELSE
           tm1(jc,jb) =  1.0_wp
+          tm2(jc,jb) =  1.0_wp
         END IF
         f1mean(jc,jb) = 1.0_wp / tm1(jc,jb)
       END DO
@@ -1140,9 +1077,7 @@ CONTAINS
 !$OMP ENDDO NOWAIT
 !$OMP END PARALLEL
 
-    CALL list_tr%finalize()
-
-  END SUBROUTINE tm1_period
+  END SUBROUTINE tm1_tm2_periods
 
   !>
   !! Calculation of new spectrum.
@@ -1151,17 +1086,13 @@ CONTAINS
   !! fraction of a typical F**(-4) equilibrium spectrum.
   !! Adaptation of WAM 4.5 code.
   !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-01-30)
-  !!
   SUBROUTINE new_spectrum(p_patch, wave_config, p_diag, dir10m, tracer)
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
          &  routine = 'new_spectrum'
 
     TYPE(t_patch),               INTENT(IN)    :: p_patch
     TYPE(t_wave_config), TARGET, INTENT(IN)    :: wave_config
-    TYPE(t_wave_diag),           INTENT(INOUT) :: p_diag
+    TYPE(t_wave_diag),           INTENT(IN)    :: p_diag
     REAL(wp),                    INTENT(IN)    :: dir10m(:,:)
     REAL(wp),                    INTENT(INOUT) :: tracer(:,:,:,:)
 
@@ -1193,7 +1124,7 @@ CONTAINS
       DO jf = 1,wc%nfreqs
         DO jd = 1,wc%ndirs
           !
-          jt = wc%get_tracer_id(jd,jf)
+          jt = wc%tracer_ind(jd,jf)
           !
           DO jc = i_startidx, i_endidx
             delfl = 5.0E-07_wp * grav / wc%freqs(jf)**4 * dtime
@@ -1293,10 +1224,6 @@ CONTAINS
   !! Adaptation of WAM 4.5 code.
   !! IMPHFTAIL
   !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-10-10)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-04-26)
-  !!
   SUBROUTINE impose_high_freq_tail(p_patch, wave_config, wave_num_c, depth, last_prog_freq_ind, tracer)
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER :: &
          & routine =  modname//'impose_high_freq_tail'
@@ -1315,8 +1242,9 @@ CONTAINS
     INTEGER :: i_startidx, i_endidx
     INTEGER :: jb,jf,jc,jd,jt,jtl,jk
 
-    REAL(wp) :: gh, ak, akd, tcgond, akm1, tfac
+    REAL(wp) :: gh, ak, akd, tcgond, akm1
     REAL(wp) :: temp(nproma, wave_config%nfreqs)
+    REAL(wp) :: tfac(nproma)
 
     wc => wave_config
     gh = grav / (4.0_wp * pi)
@@ -1354,18 +1282,22 @@ CONTAINS
         END DO
       END DO
 
-      DO jf = 1, wc%nfreqs
-        DO jd = 1, wc%ndirs
-          jt = wc%get_tracer_id(jd,jf)
+      DO jd = 1, wc%ndirs
+        DO jc = i_startidx, i_endidx
+          jtl = wc%tracer_ind(jd,last_prog_freq_ind(jc,jb))
+          tfac(jc) = tracer(jc,jk,jb,jtl)
+        ENDDO
+        !
+        DO jf = 1, wc%nfreqs
+          jt = wc%tracer_ind(jd,jf)
           DO jc = i_startidx, i_endidx
             IF (jf >=last_prog_freq_ind(jc,jb)+1) THEN
-              jtl = wc%get_tracer_id(jd,last_prog_freq_ind(jc,jb))
-              tfac = tracer(jc,jk,jb,jtl)
-              tracer(jc,jk,jb,jt) = temp(jc,jf) * tfac
+              tracer(jc,jk,jb,jt) = temp(jc,jf) * tfac(jc)
             END IF
-          END DO
-        END DO
-      END DO
+          END DO  !jc
+        END DO  !jf
+      END DO  !jd
+
     END DO
 !$OMP ENDDO NOWAIT
 !$OMP END PARALLEL
@@ -1385,10 +1317,6 @@ CONTAINS
   !! P. Janssen, JPO, 1989.
   !! P. Janssen, JPO., 1991.
   !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-10-10)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-04-25)
-  !!
   SUBROUTINE input_source_function(p_patch, wave_config, dir10m, tracer, p_diag)
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER :: &
          & routine =  modname//'input_source_function'
@@ -1396,7 +1324,7 @@ CONTAINS
     TYPE(t_patch),               INTENT(IN)    :: p_patch
     TYPE(t_wave_config), TARGET, INTENT(IN)    :: wave_config
     REAL(wp),                    INTENT(IN)    :: dir10m(:,:)
-    REAL(wp),                    INTENT(INOUT) :: tracer(:,:,:,:)
+    REAL(wp),                    INTENT(IN)    :: tracer(:,:,:,:)
     TYPE(t_wave_diag),           INTENT(INOUT) :: p_diag
 
     TYPE(t_wave_config), POINTER :: wc => NULL()
@@ -1430,7 +1358,7 @@ CONTAINS
         const = fac * wc%xeps * wc%betamax / (wc%xkappa*wc%xkappa)
 
         DIR:DO jd = 1,wc%ndirs
-          jt = wc%get_tracer_id(jd,jf)
+          jt = wc%tracer_ind(jd,jf)
 
           DO jc = i_startidx, i_endidx
             xk = p_diag%wave_num_c(jc,jb,jf)
@@ -1481,10 +1409,6 @@ CONTAINS
   !!   WM1 IS SQRT(1/K)*F
   !!   WM2 IS SQRT(K)*F
   !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-10-10)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-04-25)
-  !!
   SUBROUTINE wm1_wm2_wavenumber(p_patch, wave_config, wave_num_c, tracer, emean, akmean, xkmean)
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER :: &
          & routine =  modname//'wm1_wm2_wavenumber'
@@ -1497,7 +1421,6 @@ CONTAINS
     REAL(wp),                    INTENT(INOUT) :: akmean(:,:)   !< mean wavenumber based on SQRT(1/K)-moment, wm1
     REAL(wp),                    INTENT(INOUT) :: xkmean(:,:)   !< mean wavenumber based on SQRT(K)-moment, wm2
 
-    TYPE(t_idx_list1D) :: list_tr       !< list of tracer ids
     TYPE(t_wave_config), POINTER :: wc => NULL()
 
     INTEGER :: i_rlstart, i_rlend, i_startblk, i_endblk
@@ -1510,8 +1433,6 @@ CONTAINS
 
     wc => wave_config
 
-    CALL list_tr%construct(SIZE(wc%freq_ind))
-
     i_rlstart  = 1
     i_rlend    = min_rlcell
     i_startblk = p_patch%cells%start_block(i_rlstart)
@@ -1519,13 +1440,12 @@ CONTAINS
     jk         = p_patch%nlev
 
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jc,jb,jf,jt,i_startidx,i_endidx,temp,temp2,list_tr) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP DO PRIVATE(jc,jb,jf,jt,i_startidx,i_endidx,temp,temp2) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
       CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,           &
            &                 i_startidx, i_endidx, i_rlstart, i_rlend)
 
       DO jf = 1,wc%nfreqs
-        CALL wc%get_tracer_ids_freq(jf,list_tr)
 
         DO jc = i_startidx, i_endidx
           temp(jc,jf) = 0._wp
@@ -1533,8 +1453,8 @@ CONTAINS
         ENDDO
         !
         ! sum
-        DO n=1,list_tr%ncount
-          jt = list_tr%idx(n)
+        DO n=1,SIZE(wc%list_tr(jf)%p)
+          jt = wc%list_tr(jf)%p(n)
           DO jc = i_startidx, i_endidx
             temp(jc,jf) = temp(jc,jf) + tracer(jc,jk,jb,jt)
           END DO
@@ -1568,8 +1488,6 @@ CONTAINS
 !$OMP ENDDO NOWAIT
 !$OMP END PARALLEL
 
-    CALL list_tr%finalize()
-
   END SUBROUTINE wm1_wm2_wavenumber
 
 
@@ -1580,10 +1498,6 @@ CONTAINS
 !!$  !! Newtons method to solve the dispersion relation in shallow water.
 !!$  !! G. KOMEN, P. JANSSEN   KNMI              01/06/1986
 !!$  !! Adaptation of WAM 4.5 code, function AKI
-!!$  !!
-!!$  !! @par Revision History
-!!$  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-!!$  !! Optimization and vectorization by Daniel Reinert, DWD (2023-02-13)
 !!$  !!
 !!$  FUNCTION wave_number(OM, depth) RESULT(wave_num)
 !!$    REAL(wp), INTENT(IN) :: OM                  !< CIRCULAR FREQUENCY 2*pi*freq (nfreqs)
@@ -1648,10 +1562,6 @@ CONTAINS
   !! Newtons method to solve the dispersion relation in shallow water.
   !! G. KOMEN, P. JANSSEN   KNMI              01/06/1986
   !! Adaptation of WAM 4.5 code, function AKI
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-02-13)
   !!
   SUBROUTINE wave_number_c(p_patch, wave_config, depth, wave_num_c)
 
@@ -1740,10 +1650,6 @@ CONTAINS
   !! Newtons method to solve the dispersion relation in shallow water.
   !! G. KOMEN, P. JANSSEN   KNMI              01/06/1986
   !! Adaptation of WAM 4.5 code, function AKI
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-02-13)
   !!
   SUBROUTINE wave_number_e(p_patch, wave_config, depth, wave_num_e)
 
@@ -1845,10 +1751,6 @@ CONTAINS
   !! G.Komen, S. Hasselmann And K. Hasselmann, On The Existence
   !!          Of A Fully Developed Windsea Spectrum, JGR, 1984.
   !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-10-10)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-XX-XX)
-  !!
   SUBROUTINE dissipation_source_function(p_patch, wave_config, wave_num_c, tracer, p_diag)
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER :: &
          & routine =  modname//'dissipation_source_function'
@@ -1856,7 +1758,7 @@ CONTAINS
     TYPE(t_patch),               INTENT(IN)    :: p_patch
     TYPE(t_wave_config), TARGET, INTENT(IN)    :: wave_config
     REAL(wp),                    INTENT(IN)    :: wave_num_c(:,:,:) !< wave number (1/m)
-    REAL(wp),                    INTENT(INOUT) :: tracer(:,:,:,:)
+    REAL(wp),                    INTENT(IN)    :: tracer(:,:,:,:)
     TYPE(t_wave_diag),           INTENT(INOUT) :: p_diag
 
     TYPE(t_wave_config), POINTER :: wc => NULL()
@@ -1883,7 +1785,7 @@ CONTAINS
            &                 i_startidx, i_endidx, i_rlstart, i_rlend)
       DO jf = 1,wc%nfreqs
         DO jd = 1, wc%ndirs
-          jt = wc%get_tracer_id(jd,jf)
+          jt = wc%tracer_ind(jd,jf)
           DO jc = i_startidx, i_endidx
 
             sds = CONSS * p_diag%f1mean(jc,jb) * p_diag%emean(jc,jb)**2 * p_diag%xkmean(jc,jb)**4
@@ -1904,10 +1806,6 @@ CONTAINS
   !>
   !! Set wave spectrum to absolute allowed minimum
   !! Adaptation of WAM 4.5 code.
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-XX-XX)
   !!
   SUBROUTINE set_energy2emin(p_patch, wave_config, tracer)
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
@@ -1939,7 +1837,7 @@ CONTAINS
       DO jf = 1,wc%nfreqs
         DO jd = 1,wc%ndirs
           !
-          jt = wc%get_tracer_id(jd,jf)
+          jt = wc%tracer_ind(jd,jf)
           !
           DO jc = i_startidx, i_endidx
             tracer(jc,jk,jb,jt) = MAX(tracer(jc,jk,jb,jt),EMIN)
@@ -1967,10 +1865,6 @@ CONTAINS
   !!  HASSELMANN ET AL, D. HYDR. Z SUPPL A12(1973) (JONSWAP)
   !!  BOUWS AND KOMEN, JPO 13(1983)1653-1658
   !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-10-10)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-XX-XX)
-  !!
   SUBROUTINE bottom_friction(p_patch, wave_config, wave_num_c, depth, tracer, p_diag)
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER :: &
          & routine =  modname//'bottom_friction'
@@ -1979,7 +1873,7 @@ CONTAINS
     TYPE(t_wave_config), TARGET, INTENT(IN)    :: wave_config
     REAL(wp),                    INTENT(IN)    :: wave_num_c(:,:,:) !< wave number (1/m)
     REAL(wp),                    INTENT(IN)    :: depth(:,:)
-    REAL(wp),                    INTENT(INOUT) :: tracer(:,:,:,:)
+    REAL(wp),                    INTENT(IN)    :: tracer(:,:,:,:)
     TYPE(t_wave_diag),           INTENT(INOUT) :: p_diag
 
     TYPE(t_wave_config), POINTER :: wc => NULL()
@@ -2008,7 +1902,7 @@ CONTAINS
            &                 i_startidx, i_endidx, i_rlstart, i_rlend)
       DO jf = 1,wc%nfreqs
         DO jd = 1, wc%ndirs
-          jt = wc%get_tracer_id(jd,jf)
+          jt = wc%tracer_ind(jd,jf)
           DO jc = i_startidx, i_endidx
             sbo = MIN(2.0_wp * depth(jc,jb) * wave_num_c(jc,jb,jf),50.0_wp)
             sbo = const * wave_num_c(jc,jb,jf) / SINH(sbo)
@@ -2040,10 +1934,6 @@ CONTAINS
   !! H. Guenther  GKSS  February 2002   FT 90
   !! E. Myklebust       February 2005   optimization
   !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-10-10)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-05-31)
-  !!
   SUBROUTINE nonlinear_transfer(p_patch, wave_config, depth, tracer, p_diag)
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER :: &
          & routine =  modname//'nonlinear_transfer'
@@ -2051,7 +1941,7 @@ CONTAINS
     TYPE(t_patch),               INTENT(IN)    :: p_patch
     TYPE(t_wave_config), TARGET, INTENT(IN)    :: wave_config
     REAL(wp),                    INTENT(IN)    :: depth(:,:)
-    REAL(wp),                    INTENT(INOUT) :: tracer(:,:,:,:)
+    REAL(wp),                    INTENT(IN)    :: tracer(:,:,:,:)
     TYPE(t_wave_diag),           INTENT(INOUT) :: p_diag
 
     ! local
@@ -2466,124 +2356,5 @@ CONTAINS
 !$OMP END PARALLEL
 
   END SUBROUTINE nonlinear_transfer
-
-
-  !>
-  !! Calculate grid, depth and current refraction
-  !!
-  !! Based on WAM shallow water with depth and current refraction
-  !! P_SPHER_SHALLOW_CURR
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2023-06-02)
-  !! Optimization and vectorization by Daniel Reinert, DWD (2023-06-07)
-  !!
-  SUBROUTINE wave_refraction(p_patch, wave_config, wave_num_c, gv_c, depth, depth_grad, tracer)
-
-    CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER :: &
-         routine = modname//':wave_refraction'
-
-    TYPE(t_patch),               INTENT(IN)  :: p_patch
-    TYPE(t_wave_config), TARGET, INTENT(IN)  :: wave_config
-    REAL(wp),                    INTENT(IN)  :: wave_num_c(:,:,:)
-    REAL(wp),                    INTENT(IN)  :: gv_c(:,:,:)         ! group velocity at cell centers
-    REAL(wp),                    INTENT(IN)  :: depth(:,:)
-    REAL(vp),                    INTENT(IN)  :: depth_grad(:,:,:,:) ! bathymetry gradient (2,jc,jk,jb)
-    REAL(wp),                    INTENT(INOUT) :: tracer(:,:,:,:)
-
-
-    TYPE(t_wave_config), POINTER :: wc => NULL()
-
-    INTEGER :: i_rlstart, i_rlend, i_startblk, i_endblk
-    INTEGER :: i_startidx, i_endidx
-    INTEGER :: jc,jb,jf,jd,jk
-    INTEGER :: jt,jtm1,jtp1                       !< tracer index
-
-    REAL(wp) :: DELTHR, DELTH, DELTR, DELTH0, sm, sp, ak, akd, DTP, DTM, dDTC, temp, tsihkd
-    REAL(wp) :: thdd(nproma,wave_config%ndirs)
-    REAL(wp) :: delta_ref(nproma,wave_config%nfreqs*wave_config%ndirs)
-
-    wc => wave_config
-
-    DELTH = 2.0_wp*pi/REAL(wc%ndirs,wp)
-    DELTR = DELTH * grid_sphere_radius
-    DELTH0 = 0.5_wp * dtime / DELTR
-    DELTHR = 0.5_wp * dtime / DELTH
-
-    i_rlstart  = 1
-    i_rlend    = min_rlcell
-    i_startblk = p_patch%cells%start_block(i_rlstart)
-    i_endblk   = p_patch%cells%end_block(i_rlend)
-    jk         = p_patch%nlev
-
-
-!$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jf,jd,jc,jt,i_startidx,i_endidx,temp,ak,akd,tsihkd,thdd, &
-!$OMP            sm,sp,jtm1,jtp1,dtp,dtm,dDTC,delta_ref) ICON_OMP_DEFAULT_SCHEDULE
-    DO jb = i_startblk, i_endblk
-      CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,           &
-           &                 i_startidx, i_endidx, i_rlstart, i_rlend)
-      DO jf = 1,wc%nfreqs
-        DO jd = 1,wc%ndirs
-          DO jc = i_startidx, i_endidx
-
-            temp = (SIN(wc%dirs(jd)) + SIN(wc%dirs(wc%dir_neig_ind(2,jd)))) * depth_grad(2,jc,jk,jb) &
-                 - (COS(wc%dirs(jd)) + COS(wc%dirs(wc%dir_neig_ind(2,jd)))) * depth_grad(1,jc,jk,jb)
-
-            ak = wave_num_c(jc,jb,jf)
-            akd = ak * depth(jc,jb)
-
-            IF (akd <= 10.0_wp) THEN
-              tsihkd = (pi2 * wc%freqs(jf))/SINH(2.0_wp*akd)
-            ELSE
-              tsihkd = 0.0_wp
-            END IF
-
-            thdd(jc,jd) = temp * tsihkd
-
-          END DO !jc
-        END DO !jd
-
-
-        DO jd = 1,wc%ndirs
-
-          sm = DELTH0 * (SIN(wc%dirs(jd)) + SIN(wc%dirs(wc%dir_neig_ind(1,jd)))) !index of direction - 1
-          sp = DELTH0 * (SIN(wc%dirs(jd)) + SIN(wc%dirs(wc%dir_neig_ind(2,jd)))) !index of direction + 1
-
-          jt = wc%get_tracer_id(jd,jf)
-          jtm1 = wc%get_tracer_id(wc%dir_neig_ind(1,jd),jf)
-          jtp1 = wc%get_tracer_id(wc%dir_neig_ind(2,jd),jf)
-
-          DO jc = i_startidx, i_endidx
-
-            DTP = SIN(p_patch%cells%center(jc,jb)%lat) / COS(p_patch%cells%center(jc,jb)%lat) * gv_c(jc,jb,jf)
-
-            DTM = DTP * SM + thdd(jc,wc%dir_neig_ind(1,jd)) * DELTHR
-            DTP = DTP * SP + thdd(jc,jd) * DELTHR
-
-            dDTC = -MAX(0._wp , DTP) + MIN(0._wp , DTM)
-            DTP  = -MIN(0._wp , DTP)
-            DTM  =  MAX(0._wp , DTM)
-
-            delta_ref(jc,jt) = dDTC * tracer(jc,jk,jb,jt) &
-                 + DTM * tracer(jc,jk,jb,jtm1)  &
-                 + DTP * tracer(jc,jk,jb,jtp1)
-          END DO !jc
-        END DO !jd
-      END DO !jf
-
-      DO jf = 1,wc%nfreqs
-        DO jd = 1,wc%ndirs
-          jt = wc%get_tracer_id(jd,jf)
-          DO jc = i_startidx, i_endidx
-            tracer(jc,jk,jb,jt) = tracer(jc,jk,jb,jt) + delta_ref(jc,jt)
-          END DO !jc
-        END DO !jd
-      END DO !jf
-
-    END DO !jb
-!$OMP ENDDO NOWAIT
-!$OMP END PARALLEL
-  END SUBROUTINE wave_refraction
 
 END MODULE mo_wave_physics

@@ -1,38 +1,20 @@
 !NEC$ options "-finline-max-depth=3 -finline-max-function-size=1000"
-!===============================================================================!
 !
-! Two-moment bulk microphysics by Axel Seifert, Klaus Beheng and Uli Blahak
+! Two-moment bulk microphysics after Seifert, Beheng and Blahak
 !
 ! Description:
 ! Provides various subroutines and functions for the two-moment microphysics
 !
-! Current Code Owner: Uli Blahak, DWD
-!                     ulrich.blahak@dwd.de
+! ICON
 !
-! Language: Fortran 2003
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
 !
-! Some code standards or recommendations, at least:
-!
-! - All changes that potentially change the results need to
-!   be approved by AS and UB
-! - All new variables/subroutines should be named in English
-! - In the future also comments should be written in English,
-!   but temporary use of some German is OK, too.
-! - Length of names of subroutines should be <= 20
-! - Length of names of variables should be <= 15
-! - Length of lines has to be < 100 including comments,
-!   recommended is <= 80 for code without comments.
-! - Temporary modifications for experiments should be marked by
-!
-!     AS_YYYYMMDD>
-!         ! Change for / Bugfix ....
-!     <AS_YYYYMMDD
-!
-!   until they are validated as improvements and made official
-!   (with AS, or whatever, being the initials of the guy doing the stuff
-!   and YYYYMMDD=year/month/day).
-!
-!===============================================================================!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_2mom_mcrph_util
 
@@ -57,7 +39,6 @@ MODULE mo_2mom_mcrph_util
   PUBLIC :: init_dmin_wetgrowth
 
   PUBLIC :: &
-       & gfct,                       & ! main (could be replaced by intrinsic in Fortran2008)
        & rat2do3,                    & ! main
        & dyn_visc_sutherland,        & ! main
        & Dv_Rasmussen,               & ! main
@@ -144,310 +125,189 @@ CONTAINS
   ! Special functions and utility functions like look-up tables
   !*******************************************************************************
 
-  PURE FUNCTION gfct(x)
-    !*******************************************************************************
-    !                                                                              *
-    !       Gamma function from Numerical Recipes (F77)                            *
-    !       (reformulated due to inlining and vectorisation)                       *
-    !                                                                              *
-    !*******************************************************************************
-
-    !$ACC ROUTINE SEQ
-
-    IMPLICIT NONE
-
-    REAL(wp) :: gfct
-
-    REAL(wp), INTENT(IN) :: x
-
-    REAL(wp) :: tmp, p
-
-    REAL(wp), PARAMETER :: c1 =  76.18009173_wp
-    REAL(wp), PARAMETER :: c2 = -86.50532033_wp
-    REAL(wp), PARAMETER :: c3 =  24.01409822_wp
-    REAL(wp), PARAMETER :: c4 = -1.231739516_wp
-    REAL(wp), PARAMETER :: c5 =  0.120858003e-2_wp
-    REAL(wp), PARAMETER :: c6 = -0.536382e-5_wp
-    REAL(wp), PARAMETER :: stp = 2.50662827465_wp
-
-    tmp = x + 4.5_wp;
-    p = stp * (1.0_wp + c1/x + c2/(x+1.0_wp) + c3/(x+2.0_wp) + c4/(x+3.0_wp) + c5/(x+4.0_wp) + c6/(x+5.0_wp))
-    gfct = EXP( (x-0.5_wp) * LOG(tmp) - tmp + LOG(p) )
-
-  END FUNCTION gfct
-
-
-  DOUBLE PRECISION FUNCTION gfct_orig(x)
-    !*******************************************************************************
-    ! Gammafunktion aus Numerical Recipes (F77)                                    *
-    ! (intrinsic function in Fortran2008)                                          *
-    !*******************************************************************************
-    DOUBLE PRECISION cof(6)
-    DOUBLE PRECISION stp,half,one,x,xx,fpf,tmp,ser,gamma
-    INTEGER j
-
-    DATA cof,stp/76.18009173d0,-86.50532033d0,24.01409822d0,  &
-         &     -1.231739516d0,.120858003d-2,-.536382d-5,2.50662827465d0/
-    DATA half,one,fpf/0.5d0,1.0d0,5.5d0/
-
-    xx  = x  - one
-    tmp = xx + fpf
-    tmp = (xx + half) * LOG(tmp) - tmp
-    ser = one
-    DO j = 1,6
-      xx  = xx  + one
-      ser = ser + cof(j) / xx
-    ENDDO
-    gamma = tmp + LOG(stp*ser)
-    gamma = EXP(gamma)
-
-    gfct_orig = gamma
-    RETURN
-  END FUNCTION gfct_orig
-
-  DOUBLE PRECISION FUNCTION gammln(x)
-  !*******************************************************************************
-  ! LOG(Gamma function) taken from Press et al.,  Numerical Recipes (F77)        *
-  ! (intrinsic function in Fortran2008)                                          *
-  !*******************************************************************************
-    DOUBLE PRECISION, INTENT(in) :: x
-    DOUBLE PRECISION, SAVE :: cof(6), stp
-    DOUBLE PRECISION :: xx,tmp,ser
-    INTEGER :: j
-    DATA cof /76.18009172947146d0,-86.50532032941677d0, &
-         24.01409824083091d0,-1.231739572450155d0,.1208650973866179d-2, &
-         -.5395239384953d-5/
-    DATA stp /2.5066282746310005d0/
-
-    xx  = x
-    tmp = xx + 5.5d0
-    tmp = (xx + 0.5d0) * LOG(tmp) - tmp
-    ser = 1.000000000190015d0
-    DO j = 1,6
-       xx  = xx  + 1.0d0
-       ser = ser + cof(j) / xx
-    ENDDO
-    gammln = tmp + LOG(stp*ser/x)
-    RETURN
-  END FUNCTION gammln
-
-  DOUBLE PRECISION FUNCTION gfct2(x)
-  !*******************************************************************************
-  !       Gamma function taken from Press et al.,  Numerical Recipes (F77)
-  !
-  !       Gammafunktion aus Numerical Recipes (F77)                              *
-  !       (etwas umformuliert, aber dieselben Ergebnisse wie obige Originalfunktion)
-  !*******************************************************************************
-    DOUBLE PRECISION, INTENT(in) :: x
-    DOUBLE PRECISION, SAVE :: cof(6), stp, half, one, fpf
-    DOUBLE PRECISION :: xx,tmp,ser,gamma
-    INTEGER j
-
-    DATA cof,stp/76.18009173d0,-86.50532033d0,24.01409822d0,  &
-          &     -1.231739516d0,.120858003d-2,-.536382d-5,2.50662827465d0/
-    DATA half,one,fpf/0.5d0,1.0d0,5.5d0/
-
-    xx  = x  - one
-    tmp = xx + fpf
-    tmp = (xx + half) * LOG(tmp) - tmp
-    ser = one
-    DO j = 1,6
-       xx  = xx  + one
-       ser = ser + cof(j) / xx
-    ENDDO
-    gamma = tmp + LOG(stp*ser)
-    gamma = EXP(gamma)
-
-    gfct2 = gamma
-    RETURN
-  END FUNCTION gfct2
 
   !*******************************************************************************
-  !       Incomplete Gamma function taken from Press et al.,  Numerical Recipes (F77)
-  !
-  !       Unvollstaendige Gammafunktion aus Numerical Recipes (F77)              *
-  !       (etwas umformuliert, aber dieselben Ergebnisse wie obige Originalfunktion)
+  !       Incomplete Gamma function
   !*******************************************************************************
 
   !*******************************************************************************
-  ! 1) diverse Hilfsfunktionen:
+  ! 1) some helper functions:
 
-  SUBROUTINE gcf(gammcf,a,x,gln)
+  SUBROUTINE gamma_help_cf(gammcf,a,x,gln)
 
-    INTEGER, PARAMETER :: ITMAX = 100
-    DOUBLE PRECISION, PARAMETER :: EPS = 3.d-7, FPMIN = 1.d-30
-    DOUBLE PRECISION, INTENT(in) :: a, x
-    DOUBLE PRECISION, INTENT(out) :: gammcf, gln
+    REAL(dp), INTENT(in)  :: a, x
+    REAL(dp), INTENT(out) :: gammcf, gln
 
-    INTEGER :: i
-    DOUBLE PRECISION :: an,b,c,d,del,h
+    INTEGER,  PARAMETER   :: maxiter = 100
+    REAL(dp), PARAMETER   :: eps = 3.d-7, fpmin = 1.d-30
+    INTEGER               :: i
+    REAL(dp)              :: an, b, c, d, del, h
 
-    gln=gammln(a)
-    b=x+1.-a
-    c=1./FPMIN
-    d=1./b
-    h=d
-    DO i=1,ITMAX
-      an=-i*(i-a)
-      b=b+2.0d0
-      d=an*d+b
-      IF (ABS(d).LT.FPMIN) d=FPMIN
-      c=b+an/c
-      IF (ABS(c).LT.FPMIN) c=FPMIN
-      d=1./d
-      del=d*c
-      h=h*del
-      IF (ABS(del-1.).LT.EPS) EXIT
+    gln = LOG(GAMMA(a))
+    b   = x + 1.0_dp - a
+    c   = 1.0_dp / fpmin
+    d   = 1.0_dp / b
+    h   = d
+    DO i = 1, maxiter
+      an = -i*(i-a)
+      b  = b + 2.0_dp
+      d  = an*d + b
+      IF (ABS(d) < fpmin) d = fpmin
+      c  = b + an/c
+      IF (ABS(c) < fpmin) c = fpmin
+      d  = 1.0_dp / d
+      del= d * c
+      h  = h * del
+      IF (ABS(del-1.0_dp) < EPS) EXIT
     END DO
 
-    IF (ABS(del-1.).GE.EPS) THEN
-      WRITE (txt,*) 'ERROR in GCF: a too large, ITMAX too small'
+    IF (ABS(del-1.0_dp) >= eps) THEN
+      WRITE (txt,*) 'ERROR in GAMMA_HELP_CF: a too large, maxiter too small'
       CALL message(modname,TRIM(txt))
-      gammcf = 0.0d0
-      CALL finish(TRIM(modname),'Error in gcf')
-      RETURN
+      gammcf = 0.0_dp
+      CALL finish(TRIM(modname),'Error in gamma_help_cf')
     END IF
 
-    gammcf=EXP(-x+a*LOG(x)-gln)*h
+    gammcf = EXP(-x + a*LOG(x) - gln) * h
 
     RETURN
-  END SUBROUTINE gcf
+  END SUBROUTINE gamma_help_cf
 
-  SUBROUTINE gser(gamser,a,x,gln)
+  SUBROUTINE gamma_help_ser(gamser,a,x,gln)
 
-    INTEGER, PARAMETER :: ITMAX = 100
-    DOUBLE PRECISION, PARAMETER :: EPS=3.d-7
-    DOUBLE PRECISION, INTENT(in) :: a, x
-    DOUBLE PRECISION, INTENT(out) :: gamser, gln
+    REAL(dp), INTENT(in)  :: a, x
+    REAL(dp), INTENT(out) :: gamser, gln
 
-    INTEGER :: n
-    DOUBLE PRECISION :: ap,del,sum
+    INTEGER,  PARAMETER   :: maxiter = 100
+    REAL(dp), PARAMETER   :: eps = 3.d-7
+    INTEGER               :: n
+    REAL(dp)              :: ap,del,sum
 
-    gln=gammln(a)
-    IF (x.LE.0.) THEN
-      IF (x.LT.0.) THEN
-        WRITE (txt,*) 'ERROR in GSER: x < 0'
+    gln = LOG(GAMMA(a))
+    IF (x <= 0.0_dp) THEN
+      IF (x < 0.0_dp) THEN
+        WRITE (txt,*) 'ERROR in GAMMA_HELP_SER: x < 0'
         CALL message(modname,TRIM(txt))
-        CALL finish(TRIM(modname),'Error in gser')
+        CALL finish(TRIM(modname),'Error in gamma_help_ser')
       END IF
-      gamser=0.0d0
-      RETURN
-    ENDIF
-
-    ap=a
-    sum=1./a
-    del=sum
-    DO n=1,ITMAX
-      ap=ap+1.
-      del=del*x/ap
-      sum=sum+del
-      IF (ABS(del).LT.ABS(sum)*EPS) EXIT
-    END DO
-
-    IF (ABS(del).GE.ABS(sum)*EPS) THEN
-      WRITE (txt,*) 'ERROR in GSER: a too large, ITMAX too small' ;
-      CALL message(modname,TRIM(txt))
-      gamser = 0.0d0
-      CALL finish(TRIM(modname),'Error in gser')
-      RETURN
-    END IF
-
-    gamser = sum*EXP(-x+a*LOG(x)-gln)
-
-    RETURN
-  END SUBROUTINE gser
-
-  DOUBLE PRECISION FUNCTION gammp(a,x,gln)
-    DOUBLE PRECISION, INTENT(in) :: a, x
-    DOUBLE PRECISION, INTENT(out) :: gln
-    DOUBLE PRECISION :: gammcf, gamser
-
-    IF (x.LT.0.0d0 .OR. a .LE. 0.0d0) THEN
-      WRITE (txt,*) 'ERROR in GAMMP: bad arguments'
-      CALL message(modname,TRIM(txt))
-      gammp = 0.0d0
-      CALL finish(TRIM(modname),'Error in gammp')
-      RETURN
-    END IF
-    IF (x .LT. a+1.) THEN
-      CALL gser(gamser,a,x,gln)
-      gammp = gamser
+      
+      gamser = 0.0_dp
+    
     ELSE
-      CALL gcf(gammcf,a,x,gln)
-      gammp = 1.0d0 - gammcf
-    ENDIF
-    RETURN
-  END FUNCTION gammp
 
-  DOUBLE PRECISION FUNCTION gammq(a,x,gln)
+      ap  = a
+      sum = 1.0_dp/a
+      del = sum
+      DO n = 1, maxiter
+        ap  = ap + 1.0_dp
+        del = del*x/ap
+        sum = sum + del
+        IF (ABS(del) < ABS(sum)*eps) EXIT
+      END DO
 
-    DOUBLE PRECISION, INTENT(in) :: a, x
-    DOUBLE PRECISION, INTENT(out) :: gln
-    DOUBLE PRECISION :: gammcf, gamser
+      IF (ABS(del) >= ABS(sum)*eps) THEN
+        WRITE (txt,*) 'ERROR in GAMMA_HELP_SER: a too large, maxiter too small' ;
+        CALL message(modname,TRIM(txt))
+        gamser = 0.0_dp
+        CALL finish(TRIM(modname),'Error in gamma_help_ser')
+      END IF
 
-    IF (x.LT.0.0d0 .OR. a .LE. 0.0d0) THEN
-      WRITE (txt,*) 'ERROR in GAMMQ: bad arguments'
-      CALL message(modname,TRIM(txt))
-      gammq = 0.0d0
-      CALL finish(TRIM(modname),'Error in gammq')
-      RETURN
+      gamser = sum * EXP(-x + a*LOG(x) - gln)
+
     END IF
 
-    IF (x.LT.a+1.) THEN
-      CALL gser(gamser,a,x,gln)
-      gammq = 1.0d0 - gamser
-    ELSE
-      CALL gcf(gammcf,a,x,gln)
-      gammq = gammcf
-    ENDIF
     RETURN
-  END FUNCTION gammq
+  END SUBROUTINE gamma_help_ser
 
-  ! Ende diverse Hilfsfunktionen
+  REAL(dp) FUNCTION gamma_p(a,x,gln)
+
+    REAL(dp), INTENT(in)  :: a, x
+    REAL(dp), INTENT(out) :: gln
+    REAL(dp)              :: gammcf, gamser
+
+    IF (x < 0.0_dp .OR. a <= 0.0_dp) THEN
+      WRITE (txt,*) 'ERROR in GAMMA_P: bad arguments'
+      CALL message(modname,TRIM(txt))
+      gamma_p = 0.0d0
+      CALL finish(TRIM(modname),'Error in gamma_p')
+    END IF
+    
+    IF (x < a+1.0_dp) THEN
+      CALL gamma_help_ser(gamser,a,x,gln)
+      gamma_p = gamser
+    ELSE
+      CALL gamma_help_cf(gammcf,a,x,gln)
+      gamma_p = 1.0_dp - gammcf
+    ENDIF
+    
+    RETURN
+  END FUNCTION gamma_p
+
+  REAL(dp) FUNCTION gamma_q(a,x,gln)
+
+    REAL(dp), INTENT(in)  :: a, x
+    REAL(dp), INTENT(out) :: gln
+    REAL(dp)              :: gammcf, gamser
+
+    IF (x < 0.0_dp .OR. a <= 0.0_dp) THEN
+      WRITE (txt,*) 'ERROR in GAMMA_Q: bad arguments'
+      CALL message(modname,TRIM(txt))
+      gamma_q = 0.0_dp
+      CALL finish(TRIM(modname),'Error in gamma_q')
+    END IF
+
+    IF (x < a+1.0_dp) THEN
+      CALL gamma_help_ser(gamser,a,x,gln)
+      gamma_q = 1.0_dp - gamser
+    ELSE
+      CALL gamma_help_cf(gammcf,a,x,gln)
+      gamma_q = gammcf
+    ENDIF
+    
+    RETURN
+  END FUNCTION gamma_q
+
+  ! End helper functions
   !*******************************************************************************
 
   !*******************************************************************************
   ! Upper incomplete gamma function
-  !
-  ! Eigentliche obere unvollstaendige Gamma-Funktion, hier direkt
-  ! das Integral
   !              int(x)(oo) exp(-t) t^(a-1) dt
   !*******************************************************************************
 
-  DOUBLE PRECISION FUNCTION incgfct_upper(a,x)
-    DOUBLE PRECISION, INTENT(in) :: a, x
-    DOUBLE PRECISION :: gam, gln
+  REAL(dp) FUNCTION incgfct_upper(a,x)
 
-    gam = gammq(a,x,gln)
+    REAL(dp), INTENT(in) :: a, x
+    REAL(dp) :: gam, gln
+
+    gam = gamma_q(a,x,gln)
     incgfct_upper = EXP(gln) * gam
 
   END FUNCTION incgfct_upper
 
   !*******************************************************************************
   ! Lower incomplete gamma function
-  !
-  ! Eigentliche untere unvollstaendige Gamma-Funktion, hier direkt
-  ! das Integral
   !              int(0)(x) exp(-t) t^(a-1) dt
   !*******************************************************************************
 
-  DOUBLE PRECISION FUNCTION incgfct_lower(a,x)
-    DOUBLE PRECISION, INTENT(in) :: a, x
-    DOUBLE PRECISION :: gam, gln
+  REAL(dp) FUNCTION incgfct_lower(a,x)
+    
+    REAL(dp), INTENT(in) :: a, x
+    REAL(dp) :: gam, gln
 
-    gam = gammp(a,x,gln)
+    gam = gamma_p(a,x,gln)
     incgfct_lower = EXP(gln) * gam
 
   END FUNCTION incgfct_lower
 
   !*******************************************************************************
-  ! Eigentliche unvollstaendige Gamma-Funktion, hier direkt
-  ! das Integral
+  ! Incomplete gamma function
   !              int(x1)(x2) exp(-t) t^(a-1) dt
   !*******************************************************************************
 
-  DOUBLE PRECISION FUNCTION incgfct(a,x1,x2)
-    DOUBLE PRECISION, INTENT(in) :: a, x1, x2
+  REAL(dp) FUNCTION incgfct(a,x1,x2)
+
+    REAL(dp), INTENT(in) :: a, x1, x2
 
     incgfct = incgfct_lower(a,x2) - incgfct_lower(a,x1)
 
@@ -470,11 +330,11 @@ CONTAINS
   !*******************************************************************************
 
   SUBROUTINE incgfct_lower_lookupcreate(a,ltable,nl,nlhr)
-    DOUBLE PRECISION, INTENT(in) :: a  ! value of a
+    REAL(dp), INTENT(in) :: a  ! value of a
     TYPE(gamlookuptable), INTENT(inout) :: ltable
     INTEGER, INTENT(in) :: nl, nlhr
     INTEGER :: i, err
-    DOUBLE PRECISION, PARAMETER ::   &
+    REAL(dp), PARAMETER ::   &
          c1 =  36.629433904824623d0, &
          c2 = -0.119475603955226d0,  &
          c3 =  0.339332937820052d0,  &
@@ -532,7 +392,8 @@ CONTAINS
 
       ! The last value is for x = infinity:
       ltable%x(ltable%n) = (ltable%n-1) * ltable%dx
-      ltable%igf(ltable%n) = gfct(a)
+!      ltable%igf(ltable%n) = gfct_lanc(a)
+      ltable%igf(ltable%n) = GAMMA(a)
 
       !==================================================================
       ! high resolution part of the table (lowest 2 % of the X-values):
@@ -583,14 +444,14 @@ CONTAINS
   ! This function only uses the low resolution part of the table!
   !*******************************************************************************
 
-  DOUBLE PRECISION FUNCTION incgfct_lower_lookup(x, ltable)
+  REAL(dp) FUNCTION incgfct_lower_lookup(x, ltable)
 
     !$ACC ROUTINE SEQ
 
-    DOUBLE PRECISION, INTENT(in) :: x  ! value of x for table lookup
+    REAL(dp), INTENT(in) :: x  ! value of x for table lookup
     TYPE(gamlookuptable), INTENT(in) :: ltable
     INTEGER :: iu, io
-    DOUBLE PRECISION :: xt
+    REAL(dp) :: xt
 
     ! Trunkcate x to the range of the table:
     xt = MAX(MIN(x, ltable%x(ltable%n)), 0.0d0)
@@ -613,12 +474,12 @@ CONTAINS
   ! (an benachbarte 3 Punkte eine Parabel interpolieren und interpolierten Wert von der Parabel nehmen --
   !  weil es jeweils 2 moegliche 3-Punkte-Nachbarschaften gibt, wird aus Stetigkeitsgruenden der Mittelwert
   ! von beiden genommen):
-  DOUBLE PRECISION FUNCTION incgfct_lower_lookup_parabolic(x, ltable)
-    DOUBLE PRECISION, INTENT(in)     :: x       ! value of x for table lookup
+  REAL(dp) FUNCTION incgfct_lower_lookup_parabolic(x, ltable)
+    REAL(dp), INTENT(in)     :: x       ! value of x for table lookup
     TYPE(gamlookuptable), INTENT(in) :: ltable
 
     INTEGER :: iu, im, io
-    DOUBLE PRECISION :: xt, f12, f23, f123, yn1, yn2
+    REAL(dp) :: xt, f12, f23, f123, yn1, yn2
 
     ! If x is within the high-resolution part of the table:
     IF (x <= ltable%xhr(ltable%nhr)) THEN
@@ -739,15 +600,15 @@ CONTAINS
   !
   !*******************************************************************************
 
-  DOUBLE PRECISION FUNCTION incgfct_upper_lookup(x, ltable)
+  REAL(dp) FUNCTION incgfct_upper_lookup(x, ltable)
 
     !$ACC ROUTINE SEQ
 
-    DOUBLE PRECISION, INTENT(in)     :: x    ! value of x for table lookup
+    REAL(dp), INTENT(in)     :: x    ! value of x for table lookup
     TYPE(gamlookuptable), INTENT(in) :: ltable
 
     INTEGER :: iu, io
-    DOUBLE PRECISION :: xt
+    REAL(dp) :: xt
 
     ! Trunkcate x to the range of the table:
     xt = MAX(MIN(x, ltable%x(ltable%n)), 0.0d0)
@@ -779,12 +640,12 @@ CONTAINS
   ! (an benachbarte 3 Punkte eine Parabel interpolieren und interpolierten Wert von der Parabel nehmen --
   !  weil es jeweils 2 moegliche 3-Punkte-Nachbarschaften gibt, wird aus Stetigkeitsgruenden der Mittelwert
   ! von beiden genommen):
-  DOUBLE PRECISION FUNCTION incgfct_upper_lookup_parabolic(x, ltable)
-    DOUBLE PRECISION, INTENT(in)     :: x  ! value of x for table lookup
+  REAL(dp) FUNCTION incgfct_upper_lookup_parabolic(x, ltable)
+    REAL(dp), INTENT(in)     :: x  ! value of x for table lookup
     TYPE(gamlookuptable), INTENT(in) :: ltable
 
     INTEGER :: iu, im, io
-    DOUBLE PRECISION :: xt, f12, f23, f123, yn1, yn2
+    REAL(dp) :: xt, f12, f23, f123, yn1, yn2
 
     ! If x is within the high-resolution part of the table:
     IF (x <= ltable%xhr(ltable%nhr)) THEN
@@ -2078,9 +1939,9 @@ CONTAINS
     REAL(wp), INTENT(in)  :: qr  ! has to be [kg/m^3]
     REAL(wp), PARAMETER   :: N0r = 8000.0e3_wp ! intercept of MP distribution
 
-    !    set_qnr = N0r * ( qr * 6.0_wp / (pi * rhoh2o * N0r * gfct(4.0_wp)))**(0.25_wp)
+    !    set_qnr = N0r * ( qr * 6.0_wp / (pi * rhoh2o * N0r * gamma(4.0_wp)))**(0.25_wp)
     IF (qr >= 1e-20_wp) THEN
-      set_qnr = N0r * EXP( LOG( qr * 6.0_wp / (pi * rhoh2o * N0r * gfct(4.0_wp))) * (0.25_wp) )
+      set_qnr = N0r * EXP( LOG( qr * 6.0_wp / (pi * rhoh2o * N0r * GAMMA(4.0_wp))) * (0.25_wp) )
     ELSE
       set_qnr = 0.0_wp
     END IF
@@ -2096,9 +1957,9 @@ CONTAINS
     REAL(wp), PARAMETER   :: ams = 0.038_wp  ! needs to be connected to snow-type
     REAL(wp), PARAMETER   :: bms = 2.0_wp
 
-!    set_qns = N0s * ( qs / ( ams * N0s * gfct(bms+1.0_wp)))**( 1.0_wp/(1.0_wp+bms) )
+!    set_qns = N0s * ( qs / ( ams * N0s * gamma(bms+1.0_wp)))**( 1.0_wp/(1.0_wp+bms) )
     IF (qs >= 1e-20_wp) THEN
-      set_qns = N0s * EXP( LOG( qs / ( ams * N0s * gfct(bms+1.0_wp))) * ( 1.0_wp/(1.0_wp+bms) ) )
+      set_qns = N0s * EXP( LOG( qs / ( ams * N0s * GAMMA(bms+1.0_wp))) * ( 1.0_wp/(1.0_wp+bms) ) )
     ELSE
       set_qns = 0.0_wp
     END IF
@@ -2114,9 +1975,9 @@ CONTAINS
     REAL(wp), PARAMETER   :: amg = 169.6_wp     ! needs to be connected to graupel-type
     REAL(wp), PARAMETER   :: bmg = 3.1_wp
 
-!    set_qng = N0g * ( qg / ( amg * N0g * gfct(bmg+1.0_wp)))**( 1.0_wp/(1.0_wp+bmg) )
+!    set_qng = N0g * ( qg / ( amg * N0g * gamma(bmg+1.0_wp)))**( 1.0_wp/(1.0_wp+bmg) )
     IF (qg >= 1e-20_wp) THEN
-      set_qng = N0g * EXP( LOG ( qg / ( amg * N0g * gfct(bmg+1.0_wp))) * ( 1.0_wp/(1.0_wp+bmg) ) )
+      set_qng = N0g * EXP( LOG ( qg / ( amg * N0g * GAMMA(bmg+1.0_wp))) * ( 1.0_wp/(1.0_wp+bmg) ) )
     ELSE
       set_qng = 0.0_wp
     END IF

@@ -1,25 +1,20 @@
-  !>
-  !! This module contains the asynchronous I/O routine for lateral boundary nudging
-  !!
-  !! @author M. Pondkule (DWD)
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by M. Pondkule, DWD (2014-01-27)
-  !! Allow boundary data from the ICON output by S. Brdar, DWD (2013-07-19)
-  !!
-  !! @par Copyright and License
-  !!
-  !! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-  !! its most recent form.
-  !! Please see the file LICENSE in the root of the source tree for this code.
-  !! Where software is supplied by third parties, it is indicated in the
-  !! headers of the routines.
-  !!
-  !!
-  !----------------------------
+! This module contains the asynchronous I/O routine for lateral boundary nudging
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
+!----------------------------
 #include "omp_definitions.inc"
-  !----------------------------
+!----------------------------
 
   MODULE mo_async_latbc_utils
 
@@ -150,10 +145,6 @@
 
 
     !-------------------------------------------------------------------------
-    !>
-    !! @par Revision History
-    !! Initial version by S. Brdar, DWD (2013-06-13)
-    !! Initial version by M.Pondkule, DWD (2014-01-27)
     !!
     SUBROUTINE allocate_pref_latbc_data(latbc, nlev_in, p_nh_state, ext_data, p_patch)
 
@@ -298,7 +289,8 @@
         !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%u, latbc%latbc_data(tlev)%atm%v) &
         !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%w, latbc%latbc_data(tlev)%atm%qv) &
         !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%qc, latbc%latbc_data(tlev)%atm%qi) &
-        !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%qr, latbc%latbc_data(tlev)%atm%qs)
+        !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%qr, latbc%latbc_data(tlev)%atm%qs) &
+        !$ACC   ASYNC(1)
 
          ! ... for additional tracer variables
          DO idx=1, ntracer
@@ -376,10 +368,6 @@
 
 #ifndef NOMPI
     !-------------------------------------------------------------------------
-    !>
-    !! @par Revision History
-    !! Initial version by G. Zaengl, DWD (2018-10-30)
-    !!
     !! Synchronous reading of initial lateral boundary conditions by worker PE0
     !!
     !! Replaces the former routine compute_init_latbc_data, which did the same job
@@ -511,7 +499,8 @@
         !$ACC   DEVICE(latbc%latbc_data(prev_latbc_tlev)%atm%u, latbc%latbc_data(prev_latbc_tlev)%atm%v) &
         !$ACC   DEVICE(latbc%latbc_data(prev_latbc_tlev)%atm%w, latbc%latbc_data(prev_latbc_tlev)%atm%qv) &
         !$ACC   DEVICE(latbc%latbc_data(prev_latbc_tlev)%atm%qc, latbc%latbc_data(prev_latbc_tlev)%atm%qi) &
-        !$ACC   DEVICE(latbc%latbc_data(prev_latbc_tlev)%atm%qr, latbc%latbc_data(prev_latbc_tlev)%atm%qs)
+        !$ACC   DEVICE(latbc%latbc_data(prev_latbc_tlev)%atm%qr, latbc%latbc_data(prev_latbc_tlev)%atm%qs) &
+        !$ACC   ASYNC(1)
 
       ENDIF
 
@@ -532,7 +521,8 @@
       !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%u, latbc%latbc_data(timelev)%atm%v) &
       !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%w, latbc%latbc_data(timelev)%atm%qv) &
       !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%qc, latbc%latbc_data(timelev)%atm%qi) &
-      !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%qr, latbc%latbc_data(timelev)%atm%qs)
+      !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%qr, latbc%latbc_data(timelev)%atm%qs) &
+      !$ACC   ASYNC(1)
 
       CALL deleteInputParameters(read_params(icell)%cdi_params)
       CALL deleteInputParameters(read_params(iedge)%cdi_params)
@@ -618,7 +608,8 @@
       !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%u, latbc%latbc_data(timelev)%atm%v) &
       !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%w, latbc%latbc_data(timelev)%atm%qv) &
       !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%qc, latbc%latbc_data(timelev)%atm%qi) &
-      !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%qr, latbc%latbc_data(timelev)%atm%qs)
+      !$ACC   DEVICE(latbc%latbc_data(timelev)%atm%qr, latbc%latbc_data(timelev)%atm%qs) &
+      !$ACC   ASYNC(1)
 
       CALL deleteInputParameters(read_params(icell)%cdi_params)
       CALL deleteInputParameters(read_params(iedge)%cdi_params)
@@ -693,7 +684,6 @@
 
 
     !-------------------------------------------------------------------------
-    !>
     !! Read interpolated lateral boundary conditions
     !!
     !! This subroutine is called by compute processors.
@@ -711,11 +701,6 @@
     !!       performed on a subset of PEs only, while no valid data is
     !!       available on the remaining PE. For this situation we need
     !!       the optional "opt_lmask" parameter.
-    !!
-    !!
-    !! @par Revision History
-    !! Initial version by G. Zaengl, DWD (2018-11-28),
-    !! replacing the original implementation by M. Pondkule
     !!
     SUBROUTINE read_latbc_data(latbc, p_patch, p_nh_state, p_int, tlev, read_params, latbc_dict)
       TYPE(t_latbc_data),     INTENT(INOUT), TARGET :: latbc  !< variable buffer for latbc data
@@ -1008,10 +993,6 @@
     END SUBROUTINE read_latbc_data
 
     !-------------------------------------------------------------------------
-    !>
-    !! @par Revision History
-    !! Initial version by S. Brdar, DWD (2013-06-13)
-    !! Modified version by M.Pondkule, DWD (2014-01-27)
     !!
     !! ** This subroutine is only called by the prefetching PEs. **
     !!
@@ -1065,7 +1046,6 @@
 
 
     !-------------------------------------------------------------------------
-    !>
     !! Read horizontally interpolated atmospheric boundary data.
     !!
     !! The subroutine reads atmospheric boundary data and projects on
@@ -1078,10 +1058,6 @@
     !!   compute processor,
     !!
     !! ** This subroutine is only called by the prefetching PE. **
-    !!
-    !! @par Revision History
-    !! Initial version by S. Brdar, DWD (2013-07-19)
-    !! Modified version by M. Pondkule, DWD (2014-02-11)
     !!
 
     SUBROUTINE prefetch_latbc_data(latbc, latbc_read_datetime)
@@ -1250,15 +1226,10 @@
     END SUBROUTINE check_validity_date_and_print_filename
 
     !-------------------------------------------------------------------------
-    !>
     !! Receive horizontally interpolated atmospheric boundary data
     !! from the prefetching PE. 
     !!
     !! ** This subroutine is only called by the worker PEs. **
-    !!
-    !! @par Revision History
-    !! Initial version by S. Brdar, DWD (2013-07-19)
-    !! Modified version by M. Pondkule, DWD (2014-02-11)
     !!
     SUBROUTINE recv_latbc_data(latbc, p_patch, p_nh_state, p_int, cur_datetime, &
       &                        latbc_read_datetime, lcheck_read, tlev)
@@ -1308,11 +1279,13 @@
       ! copy values needed from the GPU to the CPU
 #ifdef _OPENACC
       CALL message('mo_asyc_latbc_utils', 'Device to host copy of values needed in recv_latbc_data. This needs to be removed once port is finished!')
-      !$ACC UPDATE HOST(p_nh_state%diag%grf_tend_tracer)
-      !$ACC UPDATE HOST(p_nh_state%diag%grf_tend_vn)
-      !$ACC UPDATE HOST(p_nh_state%diag%grf_tend_rho)
-      !$ACC UPDATE HOST(p_nh_state%diag%grf_tend_thv)
-      !$ACC UPDATE HOST(p_nh_state%diag%grf_tend_w)
+      !$ACC UPDATE &
+      !$ACC   HOST(p_nh_state%diag%grf_tend_tracer) &
+      !$ACC   HOST(p_nh_state%diag%grf_tend_vn) &
+      !$ACC   HOST(p_nh_state%diag%grf_tend_rho) &
+      !$ACC   HOST(p_nh_state%diag%grf_tend_thv) &
+      !$ACC   HOST(p_nh_state%diag%grf_tend_w) &
+      !$ACC   ASYNC(1)
       i_am_accel_node = .FALSE.
 #endif
 
@@ -1344,6 +1317,7 @@
       ! indicators for asynchronous read mode; receives data from prefetch PE
       read_params(icell)%imode_asy = icell
       read_params(iedge)%imode_asy = iedge
+      !$ACC WAIT(1) !GV: UPDATE HOST(p_nh_state) finished
       CALL read_latbc_data(latbc, p_patch(1), p_nh_state, p_int, tlev, read_params)
 
       !$ACC UPDATE DEVICE(latbc%latbc_data(tlev)%atm%pres, latbc%latbc_data(tlev)%atm%temp) &
@@ -1352,7 +1326,8 @@
       !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%u, latbc%latbc_data(tlev)%atm%v) &
       !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%w, latbc%latbc_data(tlev)%atm%qv) &
       !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%qc, latbc%latbc_data(tlev)%atm%qi) &
-      !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%qr, latbc%latbc_data(tlev)%atm%qs)
+      !$ACC   DEVICE(latbc%latbc_data(tlev)%atm%qr, latbc%latbc_data(tlev)%atm%qs) &
+      !$ACC   ASYNC(1)
 
       ! Compute tendencies for nest boundary update
       CALL compute_boundary_tendencies(latbc%latbc_data(:), p_patch(1), p_nh_state, tlev,  &
@@ -1379,11 +1354,13 @@
       ! copy changed values form CPU to GPU
 #ifdef _OPENACC
         CALL message('mo_nh_stepping', 'Host to device copy of values changed in recv_latbc_data. This needs to be removed once port is finished!')
-        !$ACC UPDATE DEVICE(p_nh_state%diag%grf_tend_vn)
-        !$ACC UPDATE DEVICE(p_nh_state%diag%grf_tend_rho)
-        !$ACC UPDATE DEVICE(p_nh_state%diag%grf_tend_thv)
-        !$ACC UPDATE DEVICE(p_nh_state%diag%grf_tend_w)
-        !$ACC UPDATE DEVICE(p_nh_state%diag%grf_tend_tracer)
+        !$ACC UPDATE &
+        !$ACC   DEVICE(p_nh_state%diag%grf_tend_vn) &
+        !$ACC   DEVICE(p_nh_state%diag%grf_tend_rho) &
+        !$ACC   DEVICE(p_nh_state%diag%grf_tend_thv) &
+        !$ACC   DEVICE(p_nh_state%diag%grf_tend_w) &
+        !$ACC   DEVICE(p_nh_state%diag%grf_tend_tracer) &
+        !$ACC   ASYNC(1)
         i_am_accel_node = my_process_is_work()
 #endif
 #endif
@@ -1428,9 +1405,6 @@
 
 
     !-------------------------------------------------------------------------
-    !>
-    !! @par Revision History
-    !! Initial version by G. Zaengl, DWD (2013-10-22)
     !!
     SUBROUTINE compute_boundary_tendencies ( latbc_data, p_patch, p_nh, tlev, idx_tracer )
       TYPE(t_latbc_state),     INTENT(IN)   :: latbc_data(:)
@@ -1589,8 +1563,6 @@
     !-------------------------------------------------------------------------------------------------
     !> Send a message to the work PEs that the input prefetching PEs is ready. The
     !  counterpart on the work PEs side is compute_wait_for_async_pref
-    !! @par Revision History
-    !! Initial version by M. Pondkule, DWD (2013-03-19)
     !
     SUBROUTINE async_pref_send_handshake()
 #ifndef NOMPI
@@ -1605,8 +1577,6 @@
     !-------------------------------------------------------------------------------------------------
     !> compute_wait_for_async_pref: Wait for a message that the prefetch PE is ready.
     !  The counterpart on the input Prefetching PEs side is async_pref_send_handshake
-    !! @par Revision History
-    !! Initial version by M. Pondkule, DWD (2013-03-19)
     !
     SUBROUTINE compute_wait_for_async_pref()
 #ifndef NOMPI
@@ -1633,8 +1603,6 @@
     !> async_pref_wait_for_start: Wait for a message from compute PE that we should start
     !  tranferring the prefetch data or finish. The counterpart on the compute side is
     !  compute_start_async_pref/compute_shutdown_async_pref
-    !! @par Revision History
-    !! Initial version by M. Pondkule, DWD (2013-03-19)
     !
     SUBROUTINE async_pref_wait_for_start(done)
       LOGICAL, INTENT(INOUT) :: done ! flag if we should shut down
@@ -1667,8 +1635,6 @@
     !-------------------------------------------------------------------------------------------------
     !> compute_start_async_pref: Send a message to prefetching PEs that they should start
     !  prefetching input. The counterpart on the prefetching side is async_pref_wait_for_start
-    !! @par Revision History
-    !! Initial version by M. Pondkule, DWD (2013-03-19)
     !
     SUBROUTINE compute_start_async_pref()
 #ifndef NOMPI
@@ -1685,8 +1651,6 @@
     !-------------------------------------------------------------------------------------------------
     !> compute_shutdown_async_pref: Send a message to prefetching PEs that they should shut down
     !  The counterpart on the prefetching side is async_pref_wait_for_start
-    !! @par Revision History
-    !! Initial version by M. Pondkule, DWD (2013-03-19)
     !
     SUBROUTINE compute_shutdown_async_pref
 #ifndef NOMPI
@@ -1702,9 +1666,6 @@
     !>
     ! Return the index for a given variable in mapped variable list
     !
-    !! @par Revision History
-    !! Initial version by M. Pondkule, DWD (2013-05-19)
-    !!
     FUNCTION get_field_index(buffer,name) RESULT(result_varID)
       TYPE(t_buffer), INTENT(IN) :: buffer
       CHARACTER (LEN=*),   INTENT(IN) :: name !< variable name

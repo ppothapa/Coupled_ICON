@@ -1,75 +1,84 @@
-!>
-!! Module to calculate source terms for different aerosol species.
-!!
-!! This module contains routines to calculate source terms for different aerosol species.
-!! Implemented up to now:
-!! - Mineral dust source term based Kok et al. (2014). This aerosol emission is then
-!!   converted to an AOD source term for the 2D-aerosol scheme of ICON
-!!
-!! Literature references:
-!! Fecan et al. (1998)   - Fecan, F., Marticorena, B., & Bergametti, G. (1998, December).
-!!                         Parametrization of the increase of the aeolian erosion threshold wind
-!!                         friction velocity due to soil moisture for arid and semi-arid areas.
-!!                         In Annales Geophysicae (Vol. 17, No. 1, pp. 149-157). Springer-Verlag.
-!! Grythe et al. (2014)  - Grythe, H., Stroem, J., Krejci, R., Quinn, P., & Stohl, A., 2014.
-!!                         A review of sea-spray aerosol source functions using a large global set
-!!                         of sea salt aerosol concentration measurements.
-!!                         Atmos. Chem. Phys., 14(3), 1277-1297.
-!! Jaegle et al. (2011)  - Jaegle, L., Quinn, P. K., Bates, T. S., Alexander, B., and Lin, J.-T., 2011:
-!!                         Global distribution of sea salt aerosols: new constraints from in situ
-!!                         and remote sensing observations
-!!                         Atmos. Chem. Phys., 11, 3137-3157.
-!! Kok et al. (2012)     - Kok, J. F., E. J. Parteli, T. I. Michaels, and D. B. Karam, 2012:
-!!                         The physics of wind-blown sand and dust. Rep. prog. Phys., 75(10), 106901.
-!! Kok et al. (2014)     - Kok, J., N. Mahowald, G. Fratini, J. Gillies, M. Ishizuka, J. Leys, M. Mikami,
-!!                         M.-S. Park, S.-U. Park, R. Van Pelt, et al., 2014: An improved dust emission
-!!                         model - part 1: Model description and comparison against measurements.
-!!                         Atmos. Chem. Phys., 14(23), 13023-13041.
-!! Kok et al. (2014b)    - Kok, J., S. Albani, N.M. Mahowald, and D.S. Ward, 2014: An improved dust 
-!!                         emission model - Part 2: Evaluation in the Community Earth System Model, 
-!!                         with implications for the use of dust source functions
-!!                         Atmos. Chem. Phys., 14, 13043-13061
-!! Raupach, M. R. (1993) - Dry deposition of gases and particles to vegetation.
-!!                         Clean Air: Journal of the Clean Air Society of Australia and New Zealand,
-!!                         27(4), 200.
-!! Rieger et al. (2017)  - Rieger D., Steiner A., Bachmann V., Gasch P., Foerstner J., Deetz K., 
-!!                         Vogel B., and Vogel H., 2017: Impact of the 4 April 2014 Saharan dust 
-!!                         outbreak on the photovoltaic power generation in Germany. 
-!!                         Atmos. Chem. and Phys. 17 (21), 13391
-!! Shao, Y., & Lu, H. (2000) - A simple expression for wind erosion threshold friction velocity.
-!!                         Journal of Geophysical Research: Atmospheres, 105(D17), 22437-22443.
-!! Zender et al. (2003)  - Zender, C. S., Bian, H., & Newman, D. (2003).
-!!                         Mineral Dust Entrainment and Deposition (DEAD) model:
-!!                         Description and 1990s dust climatology.
-!!                         Journal of Geophysical Research: Atmospheres, 108(D14).
-!!
-!! @author Daniel Rieger, DWD
-!!
-!!
-!! @par Revision History
-!! Initial Revision by Daniel Rieger, DWD (2021-06-29)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Module to calculate source terms for different aerosol species.
+!
+! This module contains routines to calculate source terms for different aerosol species.
+! Implemented up to now:
+! - Mineral dust source term based Kok et al. (2014). This aerosol emission is then
+!   converted to an AOD source term for the 2D-aerosol scheme of ICON
+!
+! Literature references:
+! Fecan et al. (1998)   - Fecan, F., Marticorena, B., & Bergametti, G. (1998, December).
+!                         Parametrization of the increase of the aeolian erosion threshold wind
+!                         friction velocity due to soil moisture for arid and semi-arid areas.
+!                         In Annales Geophysicae (Vol. 17, No. 1, pp. 149-157). Springer-Verlag.
+! Grythe et al. (2014)  - Grythe, H., Stroem, J., Krejci, R., Quinn, P., & Stohl, A., 2014.
+!                         A review of sea-spray aerosol source functions using a large global set
+!                         of sea salt aerosol concentration measurements.
+!                         Atmos. Chem. Phys., 14(3), 1277-1297.
+! Jaegle et al. (2011)  - Jaegle, L., Quinn, P. K., Bates, T. S., Alexander, B., and Lin, J.-T., 2011:
+!                         Global distribution of sea salt aerosols: new constraints from in situ
+!                         and remote sensing observations
+!                         Atmos. Chem. Phys., 11, 3137-3157.
+! Kok et al. (2012)     - Kok, J. F., E. J. Parteli, T. I. Michaels, and D. B. Karam, 2012:
+!                         The physics of wind-blown sand and dust. Rep. prog. Phys., 75(10), 106901.
+! Kok et al. (2014)     - Kok, J., N. Mahowald, G. Fratini, J. Gillies, M. Ishizuka, J. Leys, M. Mikami,
+!                         M.-S. Park, S.-U. Park, R. Van Pelt, et al., 2014: An improved dust emission
+!                         model - part 1: Model description and comparison against measurements.
+!                         Atmos. Chem. Phys., 14(23), 13023-13041.
+! Kok et al. (2014b)    - Kok, J., S. Albani, N.M. Mahowald, and D.S. Ward, 2014: An improved dust
+!                         emission model - Part 2: Evaluation in the Community Earth System Model,
+!                         with implications for the use of dust source functions
+!                         Atmos. Chem. Phys., 14, 13043-13061
+! Raupach, M. R. (1993) - Dry deposition of gases and particles to vegetation.
+!                         Clean Air: Journal of the Clean Air Society of Australia and New Zealand,
+!                         27(4), 200.
+! Rieger et al. (2017)  - Rieger D., Steiner A., Bachmann V., Gasch P., Foerstner J., Deetz K.,
+!                         Vogel B., and Vogel H., 2017: Impact of the 4 April 2014 Saharan dust
+!                         outbreak on the photovoltaic power generation in Germany.
+!                         Atmos. Chem. and Phys. 17 (21), 13391
+! Shao, Y., & Lu, H. (2000) - A simple expression for wind erosion threshold friction velocity.
+!                         Journal of Geophysical Research: Atmospheres, 105(D17), 22437-22443.
+! Zender et al. (2003)  - Zender, C. S., Bian, H., & Newman, D. (2003).
+!                         Mineral Dust Entrainment and Deposition (DEAD) model:
+!                         Description and 1990s dust climatology.
+!                         Journal of Geophysical Research: Atmospheres, 108(D14).
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 MODULE mo_aerosol_sources
 
   USE mo_kind,                          ONLY: wp
+  USE mo_exception,                     ONLY: finish, message, message_text
   USE mo_util_phys,                     ONLY: calc_ustar
+  USE mo_util_string,                   ONLY: t_keyword_list, associate_keyword, with_keywords, int2string
   USE mo_physical_constants,            ONLY: grav
-  USE mo_aerosol_sources_types,         ONLY: t_dust_source_const
+  USE mo_impl_constants,                ONLY: MAX_CHAR_LENGTH
+  USE mo_aerosol_sources_types,         ONLY: t_dust_source_const, t_fire_source_info
+  USE mo_model_domain,                  ONLY: t_patch
+  USE mo_io_config,                     ONLY: default_read_method
+  USE mo_io_units,                      ONLY: filename_max
+  USE mo_run_config,                    ONLY: msg_level
+  USE mo_read_interface,                ONLY: openInputFile, closeFile, on_cells, t_stream_id, read_2D, read_2D_1time
+  USE mtime,                            ONLY: datetime
 
   IMPLICIT NONE
 
   PRIVATE
 
+  !> module name string
+  CHARACTER(LEN=*), PARAMETER :: modname = 'mo_aerosol_sources'
+
   PUBLIC :: aerosol_dust_aod_source, aerosol_ssa_aod_source
+  PUBLIC :: aerosol2d_read_data, calc_anthro_aod, calc_so4_nucleation
+  PUBLIC :: inquire_fire2d_data
 
 CONTAINS
 
@@ -79,11 +88,8 @@ CONTAINS
   !! Calculates the source term for mineral dust optical depth based
   !! on external data
   !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, DWD (2019-08-01)
-  !!
   SUBROUTINE aerosol_dust_aod_source (this_source, dzsoil, w_so, h_snow, w_so_ice, &
-    &                                 soiltyp, plcov, lc_class, rho_a, tcm, u, v, aod_flux, dust_flux)
+    &                                 soiltyp, plcov, lc_class, rho_a, tcm, u, v, aod_flux, dust_flux_out)
 
     TYPE(t_dust_source_const), INTENT(in) :: &
       &  this_source           !< Constant information for dust emission
@@ -103,9 +109,10 @@ CONTAINS
     REAL(wp), INTENT(out) :: &
       &  aod_flux              !< Dust optical depth tendency (s-1)
     REAL(wp), OPTIONAL, INTENT(out) :: &
-      &  dust_flux             !< Mineral dust emission flux (kg m-2 s-1)
+      &  dust_flux_out         !< Mineral dust emission flux (kg m-2 s-1)
     ! Local Variables
     REAL(wp)              :: &
+      &  dust_flux,          & !< Mineral dust emission flux (kg m-2 s-1)
       &  f_bare,             & !< Bare soil fraction, deducted from several land use classes (-)
       &  f_clay,             & !< Clay fraction (-)
       &  h_snow_fac,         & !< Snow factor, no emission with snow height > 5cm
@@ -138,6 +145,9 @@ CONTAINS
     dust_flux   = calc_aerosol_dust_mflux_kok2014 (ustar, ustart, f_bare, f_clay, rho_a)
     dust_flux   = dust_flux * h_snow_fac
     aod_flux    = calc_dust_aod (dust_flux)
+    
+    IF(PRESENT(dust_flux_out)) &
+      &  dust_flux_out = dust_flux
 
   END SUBROUTINE aerosol_dust_aod_source
 
@@ -148,9 +158,6 @@ CONTAINS
   !!
   !! Calculates a soil moisture correction factor for the threshold friction
   !! wind speed according to Fecan et al. (1998).
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, DWD (2019-08-01)
   !!
   ELEMENTAL FUNCTION calc_aerosol_dust_correta_fecan1998 (wgrav, f_clay) RESULT (f_eta)
 
@@ -182,9 +189,6 @@ CONTAINS
   !! Calculates a roughness correction factor for the threshold friction
   !! wind speed according to Raupach 1993.
   !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, DWD (2019-08-01)
-  !!
   ELEMENTAL FUNCTION calc_aerosol_dust_corrz0_raupach1993 (plcov) RESULT(f_z0)
 
     REAL(wp), INTENT(in)    :: &
@@ -208,9 +212,6 @@ CONTAINS
   !!
   !! Calculates the threshold friction wind speed according to Shao and Lu (2000):
   !! Only for friction wind speeds above this threshold, saltation occurs
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, DWD (2019-08-01)
   !!
   ELEMENTAL FUNCTION calc_aerosol_dust_ustart_shaolu2000 (f_eta, f_z0, rho_a) RESULT(ustart)
 
@@ -242,9 +243,6 @@ CONTAINS
   !! FUNCTION calc_aerosol_dust_mflux_kok2014
   !!
   !! Calculates the mineral dust emission flux according to Kok et al. (2014). 
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, DWD (2019-07-29)
   !!
   ELEMENTAL FUNCTION calc_aerosol_dust_mflux_kok2014 (ustar, ustart, f_bare, f_clay, rho_a) RESULT(dust_flux)
 
@@ -297,9 +295,6 @@ CONTAINS
   !!
   !! Here, a complex refractive index of m=1.55+0.0025j was used.
   !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, DWD (2020-01-09)
-  !!
   ELEMENTAL FUNCTION calc_dust_aod (dust_flux) RESULT(aod_flux)
 
     REAL(wp), INTENT(in)  :: &
@@ -307,14 +302,14 @@ CONTAINS
     REAL(wp)              :: &
       &  aod_flux              !< Output: Dust optical depth tendency (s-1)
     REAL(wp)              :: &
-      &  k_etot                !< Sum of size-distribution weighted mass-specific extinction coefficient (m2 g-1)
+      &  k_etot                !< Sum of size-distribution weighted mass-specific extinction coefficient (m2 kg-1)
 
     ! Value calculated for a refractive index of m=1.55+0.0025j
     ! Meaningful range:
     ! For size distribution up to 2.5 microns k_etot=0.0689_wp
     ! For size distribution up to 20  microns k_etot=0.2472_wp
-    k_etot = 0.1_wp
-    aod_flux = k_etot * dust_flux * 1.e+3_wp
+    k_etot = 225._wp
+    aod_flux = k_etot * dust_flux
 
   END FUNCTION calc_dust_aod
 
@@ -322,9 +317,6 @@ CONTAINS
   !! FUNCTION calc_wgrav
   !!
   !! Calculates the gravimetric soil moisture content in percent
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, DWD (2019-08-06)
   !!
   FUNCTION calc_wgrav(w_so, w_so_ice, dzsoil) RESULT (wgrav)
 
@@ -352,9 +344,6 @@ CONTAINS
   !! above 5 cm, the factor is 0.
   !! Use a simple linear fit in between f(h_snow=0) = 1 and f(h_snow=0.05) = 0
   !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, DWD (2019-08-12)
-  !!
   ELEMENTAL FUNCTION calc_hsnow_fac(h_snow) RESULT (h_snow_fac)
 
     REAL(wp), INTENT(in)  :: &
@@ -367,23 +356,20 @@ CONTAINS
     h_snow_fac = MAX(0._wp,h_snow_fac)
 
   END FUNCTION calc_hsnow_fac
-  
+
   !>
   !! SUBROUTINE aerosol_ssa_aod_source
   !!
   !! Calculates the source term for sea salt aerosol optical depth
   !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, DWD (2021-10-22)
-  !!
-  SUBROUTINE aerosol_ssa_aod_source (sst, sp_10m, aod_flux, ssa_flux, ssa_flux_t)
+  SUBROUTINE aerosol_ssa_aod_source (sst, sp_10m, aod_flux)
     REAL(wp), INTENT(in)  :: &
       &  sst,                & !< Sea surface temperature in K
       &  sp_10m                !< Wind speed in 10m height (m s-1)
     REAL(wp), INTENT(out) :: &
       &  aod_flux              !< Sea salt optical depth tendency (s-1)
-    REAL(wp), OPTIONAL, INTENT(out) :: &
-      &  ssa_flux, ssa_flux_t  !< Sea salt emission flux (mug m-2 s-1)
+    !REAL(wp), OPTIONAL, INTENT(out) :: &
+    !  &  ssa_flux, ssa_flux_t  !< Sea salt emission flux (mug m-2 s-1)
     ! Local variables
     REAL(wp) ::              &
       &  sst_degc              !< Sea surface temperature in degree celcius
@@ -399,33 +385,6 @@ CONTAINS
   END SUBROUTINE aerosol_ssa_aod_source
 
   !>
-  !! FUNCTION calc_ssa_mflux_grythe2014
-  !!
-  !! Calculates the sea salt aerosol flux according to Grythe et al. (2014). 
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, DWD (2021-10-22)
-  !!
-  ELEMENTAL FUNCTION calc_ssa_mflux_grythe2014 (u10m) RESULT(ssa_flux)
-
-    REAL(wp), INTENT(in)  :: &
-      &  u10m                  !< Input: Wind speed in 10m (m s-1)
-    REAL(wp)              :: &
-      &  ssa_flux              !< Output: Sea salt emission flux (mug m-2 s-1)
-    ! Local Variables
-    REAL(wp)              :: &
-      &  fac1, fac2            !< Factors derived from integrating Grythe et al. 2014 source
-                               !< function without the wind speed dependency over all diameters.
-
-    ! Factors derived assuming sphericity and a density of 2200 kg m-3
-    fac1 = 0.00023865_wp
-    fac2 = 3.6086e-06_wp
-
-    ssa_flux = u10m**3.5_wp  * fac1 + u10m**3  * fac2
-
-  END FUNCTION calc_ssa_mflux_grythe2014
-
-  !>
   !! FUNCTION calc_ssa_sst_weighting
   !!
   !! Calculates a sea surface temperature based weighting of
@@ -433,9 +392,6 @@ CONTAINS
   !! This temperature dependency is important to explain for
   !! the relatively high SSA concentrations found in the tropics
   !! (Grythe et al., 2014).
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, DWD (2021-10-22)
   !!
   ELEMENTAL FUNCTION calc_ssa_sst_weighting(sst) RESULT (temp_wgt)
 
@@ -455,9 +411,11 @@ CONTAINS
   !! SUBROUTINE calc_ssa_aod
   !!
   !! Calculates the sea salt aerosol optical depth.
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, DWD (2022-04-05)
+  !! In order to derive mass fluxes instead of aod,
+  !! the following factors can be used. 
+  !! (assuming sphericity and a density of 2200 kg m-3)
+  !! fac1 = 0.00023865_wp
+  !! fac2 = 3.6086e-06_wp
   !!
   ELEMENTAL FUNCTION calc_ssa_aod (u10m) RESULT(aod_flux)
 
@@ -469,14 +427,209 @@ CONTAINS
     REAL(wp)              :: &
       &  fac1, fac2            !< Factors derived from integrating Grythe et al. 2014 source
                                !< function without the wind speed dependency times the mass
-                               !< extinction coefficient over all diameters
+                               !< extinction coefficient over all diameters (Eq. 7 with Tw=1)
+                               !< and converting mass to aod using the assumptions below
 
     ! Values derived assuming sphericity, a density of 2200 kg m-3 and m=1.5+1e-09j
     fac1 = 1.0438704354309787e-10_wp
     fac2 = 6.225149737200363e-13_wp
 
-    aod_flux = u10m**3.5_wp  * fac1 + u10m**3  * fac2
+    aod_flux = fac1 * u10m**3.5_wp + fac2 * u10m**3
 
   END FUNCTION calc_ssa_aod
+
+  !>
+  !! SUBROUTINE inquire_fire2d_data
+  !!
+  !! Reads precursor data for wildfire emissions
+  !!
+  SUBROUTINE inquire_fire2d_data(p_patch, nroot, fire2d_filename, fire_data, mtime_datetime, lrequired)
+    TYPE(t_patch), INTENT(in)    :: &
+      &  p_patch
+    INTEGER, INTENT(in)          :: &
+      &  nroot
+    CHARACTER(LEN=*), INTENT(in) :: &
+      &  fire2d_filename              !< Name of file to read wildfire emission data from
+    TYPE(t_fire_source_info), INTENT(inout) :: &
+      &  fire_data
+    TYPE(datetime), POINTER, INTENT(in) :: &
+      &  mtime_datetime               !< Current datetime
+    LOGICAL, INTENT(in)          :: &
+      &  lrequired                    !< Is reading of the dataset mandatory?
+    ! Local variables
+    INTEGER                      :: &
+      &  js
+    CHARACTER(LEN=filename_max)  :: &
+      &  filename                     !< Filename generated from fire2d_filename
+    LOGICAL                      :: &
+      &  lexist,                    & !< Does the file exist?
+      &  lnewfile                     !< Was the file read before?
+
+    DO js = 1, fire_data%nspecies
+      filename = generate_filename_aerosol_data(fire2d_filename, fire_data%species(js)%varname,    &
+        &                                       TRIM(p_patch%grid_filename), nroot, p_patch%level, &
+        &                                       p_patch%id, mtime_datetime)
+      INQUIRE (FILE=filename, EXIST=lexist)
+
+      IF (.NOT.lexist .AND. lrequired) THEN
+        message_text = 'Required wildfire data file is not found: '//TRIM(filename)
+        CALL finish(TRIM(modname)//':inquire_fire2d_data',message_text)
+      ENDIF
+
+      lnewfile = (filename /= fire_data%species(js)%current_filename)
+      IF (lnewfile) fire_data%species(js)%current_filename =  filename
+
+      IF (lexist .AND. lnewfile) THEN
+        IF (msg_level >= 7) THEN
+          message_text = 'Updating wildfire data from file: '//TRIM(fire_data%species(js)%current_filename)
+          CALL message(TRIM(modname)//':inquire_fire2d_data', message_text)
+        ENDIF
+        CALL aerosol2d_read_data(p_patch, fire_data%species(js)%current_filename,  &
+          &                      fire_data%species(js)%varname, fire_data%species(js)%var, .TRUE.)
+      ENDIF
+    ENDDO
+
+  END SUBROUTINE inquire_fire2d_data
+
+  !>
+  !! SUBROUTINE aerosol2d_read_data
+  !!
+  !! Reads precursor data for anthropogenic emissions
+  !!
+  SUBROUTINE aerosol2d_read_data(p_patch, filename, varname, var, has_time_dim)
+    TYPE(t_patch), INTENT(in)    :: &
+      &  p_patch
+    CHARACTER(LEN=*), INTENT(in) :: &
+      &  filename,                  & !< Name of file to read emission data from
+      &  varname                      !< Variable name to be read
+    REAL(wp), INTENT(inout)      :: &
+      &  var(:,:)
+    LOGICAL, INTENT(in)          :: &
+      &  has_time_dim                 !< Does the variable in the dataset have a time dimension (to be ignored)
+    TYPE(t_stream_id) :: stream_id
+
+    CALL openinputfile(stream_id, filename, p_patch, default_read_method)
+    
+    IF (has_time_dim) THEN
+      CALL read_2D_1time(stream_id, on_cells, varname, var)
+    ELSE
+      CALL read_2D(stream_id, on_cells, varname, var)
+    ENDIF
+
+    CALL closeFile    (stream_id)
+    
+  END SUBROUTINE aerosol2d_read_data
+
+  !>
+  !! Function generate_filename_aerosol_data
+  !! Generates the filename for the aerosol input files based on keywords
+  !!
+  FUNCTION generate_filename_aerosol_data(aerosol_filename_in, species, grid_filename, nroot, jlev, idom, mtime_datetime) &
+    & RESULT(result_str)
+
+    CHARACTER(MAX_CHAR_LENGTH)          :: result_str
+    CHARACTER(LEN=*), INTENT(in)        :: aerosol_filename_in
+    CHARACTER(LEN=*), INTENT(in)        :: species
+    CHARACTER(LEN=*), INTENT(in)        :: grid_filename
+    INTEGER,          INTENT(in)        :: nroot, jlev, idom
+    TYPE(datetime), POINTER, INTENT(in) :: mtime_datetime !< Current datetime
+    ! Local variables
+    CHARACTER(LEN=8)                    :: date_string
+    TYPE (t_keyword_list), POINTER      :: keywords => NULL()
+
+    WRITE (date_string,'(i4.4,2(i2.2))')  &
+      &  mtime_datetime%date%year, mtime_datetime%date%month, mtime_datetime%date%day
+
+    CALL associate_keyword("<species>",  TRIM(species),                    keywords)
+    CALL associate_keyword("<gridfile>", TRIM(grid_filename),              keywords)
+    CALL associate_keyword("<nroot>",    TRIM(int2string(nroot,"(i0)")),   keywords)
+    CALL associate_keyword("<nroot0>",   TRIM(int2string(nroot,"(i2.2)")), keywords)
+    CALL associate_keyword("<jlev>",     TRIM(int2string(jlev, "(i2.2)")), keywords)
+    CALL associate_keyword("<idom>",     TRIM(int2string(idom, "(i2.2)")), keywords)
+    CALL associate_keyword("<yyyymmdd>", TRIM(date_string),                keywords)
+
+    result_str = TRIM(with_keywords(keywords, TRIM(aerosol_filename_in)))
+  END FUNCTION generate_filename_aerosol_data
+
+  !>
+  !! FUNCTION calc_anthro_aod
+  !!
+  !! Calc anthropogenic AOD emissions based on emission data and a scaling factor
+  !!
+  FUNCTION calc_anthro_aod(emi, scale_fac) RESULT(aod_flux)
+    REAL(wp), INTENT(in)  :: &
+      &  emi                   !< Input: Precursor for anthropogenic emissions
+    REAL(wp)              :: &
+      &  scale_fac             !< Species-dependent scaling factor
+    REAL(wp)              :: &
+      &  aod_flux              !< Output: Anthrop. emission optical depth tendency (s-1)
+
+    aod_flux       = emi * scale_fac
+
+  END FUNCTION calc_anthro_aod
+
+  !>
+  !! FUNCTION calc_so4_nucleation
+  !!
+  !! Calc pseudo-nucleation of so4 particles in remote regions. (Method is described below)
+  !!
+  SUBROUTINE calc_so4_nucleation(istart, iend, kstart, kend, temp, relhum, cosmu0, aod_so4)
+    INTEGER, INTENT(in)   :: &
+      &  istart, iend,       & !< Input: Column loop
+      &  kstart, kend          !< Input: Vertical area for averaging
+    REAL(wp), INTENT(in)  :: &
+      &  temp(:,:),          & !< Temperature
+      &  relhum(:,:),        & !< Relative humidity
+      &  cosmu0(:)             !< Cosine of solar zenith angle
+    REAL(wp), INTENT(inout) :: &
+      &  aod_so4(:)
+    ! Local variables
+    REAL(wp)              :: &
+      &  aod_so4_target,     & !< maximum value for AOD due to nucleation
+      &  aod_fac,            & !< factor accounting for previously existing AOD
+      &  ccrit(istart:iend), & !< critical so2 concentration (vertical average) (mug m-3)
+      &  ccritref,           & !< Reference value for ccrit at 255K and RH=1i (mug m-3)
+      &  ccrit_fac             !< factor to account for ccrit exceeding ccritref (mug m-3)
+    INTEGER               :: &
+      &  jc, jk
+
+    ccritref       = calc_ccrit(255._wp,1._wp)
+    aod_so4_target = 1._wp
+    ccrit(:)       = 0._wp
+
+    DO jk = kstart, kend
+      DO jc = istart, iend
+        ccrit(jc) = ccrit(jc) + calc_ccrit( temp(jc,jk), relhum(jc,jk) )
+      ENDDO
+    ENDDO
+
+    DO jc = istart, iend
+      ccrit(jc) = ccrit(jc) / real( (kend-kstart+1), wp )
+      ! 2nd order polynomial with 1 at aod_so4=0, 0 at aod_so4=0.5 and minimum at aod_so4=0.5
+      aod_fac   = MIN( 1._wp , MAX( 0._wp , (4._wp*aod_so4(jc)*(aod_so4(jc)-1._wp)+1._wp) ) )
+      ! At 255K and RH=1, ccrit is rather low. Compute scaling factor in relation to that low value
+      ! (=1 for ccritref, =>0 for large T and low RH)
+      ccrit_fac = MIN( 1._wp , MAX( 0._wp , ccritref / ccrit(jc) ) )
+      ! Update aod_so4, pull towards target value aod_so4_target (if higher than current concentration):
+      ! As the formation of sulfuric acid from sulfur dioxide includes photocatalytic reactions
+      ! Multiply with cosine**4 of solar zenith angle to reduce nucleation close to poles
+      aod_so4(jc) = MAX( aod_so4(jc) , (aod_so4_target * aod_fac * ccrit_fac * cosmu0(jc)**4) )
+    ENDDO
+
+  END SUBROUTINE calc_so4_nucleation
+
+  !>
+  !! FUNCTION calc_ccrit
+  !!
+  !! Calc critical so2 concentration based on Kerminen & Wexler (1994)
+  !!
+  FUNCTION calc_ccrit(temp,relhum) RESULT(ccrit)
+    REAL(wp), INTENT(in)  :: &
+      &  temp,               & !< Temperature
+      &  relhum                !< Relative humidity
+    REAL(wp)              :: &
+      &  ccrit
+    ccrit = 0.16_wp * EXP(0.1_wp*temp-3.5_wp*relhum-27.7_wp)
+  END FUNCTION calc_ccrit
 
 END MODULE mo_aerosol_sources

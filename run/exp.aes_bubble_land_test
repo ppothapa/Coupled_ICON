@@ -147,6 +147,7 @@ cat > ${atmo_namelist} << EOF
 /
 &dynamics_nml
  lcoriolis      = .FALSE.
+ lmoist_thdyn   = .TRUE.
 /
 &aes_phy_nml
 !
@@ -209,7 +210,6 @@ cat > ${atmo_namelist} << EOF
  aes_cop_config(1)%cinhoml3   =   1.0
 /
 &aes_cov_nml
- aes_cov_config(1)%icov       = 3     ! 0/1 cloud cover based on cloud water and ice
  aes_cov_config(1)%cqx        = 1.e-6
 /
 EOF

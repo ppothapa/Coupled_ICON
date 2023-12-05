@@ -1,17 +1,20 @@
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!
 ! Contains: Three routines of EVP dynamics. The driving routine is EVPdynamics.
 ! 2D indices are used to distinguish between boundary and internal nodes.
 !
-!
 ! Vladimir: added omp parallelization; rhs_a, rhs_m, rhs_mis are precalculated now
-! The "original" AWI version of this solver is available in mo_ice_fem_evp_old
+! The "original" AWI version of this solver is available in mo_ice_fem_evp_old!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -27,6 +30,7 @@ module mo_ice_fem_evp
 #ifdef _OPENACC
     USE openacc, ONLY : acc_is_present
 #endif
+  USE mo_fortran_tools, ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -48,26 +52,22 @@ CONTAINS
 
 !===================================================================
 
-subroutine index_si_elements(use_acc)
+subroutine index_si_elements(lacc)
 ! Replaces "if" checking of whether sea ice is actually present in a given cell/node
 #ifdef _OPENACC
     USE openacc, ONLY : acc_is_present
 #endif
     IMPLICIT NONE
 
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
     INTEGER :: elem,row, elnodes(3), i
     REAL(wp):: aa
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     ! Temporary variables/buffers
     INTEGER :: buffy_array(myDim_elem2D)
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     ! count nodes with ice
     buffy_array(:) = 0._wp
@@ -85,12 +85,12 @@ subroutine index_si_elements(use_acc)
     ENDDO
 
     if (allocated(si_idx_nodes)) then
-      !$ACC EXIT DATA DELETE(si_idx_nodes) IF(lacc .and. acc_is_present(si_idx_nodes))
+      !$ACC EXIT DATA DELETE(si_idx_nodes) IF(lzacc .and. acc_is_present(si_idx_nodes))
       deallocate(si_idx_nodes)
     end if
     allocate(si_idx_nodes(si_nod2D))
     si_idx_nodes=buffy_array(1:si_nod2D)
-    !$ACC ENTER DATA COPYIN(si_idx_nodes) IF(lacc)
+    !$ACC ENTER DATA COPYIN(si_idx_nodes) IF(lzacc)
 
     ! count elements with ice
     buffy_array = 0._wp
@@ -109,17 +109,17 @@ subroutine index_si_elements(use_acc)
     ENDDO
 
     if (allocated(si_idx_elem)) then
-      !$ACC EXIT DATA DELETE(si_idx_elem) IF(lacc .and. acc_is_present(si_idx_elem))
+      !$ACC EXIT DATA DELETE(si_idx_elem) IF(lzacc .and. acc_is_present(si_idx_elem))
       deallocate(si_idx_elem)
     end if
     allocate(si_idx_elem(si_elem2D))
     si_idx_elem=buffy_array(1:si_elem2D)
-    !$ACC ENTER DATA COPYIN(si_idx_elem) IF(lacc)
+    !$ACC ENTER DATA COPYIN(si_idx_elem) IF(lzacc)
 
 end subroutine index_si_elements
 !===================================================================
 
-subroutine precalc4rhs(use_acc)
+subroutine precalc4rhs(lacc)
 ! Some of the quantities used in the solver do not change
 ! with the subcycles. Hence, can be precalculated and stored.
 ! Those are rhs_a, rhs_m, mass
@@ -128,26 +128,22 @@ subroutine precalc4rhs(use_acc)
 
 IMPLICIT NONE
 
-LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
 INTEGER      :: row, elem, elnodes(3), nodels(6), k, i
 REAL(wp) :: mass, aa
 REAL(wp) :: cluster_area,elevation_elem(3),dx(3),dy(3)
 REAL(wp) :: da(myDim_elem2D), dm(myDim_elem2D) ! temp storage for element-wise contributions from SSH
-LOGICAL  :: lacc
+LOGICAL  :: lzacc
 
-IF (PRESENT(use_acc)) THEN
-  lacc = use_acc
-ELSE
-  lacc = .FALSE.
-END IF
+CALL set_acc_host_or_device(lzacc, lacc)
 
-!$ACC DATA CREATE(da, dm) IF(lacc)
+!$ACC DATA CREATE(da, dm) IF(lzacc)
 
 !ICON_OMP_PARALLEL
 
 !ICON_OMP_DO PRIVATE(i,row) SCHEDULE(static,4)
- !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+ !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
  DO i=1, myDim_nod2D
      row=myList_nod2D(i)
      rhs_a(row)=0.0_wp    ! these are used as temporal storage here
@@ -161,7 +157,7 @@ END IF
 !ICON_OMP_END_DO
 
 !ICON_OMP_DO PRIVATE(i,elem) SCHEDULE(static,4)
- !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+ !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
  DO i=1, myDim_elem2D
      elem=myList_elem2D(i)
      da(elem)=0.0_wp    ! initialize
@@ -171,7 +167,7 @@ END IF
 !ICON_OMP_END_DO
 
 !ICON_OMP_DO PRIVATE(i,elem,elnodes,aa,dx,dy,elevation_elem) SCHEDULE(static,4)
- !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(elnodes, dx, dy, elevation_elem) IF(lacc)
+ !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(elnodes, dx, dy, elevation_elem) IF(lzacc)
  DO i=1,si_elem2D
      elem=si_idx_elem(i)
      elnodes=elem2D_nodes(:,elem)
@@ -189,7 +185,7 @@ END IF
 !ICON_OMP_END_DO
 
 !ICON_OMP_DO  PRIVATE(i,row,nodels,k,elem)  SCHEDULE(static,4)
- !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(nodels) IF(lacc)
+ !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(nodels) IF(lzacc)
  DO i=1,si_nod2D
     row=si_idx_nodes(i)
     nodels=nod2D_elems(:,row)
@@ -207,7 +203,7 @@ END IF
 !ICON_OMP_END_DO
 
 !ICON_OMP_DO  PRIVATE(i,row,cluster_area,mass) SCHEDULE(static,4)
- !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+ !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
  DO i=1,si_nod2D
      row=si_idx_nodes(i)
      cluster_area=lmass_matrix(row)
@@ -250,45 +246,41 @@ subroutine init_evp_solver_coeffs
 
 end subroutine init_evp_solver_coeffs
 !===================================================================
-subroutine stress_tensor(si_elem2D, si_idx_elem, use_acc)
+subroutine stress_tensor(si_elem2D, si_idx_elem, lacc)
 !NEC$ always_inline
-! EVP rheology implementation. Computes stress tensor components based on ice 
+! EVP rheology implementation. Computes stress tensor components based on ice
 ! velocity field. They are stored as elemental arrays (sigma11, sigma22 and
-! sigma12). 
+! sigma12).
 
-  USE mo_sea_ice_nml,         ONLY: delta_min, Tevp_inv, Pstar, c_pressure
+  USE mo_sea_ice_nml,         ONLY: delta_min, Tevp_inv, Pstar, c_pressure, luse_replacement_pressure
 
 implicit none
 
     INTEGER, INTENT(IN)               :: si_elem2D
     INTEGER, INTENT(IN), DIMENSION(:) :: si_idx_elem
-    LOGICAL, INTENT(IN), OPTIONAL     :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL     :: lacc
 
-    REAL(wp)   :: eps11, eps12, eps22, pressure, delta, delta_inv!, aa
+    REAL(wp)   :: eps11, eps12, eps22, pressure, P, delta, delta_inv!, aa
     INTEGER    :: elnodes(3), elem, i
     REAL(wp)   :: asum, msum, dx(3), dy(3)
     REAL(wp)   :: r1, r2, r3, si1, si2
     REAL(wp)   :: zeta, usum, vsum
-    LOGICAL    :: lacc
+    LOGICAL    :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC DATA CREATE(elnodes, dx, dy) IF(lacc)
+    !$ACC DATA CREATE(elnodes, dx, dy) IF(lzacc)
 
 ! !ICON_OMP_DO        PRIVATE(i,elem,elnodes,dx,dy,vsum,usum,eps11,eps22,eps12,delta,msum,asum,pressure, &
 ! !ICON_OMP                   delta_inv,zeta,r1,r2,r3,si1,si2)  SCHEDULE(static,4)
 !NEC$ ivdep
     !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(elem, usum, vsum, eps11, eps12, eps22) &
-    !$ACC   PRIVATE(delta, msum, asum, pressure, delta_inv, zeta, r1, r2, r3, si1, si2) IF(lacc)
+    !$ACC   PRIVATE(delta, msum, asum, pressure, delta_inv, zeta, r1, r2, r3, si1, si2) IF(lzacc)
     DO i=1,si_elem2D
      elem = si_idx_elem(i)
 
-! ATTENTION: the rows commented with !metrics contain terms due to 
-! differentiation of metrics. 
+! ATTENTION: the rows commented with !metrics contain terms due to
+! differentiation of metrics.
 
      elnodes=elem2D_nodes(:,elem)
 
@@ -296,7 +288,7 @@ implicit none
      dy=bafuy(:,elem)
 
 !    meancos=sin_elem2D(elem)/cos_elem2D(elem)/earth_radius !is precalculated and stored as metrics_elem2D(elem)
-     vsum=sum(v_ice(elnodes))                           !metrics   
+     vsum=sum(v_ice(elnodes))                           !metrics
      usum=sum(u_ice(elnodes))                           !metrics
 
       ! ===== Deformation rate tensor on element elem:
@@ -311,7 +303,7 @@ implicit none
      delta=sqrt(delta)
      msum=sum(m_ice(elnodes))*val3
      asum=sum(a_ice(elnodes))*val3
-     
+
       ! ===== Hunke and Dukowicz c*h*p*
      pressure=pstar*(msum)*exp(-c_pressure*(1.0_wp-asum))
       ! =======================================
@@ -324,30 +316,35 @@ implicit none
       ! ===== if viscosity is too big, it is limited too
       ! (done via correcting delta_inv)
      delta_inv=1.0_wp/max(delta,delta_min)
-       
-     !pressure=pressure*delta*delta_inv    ! Limiting pressure --- may not 
-     !                                     ! be needed. Should be tested   
-				     
+
+     IF (luse_replacement_pressure) THEN
+       !pressure=pressure*delta*delta_inv    ! Limiting pressure --- may not
+       !                                     ! be needed. Should be tested
+       P=pressure*delta/(delta+delta_min)
+     ELSE
+       P=pressure
+     END IF
+
       ! ===== Limiting pressure/Delta  (zeta): still it may happen that zeta is too
       ! large in regions with fine mesh so that CFL criterion is violated.
-        				     
+
       zeta=pressure*delta_inv
-      ! This place was introduced by Hunke, but seemingly is not used 
+      ! This place was introduced by Hunke, but seemingly is not used
       ! in the current CICE. We artificially increase Clim_evp so
       ! that almost no limiting happens here
       !if (zeta>Clim_evp*voltriangle(elem)) then
       !zeta=Clim_evp*voltriangle(elem)
-      !end if 
-      
-      pressure=pressure*Tevp_inv
+      !end if
+
+      P=P*Tevp_inv
       zeta=zeta*Tevp_inv
-      				     
-     r1=zeta*(eps11+eps22) - pressure
+
+     r1=zeta*(eps11+eps22) - P
      r2=zeta*(eps11-eps22)
      r3=zeta*eps12
      si1=sigma11(elem)+sigma22(elem)
      si2=sigma11(elem)-sigma22(elem)
-     
+
      si1=det1*(si1+dte*r1)
      si2=det2*(si2+dte*r2)
      sigma12(elem)=det2*(sigma12(elem)+dte*r3)
@@ -361,36 +358,32 @@ implicit none
     !$ACC END DATA
 end subroutine stress_tensor
 !===================================================================
-subroutine stress2rhs(si_nod2D, si_idx_nodes, use_acc)
+subroutine stress2rhs(si_nod2D, si_idx_nodes, lacc)
 ! EVP implementation:
 ! Computes the divergence of stress tensor and puts the result into the
-! rhs vectors 
+! rhs vectors
 
 IMPLICIT NONE
 
 INTEGER, INTENT(IN) :: si_nod2D
 INTEGER, INTENT(IN), DIMENSION(:) :: si_idx_nodes
-LOGICAL, INTENT(IN), OPTIONAL     :: use_acc
+LOGICAL, INTENT(IN), OPTIONAL     :: lacc
 
 INTEGER  :: row, elem, nodels(6), k, i
 REAL(wp) :: dx(6), dy(6)
-LOGICAL  :: lacc
+LOGICAL  :: lzacc
 
-  IF (PRESENT(use_acc)) THEN
-    lacc = use_acc
-  ELSE
-    lacc = .FALSE.
-  END IF
+  CALL set_acc_host_or_device(lzacc, lacc)
 
-  !$ACC DATA CREATE(nodels, dx, dy) IF(lacc)
+  !$ACC DATA CREATE(nodels, dx, dy) IF(lzacc)
 
 ! !ICON_OMP_DO        PRIVATE(i,k,row,elem,nodels,dx,dy) ICON_OMP_DEFAULT_SCHEDULE
 !NEC$ ivdep
-  !$ACC PARALLEL LOOP GANG VECTOR PRIVATE(row, elem) DEFAULT(PRESENT) IF(lacc)
+  !$ACC PARALLEL LOOP GANG VECTOR PRIVATE(row, elem) DEFAULT(PRESENT) IF(lzacc)
   DO i=1,si_nod2D
 
      row = si_idx_nodes(i)
-     
+
      nodels=nod2D_elems(:,row)
 
      dx=bafux_nod(:,row)
@@ -425,26 +418,22 @@ LOGICAL  :: lacc
 end subroutine stress2rhs
 !===================================================================
 
-subroutine EVPdynamics(use_acc)
-! EVP implementation. Does cybcycling and boundary conditions.  
-  USE mo_sea_ice_nml,           ONLY: evp_rheol_steps
-  USE mo_physical_constants,    ONLY: rhoi, rhos, Cd_io, rho_ref
+subroutine EVPdynamics(lacc)
+! EVP implementation. Does cybcycling and boundary conditions.
+  USE mo_sea_ice_nml,           ONLY: evp_rheol_steps, Cd_io
+  USE mo_physical_constants,    ONLY: rhoi, rhos, rho_ref
 
   USE mo_ice_fem_icon_init,     ONLY: exchange_nod2D
 
 IMPLICIT NONE
-LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
 integer     :: shortstep
 REAL(wp)    ::  drag, inv_mass, det, umod, rhsu, rhsv
 integer     ::  i,j
-logical     :: lacc
+logical     :: lzacc
 
- IF (PRESENT(use_acc)) THEN
-   lacc = use_acc
- ELSE
-   lacc = .FALSE.
- END IF
+ CALL set_acc_host_or_device(lzacc, lacc)
 
  !$ACC DATA COPY(elem2D_nodes, bafux, bafuy, metrics_elem2D) &
  !$ACC   COPY(sigma11, sigma12, sigma22) &
@@ -455,23 +444,23 @@ logical     :: lacc
  !$ACC   COPY(voltriangle, nod2D_elems, bafux_nod, bafuy_nod, index_nod2D) &
  !$ACC   COPY(coriolis_nod2D) &
  !$ACC   COPY(lmass_matrix, myList_elem2D) &
- !$ACC   IF(lacc)
+ !$ACC   IF(lzacc)
 
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) IF(lzacc)
     sigma11(:) = 0._wp
     sigma12(:) = 0._wp
     sigma22(:) = 0._wp
     !$ACC END KERNELS
 
 ! index elements/nodes where sea ice is present for faster loops
-    call index_si_elements(use_acc=lacc)
+    call index_si_elements(lacc=lzacc)
 ! precalculate several arrays that do not change during subcycling
-    call precalc4rhs(use_acc=lacc)
+    call precalc4rhs(lacc=lzacc)
 
  DO shortstep=1, evp_rheol_steps
 
      ! ===== Boundary conditions
-     !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(i) IF(lacc)
+     !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(i) IF(lzacc)
      do j=1, myDim_nod2D+eDim_nod2D
         i=myList_nod2D(j)
         if(index_nod2D(i)==1) then
@@ -481,14 +470,14 @@ logical     :: lacc
      end do
      !$ACC END PARALLEL LOOP
 
-     call stress_tensor(si_elem2D, si_idx_elem, use_acc=lacc)
+     call stress_tensor(si_elem2D, si_idx_elem, lacc=lzacc)
 
-     call stress2rhs(si_nod2D, si_idx_nodes, use_acc=lacc)
+     call stress2rhs(si_nod2D, si_idx_nodes, lacc=lzacc)
 
 !ICON_OMP_PARALLEL
 !ICON_OMP_DO        PRIVATE(j,i,inv_mass,umod,drag,rhsu,rhsv,det) ICON_OMP_DEFAULT_SCHEDULE
 !NEC$ ivdep
-     !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(i, inv_mass, umod, drag, rhsu, rhsv, det) IF(lacc)
+     !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(i, inv_mass, umod, drag, rhsu, rhsv, det) IF(lzacc)
      DO j=1,si_nod2D
        i=si_idx_nodes(j)
        if (index_nod2D(i)>0) CYCLE          ! Skip boundary nodes
@@ -517,7 +506,7 @@ logical     :: lacc
 !ICON_OMP_END_DO
 !ICON_OMP_END_PARALLEL
 
-     CALL exchange_nod2D(u_ice, v_ice, use_acc=lacc)
+     CALL exchange_nod2D(u_ice, v_ice, lacc=lzacc)
 
  END DO
 

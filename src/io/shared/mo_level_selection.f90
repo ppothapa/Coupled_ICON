@@ -1,60 +1,60 @@
-!> Module handling the selection of vertical levels for the output
-!! module.
-!!
-!! F. Prill, DWD (2014-08-15)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!! --------------------------------
-!!    Details of the implementation
-!! --------------------------------
-!!
-!!
-!! Derived data type "t_level_selection":
-!!
-!! Vertical levels are selected via objects of the derived data type
-!! "t_level_selection".  If such a data object has been initialized
-!! for the output file, then the vertical axis definitions below
-!! create CDI axis objects for the selected levels only.
-!!
-!! The write routines in the module "mo_name_list_output" skip levels
-!! which are not part of the selection.
-!!
-!! Furthermore, if a "t_level_selection" object is present, then the
-!! memory windows for the asynchronous one-sided MPI communication are
-!! adjusted to the reduced level size
-!! "output_file%level_selection%n_selected".
-!!
-!! Creation of level selection data:
-!!
-!! During the setup phase, level selection objects are created in two
-!! different situations:
-!!
-!! a) Definition of namelist parameter "m_levels"
-!!
-!!    The user may specify levels and/or level ranges in the form of a
-!!    (string) namelist parameter. This string is parsed with the help
-!!    of the module "mo_util_string_parse" and converted into a
-!!    "t_level_selection" object.
-!!
-!! b) Definition of namelist parameters "p_levels", "h_levels", "i_levels"
-!!
-!!    Each output namelist "output_nml" may specify its own range of
-!!    pressure levels for output (or for height, isentropic levels as
-!!    well). However, the internal post-processing routines perform
-!!    vertical interpolation for the union set of all requested
-!!    pressure levels of a specific domain at once (merging the
-!!    information from several "output_nml" namelists. Afterwards, the
-!!    write routine for the output files merely copies the respective
-!!    levels. For this purpose, the described "t_level_selection"
-!!    mechanism is applied as well.
-!!
+! Module handling the selection of vertical levels for the output
+! module.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+!
+! --------------------------------
+!    Details of the implementation
+! --------------------------------
+!
+! Derived data type "t_level_selection":
+!
+! Vertical levels are selected via objects of the derived data type
+! "t_level_selection".  If such a data object has been initialized
+! for the output file, then the vertical axis definitions below
+! create CDI axis objects for the selected levels only.
+!
+! The write routines in the module "mo_name_list_output" skip levels
+! which are not part of the selection.
+!
+! Furthermore, if a "t_level_selection" object is present, then the
+! memory windows for the asynchronous one-sided MPI communication are
+! adjusted to the reduced level size
+! "output_file%level_selection%n_selected".
+!
+! Creation of level selection data:
+!
+! During the setup phase, level selection objects are created in two
+! different situations:
+!
+! a) Definition of namelist parameter "m_levels"
+!
+!    The user may specify levels and/or level ranges in the form of a
+!    (string) namelist parameter. This string is parsed with the help
+!    of the module "mo_util_string_parse" and converted into a
+!    "t_level_selection" object.
+!
+! b) Definition of namelist parameters "p_levels", "h_levels", "i_levels"
+!
+!    Each output namelist "output_nml" may specify its own range of
+!    pressure levels for output (or for height, isentropic levels as
+!    well). However, the internal post-processing routines perform
+!    vertical interpolation for the union set of all requested
+!    pressure levels of a specific domain at once (merging the
+!    information from several "output_nml" namelists. Afterwards, the
+!    write routine for the output files merely copies the respective
+!    levels. For this purpose, the described "t_level_selection"
+!    mechanism is applied as well.
+
 MODULE mo_level_selection
 
   USE mo_kind,                              ONLY: wp

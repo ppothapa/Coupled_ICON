@@ -1,29 +1,15 @@
-!>
-!! <Short description of module for listings and indices>
-!!
-!! <Describe the concepts of the procedures and algorithms used in the module.>
-!! <Details of procedures are documented below with their definitions.>
-!! <Include any applicable external references inline as module::procedure,>
-!! <external_procedure(), or by using @see.>
-!! <Don't forget references to literature.>
-!!
-!! @author Guenther Zaengl, DWD
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!! Initial Revision by Daniel Reinert, DWD, 2012-03-22
-!! - some IO-routines, which might be of future use, moved here from 
-!!   the outdated output module mo_io_vlist. 
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_io_util
 
   USE mo_exception,             ONLY: finish

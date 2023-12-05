@@ -1,26 +1,20 @@
+! Provide an implementation of the ocean thermodynamics
+!
+! Provide an implementation of the parameters used for the thermodynamics
+! of the hydrostatic ocean model.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
-!---------------------------------------------------------------------------------------
-!>
-!! Provide an implementation of the ocean thermodynamics
-!!
-!! Provide an implementation of the parameters used for the thermodynamics
-!! of the hydrostatic ocean model.
-!!
-!! @par Revision History
-!!  Original version by Peter Korn, MPI-M (2009)
-!!  Modified by Stephan Lorenz,     MPI-M, 2010-07
-!!   - adapted to structures discussed in 2010-01.
-!!  Modified by Stephan Lorenz,     MPI-M, 2010-10
-!!   - structured input/output parameters
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
 !----------------------------
 #include "iconfor_dsl_definitions.inc"
 #include "omp_definitions.inc"
@@ -40,9 +34,8 @@ MODULE mo_ocean_thermodyn
   USE mo_grid_subset,         ONLY: t_subset_range, get_index_range
   USE mo_parallel_config,     ONLY: nproma
   USE mo_util_dbg_prnt,       ONLY: dbg_print
-#ifdef _OPENACC
-  USE mo_mpi, ONLY: i_am_accel_node, my_process_is_work
-#endif
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
+
   IMPLICIT NONE
 
   PRIVATE
@@ -56,8 +49,7 @@ MODULE mo_ocean_thermodyn
   PUBLIC :: calculate_density,calc_potential_density
   PUBLIC :: calculate_density_zstar
   PUBLIC :: calculate_density_onColumn
-  PUBLIC :: calculate_density_onColumn_gpu
-  PUBLIC :: calculate_density_mpiom_v
+  PUBLIC :: calculate_density_onColumn_elem
   PUBLIC :: calc_internal_press_grad
   PUBLIC :: calc_internal_press_grad_zstar
   PUBLIC :: calc_internal_press_grad_zstar_chain
@@ -204,11 +196,8 @@ CONTAINS
     !! in the subroutine "calc_internal_press" (see below). The calc_internal_press should not be used
     !! with partial cells.
     !!
-    !! @par Revision History
-    !! Initial version by Peter Korn, MPI-M (2014)
-    !!
   !<Optimize:inUse>
-  SUBROUTINE calc_internal_press_grad(patch_3d, rho, pressure_hyd, bc_total_top_potential, grad_coeff, press_grad, use_acc)
+  SUBROUTINE calc_internal_press_grad(patch_3d, rho, pressure_hyd, bc_total_top_potential, grad_coeff, press_grad, lacc)
     !
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
     REAL(wp), INTENT(in)                 :: rho          (nproma,n_zlev, patch_3d%p_patch_2d(1)%alloc_cell_blocks)  !< density
@@ -217,7 +206,7 @@ CONTAINS
     !REAL(wp), INTENT(in), TARGET        :: prism_thick_e(1:nproma,1:n_zlev, patch_3d%p_patch_2d(1)%nblks_e)
     REAL(wp), INTENT(in)                 :: grad_coeff(:,:,:)
     REAL(wp), INTENT(inout)              :: press_grad    (nproma,n_zlev, patch_3d%p_patch_2d(1)%nblks_e)  !< hydrostatic pressure gradient
-    LOGICAL, INTENT(in), OPTIONAL        :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL        :: lacc
 
     ! local variables:
     !CHARACTER(len=max_char_length), PARAMETER :: &
@@ -236,13 +225,9 @@ CONTAINS
     REAL(wp) :: press_L, press_R
     REAL(wp) :: thick1, thick2
 
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !-----------------------------------------------------------------------
     z_grav_rho_inv = OceanReferenceDensity_inv * grav
@@ -254,9 +239,10 @@ CONTAINS
     iidx => patch_3D%p_patch_2D(1)%edges%cell_idx
     iblk => patch_3D%p_patch_2D(1)%edges%cell_blk
 
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     pressure_hyd (1:nproma,1:n_zlev, 1:patch_3d%p_patch_2d(1)%alloc_cell_blocks)=0.0_wp
     !$ACC END KERNELS
+    !$ACC WAIT(1)
     !-------------------------------------------------------------------------
 
 !ICON_OMP_PARALLEL
@@ -264,7 +250,7 @@ CONTAINS
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, start_index, end_index)
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO jc = start_index, end_index
 
        pressure_hyd(jc,1,jb) = rho(jc,1,jb)*z_grav_rho_inv*patch_3D%p_patch_1d(1)%constantPrismCenters_Zdistance(jc,1,jb) &
@@ -280,6 +266,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL LOOP
     END DO
+    !$ACC WAIT(1)
 !ICON_OMP_END_DO
 
 
@@ -287,7 +274,7 @@ CONTAINS
     DO jb = edges_in_domain%start_block, edges_in_domain%end_block
       CALL get_index_range(edges_in_domain, jb, start_index, end_index)
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO je = start_index, end_index
 
         ic1=patch_2D%edges%cell_idx(je,jb,1)
@@ -332,6 +319,7 @@ CONTAINS
       END DO
       !$ACC END PARALLEL LOOP
     END DO
+    !$ACC WAIT(1)
 !ICON_OMP_END_DO NOWAIT
 !ICON_OMP_END_PARALLEL
 
@@ -668,9 +656,6 @@ CONTAINS
   !! in the subroutine "calc_internal_press" (see below). The calc_internal_press should not be used
   !! with partial cells.
   !!
-  !! @par Revision History
-  !! Initial version by Peter Korn, MPI-M (2014)
-  !!
 !<Optimize:inUse>
   SUBROUTINE calc_internal_press_grad0(patch_3d, rho, grad_coeff, press_grad)
     !
@@ -749,12 +734,6 @@ CONTAINS
   !! fluid column above a certain level.
   !! IMPORTANT: Do not use this with partial cells !!
   !!
-  !! @par Revision History
-  !! Initial version by Peter Korn, MPI-M (2009)
-  !! Initial release by Stephan Lorenz, MPI-M (2010-07)
-  !! Modified by Stephan Lorenz,        MPI-M (2010-10-22)
-  !!  - division by OceanReferenceDensity included
-  !!
 !<Optimize:inUse>
   SUBROUTINE calc_internal_press(patch_3d, rho, prism_thick_c, h, press_hyd)
     !
@@ -830,18 +809,13 @@ CONTAINS
   !! Calculates the density via a call to the equation-of-state.
   !! Several options for EOS are provided.
   !!
-  !! @par Revision History
-  !! Initial version by Peter Korn, MPI-M (2009)
-  !! Initial release by Stephan Lorenz, MPI-M (2010-07)
-  !!
 !<Optimize:inUse>
-  SUBROUTINE calculate_density(patch_3d,tracer, rho, use_acc)
+  SUBROUTINE calculate_density(patch_3d,tracer, rho, lacc)
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
     REAL(wp),    INTENT(in), TARGET :: tracer(:,:,:,:)     !< input of S and T
     REAL(wp), INTENT(inout), TARGET :: rho   (:,:,:)       !< density
-
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
-    LOGICAL :: lacc
+    LOGICAL, INTENT(in), OPTIONAL   :: lacc
+    LOGICAL :: lzacc
 
     ! local variables:
     ! CHARACTER(len=max_char_length), PARAMETER :: &
@@ -852,11 +826,11 @@ CONTAINS
     !---------------------------------------------------------------------
     ! CALL message (TRIM(routine), 'start')
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+#ifdef _OPENACC
+    IF (lzacc .and. (eos_type /= 2)) CALL finish('calculate_density', 'OpenACC version for eos_type /=2 currently not implemented')
+#endif
 
     !For calculate_density_lin_EOS and calculate_density_MPIOM the conversion to in-situ temperature is done
     !internally.
@@ -864,10 +838,10 @@ CONTAINS
     CASE(1)
       CALL calculate_density_linear(patch_3d, tracer, rho)
     CASE(2)
-#if defined(__LVECTOR__) && !defined(__LVEC_BITID__)
-      CALL calculate_density_mpiom_vec(patch_3d, tracer, rho, use_acc=lacc)
+#ifdef __LVECTOR__
+      CALL calculate_density_mpiom_vec(patch_3d, tracer, rho, lacc=lzacc)
 #else
-      CALL calculate_density_mpiom(patch_3d, tracer, rho, use_acc=lacc)
+      CALL calculate_density_mpiom(patch_3d, tracer, rho, lacc=lzacc)
 #endif
     CASE(3)
       CALL calculate_density_jmdwfg06(patch_3d, tracer, rho)
@@ -891,12 +865,20 @@ CONTAINS
   !!
   !! Adapted for zstar
   !!
-  SUBROUTINE calculate_density_zstar(patch_3d,tracer, eta_c, stretch_c, rho)
+  SUBROUTINE calculate_density_zstar(patch_3d,tracer, eta_c, stretch_c, rho, lacc)
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
     REAL(wp),    INTENT(in), TARGET :: tracer(:,:,:,:)     !< input of S and T
     REAL(wp), INTENT(in)            :: eta_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
     REAL(wp), INTENT(in)            :: stretch_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
     REAL(wp), INTENT(inout), TARGET :: rho   (:,:,:)       !< density
+    LOGICAL, INTENT(in), OPTIONAL   :: lacc
+    LOGICAL :: lzacc
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+#ifdef _OPENACC
+    IF (lzacc .and. (eos_type /= 2)) CALL finish('calculate_density_zstar', 'OpenACC version for eos_type /=2 currently not implemented')
+#endif
 
     !! FIXME zstar: only mpiom adapted to zstar
     !For calculate_density_lin_EOS and calculate_density_MPIOM the conversion to in-situ temperature is done
@@ -905,7 +887,7 @@ CONTAINS
     CASE(1)
       CALL calculate_density_linear(patch_3d, tracer, rho)
     CASE(2)
-      CALL calculate_density_mpiom_zstar(patch_3d, tracer, eta_c, stretch_c, rho)
+      CALL calculate_density_mpiom_zstar(patch_3d, tracer, eta_c, stretch_c, rho, lacc=lzacc)
     CASE(3)
       CALL calculate_density_jmdwfg06(patch_3d, tracer, rho)
       !CALL calculate_density_JM_EOS(patch_2D, tracer, rho)k
@@ -923,10 +905,10 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   ! pressure is in dbars !
-  FUNCTION calculate_density_onColumn(temperatute, salinity, p, levels) result(rho)
+  FUNCTION calculate_density_onColumn(temperature, salinity, p, levels) result(rho)
 !NEC$ always_inline
     INTEGER,  INTENT(in)       :: levels
-    REAL(wp), INTENT(in)       :: temperatute(1:levels)
+    REAL(wp), INTENT(in)       :: temperature(1:levels)
     REAL(wp), INTENT(in)       :: salinity(1:levels)
     REAL(wp), INTENT(in)       :: p(1:levels)
     REAL(wp)                   :: rho (1:levels)      !< density
@@ -934,17 +916,17 @@ CONTAINS
     SELECT CASE (eos_type)
     CASE(1)
       rho(1:levels) = calculate_density_linear_onColumn( &
-        & temperatute(1:levels),  salinity(1:levels), p(1:levels), levels)
+        & temperature(1:levels),  salinity(1:levels))
     CASE(2)
       ! pressure for density_mpiom should be in bars
       rho(1:levels) = calculate_density_mpiom_onColumn( &
-        & temperatute(1:levels),  salinity(1:levels), p(1:levels)*0.1_wp, levels)
+        & temperature(1:levels),  salinity(1:levels), p(1:levels)*0.1_wp)
     CASE(3)
       rho(1:levels) = calculate_density_jmdwfg06_onColumn( &
-        & temperatute(1:levels),  salinity(1:levels), p(1:levels), levels)
+        & temperature(1:levels),  salinity(1:levels), p(1:levels))
     CASE(10)
       rho(1:levels) = calculate_density_EOS10_onColumn( &
-        & temperatute(1:levels),  salinity(1:levels), p(1:levels), levels)
+        & temperature(1:levels),  salinity(1:levels), p(1:levels))
     CASE default
 
     END SELECT
@@ -952,46 +934,42 @@ CONTAINS
   END FUNCTION calculate_density_onColumn
   !-------------------------------------------------------------------------
 
-  SUBROUTINE calculate_density_onColumn_gpu(temperature, salinity, p, rho)
-    !$ACC ROUTINE SEQ
+  FUNCTION calculate_density_onColumn_elem(temperature, salinity, p) result(rho)
 !NEC$ always_inline
+    !$ACC ROUTINE SEQ
     REAL(wp), INTENT(in)       :: temperature
     REAL(wp), INTENT(in)       :: salinity
     REAL(wp), INTENT(in)       :: p
-    REAL(wp), INTENT(out)      :: rho
+    REAL(wp)                   :: rho
 
     SELECT CASE (eos_type)
     CASE(1)
-      CALL calculate_density_linear_onColumn_gpu(temperature, salinity, rho)
+      rho = calculate_density_linear_onColumn(temperature, salinity)
     CASE(2)
       ! pressure for density_mpiom should be in bars
-      CALL calculate_density_mpiom_onColumn_gpu(temperature, salinity, p*0.1_wp, rho)
+      rho = calculate_density_mpiom_onColumn(temperature, salinity, p*0.1_wp)
     CASE(3)
-      CALL calculate_density_jmdwfg06_onColumn_gpu(temperature, salinity, p, rho)
+      rho = calculate_density_jmdwfg06_onColumn(temperature, salinity, p)
     CASE(10)
-      CALL calculate_density_EOS10_onColumn_gpu(temperature, salinity, p, rho)
+      rho = calculate_density_EOS10_onColumn(temperature, salinity, p)
     CASE default
 
     END SELECT
 
-  END SUBROUTINE calculate_density_onColumn_gpu
+  END FUNCTION calculate_density_onColumn_elem
 
   !-------------------------------------------------------------------------
   !>
 !<Optimize:inUse>
-  SUBROUTINE calc_potential_density(patch_3d,tracer, rhopot, use_acc)
+  SUBROUTINE calc_potential_density(patch_3d,tracer, rhopot, lacc)
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
     REAL(wp),    INTENT(in), TARGET :: tracer(:,:,:,:)     !< input of S and T
     REAL(wp), INTENT(inout), TARGET :: rhopot(:,:,:)       !< density
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
 
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !For calculate_density_lin_EOS and calculate_density_MPIOM the conversion to in-situ temperature is done
     !internally.
@@ -999,7 +977,7 @@ CONTAINS
     !    CASE(1)
     !      CALL calculate_density_lin_EOS(patch_3d, tracer, rhopot)
     !    CASE(2)
-    CALL calc_potential_density_mpiom(patch_3d, tracer, rhopot, use_acc=lacc)
+    CALL calc_potential_density_mpiom(patch_3d, tracer, rhopot, lacc=lzacc)
     !    CASE(3)
     !      CALL calculate_density_JMDWFG06_EOS(patch_3d, tracer, rhopot)
     !      !CALL calculate_density_JM_EOS(patch_2D, tracer, rho)
@@ -1059,10 +1037,6 @@ CONTAINS
   !-------------------------------------------------------------------------
   !>
   !!Calculates the density via a linear equation-of-state.
-  !!
-  !! @par Revision History
-  !! Initial version by Peter Korn, MPI-M (2009)
-  !! Initial release by Stephan Lorenz, MPI-M (2010-07)
   !!
   SUBROUTINE calculate_density_linear(patch_3d, tracer, rho)
     !
@@ -1158,8 +1132,6 @@ CONTAINS
   !    Accurate and Computationally Efficient Algorithms for Potential
   !    Temperature and Density of Seawater. JAOT, 20, 730-741
   !
-  ! !REVISION HISTORY:
-  ! implemented by Peter Herrmann (2009)
   !
   SUBROUTINE calculate_density_jmdwfg06(patch_3d, tracer, rho)
     !
@@ -1189,7 +1161,7 @@ CONTAINS
            levels = patch_3d%p_patch_1d(1)%dolic_c(jc,jb)
            z_p(1:levels) = patch_3d%p_patch_1d(1)%depth_CellMiddle(jc,1:levels,jb) * ReferencePressureIndbars
            rho(jc,1:levels,jb) = calculate_density_jmdwfg06_onColumn( &
-             & tracer(jc,1:levels,jb,1),  tracer(jc,1:levels,jb,2), z_p(1:levels), levels)
+             & tracer(jc,1:levels,jb,1),  tracer(jc,1:levels,jb,2), z_p(1:levels))
         END DO
       END DO
 !ICON_OMP_END_PARALLEL_DO
@@ -1204,7 +1176,7 @@ CONTAINS
           levels = patch_3d%p_patch_1d(1)%dolic_c(jc,jb)
           z_p(1:levels) = patch_3d%p_patch_1d(1)%depth_CellMiddle(jc,1:levels,jb) * ReferencePressureIndbars
           rho(jc,1:levels,jb) = calculate_density_jmdwfg06_onColumn( &
-             & tracer(jc,1:levels,jb,1),  salinityReference_column(1:levels), z_p(1:levels), levels)
+             & tracer(jc,1:levels,jb,1),  salinityReference_column(1:levels), z_p(1:levels))
         END DO
       END DO
 !ICON_OMP_END_PARALLEL_DO
@@ -1244,7 +1216,7 @@ CONTAINS
            levels = patch_3d%p_patch_1d(1)%dolic_c(jc,jb)
            z_p(1:levels) = patch_3d%p_patch_1d(1)%depth_CellMiddle(jc,1:levels,jb) * ReferencePressureIndbars
            rho(jc,1:levels,jb) = calculate_density_EOS10_onColumn( &
-             & tracer(jc,1:levels,jb,1),  tracer(jc,1:levels,jb,2), z_p(1:levels), levels)
+             & tracer(jc,1:levels,jb,1),  tracer(jc,1:levels,jb,2), z_p(1:levels))
         END DO
       END DO
 !ICON_OMP_END_PARALLEL_DO
@@ -1263,16 +1235,14 @@ CONTAINS
   !!  Calculates density as a function of potential temperature and salinity
   !! using the equation of state as described in Gill, Atmosphere-Ocean Dynamics, Appendix 3
   !! The code below is copied from MPIOM
-  !! @par Revision History
-  !! Initial version by Peter Korn, MPI-M (2011)
   !!
 !<Optimize:inUse>
-  SUBROUTINE calculate_density_mpiom(patch_3d, tracer, rho, use_acc)
+  SUBROUTINE calculate_density_mpiom(patch_3d, tracer, rho, lacc)
     !
     TYPE(t_patch_3d ),TARGET, INTENT(in)   :: patch_3d
     REAL(wp), INTENT(in)                   :: tracer(:,:,:,:)
     REAL(wp), INTENT(inout)                :: rho(:,:,:)       !< density
-    LOGICAL, INTENT(in), OPTIONAL          :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL          :: lacc
 
     ! !LOCAL VARIABLES:
     ! loop indices
@@ -1283,7 +1253,7 @@ CONTAINS
     TYPE(t_subset_range), POINTER :: all_cells
     TYPE(t_patch), POINTER :: patch_2D
 
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
     !-----------------------------------------------------------------------
     patch_2D   => patch_3d%p_patch_2d(1)
@@ -1291,13 +1261,9 @@ CONTAINS
     salinityReference_column(1:n_zlev) = sal_ref
     !-------------------------------------------------------------------------
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC DATA COPY(salinityReference_column) IF(lacc)
+    !$ACC DATA COPY(salinityReference_column) IF(lzacc)
 
     !  tracer 1: potential temperature
     !  tracer 2: salinity
@@ -1305,7 +1271,7 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index, jc, levels, z_p) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, start_index, end_index)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(z_p) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(z_p) ASYNC(1) IF(lzacc)
         DO jc = start_index, end_index
           levels = max(1,patch_3d%p_patch_1d(1)%dolic_c(jc,jb))
           z_p(1:levels - 1) = patch_3d%p_patch_1d(1)%depth_CellMiddle(jc,1:levels - 1,jb) * OceanReferenceDensity * sitodbar
@@ -1314,16 +1280,16 @@ CONTAINS
           z_p(levels) = patch_3d%p_patch_1d(1)%zlev_m(levels) * OceanReferenceDensity * sitodbar
 #ifdef _OPENACC
           DO jk = 1, levels
-              call calculate_density_mpiom_onColumn_gpu(tracer(jc,jk,jb,1), tracer(jc,jk,jb,2), &
-                                                        z_p(jk), rho(jc, jk, jb))
+            rho(jc, jk, jb) = calculate_density_mpiom_onColumn(tracer(jc,jk,jb,1), tracer(jc,jk,jb,2), z_p(jk))
           END DO
 #else
           rho(jc,1:levels,jb) = calculate_density_mpiom_onColumn( &
-            & tracer(jc,1:levels,jb,1),  tracer(jc,1:levels,jb,2), z_p(1:levels), levels)
+            & tracer(jc,1:levels,jb,1),  tracer(jc,1:levels,jb,2), z_p(1:levels))
 #endif
         END DO
         !$ACC END PARALLEL LOOP
       END DO
+      !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
 
     ELSE
@@ -1331,7 +1297,7 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index, jc, levels, z_p) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, start_index, end_index)
-        !$ACC PARALLEL LOOP GANG DEFAULT(PRESENT) PRIVATE(z_p) IF(lacc)
+        !$ACC PARALLEL LOOP GANG DEFAULT(PRESENT) PRIVATE(z_p) ASYNC(1) IF(lzacc)
         DO jc = start_index, end_index
           levels = max(1,patch_3d%p_patch_1d(1)%dolic_c(jc,jb))
           z_p(1:levels - 1) = patch_3d%p_patch_1d(1)%depth_CellMiddle(jc,1:levels - 1,jb) * OceanReferenceDensity * sitodbar
@@ -1339,16 +1305,16 @@ CONTAINS
           z_p(levels) = patch_3d%p_patch_1d(1)%zlev_m(levels) * OceanReferenceDensity * sitodbar
 #ifdef _OPENACC
           DO jk = 1, levels
-              call calculate_density_mpiom_onColumn_gpu(tracer(jc,jk,jb,1), salinityReference_column(jk), &
-                                                        z_p(jk), rho(jc, jk, jb))
+            rho(jc, jk, jb) = calculate_density_mpiom_onColumn(tracer(jc,jk,jb,1), salinityReference_column(jk), z_p(jk))
           END DO
 #else
           rho(jc,1:levels,jb) = calculate_density_mpiom_onColumn( &
-             & tracer(jc,1:levels,jb,1),  salinityReference_column(1:levels), z_p(1:levels), levels)
+             & tracer(jc,1:levels,jb,1),  salinityReference_column(1:levels), z_p(1:levels))
 #endif
         END DO
         !$ACC END PARALLEL LOOP
       END DO
+      !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
 
     ENDIF ! no_tracer==2
@@ -1359,20 +1325,20 @@ CONTAINS
 
   END SUBROUTINE calculate_density_mpiom
   !-------------------------------------------------------------------------
-  SUBROUTINE calculate_density_mpiom_vec(patch_3d, tracer, rho, use_acc)
+  SUBROUTINE calculate_density_mpiom_vec(patch_3d, tracer, rho, lacc)
     !
     TYPE(t_patch_3d ),TARGET, INTENT(in)   :: patch_3d
     REAL(wp), INTENT(in)                   :: tracer(:,:,:,:)
     REAL(wp), INTENT(inout)                :: rho(:,:,:)       !< density
-    LOGICAL, INTENT(in), OPTIONAL          :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL          :: lacc
 
     ! !LOCAL VARIABLES:
     ! loop indices
     REAL(wp):: z_p
-    INTEGER :: jc, jk, jb
+    INTEGER :: jc, jk, jb, max_level
     INTEGER :: levels
     INTEGER :: i_startblk, i_endblk, start_index, end_index
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     TYPE(t_subset_range), POINTER :: all_cells
     TYPE(t_patch), POINTER :: patch_2D
     !-----------------------------------------------------------------------
@@ -1380,11 +1346,7 @@ CONTAINS
     all_cells => patch_2D%cells%ALL
     !-------------------------------------------------------------------------
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !  tracer 1: potential temperature
     !  tracer 2: salinity
@@ -1392,18 +1354,29 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index, jc, levels, z_p) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, start_index, end_index)
+        max_level = MAXVAL(patch_3d%p_patch_1d(1)%dolic_c(start_index:end_index,jb))
 
-        !$ACC PARALLEL LOOP GANG COLLAPSE(2) DEFAULT(PRESENT) PRIVATE(z_p) IF(lacc)
-        DO jk = 1, MAXVAL(patch_3d%p_patch_1d(1)%dolic_c(start_index:end_index,jb))
+        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+        DO jk = 1, max_level
           DO jc = start_index, end_index
-            IF ( jk > patch_3d%p_patch_1d(1)%dolic_c(jc,jb) ) CYCLE
-            z_p = patch_3d%p_patch_1d(1)%depth_CellMiddle(jc,jk,jb) * OceanReferenceDensity * sitodbar
-            rho(jc,jk,jb) = calculate_density_mpiom_v( &
+            levels = max(1, patch_3d%p_patch_1d(1)%dolic_c(jc,jb))
+            IF (jk > levels) CYCLE
+
+            IF (jk < levels) THEN
+              z_p = patch_3d%p_patch_1d(1)%depth_CellMiddle(jc,jk,jb) * OceanReferenceDensity * sitodbar
+            ELSE
+              !! For bottom, use the uniform depth without partial cells
+              !! This allows well-balancedness for pressure gradients
+              z_p = patch_3d%p_patch_1d(1)%zlev_m(jk) * OceanReferenceDensity * sitodbar
+            END IF
+            rho(jc,jk,jb) = calculate_density_mpiom_onColumn( &
               & tracer(jc,jk,jb,1),  tracer(jc,jk,jb,2), z_p)
           END DO
         END DO
         !$ACC END PARALLEL LOOP
+
       END DO
+      !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
 
     ELSE
@@ -1411,18 +1384,28 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index, jc, levels, z_p) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, start_index, end_index)
-
-        !$ACC PARALLEL LOOP GANG COLLAPSE(2) DEFAULT(PRESENT) PRIVATE(z_p) IF(lacc)
-        DO jk = 1, MAXVAL(patch_3d%p_patch_1d(1)%dolic_c(start_index:end_index,jb))
+        max_level = MAXVAL(patch_3d%p_patch_1d(1)%dolic_c(start_index:end_index,jb))
+  
+        !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+        DO jk = 1, max_level
           DO jc = start_index, end_index
-            IF ( jk > patch_3d%p_patch_1d(1)%dolic_c(jc,jb) ) CYCLE
-            z_p = patch_3d%p_patch_1d(1)%depth_CellMiddle(jc,jk,jb) * OceanReferenceDensity * sitodbar
-            rho(jc,jk,jb) = calculate_density_mpiom_v( &
+            levels = max(1, patch_3d%p_patch_1d(1)%dolic_c(jc,jb))
+            IF (jk > levels) CYCLE
+
+            IF (jk < levels) THEN
+              z_p = patch_3d%p_patch_1d(1)%depth_CellMiddle(jc,jk,jb) * OceanReferenceDensity * sitodbar
+            ELSE
+              !! For bottom, use the uniform depth without partial cells
+              z_p = patch_3d%p_patch_1d(1)%zlev_m(jk) * OceanReferenceDensity * sitodbar
+            END IF
+            rho(jc,jk,jb) = calculate_density_mpiom_onColumn( &
                & tracer(jc,jk,jb,1),  sal_ref, z_p)
           END DO
         END DO
         !$ACC END PARALLEL LOOP
+
       END DO
+      !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
 
     ENDIF ! no_tracer==2
@@ -1442,13 +1425,14 @@ CONTAINS
   !!
   !! Adapted for zstar
   !!
-  SUBROUTINE calculate_density_mpiom_zstar(patch_3d, tracer, eta_c, stretch_c, rho)
+  SUBROUTINE calculate_density_mpiom_zstar(patch_3d, tracer, eta_c, stretch_c, rho, lacc)
     !
     TYPE(t_patch_3d ),TARGET, INTENT(in)   :: patch_3d
     REAL(wp), INTENT(in)                   :: tracer(:,:,:,:)
     REAL(wp), INTENT(in)                   :: eta_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
     REAL(wp), INTENT(in)                   :: stretch_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
     REAL(wp), INTENT(inout)                :: rho(:,:,:)       !< density
+    LOGICAL, INTENT(in), OPTIONAL          :: lacc
 
     ! !LOCAL VARIABLES:
     ! loop indices
@@ -1458,11 +1442,17 @@ CONTAINS
     INTEGER :: i_startblk, i_endblk, start_index, end_index
     TYPE(t_subset_range), POINTER :: all_cells
     TYPE(t_patch), POINTER :: patch_2D
+    LOGICAL :: lzacc
+
     !-----------------------------------------------------------------------
     patch_2D   => patch_3d%p_patch_2d(1)
     all_cells => patch_2D%cells%ALL
     salinityReference_column(1:n_zlev) = sal_ref
     !-------------------------------------------------------------------------
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    !$ACC DATA COPY(salinityReference_column) IF(lzacc)
 
     !  tracer 1: potential temperature
     !  tracer 2: salinity
@@ -1470,6 +1460,7 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index, jc, levels, z_p) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, start_index, end_index)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) PRIVATE(z_p) ASYNC(1) IF(lzacc)
         DO jc = start_index, end_index
           levels = patch_3d%p_patch_1d(1)%dolic_c(jc,jb)
           !! Note the negative sign for eta_c. Depth is positive from free
@@ -1477,10 +1468,18 @@ CONTAINS
           z_p(1:levels) = ( stretch_c(jc, jb) * patch_3d%p_patch_1d(1)%depth_CellMiddle(jc,1:levels,jb) &
             & - eta_c(jc, jb) ) &
             & * OceanReferenceDensity * sitodbar
+#ifdef _OPENACC
+          DO jk = 1, levels
+            rho(jc, jk, jb) = calculate_density_mpiom_onColumn(tracer(jc,jk,jb,1), tracer(jc,jk,jb,2), z_p(jk))
+          END DO
+#else
           rho(jc,1:levels,jb) = calculate_density_mpiom_onColumn( &
-            & tracer(jc,1:levels,jb,1),  tracer(jc,1:levels,jb,2), z_p(1:levels), levels)
+            & tracer(jc,1:levels,jb,1),  tracer(jc,1:levels,jb,2), z_p(1:levels))
+#endif
         END DO
+        !$ACC END PARALLEL LOOP
       END DO
+      !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
 
     ELSE
@@ -1488,19 +1487,29 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index, end_index, jc, levels, z_p) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, start_index, end_index)
+        !$ACC PARALLEL LOOP GANG DEFAULT(PRESENT) PRIVATE(z_p) ASYNC(1) IF(lzacc)
         DO jc = start_index, end_index
           levels = patch_3d%p_patch_1d(1)%dolic_c(jc,jb)
           z_p(1:levels) = ( stretch_c(jc, jb) * patch_3d%p_patch_1d(1)%depth_CellMiddle(jc,1:levels,jb) &
             & - eta_c(jc, jb) ) &
             & * OceanReferenceDensity * sitodbar
+#ifdef _OPENACC
+          DO jk = 1, levels
+            rho(jc, jk, jb) = calculate_density_mpiom_onColumn(tracer(jc,jk,jb,1), salinityReference_column(jk), z_p(jk))
+          END DO
+#else
           rho(jc,1:levels,jb) = calculate_density_mpiom_onColumn( &
-             & tracer(jc,1:levels,jb,1),  salinityReference_column(1:levels), z_p(1:levels), levels)
+             & tracer(jc,1:levels,jb,1),  salinityReference_column(1:levels), z_p(1:levels))
+#endif
         END DO
+        !$ACC END PARALLEL LOOP
       END DO
+      !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
 
     ENDIF ! no_tracer==2
 
+    !$ACC END DATA
 
     CALL dbg_print('calculate_density_mpiom: rho', rho , "" ,5, patch_2D%cells%in_domain)
 
@@ -1510,9 +1519,6 @@ CONTAINS
   !-------------------------------------------------------------------------
   !>
   !!Calculates the density via a linear equation-of-state.
-  !!
-  !! @par Revision History
-  !! Initial version by Peter Korn, MPI-M (2009)
   !!
   FUNCTION density_linear_function(t,s,p) result(rho)
     !
@@ -1531,33 +1537,16 @@ CONTAINS
   !>
   !!Calculates the density via a linear equation-of-state.
   !!
-  !! @par Revision History
-  !! Initial version by Peter Korn, MPI-M (2009)
-  !!
-  FUNCTION calculate_density_linear_onColumn(t,s,p,levels) result(rho)
-    !
-    INTEGER,INTENT(in)  :: levels
-    REAL(wp),INTENT(in) :: t(1:levels)
-    REAL(wp),INTENT(in) :: s(1:levels)
-    REAL(wp),INTENT(in) :: p(1:levels)     !  pressure is unused
-    REAL(wp)            :: rho(1:levels)   !< density
-
-    rho(1:levels) = OceanReferenceDensity - LinearThermoExpansionCoefficient * t(1:levels) &
-    & + LinearHalineContractionCoefficient * s(1:levels)
-
-  END FUNCTION calculate_density_linear_onColumn
-  !---------------------------------------------------------------------------
-
-  SUBROUTINE calculate_density_linear_onColumn_gpu(t,s,rho)
+  ELEMENTAL FUNCTION calculate_density_linear_onColumn(t,s) result(rho)
     !$ACC ROUTINE SEQ
     REAL(wp),INTENT(in)  :: t
     REAL(wp),INTENT(in)  :: s
-    REAL(wp),INTENT(out) :: rho
+    REAL(wp)             :: rho
 
     rho = OceanReferenceDensity - LinearThermoExpansionCoefficient * t &
       & + LinearHalineContractionCoefficient * s
 
-  END SUBROUTINE calculate_density_linear_onColumn_gpu
+  END FUNCTION calculate_density_linear_onColumn
 
   !----------------------------------------------------------------
   !>
@@ -1582,83 +1571,29 @@ CONTAINS
   !    Accurate and Computationally Efficient Algorithms for Potential
   !    Temperature and Density of Seawater. JAOT, 20, 730-741
   !
-  ! !REVISION HISTORY:
-  ! implemented by Peter Herrmann (2009)
   !
-  FUNCTION calculate_density_jmdwfg06_onColumn(temperatute, salinity, p, levels) result(rho)
+  ELEMENTAL FUNCTION calculate_density_jmdwfg06_onColumn(temperature, salinity, p) result(rho)
 !NEC$ always_inline
-    INTEGER,  INTENT(in)       :: levels
-    REAL(wp), INTENT(in)       :: temperatute(1:levels)
-    REAL(wp), INTENT(in)       :: salinity(1:levels)
-    REAL(wp), INTENT(in)       :: p(1:levels)
-    REAL(wp)                   :: rho (1:levels)      !< density
+    !$ACC ROUTINE SEQ
+    REAL(wp), INTENT(in)       :: temperature
+    REAL(wp), INTENT(in)       :: salinity
+    REAL(wp), INTENT(in)       :: p
+    REAL(wp)                   :: rho       !< density
 
     ! EOS variables, following the naming of the MITgcm implementation
-    REAL (wp)  :: t1(1:levels), t2(1:levels), s1(1:levels), p1(1:levels), &
-      & rhonum(1:levels), sp5(1:levels), den(1:levels)! , rhoden(1:levels)
+    REAL (wp)  :: t1, t2, s1, p1, rhonum, sp5, den! , rhoden
     !-------------------------------------------------------------------------------------------------------
     !write(*,*)'inside EOS 06'
 
-    ! temperatute=25.0_wp
+    ! temperature=25.0_wp
     ! salinity=35.0_wp
     ! p=2000.0_wp
 
     ! abbreviations
-    s1(1:levels) = MAX(salinity(1:levels),0.0_wp)
-    t1(1:levels) = temperatute(1:levels)
-    t2(1:levels) = t1(1:levels) * t1(1:levels)
-    p1(1:levels) = p(1:levels)
-    sp5(1:levels) = SQRT(s1(1:levels))
-
-    rhonum(1:levels) = eosjmdwfgnum(0)                         &
-      & + t1*(eosjmdwfgnum(1)                                  &
-      & +     t1*(eosjmdwfgnum(2) + eosjmdwfgnum(3)*t1) )      &
-      & + s1*(eosjmdwfgnum(4)                                  &
-      & +     eosjmdwfgnum(5)*t1  + eosjmdwfgnum(6)*s1)        &
-      & + p1*(eosjmdwfgnum(7) + eosjmdwfgnum(8)*t2             &
-      & +     eosjmdwfgnum(9)*s1                               &
-      & +     p1*(eosjmdwfgnum(10) + eosjmdwfgnum(11)*t2) )
-
-    ! calculate the denominator of the Jackett et al.
-    ! equation of state
-    den(1:levels) = eosjmdwfgden(0)                                                       &
-      & + t1(1:levels) * (eosjmdwfgden(1)                                                 &
-      & +     t1(1:levels) * (eosjmdwfgden(2)                                             &
-      & +         t1(1:levels) * (eosjmdwfgden(3) + t1(1:levels) * eosjmdwfgden(4) ) ) )  &
-      & + s1(1:levels) * (eosjmdwfgden(5)                                                 &
-      & +     t1(1:levels) * (eosjmdwfgden(6)                                             &
-      & +         eosjmdwfgden(7) * t2(1:levels))                                         &
-      & +     sp5(1:levels) * (eosjmdwfgden(8) + eosjmdwfgden(9) * t2(1:levels)) )        &
-      & + p1(1:levels) * (eosjmdwfgden(10)                                                &
-      & +     p1(1:levels) * t1(1:levels) * (eosjmdwfgden(11) * t2(1:levels) + eosjmdwfgden(12)*p1(1:levels)) )
-
-    ! rhoden = 1.0_wp / (dbl_eps+den)
-
-    !rhoLoc  = rhoNum*rhoDen - OceanReferenceDensity
-    ! rho     = rhonum * rhoden
-    rho(1:levels)     = rhonum(1:levels) / den(1:levels)
-
-    ! &rhoConst*9.80665_wp*dz*SItodBar,rhoConst*9.80616_wp*dz*SItodBar,dz,&
-    ! &locPres*SItodBar
-  END FUNCTION calculate_density_jmdwfg06_onColumn
-  !-------------------------------------------------------------------------
-
-  SUBROUTINE calculate_density_jmdwfg06_onColumn_gpu(temperatute, salinity, p, rho)
-!NEC$ always_inline
-    !$ACC ROUTINE SEQ
-    REAL(wp), INTENT(in)       :: temperatute
-    REAL(wp), INTENT(in)       :: salinity
-    REAL(wp), INTENT(in)       :: p
-    REAL(wp), INTENT(out)      :: rho
-
-    ! EOS variables, following the naming of the MITgcm implementation
-    REAL (wp)  :: t1, t2, s1, p1, rhonum, sp5, den
-
-    ! abbreviations
-    s1  = MAX(salinity,0.0_wp)
-    t1  = temperatute
-    t2  = t1 * t1
-    p1  = p
+    s1 = MAX(salinity,0.0_wp)
+    t1 = temperature
+    t2 = t1 * t1
+    p1 = p
     sp5 = SQRT(s1)
 
     rhonum = eosjmdwfgnum(0)                                   &
@@ -1672,15 +1607,15 @@ CONTAINS
 
     ! calculate the denominator of the Jackett et al.
     ! equation of state
-    den = eosjmdwfgden(0)                                             &
-      & + t1 * (eosjmdwfgden(1)                                       &
-      & +     t1 * (eosjmdwfgden(2)                                   &
-      & +         t1 * (eosjmdwfgden(3) + t1 * eosjmdwfgden(4) ) ) )  &
-      & + s1 * (eosjmdwfgden(5)                                       &
-      & +     t1 * (eosjmdwfgden(6)                                   &
-      & +         eosjmdwfgden(7) * t2)                               &
-      & +     sp5 * (eosjmdwfgden(8) + eosjmdwfgden(9) * t2) )        &
-      & + p1 * (eosjmdwfgden(10)                                      &
+    den = eosjmdwfgden(0)                                                  &
+      & + t1 * (eosjmdwfgden(1)                                            &
+      & +     t1 * (eosjmdwfgden(2)                                        &
+      & +         t1 * (eosjmdwfgden(3) + t1 * eosjmdwfgden(4) ) ) )       &
+      & + s1 * (eosjmdwfgden(5)                                            &
+      & +     t1 * (eosjmdwfgden(6)                                        &
+      & +         eosjmdwfgden(7) * t2)                                    &
+      & +     sp5 * (eosjmdwfgden(8) + eosjmdwfgden(9) * t2) )             &
+      & + p1 * (eosjmdwfgden(10)                                           &
       & +     p1 * t1 * (eosjmdwfgden(11) * t2 + eosjmdwfgden(12)*p1) )
 
     ! rhoden = 1.0_wp / (dbl_eps+den)
@@ -1689,80 +1624,35 @@ CONTAINS
     ! rho     = rhonum * rhoden
     rho = rhonum / den
 
-  END SUBROUTINE calculate_density_jmdwfg06_onColumn_gpu
+    ! &rhoConst*9.80665_wp*dz*SItodBar,rhoConst*9.80616_wp*dz*SItodBar,dz,&
+    ! &locPres*SItodBar
+  END FUNCTION calculate_density_jmdwfg06_onColumn
+  !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
   ! EOS10 implementation from MOM5.1
-  FUNCTION calculate_density_EOS10_onColumn(temperatute, salinity, pressure, levels) result(rho)
-!NEC$ always_inline
-    INTEGER,  INTENT(in)       :: levels
-    REAL(wp), INTENT(in)       :: temperatute(1:levels)
-    REAL(wp), INTENT(in)       :: salinity(1:levels)
-    REAL(wp), INTENT(in)       :: pressure(1:levels)
-    REAL(wp)                   :: rho (1:levels)      !< density
-
-    REAL (wp)  :: t1(1:levels), t2(1:levels), s1(1:levels), p1(1:levels), &
-      & num(1:levels), sp5(1:levels), den(1:levels), p1t1(1:levels)! , rhoden(1:levels)
-    ! standard atmospheric pressure (dbar).
-    ! Should be set to 0.0 if assume zero pressure for the
-    ! overlying atmosphere.  But if have a realistic atmospheric
-    ! pressure loading, then set press_standard=10.1325.
-    real :: press_standard(1:levels)
-    !-------------------------------------------------------------------------------------------------------
-    press_standard(1:levels) = 0.0
-    t1(1:levels)  = temperatute(1:levels)
-    s1(1:levels)  = salinity(1:levels)
-    p1(1:levels)  = pressure(1:levels) - press_standard(1:levels)
-
-    sp5(1:levels) = sqrt(s1)
-    t2(1:levels)  = t1*t1
-    p1t1(1:levels) = p1*t1
-
-    num(1:levels) = v01 + t1*(v02 + t1*(v03 + v04*t1))                &
-          + s1*(v05 + t1*(v06 + v07*t1)                     &
-          + sp5*(v08 + t1*(v09 + t1*(v10 + v11*t1))))       &
-          + p1*(v12 + t1*(v13 + v14*t1) + s1*(v15 + v16*t1) &
-          + p1*(v17 + t1*(v18 + v19*t1) + v20*s1))
-
-    den(1:levels) =  v21 + t1*(v22 + t1*(v23 + t1*(v24 + v25*t1)))                &
-          + s1*(v26 + t1*(v27 + t1*(v28 + t1*(v29 + v30*t1))) + v36*s1 &
-          + sp5*(v31 + t1*(v32 + t1*(v33 + t1*(v34 + v35*t1)))))       &
-          + p1*(v37 + t1*(v38 + t1*(v39 + v40*t1))                     &
-          + s1*(v41 + v42*t1)                                          &
-          + p1*(v43 + t1*(v44 + v45*t1 + v46*s1)                       &
-          + p1*(v47 + v48*t1)))
-
-
-!              rho(1:levels) = num(1:levels)/(epsln+den(1:levels))
-    rho(1:levels) = num(1:levels)/den(1:levels)
-
-  END FUNCTION calculate_density_EOS10_onColumn
-  !-------------------------------------------------------------------------
-
-  SUBROUTINE calculate_density_EOS10_onColumn_gpu(temperature, salinity, pressure, rho)
+  ELEMENTAL FUNCTION calculate_density_EOS10_onColumn(temperature, salinity, pressure) result(rho)
 !NEC$ always_inline
     !$ACC ROUTINE SEQ
     REAL(wp), INTENT(in)       :: temperature
     REAL(wp), INTENT(in)       :: salinity
     REAL(wp), INTENT(in)       :: pressure
-    REAL(wp), INTENT(out)      :: rho
+    REAL(wp)                   :: rho       !< density
 
-    REAL (wp)  :: t1, t2, s1, p1, num, sp5, den, p1t1
+    REAL(wp)  :: t1, t2, s1, p1, num, sp5, den, p1t1! , rhoden
     ! standard atmospheric pressure (dbar).
     ! Should be set to 0.0 if assume zero pressure for the
     ! overlying atmosphere.  But if have a realistic atmospheric
     ! pressure loading, then set press_standard=10.1325.
-    REAL :: press_standard
-
+    REAL(wp) :: press_standard
     !-------------------------------------------------------------------------------------------------------
-
     press_standard = 0.0
-    t1 = temperature
-    s1 = salinity
-    p1 = pressure - press_standard
+    t1  = temperature
+    s1  = salinity
+    p1  = pressure - press_standard
 
-    sp5  = sqrt(s1)
-    t2   = t1*t1
+    sp5 = sqrt(s1)
+    t2  = t1*t1
     p1t1 = p1*t1
 
     num = v01 + t1*(v02 + t1*(v03 + v04*t1))                &
@@ -1779,9 +1669,11 @@ CONTAINS
           + p1*(v43 + t1*(v44 + v45*t1 + v46*s1)                       &
           + p1*(v47 + v48*t1)))
 
-    rho = num / den
+!              rho = num/(epsln+den)
+    rho = num/den
 
-  END SUBROUTINE calculate_density_EOS10_onColumn_gpu
+  END FUNCTION calculate_density_EOS10_onColumn
+  !-------------------------------------------------------------------------
 
   !----------------------------------------------------------------
   !>
@@ -1806,11 +1698,9 @@ CONTAINS
   !    Accurate and Computationally Efficient Algorithms for Potential
   !    Temperature and Density of Seawater. JAOT, 20, 730-741
   !
-  ! !REVISION HISTORY:
-  ! implemented by Peter Herrmann (2009)
   !
-  FUNCTION density_jmdwfg06_function(temperatute, salinity, p) result(rho)
-    REAL(wp), INTENT(in)       :: temperatute
+  FUNCTION density_jmdwfg06_function(temperature, salinity, p) result(rho)
+    REAL(wp), INTENT(in)       :: temperature
     REAL(wp), INTENT(in)       :: salinity
     REAL(wp), INTENT(in)       :: p
     REAL(wp)                   :: rho       !< density
@@ -1820,12 +1710,12 @@ CONTAINS
     !-------------------------------------------------------------------------------------------------------
     !write(*,*)'inside EOS 06'
 
-    ! temperatute=25.0_wp
+    ! temperature=25.0_wp
     ! salinity=35.0_wp
     ! p=2000.0_wp
 
     ! abbreviations
-    t1 = temperatute
+    t1 = temperature
     t2 = t1*t1
     s1 = salinity
     p1 = p
@@ -1881,8 +1771,6 @@ CONTAINS
   !! The code was checked with testvalues from Gill's book.
   !! For testing insert values here:
   !!   s = 35.0_wp,  t = 25.0_wp, p = 1000.0_wp, s3h = SQRT(s**3)
-  !! @par Revision History
-  !! Initial version by Peter Korn, MPI-M (2011)
   !!
   FUNCTION density_mpiom_function(tpot, sal, p) result(rho)
     REAL(wp), INTENT(in) :: tpot, sal, p
@@ -1930,116 +1818,9 @@ CONTAINS
   !! The code was checked with testvalues from Gill's book.
   !! For testing insert values here:
   !!   s = 35.0_wp,  t = 25.0_wp, p = 1000.0_wp, s3h = SQRT(s**3)
-  !! @par Revision History
-  !! Initial version by Peter Korn, MPI-M (2011)
   !!
 !<Optimize:inUse>
-  FUNCTION calculate_density_mpiom_onColumn(tpot, sal, p, levels) result(rho)
-!NEC$ always_inline
-    INTEGER, INTENT(in)  :: levels
-    REAL(wp), INTENT(in) :: tpot(1:levels), sal(1:levels), p(1:levels)
-    REAL(wp)             :: rho(1:levels)
-
-    REAL(wp) :: dvs(1:levels), fne(1:levels), fst(1:levels), qn3(1:levels), &
-      & qnq(1:levels), qvs(1:levels), s(1:levels), s3h(1:levels),           &
-      & t(1:levels), denom(1:levels), s__2(1:levels)
-
-    REAL(wp), PARAMETER :: z_sref = 35.0_wp
-
-    !This is the adisit part, that transforms potential in in-situ temperature
-    qnq(1:levels) = -p(1:levels) * (-a_a3 + p(1:levels) * a_c3)
-    qn3(1:levels) = -p(1:levels) * a_a4
-    qvs(1:levels) = (p(1:levels) * (a_b1 - a_d * p(1:levels))) * &
-      & (sal(1:levels) - z_sref) + p(1:levels) * (a_a1 + p(1:levels) * (a_c1 - a_e1 * p(1:levels)))
-
-    dvs(1:levels) = (a_b2 * p(1:levels)) * (sal(1:levels) - z_sref) + &
-      & 1.0_wp + p(1:levels) * (-a_a2 + p(1:levels) * (a_c2 - a_e2 * p(1:levels)))
-
-    t(1:levels)   = (tpot(1:levels) + qvs(1:levels)) / dvs(1:levels)
-    fne(1:levels) = - qvs(1:levels) + t(1:levels) *    &
-      & (dvs(1:levels) + t(1:levels) * (qnq(1:levels) + t(1:levels) * qn3(1:levels))) &
-      & - tpot(1:levels)
-
-    fst(1:levels) = dvs(1:levels) + t(1:levels) * (2._wp * qnq(1:levels) + &
-      & 3._wp * qn3(1:levels) * t(1:levels))
-
-    t(1:levels)   = t(1:levels) - fne(1:levels) / fst(1:levels)
-    s(1:levels)    = MAX(sal(1:levels), 0.0_wp)
-    s__2(1:levels) = s(1:levels)**2
-!     s3h(1:levels)  = SQRT(s__2(1:levels) * s(1:levels))
-    s3h(1:levels)  = s(1:levels) * SQRT(s(1:levels))
-
-    rho(1:levels) = r_a0 + t(1:levels) * &
-      & (r_a1 + t(1:levels) * (r_a2 + t(1:levels) *                   &
-      &   (r_a3 + t(1:levels) * (r_a4 + t(1:levels) * r_a5))))        &
-      & + s(1:levels) * (r_b0 + t(1:levels) * (r_b1 + t(1:levels) &
-      &     * (r_b2 + t(1:levels) * (r_b3 + t(1:levels) * r_b4))))    &
-      & + r_d0 * s__2(1:levels)                                           &
-      & + s3h(1:levels) * (r_c0 + t(1:levels) * (r_c1 + r_c2 * t(1:levels)))
-
-    denom(1:levels) = 1._wp                                                           &
-      & - p(1:levels) / (p(1:levels) * (r_h0 + t(1:levels) *                  &
-      &     (r_h1 + t(1:levels) * (r_h2 + t(1:levels) * r_h3))                    &
-      & + s(1:levels) * (r_ai0 + t(1:levels) * (r_ai1 + r_ai2 * t(1:levels))) &
-      & + r_aj0 * s3h(1:levels)                                                       &
-      & + (r_ak0 + t(1:levels) * (r_ak1 + t(1:levels) * r_ak2)                    &
-      & + s(1:levels) * (r_am0 + t(1:levels) *                                    &
-      &     (r_am1 + t(1:levels) * r_am2))) * p(1:levels))                        &
-      & + r_e0 + t(1:levels) * (r_e1 + t(1:levels) *                              &
-      &      (r_e2 + t(1:levels) * (r_e3 + t(1:levels) * r_e4)))                  &
-      & + s(1:levels) * (r_f0 + t(1:levels) * (r_f1 + t(1:levels) *           &
-      &       (r_f2 + t(1:levels) * r_f3)))                                           &
-      & + s3h(1:levels) * (r_g0 + t(1:levels) * (r_g1 + r_g2 * t(1:levels))))
-
-    rho(1:levels) = rho(1:levels)/denom(1:levels)
-
-  END FUNCTION calculate_density_mpiom_onColumn
-
- SUBROUTINE calculate_density_mpiom_onColumn_gpu(tpot, sal, p, rho)
-  !NEC$ always_inline
-  !$ACC ROUTINE SEQ
-  REAL(wp), INTENT(in)  :: tpot, sal, p
-  REAL(wp), INTENT(out) :: rho
-
-  REAL(wp) :: dvs, fne, fst, qn3, qnq, qvs, s, s3h, t, denom, s__2
-
-  REAL(wp), PARAMETER :: z_sref = 35.0_wp
-
-  ! This is the adisit part, that transforms potential in in-situ temperature
-  qnq = -p * (-a_a3 + p * a_c3)
-  qn3 = -p * a_a4
-  qvs = (p * (a_b1 - a_d * p)) * (sal - z_sref) + p * (a_a1 + p * (a_c1 - a_e1 * p))
-
-  dvs = (a_b2 * p) * (sal - z_sref) + 1.0_wp + p * (-a_a2 + p * (a_c2 - a_e2 * p))
-
-  t = (tpot + qvs) / dvs
-  fne = -qvs + t * (dvs + t * (qnq + t * qn3)) - tpot
-
-  fst = dvs + t * (2._wp * qnq + 3._wp * qn3 * t)
-
-  t = t - fne / fst
-  s = MAX(sal, 0.0_wp)
-  s__2 = s**2
-  s3h = s * SQRT(s)
-
-  rho = r_a0 + t * (r_a1 + t * (r_a2 + t * (r_a3 + t * (r_a4 + t * r_a5)))) &
-    & + s * (r_b0 + t * (r_b1 + t * (r_b2 + t * (r_b3 + t * r_b4)))) &
-    & + r_d0 * s__2 + s3h * (r_c0 + t * (r_c1 + r_c2 * t))
-
-  denom = 1._wp - p / (p * (r_h0 + t * (r_h1 + t * (r_h2 + t * r_h3)) &
-    & + s * (r_ai0 + t * (r_ai1 + r_ai2 * t)) &
-    & + r_aj0 * s3h + (r_ak0 + t * (r_ak1 + t * r_ak2) &
-    & + s * (r_am0 + t * (r_am1 + t * r_am2))) * p) &
-    & + r_e0 + t * (r_e1 + t * (r_e2 + t * (r_e3 + t * r_e4))) &
-    & + s * (r_f0 + t * (r_f1 + t * (r_f2 + t * r_f3))) &
-    & + s3h * (r_g0 + t * (r_g1 + r_g2 * t)))
-
-  rho = rho / denom
-
-END SUBROUTINE calculate_density_mpiom_onColumn_gpu
-
-  !-------------------------------------------------------------------------
-  ELEMENTAL FUNCTION calculate_density_mpiom_v(tpot, sal, p) result(rho)
+  ELEMENTAL FUNCTION calculate_density_mpiom_onColumn(tpot, sal, p) result(rho)
 !NEC$ always_inline
     !$ACC ROUTINE SEQ
     REAL(wp), INTENT(in) :: tpot, sal, p
@@ -2071,6 +1852,7 @@ END SUBROUTINE calculate_density_mpiom_onColumn_gpu
     t   = t - fne / fst
     s    = MAX(sal, 0.0_wp)
     s__2 = s**2
+!     s3h  = SQRT(s__2 * s)
     s3h  = s * SQRT(s)
 
     rho = r_a0 + t * &
@@ -2097,9 +1879,7 @@ END SUBROUTINE calculate_density_mpiom_onColumn_gpu
 
     rho = rho/denom
 
-  END FUNCTION calculate_density_mpiom_v
-  !-------------------------------------------------------------------------
-
+  END FUNCTION calculate_density_mpiom_onColumn
 
  !-------------------------------------------------------------------------
   !>
@@ -2108,9 +1888,6 @@ END SUBROUTINE calculate_density_mpiom_onColumn_gpu
   !!   Fofonoff and Millard, 1984, UNESCO, Paris, Tech. Pap. Mar. Sci., 44, 53pp
   !! This method is using the older !! IPTS (International Practical Temperature Scale) of 1968.
   !! The code below is adopted from FESOM (Quiang Wang, Sergey Danilov)
-  !!
-  !! @par Revision History
-  !! Initial version by Stephan Lorenz, MPI-M (2014)
   !!
   !<Optimize:inUse>
   FUNCTION calc_neutralslope_coeff_func_onColumn(t,s,p,levels) result(coeff)
@@ -2228,7 +2005,6 @@ END SUBROUTINE calculate_density_mpiom_onColumn_gpu
   !! Calculates neutral slopes from UNESCO EOS as described in Gill, Atmosphere-Ocean Dynamics, Appendix 3
   !! The code below is related EOS impl from MPIOM. Note that within this sbr the potential temperature
   !! ha to be converted into in-situ temperature !
-  !! Initial version by Peter Korn, MPI-M (2016)
   !!
 !<Optimize:inUse>
   FUNCTION calc_neutralslope_coeff_func_onColumn_UNESCO(tpot, sal, p, levels) result(coeff)
@@ -2352,15 +2128,13 @@ END SUBROUTINE calculate_density_mpiom_onColumn_gpu
   !!  Calculates density as a function of potential temperature and salinity
   !! using the equation of state as described in Gill, Atmosphere-Ocean Dynamics, Appendix 3
   !! The code below is copied from MPIOM
-  !! @par Revision History
-  !! Initial version by Peter Korn, MPI-M (2011)
   !!
 !<Optimize:inUse>
-  SUBROUTINE calc_potential_density_mpiom(patch_3d, tracer, rhopot, use_acc)
+  SUBROUTINE calc_potential_density_mpiom(patch_3d, tracer, rhopot, lacc)
     TYPE(t_patch_3d ),TARGET, INTENT(in)   :: patch_3d
     REAL(wp), INTENT(in)                   :: tracer(:,:,:,:)
     REAL(wp), INTENT(inout)                :: rhopot(:,:,:)
-    LOGICAL, INTENT(in), OPTIONAL          :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL          :: lacc
 
     ! !LOCAL VARIABLES:
     ! loop indices
@@ -2370,16 +2144,12 @@ END SUBROUTINE calculate_density_mpiom_onColumn_gpu
     INTEGER :: start_index, end_index
     TYPE(t_subset_range), POINTER :: all_cells
 
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     !-----------------------------------------------------------------------
     all_cells => patch_3d%p_patch_2d(1)%cells%ALL
     !-------------------------------------------------------------------------
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !  tracer 1: potential temperature
     !  tracer 2: salinity
@@ -2388,7 +2158,7 @@ END SUBROUTINE calculate_density_mpiom_onColumn_gpu
 !ICON_OMP_DO PRIVATE(start_index, end_index, jc, jk) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, start_index, end_index)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO jc = start_index, end_index
           !$ACC LOOP SEQ
           DO jk=1, patch_3d%p_patch_1d(1)%dolic_c(jc,jb) ! operate on wet ocean points only
@@ -2398,6 +2168,7 @@ END SUBROUTINE calculate_density_mpiom_onColumn_gpu
         END DO
         !$ACC END PARALLEL LOOP
       END DO
+      !$ACC WAIT(1)
 !ICON_OMP_END_DO NOWAIT
 !ICON_OMP_END_PARALLEL
     ELSEIF(no_tracer==1)THEN
@@ -2405,7 +2176,7 @@ END SUBROUTINE calculate_density_mpiom_onColumn_gpu
 !ICON_OMP_DO PRIVATE(start_index, end_index, jc, jk) ICON_OMP_DEFAULT_SCHEDULE
       DO jb = all_cells%start_block, all_cells%end_block
         CALL get_index_range(all_cells, jb, start_index, end_index)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO jc = start_index, end_index
           !$ACC LOOP SEQ
           DO jk=1, patch_3d%p_patch_1d(1)%dolic_c(jc,jb) ! operate on wet ocean points only
@@ -2415,6 +2186,7 @@ END SUBROUTINE calculate_density_mpiom_onColumn_gpu
         END DO
         !$ACC END PARALLEL LOOP
       END DO
+      !$ACC WAIT(1)
 !ICON_OMP_END_DO NOWAIT
 !ICON_OMP_END_PARALLEL
     ENDIF
@@ -2470,8 +2242,6 @@ END SUBROUTINE calculate_density_mpiom_onColumn_gpu
   !
   !!  Calculates potential tempertaure from in-situ temperature.
   !!  Formula described in Gill, Atmosphere-Ocean Dynamics, Appendix 3
-  !! @par Revision History
-  !! Initial version by Peter Korn, MPI-M (2011)
   !!
   SUBROUTINE convert_insitu2pot_temp(patch_3d, OceanReferenceDensity, temp_insitu, sal, temp_pot)
     TYPE(t_patch_3d ),TARGET, INTENT(in)   :: patch_3d
@@ -2515,8 +2285,6 @@ END SUBROUTINE calculate_density_mpiom_onColumn_gpu
   !!  Calculates density as a function of potential temperature and salinity
   !! using the equation of state as described in Gill, Atmosphere-Ocean Dynamics, Appendix 3
   !! The code below is copied from MPIOM
-  !! @par Revision History
-  !! Initial version by Peter Korn, MPI-M (2011)
   !!
   FUNCTION convert_insitu2pot_temp_func(t, s, p) result(temp_pot)
     REAL(wp), INTENT(in) :: t, s, p
@@ -2540,8 +2308,6 @@ END SUBROUTINE calculate_density_mpiom_onColumn_gpu
 !  !>
 !  !!  Calculates density as a function of potential temperature and salinity
 !  !! using the Jackett and McDougall equation of state
-!  !! @par Revision History
-!  !! Initial version by Peter Korn, MPI-M (2011)
 !  !! Code below is an adaption of Sergey Danilov's implementation in
 !  !! the AWI Finite-Volume model.
 !  !!
@@ -2631,8 +2397,6 @@ END SUBROUTINE calculate_density_mpiom_onColumn_gpu
 !    !
 !    !!  Calculates potential tempertaure from in-situ temperature.
 !    !!  Formula described in Gill, Atmosphere-Ocean Dynamics, Appendix 3
-!    !! @par Revision History
-!    !! Initial version by Peter Korn, MPI-M (2011)
 !    !!
 !
 !    TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d

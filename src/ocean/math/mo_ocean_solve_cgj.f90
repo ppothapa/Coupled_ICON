@@ -1,13 +1,27 @@
+! contains extension to solver backend type: CG + Jacobi preconditioner
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 #if (defined(_OPENMP) && defined(OCE_SOLVE_OMP))
 #include "omp_definitions.inc"
 #endif
-! contains extension to solver backend type: CG + Jacobi preconditioner
 
 MODULE mo_ocean_solve_cgj
 
   USE mo_kind, ONLY: wp
   USE mo_exception, ONLY: finish
   USE mo_ocean_solve_backend, ONLY: t_ocean_solve_backend
+  USE mo_fortran_tools, ONLY: set_acc_host_or_device
  
   IMPLICIT NONE
   
@@ -59,14 +73,21 @@ SUBROUTINE ocean_solve_cgj_recover_arrays_wp(this, x, b, z, d, r, r2, &
   END SUBROUTINE ocean_solve_cgj_recover_arrays_wp
 
 ! actual CG solve utilizing Jacobi preconditioner - wp-variant
-  SUBROUTINE ocean_solve_cgj_cal_wp(this)
+  SUBROUTINE ocean_solve_cgj_cal_wp(this, lacc)
     CLASS(t_ocean_solve_cgj), INTENT(INOUT) :: this
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
     REAL(KIND=wp) :: alpha, beta, dz_glob, tol, tol2
     REAL(KIND=wp) :: rh_glob, rh_glob_o, rn
     INTEGER :: nidx_a, nidx_e, nblk, iblk, k, m, k_final
     REAL(KIND=wp), POINTER, DIMENSION(:,:), CONTIGUOUS :: &
       & x, b, z, d, r, r2, invaii, h
-    LOGICAL :: done
+    LOGICAL :: done, lzacc
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+#ifdef _OPENACC
+    IF (lzacc) CALL finish(this_mod_name, 'OpenACC version currently not tested/validated')
+#endif
 
 ! retrieve extends of vector to solve
     nidx_a = this%trans%nidx

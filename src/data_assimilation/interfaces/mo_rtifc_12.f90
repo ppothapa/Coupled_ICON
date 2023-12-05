@@ -1,28 +1,25 @@
+! Interface for the RTTOV12 library
 !
-!+ Interface for the RTTOV12 library
+! ICON
 !
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_rtifc_12
+
+!----------------------------------------------------------------------------
 !
 ! Description:
 !   This module contains the RTTOV12 specific stuff for the mo_rtifc module
 !
-! Current Code Owner: DWD, Robin Faulwetter
-!    phone: +49 69 8062 2746
-!    fax:   +49 69 8062 3721
-!    email:  robin.faulwetter@dwd.de
-!
-! History:
-! Version      Date       Name
-! ------------ ---------- ----
-! @VERSION@    @DATE@     Robin Faulwetter
-!  Initial release
-!
-! Code Description:
-! Language: Fortran 2003.
-! Software Standards:
-!
 ! Heritage: mo_rtifc_10.f90
-!=======================================================================
+!----------------------------------------------------------------------------
 
 #include "mo_rtifc_macros.incf"
 

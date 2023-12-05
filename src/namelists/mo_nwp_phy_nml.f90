@@ -1,30 +1,25 @@
-!>
-!!  Namelist for NWP physics
-!!
-!!  these Subroutines are called by control model and construct the
-!!  physics composition
-!!
-!! @author <Kristina Froehlich, DWD>
-!!
-!!
-!! @par Revision History
-!! First implementation by Kristina Froehlich, DWD (2010-06-20>)
-!!  namelist varaibles for calling frequency of fast physics schemes
-!!   have been removed to ensure the high frequent calls
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Namelist for NWP physics
+!
+! these Subroutines are called by control model and construct the
+! physics composition
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_nwp_phy_nml
 
   USE mo_kind,                ONLY: wp
   USE mo_exception,           ONLY: finish, message, message_text
-  USE mo_impl_constants,      ONLY: max_dom, iedmf, ivdiff, LSS_JSBACH
+  USE mo_impl_constants,      ONLY: max_dom, ivdiff, LSS_JSBACH
   USE mo_namelist,            ONLY: position_nml, POSITIONED, open_nml, close_nml
   USE mo_mpi,                 ONLY: my_process_is_stdio
   USE mo_io_units,            ONLY: nnml, nnml_output, filename_max
@@ -134,8 +129,6 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   !
-  !
-  !>
   !! Read Namelist for NWP physics. 
   !!
   !! This subroutine 
@@ -147,9 +140,6 @@ CONTAINS
   !! - performs sanity checks
   !! - stores the Namelist for restart
   !! - fills the configuration state (partly)    
-  !!
-  !! @par Revision History
-  !!  by Daniel Reinert, DWD (2011-06-07)
   !!
   SUBROUTINE read_nwp_phy_namelist( filename )
 
@@ -251,7 +241,9 @@ CONTAINS
 
     ! type of prognostic aerosol
     iprog_aero = 0  ! 0 = pure climatology
-                    ! 1 = very simple prognostic scheme based on advection of and relaxation towards climatology
+                    ! 1 = very simple prognostic scheme based on advection of and relaxation towards climatology for mineral dust
+                    ! 2 = very simple prognostic scheme based on advection of and relaxation towards climatology for all species
+                    ! 3 = very simple prognostic scheme based on advection of and relaxation towards climatology for all species including wildfires
 
     ! coupling between ozone and the tropopause
     icpl_o3_tp = 1      ! 0 = none
@@ -437,10 +429,6 @@ CONTAINS
       ENDIF
 
 #ifdef _OPENACC
-      IF (inwp_turb(jg) == iedmf) THEN
-        CALL finish(routine,'GPU version not available for edmf turbulence.')
-      ENDIF
-      
       IF ( ALL((/0,1,5/) /= inwp_cldcover(jg)) ) THEN
         CALL finish(routine,'GPU version only available for cloud cover 0, 1 and 5')
       ENDIF

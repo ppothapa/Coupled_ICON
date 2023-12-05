@@ -1,25 +1,20 @@
-!>
-!! Provide an implementation of the ocean physics.
-!!
-!! Provide an implementation of the physical parameters and characteristics
-!! for the hydrostatic ocean model.
-!!
-!! @author Stephan Lorenz, MPI
-!! @author Peter Korn, MPI
-!!
-!! @par Revision History
-!!  Original version by Peter Korn, MPI-M (2009)
-!!  Modified by Stephan Lorenz,     MPI-M (2010-07)
-!!    adapted to structures discussed in 2010-01.
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Provide an implementation of the ocean physics.
+!
+! Provide an implementation of the physical parameters and characteristics
+! for the hydrostatic ocean model.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 #include "icon_definitions.inc"
@@ -41,7 +36,7 @@ MODULE mo_ocean_physics
     & BiharmonicViscosity_reference,                          &
     & tracer_RichardsonCoeff, velocity_RichardsonCoeff,                    &
     & use_wind_mixing,                                        &
-    & vert_mix_type, vmix_pp, vmix_tke, vmix_kpp, vmix_idemix_tke,         & ! by_nils / by_ogut
+    & vert_mix_type, vmix_pp, vmix_tke, vmix_idemix_tke,         & ! by_nils / by_ogut
     & HorizontalViscosity_SmoothIterations,                   &
     & convection_InstabilityThreshold,                        &
     & RichardsonDiffusion_threshold,                          &
@@ -96,20 +91,20 @@ MODULE mo_ocean_physics
     & za_depth_below_sea, za_depth_below_sea_half, za_surface
   USE mo_grid_subset,         ONLY: t_subset_range, get_index_range
   USE mo_sync,                ONLY: sync_c, sync_e, sync_v, sync_patch_array, global_max, sync_patch_array_mult
-  USE  mo_ocean_thermodyn,    ONLY: calculate_density_onColumn, calculate_density_mpiom_v, calculate_density_onColumn_gpu
+  USE mo_ocean_thermodyn,    ONLY: calculate_density_onColumn, calculate_density_onColumn_elem, calculate_density_mpiom_onColumn
   USE mo_ocean_math_operators,ONLY: div_oce_3d
   USE mo_timer,               ONLY: timers_level, timer_start, timer_stop, timer_upd_phys
   USE mo_statistics,          ONLY: global_minmaxmean
   USE mo_io_config,           ONLY: lnetcdf_flt64_output
   USE mo_ocean_pp_scheme,     ONLY: update_PP_scheme, update_PP_scheme_zstar
-  USE mo_ocean_cvmix_tke,     ONLY: calc_tke, setup_tke
-  USE mo_ocean_cvmix_idemix,  ONLY: calc_idemix, setup_idemix
-  USE mo_ocean_cvmix_kpp,     ONLY: calc_kpp, setup_kpp
+  USE mo_ocean_tke,           ONLY: calc_tke, setup_tke
+  USE mo_ocean_idemix,        ONLY: calc_idemix, setup_idemix
   USE mo_ocean_physics_types, ONLY: t_ho_params, v_params, &
    & WindMixingDecay, WindMixingLevel
   USE mo_sea_ice_types,       ONLY: t_sea_ice, t_atmos_fluxes
   USE mo_ocean_velocity_diffusion, ONLY: veloc_diff_harmonic_div_grad
   USE mo_ocean_GM_Redi,       ONLY: init_GMRedi
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -139,8 +134,6 @@ CONTAINS
   !>
   !! Initialisation of ocean physics
   !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2010-07)
 !<Optimize:inUse:initOnly>
   SUBROUTINE init_ho_params(  patch_3d, physics_param, fu10 )
     TYPE(t_patch_3d ),POINTER, INTENT(in) :: patch_3d
@@ -265,6 +258,7 @@ CONTAINS
     END DO
 
     physics_param%bottom_drag_coeff = bottom_drag_coeff
+    !$ACC UPDATE DEVICE(physics_param%A_veloc_v, physics_param%a_tracer_v, physics_param%bottom_drag_coeff)
 
     ! precalculate exponential wind mixing decay with depth
     DO jk=2,n_zlev
@@ -279,18 +273,14 @@ CONTAINS
       CALL message(method_name,'Setup vmix_pp scheme.')
 
     CASE(vmix_tke) ! by_nils
-!      write(*,*) 'Setup cvmix/tke scheme.'
-      CALL message(method_name,'Setup cvmix/tke scheme.')
+!      write(*,*) 'Setup tke scheme.'
+      CALL message(method_name,'Setup tke scheme.')
       CALL setup_tke()
     CASE(vmix_idemix_tke) ! by_nils
-!      write(*,*) 'Setup cvmix/idemix_tke scheme.'
-      CALL message(method_name,'Setup cvmix/idemix_tke scheme.')
+!      write(*,*) 'Setup idemix_tke scheme.'
+      CALL message(method_name,'Setup idemix_tke scheme.')
       CALL setup_idemix(patch_3d)
       CALL setup_tke()
-    CASE(vmix_kpp) ! by_ogut
-!      write(*,*) 'Setup cvmix/kpp scheme.'
-      CALL message(method_name,'Setup cvmix/kpp scheme.')
-      CALL setup_kpp()
     CASE default
 !      write(*,*) "Unknown vert_mix_type!"
 !      stop
@@ -604,8 +594,6 @@ CONTAINS
   !! The lower bound is given in units [m^2/s].
   !!
   !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2011-08)
   !
   SUBROUTINE calc_lower_bound_veloc_diff(  patch_2D, lower_bound_diff )
     TYPE(t_patch), TARGET, INTENT(in)  :: patch_2D
@@ -631,8 +619,6 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2011-08)
 !<Optimize:inUse:initOnly>
   SUBROUTINE smooth_lapl_diff( patch_3d, k_h, smoothFactor )
     TYPE(t_patch_3d ),TARGET, INTENT(in)   :: patch_3d
@@ -699,8 +685,6 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2011-08)
 !<Optimize:inUse:initOnly>
   SUBROUTINE smooth_lapl_diff_3D( patch_3d, k_h, smoothFactor )
     TYPE(t_patch_3d ),TARGET, INTENT(in)   :: patch_3d
@@ -781,8 +765,6 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2011-08)
 !<Optimize:inUse:initOnly>
   SUBROUTINE smooth_lapl_diff_verts_3D( patch_3d, k_h, smoothFactor )
     TYPE(t_patch_3d ),TARGET, INTENT(in)   :: patch_3d
@@ -876,10 +858,8 @@ CONTAINS
   !! What is missing is the fractional ice cover (see eqs. (15-16)).
   !! Eq. (18) is the Redi part that is not implemented, yet
   !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2011-02)
 !<Optimize:inUse:done>
-  SUBROUTINE update_ho_params(patch_3d, ocean_state, fu10, concsum, params_oce,op_coeffs, atmos_fluxes, p_oce_sfc, use_acc)
+  SUBROUTINE update_ho_params(patch_3d, ocean_state, fu10, concsum, params_oce,op_coeffs, atmos_fluxes, p_oce_sfc, lacc)
     !, calculate_density_func)
 
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
@@ -890,18 +870,14 @@ CONTAINS
     TYPE (t_ocean_surface), INTENT(IN)   :: p_oce_sfc
     TYPE(t_operator_coeff),INTENT(in)    :: op_coeffs
     TYPE(t_atmos_fluxes)                 :: atmos_fluxes
-    LOGICAL, INTENT(IN), OPTIONAL        :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL        :: lacc
 
     INTEGER :: tracer_index
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     !INTEGER :: vert_mix_type=2 ! by_nils ! FIXME: make this a namelist parameter
     !-------------------------------------------------------------------------
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     start_timer(timer_upd_phys,1)
 
@@ -909,7 +885,7 @@ CONTAINS
 
 !   Calculate the vertical density gradient on the interfaces (zgrad_rho)
 !   and the Richardson Number ; shall be used in PP and possibly TKE
-    CALL calc_vertical_stability(patch_3d, ocean_state, use_acc=lacc)
+    CALL calc_vertical_stability(patch_3d, ocean_state, lacc=lzacc)
 
     SELECT CASE(vert_mix_type)
     CASE(vmix_pp)
@@ -917,7 +893,7 @@ CONTAINS
     CASE(vmix_tke)
       !write(*,*) 'Do calc_tke...'
 #ifdef _OPENACC
-      CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10, concsum, use_acc=lacc)
+      CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10, concsum, lacc=lzacc)
 #else
       CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10, concsum)
 #endif
@@ -926,8 +902,6 @@ CONTAINS
       CALL calc_idemix(patch_3d, ocean_state, params_oce, op_coeffs, atmos_fluxes)
       !CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes)
       CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10, concsum)
-    CASE(3) ! by_ogut
-      CALL calc_kpp(patch_3d, ocean_state, params_oce, atmos_fluxes, p_oce_sfc, concsum)
     CASE default
       write(*,*) "Unknown vert_mix_type!"
     END SELECT
@@ -1011,8 +985,6 @@ CONTAINS
       !write(*,*) 'Do calc_idemix...'
       CALL calc_idemix(patch_3d, ocean_state, params_oce, op_coeffs, atmos_fluxes)
       CALL calc_tke(patch_3d, ocean_state, params_oce, atmos_fluxes, fu10, concsum)
-    CASE(3) ! by_ogut
-      CALL calc_kpp(patch_3d, ocean_state, params_oce, atmos_fluxes, p_oce_sfc, concsum)
     CASE default
       write(*,*) "Unknown vert_mix_type!"
     END SELECT
@@ -1032,8 +1004,6 @@ CONTAINS
   !!
   !! Liteature: Fox-Kemper, Menemenlis, Can Large Eddy Simulations improve Mesoscale Rich Ocean Models ?
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   SUBROUTINE calculate_LeithClosure_harmonic_vort(patch_3d, ocean_state, param, operators_coeff)
     TYPE(t_patch_3d ),TARGET, INTENT(in)             :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET                :: ocean_state
@@ -1125,8 +1095,6 @@ CONTAINS
   !!
   !! Liteature: Fox-Kemper, Menemenlis, Can Large Eddy Simulations improve Mesoscale Rich Ocean Models ?
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   SUBROUTINE calculate_LeithClosure_harmonic_vort_w(patch_3d, ocean_state, param, operators_coeff)
     TYPE(t_patch_3d ),TARGET, INTENT(in)             :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET                :: ocean_state
@@ -1487,8 +1455,6 @@ CONTAINS
   !!
   !! Liteature: Fox-Kemper, Menemenlis, Can Large Eddy Simulations improve Mesoscale Rich Ocean Models ?
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   SUBROUTINE calculate_LeithClosure_harmonic_vort_div(patch_3d, ocean_state, param, operators_coeff)
     TYPE(t_patch_3d ),TARGET, INTENT(in)             :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET                :: ocean_state
@@ -1620,8 +1586,6 @@ CONTAINS
   !!
   !! Liteature: Fox-Kemper, Menemenlis, Can Large Eddy Simulations improve Mesoscale Rich Ocean Models ?
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   SUBROUTINE calculate_LeithClosure_harmonicDivGrad_VortDiv(patch_3d, ocean_state, param, operators_coeff)
     TYPE(t_patch_3d ),TARGET, INTENT(in)             :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET                :: ocean_state
@@ -1729,8 +1693,6 @@ CONTAINS
   !!
   !! Liteature: Fox-Kemper, Menemenlis, Can Large Eddy Simulations improve Mesoscale Rich Ocean Models ?
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   !!
   SUBROUTINE calculate_LeithClosure_biharmonic(patch_3d, ocean_state, param, operators_coeff)
     TYPE(t_patch_3d ),TARGET, INTENT(in)             :: patch_3d
@@ -1949,8 +1911,6 @@ CONTAINS
   !>
   !! !  SUBROUTINE calculates importan physical numbers: Richardson number, Buoancy frequency, baroclinic wave speed, Rossby radius.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2016).
   !!
 !<Optimize:inUse>
   SUBROUTINE calc_characteristic_physical_numbers(patch_3d, ocean_state)
@@ -2100,14 +2060,14 @@ CONTAINS
   !-------------------------------------------------------------------------
 
 !<Optimize:inUse>
-  SUBROUTINE calc_vertical_stability(patch_3d, ocean_state, use_acc)
+  SUBROUTINE calc_vertical_stability(patch_3d, ocean_state, lacc)
     TYPE(t_patch_3d ),TARGET, INTENT(in)             :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET                :: ocean_state
-    LOGICAL, INTENT(in), OPTIONAL                    :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL                    :: lacc
 
     !Local variables
     INTEGER :: start_index, end_index, cell_index,level,end_level, blockNo
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
     TYPE(t_subset_range), POINTER :: cells_in_domain, all_cells
     TYPE(t_patch), POINTER :: patch_2D
@@ -2120,13 +2080,11 @@ CONTAINS
     REAL(wp) :: z_rho_up(nproma,n_zlev), z_rho_down(nproma,n_zlev) !, density(n_zlev)
     REAL(wp) :: pressure(nproma,n_zlev), salinity(nproma,n_zlev)!
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
-    IF (lacc) CALL finish(routine, 'lvector version not ported to GPU')
+#ifdef _OPENACC
+    IF (lzacc) CALL finish('calc_vertical_stability', 'OpenACC version for LVECTOR currently not implemented')
+#endif
 
     IF (eos_type /= 2) THEN
      write(0,*) "Vector version for eos_type =",eos_type," not yet implemented."
@@ -2140,7 +2098,7 @@ CONTAINS
 
     z_grav_rho = grav/OceanReferenceDensity
 
-    !$ACC DATA CREATE(z_rho_up, pressure, z_rho_down, salinity) IF(lacc)
+    !$ACC DATA CREATE(z_rho_up, pressure, z_rho_down, salinity) IF(lzacc)
 
     !ICON_OMP_PARALLEL PRIVATE(salinity, z_rho_up, z_rho_down, pressure)
     salinity = sal_ref
@@ -2184,11 +2142,11 @@ CONTAINS
           end_level = patch_3d%p_patch_1d(1)%dolic_c(cell_index,blockNo)
           IF (end_level < 2 .OR. level > end_level-1) CYCLE
           z_rho_up(cell_index,level) = &
-             calculate_density_mpiom_v(ocean_state%p_prog(nold(1))%tracer(cell_index,level,blockNo,1), &
+             calculate_density_mpiom_onColumn(ocean_state%p_prog(nold(1))%tracer(cell_index,level,blockNo,1), &
              salinity(cell_index,level), pressure(cell_index,level+1) )
 
           z_rho_down(cell_index,level) = &
-             calculate_density_mpiom_v(ocean_state%p_prog(nold(1))%tracer(cell_index,level,blockNo,1), &
+             calculate_density_mpiom_onColumn(ocean_state%p_prog(nold(1))%tracer(cell_index,level,blockNo,1), &
              salinity(cell_index,level), pressure(cell_index,level) )
         ENDDO
       ENDDO
@@ -2196,11 +2154,11 @@ CONTAINS
         end_level = patch_3d%p_patch_1d(1)%dolic_c(cell_index,blockNo)
         IF (end_level < 2 ) CYCLE
         z_rho_up(cell_index,1) = &
-             calculate_density_mpiom_v(ocean_state%p_prog(nold(1))%tracer(cell_index,1,blockNo,1), &
+             calculate_density_mpiom_onColumn(ocean_state%p_prog(nold(1))%tracer(cell_index,1,blockNo,1), &
              salinity(cell_index,1), pressure(cell_index,2) )
 
         z_rho_down(cell_index,end_level) = &
-             calculate_density_mpiom_v(ocean_state%p_prog(nold(1))%tracer(cell_index,end_level,blockNo,1), &
+             calculate_density_mpiom_onColumn(ocean_state%p_prog(nold(1))%tracer(cell_index,end_level,blockNo,1), &
              salinity(cell_index,end_level), pressure(cell_index,end_level) )
       ENDDO
 
@@ -2230,11 +2188,7 @@ CONTAINS
     REAL(wp) :: z_rho_up(n_zlev), z_rho_down(n_zlev) !, density(n_zlev)
     REAL(wp) :: pressure(n_zlev), salinity(n_zlev)
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !-------------------------------------------------------------------------------
     patch_2D        => patch_3d%p_patch_2d(1)
@@ -2244,27 +2198,29 @@ CONTAINS
 
     z_grav_rho = grav/OceanReferenceDensity
 
-    !$ACC DATA CREATE(salinity, z_rho_up, z_rho_down, pressure) IF(lacc)
+    !$ACC DATA CREATE(salinity, z_rho_up, z_rho_down, pressure) IF(lzacc)
 
     !ICON_OMP_PARALLEL PRIVATE(salinity, z_rho_up, z_rho_down, pressure)
-    !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     salinity(1:n_zlev) = sal_ref
     z_rho_up(:)=0.0_wp
     z_rho_down(:)=0.0_wp
     pressure(:) = 0._wp
     !$ACC END KERNELS
+    !$ACC WAIT(1)
 
     !ICON_OMP_DO PRIVATE(start_index, end_index, cell_index, end_level, level, &
     !ICON_OMP z_shear_cell) ICON_OMP_DEFAULT_SCHEDULE
     DO blockNo = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, blockNo, start_index, end_index)
 
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       ocean_state%p_diag%Richardson_Number(:, :, blockNo) = 0.0_wp
       ocean_state%p_diag%zgrad_rho(:,:, blockNo) = 0.0_wp
       !$ACC END KERNELS
 
-      !$ACC PARALLEL LOOP GANG VECTOR PRIVATE(salinity, z_rho_up, z_rho_down, pressure) DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR &
+      !$ACC   PRIVATE(salinity, z_rho_up, z_rho_down, pressure) DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO cell_index = start_index, end_index
 
         end_level = patch_3d%p_patch_1d(1)%dolic_c(cell_index,blockNo)
@@ -2280,8 +2236,8 @@ CONTAINS
 
 #ifdef _OPENACC
         DO level = 1, end_level-1
-          CALL calculate_density_onColumn_gpu(ocean_state%p_prog(nold(1))%tracer(cell_index,level,blockNo,1), &
-                                              salinity(level), pressure(level+1), z_rho_up(level))
+          z_rho_up(level) = calculate_density_onColumn_elem(ocean_state%p_prog(nold(1))%tracer(cell_index,level,blockNo,1), &
+                                              salinity(level), pressure(level+1))
         END DO
 #else
         z_rho_up(1:end_level-1) = &
@@ -2291,8 +2247,8 @@ CONTAINS
 
 #ifdef _OPENACC
         DO level = 2, end_level
-          CALL calculate_density_onColumn_gpu(ocean_state%p_prog(nold(1))%tracer(cell_index,level,blockNo,1), &
-                                              salinity(level), pressure(level), z_rho_down(level))
+          z_rho_down(level) = calculate_density_onColumn_elem(ocean_state%p_prog(nold(1))%tracer(cell_index,level,blockNo,1), &
+                                              salinity(level), pressure(level))
         END DO
 #else
         z_rho_down(2:end_level) = &
@@ -2322,6 +2278,7 @@ CONTAINS
       !$ACC END PARALLEL LOOP
 #endif
     END DO
+    !$ACC WAIT(1)
 !ICON_OMP_END_DO
 !ICON_OMP_END_PARALLEL
 
@@ -2331,13 +2288,106 @@ CONTAINS
   !-------------------------------------------------------------------------
 
 
-
 !<Optimize:inUse>
-  SUBROUTINE calc_vertical_stability_zstar(patch_3d, ocean_state, eta_c, stretch_c)
+#ifdef __LVECTOR__
+  SUBROUTINE calc_vertical_stability_zstar(patch_3d, ocean_state, eta_c, stretch_c, lacc)
     TYPE(t_patch_3d ),TARGET, INTENT(in)             :: patch_3d
     TYPE(t_hydro_ocean_state), TARGET                :: ocean_state
     REAL(wp), INTENT(IN) :: eta_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks) !! sfc ht
     REAL(wp), INTENT(IN) :: stretch_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
+    LOGICAL, INTENT(in), OPTIONAL                    :: lacc
+
+    !Local variables
+    INTEGER :: start_index, end_index, cell_index,level,end_level, blockNo
+
+    TYPE(t_subset_range), POINTER :: cells_in_domain, all_cells
+    TYPE(t_patch), POINTER :: patch_2D
+
+    REAL(wp) :: z_grav_rho
+    REAL(wp) :: z_shear_cell
+    REAL(wp) :: z_rho_up, z_rho_down !, density(n_zlev)
+    REAL(wp) :: pressure, salinity_up, salinity_down
+    LOGICAL :: lzacc
+
+    !-------------------------------------------------------------------------------
+    patch_2D        => patch_3d%p_patch_2d(1)
+    cells_in_domain => patch_2D%cells%in_domain
+    all_cells       => patch_2D%cells%ALL
+    !-------------------------------------------------------------------------------
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+#ifdef _OPENACC
+    IF (lzacc) CALL finish('calc_vertical_stability_zstar', 'OpenACC version for LVECTOR currently not implemented')
+#endif
+
+    z_grav_rho = grav/OceanReferenceDensity
+
+    !ICON_OMP_PARALLEL PRIVATE(salinity_up, salinity_down, z_rho_up, z_rho_down, pressure)
+    !ICON_OMP_DO PRIVATE(start_index, end_index, cell_index, end_level, level, &
+    !ICON_OMP z_shear_cell) ICON_OMP_DEFAULT_SCHEDULE
+    DO blockNo = all_cells%start_block, all_cells%end_block
+      CALL get_index_range(all_cells, blockNo, start_index, end_index)
+
+      ocean_state%p_diag%Richardson_Number(:, :, blockNo) = 0.0_wp
+      ocean_state%p_diag%zgrad_rho(:,:, blockNo) = 0.0_wp
+
+      DO level = 2, MAXVAL(patch_3d%p_patch_1d(1)%dolic_c(start_index:end_index,blockNo))
+        DO cell_index = start_index, end_index
+
+          IF (level <= patch_3d%p_patch_1d(1)%dolic_c(cell_index,blockNo)) THEN
+
+            IF(no_tracer >= 2) THEN
+              salinity_up = ocean_state%p_prog(nold(1))%tracer(cell_index,level-1,blockNo,2)
+              salinity_down = ocean_state%p_prog(nold(1))%tracer(cell_index,level,blockNo,2)
+            ELSE
+              salinity_up = sal_ref
+              salinity_down = sal_ref
+            ENDIF
+
+            !--------------------------------------------------------
+            pressure = (patch_3d%p_patch_1d(1)%depth_CellInterface(cell_index, level, blockNo) &
+              & * stretch_c(cell_index, blockNo) - eta_c(cell_index,blockNo))  &
+              & * OceanReferenceDensity * sitodbar
+
+            z_rho_up = &
+                calculate_density_onColumn_elem(ocean_state%p_prog(nold(1))%tracer(cell_index,level-1,blockNo,1), &
+                salinity_up, pressure)
+
+            z_rho_down = &
+                calculate_density_onColumn_elem(ocean_state%p_prog(nold(1))%tracer(cell_index,level,blockNo,1), &
+                salinity_down, pressure)
+
+            z_shear_cell = dbl_eps + &
+                SUM((ocean_state%p_diag%p_vn(cell_index,level-1,blockNo)%x &
+                - ocean_state%p_diag%p_vn(cell_index,level,blockNo)%x)**2)
+
+            ocean_state%p_diag%zgrad_rho(cell_index,level,blockNo) = (z_rho_down - z_rho_up) *  &
+                patch_3d%p_patch_1d(1)%inv_prism_center_dist_c(cell_index,level,blockNo) / stretch_c(cell_index, blockNo)
+
+            !adjusted vertical derivative (follows MOM, see Griffies-book,
+            ! (p. 332, eq. (15.15)) or MOM-5 manual (sect. 23.7.1.1)
+            !ocean_state%p_diag%zgrad_rho(cell_index,level,blockNo)= &
+            !     MIN(ocean_state%p_diag%zgrad_rho(cell_index,level,blockNo),-dbl_eps)
+
+            ocean_state%p_diag%Richardson_Number(cell_index, level, blockNo) &
+                = MAX(patch_3d%p_patch_1d(1)%prism_center_dist_c(cell_index,level,blockNo) * stretch_c(cell_index,blockNo) * z_grav_rho * &
+                (z_rho_down - z_rho_up) / z_shear_cell, 0.0_wp)
+          END IF
+        END DO ! index
+      END DO ! levels
+    END DO
+!ICON_OMP_END_DO
+!ICON_OMP_END_PARALLEL
+
+  END SUBROUTINE calc_vertical_stability_zstar
+#else
+  SUBROUTINE calc_vertical_stability_zstar(patch_3d, ocean_state, eta_c, stretch_c, lacc)
+    TYPE(t_patch_3d ),TARGET, INTENT(in)             :: patch_3d
+    TYPE(t_hydro_ocean_state), TARGET                :: ocean_state
+    REAL(wp), INTENT(IN) :: eta_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks) !! sfc ht
+    REAL(wp), INTENT(IN) :: stretch_c(nproma, patch_3d%p_patch_2d(1)%alloc_cell_blocks)
+    LOGICAL, INTENT(in), OPTIONAL                    :: lacc
 
     !Local variables
     INTEGER :: start_index, end_index, cell_index,level,end_level, blockNo
@@ -2349,12 +2399,19 @@ CONTAINS
     REAL(wp) :: z_shear_cell
     REAL(wp) :: z_rho_up(n_zlev), z_rho_down(n_zlev) !, density(n_zlev)
     REAL(wp) :: pressure(n_zlev), salinity(n_zlev)
+    LOGICAL :: lzacc
 
     !-------------------------------------------------------------------------------
     patch_2D        => patch_3d%p_patch_2d(1)
     cells_in_domain => patch_2D%cells%in_domain
     all_cells       => patch_2D%cells%ALL
     !-------------------------------------------------------------------------------
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+#ifdef _OPENACC
+    IF (lzacc) CALL finish('calc_vertical_stability_zstar', 'OpenACC version currently not implemented')
+#endif
 
     z_grav_rho = grav/OceanReferenceDensity
 
@@ -2417,10 +2474,9 @@ CONTAINS
 !ICON_OMP_END_DO
 !ICON_OMP_END_PARALLEL
 
-
   END SUBROUTINE calc_vertical_stability_zstar
+#endif
   !-------------------------------------------------------------------------
-
 
 
   !-------------------------------------------------------------------------

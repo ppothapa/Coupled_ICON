@@ -1,10 +1,14 @@
-! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 #include "omp_definitions.inc"
 
 MODULE mo_var_list
@@ -108,6 +112,7 @@ CONTAINS
     IF (ASSOCIATED(this%p)) THEN
       IF (ALLOCATED(this%p%vl)) THEN
         n = SIZE(this%p%vl)
+        !$ACC WAIT(1)
         DO i = 1, n
           IF (ASSOCIATED(this%p%vl(i)%p)) THEN
             IF (this%p%vl(i)%p%info%allocated) THEN
@@ -361,7 +366,7 @@ CONTAINS
       !ICON_OMP PARALLEL
       CALL init_contiguous_dp(new_elem%r_ptr, PRODUCT(d(1:5)), ivals%rval)
       !ICON_OMP END PARALLEL
-      !$ACC UPDATE DEVICE(new_elem%r_ptr) IF(new_elem%info%lopenacc)
+      !$ACC UPDATE DEVICE(new_elem%r_ptr) ASYNC(1) IF(new_elem%info%lopenacc)
     CASE(SINGLE_T)
       IF (referenced) THEN
         new_elem%s_ptr => p5_s
@@ -374,7 +379,7 @@ CONTAINS
       !ICON_OMP PARALLEL
       CALL init_contiguous_sp(new_elem%s_ptr, PRODUCT(d(1:5)), ivals%sval)
       !ICON_OMP END PARALLEL
-      !$ACC UPDATE DEVICE(new_elem%s_ptr) IF(new_elem%info%lopenacc)
+      !$ACC UPDATE DEVICE(new_elem%s_ptr) ASYNC(1) IF(new_elem%info%lopenacc)
     CASE(INT_T)
       IF (referenced) THEN
         new_elem%i_ptr => p5_i
@@ -387,7 +392,7 @@ CONTAINS
       !ICON_OMP PARALLEL
       CALL init_contiguous_i4(new_elem%i_ptr, PRODUCT(d(1:5)), ivals%ival)
       !ICON_OMP END PARALLEL
-      !$ACC UPDATE DEVICE(new_elem%i_ptr) IF(new_elem%info%lopenacc)
+      !$ACC UPDATE DEVICE(new_elem%i_ptr) ASYNC(1) IF(new_elem%info%lopenacc)
     CASE(BOOL_T)
       IF (referenced) THEN
         new_elem%l_ptr => p5_l
@@ -400,7 +405,7 @@ CONTAINS
       !ICON_OMP PARALLEL
       CALL init_contiguous_l(new_elem%l_ptr, PRODUCT(d(1:5)), ivals%lval)
       !ICON_OMP END PARALLEL
-      !$ACC UPDATE DEVICE(new_elem%l_ptr) IF(new_elem%info%lopenacc)
+      !$ACC UPDATE DEVICE(new_elem%l_ptr) ASYNC(1) IF(new_elem%info%lopenacc)
     END SELECT
     CALL register_list_element(list, new_elem)
     IF (.NOT.referenced) list%p%memory_used = list%p%memory_used + &

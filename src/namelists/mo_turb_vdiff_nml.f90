@@ -1,22 +1,19 @@
-!>
-!! Namelist for VDIFF
-!!
-!! These subroutines are called by read_atmo_namelists and do the VDIFF setup.
-!!
-!! @author Roland Wirth, DWD
-!!
-!!
-!! @par Revision History
-!! 2021-07, Roland Wirth (DWD), Initial revision
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Namelist for VDIFF
+!
+! These subroutines are called by read_atmo_namelists and do the VDIFF setup.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_turb_vdiff_nml
   USE mo_kind, ONLY: wp
   USE mo_exception, ONLY: finish
@@ -270,7 +267,7 @@ CONTAINS
     CALL vdiff_config_update(vdiff_config(:))
     CALL vdiff_config_check(vdiff_config(:))
 
-    !$ACC UPDATE DEVICE(vdiff_config)
+    !$ACC UPDATE DEVICE(vdiff_config) ASYNC(1)
 
     !-----------------------------------------------------
     ! 6. Store the namelist for restart

@@ -43,3 +43,9 @@
 [submodule "externals/ppm"]
 	path = externals/ppm
 	url = ../../jahns/ppm.git
+[submodule "externals/hd"]
+	path = externals/hd
+	url = ../../dwd-sw/hd-couple.git
+[submodule "externals/fortran-support"]
+	path = externals/fortran-support
+	url = ../../icon-libraries/libfortran-support.git

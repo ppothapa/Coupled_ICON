@@ -527,7 +527,7 @@ fi
 cat > ${atm_namelist} << EOF
 !
 &coupling_mode_nml
- coupled_mode            = .TRUE.
+ coupled_to_ocean        = .TRUE.
 /
 !
 &parallel_nml
@@ -569,7 +569,6 @@ cat > ${atm_namelist} << EOF
 &dynamics_nml
  iequations              = ${atmo_model_equations}
  lcoriolis               = .TRUE.
- idiv_method             = 1
  divavg_cntrwgt          = 0.50
 /
 &diffusion_nml
@@ -1103,7 +1102,7 @@ fi
 cat > ${oce_namelist} << EOF
 !
 &coupling_mode_nml
-  coupled_mode               = .TRUE.
+ coupled_to_atmo             = .TRUE.
 /
 &parallel_nml
  nproma                      = ${nproma_oce}
@@ -1370,7 +1369,7 @@ cat >> ${oce_namelist} << EOF
   !velocity_TopWindMixing                     = 2.31480E-6
 !
 !  Parameters for TKE-type vertical mixing
-  ! cvmix/tke parameters
+  ! vmix/tke parameters
   c_k        = 0.3
   c_eps      = 0.7
   alpha_tke  = 30.0

@@ -1,23 +1,17 @@
-!>
-!! @brief Subroutine aes_phy_diag contains small diagnostic routines,
-!!  which are executed on a single block of cells.
-!!
-!! @author Hui Wan, MPI-M
-!! @author Marco Giorgetta, MPI-M
-!!
-!! @par Revision History
-!!  Original version from ECHAM6 (revision 2028)
-!!  Modified for ICOHAM by Hui Wan and Marco Giorgetta (2010)
-!!  Modified for ICONAM by Marco Giorgetta (2014)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Subroutine aes_phy_diag contains small diagnostic routines,
+!  which are executed on a single block of cells.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_aes_phy_diag
 
@@ -31,6 +25,7 @@ MODULE mo_aes_phy_diag
   USE mo_physical_constants,  ONLY: cpd, cpv, cvd, cvv, Tf, tmelt
   USE mo_run_config,          ONLY: iqv
   USE mo_aes_cop_config,      ONLY: aes_cop_config
+  USE mo_aes_vdf_config,      ONLY: aes_vdf_config
   USE mo_aes_sfc_indices,     ONLY: nsfc_type, iwtr, iice, ilnd
 
   IMPLICIT NONE
@@ -323,17 +318,19 @@ CONTAINS
     tend  => prm_tend (jg)
 
     !$ACC DATA PRESENT(tend%ta_phy, field%cpair, field%cvair)
-    
-    ! convert the temperature tendency from physics, as computed for constant pressure conditions,
-    ! to constant volume conditions, as needed for the coupling to the dynamics
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
-    DO jk = 1,nlev
-      DO jc=jcs,jce
-        tend% ta_phy(jc,jk,jb) = tend% ta_phy(jc,jk,jb) * field% cpair(jc,jk,jb) / field% cvair(jc,jk,jb)
+
+    IF (.NOT. aes_vdf_config(jg)%use_tmx) THEN
+      ! convert the temperature tendency from physics, as computed for constant pressure conditions,
+      ! to constant volume conditions, as needed for the coupling to the dynamics
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      DO jk = 1,nlev
+        DO jc=jcs,jce
+          tend% ta_phy(jc,jk,jb) = tend% ta_phy(jc,jk,jb) * field% cpair(jc,jk,jb) / field% cvair(jc,jk,jb)
+        END DO
       END DO
-    END DO
-    !$ACC END PARALLEL
+      !$ACC END PARALLEL
+    END IF
 
     !$ACC END DATA
     !$ACC WAIT(1)

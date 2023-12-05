@@ -16,10 +16,7 @@ if [ "$EXIT_STATUS" -ne "0" ]; then
 fi
 
 # set icon_data_poolFolder
-icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}"
-if [[ -d "$icon_data_poolFolder/buildbot_data/nwp" ]]; then
-  icon_data_poolFolder="$icon_data_poolFolder/buildbot_data/nwp"
-fi
+icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/buildbot_data/nwp"
 
 # base directory for ICON sources, binary and auxilary data:
 ICONDIR="${basedir}" # basedir can be set with create_target_header
@@ -31,10 +28,8 @@ EXP="NWP"    # experiment identifier
 DATAROOT="${icon_data_poolFolder}/Checksuite_data"
 
 # directory for grid and extpar files
-GRIDDIR=/hpc/rwork0/routfor/routfox/icon/grids/public/edzw # grid directory
-if [[ ! -d "$GRIDDIR" ]]; then
-  GRIDDIR="$icon_data_poolFolder/grids/public/edzw"
-fi
+GRIDDIR="${icon_data_poolFolder}/grids/public/edzw"
+# GRIDDIR links to /hpc/rwork0/routfor/routfox/icon/grids/public/edzw on RCL
 EXTPDIR="$GRIDDIR" # external parameter directory
 
 # absolute path to input directory
@@ -65,8 +60,8 @@ cp $ICONDIR/data/ECHAM6_CldOptProps.nc rrtm_cldopt.nc
 cp $ICONDIR/data/rrtmg_lw.nc .
 
 
-ln -sf $ICONDIR/data/rttov/const/rt12coeffs_rttov7pred54L/rtcoef_msg_2_seviri.dat .
-ln -sf $ICONDIR/data/rttov/const/rt12coeffs_rttov7pred54L/sccldcoef_msg_2_seviri.dat .
+ln -sf ${icon_data_poolFolder}/externals/rttov/const/rt12coeffs_rttov7pred54L/rtcoef_msg_2_seviri.dat .
+ln -sf ${icon_data_poolFolder}/externals/rttov/const/rt12coeffs_rttov7pred54L/sccldcoef_msg_2_seviri.dat .
 
 
 # ----------------------------------------------------------------------
@@ -334,7 +329,6 @@ cat > ${atmo_namelist} << EOF
 /
 &dynamics_nml
  iequations     = 3
- idiv_method    = 1
  divavg_cntrwgt = 0.50
  lcoriolis      = .true.
 /
@@ -1036,12 +1030,15 @@ cat > map_file.fc << EOF3
   z0                GZ0
 EOF3
 
+#
+# configure START_MODEL_function
+#
+ICON_COMPONENT1_VH_procs=$((num_restart_procs + num_io_procs + num_prefetch_proc + num_io_procs_radar))
+
 # ----------------------------------------------------------------------
 # run the model!
 # ----------------------------------------------------------------------
 
-# 3 I/O processes on each VH 0 to 3.
-VH_DISTRIBUTION="3,3,3,3"
 $START_MODEL
 EXIT_STATUS=$?
 

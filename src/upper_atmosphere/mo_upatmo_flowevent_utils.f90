@@ -1,21 +1,19 @@
-!>
-!! Tools for the upper-atmosphere 
-!! that could not be placed in 'mo_upatmo_utils', 
-!! due to circular dependencies, unfortunately.
-!!
-!! @author Sebastian Borchert (DWD)
-!!
-!! @par Revision History
-!! Initial release by Sebastian Borchert, DWD (2019-10-28)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Tools for the upper-atmosphere
+! that could not be placed in 'mo_upatmo_utils',
+! due to circular dependencies, unfortunately.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_upatmo_flowevent_utils
 
   USE mo_kind,                  ONLY: wp
@@ -129,9 +127,6 @@ CONTAINS !......................................................................
   !!
   !! Called in: src/atm_dyn_iconam/mo_nh_stepping: perform_nh_timeloop
   !!
-  !! @par Revision History
-  !! Initial revision by Sebastian Borchert (DWD) (2019-10-28)
-  !!
   SUBROUTINE upatmoRestartAttributesPrepare( jg,                      & !in
     &                                        upatmoRestartAttributes, & !inout
     &                                        prm_upatmo,              & !inout
@@ -228,9 +223,6 @@ CONTAINS !......................................................................
   !! src/io/restart/mo_restart_patch_description: restartPatchDescription_packer, 
   !! from where it is called.
   !!
-  !! @par Revision History
-  !! Initial revision by Sebastian Borchert (DWD) (2019-10-28)
-  !!
   SUBROUTINE upatmoRestartAttributesPack( jg,                      & !in
     &                                     upatmoRestartAttributes, & !inout
     &                                     packedMessage,           & !inout
@@ -268,9 +260,6 @@ CONTAINS !......................................................................
 
   !>
   !! Called in: src/io/restart/mo_restart_patch_description: restartPatchDescription_update
-  !!
-  !! @par Revision History
-  !! Initial revision by Sebastian Borchert (DWD) (2019-10-28)
   !!
   SUBROUTINE upatmoRestartAttributesAssign( jg,                        & !in
     &                                       upatmoRestartAttributes,   & !inout
@@ -327,9 +316,6 @@ CONTAINS !......................................................................
   !>
   !! Called in: src/io/restart/mo_restart_patch_description: restartPatchDescription_setRestartAttributes
   !! and src/io/restart/mo_sync_restart: syncRestartDescriptor_defineRestartAttributes
-  !!
-  !! @par Revision History
-  !! Initial revision by Sebastian Borchert (DWD) (2019-10-28)
   !!
   SUBROUTINE upatmoRestartAttributesSet( jg,                      & !in
     &                                    upatmoRestartAttributes, & !in
@@ -417,9 +403,6 @@ CONTAINS !......................................................................
 
   !>
   !! Called in: src/atm_dyn_iconam/mo_nh_stepping: allocate_nh_stepping
-  !!
-  !! @par Revision History
-  !! Initial revision by Sebastian Borchert (DWD) (2019-10-28)
   !!
   SUBROUTINE upatmoRestartAttributesGet( jg,           & !in
     &                                    prm_upatmo,   & !inout
@@ -512,9 +495,6 @@ CONTAINS !......................................................................
   !>
   !! Called in: src/atm_dyn_iconam/mo_nh_stepping: perform_nh_timeloop
   !!
-  !! @par Revision History
-  !! Initial revision by Sebastian Borchert (DWD) (2019-10-28)
-  !!
   SUBROUTINE upatmoRestartAttributesDeallocate( upatmoRestartAttributes )
 
     ! In/out variables
@@ -560,9 +540,6 @@ CONTAINS !......................................................................
   !>
   !! Auxiliary subroutine.
   !!
-  !! @par Revision History
-  !! Initial revision by Sebastian Borchert (DWD) (2019-10-28)
-  !!
   SUBROUTINE setRestartAttributes_R1D( restartAttributes, attribute, key )
 
     ! In/out variables
@@ -589,9 +566,6 @@ CONTAINS !......................................................................
 
   !>
   !! Auxiliary subroutine.
-  !!
-  !! @par Revision History
-  !! Initial revision by Sebastian Borchert (DWD) (2019-10-28)
   !!
   SUBROUTINE setRestartAttributes_I1D( restartAttributes, attribute, key )
 
@@ -620,9 +594,6 @@ CONTAINS !......................................................................
 
   !>
   !! Auxiliary subroutine.
-  !!
-  !! @par Revision History
-  !! Initial revision by Sebastian Borchert (DWD) (2019-10-28)
   !!
   SUBROUTINE setRestartAttributes_L1D( restartAttributes, attribute, key )
 
@@ -656,9 +627,6 @@ CONTAINS !......................................................................
   !! For safety reasons we refrain from integrating this subroutine 
   !! into the interface DO_DEALLOCATE. 
   !! The latter is too critical infrastructure.
-  !!
-  !! @par Revision History
-  !! Initial revision by Sebastian Borchert (DWD) (2019-10-28)
   !!
   SUBROUTINE DO_DEALLOCATE_l1D( object )
 

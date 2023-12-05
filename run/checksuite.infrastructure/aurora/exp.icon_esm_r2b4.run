@@ -450,7 +450,7 @@ add_required_file ${basedir}/run/coupling_${EXPNAME}.yaml         ./coupling.yam
 cat > ${atm_namelist} << EOF
 !
 &coupling_mode_nml
-  coupled_mode     = .TRUE.
+ coupled_to_ocean  = .TRUE.
 /
 &parallel_nml
  nproma            = ${nproma_atm}
@@ -492,13 +492,11 @@ cat > ${atm_namelist} << EOF
   vwind_offctr    = 0.2
   damp_height     = 44000.
   rayleigh_coeff  = 1
-  lhdiff_rcf      = .true.
   divdamp_order   = 24 ! 2 ass, 24 fc
   divdamp_type    = 32  ! optional: 2 assimilation cycle, 32 forecast
   divdamp_fac     = 0.004   ! 0.004 for R2B6; recommendation for R3B7: 0.003
   divdamp_trans_start= 12500
   divdamp_trans_end  = 17500
-  l_open_ubc      = .false.
   igradp_method   = 3
   l_zdiffu_t      = .true.
   thslp_zdiffu    = 0.02
@@ -584,7 +582,6 @@ cat > ${atm_namelist} << EOF
  cloud_mig_config(1)%v0snow         = 25.
 /
 &aes_cov_nml
- aes_cov_config(1)%icov       = 3     ! 0/1 cloud cover based on cloud water and ice
  aes_cov_config(1)%cqx        = 1.e-6
 /
 &sea_ice_nml
@@ -982,14 +979,14 @@ if [[ "$output_phy_3d" == "yes" ]]; then
  file_interval    = "${atm_file_interval}"
  include_last     = .FALSE.
  ml_varlist       = 'ps'           , 'pfull'        ,
-                    'tend_ta'      , 'tend_qhus'    ,
-                    'tend_ta_dyn'  , 'tend_qhus_dyn',
-                    'tend_ta_phy'  , 'tend_qhus_phy',
+                    'tend_ta'      , 'tend_hus'     ,
+                    'tend_ta_dyn'  , 'tend_hus_dyn' ,
+                    'tend_ta_phy'  , 'tend_hus_phy' ,
                     'tend_ta_rlw'  , 'tend_ta_rsw'  ,
-                    'tend_ta_vdf'  , 'tend_qhus_vdf',
-                    'tend_ta_mig'  , 'tend_qhus_mig',
-                    'tend_qclw_mig', 'tend_qcli_mig',
-                    'tend_qqr_mig' , 'tend_qqs_mig' , 'tend_qqg_mig'
+                    'tend_ta_vdf'  , 'tend_hus_vdf' ,
+                    'tend_ta_mig'  , 'tend_hus_mig' ,
+                    'tend_clw_mig' , 'tend_cli_mig' ,
+                    'tend_qr_mig'  , 'tend_qs_mig'  , 'tend_qg_mig'
 /
 EOF
 fi
@@ -1243,7 +1240,7 @@ ocean_data_InputFolder="${icon_data_poolFolder}/${ocean_gridID}/ocean"
 cat > ${oce_namelist} << EOF
 !
 &coupling_mode_nml
-  coupled_mode               = .TRUE.
+ coupled_to_atmo             = .TRUE.
 /
 &parallel_nml
  nproma                      = ${nproma_oce}
@@ -1531,7 +1528,7 @@ cat >> ${oce_namelist} << EOF
   lambda_wind                                = 0.03
   tracer_TopWindMixing                       = 2.31480E-6       ! eqals 0.5e-3 m2s-1 (MPIOM)
   velocity_TopWindMixing                     = 2.31480E-6
-  ! cvmix/tke parameters
+  ! vmix/tke parameters
   c_k                                        = 0.3
   c_eps                                      = 0.7
   alpha_tke                                  = 30.0

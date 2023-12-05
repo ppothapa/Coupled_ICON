@@ -1,23 +1,18 @@
-!>
-!! This module contains the subroutine that Adds random perturbation
-!! to the normal wind for the Non-Hyd core
-!!
-!!
-!! @author Pilar Ripodas, DWD
-!!  based in mo_ha_prog_util from Hui Wan for the Hydrostatic core
-!!
-!!
-!! @par Revision History
-!! First version for non-hydrostatic core by Pilar Ripodas, DWD (2010-09-14)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! This module contains the subroutine that Adds random perturbation
+! to the normal wind for the Non-Hyd core
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_random_util
 
   USE mo_kind,                ONLY: wp, i4, i8
@@ -37,11 +32,6 @@ CONTAINS
   !>
   !! Add random perturbation using global index
   !! for seeds, thus guaranteeing reproducability
-  !!
-  !! @par Revision History
-  !!  Created by Leonidas Linardakis, MPIM, 2014
-  !!  Based in  hydro_state_prog_add_random (by Hui)
-  !!    and the Non-Hyd. version by Pilar Ripodas, DWD, 2010-09
   !!
   SUBROUTINE add_random_noise_global( &
     & in_subset,                 & ! in

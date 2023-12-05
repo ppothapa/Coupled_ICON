@@ -1,24 +1,17 @@
-!>
-!! Contains the implementation of the top and bottom ocean boundary conditions
-!!
-!! @author Peter Korn, MPI
-!! @author Stephan Lorenz, MPI
-!!
-!! @par Revision History
-!!  Original version by Peter Korn, MPI-M (2010-04)
-!!  Modified by Stephan Lorenz,     MPI-M (2010-07)
-!!  methods used are mpi parallelized, LL
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Contains the implementation of the top and bottom ocean boundary conditions
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_ocean_check_tools
   !-------------------------------------------------------------------------
   USE mo_kind,               ONLY: wp
@@ -29,14 +22,14 @@ MODULE mo_ocean_check_tools
   USE mo_dynamics_config,    ONLY: nold,nnew
   USE mo_run_config,         ONLY: dtime
   USE mo_exception,          ONLY: finish, message, message_text
-  USE mo_util_dbg_prnt,      ONLY: dbg_print, c_i, c_b
+  USE mo_util_dbg_prnt,      ONLY: dbg_print, c_i, c_b, near_proc_id
   USE mo_grid_config,        ONLY: n_dom
   USE mo_grid_subset,        ONLY: t_subset_range, get_index_range
   USE mo_ocean_types,          ONLY: t_hydro_ocean_state
   USE mo_ext_data_types,     ONLY: t_external_data
   USE mo_run_config,         ONLY: dtime, nsteps
   USE mo_math_constants,     ONLY: pi
-  USE mo_mpi,                ONLY: get_my_global_mpi_id
+  USE mo_mpi,                ONLY: get_my_global_mpi_id, p_pe
   IMPLICIT NONE
   
   PRIVATE
@@ -50,9 +43,6 @@ CONTAINS
   !>
   !! Initialization of indices for some output on ocean variables
   !!
-  !! @par Revision History
-  !! Initial release by Stephan Lorenz, MPI-M (2010-11)
-  !! Modified        by Stephan Lorenz, MPI-M (2012-06)
   !!
 !<Optimize:inUse>
   SUBROUTINE init_oce_index (patch_2d, patch_3d, pstate_oce, p_ext_data)
@@ -171,6 +161,8 @@ CONTAINS
     ! Check parameters
     !------------------------------------------------------------------
 
+    IF (p_pe /= near_proc_id) RETURN
+
     ! slm and coordinates of this point:
     islmval = patch_3d%lsm_c(c_i,c_k,c_b)
     idolic  = patch_3d%p_patch_1d(1)%dolic_c  (c_i,    c_b)
@@ -263,7 +255,7 @@ CONTAINS
 
   END SUBROUTINE init_oce_index
   !-------------------------------------------------------------------------
-    
+
 
   !-------------------------------------------------------------------------
   !>

@@ -1,16 +1,16 @@
-!>
-!! Auxiliary module: Print a list of all output variables.
-!!
-!! Initial implementation  06/2018 : F. Prill (DWD)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Auxiliary module: Print a list of all output variables.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_name_list_output_printvars
 
   USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_char
@@ -236,7 +236,7 @@ CONTAINS
 #endif
     ELSE IF (my_process_is_waves()) THEN
 #ifndef __NO_ICON_WAVES__
-      CALL setup_zaxes_waves(tmp_verticalAxisList)
+      CALL setup_zaxes_waves(tmp_verticalAxisList, tmp_level_selection, print_patch_id)
 #endif
     ENDIF
     it => tmp_verticalAxisList

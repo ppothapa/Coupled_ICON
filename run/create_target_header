@@ -50,16 +50,16 @@ start_header()
         start=${start:="$use_mpi_startrun"}
     fi
 
-    if [[ ! -e $output_script ]]
+    if [[ ! -e "$output_script" ]]
     then
-        echo "[ERROR] $output_script does not exist!"
+        echo "[ERROR] "$output_script" does not exist!"
         exit 1
     fi
 
     set_default use_ecrad_isolver 0 # Default: McICA (not for OpenACC)
     set_default use_proc0_shift 0 # VH offloading mode: off
 
-    cat >> $output_script << EOF
+    cat >> "$output_script" << EOF
 #=============================================================================
 set +x
 $(test x"${use_ulimit:-yes}" != xyes || printf 'ulimit -s unlimited')
@@ -109,10 +109,10 @@ radiation_ecrad_isolver=${use_ecrad_isolver}
 
 # load local setting, if existing
 # -------------------------------
-if [ -a ../setting ]
+if [ -a ${use_builddir}/setting ]
 then
   echo "Load Setting"
-  . ../setting
+  . ${use_builddir}/setting
 fi
 
 # environment variables for the experiment and the target system
@@ -124,26 +124,25 @@ EOF
     i=1
     while [ $i -le ${no_of_free_variables} ]
     do
-        echo "export ${free_variable[$i]}=\"${free_variable_value[$i]}\"" >> $output_script
+        echo "export ${free_variable[$i]}=\"${free_variable_value[$i]}\"" >> "$output_script"
         i=$((i+1));
     done
 
-    if [[ "x$use_load_profile" != "x" ]]
+    if [[ -n "$use_load_profile" ]]
     then
         profile_filename=`echo $use_load_profile | cut -d ' ' -f2`
-        cat >> $output_script << EOF
+        cat >> "$output_script" << EOF
 # load profile
 # ------------
-if [[ -a  $profile_filename ]]
+if [[ -a "$profile_filename" ]]
 then
 	$use_load_profile
 fi
 EOF
     fi
 
-    if [[ "x$use_load_profile" != "x" && "x$use_load_modules" != "x" ]]; then
-        profile_filename=`echo $use_load_profile | cut -d ' ' -f2`
-        cat >> $output_script << EOF
+    if [[ -n "$use_load_profile" && -n "$use_load_modules" ]]; then
+        cat >> "$output_script" << EOF
 #=============================================================================
 # load modules
 loadmodule="$use_load_modules"
@@ -154,7 +153,7 @@ EOF
     fi
 
 
-    cat >> $output_script << EOF
+    cat >> "$output_script" << EOF
 
 #=============================================================================
 # directories with absolute paths
@@ -364,7 +363,7 @@ set_run_target_bull_milan()
     s_cpu_time="${use_cpu_time:-00:30:00}"
     # ------------------------------------
 
-    cat >> $output_script << EOF
+    cat >> "$output_script" << EOF
 #=============================================================================
 #SBATCH --account=$use_account_no
 $(if [[ "x$BB_SYSTEM" != 'x' ]]
@@ -379,13 +378,13 @@ $(if [[ "x$BB_SYSTEM" != 'x' ]]
 #SBATCH --output=$output_folder/$job_log_name.o
 EOF
     if [[ -n "$use_memory" ]]; then
-        echo "#SBATCH --mem=${use_memory}" >> $output_script
+        echo "#SBATCH --mem=${use_memory}" >> "$output_script"
     fi
     if [[ $use_tasks -lt 128 ]]; then
       # here twice the given number of tasks is used to requesting resources, because --hint=nomultithread is used
-      echo "#SBATCH --ntasks=$((2 * $use_tasks))" >> $output_script
+      echo "#SBATCH --ntasks=$((2 * $use_tasks))" >> "$output_script"
     fi
-    cat >> $output_script << EOF
+    cat >> "$output_script" << EOF
 #SBATCH --time=$s_cpu_time
 EOF
 
@@ -394,7 +393,7 @@ EOF
 
     start_header
 
-    cat >> $output_script <<EOF
+    cat >> "$output_script" <<EOF
 ulimit -c 0
 $(case $use_flags_group in
     (debug)
@@ -476,7 +475,7 @@ set_run_target_bullx_gpu()
     fi
     # ------------------------------------
 
-    cat >> $output_script << EOF
+    cat >> "$output_script" << EOF
 #=============================================================================
 
 # levante gpu batch job parameters
@@ -515,7 +514,7 @@ EOF
 
     start_header
 
-    cat >>$output_script << EOF
+    cat >>"$output_script" << EOF
 ulimit -c 0
 $(case $use_flags_group in
     (debug)
@@ -532,6 +531,32 @@ export UCX_TLS=cma,rc,mm,cuda_ipc,cuda_copy,gdr_copy
 export UCX_MEMTYPE_CACHE=n
 
 EOF
+}
+
+#=============================================================================
+set_run_target_levante_aurora()
+{
+    # Aurora nodes at DKRZ
+
+    icon_data_rootFolder=${icon_data_rootFolder:=/pool/data/ICON}
+
+    if [[ "$use_compiler" == "nec" ]]; then
+      set_default use_nproma 752
+      set_default use_nproma_sub 752
+    else
+      set_default use_nproma 48
+      set_default use_nproma_sub 48
+    fi
+    set_default use_nblocks_c 0
+    set_default use_nodes 1
+
+    if [[ "$use_mpi" == "yes" ]]
+    then
+	set_default use_mpi_procs_pernode 4
+    fi
+
+    start_header
+
 }
 
 #=============================================================================
@@ -652,10 +677,9 @@ set_run_target_rcl()
     add_free_var NMPI_SEPSELECT "3"
     add_free_var GMON_OUT_PREFIX "scal_prof"
     add_free_var VE_FPE_ENABLE "DIV,FOF,INV"
-
     add_free_var GFORTRAN_UNBUFFERED_PRECONNECTED "y"
-
     add_free_var NMPI_EXPORT "GFORTRAN_UNBUFFERED_PRECONNECTED"
+    add_free_var NMPI_SWAP_ON_HOLD "OFF"
 
     # try to guess the location of the Vector Host binary
     #
@@ -699,9 +723,9 @@ set_run_target_rcl()
         exit 1
     fi
 
-    cat >> $output_script << EOF
+    cat >> "$output_script" << EOF
 #-----------------------------------------------------------------------------
-#PBS -q sx_norm
+#PBS -q ${use_queue:-sx_norm}
 #PBS -v NE=${use_nodes},CPE=${use_mpi_procs_pernode}
 #PBS -v NMPI_MALLOC_HEAP_EXPANSION_SIZE=512
 #PBS -v NMPI_MALLOC_MMAP_THRESHOLD=512
@@ -712,9 +736,9 @@ set_run_target_rcl()
 #PBS --venum-lhost=${use_venum_lhost}     # Number of VE per logical host
 EOF
     if [[ -n "$use_memory" ]]; then
-        echo "#PBS -l memsz_job=${use_memory}" >> $output_script
+        echo "#PBS -l memsz_job=${use_memory}" >> "$output_script"
     fi
-    cat >> $output_script << EOF
+    cat >> "$output_script" << EOF
 #PBS -l cpunum_job=${use_cpunum_job}
 #PBS -l coresz_prc=0
 #PBS --use-hca=2             # Number of HCA per logical host
@@ -728,15 +752,14 @@ EOF
 
     start_header
 
-    cat >> $output_script << EOF
+    cat >> "$output_script" << EOF
 set -x
 
 export VE_OMP_STACKSIZE=\$OMP_STACKSIZE
 
 # Run information
-let PPN=\${CPE}*\${NE}/\${OMP_NUM_THREADS}         # no. of MPI procs. per NQS job
-let NE1=\${NE}-1
-echo "PPN etc. \$NN \$NE \$CPE \$PPN"
+((PPN=CPE * NE / OMP_NUM_THREADS))         # no. of MPI procs. per NQS job
+echo "NE CPE PPN: \$NE \$CPE \$PPN"
 
 ID=\$(echo \$PBS_JOBID | cut -d: -f2 | cut -d. -f1)
 
@@ -745,6 +768,8 @@ ID=\$(echo \$PBS_JOBID | cut -d: -f2 | cut -d. -f1)
 if [[ -n "\${PBS_O_WORKDIR}" ]] ; then
   cd "\${PBS_O_WORKDIR}"
 fi
+
+venum_lhost=$use_venum_lhost # Number of VE per logical host
 
 # set path variables used in add_run_routines (not used on RCL, thus set to null)
 current_status_file=/dev/null #\$PWD/${job_name}.status
@@ -757,71 +782,8 @@ final_status_file=/dev/null #\$PWD/${job_name}.final_status
 # how to start the icon model on the NEC
 # --------------------------------------
 MODEL_SCAL="${MODEL_SCAL}"
-
-START_MODEL_function()
-{ # START_MODEL is a function. This has the advantage that the variables within
-  # are just replaced at execution time, i.e. they can be modified by the code
-  # before.
-  #
-  # Environment variables
-  # ---------------------
-  # PPN: total number of MPI procs. (on vector engines) per job
-  # NE1: one less than number of vector engines
-  # num_restart_procs: This number of processes will additionally be allocated on a VH
-  # num_io_procs: This number of processes will additionally be allocated on a VH
-  # num_prefetch_proc: This number of processes will additionally be allocated on a VH
-  # num_io_procs_radar: This number of processes will additionally be allocated on a VH
-  # VH_DISTRIBUTION: Specify how the VH processes are distributed along the VH Nodes.
-  #    E.g.: VH_DISTRIBUTION="1,:" # run one VH process on node 0, rest on node 1
-  #          VH_DISTRIBUTION="0,0,:" # run all VH processes on node 2
-  #          Note: Wildcard ":" is only allowed at last position.
-  #          VH_DISTRIBUTION="2,3" # run two VH process on node 0, three on node 1 or
-  #                                  raise error, if 5 != num_restart_procs + num_io_procs +
-  #                                  num_prefetch_proc + num_io_procs_radar.
-  # mpi_oce_procs: This number of processes will be allocated on the VEs with high MPI ranks
-  # VH_OFFLOADING (default: yes): can be set to 'no'. Then no VH are used.
-  #
-    if [ \${VH_OFFLOADING:-yes} = yes ]; then
-        start_options=""
-        start_options="\${start_options}  -v  -vh     -node 0         -np 1       -env OMP_NUM_THREADS 1 \${MODEL_SCAL}"
-        num_atm_procs=\$((\${PPN}-\${mpi_oce_procs:-0}))
-        echo "Append \${num_atm_procs} VE procs (atmosphere) on hosts 0 to \${NE1}"
-        start_options="\${start_options} : -x -venode -node 0-\${NE1} -np \${num_atm_procs} -env OMP_NUM_THREADS \${OMP_NUM_THREADS:-1} \${MODEL}"
-        #calculate number of IO procs running on vector hosts
-        NH=\$((\${num_restart_procs:-0}+\${num_io_procs:-0}+\${num_prefetch_proc:-0}+\${num_io_procs_radar:-0}))
-        # if VH_DISTRIBUTION is not set, use NH processes on node 0
-        VH_DISTRIBUTION=\${VH_DISTRIBUTION:-\$NH}
-        nh_sum=0
-        nh_node=0
-        for nh_per_node in \${VH_DISTRIBUTION//,/ }; do
-            if [ "\${nh_per_node}" = ":" ]; then
-                # replace wildcard with remaining number of nodes
-                nh_per_node=\$((\${NH}-\${nh_sum}))
-            fi
-            if [ "\${nh_per_node}" -gt 0 ]; then
-                echo "Append \${nh_per_node} VH procs on host \${nh_node}"
-                start_options="\${start_options} : -vh -node \${nh_node} -np \${nh_per_node} -env OMP_NUM_THREADS 1 \${MODEL_SCAL}"
-                nh_sum=\$((\${nh_sum}+\${nh_per_node}))
-            fi
-            nh_node=\$((\${nh_node}+1))
-        done
-        if [ "\${nh_sum}" -ne "\$NH" ]; then
-            echo "Error while parsing VH_DISTRIBUTION."
-            echo "Number of VH processes \${NH} does not match with VH_DISTRIBUTION=\\"\${VH_DISTRIBUTION}\\"."
-            exit 2
-        fi
-        if [ \${mpi_oce_procs:-0} -gt 0 ]; then
-            echo "Append \${mpi_oce_procs} VE procs (ocean) on hosts 0 to \${NE1}"
-            start_options="\${start_options} : -x -venode -node 0-\${NE1} -np \${mpi_oce_procs} -env OMP_NUM_THREADS \${OMP_NUM_THREADS:-1} \${MODEL}"
-        fi
-    else
-        start_options="-v -x -venode -node 0-\${NE1} -np \${PPN} -env OMP_NUM_THREADS \${OMP_NUM_THREADS:-1} \${MODEL}"
-    fi
-    \$START \$start_options
-    return \$?
-}
-START_MODEL=START_MODEL_function
 EOF
+cat "${use_builddir}/run/add_START_MODEL_function" >> "$output_script"
 
 }
 
@@ -832,15 +794,15 @@ set_run_target_gpnl()
     icon_data_rootFolder=${icon_data_rootFolder:="/hpc/rwork0/routfor/test/icon"}
 
     # Use same nproma for GPU and CPU for development purposes
-    set_default use_nproma 40000
-    set_default use_nproma_sub 8000
+    set_default use_nproma 4000
+    set_default use_nproma_sub 800
     set_default use_nblocks_c 0
     set_default use_ecrad_isolver 2 # McICA for OpenACC
     use_nodes=1
 
     if [[ "$use_mpi" == "yes" ]]
     then
-        set_default use_mpi_procs_pernode 4
+        set_default use_mpi_procs_pernode 8
         set_default use_num_io_procs 3
     fi
 
@@ -849,16 +811,16 @@ set_run_target_gpnl()
 
 
     start_header
-    cat >>$output_script <<EOF
+    cat >> "$output_script" <<EOF
 #=============================================================================
 set +x
 ulimit -Sv unlimited
 
-export ECCODES_DEFINITION_PATH="/hpc/sw/eccodes/definitions/release/2.23.0-5/definitions.edzw:/hpc/sw/eccodes/definitions/release/2.23.0-5/definitions"
+export ECCODES_DEFINITION_PATH="/hpc/sw/eccodes/definitions/release/2.28.0-2/definitions.edzw:/hpc/sw/eccodes/definitions/release/2.28.0-2/definitions"
 EOF
     if [[ "$use_gpu" == "yes" ]]
     then
-        echo "export ENABLE_NVIDIA_SMI_LOGGER=yes" >> $output_script
+        echo "export ENABLE_NVIDIA_SMI_LOGGER=yes" >> "$output_script"
     fi
 }
 #=============================================================================
@@ -901,7 +863,7 @@ set_run_target_hpc()
     cdo_diff="diff"
 
     
-    cat >> $output_script << EOF
+    cat >> "$output_script" << EOF
 #### BATCH_SYSTEM=PBS ####
 #-----------------------------------------------------------------------------
 #PBS -q lang
@@ -1011,7 +973,7 @@ set_run_target_tsa_cpu()
     use_nodes=${use_nodes}
     use_mpi_procs_pernode=${use_mpi_procs_pernode}
 
-    cat >> $output_script << EOF
+    cat >> "$output_script" << EOF
 #=============================================================================
 
 # tsa cpu batch job parameters
@@ -1025,7 +987,7 @@ set_run_target_tsa_cpu()
 EOF
 
   start_header
-  cat >>$output_script <<EOF
+  cat >> "$output_script" <<EOF
 export UCX_MEMTYPE_CACHE=n
 export UCX_TLS=tcp,sm
 EOF
@@ -1114,7 +1076,7 @@ set_run_target_tsa_gpu()
     use_nodes=${use_nodes}
     use_mpi_procs_pernode=${use_mpi_procs_pernode}
 
-    cat >> $output_script << EOF
+    cat >> "$output_script" << EOF
 #=============================================================================
 
 # tsa gpu batch job parameters
@@ -1130,7 +1092,7 @@ set_run_target_tsa_gpu()
 EOF
 
     start_header
-    cat >>$output_script <<EOF
+    cat >> "$output_script" <<EOF
 export CRAY_CUDA_MPS=1
 ## WORKAROUNDS FOR TSA
 export UCX_MEMTYPE_CACHE=n
@@ -1233,7 +1195,7 @@ set_run_target_daint_cpu()
     use_nodes=${use_nodes}
     use_mpi_procs_pernode=${use_mpi_procs_pernode}
 
-    cat >> $output_script << EOF
+    cat >> "$output_script" << EOF
 #=============================================================================
 
 # daint cpu batch job parameters
@@ -1254,8 +1216,9 @@ EOF
 
   start_header
 
-  cat >> $output_script << EOF
+  cat >> "$output_script" << EOF
 export ECCODES_DEFINITION_PATH=${icon_data_rootFolder}/mch/eccodes_definitions
+export NVCOMPILER_TERM=trace
 EOF
 }
 
@@ -1340,7 +1303,7 @@ set_run_target_daint_gpu()
     use_nodes=${use_nodes}
     use_mpi_procs_pernode=${use_mpi_procs_pernode}
 
-    cat >> $output_script << EOF
+    cat >> "$output_script" << EOF
 #=============================================================================
 
 # daint gpu batch job parameters
@@ -1360,7 +1323,7 @@ $(if [[ "x$BB_SYSTEM" != 'x' ]]
 EOF
 
     start_header
-    cat >>$output_script <<EOF
+    cat >> "$output_script" <<EOF
 export CRAY_CUDA_MPS=1
 export MPICH_RDMA_ENABLED_CUDA=1
 #export PGI_ACC_SYNCHRONOUS=1
@@ -1372,7 +1335,7 @@ EOF
 #=============================================================================
 set_run_target_balfrin_gpu()
 {
-    rootFolder_prefix=/scratch/e1000/meteoswiss/scratch/jenkins/icon
+    rootFolder_prefix=/scratch/mch/jenkins/icon
     icon_data_rootFolder=${icon_data_rootFolder:=${rootFolder_prefix}/pool/data/ICON}
 
     set_default use_nodes 1
@@ -1406,6 +1369,10 @@ set_run_target_balfrin_gpu()
         job_log_name="LOG.$job_name.%j"
     fi
 
+    # add compute-sanitizer
+    # can be enabled with exp.abc.run --compute-sanitizer
+    use_mpi_startrun="${use_mpi_startrun} \${1-}"
+
     # ------------------------------------
     s_cpu_time=""
     if [[ "x$use_cpu_time" != "x" ]]
@@ -1425,7 +1392,7 @@ set_run_target_balfrin_gpu()
     use_nodes=${use_nodes}
     use_mpi_procs_pernode=${use_mpi_procs_pernode}
 
-    cat >> $output_script << EOF
+    cat >> "$output_script" << EOF
 #=============================================================================
 
 # balfrin gpu batch job parameters
@@ -1440,18 +1407,19 @@ set_run_target_balfrin_gpu()
 EOF
 
     start_header
-    cat >>$output_script <<EOF
+    cat >> "$output_script" <<EOF
 export CRAY_CUDA_MPS=1
 export MPICH_GPU_SUPPORT_ENABLED=1
 export MPICH_RDMA_ENABLED_CUDA=1
 export NVCOMPILER_ACC_DEFER_UPLOADS=1
+export NVCOMPILER_TERM=trace
 EOF
 }
 
 #=============================================================================
 set_run_target_balfrin_cpu()
 {
-    rootFolder_prefix=/scratch/e1000/meteoswiss/scratch/jenkins/icon
+    rootFolder_prefix=/scratch/mch/jenkins/icon
     icon_data_rootFolder=${icon_data_rootFolder:=${rootFolder_prefix}/pool/data/ICON}
 
     set_default use_nproma 16
@@ -1505,7 +1473,7 @@ set_run_target_balfrin_cpu()
     use_nodes=${use_nodes}
     use_mpi_procs_pernode=${use_mpi_procs_pernode}
 
-    cat >> $output_script << EOF
+    cat >> "$output_script" << EOF
 #=============================================================================
 
 # balfrin cpu batch job parameters
@@ -1521,7 +1489,7 @@ EOF
 
   start_header
 
-  cat >> $output_script << EOF
+  cat >> "$output_script" << EOF
 export NVCOMPILER_TERM=trace
 EOF
 }
@@ -1593,7 +1561,7 @@ set_run_target_dom_gpu()
 
     # ------------------------------------
 
-    cat >> $output_script << EOF
+    cat >> "$output_script" << EOF
 #=============================================================================
 
 # dom gpu batch job parameters
@@ -1688,7 +1656,7 @@ set_run_target_tave_knl()
     use_nodes=${use_nodes}
     use_mpi_procs_pernode=${use_mpi_procs_pernode}
 
-    cat >> $output_script << EOF
+    cat >> "$output_script" << EOF
 #=============================================================================
 # tave batch job parameters
 #--------------------------
@@ -1732,7 +1700,7 @@ set_run_target_euler()
   # Use ntasks (#cores) for no of nodes on Euler!
   SBATCH_nodes="SBATCH --ntasks=${use_nodes}"
 
-  cat >> $output_script << EOF
+  cat >> "$output_script" << EOF
 # ===========================
 #### BATCH_SYSTEM=SBATCH ####
 #-----------------------------------------------------------------------------
@@ -1783,7 +1751,7 @@ set_run_target_pacluster()
 	resources=""
     fi
 
-    cat >> $output_script << EOF
+    cat >> "$output_script" << EOF
 #############################################################################
 # DLR Linux Cluster batch job parameters
 # EMBEDDED FLAGS FOR PBS Pro
@@ -1819,73 +1787,122 @@ EOF
 }
 
 #=============================================================================
-set_run_target_fh2()
-{
-    icon_data_rootFolder=${icon_data_rootFolder:=/pfs/work6/workspace/scratch/ln1297-boundary_mistral2-0/pool/data/ICON}
-
-    set_default use_nproma 8
-    set_default use_nproma_sub 8
-    set_default use_nblocks_c 0
-    use_nodes=1
-  
-    if [[ $use_mpi == "yes" ]]
-    then
-	set_default use_mpi_procs_pernode 2
-    fi
-    if [[ $use_openmp == "yes" ]]
-    then
-	set_default use_openmp_threads 2
-    else
-	set_default use_openmp_threads 1
-    fi
-    output_script_name=$(basename "$output_script")
-    #| sed -r "s/(.+)\/.+/\1/"
-    stripped_output="LOG.$output_script_name.err"
-    cat >> $output_script << EOF
-
-#SBATCH --nodes=4
-#SBATCH --time=1:00:00
-#SBATCH --ntasks-per-node=20
-#SBATCH --partition=develop
-
-EOF
-
-    start_header
-}
-
-#=============================================================================
 set_run_target_hk()
 {
-    icon_data_rootFolder=${icon_data_rootFolder:=/pfs/work6/workspace/scratch/ln1297-boundary_mistral2-0/pool/data/ICON}
+    icon_data_rootFolder=${icon_data_rootFolder:=/hkfs/home/dataset/datasets/icon/pool/data/ICON}
 
     set_default use_nproma 8
     set_default use_nproma_sub 8
     set_default use_nblocks_c 0
-    use_nodes=1
-  
-    if [[ $use_mpi == "yes" ]]
-    then
-	set_default use_mpi_procs_pernode 2
+    set_default use_nodes 1
+    set_default use_num_io_procs 1
+    set_default use_cpu_time 01:00:00
+
+    if [[ $use_mpi == "yes" ]]; then
+        set_default use_mpi_procs_pernode 76
     fi
-    if [[ $use_openmp == "yes" ]]
-    then
-	set_default use_openmp_threads 2
+    if [[ $use_openmp == "yes" ]]; then
+        set_default use_openmp_threads 2
     else
-	set_default use_openmp_threads 1
+        set_default use_openmp_threads 1
     fi
-    output_script_name=$(basename "$output_script")
-    #| sed -r "s/(.+)\/.+/\1/"
-    stripped_output="LOG.$output_script_name.err"
-    cat >> $output_script << EOF
 
-#SBATCH --nodes=4
-#SBATCH --time=1:00:00
-#SBATCH --ntasks-per-node=76
-#SBATCH --partition=develop
+    if [[ -n "$BB_SYSTEM" ]]; then
+    # this buildbot, do not use job id
+        job_log_name="LOG.$job_name"
+    else
+        job_log_name="LOG.$job_name.%j"
+    fi
 
+    if [[ -n "$BB_SYSTEM" ]]; then
+        # this is buldbot, do not run more than 45 minutes
+        limit="00:45:00"
+        limit_time_bb # sets use_cpu_time
+    fi
+
+
+    cdo='cdo'
+    cdo_diff='diffn'
+
+    cat >> "$output_script" << EOF
+#SBATCH --output=$output_folder/$job_log_name.o
+#SBATCH --error=$output_folder/$job_log_name.o
+#SBATCH --job-name=$job_name
+#SBATCH --nodes=${use_nodes}
+#SBATCH --partition=dev_cpuonly
+#SBATCH --account=hk-project-glori-init
+#SBATCH --ntasks-per-node=$use_mpi_procs_pernode
+#SBATCH --time=$use_cpu_time
 EOF
 
     start_header
+
+    cat >> "$output_script" << EOF
+export PATH=/hkfs/home/dataset/datasets/icon/sw/cdo-2.3.0/bin:\${PATH}
+export ECCODES_DEFINITION_PATH=/hkfs/home/dataset/datasets/icon/sw/definitions/2.31.0/definitions.edzw-2.31.0-2:/hkfs/home/dataset/datasets/icon/sw/definitions/2.31.0/definitions
+export NVCOMPILER_TERM=trace
+export OMPI_MCA_btl=self,tcp
+EOF
+}
+
+set_run_target_hk_gpu()
+{
+    icon_data_rootFolder=${icon_data_rootFolder:=/hkfs/home/dataset/datasets/icon/pool/data/ICON}
+
+    set_default use_nproma 8192
+    set_default use_nproma_sub 512
+    set_default use_nblocks_c 0
+    set_default use_nodes 1
+    set_default use_num_io_procs 1
+    set_default use_cpu_time 01:00:00
+    set_default use_ecrad_isolver 2 # McICA for OpenACC
+
+    if [[ $use_mpi == "yes" ]]; then
+        set_default use_mpi_procs_pernode 4
+    fi
+    if [[ $use_openmp == "yes" ]]; then
+        set_default use_openmp_threads 2
+    else
+        set_default use_openmp_threads 1
+    fi
+
+    if [[ -n "$BB_SYSTEM" ]]; then
+    # this buildbot, do not use job id
+        job_log_name="LOG.$job_name"
+    else
+        job_log_name="LOG.$job_name.%j"
+    fi
+
+    if [[ -n "$BB_SYSTEM" ]]; then
+        # this is buldbot, do not run more than 45 minutes
+        limit="00:45:00"
+        limit_time_bb # sets use_cpu_time
+    fi
+
+    cdo='cdo'
+    cdo_diff='diffn'
+
+    cat >> "$output_script" << EOF
+#SBATCH --nodes=${use_nodes}
+#SBATCH --output=$output_folder/$job_log_name.o
+#SBATCH --error=$output_folder/$job_log_name.o
+#SBATCH --job-name=$job_name
+#SBATCH --partition=dev_accelerated
+#SBATCH --account=hk-project-glori-init
+#SBATCH --ntasks-per-node=$use_mpi_procs_pernode
+#SBATCH --gres=gpu:4
+#SBATCH --time=$use_cpu_time
+EOF
+
+    start_header
+
+    cat >> "$output_script" << EOF
+export PATH=/hkfs/home/dataset/datasets/icon/sw/cdo-2.3.0/bin:\${PATH}
+export ECCODES_DEFINITION_PATH=/hkfs/home/dataset/datasets/icon/sw/definitions/2.31.0/definitions.edzw-2.31.0-2:/hkfs/home/dataset/datasets/icon/sw/definitions/2.31.0/definitions
+export NVCOMPILER_TERM=trace
+
+export NVCOMPILER_ACC_SYNCHRONOUS=1 # 2023-11-06: there is some bug in the code or compiler setup (e.g. dwd IAU test)
+EOF
 }
 
 #=============================================================================
@@ -1941,27 +1958,30 @@ create_target_header()
                 ;;
             esac
             ;;
-        *mch_bench_r19b08_icon1.run)
+        *mch_icon-ch1.run)
             case $use_target in
                 balfrin_gpu*)
                     use_nodes=2
                     use_mpi_procs_pernode=5
+                    use_nproma_sub=6054
                 ;;
             esac
             ;;
-        *mch_bench_r19b08_kenda1.run)
+        *mch_kenda-ch1.run)
             case $use_target in
                 balfrin_gpu*)
                     use_nodes=1
                     use_mpi_procs_pernode=6
+                    use_nproma_sub=1128
                 ;;
             esac
             ;;
-        *mch_bench_r19b07_icon2.run)
+        *mch_icon-ch2.run)
             case $use_target in
                 balfrin_gpu*)
                     use_nodes=1
                     use_mpi_procs_pernode=6
+                    use_nproma_sub=17757
                 ;;
             esac
             ;;
@@ -1983,7 +2003,7 @@ create_target_header()
                     ;;
             esac
             ;;
-	*exclaim_ape*)
+        *exclaim_ape*)
             use_nodes=1
             case $use_target in
                 daint_cpu*)
@@ -1992,11 +2012,7 @@ create_target_header()
                 ;;
             esac
             ;;
-        *dwd_run_ICON_09_R2B4N5_EPS*)
-            # This experiment needs at least 3 procs to pass probtest 
-            # Therefore we use use_prefetch_procs to force 2 procs on 2 nodes on GPU
-            use_prefetch_procs=1
-            ;;
+
         *run_ICON_01_R3B9_lam*)
             case $use_target in
                 daint*)
@@ -2250,6 +2266,18 @@ create_target_header()
                     ;;
             esac
             ;;
+        *run_ICON_23_R2B4_atmo_waves_coupled*)
+            case $use_target in
+                daint*)
+                    use_nodes=10
+                    ;;
+                rcl)
+                    use_nodes=4
+                    use_venum_lhost=2
+                    use_cpunum_job=3
+                    ;;
+            esac
+	    ;;
         *atm_nwp_jsbach_test*)
             use_memory="18gb"
             ;;
@@ -2259,7 +2287,7 @@ create_target_header()
     set_default use_shell "/bin/bash"
     set_default use_memory_model "default"
 
-    cat > $output_script << EOF
+    cat > "$output_script" << EOF
 #! $use_shell
 EOF
     set_run_target_${use_target}

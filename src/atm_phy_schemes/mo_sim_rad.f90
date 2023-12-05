@@ -1,11 +1,23 @@
-!>
-!!  Description:
-!!  This module computes simplified radiation for stratocumulus case - DYCOMS-II
-!!  see Stevens et al. 2005
-!!
-!! Routines (module procedure)
-!!
-!!     - sim_rad
+!
+!  Description:
+!  This module computes simplified radiation for stratocumulus case - DYCOMS-II
+!  see Stevens et al. 2005
+!
+! Routines (module procedure)
+!
+!     - sim_rad!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_sim_rad
 
 USE mo_kind,               ONLY: ireals=>wp     , &

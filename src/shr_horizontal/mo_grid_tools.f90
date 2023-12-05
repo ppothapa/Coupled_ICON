@@ -1,18 +1,16 @@
-!>
-!! Basic tools for the patch
-!!
-!! @par Revision History
-!! Initial version  by: Leonidas Linardakis,  MPI-M, Hamburg, June 2013
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Basic tools for the patch
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -340,11 +338,6 @@ CONTAINS
   !!
   !! Note: cartesian_dual_middle is used only from the ocean,
   !!   which is using only new grids, therefor it is NOT calculated here
-  !!
-  !! @par Revision History
-  !! Initial release by Jochen Foerstner (2008-05-19)
-  !! Modifiaction by A. Gassmann(2010-09-05)
-  !! - added also tangential normal, and generalize to lplane
   !!
   SUBROUTINE calculate_patch_cartesian_positions ( patch )
     !

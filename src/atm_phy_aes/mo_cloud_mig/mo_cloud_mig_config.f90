@@ -1,26 +1,19 @@
-!>
-!! Configuration of the parameterization for cloud microphysics "graupel",
-!! from DWD that is used in the sapphire physics package.
-!!
-!! @author Monika Esch, MPI-M
-!!
-!! @par Revision History
-!! First version by Monika Esch, MPI-M (2018-06)
-!!
-!! Based on earlier codes of:
-!!     ...
-!!
-!! References: 
-!!     ...
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Configuration of the parameterization for cloud microphysics "graupel",
+! from DWD that is used in the sapphire physics package.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_cloud_mig_config
 
   USE mo_exception            ,ONLY: message, print_value

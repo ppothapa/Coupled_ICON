@@ -1,20 +1,17 @@
-!>
-!! Type definition and utility routines of lon-lat grids used in the model.
-!!
-!! @author F. Prill, DWD
-!!
-!! @par Revision History
-!! Initial implementation  by  F. Prill, DWD (2012-03-20)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!! -----------------------------------------------------------------------------------
+! Type definition and utility routines of lon-lat grids used in the model.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_lonlat_grid
 
   USE mo_kind,              ONLY: wp
@@ -260,11 +257,6 @@ CONTAINS
   !  equation (2) is equivalent to the formulation below, which is also
   !  given in the COSMO database description, appendices A.1, A.2.
   !
-  !  @par Revision History
-  !   Initial revision                   : F. Prill,  2011-08-04
-  !   floating point exception handling  : G. Zaengl, 2012-11-20
-  !   changed transformation formula     : F. Prill,  2013-02-15
-  !
   SUBROUTINE rotate_latlon_grid( lon_lat_grid, rotated_pts )
     
     TYPE (t_lon_lat_grid), INTENT(in)    :: lon_lat_grid
@@ -349,9 +341,6 @@ CONTAINS
   !> Compute normalized area weights for lon-lat grid
   !!
   !! @return 1D array (index: latitude)
-  !!
-  !! @par Revision History
-  !!  developed by F. Prill, 2012-05-24
   !!
   SUBROUTINE latlon_compute_area_weights( grid, earth_radius, area )
     

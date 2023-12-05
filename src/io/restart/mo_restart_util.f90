@@ -1,25 +1,26 @@
-!>
-!! Contains common helper routines for(a)synchronous restart
-!! ----------------------------------------------------------
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+! Contains common helper routines for(a)synchronous restart
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_restart_util
-  USE mo_exception,          ONLY: get_filename_noext, message, finish
+  USE mo_exception,          ONLY: message, finish, message_text
   USE mo_fortran_tools,      ONLY: assign_if_present_allocatable
   USE mo_impl_constants,     ONLY: SUCCESS, SINGLE_T, REAL_T, INT_T, MAX_CHAR_LENGTH
   USE mo_io_config,          ONLY: restartWritingParameters, kMultifileRestartModule
   USE mo_kind,               ONLY: i8, dp
   USE mo_packed_message,     ONLY: t_PackedMessage, kPackOp
   USE mo_run_config,         ONLY: restart_filename
-  USE mo_std_c_lib,          ONLY: strerror
-  USE mo_util_file,          ONLY: createSymlink
+  USE mo_util_libc,          ONLY: strerror
+  USE mo_util_file,          ONLY: get_filename_noext, createSymlink
   USE mo_util_string,        ONLY: int2string, associate_keyword, with_keywords, t_keyword_list
   USE mtime,                 ONLY: datetime, newDatetime, deallocateDatetime
   USE mo_var_metadata_types, ONLY: t_var_metadata
@@ -134,7 +135,10 @@ CONTAINS
 
     CALL restartSymlinkName(modelType, jg, linkname, opt_ndom)
     ierr = createSymlink(filename, linkname)
-    IF(ierr /= SUCCESS) CALL finish(routine, "error creating symlink at '"//linkname//"': "//strerror(ierr))
+    IF(ierr /= SUCCESS) THEN
+      WRITE(message_text,'(a,a,a,a)') "error creating symlink at ",linkname,":", strerror(ierr)
+      CALL finish(routine,message_text)
+    ENDIF
   END SUBROUTINE create_restart_file_link
 
   SUBROUTINE restartArgs_construct(me, this_datetime, jstep, modelType, opt_output_jfile)

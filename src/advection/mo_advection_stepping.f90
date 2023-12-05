@@ -1,60 +1,30 @@
-!>
-!! Tracer transport module
-!! Contains solver for the tracer mass continuity equation(s)
-!!
-!! Performs time integration of tracer continuity equations in flux form. 
-!! Strang splitting is applied between the horizontal and vertical direction.
-!! The air mass continuity equation is re-integrated in the samme splitted manner 
-!! in order to achieve consistency with continuity.
-!! Nonzero right-hand-sides (i.e. physical tendencies) are not considered here. 
-!! For NWP slow-physics tendencies are taken into account in the subroutine 
-!! tracer_add_phytend which is called at the beginning of the main physics 
-!! interface nwp_nh_interface.
-!!
-!! @author Daniel Reinert, DWD
-!!
-!! @Literature:
-!! Reinert, D. (2020): A Mass Consistent Finite Volume Approach with Fractional Steps.
-!!                     Reports on ICON, Issue 4 
-!!
-!! @par Revision History
-!! Initial revision by Jochen Foerstner, DWD (2008-05-15)
-!! Modification by Jochen Foerstner, DWD (2008-07-23)
-!! - Implementation of a first version of the MPDATA scheme.
-!! Modified by Marco Giorgetta, MPI-M (2009-02-26)
-!! - renamed tracer_ctl to transport_ctl
-!! - renamed setup_tracer to setup_transport
-!! Modification by Daniel Reinert, DWD (2009-06-29)
-!! - deleted MPDATA related obsolete options
-!! - OpenMP-parallelization of MPDATA
-!! Modification by A. Gassmann, MPI-M (2009-10)
-!! - remove luse_rbf_vec_int switches
-!! Modification by Daniel Reinert (2009-12-16)
-!! - removed subroutine init\_rk\_tracer and option for Runge-Kutta type
-!!   time integration. Only explicit Euler scheme is retained.
-!! Modification by Daniel Reinert (2010-02-09)
-!! - restructuring of code. Subroutines for the calculation of horizontal
-!!   and vertical fluxes have been transfered to separate modules.
-!! Modification by Daniel Reinert (2010-03-05)
-!! - moved NAMELIST and 'setup_transport' to 'mo_advection_utils'
-!! Modification by Daniel Reinert (2010-04-22)
-!! - added field p_w_contra_traj which is necessary, when running the
-!!   NH-core.
-!! Modification by Will Sawyer, CSCS (2016-07-15)
-!! - added OpenACC support
-!! Modification by Daniel Reinert, DWD (2019-02-18)
-!! - removed obsolete 3D field p_w_contra_traj, which was only needed 
-!!   by the time-restricted PPM scheme. This scheme is no longer available.
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Tracer transport module
+! Contains solver for the tracer mass continuity equation(s)
+!
+! Performs time integration of tracer continuity equations in flux form.
+! Strang splitting is applied between the horizontal and vertical direction.
+! The air mass continuity equation is re-integrated in the samme splitted manner
+! in order to achieve consistency with continuity.
+! Nonzero right-hand-sides (i.e. physical tendencies) are not considered here.
+! For NWP slow-physics tendencies are taken into account in the subroutine
+! tracer_add_phytend which is called at the beginning of the main physics
+! interface nwp_nh_interface.
+!
+! @Literature:
+! Reinert, D. (2020): A Mass Consistent Finite Volume Approach with Fractional Steps.
+!                     Reports on ICON, Issue 4
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -100,40 +70,6 @@ CONTAINS
   !>
   !! Time stepping for tracer transport
   !!
-  !!
-  !! @par Revision History
-  !! Initial revision by Jochen Foerstner, DWD (2008-05-15)
-  !! Modification by Jochen Foerstner, DWD (2008-07-09)
-  !! - included Runge-Kutta type time integration for tracer transport.
-  !! Modification by Daniel Reinert, DWD (2009-06-29)
-  !! - deleted MPDATA related obsolete options
-  !! - OpenMP-parallelization
-  !! Modification by Daniel Reinert, DWD (2009-08-18)
-  !! - MPDATA and Godunov-Type methods are now treated separately. This was
-  !!   mainly done in order to improve readability.
-  !! Modification by Daniel Reinert, DWD (2009-12-16)
-  !! - removed Runge-Kutta type time integration for tracer transport.
-  !! Modification by Daniel Reinert, DWD (2010-01-29)
-  !! - removed MPDATA
-  !! Modification by Daniel Reinert, DWD (2010-02-09)
-  !! - removed non-conservative option 'nonCnsv'
-  !! Modification by Daniel Reinert, DWD (2010-02-22)
-  !! - generalization of interface: avoid passing types related to the
-  !!   hydrostatic or nonhydrostatic model
-  !! Modification by Daniel Reinert, DWD (2010-02-25)
-  !! - re-integration of mass continuity equation in order to achieve
-  !!   tracer-mass consistency
-  !! Modification by Daniel Reinert, DWD (2010-10-25)
-  !! - removed boundary flux correction
-  !! Modification by Daniel Reinert, DWD (2010-11-02)
-  !! - splitting of tracer loop. -> reduced OpenMP/MPI overhead
-  !! Modification by Daniel Reinert, DWD (2011-02-15)
-  !! - new field providing the upper margin tracer flux (optional)
-  !! Modification by Daniel Reinert, DWD (2013-05-06)
-  !! - simplification of step_advection and vert_upwind_flux interfaces 
-  !!   after removal of the MUSCL vertical advection scheme
-  !! 
-  !!
   SUBROUTINE step_advection( p_patch, p_int_state, p_metrics, p_dtime, k_step, p_tracer_now, &
     &                        p_mflx_contra_h, p_vn_contra_traj, p_mflx_contra_v,             &
     &                        p_rhodz_new, p_rhodz_now, p_grf_tend_tracer, p_tracer_new,      &
@@ -141,7 +77,7 @@ CONTAINS
     &                        q_ubc, q_int,                                                   &
     &                        opt_ddt_tracer_adv                                              )
   !
-    TYPE(t_patch), TARGET, INTENT(INOUT) ::  &  !< patch on which computation
+    TYPE(t_patch), TARGET, INTENT(IN) ::  &  !< patch on which computation
       &  p_patch                             !< is performed
                                              
     TYPE(t_int_state), INTENT(IN) :: &  !< interpolation state
@@ -711,9 +647,6 @@ CONTAINS
   !! If vertical transport is switched off, the tracer mass fraction is 
   !! kept constant, i.e. tracer_now is copied to tracer_new.
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2020-06-09)
-  !!
   SUBROUTINE vert_adv (p_patch, p_dtime, k_step, p_mflx_contra_v,          &
     &                  p_cellhgt_mc_now, rhodz_now, rhodz_new, tracer_now, &
     &                  tracer_new, p_mflx_tracer_v, deepatmo_divzL_mc,     &
@@ -884,14 +817,11 @@ CONTAINS
   !! If horizontal transport is switched off, the tracer mass fraction is 
   !! kept constant, i.e. tracer_now is copied to tracer_new.
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2020-06-09)
-  !!
   SUBROUTINE hor_adv (p_patch, p_int_state, p_dtime, p_mflx_contra_h, p_vn, &
     &                 rhodz_now, rhodz_new, tracer_now, tracer_new,         &
     &                 p_mflx_tracer_h, deepatmo_divh_mc, i_rlstart, i_rlend )
 
-    TYPE(t_patch), TARGET, INTENT(INOUT)  ::  & !< compute patch
+    TYPE(t_patch), TARGET, INTENT(IN)  ::  & !< compute patch
       &  p_patch
 
     TYPE(t_int_state), INTENT(IN)  ::  & !< interpolation state 

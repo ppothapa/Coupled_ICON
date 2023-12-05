@@ -1,19 +1,20 @@
 !NEC$ options "-finline-max-depth=3 -finline-max-function-size=1000"
-!>
-!! Routines for optional diagnostic radar reflectivity on the model grid in NWP
-!! (formerly located in mo_opt_nwp_diagnostics.f90)
-!!
-!! @par Revision History
-!!  Initial revision  :  U. Blahak, DWD (2021-08-20)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Routines for optional diagnostic radar reflectivity on the model grid in NWP
+! (formerly located in mo_opt_nwp_diagnostics.f90)
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -28,7 +29,6 @@ MODULE mo_opt_nwp_reflectivity
   USE mo_2mom_mcrph_main,       ONLY: init_2mom_scheme,      &
     &                                 rain_coeffs  ! contains the parameters for the mue-Dm-relation
   USE mo_2mom_mcrph_types,      ONLY: particle, particle_frozen
-  USE mo_2mom_mcrph_util,       ONLY: gfct
   USE mo_2mom_mcrph_processes,  ONLY: moment_gamma, rain_mue_dm_relation
   USE mo_exception,             ONLY: finish, message
   USE mo_fortran_tools,         ONLY: set_acc_host_or_device
@@ -47,9 +47,6 @@ CONTAINS
 
   !>
   !! Calculate radar reflectivity for the 1-moment microphysics scheme in linear units mm^6/m^3
-  !!
-  !! @par Revision History
-  !! Initial revision by U. Blahak, DWD (2020-01-20) 
   !!
   SUBROUTINE compute_field_dbz_1mom( npr, nlev, nblks, startblk, endblk, jk_start,       &
                                      startidx1, endidx2,                                 &
@@ -205,7 +202,7 @@ CONTAINS
       mue_rain_c = mu_rain
       nor = 8.0e6_wp * EXP(3.2_wp*mue_rain_c) * (0.01_wp)**(-mue_rain_c)
       p_r = (7.0_wp+mue_rain_c) / (4.0_wp+mue_rain_c)
-      z_r = nor*gfct(7.0_wp+mue_rain_c) * (pi*rho_w*nor*gfct(4.0_wp+mue_rain_c)/6.0_wp)**(-p_r)
+      z_r = nor*GAMMA(7.0_wp+mue_rain_c) * (pi*rho_w*nor*GAMMA(4.0_wp+mue_rain_c)/6.0_wp)**(-p_r)
       
       ! Parameters for snow and graupel:
       IF (igscp == 1 .or. igscp == 3) THEN
@@ -213,7 +210,7 @@ CONTAINS
         ams = zams_ci
         bms = zbms
         p_s = (2.0_wp*bms+1.0_wp)/(bms+1.0_wp)
-        z_s = mom_fac*ams**2 * gfct(2.0_wp*bms+1.0_wp) * (ams*gfct(bms+1.0_wp))**(-p_s)
+        z_s = mom_fac*ams**2 * GAMMA(2.0_wp*bms+1.0_wp) * (ams*GAMMA(bms+1.0_wp))**(-p_s)
 
         IF (lmessage_light) THEN
           WRITE (*, *) TRIM(routine)//": cloud ice scheme (using rain and snow)"
@@ -240,10 +237,10 @@ CONTAINS
         nog = 4.E6_wp
         p_s = (2.0_wp*bms+1.0_wp)/(bms+1.0_wp)
         p_g = (2.0_wp*bmg+1.0_wp)/(bmg+1.0_wp)
-        z_s = mom_fac*ams**2 * gfct(2.0_wp*bms+1.0_wp) *       &
-                         (ams*gfct(bms+1.0_wp))**(-p_s)
-        z_g = mom_fac*amg**2 * nog*gfct(2.0_wp*bmg+1.0_wp) *       &
-                         (amg*nog*gfct(bmg+1.0_wp))**(-p_g)
+        z_s = mom_fac*ams**2 * GAMMA(2.0_wp*bms+1.0_wp) *       &
+                         (ams*GAMMA(bms+1.0_wp))**(-p_s)
+        z_g = mom_fac*amg**2 * nog*GAMMA(2.0_wp*bmg+1.0_wp) *       &
+                         (amg*nog*GAMMA(bmg+1.0_wp))**(-p_g)
         
         IF (lmessage_light) THEN
           WRITE (*, *) TRIM(routine)//": graupel scheme (using rain, snow, graupel)"
@@ -392,12 +389,12 @@ CONTAINS
       !$ACC END PARALLEL
 
     ENDDO
-    !$ACC WAIT(1)
 !$OMP END DO
 !$OMP END PARALLEL
 
     IF ( lmessage_light .OR. lmessage_full ) THEN
-      !$ACC UPDATE HOST(z_radar) IF(lzacc)
+      !$ACC UPDATE HOST(z_radar) ASYNC(1) IF(lzacc)
+      !$ACC WAIT(1)
       zdebug = MAXVAL(z10olog10 * LOG(z_radar + eps))
       message_text(:) = ' '
       WRITE (message_text, '(a,i4,a,1x,f6.1)') 'reflectivity statistics on proc ',my_id_for_message, &
@@ -405,6 +402,7 @@ CONTAINS
       CALL message (TRIM(routine), TRIM(message_text), all_print=.TRUE.)
     ENDIF
 
+    !$ACC WAIT(1)
     !$ACC END DATA
 
   END SUBROUTINE compute_field_dbz_1mom
@@ -412,9 +410,6 @@ CONTAINS
 
   !>
   !! Calculate radar reflectivity for the 2-moment microphysics scheme in linear units mm^6/m^3
-  !!
-  !! @par Revision History
-  !! Initial revision by U. Blahak, DWD (2020-01-20) 
   !!
   SUBROUTINE compute_field_dbz_2mom( npr, nlev, nblks, startblk, endblk, jk_start,          &
                                      startidx1, endidx2,                                    &
@@ -687,12 +682,12 @@ CONTAINS
       !$ACC END PARALLEL
 
     END DO
-    !$ACC WAIT(1)
 !$OMP END DO
 !$OMP END PARALLEL
 
     IF (lmessage_light .OR. lmessage_full ) THEN
-      !$ACC UPDATE HOST(z_radar) IF(lzacc)
+      !$ACC UPDATE HOST(z_radar) ASYNC(1) IF(lzacc)
+      !$ACC WAIT(1)
       message_text(:) = ' '
       WRITE (message_text, '(A,i4,2(A,F10.1))') 'on proc ',my_id_for_message,': '// &
            'MAX dBZ = ', &
@@ -702,6 +697,7 @@ CONTAINS
       CALL message(TRIM(routine), TRIM(message_text), all_print=.TRUE.)
     END IF
 
+    !$ACC WAIT(1)
     !$ACC END DATA
   
   END SUBROUTINE compute_field_dbz_2mom

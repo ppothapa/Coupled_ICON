@@ -1,20 +1,18 @@
-!>
-!! Namelist setup for waves.
-!! The content of namelists is mostly adopted from the WAM 4.5.4.
-!!
-!! @author Mikhail Dobrynin, DWD
-!!
-!! @par Revision History
-!! Initial revision by Mikhail Dobrynin, DWD (10.04.2019)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Namelist setup for waves.
+! The content of namelists is mostly adopted from the WAM 4.5.4.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_wave_nml
 
   USE mo_kind,                ONLY: wp
@@ -99,7 +97,6 @@ CONTAINS
     LOGICAL :: lbottom_fric_sf ! if .TRUE., calculate bottom_friction source function term
     LOGICAL :: lwave_stress1   ! if .TRUE., calculate wave stress, first call
     LOGICAL :: lwave_stress2   ! if .TRUE., calculate wave stress, second call
-    LOGICAL :: lgrid_refr      ! if .TRUE., calculate grid refraction
 
 
     NAMELIST /wave_nml/ &
@@ -109,7 +106,7 @@ CONTAINS
          roair, RNUAIR, RNUAIRM, ROWATER, XEPS, XINVEPS, &
          XKAPPA, XNLEV, BETAMAX, ZALP, jtot_tauhf, ALPHA_CH, depth, niter_smooth, &
          linput_sf1, linput_sf2, ldissip_sf, lnon_linear_sf, lbottom_fric_sf, &
-         lwave_stress1, lwave_stress2, lgrid_refr
+         lwave_stress1, lwave_stress2
 
     !-----------------------------------------------------------
     ! 1. default settings
@@ -157,7 +154,6 @@ CONTAINS
     lbottom_fric_sf =  .TRUE. !< if .TRUE., calculate bottom_friction source function term
     lwave_stress1  =   .TRUE. !< if .TRUE., calculate wave stress, first call
     lwave_stress2  =   .TRUE. !< if .TRUE., calculate wave stress, second call
-    lgrid_refr =       .TRUE. !< if .TRUE., calculate grid refraction
 
 
     !------------------------------------------------------------------
@@ -207,40 +203,41 @@ CONTAINS
     !----------------------------------------------------
 
     DO jg=1,max_dom
-      wave_config(jg)%ndirs            = ndirs
-      wave_config(jg)%nfreqs           = nfreqs
-      wave_config(jg)%fr1              = fr1
-      wave_config(jg)%CO               = CO
-      wave_config(jg)%IREF             = IREF
-      wave_config(jg)%ALPHA            = ALPHA
-      wave_config(jg)%FM               = FM
-      wave_config(jg)%GAMMA_wave       = GAMMA_wave
-      wave_config(jg)%SIGMA_A          = SIGMA_A
-      wave_config(jg)%SIGMA_B          = SIGMA_B
-      wave_config(jg)%FETCH            = FETCH
-      wave_config(jg)%roair            = roair
-      wave_config(jg)%RNUAIR           = RNUAIR
-      wave_config(jg)%RNUAIRM          = RNUAIRM
-      wave_config(jg)%ROWATER          = ROWATER
-      wave_config(jg)%XEPS             = XEPS
-      wave_config(jg)%XINVEPS          = XINVEPS
-      wave_config(jg)%XKAPPA           = XKAPPA
-      wave_config(jg)%XNLEV            = XNLEV
-      wave_config(jg)%BETAMAX          = BETAMAX
-      wave_config(jg)%ZALP             = ZALP
-      wave_config(jg)%jtot_tauhf       = jtot_tauhf
-      wave_config(jg)%ALPHA_CH         = ALPHA_CH
-      wave_config(jg)%depth            = depth
-      wave_config(jg)%niter_smooth     = niter_smooth
-      wave_config(jg)%forc_file_prefix = forc_file_prefix
-      wave_config(jg)%linput_sf1       = linput_sf1
-      wave_config(jg)%linput_sf2       = linput_sf2
-      wave_config(jg)%ldissip_sf       = ldissip_sf
-      wave_config(jg)%lnon_linear_sf   = lnon_linear_sf
-      wave_config(jg)%lbottom_fric_sf  = lbottom_fric_sf
-      wave_config(jg)%lwave_stress1    = lwave_stress1
-      wave_config(jg)%lwave_stress2    = lwave_stress2
-      wave_config(jg)%lgrid_refr       = lgrid_refr
+
+      wave_config(jg)%ndirs             = ndirs
+      wave_config(jg)%nfreqs            = nfreqs
+      wave_config(jg)%fr1               = fr1
+      wave_config(jg)%CO                = CO
+      wave_config(jg)%IREF              = IREF
+      wave_config(jg)%ALPHA             = ALPHA
+      wave_config(jg)%FM                = FM
+      wave_config(jg)%GAMMA_wave        = GAMMA_wave
+      wave_config(jg)%SIGMA_A           = SIGMA_A
+      wave_config(jg)%SIGMA_B           = SIGMA_B
+      wave_config(jg)%FETCH             = FETCH
+      wave_config(jg)%roair             = roair
+      wave_config(jg)%RNUAIR            = RNUAIR
+      wave_config(jg)%RNUAIRM           = RNUAIRM
+      wave_config(jg)%ROWATER           = ROWATER
+      wave_config(jg)%XEPS              = XEPS
+      wave_config(jg)%XINVEPS           = XINVEPS
+      wave_config(jg)%XKAPPA            = XKAPPA
+      wave_config(jg)%XNLEV             = XNLEV
+      wave_config(jg)%BETAMAX           = BETAMAX
+      wave_config(jg)%ZALP              = ZALP
+      wave_config(jg)%jtot_tauhf        = jtot_tauhf
+      wave_config(jg)%ALPHA_CH          = ALPHA_CH
+      wave_config(jg)%depth             = depth
+      wave_config(jg)%niter_smooth      = niter_smooth
+      wave_config(jg)%forc_file_prefix  = forc_file_prefix
+      wave_config(jg)%linput_sf1        = linput_sf1
+      wave_config(jg)%linput_sf2        = linput_sf2
+      wave_config(jg)%ldissip_sf        = ldissip_sf
+      wave_config(jg)%lnon_linear_sf    = lnon_linear_sf
+      wave_config(jg)%lbottom_fric_sf   = lbottom_fric_sf
+      wave_config(jg)%lwave_stress1     = lwave_stress1
+      wave_config(jg)%lwave_stress2     = lwave_stress2
+
     ENDDO
 
 

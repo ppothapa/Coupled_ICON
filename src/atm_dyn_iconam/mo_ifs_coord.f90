@@ -1,27 +1,19 @@
-!>
-!! Contains subroutines for calculating the pressure values and
-!! some other auxiliary variables related to the pressure-sigma
-!! hybrid vertical coordinate (the eta coordinate).
-!!
-!! @par Revision History
-!!   Original version from ECHAM5.3.01
-!!   Adapted for ICOHDC by Hui Wan, 2006-02
-!!   Modifications include:
-!!   - Calculation of half-level geopotential added to *geopot*
-!!   - Calculation of logorithm of half-level pressure added to *auxhyb*
-!!   - Subroutine <i>full_level_pressure</i> added
-!!   Modifications by Hui Wan (MPI-M, 2010-01-29)
-!!   - Renamed subroutines and variables.
-!!   - Changed the sequence of items in the argument lists.
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Contains subroutines for calculating the pressure values and
+! some other auxiliary variables related to the pressure-sigma
+! hybrid vertical coordinate (the eta coordinate).
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_ifs_coord
 
   USE mo_kind,               ONLY: wp
@@ -319,13 +311,6 @@ CONTAINS
   !!  External documentation of the model equations and the
   !!  organization of the vertical calculation.
   !!
-  !! @par Revision History
-  !!    A. J. Simmons, ECMWF, November 1981, original source
-  !!    L. Kornblueh, MPI, May 1998, f90 rewrite
-  !!    U. Schulzweida, MPI, May 1998, f90 rewrite
-  !!    H. Wan, MPI, Feb 2006, adapted for ICOHDC
-  !!    H. Wan, MPI, Jan 2010, renamed the interface
-  !!
   SUBROUTINE t_vct_half_level_pressure(vct, ps,kdimp,klen,nlev_in, ph)
     CLASS(t_vct), INTENT(IN) :: vct
 
@@ -406,9 +391,6 @@ CONTAINS
   !!  The latter must have been initialiazed
   !!  by a call of subroutine *inihyb*.
   !!
-  !! @par Revision History
-  !!    H. Wan, MPI, 2006-08-17
-  !!
   SUBROUTINE t_vct_full_level_pressure( vct, pres_i, kdimp, klen, nlev_in, pres_m)
     CLASS(t_vct), INTENT(IN) :: vct
 
@@ -474,11 +456,6 @@ CONTAINS
   !!  External documentation of the model equations and the
   !!  organization of the vertical calculation can be found
   !!  in MPI-M technical report No. 349
-  !!
-  !! @par Revision History
-  !!    A. J. Simmons, ECMWF, November 1981, original source
-  !!    L. Kornblueh, MPI, May 1998, f90 rewrite
-  !!    U. Schulzweida, MPI, May 1998, f90 rewrite
   !!
   SUBROUTINE t_vct_auxhyb( vct, ph,kdim,klen,nlev_in,                   &
     &                      pdelp,prdelp,plnph,plnpr,palpha )
@@ -592,19 +569,6 @@ CONTAINS
   !!
   !! External documentation of the model equations and the
   !! organization of the vertical calculation.
-  !!
-  !! @par Revision History
-  !!    A. J. Simmons, ECMWF, January 1982, original source
-  !!    L. Kornblueh, MPI, May 1998, f90 rewrite
-  !!    U. Schulzweida, MPI, May 1998, f90 rewrite
-  !!    H. Wan, MPI-M, 2006-08-10, included in m_vertical
-  !!    H. Wan, MPI-M, 2006-08-15, half-level geopotential added to the output
-  !!    H. Wan, MPI-M, 2007-07-19, calculation of the full-level geopotential
-  !!                               simplified.
-  !!    G. Zaengl, DWD, 2009-07-06, replace klen with kstart/kend for correct
-  !!                                execution on nested domains
-  !!    A. Seifert, DWD, 2010-06-21, add missing lower boundary by restructuring
-  !!                                 the loop for half and full levels
 
   SUBROUTINE geopot( ptv,plnpr,palpha,pgeop_sfc,kdim,kstart,kend,nlev_in, &
                      pgeop_m, pgeop_i )

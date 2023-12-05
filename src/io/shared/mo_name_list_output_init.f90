@@ -1,21 +1,15 @@
-!>
-!! Module handling the initialization of synchronous and asynchronous output.
-!!
-!! @author R. Johanni
-!!
-!! @par Revision History
-!! Initial implementation  by  R. Johanni  (2011)
-!! Major changes: F. Prill, DWD (2012-2013)
-!! A-priori calculation of output step events: F. Prill, DWD (10/2013)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Module handling the initialization of synchronous and asynchronous output.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 !NEC$ options "-fno-loop-unroll"
 MODULE mo_name_list_output_init
 
@@ -1836,7 +1830,7 @@ CONTAINS
 #endif
       ELSE IF (my_process_is_waves()) THEN
 #ifndef __NO_ICON_WAVES__
-        CALL setup_zaxes_waves(p_of%verticalAxisList)
+        CALL setup_zaxes_waves(p_of%verticalAxisList, p_of%level_selection, p_of%log_patch_id)
 #endif
       ENDIF
 
@@ -3255,8 +3249,6 @@ CONTAINS
 
   !> Utility routine: Strip date-time stamp (string) from modifiers,
   !  e.g. ">", "<".
-  !
-  !  @author F. Prill, DWD
   !
   FUNCTION strip_from_modifiers(dt_string)
     CHARACTER(LEN=*), INTENT(IN) :: dt_string

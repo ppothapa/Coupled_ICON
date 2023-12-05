@@ -1,7 +1,18 @@
+! Contains extension to solver backend type: GMRES (legacy implementation)
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !#include "omp_definitions.inc"
-
-! contains extension to solver backend type: GMRES (legacy implementation)
-
 
 MODULE mo_ocean_solve_legacy_gmres
   USE mo_kind, ONLY: wp
@@ -12,6 +23,7 @@ MODULE mo_ocean_solve_legacy_gmres
   USE mo_exception, ONLY: finish
   USE mo_timer, ONLY: timer_start, timer_stop
   USE mo_run_config, ONLY: ltimer
+  USE mo_fortran_tools, ONLY: set_acc_host_or_device
  
   IMPLICIT NONE
   
@@ -31,10 +43,18 @@ MODULE mo_ocean_solve_legacy_gmres
 CONTAINS
 
 ! actual GMRES solve (vanilla)
-  SUBROUTINE ocean_solve_legacy_gmres_cal_wp(this)
+  SUBROUTINE ocean_solve_legacy_gmres_cal_wp(this, lacc)
     CLASS(t_ocean_solve_legacy_gmres), INTENT(INOUT) :: this
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
     LOGICAL :: maxiterex ! is reconstructed later
+    LOGICAL :: lzacc
     INTEGER :: niter
+
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+#ifdef _OPENACC
+    IF (lzacc) CALL finish(this_mod_name, 'OpenACC version currently not tested/validated')
+#endif
 
     CALL ocean_restart_gmres(this%x_wp, this%lhs, this%b_wp, &
       & this%par%tol, this%par%use_atol, this%par%m, maxiterex, &
@@ -55,9 +75,7 @@ CONTAINS
   !-------------------------------------------------------------------------
   !>
   !!
-  !! @par Revision History
   !! Based on gmres_oce_old
-  !! restart functionality and optimization L.Linardakis, MPIM, 2013
   !-------------------------------------------------------------------------
 !<Optimize:inUse>
   SUBROUTINE ocean_restart_gmres( x,lhs,        &

@@ -1,27 +1,21 @@
+!
+! Description:  Data type definition for initicon
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 #if (defined (__GNUC__) || defined(__SUNPRO_F95) || defined(__SX__))
 #define HAVE_F95
 #endif
-!>
-!!  !MODULE:  mo_nh_initicon_types\\
-!!
-!! Description:  Data type definition for initicon
-!
-!!
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!! First version by Guenther Zaengl, DWD (2011-07-13)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+
 MODULE mo_initicon_types
 
   USE mo_kind,                 ONLY: wp

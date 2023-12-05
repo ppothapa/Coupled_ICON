@@ -1,10 +1,14 @@
-!>
-!! @par Copyright
-!! This code is subject to the MPI-M-Software - License - Agreement in it's most recent form.
-!! Please see URL http://www.mpimet.mpg.de/en/science/models/model-distribution.html and the
-!! file COPYING in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the headers of the routines.
-!!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_rte_rrtmgp_interface
   USE mo_kind,                       ONLY: wp
   USE mo_math_constants,             ONLY: pi
@@ -74,16 +78,13 @@ CONTAINS
   !-------------------------------------------------------------------
 
   !>
-  !! @brief arranges input and calls rrtm sw and lw routines
+  !! arranges input and calls rrtm sw and lw routines
   !!
-  !! @par Revision History
-  !! Original Source Rewritten and renamed by B. Stevens (2009-08)
-  !!
-  !! @remarks
+  !! Remarks
   !!   Some cloud physical properties are prescribed, which are
   !!   required to derive cloud optical properties
   !!
-  !! @par The gases are passed into RRTM via two multi-constituent arrays:
+  !! The gases are passed into RRTM via two multi-constituent arrays:
 
 
   ! TODO/BUG?
@@ -100,7 +101,8 @@ CONTAINS
       & pp_sfc          ,pp_fl           ,pp_hl                            ,&
       & tk_sfc          ,tk_fl           ,tk_hl                            ,&
       & xvmr_vap        ,xm_liq          ,xm_ice                           ,&
-      & cdnc            ,xc_frc                                            ,&
+      & reff_ice        ,tau_ice         ,reff_snow       ,tau_snow        ,&
+      & cdnc            ,xc_frc          ,xm_snw                           ,&
       & xvmr_co2        ,xvmr_ch4        ,xvmr_n2o        ,xvmr_cfc        ,&
       & xvmr_o3         ,xvmr_o2                                           ,&
       & lw_upw          ,lw_upw_clr      ,lw_dnw          ,lw_dnw_clr      ,&
@@ -155,13 +157,20 @@ CONTAINS
          xm_ice(:,:),     & !< cloud ice   mass in kg/m2
          cdnc(:,:),       & !< cloud nuclei concentration
          xc_frc(:,:),     & !< fractional cloud cover
+         xm_snw(:,:),     & !< snow        mass in kg/m2
          xvmr_co2(:,:),   & !< co2 volume mixing ratio
          xvmr_ch4(:,:),   & !< ch4 volume mixing ratio
          xvmr_n2o(:,:),   & !< n2o volume mixing ratio
          xvmr_cfc(:,:,:), & !< cfc volume mixing ratio
          xvmr_o3(:,:),    & !< o3  volume mixing ratio
-         xvmr_o2(:,:)       !< o2  volume mixing ratio
+         xvmr_o2(:,:),    & !< o2  volume mixing ratio
+         reff_ice(:,:),   & !< cloud ice effective radius in m
+         reff_snow(:,:)     !< snow effective radius in m
 
+    REAL(wp), INTENT(INOUT) :: &
+         tau_ice(:,:),    & !< optical depth of cloud ice integrated over bands
+         tau_snow(:,:)      !< optical depth of snow integrated over bands
+    
     REAL(wp), INTENT(OUT)   :: &
       & lw_dnw_clr(:,:),& !< Clear-sky downward longwave  at all levels
       & lw_upw_clr(:,:),& !< Clear-sky upward   longwave  at all levels
@@ -256,14 +265,15 @@ CONTAINS
 #ifdef _OPENACC
         CALL warning('mo_rte_rrtmgp_interface/rte_rrtmgp_interface','Stenchikov aerosols ACC not implemented')
 #endif
-        !$ACC UPDATE HOST(aer_tau_lw, aer_tau_sw, aer_ssa_sw, aer_asy_sw, dz, pp_fl)
+        !$ACC UPDATE HOST(aer_tau_lw, aer_tau_sw, aer_ssa_sw, aer_asy_sw, dz, pp_fl) ASYNC(1)
+        !$ACC WAIT(1)
         CALL add_bc_aeropt_stenchikov(this_datetime,    jg,               &
               & jcs, nproma,      nproma,                 klev,       &
               & jb,               nbndsw,                nbndlw,           &
               & dz,               pp_fl,                                   &
               & aer_tau_sw,    aer_ssa_sw,         aer_asy_sw,     &
               & aer_tau_lw                                              )
-        !$ACC UPDATE DEVICE(aer_tau_lw, aer_tau_sw, aer_ssa_sw, aer_asy_sw)
+        !$ACC UPDATE DEVICE(aer_tau_lw, aer_tau_sw, aer_ssa_sw, aer_asy_sw) ASYNC(1)
       END IF
       !!$    IF (irad_aero==16) THEN
       !!$      CALL add_aop_volc_ham( &
@@ -287,14 +297,15 @@ CONTAINS
 #ifdef _OPENACC
         CALL warning('mo_rte_rrtmgp_interface/rte_rrtmgp_interface','Plumes ACC not implemented')
 #endif
-        !$ACC UPDATE HOST(aer_tau_lw, aer_tau_sw, aer_ssa_sw, aer_asy_sw, zf, dz, zh(:,klev+1))
+        !$ACC UPDATE HOST(aer_tau_lw, aer_tau_sw, aer_ssa_sw, aer_asy_sw, zf, dz, zh(:,klev+1)) ASYNC(1)
+        !$ACC WAIT(1)
         CALL add_bc_aeropt_splumes(                                      &
               & jg,          jcs,         nproma,        nproma,         & 
               & klev,        jb,          nbndsw,        this_datetime,  &
               & zf,          dz,          zh(:,klev+1),  wavenum1,       &
               & wavenum2,    aer_tau_sw,  aer_ssa_sw,    aer_asy_sw,     &
               & x_cdnc                                                   )
-        !$ACC UPDATE DEVICE(aer_tau_sw, aer_ssa_sw, aer_asy_sw)
+        !$ACC UPDATE DEVICE(aer_tau_sw, aer_ssa_sw, aer_asy_sw) ASYNC(1)
       END IF
 
       ! this should be decativated in the concurrent version and make the aer_* global variables for output
@@ -361,7 +372,9 @@ CONTAINS
           & pp_sfc(:),         pp_fl(:,:),        pp_hl(:,:),          &
           & tk_sfc(:),         tk_fl(:,:),        tk_hl(:,:),          &
           & xvmr_vap(:,:),     xm_liq(:,:),                            &
-          & xm_ice(:,:),       cdnc(:,:),         xc_frc(:,:),         &
+          & xm_ice(:,:),       reff_ice(:,:),     tau_ice(:,:),        &
+          & reff_snow(:,:),    tau_snow(:,:),                          &
+          & cdnc(:,:),         xc_frc(:,:),       xm_snw(:,:),         &
           & xvmr_co2(:,:),     xvmr_ch4(:,:),     xvmr_n2o (:,:),      &
           & xvmr_cfc(:,:,:),   xvmr_o3(:,:),      xvmr_o2(:,:),        &
           & aer_tau_lw(:,:,:),                                         &
@@ -398,7 +411,9 @@ CONTAINS
             & pp_sfc(:),         pp_fl(:,:),        pp_hl(:,:),          &
             & tk_sfc(:),         tk_fl(:,:),        tk_hl(:,:),          &
             & xvmr_vap(:,:),     xm_liq(:,:),                            &
-            & xm_ice(:,:),       cdnc(:,:),         xc_frc(:,:),         &
+            & xm_ice(:,:),       reff_ice(:,:),     tau_ice(:,:),        &
+            & reff_snow(:,:),    tau_snow(:,:),                          &
+            & cdnc(:,:),         xc_frc(:,:),       xm_snw(:,:),         &
             & xvmr_co2(:,:),     xvmr_ch4(:,:),     xvmr_n2o (:,:),      &
             & xvmr_cfc(:,:,:),   xvmr_o3(:,:),      xvmr_o2(:,:),        &
             & aer_tau_lw(:,:,:),                                         &
@@ -465,12 +480,9 @@ CONTAINS
     !$ACC END KERNELS
   END SUBROUTINE clamp_temperature
   !----------------------------------------------- !>
-  !! @brief arranges input and calls rrtm sw and lw routines
+  !! arranges input and calls rrtm sw and lw routines
   !!
-  !! @par Revision History
-  !! Original Source Rewritten and renamed by B. Stevens (2009-08)
-  !!
-  !! @remarks
+  !! Remarks
   !!   Because the RRTM indexes vertical levels differently than ECHAM a chief
   !!   function of thise routine is to reorder the input in the vertical.  In
   !!   addition some cloud physical properties are prescribed, which are
@@ -490,7 +502,9 @@ CONTAINS
        & pp_sfc,         pp_fl,          pp_hl,              &
        & tk_sfc,         tk_fl,          tk_hl,              &
        & xvmr_vap,       xm_liq,                             &
-       & xm_ice,         cdnc,           cld_frc,            &
+       & xm_ice,         reff_ice,       tau_ice,            &
+       & reff_snow,      tau_snow,                           &
+       & cdnc,           cld_frc,        xm_snw,             &
        & xvmr_co2,       xvmr_ch4,       xvmr_n2o ,          &
        & xvmr_cfc ,      xvmr_o3,        xvmr_o2,            &
        & aer_tau_lw,                                         &
@@ -541,6 +555,7 @@ CONTAINS
          xvmr_vap(:,:),    & !< water vapor volume mixing ratio
          xm_liq(:,:),      & !< cloud water mass in kg/m2
          xm_ice(:,:),      & !< cloud ice   mass in kg/m2
+         xm_snw(:,:),      & !< snow        mass in kg/m2
          aer_tau_lw(:,:,:),& !< aerosol optical depth, longwave (ncol, nlay, nbndlw)
          aer_tau_sw(:,:,:),& !< aerosol optical depth,            shortwave (ncol, nlay, nbndlw)
          aer_ssa_sw(:,:,:),& !< aerosol single-scattering albedo, shortwave (ncol, nlay, nbndlw)
@@ -552,7 +567,13 @@ CONTAINS
          xvmr_n2o(:,:),    & !< n2o volume mixing ratio
          xvmr_cfc(:,:,:),  & !< cfc volume mixing ratio (kbdim,klev,2)
          xvmr_o3(:,:),     & !< o3  volume mixing ratio
-         xvmr_o2(:,:)        !< o2  volume mixing ratio
+         xvmr_o2(:,:),     & !< o2  volume mixing ratio
+         reff_ice(:,:),    & !< cloud ice effective radius m
+         reff_snow(:,:)      !< snow effectiv radius m
+
+    REAL (wp), INTENT (INOUT) :: &
+         tau_ice(:,:),     & !< optical depth of cloud ice integrated over bands
+         tau_snow(:,:)       !< optical depth of snow integrated over bands
 
     REAL (wp), TARGET, INTENT (INOUT) ::       &
          flx_uplw    (:,:), & !<   upward LW flux profile, all sky
@@ -594,6 +615,10 @@ CONTAINS
     REAL(wp) ::                &
          re_drop (ncol,klev), & !< effective radius of liquid
          re_cryst(ncol,klev)
+    REAL(wp) ::                  &
+         zswp       (ncol,klev), & !< snow water path [g/m2]
+         zdwp       (ncol,klev), & !< dummy water path 
+         re_snow(ncol,klev)        !< snow effective radius
     !
     ! Random seeds for sampling. Needs to get somewhere upstream
     !
@@ -605,9 +630,11 @@ CONTAINS
     TYPE(ty_optical_props_1scl) :: atmos_lw !check types regarding acc later
     TYPE(ty_optical_props_1scl) :: aerosol_lw !check types regarding acc later
     TYPE(ty_optical_props_1scl) :: clouds_lw, clouds_bnd_lw !check types regarding acc later
+    TYPE(ty_optical_props_1scl) :: snow_bnd_lw ! for snow optics
     TYPE(ty_optical_props_2str) :: atmos_sw !check types regarding acc later
     TYPE(ty_optical_props_2str) :: aerosol_sw !check types regarding acc later
     TYPE(ty_optical_props_2str) :: clouds_sw, clouds_bnd_sw !check types regarding acc later
+    TYPE(ty_optical_props_2str) :: snow_bnd_sw
 
     LOGICAL, DIMENSION(:,:,:), ALLOCATABLE :: cloud_mask
     TYPE(ty_fluxes_broadband) :: fluxes_lw !check acc
@@ -635,15 +662,17 @@ CONTAINS
        zkap_cont = 1.143_wp, & ! continental (Martin et al. ) breadth param
        zkap_mrtm = 1.077_wp    ! maritime (Martin et al.) breadth parameter
     REAL (wp) :: effective_radius
-    REAL (wp) :: reimin, reimax, relmin, relmax, re_cryst_scal, re_drop_scal, zkap
+    REAL (wp) :: reimin, reimax, relmin, relmax, zkap
     LOGICAL   :: lcldlyr
     !
     !DA TODO: rearrange the data section to reduce memory consumption
     !
     !$ACC DATA PRESENT(cld_frc, xm_ice, xm_liq, dz, pcos_mu0, emissivity) &
     !$ACC   PRESENT(alb_vis_dir, alb_nir_dir, alb_vis_dif, alb_nir_dif) &
-    !$ACC   PRESENT(daylght_frc, laland, laglac, dz, cdnc) &
+    !$ACC   PRESENT(daylght_frc, laland, laglac, dz, cdnc, xm_snw) &
+    !$ACC   PRESENT(reff_ice, tau_ice, reff_snow, tau_snow) &
     !$ACC   CREATE(ziwp, zlwp, mu0, zsemiss, albdif, re_cryst, re_drop) &
+    !$ACC   CREATE(zswp, zdwp, re_snow) &
     !$ACC   CREATE(albdir, rnseeds, tsi_norm_factor, toa_flux) &
     !$ACC   CREATE(plev, play, tlev, tlay)
 
@@ -701,6 +730,14 @@ CONTAINS
         cld_frc_loc = MAX(EPSILON(1.0_wp),cld_frc(jl,jk))
         ziwp(jl,jk) = xm_ice(jl,jk)*1000.0_wp/cld_frc_loc
         zlwp(jl,jk) = xm_liq(jl,jk)*1000.0_wp/cld_frc_loc
+        zswp(jl,jk) = xm_snw(jl,jk)*1000.0_wp
+
+        !
+        ! --- Initialize variables for snow optics
+        !
+        tau_ice(jl,jk) = 0._wp
+        tau_snow(jl,jk) = 0._wp
+        zdwp(jl,jk) = 0._wp
 
         ! Mask which tells cloud optics that this cell is clear
         lcldlyr = cld_frc(jl,jk) > cld_frc_thresh !!!
@@ -718,17 +755,21 @@ CONTAINS
 
           zkap = zkap_mrtm
           IF ( laland(jl) .AND. .NOT.laglac(jl) ) zkap = zkap_cont
-          
-          re_cryst_scal = MAX(reimin, MIN(reimax,83.8_wp*ziwc**0.216_wp))
-          re_drop_scal  = MAX(relmin, MIN(relmax, &
+          re_cryst(jl,jk) = MAX(reimin, MIN(reimax, 1.e6_wp * reff_ice(jl,jk)))
+          re_drop(jl,jk)  = MAX(relmin, MIN(relmax, &
             effective_radius * zkap * (zlwc / cdnc(jl,jk))**(1.0_wp/3.0_wp) ))
-
-          re_cryst(jl,jk) = re_cryst_scal
-          re_drop (jl,jk) = re_drop_scal
         ELSE
           re_cryst(jl,jk) = reimin
           re_drop (jl,jk) = relmin
         END IF
+
+        ! we take the same minimum condition for "snow water path" as for cloud condensate
+        ! Since we take the same interpolation tables as for cloud ice, we need the same bounds reimin, reimax
+        IF (zswp(jl,jk)>ccwmin) THEN
+          re_snow(jl,jk) = MAX(reimin, MIN(reimax, 1.e6_wp * reff_snow(jl,jk)))
+        ELSE
+          re_snow(jl,jk) = reimin
+        ENDIF
       END DO
     END DO
     !$ACC END PARALLEL
@@ -954,7 +995,17 @@ CONTAINS
 
     ! !$ACC update host(zlwp,     ziwp,    re_drop,    re_cryst)
     ! write (0,*) "newcloudsss", sum(zlwp),     sum(ziwp),    sum(re_drop),    sum(re_cryst)
-
+!++jsr, first, detect cloud ice optical depth with zdwp=0,
+!       then calculate cloud optical depth
+    CALL stop_on_err(cloud_optics_lw%cloud_optics( &
+                     zdwp,     ziwp,    re_drop,    re_cryst,   clouds_bnd_lw ))
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1)
+    DO band=1,nbndlw
+      tau_ice(1:ncol,1:klev)=tau_ice(1:ncol,1:klev)+clouds_bnd_lw%tau(1:ncol,1:klev,band)
+    END DO
+    !$ACC END PARALLEL LOOP
+!--jsr, calculate cloud optics including ice and water hydrometeors now
+!       only these are used in the sequel.    
     CALL stop_on_err(cloud_optics_lw%cloud_optics( &
                      zlwp,     ziwp,    re_drop,    re_cryst,   clouds_bnd_lw ))
     ! This will require computing logical masks for ice and liquid clouds
@@ -1035,6 +1086,37 @@ CONTAINS
     !$ACC END DATA
     CALL clouds_bnd_lw%finalize()
 
+    ! Snow optics
+    ! snow optics using optical properties of cloud ice
+    ! allocate memory for snow optical properties:
+    CALL stop_on_err(snow_bnd_lw%alloc_1scl(ncol, klev, &
+                     k_dist_lw%get_band_lims_wavenumber()))
+    !$ACC DATA CREATE(snow_bnd_lw)
+    !$ACC DATA CREATE(snow_bnd_lw%tau)
+    ! compute snow optics from table of cloud_optics
+    CALL stop_on_err(cloud_optics_lw%cloud_optics( &
+         zdwp,     zswp,  re_snow,  re_snow,   snow_bnd_lw ))
+    !++jsr scale tau with reimax/reff_snow for reff_snow > reimax
+    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(3) DEFAULT(PRESENT) ASYNC(1)
+    DO band=1,nbndlw
+      DO j = 1, klev
+        DO i = 1, ncol
+          IF ((1.e6_wp * reff_snow(i, j)) > reimax) THEN
+            snow_bnd_lw%tau(i, j, band) = snow_bnd_lw%tau(i, j, band) * reimax / (1.e6_wp * reff_snow(i, j))
+          END IF
+          tau_snow(i, j) = tau_snow(i, j) + snow_bnd_lw%tau(i, j, band)
+        END DO
+      END DO
+    END DO
+    !$ACC END PARALLEL LOOP
+    !--jsr
+    !$ACC WAIT(1)
+    CALL stop_on_err(snow_bnd_lw%increment(atmos_lw))
+    !$ACC END DATA
+    DEALLOCATE(snow_bnd_lw%tau)
+    !$ACC END DATA
+    CALL snow_bnd_lw%finalize()
+    
     !
     ! 4.1.5 Longwave all-sky fluxes
     !
@@ -1160,7 +1242,7 @@ CONTAINS
 
     ! hack inhom implementation by scaling the liquid water path
     ! it's important to run this AFTER the longwave
-    !$ACC KERNELS DEFAULT(PRESENT)
+    !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
     zlwp(:,:) = zlwp(:,:) * inhoml
     ziwp(:,:) = ziwp(:,:) * inhomi
     !$ACC END KERNELS
@@ -1171,6 +1253,17 @@ CONTAINS
     !$ACC DATA CREATE(clouds_bnd_sw)
     !$ACC DATA CREATE(clouds_bnd_sw%tau, clouds_bnd_sw%ssa, clouds_bnd_sw%g)
     ! then compute cloud optics
+!++jsr, first, detect cloud ice optical depth with zdwp=0,
+!       then calculate cloud optical depth
+    CALL stop_on_err(cloud_optics_sw%cloud_optics( &
+                     zdwp,     ziwp,    re_drop,    re_cryst,   clouds_bnd_sw ))
+    !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1)
+    DO band=1,nbndsw
+      tau_ice(1:ncol,1:klev)=tau_ice(1:ncol,1:klev)+clouds_bnd_sw%tau(1:ncol,1:klev,band)
+    END DO
+    !$ACC END PARALLEL LOOP
+!--jsr, calculate cloud optics including ice and water hydrometeors now
+!       only these are used in the sequel.    
     CALL stop_on_err(cloud_optics_sw%cloud_optics( &
                      zlwp,     ziwp,    re_drop,    re_cryst,   clouds_bnd_sw ))
     ! 4.2.4 McICA sampling of cloud optics for size(source, dim=1)W
@@ -1256,6 +1349,39 @@ CONTAINS
     !$ACC END DATA
     CALL clouds_bnd_sw%finalize()
     !
+    ! optics for snow
+    CALL stop_on_err(snow_bnd_sw%alloc_2str(ncol, klev, &
+                     k_dist_sw%get_band_lims_wavenumber()))
+    !$ACC DATA CREATE(snow_bnd_sw)
+    !$ACC DATA CREATE(snow_bnd_sw%tau, snow_bnd_sw%ssa, snow_bnd_sw%g)
+    ! then compute snow optics
+    CALL stop_on_err(cloud_optics_sw%cloud_optics( &
+                     zdwp,     zswp,  re_snow,  re_snow,   snow_bnd_sw ))
+    ! delta scale for the case ssa and g close to 1
+    CALL stop_on_err(snow_bnd_sw%delta_scale())
+    !++jsr scale tau with reimax/reff_snow for reff_snow > reimax
+    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(3) DEFAULT(PRESENT) ASYNC(1)
+    DO band = 1, nbndsw
+      DO j = 1, klev
+        DO i = 1, ncol
+          IF ((1.e6_wp * reff_snow(i, j)) > reimax) THEN
+            snow_bnd_sw%tau(i, j, band) = snow_bnd_sw%tau(i, j, band) * reimax / (1.e6_wp * reff_snow(i, j))
+          END IF
+          tau_snow(i, j) = tau_snow(i, j) + snow_bnd_sw%tau(i, j, band)
+        END DO
+      END DO
+    END DO
+    !$ACC END PARALLEL LOOP
+    !--jsr
+    ! increment the optcial properties of the atmosphere
+    !$ACC WAIT(1)
+    CALL stop_on_err(snow_bnd_sw%increment(atmos_sw))
+    !$ACC END DATA
+    DEALLOCATE(snow_bnd_sw%tau)
+    !$ACC END DATA
+    CALL snow_bnd_sw%finalize()
+
+    !
     ! 4.2.5 Shortwave all-sky fluxes
     !
     fluxes_sw%flux_up => flx_upsw
@@ -1320,7 +1446,9 @@ CONTAINS
     & pp_sfc,         pp_fl,          pp_hl,          &
     & tk_sfc,         tk_fl,          tk_hl,          &
     & xvmr_vap,       xm_liq,                         &
-    & xm_ice,         cdnc,           xc_frc,         &
+    & xm_ice,         reff_ice,       tau_ice,        &
+    & reff_snow,      tau_snow,                       &
+    & cdnc,           xc_frc,         xm_snw,         &
     & xvmr_co2,       xvmr_ch4,       xvmr_n2o,       &
     & xvmr_cfc,       xvmr_o3,        xvmr_o2,        &
     & aer_tau_lw,                                     &
@@ -1370,6 +1498,7 @@ CONTAINS
       & xm_ice(:,:),      & !< cloud ice   mass in kg/m2
       & cdnc(:,:),        & !< cloud nuclei concentration
       & xc_frc(:,:),      & !< fractional cloud cover
+      & xm_snw(:,:),      & !< snow        mass in kg/m2
       & xvmr_co2(:,:),    & !< co2 volume mixing ratio
       & xvmr_ch4(:,:),    & !< ch4 volume mixing ratio
       & xvmr_n2o(:,:),    & !< n2o volume mixing ratio
@@ -1379,8 +1508,14 @@ CONTAINS
       & aer_tau_lw(:,:,:),& !< aerosol optical depth, longwave (ncol, nlay, nbndlw)
       & aer_tau_sw(:,:,:),& !< aerosol optical depth,            shortwave (ncol, nlay, nbndlw)
       & aer_ssa_sw(:,:,:),& !< aerosol single-scattering albedo, shortwave (ncol, nlay, nbndlw)
-      & aer_asy_sw(:,:,:)   !< aerosol asymetry parameter,       shortwave (ncol, nlay, nbndlw)
+      & aer_asy_sw(:,:,:),& !< aerosol asymetry parameter,       shortwave (ncol, nlay, nbndlw)
+      & reff_ice(:,:),    & !< effective radius of cloud ice m
+      & reff_snow(:,:)      !< effective radius of snow m
 
+ REAL (wp), INTENT (INOUT) :: &
+      & tau_ice(:,:),     & !< optical depth of cloud ice integrated over bands
+      & tau_snow(:,:)       !< optical depth of snow integrated over bands
+ 
  REAL (wp), TARGET, INTENT (INOUT) ::       &
       & lw_upw    (:,:), & !<   upward LW flux profile, all sky
       & lw_upw_clr(:,:), & !<   upward LW flux profile, clear sky
@@ -1417,8 +1552,13 @@ CONTAINS
       & s_xvmr_vap       (jce-jcs+1,klev),       & !< water vapor volume mixing ratio
       & s_xm_liq         (jce-jcs+1,klev),       & !< cloud water mass in kg/m2
       & s_xm_ice         (jce-jcs+1,klev),       & !< cloud ice   mass in kg/m2
+      & s_reff_ice       (jce-jcs+1,klev),       & !< cloud ice effective radius
+      & s_tau_ice        (jce-jcs+1,klev),       & !< optical depth of cloud ice integrated over bands
+      & s_reff_snow      (jce-jcs+1,klev),       & !< snow effective radius
+      & s_tau_snow       (jce-jcs+1,klev),       & !< optical depth of snow integrated over bands
       & s_cdnc           (jce-jcs+1,klev),       & !< cloud nuclei concentration
       & s_xc_frc         (jce-jcs+1,klev),       & !< fractional cloud cover
+      & s_xm_snw         (jce-jcs+1,klev),       & !< snow        mass in kg/m2
       & s_xvmr_co2       (jce-jcs+1,klev),       & !< co2 volume mixing ratio
       & s_xvmr_ch4       (jce-jcs+1,klev),       & !< ch4 volume mixing ratio
       & s_xvmr_n2o       (jce-jcs+1,klev),       & !< n2o volume mixing ratio
@@ -1451,7 +1591,8 @@ CONTAINS
   !$ACC   CREATE(s_pp_fl, s_pp_hl) &
   !$ACC   CREATE(s_tk_fl, s_tk_hl) &
   !$ACC   CREATE(s_xvmr_vap, s_xm_liq) &
-  !$ACC   CREATE(s_xm_ice, s_cdnc, s_xc_frc) &
+  !$ACC   CREATE(s_xm_ice, s_reff_ice, s_tau_ice, s_reff_snow, s_tau_snow) &
+  !$ACC   CREATE(s_cdnc, s_xc_frc, s_xm_snw) &
   !$ACC   CREATE(s_xvmr_co2, s_xvmr_ch4, s_xvmr_n2o) &
   !$ACC   CREATE(s_xvmr_cfc, s_xvmr_o3, s_xvmr_o2) &
   !$ACC   CREATE(s_lw_upw, s_lw_upw_clr) &
@@ -1468,8 +1609,13 @@ CONTAINS
   s_xvmr_vap    (1:ncol,:)   = xvmr_vap    (jcs:jce,:)
   s_xm_liq      (1:ncol,:)   = xm_liq      (jcs:jce,:)
   s_xm_ice      (1:ncol,:)   = xm_ice      (jcs:jce,:)
+  s_reff_ice    (1:ncol,:)   = reff_ice    (jcs:jce,:)
+  s_tau_ice     (1:ncol,:)   = tau_ice     (jcs:jce,:)
+  s_reff_snow   (1:ncol,:)   = reff_snow   (jcs:jce,:)
+  s_tau_snow    (1:ncol,:)   = tau_snow    (jcs:jce,:)
   s_cdnc        (1:ncol,:)   = cdnc        (jcs:jce,:)
   s_xc_frc      (1:ncol,:)   = xc_frc      (jcs:jce,:)
+  s_xm_snw      (1:ncol,:)   = xm_snw      (jcs:jce,:)
   s_xvmr_co2    (1:ncol,:)   = xvmr_co2    (jcs:jce,:)
   s_xvmr_ch4    (1:ncol,:)   = xvmr_ch4    (jcs:jce,:)
   s_xvmr_n2o    (1:ncol,:)   = xvmr_n2o    (jcs:jce,:)
@@ -1534,7 +1680,9 @@ CONTAINS
       & pp_sfc     (jcs:jce),     s_pp_fl(:,:),             s_pp_hl(:,:),            &
       & tk_sfc     (jcs:jce),     s_tk_fl(:,:),             s_tk_hl(:,:),            &
       & s_xvmr_vap(:,:),          s_xm_liq(:,:),                                     &
-      & s_xm_ice(:,:),            s_cdnc(:,:),              s_xc_frc(:,:),           &
+      & s_xm_ice(:,:),            s_reff_ice(:,:),          s_tau_ice(:,:),          &
+      & s_reff_snow(:,:),         s_tau_snow(:,:),                                   &
+      & s_cdnc(:,:),              s_xc_frc(:,:),            s_xm_snw(:,:),           &
       & s_xvmr_co2(:,:),          s_xvmr_ch4(:,:),          s_xvmr_n2o(:,:),         &
       & s_xvmr_cfc(:,:,:),        s_xvmr_o3(:,:),           s_xvmr_o2(:,:),          &
       & s_aer_tau_lw(:,:,:),                                                         &
@@ -1562,6 +1710,7 @@ CONTAINS
   sw_dnw_clr     (jcs:jce,:) = s_sw_dnw_clr     (1:ncol,:)
   !$ACC END KERNELS
 
+  !$ACC WAIT(1)
   !$ACC EXIT DATA DELETE(s_aer_tau_lw, s_aer_tau_sw, s_aer_ssa_sw, s_aer_asy_sw) IF(lneed_aerosols)
   !$ACC END DATA
 END SUBROUTINE shift_and_call_rte_rrtmgp_interface_onBlock

@@ -1,18 +1,18 @@
-!>
-!! Allocation/deallocation of external parameter state
-!!
-!! This module contains routines for setting up the external data state.
-!!
-!! @author Mikhail Dobrynin, DWD, 18.06.19
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Allocation/deallocation of external parameter state
+!
+! This module contains routines for setting up the external data state.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -60,9 +60,6 @@ CONTAINS
   !>
   !! Constructor for wave external data state and list.
   !!
-  !! @par Revision History
-  !! Initial release by Mikhail Dobrynin, DWD (2023-01-16)
-  !!
   SUBROUTINE construct_wave_ext_data_state (p_patch, wave_ext_data, wave_ext_data_list)
     TYPE(t_patch),                      INTENT(IN)    :: p_patch(:)
     TYPE(t_external_wave), ALLOCATABLE, INTENT(INOUT) :: wave_ext_data(:)
@@ -96,9 +93,6 @@ CONTAINS
   !>
   !! Destructor for wave external data state and list.
   !!
-  !! @par Revision History
-  !! Initial release by Mikhail Dobrynin, DWD (2023-01-16)
-  !!
   SUBROUTINE destruct_wave_ext_data_state
 
     INTEGER :: jg
@@ -124,9 +118,6 @@ CONTAINS
 
   !>
   !! Allocation of components of wave ext_data state
-  !!
-  !! @par Revision History
-  !! Initial release by Mikhail Dobrynin, DWD (2023-01-16)
   !!
   SUBROUTINE new_ext_data_wave_list( p_patch, ext_data_wave, ext_data_wave_list, listname)
     TYPE(t_patch), INTENT(IN)            :: & !< current patch

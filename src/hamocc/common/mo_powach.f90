@@ -1,8 +1,16 @@
-!! @file mo_powach.f90
-!! @brief sediment chemistry, implicit and explicit discretisation
+! @brief sediment chemistry, implicit and explicit discretisation
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
-
- 
 MODULE mo_powach
 
  USE mo_kind, ONLY        : wp
@@ -11,6 +19,7 @@ MODULE mo_powach
  USE mo_carchm,           ONLY: update_hi
 
  USE mo_bgc_memory_types, ONLY  : t_bgc_memory, t_sediment_memory
+ USE mo_fortran_tools, ONLY     : set_acc_host_or_device
 
  IMPLICIT NONE
 
@@ -21,7 +30,7 @@ MODULE mo_powach
 
 
 CONTAINS
-   SUBROUTINE POWACH(local_bgc_mem, local_sediment_mem, start_idx, end_idx, psao, pddpo, use_acc)
+   SUBROUTINE POWACH(local_bgc_mem, local_sediment_mem, start_idx, end_idx, psao, pddpo, lacc)
 !!   @brief compute sediment chemistry, explicit discretisation
 !!   call pore water diffusion
 !!
@@ -66,13 +75,13 @@ CONTAINS
 
    REAL(wp), INTENT(in) :: psao(bgc_nproma,bgc_zlevs)   !< salinity [psu.].
    REAL(wp), INTENT(in) :: pddpo(bgc_nproma,bgc_zlevs)  !< size of scalar grid cell 
-   LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+   LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
   !! Local variables
 
    INTEGER,  POINTER  :: kbo(:)   !< k-index of bottom layer (2d)
    INTEGER :: j,k
-   LOGICAL :: lacc
+   LOGICAL :: lzacc
 
    REAL(wp) :: orgsed                        ! sum of C12 and C13 in organic sed.
    REAL(wp) :: sssnew                        ! temporarily value of solid constituent after solution
@@ -112,17 +121,13 @@ CONTAINS
    REAL(wp) :: quadno3        ! for saturation function quadartic no3
    REAL(wp) :: newammo,newnitr
 
-   IF (PRESENT(use_acc)) THEN
-     lacc = use_acc
-   ELSE
-     lacc = .FALSE.
-   END IF
+   CALL set_acc_host_or_device(lzacc, lacc)
    
   kbo => local_bgc_mem%kbo
 
 !!! WE start with remineralisation of organic to estimate alkalinity changes first
 !          
-   !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+   !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
    !$ACC LOOP GANG VECTOR PRIVATE(powcar)
    DO j = start_idx, end_idx
 
@@ -578,9 +583,9 @@ CONTAINS
    ENDDO
    !$ACC END PARALLEL
 
-   CALL dipowa(local_bgc_mem, local_sediment_mem, start_idx,end_idx, use_acc=lacc)
+   CALL dipowa(local_bgc_mem, local_sediment_mem, start_idx,end_idx, lacc=lzacc)
 
-   !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+   !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
    !$ACC LOOP GANG VECTOR
    DO j = start_idx, end_idx
         local_sediment_mem%sedlay(j,1,issster) = local_sediment_mem%sedlay(j,1,issster)                 &

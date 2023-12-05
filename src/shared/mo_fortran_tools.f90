@@ -1,23 +1,21 @@
-!>
-!! This module contains often-used Fortran language constructs.
-!!
-!! The small functions and subroutines in this module should depend
-!! only on most basic types and should not call other model-specific
-!! subroutines.
-!!
-!! @par Revision History
-!!    Initial implementation : F. Prill, DWD (2012-07-04)
-!!    moved routines from "mo_var_list.f90"
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! This module contains often-used Fortran language constructs.
+!
+! The small functions and subroutines in this module should depend
+! only on most basic types and should not call other model-specific
+! subroutines.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_fortran_tools
 
   USE mo_kind,                    ONLY: wp, sp, vp, dp, ik4 => i4
@@ -446,13 +444,7 @@ CONTAINS
 
   END FUNCTION if_associated_rc_2d
 
-  !>
   !! Swap content of two Integers
-  !!
-  !! Swap content of two Integers
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2014-10-28)
   !!
   SUBROUTINE swap_int(a,b)
     INTEGER, INTENT(INOUT) :: a
@@ -466,13 +458,9 @@ CONTAINS
     b    = temp
   END SUBROUTINE swap_int
 
-  !>
   !! Expand array by given size
   !!
   !! Expand a 1D character array by given size.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2014-10-28)
   !!
   SUBROUTINE resize_arr_c1d(arr,nelem)
     ! GCC 4.9.0 complained about CHARACTER(:); Cray did not!
@@ -1639,12 +1627,11 @@ CONTAINS
 
     minval_1d = HUGE(minval_1d)
 
-    !$ACC PARALLEL DEFAULT(PRESENT) COPY(minval_1d) ASYNC(1) REDUCTION(MIN: minval_1d) IF(lacc)
-    !$ACC LOOP GANG VECTOR
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) REDUCTION(MIN: minval_1d) IF(lacc)
     DO i = 1, s1
       minval_1d = MIN(minval_1d, var(i)) ! The loop is equivalent to MINVAL(var(:))
     ENDDO
-    !$ACC END PARALLEL
+    !$ACC END PARALLEL LOOP
     !$ACC WAIT ! required to sync result back to CPU
 #else
     minval_1d = MINVAL(var(:))
@@ -1668,14 +1655,13 @@ CONTAINS
   
       minval_2d = HUGE(minval_2d)
   
-      !$ACC PARALLEL DEFAULT(PRESENT) COPY(minval_2d) ASYNC(1) REDUCTION(MIN: minval_2d) IF(lacc)
-      !$ACC LOOP GANG VECTOR
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) REDUCTION(MIN: minval_2d) IF(lacc)
       DO j = 1, s2
         DO i = 1, s1
           minval_2d = MIN(minval_2d, var(i,j)) ! The loop is equivalent to MINVAL(var(:,:))
         ENDDO
       ENDDO
-      !$ACC END PARALLEL
+      !$ACC END PARALLEL LOOP
       !$ACC WAIT ! required to sync result back to CPU
 #else
       minval_2d = MINVAL(var(:,:))
@@ -2223,7 +2209,7 @@ CONTAINS
 
   END SUBROUTINE assert_lacc_equals_i_am_accel_node
 
-  SUBROUTINE set_acc_host_or_device(lzacc, lacc)
+  PURE SUBROUTINE set_acc_host_or_device(lzacc, lacc)
     LOGICAL, INTENT(out) :: lzacc
     LOGICAL, INTENT(in), OPTIONAL :: lacc
 

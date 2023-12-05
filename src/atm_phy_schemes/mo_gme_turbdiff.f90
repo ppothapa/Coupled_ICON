@@ -1,10 +1,14 @@
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_gme_turbdiff
 
   USE mo_kind,               ONLY : wp
@@ -25,6 +29,12 @@ MODULE mo_gme_turbdiff
 
 
   PUBLIC :: partura, parturs, progimp_turb, nearsfc
+
+#ifdef ICON_USE_CUDA_GRAPH
+  LOGICAL, PARAMETER :: using_cuda_graph = .TRUE.
+#else
+  LOGICAL, PARAMETER :: using_cuda_graph = .FALSE.
+#endif
 
   CONTAINS
 
@@ -674,6 +684,9 @@ SUBROUTINE parturs( zsurf, z1  , u1   , v1     , t1   , qv1  ,    &
       END DO
       !$ACC END PARALLEL
 
+      IF (.NOT. using_cuda_graph) THEN
+        !$ACC WAIT(1)
+      END IF
       !$ACC END DATA ! zvpb, zx, ztcm, ztch, zdfip, zris, zgz0m, zgz0h, lo_ice
 
   END SUBROUTINE parturs
@@ -1568,6 +1581,9 @@ Water_or_Land: IF( fr_land(j1) < 0.5_wp ) THEN
       ENDDO
       !$ACC END PARALLEL
 
+      IF (.NOT. using_cuda_graph) THEN
+        !$ACC WAIT(1)
+      END IF
       !$ACC END DATA ! zv, zcm, zch, zgz0
 
   END SUBROUTINE nearsfc

@@ -1,14 +1,10 @@
-#if (defined (__GNUC__) || defined(__SUNPRO_F95) || defined(__SX__))
-#define HAVE_F95
-#endif
-
-!>
-!! Description:  Contains the data structures
-!!  to store the physical model state and other auxiliary variables
-!!  in order to run the ECHAM physics.
-!!  This module should be an analogon to 'mo_nonhydro_types.f90'
-
-!!  TODO/To think about:
+!
+! Description:  Contains the data structures
+!  to store the physical model state and other auxiliary variables
+!  in order to run the ECHAM physics.
+!  This module should be an analogon to 'mo_nonhydro_types.f90'
+!
+!  TODO/To think about:
 !     - should physics be called before or after dynamics?
 !     - allocate fluxes at edges instead at the centers?
 !     - horizontal/vertical tracer flux (reconstruct q'v_n' into q'u' and q'v') ?
@@ -19,32 +15,27 @@
 !     - fill the physics tendency construction/destruction subroutine
 !     - later implement already calculated icon gradients for echam physics
 !     - think about variables for flexible time steps
-!!
-!! @author Kristina Froehlich, DWD
-!! @author Marco Giorgetta, MPI-M
-!!
-!!
-!! @par Revision History
-!! Initial  by Kristina Froehlich (2009-06-10)
-!! Memory allocation method changed from explicit allocation to Luis' 
-!! infrastructure by Kristina Froehlich (MPI-M, 2011-04-27)
-!! Added clch, clcm, clcl, hbas_con, htop_con by Helmut Frank (DWD, 2013-01-17)
-!! Added hzerocl and gusts                    by Helmut Frank (DWD, 2013-03-13)
-!! Added LPI, MLPI and koi to t_nwp_phy_diag by Guido Schroeder (DWD, 2021-01-29)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
+#if (defined (__GNUC__) || defined(__SUNPRO_F95) || defined(__SX__))
+#define HAVE_F95
+#endif
+
 MODULE mo_nwp_phy_types
 
   USE mo_kind,                ONLY: wp, vp
   USE mo_fortran_tools,       ONLY: t_ptr_2d3d,t_ptr_tracer
-  
+
   USE mo_nwp_vdiff_types, ONLY: t_nwp_vdiff_state
 
   IMPLICIT NONE
@@ -77,7 +68,6 @@ MODULE mo_nwp_phy_types
 
     TYPE(t_ptr_2d3d),ALLOCATABLE :: cfm_ptr(:)  !< pointer array: average of cfm
     TYPE(t_ptr_2d3d),ALLOCATABLE :: cfh_ptr(:)  !< pointer array: average of cfh
-    TYPE(t_ptr_2d3d),ALLOCATABLE :: z0m_ptr(:)  !< pointer array: average of z0m
     TYPE(t_ptr_2d3d),ALLOCATABLE :: albdif_t_ptr(:)   !< pointer array: tile-specific albedo (shortwave)
     TYPE(t_ptr_2d3d),ALLOCATABLE :: albvisdif_t_ptr(:)!< pointer array: tile-specific albedo (UV/visible)
     TYPE(t_ptr_2d3d),ALLOCATABLE :: albnirdif_t_ptr(:)!< pointer array: tile-specific albedo (NIR)
@@ -174,6 +164,7 @@ MODULE mo_nwp_phy_types
       &  heatcond_fac(:,:),    & !! Factor for adaptive soil heat conductivity tuning (coupled to DA increments for T)
       &  heatcap_fac(:,:),     & !! Factor for adaptive soil heat capacity tuning (coupled to DA increments for T)
       &  sfcfric_fac(:,:),     & !! Factor for adaptive surface friction tuning (coupled to DA increments for V_abs)
+      &  hflux_si_fac(:,:),    & !! Factor for adaptive tuning of seaice bottom heat flux (coupled to DA increments for T)
       &  vio3(:,:),            & !! vertically integrated ozone amount (Pa O3)
       &  hmo3(:,:),            & !! height of O3 maximum (Pa)
       &  flxdwswtoa(:,:),      & !! downward shortwave flux at TOA [W/m2]
@@ -273,8 +264,6 @@ MODULE mo_nwp_phy_types
       &  snow_con_rate    (:,:),  & !! convective surface snow_rate                    [kg/m2/s]
       &  rain_con_rate_3d (:,:,:),& !! 3d convective rain rate (convection scheme)     [kg/m2/s]
       &  snow_con_rate_3d (:,:,:),& !! 3d convective snow_rate (convection scheme)     [kg/m2/s]
-      &  rain_edmf_rate_3d(:,:,:),& !! 3d convective rain rate (EDMF scheme)           [kg/m2/s]
-      &  snow_edmf_rate_3d(:,:,:),& !! 3d convective snow_rate (EDMF scheme)           [kg/m2/s]
       !
       ! Instantaneous grid scale precipitation rate [kg/m2/s] (sum over gsp hydromets):
       &  prec_gsp_rate    (:,:),  & !! total surface precipitation rate                [kg/m2/s]
@@ -336,6 +325,7 @@ MODULE mo_nwp_phy_types
       rlamh_fac_t(:,:,:),  & !! tuning factor for laminar transfer resistance (rlam_heat)
       gz0(:,:),            & !! roughness length * g of the vertically not
                              !! resolved canopy                               (m2/s2)
+      z0_waves(:,:),       & !! wave-dependent roughness length               (  m  )
       tkvm(:,:,:),         & !! turbulent diffusion coefficients for momentum (m/s2 )
       tkvh(:,:,:),         & !! turbulent diffusion coefficients for heat     (m/s2 )
       t_2m(:,:)       ,    & !! temperature in 2m                             (  K  )
@@ -387,13 +377,9 @@ MODULE mo_nwp_phy_types
       reff_qg(:,:,:)   ,   & !! effective radius of cloud graupel             (m)
       reff_qh(:,:,:)         !! effective radius of cloud hail                (m)
 
-    ! need only for EDMF
-    REAL(wp), POINTER, CONTIGUOUS :: &
-      & z0m     (:,:)       !< aerodynamic roughness length
-
     !> Diagnostics for LES turbulence
     REAL(wp), POINTER, CONTIGUOUS :: &
-      z_pbl(:,:)     ,     & !> Boundary layer height  (m)
+      z_pbl(:,:)     ,     & !> Boundary layer height  (m) (LES)
       bruvais(:,:,:) ,     & !> Brunt Vaisala Frequency
       mech_prod(:,:,:),    & !> Mechanical production/loss term in TKE equation
       t_cbase(:,:),        & !>cloud base temperature
@@ -498,7 +484,8 @@ MODULE mo_nwp_phy_types
       cape_3km (:,:),      & !! convective available energy of mean surface layer parcel with endpoint 3km.
       cin_3km(:,:),        & !! convective inhibition of mean surface layer parcel with endpoint 3km.
       cloudtop(:,:),       & !! Cloud Top
-      srh(:,:,:)             !< Storm relative helicity with right-moving storm motion after Bunkers et al. (2000)
+      srh(:,:,:),          & !< Storm relative helicity with right-moving storm motion after Bunkers et al. (2000)
+      hpbl(:,:)              !! Boundary layer height  (m)
 
     ! Buffer field needed when vertical nesting is combined with a reduced radiation
     ! grid and latm_above_top = .TRUE.

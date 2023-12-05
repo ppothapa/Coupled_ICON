@@ -1,33 +1,18 @@
-!>
-!! module *mo_vertical_coord_table* - *loop indices and surface-pressure independent
-!! variables associated with the vertical finite-difference scheme.
-!!
-!! @par Revision History
-!!  A.J. Simmons, ECMWF (1981-11-16)
-!!  H. Wan, MPI-Met (2006-02) adapted from ECHAM5.3.01
-!!  H. Wan, MPI-Met (2007-07-19)
-!!   - calling of *message* removed when something goes wrong.
-!!   - no longer initialize the parameter arrays with infinity.
-!!   - changed the name of this module from mo_hyb to mo_hyb_params.
-!!  H. Wan, MPI-Met (2007-08)
-!!   - parameters used only for the semi-implicit correction were moved to
-!!     module mo_si_correction.
-!!   - inihyb renamed init_hyb_params.
-!!  A. Gassmann, MPI-Met (2008-04)
-!!   - read hyb_file according to level number given
-!!  M.A. Giorgetta, MPI-Met (2009-02-08)
-!!   - change input and output formats of the vertical coordinate table
-!!  Almut Gassmann, MPI-M (2009-03-19)
-!!   - make read_hyb_params public for using it in nonhydrostatic version
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! module *mo_vertical_coord_table* - *loop indices and surface-pressure independent
+! variables associated with the vertical finite-difference scheme.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_vertical_coord_table
 
   !-------------------------------------------------------------------------
@@ -118,7 +103,7 @@ CONTAINS
           CALL finish (TRIM(routine), 'reading vct_a and vct_b failed')
        ENDIF
     END DO
-    !$ACC UPDATE DEVICE(vct_a)
+    !$ACC UPDATE DEVICE(vct_a) ASYNC(1)
 
     CALL message(TRIM(routine), 'vertical coordinate table file successfully read')
 

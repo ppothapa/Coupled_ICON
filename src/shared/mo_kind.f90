@@ -1,36 +1,29 @@
-!>
-!!  Module determines kinds for different precisions.
-!!
-!!  Module determines kinds for different precisions
-!!  Number model from which the SELECTED_*\\_KIND are requested: <br>
-!!
-!! @f{tabular}{{r@{\hspace*{3em}}c@{\hspace*{3em}}c}
-!!                     &4 byte REAL     &8 byte REAL        \\\
-!!        CRAY:        &-               &precision =   13   \\\
-!!                     &                &exponent  = 2465   \\\
-!!        IEEE:        &precision = 6   &precision =   15   \\\
-!!                     &exponent  = 37  &exponent  =  307
-!! @f}
-!! \\medskip
-!!
-!!  Most likely this are the only possible models.
-!!
-!! @par Revision History
-!!  Working precision and comments are added by Luis Kornblueh (2001)
-!!  Modification by Luis Kornblueh (2010-02-16):
-!!  Working precision selection is parameterized by values, which can be as
-!!  well used for selection of MPI data types associated with the respective
-!!  Fortran datatypes.
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Module determines kinds for different precisions
+! Number model from which the SELECTED_*\\_KIND are requested: <br>
+!
+! @f{tabular}{{r@{\hspace*{3em}}c@{\hspace*{3em}}c}
+!                     &4 byte REAL     &8 byte REAL        \\\
+!        CRAY:        &-               &precision =   13   \\\
+!                     &                &exponent  = 2465   \\\
+!        IEEE:        &precision = 6   &precision =   15   \\\
+!                     &exponent  = 37  &exponent  =  307
+! @f}
+! \\medskip
+!
+!  Most likely this are the only possible models.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_kind
 
   IMPLICIT NONE

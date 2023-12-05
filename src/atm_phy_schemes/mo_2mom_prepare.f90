@@ -1,22 +1,14 @@
-!===============================================================================!
 !
-! This was originally part of mo_2mom_mcrph_driver, but ..
+! ICON
 !
-!  Work-around for Intel 14.0.3 optimizer bug.
-!  Host-associated variables are incorrectly propagated at -O2.
-!  (SVN Comment by Thomas Jahns in icon-hdcp2-20150604, rev 22867)
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
 !
-!===============================================================================!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!===============================================================================!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_2mom_prepare
 

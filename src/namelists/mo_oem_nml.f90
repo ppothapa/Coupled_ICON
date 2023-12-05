@@ -1,18 +1,17 @@
-!>
-!! This module provides parameters controlling online emission module.
-!!
-!! Authors:
-!! Michael Jaehn, EMPA, michael.jaehn@empa.ch
-!! Michael Steiner, EMPA, michael.steiner@empa.ch
-!!
-!!
-!! Current Code Owner: C2SM, Anne Roches
-!!  phone:  
-!!  email:  anne.roches@env.ethz.ch
-!!
-!!
-!!
-!!
+! This module provides parameters controlling online emission module.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_oem_nml
 
     USE mo_oem_config, ONLY: config_vertical_profile_nc   => vertical_profile_nc,   &

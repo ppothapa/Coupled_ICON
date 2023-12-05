@@ -1,62 +1,60 @@
-!>
-!!
-!!  This module serves to initialize constant arrays used in computation
-!!  of LTE and non-LTE IR cooling due to CO2 and O3.
-!!
-!!  The module contains:
-!!  A) flags for initialization
-!!  B) grids in "pressure scale height" (x=log(1000hPa/p)) on which
-!!     calculation is done
-!!  C) data for LTE parameterization of CO2 and O3 (x=2-12.5)
-!!  D) data for non-LTE parameterization of CO2 (x=12.5-16.5)
-!!  E) subroutine to initialize CO2 and O3 coefficients of C)
-!!  F) subroutine to interpolate CO2 coefficients to specific CO2 vmr
-!!  G) subroutines to compute CO2 and O3 heating on x-grid
-!!  H) subroutine to interpolate ECHAM profiles to x-grid
-!!     and resulting heating from x-grid to ECHAM grid
-!!  I) interpolation functions
-!!
-!!
-!! @author
-!!
-!!  V. Fomichev   , December, 1998: original source
-!!  M.A. Giorgetta, MPI, June 2001: rewrite for ECHAM5
-!!
-!! @par Revision History
-!!
-!! Modifications by H. Schmidt, MPI, April 2002: 
-!! - bug fix: co2int(i) -> co2int(1)
-!! - op1 introduced as o-concentration may be 0
-!! May 2002:
-!!  - bug fix: uco2co removed and replace by co2col in computations
-!!    for reccurence formula
-!!  - nlte_set_co2 changed:
-!!  + coefficients for co2-cooling are now based on co2 profile
-!!    given in nlte_std_co2 and not on separately defined profile
-!!  + interpolation of coefficients is now based on co2 column
-!!    amounts and not on absolute concentrations (suggestion of
-!!    V. Fomichev to enable non constants profiles below 95 km)
-!! July 2002
-!! - interpolations optimized to save computing time
-!!
-!! Modifications by G. Zhou, MPI, Jun 2016:
-!! - adjusted for ICON
-!! - removed the use of molar weight and gravity from msis. These are now input arguments.
-!!  Modification by G. Zhou, MPI, Oct 2016:
-!!  - bug fix: removed restriction on minimal model top height which causes
-!!    zero in some blocks while not in others
-!!  Modification by Guidi Zhou, MPI-M (2017-03-06)
-!!  - reduced the number of levels on which nlte-matrix is computed, now only compute above 64.75 km. 
-!!    This increases performence.
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+!
+!  This module serves to initialize constant arrays used in computation
+!  of LTE and non-LTE IR cooling due to CO2 and O3.
+!
+!  The module contains:
+!  A) flags for initialization
+!  B) grids in "pressure scale height" (x=log(1000hPa/p)) on which
+!     calculation is done
+!  C) data for LTE parameterization of CO2 and O3 (x=2-12.5)
+!  D) data for non-LTE parameterization of CO2 (x=12.5-16.5)
+!  E) subroutine to initialize CO2 and O3 coefficients of C)
+!  F) subroutine to interpolate CO2 coefficients to specific CO2 vmr
+!  G) subroutines to compute CO2 and O3 heating on x-grid
+!  H) subroutine to interpolate ECHAM profiles to x-grid
+!     and resulting heating from x-grid to ECHAM grid
+!  I) interpolation functions
+!
+!  V. Fomichev   , December, 1998: original source
+!  M.A. Giorgetta, MPI, June 2001: rewrite for ECHAM5
+!
+! Modifications by H. Schmidt, MPI, April 2002:
+! - bug fix: co2int(i) -> co2int(1)
+! - op1 introduced as o-concentration may be 0
+! May 2002:
+!  - bug fix: uco2co removed and replace by co2col in computations
+!    for reccurence formula
+!  - nlte_set_co2 changed:
+!  + coefficients for co2-cooling are now based on co2 profile
+!    given in nlte_std_co2 and not on separately defined profile
+!  + interpolation of coefficients is now based on co2 column
+!    amounts and not on absolute concentrations (suggestion of
+!    V. Fomichev to enable non constants profiles below 95 km)
+! July 2002
+! - interpolations optimized to save computing time
+!
+! Modifications by G. Zhou, MPI, Jun 2016:
+! - adjusted for ICON
+! - removed the use of molar weight and gravity from msis. These are now input arguments.
+!  Modification by G. Zhou, MPI, Oct 2016:
+!  - bug fix: removed restriction on minimal model top height which causes
+!    zero in some blocks while not in others
+!  Modification by Guidi Zhou, MPI-M (2017-03-06)
+!  - reduced the number of levels on which nlte-matrix is computed, now only compute above 64.75 km.
+!    This increases performence.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_upatmo_phy_nlte
 
   USE mo_kind,                 ONLY: wp

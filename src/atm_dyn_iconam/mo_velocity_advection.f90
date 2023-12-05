@@ -1,24 +1,20 @@
-!>
-!! mo_velocity_advection
-!!
-!! This module contains the subroutine calculating the velocity advection tendencies
-!! for the nonhydrostatic dynamical core. Separated from mo_solve_nonhydro in order
-!! to speed up compile time
-!!
-!! @author Guenther Zaengl, DWD
-!!
-!! @par Revision History
-!! Created by Guenther Zaengl, DWD (2013-09-13)
-!! Modification by William Sawyer, CSCS (2015-02-06):  OpenACC implementation
-!! 
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! This module contains the subroutine calculating the velocity advection tendencies
+! for the nonhydrostatic dynamical core. Separated from mo_solve_nonhydro in order
+! to speed up compile time
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -69,9 +65,6 @@ MODULE mo_velocity_advection
   !! In particular, the Lamb transformation is applied only to the horizontal
   !! equation of motion, whereas the vertical wind equation is discretized
   !! in advective form
-  !!
-  !! @par Revision History
-  !! Initial release by Guenther Zaengl (2010-02-03)
   !!
   SUBROUTINE velocity_tendencies (p_prog, p_patch, p_int, p_metrics, p_diag, z_w_concorr_me, z_kin_hor_e, &
                                   z_vt_ie, ntnd, istep, lvn_only, dtime, dt_linintp_ubc, ldeepatmo)
@@ -541,7 +534,7 @@ MODULE mo_velocity_advection
         maxvcfl = 0
 
 ! DA this kernel is ASYNC(1), so need to wait to retrieve the value
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) REDUCTION(MAX: maxvcfl) IF(i_am_accel_node)
       !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(vcfl) REDUCTION(MAX: maxvcfl)
       DO jk = MAX(3,nrdmax_jg-2), nlev-3
 #ifndef _OPENACC
@@ -904,14 +897,17 @@ MODULE mo_velocity_advection
        vt_tmp              => p_diag%vt
        vn_ie_tmp           => p_diag%vn_ie
        w_concorr_c_tmp     => p_diag%w_concorr_c
-       !$ACC UPDATE DEVICE(vn_tmp, w_tmp, vt_tmp, vn_ie_tmp, w_concorr_c_tmp, z_w_concorr_me, z_kin_hor_e, z_vt_ie)
+       !$ACC UPDATE &
+       !$ACC   DEVICE(vn_tmp, w_tmp, vt_tmp, vn_ie_tmp, w_concorr_c_tmp) &
+       !$ACC   DEVICE(z_w_concorr_me, z_kin_hor_e, z_vt_ie) &
+       !$ACC   ASYNC(1)
 
        ddt_vn_apc_pc_tmp   => p_diag%ddt_vn_apc_pc
        ddt_w_adv_pc_tmp    => p_diag%ddt_w_adv_pc
-       !$ACC UPDATE DEVICE(ddt_vn_apc_pc_tmp(:,:,:,ntnd), ddt_w_adv_pc_tmp(:,:,:,ntnd))
+       !$ACC UPDATE DEVICE(ddt_vn_apc_pc_tmp(:,:,:,ntnd), ddt_w_adv_pc_tmp(:,:,:,ntnd)) ASYNC(1)
        IF (p_diag%ddt_vn_adv_is_associated .OR. p_diag%ddt_vn_cor_is_associated) THEN
           ddt_vn_cor_pc_tmp   => p_diag%ddt_vn_cor_pc
-       !$ACC UPDATE DEVICE(ddt_vn_cor_pc_tmp(:,:,:,ntnd))
+       !$ACC UPDATE DEVICE(ddt_vn_cor_pc_tmp(:,:,:,ntnd)) ASYNC(1)
        END IF
 
      END SUBROUTINE h2d_velocity_tendencies
@@ -931,15 +927,19 @@ MODULE mo_velocity_advection
        vt_tmp              => p_diag%vt
        vn_ie_tmp           => p_diag%vn_ie
        w_concorr_c_tmp     => p_diag%w_concorr_c
-       !$ACC UPDATE HOST(z_kin_hor_e, z_vt_ie, z_w_concorr_me, vt_tmp, vn_ie_tmp, w_concorr_c_tmp) IF(istep==1)
+       !$ACC UPDATE &
+       !$ACC   HOST(z_kin_hor_e, z_vt_ie, z_w_concorr_me, vt_tmp, vn_ie_tmp, w_concorr_c_tmp) &
+       !$ACC   ASYNC(1) IF(istep==1)
 
        ddt_vn_apc_pc_tmp   => p_diag%ddt_vn_apc_pc
        ddt_w_adv_pc_tmp    => p_diag%ddt_w_adv_pc
-       !$ACC UPDATE HOST(ddt_vn_apc_pc_tmp(:,:,:,ntnd), ddt_w_adv_pc_tmp(:,:,:,ntnd))
+       !$ACC UPDATE HOST(ddt_vn_apc_pc_tmp(:,:,:,ntnd), ddt_w_adv_pc_tmp(:,:,:,ntnd)) ASYNC(1)
        IF (p_diag%ddt_vn_adv_is_associated .OR. p_diag%ddt_vn_cor_is_associated) THEN
           ddt_vn_cor_pc_tmp   => p_diag%ddt_vn_cor_pc
-       !$ACC UPDATE HOST(ddt_vn_cor_pc_tmp(:,:,:,ntnd))
+       !$ACC UPDATE HOST(ddt_vn_cor_pc_tmp(:,:,:,ntnd)) ASYNC(1)
        END IF
+
+       !$ACC WAIT(1)
 
      END SUBROUTINE d2h_velocity_tendencies
 #endif

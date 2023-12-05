@@ -1,20 +1,19 @@
-!>
-!! This module provides a simple key value storage based on string comparisons
-!! using the generic hash tables provided by mo_hash_table. 
-!! As method to calculate hash keys, the DJB algorithm is used.
-!!
-!!
-!! @par Revision History
-!! Initial release by Daniel Rieger, KIT (2016-12-13)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! This module provides a simple key value storage based on string comparisons
+! using the generic hash tables provided by mo_hash_table.
+! As method to calculate hash keys, the DJB algorithm is used.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_key_value_store
   USE mo_exception,             ONLY: finish, message
   USE mo_hash_table,            ONLY: t_HashTable, hashTable_make, t_HashIterator

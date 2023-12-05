@@ -1,20 +1,18 @@
-!>
-!! This module contains the I/O routines for initicon
-!!
-!! @author Guenther Zaengl, DWD
-!!
-!!
-!! @par Revision History
-!! First version by Guenther Zaengl, DWD (2011-07-13)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! This module contains the I/O routines for initicon
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -25,9 +23,10 @@ MODULE mo_initicon_utils
   USE mo_kind,                ONLY: wp
   USE mo_parallel_config,     ONLY: nproma
   USE mo_run_config,          ONLY: msg_level, ntracer, iqv, iqc, iqi, iqr, iqs, iqg, iforcing, &
-                                    iqh, iqnc, iqni, iqnr, iqns, iqng, iqnh
+                                    iqh, iqnc, iqni, iqnr, iqns, iqng, iqnh, iqgl, iqhl
   USE mo_dynamics_config,     ONLY: nnow, nnow_rcf, nnew, nnew_rcf
   USE mo_model_domain,        ONLY: t_patch
+  USE mo_nonhydro_state,      ONLY: p_nh_state
   USE mo_nonhydro_types,      ONLY: t_nh_state, t_nh_metrics, t_nh_diag, t_nh_prog
   USE mo_nonhydrostatic_config, ONLY: kstart_moist, kstart_tracer
   USE mo_nwp_lnd_types,       ONLY: t_lnd_state, t_lnd_prog, t_lnd_diag, t_wtr_prog
@@ -35,7 +34,7 @@ MODULE mo_initicon_utils
   USE mo_initicon_types,      ONLY: t_initicon_state, alb_snow_var, t_pi_atm_in, t_pi_sfc_in, t_pi_atm, &
     &                               t_pi_sfc, t_sfc_inc, ana_varnames_dict, t_init_state_const
   USE mo_initicon_config,     ONLY: init_mode, l_sst_in, qcana_mode, qiana_mode, qrsgana_mode, &
-    &                               ana_varnames_map_file, lread_vn,      &
+    &                               ana_varnames_map_file, lread_vn, fire2d_filename,          &
     &                               lvert_remap_fg, aerosol_fg_present, icpl_da_sfcevap
   USE mo_impl_constants,      ONLY: MODE_DWDANA, MODE_IAU,                              &
                                     MODE_IAU_OLD, MODE_IFSANA, MODE_COMBINED,           &
@@ -44,9 +43,8 @@ MODULE mo_initicon_utils
     &                               iss, iorg, ibc, iso4, idu, SUCCESS, iaes
   USE mo_loopindices,         ONLY: get_indices_c
   USE mo_radiation_config,    ONLY: albedo_type
-  USE mo_physical_constants,  ONLY: tf_salt, tmelt
   USE mo_exception,           ONLY: message, finish, message_text
-  USE mo_grid_config,         ONLY: n_dom
+  USE mo_grid_config,         ONLY: n_dom, nroot
   USE mo_mpi,                 ONLY: my_process_is_stdio, p_io, &
     &                               p_comm_work, my_process_is_mpi_workroot, &
     &                               p_min, p_max, p_sum, num_work_procs, my_process_is_work
@@ -56,12 +54,12 @@ MODULE mo_initicon_utils
     &                               frlake_thrhld, frsea_thrhld, nlev_snow, ntiles_lnd,           &
     &                               l2lay_rho_snow, lprog_albsi, dzsoil, frsi_min
   USE mo_nwp_sfc_utils,       ONLY: init_snowtile_lists
-  USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config
-  USE mo_aes_phy_config,    ONLY: aes_phy_config
+  USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config, iprog_aero
+  USE mo_aes_phy_config,      ONLY: aes_phy_config
   USE mo_nwp_phy_types,       ONLY: t_nwp_phy_diag
   USE sfc_terra_data,         ONLY: csalb_snow_min, csalb_snow_max, csalb_snow, crhosmin_ml, crhosmax_ml, &
     &                               cpwp, cfcap
-  USE mo_physical_constants,  ONLY: cpd, rd, cvd_o_rd, p0ref, vtmpc1
+  USE mo_physical_constants,  ONLY: tf_salt, tmelt, cpd, rd, cvd_o_rd, p0ref, vtmpc1, ci, clw, cpv, cvd, cvv
   USE mo_hydro_adjust,        ONLY: hydro_adjust
   USE sfc_seaice,             ONLY: seaice_coldinit_nwp
   USE mo_post_op,             ONLY: perform_post_op
@@ -79,10 +77,14 @@ MODULE mo_initicon_utils
   USE mo_time_config,         ONLY: time_config
   USE mo_bcs_time_interpolation, ONLY: t_time_interpolation_weights,         &
     &                                  calculate_time_interpolation_weights
-  USE mo_aerosol_sources_types,  ONLY: p_dust_source_const
+  USE mo_aerosol_sources,     ONLY: inquire_fire2d_data
+  USE mo_aerosol_sources_types,  ONLY: p_dust_source_const, p_fire_source_info
   USE mo_upatmo_config,       ONLY: upatmo_config
   USE mo_2mom_mcrph_util,     ONLY: set_qnc, set_qnr, set_qni,   &
     &                               set_qns, set_qng, set_qnh_expPSD_N0const
+#ifdef _OPENACC
+  USE mo_mpi,                 ONLY: i_am_accel_node
+#endif
 
 
   IMPLICIT NONE
@@ -112,6 +114,7 @@ MODULE mo_initicon_utils
   PUBLIC :: init_qnxinc_from_qxinc_twomom
   PUBLIC :: get_diag_stat_comm_work
   PUBLIC :: new_land_from_ocean
+  PUBLIC :: prepare_thermo_src_term
 
   CONTAINS
 
@@ -122,10 +125,6 @@ MODULE mo_initicon_utils
   !>
   !! SUBROUTINE initicon_inverse_post_op
   !! Perform inverse post_op on input field, if necessary 
-  !!
-  !! @par Revision History
-  !! Initial version by Daniel Reinert, DWD(2013-07-05)
-  !!
   !!
   SUBROUTINE initicon_inverse_post_op(varname, optvar_out2D, optvar_out3D)
     CHARACTER(len=*), INTENT(IN)      :: varname             !< var name of field to be read
@@ -176,14 +175,13 @@ MODULE mo_initicon_utils
   !! SUBROUTINE init_aersosol
   !! Initializes the aerosol field from the climatology if no first-guess data are available
   !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD (2015-11-06)
-  !!
   SUBROUTINE init_aerosol(p_patch, ext_data, prm_diag)
 
     TYPE(t_patch),          INTENT(in)    :: p_patch(:)
     TYPE(t_external_data),  INTENT(in)    :: ext_data(:)
     TYPE(t_nwp_phy_diag),   INTENT(inout) :: prm_diag(:)
+    
+    CHARACTER(*), PARAMETER     :: routine = 'init_aerosol'
 
     TYPE(t_time_interpolation_weights)  :: current_time_interpolation_weights
 
@@ -242,7 +240,7 @@ MODULE mo_initicon_utils
       IF ( ANY(.NOT.aerosol_fg_present(jg,1:5))) THEN
         WRITE(message_text,'(a,i3,a,i3,a)') 'Aerosol initialized from climatology, domain ',jg,', for',&
           COUNT(.NOT.aerosol_fg_present(jg,1:5)),' of 5 types'
-        CALL message('init_aerosol', TRIM(message_text))
+        CALL message(routine, TRIM(message_text))
       ENDIF
 
       CALL p_dust_source_const(jg)%init(ext_data(jg)%atm%i_lc_shrub_eg,  &
@@ -254,6 +252,14 @@ MODULE mo_initicon_utils
         &                               i_st_loam=5, i_st_clayloam=6,    &
         &                               i_st_clay=7, nlu_classes=23,     &
         &                               soiltype_sidx=0, soiltype_eidx=9)
+        
+      IF (iprog_aero > 2) THEN
+        CALL p_fire_source_info(jg)%init( ext_data(jg)%atm%bcfire,  &
+          &                               ext_data(jg)%atm%ocfire,  &
+          &                               ext_data(jg)%atm%so2fire  )
+        CALL inquire_fire2d_data(p_patch(jg), nroot, fire2d_filename, p_fire_source_info(jg), &
+          &                      time_config%tc_current_date, .TRUE.)
+      ENDIF ! iprog_aero > 2
 !$OMP END MASTER
 
     ENDDO
@@ -274,10 +280,6 @@ MODULE mo_initicon_utils
   !! 
   !! Specifically, this routine fills sub-grid scale (previously nonexistent) land and water points
   !! with appropriate data from neighboring grid points where possible
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD (2015-01-16)
   !!
   !!
   SUBROUTINE fill_tile_points(p_patch, p_lnd_state, ext_data, process_ana_vars)
@@ -559,11 +561,6 @@ MODULE mo_initicon_utils
   !! In this case, the tile-based index lists and the tile fractions (frac_t) need to be restored
   !! from the landuse-class fractions and the snow-cover fractions
   !!
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD (2015-06-08)
-  !!
-  !!
   SUBROUTINE init_snowtiles(p_patch, p_lnd_state, ext_data)
 
     TYPE(t_patch),             INTENT(IN)    :: p_patch(:)
@@ -602,12 +599,6 @@ MODULE mo_initicon_utils
   !!
   !! Required input: initicon state
   !! Output is written on fields of NH state
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-28)
-  !! Modification by Daniel Reinert, DWD (2012-12-19)
-  !! - encapsulated surface specific part
-  !!
   !!
   SUBROUTINE copy_initicon2prog_atm(p_patch, initicon, p_nh_state)
 
@@ -829,11 +820,6 @@ MODULE mo_initicon_utils
   !! Copies first-guess fields from the assimilation cycle to the initicon state
   !! in order to prepare subsequent vertical remapping
   !!
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2015-07-24)
-  !!
-  !!
   SUBROUTINE copy_fg2initicon(p_patch, initicon, p_nh_state)
 
     TYPE(t_patch),          INTENT(IN) :: p_patch(:)
@@ -1036,16 +1022,6 @@ MODULE mo_initicon_utils
   !!
   !! Required input: initicon state
   !! Output is written on fields of land state
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-28)
-  !! Modification by Daniel Reinert, DWD (2012-12-19)
-  !! - encapsulated surface specific part
-  !! Modification by Daniel Reinert, DWD (2013-07-09)
-  !! - moved sea-ice coldstart into separate subroutine
-  !! Modification by Dmitrii Mironov, DWD (2016-08-11)
-  !! - Cold start initialization of sea ice is modified to exclude lake points.
-  !!
   !!
   SUBROUTINE copy_initicon2prog_sfc(p_patch, initicon, p_lnd_state, ext_data)
 
@@ -1398,10 +1374,6 @@ MODULE mo_initicon_utils
   !!   * allocates the fields we USE
   !!       * zeros OUT these fields to ensure deteministic checksums
   !!   * nullificates all other pointers
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-14)
-  !! Refactoring to make this work more like a REAL constructor by Nathanael Huebbe, DWD(2015-08-04)
   !!
   !! This initalizes all ALLOCATED memory to avoid nondeterministic
   !! checksums when ONLY a part of a field IS READ from file due to
@@ -1848,10 +1820,6 @@ MODULE mo_initicon_utils
   !>
   !! SUBROUTINE deallocate_initicon
   !! Deallocates the components of the initicon data type
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-14)
-  !!
   !!
   SUBROUTINE deallocate_initicon (initicon)
 
@@ -2482,9 +2450,6 @@ MODULE mo_initicon_utils
       IF(ASSOCIATED(p_nh_state(jg)%metrics%rho_ref_corr)) &
         & CALL printChecksum(prefix(1:pfx_tlen)//"rho_ref_corr: ", &
         & p_nh_state(jg)%metrics%rho_ref_corr)
-      IF(ASSOCIATED(p_nh_state(jg)%metrics%fbk_dom_volume)) &
-        & CALL printChecksum(prefix(1:pfx_tlen)//"fbk_dom_volume: ", &
-        & p_nh_state(jg)%metrics%fbk_dom_volume)
       IF(ASSOCIATED(p_nh_state(jg)%metrics%ddxn_z_full)) &
         & CALL printChecksum(prefix(1:pfx_tlen)//"ddxn_z_full: ", &
         & p_nh_state(jg)%metrics%ddxn_z_full)
@@ -3273,9 +3238,6 @@ MODULE mo_initicon_utils
   !>
   !! for coupled simulation with new land points forced from the ocean: initialize soil
   !!
-  !! @par Revision History
-  !! Initial revision by Martin Koehler, DWD (2021-02-04)
-  !!
   !-------------------------------------------------------------------------
 
   SUBROUTINE new_land_from_ocean (p_patch, p_nh_state, p_lnd_state, ext_data)
@@ -3345,6 +3307,108 @@ MODULE mo_initicon_utils
     ENDDO
 
   END SUBROUTINE new_land_from_ocean
+
+  !>
+  !! Interface for calling diagnose condensate
+  !!
+  SUBROUTINE prepare_thermo_src_term(p_patch)
+
+    TYPE(t_patch), TARGET, INTENT(INOUT) :: p_patch
+
+    INTEGER :: i_startidx, i_endidx, jc, jk, jt, jb, nlev
+    INTEGER :: i_rlstart , i_rlend , i_startblk, i_endblk
+    INTEGER :: nn, jg
+
+    REAL(wp), POINTER :: p_csum(:,:)
+
+    REAL(wp), TARGET :: qsum_liq(nproma,p_patch%nlev), qsum_ice(nproma,p_patch%nlev)
+    REAL(wp) :: z_a, z_b
+
+
+    jg = p_patch%id
+    nn = nnow_rcf(jg)
+
+    ! number of vertical levels
+    nlev = p_patch%nlev
+
+    ! boundary zone and halo points are not needed
+    i_rlstart  = grf_bdywidth_c + 1
+    i_rlend    = min_rlcell_int
+    i_startblk = p_patch%cells%start_block(i_rlstart)
+    i_endblk   = p_patch%cells%end_block(i_rlend)
+
+    !$ACC DATA CREATE(qsum_liq, qsum_ice) &
+    !$ACC   COPYIN(kstart_moist) &
+    !$ACC   IF(i_am_accel_node)
+
+!$OMP PARALLEL
+!$OMP DO PRIVATE(jc,jk,jt,jb,i_startidx,i_endidx,p_csum,z_a,z_b,qsum_liq,qsum_ice) ICON_OMP_DEFAULT_SCHEDULE
+    DO jb = i_startblk, i_endblk
+
+      CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,       &
+      &                   i_startidx, i_endidx, i_rlstart, i_rlend )
+
+      !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
+      DO jk = 1, nlev
+        DO jc = i_startidx, i_endidx
+
+          qsum_liq(jc,jk) = 0.0_wp
+          qsum_ice(jc,jk) = 0.0_wp
+
+        END DO ! jc
+      END DO ! jk
+      !$ACC END PARALLEL
+
+      DO jt = 1, ntracer
+
+        IF (ANY((/iqc,iqr,iqhl,iqgl/)==jt)) THEN
+          p_csum => qsum_liq
+        ELSE IF (ANY((/iqi,iqs,iqg,iqh/)==jt)) THEN
+          p_csum => qsum_ice
+        ELSE
+          CYCLE
+        END IF
+
+        !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
+         DO jk = kstart_moist(jg),nlev
+           DO jc = i_startidx, i_endidx
+
+             p_csum(jc,jk) = p_csum(jc,jk) + p_nh_state(jg)%prog(nn)%tracer(jc,jk,jb,jt)
+
+           END DO ! jc
+         END DO ! jk
+        !$ACC END PARALLEL
+
+      END DO ! jt
+
+      !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(z_a, z_b)
+      DO jk = kstart_moist(jg),nlev
+        DO jc = i_startidx, i_endidx
+
+          z_a = 1._wp - ( p_nh_state(jg)%prog(nn)%tracer(jc,jk,jb,iqv) &
+                          + qsum_liq(jc,jk) + qsum_ice(jc,jk) )
+
+          z_b = clw * qsum_liq(jc,jk) + ci * qsum_ice(jc,jk)
+
+          p_nh_state(jg)%diag%chi_q(jc,jk,jb) = 1._wp - (                                   &
+              ( z_a + ( z_b  + cpv * p_nh_state(jg)%prog(nn)%tracer(jc,jk,jb,iqv) ) / cpd ) &
+            / ( z_a + ( z_b  + cvv * p_nh_state(jg)%prog(nn)%tracer(jc,jk,jb,iqv) ) / cvd ) )
+
+        END DO ! jc
+      END DO ! jk
+      !$ACC END PARALLEL
+
+    END DO ! jb
+!$OMP ENDDO NOWAIT
+!$OMP END PARALLEL
+
+    !$ACC WAIT(1)
+    !$ACC END DATA
+
+  END SUBROUTINE prepare_thermo_src_term
 
 END MODULE mo_initicon_utils
 !

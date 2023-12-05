@@ -1,16 +1,14 @@
-!>
-!!
-!! @par Revision History
-!!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_build_decomposition
 
   USE mo_kind,                     ONLY: wp
@@ -32,7 +30,7 @@ MODULE mo_build_decomposition
     &                                import_pre_patches, complete_patches, set_parent_loc_idx
   USE mo_parallel_config,      ONLY: p_test_run, l_test_openmp, num_io_procs, division_method
   USE mo_impl_constants,       ONLY: success, max_dom, min_rlcell_int
-  USE mo_exception,            ONLY: finish, message, message_text, get_filename_noext
+  USE mo_exception,            ONLY: finish, message, message_text
   USE mo_communication,        ONLY: blk_no, idx_no, idx_1d
   USE mo_util_string,          ONLY: int2string
 
@@ -50,8 +48,6 @@ CONTAINS
   !
   !  @note This routine is called for both: The ocean model and the
   !        atmo_model.
-  !
-  !  @author F. Prill, DWD (2013-08-06)
   !
   SUBROUTINE build_decomposition(num_lev,nshift,&
     &                            is_ocean_decomposition, patch_3d)

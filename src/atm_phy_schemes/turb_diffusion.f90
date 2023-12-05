@@ -1,96 +1,39 @@
-!>
-!! Source module for computing diffusion coefficients
-!! and implicit vertical diffusion:
-!!
-!! @par Description of *turb_diffusion*:
-!!   This  module calculates the tendencies for turbulent
-!!   vertical transport of momentum and heat and the coefficients
-!!   for turbulent diffusion as well.
-!!
-!!   The clousure is made on lever 2.5 (Mellor/Yamada) using a prognostic
-!!   TKE-equation and includes the formulation of a flow through a porous
-!!   medium (roughness layer)
-!!
-!!   The turbulence model (with some Prandtl-layer approximations is used
-!!   for the calculation of turbulent transfer between atmosphere and the
-!!   lower boundary too.
-!!
-!! The module contains the public subroutines :
-!!
-!!   turbdiff
-!!
-!! called from the turbulence interface routine of the model.
-!!
-!! Current Code Owner: DWD, Matthias Raschendorfer
-!!  phone:  +49  69  8062 2708
-!!  fax:    +49  69  8062 3721
-!!  email:  matthias.raschendorfer@dwd.de
 !
-! History:
-! Version      Date       Name
-! ----------   ---------- ----
-! V5_4a        2016-05-10 Matthias Raschendorfer
-!  Initial Release, based on the turbdiff-module of the non-blocked version 
-!   with the following main new features:
-!  Stronger modularized and further developed version of the turbulence model
-!   coded in block data structure and transferring model variables by SUB-parameterlists, 
-!   rather than USE-statements.
-!  Adopted ICON modifications separated as switchable options enabling also a
-!   configuration being similar to the previous COSMO version as regards of content.
-!  Partly new (more consistent) interpretation of already existing selectors and introduction
-!   of parameters gradually controlling numerical restrictions.
-! V5_4c        2016-10-06 Ulrich Schaettler
-!  Again use local memory if not running on GPUs 
-!     (because on vectorization problem on CRAY)
-! V5_4d        2016-12-12 Matthias Raschendorfer
-!  Enabling SC-runs in the framwork of the copy-to/from-block facilities, mainly by introducing 'imb'
-!   pointing to the block index valid for SC-applications.
-!  Some cleaning and introducing SUB 'turb_setup', in order to avoid code doubling in SUB 'turbdiff' and
-!   SUB 'turbtran'. By this, the initialization of 'tfh', 'tfm' and 'rcld' is done not only for 'turbtran', 
-!   but also for 'turbdiff', to make sure that it is also done, if another transfer-scheme is running.
-! V5_4e        2017-03-23 Ulrich Schaettler
-!  Now use sfc_flake_data (also for ICON)
-! V5_4f        2017-09-01 Matthias Raschendorfer
-!  Added it_start to solve_turb_budgets parameter list
-! V5_4h        2017-12-15 Xavier Lapillonne
-!  Ported turbulence to GPU
-! V5_5         2018-02-23 Ulrich Schaettler
-!  Updated with ICON Version 7bcba73: 
-!   - new optional argument innertrop_mask
-!   - modified some computations with ifdef ICON
-!   - replace (at least one occurence) ltkesso by imode_tkesso==1
-! V5_6         2019-02-27 Ulrich Schaettler
-!  Updated with ICON Version d7e0252
-!    - CRAY_TURB_WORKAROUND: not necessary for COSMO
-!    - introduced debug output for incoming / outgoing variables
-!    - set cbig_tar, csml_tar, rair_tar to 0.0 at the beginning
+! Source module for computing diffusion coefficients and implicit vertical diffusion:
 !
-!! @par Copyright and License
-!! This software is provided for non-commercial use only.
-!! See the LICENSE and the WARRANTY conditions.
-!!
-!! @par License
-!! The use of this software is hereby granted free of charge for an unlimited
-!! time, provided the following rules are accepted and applied:
-!! <ol>
-!! <li> You may use or modify this code for your own non commercial and non
-!!    violent purposes.
-!! <li> The code may not be re-distributed without the consent of the authors.
-!! <li> The copyright notice and statement of authorship must appear in all
-!!    copies.
-!! <li> You accept the warranty conditions (see WARRANTY).
-!! <li> In case you intend to use the code commercially, we oblige you to sign
-!!    an according license agreement
-!! </ol>
-!!
-!! @par Warranty
-!! This code has been tested up to a certain level. Defects and weaknesses,
-!! which may be included in the code, do not establish any warranties by the
-!! authors.
-!! The authors do not make any warranty, express or implied, or assume any
-!! liability or responsibility for the use, acquisition or application of this
-!! software.
-!!
+! Description of *turb_diffusion*:
+!   This  module calculates the tendencies for turbulent
+!   vertical transport of momentum and heat and the coefficients
+!   for turbulent diffusion as well.
+!
+!   The clousure is made on lever 2.5 (Mellor/Yamada) using a prognostic
+!   TKE-equation and includes the formulation of a flow through a porous
+!   medium (roughness layer)
+!
+!   The turbulence model (with some Prandtl-layer approximations is used
+!   for the calculation of turbulent transfer between atmosphere and the
+!   lower boundary too.
+!
+! The module contains the public subroutines :
+!
+!   turbdiff
+!
+! called from the turbulence interface routine of the model.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
+MODULE turb_diffusion
+
 !-------------------------------------------------------------------------------
 !
 ! Documentation History:
@@ -190,9 +133,6 @@
 ! Moving declarations, allocation and deallocations of ausxilary arrays into MODULE 'turb_data'.
 !-------------------------------------------------------------------------------------------------------
 
-MODULE turb_diffusion
-
-!-------------------------------------------------------------------------------
 
 ! Modules used:
 
@@ -324,6 +264,7 @@ USE turb_data, ONLY : &
     imode_tkesso,&  ! mode of calculat. the SSO source term for TKE production
                     ! 1: original implementation
                     ! 2: with a Ri-dependent reduction factor for Ri>1
+                    ! 3: as 2, but additional reduction for mesh sizes < 2 km
     imode_tkvmini,& ! mode of calculating the minimal turbulent diff. coeffecients
                     ! 1: with a constant value
                     ! 2: with a stability dependent correction
@@ -1128,7 +1069,7 @@ LOGICAL :: lzacc
       ivtp(n)=sca
     END IF
   END DO
-  !$ACC UPDATE DEVICE(tinc, ivtp) IF(lzacc)
+  !$ACC UPDATE DEVICE(tinc, ivtp) ASYNC(1) IF(lzacc)
 
   IF (l3dturb .AND..NOT. (PRESENT(tkhm) .AND. PRESENT(tkhh))) THEN
     CALL finish("", 'ERROR *** 3D-diffusion with not present horiz. diff.coeffs. ***')
@@ -2042,6 +1983,8 @@ my_thrd_id = omp_get_thread_num()
             frm(i,k)=frm(i,k) + src(i)/tkvm(i,k)
           ELSE IF (imode_tkesso == 2) THEN ! Reduce TKE production in the presence of large Richardson numbers
             frm(i,k)=frm(i,k) + src(i)/tkvm(i,k)*MIN(1.0_wp,MAX(0.01_wp,xri(i,k)))
+          ELSE IF (imode_tkesso == 3) THEN ! Reduce TKE production in the presence of large Richardson numbers
+            frm(i,k)=frm(i,k) + src(i)/tkvm(i,k)*MIN(1.0_wp,MAX(0.01_wp,xri(i,k)))*MIN(1.0_wp,l_hori(i)/2000._wp)
           END IF
 
         END IF

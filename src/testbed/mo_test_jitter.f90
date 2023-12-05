@@ -1,21 +1,21 @@
-!----------------------------
+!
+! Main program for the ICON atmospheric model
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
+!-----------------------------
 #include "omp_definitions.inc"
-!----------------------------
-!>
-!! @brief Main program for the ICON atmospheric model
-!!
-!! @author
-!!  Leonidas Linardakis (MPI-M)
-!!  Hui Wan             (MPI-M)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!-----------------------------
+
 MODULE mo_test_jitter
 
   USE mo_kind,                ONLY: wp
@@ -32,7 +32,9 @@ MODULE mo_test_jitter
   USE mo_parallel_config,    ONLY: nproma
 
 !-------------------------------------------------------------------------
+
 IMPLICIT NONE
+
 PRIVATE
 
 PUBLIC :: test_jitter

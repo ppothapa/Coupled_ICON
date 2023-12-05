@@ -1,29 +1,19 @@
-!>
-!! This module provides basic methods for reading
-!! a NetCDF file in parallel or sequential in a transparent way.
-!!
-!! Contains routines for reading data from netcdf-Files of various shape.
-!! <Details of procedures are documented below with their definitions.>
-!! <Include any applicable external references inline as module::procedure,>
-!! <external_procedure(), or by using @see.>
-!!
-!! @author Daniel Reinert, DWD
-!! @author Leonidas Linardakis, MPIM
-!!
-!!
-!! @par Revision History
-!! Moved to mo_util_netcd from mo_ext_data by Daniel reinert, DWD (2012-02-01)
-!! Moved from mo_util_netcdf, added netcdf_read_oncells, by L. Linardakis, (2013-03-15)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! This module provides basic methods for reading
+! a NetCDF file in parallel or sequential in a transparent way.
+!
+! Contains routines for reading data from netcdf-Files of various shape.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 #define define_fill_target REAL(wp), TARGET, OPTIONAL
 !#define define_fill_target REAL(wp), TARGET, ALLOCATABLE, OPTIONAL
 !#define define_fill_target REAL(wp), POINTER, OPTIONAL
@@ -34,7 +24,7 @@
 MODULE mo_read_netcdf_broadcast_2
 
   USE mo_kind,               ONLY: sp, dp, wp
-  USE mo_exception,          ONLY: message, warning, finish, em_warn
+  USE mo_exception,          ONLY: message, warning, finish
   USE mo_impl_constants,     ONLY: success
   USE mo_parallel_config,    ONLY: nproma
   USE mo_io_units,           ONLY: filename_max

@@ -31,11 +31,12 @@
 
 from yac import *
 import xarray as xr
+import numpy as np
 import isodate
 from datetime import date
 from glob import glob
 import f90nml
-
+import sys
 
 VERBOSE = 2
 
@@ -45,7 +46,8 @@ iso_coupling_interval='PT90M' # radiation time step
 dataPath = "/pool/data/ICON/grids/public/mpim/independent/aerosol_kinne/"
 fileRoot = "aeropt_kinne"
 
-nml_fname = glob('NAMELIST*atm')[0]
+NAMELIST=sys.argv[1]
+nml_fname = glob(NAMELIST)[0]
 nml = f90nml.read(nml_fname)
 
 irad_aero = nml['aes_rad_nml']['aes_rad_config'][0]['irad_aero']

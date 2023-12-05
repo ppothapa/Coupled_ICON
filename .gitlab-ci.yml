@@ -55,6 +55,7 @@ Check Style:
     - ./scripts/ci_scripts/check_encoding.sh 'src' 'support'
     - ./scripts/ci_scripts/check_src_noexec.sh 'src' 'support'
     - ./scripts/ci_scripts/check_omp_sentinels.sh 'src' 'support' 'externals/jsbach' 'externals/emvorado' 'externals/art'
+    - ./scripts/ci_scripts/check_license.sh
 
   tags:
     # Choose a runner with GNU find, GNU grep and bash:

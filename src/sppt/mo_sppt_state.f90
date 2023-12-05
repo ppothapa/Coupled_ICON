@@ -1,24 +1,23 @@
-!>
-!! Construction of a data object which is used to store fields used for SPPT
-!! (Stochastic Perturbation of Physics Tendencies)
-!!
-!! @author Sascha Bellaire, MCH
-!!
-!! @par Revision History
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Construction of a data object which is used to store fields used for SPPT
+! (Stochastic Perturbation of Physics Tendencies)
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_sppt_state
 
   USE mo_impl_constants,          ONLY: SUCCESS, MAX_CHAR_LENGTH, HINTP_TYPE_LONLAT_BCTR, &
-   &                                    HINTP_TYPE_LONLAT_RBF,VINTP_METHOD_LIN	  
-  USE mo_exception,               ONLY: message, finish	
+   &                                    HINTP_TYPE_LONLAT_RBF,VINTP_METHOD_LIN
+  USE mo_exception,               ONLY: message, finish
   USE mo_sppt_types,              ONLY: t_sppt
   USE mo_parallel_config,         ONLY: nproma
   USE mo_grid_config,             ONLY: n_dom
@@ -59,12 +58,9 @@ MODULE mo_sppt_state
   CONTAINS
 
 
-  !>--------------------------------------------------------------------
-  !! Constructor for sppt state
-  !!
-  !! @par Revision History
-  !!
-  !!<-------------------------------------------------------------------
+  !---------------------------------------------------------------------
+  ! Constructor for sppt state
+  !---------------------------------------------------------------------
   SUBROUTINE construct_sppt_state (p_patch)
 
     TYPE(t_patch),       INTENT(IN) :: p_patch(:)
@@ -95,12 +91,10 @@ MODULE mo_sppt_state
   END SUBROUTINE construct_sppt_state
 
 
-  !>--------------------------------------------------------------------
-  !! Destructor for sppt state
-  !!
-  !! @par Revision History
-  !!
-  !!<-------------------------------------------------------------------
+  !---------------------------------------------------------------------
+  ! Destructor for sppt state
+  !---------------------------------------------------------------------
+
   SUBROUTINE destruct_sppt_state ()
 
     ! local variables
@@ -115,6 +109,7 @@ MODULE mo_sppt_state
       CALL vlr_del(sppt_list(jg))
     ENDDO
 
+    !$ACC WAIT(1)
     DO jg = 1, n_dom
       !$ACC EXIT DATA DELETE(sppt_config(jg)%taper)
       DEALLOCATE(sppt_config(jg)%taper, STAT=ist)
@@ -136,12 +131,9 @@ MODULE mo_sppt_state
   END SUBROUTINE destruct_sppt_state
 
 
-  !>--------------------------------------------------------------------
-  !! Constructor for sppt state
-  !!
-  !! @par Revision History
-  !!
-  !!<-------------------------------------------------------------------
+  !---------------------------------------------------------------------
+  ! Constructor for sppt state
+  !---------------------------------------------------------------------
 
   SUBROUTINE new_sppt_list (p_patch, listname, sppt_list, sppt)
 

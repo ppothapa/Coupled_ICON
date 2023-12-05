@@ -1,25 +1,20 @@
-!>
-!!
-!!               The module <i>mo_alloc_domain</i>
-!! provides routines to allocate and deallocate patches. The routines
-!! included here have been extracted from mo_model_import_domain in order
-!! to resolve USE dependencies that led to large compile times on some
-!! platforms
-!!
-!! @par Revision History
-!! Created by Guenther Zaengl, DWD, 2012-05-14
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!! MH/TJ 2015-06-17
-!! For an explanation of HAVE_SLOW_PASSIVE_TARGET_ONESIDED,
-!! see mo_setup_subdivision.f90
+! The module <i>mo_alloc_domain</i>
+! provides routines to allocate and deallocate patches. The routines
+! included here have been extracted from mo_model_import_domain in order
+! to resolve USE dependencies that led to large compile times on some
+! platforms
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_alloc_patches
   !-------------------------------------------------------------------------
@@ -75,18 +70,8 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
-  !!               Deallocation of all memory that was allocated
-  !!               to store the patch information of all levels.
-  !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2005).
-  !! Modification by Almut Gassmann, MPI-M (2007-04-04)
-  !! - adaptations for new multiple patch structure, cleaning up
-  !! Modification by Almut Gassmann, MPI-M (2007-04-19)
-  !! - grid information belong here
-  !! Modification by Almut Gassmann, MPI-M (2008-10-30)
-  !! - add Coriolis destruction
+  !! Deallocation of all memory that was allocated
+  !! to store the patch information of all levels.
   !!
   SUBROUTINE deallocate_patch( p_patch, lddmode )
 
@@ -467,13 +452,9 @@ CONTAINS
   END SUBROUTINE destruct_comm_patterns
   !-------------------------------------------------------------------------
   !-------------------------------------------------------------------------
-  !> Allocates all arrays in a basic patch
+  !! Allocates all arrays in a basic patch
   !! These are the arrays which have to be read in full size on every PE
   !! since they are needed for domain decomposition.
-  !!
-  !! @par Revision History
-  !! Initial version (split out from read_patch) Rainer Johanni, Oct. 2010
-  !! Split into allocate_basic_patch/allocate_remaining_patch, Rainer Johanni, Nov. 2011
   !!
   SUBROUTINE allocate_basic_patch(p_patch)
 
@@ -636,13 +617,9 @@ CONTAINS
   END SUBROUTINE allocate_basic_patch
 
   !-------------------------------------------------------------------------
-  !> Allocates all arrays in a basic patch
+  !! Allocates all arrays in a basic patch
   !! These are the arrays which have to be read in full size on every PE
   !! since they are needed for domain decomposition.
-  !!
-  !! @par Revision History
-  !! Initial version (split out from read_patch) Rainer Johanni, Oct. 2010
-  !! Split into allocate_basic_patch/allocate_remaining_patch, Rainer Johanni, Nov. 2011
   !!
   SUBROUTINE allocate_pre_patch(p_patch_pre)
 
@@ -855,10 +832,7 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !> Deallocates all arrays in a basic patch
-  !!
-  !! @par Revision History
-  !! Initial version, Rainer Johanni, Nov. 2011
+  !! Deallocates all arrays in a basic patch
   !!
   SUBROUTINE deallocate_basic_patch(p_patch)
 
@@ -947,10 +921,7 @@ CONTAINS
   END SUBROUTINE deallocate_basic_patch
 
   !-------------------------------------------------------------------------
-  !> Deallocates all arrays in a basic patch
-  !!
-  !! @par Revision History
-  !! Initial version, Rainer Johanni, Nov. 2011
+  !! Deallocates all arrays in a basic patch
   !!
   SUBROUTINE deallocate_pre_patch(p_patch_pre)
 
@@ -981,12 +952,8 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !> Allocates remaining arrays in a full patch.
+  !! Allocates remaining arrays in a full patch.
   !! These are the arrays which have not been allocated in allocate_basic_patch
-  !!
-  !! @par Revision History
-  !! Initial version (split out from read_patch) Rainer Johanni, Oct. 2010
-  !! Split into allocate_basic_patch/allocate_remaining_patch, Rainer Johanni, Nov. 2011
   !!
   SUBROUTINE allocate_remaining_patch(p_patch,iopmode)
 
@@ -1218,10 +1185,7 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !> Allocates complete patch by calling allocate_basic_patch/allocate_remaining_patch
-  !!
-  !! @par Revision History
-  !! Initial version, Rainer Johanni, Dec. 2011
+  !! Allocates complete patch by calling allocate_basic_patch/allocate_remaining_patch
   !!
   SUBROUTINE allocate_patch(p_patch)
 

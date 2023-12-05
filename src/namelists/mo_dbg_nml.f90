@@ -1,20 +1,17 @@
-!>
-!!        Contains the variables for debugging icon model
-!!
-!!        
-!! @par Revision History
-!!   Modification by Stephan Lorenz  (2012-06)
-!!     - new namelist debug_index_nml for global use in icon model
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Contains the variables for debugging icon model
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_dbg_nml
 
   USE mo_kind,               ONLY: wp
@@ -65,14 +62,10 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  !>
   !! Initialization of variables that control the debug output for the icon core
   !!
   !!               Initialization of single cell for debug output etc. using
   !!               namelist 'dbg_index_nml'
-  !!
-  !! @par Revision History
-  !!   Initial release by Stephan Lorenz, MPI-M (2012-06)
   !!
   SUBROUTINE read_dbg_namelist( filename )
 

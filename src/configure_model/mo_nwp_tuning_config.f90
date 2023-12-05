@@ -1,22 +1,18 @@
-!>
-!! @brief Tuning and/or perturbing nwp physics
-!!
-!! configuration setup for NWP physics tuning
-!!
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2014-09-25)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! @brief Tuning and/or perturbing nwp physics
+!
+! configuration setup for NWP physics tuning
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_nwp_tuning_config
 
   USE mo_kind,               ONLY: wp
@@ -69,6 +65,7 @@ MODULE mo_nwp_tuning_config
   PUBLIC :: tune_gustsso_lim
   PUBLIC :: itune_gust_diag
   PUBLIC :: itune_albedo
+  PUBLIC :: itune_slopecorr
   PUBLIC :: itune_o3
   PUBLIC :: lcalib_clcov
   PUBLIC :: max_calibfac_clcl
@@ -193,7 +190,7 @@ MODULE mo_nwp_tuning_config
     &  tune_box_liq_asy            ! (in case of inwp_cldcover = 1)
 
   REAL(wp) :: &                    !< Tuning factor for box_liq reduction near the surface
-    & tune_box_liq_sfc_fac         ! (in case of inwp_cldcover = 1)
+    & tune_box_liq_sfc_fac(max_dom)! (in case of inwp_cldcover = 1)
 
   REAL(wp) :: &                    !< Tuning factor for steeper dependence CLC(RH)
     & allow_overcast               ! (in case of inwp_cldcover = 1)
@@ -227,6 +224,9 @@ MODULE mo_nwp_tuning_config
   INTEGER :: &                     !< (MODIS) albedo tuning
     &  itune_albedo                ! 1: dimmed Sahara
                                    ! 2: dimmed Sahara and brighter Antarctica
+
+  INTEGER :: &                     !< slope-dependent tuning of parameters affecting stable PBLs
+    &  itune_slopecorr             ! 1: slope-dependent reduction of rlam_heat and near-surface tkhmin
 
   INTEGER :: &                     !< type of artificial ozone tuning 
     &  itune_o3                    ! 0: no tuning

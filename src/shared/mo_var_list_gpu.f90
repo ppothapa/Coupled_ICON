@@ -1,10 +1,14 @@
-! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_var_list_gpu
 
   USE mo_impl_constants,      ONLY: vlname_len, REAL_T, SINGLE_T, INT_T, BOOL_T
@@ -73,13 +77,13 @@ CONTAINS
 
       SELECT CASE(info%data_type)
       CASE (REAL_T)
-        !$ACC UPDATE DEVICE(element%r_ptr) IF(info%lopenacc)
+        !$ACC UPDATE DEVICE(element%r_ptr) ASYNC(1) IF(info%lopenacc)
       CASE (SINGLE_T)
-        !$ACC UPDATE DEVICE(element%s_ptr) IF(info%lopenacc)
+        !$ACC UPDATE DEVICE(element%s_ptr) ASYNC(1) IF(info%lopenacc)
       CASE (INT_T)
-        !$ACC UPDATE DEVICE(element%i_ptr) IF(info%lopenacc)
+        !$ACC UPDATE DEVICE(element%i_ptr) ASYNC(1) IF(info%lopenacc)
       CASE (BOOL_T)
-        !$ACC UPDATE DEVICE(element%l_ptr) IF(info%lopenacc)
+        !$ACC UPDATE DEVICE(element%l_ptr) ASYNC(1) IF(info%lopenacc)
       END SELECT
     END SUBROUTINE upd_dev
 
@@ -87,14 +91,16 @@ CONTAINS
       
       SELECT CASE(info%data_type)
       CASE (REAL_T)
-        !$ACC UPDATE HOST(element%r_ptr) IF(info%lopenacc)
+        !$ACC UPDATE HOST(element%r_ptr) ASYNC(1) IF(info%lopenacc)
       CASE (SINGLE_T)
-        !$ACC UPDATE HOST(element%s_ptr) IF(info%lopenacc)
+        !$ACC UPDATE HOST(element%s_ptr) ASYNC(1) IF(info%lopenacc)
       CASE (INT_T)
-        !$ACC UPDATE HOST(element%i_ptr) IF(info%lopenacc)
+        !$ACC UPDATE HOST(element%i_ptr) ASYNC(1) IF(info%lopenacc)
       CASE (BOOL_T)
-        !$ACC UPDATE HOST(element%l_ptr) IF(info%lopenacc)
+        !$ACC UPDATE HOST(element%l_ptr) ASYNC(1) IF(info%lopenacc)
       END SELECT
+      !$ACC WAIT(1)
+
     END SUBROUTINE upd_host
   END SUBROUTINE gpu_update_var_list
 

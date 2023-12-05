@@ -1,20 +1,19 @@
-!>
-!! This module is the interface between nwp_nh_interface to the radiation schemes
-!! (ecRad and RRTM).
-!!
-!! @author Thorsten Reinhardt, AGeoBw, Offenbach
-!!
-!! @par Revision History
-!! Initial release by Thorsten Reinhardt, AGeoBw, Offenbach (2011-01-13)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! This module is the interface between nwp_nh_interface to the radiation schemes
+! (ecRad and RRTM).
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -63,6 +62,7 @@ MODULE mo_nwp_rad_interface
   USE mo_o3_util,              ONLY: o3_interface
   USE mo_nwp_aerosol,          ONLY: nwp_aerosol_interface, nwp_aerosol_cleanup
   USE mo_fortran_tools,        ONLY: set_acc_host_or_device
+  USE mo_run_config,           ONLY: msg_level
 
   IMPLICIT NONE
 
@@ -79,9 +79,6 @@ MODULE mo_nwp_rad_interface
   !>
   !! This subroutine is the interface between nwp_nh_interface to the radiation schemes.
   !! Depending on inwp_radiation, it can call RRTM (1) or ecRad(4).
-  !!
-  !! @par Revision History
-  !! Initial release by Thorsten Reinhardt, AGeoBw, Offenbach (2011-01-13)
   !!
   SUBROUTINE nwp_radiation ( lredgrid, p_sim_time, mtime_datetime, pt_patch,pt_par_patch, &
     & ext_data, lnd_diag, pt_prog, pt_diag, prm_diag, lnd_prog, wtr_prog, zf, zh, dz, lacc)
@@ -137,6 +134,9 @@ MODULE mo_nwp_rad_interface
     REAL(wp):: zsct                    ! solar constant (at time of year)
     REAL(wp):: dsec                    ! [s] time increment of radiative transfer wrt. datetime
 
+    LOGICAL :: is_new_day
+    LOGICAL :: is_new_month
+
     !-------------------------------------------------
 
     wavenum1_sw => NULL()
@@ -156,7 +156,10 @@ MODULE mo_nwp_rad_interface
     td_dt_rad => newTimedelta('-',0,0,0,0,0, second=NINT(atm_phy_nwp_config(jg)%dt_rad), ms=0)
     prev_radtime => newDatetime(mtime_datetime + td_dt_rad)
 
-    IF (prev_radtime%date%day /= mtime_datetime%date%day) THEN
+    is_new_day = prev_radtime%date%day /= mtime_datetime%date%day
+    is_new_month = is_new_day .AND. prev_radtime%date%month /= mtime_datetime%date%month
+
+    IF (is_new_day) THEN
       IF (isolrad == 2) CALL read_bc_solar_irradiance(mtime_datetime%date%year,.TRUE.)
     END IF
 
@@ -193,13 +196,18 @@ MODULE mo_nwp_rad_interface
     CALL o3_interface(mtime_datetime, p_sim_time, pt_patch, pt_diag, &
       &               ext_data%atm%o3, prm_diag, atm_phy_nwp_config(jg)%dt_rad, lacc=lzacc)
 
-    IF(ANY((/irad_co2,irad_cfc11,irad_cfc12,irad_n2o,irad_ch4/) == 4)) THEN 
-      ! Interpolate greenhouse gas concentrations to the current date and time, 
+    IF(ANY((/irad_co2,irad_cfc11,irad_cfc12,irad_n2o,irad_ch4/) == 4)) THEN
+      ! Interpolate greenhouse gas concentrations to the current date and time,
       !   placing the annual means at the mid points of the current and preceding or following year,
       !   if the current date is in the 1st or 2nd half of the year, respectively.
-      ! The data file containing the greenhouse gas concentration is read in the initialisation 
+      ! The data file containing the greenhouse gas concentration is read in the initialisation
       !   of the NWP physics
-      CALL bc_greenhouse_gases_time_interpolation(mtime_datetime)
+      CALL bc_greenhouse_gases_time_interpolation( &
+          & mtime_datetime, &
+          & print_report=( &
+          &     (msg_level >= 11 .AND. is_new_day) .OR. &
+          &     (msg_level >= 5 .AND. is_new_month)) &
+        )
     END IF
 
 
@@ -269,7 +277,8 @@ MODULE mo_nwp_rad_interface
       CALL message('mo_nh_interface_nwp', &
         &  'Device to host copy before nwp_rrtm_radiation. This needs to be removed once port is finished!')
       CALL gpu_d2h_nh_nwp(jg, ext_data=ext_data, lacc=lzacc)
-      !$ACC UPDATE HOST(zaeq1, zaeq2, zaeq3, zaeq4, zaeq5) IF(lzacc)
+      !$ACC UPDATE HOST(zaeq1, zaeq2, zaeq3, zaeq4, zaeq5) ASYNC(1) IF(lzacc)
+      !$ACC WAIT(1)
       i_am_accel_node = .FALSE. ! still needed for communication
     ENDIF
 #endif

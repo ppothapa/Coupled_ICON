@@ -195,7 +195,8 @@ compare_output_files()
   #   cdo version <  1.9.6: "Exit status is 1, if 'cdo diffn' fails and 0 otherwise"
   # Thus we cannot rely on the return value but have to check the stdout.
   set +e
-  diffn_output="$(${cdo:-cdo} diffn "${FILE1}" "${FILE2}")"
+  # use silent mode (-s) to suppress most output
+  diffn_output="$(${cdo:-cdo} -s diffn "${FILE1}" "${FILE2}")"
   cdo_exitstat=$?
   set -e
 
@@ -206,10 +207,11 @@ compare_output_files()
     return 0
   fi
 
+  # verbose difference:
+  ${cdo:-cdo} diffn "${FILE1}" "${FILE2}"
   echo " File 1 and file 2 differ or cdo failed (cdo exit status: $cdo_exitstat)"
   echo " - file 1: ${FILE1}"
   echo " - file 2: ${FILE2}"
-  echo "$diffn_output"
   return 1
 }
 #-----------------------------------------------------------------------------

@@ -1,24 +1,17 @@
-!>
-!! External data type definition.
-!!
-!! External data type definition.
-!!
-!! @author Daniel Reinert, DWD
-!! @author Hermann Asensio, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2012-03-22)
-!! Separated from former module mo_ext_data
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! External data type definition.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_ext_data_types
 
   USE mo_kind,               ONLY: wp
@@ -62,7 +55,6 @@ MODULE mo_ext_data_types
 
     !
     ! *** Land-Sea-Mask ***
-
     LOGICAL, POINTER  ::   &   !< atmosphere land-sea-mask on cell centers [ ]
       &  llsm_atm_c(:,:)       ! .TRUE. if landpoint
                                ! index1=1,nproma, index2=1,nblks_c
@@ -83,7 +75,12 @@ MODULE mo_ext_data_types
       &  elevation_c(:,:)
 
     REAL(wp), POINTER ::   &   !< fraction land in a grid element         [ ]
-      &  fr_land(:,:)          ! 0. for water, 1.0 indicates 100% land
+      &  fr_land(:,:)          ! 0. for water, 1.0 indicates 100% land (NWP physics)
+                               ! 0. for ocean, 1.0 indicates 100% land or lakes (AES physics)
+                               ! index1=1,nproma, index2=1,nblks_c
+
+    REAL(wp), POINTER ::   &   !< smoothed land fraction for adaptive tuning of sea ice bottom heat flux and sea ice albedo
+      &  fr_land_smt(:,:)      ! 0. for water, 1.0 indicates 100% land
                                ! index1=1,nproma, index2=1,nblks_c
 
     REAL(wp), POINTER ::    &  !< fraction land glacier in a grid element [ ]
@@ -306,6 +303,24 @@ MODULE mo_ext_data_types
 
     REAL(wp), POINTER ::   &   !< ozone mixing ratio                        [ kg kg^-1 ]
       &  o3(:,:,:)             ! index1=1,nproma, index2=nlev,index3=1,nblks_c
+
+    REAL(wp), POINTER ::   &   !< Black Carbon emission for 2D-aerosol [ kg m-2 s-1 ]
+      &  emi_bc(:,:)           ! index1=1,nproma, index2=1,nblks_c
+
+    REAL(wp), POINTER ::   &   !< Organic Carbon emission for 2D-aerosol [ kg m-2 s-1 ]
+      &  emi_oc(:,:)           ! index1=1,nproma, index2=1,nblks_c
+
+    REAL(wp), POINTER ::   &   !< Sulfur dioxide emission for 2D-aerosol [ kg m-2 s-1 ]
+      &  emi_so2(:,:)          ! index1=1,nproma, index2=1,nblks_c
+
+    REAL(wp), POINTER ::   &   !< Black Carbon emission from wildfires for 2D-aerosol [ kg m-2 s-1 ]
+      &  bcfire(:,:)           ! index1=1,nproma, index2=1,nblks_c
+
+    REAL(wp), POINTER ::   &   !< Organic Carbon emission from wildfires for 2D-aerosol [ kg m-2 s-1 ]
+      &  ocfire(:,:)           ! index1=1,nproma, index2=1,nblks_c
+
+    REAL(wp), POINTER ::   &   !< Sulfur dioxide emission from wildfires for 2D-aerosol [ kg m-2 s-1 ]
+      &  so2fire(:,:)          ! index1=1,nproma, index2=1,nblks_c
 
     REAL(wp), POINTER ::   &   !< longwave surface emissivity             [ ]
       &  emis_rad(:,:)         ! index1=1,nproma, index2=1,nblks_c

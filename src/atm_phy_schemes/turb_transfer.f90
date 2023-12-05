@@ -1,98 +1,39 @@
-!>
-!! Source module for computing the coefficients for turbulent transfer
-!!
-!! @par Description of *turb_transfer*:
-!!   This  module calculates the coefficients for turbulent transfer.
-!!
-!!   The clousure is made on lever 2.5 (Mellor/Yamada) using a prognostic
-!!   TKE-equation and includes the formulation of a flow through a porous
-!!   medium (roughness layer)
-!!
-!!   The turbulence model (with some Prandtl-layer approximations is used
-!!   for the calculation of turbulent transfer between atmosphere and the
-!!   lower boundary too.
-!!
-!! The module contains the public subroutines :
-!!
-!!   turbtran
-!!
-!! called from the turbulence interface routine of the model.
-!!
-!! Current Code Owner: DWD, Matthias Raschendorfer
-!!  phone:  +49  69  8062 2708
-!!  fax:    +49  69  8062 3721
-!!  email:  matthias.raschendorfer@dwd.de
 !
-! History:
-! Version      Date       Name
-! ----------   ---------- ----
-! V5_4a        2016-05-10 Matthias Raschendorfer
-!  Initial Release, based on the turbtran-module of the non-blocked version 
-!   with the following main new features:
-!  Stronger modularized and further developed version of the transfer scheme,
-!   coded in block data structure and transferring model variables by SUB-parameterlists, 
-!   rather than USE-statements.
-!  Adopted ICON modifications separated as switchable options enabling also a
-!   configuration being similar to the previous COSMO version as regards of content.
-!  Partly new (more consistent) interpretation of already existing selectors and introduction
-!   of parameters gradually controlling numerical restrictions.
-! V5_4c        2016-10-06 Ulrich Schaettler
-!  Again use local memory if not running on GPUs 
-!     (because on vectorization problem on CRAY)
-! V5_4d        2016-12-12 Matthias Raschendorfer
-!  Enabling SC-runs in the framwork of the copy-to/from-block facilities, mainly by introducing 'imb'
-!   pointing to the block index valid for SC-applications.
-!  Some cleaning and introducing SUB 'turb_setup', in order to avoid code doubling in SUB 'turbdiff' and
-!   SUB 'turbtran'. By this, the initialization of 'tfh', 'tfm' and 'rcld' is done not only for 'turbtran', 
-!   but also for 'turbdiff', to make sure that it is also done, if another transfer-scheme is running.
-! V5_4e        2017-03-23 Ulrich Schaettler
-!  Now use sfc_flake_data (also for ICON)
-!  Replaced t0_melt+zt_ice by tf_salt (as defined in ICON)
-! V5_4f        2017-09-01 Matthias Raschendorfer, Ulrich Blahak
-!  Added it_start to solve_turb_budgets parameter list
-! V5_4h        2017-12-15 Xavier Lapillonne
-!  Ported turbulence to GPU
-! V5_5         2018-02-23 Ulrich Schaettler
-!  Updated with ICON Version 7bcba73: 
-!   - Added tf_salt to USE mo_physical_constants
-! V5_5a        2018-06-22 Ulrich Schaettler
-!  Set local variables val2, val3 to epsi (1.0E-6), if they are less than epsi,
-!   but only for SINGLEPRECISION.  (in loop starting line 1830)
-! V5_5b        2018-10-29 Matthias Raschendorfer
-!  Correction of representing the former tet_l-gradient, calculated in case of imode_trancnf=1.
-! V5_6         2019-02-27 Ulrich Schaettler
-!  Updated with ICON Version d7e0252
-!    - CRAY_TURB_WORKAROUND: not necessary for COSMO
-!    - modifications to debug output for incoming / outgoing variables
-!    - define some variables as INTENT OUT and not INOUT
-!    - setting gz0 in init phase and at the end: added special treatment for lakes
+! Source module for computing the coefficients for turbulent transfer
 !
-!! @par Copyright and License
-!! This software is provided for non-commercial use only.
-!! See the LICENSE and the WARRANTY conditions.
-!!
-!! @par License
-!! The use of this software is hereby granted free of charge for an unlimited
-!! time, provided the following rules are accepted and applied:
-!! <ol>
-!! <li> You may use or modify this code for your own non commercial and non
-!!    violent purposes.
-!! <li> The code may not be re-distributed without the consent of the authors.
-!! <li> The copyright notice and statement of authorship must appear in all
-!!    copies.
-!! <li> You accept the warranty conditions (see WARRANTY).
-!! <li> In case you intend to use the code commercially, we oblige you to sign
-!!    an according license agreement
-!! </ol>
-!!
-!! @par Warranty
-!! This code has been tested up to a certain level. Defects and weaknesses,
-!! which may be included in the code, do not establish any warranties by the
-!! authors.
-!! The authors do not make any warranty, express or implied, or assume any
-!! liability or responsibility for the use, acquisition or application of this
-!! software.
-!!
+! Description of *turb_transfer*:
+!   This  module calculates the coefficients for turbulent transfer.
+!
+!   The clousure is made on lever 2.5 (Mellor/Yamada) using a prognostic
+!   TKE-equation and includes the formulation of a flow through a porous
+!   medium (roughness layer)
+!
+!   The turbulence model (with some Prandtl-layer approximations is used
+!   for the calculation of turbulent transfer between atmosphere and the
+!   lower boundary too.
+!
+! The module contains the public subroutines :
+!
+!   turbtran
+!
+! called from the turbulence interface routine of the model.
+!
+!-------------------------------------------------------------------------------
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
+
+MODULE turb_transfer
+
 !-------------------------------------------------------------------------------
 !
 ! Documentation History:
@@ -135,10 +76,6 @@
 ! Splitting this module from the original module 'organize_turbdiff' as it was used by ICON before.
 ! Moving declarations, allocation and deallocations of ausxilary arrays into MODULE 'turb_data'.
 !
-!-------------------------------------------------------------------------------
-
-MODULE turb_transfer
-
 !-------------------------------------------------------------------------------
 
 ! Modules used:
@@ -374,6 +311,11 @@ REAL (KIND=wp), PARAMETER :: &
     z2d3=z2/z3     ,&
     z3d2=z3/z2
 
+#ifdef ICON_USE_CUDA_GRAPH
+  LOGICAL, PARAMETER :: using_cuda_graph = .TRUE.
+#else
+  LOGICAL, PARAMETER :: using_cuda_graph = .FALSE.
+#endif
 
 !===============================================================================
 
@@ -1980,7 +1922,8 @@ my_thrd_id = omp_get_thread_num()
       CALL diag_level_gpu(ivstart, ivend, z2m_2d, k_2d, hk_2d, hk1_2d, &
          lacc=lzacc, opt_acc_async_queue=acc_async_queue)
 #else
-      CALL diag_level(ivstart, ivend, z2m_2d, k_2d, hk_2d, hk1_2d)
+      CALL diag_level(ivstart, ivend, z2m_2d, k_2d, hk_2d, hk1_2d, &
+         lacc=lzacc, opt_acc_async_queue=acc_async_queue)
 #endif
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(acc_async_queue) IF(lzacc)
@@ -2254,7 +2197,8 @@ my_thrd_id = omp_get_thread_num()
          CALL diag_level_gpu(ivstart, ivend, z10m_2d, k_2d, hk_2d, hk1_2d, &
             lacc=lzacc, opt_acc_async_queue=acc_async_queue)
 #else
-         CALL diag_level(ivstart, ivend, z10m_2d, k_2d, hk_2d, hk1_2d)
+         CALL diag_level(ivstart, ivend, z10m_2d, k_2d, hk_2d, hk1_2d, &
+            lacc=lzacc, opt_acc_async_queue=acc_async_queue)
 #endif
 
 !DIR$ IVDEP
@@ -2427,7 +2371,7 @@ CONTAINS
 !+ Module procedure diag_level for computing the upper level index
 !+ used for near surface diganostics
 
-SUBROUTINE diag_level (i_st, i_en, zdia_2d, k_2d, hk_2d, hk1_2d, lacc)
+SUBROUTINE diag_level (i_st, i_en, zdia_2d, k_2d, hk_2d, hk1_2d, lacc, opt_acc_async_queue)
    INTEGER, INTENT(IN) :: &
 !
       i_st, i_en  !start end end indices of horizontal domain
@@ -2447,13 +2391,22 @@ SUBROUTINE diag_level (i_st, i_en, zdia_2d, k_2d, hk_2d, hk1_2d, lacc)
      hk1_2d(:)    !mid level height above ground of the previous layer (below)
 
    LOGICAL, OPTIONAL, INTENT(IN) :: lacc ! If true, use openacc
+   INTEGER, OPTIONAL, INTENT(IN) :: opt_acc_async_queue
+
    LOGICAL :: lzacc ! non-optional version of lacc
+   INTEGER :: acc_async_queue
 
    INTEGER :: i
 
    LOGICAL :: lcheck
 
    CALL set_acc_host_or_device(lzacc, lacc)
+
+   IF(PRESENT(opt_acc_async_queue)) THEN
+       acc_async_queue = opt_acc_async_queue
+   ELSE
+       acc_async_queue = 1
+   ENDIF
 
    lcheck=.TRUE. !check whether a diagnostic level is above the current layer
 
@@ -2463,12 +2416,12 @@ SUBROUTINE diag_level (i_st, i_en, zdia_2d, k_2d, hk_2d, hk1_2d, lacc)
       lcheck=.FALSE. !check next layer ony, if diagnostic level is at least once
                      !above the current layer
 
-      !$ACC PARALLEL ASYNC(1) PRESENT(hhl, zdia_2d, k_2d, hk_2d, hk1_2d) IF(lzacc)
+      !$ACC PARALLEL ASYNC(acc_async_queue) PRESENT(hhl, zdia_2d, k_2d, hk_2d, hk1_2d) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO i=i_st,i_en
-         IF (hk_2d(i)<zdia_2d(i) .AND. k_2d(i)>1) THEN !diagnostic level is above current layer
-           !            lcheck=lcheck .OR. .TRUE. !for this point or any previous one the
-           !$ACC ATOMIC WRITE
+          IF (hk_2d(i)<zdia_2d(i) .AND. k_2d(i)>1) THEN !diagnostic level is above current layer
+            !            lcheck=lcheck .OR. .TRUE. !for this point or any previous one the
+            !$ACC ATOMIC WRITE
             lcheck=.TRUE.             !for this point or any previous one the
                                       !diagnostic level is above the current layer
             !$ACC END ATOMIC
@@ -2545,7 +2498,6 @@ SUBROUTINE diag_level_gpu (i_st, i_en, zdia_2d, k_2d, hk_2d, hk1_2d, lacc, opt_a
          END IF
       END DO
    END DO
-   !$ACC END PARALLEL LOOP
    !$ACC END DATA
    
 END SUBROUTINE diag_level_gpu

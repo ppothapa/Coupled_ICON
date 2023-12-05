@@ -1,18 +1,18 @@
-!>
-!! Contains the setup of configuration of the
-!! nonhydrostatic dynamical core
-!!        
-!! @par Revision History
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Contains the setup of configuration of the
+! nonhydrostatic dynamical core
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_nonhydrostatic_nml
 
   USE mo_kind,                  ONLY: wp
@@ -58,7 +58,6 @@ MODULE mo_nonhydrostatic_nml
                                     & config_iadv_rhotheta    => iadv_rhotheta    , &
                                     & config_igradp_method    => igradp_method    , &
                                     & config_exner_expol      => exner_expol      , &
-                                    & config_l_masscorr_nest  => l_masscorr_nest  , &
                                     & config_l_zdiffu_t       => l_zdiffu_t       , &
                                     & config_thslp_zdiffu     => thslp_zdiffu     , &
                                     & config_thhgtd_zdiffu    => thhgtd_zdiffu
@@ -71,7 +70,6 @@ MODULE mo_nonhydrostatic_nml
 
 CONTAINS
   !-------------------------------------------------------------------------
-  !>
   !! Read Namelist for nonhydrostatic core. 
   !!
   !! This subroutine 
@@ -82,9 +80,6 @@ CONTAINS
   !! - reads the user's (new) specifications
   !! - stores the Namelist for restart
   !! - fills the configuration state (partly)    
-  !!
-  !! @par Revision History
-  !!  by Daniel Reinert, DWD (2011-07-06)
   !!
   SUBROUTINE read_nonhydrostatic_namelist( filename )
 
@@ -111,7 +106,6 @@ CONTAINS
     INTEGER :: ndyn_substeps           ! number of dynamics substeps per fast-physics step
     REAL(wp):: vcfl_threshold          ! threshold for vertical advection CFL number at which the adaptive time step reduction
                                        ! (increase of ndyn_substeps w.r.t. the fixed fast-physics time step) is triggered
-    LOGICAL :: lhdiff_rcf              ! !!! OBSOLETE !!! if true: compute horizontal diffusion only at the large time step
     LOGICAL :: lextra_diffu            ! if true: apply additional diffusion at grid points close
     ! to the CFL stability limit for vertical advection
     REAL(wp):: divdamp_fac             ! Scaling factor for divergence damping at height divdamp_z and below
@@ -144,11 +138,7 @@ CONTAINS
     INTEGER :: iadv_rhotheta           ! Advection scheme used for density and pot. temperature
     INTEGER :: igradp_method           ! Method for computing the horizontal presure gradient
     REAL(wp):: exner_expol             ! Temporal extrapolation of Exner for computation of
-    ! horizontal pressure gradient
-    LOGICAL :: l_open_ubc              ! .true.: open upper boundary condition (w=0 otherwise)
-
-    LOGICAL :: l_masscorr_nest         ! Apply mass conservation correction also to nested domain
-
+                                       ! horizontal pressure gradient
     LOGICAL :: l_zdiffu_t              ! .true.: apply truly horizontal temperature diffusion
     !         over steep slopes
     REAL(wp):: thslp_zdiffu            ! threshold slope above which temperature diffusion is applied
@@ -158,11 +148,10 @@ CONTAINS
 
     NAMELIST /nonhydrostatic_nml/ itime_scheme, ndyn_substeps, ivctype, htop_moist_proc,    &
          & hbot_qvsubstep, damp_height, rayleigh_type,               &
-         & rayleigh_coeff, vwind_offctr, iadv_rhotheta, lhdiff_rcf,  &
+         & rayleigh_coeff, vwind_offctr, iadv_rhotheta,              &
          & divdamp_fac, divdamp_fac2, divdamp_fac3, divdamp_fac4,    &
          & divdamp_z, divdamp_z2, divdamp_z3, divdamp_z4,            &
-         & igradp_method, exner_expol, l_open_ubc,                   &
-         & l_masscorr_nest, l_zdiffu_t,                              &
+         & igradp_method, exner_expol, l_zdiffu_t,                   &
          & thslp_zdiffu, thhgtd_zdiffu, divdamp_order, divdamp_type, &
          & rhotheta_offctr, lextra_diffu, veladv_offctr,             &
          & divdamp_trans_start, divdamp_trans_end, htop_aero_proc,   &
@@ -182,9 +171,6 @@ CONTAINS
     ! threshold for vertical advection CFL number at which the adaptive time step reduction
     ! (increase of ndyn_substeps w.r.t. the fixed fast-physics time step) is triggered
     vcfl_threshold = 1.05_wp
-
-    ! !!! OBSOLETE !!! reduced calling frequency also for horizontal diffusion
-    lhdiff_rcf = .TRUE.  ! new default since 2012-05-09 after successful testing
 
     ! apply additional horizontal diffusion on vn and w at grid points close to the stability
     ! limit for vertical advection
@@ -254,10 +240,6 @@ CONTAINS
 #else
     exner_expol       = 1._wp/3._wp
 #endif
-    ! TRUE: use the open upper boundary condition
-    l_open_ubc        = .FALSE.
-    ! TRUE: apply mass conservation correction computed for feedback in the nested domain, too
-    l_masscorr_nest   = .FALSE.
 
     ! dummy values for nested domains; will be reset to value of domain 1 
     ! if not specified explicitly in the namelist
@@ -363,14 +345,6 @@ CONTAINS
        CALL finish( TRIM(routine), 'divdamp_z3 == divdamp_z4 not allowed')
     ENDIF
 
-    !
-    WRITE(message_text,'(a)') &
-      &  'Namelist switch l_open_ubc is obsolete and will soon be removed!'
-    CALL message("WARNING",message_text)
-    WRITE(message_text,'(a)') &
-      &  'Namelist switch lhdiff_rcf is obsolete and will soon be removed!'
-    CALL message("WARNING",message_text)
-
 
     !----------------------------------------------------
     ! 4. Fill the configuration state
@@ -406,7 +380,6 @@ CONTAINS
        config_l_zdiffu_t        = l_zdiffu_t
        config_thslp_zdiffu      = thslp_zdiffu
        config_thhgtd_zdiffu     = thhgtd_zdiffu
-       config_l_masscorr_nest   = l_masscorr_nest
        config_htop_moist_proc   = htop_moist_proc
        config_hbot_qvsubstep    = hbot_qvsubstep
        config_htop_aero_proc    = htop_aero_proc

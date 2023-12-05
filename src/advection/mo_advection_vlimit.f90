@@ -1,38 +1,19 @@
-!>
-!! Flux and reconstruction limiter for vertical tracer transport
-!!
-!! This module contains various filters and flux limiters for 
-!! vertical tracer transport.
-!!
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2010-03-04)
-!! Modification by Daniel Reinert, DWD (2010-03-04)
-!! - transferred all limiter to this new module
-!! - implementation of flux limiter for FFSL-scheme (Miura)
-!! Modification by Daniel Reinert, DWD (2010-10-06)
-!! - implemented positive definite FCT-limiter for FFSL-scheme
-!! Modification by Daniel Reinert, DWD (2012-05-04)
-!! - removed slope limiter for horizontal transport, since they were 
-!!   no longer used.
-!! Modification by Daniel Reinert, DWD (2013-05-23)
-!! - removed obsolete slope limiters for vertical MUSCL scheme.
-!! Modification by Will Sawyer, CSCS (2015-07-14)
-!! - added OpenACC support
-!! Modification by Daniel Reinert, DWD (2018-11-29)
-!! - Module mo_advection_limiter has been splitted into two parts, 
-!!   in order to separate horizontal and vertical limiter.
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Flux and reconstruction limiter for vertical tracer transport
+!
+! This module contains various filters and flux limiters for
+! vertical tracer transport.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -82,9 +63,6 @@ CONTAINS
   !! - Smolarkiewicz, P. K., 1989: Comment on "A positive definite advection 
   !!   scheme obtained by nonlinear renormalization of the advective fluxes.", 
   !!   Mon. Wea. Rev., 117, 2626-2632
-  !!
-  !! @par Revision History
-  !! - Inital revision by Daniel Reinert, DWD (2011-01-07)
   !!
   SUBROUTINE vflx_limiter_pd( p_dtime, p_cc, p_rhodz_now,             &
     &                         p_mflx_tracer_v, i_startidx, i_endidx,  &
@@ -205,14 +183,6 @@ CONTAINS
   !!
   !! Literature
   !! Lin and Rood (1996), MWR, 124, 2046-2070
-  !!
-  !! @par Revision History
-  !! Developed by Daniel Reinert, DWD (2010-02-04)
-  !! Modification by Daniel Reinert, DWD (2015-11-26)
-  !! - do no longer rely on p_slope for detection of extrema. This 
-  !!   allows usage of the limiter for PSM as well.
-  !! Modification by Daniel Reinert, DWD (2019-01-11)
-  !! - ability to preserve smooth extrema (lselective_limit = .TRUE.)
   !!
   SUBROUTINE v_limit_parabola_mo( p_ivlimit_selective, p_cc, p_face, &
     &                           p_face_up, p_face_low, i_startidx,   &
@@ -383,9 +353,6 @@ CONTAINS
   !!
   !! Literature
   !! Lin and Rood (1996), MWR, 124, 2046-2070
-  !!
-  !! @par Revision History
-  !! Developed by Daniel Reinert, DWD (2010-02-04)
   !!
   SUBROUTINE v_limit_parabola_sm( p_ivlimit_selective, p_cc, p_face, &
     &                           p_face_up, p_face_low, i_startidx,   &
@@ -558,9 +525,6 @@ CONTAINS
   !! Literature
   !! Zerroukat et al. (2005), QJRMS, 131, 2923-2936
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2019-01-11)
-  !!
   LOGICAL FUNCTION isExtremumSpurious(is_main_crit, z_delta, z_a6i, p_cc, q_face_jkm2,  &
     &                                 q_face_jkm1, q_face_jk, q_face_jkp1, q_face_jkp2, &
     &                                 q_face_jkp3)
@@ -617,10 +581,6 @@ CONTAINS
   !!
   !! Literature
   !! Lin et al. (1994), MWR, 122, 1575-1593
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2015-10-28)
-  !! - moved here from mo_advection_vflux
   !!
   SUBROUTINE v_limit_slope_mo( p_cc, i_startidx, i_endidx, slev, elev, slope )
 
@@ -683,9 +643,6 @@ CONTAINS
   !! Literature
   !! Lin et al. (1994), MWR, 122, 1575-1593
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2015-10-28)
-  !!
   SUBROUTINE v_limit_slope_sm( p_cc, i_startidx, i_endidx, slev, elev, slope )
 
 
@@ -746,10 +703,6 @@ CONTAINS
   !! - White et al. (2008), JCP, 227, 7394-7422
   !! - Leveque (2002), Finite Volume Methods for Hyperbolic Problems, 
   !!                  Cambridge University Press
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2021-01-18)
-  !! 
   !!
   SUBROUTINE v_limit_face_mc_mo( p_cc, p_cellhgt_mc_now, p_face, i_startidx, i_endidx, &
     &                            slev, elev )
@@ -863,10 +816,6 @@ CONTAINS
   !! - Leveque (2002), Finite Volume Methods for Hyperbolic Problems, 
   !!                  Cambridge University Press
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2021-01-18)
-  !! 
-  !!
   SUBROUTINE v_limit_face_mc_sm( p_cc, p_cellhgt_mc_now, p_face, i_startidx, i_endidx, &
     &                            slev, elev )
 
@@ -970,9 +919,6 @@ CONTAINS
   !! - White et al. (2008), JCP, 227, 7394-7422
   !! - Leveque (2002), Finite Volume Methods for Hyperbolic Problems, 
   !!                 Cambridge University Press
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2021-01-18)
   !!
   FUNCTION mc_limiter (p_cc_u, p_cc_c, p_cc_l, cellhgt_mc_u, cellhgt_mc_c, cellhgt_mc_l) &
     &                  RESULT(mc_slope)

@@ -1,17 +1,17 @@
-!>
-!! Contains the setup of the variables for io.
-!!
-!! @par Revision History
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Contains the setup of the variables for io.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_io_nml
 !-------------------------------------------------------------------------
 !
@@ -45,6 +45,7 @@ MODULE mo_io_nml
                                  & config_runoff_interval         => runoff_interval        , &
                                  & config_itype_dursun            => itype_dursun           , &
                                  & config_itype_convindices       => itype_convindices      , &
+                                 & config_itype_hzerocl           => itype_hzerocl          , &
                                  & config_sunshine_interval       => sunshine_interval      , &
                                  & config_melt_interval           => melt_interval          , &
                                  & config_maxt_interval           => maxt_interval          , &
@@ -82,7 +83,6 @@ MODULE mo_io_nml
 
   
 CONTAINS
-  !>
   !! Read Namelist for I/O.
   !!
   !! This subroutine
@@ -93,9 +93,6 @@ CONTAINS
   !! - reads the user's (new) specifications
   !! - stores the Namelist for restart
   !! - fills the configuration state (partly)
-  !!
-  !! @par Revision History
-  !!  by Daniel Reinert, DWD (2011-06-07)
   !!
   SUBROUTINE read_io_namelist( filename )
 
@@ -137,6 +134,10 @@ CONTAINS
                                           !    if direct radiation > 200 W/m^2 and relative sunshine duration in % is computed
     INTEGER :: itype_convindices          ! if 1 CAPE_MU/CIN_MU are approximated via the CAPE/CIN of the parcel with maximum equivalent temperature
                                           ! if 2 the full computation is done
+    INTEGER :: itype_hzerocl              ! Specifies height of freezing level if T < 0 Celsius in the whole atmospheric column
+                                          ! 1: set hzerocl to orography height (default)
+                                          ! 2: set hzerocl to -999.0_wp (undef)
+                                          ! 3: set hzerocl to extrapolated value below ground (assuming -6.5 K/km)
     LOGICAL :: lflux_avg                  ! if .FALSE. the output fluxes are accumulated
                                           !  from the beginning of the run
                                           ! if .TRUE. the output fluxex are average values
@@ -202,8 +203,8 @@ CONTAINS
       &              nrestart_streams, dt_lpi, dt_celltracks,             &
       &              dt_hailcast, wdur_min_hailcast,                      &
       &              dt_radar_dbz, sunshine_interval, itype_dursun,       &
-      &              itype_convindices, melt_interval, wshear_uv_heights, &
-      &              srh_heights
+      &              itype_convindices, itype_hzerocl, melt_interval,     &
+      &              wshear_uv_heights, srh_heights
 
     !-----------------------
     ! 1. default settings
@@ -239,6 +240,7 @@ CONTAINS
     inextra_3d              = 0     ! no extra output 3D fields
     itype_dursun            = 0
     itype_convindices       = 1
+    itype_hzerocl           = 1
     lflux_avg               = .TRUE.
     itype_pres_msl          = PRES_MSL_METHOD_GME
     itype_rh                = RH_METHOD_WMO       ! WMO: water only
@@ -321,6 +323,7 @@ CONTAINS
     config_runoff_interval(:)      = runoff_interval(:)
     config_itype_dursun            = itype_dursun
     config_itype_convindices       = itype_convindices
+    config_itype_hzerocl           = itype_hzerocl
     config_sunshine_interval(:)    = sunshine_interval(:)
     config_melt_interval(:)        = melt_interval(:)
     config_maxt_interval(:)        = maxt_interval(:)

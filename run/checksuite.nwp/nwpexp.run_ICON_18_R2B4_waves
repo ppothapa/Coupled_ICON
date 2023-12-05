@@ -17,10 +17,7 @@ make_and_change_to_experiment_dir # function in ../add_run_routines
 START_MODEL="${START_MODEL:=$START $MODEL}"
 
 # set icon_data_poolFolder
-icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}"
-if [[ -d "$icon_data_poolFolder/buildbot_data/nwp" ]]; then
-          icon_data_poolFolder="$icon_data_poolFolder/buildbot_data/nwp"
-fi
+icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/buildbot_data/nwp"
 
 # base directory for ICON sources, binary and auxilary data:
 ICONDIR="${basedir}" # basedir can be set with create_target_header
@@ -107,7 +104,7 @@ EOF
 
 cat > ${wave_namelist} << EOF
 &coupling_mode_nml
- coupled_mode         = .false.
+ coupled_to_atmo = .FALSE.
 /
 &run_nml
  num_lev              = 1
@@ -117,7 +114,7 @@ cat > ${wave_namelist} << EOF
  msg_level            = 15
  ltestcase            = .TRUE.       ! run testcase
  ldynamics            = .TRUE.
- ltransport           = .TRUE.
+ ltransport           = .FALSE.      ! no horizontal propagation of wave energy
  ntracer              = $((${nd}*${nf}))
  output               = "nml"
 /
@@ -131,7 +128,7 @@ cat > ${wave_namelist} << EOF
  num_restart_procs       = ${num_restart_procs}  ! number of restart processors
  num_prefetch_proc       = ${num_prefetch_proc}  ! number of processors for LBC prefetching
  num_io_procs_radar      = ${num_io_procs_radar} ! number of EMVORADO I/O processors
- proc0_shift             = 0
+ proc0_shift             = $proc0_shift
  num_dist_array_replicas = 4
  iorder_sendrecv         = 1
 /
@@ -156,7 +153,7 @@ cat > ${wave_namelist} << EOF
  include_last            =                      .TRUE.        ! flag whether to include the last time step
  output_filename         =                      'WAVE'        ! file name base
  output_grid             =                      .TRUE.        ! flag whether grid information is added to output.
- ml_varlist              = 'process_id','bathymetry_c',
+ ml_varlist              = 'bathymetry_c',
                            'group:wave_forcing',
                            'group:wave_phy','group:wave_short',
                            'q112_010_004','q1_001_001','fl_020_010','fl_025_001'
@@ -164,6 +161,10 @@ cat > ${wave_namelist} << EOF
 EOF
 
 
+#
+# configure START_MODEL_function
+#
+ICON_COMPONENT1_VH_procs=$((num_restart_procs + num_io_procs + num_prefetch_proc + num_io_procs_radar))
 
 # ----------------------------------------------------------------------------
 # run the model!

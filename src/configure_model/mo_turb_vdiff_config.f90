@@ -1,29 +1,28 @@
-!>
-!! Configuration structure for the VDIFF turbulence scheme.
-!!
-!! @author Marco Giorgetta, MPI-M
-!! @author Roland Wirth, DWD
-!!
-!! @par Revision History
-!! 2017-04, Marco Giorgetta (MPI-M), First revision
-!! 2021-07, Roland Wirth (DWD), Adapted from ICON-ECHAM
-!!
-!! References:
-!!     Angevine, W. M., Jiang, H., & Mauritsen T. (2010).
-!!           Performance of an eddy diffusivity mass flux scheme for shallow cumulus boundary layers.
-!!           Monthly Weather Review, 138(7), 2895-2912. https://doi.org/10.1175/2010MWR3142.1
-!!     Mauritsen, T., & Svensson, G. (2007).
-!!           Observations of stably stratified shear-driven atmospheric turbulence at low and high Richardson numbers.
-!!           Journal of the Atmospheric Sciences, 64(2), 645-655. https://doi.org/10.1175/JAS3856.1
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Configuration structure for the VDIFF turbulence scheme.
+!
+! References:
+!     Angevine, W. M., Jiang, H., & Mauritsen T. (2010).
+!           Performance of an eddy diffusivity mass flux scheme for shallow cumulus boundary layers.
+!           Monthly Weather Review, 138(7), 2895-2912. https://doi.org/10.1175/2010MWR3142.1
+!     Mauritsen, T., & Svensson, G. (2007).
+!           Observations of stably stratified shear-driven atmospheric turbulence at low and high Richardson numbers.
+!           Journal of the Atmospheric Sciences, 64(2), 645-655. https://doi.org/10.1175/JAS3856.1
+!     Lee, J., Hohenegger, C., Chlond, A., & Schnur, R. (2022).
+!           The climatic role of interactive leaf phenology in the vegetation-atmosphere system of
+!           radiative-convective equilibrium storm-resolving simulations.
+!           Tellus, Series B-Chemical and Physical Meteorology, 74, 164-175.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_turb_vdiff_config
   USE mo_kind, ONLY: wp
   USE mo_exception, ONLY: message, finish
@@ -65,7 +64,10 @@ MODULE mo_turb_vdiff_config
     REAL(wp) :: z0m_oce         !< Roughness length for momentum over ocean [m].
                                 !! See mo_surface_ocean.f90 of ECHAM6.
 
-    INTEGER :: turb             !< turbulence scheme: VDIFF_TURB_TTE or VDIFF_TURB_3DSMAGORINSKY.
+    INTEGER  :: turb            !< turbulence scheme: VDIFF_TURB_TTE or VDIFF_TURB_3DSMAGORINSKY.
+    LOGICAL  :: use_tmx         !< true: use tmx diffusion
+    INTEGER  :: solver_type     !< 1: explicit solver, 2: implicit solver
+    INTEGER  :: energy_type     !< use 1: dry static energy 2: internal energy for thermal diffusion in tmx 
     REAL(wp) :: smag_constant
     REAL(wp) :: turb_prandtl    !< Turbulent Prandtl number
     REAL(wp) :: rturb_prandtl   !< inverse turbulent prandtl number
@@ -134,6 +136,9 @@ CONTAINS
     config%z0m_oce  =  1e-3_wp
     config%lmix_max =  150._wp
     config%turb     =  VDIFF_TURB_TTE
+    config%use_tmx  = .FALSE.
+    config%solver_type   = 2
+    config%energy_type   = 1
     config%smag_constant = 0.23_wp
     config%max_turb_scale= 300._wp
     config%turb_prandtl  = 0.33333333333_wp

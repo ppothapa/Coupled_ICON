@@ -1,17 +1,18 @@
-!>
-!! Implementation of physics utility routines.
-!!
-!! @par Revision History
-!!  Initial revision  :  F. Prill, DWD (2012-07-03)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Implementation of physics utility routines.
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -77,9 +78,6 @@ CONTAINS
   !!     gust = ff10m + gust_factor * ustar
   !! where ff10m is the 10 m wind and the friction velocity ustar = SQRT(tcm)*ff1
   !!
-  !! @par Revision History
-  !! Developed by Helmut Frank, DWD (2013-03-13)
-  !!
   ELEMENTAL FUNCTION nwp_dyn_gust( u_10m, v_10m, tcm, u1, v1, u_env, v_env, fr_oce, mtnmask) RESULT( vgust_dyn)
     !$ACC ROUTINE SEQ
 
@@ -123,9 +121,6 @@ CONTAINS
   !! Taken from the original implementation by H. Frank from function 
   !! nwp_dyn_gust to be also usable for other purposes.
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Rieger, DWD (2019-08-05)
-  !!
   ELEMENTAL FUNCTION calc_ustar(tcm, u1, v1) RESULT (ustar)
     !$ACC ROUTINE SEQ
 
@@ -146,12 +141,9 @@ CONTAINS
   !! where \alpha=0.6 is a tunable constant and U_850-U_950 is the difference between
   !! the 850 hPa and 950 hPa wind speeds, which represents the low-level wind shear.
   !!
-  !! @par Literature
+  !! Literature
   !! Bechthold, P. and J. Bidlot (2009): Parameterization of convective gusts. 
   !! ECMWF Newsletter No. 119
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2014-03-25)
   !!
   ELEMENTAL FUNCTION nwp_con_gust( u_850, u_950, v_850, v_950) RESULT(vgust_con)
     !$ACC ROUTINE SEQ
@@ -178,11 +170,6 @@ CONTAINS
   !!
   !! Required input fields: temperature, specific humidity, cloud and precipitation variables
   !! Output: virtual temperature
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-14)
-  !!
-  !!
   !!
   SUBROUTINE virtual_temp(p_patch, temp, qv, qc, qi, qr, qs, qg, qh, temp_v)
 
@@ -281,8 +268,6 @@ CONTAINS
   !!
   !! (domain independent and elemental)
   !!
-  !! @par Revision History
-  !! Initial revision by D. Reinert, DWD (2014-09-18) 
   ELEMENTAL FUNCTION swdir_s(albedo, swdifd_s, sobs)
     !$ACC ROUTINE SEQ
     REAL(wp)             :: swdir_s
@@ -300,8 +285,6 @@ CONTAINS
   !!
   !! (domain independent and elemental)
   !!
-  !! @par Revision History
-  !! Initial revision  :  F. Prill, DWD (2012-07-03) 
   ELEMENTAL FUNCTION rel_hum(temp, qv, p_ex)
     !$ACC ROUTINE SEQ
 
@@ -332,8 +315,6 @@ CONTAINS
   !!
   !! (domain independent and elemental)
   !!
-  !! @par Revision History
-  !! Initial revision  by Daniel Reinert, DWD (2013-07-15) 
   ELEMENTAL FUNCTION rel_hum_ifs(temp, qv, p_ex)
     !$ACC ROUTINE SEQ
 
@@ -370,8 +351,6 @@ CONTAINS
 
   !> computation of relative humidity as r=e/e_sat, according to WMO standard
   !!
-  !! @par Revision History
-  !! Initial revision  :  F. Prill, DWD (2012-07-04) 
   SUBROUTINE compute_field_rel_hum_wmo(ptr_patch, p_prog, p_diag, out_var, &
     &                              opt_slev, opt_elev, opt_rlstart, opt_rlend, lacc)
 
@@ -451,8 +430,6 @@ CONTAINS
 
   !> computation of relative humidity as r=e/e_sat, according to IFS
   !!
-  !! @par Revision History
-  !! Initial revision  :  F. Prill, DWD (2012-07-04) 
   SUBROUTINE compute_field_rel_hum_ifs(ptr_patch, p_prog, p_diag, out_var, &
     &                              opt_lclip, opt_slev, opt_elev,          &
     &                              opt_rlstart, opt_rlend)
@@ -545,8 +522,6 @@ CONTAINS
   !! water vapour pressure is computed as a function of specific humidity 
   !! qv and atmospheric pressure pres.
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2013-07-25) 
   ELEMENTAL FUNCTION vap_pres(qv,pres)
   !$ACC ROUTINE SEQ
 
@@ -869,9 +844,6 @@ CONTAINS
   !>
   !! Find the lowest inversion and provide its inversion height and lowest point of the entrainment zone 
   !! It follows Van Wevweberg et al. Month Weath. Rev. 2021
-  !!
-  !! @par Revision History
-  !! Initial revision by Alberto de Lozar, DWD (2023-01-18) 
   !!
   !! The inversion height is identified as the maximum gradient of liquid potential temperature
   

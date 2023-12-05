@@ -1,33 +1,20 @@
-!>
-!! Calculate error norms as in Williamson et al.
-!!
-!! (1992)
-!! General subroutines to be used for any variable (scalar, or
-!! vector with 2 or 3 components) and any test case
-!!
-!! @par Revision History
-!! Original version by P. R\\'\\i{}podas (2007-07)
-!! Modified by Th. Heinze, DWD (2007-08-08):
-!! - introduced TYPE errors
-!! - introduced absolute errors
-!! Modified by Th. Heinze, DWD (2007-08-09):
-!! - enlarge all arrays by 2nd column nblks
-!! - use definition (81) of Williamson et al. (1992) to define absolute error
-!! - in case of undefined relative error, now absolute error is used
-!! Mofified by P. R\\'\\i{}podas (2009-03):
-!! - remove second column nblks. In the restructured code, the
-!!   normalized errors of  ICOSWM are calculated as post-procesing,
-!!   and 1 column arrays are used
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Calculate error norms as in Williamson et al. (1992)
+!
+! General subroutines to be used for any variable (scalar, or
+! vector with 2 or 3 components) and any test case
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_err_norm
 !-------------------------------------------------------------------------
 !
@@ -75,8 +62,6 @@ CONTAINS
 
 !-------------------------------------------------------------------------
 !
-!
-!>
 !! Calculation of the normalized errors as in Willianson et al.
 !!
 !! (1992)
@@ -86,14 +71,6 @@ CONTAINS
 !! Absolute difference field is the square root of the difference field to the
 !! square. Absolute reference field is the square root of the reference field
 !! to the square.
-!!
-!! @par Revision History
-!! Original version by P. R\\'\\i{}podas (2007-07)
-!! Modified by Th. Heinze, DWD (2007-08-08):
-!! - used TYPE errors
-!! - introduced absolute errors
-!! Modified by Th. Heinze, DWD (2007-08-09):
-!! - enlarge all arrays by 2nd column nblks
 !!
 SUBROUTINE err_norm_scal (k_npoints, p_xref, p_xmod, p_wgt, p_errors)
 !
@@ -122,8 +99,6 @@ END SUBROUTINE  err_norm_scal
 
 !-------------------------------------------------------------------------
 !
-!
-!>
 !! Calculation of the normalized errors as in Williamson et al.
 !!
 !! (1992)
@@ -133,14 +108,6 @@ END SUBROUTINE  err_norm_scal
 !! Absolute difference field is the square root of the difference vector field
 !! to the square; absolute reference field is the square root of the reference
 !! vector field to the square.
-!!
-!! @par Revision History
-!! Original version by P. R\\'\\i{}podas (2007-07)
-!! Modified by Th. Heinze, DWD (2007-08-08):
-!! - used TYPE errors
-!! - introduced absolute errors
-!! Modified by Th. Heinze, DWD (2007-08-09):
-!! - enlarge all arrays by 2nd column nblks
 !!
 SUBROUTINE err_norm_vec2 (k_npoints, p_uref, p_vref, p_umod, p_vmod, p_wgt,  &
   & p_errors)
@@ -176,8 +143,6 @@ END SUBROUTINE err_norm_vec2
 
 !-------------------------------------------------------------------------
 !
-!
-!>
 !! Calculation of the normalized errors as in Williamson et al.
 !!
 !! (1992)
@@ -187,14 +152,6 @@ END SUBROUTINE err_norm_vec2
 !! Absolute difference field is the square root of the difference vector field
 !! to the square; absolute reference field is the square root of the reference
 !! vector field to the square.
-!!
-!! @par Revision History
-!! Original version by P. R\\'\\i{}podas (2007-07)
-!! Modified by Th. Heinze, DWD (2007-08-08):
-!! - used TYPE errors
-!! - introduced absolute errors
-!! Modified by Th. Heinze, DWD (2007-08-09):
-!! - enlarge all arrays by 2nd column nblks
 !!
 SUBROUTINE err_norm_vec3 (k_npoints, p_uref, p_vref, p_wref, p_umod, p_vmod, &
   p_wmod, p_wgt, p_errors)
@@ -234,8 +191,6 @@ END SUBROUTINE err_norm_vec3
 
 !-------------------------------------------------------------------------
 !
-!
-!>
 !! Calculate the normalized errors as in Williamson et al.
 !!
 !! (1992).
@@ -243,16 +198,6 @@ END SUBROUTINE err_norm_vec3
 !! field, the number of grid points and the weights (areas) for each grid point.
 !! In case the reference field is more or less zero, the relative error is
 !! defined as absolute error.
-!!
-!! @par Revision History
-!! Original version by P. R\\'\\i{}podas (2007-07)
-!! Modified by Th. Heinze, DWD (2007-08-08):
-!! - introduced TYPE errors
-!! - introduced absolute errors
-!! Modified by Th. Heinze, DWD (2007-08-09):
-!! - enlarge all arrays by 2nd column nblks
-!! - use definition (81) of Williamson et al. (1992) to define absolute error
-!! - in case of undefined relative error, now absolute error is used
 !!
 SUBROUTINE compute_err_norm (k_npoints, p_diff, p_reff, p_wgt, p_errors)
 !

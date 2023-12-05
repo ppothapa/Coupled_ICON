@@ -1,28 +1,17 @@
-!>
-!! @brief diagnosis of physics after physic's call 
-!!
-!! <Describe the concepts of the procedures and algorithms used in the module.>
-!! <Details of procedures are documented below with their definitions.>
-!! <Include any applicable external references inline as module::procedure,>
-!! <external_procedure(), or by using @see.>
-!! <Don't forget references to literature.>
-!!
-!! @author <Pilar Ripodas, DWD>
-!!
-!!
-!! @par Revision History
-!! first implementation by Pilar Ripodas, DWD (2011-03)
-!! generalized overlap by Martin Koehler, DWD (2014-04)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Diagnosis of physics after physics call
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -52,12 +41,12 @@ MODULE mo_nwp_diagnosis
   USE mo_parallel_config,    ONLY: nproma, proc0_offloading
   USE mo_lnd_nwp_config,     ONLY: nlev_soil, ntiles_total
   USE mo_nwp_lnd_types,      ONLY: t_lnd_diag, t_wtr_prog, t_lnd_prog
-  USE mo_physical_constants, ONLY: tmelt, grav, cpd, vtmpc1
+  USE mo_physical_constants, ONLY: tmelt, grav, cpd, vtmpc1, dtdz_standardatm
   USE mo_atm_phy_nwp_config, ONLY: atm_phy_nwp_config
   USE mo_advection_config,   ONLY: advection_config
   USE mo_io_config,          ONLY: lflux_avg, uh_max_zmin, uh_max_zmax, &
     &                              luh_max_out, uh_max_nlayer, var_in_output, &
-    &                              itype_dursun, itype_convindices, t_var_in_output
+    &                              itype_dursun, itype_convindices, itype_hzerocl, t_var_in_output
   USE mo_sync,               ONLY: global_max, global_min
   USE mo_vertical_coord_table,  ONLY: vct_a
   USE mo_satad,              ONLY: sat_pres_water, spec_humi
@@ -112,12 +101,6 @@ CONTAINS
   !! Computation of time averages, accumulated variables and vertical integrals 
   !! for output. The statistics are valid from the beginning of the forecast 
   !! to the output time.
-  !!
-  !! @par Revision History
-  !! Add calculation of high-, mid-, and low-level cloud cover, height
-  !! of base and top of convection  by Helmut Frank, DWD (2013-01-17)
-  !! Add height of 0 deg C level    by Helmut Frank, DWD (2013-03-11)
-  !!
   !!
   SUBROUTINE nwp_statistics(lcall_phy_jg,                 & !in
                             & dt_phy_jg, p_sim_time,      & !in
@@ -699,14 +682,6 @@ CONTAINS
   !>
   !! Computation of vertical integrals of moisture and cloud cover
   !!
-  !!
-  !! @par Revision History
-  !! Separated from module nwp_statistics by Guenther Zaengl, DWD (2014-07-11)
-  !! Includes calculation of high-, mid-, and low-level cloud cover, height
-  !! of base and top of convection  by Helmut Frank, DWD (2013-01-17)
-  !! Add height of 0 deg C level    by Helmut Frank, DWD (2013-03-11)
-  !!
-  !!
   SUBROUTINE calc_moist_integrals(pt_patch, p_metrics,        & !in
                                 & pt_prog, pt_prog_rcf,       & !in
                                 & ext_data, kstart_moist,     & !in
@@ -769,7 +744,7 @@ CONTAINS
 
     ! set height-dependent decorrelation length scale
     !$ACC DATA CREATE(zprof, rhodz, zdecorr) IF(lzacc)
-    !$ACC KERNELS IF(lzacc)
+    !$ACC KERNELS ASYNC(1) IF(lzacc)
     zprof(:) = 1._wp
     !$ACC END KERNELS
     IF (lcalib_clcov) THEN
@@ -800,7 +775,7 @@ CONTAINS
         ! if cloud cover is called, vertical integration of cloud content
         ! (for iqv, iqc, iqi)
 
-        !$ACC KERNELS IF(lzacc)
+        !$ACC KERNELS ASYNC(1) IF(lzacc)
         prm_diag%tot_cld_vi(i_startidx:i_endidx,jb,1:3) = 0.0_wp
         !$ACC END KERNELS
 
@@ -935,7 +910,7 @@ CONTAINS
 
           !$ACC DATA CREATE(alpha)
           !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-          !$ACC LOOP GANG VECTOR
+          !$ACC LOOP GANG(STATIC: 1) VECTOR
           DO jc = i_startidx, i_endidx
 
             ! Calculate latitude-dependent decorrelation length scale based on
@@ -954,7 +929,7 @@ CONTAINS
           !$ACC LOOP SEQ
           DO jk = kstart_moist+1, nlev
 !DIR$ IVDEP
-            !$ACC LOOP GANG VECTOR PRIVATE(ccmax, ccran)
+            !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(ccmax, ccran)
             DO jc = i_startidx, i_endidx   ! total cloud cover
               ccmax = MAX( prm_diag%clc(jc,jk,jb),  prm_diag%clct(jc,jb) )
               ccran =      prm_diag%clc(jc,jk,jb) + prm_diag%clct(jc,jb) - &
@@ -964,7 +939,7 @@ CONTAINS
               prm_diag%clct(jc,jb) = alpha(jc,jk) * ccmax + (1._wp-alpha(jc,jk)) * ccran
             ENDDO
 
-            !$ACC LOOP GANG VECTOR PRIVATE(ccmax, ccran)
+            !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(ccmax, ccran)
             DO jc = i_startidx, i_endidx
               IF (jk <= prm_diag%k400(jc,jb)-1) THEN    ! high cloud cover
                 ccmax = MAX( prm_diag%clc(jc,jk,jb),  prm_diag%clch(jc,jb) )
@@ -1032,7 +1007,7 @@ CONTAINS
 
       ! pre-computation of rho * \Delta z
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-      !$ACC LOOP COLLAPSE(2)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO jk = 1, nlev
         DO jc = i_startidx, i_endidx 
           rhodz(jc,jk) = p_metrics%ddqz_z_full(jc,jk,jb) * pt_prog%rho(jc,jk,jb) & 
@@ -1091,15 +1066,6 @@ CONTAINS
   !! - t_ice is filled with t_so(0) for non-ice points (h_ice=0)
   !! - instantaneous 10m wind speed (resolved scales)
   !!
-  !! @par Revision History
-  !! Add calculation of high-, mid-, and low-level cloud cover, height
-  !! of base and top of convection  by Helmut Frank, DWD (2013-01-17)
-  !! Add height of 0 deg C level    by Helmut Frank, DWD (2013-03-11)
-  !! Modification by Daniel Reinert (2014-02-27)
-  !! - separated all those diagnostics which are only required at output 
-  !!   times and moved them into a separate routine.
-  !!
-  !!
   SUBROUTINE nwp_diag_for_output(mtime_current,           & !in
                             & kstart_moist,               & !in
                             & ih_clch, ih_clcm,           & !in
@@ -1113,7 +1079,7 @@ CONTAINS
                             & ext_data,                   & !in
                             & prm_diag,                   & !inout
                             & lacc                        ) !in
-              
+
     TYPE(datetime),   POINTER     :: mtime_current     ! current datetime (mtime)
     INTEGER,         INTENT(IN)   :: kstart_moist
     INTEGER,         INTENT(IN)   :: ih_clch, ih_clcm
@@ -1143,17 +1109,22 @@ CONTAINS
     INTEGER :: i_nchdom                !< domain index
 
     REAL(wp):: zbuoy, zqsat, zcond
+    REAL(wp) :: ri_no(nproma,pt_patch%nlev)     ! Richardson number for hpbl calculation     
+
     INTEGER :: mtop_min
     REAL(wp):: ztp(nproma), zqp(nproma)
     INTEGER :: mlab(nproma)
 
     REAL(wp), PARAMETER :: grav_o_cpd = grav/cpd
 
+    REAL(wp), PARAMETER :: missing_value_hpbl  = 0.0_wp ! in case no hpbl can be defined
+
     REAL(wp), PARAMETER :: zundef = -999._wp   ! undefined value for 0 deg C level
 
     TYPE(timeDelta), POINTER :: time_diff
     LOGICAL :: lzacc ! non-optional version of lacc
 
+    CHARACTER(len=*), PARAMETER :: routine = modname//': nwp_diag_for_output '
   !-----------------------------------------------------------------
 
     CALL set_acc_host_or_device(lzacc, lacc)
@@ -1195,7 +1166,7 @@ CONTAINS
     time_diff =  getTimeDeltaFromDateTime(mtime_current, ww_datetime(jg))
 
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jc,jk,i_startidx,i_endidx,mlab,ztp,zqp,zbuoy,zqsat,zcond) ICON_OMP_DEFAULT_SCHEDULE
+!$OMP DO PRIVATE(jb,jc,jk,i_startidx,i_endidx,mlab,ztp,zqp,zbuoy,zqsat,zcond,ri_no) ICON_OMP_DEFAULT_SCHEDULE
     DO jb = i_startblk, i_endblk
       !
       CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
@@ -1339,7 +1310,7 @@ CONTAINS
 
       !
       ! height of 0 deg C level "hzerocl". Take uppermost freezing level in case of multiple 
-      ! occurrences, use orography height if temperature is below freezing in all levels
+      ! occurrences, use method specified by itype_herzocl in case of no occurance
       !
       ! Initialization with orography height
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
@@ -1352,16 +1323,35 @@ CONTAINS
       DO jk = kstart_moist+1, nlev
         !$ACC LOOP GANG(STATIC: 1) VECTOR
         DO jc = i_startidx, i_endidx 
-          IF ( prm_diag%hzerocl(jc,jb) <= p_metrics%z_ifc(jc,nlevp1,jb)) THEN ! freezing level found
-            IF (pt_diag%temp(jc,jk-1,jb) < tmelt .AND. pt_diag%temp(jc,jk,jb) >= tmelt) THEN
-              prm_diag%hzerocl(jc,jb) = p_metrics%z_mc(jc,jk-1,jb) -            &
-            &      ( p_metrics%z_mc(jc,jk-1,jb) - p_metrics%z_mc(jc,jk,jb) )*  &
-            &      (    pt_diag%temp(jc,jk-1,jb) - tmelt ) /                   &
-            &      (    pt_diag%temp(jc,jk-1,jb) - pt_diag%temp(jc,jk,jb) )
-            END IF
+          IF ( prm_diag%hzerocl(jc,jb) /= p_metrics%z_ifc(jc,nlevp1,jb)) THEN ! freezing level found
+            CYCLE
+          ELSE IF ( pt_diag%temp(jc,jk-1,jb) < tmelt .AND. pt_diag%temp(jc,jk,jb) >= tmelt ) THEN
+            prm_diag%hzerocl(jc,jb) = p_metrics%z_mc(jc,jk-1,jb) -             &
+            &      ( p_metrics%z_mc(jc,jk-1,jb) - p_metrics%z_mc(jc,jk,jb) ) * &
+            &      ( pt_diag%temp  (jc,jk-1,jb) - tmelt ) /                    &
+            &      ( pt_diag%temp  (jc,jk-1,jb) - pt_diag%temp  (jc,jk,jb) )
           END IF
         ENDDO
       ENDDO
+
+      IF (itype_hzerocl == 2) THEN
+        ! where no freezing level found, set hzerocl to -999.0_wp (undef)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = i_startidx, i_endidx
+          IF (prm_diag%hzerocl(jc,jb) == p_metrics%z_ifc(jc,nlevp1,jb)) THEN ! no freezing level found
+            prm_diag%hzerocl(jc,jb) = -999.0_wp
+          END IF
+        ENDDO
+      ELSE IF (itype_hzerocl == 3) THEN
+        ! where no freezing level found, set hzerocl to extrapolated value below ground (assuming -6.5 K/km)
+        !$ACC LOOP GANG(STATIC: 1) VECTOR
+        DO jc = i_startidx, i_endidx
+          IF (prm_diag%hzerocl(jc,jb) == p_metrics%z_ifc(jc,nlevp1,jb)) THEN ! no freezing level found
+            prm_diag%hzerocl(jc,jb) = MAX(0._wp, &
+            &    p_metrics%z_mc(jc,nlev,jb) + (tmelt - pt_diag%temp(jc,nlev,jb))/dtdz_standardatm)
+          END IF
+        ENDDO
+      END IF
       !$ACC END PARALLEL
 
 
@@ -1412,6 +1402,46 @@ CONTAINS
          prm_diag%drag_v_grid(jc,jb) = pt_diag%pres_ifc(jc,nlevp1,jb) * ext_data%atm%grad_topo(2,jc,jb)
       ENDDO
       !$ACC END PARALLEL LOOP
+
+
+      !  calculation of boundary layer height (Anurag Dipankar, MPI Octo 2013)
+      !  using Bulk richardson number approach. 
+      !  In LES mode, the PBL diagnosis is performed not here, but in subroutine les_cloud_diag in 
+      !  atm_phy_les/mo_turbulent_diagnostic.f90
+
+       IF (var_in_output(jg)%hpbl) THEN
+
+#ifdef _OPENACC
+         CALL finish(routine, 'PBL diagnosis not ported to GPU.')
+#endif
+
+        DO jc = i_startidx, i_endidx
+         ri_no(jc,nlev) = missing_value_hpbl
+        ENDDO
+
+
+        DO jk = nlev-1, kstart_moist, -1
+         DO jc = i_startidx, i_endidx
+
+            ri_no(jc,jk) = (grav/pt_prog%theta_v(jc,nlev,jb)) * &
+              &      ( pt_prog%theta_v(jc,jk,jb)-pt_prog%theta_v(jc,nlev,jb) ) *  &
+              &      ( p_metrics%z_mc(jc,jk,jb)-p_metrics%z_mc(jc,nlev,jb) ) /  &
+              &      MAX( 1.e-6_wp,(pt_diag%u(jc,jk,jb)**2+pt_diag%v(jc,jk,jb)**2) ) 
+       
+            IF (ri_no(jc,jk) > 0.28_wp) THEN
+              IF (ri_no(jc,jk+1) <= 0.28_wp) THEN
+                prm_diag%hpbl(jc,jb) = p_metrics%z_mc(jc,jk,jb) - ext_data%atm%topography_c(jc,jb)
+              ENDIF
+            ENDIF
+            IF ((jk == kstart_moist) .AND. (ri_no(jc,jk) <= 0.28_wp)) THEN
+              prm_diag%hpbl(jc,jb) = missing_value_hpbl
+            ENDIF
+
+          END DO
+        END DO
+
+      ENDIF
+
 
       IF (atm_phy_nwp_config(jg)%inwp_gscp > 0 ) THEN
 
@@ -1556,12 +1586,6 @@ CONTAINS
   !! clouds at this grid point. The reason for this treatment is that
   !! the general public does not regard transparent cirrus clouds as
   !! "real" clouds.
-  !!
-  !! @par Revision History
-  !! Developed by D. Majewski, DWD (2004).
-  !! Modification by Daniel Reinert, DWD (2014-09-10)
-  !! - Adapted to and implemented into ICON
-  !!
   !!
   SUBROUTINE calcmod( pt_patch, pt_diag, prm_diag, lacc )
               
@@ -1760,10 +1784,6 @@ CONTAINS
   !!
   !! Moved from nh_stepping for better code structure
   !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD (2020-02-14)
-  !!
-  !!
   SUBROUTINE nwp_opt_diagnostics(p_patch, p_patch_lp, p_int_lp, p_nh, p_int, prm_diag, &
      l_output, nnow, nnow_rcf, &
      lpi_max_Event, celltracks_Event, dbz_Event, hail_max_Event, mtime_current,  plus_slack, lacc)
@@ -1945,10 +1965,6 @@ CONTAINS
   !! that should be called directly from the physics interface in order to consider
   !! the intermediate values of nesting time steps
   !!
-  !! @par Revision History
-  !! Developed by Daniel Rieger, DWD (2021-07-06)
-  !!
-  !!
   SUBROUTINE nwp_opt_diagnostics_2(p_patch, p_metrics, p_prog, p_prog_rcf, p_diag, &
              &                     prm_diag, cosmu0, zsct, p_sim_time, dt_phy, lacc)
 
@@ -2020,9 +2036,6 @@ CONTAINS
   !>
   !! Extended diagnostics for NWP physics interface - part 1
   !! Was included in mo_nh_interface_nwp before
-  !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD (2013-01-07)
   !!
   SUBROUTINE nwp_diag_output_1(p_patch, p_diag, p_prog_rcf)
 
@@ -2130,9 +2143,6 @@ CONTAINS
   !>
   !! Extended diagnostics for NWP physics interface - part 2
   !! Was included in mo_nh_interface_nwp before
-  !!
-  !! @par Revision History
-  !! Developed by Guenther Zaengl, DWD (2013-01-07)
   !!
   SUBROUTINE nwp_diag_output_2(p_patch, p_prog_rcf, prm_nwp_tend)
 

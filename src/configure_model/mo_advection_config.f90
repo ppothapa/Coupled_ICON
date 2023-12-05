@@ -1,22 +1,16 @@
-!>
-!! @brief configuration setup for tracer transport
-!!
-!! configuration setup for atmospheric tracer transport
-!!
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2011-07-07)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! configuration setup for atmospheric tracer transport
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_advection_config
 
   USE mo_kind,                      ONLY: wp, dp
@@ -25,11 +19,10 @@ MODULE mo_advection_config
     &                                     MIURA_MCYCL, MIURA3_MCYCL, FFSL_MCYCL,   &
     &                                     FFSL_HYB_MCYCL, ippm_v, ipsm_v,          &
     &                                     ino_flx, iparent_flx, inwp,              &
-    &                                     iaes, TRACER_ONLY, SUCCESS, VNAME_LEN,   &
-    &                                     NO_HADV, NO_VADV, UP, vlname_len
+    &                                     iaes, SUCCESS, VNAME_LEN, NO_HADV,       &
+    &                                     NO_VADV, vlname_len
   USE mo_exception,                 ONLY: message, message_text, finish
   USE mo_mpi,                       ONLY: my_process_is_stdio
-  USE mo_grid_config,               ONLY: n_dom
   USE mo_run_config,                ONLY: msg_level
   USE mo_expression,                ONLY: expression, parse_expression_string
   USE mo_var_list,                  ONLY: t_var_list_ptr, find_list_element
@@ -38,7 +31,6 @@ MODULE mo_advection_config
   USE mo_var,                       ONLY: t_var
   USE mo_var_metadata_types,        ONLY: t_var_metadata, t_var_metadata_dynamic
   USE mo_var_groups,                ONLY: groups
-  USE mo_nonhydro_types,            ONLY: t_nh_state_lists
   USE mo_var_metadata,              ONLY: get_timelevel_string
   USE mo_tracer_metadata_types,     ONLY: t_tracer_meta, t_hydro_meta
   USE mo_util_table,                ONLY: t_table, initialize_table, add_table_column, &
@@ -125,7 +117,6 @@ MODULE mo_advection_config
 
     INTEGER :: &                    !< selects horizontal transport scheme
       &  ihadv_tracer(MAX_NTRACER)  !< 0:  no horizontal advection
-                                    !< 1:  1st order upwind
                                     !< 2:  2nd order miura
                                     !< 3:  3rd order miura with quadr./cubic reconstr.
                                     !< 4:  Flux form semi lagrange (FFSL)
@@ -140,8 +131,8 @@ MODULE mo_advection_config
     INTEGER :: &                    !< selects vertical transport scheme
       &  ivadv_tracer(MAX_NTRACER)  !< 0 : no vertical advection
                                     !< 1 : 1st order upwind
-                                    !< 2 : 3rd order PSM for CFL>
-                                    !< 3 : 3rd order PPM for CFL>
+                                    !< 2 : 3rd order PSM for CFL>1
+                                    !< 3 : 3rd order PPM for CFL>1
 
     INTEGER :: &                    !< advection of TKE
       &  iadv_tke                   !< 0 : none
@@ -182,9 +173,6 @@ MODULE mo_advection_config
                                     !< ppm-scheme (approximate allowable maximum
                                     !< CFL-number)
 
-    REAL(wp) :: upstr_beta_adv      !< later, it should be combined with
-                                    !< upstr_beta in non-hydrostatic namelist
-
     INTEGER :: npassive_tracer      !< number of additional passive tracers, in addition to
                                     !< microphysical- and ART tracers.
 
@@ -213,11 +201,6 @@ MODULE mo_advection_config
       &  iadv_qvsubstep_elev     !< advected with internal substepping (to
                                  !< circumvent CFL instability in the
                                  !< stratopause region).
-
-    LOGICAL  :: lfull_comp       !< .TRUE. : the full set of setup computations
-                                 !<          is executed in prepare_tracer
-                                 !< .FALSE.: the majority of setup computations
-                                 !<          is performed in the dycore.
 
     TYPE(t_trList) ::       &    !< tracer sublist containing all tracer fields of
       &  trHydroMass             !< type hydroMass.
@@ -250,8 +233,6 @@ MODULE mo_advection_config
   !!
   TYPE(t_advection_config), TARGET :: advection_config(0:max_dom)
 
-!DR For the time being lcompute and lcleanup are not added to the
-!DR advection_config state
   TYPE(t_compute)  :: lcompute
   TYPE(t_compute)  :: lcleanup
 
@@ -289,57 +270,53 @@ CONTAINS
   !! called, after all namelists have been read and a synoptic consistency
   !! check has been done.
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2011-04-20)
-  !!
   SUBROUTINE configure_advection( jg, nlev, nlev_1, iforcing, iqc, iqt,                &
     &                             kstart_moist, kend_qvsubstep, lvert_nest,            &
-    &                             ntracer, idiv_method, itime_scheme,                  &
-    &                             p_nh_state_list, lextract_tracer_list,               &
-    &                             kstart_tracer )
+    &                             ntracer, prog_list, tracer_list, kstart_tracer )
     !
-    INTEGER, INTENT(IN) :: jg           !< patch
-    INTEGER, INTENT(IN) :: nlev         !< number of vertical levels
-    INTEGER, INTENT(IN) :: nlev_1       !< vertical levels of global patch
-    INTEGER, INTENT(IN) :: iforcing
-    INTEGER, INTENT(IN) :: iqc, iqt     !< hydrometeor indices
-    INTEGER, INTENT(IN) :: kstart_moist
-    INTEGER, INTENT(IN) :: kend_qvsubstep
-    INTEGER, INTENT(IN) :: ntracer      !< total number of tracers
-    INTEGER, INTENT(IN) :: idiv_method
-    INTEGER, INTENT(IN) :: itime_scheme
-    LOGICAL, INTENT(IN) :: lvert_nest
-    TYPE(t_nh_state_lists), INTENT(INOUT) :: p_nh_state_list
-    LOGICAL, INTENT(IN) :: lextract_tracer_list
-    INTEGER,          OPTIONAL, INTENT(IN) :: kstart_tracer(MAX_NTRACER) !< start index for (art-)tracer related processes
+    INTEGER,              INTENT(IN)   :: jg               !< patch
+    INTEGER,              INTENT(IN)   :: nlev             !< number of vertical levels
+    INTEGER,              INTENT(IN)   :: nlev_1           !< vertical levels of global patch
+    INTEGER,              INTENT(IN)   :: iforcing
+    INTEGER,              INTENT(IN)   :: iqc, iqt         !< hydrometeor indices
+    INTEGER,              INTENT(IN)   :: kstart_moist
+    INTEGER,              INTENT(IN)   :: kend_qvsubstep
+    INTEGER,              INTENT(IN)   :: ntracer          !< total number of tracers
+    LOGICAL,              INTENT(IN)   :: lvert_nest
+    TYPE(t_var_list_ptr), INTENT(IN)   :: prog_list(:)     !< list of all prognostic variables
+    TYPE(t_var_list_ptr), INTENT(INOUT):: tracer_list(:)   !< list of tracers
+    INTEGER,    OPTIONAL, INTENT(IN)   :: kstart_tracer(:) !< start index for (art-)tracer related processes
 
     !
     CHARACTER(*), PARAMETER :: routine = modname//"::configure_advection"
-    INTEGER :: jt          !< tracer loop index
-    INTEGER :: jm          !< loop index for shape functions
-    INTEGER :: i           !< loop index
-    INTEGER :: ist
-    INTEGER :: ivadv_tracer(MAX_NTRACER)
-    INTEGER :: ihadv_tracer(MAX_NTRACER)
+    INTEGER :: jt                        !< tracer loop index
+    INTEGER :: jm                        !< loop index for shape functions
+
+    INTEGER, POINTER :: ivadv_tracer(:)  !< convenience pointer
+    INTEGER, POINTER :: ihadv_tracer(:)  !< convenience pointer
     INTEGER, PARAMETER :: n_timelevels = 2
-    INTEGER, PARAMETER :: itime = 1    !< tracer_list time level
-                                       !< here it does not matter if we use 1 or 2
-    INTEGER :: z_go_tri(11)  ! for crosscheck
+    INTEGER, PARAMETER :: itime = 1      !< tracer_list time level
+                                         !< here it does not matter if we use 1 or 2
+    INTEGER :: z_go_tri(10)              !< for crosscheck
     CHARACTER(len=vlname_len) :: listname
+
 
     ! Build tracer list from the prognostic state for time levels `now` and `new`
     !
+    ! Saftey check
+    IF ( (UBOUND(prog_list,1) < n_timelevels) .OR. (UBOUND(tracer_list,1) < n_timelevels) ) THEN
+      WRITE(message_text,'(a,i2,a)') 'Upper bound of prog_list or tracer_list below n_timelevels=', &
+        &                        n_timelevels, '. Please check allocation.'
+      CALL finish(routine, message_text)
+    ENDIF
+    !
     DO jt = 1, n_timelevels
-      WRITE(listname,'(a,i2.2,a,i2.2)') 'nh_state_prog_of_domain_',jg, &
-        &                               '_and_timelev_',jt
-
       ! Build prog state tracer list
       ! no memory allocation (only references to prog list)
       !
       WRITE(listname,'(a,i2.2,a,i2.2)') 'nh_state_tracer_of_domain_',jg, &
         &                               '_and_timelev_',jt
-      CALL new_nh_state_tracer_list(jg, p_nh_state_list%prog_list(jt), &
-        &  p_nh_state_list%tracer_list(jt), listname )
+      CALL new_nh_state_tracer_list(jg, prog_list(jt), tracer_list(jt), listname )
     ENDDO ! jt
 
 
@@ -348,13 +325,13 @@ CONTAINS
     !--------------------------------------------------------------------
 
     ! Flux computation methods - consistency check
-    z_go_tri(1:11)=(/NO_HADV,UP,MIURA,MIURA3,FFSL,FFSL_HYB,MCYCL,       &
+    z_go_tri(1:10)=(/NO_HADV,MIURA,MIURA3,FFSL,FFSL_HYB,MCYCL,       &
       &              MIURA_MCYCL,MIURA3_MCYCL,FFSL_MCYCL,FFSL_HYB_MCYCL/)
     DO jt=1,ntracer
       IF ( ALL(z_go_tri /= advection_config(jg)%ihadv_tracer(jt)) ) THEN
         CALL finish( routine,                                       &
           &  'incorrect settings for TRI-C grid ihadv_tracer. Must be '// &
-          &  '0,1,2,3,4,5,6,20,22,32,42 or 52 ')
+          &  '0,2,3,4,5,6,20,22,32,42 or 52 ')
       ENDIF
     ENDDO
 
@@ -364,18 +341,6 @@ CONTAINS
     ! set transport variables/model components, which depend on
     ! the transport namelist and potentially other namelsists.
     !
-
-    ! The full set of setup computations is NOT executed in prepare_tracer
-    ! when the tracer advection is running together with the dynamical core
-    ! (solve_nh) and only standard namelist settings are chosen (i.e.
-    ! idiv_method = 1)
-    !
-    IF ( idiv_method == 2 .OR. itime_scheme == TRACER_ONLY ) THEN
-      advection_config(jg)%lfull_comp = .TRUE.
-    ELSE
-      advection_config(jg)%lfull_comp = .FALSE. ! do not perform full set of computations in prepare_tracer
-    ENDIF
-
 
     !
     ! set vertical start level for each patch and each tracer
@@ -413,8 +378,8 @@ CONTAINS
     ENDDO
 
     ! to save some paperwork
-    ivadv_tracer(:) = advection_config(1)%ivadv_tracer(:)
-    ihadv_tracer(:) = advection_config(1)%ihadv_tracer(:)
+    ivadv_tracer => advection_config(1)%ivadv_tracer(:)
+    ihadv_tracer => advection_config(1)%ihadv_tracer(:)
 
 
     ! PPM_V specific settings (vertical transport)
@@ -695,92 +660,54 @@ CONTAINS
     ! Tracer-Sublist extraction
     !******************************************
 
-    IF ( lextract_tracer_list ) THEN
+    ! create list of tracers which are advected
+    ! list is allowed to have zero size.
+    !
+    advection_config(jg)%trAdvect = subListExtract(from_list       = tracer_list(itime), &
+      &                                            extraction_rule = extraction_rule_advect)
 
-      ! create list of tracers which are to be advected
+
+    ! create list of tracers which are not advected
+    ! list is allowed to have zero size.
+    !
+    advection_config(jg)%trNotAdvect = subListExtract(from_list       = tracer_list(itime),         &
+      &                                               extraction_rule = extraction_rule_notAdvect)
+
+
+    ! create ID list for tracer group hydroMass
+    ! This list contains the IDs of all condensate fields
+    ! which are required for computing the water loading term.
+    !
+    IF ( iforcing == inwp .OR. iforcing == iaes ) THEN
+      advection_config(jg)%trHydroMass = subListExtract(from_list       = tracer_list(itime),         &
+        &                                               extraction_rule = extraction_rule_hydroMass)
       !
-      advection_config(jg)%trAdvect = subListExtract(from_list       = p_nh_state_list%tracer_list(itime), &
-        &                                            extraction_rule = extraction_rule_advect)
-      !
-      IF (.NOT. ALLOCATED(advection_config(jg)%trAdvect%list)) THEN
-        CALL finish (TRIM(routine), 'trAdvect%list is not ALLOCATED')
+      ! in these cases (NWP, AES) an empty group `hydroMass` is not allowed.
+      IF ( advection_config(jg)%trHydroMass%len < 1 ) THEN
+        CALL finish (routine, 'trHydroMass%list is empty. At least one condensate field is required.')
       ENDIF
 
+    ENDIF
 
-      ! create list of tracers which are not advected
-      ! list is allowed to have zero size.
-      !
-      advection_config(jg)%trNotAdvect = subListExtract(from_list       = p_nh_state_list%tracer_list(itime),         &
-        &                                               extraction_rule = extraction_rule_notAdvect)
-      !
-      IF (.NOT. ALLOCATED(advection_config(jg)%trNotAdvect%list)) THEN
-        CALL finish (TRIM(routine), 'trAdvect%list is not ALLOCATED')
+
+    ! create list of tracers for which child-to-parent feedback is applied
+    ! list is allowed to have zero size.
+    !
+    advection_config(jg)%trFeedback = subListExtract(from_list       = tracer_list(itime),         &
+      &                                              extraction_rule = extraction_rule_feedback)
+
+
+    ! initialize passive tracers, if required
+    !
+    IF (advection_config(jg)%npassive_tracer > 0) THEN
+      CALL init_passive_tracer (tracer_list, advection_config(jg), ntl=1)
+    ENDIF
+
+    ! print setup
+    IF (msg_level >= 10) THEN
+      IF(my_process_is_stdio()) THEN
+        CALL advection_config(jg)%print_setup(tracer_list(itime),nlev)
       ENDIF
-
-
-      ! create ID list for tracer group hydroMass
-      ! This list contains the IDs of all condensate fields
-      ! which are required for computing the water loading term.
-      !
-      IF ( iforcing == inwp .OR. iforcing == iaes ) THEN
-        ! in these cases it is assured that the hydroMass group is not empty.
-
-        advection_config(jg)%trHydroMass = subListExtract(from_list       = p_nh_state_list%tracer_list(itime),         &
-          &                                               extraction_rule = extraction_rule_hydroMass)
-        !
-        IF (.NOT. ALLOCATED(advection_config(jg)%trHydroMass%list) &
-          & .OR. advection_config(jg)%trHydroMass%len < 1 ) THEN
-          CALL finish (TRIM(routine), 'trHydroMass%list is not ALLOCATED or empty')
-        ENDIF
-
-      ENDIF
-
-
-      ! create list of tracers for which child-to-parent feedback is applied
-      ! list is allowed to have zero size.
-      !
-      advection_config(jg)%trFeedback = subListExtract(from_list       = p_nh_state_list%tracer_list(itime),         &
-        &                                              extraction_rule = extraction_rule_feedback)
-
-      !
-      IF (.NOT. ALLOCATED(advection_config(jg)%trFeedback%list)) THEN
-        CALL finish (TRIM(routine), 'trFeedback%list is not ALLOCATED')
-      ENDIF
-
-
-      ! initialize passive tracers, if required
-      !
-      IF (advection_config(jg)%npassive_tracer > 0) THEN
-        CALL init_passive_tracer (p_nh_state_list%tracer_list, advection_config(jg), ntl=1)
-      ENDIF
-
-      ! print setup
-      IF (msg_level >= 10) THEN
-        IF(my_process_is_stdio()) THEN
-          CALL advection_config(jg)%print_setup(p_nh_state_list%tracer_list(itime),nlev)
-        ENDIF
-      ENDIF
-
-    ELSE  ! tracer_list not available
-
-      ALLOCATE(advection_config(jg)%trAdvect%list(ntracer), stat=ist)
-      IF(ist/=SUCCESS) THEN
-        CALL finish (TRIM(routine), 'allocation of trAdvect%list failed')
-      ENDIF
-      ! manually setup advection_config(jg)%trAdvect by simply adding all tracers
-      advection_config(jg)%trAdvect%len = ntracer
-      DO i=1,ntracer
-        advection_config(jg)%trAdvect%list(i) = i
-      ENDDO
-      !
-      ALLOCATE(advection_config(jg)%trNotAdvect%list(0), stat=ist)
-      IF(ist/=SUCCESS) THEN
-        CALL finish (TRIM(routine), 'allocation of trNotAdvect%list failed')
-      ENDIF
-      ! manually setup advection_config(jg)%trNotAdvect
-      advection_config(jg)%trNotAdvect%len = 0
-
-
     ENDIF
 
   END SUBROUTINE configure_advection
@@ -836,6 +763,11 @@ CONTAINS
     IF(ist/=SUCCESS) CALL finish (TRIM(routine), 'alloc of tmp failed')
     tmp(1:obj%len) = obj%list(1:obj%len)
     CALL MOVE_ALLOC(tmp,obj%list)
+
+    ! sanity check
+    IF (.NOT. ALLOCATED(obj%list)) THEN
+      CALL finish (routine, 'tracer subList is not ALLOCATED')
+    ENDIF
   END FUNCTION subListExtract
 
   !-----------------------------------------------------------------------------
@@ -924,9 +856,6 @@ CONTAINS
   !!
   !! Deallocates all components of a class t_trList object
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-03-13)
-  !!
   SUBROUTINE destruct_trList(obj)
     TYPE(t_trList) :: obj
     !
@@ -953,9 +882,6 @@ CONTAINS
   !! Additional passive tracers are initialized by applying
   !! the initialization formulae provided via Namelist parameter
   !! 'init_formula'.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2015-05-11)
   !!
   SUBROUTINE init_passive_tracer (tracer_list, advection_config, ntl)
 
@@ -1031,11 +957,6 @@ CONTAINS
 
   !>
   !! Screen print out of advection setup
-  !!
-  !! Screen print out of advection setup.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-03-30)
   !!
   SUBROUTINE advection_print_setup (config_obj, var_list_tracer, nlev)
     !
@@ -1140,9 +1061,6 @@ CONTAINS
   !!
   !! Creates tracer var list containing references to all prognostic tracer
   !! fields.
-  !!
-  !! @par Revision History
-  !! Initial release by Daniel Reinert, DWD (2012-02-02)
   !!
   SUBROUTINE new_nh_state_tracer_list (patch_id, from_var_list, p_tracer_list, listname)
     INTEGER, INTENT(IN) :: patch_id ! current patch ID

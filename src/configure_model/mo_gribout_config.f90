@@ -1,26 +1,19 @@
-!>
-!! @brief configuration setup for Grib output
-!!
-!! configuration setup for tracer transport
-!! <Details of procedures are documented below with their definitions.>
-!! <Include any applicable external references inline as module::procedure,>
-!! <external_procedure(), or by using @see.>
-!! <Don't forget references to literature.>
-!!
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2013-01-29)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! @brief configuration setup for Grib output
+!
+! configuration setup for tracer transport
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_gribout_config
 
   USE mo_impl_constants,     ONLY: max_phys_dom
@@ -144,14 +137,10 @@ MODULE mo_gribout_config
 CONTAINS
 
 
-  !>
   !! potentially modify generatingCenter and generatingSubcenter
   !!
   !! If generatingCenter and generatingSubcenter are not set via namelist,
   !! they are filled with values read from the grid file.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2013-04-26)
   !!
   SUBROUTINE configure_gribout(grid_generatingCenter, grid_generatingSubcenter, &
     &                          n_dom)

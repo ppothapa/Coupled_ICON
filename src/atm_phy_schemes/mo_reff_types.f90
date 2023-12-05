@@ -1,57 +1,22 @@
-!===============================================================================!
 !
-
 ! Module to with the types to compute effective radius
 !
 ! Description:
-! The module also contains adapted versions of the  routines developed 
-! by Simon Grueber and Uli Blahack for the optical properties in RRTM 
+! The module also contains adapted versions of the  routines developed
+! by Simon Grueber and Uli Blahack for the optical properties in RRTM
 ! (only the effective radius, not the optical porperties),
 !
 !
+! ICON
 !
-! Current Code Owner: Alberto de Lozar, DWD
-!                     alberto.lozar-de@dwd.de
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
 !
-! Language: Fortran 2003
-!
-! Some code standards or recommendations, at least:
-!
-! - All changes that potentially change the results need to
-!   be approved by AS and AdL
-! - All new variables/subroutines should be named in English
-! - Comments should be written in English,
-! - Length of names of subroutines should be <= 20
-! - Length of names of variables should be <= 15
-! - Length of lines has to be < 120 including comments,
-!   recommended is <= 100 for code without comments.
-! - Temporary modifications for experiments should be marked by
-!
-!     AS_YYYYMMDD>
-!         ! Change for / Bugfix ....
-!     <AS_YYYYMMDD
-!
-!   until they are validated as improvements and made official
-!   (with AS, or whatever, being the initials of the guy doing the stuff
-!   and YYYYMMDD=year/month/day).
-!
-!===============================================================================!
-! 10/2019 Alberto de Lozar. First Version.
-!===============================================================================!
-!  
-!
-!===============================================================================!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!===============================================================================!
-
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_reff_types
 
@@ -175,6 +140,7 @@ CONTAINS
   SUBROUTINE t_reff_calc_destruct (me)
     CLASS(t_reff_calc), INTENT(INOUT)     :: me
 
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(me%reff_coeff)
     IF (ALLOCATED(  me%reff_coeff ))  DEALLOCATE ( me%reff_coeff )         
     IF (ALLOCATED(  me%ncn_coeff  ))  DEALLOCATE ( me%ncn_coeff )
@@ -201,6 +167,7 @@ CONTAINS
       CALL me%reff_calc_arr(i)%destruct()
     END DO
 
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(me)
 
   END SUBROUTINE t_reff_calc_dom_destruct

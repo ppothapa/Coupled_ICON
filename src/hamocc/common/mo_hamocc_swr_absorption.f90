@@ -1,4 +1,15 @@
- 
+
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_hamocc_swr_absorption
 
@@ -7,6 +18,7 @@ MODULE mo_hamocc_swr_absorption
   USE mo_kind,    ONLY: wp                                               
   USE mo_control_bgc, ONLY: bgc_zlevs, bgc_nproma
   USE mo_bgc_memory_types, ONLY  : t_bgc_memory
+  USE mo_fortran_tools, ONLY     : set_acc_host_or_device
 
 
   IMPLICIT NONE
@@ -18,7 +30,7 @@ MODULE mo_hamocc_swr_absorption
 
 CONTAINS
 
-SUBROUTINE swr_absorption(local_bgc_mem, start_idx,end_idx, klevs, pfswr, psicomo, dzw, use_acc)
+SUBROUTINE swr_absorption(local_bgc_mem, start_idx,end_idx, klevs, pfswr, psicomo, dzw, lacc)
 
     TYPE(t_bgc_memory), POINTER :: local_bgc_mem
     INTEGER, INTENT(in):: start_idx
@@ -27,7 +39,7 @@ SUBROUTINE swr_absorption(local_bgc_mem, start_idx,end_idx, klevs, pfswr, psicom
     REAL(wp), INTENT(in):: pfswr(bgc_nproma)
     REAL(wp), INTENT(in):: psicomo(bgc_nproma)
     REAL(wp), INTENT(in):: dzw(bgc_nproma,bgc_zlevs)
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
     !! Analogue to Zielinski et al., Deep-Sea Research II 49 (2002), 3529-3542
 
@@ -48,19 +60,15 @@ SUBROUTINE swr_absorption(local_bgc_mem, start_idx,end_idx, klevs, pfswr, psicom
     REAL(wp) :: rcyano
 
     INTEGER :: k, kpke, j
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     ! if prognostic cyanobacteria are calculated
     ! use them in absorption (rcyano=1)
     rcyano=merge(1._wp,0._wp,l_cyadyn)
 
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO j = start_idx, end_idx
 

@@ -1,25 +1,15 @@
-!>
-!! <Short description of module for listings and indices>
-!!
-!! <Describe the concepts of the procedures and algorithms used in the module.>
-!! <Details of procedures are documented below with their definitions.>
-!! <Include any applicable external references inline as module::procedure,>
-!! <external_procedure(), or by using @see.>
-!! <Don't forget references to literature.>
-!!
-!! @author
-!!
-!! @par Revision History
-!! <Description of activity> by <name, affiliation> (<YYYY-MM-DD>)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_ocean_nml_crosscheck
 
   USE mo_master_control,    ONLY: get_my_process_name
@@ -27,7 +17,7 @@ MODULE mo_ocean_nml_crosscheck
   USE mo_exception,         ONLY: message, finish, warning
   USE mo_grid_config,       ONLY: init_grid_configuration
   USE mo_parallel_config,   ONLY: check_parallel_configuration, p_test_run, l_fast_sum, &
-      &                           use_dp_mpi2io
+      &                           use_dp_mpi2io, proc0_shift
   USE mo_run_config,        ONLY: nsteps, dtime, nlev
   USE mo_time_config,       ONLY: time_config, dt_restart
   USE mo_io_config,         ONLY: dt_checkpoint, write_initial_state, lnetcdf_flt64_output
@@ -137,6 +127,10 @@ CONTAINS
 
     IF (vert_mix_type /=1) &
        PPscheme_type = -1
+
+    IF (proc0_shift > 0 .AND. select_solver /= select_cg) THEN
+      CALL finish(method_name, "proc0_shift only works with the CG solver (select_cg=4)")
+    END IF
 
   END SUBROUTINE ocean_crosscheck
 

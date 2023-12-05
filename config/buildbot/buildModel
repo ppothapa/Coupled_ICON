@@ -61,6 +61,14 @@ case $(echo ${BB_NAME} | tr '[:upper:]' '[:lower:]') in
       exit 1
     fi
     ;;
+  horeka_*)
+    # KIT horeka
+    sbatch --wait -A hk-project-glori-init -p dev_cpuonly -t 60  -n ${MAKE_PROCS} -o ${LOGFILE} -D ${PWD} ${ICON_DIR}/config/buildbot/buildModel.sbatch
+    #cd ${ICON_DIR} && ${ICON_DIR}/config/buildbot/buildModel.sbatch > ${LOGFILE} 2>&1
+    if test 0 -ne "$?" ; then
+      exit 1
+    fi
+    ;;
   lumi*)
     # CSC super computer; currently run locally
     cd ${ICON_DIR} && ${ICON_DIR}/config/buildbot/buildModel.sbatch > ${LOGFILE} 2>&1

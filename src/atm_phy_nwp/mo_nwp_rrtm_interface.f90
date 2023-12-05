@@ -1,23 +1,23 @@
-!>
-!! This module is the interface between nwp_nh_interface to the radiation scheme RRTM.
-!!
-!! @author Thorsten Reinhardt, AGeoBw, Offenbach
-!!
-!! @par Revision History
-!! Initial release by Thorsten Reinhardt, AGeoBw, Offenbach (2011-01-13)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! This module is the interface between nwp_nh_interface to the radiation scheme RRTM.
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
+
 #if defined __xlC__
 @PROCESS SPILL(1058)
 #endif
@@ -61,10 +61,6 @@ MODULE mo_nwp_rrtm_interface
 CONTAINS
 
   !---------------------------------------------------------------------------------------
-  !>
-  !! @par Revision History
-  !! Initial release by Thorsten Reinhardt, AGeoBw, Offenbach (2011-01-13)
-  !!
   SUBROUTINE nwp_rrtm_radiation ( current_date, pt_patch, ext_data,                      &
     &  zaeq1, zaeq2, zaeq3, zaeq4, zaeq5, pt_diag, prm_diag, lnd_prog, lacc )
 
@@ -284,11 +280,6 @@ CONTAINS
 
 
   !---------------------------------------------------------------------------------------
-  !>
-  !!
-  !! @par Revision History
-  !! Initial release by Thorsten Reinhardt, AGeoBw, Offenbach (2011-01-13)
-  !!
   SUBROUTINE nwp_rrtm_radiation_reduced ( current_date, pt_patch, pt_par_patch, ext_data, &
     &                                     zaeq1,zaeq2,zaeq3,zaeq4,zaeq5,    &
     &                                     pt_diag,prm_diag,lnd_prog, lacc )

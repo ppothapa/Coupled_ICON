@@ -1,20 +1,17 @@
-!>
-!! Contains the implementation of the tracer transport routines for the ICON ocean model.
-!! This comprises advection and diffusion in horizontal and vertical direction.
-!!
-!!
-!! @par Revision History
-!!  Developed  by Peter Korn,       MPI-M (2011/01)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!=============================================================================================
+! Contains the implementation of the tracer transport routines for the ICON ocean model.
+! This comprises advection and diffusion in horizontal and vertical direction.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 #include "omp_definitions.inc"
 #include "iconfor_dsl_definitions.inc"
 !=============================================================================================
@@ -33,7 +30,7 @@ MODULE mo_ocean_GM_Redi
     & k_tracer_GM_kappa_parameter,EOS_TYPE,&
     & GMRedi_configuration,GMRedi_combined, GM_only,Redi_only,Cartesian_Mixing, &
     & tapering_scheme,tapering_DanaMcWilliams,tapering_Large,tapering_Griffies, &
-    & vert_mix_type, vmix_pp, vmix_kpp, vmix_tke, vmix_idemix_tke,OceanReferenceDensity,ReferencePressureIndbars, & ! by_Oliver
+    & vert_mix_type, vmix_pp, vmix_tke, vmix_idemix_tke,OceanReferenceDensity,ReferencePressureIndbars, & ! by_Oliver
     & S_max, S_d, S_critical, c_speed, GMRedi_usesRelativeMaxSlopes,vert_cor_type,            &
     & RossbyRadius_max, RossbyRadius_min,switch_off_diagonal_vert_expl,lvertical_GM,Nmin,     & ! by_Oliver: added lvertical_GM, Nmin
     & GMREDI_COMBINED_DIAGNOSTIC,GM_INDIVIDUAL_DIAGNOSTIC,REDI_INDIVIDUAL_DIAGNOSTIC,&
@@ -122,8 +119,6 @@ CONTAINS
   !>
   !! !  SUBROUTINE calculates the fluxes of the isoycnical diffusion following Redi.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   !!
 !<Optimize:inUse:done>
   SUBROUTINE prepare_GMRedi(patch_3d, ocean_state, param, op_coeff)
@@ -150,8 +145,6 @@ CONTAINS
   !>
   !! !  SUBROUTINE calculates the fluxes of the isoycnical diffusion following Redi.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   !!
   !<Optimize:inUse:done>
   SUBROUTINE calc_ocean_physics(patch_3d, ocean_state, param, op_coeff, GMRedi_flux_horz, GMRedi_flux_vert, &
@@ -210,8 +203,6 @@ CONTAINS
   !>
   !! !  SUBROUTINE calculates the fluxes of the isoycnical diffusion following Redi and the eddy flux of GM.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   !!
   !<Optimize:inUse>
   SUBROUTINE calc_combined_GentMcWilliamsRedi_flux(patch_3d, ocean_state, param, op_coeff,&
@@ -408,12 +399,10 @@ CONTAINS
       IF(typeOfTracers == "ocean" ) THEN
       
 	IF( tracer_index==1)THEN
-	  Do level=1,n_zlev
-	    CALL dbg_print('Old vert coeff: A_v', param%a_tracer_v(:,level,:, tracer_index),&
-	    & this_mod_name, 4, patch_2D%cells%in_domain)
-	    !CALL dbg_print('Old vert coeff: A_v', ocean_state%p_diag%vertical_mixing_coeff_GMRedi_implicit,&
-	    !& this_mod_name, 4, patch_2D%cells%in_domain)
-	  End do
+	  CALL dbg_print('Old vert coeff: A_v', param%a_tracer_v(:,:,:, tracer_index),&
+	  & this_mod_name, 4, patch_2D%cells%in_domain)
+	  !CALL dbg_print('Old vert coeff: A_v', ocean_state%p_diag%vertical_mixing_coeff_GMRedi_implicit,&
+	  !& this_mod_name, 4, patch_2D%cells%in_domain)
 	ENDIF
 	  !
 	  !2.) Here we combine the vertical GMRedicoefficient that is treated implicitely (mapped_vertical_diagonal_impl, this
@@ -438,10 +427,8 @@ CONTAINS
 	CALL sync_patch_array(sync_c, patch_2D, param%a_tracer_v(:,:,:,tracer_index))
            
         IF(tracer_index==1)THEN
-          Do level=1,n_zlev
-            CALL dbg_print('New vert coeff: A_v', param%a_tracer_v(:,level,:, tracer_index),&
-            & this_mod_name, 4, patch_2D%cells%in_domain)
-          END DO 
+          CALL dbg_print('New vert coeff: A_v', param%a_tracer_v(:,:,:, tracer_index),&
+          & this_mod_name, 4, patch_2D%cells%in_domain)
         ENDIF
         
       ENDIF!IF(typeOfTracers == "ocean" ) 
@@ -468,20 +455,14 @@ CONTAINS
             
     ENDIF  
     !---------DEBUG DIAGNOSTICS-------------------------------------------
-!    Do level=1,n_zlev
 !    idt_src=1  ! output print level (1-5, fix)
-!    CALL dbg_print('InGMRedi: vert center',flux_vert_center(:,level,:),&
+!    CALL dbg_print('InGMRedi: vert center',flux_vert_center,&
 !    & str_module, idt_src, in_subset=cells_in_domain)
-!    END DO    
-    Do level=1,n_zlev
     idt_src=3  ! output print level (1-5, fix)
-    CALL dbg_print('InGMRedi: GMRedi_vert',GMRedi_flux_vert(:,level,:),&
+    CALL dbg_print('InGMRedi: GMRedi_vert',GMRedi_flux_vert,&
     & str_module, idt_src, in_subset=cells_in_domain)
-    END DO
-    Do level=1,n_zlev
-    CALL dbg_print('InGMRedi: GMRedi_horz',GMRedi_flux_horz(:,level,:),&
+    CALL dbg_print('InGMRedi: GMRedi_horz',GMRedi_flux_horz,&
     & str_module, idt_src, in_subset=edges_in_domain)
-    END DO
     !---------------------------------------------------------------------
     
 
@@ -496,8 +477,6 @@ CONTAINS
   !!    !Note that in case of 1-component fluid we use the density for the slope calculation,
   !!    !all relevant imformation is stored in the tracer%temperature structure
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   !!
 !<Optimize:inUse>
   SUBROUTINE calc_neutral_slopes(patch_3d, ocean_state, param, op_coeff)
@@ -948,24 +927,14 @@ CONTAINS
   !---------------------------------------------------------------------
   !---------DEBUG DIAGNOSTICS-------------------------------------------
   idt_src=3  ! output print level (1-5, fix)
-  CALL dbg_print('calc_slopes: squared',(ocean_state%p_aux%slopes_squared(:,:,:)),&
+  CALL dbg_print('calc_slopes: squared',ocean_state%p_aux%slopes_squared,&
     & str_module,idt_src, in_subset=cells_in_domain)
-   DO level=1,n_zlev
-     CALL dbg_print('calc_slopes: slobe abs',sqrt(ocean_state%p_aux%slopes_squared(:,level,:)),&
-       & str_module,idt_src, in_subset=cells_in_domain)
-       
-  END DO
-
-   DO level=1,n_zlev       
-       CALL dbg_print('calc_slopes: slopes dz',ocean_state%p_aux%slopes_drdz(:,level,:),&
-       & str_module,idt_src, in_subset=cells_in_domain)
-  END DO
-
-
-   DO level=1,n_zlev       
-       CALL dbg_print('calc_slopes: slopes dx',ocean_state%p_aux%slopes_drdx(:,level,:),&
-       & str_module,idt_src, in_subset=cells_in_domain)
-  END DO
+  CALL dbg_print('calc_slopes: slope abs',sqrt(ocean_state%p_aux%slopes_squared(:,:,:)),&
+    & str_module,idt_src, in_subset=cells_in_domain)
+  CALL dbg_print('calc_slopes: slopes dz',ocean_state%p_aux%slopes_drdz,&
+    & str_module,idt_src, in_subset=cells_in_domain)
+  CALL dbg_print('calc_slopes: slopes dx',ocean_state%p_aux%slopes_drdx,&
+    & str_module,idt_src, in_subset=cells_in_domain)
   
    !---------------------------------------------------------------------
  !  DO level= 1, n_zlev  
@@ -992,8 +961,6 @@ CONTAINS
   !!    !reconstructions on cell centers.
   !!
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2016).
   !!
 !<Optimize:inUse>
   SUBROUTINE calc_tracer_derivatives(patch_3d, tracer, ocean_state, op_coeff, tracer_index, typeOfTracers)
@@ -1133,8 +1100,6 @@ CONTAINS
   !>
   !! !  SUBROUTINE calculates the tapering functions used in Gent-McWilliams-Redi parametrization.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   !!
 !<Optimize:inUse>
   SUBROUTINE calc_tapering_function(patch_3d, param, ocean_state)
@@ -1341,8 +1306,6 @@ CONTAINS
   !!         !    diagonal piece of the horizontal diffusion.
   
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
   !!
 !<Optimize:inUse>
   SUBROUTINE calc_entries_mixing_tensor(patch_3d, ocean_state, param, op_coeff)
@@ -1675,18 +1638,13 @@ CONTAINS
 
     ENDIF
 
-      Do level=1,n_zlev    
-	  CALL dbg_print('calc_mixing_tensor: horz diag', taper_diagonal_horz(:,level,:),&
-	  & this_mod_name, 3, patch_2D%cells%in_domain)
-      END DO   
-      Do level=1,n_zlev
-	  CALL dbg_print('calc_mixing_tensor: vert diag expl', taper_diagonal_vert_expl(:,level,:),&
-	  & this_mod_name, 3, patch_2D%cells%in_domain)
-      END DO    
-      Do level=1,n_zlev
-	  CALL dbg_print('calc_mixing_tensor: vert diag impl', taper_diagonal_vert_impl(:,level,:),&
-	  & this_mod_name, 3, patch_2D%cells%in_domain)
-      END DO
+    CALL dbg_print('mix_tensor: horz diag', taper_diagonal_horz,&
+    & this_mod_name, 3, patch_2D%cells%in_domain)
+    CALL dbg_print('mix_tensor: vert diag expl', taper_diagonal_vert_expl,&
+    & this_mod_name, 3, patch_2D%cells%in_domain)
+    CALL dbg_print('mix_tensor: vert diag impl', taper_diagonal_vert_impl,&
+    & this_mod_name, 3, patch_2D%cells%in_domain)
+
   END SUBROUTINE calc_entries_mixing_tensor
   !-------------------------------------------------------------------------
   
@@ -1698,9 +1656,7 @@ CONTAINS
   !>
   !! !  SUBROUTINE calculates the fluxes of the isoycnical diffusion following Redi and the eddy flux of GM.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2014).
-  !!
+   !!
   !<Optimize:inUse>
   SUBROUTINE diagnose_Redi_flux_balance(patch_3d, ocean_state, param, op_coeff,&
     &tracer_index, typeOfTracers)
@@ -2174,8 +2130,6 @@ ocean_state%p_prog(nold(1))%tracer_collection%tracer(tracer_index)%concentration
 !!$  !! !  This is currently used for diagnostic purposes, the GM-Redi paramerization
 !!$  !! !  uses the skew-flux approach.
 !!$  !!
-!!$  !! @par Revision History
-!!$  !! Developed  by  Peter Korn, MPI-M (2016).
 !!$  !!
 !!$!<Optimize:inUse>
 !!$  SUBROUTINE calc_bolus_velocity(patch_3d, ocean_state, param, op_coeff)
@@ -2439,14 +2393,6 @@ SUBROUTINE vertical_GM(patch_3d, ocean_state, param, op_coeff, kappa)
     ! Nmin is used from namelist
 
     ! N2 has to be calculated (pp,tke) since it is not a global variable yet. 
-    !  In case of kpp, we can simply point to N2 to avoid redundant calculation.
-    ! FIXME: can be removed once N2 is a global variable.
-!    SELECT CASE(vert_mix_type)
-
-!      CASE(vmix_kpp)
-!         ! N2 was already calculated in KPP module
-!         N2 => param%cvmix_params%N2(:,:,:)
-!      CASE(vmix_pp,vmix_tke)
 
 
          ! N2 has to be calculated (for all cases)
@@ -2475,10 +2421,6 @@ SUBROUTINE vertical_GM(patch_3d, ocean_state, param, op_coeff, kappa)
          END DO
          N2 => Nsqr(:,:,:)  
  
-!      CASE default
-!         write(*,*) "Unknown vert_mix_type!"
-!         stop
-!      END SELECT
 
     ! mixed layer depth
     mld => ocean_state%p_diag%mld 
@@ -2883,12 +2825,10 @@ END SUBROUTINE vertical_GM
       ! This is only neccessary once for temperature and salinity, the HAMOCC tracers use these value  
       IF(typeOfTracers == "ocean" )THEN
         IF(tracer_index==1)THEN
-          Do level=1,n_zlev
-            CALL dbg_print('Old vert coeff: A_v', param%a_tracer_v(:,level,:, tracer_index),&
-            & this_mod_name, 4, patch_2D%cells%in_domain)
-            !CALL dbg_print('Old vert coeff: A_v', ocean_state%p_diag%vertical_mixing_coeff_GMRedi_implicit,&
-            !& this_mod_name, 4, patch_2D%cells%in_domain)
-          End do
+          CALL dbg_print('Old vert coeff: A_v', param%a_tracer_v(:,:,:, tracer_index),&
+          & this_mod_name, 4, patch_2D%cells%in_domain)
+          !CALL dbg_print('Old vert coeff: A_v', ocean_state%p_diag%vertical_mixing_coeff_GMRedi_implicit,&
+          !& this_mod_name, 4, patch_2D%cells%in_domain)
         ENDIF
         !
         !2.) Here we combine the vertical GMRedicoefficient that is treated implicitely (mapped_vertical_diagonal_impl, this
@@ -2914,10 +2854,8 @@ END SUBROUTINE vertical_GM
            
 
         IF(tracer_index==1)THEN
-          Do level=1,n_zlev
-            CALL dbg_print('New vert coeff: A_v', param%a_tracer_v(:,level,:, tracer_index),&
-            & this_mod_name, 4, patch_2D%cells%in_domain)
-          END DO 
+          CALL dbg_print('New vert coeff: A_v', param%a_tracer_v(:,:,:, tracer_index),&
+          & this_mod_name, 4, patch_2D%cells%in_domain)
         ENDIF 
       ENDIF!IF(typeOfTracers == "ocean" )THEN 
       
@@ -2943,15 +2881,15 @@ END SUBROUTINE vertical_GM
             
     ENDIF  
     !---------DEBUG DIAGNOSTICS-------------------------------------------
-    Do level=1,n_zlev
+    !Do level=1,n_zlev
     idt_src=3  ! output print level (1-5, fix)
-    CALL dbg_print('InGMRedi: GMRedi_vert',GMredi_flux_vert(:,level,:),&
+    CALL dbg_print('InGMRedi_zstar: GMRedi_vert',GMredi_flux_vert,&
     & str_module, idt_src, in_subset=cells_in_domain)
-    END DO
-    Do level=1,n_zlev
-    CALL dbg_print('InGMRedi: GMRedi_horz',GMredi_flux_horz(:,level,:),&
+    !END DO
+    !Do level=1,n_zlev
+    CALL dbg_print('InGMRedi_zstar: GMRedi_horz',GMredi_flux_horz,&
     & str_module, idt_src, in_subset=edges_in_domain)
-    END DO
+    !END DO
     !---------------------------------------------------------------------
     
 

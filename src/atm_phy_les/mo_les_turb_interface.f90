@@ -1,23 +1,21 @@
 !OPTION! -cont -msg o
-!! this command should fix the problem of copying arrays in a subroutine call
-!>
-!!AD: Interface between the les_phy_interface and various turbulence schems suitable
-!!    for LES. At present it only has classical Smagorinsky scheme. 
-!!
-!! @author Kristina Froehlich, DWD, Offenbach (2010-01-25)
-!!
-!! @par Revision History
-!! Initial Kristina Froehlich, DWD, Offenbach (2010-01-25)
-!! Modified by Anurag Dipankar, MPIM (2013-07-01) 
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! this command should fix the problem of copying arrays in a subroutine call
+!
+!AD: Interface between the les_phy_interface and various turbulence schems suitable
+!    for LES. At present it only has classical Smagorinsky scheme.
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -36,7 +34,6 @@ MODULE mo_les_turb_interface
   USE mo_nwp_phy_types,        ONLY: t_nwp_phy_diag, t_nwp_phy_tend
   USE mo_nwp_lnd_types,        ONLY: t_lnd_prog, t_lnd_diag
   USE mo_run_config,           ONLY: msg_level, iqv, iqc
-  USE mo_atm_phy_nwp_config,   ONLY: atm_phy_nwp_config
   USE mo_nonhydrostatic_config,ONLY: kstart_moist
   USE mo_sgs_turbulence,       ONLY: drive_subgrid_diffusion
   USE mo_sgs_turbmetric,       ONLY: drive_subgrid_diffusion_m

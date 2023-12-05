@@ -1,43 +1,21 @@
-!>
-!! Some utilities which are specific to the transport algorithm.
-!!
-!! Module contains some functions and procedures which are specifically related
-!! to the transport schemes. These subroutines or functions are needed at
-!! various places within the transport scheme. Therefore outsourcing these
-!! routines protects from possible circular dependencies.
-!!
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2010-03-04)
-!! Modification by Daniel Reinert, DWD (2010-04-23)
-!! - implemented generalized Lax-Friedrich flux function
-!!   laxfr_upflux_v, which allows to use the same transport
-!!   code for pressure and height based vertical coordinate
-!!   systems.
-!! Modification by Daniel Reinert, DWD (2010-05-17)
-!! - added subroutines back_traj_dreg_o1, prep_gauss_quadrature and function
-!!   jac which are part of the Gauss-Legendre quadrature apllied in the
-!!   Miura-scheme.
-!! Modification by Daniel Reinert, DWD (2010-10-14)
-!! - added subroutine prep_gauss_quadrature_c for integrating a cubic polynomial.
-!!   Renamed old prep_gauss_quadrature to prep_gauss_quadrature_q
-!! Modification by Daniel Reinert, DWD (2011-04-21)
-!! - moved setup_transport to mo_advection_nml
-!! Modification by Daniel Reinert, DWD (2011-05-03)
-!! - added quadrature routine for integrating a linear polynomial
-!! Modification by Will Sawyer, CSCS (2016-07-14)
-!! - added OpenACC support
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Some utilities which are specific to the transport algorithm.
+!
+! Module contains some functions and procedures which are specifically related
+! to the transport schemes. These subroutines or functions are needed at
+! various places within the transport scheme. Therefore outsourcing these
+! routines protects from possible circular dependencies.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -87,10 +65,6 @@ CONTAINS
   !! and the determinant of the Jacobian for the quadrature point.
   !! This subroutine is specific to a linear polynomial. It needs to be called 
   !! only once per time step, independent of the number of advected fields.
-  !!
-  !! @par Revision History
-  !! Developed by Daniel Reinert, DWD (2012-05-03)
-  !!
   !!
   SUBROUTINE prep_gauss_quadrature_l( p_patch, p_coords_dreg_v,         &
     &                                 p_quad_vector_sum, p_dreg_area,   &
@@ -249,10 +223,6 @@ CONTAINS
   !!
   !! Index-list based version. Otherwise identical to prep_gauss_quadrature_l
   !!
-  !! @par Revision History
-  !! Developed by Daniel Reinert, DWD (2013-10-28)
-  !!
-  !!
   SUBROUTINE prep_gauss_quadrature_l_list( p_patch, p_coords_dreg_v, falist, &
     &                                 p_quad_vector_sum, p_dreg_area,        &
     &                                 opt_rlstart, opt_rlend                 )
@@ -388,10 +358,6 @@ CONTAINS
   !! This subroutine is specific to a reconstruction based on a quadratic
   !! polynomial. It needs to be called only once per time step, independent
   !! of the number of advected fields.
-  !!
-  !! @par Revision History
-  !! Developed by Daniel Reinert, DWD (2010-05-14)
-  !!
   !!
   SUBROUTINE prep_gauss_quadrature_q( p_patch, p_coords_dreg_v,         &
     &                                 p_quad_vector_sum, p_dreg_area,   &
@@ -598,10 +564,6 @@ CONTAINS
   !!
   !! Index-list based version. Otherwise identical to prep_gauss_quadrature_q
   !!
-  !! @par Revision History
-  !! Developed by Daniel Reinert, DWD (2013-10-28)
-  !!
-  !!
   SUBROUTINE prep_gauss_quadrature_q_list( p_patch, p_coords_dreg_v, falist, &
     &                                 p_quad_vector_sum, p_dreg_area,        &
     &                                 opt_rlstart, opt_rlend                 )
@@ -788,10 +750,6 @@ CONTAINS
   !! This subroutine is specific to a cubic reconstruction.
   !! It needs to be called only once per time step, independent of the number
   !! of advected fields.
-  !!
-  !! @par Revision History
-  !! Developed by Daniel Reinert, DWD (2010-10-13)
-  !!
   !!
   SUBROUTINE prep_gauss_quadrature_c( p_patch, p_coords_dreg_v,         &
     &                                 p_quad_vector_sum, p_dreg_area,   &
@@ -1072,10 +1030,6 @@ CONTAINS
   !!
   !! Index-list based version. Otherwise identical to prep_gauss_quadrature_c
   !!
-  !! @par Revision History
-  !! Developed by Daniel Reinert, DWD (2013-10-28)
-  !!
-  !!
   SUBROUTINE prep_gauss_quadrature_c_list( p_patch, p_coords_dreg_v, falist, &
     &                                 p_quad_vector_sum, p_dreg_area,        &
     &                                 opt_rlstart, opt_rlend                 )
@@ -1251,10 +1205,6 @@ CONTAINS
   !! Computes Jacobian determinant for gaussian quadrature
   !!
   !! Computes Jacobian determinant for gaussian quadrature
-  !!
-  !! @par Revision History
-  !! Developed by Daniel Reinert, DWD (2010-05-14)
-  !!
   !!
   FUNCTION jac(x, y, zeta, eta)  RESULT(det_jac)
     !$ACC ROUTINE SEQ

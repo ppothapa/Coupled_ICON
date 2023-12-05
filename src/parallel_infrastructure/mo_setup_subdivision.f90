@@ -1,37 +1,34 @@
 #ifdef __PGI
 !pgi$g opt=1
 #endif
-!>
-!!               This module provides all routines for dividing patches.
-!!
-!!               This module provides all routines for dividing patches
-!! (including interpolation state) and setting up communication.
-!!
-!! @par Revision History
-!! Initial version by Rainer Johanni, Nov 2009
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!! MH/TJ 2015-06-17
-!! Much of the code in this module is duplicated due to different
-!! synchronization MPI RMA methods, which perform differently on
-!! different platforms,
-!!   if your system has slow passive target synchronization
-!!   (mpi_win_lock/mpi_win_unlock), set the HAVE_SLOW_PASSIVE_TARGET_ONESIDED
-!!   preprocessor macro, e.g. by adding -DHAVE_SLOW_PASSIVE_TARGET_ONESIDED to
-!!   the ICON FFLAGS
-!!   otherwise (fast passive target one-sided communication), no action is
-!!   required
-!! Defining this macro results in global arrays to be constructed with
-!! active target synchronization and extra dist_mult_array_rma_sync
-!! calls need to be executed before requested remote data can be
-!! accessed.
+! This module provides all routines for dividing patches
+! (including interpolation state) and setting up communication.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+!
+! Much of the code in this module is duplicated due to different
+! synchronization MPI RMA methods, which perform differently on
+! different platforms,
+!   if your system has slow passive target synchronization
+!   (mpi_win_lock/mpi_win_unlock), set the HAVE_SLOW_PASSIVE_TARGET_ONESIDED
+!   preprocessor macro, e.g. by adding -DHAVE_SLOW_PASSIVE_TARGET_ONESIDED to
+!   the ICON FFLAGS
+!   otherwise (fast passive target one-sided communication), no action is
+!   required
+! Defining this macro results in global arrays to be constructed with
+! active target synchronization and extra dist_mult_array_rma_sync
+! calls need to be executed before requested remote data can be
+! accessed.
 MODULE mo_setup_subdivision
   !
   !-------------------------------------------------------------------------
@@ -42,11 +39,12 @@ MODULE mo_setup_subdivision
   USE mo_sync,               ONLY: global_max, global_min, global_sum
   USE mo_kind,               ONLY: wp
   USE mo_util_string,        ONLY: int2string
+  USE mo_util_file,          ONLY: get_filename_noext
   USE mo_impl_constants,     ONLY: min_rlcell, max_rlcell,  &
     & min_rledge, max_rledge, min_rlvert, max_rlvert, max_phys_dom,  &
     & min_rlcell_int, min_rledge_int, min_rlvert_int, max_hw
   USE mo_math_constants,     ONLY: pi
-  USE mo_exception,          ONLY: finish, message, get_filename_noext, warning
+  USE mo_exception,          ONLY: finish, message, warning
 
   USE mo_run_config,         ONLY: msg_level
   USE mo_io_units,           ONLY: filename_max
@@ -463,7 +461,6 @@ CONTAINS
   END SUBROUTINE create_dist_cell_owner
 
   !-----------------------------------------------------------------------------
-  !>
   !! Divides the cells of a patch (in wrk_p_patch_pre) for parallelization.
   !!
   !! Outputs the subdivsion in cell_owner(:) which must already be allocated
@@ -472,10 +469,6 @@ CONTAINS
   !! If  wrk_p_parent_patch_pre is associated, this indicates that the patch has a parent
   !! which has consquences for subdivision (cell with the same parent must not
   !! get to different PEs).
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
-  !! Split out as a separate routine, Rainer Johanni, Oct 2010
 
   SUBROUTINE divide_patch_cells(wrk_p_patch_pre, patch_no, n_proc, proc0, &
        &                        dist_cell_owner, dist_cell_owner_p, &
@@ -932,7 +925,6 @@ CONTAINS
   END SUBROUTINE divide_parent_cells
 
   !-------------------------------------------------------------------------------------------------
-  !>
   !! Divides a patch (in wrk_p_patch_pre) for parallelization.
   !!
   !! Parameters:
@@ -945,11 +937,6 @@ CONTAINS
   !!                     2=move all halos to the end (for ocean)
   !!
   !! On exit, the entries of wrk_p_patch are set.
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
-  !! Changed for usage for parent patch division, Rainer Johanni, Oct 2010
-  !! Major rewrite to reduce memory consumption, Thomas Jahns and Moritz Hanke, Sep 2013
 
   SUBROUTINE divide_patch(wrk_p_patch, wrk_p_patch_pre, dist_cell_owner, &
     &                     n_boundary_rows, order_type_of_halos, my_proc)
@@ -1770,7 +1757,7 @@ CONTAINS
       END IF
       write(message_text,'(i7)') nproma_sub
       CALL message('Secondary nproma (nproma_sub): ', message_text)
-      !$ACC UPDATE DEVICE(nproma_sub)
+      !$ACC UPDATE DEVICE(nproma_sub) ASYNC(1)
 
       wrk_p_patch%n_patch_edges = n_patch_edges
       wrk_p_patch%n_patch_verts = n_patch_verts
@@ -3935,12 +3922,8 @@ CONTAINS
   END SUBROUTINE build_patch_start_end_short
 
   !-------------------------------------------------------------------------
-  !>
-  !!               Calculates local indices l_i from global indices g_i
-  !!               using the mapping in decomp_info
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
+  !! Calculates local indices l_i from global indices g_i
+  !! using the mapping in decomp_info
   !!
   SUBROUTINE get_local_idx(decomp_info, g_i, l_i, opt_mode)
 
@@ -3978,13 +3961,9 @@ CONTAINS
   END SUBROUTINE get_local_idx
 
   !-------------------------------------------------------------------------
-  !>
-  !!               Calculates local line/block indices l_idx, l_blk
-  !!               from global line/block indices g_idx, g_blk
-  !!               using the mapping in decomp_info
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
+  !! Calculates local line/block indices l_idx, l_blk
+  !! from global line/block indices g_idx, g_blk
+  !! using the mapping in decomp_info
   !!
   SUBROUTINE get_local_idx_blk(decomp_info, g_idx, g_blk, l_idx, l_blk, opt_mode)
 
@@ -4004,12 +3983,7 @@ CONTAINS
 
   END SUBROUTINE get_local_idx_blk
   !-------------------------------------------------------------------------
-  !>
   !! Makes a area subdivision for a subset of wrk_p_patch.
-  !!
-  !!
-  !! @par Revision History
-  !! Initial version by Rainer Johanni, Nov 2009
   !!
   SUBROUTINE divide_subset_geometric(subset_flag, n_proc, wrk_p_patch_pre, &
                                      dist_cell_owner, lparent_level, &

@@ -265,8 +265,6 @@ The following settings are available for forcing_windstress_u_type and forcing_w
   !! Currently only some simple test value are set.
   !! Finally the prognostic state should be initialized from some restart file.
   !
-  !! @par Revision History
-  !! Developed  by Peter Korn, MPI-M, 2006-08
   !
   !-------------------------------------------------------------------------
   SUBROUTINE init_ocean_analytically(patch_3d, ocean_state)

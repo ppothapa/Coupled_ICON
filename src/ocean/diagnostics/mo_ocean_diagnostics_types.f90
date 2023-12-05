@@ -1,21 +1,18 @@
-!>
-!!        Contains the variables to set up the ocean model.
-!=============================================================================================
-!!
-!! @par Revision History
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
-!=============================================================================================
+! Contains the variables to set up the ocean model.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 #include "iconfor_dsl_definitions.inc"
-!=============================================================================================
+
 MODULE mo_ocean_diagnostics_types
 
   USE mo_kind,                ONLY: wp, sp
@@ -52,7 +49,6 @@ MODULE mo_ocean_diagnostics_types
     REAL(wp), POINTER :: sst_global(:)
     REAL(wp), POINTER :: sss_global(:)
     REAL(wp), POINTER :: potential_enstrophy(:)
-    REAL(wp), POINTER :: absolute_vertical_velocity(:)
     REAL(wp), POINTER :: HeatFlux_ShortWave(:)
     REAL(wp), POINTER :: HeatFlux_LongWave(:)
     REAL(wp), POINTER :: HeatFlux_Sensible(:)
@@ -95,11 +91,6 @@ MODULE mo_ocean_diagnostics_types
     REAL(wp), POINTER :: agulhas_longer(:)
     REAL(wp), POINTER :: florida_strait(:)
     ! }}}
-    REAL(wp), POINTER :: t_mean_na_200m(:) !                                                        [degC]
-    REAL(wp), POINTER :: t_mean_na_800m(:) !                                                        [degC]
-    REAL(wp), POINTER :: ice_ocean_heat_budget(:)
-    REAL(wp), POINTER :: ice_ocean_salinity_budget(:)
-    REAL(wp), POINTER :: ice_ocean_volume_budget(:)
     REAL(wp), ALLOCATABLE :: tracer_content(:)
   END TYPE t_ocean_monitor
 

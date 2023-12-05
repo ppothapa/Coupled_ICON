@@ -47,12 +47,12 @@ case $EXPERIMENT in
         --file-id NetCDF "*qs_ml*.nc"
         --file-id NetCDF "*rho_ml*.nc"
         --file-id NetCDF "*ta_ml*.nc"
-        --file-id NetCDF "*tend_qcli_mig_ml*.nc"
-        --file-id NetCDF "*tend_qcli_vdf_ml*.nc"
-        --file-id NetCDF "*tend_qclw_mig_ml*.nc"
-        --file-id NetCDF "*tend_qclw_vdf_ml*.nc"
-        --file-id NetCDF "*tend_qhus_mig_ml*.nc"
-        --file-id NetCDF "*tend_qhus_vdf_ml*.nc"
+        --file-id NetCDF "*tend_cli_mig_ml*.nc"
+        --file-id NetCDF "*tend_cli_vdf_ml*.nc"
+        --file-id NetCDF "*tend_clw_mig_ml*.nc"
+        --file-id NetCDF "*tend_clw_vdf_ml*.nc"
+        --file-id NetCDF "*tend_hus_mig_ml*.nc"
+        --file-id NetCDF "*tend_hus_vdf_ml*.nc"
         --file-id NetCDF "*tend_ta_mig_ml*.nc"
         --file-id NetCDF "*tend_ta_rlw_ml*.nc"
         --file-id NetCDF "*tend_ta_rsw_ml*.nc"
@@ -75,6 +75,24 @@ case $EXPERIMENT in
         --file-id NetCDF "*atm_3d_pl*.nc"
         )
         ;;
+    *mch_kenda-ch1_small*)
+        probtest_file_id=(
+        --file-id NetCDF "*atm_3d_ml*.nc"
+        --file-id NetCDF "*iaf*"
+        --file-id NetCDF "*lfff0*"
+        --file-id NetCDF_no_time_dim "*lfff_ml*"
+        --file-id dace "*fofPILOT*.nc"
+        --file-id dace "*fofTEMP*.nc"
+        )
+        ;;
+    *mch_icon-ch2_small*)
+        probtest_file_id=(
+        --file-id NetCDF "*atm_3d_ml*.nc"
+        --file-id NetCDF "*lfff0*c"
+        --file-id NetCDF "*lfff0*p"
+        --file-id NetCDF "*lfff0*z"
+        )
+        ;;
     *mch_opr_r04b07_lhn_12*)
         probtest_file_id=(
         --file-id NetCDF "*atm_3d_ml*.nc"
@@ -85,6 +103,7 @@ case $EXPERIMENT in
         --file-id meteogram "Meteogram*.nc"
         --file-id total_integrals "total_integrals.dat"
         --file-id tracer_total_integrals "tracer_total_integrals.dat"
+        --file-id emvorado_vrsim_volscan "radar_dom1/cdfin*zrsim*volscan.nc"
         )
         ;;
     *mch_*nest*)
@@ -115,7 +134,7 @@ case $EXPERIMENT in
         --file-id NetCDF "*atm_3d*.nc"
         )
         ;;
-    *dwd_run_ICON_*)
+    *dwd_run_ICON_09_R2B4N5_EPS_prog_rbf*)
         probtest_file_id=(
         --file-id NetCDF "*atm_3d_DOM01_ml*.nc"
         --file-id NetCDF "*atm_3d_DOM02_ml*.nc"
@@ -124,6 +143,25 @@ case $EXPERIMENT in
         --file-id latlon "*atm_3d_ll_DOM01_ml*.nc"
         --file-id latlon "*atm_3d_ll_DOM02_ml*.nc"
         --file-id meteogram "Meteogram*.nc"
+        )
+        ;;
+    *dwd_run_ICON_09_R2B4N5_EPS*)
+        probtest_file_id=(
+        --file-id NetCDF "*atm_3d_DOM01_ml*.nc"
+        --file-id NetCDF "*atm_3d_DOM02_ml*.nc"
+        --file-id NetCDF "*atm_3d_DOM02_hl*.nc"
+        --file-id NetCDF "*atm_3d_DOM02_pl*.nc"
+        --file-id latlon "*atm_3d_ll_DOM01_ml*.nc"
+        --file-id latlon "*atm_3d_ll_DOM02_ml*.nc"
+        --file-id meteogram "Meteogram*.nc"
+        --file-id NetCDF "iga_fg_DOM01_ML_0000000.nc"
+        --file-id NetCDF "iga_fg_DOM01_ML_tiles_0000000.nc"
+        --file-id NetCDF "iga_fg_DOM02_ML_0000000.nc"
+        --file-id NetCDF "iga_fg_DOM02_ML_tiles_0000000.nc"
+        --file-id NetCDF "iglo_fc_DOM01_0001.nc"
+        --file-id NetCDF "iglo_fc_DOM02_0001.nc"
+        --file-id latlon "iga_fg_latlon_DOM01_ML_0000000.nc"
+        --file-id latlon "iga_fg_latlon_DOM01_PL_0000000.nc"
         )
         ;;
     *)

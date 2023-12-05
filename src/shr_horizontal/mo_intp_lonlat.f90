@@ -1,3 +1,17 @@
+! Contains the implementation of interpolation onto regular grids.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 #ifdef __xlC__
   @PROCESS smp=noopt
   @PROCESS noopt
@@ -6,23 +20,6 @@
   !pgi$g opt=1
 #endif
 
-!>
-!! Contains the implementation of interpolation onto regular grids.
-!!
-!! @par Revision History
-!! Moved from mo_intp_rbf_coeffs : 2012-03-20, F. Prill (DWD)
-!! Modified by Anurag Dipankar, MPIM, 2012-12-28
-!!-Replaced usage of ptr_int%cart_edge%coord with ptr_patch%edges%cartesian_center which is now calculated
-!! within the grid_generator. The ptr_int variable is not calculated anymore.
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
   MODULE mo_intp_lonlat
     !-------------------------------------------------------------------------
     !
@@ -436,10 +433,6 @@
 
      END IF
 
-    !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_c2l%idx)
-    !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_c2l%blk)
-    !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_c2l%stencil)
-
     END SUBROUTINE rbf_c2l_index
 
 
@@ -448,9 +441,6 @@
     !-------------------------------------------------------------------------
     !
     ! This routine is based on mo_intp_rbf_coeffs::rbf_vec_compute_coeff_cell()
-    !
-    ! @par Revision History
-    !      Initial implementation  by  F. Prill, DWD (2011-08)
     !
     SUBROUTINE rbf_compute_coeff_vec( ptr_patch, ptr_int_lonlat, rbf_shape_param )
 
@@ -685,8 +675,6 @@
       IF (ist /= SUCCESS)  CALL finish (routine, 'deallocation for working arrays failed')
 !$OMP END PARALLEL
 
-      !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_vec%coeff)
-
     END SUBROUTINE rbf_compute_coeff_vec
 
 
@@ -696,9 +684,6 @@
     !  We directly interpolate from cell centers to lon-lat points,
     !  otherwise we do gradient interpolation and reconstruction.
     !  -------------------------------------------------------------------------
-    !
-    ! @par Revision History
-    !      Initial implementation  by  F. Prill, DWD (2012-06-13)
     !
     SUBROUTINE rbf_compute_coeff_c2l( ptr_patch, ptr_int_lonlat, rbf_shape_param )
 
@@ -860,8 +845,6 @@
       DEALLOCATE( z_rbfmat, z_diag, z_rbfval, STAT=ist )
       IF (ist /= SUCCESS)  CALL finish (routine, 'deallocation for working arrays failed')
 !$OMP END PARALLEL
-
-      !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_c2l%coeff)
 
     END SUBROUTINE rbf_compute_coeff_c2l
 
@@ -1041,10 +1024,6 @@
 !$OMP END PARALLEL DO
 
         END IF
-
-        !$ACC UPDATE DEVICE(ptr_intp%blk)
-        !$ACC UPDATE DEVICE(ptr_intp%idx)
-        !$ACC UPDATE DEVICE(ptr_intp%coeff)
 
       END DO  
       IF (dbg_level > 1)  CALL message(routine, "done.")
@@ -1427,11 +1406,6 @@
       END DO
 !$OMP END PARALLEL DO
 
-      !$ACC UPDATE DEVICE(ptr_int_lonlat%nnb%stencil)
-      !$ACC UPDATE DEVICE(ptr_int_lonlat%nnb%coeff)
-      !$ACC UPDATE DEVICE(ptr_int_lonlat%nnb%idx)
-      !$ACC UPDATE DEVICE(ptr_int_lonlat%nnb%idx)
-
     END SUBROUTINE nnb_setup_interpol_lonlat_grid
 
 
@@ -1488,10 +1462,6 @@
       ENDDO
 !$OMP END DO
 !$OMP END PARALLEL
-      
-      !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_vec%stencil)
-      !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_vec%idx)
-      !$ACC UPDATE DEVICE(ptr_int_lonlat%rbf_vec%blk)
 
       IF (dbg_level > 1) CALL message(routine, "compute lon-lat interpolation coefficients")
 

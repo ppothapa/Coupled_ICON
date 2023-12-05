@@ -1,15 +1,16 @@
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!
-!! The glue layer between the restart writing code and the variables:
-!! The restart writing code only ever sees 3D pointers returned by get_var_3d_ptr.
+! The glue layer between the restart writing code and the variables:
+! The restart writing code only ever sees 3D pointers returned by get_var_3d_ptr.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_restart_var_data
 
@@ -93,7 +94,8 @@ CONTAINS
       CALL finish(routine, "lopenacc and acc_is_present are inconsistent for '"//TRIM(vd%info%NAME)//"'")
     endif
 #endif
-    !$ACC UPDATE HOST(r_ptr_3d) IF(i_am_accel_node .AND. vd%info%lopenacc)
+    !$ACC UPDATE HOST(r_ptr_3d) ASYNC(1) IF(i_am_accel_node .AND. vd%info%lopenacc)
+    !$ACC WAIT(1) IF(i_am_accel_node)
   END SUBROUTINE get_var_3d_ptr_dp
 
   SUBROUTINE get_var_3d_ptr_sp(vd, s_ptr_3d)
@@ -143,7 +145,8 @@ CONTAINS
       CALL finish(routine, "lopenacc and acc_is_present are inconsistent for '"//TRIM(vd%info%NAME)//"'")
     endif
 #endif
-    !$ACC UPDATE HOST(s_ptr_3d) IF(i_am_accel_node .AND. vd%info%lopenacc)
+    !$ACC UPDATE HOST(s_ptr_3d) ASYNC(1) IF(i_am_accel_node .AND. vd%info%lopenacc)
+    !$ACC WAIT(1) IF(i_am_accel_node)
   END SUBROUTINE get_var_3d_ptr_sp
 
   SUBROUTINE get_var_3d_ptr_int(vd, i_ptr_3d)
@@ -193,7 +196,8 @@ CONTAINS
       CALL finish(routine, "lopenacc and acc_is_present are inconsistent for '"//TRIM(vd%info%NAME)//"'")
     endif
 #endif
-    !$ACC UPDATE HOST(i_ptr_3d) IF(i_am_accel_node .AND. vd%info%lopenacc)
+    !$ACC UPDATE HOST(i_ptr_3d) ASYNC(1) IF(i_am_accel_node .AND. vd%info%lopenacc)
+    !$ACC WAIT(1) IF(i_am_accel_node)
   END SUBROUTINE get_var_3d_ptr_int
 
   ! Returns true, if the time level of the given field is valid, else false.

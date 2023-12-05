@@ -1,22 +1,20 @@
-!>
-!! @brief Subroutine read_bc_ozone reads monthly ozone
-!! concentrations from yearly files. The ozone concentrations are
-!! used as boundary conditions for the radiative forcing of the
-!! atmosphereAMIP. The routine is called from mo_aes_phy_interface.f90.
-!!
-!! @author Sebastian Rast, MPI-M
-!!
-!! @par Revision History
-!!  Original version March 2013
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Subroutine read_bc_ozone reads monthly ozone
+! concentrations from yearly files. The ozone concentrations are
+! used as boundary conditions for the radiative forcing of the
+! atmosphereAMIP. The routine is called from mo_aes_phy_interface.f90.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_bc_ozone
 
   USE mo_kind,                     ONLY: wp, i8
@@ -458,7 +456,7 @@ CONTAINS
         END SELECT
 
       END IF
-      !$ACC UPDATE DEVICE(ext_ozone(jg)%o3_plev)
+      !$ACC UPDATE DEVICE(ext_ozone(jg)%o3_plev) ASYNC(1)
 
       pre_year(jg) = year
 
@@ -473,6 +471,7 @@ CONTAINS
 
       ext_ozone(jg)% nplev_o3 = nplev_o3
 
+      !$ACC WAIT(1)
       !$ACC EXIT DATA DELETE(ext_ozone(jg)%plev_full_o3) IF(ALLOCATED(ext_ozone(jg)%plev_full_o3))
       !$ACC EXIT DATA DELETE(ext_ozone(jg)%plev_half_o3) IF(ALLOCATED(ext_ozone(jg)%plev_half_o3))
       IF(ALLOCATED(ext_ozone(jg)% plev_full_o3)) DEALLOCATE(ext_ozone(jg)% plev_full_o3)
@@ -503,7 +502,7 @@ CONTAINS
       l_first = .FALSE.
 
       ! Set pointer for OpenACC
-      !$ACC UPDATE DEVICE(ext_ozone(jg)%plev_half_o3, ext_ozone(jg)%plev_full_o3)
+      !$ACC UPDATE DEVICE(ext_ozone(jg)%plev_half_o3, ext_ozone(jg)%plev_full_o3) ASYNC(1)
 
     END IF
 

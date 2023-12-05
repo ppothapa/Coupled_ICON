@@ -1,5 +1,16 @@
-!+ Module for latent heat nudging 
-!-------------------------------------------------------------------------------
+! Module for latent heat nudging!!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -7,49 +18,49 @@
 MODULE mo_latent_heat_nudging
 
 !-------------------------------------------------------------------------------
-!>
-!! Description:
-!!   The module "lheat_nudge" performs the latent heat nudging (lhn).
-!!   The lhn adds temperature increments to the prognostic variable t
-!!   so that the total temperature increase due to latent heat release
-!!   in the current timestep corresponds to the amount of analyzed
-!!   (or observed) precipitation.
-!!   The temperature increments added due to lhn are derived from the 
-!!   model heating rate profiles (large scale condensation and convective 
-!!   heating) scaled by the ratio of analyzed to modelled precipitation
-!!   (total precipitation: rain and snow from large scale and 
-!!   convective processes). The analyzed precipitation is based on radar
-!!   data merged with the model (total) precipitation fields.
-!!    
-!!   The module contains as an organizational unit the subroutine
-!!   "organize_lhn" which is called from the module organize_assimilation_config(jg).
-!!   Further module procedures (subroutines) called by organize_lhn:
-!!   -> lhn_obs_prep : reading+preparing the precip radar data
-!!      |
-!!      |--> lhn_obs_open  : open the radar data file and read general header
-!!      |--> lhn_obs_read  : read a record (header + data) from radar data file
-!!      |--> distribute_field : distribute field to all PE's
-!!
-!!   -> lhn_skill_scores   : verification of precipitation model against radar
-!!
-!!   -> lhn_t_inc  : derivation of temperature increments by scaling of
-!!      |           model latent heating profiles 
-!!      |--> assimilation_config(jg)%lhn_artif     : apply artificial profile
-!!      |--> assimilation_config(jg)%lhn_filt      : vertical filtering of local ttend_lhn profile
-!!      |--> assimilation_config(jg)%lhn_limit     : limiting of the ttend_lhn
-!!      |--> assimilation_config(jg)%lhn_relax     : horizontal filtering of ttend_lhn
-!!           |--> hor_filt
-!!                |--> init_horizontal_filtering
-!!                |--> horizontal_filtering
-!!                |--> exchange_boundaries
-!!   -> lhn_q_inc  : adjust humidity (i.e. qv) to new temperature (t+ttend_lhn)
-!!
-!!   Note: The names of input/output variables/arrays defined only once 
-!!         in the module declaration section but used and "filled" by the 
-!!         different subroutines are documented in the description parts
-!!         of each procedure for clarity.
-!!
-!===============================================================================
+!
+! Description:
+!   The module "lheat_nudge" performs the latent heat nudging (lhn).
+!   The lhn adds temperature increments to the prognostic variable t
+!   so that the total temperature increase due to latent heat release
+!   in the current timestep corresponds to the amount of analyzed
+!   (or observed) precipitation.
+!   The temperature increments added due to lhn are derived from the 
+!   model heating rate profiles (large scale condensation and convective 
+!   heating) scaled by the ratio of analyzed to modelled precipitation
+!   (total precipitation: rain and snow from large scale and 
+!   convective processes). The analyzed precipitation is based on radar
+!   data merged with the model (total) precipitation fields.
+!    
+!   The module contains as an organizational unit the subroutine
+!   "organize_lhn" which is called from the module organize_assimilation_config(jg).
+!   Further module procedures (subroutines) called by organize_lhn:
+!   -> lhn_obs_prep : reading+preparing the precip radar data
+!      |
+!      |--> lhn_obs_open  : open the radar data file and read general header
+!      |--> lhn_obs_read  : read a record (header + data) from radar data file
+!      |--> distribute_field : distribute field to all PE's
+!
+!   -> lhn_skill_scores   : verification of precipitation model against radar
+!
+!   -> lhn_t_inc  : derivation of temperature increments by scaling of
+!      |           model latent heating profiles 
+!      |--> assimilation_config(jg)%lhn_artif     : apply artificial profile
+!      |--> assimilation_config(jg)%lhn_filt      : vertical filtering of local ttend_lhn profile
+!      |--> assimilation_config(jg)%lhn_limit     : limiting of the ttend_lhn
+!      |--> assimilation_config(jg)%lhn_relax     : horizontal filtering of ttend_lhn
+!           |--> hor_filt
+!                |--> init_horizontal_filtering
+!                |--> horizontal_filtering
+!                |--> exchange_boundaries
+!   -> lhn_q_inc  : adjust humidity (i.e. qv) to new temperature (t+ttend_lhn)
+!
+!   Note: The names of input/output variables/arrays defined only once 
+!         in the module declaration section but used and "filled" by the 
+!         different subroutines are documented in the description parts
+!         of each procedure for clarity.
+!
+!-------------------------------------------------------------------------------
 
 ! Modules used:
 
@@ -67,7 +78,7 @@ USE mo_kind,               ONLY: wp, i4, i8
 
 USE mo_parallel_config,    ONLY: nproma
 
-USE mo_exception,          ONLY: message, message_text, finish, print_value, open_log, close_log
+USE mo_exception,          ONLY: message, message_text, finish, print_value, warning
 
 USE mo_physical_constants, ONLY: r_v   => rv    , & !> gas constant for water vapour
                                rvd_m_o => vtmpc1, & !! rv/rd-1._wp
@@ -107,6 +118,7 @@ USE mo_run_config,              ONLY: msg_level, iqv, iqc, iqi
 USE mo_math_laplace,            ONLY: nabla2_scalar
 USE mo_sync,                    ONLY: SYNC_C, sync_patch_array_mult, global_sum, global_sum_array
 USE mo_intp_data_strc,          ONLY: t_int_state
+USE mo_fortran_tools,           ONLY: init
 
 !===============================================================================
 
@@ -320,6 +332,15 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
   !$ACC   PRESENT(prm_diag%ttend_lhn, prm_diag%qvtend_lhn, prm_diag%lhn_diag, prm_nwp_tend) &
   !$ACC   PRESENT(prm_nwp_tend%ddt_temp_pconv, pt_diag, pt_diag%temp, p_metrics, p_metrics%z_ifc, p_metrics%z_mc) &
   !$ACC   PRESENT(pt_patch, pt_patch%cells%area)
+
+#ifdef _OPENACC
+  CALL init(wobs_space(:,:), opt_acc_async=.TRUE.)
+  CALL init(zprmod(:,:), opt_acc_async=.TRUE.)
+  CALL init(zprmod_ref(:,:), opt_acc_async=.TRUE.)
+  CALL init(zprmod_ref_f(:,:), opt_acc_async=.TRUE.)
+  CALL init(zprrad(:,:), opt_acc_async=.TRUE.)
+  CALL init(zprrad_f(:,:), opt_acc_async=.TRUE.)
+#endif
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,jc,jk,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
@@ -558,7 +579,6 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
       END IF
 
     END DO
-    !$ACC WAIT(1)
 !$OMP END DO 
 !$OMP END PARALLEL
 
@@ -655,13 +675,13 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
        CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
             &                i_startidx, i_endidx, i_rlstart, i_rlend)
        
-       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) REDUCTION(+: zprmod_scal, zprref_scal)
-       !$ACC LOOP GANG VECTOR
+       !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) &
+       !$ACC   REDUCTION(+: zprmod_scal, zprref_scal)
        DO jc=i_startidx,i_endidx
          zprmod_scal    = zprmod_scal    + pr_mod(jc,jb)
          zprref_scal    = zprref_scal    + pr_ref(jc,jb)
        ENDDO
-       !$ACC END PARALLEL
+       !$ACC END PARALLEL LOOP
        !$ACC WAIT(1)
        zprmod_s_blk(jb)    = zprmod_scal
        zprref_s_blk(jb)    = zprref_scal
@@ -832,8 +852,8 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
         !$ACC END PARALLEL
 
       END DO
+      !$ACC UPDATE HOST(zprmod_ref, zprrad, zprmod_ref_f, zprrad_f) ASYNC(1)
       !$ACC WAIT(1)
-      !$ACC UPDATE HOST(zprmod_ref, zprrad, zprmod_ref_f, zprrad_f)
 !$OMP END DO
 !$OMP END PARALLEL
       CALL lhn_verification( 'SW', pt_patch, radar_data, lhn_fields, p_sim_time, wobs_space, &
@@ -1060,7 +1080,8 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
 
     IF (datetime_current%time%minute  == 0) THEN
       IF (ltlhnverif) THEN
-        !$ACC UPDATE HOST(lhn_fields%pr_obs_sum, lhn_fields%pr_mod_sum, lhn_fields%pr_ref_sum)
+        !$ACC UPDATE HOST(lhn_fields%pr_obs_sum, lhn_fields%pr_mod_sum, lhn_fields%pr_ref_sum) ASYNC(1)
+        !$ACC WAIT(1)
         CALL lhn_verification( 'HR', pt_patch, radar_data, lhn_fields, p_sim_time/3600._wp, wobs_space, &
                                lhn_fields%pr_mod_sum, lhn_fields%pr_ref_sum, lhn_fields%pr_obs_sum )
       END IF
@@ -1435,8 +1456,8 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,lhn_fields,pr_obs,hzerocl, &
        CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
          &                i_startidx, i_endidx, i_rlstart, i_rlend)
 
-       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-       !$ACC LOOP GANG VECTOR REDUCTION(+: obs_sum_g, nsum_g)
+       !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) &
+       !$ACC   REDUCTION(+: obs_sum_g, nsum_g)
        DO jc = i_startidx,i_endidx
            IF (obs_cnt (jc,jb) <  1_i4 ) CYCLE
            obs_sum (jc,jb) = obs_sum (jc,jb) / REAL(obs_cnt (jc,jb),wp)
@@ -1445,7 +1466,7 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,lhn_fields,pr_obs,hzerocl, &
               nsum_g    = nsum_g + 1
            ENDIF
        ENDDO
-       !$ACC END PARALLEL
+       !$ACC END PARALLEL LOOP
 
      ENDDO
      !$ACC WAIT(1)
@@ -1506,22 +1527,7 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,lhn_fields,pr_obs,hzerocl, &
 
 !! reset counters
 !$OMP PARALLEL
-!$OMP DO PRIVATE(jb,jc,jn,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
-  DO jb = i_startblk, i_endblk
-    CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
-        &                i_startidx, i_endidx, i_rlstart, i_rlend)
-
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
-    DO jn = 0, 4
-      DO jc = i_startidx, i_endidx
-        num_t_obs(jc,jb,jn) = 0
-      END DO
-    END DO
-    !$ACC END PARALLEL
-
-  END DO
-!$OMP END DO
+  CALL init(num_t_obs(:,:,:), opt_acc_async=.TRUE.)
 !$OMP END PARALLEL
 
 
@@ -1892,7 +1898,8 @@ SUBROUTINE lhn_obs_prep (pt_patch,radar_data,lhn_fields,pr_obs,hzerocl, &
 
 
   IF ( assimilation_config(jg)%lhn_diag ) THEN
-    !$ACC UPDATE HOST(num_t_obs, wobs_space, radar_data%radar_ct%blacklist)
+    !$ACC UPDATE HOST(num_t_obs, wobs_space, radar_data%radar_ct%blacklist) ASYNC(1)
+    !$ACC WAIT(1)
     diag_out(:) = 0
     DO jb = i_startblk, i_endblk
       CALL get_indices_c(pt_patch, jb, i_startblk, i_endblk, &
@@ -2039,12 +2046,12 @@ SUBROUTINE detect_bright_band(pt_patch,radar_data,lhn_fields,sumrad,bbllim,hzero
       !$ACC END PARALLEL
 
    ENDDO
-   !$ACC WAIT(1)
 !$OMP END DO 
 !$OMP END PARALLEL
 
    IF ( assimilation_config(jg)%lhn_diag ) THEN
-     !$ACC UPDATE HOST(lhn_fields%brightband)
+     !$ACC UPDATE HOST(lhn_fields%brightband) ASYNC(1)
+     !$ACC WAIT(1)
      nbright=COUNT(lhn_fields%brightband)
      nbrightg=global_sum(nbright,opt_iroot=p_io)
      IF (my_process_is_stdio()) &
@@ -2215,7 +2222,7 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
   !$ACC   PRESENT(assimilation_config(jg:jg))
 
 ! set temperature increments to be determined to zero
-  !$ACC KERNELS DEFAULT(PRESENT)
+  !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
   ttend_lhn(:,:) = 0.0_wp
   !$ACC END KERNELS
 
@@ -2298,7 +2305,7 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
 
 #if !defined(__SX__) && !defined(_OPENACC)
         WRITE(message_text, '(a,f8.4,i6)') 'lhn_pr_ana w unvalid : ', w, ip
-        CALL message('',message_text,level=2)
+        CALL warning('', message_text)
 #endif
         CYCLE
       ELSE
@@ -2319,10 +2326,9 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
   END DO
   !$ACC END PARALLEL
 
-  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-  !$ACC LOOP GANG VECTOR &
-  !$ACC   REDUCTION(+: n_local, n_down, n_up, n_down_lim, n_artif, n_up_lim) &
-  !$ACC   PRIVATE(ip, pr_quot, scale_fac, fac, prmax, prmax_th)
+  !$ACC PARALLEL LOOP GANG VECTOR &
+  !$ACC   DEFAULT(PRESENT) PRIVATE(ip, pr_quot, scale_fac, fac, prmax, prmax_th) &
+  !$ACC   REDUCTION(+: n_local, n_down, n_up, n_down_lim, n_artif, n_up_lim) ASYNC(1)
 !NEC$ ivdep
   DO i = 1, ntreat
      ip = treat_list(i)
@@ -2388,7 +2394,7 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
      IF (assimilation_config(jg)%lhn_artif_only) treat_diag(ip) = 4.0_wp
 
   ENDDO
-  !$ACC END PARALLEL
+  !$ACC END PARALLEL LOOP
 
 !-------------------------------------------------------------------------------
 ! Section 4 : Scale the heating profiles with the predetermined factors
@@ -2468,8 +2474,8 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
 
   ENDIF
 
-  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-  !$ACC LOOP GANG VECTOR COLLAPSE(2) REDUCTION(+: n_incloud, n_ex_lim_p, n_ex_lim_n) PRIVATE(ip)
+  !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) PRIVATE(ip) &
+  !$ACC   REDUCTION(+: n_incloud, n_ex_lim_p, n_ex_lim_n) ASYNC(1)
   DO k = 1, ke
 !NEC$ ivdep
     DO i = 1, ntreat
@@ -2512,7 +2518,7 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
       ENDIF
     ENDDO
   ENDDO
-  !$ACC END PARALLEL
+  !$ACC END PARALLEL LOOP
 
 !-------------------------------------------------------------------------------
 ! Section 8 : Weighting of the temperature increment with respect to
@@ -2523,9 +2529,9 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
 !-------------------------------------------------------------------------------
 
   IF (assimilation_config(jg)%lhn_wweight) THEN
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-    !$ACC LOOP GANG VECTOR &
-    !$ACC   REDUCTION(+: n_windcor, n_windcor0) PRIVATE(ip, umean, vmean, zvb)
+    !$ACC PARALLEL LOOP GANG VECTOR &
+    !$ACC   DEFAULT(PRESENT) PRIVATE(ip, umean, vmean, zvb) &
+    !$ACC   REDUCTION(+: n_windcor, n_windcor0) ASYNC(1)
 !NEC$ ivdep
     DO i = 1, ntreat
       ip = treat_list(i)
@@ -2549,7 +2555,7 @@ SUBROUTINE lhn_t_inc (i_startidx, i_endidx,jg,ke,zlev,tt_lheat,wobs_time, wobs_s
       ENDIF
 
     ENDDO
-    !$ACC END PARALLEL
+    !$ACC END PARALLEL LOOP
 
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(ip)
@@ -2721,8 +2727,9 @@ SUBROUTINE lhn_q_inc(i_startidx,i_endidx,jg,zdt,ke,t,ttend_lhn,p,qv,qc,qi, &
   qvtend_lhn(:,:) = 0.0_wp
   !$ACC END KERNELS
 
-  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-  !$ACC LOOP GANG VECTOR COLLAPSE(2) REDUCTION(+: nred, ninc, ninc2) PRIVATE(zp, esat, relhum, zqv)
+  !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) &
+  !$ACC   DEFAULT(PRESENT) PRIVATE(zp, esat, relhum, zqv) &
+  !$ACC   REDUCTION(+: nred, ninc, ninc2) ASYNC(1)
   DO   k=1,ke
     DO jc = i_startidx,i_endidx
 
@@ -2781,7 +2788,7 @@ SUBROUTINE lhn_q_inc(i_startidx,i_endidx,jg,zdt,ke,t,ttend_lhn,p,qv,qc,qi, &
 
     ENDDO
   ENDDO
-  !$ACC END PARALLEL
+  !$ACC END PARALLEL LOOP
   !$ACC WAIT(1)
   !$ACC END DATA
 
@@ -2866,7 +2873,7 @@ SUBROUTINE filter_prof (prof_filt,ntreat,treat_list,kup,klow,eps,lelim,lsmooth, 
 ! eliminate isolated peaks
    IF (lelim) THEN
 
-     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+     !$ACC PARALLEL DEFAULT(PRESENT) REDUCTION(+: nelimosc, nelimiso) ASYNC(1)
      !$ACC LOOP GANG(STATIC: 1) VECTOR PRIVATE(ip)
 !NEC$ ivdep
      DO i = 1, ntreat
@@ -2973,7 +2980,7 @@ SUBROUTINE filter_prof (prof_filt,ntreat,treat_list,kup,klow,eps,lelim,lsmooth, 
 ! smooth profile
    IF (lsmooth) THEN
 
-     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
+     !$ACC PARALLEL DEFAULT(PRESENT) REDUCTION(+: nsmooth) ASYNC(1)
      !$ACC LOOP SEQ
      DO k=klow-1,kup+1,-1
 !NEC$ ivdep

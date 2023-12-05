@@ -24,6 +24,7 @@ use_num_io_procs
 use_mpi_root
 use_mpi_startrun
 use_openmp
+use_queue
 use_shell
 use_srcdir
 use_submit
@@ -165,6 +166,12 @@ case "$use_site" in
         use_target='rcl'
         use_shell='/bin/bash'
         use_mpi_startrun='@MPI_LAUNCH@'
+        if ((RH_VERSION != 8)); then
+          use_queue='sx_norm'
+        else
+          use_queue='sx_norm_rh8'
+          use_load_modules='mpi/2.24.0' # 2.24.0 is an alias for mpi 3.3.0 on RH8 VH/VE systems
+        fi
       ;;
       xc*)
         use_submit='qsub'
@@ -186,24 +193,25 @@ case "$use_site" in
   ;;
 
   dkrz.de)
-    use_load_profile='. /etc/profile'
-    use_load_modules="$use_srcdir/etc/Modules/icon-levante"
-    use_shell='/usr/bin/bash'
-    use_submit='sbatch'
-    use_sync_submit='sbatch --wait'
-    use_mpi_startrun='srun'
-    use_target='bull_milan'
-    use_mpi_root='openmpi'
-    if test xyes = x"${use_gpu}"; then use_target='bullx_gpu'; else use_target='bull_milan'; fi
-    if test xaurora = x"${use_host:0:6}"; then
-      use_target='levante_aurora'
-      use_mpi_startrun='@MPI_LAUNCH@'
-      use_mpi_root='necmpi'
-      use_submit=''
-      use_sync_submit=''
-      use_load_modules="vh/gcc/12.2.0 ve/mpi/3.4.0 ve/ncc/5.0.1 ve/nfort/5.0.1"
-      use_shell='/bin/bash'
-    fi
+    case $use_host in
+      aurora*)
+        use_target='levante_aurora'
+        ;;
+      *)
+        use_load_profile='. /etc/profile'
+        use_load_modules="$use_srcdir/etc/Modules/icon-levante"
+        use_shell='/usr/bin/bash'
+        use_submit='sbatch'
+        use_sync_submit='sbatch --wait'
+        use_mpi_startrun='srun'
+        use_mpi_root='openmpi'
+        if test xyes = x"${use_gpu}"; then
+          use_target='bullx_gpu'
+        else
+          use_target='bull_milan'
+        fi
+        ;;
+    esac
   ;;
 
   kfa-juelich.de|fz-juelich.de|*jureca*|*juwels*)
@@ -222,15 +230,23 @@ case "$use_site" in
   ;;
 
   kit.edu)
-    use_load_profile='. /etc/profile ; . /opt/lmod/lmod/init/ksh'
-    use_submit='sbatch'
     use_load_profile='. /etc/profile'
-    use_mpi_startrun="$(type -p mpirun)"
-    use_load_modules="$(echo $(module --terse list 2>&1))"
+    use_shell='/usr/bin/bash'
+    use_submit='sbatch'
+    use_sync_submit='sbatch --wait'
+    use_load_profile='. /etc/profile'
+    use_mpi_startrun='@MPI_LAUNCH@ -n ${SLURM_NPROCS}'
+    use_load_modules=""
     case "$use_host" in
       uc2*) use_target='uc2' ;;
       fh2*) use_target='fh2' ;;
-      hk*)  use_target='hk'  ;;
+      hk*)  
+        if test xyes = x"${use_gpu}"; then 
+            use_target='hk_gpu';
+            use_mpi_startrun='@MPI_LAUNCH@ -n ${SLURM_NPROCS} ${basedir}/run/run_wrapper/hk.sh'
+        else 
+            use_target='hk'; 
+        fi
     esac
   ;;
 

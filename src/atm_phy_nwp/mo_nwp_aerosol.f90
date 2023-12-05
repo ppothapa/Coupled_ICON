@@ -1,19 +1,18 @@
-!>
-!! This module prepares aerosol for the use in radiation
-!!
-!! @author Daniel Rieger, Deutscher Wetterdienst, Offenbach
-!!
-!! @par Revision History
-!! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2022-11-08)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! This module prepares aerosol for the use in radiation
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -22,23 +21,29 @@ MODULE mo_nwp_aerosol
 
 ! ICON infrastructure
   USE mo_kind,                    ONLY: wp
-  USE mo_exception,               ONLY: finish, message_text
+  USE mo_exception,               ONLY: finish, message, message_text
   USE mo_model_domain,            ONLY: t_patch
+  USE mo_grid_config,             ONLY: nroot 
   USE mo_ext_data_types,          ONLY: t_external_data
   USE mo_nonhydro_types,          ONLY: t_nh_diag
   USE mo_nwp_phy_types,           ONLY: t_nwp_phy_diag
   USE mo_parallel_config,         ONLY: nproma
   USE mo_loopindices,             ONLY: get_indices_c
   USE mo_impl_constants,          ONLY: min_rlcell_int, SUCCESS, &
-                                    &   iss, iorg, ibc, iso4, idu
+                                    &   iss, iorg, ibc, iso4, idu, n_camsaermr
   USE mo_impl_constants_grf,      ONLY: grf_bdywidth_c
   USE mo_physical_constants,      ONLY: rd, grav, cpd
+  USE mo_reader_cams,             ONLY: t_cams_reader
+  USE mo_interpolate_time,        ONLY: t_time_intp
+  USE mo_io_units,                ONLY: filename_max
   USE mo_fortran_tools,           ONLY: set_acc_host_or_device
+  USE mo_util_string,             ONLY: int2string, associate_keyword, t_keyword_list, with_keywords
 ! ICON configuration
   USE mo_atm_phy_nwp_config,      ONLY: atm_phy_nwp_config, iprog_aero, icpl_aero_conv
-  USE mo_radiation_config,        ONLY: irad_aero, iRadAeroConstKinne, iRadAeroKinne,         &
-                                    &   iRadAeroVolc, iRadAeroKinneVolc, iRadAeroART,         &
-                                    &   iRadAeroKinneVolcSP, iRadAeroKinneSP, iRadAeroTegen
+  USE mo_radiation_config,        ONLY: irad_aero, iRadAeroConstKinne, iRadAeroKinne, iRadAeroCAMSclim, &
+                                    &   iRadAeroVolc, iRadAeroKinneVolc, iRadAeroART,                   &
+                                    &   iRadAeroKinneVolcSP, iRadAeroKinneSP, iRadAeroTegen,            &
+                                    &   cams_clim_filename
 ! External infrastruture
   USE mtime,                      ONLY: datetime, timedelta, newDatetime, newTimedelta,       &
                                     &   operator(+), deallocateTimedelta, deallocateDatetime
@@ -63,14 +68,61 @@ MODULE mo_nwp_aerosol
 
   PUBLIC :: nwp_aerosol_interface
   PUBLIC :: nwp_aerosol_cleanup
+  PUBLIC :: nwp_aerosol_init
+  PUBLIC :: cams_reader
+  PUBLIC :: cams_intp
+
+  TYPE(t_cams_reader),      ALLOCATABLE, TARGET :: cams_reader(:)
+  TYPE(t_time_intp),        ALLOCATABLE         :: cams_intp(:)
 
 CONTAINS
 
   !---------------------------------------------------------------------------------------
-  !>
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2022-11-08)
-  !!
+  !! This subroutine uploads CAMS aerosols mixing ratios 3D climatology and updates them once a day
+  SUBROUTINE nwp_aerosol_init(mtime_datetime, p_patch)
+
+    TYPE(datetime), POINTER, INTENT(in) :: &
+      &  mtime_datetime                      !< Current datetime
+    TYPE(t_patch), INTENT(in)           :: &
+      &  p_patch
+    ! Local variables
+    INTEGER ::                 &
+      &  jg                                  !< Domain index
+    CHARACTER(LEN=filename_max) :: &
+      &  cams_clim_td_file                   !< CAMS climatology file name
+
+    IF (irad_aero == iRadAeroCAMSclim) THEN
+
+      jg     = p_patch%id
+
+      cams_clim_td_file = generate_cams_clim_filename(TRIM(cams_clim_filename), nroot, p_patch%level, p_patch%id)
+      CALL message  ('nwp_aerosol_init opening CAMS 3D climatology file: ', TRIM(cams_clim_td_file))
+
+      CALL cams_reader(jg)%init(p_patch, TRIM(cams_clim_td_file))
+      CALL cams_intp(jg)%init(cams_reader(jg), mtime_datetime, '', 2)
+
+    ENDIF
+
+    CONTAINS
+
+      FUNCTION generate_cams_clim_filename(filename_in, nroot, jlev, idom) RESULT(result_str)
+        CHARACTER(filename_max)                 :: result_str
+        CHARACTER(LEN=*), INTENT(in)            :: filename_in
+        INTEGER,                     INTENT(in) :: nroot, jlev, idom
+        ! Local variables
+        TYPE (t_keyword_list), POINTER      :: keywords => NULL()
+
+        CALL associate_keyword("<nroot>",    TRIM(int2string(nroot,"(i0)")),   keywords)
+        CALL associate_keyword("<nroot0>",   TRIM(int2string(nroot,"(i2.2)")), keywords)
+        CALL associate_keyword("<jlev>",     TRIM(int2string(jlev, "(i2.2)")), keywords)
+        CALL associate_keyword("<idom>",     TRIM(int2string(idom, "(i2.2)")), keywords)
+
+        result_str = TRIM(with_keywords(keywords, TRIM(filename_in)))
+      END FUNCTION generate_cams_clim_filename
+
+  END SUBROUTINE nwp_aerosol_init
+
+  !---------------------------------------------------------------------------------------
   SUBROUTINE nwp_aerosol_interface(mtime_datetime, pt_patch, ext_data, pt_diag, prm_diag,          &
     &                              zf, zh, dz, dt_rad,                                             &
     &                              inwp_radiation, nbands_lw, nbands_sw, wavenum1_sw, wavenum2_sw, &
@@ -124,8 +176,10 @@ CONTAINS
     REAL(wp) ::                &
       &  latitude(nproma),     & !< Geographical latitude
       &  time_weight             !< Weihting for temporal interpolation
+    REAL(wp),  ALLOCATABLE ::  &
+      &  cams(:,:,:,:)           !< CAMS climatology fields taken from external file 
     INTEGER ::                 &
-      &  jk, jc, jb,           &
+      &  jk, jc, jb, jt,       &
       &  rl_start, rl_end,     &
       &  i_startblk, i_endblk, &
       &  i_startidx, i_endidx, &
@@ -297,7 +351,7 @@ CONTAINS
 !---------------------------------------------------------------------------------------
       CASE(iRadAeroConstKinne, iRadAeroKinne, iRadAeroVolc, iRadAeroKinneVolc, iRadAeroKinneVolcSP, iRadAeroKinneSP)
 
-        rl_start   = grf_bdywidth_c+1
+        rl_start   = grf_bdywidth_c-1
         rl_end     = min_rlcell_int
         i_startblk = pt_patch%cells%start_block(rl_start)
         i_endblk   = pt_patch%cells%end_block(rl_end)
@@ -347,6 +401,42 @@ CONTAINS
 !$OMP END DO NOWAIT
 !$OMP END PARALLEL
 
+      ! CAMS climatology aerosol
+      CASE(iRadAeroCAMSclim)
+
+        rl_start   = grf_bdywidth_c+1
+        rl_end     = min_rlcell_int
+        i_startblk = pt_patch%cells%start_block(rl_start)
+        i_endblk   = pt_patch%cells%end_block(rl_end)
+
+        ! Compatibility checks
+#ifdef __ECRAD
+        IF (inwp_radiation /= 4) THEN
+          WRITE(message_text,'(a,i2,a)') 'irad_aero = ', irad_aero,' only implemented for ecrad (inwp_radiation=4).'
+          CALL finish(routine, message_text)
+        ENDIF
+#else
+        WRITE(message_text,'(a,i2,a)') 'irad_aero = ', irad_aero,' requires to compile with --enable-ecrad.'
+        CALL finish(routine, message_text)
+#endif
+
+        CALL nwp_aerosol_update_cams(mtime_datetime, pt_patch%id, cams)
+
+        DO jt=1, n_camsaermr
+!$OMP PARALLEL
+!$OMP DO PRIVATE(jb,i_startidx,i_endidx) ICON_OMP_DEFAULT_SCHEDULE
+          DO jb = i_startblk,i_endblk
+            CALL get_indices_c(pt_patch,jb,i_startblk,i_endblk,i_startidx,i_endidx,rl_start,rl_end)
+            IF (i_startidx>i_endidx) CYCLE
+            pt_diag%camsaermr(:,:,jb,jt) = 0._wp
+            CALL vinterp_cams_aerosols(i_startidx, i_endidx, pt_diag%pres_ifc(:,:,jb),    &
+              &                   cams_pres_in=cams(:,:,jb,n_camsaermr+1), cams=cams(:,:,jb,jt), &
+              &                   nlev=pt_patch%nlev, camsaermr=pt_diag%camsaermr(:,:,jb,jt))
+          END DO
+!$OMP END DO NOWAIT
+!$OMP END PARALLEL
+        END DO ! jt aerosol loop
+
       CASE DEFAULT
         ! Currently continue as not all cases are ported to nwp_aerosol_interface yet
     END SELECT
@@ -354,10 +444,6 @@ CONTAINS
   END SUBROUTINE nwp_aerosol_interface
 
   !---------------------------------------------------------------------------------------
-  !>
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2022-11-10)
-  !!
   SUBROUTINE nwp_aerosol_daily_update_kinne(mtime_datetime, pt_patch, dt_rad, inwp_radiation, nbands_lw, nbands_sw)
     TYPE(datetime), POINTER, INTENT(in) :: &
       &  mtime_datetime                    !< Current datetime
@@ -392,10 +478,6 @@ CONTAINS
   END SUBROUTINE nwp_aerosol_daily_update_kinne
 
   !---------------------------------------------------------------------------------------
-  !>
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2022-11-09)
-  !!
   SUBROUTINE nwp_aerosol_kinne(mtime_datetime, zf, zh, dz, jg, jb, i_endidx, nlev, &
     &                          nbands_lw, nbands_sw, wavenum1_sw, wavenum2_sw,     &
     &                          od_lw, od_sw, ssa_sw, g_sw)
@@ -466,12 +548,204 @@ CONTAINS
 
   END SUBROUTINE nwp_aerosol_kinne
 
+
   !---------------------------------------------------------------------------------------
-  !>
-  !! @par Revision History
-  !! Initial release by Thorsten Reinhardt, AGeoBw, Offenbach (2011-01-13)
-  !! Cleanup and moved to mo_nwp_aerosol by Daniel Rieger, DWD, Offenbach (2023-04-04)
+  !! This subroutine uploads CAMS aerosols mixing ratios 3D climatology and updates them
+  SUBROUTINE nwp_aerosol_update_cams(mtime_datetime, jg, cams)
+
+    TYPE(datetime), POINTER, INTENT(in)  :: &
+      &  mtime_datetime                    !< Current datetime
+    REAL(wp), ALLOCATABLE, INTENT(inout) :: &
+      &  cams(:,:,:,:)                     !< CAMS fields taken from external file
+    INTEGER, INTENT(in)                  :: &
+      &  jg                                !< Domain index
+    ! Local variables
+    REAL(wp), ALLOCATABLE                :: &
+      &  camscl_dat(:,:,:,:)
+
+    ALLOCATE(cams( nproma, cams_reader(jg)%nlev_cams, cams_reader(jg)%p_patch%nblks_c, n_camsaermr+1 ))
+    cams(:,:,:,:) = 0.0_wp
+
+    CALL cams_intp(jg)%intp(mtime_datetime, camscl_dat)
+
+    cams(:,:,:,:) = camscl_dat(:,:,:,:)
+
+  END SUBROUTINE nwp_aerosol_update_cams
+
+  !---------------------------------------------------------------------------------------
+  !! Vertical interpolation of CAMS aerosols mixing ratios 3D climatology
+  !! This routine uses the original data of CAMS climatology which has different
+  !! number of pressure levels from ICON and also different lowest/highest pressure values. 
+  !! Therefore, we first move to sigma coordinates in both models. In both ICON and CAMS
+  !! half level pressure are used. The layer directly above surface (nk1+1) pressure thickness 
+  !! is absent from the original CAMS file and was set to 240 Pa for all grid points (evaluated from CAMS data).
+  !! The code loops on each ICON sigma level and calculates the amount of layer-integrated
+  !! mass that is confined within it. For each icon sigma layer we find lmax which is the closest
+  !! CAMS level below icon_sigma2 (jk+1) and lmin which is the closest level above 
+  !! icon_sigma1 (jk). There are 3 cases:
+  !! CASE 1: Current ICON layer completely within one CAMS layer
+  !!                       -----lmin------
+  !!   --------jk-------
+  !!   -------jk+1------
+  !!                       -----lmax------  
+  !! CASE 2: Current ICON layer covers 2 CAMS layer
+  !!                       -----lmin------
+  !!   --------jk-------
+  !!                       ----lmin+1-----  
+  !!   -------jk+1------
+  !!                       -----lmax------
+  !! CASE 3: Current ICON layer covers a few CAMS layer
+  !!                       -----lmin------
+  !!   --------jk-------
+  !!                       ----lmin+1-----  
+  !!                       ---- ... ------ 
+  !!                       ----lmax-1----- 
+  !!   -------jk+1------
+  !!                       -----lmax------
   !!
+  SUBROUTINE vinterp_cams_aerosols(i_startidx, i_endidx, pres, cams_pres_in, cams, nlev, camsaermr )
+
+    REAL(wp),      INTENT(in)      :: &
+      &  cams(:,:),                      & !< CAMS fields taken from external file; layer integrated mass [kg/m^2]
+      &  pres(:,:),                      & !< ICON diagnosed pressure
+      &  cams_pres_in(:,:)                 !< CAMS climatology pressure taken from external file
+    REAL(wp),      INTENT(inout)   :: &
+      &  camsaermr(:,:)                    !< CAMS aerosols mixing ratios [kg/kg]
+    INTEGER,       INTENT(in)      :: &
+      &  nlev,                           & !< ICON number of vertical levels
+      &  i_startidx,                     & !< Loop indices
+      &  i_endidx                          !< Loop indices
+
+    ! local variables
+    REAL(wp)                       :: &
+      &  g_dp,                           & !< graviational constant divided by pressure thickness
+      &  icon_sigma1, icon_sigma2,       & !< ICON pressure levels
+      &  delta1, delta, delt1, delt,     & !< variables for looping
+      &  dp_cams_surface,                & !< cams near surface pressure thickness
+      &  layer_mass                        !< mass at specific layer
+    REAL(wp) , ALLOCATABLE         :: &
+      &  cams_sigma(:,:),                & !< CAMS sigma coordinate
+      &  icon_sigma(:,:)                   !< ICON sigma coordinate
+    INTEGER                        :: &
+      &  jc, jk, jk1, k, lmin, lmax,     & !< Loop indices
+      &  nk1                               !< number of vertical levels in original CAMS climatology data
+
+    CHARACTER(len=*), PARAMETER    :: &
+      &  routine = modname//':vinterp_cams_aerosols'
+
+    nk1 = size(cams_pres_in,2)  
+ 
+    ALLOCATE(cams_sigma(size(cams_pres_in,1),size(cams_pres_in,2)+1))
+    ALLOCATE(icon_sigma(size(pres,1),size(pres,2)))
+
+    dp_cams_surface = 240.0_wp
+
+    ! move to sigma coordinate  
+    DO jc = i_startidx, i_endidx 
+      cams_sigma(jc,nk1+1) = 1.0_wp
+      DO jk1 = 1, nk1
+        cams_sigma(jc,jk1) = cams_pres_in(jc,jk1)/(cams_pres_in(jc,nk1) + dp_cams_surface)
+      ENDDO
+      DO jk = 1, nlev+1 ! loop on icon vertical pressure ifc levels
+        icon_sigma(jc,jk) = pres(jc,jk)/pres(jc,nlev+1)
+      ENDDO
+    ENDDO
+
+    DO jc = i_startidx, i_endidx ! loop on icon horizontal index
+      DO jk = 1, nlev ! loop on icon vertical levels
+
+        camsaermr(jc,jk) = 0.0_wp
+        layer_mass = 0.0_wp
+
+        icon_sigma1 = icon_sigma(jc,jk)
+        icon_sigma2 = icon_sigma(jc,jk+1)
+        g_dp = grav/(pres(jc,nlev+1)*(icon_sigma2-icon_sigma1))
+
+        ! Exclude all ICON levels which have lower pressure than CAMS lowest pressure
+        IF (icon_sigma1 > cams_sigma(jc,1)) THEN
+
+          ! loop to find lmin & lmax that are above/below jk and jk+1 respectively
+          delta = 1.0_wp
+          delt = 1.0_wp
+
+          DO jk1 = 1,nk1+1
+            delta1 = icon_sigma1 - cams_sigma(jc,jk1) 
+            IF (delta1 >= 0.0_wp .AND. ABS(delta1) < delta) THEN
+              lmin = jk1 
+              delta = ABS(delta1)
+            END IF
+
+            delt1 = cams_sigma(jc,jk1)-icon_sigma2 
+            IF (delt1 >= 0.0_wp .AND. ABS(delt1) < delt) THEN
+              lmax = jk1 
+              delt = ABS(delt1)
+            END IF
+          ENDDO
+
+          ! accumulate all mass in between jk and jk+1
+          ! Current ICON layer completely within one cams layer (CASE 1)
+          IF ( lmax == (lmin+1) ) THEN
+          layer_mass = layer_mass + cams(jc,lmin) *            &
+            &         ( (icon_sigma2-icon_sigma1) &
+            &         / (cams_sigma(jc,lmax)-cams_sigma(jc,lmin)) )
+
+          ! Current ICON layer covers more than one CAMS layer (CASE 2,3)
+          ELSE          
+            ! this IF is for CASE 3 only
+            IF (lmax > lmin + 2) THEN
+              DO k = lmin+1, lmax-2
+                layer_mass = layer_mass + cams(jc,k) 
+              END DO           
+            END IF
+
+            layer_mass = layer_mass + cams(jc,lmin) *         &
+              &         ( (cams_sigma(jc,lmin+1)-icon_sigma1) &
+              &         / (cams_sigma(jc,lmin+1)-cams_sigma(jc,lmin)) )
+
+            layer_mass = layer_mass + cams(jc,lmax-1) *       &
+              &         ( (icon_sigma2-cams_sigma(jc,lmax-1)) &
+              &         / (cams_sigma(jc,lmax)-cams_sigma(jc,lmax-1)) )
+
+          END IF
+
+          ! add upper (lowest pressure) CAMS levels mass 
+          ! which does not have any corresponding ICON level
+          ! add this mass to ICON level jk = 1 (lowest pressure level) 
+          IF (jk == 1 .AND. lmin > 1) THEN
+            DO k = 1, lmin-1
+              layer_mass = layer_mass + cams(jc,k)
+            END DO
+              layer_mass = layer_mass + cams(jc,lmin) *       &
+                &         ( (icon_sigma1-cams_sigma(jc,lmin)) &
+                &         / (cams_sigma(jc,lmin+1)-cams_sigma(jc,lmin)) )
+          END IF
+
+        END IF
+
+        ! Include the case where ICON level partialy covers the first CAMS level
+        IF (icon_sigma1 < cams_sigma(jc,1) .AND. icon_sigma2 > cams_sigma(jc,1) ) THEN
+          layer_mass = layer_mass + cams(jc,1) *       &
+            &         ( (icon_sigma2-cams_sigma(jc,1)) &
+            &         / (cams_sigma(jc,2)-cams_sigma(jc,1)) )
+        END IF
+
+        ! move from integrated mass (kg/m^2) to mixing ratios
+        camsaermr(jc,jk) = layer_mass * g_dp
+
+        ! for checking if all gridpoints have meaningful values
+        IF (camsaermr(jc,jk) < 0.0_wp) THEN
+          CALL finish(routine,'mo_nwp_aerosol: vinterp_cams_aerosols failed')
+        END IF
+
+      ENDDO !jk
+    ENDDO !jc
+
+    DEALLOCATE(cams_sigma)
+    DEALLOCATE(icon_sigma)
+
+  END SUBROUTINE vinterp_cams_aerosols
+
+  !---------------------------------------------------------------------------------------
   SUBROUTINE nwp_aerosol_tegen ( istart, iend, nlev, nlevp1, k850, temp, pres, pres_ifc,                 &
     &                            aer_ss_mo1, aer_org_mo1, aer_bc_mo1, aer_so4_mo1, aer_dust_mo1,         &
     &                            aer_ss_mo2, aer_org_mo2, aer_bc_mo2, aer_so4_mo2, aer_dust_mo2,         &
@@ -562,7 +836,7 @@ CONTAINS
           aercl_du(jc)     = aer_dust_mo1(jc) + ( aer_dust_mo2(jc) - aer_dust_mo1(jc) ) * time_weight
         ENDDO
         !$ACC END PARALLEL
-      CASE(2) ! Simple prognostic for all species
+      CASE(2,3) ! Simple prognostic for all species
         !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR
         DO jc = istart, iend
@@ -657,10 +931,6 @@ CONTAINS
   !---------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------
-  !>
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, DWD, Offenbach (2023-04-06)
-  !!
   SUBROUTINE nwp_cpl_aero_gscp_conv(istart, iend, nlev, pres_sfc, pres, acdnc, cloud_num, lacc)
   INTEGER, INTENT(in)                 :: &
     &  istart, iend, nlev                  !< loop start and end indices (nproma, vertical)
@@ -696,10 +966,6 @@ CONTAINS
   !---------------------------------------------------------------------------------------
 
   !---------------------------------------------------------------------------------------
-  !>
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2023-04-04)
-  !!
   SUBROUTINE get_time_intp_weights(mtime_datetime, imo1 , imo2, time_weight)
     TYPE(datetime), POINTER, INTENT(in) :: &
       &  mtime_datetime                      !< Current datetime
@@ -729,10 +995,6 @@ CONTAINS
   END SUBROUTINE get_time_intp_weights
 
   !---------------------------------------------------------------------------------------
-  !>
-  !! @par Revision History
-  !! Initial release by Daniel Rieger, Deutscher Wetterdienst, Offenbach (2022-11-10)
-  !!
   SUBROUTINE nwp_aerosol_cleanup(od_lw, od_sw, ssa_sw, g_sw)
     CHARACTER(len=*), PARAMETER :: &
       &  routine = modname//':nwp_aerosol_cleanup'
@@ -765,3 +1027,4 @@ CONTAINS
   END SUBROUTINE nwp_aerosol_cleanup
 
 END MODULE mo_nwp_aerosol
+

@@ -1,27 +1,20 @@
-!>
-!! utility for real time measurements
-!! on AIX a wrapper for the fast read_real_time function is used
-!! on SX a CPU counter is used
-!! on Linux/Intel a CPU register is read
-!!
-!! @par Revision History
-!! Initial version for AIX by J. Behrens, GWDG, March 2002
-!! extended for NEC SX and Linux/Intel by L. Kornblueh, MPI, April 2002
-!! NEC SX OpenMP bugfix by S. Shingu, NEC, March 2004
-!! adapted for use in ICON by Luis Kornblueh, MPI, May 2004
-!! Load balance diagnostics by J. Behrens, DKRZ, November 2009
-!! cleanup by L. Kornblueh, MPI, March 2010
-!! Hierarchical statistics output and some cleanups by S. Koerner,
-!!   DWD (2012-11-27)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+! utility for real time measurements
+! on AIX a wrapper for the fast read_real_time function is used
+! on SX a CPU counter is used
+! on Linux/Intel a CPU register is read
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_real_timer
 
   USE iso_c_binding,      ONLY: c_loc

@@ -1,24 +1,20 @@
-!>
-!! mo_nh_diffusion
-!!
-!! Diffusion in the nonhydrostatic model
-!!
-!! @author Almut Gassmann, MPI-M
-!!
-!!
-!! @par Revision History
-!! Initial release by Almut Gassmann, MPI-M (2009-08.25)
-!! Modification by William Sawyer, CSCS (2015-02-06)
-!! - OpenACC implementation
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! mo_nh_diffusion
+!
+! Diffusion in the nonhydrostatic model
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -57,10 +53,9 @@ MODULE mo_nh_diffusion
                                     sync_patch_array_mult, sync_patch_array_mult_mp
   USE mo_physical_constants,  ONLY: cvd_o_rd, grav
   USE mo_timer,               ONLY: timer_nh_hdiffusion, timer_start, timer_stop
+  USE mo_fortran_tools,       ONLY: init
   USE mo_vertical_grid,       ONLY: nrdmax
-#ifdef _OPENACC
   USE mo_mpi,                 ONLY: i_am_accel_node
-#endif
 
   IMPLICIT NONE
 
@@ -85,10 +80,6 @@ MODULE mo_nh_diffusion
   !! diffusion
   !!
   !! Computes the horizontal diffusion of velocity and temperature
-  !!
-  !! @par Revision History
-  !! Initial release by Guenther Zaengl, DWD (2010-10-13), based on an earlier
-  !! version initially developed by Almut Gassmann, MPI-M
   !!
   SUBROUTINE  diffusion(p_nh_prog,p_nh_diag,p_nh_metrics,p_patch,p_int,dtime,linit)
 
@@ -338,11 +329,10 @@ MODULE mo_nh_diffusion
 
     ELSE IF ( diffu_type == 5 .AND. discr_vn == 1 .AND. .NOT. diffusion_config(jg)%lsmag_3d) THEN
 
-      IF (p_test_run) THEN
-        !$ACC KERNELS PRESENT(u_vert, v_vert) ASYNC(1) IF(i_am_accel_node)
-        u_vert = 0._vp
-        v_vert = 0._vp
-        !$ACC END KERNELS
+      ! needs to be always initialized with OpenACC
+      IF (p_test_run .OR. i_am_accel_node) THEN
+        CALL init(u_vert, opt_acc_async=.TRUE.)
+        CALL init(v_vert, opt_acc_async=.TRUE.)
       ENDIF
 
       !  RBF reconstruction of velocity at vertices
@@ -675,7 +665,7 @@ MODULE mo_nh_diffusion
       ENDIF
 
       IF (p_test_run) THEN
-        !$ACC KERNELS IF(i_am_accel_node) ASYNC(1)
+        !$ACC KERNELS ASYNC(1) IF(i_am_accel_node)
         z_nabla2_e = 0._wp
         !$ACC END KERNELS
       ENDIF
@@ -855,7 +845,7 @@ MODULE mo_nh_diffusion
       ! Interpolate nabla2(v) to vertices in order to compute nabla2(nabla2(v))
 
       IF (p_test_run) THEN
-        !$ACC KERNELS IF(i_am_accel_node)
+        !$ACC KERNELS ASYNC(1) IF(i_am_accel_node)
         u_vert = 0._wp
         v_vert = 0._wp
         !$ACC END KERNELS

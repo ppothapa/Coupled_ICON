@@ -1,22 +1,17 @@
-!>
-!! Contains the implementation of the semi-implicit Adams-Bashforth timestepping
-!! for the ICON ocean model.
-!!
-!!
-!! @par Revision History
-!!  Developed  by Peter Korn,       MPI-M (2010/04)
-!!  Modified by Stephan Lorenz,     MPI-M (2010-06)
-!!   - renaming and adjustment to ocean domain and patch
-!!   - implementation of continuity equation for vertical velocities
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Contains the implementation of the semi-implicit Adams-Bashforth timestepping
+! for the ICON ocean model.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_ocean_ab_timestepping
   USE mo_ocean_nml,                      ONLY: discretization_scheme
   USE mo_dynamics_config,                ONLY: nold, nnew
@@ -29,9 +24,7 @@ MODULE mo_ocean_ab_timestepping
   USE mo_ocean_physics_types,            ONLY: t_ho_params
   USE mo_ocean_types,                    ONLY: t_hydro_ocean_state, t_operator_coeff, t_solverCoeff_singlePrecision
   USE mo_exception,                      ONLY: finish!, message_text
-#ifdef _OPENACC
-  USE mo_mpi,                            ONLY: i_am_accel_node
-#endif
+  USE mo_fortran_tools,                  ONLY: set_acc_host_or_device
 
 IMPLICIT NONE
 
@@ -52,12 +45,10 @@ CONTAINS
   !>
   !! !  Solves the free surface equation.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
 !<Optimize:inUse>
   SUBROUTINE solve_free_surface_eq_ab(patch_3D, ocean_state, external_data, p_as, p_oce_sfc, &
-    & physics_parameters, timestep, op_coeffs, solverCoeff_sp, return_status)
+    & physics_parameters, timestep, op_coeffs, solverCoeff_sp, return_status, lacc)
     TYPE(t_patch_3D ), INTENT(IN), POINTER :: patch_3D
     TYPE(t_hydro_ocean_state) :: ocean_state
     TYPE(t_external_data) :: external_data
@@ -68,11 +59,15 @@ CONTAINS
     TYPE(t_operator_coeff), INTENT(IN), TARGET :: op_coeffs
     TYPE(t_solverCoeff_singlePrecision), INTENT(in), TARGET :: solverCoeff_sp
     INTEGER :: return_status
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
+    LOGICAL :: lzacc
+
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     IF(discretization_scheme==MIMETIC_TYPE)THEN
 
       CALL solve_free_sfc_ab_mimetic( patch_3D, ocean_state, external_data, p_as, p_oce_sfc, &
-        & physics_parameters, timestep, op_coeffs, solverCoeff_sp, return_status)
+        & physics_parameters, timestep, op_coeffs, solverCoeff_sp, return_status, lacc=lzacc)
 
     ELSE
       CALL finish ('solve_free_surface_eq_ab: ',' Discretization type not supported !!')
@@ -85,12 +80,10 @@ CONTAINS
   !>
   !! Computation of new velocity in Adams-Bashforth timestepping.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
 !<Optimize:inUse>
   SUBROUTINE calc_normal_velocity_ab(patch_3D, ocean_state, operators_coefficients, &
-    & solverCoeff_sp, external_data, physics_parameters, use_acc)
+    & solverCoeff_sp, external_data, physics_parameters, lacc)
     TYPE(t_patch_3D ),TARGET, INTENT(IN) :: patch_3D
     TYPE(t_hydro_ocean_state), TARGET    :: ocean_state
     TYPE(t_operator_coeff), INTENT(IN) :: operators_coefficients
@@ -98,18 +91,14 @@ CONTAINS
     TYPE(t_external_data), TARGET        :: external_data
     TYPE (t_ho_params)                   :: physics_parameters
 
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
-    LOGICAL :: lacc
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !-----------------------------------------------------------------------
     IF(discretization_scheme==MIMETIC_TYPE)THEN
-      CALL calc_normal_velocity_ab_mimetic(patch_3D, ocean_state, operators_coefficients, use_acc = lacc)
+      CALL calc_normal_velocity_ab_mimetic(patch_3D, ocean_state, operators_coefficients, lacc=lzacc)
     ELSE
       CALL finish ('calc_normal_velocity_ab: ',' Discreization type not supported !!')
     ENDIF
@@ -126,37 +115,29 @@ CONTAINS
   !! For the case of the semi-implicit-AB scheme the land-sea-mask may be applied
   !! at least after collecting the whole explicit term.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn,   MPI-M (2006).
   !!
 !<Optimize:inUse>
-  SUBROUTINE calc_vert_velocity(patch_3D, ocean_state, operators_coefficients, use_acc)
+  SUBROUTINE calc_vert_velocity(patch_3D, ocean_state, operators_coefficients, lacc)
     TYPE(t_patch_3D ),TARGET, INTENT(IN) :: patch_3D
     TYPE(t_hydro_ocean_state)            :: ocean_state
     TYPE(t_operator_coeff), INTENT(IN) :: operators_coefficients
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
-    LOGICAL :: lacc
-     !-----------------------------------------------------------------------
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
+    LOGICAL :: lzacc
+    !-----------------------------------------------------------------------
 
-    !Store current vertical velocity before the new one is calculated
-    ocean_state%p_diag%w_old = ocean_state%p_diag%w
-
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     IF(discretization_scheme==MIMETIC_TYPE)THEN
 
       CALL calc_vert_velocity_mim_bottomup( patch_3D,       &
                                   & ocean_state,            &
                                   & operators_coefficients, &
-                                  & use_acc = lacc )
+                                  & lacc=lzacc )
 
     ELSE
       CALL finish ('calc_vert_velocity: ',' Discretization type not supported !!')
-    ENDIF
+    END IF
+
   END SUBROUTINE calc_vert_velocity
   !-------------------------------------------------------------------------
 !<Optimize:inUse>

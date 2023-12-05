@@ -1,11 +1,22 @@
+! contains extended lhs-matrix-generator type
+! provides surface height lhs for free ocean surface solve
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 #if (defined(_OPENMP) && defined(OCE_SOLVE_OMP))
 #include "omp_definitions.inc"
 #endif
 
 MODULE mo_surface_height_lhs
-
-! contains extended lhs-matrix-generator type
-! provides surface height lhs for free ocean surface solve
 
   USE mo_kind, ONLY: wp
   USE mo_exception, ONLY: finish
@@ -25,9 +36,8 @@ MODULE mo_surface_height_lhs
   USE mo_scalar_product, ONLY: map_edges2edges_viacell_3d_const_z
   USE mo_model_domain, ONLY: t_patch_3d, t_patch
   USE mo_mpi, ONLY: my_process_is_mpi_parallel
-#ifdef _OPENACC
-  USE mo_mpi, ONLY: i_am_accel_node, my_process_is_work
-#endif
+  USE mo_fortran_tools, ONLY: set_acc_host_or_device
+
   IMPLICIT NONE
 
   PRIVATE
@@ -80,31 +90,18 @@ CONTAINS
       & CALL finish("t_surface_height_lhs::lhs_surface_height_construct", &
       &  "internal matrix implementation only works with triangular grids!")
     this%is_init = .true.
+    !$ACC ENTER DATA COPYIN(this, this%patch_3d)
   END SUBROUTINE lhs_surface_height_construct
 
 ! interface routine for the left hand side computation
-  SUBROUTINE lhs_surface_height_wp(this, x, ax, use_acc)
+  SUBROUTINE lhs_surface_height_wp(this, x, ax, lacc)
     CLASS(t_surface_height_lhs), INTENT(INOUT) :: this
     REAL(wp), INTENT(IN) :: x(:,:)
     REAL(wp), INTENT(OUT) :: ax(:,:)
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
-    LOGICAL :: lacc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
-
-#ifdef _OPENACC
-    i_am_accel_node = my_process_is_work()       ! Activate GPUs
-    lacc = .TRUE.
-#endif
-
-    !$ACC DATA COPYIN(this, this%patch_3d, this%patch_3d%lsm_c) &
-    !$ACC   COPYIN(this%op_coeffs_wp, this%op_coeffs_wp%lhs_all) &
-    !$ACC   COPYIN(this%op_coeffs_wp%lhs_CellToCell_index, this%op_coeffs_wp%lhs_CellToCell_block, x) &
-    !$ACC   COPY(ax) IF(lacc)
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     IF (this%use_shortcut) &
       & CALL finish("t_surface_height_lhs::lhs_surface_height_wp", &
@@ -123,28 +120,21 @@ CONTAINS
     END IF
 ! call approriate backend depending on select_lhs choice
     IF (select_lhs == select_lhs_matrix) THEN
-      CALL this%internal_matrix_wp(x, ax, use_acc=lacc)
+      CALL this%internal_matrix_wp(x, ax, lacc=lzacc)
     ELSE
       CALL this%internal_wp(x, ax)
     ENDIF
-
-    !$ACC END DATA
-
-#ifdef _OPENACC
-    lacc = .FALSE.
-    i_am_accel_node = .FALSE.                    ! Deactivate GPUs
-#endif
   END SUBROUTINE lhs_surface_height_wp
 
 ! internal backend routine to compute surface height lhs -- "matrix" implementation
-  SUBROUTINE lhs_surface_height_ab_mim_matrix_wp(this, x, lhs, use_acc)
+  SUBROUTINE lhs_surface_height_ab_mim_matrix_wp(this, x, lhs, lacc)
     CLASS(t_surface_height_lhs), INTENT(INOUT) :: this
     REAL(wp), INTENT(IN), CONTIGUOUS :: x(:,:)
     REAL(wp), INTENT(OUT), CONTIGUOUS :: lhs(:,:)
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
     INTEGER :: start_index, end_index, jc, blkNo, ico
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     TYPE(t_subset_range), POINTER :: cells_in_domain
     REAL(wp), POINTER, DIMENSION(:,:,:), CONTIGUOUS :: lhs_coeffs
 !     REAL(wp) :: xco(9)
@@ -155,32 +145,25 @@ CONTAINS
     idx => this%op_coeffs_wp%lhs_CellToCell_index
     blk => this%op_coeffs_wp%lhs_CellToCell_block
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC DATA COPYIN(this, this%patch_2D, this%patch_2D%cells, this%patch_2D%cells%in_domain) &
-    !$ACC   COPYIN(this%patch_3d, this%patch_3d%lsm_c, this%op_coeffs_wp, this%op_coeffs_wp%lhs_all) &
-    !$ACC   COPYIN(this%op_coeffs_wp%lhs_CellToCell_index, this%op_coeffs_wp%lhs_CellToCell_block, x) &
-    !$ACC   COPY(lhs) IF(lacc)
+    !$ACC DATA COPYIN(this) IF(lzacc)
 
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index,end_index, jc) ICON_OMP_DEFAULT_SCHEDULE
     DO blkNo = cells_in_domain%start_block, cells_in_domain%end_block
       CALL get_index_range(cells_in_domain, blkNo, start_index, end_index)
 
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       lhs(:,blkNo) = 0.0_wp
       !$ACC END KERNELS
 
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       DO jc = start_index, end_index
         IF(.NOT.(this%patch_3d%lsm_c(jc,1,blkNo) > sea_boundary)) THEN
 !           FORALL(ico = 1:9) xco(ico) = x(idx(ico, jc, blkNo), blk(ico, jc, blkNo))
 !           lhs(jc,blkNo) = x(jc,blkNo) * lhs_coeffs(0, jc, blkNo) + &
 !             & SUM(xco(:) * lhs_coeffs(1:9, jc, blkNo))
-            
+
           lhs(jc,blkNo) = x(jc,blkNo) * lhs_coeffs(0, jc, blkNo) + &
                & x(idx(1, jc, blkNo), blk(1, jc, blkNo)) * lhs_coeffs(1, jc, blkNo) + &
                & x(idx(2, jc, blkNo), blk(2, jc, blkNo)) * lhs_coeffs(2, jc, blkNo) + &
@@ -189,17 +172,19 @@ CONTAINS
                & x(idx(5, jc, blkNo), blk(5, jc, blkNo)) * lhs_coeffs(5, jc, blkNo) + &
                & x(idx(6, jc, blkNo), blk(6, jc, blkNo)) * lhs_coeffs(6, jc, blkNo) + &
                & x(idx(7, jc, blkNo), blk(7, jc, blkNo)) * lhs_coeffs(7, jc, blkNo) + &
-               & x(idx(8, jc, blkNo), blk(8, jc, blkNo)) * lhs_coeffs(8, jc, blkNo) + &               
-               & x(idx(9, jc, blkNo), blk(9, jc, blkNo)) * lhs_coeffs(9, jc, blkNo) 
-               
-               
+               & x(idx(8, jc, blkNo), blk(8, jc, blkNo)) * lhs_coeffs(8, jc, blkNo) + &
+               & x(idx(9, jc, blkNo), blk(9, jc, blkNo)) * lhs_coeffs(9, jc, blkNo)
+
+
         END IF
       END DO
       !$ACC END PARALLEL LOOP
     END DO ! blkNo
+    !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
     IF (debug_check_level > 20) THEN
-      !$ACC UPDATE SELF(lhs) IF(lacc)
+      !$ACC UPDATE HOST(lhs) ASYNC(1) IF(lzacc)
+      !$ACC WAIT(1) IF(lzacc)
       DO blkNo = cells_in_domain%start_block, cells_in_domain%end_block
         CALL get_index_range(cells_in_domain, blkNo, start_index, end_index)
         DO jc = start_index, end_index
@@ -212,6 +197,7 @@ CONTAINS
     ENDIF
 
     !$ACC END DATA
+
   END SUBROUTINE lhs_surface_height_ab_mim_matrix_wp
 
 ! internal backend routine to compute surface height lhs -- "operator" implementation
@@ -223,10 +209,6 @@ CONTAINS
     INTEGER :: start_index, end_index, jc, blkNo, je
     TYPE(t_subset_range), POINTER :: cells_in_domain, edges_in_domain
     CHARACTER(len=*), PARAMETER :: routine = modname//':lhs_surface_height_ab_mim_wp'
-
-!#ifdef _OPENACC
-!    CALL finish(routine, 'OpenACC version currently not implemented')
-!#endif
 
     cells_in_domain => this%patch_2D%cells%in_domain
     edges_in_domain => this%patch_2D%edges%in_domain
@@ -294,7 +276,7 @@ CONTAINS
     IF (.NOT.this%use_shortcut) &
       & CALL finish( &
         & "t_surface_height_lhs::lhs_surface_height_ab_mim_matrix_shortcut", &
-        & "wrong turn!")    
+        & "wrong turn!")
     nidx = SIZE(coeff, 1)
     nblk = SIZE(coeff, 2)
     nnz = 10

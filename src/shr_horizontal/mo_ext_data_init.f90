@@ -1,32 +1,18 @@
-!>
-!! Initialization/reading reading of external datasets
-!!
-!! This module contains read and initialization routines for the external data state.
-!!
-!! @author Daniel Reinert, DWD
-!! @author Hermann Asensio, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2010-07-12)
-!! Modification by Hermann Asensio, DWD (2010-07-16)
-!!  - add miscellaneous variables for external parameters
-!! Modification by Daniel Reinert, DWD (2011-05-03)
-!! - Memory allocation method changed from explicit allocation to Luis'
-!!   infrastructure
-!! Modification by Daniel Reinert, DWD (2012-02-23)
-!! - Routine smooth_topography moved to a new module named mo_smooth_topo
-!! Modification by Daniel Reinert, DWD (2012-03-22)
-!! - Type declaration moved to new module mo_ext_data_types
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Initialization/reading reading of external datasets
+!
+! This module contains read and initialization routines for the external data state.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -36,10 +22,10 @@ MODULE mo_ext_data_init
 
   USE mo_kind,               ONLY: wp
   USE mo_io_units,           ONLY: filename_max
-  USE mo_impl_constants,     ONLY: inwp, io3_clim, io3_ape,                                         &
+  USE mo_impl_constants,     ONLY: inwp, iaes, io3_clim, io3_ape,                                   &
     &                              max_char_length, min_rlcell_int, min_rlcell,                     &
     &                              MODIS, GLOBCOVER2009, GLC2000, SUCCESS, SSTICE_ANA_CLINC,        &
-    &                              SSTICE_CLIM
+    &                              SSTICE_CLIM, LSS_TERRA
   USE mo_math_constants,     ONLY: dbl_eps, rad2deg
   USE mo_physical_constants, ONLY: ppmv2gg, zemiss_def, tmelt
   USE mo_run_config,         ONLY: msg_level, iforcing, check_uuid_gracefully
@@ -49,15 +35,15 @@ MODULE mo_ext_data_init
                                    isub_seaice, isub_lake, sstice_mode, sst_td_filename,            &
                                    ci_td_filename, itype_lndtbl, c_soil, c_soil_urb, cskinc,        &
                                    lterra_urb, itype_eisa, cr_bsmin, itype_evsl
-  USE mo_atm_phy_nwp_config, ONLY: atm_phy_nwp_config
+  USE mo_atm_phy_nwp_config, ONLY: atm_phy_nwp_config, iprog_aero
   USE mo_extpar_config,      ONLY: itopo, itype_lwemiss, extpar_filename, generate_filename,    &
     &                              generate_td_filename, extpar_varnames_map_file,              &
     &                              n_iter_smooth_topo, i_lctype, nclass_lu, nhori, nmonths_ext, &
     &                              itype_vegetation_cycle, read_nc_via_cdi, pp_sso
-  USE mo_initicon_config,    ONLY: icpl_da_sfcevap, dt_ana, icpl_da_skinc
+  USE mo_initicon_config,    ONLY: icpl_da_sfcevap, dt_ana, icpl_da_skinc, icpl_da_seaice, icpl_da_snowalb
   USE mo_radiation_config,   ONLY: irad_o3, albedo_type, islope_rad,    &
     &                              irad_aero, iRadAeroTegen, iRadAeroART
-  USE mo_process_topo,       ONLY: smooth_topo_real_data, postproc_sso
+  USE mo_process_topo,       ONLY: smooth_topo_real_data, postproc_sso, smooth_frland
   USE mo_model_domain,       ONLY: t_patch
   USE mo_exception,          ONLY: message, message_text, finish
   USE mo_grid_config,        ONLY: n_dom, nroot
@@ -99,7 +85,7 @@ MODULE mo_ext_data_init
   USE mo_util_mtime,         ONLY: assumePrevMidnight
   USE mo_bcs_time_interpolation, ONLY: t_time_interpolation_weights,         &
     &                                  calculate_time_interpolation_weights
-  USE mo_coupling_config,    ONLY: is_coupled_run
+  USE mo_coupling_config,    ONLY: is_coupled_to_ocean
   USE mo_grid_config,        ONLY: l_scm_mode
   USE mo_scm_nml,            ONLY: i_scm_netcdf
   USE mo_nh_torus_exp,       ONLY: read_ext_scm_nc
@@ -134,15 +120,11 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! Init external data for atmosphere
   !!
   !! 1. Build data structure, including field lists and
   !!    memory allocation.
   !! 2. External data are read in from netCDF file or set analytically
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2010-07-16)
   !!
   SUBROUTINE init_ext_data (p_patch, p_int_state, ext_data)
 
@@ -272,7 +254,7 @@ CONTAINS
             ENDIF
             !ext_data(jg)%atm%i_lc_water        = 21
   
-            !Special setup for EDMF
+            !Special setup for tiles
             ext_data(jg)%atm%soiltyp_t(:,:,:) = soiltyp_scm ! soil type
             ext_data(jg)%atm%frac_t(:,:,:)    = 0._wp       ! set all tiles to 0
             ext_data(jg)%atm%frac_t(:,:,isub_water) = 1._wp ! set only ocean to 1
@@ -311,7 +293,7 @@ CONTAINS
             ext_data(jg)%atm%topography_c(:,:)= 0.0_wp      ! topographic height
             i_lctype(jg) = GLOBCOVER2009
   
-            !Special setup for EDMF
+            !Special setup for tiles
             ext_data(jg)%atm%soiltyp_t(:,:,:) = 8           ! soil type
             ext_data(jg)%atm%frac_t(:,:,:)    = 0._wp       ! set all tiles to 0
             ext_data(jg)%atm%frac_t(:,:,isub_water) = 1._wp ! set only ocean to 1
@@ -351,37 +333,56 @@ CONTAINS
 
       CALL message(routine,'Finished reading external data' )
 
-      IF ( iforcing == inwp ) THEN
 
-        DO jg = 1, n_dom
-          IF (pp_sso > 0) THEN
-            CALL postproc_sso ( p_patch(jg)                   ,&
-              &                 p_int_state(jg)               ,&
-              &                 ext_data(jg)%atm%fr_glac      ,&
-              &                 ext_data(jg)%atm%topography_c ,&
-              &                 ext_data(jg)%atm%sso_stdh     ,&
-              &                 ext_data(jg)%atm%sso_sigma     )
+      DO jg = 1, n_dom
+         IF ( iforcing == inwp ) THEN
+            IF (pp_sso > 0) THEN
+               CALL postproc_sso ( p_patch(jg)                  ,&
+                &                 p_int_state(jg)               ,&
+                &                 ext_data(jg)%atm%fr_glac      ,&
+                &                 ext_data(jg)%atm%topography_c ,&
+                &                 ext_data(jg)%atm%sso_stdh     ,&
+                &                 ext_data(jg)%atm%sso_sigma )
+            ENDIF
          ENDIF
 
          ! topography smoothing
-         IF (n_iter_smooth_topo(jg) > 0) THEN
-            CALL smooth_topo_real_data ( p_patch(jg)                   ,&
-              &                          p_int_state(jg)               ,&
-              &                          ext_data(jg)%atm%fr_land      ,&
-              &                          ext_data(jg)%atm%fr_lake      ,&
-              &                          ext_data(jg)%atm%topography_c ,&
-              &                          ext_data(jg)%atm%sso_stdh     )
-          ENDIF
+         IF ( n_iter_smooth_topo(jg) > 0 ) THEN
+            IF ( iforcing == inwp ) THEN
+               CALL smooth_topo_real_data ( p_patch(jg)                          ,&
+                 &                          p_int_state(jg)                      ,&
+                 &                          ext_data(jg)%atm%fr_land             ,&
+                 &                          ext_data(jg)%atm%topography_c        ,&
+                 &                          fr_lake = ext_data(jg)%atm%fr_lake   ,&
+                 &                          sso_stdh = ext_data(jg)%atm%sso_stdh )
+            ELSE IF (iforcing == iaes) THEN
+               CALL smooth_topo_real_data ( p_patch(jg)                          ,&
+                 &                          p_int_state(jg)                      ,&
+                 &                          ext_data(jg)%atm%fr_land             ,&
+                 &                          ext_data(jg)%atm%topography_c )
+            ENDIF
+         ENDIF ! n_iter_smooth_topo(jg) > 0
 
-          ! calculate gradient of orography for resolved surface drag
-          !
-          call grad_fe_cell  ( ext_data(jg)%atm%topography_c, &
-            &                  p_patch(jg),                   &
-            &                  p_int_state(jg),               &
-            &                  ext_data(jg)%atm%grad_topo )
-        END DO
+         IF ( iforcing == inwp ) THEN
+           ! smooth land fraction for adaptive tuning of sea ice bottom heat flux and sea ice albedo
+           IF (icpl_da_seaice >= 2 .OR. icpl_da_snowalb >= 2) THEN
+             CALL smooth_frland (p_patch(jg),                &
+               &                 p_int_state(jg),            &
+               &                 ext_data(jg)%atm%fr_land,   &
+               &                 ext_data(jg)%atm%fr_land_smt)
+           ENDIF
+         ENDIF
+
+         ! calculate gradient of orography for resolved surface drag
+         !
+         call grad_fe_cell  ( ext_data(jg)%atm%topography_c, &
+           &                  p_patch(jg),                   &
+           &                  p_int_state(jg),               &
+           &                  ext_data(jg)%atm%grad_topo )
+      END DO
 
 
+      IF ( iforcing == inwp ) THEN
 
         ! Get interpolated ndviratio, alb_dif, albuv_dif and albni_dif. Interpolation
         ! is done in time, based on ini_datetime (midnight). Fields are updated on a
@@ -393,7 +394,6 @@ CONTAINS
         !
 
         this_datetime => newDatetime(time_config%tc_current_date)
-
 
         ! always assume midnight
         DO jg = 1, n_dom
@@ -436,12 +436,12 @@ CONTAINS
               &                        ext_data(jg)%atm_td%lw_emiss,     &! in
               &                        ext_data(jg)%atm%emis_rad         )! out
           ENDDO
-        ENDIF  ! albedo_type
+        ENDIF  ! lwemiss
 
         ! clean up
         CALL deallocateDatetime(this_datetime)
 
-      END IF
+      END IF ! inwp
 
     CASE DEFAULT ! itopo
 
@@ -468,8 +468,6 @@ CONTAINS
   ! external parameters.
   !
   ! Note: This subroutine opens the file and returns a CDI file ID.
-  !
-  ! @author F. Prill, DWD (2014-01-07)
   !-------------------------------------------------------------------------
   SUBROUTINE inquire_extpar_file(p_patch, jg, cdi_extpar_id, cdi_filetype, &
     &                            is_frglac_in)
@@ -821,13 +819,7 @@ CONTAINS
   END SUBROUTINE inquire_external_files
 
   !-------------------------------------------------------------------------
-  !>
-  !! Read atmospheric external data
-  !!
   !! Read atmospheric external data from netcdf
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2010-07-14)
   !!
   SUBROUTINE read_ext_data_atm (p_patch, ext_data, nlev_o3, cdi_extpar_id, &
     &                           extpar_varnames_dict)
@@ -841,7 +833,7 @@ CONTAINS
 
     CHARACTER(len=*), PARAMETER :: routine = modname//':read_ext_data_atm'
     ! input file for topography_c for mpi-physics
-    CHARACTER(len=max_char_length) :: land_sso_fn
+    CHARACTER(len=max_char_length) :: land_sso_fn, land_frac_fn
 
     CHARACTER(filename_max) :: ozone_file  !< file name for reading in
     CHARACTER(filename_max) :: sst_td_file !< file name for reading in
@@ -1012,18 +1004,24 @@ CONTAINS
 
       DO jg = 1,n_dom
 
-        ! Read topography
+        ! Read topography and land-sea mask
 
         IF (n_dom > 1) THEN
           WRITE(land_sso_fn , '(a,i2.2,a)') 'bc_land_sso_DOM' , jg, '.nc'
+          WRITE(land_frac_fn , '(a,i2.2,a)') 'bc_land_frac_DOM' , jg, '.nc'
         ELSE
           land_sso_fn  = 'bc_land_sso.nc'
+          land_frac_fn = 'bc_land_frac.nc'
         ENDIF
 
         CALL openInputFile(stream_id, land_sso_fn, p_patch(jg), default_read_method)
         CALL read_2D(stream_id, on_cells, 'oromea', &
           &          ext_data(jg)%atm%topography_c)
+        CALL closeFile(stream_id)
 
+        CALL openInputFile(stream_id, land_frac_fn, p_patch(jg), default_read_method)
+        CALL read_2D(stream_id, on_cells, 'notsea', &
+          &          ext_data(jg)%atm%fr_land)
         CALL closeFile(stream_id)
 
       END DO
@@ -1031,7 +1029,7 @@ CONTAINS
     END IF
 
     ! If ocean coupling is used, then read the land sea masks
-    IF ( is_coupled_run() ) THEN
+    IF ( is_coupled_to_ocean() ) THEN
       DO jg = 1,n_dom
         IF ( iforcing == inwp ) THEN
 
@@ -1158,7 +1156,8 @@ CONTAINS
         !$ACC   DEVICE(ext_data(jg)%atm%i_lc_shrub_mos) &
         !$ACC   DEVICE(ext_data(jg)%atm%i_lc_forest_rf) &
         !$ACC   DEVICE(ext_data(jg)%atm%i_lc_forest_pf) &
-        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_grass_rf)
+        !$ACC   DEVICE(ext_data(jg)%atm%i_lc_grass_rf) &
+        !$ACC   ASYNC(1)
 
         ! Urban canopy parameters
         DO ilu = 1, num_lcc
@@ -1210,9 +1209,9 @@ CONTAINS
         !--------------------------------------------------------------------
         CALL read_extdata('topography_c', ext_data(jg)%atm%topography_c)
 
-        ! If ocean coupling is used, then read the land sea masks
+        ! If ocean coupling and TERRA is used, then read the land sea masks
 
-        IF ( is_coupled_run() ) THEN
+        IF ( is_coupled_to_ocean() .AND. atm_phy_nwp_config(jg)%inwp_surface == LSS_TERRA ) THEN
 
           ! --- option NWP grids for coupling: Read fraction of land (land-sea mask) from
           ! interpolated ocean grid (ocean: integer 0/1 lsm). lsm_ctr_c is the fraction of land.
@@ -1308,6 +1307,11 @@ CONTAINS
           ext_data(jg)%atm%sso_stdh_raw(:,:) = ext_data(jg)%atm%sso_stdh(:,:)
 
 
+          IF ( iprog_aero > 1) THEN
+            CALL read_extdata('emi_bc',  arr2d=ext_data(jg)%atm%emi_bc )
+            CALL read_extdata('emi_oc',  arr2d=ext_data(jg)%atm%emi_oc )
+            CALL read_extdata('emi_so2', arr2d=ext_data(jg)%atm%emi_so2)
+          ENDIF
           ! Read time dependent data
           IF ( irad_aero == iRadAeroTegen .OR. irad_aero == iRadAeroART) THEN
             CALL read_extdata('AER_SS',   arr3d=ext_data(jg)%atm_td%aer_ss)
@@ -1414,9 +1418,9 @@ CONTAINS
         ! land sea mask at cell centers (LOGICAL)
         !
 
-        ! adjust atmo LSM to ocean LSM for coupled simulation and initialize new land points
+        ! adjust atmo LSM to ocean LSM for coupled simulation and initialize new land points (TERRA only)
 
-        IF ( is_coupled_run() ) THEN
+        IF ( is_coupled_to_ocean() .AND. atm_phy_nwp_config(jg)%inwp_surface == LSS_TERRA ) THEN
           CALL lsm_ocean_atmo ( p_patch(jg), ext_data(jg) )
         ENDIF
 
@@ -2377,7 +2381,7 @@ CONTAINS
 
       DEALLOCATE(icount_falseglac)
 
-      !$ACC UPDATE DEVICE(ext_data(jg)%atm%list_sea%idx, ext_data(jg)%atm%list_sea%ncount)
+      !$ACC UPDATE DEVICE(ext_data(jg)%atm%list_sea%idx, ext_data(jg)%atm%list_sea%ncount) ASYNC(1)
     END DO  !jg
 
   END SUBROUTINE init_index_lists
@@ -2385,7 +2389,6 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! Diagnose aggregated external fields
   !!
   !! Aggregated external fields are diagnosed based on tile based external
@@ -2393,9 +2396,6 @@ CONTAINS
   !! in order to be consistent with tile-information. Note that the latter 
   !! re-diagnosis has been moved to init_index_lists in order not to 
   !! compromise restart reproducibility.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2013-01-23)
   !!
   SUBROUTINE diagnose_ext_aggr (p_patch, ext_data)
 
@@ -2576,17 +2576,11 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! Get interpolated field from monthly mean climatology
   !!
   !! Get interpolated field from monthly mean climatology. A linear interpolation
   !! in time between successive months is performed, assuming that the monthly field
   !! applies to the 15th of the month.
-  !!
-  !! @par Revision History
-  !! Initial revision by Juergen Helmert, DWD (2012-04-17)
-  !! Modification by Daniel Reinert, DWD (2013-05-03)
-  !! Generalization to arbitrary monthly mean climatologies
   !!
   SUBROUTINE interpol_monthly_mean(p_patch, mtime_date, monthly_means, out_field, out_diff)
 
@@ -2674,13 +2668,9 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! Improves specifiation of vegetation climatology based on monthly climatology
   !! of 2m-temperature. In particular, a distinction between deciduous and evergreen
   !! vegetation classes is made.
-  !!
-  !! @par Revision History
-  !! Initial revision by Guenther Zaengl, DWD (2017-10-30)
   !!
   SUBROUTINE vege_clim (p_patch, ext_data, nh_diag)
 
@@ -2902,7 +2892,6 @@ CONTAINS
 
 
   !-------------------------------------------------------------------------
-  !>
   !! adjust atmo LSM to ocean LSM for coupled simulation and initialize new land points
   !!
   !! coupled A-O: ocean LSM dominates over atmospheric LSM: sea (0), land (1)
@@ -2923,11 +2912,6 @@ CONTAINS
   !! ICON-seamless prototype 2 - uncommon grids (A/O) support fractional lsm_ctr_c at ocean coast
   !! This routine doesn't support the case ntiles=1.  Additional surface parameters
   !! would have to be implemented
-  !!
-  !! @par Revision History
-  !! Initial revision by Martin Koehler, DWD (2021-01-27)
-  !! Modification by Stephan Lorenz, MPI (2022-08-02)
-  !! Generalization to arbitrarily overlapping grids
   !!
   !-------------------------------------------------------------------------
 

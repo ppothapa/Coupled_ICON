@@ -198,7 +198,7 @@ dzlev_m(1:128) = 11.0,   9.0,     8.0,   8.0,     8.0,    8.0,    8.0,    8.0,  
   Salinity_HorizontalDiffusion_Reference     = 0 !  40
 /
 &ocean_vertical_diffusion_nml
-  vert_mix_type                            = 1 ! 1=PP, 2=TKE, 3=KPP
+  vert_mix_type                            = 1 ! 1=PP, 2=TKE
   PPscheme_type                            = 4
   velocity_VerticalDiffusion_background    =   5.0E-5  ! [m2/s]  vertical background viscosity coefficient for velocity
   Temperature_VerticalDiffusion_background =   1.0E-5  ! [m2/s]  vertical background diffusion coefficient for temperature

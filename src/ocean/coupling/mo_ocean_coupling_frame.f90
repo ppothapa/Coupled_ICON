@@ -1,14 +1,14 @@
-!>
-!! @par Revision History
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -22,11 +22,12 @@ MODULE mo_ocean_coupling_frame
   USE mo_exception,           ONLY: warning, message
   USE mo_impl_constants,      ONLY: max_char_length
   USE mo_mpi,                 ONLY: p_pe_work, p_comm_work, p_sum
-  USE mo_run_config,          ONLY: ltimer, modelTimeStep
+  USE mo_run_config,          ONLY: ltimer
   USE mo_timer,               ONLY: timer_start, timer_stop, &
        &                            timer_coupling_init
   USE mo_model_domain,        ONLY: t_patch, t_patch_3d
-  USE mtime,                  ONLY: datetimeToString, MAX_DATETIME_STR_LEN
+  USE mtime,                  ONLY: datetimeToString, MAX_DATETIME_STR_LEN, &
+       &                            timedeltaToString, MAX_TIMEDELTA_STR_LEN
 
   !-------------------------------------------------------------
   ! For the coupling
@@ -99,6 +100,7 @@ CONTAINS
 
     CHARACTER(LEN=MAX_DATETIME_STR_LEN) :: startdatestring
     CHARACTER(LEN=MAX_DATETIME_STR_LEN) :: stopdatestring
+    CHARACTER(LEN=MAX_TIMEDELTA_STR_LEN) :: timestepstring
 
     IF (.NOT. is_coupled_run()) RETURN
 
@@ -127,6 +129,7 @@ CONTAINS
     ! Overwrite job start and end date with component data
     CALL datetimeToString(time_config%tc_startdate, startdatestring)
     CALL datetimeToString(time_config%tc_stopdate, stopdatestring)
+    CALL timedeltaToString(time_config%tc_dt_model, timestepstring)
 
     CALL yac_fdef_datetime ( start_datetime = TRIM(startdatestring), &
          &                   end_datetime   = TRIM(stopdatestring)   )
@@ -339,7 +342,7 @@ CONTAINS
         & cell_mask_ids(1),             &
         & 1,                            &
         & collection_size(cell_index),  &
-        & modelTimeStep,                &
+        & timestepstring,                &
         & YAC_TIME_UNIT_ISO_FORMAT,     &
         & field_id(cell_index) )
       endif
@@ -395,7 +398,7 @@ CONTAINS
       & cell_mask_ids(1),               &
       & 1,                              &
       & 1,                              &
-      & modelTimeStep,                  &
+      & timestepstring,                  &
       & YAC_TIME_UNIT_ISO_FORMAT,       &
       & field_id(11) )
 

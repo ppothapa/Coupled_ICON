@@ -1,20 +1,18 @@
-!! mo_nh_vert_interp_les
-!!
-!! This module has useful routines for LES runs
-!!
-!! @author Anurag Dipankar, MPI-M
-!!
-!! @par Revision History
-!! Initial release by Anurag Dipankar, MPI-M (2013-June-01)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! This module has useful routines for LES runs
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -51,11 +49,9 @@ MODULE mo_nh_vert_interp_les
   CONTAINS
 
 
-  !>
-  !! init_vertical_grid_for_les
   !!------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Slavko Brdar, DWD (2014-08-29)
+  !! init_vertical_grid_for_les
+
   SUBROUTINE init_vertical_grid_for_les(jg, p_patch, p_int, p_metrics)
     INTEGER,                   INTENT(in)     :: jg
     TYPE(t_patch),             INTENT(inout)  :: p_patch
@@ -129,11 +125,9 @@ MODULE mo_nh_vert_interp_les
   END SUBROUTINE init_vertical_grid_for_les
 
 
-  !>
-  !! vert_intp_full2half_3d
   !!------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Anurag Dipankar, MPI-M (2013-May-30)
+  !! vert_intp_full2half_3d
+
   SUBROUTINE vert_intp_full2half_cell_3d(p_patch, p_metrics, varin, varout, rl_start, rl_end, lacc)
 
     TYPE(t_nh_metrics),INTENT(in) :: p_metrics
@@ -205,14 +199,11 @@ MODULE mo_nh_vert_interp_les
   END SUBROUTINE vert_intp_full2half_cell_3d
 
 
-  !> vert_intp_linear_1d
-  !!
+  !!------------------------------------------------------------------------
   !! linear vertical interpolation: grid za to zb
   !! - It extrapolates if no data given for zb > za
   !! Taken from UCLA-LES
-  !!------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Anurag Dipankar, MPI-M (2013-May-30)
+
   SUBROUTINE vert_intp_linear_1d(za, xa, zb, xb) 
      REAL(wp), INTENT(IN)  :: za(:), zb(:), xa(:)
      REAL(wp), INTENT(OUT) :: xb(:)
@@ -239,12 +230,10 @@ MODULE mo_nh_vert_interp_les
 
   END SUBROUTINE vert_intp_linear_1d
 
-  !>
+  !!------------------------------------------------------------------------
   !! global_hor_mean: only called for interior points
   !! Calculates horizontally averaged vertically varying quantaties 
-  !!------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Anurag Dipankar, MPI-M (2013-May-30)
+
   SUBROUTINE global_hor_mean(p_patch, var, varout, inv_no_cells)
 
     TYPE(t_patch),     INTENT(in) :: p_patch
@@ -289,11 +278,9 @@ MODULE mo_nh_vert_interp_les
 
   END SUBROUTINE global_hor_mean
 
-  !>
-  !! vertical_derivative
   !!------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Anurag Dipankar, MPI-M (2013-May-30)
+  !! vertical_derivative
+
   FUNCTION vertical_derivative (var, inv_dz) RESULT(dvardz)
 
     REAL(wp), INTENT(in) :: var(:), inv_dz(:)
@@ -311,13 +298,11 @@ MODULE mo_nh_vert_interp_les
 
   END FUNCTION vertical_derivative
 
-  !>
+  !!------------------------------------------------------------------------
   !! Brunt Vaisala Frequency: 
   !! Calculates BVF for unsaturated and saturated case based on Durran & Klemp 1982
   !! Eq. 4. and using moist lapse rate expression from Marshall and Plumb
-  !!------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Anurag Dipankar, MPI-M (2014-July-07)
+
   SUBROUTINE brunt_vaisala_freq(p_patch, p_metrics, thetav, bru_vais, lacc)
 
     TYPE(t_patch), INTENT(in) :: p_patch

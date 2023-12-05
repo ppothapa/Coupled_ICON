@@ -1,21 +1,17 @@
-!>
-!! Provide an implementation of the sea-ice model diagnostics.
-!!
-!! @author Vladimir Lapin, MPI
-!! 
-!! @par Revision History
-!! Original version by Peter Korn, MPI-M (2009)
-!! Modified by Vladimir Lapin, MPI-M (2017)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!----------------------------
+! Provide an implementation of the sea-ice model diagnostics.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_ice_diagnostics
   
   USE mo_kind,                ONLY: wp
@@ -46,8 +42,6 @@ CONTAINS
   !>
   !! ! salt_in_surface: calculate salt content in the surface layer
   !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2009)
   FUNCTION salt_in_surface(p_patch, p_ice, sss, computation_type, dbg_lev, info) &
       & RESULT(salt)
 
@@ -124,8 +118,6 @@ CONTAINS
   !>
   !! ! energy_in_surface: calculate energy content in the surface layer
   !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2009)
   FUNCTION energy_in_surface(p_patch, p_ice, ssh, sst, computation_type, dbg_lev, info) &
     & RESULT(energy)
 

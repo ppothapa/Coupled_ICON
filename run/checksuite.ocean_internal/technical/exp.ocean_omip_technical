@@ -141,20 +141,6 @@ cat > ${ocean_namelist} << EOF
   include_last     = .false.
   ml_varlist       =  'wet_c','basin_c','regio_c','lsm_ctr_c'
 /
-!&output_nml
-!  filetype         =  5 ! output format: 2=GRIB2, 4=NETCDFv2
-!  output_filename  = "${EXPNAME}_kpp"
-!  output_start     = "${start_date}"                  ! start in ISO-format
-!  output_end       = "${end_date}"                    ! end in ISO-format
-!  output_interval  = "${output_interval}"
-!  file_interval    = "${file_interval}"
-!  mode             =  1                               ! 1: forecast mode (relative t-axis), 2: climate mode (absolute t-axis)
-!  operation        = "mean"
-!  include_last     = .false.
-!  output_grid      = .TRUE.
-!  filename_format  = "<output_filename>_<datetime2>"
-!  ml_varlist       = 'group:oce_cvmix_kpp'
-!/
 
 &dbg_index_nml
   idbg_mxmn=0                     ! initialize MIN/MAX  debug output
@@ -216,11 +202,11 @@ cat > ${ocean_namelist} << EOF
   Salinity_HorizontalDiffusion_Reference     = 600 !  40
 /
 &ocean_vertical_diffusion_nml
-  vert_mix_type                            = 2 ! 1=PP, 2=TKE, 3=KPP
+  vert_mix_type                            = 2 ! 1=PP, 2=TKE
   only_tke                                 = .true. ! .true. for TKE; .false. for TKE+IDEMIX
   l_lc                                     = .TRUE.
   clc                                      = 0.15
-! cvmix/tke parameters
+! vmix/tke parameters
   c_k        = 0.1
   c_eps      = 0.7
   alpha_tke  = 30.0

@@ -1,24 +1,20 @@
-!>
-!! Construction of a data object which is used to store mass fluxes 
-!! and velocities that are used to drive the tracer transport schemes. 
-!! In contrast to the mass fluxes in the dynamical core, these mass fluxes 
-!! are averaged over the dynamics substeps.
-!!
-!! @author Daniel Reinert, DWD
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2021-08-11)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Construction of a data object which is used to store mass fluxes
+! and velocities that are used to drive the tracer transport schemes.
+! In contrast to the mass fluxes in the dynamical core, these mass fluxes
+! are averaged over the dynamics substeps.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_prepadv_state
 
   USE mo_impl_constants,          ONLY: SUCCESS, MAX_CHAR_LENGTH, vname_len
@@ -61,10 +57,6 @@ CONTAINS
 
   !>
   !! Constructor for prepadv state
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2021-08-11)
-  !!
   SUBROUTINE construct_prepadv_state (p_patch)
 
     TYPE(t_patch), INTENT(in) :: p_patch(:)
@@ -100,9 +92,6 @@ CONTAINS
   !>
   !! Destructor for prepadv state
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2021-08-11)
-  !!
   SUBROUTINE destruct_prepadv_state ()
 
     ! local variables
@@ -117,6 +106,7 @@ CONTAINS
       CALL vlr_del(prep_adv_list(jg))
     ENDDO
 
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(prep_adv)
 
     DEALLOCATE(prep_adv, prep_adv_list, STAT=ist)
@@ -132,9 +122,6 @@ CONTAINS
 
   !>
   !! Constructor for prepadv state
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2021-08-11)
   !!
   SUBROUTINE new_prep_adv_list (p_patch, listname, prep_adv_list, prep_adv)
 

@@ -1,19 +1,17 @@
-!>
-!! Global variables for the cloud microphsics "graupel" parameterization
-!!
-!! @author Marco Giorgetta (MPI-M)
-!!
-!! @par Revision History
-!! First version by Marco Giorgetta, 2020-01-30.
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Global variables for the cloud microphsics "graupel" parameterization
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_cloud_mig_memory
 
   USE mo_exception               ,ONLY: message, finish
@@ -144,6 +142,7 @@ CONTAINS
        END IF
     END DO
     
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(cloud_mig_input, cloud_mig_output)
 
     DEALLOCATE( cloud_mig_list, STAT=ist )

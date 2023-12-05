@@ -1,27 +1,15 @@
-!>
-!! <Short description of module for listings and indices>
-!!
-!! <Describe the concepts of the procedures and algorithms used in the module.>
-!! <Details of procedures are documented below with their definitions.>
-!! <Include any applicable external references inline as module::procedure,>
-!! <external_procedure(), or by using @see.>
-!! <Don't forget references to literature.>
-!!
-!! @author <name, affiliation>
-!! @author <name, affiliation>
-!!
-!!
-!! @par Revision History
-!! <Description of activity> by <name, affiliation> (<YYYY-MM-DD>)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_radiation_config
 
   USE mo_kind,           ONLY: wp
@@ -30,7 +18,7 @@ MODULE mo_radiation_config
 
   IMPLICIT NONE
   PUBLIC
-
+  PUBLIC :: cams_clim_filename
   !--------------------------------------------------------------------------
   ! Basic configuration setup for radiation
   !--------------------------------------------------------------------------
@@ -98,14 +86,17 @@ MODULE mo_radiation_config
     LOGICAL  :: lrad_yac    !< aerosol coupling
     LOGICAL  :: lrad_aero_diag  !< diagnose aerosols
     ENUM, BIND(C)
-        ENUMERATOR :: iRadAeroNone=0,        iRadAeroConst=2,        iRadAeroTegen=6, iRadAeroART=9, &
-          &           iRadAeroConstKinne=12, iRadAeroKinne=13,       iRadAeroVolc=14,                &
+        ENUMERATOR :: iRadAeroNone=0,        iRadAeroConst=2,        iRadAeroTegen=6,   iRadAeroCAMSclim=7, &
+          &           iRadAeroART=9,         iRadAeroConstKinne=12,  iRadAeroKinne=13,  iRadAeroVolc=14,    &
           &           iRadAeroKinneVolc=15,  iRadAeroKinneVolcSP=18, iRadAeroKinneSP=19
     END ENUM
     !
     ! --- Name of the file that contains  dynamic greenhouse values
     !
     CHARACTER(LEN=filename_max)  :: ghg_filename
+    !
+    !> NetCDF file with CAMS 3D climatology
+    CHARACTER(LEN=filename_max) :: cams_clim_filename
     !
     ! --- Default gas mixing ratios - 1990 values (CMIP5)
     !

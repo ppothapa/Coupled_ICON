@@ -1,26 +1,23 @@
-!> This module defines small arithmetic operations ("post-ops") as
-!! post-processing tasks.
-!!
-!! These post-processing tasks are restricted to point-wise
-!! operations (no halo synchronization) of a single field, like
-!! value scaling.
-!!
-!! @note The "post-ops" are performed at output time and DO NOT
-!!       MODIFY THE FIELD ITSELF.
-!! 
-!!
-!! @author F. Prill, DWD
-!!
-!! @par Revision History
-!! Initial implementation,            F. Prill, DWD (2013-03-20)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+! This module defines small arithmetic operations ("post-ops") as
+! post-processing tasks.
+!
+! These post-processing tasks are restricted to point-wise
+! operations (no halo synchronization) of a single field, like
+! value scaling.
+!
+! @note The "post-ops" are performed at output time and DO NOT
+!       MODIFY THE FIELD ITSELF.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_post_op
 

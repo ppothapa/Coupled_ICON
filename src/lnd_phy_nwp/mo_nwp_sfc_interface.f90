@@ -1,21 +1,18 @@
-!>
-!! This module is the interface between nwp_nh_interface to the 
-!! surface parameterisations:
-!! inwp_sfc  == 1 == surface scheme TERRA run in COSMO
-!!
-!! @author Kristina Froehlich, DWD, Offenbach (2010-01-25)
-!!
-!! @par Revision History
-!! Initial Kristina Froehlich, DWD, Offenbach (2010-01-25)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! This module is the interface between nwp_nh_interface to the
+! surface parameterisations:
+! inwp_sfc  == 1 == surface scheme TERRA run in COSMO
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -24,10 +21,9 @@
 MODULE mo_nwp_sfc_interface
 
   USE mo_kind,                ONLY: wp
-  USE mo_math_constants,      ONLY: dbl_eps
   USE mo_exception,           ONLY: message, message_text, finish
   USE mo_model_domain,        ONLY: t_patch
-  USE mo_impl_constants,      ONLY: min_rlcell_int, iedmf, icosmo, max_dom
+  USE mo_impl_constants,      ONLY: min_rlcell_int, icosmo, max_dom
   USE mo_impl_constants_grf,  ONLY: grf_bdywidth_c
   USE mo_loopindices,         ONLY: get_indices_c
   USE mo_ext_data_types,      ONLY: t_external_data
@@ -46,8 +42,8 @@ MODULE mo_nwp_sfc_interface
     &                               lprog_albsi, itype_trvg, lterra_urb,              &
     &                               itype_snowevap, zml_soil
   USE mo_extpar_config,       ONLY: itype_vegetation_cycle
-  USE mo_initicon_config,     ONLY: icpl_da_sfcevap, dt_ana, icpl_da_skinc
-  USE mo_coupling_config,     ONLY: is_coupled_run
+  USE mo_initicon_config,     ONLY: icpl_da_sfcevap, dt_ana, icpl_da_skinc, icpl_da_seaice
+  USE mo_coupling_config,     ONLY: is_coupled_to_ocean
   USE mo_ensemble_pert_config,ONLY: sst_pert_corrfac
   USE mo_satad,               ONLY: sat_pres_water, sat_pres_ice, spec_humi, dqsatdT_ice
   USE sfc_terra,              ONLY: terra
@@ -85,8 +81,10 @@ TYPE(c_ptr) :: lnd_prog_now_cache(max_dom*2) = C_NULL_PTR
 LOGICAL :: graph_captured
 INTEGER :: cur_graph_id, ig
 LOGICAL, PARAMETER :: multi_queue_processing = .TRUE.
+LOGICAL, PARAMETER :: using_cuda_graph = .TRUE.
 #else
 LOGICAL, PARAMETER :: multi_queue_processing = .FALSE.
+LOGICAL, PARAMETER :: using_cuda_graph = .FALSE.
 #endif
 INTEGER :: acc_async_queue = 1
 
@@ -152,7 +150,7 @@ CONTAINS
 
     REAL(wp) :: sso_sigma_t(nproma)
     INTEGER  :: lc_class_t (nproma)
-    INTEGER  :: cond (nproma), init_list_tmp (nproma), i_count_init_tmp, ic_tot
+    INTEGER  :: cond (nproma), init_list_tmp (nproma), i_count_init_tmp
 
     REAL(wp) :: t_snow_now_t (nproma)
     REAL(wp) :: t_snow_new_t (nproma)
@@ -311,7 +309,7 @@ CONTAINS
 
     ! canopy-type needed by TERRA:
     SELECT CASE (atm_phy_nwp_config(jg)%inwp_turb)
-    CASE(icosmo,iedmf)
+    CASE(icosmo)
        icant=2 !canopy-treatment related to Raschendorfer-transfer-scheme
     CASE DEFAULT
        icant=1 !canopy-treatment related to Louis-transfer-scheme
@@ -356,8 +354,8 @@ CONTAINS
         WRITE(message_text,'(a,i2)') 'executing CUDA graph id ', cur_graph_id
         IF (msg_level >= 14) CALL message('mo_nwp_sfc_interface: ', message_text)
         CALL accx_graph_exec(graphs(cur_graph_id), 1)
+        !$ACC UPDATE HOST(ext_data%atm%gp_count_t(:,1:ntiles_total)) ASYNC(1)
         !$ACC WAIT(1)
-        !$ACC UPDATE HOST(ext_data%atm%gp_count_t(:,1:ntiles_total))
         RETURN
       ELSE
         WRITE(message_text,'(a,i2)') 'starting to capture CUDA graph, id ', cur_graph_id
@@ -400,7 +398,7 @@ CONTAINS
 !$OMP   wliq_snow_new_t,wtot_snow_new_t,dzh_snow_new_t,w_so_new_t,w_so_ice_new_t,lhfl_pl_t,                 &
 !$OMP   shfl_soil_t,lhfl_soil_t,shfl_snow_t,lhfl_snow_t,t_snow_new_t,graupel_gsp_rate,prg_gsp_t,            &
 !$OMP   snow_melt_flux_t,h_snow_gp_t,conv_frac,t_sk_now_t,t_sk_new_t,skinc_t,tsnred,plevap_t,z0_t,laifac_t, &
-!$OMP   cond,init_list_tmp,ic_tot,i_count_init_tmp,heatcond_fac,heatcap_fac,                                &
+!$OMP   cond,init_list_tmp,i_count_init_tmp,heatcond_fac,heatcap_fac,                                       &
 !$OMP   qsat1,dqsdt1,qsat2,dqsdt2,sntunefac,sntunefac2,snowfrac_lcu_t) ICON_OMP_GUIDED_SCHEDULE
 
     DO jb = i_startblk, i_endblk
@@ -1776,8 +1774,8 @@ CONTAINS
       CALL accx_graph_exec(graphs(cur_graph_id), 1)
     END IF
 #endif
-    !$ACC WAIT(1)
-    !$ACC UPDATE HOST(ext_data%atm%gp_count_t(:,1:ntiles_total)) IF(lzacc)
+    !$ACC UPDATE HOST(ext_data%atm%gp_count_t(:,1:ntiles_total)) ASYNC(1) IF(lzacc)
+    !$ACC WAIT(1) IF(lzacc)
 
   END SUBROUTINE nwp_surface
 
@@ -1788,13 +1786,6 @@ CONTAINS
   !!
   !! Interface for seaice parameterization. Calls seaice time integration scheme 
   !! seaice_timestep_nwp and updates the dynamic seaice index lists.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2012-08-31)
-  !!
-  !! Modifications by Dmitrii Mironov, DWD (2016-08-08)
-  !! - Call to "seaice_timestep_nwp" is modified 
-  !!   to allow prognostic treatment of the sea-ice albedo.
   !!
   SUBROUTINE nwp_seaice (p_patch, p_diag, prm_diag, p_prog_wtr_now,  &
     &                    p_prog_wtr_new, lnd_prog_now, lnd_prog_new, &
@@ -1832,6 +1823,7 @@ CONTAINS
     REAL(wp) :: tsnow_new(nproma)   ! temperature of snow upper surface at new time      [K]
     REAL(wp) :: hsnow_new(nproma)   ! snow thickness at new time level                   [m]
     REAL(wp) :: albsi_new(nproma)   ! sea-ice albedo at new time level                   [-]
+    REAL(wp) :: fhflx    (nproma)   ! tuning factor for bottom heat flux                 [-]
 
     ! Local array bounds:
     !
@@ -1850,7 +1842,7 @@ CONTAINS
 
     CALL assert_acc_device_only(routine, lacc)
 
-    lis_coupled_run = is_coupled_run()
+    lis_coupled_run = is_coupled_to_ocean()
 
     ! exclude nest boundary and halo points
     rl_start = grf_bdywidth_c+1
@@ -1866,13 +1858,13 @@ CONTAINS
     ENDIF
 
     !$ACC DATA CREATE(shfl_s, lhfl_s, lwflxsfc, swflxsfc, condhf_i, snow_rate, rain_rate, tice_now, hice_now) &
-    !$ACC   CREATE(tsnow_now, hsnow_now, albsi_now, tice_new, hice_new, tsnow_new, hsnow_new, albsi_new) &
+    !$ACC   CREATE(tsnow_now, hsnow_now, albsi_now, tice_new, hice_new, tsnow_new, hsnow_new, albsi_new, fhflx) &
     !$ACC   PRESENT(ext_data, p_lnd_diag, prm_diag, p_prog_wtr_now, lnd_prog_new, p_prog_wtr_new, p_diag)
 
 !$OMP PARALLEL
 !$OMP DO PRIVATE(jb,i_count,ic,jc,shfl_s,lhfl_s,lwflxsfc,swflxsfc,snow_rate,rain_rate, &
 !$OMP            tice_now, hice_now,tsnow_now,hsnow_now,tice_new,hice_new,tsnow_new,   &
-!$OMP            hsnow_new,albsi_now,albsi_new,condhf_i) ICON_OMP_GUIDED_SCHEDULE
+!$OMP            hsnow_new,albsi_now,albsi_new,condhf_i,fhflx) ICON_OMP_GUIDED_SCHEDULE
     DO jb = i_startblk, i_endblk
 
       !
@@ -1901,6 +1893,11 @@ CONTAINS
         tsnow_now(ic) = p_prog_wtr_now%t_snow_si(jc,jb)
         hsnow_now(ic) = p_prog_wtr_now%h_snow_si(jc,jb)
         albsi_now(ic) = p_prog_wtr_now%alb_si(jc,jb)             ! sea-ice albedo [-]
+        IF (icpl_da_seaice >= 2) THEN ! adaptive parameter tuning for bottom heat flux
+          fhflx(ic) = prm_diag%hflux_si_fac(jc,jb)
+        ELSE
+          fhflx(ic) = 0._wp
+        ENDIF
       ENDDO  ! ic
       !$ACC END PARALLEL
 
@@ -1915,6 +1912,7 @@ CONTAINS
                             &   qsolnet = swflxsfc(:),         & !in
                             &   snow_rate = snow_rate(:),      & !in
                             &   rain_rate = rain_rate(:),      & !in
+                            &   fac_bottom_hflx = fhflx(:),    & !in
                             &   tice_p  = tice_now(:),         & !in
                             &   hice_p  = hice_now(:),         & !in
                             &   tsnow_p = tsnow_now(:),        & !in    ! DUMMY: not used yet
@@ -1997,7 +1995,9 @@ CONTAINS
 !$OMP END DO
 !$OMP END PARALLEL
 
-    !$ACC WAIT
+    IF (.NOT. using_cuda_graph) THEN
+      !$ACC WAIT(1)
+    END IF
     !$ACC END DATA
 
   END SUBROUTINE nwp_seaice
@@ -2010,9 +2010,6 @@ CONTAINS
   !! Interface for fresh water lake (Flake) parameterization. Calls time 
   !! integration routine flake_interface and updates the prognostic Flake variables 
   !! as well as t_g_t and qv_s_t.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2013-06-26)
   !!
   SUBROUTINE nwp_lake (p_patch, p_diag, prm_diag, p_prog_wtr_now,    &
     &                    p_prog_wtr_new, lnd_prog_now, lnd_prog_new, &
@@ -2249,12 +2246,11 @@ CONTAINS
       !$ACC END PARALLEL
 
     ENDDO  !jb
-    !$ACC WAIT(1)
 !$OMP END DO
 !$OMP END PARALLEL
 
-! remove local variables from gpu
-!$ACC END DATA
+    ! remove local variables from gpu
+    !$ACC END DATA
   END SUBROUTINE nwp_lake
 
 END MODULE mo_nwp_sfc_interface

@@ -24,7 +24,10 @@ def load():
     if not _env_loaded:
         if 'MODULESHOME' in os.environ:
             sys.path.insert(1, os.path.join(os.environ['MODULESHOME'], 'init'))
-            from python import module
+            try:
+                from python import module # Environment Modules
+            except ModuleNotFoundError:
+                from env_modules_python import module  # lmod
             module('unload', 'python3') # recover module hidden by conda env
             module('load', *info().get('use_load_modules', '').split())
             sys.path.pop(1)

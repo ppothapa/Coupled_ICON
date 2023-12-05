@@ -1,23 +1,19 @@
-!>
-!!  Namelist for SPPT (Stochastic Pertubation of Physics Tendencies)
-!!
-!!  these Subroutines are called by control model and construct the
-!!  SPPT scheme
-!!
-!! @author <Sascha Bellaire, MCH>
-!!
-!!
-!! @par Revision History
-!! First implementation by Sascha Bellaire, MCH (2021-05-13>)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+!  Namelist for SPPT (Stochastic Pertubation of Physics Tendencies)
+!
+!  these Subroutines are called by control model and construct the
+!  SPPT scheme
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_sppt_nml
 
@@ -42,13 +38,13 @@ MODULE mo_sppt_nml
   ! namelist variables and parameters
   !-----------------------------------
 
-  LOGICAL  :: lsppt     ! > forecast with SPPT
+  LOGICAL  :: lsppt     ! forecast with SPPT
 
-  REAL(wp) :: hinc_rn   ! > time increment (s) for drawing a new field of random numbers
-  REAL(wp) :: dlat_rn   ! > random number coarse grid point distance in meridional direction (deg)
-  REAL(wp) :: dlon_rn   ! > random number coarse grid point distance in zonal direction (deg)
-  REAL(wp) :: range_rn  ! > max magnitude of random numbers
-  REAL(wp) :: stdv_rn   ! > standard deviation of the gaussian distribution of random numbers
+  REAL(wp) :: hinc_rn   ! time increment (s) for drawing a new field of random numbers
+  REAL(wp) :: dlat_rn   ! random number coarse grid point distance in meridional direction (deg)
+  REAL(wp) :: dlon_rn   ! random number coarse grid point distance in zonal direction (deg)
+  REAL(wp) :: range_rn  ! max magnitude of random numbers
+  REAL(wp) :: stdv_rn   ! standard deviation of the gaussian distribution of random numbers
 
 
   NAMELIST/sppt_nml/ lsppt, hinc_rn             , &
@@ -67,9 +63,6 @@ MODULE mo_sppt_nml
   ! Purpose: This subroutine
   !          - read the namelist for SPPT (NWP)
   !          - sets default values
-  !
-  ! @par Revision Hisory
-  !   by Sascha Bellaire, MCH (2021-05-14) adapted from read_nwp_lnd_namelist
   !
   ! --------------------------------------------------------------------------
 

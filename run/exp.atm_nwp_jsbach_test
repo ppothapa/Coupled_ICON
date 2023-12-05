@@ -125,7 +125,7 @@ run_jsbach=yes      # yes,true: on, else: off
 
 atmo_namelist=NAMELIST_${EXPNAME}_atm # also used in exec.iconrun
 #
-cat > ${atmo_namelist} << EOF
+cat > ${basedir}/run/${atmo_namelist} << EOF
 !
 &parallel_nml
  nproma             = ${nproma}
@@ -178,14 +178,13 @@ EOF
 # --------
 if [ ${ldynamics} = '.TRUE.' ]
 then
-cat >> ${atmo_namelist} << EOF
+cat >> ${basedir}/run/${atmo_namelist} << EOF
 !
 &nonhydrostatic_nml
  ndyn_substeps      = 5           ! dtime/dt_dyn
  damp_height        = 50000.      ! [m]
  rayleigh_coeff     = 1.0
  vwind_offctr       = 0.2
- lhdiff_rcf         = .TRUE.
  divdamp_order      = 4         ! 24 is not allowed for checkpoint_interval < 2.5h (why?)
  divdamp_type       = 3
  divdamp_fac        = 0.004
@@ -204,7 +203,7 @@ fi # ${ldynamics}
 # Tracers and transport
 # ---------------------
 # 'tracer_names' must be defined for the atmospheric state
-cat >> ${atmo_namelist} << EOF
+cat >> ${basedir}/run/${atmo_namelist} << EOF
 !
 &transport_nml
  tracer_names       = 'qv', 'qc', 'qi', 'qr', 'qs'
@@ -213,7 +212,7 @@ EOF
 # Additional parameters are needed if the transport scheme is used
 if [ ${ltransport} = .TRUE. ]
 then
-cat >> ${atmo_namelist} << EOF
+cat >> ${basedir}/run/${atmo_namelist} << EOF
  ivadv_tracer       =    3 ,   3 ,   3 ,   3 ,   3
  itype_hlimit       =    3 ,   4 ,   4 ,   4 ,   4
  ihadv_tracer       =   52 ,   2 ,   2 ,   2 ,   2
@@ -221,13 +220,13 @@ cat >> ${atmo_namelist} << EOF
 EOF
 fi # ${ltransport}
 #
-cat >> ${atmo_namelist} << EOF
+cat >> ${basedir}/run/${atmo_namelist} << EOF
 /
 EOF
 
 # Forcing
 # -------
-cat >> ${atmo_namelist} << EOF
+cat >> ${basedir}/run/${atmo_namelist} << EOF
 &nwp_phy_nml
  inwp_gscp         = 1
  inwp_convection   = 1
@@ -290,7 +289,7 @@ if [ ${run_jsbach} = yes ]; then
 #
 jsbach_namelist=NAMELIST_${EXPNAME}_lnd # also used in exec.iconrun
 #
-cat > ${jsbach_namelist} << EOF
+cat > ${basedir}/run/${jsbach_namelist} << EOF
 &jsb_model_nml
   usecase                 = 'jsbach_pfts'
   use_lakes               = .TRUE.
@@ -382,7 +381,8 @@ rc[nb]l*|vh1l*)
   ;;
 *)
   # This is the only grid with JSBACH files and an NWP extpar... They don't really fit but whatever.
-  grid_dir=${icon_data_rootFolder}/grids/private/rene/mpim/0013
+  grid_dir=${icon_data_rootFolder}/grids/public/mpim/0013
+
   add_link_file $grid_dir/nwp/icon_extpar_0013_R02B04_G_20180820_tiles.nc extpar_icon_grid.nc
   add_link_file $grid_dir/initial_condition/r0001/ifs2icon_1979010100_R02B04_G.nc ic_atmosphere.nc
   add_link_file $grid_dir/icon_grid_0013_R02B04_G.nc  icon_grid.nc
@@ -408,7 +408,7 @@ add_link_file ${basedir}/data/ECHAM6_CldOptProps.nc ./
 #
 if [ ${output_format} = ${grib_format} ]
 then
-    cat >> ${atmo_namelist} << EOF
+    cat >> ${basedir}/run/${atmo_namelist} << EOF
 &gribout_nml
  preset                          = 'deterministic' ! 'none' seems to produce non-reproducible results
  generatingCenter                = 252    ! This is MPI-M
@@ -427,7 +427,7 @@ fi # ${output_format}
 
 # Parameters for all output files
 # -------------------------------
-cat >> ${atmo_namelist} << EOF
+cat >> ${basedir}/run/${atmo_namelist} << EOF
 &io_nml
  itype_pres_msl       = 4
  restart_file_type    = 5
@@ -453,7 +453,7 @@ varlist="'z_ifc' 'z_mc' 'ddqz_z_full'"
 #
 for var in ${varlist}
 do
-  cat >> ${atmo_namelist} << EOF
+  cat >> ${basedir}/run/${atmo_namelist} << EOF
 &output_nml
  output_filename  = '${EXPNAME}_${var//\'}'
  filename_format  = '${EXPNAME}_${var//\'}_ml'
@@ -486,7 +486,7 @@ varlist="'pres' 'temp' 'rho' 'u' 'v' 'w' 'qv'"
 #
 for var in ${varlist}
 do
-  cat >> ${atmo_namelist} << EOF
+  cat >> ${basedir}/run/${atmo_namelist} << EOF
 &output_nml
  output_filename  = '${EXPNAME}_${var//\'}'
  filename_format  = '${EXPNAME}_${var//\'}_ml_<datetime2>'
@@ -510,7 +510,7 @@ varlist="'qc' 'qi' 'qr' 'qs' 'clc'"
 #
 for var in ${varlist}
 do
-  cat >> ${atmo_namelist} << EOF
+  cat >> ${basedir}/run/${atmo_namelist} << EOF
 &output_nml
  output_filename  = '${EXPNAME}_${var//\'}'
  filename_format  = '${EXPNAME}_${var//\'}_ml_<datetime2>'
@@ -544,7 +544,7 @@ varlist="'pres' 'temp' 'rho' 'u' 'v' 'w' 'qv'"
 #
 for var in ${varlist}
 do
-  cat >> ${atmo_namelist} << EOF
+  cat >> ${basedir}/run/${atmo_namelist} << EOF
 &output_nml
  output_filename  = '${EXPNAME}_${var//\'}'
  filename_format  = '${EXPNAME}_${var//\'}_ml_<datetime2>'
@@ -568,7 +568,7 @@ varlist="'qc' 'qi' 'qr' 'qs' 'clc'"
 #
 for var in ${varlist}
 do
-  cat >> ${atmo_namelist} << EOF
+  cat >> ${basedir}/run/${atmo_namelist} << EOF
 &output_nml
  output_filename  = '${EXPNAME}_${var//\'}'
  filename_format  = '${EXPNAME}_${var//\'}_ml_<datetime2>'
@@ -606,7 +606,7 @@ varlist="${varlist} 'sp_10m' 'u_10m' 'v_10m' 't_2m' 'td_2m'"
 varlist="${varlist} 'rain_gsp_rate' 'snow_gsp_rate' 'rain_con_rate' 'snow_con_rate' 'clct'"
 #
 if [ "x${varlist}" != x ] ; then
-cat >> ${atmo_namelist} << EOF
+cat >> ${basedir}/run/${atmo_namelist} << EOF
 &output_nml
  output_filename  = '${EXPNAME}_atm2d'
  filename_format  = '${EXPNAME}_atm2d_ml_<datetime2>'
@@ -646,7 +646,7 @@ varlist="${varlist} 'ddt_u_turb' 'ddt_v_turb' 'ddt_temp_turb' 'ddt_qv_turb'"
 #
 for var in ${varlist}
 do
-  cat >> ${atmo_namelist} << EOF
+  cat >> ${basedir}/run/${atmo_namelist} << EOF
 &output_nml
  output_filename  = '${EXPNAME}_${var//\'}'
  filename_format  = '${EXPNAME}_${var//\'}_ml_<datetime2>'
@@ -673,7 +673,7 @@ varlist="${varlist} 'ddt_qc_turb' 'ddt_qi_turb'"
 #
 for var in ${varlist}
 do
-cat >> ${atmo_namelist} << EOF
+cat >> ${basedir}/run/${atmo_namelist} << EOF
 &output_nml
  output_filename  = '${EXPNAME}_${var//\'}'
  filename_format  = '${EXPNAME}_${var//\'}_ml_<datetime2>'
@@ -711,7 +711,7 @@ varlist="${varlist} 'sod_t' 'thb_t' 'sob_s' 'thb_s' 'sou_t' 'sou_s' "
 varlist="${varlist} 'qhfl_s' 'lhfl_s' 'shfl_s' 'umfl_s' 'vmfl_s'"
 #
 if [ "x${varlist}" != x ] ; then
-cat >> ${atmo_namelist} << EOF
+cat >> ${basedir}/run/${atmo_namelist} << EOF
 &output_nml
  output_filename  = '${EXPNAME}_flx2d'
  filename_format  = '${EXPNAME}_flx2d_ml_<datetime2>'

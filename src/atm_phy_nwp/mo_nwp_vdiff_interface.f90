@@ -1,20 +1,16 @@
-!>
-!! Interface to the VDIFF turbulence scheme and JSBACH land-surface scheme.
-!!
-!! @author Roland Wirth, DWD
-!!
-!! @par Revision History
-!! Initial revision by Roland Wirth, DWD (2021-07)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Interface to the VDIFF turbulence scheme and JSBACH land-surface scheme.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_nwp_vdiff_interface
 
@@ -23,7 +19,7 @@ MODULE mo_nwp_vdiff_interface
       & CCYCLE_MODE_NONE, CCYCLE_MODE_INTERACTIVE, CCYCLE_MODE_PRESCRIBED, CCYCLE_CO2CONC_CONST, &
       & CCYCLE_CO2CONC_FROMFILE, t_ccycle_config
   USE mo_convect_tables, ONLY: init_convect_tables
-  USE mo_coupling_config, ONLY: is_coupled_run
+  USE mo_coupling_config, ONLY: is_coupled_to_ocean
   USE mo_aes_convect_tables, ONLY: init_aes_convect_tables => init_convect_tables
   USE mo_exception, ONLY: finish, message
   USE mo_ext_data_types, ONLY: t_external_data
@@ -110,9 +106,6 @@ CONTAINS
   !! forward in time, and calls the LSS and a sea scheme to provide the surface boundary
   !! conditions. The routine then solves the linear system and computes tendencies. It also
   !! provides surface temperatures and albedos, as well as latent and sensible heat fluxes.
-  !!
-  !! @par Revision History
-  !! Initial revision by Roland Wirth, DWD (2020-08)
   !!
   SUBROUTINE nwp_vdiff ( &
         & datetime_now, delta_time, patch, ccycle_config, vdiff_config, nh_prog, nh_prog_rcf, &
@@ -1257,10 +1250,11 @@ CONTAINS
         )
     END IF
 
-    !$ACC EXIT DATA ASYNC(1) &
+    !$ACC WAIT(1)
+    !$ACC EXIT DATA &
     !$ACC   DETACH(ocean_u, ocean_v, p_graupel_gsp_rate, p_ice_gsp_rate, p_hail_gsp_rate)
 
-    IF (is_coupled_run() .AND. .NOT. linit) THEN
+    IF (is_coupled_to_ocean() .AND. .NOT. linit) THEN
       CALL sea_model_couple_ocean (&
           & patch=patch, &
           & list_sea=ext_data%atm%list_sea, &
@@ -1286,7 +1280,8 @@ CONTAINS
         )
     END IF
 
-    !$ACC EXIT DATA ASYNC(1) &
+    !$ACC WAIT(1)
+    !$ACC EXIT DATA &
     !$ACC   DELETE(LIST_CREATE1) &
     !$ACC   DELETE(LIST_CREATE2) &
     !$ACC   DELETE(LIST_CREATE3) &
@@ -1990,7 +1985,8 @@ CONTAINS
     END DO
     !$OMP END PARALLEL
 
-    !$ACC EXIT DATA DELETE(qtvar) ASYNC(1)
+    !$ACC WAIT(1)
+    !$ACC EXIT DATA DELETE(qtvar)
 
   END SUBROUTINE get_stddev_saturation_deficit
 
@@ -2067,7 +2063,8 @@ CONTAINS
             & x_sfc=v_sfc(:), &
             & flx=vmfl_sft(:,isft) &
           )
-      !$ACC EXIT DATA ASYNC(1) DETACH(u_sfc, v_sfc)
+      !$ACC WAIT(1)
+      !$ACC EXIT DATA DETACH(u_sfc, v_sfc)
     END DO
 
   END SUBROUTINE get_surface_stress
@@ -2132,7 +2129,8 @@ CONTAINS
       !$ACC ENTER DATA ATTACH(p_runoff, p_drainage) ASYNC(1)
         CALL copy(p_runoff(:,:), diag_lnd%runoff_s_inst_t(:,:,1), opt_acc_async=.TRUE.)
         CALL copy(p_drainage(:,:), diag_lnd%runoff_g_inst_t(:,:,1), opt_acc_async=.TRUE.)
-      !$ACC EXIT DATA DETACH(p_runoff, p_drainage) ASYNC(1)
+      !$ACC WAIT(1)
+      !$ACC EXIT DATA DETACH(p_runoff, p_drainage)
 
       ! Convert runoff rate [kg/(m**2 s)] to the amount of runoff in the current time step
       ! [kg/m**2].
@@ -2404,7 +2402,8 @@ CONTAINS
     END DO
     !$OMP END PARALLEL
 
-    !$ACC EXIT DATA DELETE(nonnegative) ASYNC(1)
+    !$ACC WAIT(1)
+    !$ACC EXIT DATA DELETE(nonnegative)
 
   END SUBROUTINE add_tendencies_to_state
 

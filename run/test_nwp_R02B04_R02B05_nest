@@ -258,7 +258,6 @@ cat > ${atmo_namelist} << EOF
 &dynamics_nml
  iequations              = ${atmo_model_equations}
  lcoriolis               = .TRUE.
- idiv_method             = 1
  divavg_cntrwgt          = 0.50
 /
 &diffusion_nml
@@ -298,7 +297,6 @@ cat > ${atmo_namelist} << EOF
  vwind_offctr            = 1.0
  damp_height             = 55000.
  rayleigh_coeff          = 0.02
- l_masscorr_nest         = .true.
  igradp_method           = 3
  divdamp_fac             = 0.004
  l_zdiffu_t              = .true.

@@ -1,16 +1,17 @@
-!>
-!! @page pagecontrolmodelf901 Main program for the ICON ocean model
-!!
-!! @par Revision History
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Main program for the ICON ocean model
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_ocean_model
 
   USE mo_exception,           ONLY: message, finish
@@ -49,7 +50,7 @@ MODULE mo_ocean_model
 
   USE mo_ocean_nml_crosscheck,   ONLY: ocean_crosscheck
   USE mo_ocean_nml,              ONLY: i_sea_ice, no_tracer, &
-    & initialize_fromRestart, ncheckpoints
+    & initialize_fromRestart
 
   USE mo_model_domain,        ONLY: t_patch_3d, p_patch_local_parent
 
@@ -77,7 +78,7 @@ MODULE mo_ocean_model
   USE mo_ext_data_types,      ONLY: t_external_data
   USE mo_ocean_physics_types,  ONLY: t_ho_params, construct_ho_params, v_params, &
                                    & destruct_ho_params
-  USE mo_ocean_physics,          ONLY: init_ho_params                                 
+  USE mo_ocean_physics,          ONLY: init_ho_params
   USE mo_operator_ocean_coeff_3d,ONLY: construct_operators_coefficients, &
     & destruct_operators_coefficients
 
@@ -115,7 +116,7 @@ MODULE mo_ocean_model
   USE mo_ocean_coupling_frame, ONLY: construct_ocean_coupling, destruct_ocean_coupling
 #endif
   !-------------------------------------------------------------
- 
+
   USE mo_ocean_hamocc_interface, ONLY: ocean_to_hamocc_construct, ocean_to_hamocc_init, ocean_to_hamocc_end
 
   IMPLICIT NONE
@@ -132,8 +133,8 @@ MODULE mo_ocean_model
     TYPE(t_atmos_for_ocean)                         :: p_as
     TYPE(t_atmos_fluxes)                            :: atmos_fluxes
     TYPE(t_operator_coeff), TARGET                  :: operators_coefficients
-    TYPE(t_solverCoeff_singlePrecision), TARGET     :: solverCoefficients_sp 
-    
+    TYPE(t_solverCoeff_singlePrecision), TARGET     :: solverCoefficients_sp
+
   !  TYPE(t_oce_timeseries), POINTER :: oce_ts
 
   CONTAINS
@@ -160,7 +161,7 @@ MODULE mo_ocean_model
     !-------------------------------------------------------------------
     CALL construct_ocean_model(oce_namelist_filename,shr_namelist_filename)
     CALL ocean_to_hamocc_construct(ocean_patch_3D, ext_data(1))
-    
+
     !-------------------------------------------------------------------
     CALL ocean_to_hamocc_init(ocean_patch_3d, ocean_state(1), &
       & p_as, v_sea_ice, v_oce_sfc, v_params)
@@ -190,11 +191,11 @@ MODULE mo_ocean_model
 
     CALL prepare_ho_stepping(ocean_patch_3d, operators_coefficients, &
       & ocean_state(1), v_oce_sfc, p_as, v_sea_ice, ext_data(1), isRestart(), solverCoefficients_sp)
-   
+
 
     !------------------------------------------------------------------
     ! write initial state
-    !------------------------------------------------------------------    
+    !------------------------------------------------------------------
 !     IF (output_mode%l_nml .and. .true.) THEN
     IF (output_mode%l_nml .AND. write_initial_state) THEN
       CALL write_initial_ocean_timestep(ocean_patch_3d,ocean_state(1),v_oce_sfc,v_sea_ice, operators_coefficients)
@@ -283,7 +284,7 @@ MODULE mo_ocean_model
     !---------------------------------------------------------------------
     ! Destruct external data state
     CALL destruct_ocean_ext_data
- 
+
     ! deallocate ext_data array
     DEALLOCATE(ext_data, stat=error_status)
     IF (error_status/=success) THEN
@@ -380,7 +381,7 @@ MODULE mo_ocean_model
 !    CALL set_mpi_work_communicators(p_test_run, l_test_openmp, num_io_procs, &
 !      &                             dedicatedRestartProcs, num_test_pe, pio_type)
 !orig
-!pa    
+!pa
     num_io_procs_radar = 0
     num_dio_procs      = 0
     radar_flag_doms_model(1) = .FALSE.
@@ -419,7 +420,7 @@ MODULE mo_ocean_model
     CALL configure_dynamics ( n_dom, ldynamics, ltransport )
 
     CALL construct_ocean_var_lists(ocean_patch_3d%p_patch_2d(1))
-    
+
     !------------------------------------------------------------------
     ! step 5b: allocate state variables
     !------------------------------------------------------------------
@@ -448,6 +449,7 @@ MODULE mo_ocean_model
     IF (error_status /= success) THEN
       CALL finish(TRIM(method_name),'allocation for ext_data failed')
     ENDIF
+    !$ACC ENTER DATA COPYIN(ext_data)
 
     ! allocate memory for oceanic external data and
     ! optionally read those data from netCDF file.
@@ -462,7 +464,7 @@ MODULE mo_ocean_model
     CALL construct_ocean_states(ocean_patch_3d, ocean_state, ext_data, &
       & v_params, p_as, atmos_fluxes, v_sea_ice, v_oce_sfc, operators_coefficients, solverCoefficients_sp)!,p_int_state(1:))
 
-    !---------------------------------------------------------------------    
+    !---------------------------------------------------------------------
     IF (use_dummy_cell_closure) CALL create_dummy_cell_closure(ocean_patch_3D)
 
     ! initialize ocean indices for debug output (including 3-dim lsm)
@@ -472,7 +474,7 @@ MODULE mo_ocean_model
 
 !    IF (.not. isRestart()) &
     CALL apply_initial_conditions(ocean_patch_3d, ocean_state(1), ext_data(1), operators_coefficients)
-      
+
     ! initialize forcing after the initial conditions, since it may require knowledge
     ! of the initial conditions
     CALL init_ocean_forcing(ocean_patch_3d%p_patch_2d(1),  &
@@ -480,7 +482,7 @@ MODULE mo_ocean_model
       &                     ocean_state(1),         &
       &                     v_oce_sfc,            &
       &                     p_as%fu10)
-      
+
     IF (i_sea_ice >= 1) &
       &   CALL ice_init(ocean_patch_3D, ocean_state(1), v_sea_ice, v_oce_sfc%cellThicknessUnderIce)
 
@@ -493,8 +495,6 @@ MODULE mo_ocean_model
   !>
   !! Simple method_name for preparing hydrostatic ocean model.
   !!
-  !! @par Revision History
-  !! Initial release by Stephan Lorenz, MPI-M (2010-07)
 !<Optimize:inUse>
   SUBROUTINE construct_ocean_states(patch_3d, ocean_state, external_data, &
     & p_phys_param, p_as,&
@@ -547,7 +547,7 @@ MODULE mo_ocean_model
     !------------------------------------------------------------------
 
     ! patch_2D and ocean_state have dimension n_dom
-    CALL construct_hydro_ocean_state(patch_3d, ocean_state, ncheckpoints)
+    CALL construct_hydro_ocean_state(patch_3d, ocean_state)
     ocean_state(1)%operator_coeff => operators_coefficients
 
     CALL construct_ocean_nudge(patch_3d%p_patch_2d(1),  ocean_nudge)
@@ -577,4 +577,3 @@ MODULE mo_ocean_model
   !-------------------------------------------------------------------------
 
 END MODULE mo_ocean_model
-

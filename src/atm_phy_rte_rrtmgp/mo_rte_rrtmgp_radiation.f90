@@ -1,37 +1,28 @@
-!>
-!! @par Copyright
-!! This code is subject to the MPI-M-Software - License - Agreement in it's most recent form.
-!! Please see URL http://www.mpimet.mpg.de/en/science/models/model-distribution.html and the
-!! file COPYING in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the headers of the routines.
-!!
-!! @brief Module to provide interface to radiation routines. 
-!!
-!! @remarks
-!!   This module contains routines that provide the interface between ECHAM
-!!   and the radiation code.  Mostly it organizes and calculates the 
-!!   information necessary to call the radiative transfer solvers of the
-!!   the rte-rrtmgp version (R. Pinus). 
-!!
-!! @author Bjorn Stevens, MPI-M, Hamburg (2009-09-19): 
-!! @author Gustavo Hime, MPI-M, Hamburg (2019-01-01):
-!!
-!!         Sebastian Rast, MPI-M, Hamburg (2019-08-06): Renamings for 
-!!              separation of this routine from former rte_rrtmgp code.
-!!
-!! $ID: n/a$
-!!
-!! @par Origin
-!!     This code is based on a former rte_rrtmgp implementation.
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+! Module to provide interface to radiation routines.
 !
+! Remarks
+!   This module contains routines that provide the interface between ECHAM
+!   and the radiation code.  Mostly it organizes and calculates the
+!   information necessary to call the radiative transfer solvers of the
+!   the rte-rrtmgp version (R. Pinus).
+!
+!         Sebastian Rast, MPI-M, Hamburg (2019-08-06): Renamings for
+!              separation of this routine from former rte_rrtmgp code.
+!
+! Origin
+!     This code is based on a former rte_rrtmgp implementation.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_rte_rrtmgp_radiation
 
   USE mo_kind,                ONLY: wp, i8
@@ -56,7 +47,7 @@ MODULE mo_rte_rrtmgp_radiation
                                      psctm,                                    &  
                                      ssi_factor
   USE mo_solar_parameters,    ONLY: solar_parameters
-  USE mo_cloud_gas_profiles,  ONLY: gas_profiles, cloud_profiles
+  USE mo_cloud_gas_profiles,  ONLY: gas_profiles, cloud_profiles, snow_profiles
   USE mo_radiation_general,   ONLY: nbndsw
 
   USE mo_rte_rrtmgp_interface,ONLY : rte_rrtmgp_interface
@@ -77,8 +68,7 @@ MODULE mo_rte_rrtmgp_radiation
                                      & amu0m_x,          rdaylm_x            )
   !-----------------------------------------------------------------------------
   !>
-  !! @brief Prepares information for radiation call
-  !
+  ! Prepares information for radiation call
 
     TYPE(t_patch),           INTENT(in) :: p_patch
     TYPE(datetime), POINTER, INTENT(in) :: datetime_radiation, & !< date and time of radiative transfer calculation
@@ -307,9 +297,11 @@ MODULE mo_rte_rrtmgp_radiation
     & xq_trc         ,&!< in  tracer  mass fraction [kg/kg]
     & xv_ozn         ,&!< out ozone volume mixing ratio [mol/mol]
     !
+    & reff_ice       ,&!< inout  effective radius of cloud ice (Fu needles) [m]
+    & tau_ice        ,&!< inout  cloud ice optical depth, integrated over all bands
+    & reff_snow      ,&!< inout  effective radius of snow (Fu needles) [m]
+    & tau_snow       ,&!< inout  snow optical depth, integrated over all bands 
     & cdnc           ,&!< in  cloud droplet number concentration
-    & cld_frc        ,&!< in  cloud fraction
-    & cld_cvr        ,&!< out cloud cover in a column
     !
     & lw_dnw_clr     ,&!< out clear-sky downward longwave  at all levels
     & lw_upw_clr     ,&!< out clear-sky upward   longwave  at all levels
@@ -364,15 +356,14 @@ MODULE mo_rte_rrtmgp_radiation
     & tk_fl(:,:),       & !< Temperature on full levels [K]
     & xm_air(:,:),      & !< air mass in layer [kg/m2]
     & xq_trc(:,:,:),    & !< tracer mass fraction [kg/kg]
-    & cdnc(:,:),        & !< Cloud drop number concentration
-    & cld_frc(:,:)        !< Cloud fraction
-    REAL(wp), INTENT(OUT) :: &
+    & cdnc(:,:)           !< Cloud drop number concentration
+    REAL(wp), INTENT(INOUT) :: &
+    & reff_ice(:,:),    & !< effective radius of cloud ice [m]
+    & tau_ice(:,:),     & !< optical depth of cloud ice, integraded over all bands     
+    & reff_snow(:,:),   & !< effective radius of snow [m]
+    & tau_snow(:,:),    & !< optical depth snow, integrated over all bands     
     & xv_ozn(:,:)         !< ozone volume mixing ratio  [mol/mol]
 
-    ! OUT
-    REAL(wp), INTENT(INOUT)   :: &
-    & cld_cvr(:)               !< Cloud cover in a column
-    
     REAL(wp), TARGET, INTENT(INOUT)   :: &
     & lw_dnw_clr(:,:),& !< Clear-sky downward longwave  at all levels
     & lw_upw_clr(:,:),& !< Clear-sky upward   longwave  at all levels
@@ -408,6 +399,7 @@ MODULE mo_rte_rrtmgp_radiation
     & xvmr_vap(nproma,klev),           & !< water vapor volume mixing ratio
     & xm_liq(nproma,klev),             & !< cloud water mass in layer [kg/m2]
     & xm_ice(nproma,klev),             & !< cloud ice   mass in layer [kg/m2]
+    & xm_snw(nproma,klev),             & !< snow        mass in layer [kg/m2]
     & xvmr_co2(nproma,klev),           & !< CO2 volume mixing ratio
     & xvmr_o3(nproma,klev),            & !< O3  volume mixing ratio
     & xvmr_o2(nproma,klev),            & !< O2  volume mixing ratio
@@ -423,7 +415,7 @@ MODULE mo_rte_rrtmgp_radiation
     INTEGER   :: jl, jk, jt
 
     !$ACC DATA PRESENT(xv_ozn) &
-    !$ACC   CREATE(pp_sfc, tk_hl, xm_liq, xm_ice, xc_frc) &
+    !$ACC   CREATE(pp_sfc, tk_hl, xm_liq, xm_ice, xc_frc, xm_snw) &
     !$ACC   CREATE(xvmr_vap, xvmr_co2, xvmr_o3, xvmr_o2, xvmr_ch4) &
     !$ACC   CREATE(xvmr_n2o, xvmr_cfc)
 
@@ -447,9 +439,11 @@ MODULE mo_rte_rrtmgp_radiation
     !$ACC END PARALLEL LOOP
 
     CALL cloud_profiles ( jg,           jcs,            jce,              &
-         &                klev,         xq_trc, xm_air, cld_frc,          &
-         &                xm_liq,       xm_ice,         xc_frc,           &
-         &                cld_cvr                                         )
+         &                klev,         xq_trc, xm_air,                   &
+         &                xm_liq,       xm_ice,         xc_frc            )
+
+    CALL snow_profiles  ( jg,           jcs,            jce,              &
+         &                klev,         xq_trc, xm_air, xm_snw            )
 
     CALL rte_rrtmgp_interface(jg, jb, jcs, jce, nproma, klev             ,&
       aes_rad_config(jg)%irad_aero, aes_rad_config(jg)%lrad_yac          ,&
@@ -461,7 +455,8 @@ MODULE mo_rte_rrtmgp_radiation
       pp_sfc          ,pp_fl           ,pp_hl                            ,&
       tk_sfc          ,tk_fl           ,tk_hl                            ,&
       xvmr_vap        ,xm_liq          ,xm_ice                           ,&
-      cdnc            ,xc_frc                                            ,&
+      reff_ice        ,tau_ice         ,reff_snow       ,tau_snow        ,&
+      cdnc            ,xc_frc          ,xm_snw                           ,&
       xvmr_co2        ,xvmr_ch4        ,xvmr_n2o        ,xvmr_cfc        ,&
       xvmr_o3         ,xvmr_o2                                           ,&
       lw_upw          ,lw_upw_clr      ,lw_dnw          ,lw_dnw_clr      ,&

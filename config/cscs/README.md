@@ -6,7 +6,7 @@ rendered or use a Markdown viewer of your choice
 (https://www.google.com/search?q=markdown+viewer).
 -->
 
-This document aims to cover some pecularities of
+This document aims to cover some peculiarities of
 [dynamic linking](../../README.md#dynamic-libraries) on
 [Piz Daint](https://www.cscs.ch/computers/piz-daint/).
 

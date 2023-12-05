@@ -1,24 +1,23 @@
-!>
-!!  Held-Suarez test for the NH-Core
-!!
-!!
-!! @par Revision History
-!! - first version by P. Ripodas , DWD, (2010-09)
-!!
-!! @par Literature
-!! - Held, I. M. and Suarez, M. J. (1994): A Proposal for the Intercomparison
-!!   of the Dynamical Cores of Atmospheric General Circulation Models
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Held-Suarez test for the NH-Core
+!
+! Literature
+! - Held, I. M. and Suarez, M. J. (1994): A Proposal for the Intercomparison
+!   of the Dynamical Cores of Atmospheric General Circulation Models
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_nh_hs_test
+
 !-------------------------------------------------------------------------
 !
 !    ProTeX FORTRAN source: Style 2
@@ -75,9 +74,6 @@ CONTAINS
 !
   !>
   !!               Initialization of prognostic state vector.
-  !!
-  !!
-  !! @par Revision History
   !!
   !!
   SUBROUTINE init_nh_state_prog_held_suarez( ptr_patch, ptr_nh_prog, ptr_nh_diag, &
@@ -182,11 +178,6 @@ CONTAINS
   !>
   !! Linear damping of velocity in the 'boundary layer'.
   !!
-  !! @par Revision History
-  !! Original version for ECHAM5 by Hui Wan, MPI-M (2005-07)
-  !! Adaptation for the ICOHDC by Hui Wan, MPI-M (2008-05-30):
-  !! Further adaptation for the restructured code by Hui Wan, MPI-M (2009-02-03)
-  !!
   SUBROUTINE held_suarez_forcing_vn( pvn, psigma,           & !in
                                    & nlev, nproma, is, ie,  & !in
                                    & fvn_hs )                 !out
@@ -220,11 +211,6 @@ CONTAINS
   !-------------
   !>
   !! Newtonian cooling.
-  !!
-  !! @par Revision History
-  !! Original version for ECHAM5 by Hui Wan, MPI-M (2005-07)
-  !! Adaptation for the ICOHDC by Hui Wan, MPI-M (2008-05-30):
-  !! Further adaptation for the restructured code by Hui Wan (2009-02-03)
   !!
   SUBROUTINE held_suarez_forcing_temp( ptemp_mc, ppres_mc,   &! in
                                      & psigma, plat,         &! in

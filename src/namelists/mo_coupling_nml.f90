@@ -1,19 +1,16 @@
-!>
-!!        Contains the variables to set up the coupling.
-!!
-!!        
-!! @par Revision History
-!!   Created by Rene Redler (2011-03-22)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Contains the variables to set up the coupling.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_coupling_nml
 
@@ -28,9 +25,8 @@ MODULE mo_coupling_nml
   USE mo_io_units,        ONLY: nnml
   USE mo_namelist,        ONLY: open_nml, close_nml, position_nml, POSITIONED
   USE mo_exception,       ONLY: finish
-  USE mo_coupling_config, ONLY: config_coupled_mode
-  USE mo_coupling_config, ONLY: config_use_sens_heat_flux_hack
-  USE mo_coupling_config, ONLY: config_suppress_sens_heat_flux_hack_over_ice
+  USE mo_coupling_config, ONLY: config_coupled_to_ocean, config_coupled_to_waves,       &
+    &                           config_coupled_to_hydrodisc, config_coupled_to_atmo
   USE mo_coupling,        ONLY: coupler_config_files_exist
 
   IMPLICIT NONE
@@ -41,14 +37,11 @@ MODULE mo_coupling_nml
 
 CONTAINS
 
-  !>
   !!  Initialization of variables that contain general information.
   !!
   !!               Initialization of variables that contain general information
   !!               about the coupled model run. The configuration is read from
   !!               namelist 'icon_cpl'.
-  !!
-  !! @par Revision History
   !!
 
   SUBROUTINE read_coupling_namelist (namelist_filename)
@@ -58,25 +51,24 @@ CONTAINS
     !
     ! Local variables
     !
-
+    LOGICAL :: coupled_to_ocean, coupled_to_waves, coupled_to_atmo, coupled_to_hydrodisc
     LOGICAL :: coupled_mode
-    LOGICAL :: use_sens_heat_flux_hack
-    LOGICAL :: suppress_sens_heat_flux_hack_over_ice
     INTEGER :: istat
 
     CHARACTER(len=max_char_length), PARAMETER :: &
          &   routine = 'mo_coupling_nml:read_coupling_namelist'
 
-    NAMELIST /coupling_mode_nml/ coupled_mode, use_sens_heat_flux_hack, &
-        suppress_sens_heat_flux_hack_over_ice
+    NAMELIST /coupling_mode_nml/ coupled_to_ocean, coupled_to_waves, coupled_to_atmo, &
+         coupled_to_hydrodisc
 
     !--------------------------------------------------------------------
     ! 1. Set default values
     !--------------------------------------------------------------------
 
-    coupled_mode  = .FALSE.
-    use_sens_heat_flux_hack = .FALSE.
-    suppress_sens_heat_flux_hack_over_ice = .FALSE.
+    coupled_to_ocean     = .FALSE.
+    coupled_to_waves     = .FALSE.
+    coupled_to_atmo      = .FALSE.
+    coupled_to_hydrodisc = .FALSE.
 
     !--------------------------------------------------------------------
     ! 2. Read user's (new) specifications (done so far by all MPI processes)
@@ -85,7 +77,7 @@ CONTAINS
 #ifdef YAC_coupling
 
     CALL open_nml (TRIM(namelist_filename))
-    
+
     CALL position_nml('coupling_mode_nml',STATUS=istat)
     IF (istat==POSITIONED) THEN
       READ (nnml, coupling_mode_nml)
@@ -95,15 +87,22 @@ CONTAINS
 
 #endif
 
-    config_coupled_mode = coupled_mode
-    config_use_sens_heat_flux_hack = use_sens_heat_flux_hack
-    config_suppress_sens_heat_flux_hack_over_ice = suppress_sens_heat_flux_hack_over_ice
+    config_coupled_to_ocean     = coupled_to_ocean
+    config_coupled_to_waves     = coupled_to_waves
+    config_coupled_to_atmo      = coupled_to_atmo
+    config_coupled_to_hydrodisc = coupled_to_hydrodisc
 
-  IF ( coupled_mode .AND. .NOT. coupler_config_files_exist()) THEN
-    CALL finish( &
-      routine, &
-      'run is configured to be coupled, but coupler configuration files are not available')
-  END IF
+    !----------------------------------------------------
+    ! 3. Sanity checks
+    !----------------------------------------------------
+
+    coupled_mode = ANY((/coupled_to_ocean,coupled_to_waves,coupled_to_atmo,coupled_to_hydrodisc/))
+
+    IF (coupled_mode .AND. .NOT. coupler_config_files_exist()) THEN
+      CALL finish( &
+        routine, &
+        'run is configured to be coupled, but coupler configuration files are not available')
+    END IF
 
   END SUBROUTINE read_coupling_namelist
 

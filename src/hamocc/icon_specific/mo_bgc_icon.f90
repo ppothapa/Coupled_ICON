@@ -1,17 +1,24 @@
-!>
-!! @file bgc.f90
-!! @brief Main biogeochemical subroutine, called at each time step
-!!
-!! This subroutine calls all routines that calculate changes of pelagic biogeochemical 
-!! tracers due to local processes (like photosythesis, heterotrophic
-!! processes, N-fixation, and denitrification), the air-sea gas
-!! exchange of carbon dioxide, oxygen, dinitrogen, and the
-!! benthic processes. It further calls the computation of the vertical displacement of
-!! particles
-!!
-!! called by mo_hydro_ocean_run:perform_ho_stepping
-!!
-!!
+! @brief Main biogeochemical subroutine, called at each time step
+!
+! This subroutine calls all routines that calculate changes of pelagic biogeochemical
+! tracers due to local processes (like photosythesis, heterotrophic
+! processes, N-fixation, and denitrification), the air-sea gas
+! exchange of carbon dioxide, oxygen, dinitrogen, and the
+! benthic processes. It further calls the computation of the vertical displacement of
+! particles
+!
+! called by mo_hydro_ocean_run:perform_ho_stepping
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 #include "icon_definitions.inc"
 #include "omp_definitions.inc"
 
@@ -21,7 +28,7 @@ MODULE mo_bgc_icon
 #endif
 
   USE mo_kind,                ONLY: wp
-  USE mo_exception,           ONLY: finish
+  USE mo_exception,           ONLY: finish,message_to_own_unit
 
   USE mo_model_domain,        ONLY: t_patch,t_patch_3D
 
@@ -41,7 +48,6 @@ MODULE mo_bgc_icon
 &                                   nitrogen_deposition, update_linage
   USE mo_bgc_bcond,           ONLY: ext_data_bgc
   USE mo_hamocc_diagnostics,  ONLY: get_inventories, get_omz
-  USE mo_exception, ONLY: message
   USE mo_carchm,              ONLY: calc_dissol 
   USE mo_powach,              ONLY: powach, powach_impl
   USE mo_sedmnt, ONLY         : ini_bottom
@@ -61,6 +67,7 @@ MODULE mo_bgc_icon
   
   USE mo_bgc_memory_types, ONLY: t_bgc_memory, t_sediment_memory, t_aggregates_memory, &
     & bgc_local_memory, sediment_local_memory, aggregates_memory, bgc_memory_copies
+  USE mo_fortran_tools, ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
   PRIVATE
@@ -69,7 +76,7 @@ MODULE mo_bgc_icon
 
 CONTAINS
 
-SUBROUTINE BGC_ICON(p_patch_3D, hamocc_ocean_state, ssh, pddpo, ptiestu, use_acc)  
+SUBROUTINE BGC_ICON(p_patch_3D, hamocc_ocean_state, ssh, pddpo, ptiestu, lacc)  
 
   IMPLICIT NONE
 
@@ -78,7 +85,7 @@ SUBROUTINE BGC_ICON(p_patch_3D, hamocc_ocean_state, ssh, pddpo, ptiestu, use_acc
   REAL(wp), INTENT(IN) :: pddpo(bgc_nproma, bgc_zlevs, p_patch_3d%p_patch_2d(1)%nblks_c)
   REAL(wp), INTENT(IN) :: ptiestu(bgc_nproma, bgc_zlevs, p_patch_3d%p_patch_2d(1)%nblks_c)
   REAL(wp), INTENT(IN) :: ssh(bgc_nproma, p_patch_3d%p_patch_2d(1)%nblks_c)
-  LOGICAL, INTENT(IN), OPTIONAL          :: use_acc
+  LOGICAL, INTENT(IN), OPTIONAL          :: lacc
 
   ! Local variables
   INTEGER ::  jb
@@ -100,17 +107,13 @@ SUBROUTINE BGC_ICON(p_patch_3D, hamocc_ocean_state, ssh, pddpo, ptiestu, use_acc
   TYPE(t_hamocc_to_ocean_state), POINTER           :: hamocc_to_ocean_state
 
   INTEGER :: i,jc,k,kpke
-  LOGICAL :: lacc
+  LOGICAL :: lzacc
   
   CHARACTER(LEN=*), PARAMETER  :: str_module = 'BGC_ICON'  ! Output of module for 1 line debug
 !   INTEGER :: idt_src
 !   TYPE(t_subset_range), POINTER :: owned_cells
 
-  IF (PRESENT(use_acc)) THEN
-    lacc = use_acc
-  ELSE
-    lacc = .FALSE.
-  END IF
+  CALL set_acc_host_or_device(lzacc, lacc)
 
   ocean_to_hamocc_state => hamocc_ocean_state%ocean_to_hamocc_state
   hamocc_to_ocean_state => hamocc_ocean_state%hamocc_to_ocean_state
@@ -155,7 +158,7 @@ SUBROUTINE BGC_ICON(p_patch_3D, hamocc_ocean_state, ssh, pddpo, ptiestu, use_acc
  !----------------------------------------------------------------------
  
 IF(l_bgc_check)THEN
- call message('1. before bgc','inventories',io_stdo_bgc)
+ call message_to_own_unit('1. before bgc','inventories',io_stdo_bgc)
  call get_inventories(hamocc_state, ssh, pddpo, hamocc_state%p_prog(nold(1))%tracer, p_patch_3d, 0._wp, 0._wp) 
 ENDIF
 
@@ -169,7 +172,7 @@ local_bgc_memory => bgc_local_memory(local_memory_idx)
 local_sediment_memory => sediment_local_memory(local_memory_idx)
 local_aggregate_memory => aggregates_memory(local_memory_idx)
 
-!$ACC DATA CREATE(levels) IF(lacc)
+!$ACC DATA CREATE(levels) IF(lzacc)
 
 !DIR$ INLINE
 #ifdef _OPENMP
@@ -193,7 +196,7 @@ IF (test_memory_copies /= bgc_memory_copies) &
         CALL get_index_range(all_cells, jb, start_index, end_index)
         !  tracer 1: potential temperature
         !  tracer 2: salinity
-        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         levels(start_index:end_index) = p_patch_3D%p_patch_1d(1)%dolic_c(start_index:end_index,jb)
         !$ACC END KERNELS
 
@@ -202,19 +205,19 @@ IF (test_memory_copies /= bgc_memory_copies) &
              & pddpo(:,:,jb),&  ! cell thickness
              &jb, hamocc_state%p_prog(nold(1))%tracer, &
              & ocean_to_hamocc_state%co2_mixing_ratio(:,jb)                        & ! co2mixing ratio
-             & ,hamocc_state%p_diag,hamocc_state%p_sed, hamocc_state%p_tend, kpke, use_acc=lacc)
+             & ,hamocc_state%p_diag,hamocc_state%p_sed, hamocc_state%p_tend, kpke, lacc=lzacc)
         stop_detail_timer(timer_bgc_up_bgc,5)
 
-        CALL ini_bottom(local_bgc_memory, start_index, end_index, levels, pddpo(:,:,jb), use_acc=lacc)
+        CALL ini_bottom(local_bgc_memory, start_index, end_index, levels, pddpo(:,:,jb), lacc=lzacc)
 
         start_detail_timer(timer_bgc_swr,5)
        ! Net solar radiation update and swr_frac
         CALL swr_absorption(local_bgc_memory, start_index,end_index,levels,                   &
  &                          ocean_to_hamocc_state%short_wave_flux(:,jb),                                 & ! SW radiation
  &                          ocean_to_hamocc_state%ice_concentration_sum(:,jb),                           & ! sea ice concentration
- &                          pddpo(:,:,jb), use_acc=lacc)                                                  ! level thickness
+ &                          pddpo(:,:,jb), lacc=lzacc)                                                  ! level thickness
 
-        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO k=1,kpke
           DO jc = start_index,end_index
@@ -227,7 +230,7 @@ IF (test_memory_copies /= bgc_memory_copies) &
 
        ! Linear age
         CALL update_linage(local_bgc_memory, levels, start_index, end_index,  & ! index range, levels, salinity
-   &                 pddpo(:,:,jb), use_acc=lacc)! cell thickness (check for z0)
+   &                 pddpo(:,:,jb), lacc=lzacc)! cell thickness (check for z0)
 
        ! Biogeochemistry
 
@@ -235,7 +238,7 @@ IF (test_memory_copies /= bgc_memory_copies) &
        ! Weathering fluxes 
         CALL update_weathering(local_bgc_memory, start_index, end_index,  & ! index range, levels, salinity
    &                 pddpo(:,:,jb),&! cell thickness (check for z0)
-   &                 ssh(:,jb), use_acc=lacc) ! surface_height
+   &                 ssh(:,jb), lacc=lzacc) ! surface_height
 
         stop_detail_timer(timer_bgc_wea,5)
 
@@ -244,12 +247,12 @@ IF (test_memory_copies /= bgc_memory_copies) &
         CALL dust_deposition(local_bgc_memory, start_index, end_index,  & ! index range, levels,
    &                 pddpo(:,:,jb), &! cell thickness (check for z0)
    &                 ssh(:,jb),& ! surface_height
-   &                 ext_data_bgc%dusty(:,jb), use_acc=lacc)       ! dust input
+   &                 ext_data_bgc%dusty(:,jb), lacc=lzacc)       ! dust input
       ! Nitrogen deposition
         CALL nitrogen_deposition(local_bgc_memory, start_index, end_index,  & ! index range, levels
    &                 pddpo(:,:,jb), &! cell thickness (check for z0)
    &                 ssh(:,jb),& ! surface_height
-   &                 ext_data_bgc%nitro(:,jb), use_acc=lacc)      ! nitrogen input
+   &                 ext_data_bgc%nitro(:,jb), lacc=lzacc)      ! nitrogen input
 
         stop_detail_timer(timer_bgc_depo,5)
        !----------------------------------------------------------------------
@@ -260,7 +263,7 @@ IF (test_memory_copies /= bgc_memory_copies) &
    &                 ocean_to_hamocc_state%temperature(:,:,jb),                              & ! pot. temperature
    &                 pddpo(:,:,jb),                    & ! cell thickness
    &                 ptiestu(:,:,jb) ,  &           ! depths at interface  
-   &                 itrig_chemcon, use_acc=lacc)           
+   &                 itrig_chemcon, lacc=lzacc)           
         stop_detail_timer(timer_bgc_chemcon,5)
        !----------------------------------------------------------------------
        ! Calculate plankton dynamics and particle settling 
@@ -284,7 +287,7 @@ IF (test_memory_copies /= bgc_memory_copies) &
    &               pddpo(:,:,jb), & ! cell thickness
    &               ssh(:,jb),& ! surface height
    &               ptiestu(:,:,jb),& ! depths at interface  
-   &               l_dynamic_pi, kpke, use_acc=lacc) ! depths at interface
+   &               l_dynamic_pi, kpke, lacc=lzacc) ! depths at interface
         stop_detail_timer(timer_bgc_ocprod,5)
 
         start_detail_timer(timer_bgc_sett,5)
@@ -296,7 +299,7 @@ IF (test_memory_copies /= bgc_memory_copies) &
         ELSE
          CALL settling(local_bgc_memory, local_sediment_memory, levels,start_index, end_index, &
    &                   pddpo(:,:,jb),& ! cell thickness
-   &                   ssh(:,jb), use_acc=lacc)                   ! surface height
+   &                   ssh(:,jb), lacc=lzacc)                   ! surface height
        
         ENDIF
         stop_detail_timer(timer_bgc_sett,5) 
@@ -316,7 +319,7 @@ IF (test_memory_copies /= bgc_memory_copies) &
      &               ssh(:,jb), &                 ! surface height
      &               ocean_to_hamocc_state%temperature(:,:,jb), &        ! pot. temperature 
      &               ptiestu(:,:,jb),& ! depths at interface  
-     &               l_dynamic_pi, kpke, use_acc=lacc) ! depths at interface  
+     &               l_dynamic_pi, kpke, lacc=lzacc) ! depths at interface  
        ELSE
         ! diagnostic N2 fixation
         CALL cyano (local_bgc_memory, start_index, end_index,pddpo(:,:,jb),&
@@ -335,7 +338,7 @@ IF (test_memory_copies /= bgc_memory_copies) &
   &               ocean_to_hamocc_state%temperature(:,:,jb), &          ! pot. temperature 
   &               ocean_to_hamocc_state%salinity(:,:,jb), &          ! salinity
   &               ocean_to_hamocc_state%wind10m(:,jb)            , &          ! 10m wind speed 
-  &               ocean_to_hamocc_state%ice_concentration_sum(:,jb), use_acc=lacc)                              ! sea ice concentration
+  &               ocean_to_hamocc_state%ice_concentration_sum(:,jb), lacc=lzacc)                              ! sea ice concentration
 
        stop_detail_timer(timer_bgc_gx,5)
         !----------------------------------------------------------------------
@@ -345,7 +348,7 @@ IF (test_memory_copies /= bgc_memory_copies) &
         CALL calc_dissol(local_bgc_memory, start_index, end_index, levels,   & 
    &               pddpo(:,:,jb),& ! cell thickness
    &               ocean_to_hamocc_state%salinity(:,:,jb),         &  ! salinity
-   &               ptiestu(:,:,jb), use_acc=lacc) !depths at interface   
+   &               ptiestu(:,:,jb), lacc=lzacc) !depths at interface   
  
         stop_detail_timer(timer_bgc_calc,5)
        !----------------------------------------------------------------------
@@ -358,18 +361,18 @@ IF (test_memory_copies /= bgc_memory_copies) &
  
         CALL powach(local_bgc_memory, local_sediment_memory, start_index, end_index, &    
    &               ocean_to_hamocc_state%salinity(:,:,jb),          &! salinity
-   &               pddpo(:,:,jb), use_acc=lacc)  ! cell thickness
+   &               pddpo(:,:,jb), lacc=lzacc)  ! cell thickness
          endif
         stop_detail_timer(timer_bgc_powach,5)
 
         if(mod(ldtrunbgc,ndtdaybgc).eq.0) CALL sedshi(local_bgc_memory, local_sediment_memory, &
-                                                      start_index, end_index, use_acc=lacc)
+                                                      start_index, end_index, lacc=lzacc)
  
         start_detail_timer(timer_bgc_up_ic,5)
         CALL update_icon(local_bgc_memory, start_index,end_index,levels,&
   &               pddpo(:,:,jb),&  ! cell thickness
   &               jb, hamocc_state%p_prog(nold(1))%tracer,            &
-  &               hamocc_to_ocean_state%co2_flux(:,jb), use_acc=lacc)          ! co2flux for coupling
+  &               hamocc_to_ocean_state%co2_flux(:,jb), lacc=lzacc)          ! co2flux for coupling
         stop_detail_timer(timer_bgc_up_ic,5)
 
         start_detail_timer(timer_bgc_tend,5)
@@ -380,7 +383,7 @@ IF (test_memory_copies /= bgc_memory_copies) &
   &                                   hamocc_state%p_tend,            &
   &                                   hamocc_state%p_diag,            &
   &                                   hamocc_state%p_sed,             &
-  &                                   hamocc_state%p_agg, kpke, use_acc=lacc)
+  &                                   hamocc_state%p_agg, kpke, lacc=lzacc)
 
         stop_detail_timer(timer_bgc_tend,5)
  ENDDO
@@ -389,7 +392,7 @@ IF (test_memory_copies /= bgc_memory_copies) &
 !ICON_OMP_END_PARALLEL
 #endif
 ! O2 min depth & value diagnostics
-CALL get_omz(hamocc_state, p_patch_3d, pddpo, ssh, use_acc=lacc)
+CALL get_omz(hamocc_state, p_patch_3d, pddpo, ssh, lacc=lzacc)
 
 !$ACC END DATA
 
@@ -466,7 +469,7 @@ ENDIF  ! lsediment_only
   ldtrunbgc = ldtrunbgc + 1
 
   IF(l_bgc_check)THEN
-   call message('2. after bgc','inventories',io_stdo_bgc)
+   call message_to_own_unit('2. after bgc','inventories',io_stdo_bgc)
    call get_inventories(hamocc_state, ssh, pddpo, hamocc_state%p_prog(nold(1))%tracer, p_patch_3d, 1._wp, 1._wp) 
   ENDIF
   

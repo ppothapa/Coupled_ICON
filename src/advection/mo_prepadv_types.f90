@@ -1,21 +1,18 @@
-!>
-!! Type definition for preparation of transport with optional reduced 
-!! calling frequency.
-!!
-!!
-!! @par Revision History
-!! Created by Guenther Zaengl, DWD (2013-09-18)
-!! - Moved here from mo_nh_stepping to avoid circular dependencies
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Type definition for preparation of transport with optional reduced
+! calling frequency.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_prepadv_types
 
   USE mo_kind,                 ONLY: wp

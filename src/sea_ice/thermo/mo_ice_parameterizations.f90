@@ -1,28 +1,22 @@
-!>
-!! Provide an implementation of various sea ice parametrizations.
-!!
-!! @author Dirk Notz, MPI
-!! @author Vladimir Lapin, MPI
-!!
-!! @par Revision History
-!!  Original version by Dirk Notz, MPI-M (2009)
-!!  Restructured     by Vladimir Lapin, MPI-M (2017-04)
-!! 
-!! @par Revision History
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Provide an implementation of various sea ice parametrizations.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
 MODULE mo_ice_parameterizations
-  
+
   USE mo_kind,                ONLY: wp
   USE mo_run_config,          ONLY: dtime
   USE mo_dynamics_config,     ONLY: nold
@@ -33,11 +27,12 @@ MODULE mo_ice_parameterizations
   USE mo_model_domain,        ONLY: t_patch
   USE mo_grid_subset,         ONLY: t_subset_range, get_index_range
 
-  USE mo_physical_constants,  ONLY: rhoi, rhos, rho_ref, clw, Cd_io, Ch_io,             &
+  USE mo_physical_constants,  ONLY: rhoi, rhos, rho_ref, clw,             &
     &                               alb_sno_vis, alb_sno_nir, alb_ice_vis, alb_ice_nir
-  USE mo_sea_ice_nml,         ONLY: i_ice_albedo, i_Qio_type, i_ice_therm, albi, albim, albsm, albs
+  USE mo_sea_ice_nml,         ONLY: i_ice_albedo, i_Qio_type, i_ice_therm, albi, albim, albsm, albs, Cd_io, Ch_io
   USE mo_ocean_types,         ONLY: t_hydro_ocean_state
   USE mo_sea_ice_types,       ONLY: t_sea_ice
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
 
 
   IMPLICIT NONE
@@ -57,12 +52,8 @@ CONTAINS
   !>
   !! ! set_ice_albedo: set ice albedo
   !!
-  !! @par Revision History
-  !! Initial release by Peter Korn, MPI-M (2010-07). Originally code written by
-  !! Dirk Notz, following MPI-OM. Code transfered to ICON.
-  !!
   SUBROUTINE set_ice_albedo(i_startidx_c, i_endidx_c, nbdim, kice, Tsurf, hi, hs, &
-      & albvisdir, albvisdif, albnirdir, albnirdif, use_acc)
+      & albvisdir, albvisdif, albnirdir, albnirdif, lacc)
 
     INTEGER, INTENT(IN)  :: i_startidx_c, i_endidx_c, nbdim, kice
     REAL(wp),INTENT(IN)  :: Tsurf(nbdim,kice)
@@ -72,26 +63,22 @@ CONTAINS
     REAL(wp),INTENT(OUT) :: albvisdif  (nbdim,kice)
     REAL(wp),INTENT(OUT) :: albnirdir  (nbdim,kice)
     REAL(wp),INTENT(OUT) :: albnirdif  (nbdim,kice)
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
 
     !Local variables
     REAL(wp), PARAMETER :: albtrans   = 0.5_wp
     REAL(wp)            :: albflag, frac_snow
     INTEGER             :: jc,k
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     !-------------------------------------------------------------------------------
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     SELECT CASE (i_ice_albedo)
     CASE (1)
       ! This is Uwe's albedo expression from the old budget function
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO k=1,kice
         !$ACC LOOP GANG VECTOR PRIVATE(albflag)
@@ -114,7 +101,7 @@ CONTAINS
       !$ACC END PARALLEL
 
       ! all albedos are the same
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO k=1,kice
         !$ACC LOOP GANG VECTOR
@@ -128,7 +115,7 @@ CONTAINS
 
     CASE (2)
       ! This is the CCSM 3 albedo scheme
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
 !PREVENT_INCONSISTENT_IFORT_FMA
       DO k=1,kice
@@ -149,7 +136,7 @@ CONTAINS
       !$ACC END PARALLEL
 
       ! diffuse and direct albedos are the same
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP SEQ
       DO k=1,kice
         !$ACC LOOP GANG VECTOR
@@ -170,33 +157,29 @@ CONTAINS
   !
   ! Calculates the heat flux from the uppermost water layer into the ice.
   !
-  ! Currently (as in growth.f90): all energy available in upper ocean grid cell 
-  ! is supplied to the ice and the upper ocean temperature is held at the 
+  ! Currently (as in growth.f90): all energy available in upper ocean grid cell
+  ! is supplied to the ice and the upper ocean temperature is held at the
   ! freezing point. This is not very physical.
   !
   ! Positive flux upwards.
 
-SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice, use_acc)
+SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice, lacc)
     TYPE(t_patch), INTENT(IN), TARGET       :: p_patch
     TYPE(t_hydro_ocean_state), INTENT(IN)   :: p_os
     TYPE(t_sea_ice),           INTENT(INOUT):: ice
-    LOGICAL, INTENT(IN), OPTIONAL           :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL           :: lacc
 
     ! Local
     INTEGER :: jb, jc, i_startidx_c, i_endidx_c, k
     TYPE(t_subset_range), POINTER :: all_cells
     REAL(wp) :: u_star
     REAL(wp), POINTER  :: sst(:,:), u_diag(:,:), v_diag(:,:)
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
     CHARACTER(LEN=max_char_length), PARAMETER :: routine = 'mo_ice_parameterizations:oce_ice_heatflx'
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
-    
+    CALL set_acc_host_or_device(lzacc, lacc)
+
     all_cells   => p_patch%cells%all
     sst         => p_os%p_prog(nold(1))%tracer(:,1,:,1)
     u_diag      => p_os%p_diag%u(:,1,:)
@@ -219,7 +202,7 @@ SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice, use_acc)
 !ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc) SCHEDULE(dynamic)
       DO jb = 1,p_patch%nblks_c
         CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
         DO jc = i_startidx_c,i_endidx_c
           ice%zHeatOceI(jc,:,jb) = 0.0_wp
         ENDDO
@@ -230,7 +213,7 @@ SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice, use_acc)
 !ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc) SCHEDULE(dynamic)
       DO jb = 1,p_patch%nblks_c
         CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
         DO jc = i_startidx_c,i_endidx_c
           IF (ice%hi(jc,1,jb) > 0._wp) THEN
             ! energy of warm water below ice covered part of grid area only is used for melting
@@ -245,7 +228,7 @@ SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice, use_acc)
 !ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc) SCHEDULE(dynamic)
     DO jb = 1,p_patch%nblks_c
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
       DO jc = i_startidx_c,i_endidx_c
         IF (ice%hi(jc,1,jb) > 0._wp) THEN
             ! melting energy depends on velocity difference between water and ice, bulk formulation
@@ -262,7 +245,7 @@ SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice, use_acc)
 !ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc, k) SCHEDULE(dynamic)
       DO jb = 1,p_patch%nblks_c
         CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
         DO jc = i_startidx_c,i_endidx_c
           DO k=1,ice%kice
           IF (ice%hi(jc,k,jb) > 0._wp) THEN
@@ -279,7 +262,7 @@ SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice, use_acc)
         !$ACC END PARALLEL LOOP
       END DO
 !ICON_OMP_END_PARALLEL_DO
-    
+
     CASE DEFAULT
       CALL finish(TRIM(routine), 'Invalid i_Qio_type')
 
@@ -291,8 +274,8 @@ SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice, use_acc)
     CALL dbg_print('O-I-HeatFlx: concSum   ' ,ice%concSum   , str_module, 4, in_subset=p_patch%cells%owned)
     !---------------------------------------------------------------------
 
-  END SUBROUTINE oce_ice_heatflx 
-  
+  END SUBROUTINE oce_ice_heatflx
+
 
   !-------------------------------------------------------------------------------
   !>
@@ -302,34 +285,27 @@ SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice, use_acc)
   !! decreases more than ice thickness by rhoi/rhos ( analogue to old growth.f90 sea-ice model )
   !! Salt content of snow ice is equal to that of normal ice, salt is removed from the ocean
   !!
-  !! @par Revision History
-  !! Initial release by Vladimir Lapin, MPI-M (2016-11)
-  !!
-  SUBROUTINE ice_draft_and_flooding (p_patch, ice, use_acc)
+  SUBROUTINE ice_draft_and_flooding (p_patch, ice, lacc)
 
     TYPE(t_patch),      INTENT(IN), TARGET  :: p_patch
     TYPE (t_sea_ice),   INTENT(INOUT)       :: ice
-    LOGICAL, INTENT(IN), OPTIONAL           :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL           :: lacc
 
     ! Local
     TYPE(t_subset_range), POINTER :: all_cells
     INTEGER                       :: jb, k, jc, i_startidx_c, i_endidx_c
     REAL(wp)                      :: hi_from_flood ! Increase in ice thickness due to flooding      [m]
-    LOGICAL                       :: lacc
+    LOGICAL                       :: lzacc
     !-----------------------------------------------------------------------
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     all_cells            => p_patch%cells%all
 
 !ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, k, jc, hi_from_flood) SCHEDULE(dynamic)
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lzacc)
       DO k=1,ice%kice
         DO jc = i_startidx_c,i_endidx_c
 
@@ -353,7 +329,7 @@ SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice, use_acc)
 !ICON_OMP_PARALLEL_DO PRIVATE(i_startidx_c, i_endidx_c, jc) SCHEDULE(dynamic)
     DO jb = all_cells%start_block, all_cells%end_block
       CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
-      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
       DO jc = i_startidx_c,i_endidx_c
         ice%draftave(jc,jb) = sum(ice%draft(jc,:,jb) * ice%conc(jc,:,jb))
       END DO
@@ -380,66 +356,67 @@ SUBROUTINE oce_ice_heatflx (p_patch, p_os, ice, use_acc)
   !! ! ice_cut_off: Fix overshoots in concentration that appear due to ice convergence
   !! NB: currently ONLY for the one-ice-class case, kice=1
   !!
-  !! @par Revision History
-  !! Initial release by Vladimir Lapin, MPI-M (2016-11)
-  !!
-  SUBROUTINE ice_cut_off (p_patch, p_ice, use_acc)
+  SUBROUTINE ice_cut_off (p_patch, p_ice, lacc)
 
     TYPE(t_patch),TARGET,   INTENT(IN)    :: p_patch
     TYPE(t_sea_ice),        INTENT(INOUT) :: p_ice
-    LOGICAL, INTENT(IN), OPTIONAL         :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL         :: lacc
 
-    INTEGER :: i, j, size1, size2
-    LOGICAL :: lacc
+    ! Local
+    TYPE(t_subset_range), POINTER :: all_cells
+    INTEGER :: jb, jc, i_startidx_c, i_endidx_c
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
-!ICON_OMP_PARALLEL
+    all_cells            => p_patch%cells%all
 
-!ICON_OMP_WORKSHARE
-      ! Fix overshoots in concentration that can appear due to ice convergence in areas with conc ~ 1
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-      WHERE ( p_ice%conc(:,1,:) > 1._wp )
-        p_ice%conc(:,1,:) = 1._wp
-        ! New ice and snow thickness
-        p_ice%hi   (:,1,:) = p_ice%vol (:,1,:)/( p_ice%conc(:,1,:)*p_patch%cells%area(:,:) )
-        p_ice%hs   (:,1,:) = p_ice%vols(:,1,:)/( p_ice%conc(:,1,:)*p_patch%cells%area(:,:) )
-      ENDWHERE
-      !$ACC END KERNELS
-!ICON_OMP_END_WORKSHARE
+    ! Fix overshoots in concentration that can appear due to ice convergence in areas with conc ~ 1
+!ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, i_startidx_c, i_endidx_c)
+    DO jb = all_cells%start_block, all_cells%end_block
+      CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
+      DO jc = i_startidx_c,i_endidx_c
+        IF (( p_ice%conc(jc,1,jb) > 1._wp )) THEN
+          p_ice%conc  (jc,1,jb) = 1._wp
+          ! New ice and snow thickness
+          p_ice%hi   (jc,1,jb) = p_ice%vol (jc,1,jb)/( p_ice%conc(jc,1,jb)*p_patch%cells%area(jc,jb) )
+          p_ice%hs   (jc,1,jb) = p_ice%vols(jc,1,jb)/( p_ice%conc(jc,1,jb)*p_patch%cells%area(jc,jb) )
+        END IF
+      END DO
+      !$ACC END PARALLEL LOOP
+    END DO
+!ICON_OMP_END_PARALLEL_DO
 
-      ! Fix undershoots - ONLY for the one-ice-class case
-      ! Quick fix, should be reformulated to occur at the advection stage
-!ICON_OMP_WORKSHARE
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-      WHERE ( ( p_ice%conc(:,1,:) < TINY(1._wp) ) .OR. ( p_ice%hi(:,1,:) < TINY(1._wp) ) )
-        p_ice%conc  (:,1,:) = 0._wp
-        p_ice%hi    (:,1,:) = 0._wp
-        p_ice%hs    (:,1,:) = 0._wp
-        p_ice%vol   (:,1,:) = 0._wp
-        p_ice%vols  (:,1,:) = 0._wp
-      ENDWHERE
-      !$ACC END KERNELS
+    ! Fix undershoots - ONLY for the one-ice-class case
+    ! Quick fix, should be reformulated to occur at the advection stage
+!ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, i_startidx_c, i_endidx_c)
+    DO jb = all_cells%start_block, all_cells%end_block
+      CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
+      DO jc = i_startidx_c,i_endidx_c
+        IF (( p_ice%conc(jc,1,jb) < TINY(1._wp) ) .OR. ( p_ice%hi(jc,1,jb) < TINY(1._wp) )) THEN
+          p_ice%conc  (jc,1,jb) = 0._wp
+          p_ice%hi    (jc,1,jb) = 0._wp
+          p_ice%hs    (jc,1,jb) = 0._wp
+          p_ice%vol   (jc,1,jb) = 0._wp
+          p_ice%vols  (jc,1,jb) = 0._wp
+        END IF
+      END DO
+      !$ACC END PARALLEL LOOP
+    END DO
+!ICON_OMP_END_PARALLEL_DO
 
-!fixme !ICON_OMP_END_WORKSHARE
-!fixme      
-!fixme      ! fix possible undershoots in snow depth 
-!fixme      ! quick fix preliminary, what should we do with negative snow?
-!fixme !ICON_OMP_WORKSHARE
-!fixme       WHERE ( p_ice%hs(:,1,:) < 0._wp )
-!fixme         p_ice%hs   (:,1,:) = 0._wp
-!fixme      ENDWHERE
-!ICON_OMP_END_WORKSHARE
-
-!ICON_OMP_END_PARALLEL
-
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
-      p_ice%concSum(:,:) = SUM(p_ice%conc, 2)
-      !$ACC END KERNELS
+!ICON_OMP_PARALLEL_DO PRIVATE(jb, jc, i_startidx_c, i_endidx_c)
+    DO jb = all_cells%start_block, all_cells%end_block
+      CALL get_index_range(all_cells, jb, i_startidx_c, i_endidx_c)
+      !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
+      DO jc = i_startidx_c,i_endidx_c
+        p_ice%concSum(jc,jb) = SUM(p_ice%conc(jc,:,jb))
+      END DO
+      !$ACC END PARALLEL LOOP
+    END DO
+!ICON_OMP_END_PARALLEL_DO
 
   END SUBROUTINE ice_cut_off
 

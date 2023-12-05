@@ -1,19 +1,26 @@
-!>
-!! @file mo_cyano.f90
-!! @brief N2 fixation and cyanobateria dynamics.
-!!
-!! Contains computation of diagnostic and prognostic N2 fixation and.
-!! cyanobacteria dyanmics (growth, decay, buouyancy) 
-!!
-!!
-
- 
+! @brief N2 fixation and cyanobateria dynamics.
+!
+! Contains computation of diagnostic and prognostic N2 fixation and.
+! cyanobacteria dyanmics (growth, decay, buouyancy)
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_cyano
 
   USE mo_kind, ONLY           : wp
   USE mo_control_bgc, ONLY    : dtb, dtbgc, bgc_nproma, bgc_zlevs
   USE mo_bgc_memory_types, ONLY  : t_bgc_memory
+  USE mo_fortran_tools, ONLY  : set_acc_host_or_device
   
   IMPLICIT NONE
 
@@ -24,7 +31,7 @@ MODULE mo_cyano
 
 CONTAINS
 
-SUBROUTINE cyano (local_bgc_mem, start_idx,end_idx,pddpo, za, use_acc)
+SUBROUTINE cyano (local_bgc_mem, start_idx,end_idx,pddpo, za, lacc)
 
 !! @brief diagostic N2 fixation
 
@@ -44,25 +51,21 @@ SUBROUTINE cyano (local_bgc_mem, start_idx,end_idx,pddpo, za, use_acc)
 
   REAL(wp), INTENT(in) :: pddpo(bgc_nproma,bgc_zlevs) !< size of scalar grid cell (3rd dimension) [m].
   REAL(wp), INTENT(in) :: za(bgc_nproma)              !< surface height [m].
-  LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+  LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
   !! Local variables
 
   REAL(wp) :: oldnitrate
   INTEGER  :: j
-  LOGICAL :: lacc
+  LOGICAL :: lzacc
 
-  IF (PRESENT(use_acc)) THEN
-    lacc = use_acc
-  ELSE
-    lacc = .FALSE.
-  END IF
+  CALL set_acc_host_or_device(lzacc, lacc)
   !
   ! --------------------------------------------------------------------
   !
      !$ACC DATA COPY(local_bgc_mem, local_bgc_mem%bgctra, local_bgc_mem%bgcflux) &
-     !$ACC   COPY(local_bgc_mem%bgctend, local_bgc_mem%satoxy) IF(lacc)
-     !$ACC PARALLEL ASYNC(1) IF(lacc)
+     !$ACC   COPY(local_bgc_mem%bgctend, local_bgc_mem%satoxy) IF(lzacc)
+     !$ACC PARALLEL ASYNC(1) IF(lzacc)
      !$ACC LOOP GANG VECTOR
      DO j = start_idx, end_idx
 
@@ -107,7 +110,7 @@ END SUBROUTINE cyano
 
 
 
-SUBROUTINE cyadyn(local_bgc_mem, klevs, start_idx, end_idx, pddpo, za, ptho, ptiestu, l_dynamic_pi, max_klevs, use_acc)
+SUBROUTINE cyadyn(local_bgc_mem, klevs, start_idx, end_idx, pddpo, za, ptho, ptiestu, l_dynamic_pi, max_klevs, lacc)
 !! @brief prognostic N2 fixation, cyanobacteria
 
       USE mo_memory_bgc, ONLY      : pi_alpha_cya,          &
@@ -142,7 +145,7 @@ SUBROUTINE cyadyn(local_bgc_mem, klevs, start_idx, end_idx, pddpo, za, ptho, pti
 
       LOGICAL, INTENT(in) :: l_dynamic_pi
       INTEGER, INTENT(IN) :: max_klevs
-      LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+      LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
       !! Local variables
    
@@ -157,19 +160,15 @@ SUBROUTINE cyadyn(local_bgc_mem, klevs, start_idx, end_idx, pddpo, za, ptho, pti
       REAL(wp) ::  phosy_cya
       REAL(wp) :: dyn_pi_alpha_cya
       REAL(wp) :: surface_height
-      LOGICAL :: lacc
+      LOGICAL :: lzacc
 
       ! for N-cycle
       REAL(wp) :: no3cya, nh4cya, hib, xa_nh4, xa_no3, no3lim
       REAL(wp) :: xn_fe, xn_p
 
-      IF (PRESENT(use_acc)) THEN
-        lacc = use_acc
-      ELSE
-        lacc = .FALSE.
-      END IF
+      CALL set_acc_host_or_device(lzacc, lacc)
   
-  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+  !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
   !$ACC LOOP GANG VECTOR COLLAPSE(2)
   DO k = 1, max_klevs
    DO j = start_idx, end_idx
@@ -345,7 +344,7 @@ SUBROUTINE cyadyn(local_bgc_mem, klevs, start_idx, end_idx, pddpo, za, ptho, pti
   ! C(k,T+dt)=(ddpo(k)*C(k,T)+w*dt*C(k-1,T+dt))/(ddpo(k)+w*dt)
   ! sedimentation=w*dt*C(ks,T+dt)
   !
- !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+ !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
  !$ACC LOOP GANG VECTOR
  DO j=start_idx,end_idx
     kpke=klevs(j)

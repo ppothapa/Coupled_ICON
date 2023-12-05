@@ -1,18 +1,16 @@
-!>
-!! @brief Interface between AES physics and the ocean, through a coupler
-!!
-!! @author Marco Giorgetta (MPI-M)
-!!
-!! @par Revision History
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! @brief Interface between AES physics and the ocean, through a coupler
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -34,15 +32,15 @@ MODULE mo_aes_coupling
        &                            timer_coupling_1stget
   USE mo_aes_sfc_indices     ,ONLY: iwtr, iice, ilnd, nsfc_type
   USE mo_aes_phy_config      ,ONLY: aes_phy_config
+  USE mo_aes_vdf_config      ,ONLY: aes_vdf_config
 
   USE mo_sync                ,ONLY: sync_c, sync_patch_array
 
-  USE mo_bc_greenhouse_gases ,ONLY: ghg_co2mmr
+  USE mo_bc_greenhouse_gases ,ONLY: ghg_co2vmr
 
   USE mo_parallel_config     ,ONLY: nproma
 
   USE mo_coupling_config     ,ONLY: is_coupled_run
-  USE mo_coupling_config     ,ONLY: config_use_sens_heat_flux_hack
   USE mo_atmo_coupling_frame ,ONLY: lyac_very_1st_get, nbr_inner_cells,     &
     &                               mask_checksum, field_id
   USE mo_exception           ,ONLY: warning, finish, message
@@ -107,6 +105,8 @@ CONTAINS
     INTEGER               :: no_arr         !  no of arrays in bundle for put/get calls
 
     REAL(wp), PARAMETER   :: dummy = 0.0_wp
+
+    REAL(wp)              :: shflx_adjustment_factor
 
     REAL(wp)              :: scr(nproma,p_patch%alloc_cell_blocks)
     REAL(wp)              :: frac_oce(nproma,p_patch%alloc_cell_blocks)
@@ -400,7 +400,9 @@ CONTAINS
     !  Send total heat flux bundle
     !   field_id(4) represents "total heat flux" bundle - short wave, long wave, sensible, latent heat flux
 
-    IF (config_use_sens_heat_flux_hack) THEN
+    IF (aes_phy_config(jg)%use_shflx_adjustment .AND. .NOT. aes_vdf_config(jg)%use_tmx) THEN
+
+      shflx_adjustment_factor = cvd/cpd
 
 !ICON_OMP_PARALLEL_DO PRIVATE(i_blk, n, nn, nlen) ICON_OMP_RUNTIME_SCHEDULE
       DO i_blk = 1, p_patch%nblks_c
@@ -410,17 +412,19 @@ CONTAINS
         ELSE
           nlen = p_patch%npromz_c
         END IF
-        !$ACC PARALLEL LOOP DEFAULT(PRESENT) COPYOUT(buffer(nn+1:nn+nlen, 1:4))
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COPYOUT(buffer(nn+1:nn+nlen, 1:4))
         DO n = 1, nlen
           buffer(nn+n,1) = prm_field(jg)%swflxsfc_tile(n,i_blk,iwtr)
           buffer(nn+n,2) = prm_field(jg)%lwflxsfc_tile(n,i_blk,iwtr)
-          buffer(nn+n,3) = (cvd/cpd)*prm_field(jg)%shflx_tile(n,i_blk,iwtr)
+          buffer(nn+n,3) = shflx_adjustment_factor*prm_field(jg)%shflx_tile(n,i_blk,iwtr)
           buffer(nn+n,4) = prm_field(jg)%lhflx_tile   (n,i_blk,iwtr)
         ENDDO
       ENDDO
 !ICON_OMP_END_PARALLEL_DO
 
-    ELSE ! .NOT. config_use_sens_heat_flux_hack
+    ELSE ! .NOT. use_shflx_adjustment .OR. use_tmx
+
+      shflx_adjustment_factor = 1._wp
 
 !ICON_OMP_PARALLEL_DO PRIVATE(i_blk, n, nn, nlen) ICON_OMP_RUNTIME_SCHEDULE
       DO i_blk = 1, p_patch%nblks_c
@@ -430,7 +434,7 @@ CONTAINS
         ELSE
           nlen = p_patch%npromz_c
         END IF
-        !$ACC PARALLEL LOOP DEFAULT(PRESENT) COPYOUT(buffer(nn+1:nn+nlen, 1:4))
+        !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COPYOUT(buffer(nn+1:nn+nlen, 1:4))
         DO n = 1, nlen
           buffer(nn+n,1) = prm_field(jg)%swflxsfc_tile(n,i_blk,iwtr)
           buffer(nn+n,2) = prm_field(jg)%lwflxsfc_tile(n,i_blk,iwtr)
@@ -440,7 +444,8 @@ CONTAINS
       ENDDO
 !ICON_OMP_END_PARALLEL_DO
 
-    ENDIF ! config_use_sens_heat_flux_hack
+    ENDIF ! use_shflx_adjustment
+    !$ACC WAIT(1)
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
 
@@ -597,10 +602,10 @@ CONTAINS
                 DO n = 1, nlen
                    buffer(nn+n,1) =              1.0e6_wp * ccycle_config(jg)%vmr_co2
                 END DO
-             CASE (4) ! transient co2 concentration, ghg_co2mmr in kg/kg
+             CASE (4) ! transient co2 concentration, ghg_co2vmr in m3/m3
                 !$ACC PARALLEL LOOP DEFAULT(PRESENT) ASYNC(1) COPYOUT(buffer(nn+1:nn+nlen, 1))
                 DO n = 1, nlen
-                   buffer(nn+n,1) =  amd/amco2 * 1.0e6_wp * ghg_co2mmr
+                   buffer(nn+n,1) =              1.0e6_wp * ghg_co2vmr
                 END DO
              END SELECT
           END SELECT
@@ -910,14 +915,14 @@ CONTAINS
       ! total: short wave, long wave, sensible, latent heat flux sent
       scr(:,:) = prm_field(jg)%swflxsfc_tile(:,:,iwtr) + &
         &        prm_field(jg)%lwflxsfc_tile(:,:,iwtr) + &
-        &        prm_field(jg)%shflx_tile(:,:,iwtr)    + &
+        &        shflx_adjustment_factor*prm_field(jg)%shflx_tile(:,:,iwtr)    + &
         &        prm_field(jg)%lhflx_tile(:,:,iwtr)
       CALL dbg_print('AESOce: totalhfx.wtr',scr,str_module,2,in_subset=p_patch%cells%owned)
       scr(:,:) = prm_field(jg)%swflxsfc_tile(:,:,iwtr)
       CALL dbg_print('AESOce: swflxsfc.wtr',scr,str_module,3,in_subset=p_patch%cells%owned)
       scr(:,:) = prm_field(jg)%lwflxsfc_tile(:,:,iwtr)
       CALL dbg_print('AESOce: lwflxsfc.wtr',scr,str_module,4,in_subset=p_patch%cells%owned)
-      scr(:,:) = prm_field(jg)%shflx_tile(:,:,iwtr)
+      scr(:,:) = shflx_adjustment_factor*prm_field(jg)%shflx_tile(:,:,iwtr)
       CALL dbg_print('AESOce: shflx.wtr   ',scr,str_module,4,in_subset=p_patch%cells%owned)
       scr(:,:) = prm_field(jg)%lhflx_tile(:,:,iwtr)
       CALL dbg_print('AESOce: lhflx.wtr   ',scr,str_module,4,in_subset=p_patch%cells%owned)
@@ -939,7 +944,8 @@ CONTAINS
       CALL dbg_print('AESOce: ocv         ',prm_field(jg)%ocv         ,str_module,4,in_subset=p_patch%cells%owned)
 
       ! Fraction of tiles:
-      !$ACC UPDATE HOST(frac_oce)
+      !$ACC UPDATE HOST(frac_oce) ASYNC(1)
+      !$ACC WAIT(1)
       CALL dbg_print('AESOce: frac_oce     ',frac_oce                 ,str_module,3,in_subset=p_patch%cells%owned)
       scr(:,:) = prm_field(jg)%frac_tile(:,:,iwtr)
       CALL dbg_print('AESOce: frac_tile.wtr',scr                      ,str_module,3,in_subset=p_patch%cells%owned)

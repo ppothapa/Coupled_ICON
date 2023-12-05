@@ -1,20 +1,20 @@
-!>
-!!  This module contains (not yet) utility programs for boundary interpolation and feedback
-!!  of diagnostic variables and the upscaling and downscaling routines needed
-!!  for the reduced physics grid
-!!
-!! @par Revision History
-!!  Developed and tested by Guenther Zaengl, DWD (2010-02-10)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+!
+!  This module contains (not yet) utility programs for boundary interpolation and feedback
+!  of diagnostic variables and the upscaling and downscaling routines needed
+!  for the reduced physics grid
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -56,7 +56,7 @@ USE sfc_terra_data,         ONLY: cadp
 USE mo_mpi,                 ONLY: my_process_is_mpi_seq
 USE sfc_flake,              ONLY: flake_coldinit
 USE sfc_flake_data,         ONLY: tpl_T_r, C_T_min, rflk_depth_bs_ref
-USE mo_fortran_tools,       ONLY: init, copy, set_acc_host_or_device, assert_acc_host_only
+USE mo_fortran_tools,       ONLY: init, copy, set_acc_host_or_device, assert_acc_host_only, assert_lacc_equals_i_am_accel_node
 USE mo_io_config,           ONLY: var_in_output
 
 ! ACC LOOP Comment "comment_collapse"
@@ -138,6 +138,7 @@ SUBROUTINE t_upscale_fields_destruct(me)
   INTEGER      :: i
   me%nlev_rg = 0
   me%ntot    = 0
+  !$ACC WAIT(1)
   do i=1,nfieldp_max
     !$ACC EXIT DATA DETACH(me%field(i)%p) IF(ASSOCIATED(me%field(i)%p) .AND. me%lopenacc)
     !$ACC EXIT DATA DETACH(me%field(i)%p2) IF(ASSOCIATED(me%field(i)%p2) .AND. me%lopenacc)
@@ -195,9 +196,6 @@ END SUBROUTINE t_upscale_fields_assign2D
 !>
 !! This routine averages the input fields for RRTM radiation to the next coarser grid level.
 !!
-!!
-!! @par Revision History
-!! Developed  by Guenther Zaengl, DWD, 2010-12-01
 !!
 SUBROUTINE upscale_rad_input(jg, jgp, nlev_rg, emis_rad,                   &
   cosmu0, albvisdir, albnirdir, albvisdif, albnirdif, albdif,              &
@@ -1175,9 +1173,6 @@ END SUBROUTINE upscale_rad_input
 !! This routine interpolates the output fields of RRTM radiation from the reduced
 !! grid to the full grid.
 !!
-!! @par Revision History
-!! Developed  by Guenther Zaengl, DWD, 2010-12-03
-!!
 SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
   rg_trsolall, rg_trsol_clr_sfc, rg_lwflx_clr_sfc, rg_lwflx_up_sfc,         &
   rg_trsol_up_toa, rg_trsol_up_sfc, rg_trsol_nir_sfc, rg_trsol_vis_sfc,     &
@@ -1288,6 +1283,7 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
 !-----------------------------------------------------------------------
 
   CALL set_acc_host_or_device(lzacc, lacc)
+  CALL assert_lacc_equals_i_am_accel_node("downscale_rad_output", lzacc)
 
   IF (msg_level >= 10) THEN
     WRITE(message_text,'(a,i2,a,i2)') 'Downscaling of radiation output fields',&
@@ -1470,24 +1466,27 @@ SUBROUTINE downscale_rad_output(jg, jgp, nlev_rg, rg_aclcov, rg_lwflxall,   &
     p_swflx_dn_clr => rg_swflx_dn_clr
   
 !$OMP PARALLEL
-    CALL init(zrg_aux3d(:,1:nshift,:))
-    CALL copy(rg_aclcov(:,:), zrg_aux3d(:,iclcov,:))
-    CALL copy(tsfc_rg(:,:), zrg_aux3d(:,itsfc,:))
-    CALL copy(albdif_rg(:,:), zrg_aux3d(:,ialb,:))
-    CALL copy(emis_rad_rg(:,:), zrg_aux3d(:,iemis,:))
-    CALL copy(cosmu0_rg(:,:), zrg_aux3d(:,icosmu0,:))
-    CALL copy(rg_lwflx_up_sfc(:,:), zrg_aux3d(:,ilwsfc,:))
-    CALL copy(rg_trsol_up_toa(:,:), zrg_aux3d(:,itrutoa,:))
-    CALL copy(rg_trsol_up_sfc(:,:), zrg_aux3d(:,itrusfc,:))
-    CALL copy(rg_trsol_dn_sfc_diff(:,:), zrg_aux3d(:,itrdiff,:))
-    CALL copy(rg_trsol_clr_sfc(:,:), zrg_aux3d(:,itrclrsfc,:))
-    CALL copy(rg_lwflx_clr_sfc(:,:), zrg_aux3d(:,ilwclrsfc,:))
-    CALL copy(rg_trsol_nir_sfc(:,:), zrg_aux3d(:,itrnirsfc,:))
-    CALL copy(rg_trsol_vis_sfc(:,:), zrg_aux3d(:,itrvissfc,:))
-    CALL copy(rg_trsol_par_sfc(:,:), zrg_aux3d(:,itrparsfc,:))
-    CALL copy(rg_fr_nir_sfc_diff(:,:), zrg_aux3d(:,ifrnirsfcdf,:))
-    CALL copy(rg_fr_vis_sfc_diff(:,:), zrg_aux3d(:,ifrvissfcdf,:))
-    CALL copy(rg_fr_par_sfc_diff(:,:), zrg_aux3d(:,ifrparsfcdf,:))
+#ifdef _OPENACC
+    CALL init(zrg_trdiffsolall(:,:,:), opt_acc_async=.TRUE.)
+#endif
+    CALL init(zrg_aux3d(:,1:nshift,:), opt_acc_async=.TRUE.)
+    CALL copy(rg_aclcov(:,:), zrg_aux3d(:,iclcov,:), opt_acc_async=.TRUE.)
+    CALL copy(tsfc_rg(:,:), zrg_aux3d(:,itsfc,:), opt_acc_async=.TRUE.)
+    CALL copy(albdif_rg(:,:), zrg_aux3d(:,ialb,:), opt_acc_async=.TRUE.)
+    CALL copy(emis_rad_rg(:,:), zrg_aux3d(:,iemis,:), opt_acc_async=.TRUE.)
+    CALL copy(cosmu0_rg(:,:), zrg_aux3d(:,icosmu0,:), opt_acc_async=.TRUE.)
+    CALL copy(rg_lwflx_up_sfc(:,:), zrg_aux3d(:,ilwsfc,:), opt_acc_async=.TRUE.)
+    CALL copy(rg_trsol_up_toa(:,:), zrg_aux3d(:,itrutoa,:), opt_acc_async=.TRUE.)
+    CALL copy(rg_trsol_up_sfc(:,:), zrg_aux3d(:,itrusfc,:), opt_acc_async=.TRUE.)
+    CALL copy(rg_trsol_dn_sfc_diff(:,:), zrg_aux3d(:,itrdiff,:), opt_acc_async=.TRUE.)
+    CALL copy(rg_trsol_clr_sfc(:,:), zrg_aux3d(:,itrclrsfc,:), opt_acc_async=.TRUE.)
+    CALL copy(rg_lwflx_clr_sfc(:,:), zrg_aux3d(:,ilwclrsfc,:), opt_acc_async=.TRUE.)
+    CALL copy(rg_trsol_nir_sfc(:,:), zrg_aux3d(:,itrnirsfc,:), opt_acc_async=.TRUE.)
+    CALL copy(rg_trsol_vis_sfc(:,:), zrg_aux3d(:,itrvissfc,:), opt_acc_async=.TRUE.)
+    CALL copy(rg_trsol_par_sfc(:,:), zrg_aux3d(:,itrparsfc,:), opt_acc_async=.TRUE.)
+    CALL copy(rg_fr_nir_sfc_diff(:,:), zrg_aux3d(:,ifrnirsfcdf,:), opt_acc_async=.TRUE.)
+    CALL copy(rg_fr_vis_sfc_diff(:,:), zrg_aux3d(:,ifrvissfcdf,:), opt_acc_async=.TRUE.)
+    CALL copy(rg_fr_par_sfc_diff(:,:), zrg_aux3d(:,ifrparsfcdf,:), opt_acc_async=.TRUE.)
 !$OMP END PARALLEL
 
     !$ACC END DATA
@@ -2092,9 +2091,6 @@ END SUBROUTINE downscale_rad_output
 
 !>
 !! This routine optimizes the boundary interpolation of diagnostic physics fields for output
-!!
-!! @par Revision History
-!! Developed  by Guenther Zaengl, DWD, 2010-12-03
 !!
 SUBROUTINE interpol_phys_grf (ext_data, jg, jgc, jn, lacc)
 
@@ -2755,9 +2751,6 @@ END SUBROUTINE interpol_phys_grf
 !! radiation is computed on a reduced grid
 !!
 !!
-!! @par Revision History
-!! Developed  by Guenther Zaengl, DWD, 2011-09-19
-!!
 SUBROUTINE interpol_rrg_grf (jg, jgc, jn, ntl_rcf, lacc)
 
   INTEGER, INTENT(in) :: jg, jgc, jn, ntl_rcf ! Input grid parameters
@@ -2878,9 +2871,6 @@ END SUBROUTINE interpol_rrg_grf
 !! This routine copies additional model levels to the local parent grid if vertical nesting
 !! is combined with a reduced radiation grid and the option latm_above_top = .TRUE.
 !!
-!! @par Revision History
-!! Developed  by Guenther Zaengl, DWD, 2015-01-26
-!!
 SUBROUTINE copy_rrg_ubc (jg, jgc)
 
   ! Input grid parameters
@@ -2907,9 +2897,6 @@ END SUBROUTINE copy_rrg_ubc
 
 !>
 !! This routine performs the feedback of diagnostic physics fields for output
-!!
-!! @par Revision History
-!! Developed  by Guenther Zaengl, DWD, 2010-12-03
 !!
 SUBROUTINE feedback_phys_diag(jg, jgp, lacc)
 

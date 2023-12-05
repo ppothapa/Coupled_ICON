@@ -1,24 +1,17 @@
-!>
-!! Contains the main stepping method_name the 3-dim hydrostatic ocean model.
-!!
-!! @author Peter Korn, Stephan Lorenz, MPI
-!!
-!! @par Revision History
-!!  Initial version by Stephan Lorenz (MPI-M), (2010-04).
-!!   - renaming and adjustment of hydrostatic ocean model V1.0.3 to ocean domain and patch_oce
-!!  Modification by Stephan Lorenz, MPI-M, 2010-10
-!!   - new module mo_ocean_testbed_vertical_diffusion including updated reconstructions
+! Contains the main stepping method_name the 3-dim hydrostatic ocean model.
 !
 !
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_ocean_testbed_vertical_diffusion
   !-------------------------------------------------------------------------
   USE mo_kind,                   ONLY: wp, sp
@@ -398,9 +391,6 @@ CONTAINS
   !>
   !! sbr identical to sbr above but now with homogeneous boundary conditions
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2011).
-  !! Preconditioning by Leonidas Linardakis, MPI-M (2014)
   !!
   !! The result ocean_tracer%concetration is calculated on domain_cells
   !-------------------------------------------------------------------------
@@ -504,9 +494,6 @@ CONTAINS
   !>
   !! sbr identical to sbr above but now with homogeneous boundary conditions
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2011).
-  !! Preconditioning by Leonidas Linardakis, MPI-M (2014)
   !!
   !! The result ocean_tracer%concetration is calculated on domain_cells
   SUBROUTINE tracer_diffusion_vertical_implicit_r0( patch_3D,               &
@@ -1158,8 +1145,6 @@ CONTAINS
   !!
   !! NOT USED
   !!
-  !! @par Revision History
-  !! Peter Korn (2012-2)
 !  SUBROUTINE update_diffusion_matrices(   patch_3D,          &
 !                                         & p_phys_param,       &
 !                                         & matrix_vert_diff_e, &

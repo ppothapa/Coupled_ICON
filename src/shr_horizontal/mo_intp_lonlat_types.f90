@@ -1,21 +1,23 @@
-!>
-!! Contains the the interpolation data structures for the regular grid.
-!!
-!! A hierarchy of data structures is needed since one can use
-!!
-!! * several lon-lat grids, where each of them is applied to
-!!   * several ICON domains, where each of them requires
-!!     * several interpolation methods for the different variables.
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Contains the the interpolation data structures for the regular grid.
+!
+! A hierarchy of data structures is needed since one can use
+!
+! * several lon-lat grids, where each of them is applied to
+!   * several ICON domains, where each of them requires
+!     * several interpolation methods for the different variables.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_intp_lonlat_types
 
   USE mo_kind,                ONLY: wp
@@ -94,7 +96,7 @@ MODULE mo_intp_lonlat_types
   !
   TYPE, EXTENDS(t_intp_coeff) :: t_intp_vec_coeff
     REAL(wp), ALLOCATABLE  :: coeff(:,:,:,:)      ! array containing interpolation 
-                                                  ! weights (stencilsize,nproma,nblks_lonlat)
+                                                  ! weights (stencilsize,2,nproma,nblks_lonlat)
   
   CONTAINS
     PROCEDURE, PUBLIC :: init     => t_intp_vec_coeff_init
@@ -231,9 +233,9 @@ CONTAINS
     this%idx(:,:,:)   = -1
     this%blk(:,:,:)   = -1
 
-    !$ACC UPDATE DEVICE(this%stencil)
-    !$ACC UPDATE DEVICE(this%idx)
-    !$ACC UPDATE DEVICE(this%blk)
+    !$ACC UPDATE DEVICE(this%stencil) ASYNC(1)
+    !$ACC UPDATE DEVICE(this%idx) ASYNC(1)
+    !$ACC UPDATE DEVICE(this%blk) ASYNC(1)
 
   END SUBROUTINE t_intp_coeff_init
 
@@ -247,6 +249,7 @@ CONTAINS
     CHARACTER(*), PARAMETER :: routine = modname//"::t_intp_coeff_finalize"
     INTEGER :: ist
 
+    !$ACC WAIT(1)
     IF (ALLOCATED(this%idx)) THEN
       DEALLOCATE (this%idx, STAT=ist)
       IF (ist /= SUCCESS)  CALL finish (routine, 'deallocation for barycentric stencil indices failed')
@@ -296,7 +299,7 @@ CONTAINS
     IF (ierr /= SUCCESS)  CALL finish (routine, 'Allocation for coeffs failed!')
     !$ACC ENTER DATA CREATE(this%coeff)
     this%coeff(:,:,:) = 0._wp
-    !$ACC UPDATE DEVICE(this%coeff)
+    !$ACC UPDATE DEVICE(this%coeff) ASYNC(1)
 
     this%l_cutoff = l_cutoff
 
@@ -305,7 +308,7 @@ CONTAINS
       IF (ierr /= SUCCESS)  CALL finish (routine, 'Allocation for coeffs failed!')
       !$ACC ENTER DATA CREATE(this%v)
       this%v(:,:,:,:) = 0._wp
-      !$ACC UPDATE DEVICE(this%v)
+      !$ACC UPDATE DEVICE(this%v) ASYNC(1)
     END IF
   END SUBROUTINE t_intp_scalar_coeff_init
 
@@ -349,7 +352,7 @@ CONTAINS
     IF (ierr /= SUCCESS)  CALL finish (routine, 'Allocation for coeffs failed!')
     !$ACC ENTER DATA CREATE(this%coeff)
     this%coeff(:,:,:,:) = 0._wp
-    !$ACC UPDATE DEVICE(this%coeff)
+    !$ACC UPDATE DEVICE(this%coeff) ASYNC(1)
   END SUBROUTINE t_intp_vec_coeff_init
 
 
@@ -394,6 +397,9 @@ CONTAINS
     
     ! --- barycentric interpolation
     CALL this%baryctr%init(3, nproma, nblks_lonlat, .FALSE.)
+
+    ! global_idx is needed in device
+    !$ACC ENTER DATA CREATE(this%global_idx)
   END SUBROUTINE t_lon_lat_intp_init
 
 
@@ -410,6 +416,7 @@ CONTAINS
 
     DEALLOCATE (this%global_idx, STAT=ist )
     IF (ist /= SUCCESS)  CALL finish (routine, 'deallocation for lon-lat coefficients failed')
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(this%global_idx)
     ! -- deallocate rbf_vec data structure
     CALL this%rbf_vec%finalize()
@@ -473,8 +480,9 @@ CONTAINS
     IF (errstat /= SUCCESS) CALL finish (routine, 'ALLOCATE failed')
     !$ACC ENTER DATA CREATE(tmp_global_idx)
     tmp_global_idx(1:nlocal_pts) = this%global_idx(1:nlocal_pts)
-    !$ACC UPDATE DEVICE(tmp_global_idx)
+    !$ACC UPDATE DEVICE(tmp_global_idx) ASYNC(1)
 ! Note: IF_PRESENT not allowed in EXIT DATA, but global_idx should be on DEVICE
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(this%global_idx)
     CALL MOVE_ALLOC(tmp_global_idx, this%global_idx)
   END SUBROUTINE t_lon_lat_intp_contract
@@ -593,9 +601,6 @@ CONTAINS
   !--------------------------------------------------------------------------------
   !> Performs nearest neighbor interpolation, INTEGER implementation
   !
-  ! @par Revision History
-  !      Initial implementation  by  F. Prill, DWD (2013-02)
-  !
   SUBROUTINE t_intp_scalar_interpolate_i( this, p_cell_in, nproma, nblks_lonlat, npromz_lonlat, &
     &                                     p_out, opt_slev, opt_elev)
 
@@ -684,10 +689,6 @@ CONTAINS
   !  CALL rbf_vec_interpol_lonlat( grad_norm_psi_e, ptr_patch, ptr_int, grad_x,  &
   !    &                           grad_y, ptr_int%tri_idx(:,:,:),        &
   !    &                           nblks_lonlat, npromz_lonlat )
-  !
-  ! @par Revision History
-  !      Initial implementation  by  F. Prill, DWD (2011-08)
-  !      based on "rbf_interpol_c2grad"
   !
   SUBROUTINE t_intp_scalar_interpolate_r( this, p_cell_in, nproma, nblks_lonlat, npromz_lonlat, &
     &                                     p_out, opt_slev, opt_elev)
@@ -1067,9 +1068,6 @@ CONTAINS
   !
   ! This routine is based on mo_intp_rbf::rbf_vec_interpol_cell()
   !
-  ! @par Revision History
-  !      Initial implementation  by  F. Prill, DWD (2011-08)
-  !
   SUBROUTINE t_intp_vec_interpolate_r( this, p_vn_in, nproma, nblks_lonlat, npromz_lonlat, &
     &                                  grad_x, grad_y, opt_slev, opt_elev)
 
@@ -1158,9 +1156,6 @@ CONTAINS
   !> REAL fields: Driver routine for the interpolation of
   !  cell-based variables at lon-lat grid points.
   !
-  ! @par Revision History
-  !      Initial implementation  by  F. Prill, DWD (2011-08)
-  !
   SUBROUTINE t_lon_lat_intp_interpolate_r( this, name, p_cell_in, nproma, p_lonlat_out, hintp_type)
 
     ! Indices of source points and interpolation coefficients
@@ -1210,9 +1205,6 @@ CONTAINS
   !> INTEGER fields: Driver routine for the interpolation of
   !  cell-based variables at lon-lat grid points.
   !
-  ! @par Revision History
-  !      Initial implementation  by  F. Prill, DWD (2011-08)
-  !
   SUBROUTINE t_lon_lat_intp_interpolate_i( this, name, p_cell_in, nproma, p_lonlat_out, hintp_type)
 
     ! Indices of source points and interpolation coefficients
@@ -1252,9 +1244,6 @@ CONTAINS
   !> Performs vector RBF reconstruction at lon-lat grid points.
   !
   ! This routine is based on mo_intp_rbf::rbf_vec_interpol_cell()
-  !
-  ! @par Revision History
-  !      Initial implementation  by  F. Prill, DWD (2011-08)
   !
   SUBROUTINE t_lon_lat_intp_interpolate_rvec( this, p_vn_in, nproma, &
     &                                         grad_x, grad_y, hintp_type, opt_slev, opt_elev)

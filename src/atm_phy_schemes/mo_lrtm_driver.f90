@@ -1,32 +1,31 @@
-!>
-!! @brief Module to provide interface to rrtmg longwave radiation
-!!
-!! @remarks
-!!   This module contains routines that provide the interface between ECHAM
-!!   and the AER RRTMG radiation code.  Mostly it organizes and calculates the
-!!   information necessary to call the radiative transfer solvers.
-!!
-!! @author Bjorn Stevens, MPI-M, Hamburg (2009-11-29)
-!!
-!! $ID: n/a$
-!!
-!! @par Origin
-!!   Major segments of this code combines and rewrites (for the ICON standard)
-!!   code previously provided by AER and copyrighed by them.  The authors of the
-!!   original AER code are: Eli J. Mlawer, Jennifer S. Delamere, Michael J.
-!!   Iacono and Shepard A. Clough with acknowledgments to Steven J. Taubman,
-!!   Karen Cady-Pereira, Patrick D. Brown, Ronald E. Farren, Luke Chen, Robert
-!!   Bergstrom. The rewrites were designed to better interface with the structure
-!!   of the ICON family of models and elements of the ICON programming standard.
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
 !
+! Module to provide interface to rrtmg longwave radiation
+!
+! Remarks
+!   This module contains routines that provide the interface between ECHAM
+!   and the AER RRTMG radiation code.  Mostly it organizes and calculates the
+!   information necessary to call the radiative transfer solvers.
+!
+! Origin
+!   Major segments of this code combines and rewrites (for the ICON standard)
+!   code previously provided by AER and copyrighed by them.  The authors of the
+!   original AER code are: Eli J. Mlawer, Jennifer S. Delamere, Michael J.
+!   Iacono and Shepard A. Clough with acknowledgments to Steven J. Taubman,
+!   Karen Cady-Pereira, Patrick D. Brown, Ronald E. Farren, Luke Chen, Robert
+!   Bergstrom. The rewrites were designed to better interface with the structure
+!   of the ICON family of models and elements of the ICON programming standard.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_lrtm
 
   USE mo_kind,         ONLY: wp
@@ -48,9 +47,9 @@ MODULE mo_lrtm
 CONTAINS
   !-----------------------------------------------------------------------------
   !>
-  !! @brief Prepares information for radiation call
+  !! Prepares information for radiation call
   !!
-  !! @remarks: This program is the driver subroutine for RRTMG_LW, the AER LW
+  !! Remarks: This program is the driver subroutine for RRTMG_LW, the AER LW
   !! radiation model for application to GCMs, that has been adapted from RRTM_LW
   !! for improved efficiency.
   !! This routine:
@@ -316,7 +315,7 @@ CONTAINS
   END SUBROUTINE lrtm
   !-----------------------------------------------------------------------------
   !>
-  !! @brief Copies 2D column height input data into 1D column data
+  !! Copies 2D column height input data into 1D column data
   !!
   SUBROUTINE inatm (                                 &
        & kproma       ,klev         ,psfc           ,&

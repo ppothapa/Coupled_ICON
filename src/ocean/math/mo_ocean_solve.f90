@@ -1,6 +1,17 @@
-#include "icon_definitions.inc"
-
 ! contains general interface to the actual solver backends (init, solve, destruct)
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
+#include "icon_definitions.inc"
 
 MODULE mo_ocean_solve
   !-------------------------------------------------------------------------
@@ -21,10 +32,11 @@ MODULE mo_ocean_solve
     & t_ocean_solve_parm
   USE mo_run_config, ONLY: ltimer
   USE mo_timer, ONLY: new_timer, timer_start, timer_stop
- 
+  USE mo_fortran_tools, ONLY: set_acc_host_or_device
+
   IMPLICIT NONE
   PRIVATE
- 
+
   PUBLIC :: t_ocean_solve
   CHARACTER(LEN=*), PARAMETER :: this_mod_name = 'mo_ocean_solve'
 
@@ -70,14 +82,18 @@ CONTAINS
   END SUBROUTINE ocean_solve_dump_matrix
 
 ! init solver object (allocate backend and initialize it)
-  SUBROUTINE ocean_solve_construct(this, st, par, par_sp, lhs_agen, trans)
+  SUBROUTINE ocean_solve_construct(this, st, par, par_sp, lhs_agen, trans, lacc)
     CLASS(t_ocean_solve), TARGET, INTENT(INOUT) :: this
     INTEGER, INTENT(IN) :: st
     TYPE(t_ocean_solve_parm), INTENT(IN) :: par, par_sp
     CLASS(t_lhs_agen), TARGET, INTENT(IN) :: lhs_agen
     CLASS(t_transfer), TARGET, INTENT(IN) :: trans
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
+    LOGICAL :: lzacc
     CHARACTER(LEN=*), PARAMETER :: routine = this_mod_name// &
       & "::t_ocean_solve::ocean_solve_construct()"
+
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     IF (ALLOCATED(this%act)) CALL finish(routine, "already initialized!")
     IF (ltimer) THEN
@@ -124,7 +140,7 @@ CONTAINS
     END SELECT
     this%sol_type = st
 ! init backend
-    CALL this%act%construct(par, par_sp, lhs_agen, trans)
+    CALL this%act%construct(par, par_sp, lhs_agen, trans, lacc=lzacc)
 ! init arrays / pointers
     NULLIFY(this%b_loc_wp)
     ALLOCATE(this%x_loc_wp(par%nidx, par%nblk_a), this%res_loc_wp(2))
@@ -148,11 +164,15 @@ CONTAINS
   END SUBROUTINE ocean_solve_construct
 
 ! general interface for solve
-  SUBROUTINE ocean_solve_solve(this, niter, niter_sp)
+  SUBROUTINE ocean_solve_solve(this, niter, niter_sp, lacc)
     CLASS(t_ocean_solve), INTENT(INOUT) :: this
     INTEGER, INTENT(OUT) :: niter, niter_sp
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
+    LOGICAL :: lzacc
     CHARACTER(LEN=*), PARAMETER :: routine = this_mod_name// &
       & '::t_ocean_solve::ocean_solve'
+
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     IF (.NOT.ALLOCATED(this%act)) &
       & CALL finish(routine, "solve needs to be initialized")
@@ -160,8 +180,9 @@ CONTAINS
 ! update rhs-pointer
     this%act%b_loc_wp => this%b_loc_wp
 ! call backend
-    CALL this%act%solve(niter, niter_sp, MERGE(1, 0, this%sol_type .NE. solve_legacy_gmres))
+    CALL this%act%solve(niter, niter_sp, MERGE(1, 0, this%sol_type .NE. solve_legacy_gmres), lacc=lzacc)
     IF (ltimer) CALL timer_stop(this%timer)
+
   END SUBROUTINE ocean_solve_solve
 
 END MODULE mo_ocean_solve

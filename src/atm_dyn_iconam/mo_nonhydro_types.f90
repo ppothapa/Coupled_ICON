@@ -1,27 +1,22 @@
+!
+! Type definition for the dynamical core of ICONAM.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 #if (defined (__GNUC__) || defined(__SUNPRO_F95) || defined(__SX__))
 #define HAVE_F95
 #endif
-!>
 
-!! Type definition for the dynamical core of ICONAM.
-!!
-!! @author Almut Gassmann (MPI-M)
-!! @author Daniel Reinert (DWD)
-!! @author Guenther Zaengl (DWD)
-!!
-!! @par Revision History
-!! Initial release by Daniel Reinert, DWD (2012-02-07)
-!! - Moved here from mo_nonhydro_state to avoid circular dependencies
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
 MODULE mo_nonhydro_types
 
   USE mo_kind,                 ONLY: wp, vp
@@ -75,6 +70,7 @@ MODULE mo_nonhydro_types
     &  exner_pr(:,:,:),     & ! exner pressure perturbation, saved from previous step (nproma,nlev,nblks_c)
     &  temp(:,:,:),         & ! temperature (nproma,nlev,nblks_c)                 [K]
     &  tempv(:,:,:),        & ! virtual temperature (nproma,nlev,nblks_c)         [K]
+    &  chi_q(:,:,:),        & ! sum of liquid condensate (nproma,nlev,nblks_c)    [kg/kg]
     &  temp_ifc(:,:,:),     & ! temperature at half levels (nproma,nlevp1,nblks_c)[K]
     &  pres(:,:,:),         & ! pressure (nproma,nlev,nblks_c)                  [Pa]
     &  pres_ifc(:,:,:),     & ! pressure at interfaces (nproma,nlevp1,nblks_c)  [Pa]
@@ -136,7 +132,8 @@ MODULE mo_nonhydro_types
     !
     ! e) optional diagnostics
     &  pres_msl(:,:),       & ! diagnosed mean sea level pressure (nproma,nblks_c)  [Pa]
-    &  omega(:,:,:)         & ! vertical velocity ( omega=dp/dt )           [Pa/s]
+    &  omega(:,:,:),        & ! vertical velocity ( omega=dp/dt )           [Pa/s]
+    &  camsaermr(:,:,:,:)   & ! CAMS Mixing Ratios [kg/kg]
     &  => NULL()
 
     ! d) variables that are in single precision when "__MIXED_PRECISION" is defined
@@ -264,6 +261,7 @@ MODULE mo_nonhydro_types
       &  vfl_trc_ptr    (:),   &  !< pointer array: one pointer for each tracer
       &  ddt_trc_adv_ptr(:),   &  !< pointer array: one pointer for each tracer
       &  tracer_vi_ptr  (:),   &  !< pointer array: one pointer for each tracer
+      &  camsaermr_ptr  (:),   &  !< pointer array: for CAMS aermr fields
       &  extra_2d_ptr   (:),   &
       &  extra_3d_ptr   (:)
 
@@ -333,9 +331,7 @@ MODULE mo_nonhydro_types
      mask_mtnpoints_g(:,:) , & ! 
      ! slope angle and azimuth (used for slope-dependent radiation)
      slope_angle(:,:)  , & ! [rad]
-     slope_azimuth(:,:), & ! [rad]; zero means south-facing slope
-     ! Area of subdomain for which feedback is performed; dim: (nlev)
-     fbk_dom_volume(:)       &
+     slope_azimuth(:,:) & ! [rad]; zero means south-facing slope
      => NULL()
 
     ! Variables that are in single precision when "__MIXED_PRECISION" is defined

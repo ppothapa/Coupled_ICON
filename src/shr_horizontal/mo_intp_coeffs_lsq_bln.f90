@@ -1,3 +1,18 @@
+! Contains the implementation of interpolation and reconstruction
+! routines used by the shallow water model, including the RBF
+! reconstruction routines.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------  
 
 #ifdef __xlC__
 ! @PROCESS nosmp
@@ -8,131 +23,6 @@
 #ifdef __PGI
 !pgi$g opt=1
 #endif
-!>
-!! Contains the implementation of interpolation and reconstruction.
-!!
-!! Contains the implementation of interpolation and reconstruction
-!! routines used by the shallow water model, including the RBF
-!! reconstruction routines.
-!!
-!! @par Revision History
-!! Developed  by Luca Bonaventura and Will Sawyer (2002-4).
-!! Modified to ProTeX-style by  Luca Bonaventura and Thomas Heinze (2004).
-!! Adapted to new data structure by Thomas Heinze,
-!! Peter Korn and Luca Bonaventura (2005).
-!! Modification by Thomas Heinze (2006-02-21):
-!! - renamed m_modules to mo_modules
-!! Modification by Thomas Heinze (2006-07-05):
-!! - modified cell2edge_lin_int_coeff
-!! - created cc_dot_product
-!! Modification by Peter Korn and Luca Bonaventura(2006-07-28):
-!! - moved several auxiliary functions to mo_math_utilities
-!! - introduced recoded rbf interpolation for vector fields
-!! - added lraviart switch to force RT interpolation to be used
-!! Modification by Thomas Heinze  and Luca Bonaventura(2006-10-05):
-!! - merged with 'Milano' version by P. Korn
-!! Modification by Pilar Ripodas (2006-11):
-!! - new subroutine rbf_vec_interpol_car with the cartesian
-!!   coordinates as output
-!! Modification by Peter Korn, MPI-M, (2006-11-23):
-!! - replacements in TYPE patch: ic by l2g_c, ie by l2g_e, iv by l2g_v,
-!!   iic by g2l_c, iie by g2l_e, iiv by g2l_v
-!! - replaced edge_index by edge_idx
-!! - replaced vertex_index by vertex_idx
-!! - replaced cell_index by cell_idx
-!! - replaced neighbor_index by neighbor_idx
-!! Modification by Pilar Ripodas (2006-12):
-!! - dt_tan_vec and dt_tan_rt_vec are wrong. They are renamed to
-!!   dt_tan_vec_old and dt_tan_rt_vec_old and should not be used
-!! - New subroutines dt_tan_vec_h and dt_tan_vec_kin and
-!!   dt_tan_vec_gen are produced and
-!!   moved to mo_sw_state.f90
-!!  Modification by Peter Korn, MPI-M (2007-02)
-!!  Modification by Hui Wan, MPI-M (2007-02-22)
-!!  - changes in the USE section because
-!!    the coordinate types had been move from mo_model_domain
-!!    to mo_math_utilities;
-!!  Modification by Almut Gassmann, MPI-M (2007-04)
-!!  - removed reference to unused halo_verts
-!!  - summing over all halos of the various parallel patches (Quick and Dirty!)
-!!  Modification by Almut Gassmann, MPI-M (2007-04)
-!!  - abandon grid for the sake of patch
-!!  Modification by Thomas Heinze, DWD (2007-07-26)
-!!  - including all the improvements of Tobias Ruppert's diploma thesis
-!!  - several changes according to the programming guide
-!!  Modification by Pilar Ripodas, DWD (2007-07):
-!!  - substruct the outgoing component of the reconstructed
-!!    vector in subroutine "rbf_vec_interpol_car"
-!!  Modification by Thomas Heinze, DWD (2007-08-02)
-!!  - replaced rbf_kern_dim by rbf_kern_dim_c
-!!  - replaced rbf_vec_dim by rbf_vec_dim_c
-!!  - replaced rbf_mat_dim by rbf_mat_dim_c
-!!  - replaced rbf_vec_scale by rbf_vec_scale_c
-!!  - replaced rbf_vec_pdeg_c by rbf_vec_rbf_vec_pdeg_c_c
-!!  Modification by Hui Wan, MPI-M (2007-08-02; 2007-11-30)
-!!  - added interpolation coefficients c_aw_e and e_aw_c
-!!    and the initialization subroutine aw_int_coeff.
-!!  - added subroutine edges2cells_scalar
-!!  Modification by Jochen Foerstner, DWD (2008-05-05)
-!!  - four new subroutines
-!!      rbf_vec_index_vertex
-!!      rbf_vec_compute_coeff_vertex
-!!      rbf_vec_interpol_car_vertex
-!!      prepare_simpson
-!!    to reconstruct a Cartesian vector at the vertices using
-!!    RBF interpolation and to prepare quadrature via the
-!!    Simpson's rule.
-!!  Modification by Marco Restelli, MPI (2008-07-17)
-!!  - included the subroutines
-!!      cells2vertex_scalar, cells2vertex_coeff, ravtom_normgrad2,
-!!      ls_normgrad2, ls_normgrad2_ii, edges2points_vector
-!!    to compute polynomial fitting with sufficient accuracy as
-!!    required in SW-alpha model.
-!!  Modification by Jochen Foerstner, DWD (2008-09-12)
-!!  - moved SUBROUTINE ravtom_normgrad2 to mo_math_operators
-!!    because of conflicting use statements.
-!!  Modification by Almut Gassmann, MPI-M (2008-10-09)
-!!  - added features for helicity bracket reconstruction
-!!  Modification by Guenther Zaengl, DWD (2008-10-23)
-!!  - added interpolation routines needed for mesh refinement
-!!  Modification by Almut Gassmann, MPI-M (2009-01-29)
-!!  - conforming scalar interpolation routines and adjusting coefficients
-!!  Modification by Guenther Zaengl, DWD (2009-02-11)
-!!  - all routines needed for grid refinement are moved into the new
-!!    module mo_grf_interpolation
-!!  Modification by Guenther Zaengl, DWD (2009-02-13)
-!!  - RBFs are changed to direct reconstruction of velocity components on
-!!    the sphere, avoiding the detour over the 3D Cartesian space
-!!  Modification by Almut Gassmann, DWD (2009-03-17)
-!!  - remove lraviart
-!!  Modification by Almut Gassmann, MPI-M (2009-04-23)
-!!  - remove all Raviart Thomas stuff, add edge to verts averaging
-!!  Modification by Daniel Reinert, DWD (2009-07-20)
-!!  - added subroutine grad_lsq_compute_coeff_cell to prepare
-!!    (2D) gradient reconstruction at circumcenter via the least squares
-!!    method.
-!!  Modification by Almut Gassmann, MPI-M (2009-10-05)
-!!  - set RBF vec dimensions to predefined values (edges:4,vertices:6,cells:9);
-!!    All other switches and belongings are deleted. The reason is that
-!!    the Hollingsworth instability requires 4 edges, cell reconstruction
-!!    is only needed for output and vertices are only used in the bracket
-!!    version, where the dimension at the vertices should be 6
-!!  Modification by Daniel Reinert, DWD (2009-12-10)
-!!  - replaced grad_lsq_compute_coeff_cell by lsq_compute_coeff_cell
-!!    which initializes either a second order or a third order least squares
-!!    reconstruction.
-!!  Modification by Almut Gassmann, MPI-M (2010-01-12)
-!!  - generalize p_int%primal_normal_ec and p_int%edge_cell_length to hexagons
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -179,21 +69,12 @@ CONTAINS
 
 !-------------------------------------------------------------------------
 !
-!
-!>
 !! This routine initializes the indices used to define the stencil.
 !!
 !! This routine initializes the indices used to define the stencil
 !! of the lsq reconstruction. The stencil is cell based and includes
 !! a variable number of cells (lsq_dim_c) around each control volume
 !! (currently 3 or 9)
-!!
-!! @par Revision History
-!! Developed and tested by Daniel Reinert (2009-11-11)
-!! Modification by Daniel Reinert, DWD (2010-09-06)
-!! - added 12-point stencil
-!! Modification by Rainer Johanni 2010-10-26: used for one patch at a time only
-!!
 !!
 SUBROUTINE lsq_stencil_create( ptr_patch, ptr_int_lsq, lsq_dim_c)
 !
@@ -449,8 +330,6 @@ END SUBROUTINE lsq_compute_coeff_cell
 
 !-------------------------------------------------------------------------
 !
-!
-!>
 !! AD: This routine has been just renamed with affix "_sphere"
 !!
 !! This routine computes the coefficients needed for a weighted least-squares.
@@ -460,14 +339,6 @@ END SUBROUTINE lsq_compute_coeff_cell
 !! enforced to be conservative in the sense that, when integrated over the
 !! control volume, it recovers the area average stored at the mass point.
 !! Works for triangular and hexagonal control volumes.
-!!
-!! @par Revision History
-!! Developed and tested by Daniel Reinert (2009-09-29)
-!! Modification by Daniel Reinert, DWD (2009-11-02)
-!! - application of gnomonic projection for calculation of distance
-!!   vectors between points. Replaces call of rotate_latlon
-!! Modification by Daniel Reinert, DWD (2009-11-11)
-!! - generalization to arbitrary order of reconstruction (yet 2nd or 3rd order)
 !!
 SUBROUTINE lsq_compute_coeff_cell_sphere( ptr_patch, ptr_int_lsq, llsq_rec_consv, &
   &                                       lsq_dim_c, lsq_dim_unk, lsq_wgt_exp )
@@ -1201,11 +1072,6 @@ END SUBROUTINE lsq_compute_coeff_cell_sphere
 !
 !! This is same routine as lsq_compute_coeff_cell_sphere just modified for
 !! flat geometry
-!>
-!!
-!! @par Revision History
-!! Initial version by Daniel Reinert for sphere geometry modified
-!! for torus geometry by Anurag Dipankar, MPIM (2013-04)
 !!
 SUBROUTINE lsq_compute_coeff_cell_torus( ptr_patch, ptr_int_lsq, llsq_rec_consv, &
   &                                      lsq_dim_c, lsq_dim_unk, lsq_wgt_exp )
@@ -1929,7 +1795,6 @@ END SUBROUTINE lsq_compute_coeff_cell_torus
 
 
 !-------------------------------------------------------------------------
-!>
 !!
 !! This routine initializes the coefficients used
 !! for interpolations needed for scalars. The original routines were aw_int_coeff
@@ -1939,15 +1804,6 @@ END SUBROUTINE lsq_compute_coeff_cell_torus
 !!                verts_aw_cells
 !!                cells_aw_verts
 !!                e_inn_c
-!!
-!! @par Revision History
-!!  Original version by Hui Wan, MPI-M (2007-08-02)
-!!  Modified by Almut Gassmann, MPI-M (2009-01-05)
-!!  - added interpolation weights for edges to verts
-!!  Renamed by Almut Gassmann, MPI-M (2009-01-27)
-!!  - joining aw_int_coeff and cell2edge_lin_int_coeff to this routine
-!!  - use of different edge-midpoint to cell distances
-!!  - implement area weightings
 !!
 SUBROUTINE scalar_int_coeff( ptr_patch, ptr_int_state )
 !
@@ -2181,14 +2037,9 @@ END SUBROUTINE bln_int_coeff_e2c
 
 !-------------------------------------------------------------------------
 !
-!
-!>
 !! Computes the weighting coefficients for bilinear edge-to-cell interpolation.
 !!
 !! Results are stored in ptr_int_state\\%e_bln_c_s
-!!
-!! @par Revision History
-!!  developed by Guenther Zaengl, 2009-01-06
 !!
 SUBROUTINE spherical_scalar_coeffs ( ptr_patch, ptr_int_state )
 !
@@ -2324,12 +2175,7 @@ END SUBROUTINE spherical_scalar_coeffs
 
 !-------------------------------------------------------------------------
 !
-!
-!>
 !! Computes the vector weighting coefficients using the scalar part computed earlier
-!!
-!! @par Revision History
-!!  developed by Guenther Zaengl, 2009-01-06
 !!
 SUBROUTINE vector_coeffs ( ptr_patch, ptr_int_state )
 !
@@ -2476,12 +2322,8 @@ END SUBROUTINE vector_coeffs
 !-------------------------------------------------------------------------
 
 !-------------------------------------------------------------------------
-!>
 !! Computes the weighting coefficients for bilinear edge-to-cell interpolation for
 !! flat geometry with equilateral triangular cells
-!!
-!! @par Revision History
-!!  developed by Anurag Dipankar, 2012-28-12 (taken from calculate_spherical_scalar_intp_coeffs)
 !!
 SUBROUTINE flat_scalar_coeffs ( ptr_patch, ptr_int_state )
 !

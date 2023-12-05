@@ -1,18 +1,18 @@
-!>
-!! Initialization/reading reading of external datasets
-!!
-!! This module contains read and initialization routines for the external data state.
-!!
-!! @author Mikhail Dobrynin, DWD, 18.06.19
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Initialization/reading reading of external datasets
+!
+! This module contains read and initialization routines for the external data state.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -59,10 +59,6 @@ CONTAINS
 
   !>
   !! construct and read ext data state
-  !!
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2023-02-14)
   !!
   SUBROUTINE init_wave_ext_data (p_patch, p_int_state, wave_ext_data, wave_ext_data_list)
 
@@ -135,10 +131,6 @@ CONTAINS
 
   !>
   !! cell2edge interpolation for bathymetry
-  !!
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2023-02-14)
   !!
   SUBROUTINE cells2edges_bathymetry(p_patch, p_int_state, bathymetry_c, bathymetry_e)
     TYPE(t_patch),      INTENT(IN)    :: p_patch

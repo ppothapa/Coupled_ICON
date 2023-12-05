@@ -182,45 +182,11 @@
               ]
             }
           ]
-        },
-        {
-          "name": "write_restart",
-          "ancestry": [
-            "root",
-            "total"
-          ],
-          "children": [
-            {
-              "name": "write_restart_io",
-              "ancestry": [
-                "root",
-                "total",
-                "write_restart"
-              ],
-              "children": []
-            },
-            {
-              "name": "write_restart_communication",
-              "ancestry": [
-                "root",
-                "total",
-                "write_restart"
-              ],
-              "children": []
-            }
-          ]
         }
       ]
     },
     {
       "name": "global_sum",
-      "ancestry": [
-        "root"
-      ],
-      "children": []
-    },
-    {
-      "name": "ordglb_sum",
       "ancestry": [
         "root"
       ],
@@ -256,7 +222,17 @@
             "root",
             "physics"
           ],
-          "children": []
+          "children": [
+            {
+              "name": "ordglb_sum",
+              "ancestry": [
+                "root",
+                "physics",
+                "phys_acc_sync"
+              ],
+              "children": []
+            }
+          ]
         },
         {
           "name": "satad",
@@ -380,14 +356,6 @@
       ],
       "children": [
         {
-          "name": "wrt_output",
-          "ancestry": [
-            "root",
-            "model_init"
-          ],
-          "children": []
-        },
-        {
           "name": "compute_domain_decomp",
           "ancestry": [
             "root",
@@ -434,14 +402,6 @@
             "model_init"
           ],
           "children": []
-        },
-        {
-          "name": "optional_diagnostics_atmosphere",
-          "ancestry": [
-            "root",
-            "model_init"
-          ],
-          "children": []
         }
       ]
     },
@@ -456,6 +416,30 @@
           "ancestry": [
             "root",
             "upper_atmosphere"
+          ],
+          "children": []
+        },
+        {
+          "name": "upatmo_destruction",
+          "ancestry": [
+            "root",
+            "upper_atmosphere"
+          ],
+          "children": []
+        }
+      ]
+    },
+    {
+      "name": "write_restart",
+      "ancestry": [
+        "root"
+      ],
+      "children": [
+        {
+          "name": "write_restart_io",
+          "ancestry": [
+            "root",
+            "write_restart"
           ],
           "children": []
         }

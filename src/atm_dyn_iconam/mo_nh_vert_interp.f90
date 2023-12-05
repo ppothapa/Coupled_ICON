@@ -1,21 +1,19 @@
-!>
-!! This module contains routines for the vertical interpolation of
-!! atmospheric data provided by external analyses to the ICON grid
-!!
-!! @author Guenther Zaengl, DWD
-!!
-!!
-!! @par Revision History
-!! First version by Guenther Zaengl, DWD (2011-06-29)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! This module contains routines for the vertical interpolation of
+! atmospheric data provided by external analyses to the ICON grid
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -123,8 +121,7 @@ CONTAINS
       ENDIF
     ENDDO
 #else
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) REDUCTION(MIN: start_idx_diff_threshold) IF(lacc)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) ASYNC(1) DEFAULT(PRESENT) REDUCTION(MIN: start_idx_diff_threshold) IF(lacc)
     DO jk = 1, nlevs
       DO jc = 1, nlen
         IF ( z2d_in(jc,jk)-z_reference(jc) <= threshold ) THEN
@@ -132,7 +129,7 @@ CONTAINS
         END IF
       END DO
     END DO
-    !$ACC END PARALLEL
+    !$ACC END PARALLEL LOOP
     !$ACC WAIT ! required to sync result back to CPU
 
     start_idx_diff_threshold = start_idx_diff_threshold - 1
@@ -171,8 +168,7 @@ CONTAINS
       ENDIF
     ENDDO
 #else
-    !$ACC PARALLEL DEFAULT(PRESENT) REDUCTION(MIN: start_idx_threshold) ASYNC(1) IF(lacc)
-    !$ACC LOOP GANG VECTOR COLLAPSE(2)
+    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) REDUCTION(MIN: start_idx_threshold) ASYNC(1) IF(lacc)
     DO jk = 1, nlevs
       DO jc = 1, nlen
         IF ( zalml(jc,jk) < threshold ) THEN
@@ -180,7 +176,7 @@ CONTAINS
         END IF
       END DO
     END DO
-    !$ACC END PARALLEL
+    !$ACC END PARALLEL LOOP
 
     !$ACC WAIT ! required to sync result back to CPU
 #endif
@@ -193,10 +189,6 @@ CONTAINS
   !! Outer driver routine for vertical interpolation of analysis
   !! data (atmosphere only) interpolated horizontally by IFS2ICON to
   !! the ICON grid
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-14)
-  !!
   !!
   SUBROUTINE vert_interp_atm(p_patch, p_nh_state, p_int, p_grf, initicon)
 
@@ -249,10 +241,6 @@ CONTAINS
   !! data (surface only) interpolated horizontally by ICONREMAP to
   !! the ICON grid
   !!
-  !! @par Revision History
-  !! Initial version by Daniel Reinert, DWD(2012-12-19)
-  !!
-  !!
   SUBROUTINE vert_interp_sfc(p_patch, initicon)
 
     TYPE(t_patch),       INTENT(IN)       :: p_patch(:)
@@ -304,10 +292,6 @@ CONTAINS
   !! and stored in the initicon%atm state. They are finally converted into the following 
   !! set of prognostic variables:
   !! vn, w, qv, qc, qi, qr, qs, rho, exner, theta_v
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-14)
-  !!
   !!
   SUBROUTINE vert_interp(p_patch, p_int, p_metrics, initicon, opt_use_vn, opt_lmask_c, opt_lmask_e, opt_latbcmode, &
     &                    opt_inputonzgpot)
@@ -744,11 +728,6 @@ CONTAINS
   !!
   !! Fills input height field with dummy values if a mask field for data-void grid points is present
   !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2017-09-22)
-  !!
-  !!
-  !!
   SUBROUTINE fill_input_height(z3d_in, z3d_fill, nblks, npromz, nlev, lmask)
 
     ! Input fields
@@ -826,11 +805,6 @@ CONTAINS
   !!
   !! It is assumed that the highest level of the input data is at least
   !! as high as the highest level of the output data
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-14)
-  !!
-  !!
   !!
   SUBROUTINE prepare_lin_intp(z3d_in, z3d_out,                    &
                               nblks, npromz, nlevs_in, nlevs_out, &
@@ -945,12 +919,11 @@ CONTAINS
 #ifdef _OPENACC
         lfound_all = .TRUE.
         ! The following reduction must appear in its own small kernel as it did not work otherwise with Nvidia 21.2
-        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc) REDUCTION(.AND.: lfound_all)
-        !$ACC LOOP VECTOR
+        !$ACC PARALLEL LOOP VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc) REDUCTION(.AND.: lfound_all)
         DO jc = 1, nlen
           lfound_all = lfound_all .AND. l_found(jc)
         ENDDO
-        !$ACC END PARALLEL
+        !$ACC END PARALLEL LOOP
         !$ACC WAIT
 #endif
 
@@ -961,7 +934,7 @@ CONTAINS
           ! Write extra debug output before finishing
           WRITE(0,*) 'prepare_lin_intp',jb,jk,nlevs_out,jk_start,jk1,nlevs_in
           !$ACC UPDATE HOST(l_found, z3d_in, z3d_in, z3d_out) ASYNC(1) IF(lzacc)
-          !$ACC WAIT
+          !$ACC WAIT(1)
           DO jc = 1, nlen
             IF(.NOT.l_found(jc)) THEN
               WRITE(0,*)'prepare_lin_intp',z3d_in(jc,jk_start:jk1,jb),&
@@ -1011,11 +984,6 @@ CONTAINS
   !! Required input fields: 3D coordinate fields of input data
   !! Output: index and coefficient fields to compute field values at
   !! 500 m and 1000 m above ground
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-14)
-  !!
-  !!
   !!
   SUBROUTINE prepare_extrap(z3d_in, nblks, npromz, nlevs_in, &
                             kpbl1, wfacpbl1, kpbl2, wfacpbl2, lacc )
@@ -1127,11 +1095,6 @@ CONTAINS
   !! Required input fields: 3D coordinate fields of input data
   !! Output: index and coefficient fields to compute field values at
   !! 150 m above ground
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2013-04-11)
-  !!
-  !!
   !!
   SUBROUTINE prepare_extrap_ifspp(z3d_h_in, z3d_in, nblks, npromz, nlevs_in, kextrap, zextrap, wfac_extrap, lacc)
 
@@ -1251,11 +1214,6 @@ CONTAINS
   !! It is assumed that the highest level of the input data is at least
   !! as high as the highest level of the output data
   !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-14)
-  !!
-  !!
-  !!
   SUBROUTINE prepare_cubic_intp(z3d_in, z3d_out,                    &
                                 nblks, npromz, nlevs_in, nlevs_out, &
                                 coef1, coef2, coef3, idx0, bot_idx, lacc)
@@ -1369,12 +1327,11 @@ CONTAINS
 #ifdef _OPENACC
         lfound_all = .TRUE.
         ! The following reduction must appear in its own small kernel as it did not work otherwise with Nvidia 21.2
-        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc) REDUCTION(.AND.: lfound_all)
-        !$ACC LOOP GANG VECTOR
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc) REDUCTION(.AND.: lfound_all)
         DO jc = 1, nlen
           lfound_all = lfound_all .AND. l_found(jc)
         ENDDO
-        !$ACC END PARALLEL
+        !$ACC END PARALLEL LOOP
 #endif
         !$ACC WAIT
 
@@ -1430,11 +1387,6 @@ CONTAINS
   !! 500 m above ground. Do not use for temperature!
   !!
   !! Setting l_loglin=.TRUE. activates logarithmic interpolation
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-14)
-  !!
-  !!
   !!
   SUBROUTINE lin_intp(f3d_in, f3d_out,                      &
                       nblks, npromz, nlevs_in, nlevs_out,   &
@@ -1598,11 +1550,6 @@ CONTAINS
   !! Output: pressure field of output data
   !!
   !! Method: piecewise analytical integration of the hydrostatic equation
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-14)
-  !!
-  !!
   !!
   SUBROUTINE pressure_intp(pres_in, tempv_in, z3d_in, pres_out, z3d_out,                   &
                            nblks, npromz, nlevs_in, nlevs_out,                             &
@@ -1897,11 +1844,6 @@ CONTAINS
   !!
   !! Method: piecewise analytical integration of the hydrostatic equation
   !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-14)
-  !!
-  !!
-  !!
   SUBROUTINE pressure_intp_initmode(pres_in, tempv_in, z3d_in, pres_out, tempv_out, z3d_out, &
     &                               nblks, npromz, nlevs_out, nlevs_in, wfac, idx0, bot_idx, &
     &                               opt_lmask                                                )
@@ -2105,11 +2047,6 @@ CONTAINS
   !! Required input fields: topography fields, patch and interpolation state
   !! Output: slope
   !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-14)
-  !!
-  !!
-  !!
   SUBROUTINE compute_slope(p_patch, p_int, topo_c, slope_c)
 
     TYPE(t_patch),          INTENT(INOUT)    :: p_patch
@@ -2198,11 +2135,6 @@ CONTAINS
   !! and to add it again afterwards with a variable weighting coefficient,
   !! accounting for the slope of the target grid point and for the height
   !! difference between source and target grid
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-14)
-  !!
-  !!
   !!
   SUBROUTINE temperature_intp(temp_in, temp_out, z3d_in, z3d_out,            &
                              nblks, npromz, nlevs_in, nlevs_out,             &
@@ -2699,11 +2631,6 @@ CONTAINS
   !! In particular, wind components are requested not to change sign when being
   !! extrapolated downward
   !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-18)
-  !!
-  !!
-  !!
   SUBROUTINE uv_intp(uv_in, uv_out, z3d_in, z3d_out,               &
                      nblks, npromz, nlevs_in, nlevs_out,           &
                      coef1, coef2, coef3, wfac_lin,                &
@@ -3078,11 +3005,6 @@ CONTAINS
   !!
   !! Performs cubic interpolation where possible, turning to linear interpolation
   !! close to the surface
-  !!
-  !! @par Revision History
-  !! Initial version by Guenther Zaengl, DWD(2011-07-18)
-  !!
-  !!
   !!
   SUBROUTINE qv_intp(qv_in, qv_out, z3d_in, z3d_out,                  &
                      temp_in, pres_in, temp_out, pres_out,            &

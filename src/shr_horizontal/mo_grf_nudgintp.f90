@@ -1,23 +1,19 @@
-!>
-!! Contains the interpolation routines needed for grid refinement.
-!!
-!! These had originally been included in mo_grf_interpolation but then were
-!! packed into a separate module to clean up the code
-!!
-!! @par Revision History
-!! Created by Guenther Zaengl, DWD (2009-02-09)
-!! Modification by Guenther Zaengl, DWD (2009-06-22)
-!! - preparation for generalized grid refinement (affects all subroutines)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Contains the interpolation routines needed for grid refinement.
+!
+! These had originally been included in mo_grf_interpolation but then were
+! packed into a separate module to clean up the code
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -59,10 +55,6 @@ CONTAINS
 !>
 !! Parent-to-child interpolation of normal velocity components needed for boundary nudging
 !! Interpolation methods are as in interpol2_vec_grf
-!!
-!!
-!! @par Revision History
-!! Developed  by Guenther Zaengl, DWD (2010-06-17)
 !!
 SUBROUTINE interpol_vec_nudging (ptr_pp, ptr_pc, ptr_int, ptr_grf,    &
   &                              nshift, istart_blk, p_vn_in, p_vn_out)
@@ -539,13 +531,8 @@ END SUBROUTINE interpol_scal_nudging_core
 
 !-------------------------------------------------------------------------
 !
-!>
 !! Parent-to-child interpolation of scalar fields needed for boundary nudging
 !! Interpolation methods are as in interpol_scal_grf
-!!
-!! @par Revision History
-!! Developed  by Guenther Zaengl, DWD (2010-06-16)
-!!
 SUBROUTINE interpol_scal_nudging (ptr_pp, ptr_int, ptr_grf, nshift,              &
                                   nfields, istart_blk, f3din1, f3dout1, f3din2,  &
                                   f3dout2, f3din3, f3dout3, f3din4, f3dout4,     &

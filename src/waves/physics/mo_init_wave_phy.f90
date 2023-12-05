@@ -1,20 +1,19 @@
-!! Description:  Contains the data structures
-!!  for initialisation of the physical model state and other auxiliary variables
-!!  in order to run wave physics.
-!!
-!! @author Mikhail Dobrynin, DWD, 05.09.2019
-!!
-!!
-!! @par Revision History
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Description:  Contains the data structures
+! for initialisation of the physical model state and other auxiliary variables
+! in order to run wave physics.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -29,7 +28,6 @@ MODULE mo_init_wave_physics
   USE mo_physical_constants,   ONLY: grav
   USE mo_math_constants,       ONLY: pi2, rpi_2, deg2rad, rad2deg
   USE mo_loopindices,          ONLY: get_indices_c
-  USE mo_parallel_config,      ONLY: nproma
 
   USE mo_wave_types,           ONLY: t_wave_prog, t_wave_diag
   USE mo_wave_forcing_types,   ONLY: t_wave_forcing
@@ -59,9 +57,6 @@ CONTAINS
   !! and 1D JONSWAP spectum. The minimum of wave energy
   !! is limited to FLMIN.
   !! 2. tba
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
   !!
   SUBROUTINE init_wave_phy(p_patch, wave_config, p_prog, p_diag, wave_ext_data, p_forcing)
 
@@ -157,10 +152,6 @@ CONTAINS
   !! the fetch law and from the 1D JONSWAP spectum. The minimum
   !! of wave energy is limited to FLMIN.
   !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-  !! Vectorization by Daniel Reinert, DWD (2023-01-31)
-  !!
   SUBROUTINE init_wave_spectrum(p_patch, wave_config, p_diag, p_forcing, tracer)
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
          &  routine = modname//':init_wave_spectrum'
@@ -193,7 +184,7 @@ CONTAINS
       DO jf = 1,wave_config%nfreqs
         DO jd = 1,wave_config%ndirs
           !
-          jt = wave_config%get_tracer_id(jd,jf)
+          jt = wave_config%tracer_ind(jd,jf)
           !
         DO jc = i_startidx, i_endidx
             st = rpi_2*MAX(0._wp, COS(wave_config%dirs(jd)-p_forcing%dir10m(jc,jb)*deg2rad) )**2
@@ -217,10 +208,6 @@ CONTAINS
   !! Calculation of the JONSWAP spectrum according to
   !! Hasselmann et al. 1973. Adaptation of WAM 4.5
   !! subroutine JONSWAP.
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-  !! Vectorization by Daniel Reinert, DWD (2023-01-31)
   !!
   SUBROUTINE JONSWAP (p_patch, freqs, ALPHAJ, GAMMA, SA, SB, FP, ET)
     TYPE(t_patch), INTENT(IN)  :: p_patch
@@ -299,10 +286,6 @@ CONTAINS
   !! model. Journal of physical oceanography, Vol. 6, No. 2, March 1976.
   !!
   !! Adopted from WAM 4.5.
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-09-05)
-  !! Vectorization by Daniel Reinert, DWD (2023-01-31)
   !!
   SUBROUTINE FETCH_LAW (p_patch, wave_config, p_diag, p_forcing)
 
@@ -384,9 +367,6 @@ CONTAINS
   !! Reference
   !! S. Hasselmann and K. Hasselmann, JPO, 1985
   !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-11-05)
-  !!
   SUBROUTINE init_wave_nonlinear(wave_config, p_diag)!, ext_data)
 
     CHARACTER(len=MAX_CHAR_LENGTH), PARAMETER ::  &
@@ -403,7 +383,7 @@ CONTAINS
     INTEGER :: nfreqs, ndirs
     INTEGER :: klp1, ic, kh, klh, k, ks, icl1, icl2, isg, k1, k11, k2, k21
     INTEGER :: m, ikn, i, ie
-    INTEGER :: mc,im,im1,ip,ip1,mm,mm1,mp,mp1
+    INTEGER :: mc,im,im1,ip,ip1,mm,mm1,mp,mp1,mct
 
     REAL(wp) :: alamd, con, delphi1, delphi2
     REAL(wp) :: deltha, cl1, cl2, al11, al12, ch, cl1h, cl2h
@@ -560,6 +540,13 @@ CONTAINS
           END IF
         END IF
       END IF
+      
+      MCT = MC
+      IF (MCT.GT.nfreqs) MCT  = nfreqs
+      IF (MM.GT.nfreqs)  MM  = nfreqs
+      IF (MM1.GT.nfreqs) MM1 = nfreqs
+      IF (MP.GT.nfreqs)  MP  = nfreqs
+      IF (MP1.GT.nfreqs) MP1 = nfreqs
 
       !     2.1.1   ANGULAR LOOP.                                     !
       DIR2: DO K = 1,ndirs !DIR2
@@ -570,24 +557,24 @@ CONTAINS
           K11 = p_diag%K11W(K,KH)
           K21 = p_diag%K21W(K,KH)
 
-          p_diag%non_lin_tr_ind( 1,MC,KH,K) = wc%get_tracer_id(K1,IP)
-          p_diag%non_lin_tr_ind( 2,MC,KH,K) = wc%get_tracer_id(K11,IP)
-          p_diag%non_lin_tr_ind( 3,MC,KH,K) = wc%get_tracer_id(K1,IP1)
-          p_diag%non_lin_tr_ind( 4,MC,KH,K) = wc%get_tracer_id(K11,IP1)
-          p_diag%non_lin_tr_ind( 5,MC,KH,K) = wc%get_tracer_id(K2,IM)
-          p_diag%non_lin_tr_ind( 6,MC,KH,K) = wc%get_tracer_id(K21,IM)
-          p_diag%non_lin_tr_ind( 7,MC,KH,K) = wc%get_tracer_id(K2,IM1)
-          p_diag%non_lin_tr_ind( 8,MC,KH,K) = wc%get_tracer_id(K21,IM1)
-          p_diag%non_lin_tr_ind( 9,MC,KH,K) = wc%get_tracer_id(K,IC)
-          p_diag%non_lin_tr_ind(10,MC,KH,K) = wc%get_tracer_id(K2 ,MM)
-          p_diag%non_lin_tr_ind(11,MC,KH,K) = wc%get_tracer_id(K21,MM)
-          p_diag%non_lin_tr_ind(12,MC,KH,K) = wc%get_tracer_id(K2 ,MM1)
-          p_diag%non_lin_tr_ind(13,MC,KH,K) = wc%get_tracer_id(K21,MM1)
-          p_diag%non_lin_tr_ind(14,MC,KH,K) = wc%get_tracer_id(K  ,MC)
-          p_diag%non_lin_tr_ind(15,MC,KH,K) = wc%get_tracer_id(K1 ,MP)
-          p_diag%non_lin_tr_ind(16,MC,KH,K) = wc%get_tracer_id(K11,MP)
-          p_diag%non_lin_tr_ind(17,MC,KH,K) = wc%get_tracer_id(K1 ,MP1)
-          p_diag%non_lin_tr_ind(18,MC,KH,K) = wc%get_tracer_id(K11,MP1)
+          p_diag%non_lin_tr_ind( 1,MC,KH,K) = wc%tracer_ind(K1,IP)
+          p_diag%non_lin_tr_ind( 2,MC,KH,K) = wc%tracer_ind(K11,IP)
+          p_diag%non_lin_tr_ind( 3,MC,KH,K) = wc%tracer_ind(K1,IP1)
+          p_diag%non_lin_tr_ind( 4,MC,KH,K) = wc%tracer_ind(K11,IP1)
+          p_diag%non_lin_tr_ind( 5,MC,KH,K) = wc%tracer_ind(K2,IM)
+          p_diag%non_lin_tr_ind( 6,MC,KH,K) = wc%tracer_ind(K21,IM)
+          p_diag%non_lin_tr_ind( 7,MC,KH,K) = wc%tracer_ind(K2,IM1)
+          p_diag%non_lin_tr_ind( 8,MC,KH,K) = wc%tracer_ind(K21,IM1)
+          p_diag%non_lin_tr_ind( 9,MC,KH,K) = wc%tracer_ind(K,IC)
+          p_diag%non_lin_tr_ind(10,MC,KH,K) = wc%tracer_ind(K2 ,MM)
+          p_diag%non_lin_tr_ind(11,MC,KH,K) = wc%tracer_ind(K21,MM)
+          p_diag%non_lin_tr_ind(12,MC,KH,K) = wc%tracer_ind(K2 ,MM1)
+          p_diag%non_lin_tr_ind(13,MC,KH,K) = wc%tracer_ind(K21,MM1)
+          p_diag%non_lin_tr_ind(14,MC,KH,K) = wc%tracer_ind(K  ,MCT)
+          p_diag%non_lin_tr_ind(15,MC,KH,K) = wc%tracer_ind(K1 ,MP)
+          p_diag%non_lin_tr_ind(16,MC,KH,K) = wc%tracer_ind(K11,MP)
+          p_diag%non_lin_tr_ind(17,MC,KH,K) = wc%tracer_ind(K1 ,MP1)
+          p_diag%non_lin_tr_ind(18,MC,KH,K) = wc%tracer_ind(K11,MP1)
         END DO MIR2
       END DO DIR2
     END DO FRE4
@@ -654,10 +641,6 @@ CONTAINS
   !!
   !! Reference
   !! S. Hasselmann and K. Hasselmann, JPO, 1985 B
-  !!
-  !! @par Revision History
-  !! Initial revision by Mikhail Dobrynin, DWD (2019-11-05)
-  !! Vectorization by Daniel Reinert, DWD (2023-XX-XX)
   INTEGER FUNCTION JAFU (CL, J, IAN)
 
     REAL(wp),    INTENT(IN) :: CL !! weights.

@@ -1,20 +1,17 @@
-!>
+! Contains the implementation of velocity and tracer diffusion for the ICON ocean model.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
-!! Contains the implementation of velocity and tracer diffusion for the ICON ocean model.
-!!
-!!
-!! @par Revision History
-!! @par Revision History
-!!  Developed  by Peter Korn,       MPI-M (2011/01)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
 !----------------------------
 #include "omp_definitions.inc"
 #include "icon_definitions.inc"
@@ -36,6 +33,7 @@ MODULE mo_ocean_tracer_diffusion
   USE mo_ocean_time_events,   ONLY: getCurrentDate_to_String
   USE mo_mpi,                 ONLY: my_process_is_stdio
   USE mo_timer,               ONLY: timer_start, timer_stop, timers_level, timer_dif_vert
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
  
   IMPLICIT NONE
   
@@ -63,13 +61,13 @@ CONTAINS
   
   !-------------------------------------------------------------------------
   !Subroutine computes the horizontal diffusive flux of an arbitrary tracer.
-   SUBROUTINE tracer_diffusion_horz(patch_3D, trac_in, diff_flx, k_t, subset_range, use_acc)
+   SUBROUTINE tracer_diffusion_horz(patch_3D, trac_in, diff_flx, k_t, subset_range, lacc)
     TYPE(t_patch_3d ),TARGET, INTENT(in)   :: patch_3D
     REAL(wp), INTENT(in)              :: trac_in(nproma,n_zlev,patch_3D%p_patch_2d(1)%alloc_cell_blocks)
     REAL(wp), INTENT(inout)           :: diff_flx(nproma,n_zlev,patch_3D%p_patch_2d(1)%nblks_e)
     REAL(wp), OPTIONAL                :: k_t(:,:,:) !mixing coefficient for tracer    
     TYPE(t_subset_range), TARGET, INTENT(in), OPTIONAL :: subset_range
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
     !
     !Local variables
     INTEGER :: level, blockNo, edge_index
@@ -78,7 +76,7 @@ CONTAINS
     LOGICAL :: is_in_domain
     TYPE(t_subset_range), POINTER :: edges_in_domain
     TYPE(t_patch), POINTER :: patch_2D
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
     ! Pointers needed for GPU/OpenACC
     INTEGER,  DIMENSION(:,:),   POINTER :: dolic_e
@@ -105,23 +103,19 @@ CONTAINS
       is_in_domain = subset_range%is_in_domain
     END IF
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
   IF(PRESENT(k_t))THEN
 !ICON_OMP_PARALLEL_DO PRIVATE(start_edge_index,end_edge_index, edge_index, level, &
 !ICON_OMP il_c1, ib_c1, il_c2, ib_c2) ICON_OMP_DEFAULT_SCHEDULE
-    !$ACC DATA COPYIN(k_t) IF(lacc)
+    !$ACC DATA COPYIN(k_t) IF(lzacc)
     DO blockNo = start_block, end_block
       CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       diff_flx(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
 
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO edge_index = start_edge_index, end_edge_index
         !Get indices of two adjacent triangles
@@ -142,8 +136,8 @@ CONTAINS
         
       ENDDO
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
     ENDDO
+    !$ACC WAIT(1)
     !$ACC END DATA
 !ICON_OMP_END_PARALLEL_DO
 
@@ -156,11 +150,11 @@ CONTAINS
 !ICON_OMP il_c1, ib_c1, il_c2, ib_c2) ICON_OMP_DEFAULT_SCHEDULE
     DO blockNo = start_block, end_block
       CALL get_index_range(edges_in_domain, blockNo, start_edge_index, end_edge_index)
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       diff_flx(:,:,blockNo) = 0.0_wp
       !$ACC END KERNELS
 
-      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
       !$ACC LOOP GANG VECTOR
       DO edge_index = start_edge_index, end_edge_index
         !Get indices of two adjacent triangles
@@ -180,8 +174,8 @@ CONTAINS
         
       ENDDO
       !$ACC END PARALLEL
-      !$ACC WAIT(1)
     ENDDO
+    !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
 
     IF (PRESENT(subset_range)) THEN
@@ -321,19 +315,19 @@ CONTAINS
     & patch_3d,                  &
     & ocean_tracer,              &
     & a_v,                       &
-    & h, use_acc) !,  &
+    & h, lacc) !,  &
     ! & diff_column)
 
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
     TYPE(t_ocean_tracer), TARGET :: ocean_tracer
     REAL(wp), INTENT(inout)              :: a_v(:,:,:)
     REAL(wp), INTENT(in)                 :: h(:,:)
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
     !
     INTEGER :: cell_block, start_index, end_index
     TYPE(t_subset_range), POINTER :: cells_in_domain
     TYPE(t_patch), POINTER :: patch_2d
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
     start_timer(timer_dif_vert,4)
 
@@ -341,11 +335,7 @@ CONTAINS
     cells_in_domain       =>  patch_3d%p_patch_2d(1)%cells%in_domain
     !-----------------------------------------------------------------------
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     IF (oldDateString /= getCurrentDate_to_String()) THEN 
       eliminate_upper_diag = .not. eliminate_upper_diag
@@ -367,7 +357,7 @@ CONTAINS
           & ocean_tracer,                   &
           & a_v(:,:,cell_block),            &
           & h(:,cell_block),                &
-          & cell_block, start_index, end_index, use_acc=lacc)
+          & cell_block, start_index, end_index, lacc=lzacc)
 
       END DO
 !ICON_OMP_END_PARALLEL_DO
@@ -381,7 +371,7 @@ CONTAINS
           & ocean_tracer,                   &
           & a_v(:,:,cell_block),            &
           & h(:,cell_block),                &
-          & cell_block, start_index, end_index, use_acc=lacc)
+          & cell_block, start_index, end_index, lacc=lzacc)
 
       END DO
 !ICON_OMP_END_PARALLEL_DO
@@ -398,9 +388,6 @@ CONTAINS
   !>
   !! sbr identical to sbr above but now with homogeneous boundary conditions
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2011).
-  !! Preconditioning by Leonidas Linardakis, MPI-M (2014)
   !!
   !! The result ocean_tracer%concetration is calculated on domain_cells
   !-------------------------------------------------------------------------
@@ -524,7 +511,7 @@ CONTAINS
     & ocean_tracer,            &
     & a_v,                     &
     & h,                       &
-    & blockNo, start_index, end_index, use_acc) !,  &
+    & blockNo, start_index, end_index, lacc) !,  &
     ! & diff_column)
     
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
@@ -532,7 +519,7 @@ CONTAINS
     REAL(wp), INTENT(inout)              :: a_v(:,:)
     REAL(wp), INTENT(in)                 :: h(:)
     INTEGER, INTENT(in) :: blockNo, start_index, end_index
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
     !
     !
     REAL(wp) :: inv_prism_thickness(nproma,1:n_zlev), inv_prisms_center_distance(nproma,1:n_zlev)
@@ -545,7 +532,7 @@ CONTAINS
     TYPE(t_subset_range), POINTER :: cells_in_domain
     TYPE(t_patch), POINTER :: patch_2d
     REAL(wp) :: top_cell_thickness(nproma)
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     CHARACTER(len=*), PARAMETER :: routine = modname//':tracer_diffusion_vertical_implicit_onBlock_lvector'
 
     !-----------------------------------------------------------------------
@@ -555,19 +542,15 @@ CONTAINS
     !-----------------------------------------------------------------------
 !     dt_inv = 1.0_wp/dtime
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
     !$ACC DATA COPYIN(a_v, h, patch_3d%p_patch_1d(1)%dolic_c, patch_3d%p_patch_1d(1)%inv_prism_thick_c) &
     !$ACC   COPYIN(patch_3d%p_patch_1d(1)%inv_prism_center_dist_c, patch_3d%p_patch_1d(1)%prism_thick_flat_sfc_c) &
     !$ACC   CREATE(a, b, bottom_level, c, column_tracer, fact, inv_prism_thickness) &
     !$ACC   CREATE(inv_prisms_center_distance, top_cell_thickness) &
-    !$ACC   COPY(field_column) IF(lacc)
+    !$ACC   COPY(field_column) IF(lzacc)
 
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO cell_index = start_index, end_index
       bottom_level(cell_index) = patch_3d%p_patch_1d(1)%dolic_c(cell_index,blockNo)
@@ -585,14 +568,14 @@ CONTAINS
     !$ACC WAIT(1)
 
     max_bottom_level = -1
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) REDUCTION(MAX: max_bottom_level) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) REDUCTION(MAX: max_bottom_level) IF(lzacc)
     DO level = start_index, end_index
       max_bottom_level = MAX(max_bottom_level, bottom_level(level))
     END DO
     !$ACC END PARALLEL LOOP
     !$ACC WAIT(1)
 
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG VECTOR COLLAPSE(2)
     DO level=1,max_bottom_level
       DO cell_index = start_index, end_index
@@ -607,14 +590,13 @@ CONTAINS
       ENDDO
     ENDDO
     !$ACC END PARALLEL
-    !$ACC WAIT(1)
 
     !------------------------------------
     ! Fill triangular matrix
     ! b is diagonal, a is the upper diagonal, c is the lower
     
     !  top level
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO cell_index = start_index, end_index
       IF (bottom_level(cell_index) < 2) CYCLE ! nothing to diffuse
@@ -726,7 +708,7 @@ CONTAINS
     & ocean_tracer,            &
     & a_v,                     &
     & h,                       &
-    & blockNo, start_index, end_index, use_acc) !,  &
+    & blockNo, start_index, end_index, lacc) !,  &
     ! & diff_column)
     
     TYPE(t_patch_3d ),TARGET, INTENT(in) :: patch_3d
@@ -734,7 +716,7 @@ CONTAINS
     REAL(wp), INTENT(inout)              :: a_v(:,:)
     REAL(wp), INTENT(in)                 :: h(:)
     INTEGER, INTENT(in) :: blockNo, start_index, end_index
-    LOGICAL, INTENT(in), OPTIONAL :: use_acc
+    LOGICAL, INTENT(in), OPTIONAL :: lacc
     !
     !
     REAL(wp) :: inv_prism_thickness(nproma,1:n_zlev), inv_prisms_center_distance(nproma,1:n_zlev)
@@ -747,7 +729,7 @@ CONTAINS
     TYPE(t_subset_range), POINTER :: cells_in_domain
     TYPE(t_patch), POINTER :: patch_2d
     REAL(wp) :: top_cell_thickness(nproma)
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
 !     REAL(wp) :: tmp, tmp_add
 
@@ -768,11 +750,7 @@ CONTAINS
     !-----------------------------------------------------------------------
 !     dt_inv = 1.0_wp/dtime
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
 #ifdef NAGFOR
     inv_prism_thickness(:,:) = 0.0_wp
@@ -780,10 +758,10 @@ CONTAINS
 #endif
 
     !$ACC DATA CREATE(a, b, bottom_level, c, column_tracer, fact, inv_prism_thickness) &
-    !$ACC   CREATE(inv_prisms_center_distance, top_cell_thickness) IF(lacc)
+    !$ACC   CREATE(inv_prisms_center_distance, top_cell_thickness) IF(lzacc)
 
     max_bottom_level = -1
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) REDUCTION(MAX: max_bottom_level) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) REDUCTION(MAX: max_bottom_level) IF(lzacc)
     !$ACC LOOP GANG VECTOR
     DO cell_index = start_index, end_index
       bottom_level(cell_index) = dolic_c(cell_index,blockNo)
@@ -818,8 +796,7 @@ CONTAINS
     ! b is diagonal, a is the upper diagonal, c is the lower
 
     !  top level
-    !$ACC WAIT
-    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lacc)
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
     !$ACC LOOP GANG(STATIC: 1) VECTOR
     DO cell_index = start_index, end_index
 !       IF (bottom_level(cell_index) < 2) CYCLE ! nothing to diffuse

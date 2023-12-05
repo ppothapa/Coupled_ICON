@@ -1,24 +1,15 @@
-!>
-!! Contains the main stepping method_name the 3-dim hydrostatic ocean model.
-!!
-!! @author Peter Korn, Stephan Lorenz, MPI
-!!
-!! @par Revision History
-!!  Initial version by Stephan Lorenz (MPI-M), (2010-04).
-!!   - renaming and adjustment of hydrostatic ocean model V1.0.3 to ocean domain and patch_oce
-!!  Modification by Stephan Lorenz, MPI-M, 2010-10
-!!   - new module mo_ocean_testbed_modules including updated reconstructions
+! Contains the main stepping method_name the 3-dim hydrostatic ocean model.
 !
+! ICON
 !
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 #include "omp_definitions.inc"
 #include "iconfor_dsl_definitions.inc"
 
@@ -600,7 +591,7 @@ CONTAINS
     TYPE(t_ocean_surface)                            :: ocean_surface
     TYPE (t_ho_params)                               :: physics_parameters
     TYPE (t_sea_ice),         INTENT(inout)          :: ocean_ice
-    TYPE(t_operator_coeff),   INTENT(in)          :: operators_coefficients
+    TYPE(t_operator_coeff),   INTENT(inout)          :: operators_coefficients
     
     ! local variables
     TYPE (t_hamocc_state)        :: hamocc_State
@@ -656,7 +647,7 @@ CONTAINS
       END DO
     END DO
 
-    CALL transfer_ocean_state(patch_3d, .TRUE.)
+    CALL transfer_ocean_state(patch_3d, operators_coefficients)
     !------------------------------------------------------------------
     DO jstep = (jstep0+1), (jstep0+nsteps)
       

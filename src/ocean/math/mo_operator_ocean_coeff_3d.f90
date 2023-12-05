@@ -1,24 +1,21 @@
-!>
-!! Contains the definition of coefficients used for div-grad-curl and reconstruction/scalar product.
-!! All coefficients are three-dimensional arrays including the number of vertical levels. This is necessary
-!! if one has coefficients that vary within the vertical level but not in time such that one can precompute the
-!! coefficients. This is in the ocean model where the land-sea mask is different at each level and therefore
-!! the expansion coefficients associated with land and boundary vary with the vertical level but are constant in time.
-!!
-!!
-!! @par Revision History
-!! Developed  by Peter Korn (2012)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Contains the definition of coefficients used for div-grad-curl and reconstruction/scalar product.
+! All coefficients are three-dimensional arrays including the number of vertical levels. This is necessary
+! if one has coefficients that vary within the vertical level but not in time such that one can precompute the
+! coefficients. This is in the ocean model where the land-sea mask is different at each level and therefore
+! the expansion coefficients associated with land and boundary vary with the vertical level but are constant in time.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -50,6 +47,8 @@ MODULE mo_operator_ocean_coeff_3d
   USE mo_grib2,               ONLY: t_grib2_var
   USE mo_util_dbg_prnt,       ONLY: dbg_print
   USE mo_grid_geometry_info
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
+
   IMPLICIT NONE
 
 #define d_norma_3d(v) SQRT(SUM(v%x * v%x))
@@ -226,27 +225,23 @@ CONTAINS
   !-------------------------------------------------------------------------
 
   !-------------------------------------------------------------------------
-  SUBROUTINE Get3DVectorTo2DLocal_array3D(vector, position_local, levels, subset, geometry_info, x, y, use_acc)
+  SUBROUTINE Get3DVectorTo2DLocal_array3D(vector, position_local, levels, subset, geometry_info, x, y, lacc)
     TYPE(t_cartesian_coordinates), POINTER :: vector(:,:,:)
     TYPE(t_geographical_coordinates) , TARGET :: position_local(:,:)
     INTEGER, POINTER :: levels(:,:) 
     TYPE(t_subset_range), POINTER :: subset 
     TYPE(t_grid_geometry_info), INTENT(in) :: geometry_info    
     REAL(wp), POINTER ::  x(:,:,:), y(:,:,:)
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
     
     INTEGER  :: blockNo, start_index, end_index, this_index, level
     REAL(wp) :: sinLon, cosLon, sinLat, cosLat
     REAL(wp) :: cartesian_x, cartesian_y, cartesian_z, y_help
-    LOGICAL  :: lacc
+    LOGICAL  :: lzacc
     
     CHARACTER(LEN=*), PARAMETER :: method_name='Get3DVectorTo2DLocal_array3D'
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
     
     SELECT CASE(geometry_info%geometry_type)
 
@@ -259,7 +254,7 @@ CONTAINS
 !ICON_OMP sinLat, cosLat, cartesian_x, cartesian_y, cartesian_z, y_help) ICON_OMP_DEFAULT_SCHEDULE
       DO blockNo = subset%start_block, subset%end_block
         CALL get_index_range(subset, blockNo, start_index, end_index)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO this_index =  start_index, end_index
         
           ! these should be calclulated once and stored in the coefficients structure
@@ -283,6 +278,7 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL LOOP
       ENDDO
+      !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
             
               
@@ -292,7 +288,7 @@ CONTAINS
 !ICON_OMP_PARALLEL_DO PRIVATE(start_index,end_index, this_index, level) ICON_OMP_DEFAULT_SCHEDULE
       DO blockNo = subset%start_block, subset%end_block
         CALL get_index_range(subset, blockNo, start_index, end_index)
-        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+        !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
         DO this_index =  start_index, end_index
           DO level = 1, levels(this_index,blockNo)  
             x(this_index,level,blockNo) = vector(this_index,level,blockNo)%x(1)
@@ -301,6 +297,7 @@ CONTAINS
         ENDDO
         !$ACC END PARALLEL LOOP
       ENDDO
+      !$ACC WAIT(1)
 !ICON_OMP_END_PARALLEL_DO
       
     CASE DEFAULT
@@ -513,8 +510,6 @@ CONTAINS
   !-------------------------------------------------------------------------
   !> Allocation of operators coefficients.
   !
-  ! @par Revision History
-  ! Peter Korn (2012-2)
   !
 !<Optimize:inUse>
   SUBROUTINE allocate_operators_coefficients( patch_2D, operators_coefficients, solverCoeff_sp)
@@ -916,8 +911,6 @@ CONTAINS
   !-------------------------------------------------------------------------
   !> Initialize expansion coefficients.
   !!
-  !! @par Revision History
-  !! Peter Korn (2012-2)
   !!
 !<Optimize:inUse>
   SUBROUTINE par_init_operator_coeff( patch_3D, operators_coefficients, solverCoeff_sp)
@@ -958,8 +951,6 @@ CONTAINS
 
   !---------------------------------------------------------------------------------
   !>
-  !! @par Revision History
-  !! Developed  by  Leonidas Linardakis, MPI-M (2010).
   !!
 !<Optimize:inUse>
   SUBROUTINE init_verticalAdvection_ppm_coefficients( patch_3D, vertAdvPPM_coeffs)
@@ -1075,9 +1066,6 @@ CONTAINS
   !!   fixed_vol_norm   : summed volume weight of moved cell
   !!   variable_vol_norm: volume weight at the edges of moved cell
   !!
-  !! @par Revision History
-  !!  developed by Peter Korn, MPI-M  2010-09
-  !!  Modification by Stephan Lorenz, 2010-11
   !!
 !<Optimize:inUse>
   SUBROUTINE init_operator_coeffs( patch_2D, operators_coefficients)
@@ -1300,9 +1288,6 @@ CONTAINS
   !!   fixed_vol_norm   : summed volume weight of moved cell
   !!   variable_vol_norm: volume weight at the edges of moved cell
   !!
-  !! @par Revision History
-  !!  developed by Peter Korn, MPI-M  2010-09
-  !!  Modification by Stephan Lorenz, 2010-11
 !<Optimize:inUse>
   SUBROUTINE init_operator_coeffs_cell( patch_2D, operators_coefficients )
     TYPE(t_patch), TARGET,  INTENT(INOUT)  :: patch_2D
@@ -1636,9 +1621,6 @@ CONTAINS
   !!   fixed_vol_norm   : summed volume weight of moved cell
   !!   variable_vol_norm: volume weight at the edges of moved cell
   !!
-  !! @par Revision History
-  !!  developed by Peter Korn, MPI-M  2010-09
-  !!  Modification by Stephan Lorenz, 2010-11
   !!
 !<Optimize:inUse>
   SUBROUTINE init_operator_coeffs_vertex( patch_2D, operators_coefficients)
@@ -1978,8 +1960,6 @@ CONTAINS
   !-------------------------------------------------------------------------
   !> Modify coefficients at the boundary
   !!
-  !! @par Revision History
-  !! Peter Korn (2012-2)
   !!
 !<Optimize:inUse>
   SUBROUTINE apply_boundary2coeffs( patch_3D, operators_coefficients)
@@ -2632,21 +2612,6 @@ CONTAINS
   !>
   !! Precomputes the geometrical factors used in the divergence, rotation.
   !!
-  !! @par Revision History
-  !!  developed by Guenther Zaengl, 2009-03-17
-  !!  Modification by Almut Gassmann, 2009-12-19
-  !!  - Vorticity is computed on quads in case of the hexagonal grid
-  !!  Modification by Almut Gassmann, 2010-02-05
-  !!  - Added feature for poor men's 3rd order advection, where a directional
-  !!    laplace is needed at the edges.
-  !!  Modification by Stephan Lorenz, 2010-06-02
-  !!  - Storage moved from int_state into patch_oce since it is static
-  !!    geometric information used in the ocean model
-  !!  Modification by Peter Korn, 2010-11
-  !!  - Calculation of cell area changed to achieve compatibility with
-  !!    sw-model (cell area and consequently divergence different)
-  !!  Modification by Stephan Lorenz, 2011-07
-  !!   - 3-dim structures moved from patch_oce to hydro_ocean_base for parallelization
   !!
 !<Optimize:inUse>
   SUBROUTINE init_diff_operator_coeff_3D( patch_2D, operators_coefficients )

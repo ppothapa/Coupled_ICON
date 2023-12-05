@@ -1,15 +1,15 @@
-!>
-!!
-!! @author Mikhail Dobrynin, DWD, 20.06.19
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_wave
   USE mo_kind,                  ONLY: wp
   USE mo_exception,             ONLY: message
@@ -27,6 +27,8 @@ MODULE mo_wave
   USE mo_io_config,             ONLY: configure_io
   USE mo_mpi,                   ONLY: my_process_is_stdio
   USE mo_wave_stepping,         ONLY: perform_wave_stepping
+  USE mo_opt_diagnostics,       ONLY: construct_opt_diag, destruct_opt_diag
+  USE mo_pp_scheduler,          ONLY: pp_scheduler_init, pp_scheduler_finalize
 
   IMPLICIT NONE
 
@@ -75,6 +77,10 @@ CONTAINS
 
     CALL construct_wave_forcing_state(p_patch(1:))
 
+    ! Add optional diagnostic variable list (which might remain empty)
+    ! primarily for lat-lon output
+    CALL construct_opt_diag(p_patch(1:), .FALSE.)
+
     !------------------------------------------------------------------
     ! Prepare output file
     !------------------------------------------------------------------
@@ -84,6 +90,10 @@ CONTAINS
     IF (output_mode%l_nml) THEN
        CALL parse_variable_groups()
     END IF
+
+    ! setup of post-processing job queue, e.g. setup of optional
+    ! diagnostic quantities like pz-level interpolation ot lat-lon output
+    CALL pp_scheduler_init(l_init_prm_diag=.FALSE.)
 
     ! If async IO is in effect, init_name_list_output is a collective call
     ! with the IO procs and effectively starts async IO
@@ -123,7 +133,13 @@ CONTAINS
 
     CHARACTER(*), PARAMETER :: routine = "destruct_wave"
 
-    CALL destruct_wave_state( )
+    ! Destruction of post-processing job queue
+    CALL pp_scheduler_finalize()
+
+    ! Delete optional diagnostics
+    CALL destruct_opt_diag()
+
+    CALL destruct_wave_state()
 
     CALL destruct_wave_forcing_state()
 

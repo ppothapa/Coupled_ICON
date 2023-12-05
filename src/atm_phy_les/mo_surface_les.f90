@@ -1,21 +1,18 @@
-!!>
-!! mo_surface_les
-!!
-!! Surface calculations for les physics using Businger Dyer relationship
-!!
-!! @author Anurag Dipankar, MPI-M
-!!
-!! @par Revision History
-!! Initial release by Anurag Dipankar, MPI-M (2013-03-07)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Surface calculations for les physics using Businger Dyer relationship
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -81,8 +78,7 @@ MODULE mo_surface_les
   !! Dyer relationships .OR. vice versa. All calculations are done at cell center
   !!  
   !!------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Anurag Dipankar, MPI-M (2013-02-06)
+
   SUBROUTINE  surface_conditions(p_nh_metrics, p_patch, p_nh_diag, p_prog_lnd_now, &
                                  p_prog_lnd_new, p_diag_lnd, prm_diag, theta, qv, p_sim_time, lacc)
                                   
@@ -744,8 +740,7 @@ MODULE mo_surface_les
   !! Louis (1979) A Parametirc model of vertical eddy fluxes in the atmosphere 
   !! and R. B. Stull's book
   !!------------------------------------------------------------------------
-  !! @par Revision History
-  !! Initial release by Anurag Dipankar, MPI-M (2013-02-06)
+
   FUNCTION businger_heat(z0, z1, L) RESULT(factor)
      REAL(wp), INTENT(IN) :: z0, z1, L
      REAL(wp) :: factor, zeta, lamda, psi

@@ -1,22 +1,18 @@
-!>
-!! @brief Subroutine interface_aes_rad calls the radiative transfer scheme.
-!!
-!! @author Hui Wan, MPI-M
-!! @author Marco Giorgetta, MPI-M
-!!
-!! @par Revision History
-!!  Original version from ECHAM6 (revision 2028)
-!!  Modified for ICOHAM by Hui Wan and Marco Giorgetta (2010)
-!!  Modified for ICONAM by Marco Giorgetta (2014)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Subroutine interface_aes_rad calls the radiative transfer scheme.
+!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -30,6 +26,9 @@ MODULE mo_interface_aes_rad
   USE mo_aes_phy_dims,         ONLY: aes_phy_dims
   USE mo_aes_phy_config,       ONLY: aes_phy_tc
   USE mo_aes_phy_memory,       ONLY: t_aes_phy_field, prm_field
+  USE mo_snow_ice_reff,        ONLY: ice_reff_moss, snow_reff_funeedles, ice_reff_funeedles, snow_x, ice_x
+  USE mo_run_config,           ONLY: iqs, iqi
+  USE mo_aes_graupel,          ONLY: snow_number, snow_lambda, ice_number
 
 #ifndef __NO_RTE_RRTMGP__
   USE mo_rte_rrtmgp_radiation, ONLY: rte_rrtmgp_radiation
@@ -120,6 +119,24 @@ CONTAINS
           END DO
           !$ACC END PARALLEL LOOP
           !
+          !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) ASYNC(1)
+          DO i2=1,nlev
+            DO i1=jcs,jce
+               !calculate reff of snow here (further down, the variables are per m^2 instead of m^3)
+               field%acsnc(i1,i2,jb) = snow_number(field%ta(i1,i2,jb), field%rho(i1,i2,jb), field%qtrc_phy(i1,i2,jb,iqs))
+               field%acsnc(i1,i2,jb) = field%acsnc(i1,i2,jb) / snow_lambda(field%rho(i1,i2,jb), field%qtrc_phy(i1,i2,jb,iqs), field%acsnc(i1,i2,jb))
+               field%x_snow(i1,i2,jb) = snow_x(field%ta(i1,i2,jb), field%rho(i1,i2,jb),field%qtrc_phy(i1,i2,jb,iqs))
+               field%reff_snow(i1,i2,jb) = snow_reff_funeedles(field%ta(i1,i2,jb), field%rho(i1,i2,jb), field%qtrc_phy(i1,i2,jb,iqs))
+
+               !calculate reff of ice here (further down, the variables are per m^2 instead of m^3)
+               !diagnose cloud ice number concentration first
+               field%acinc(i1,i2,jb) = ice_number(field%ta(i1,i2,jb), field%rho(i1,i2,jb)) * field%rho(i1,i2,jb)
+               field%x_ice(i1,i2,jb) = ice_x(field%ta(i1,i2,jb), field%rho(i1,i2,jb), field%qtrc_phy(i1,i2,jb,iqi))
+               field%reff_ice(i1,i2,jb) = ice_reff_moss(field%ta(i1,i2,jb), field%rho(i1,i2,jb), field%qtrc_phy(i1,i2,jb,iqi))
+            END DO
+          END DO
+          !$ACC END PARALLEL LOOP
+          !
           CALL rte_rrtmgp_radiation(                        &
               jg, jb, jcs, jce, nproma, nlev, ntracer,      &
               & loland         = loland                    ,&!< in  land-sea mask. (logical)
@@ -143,9 +160,11 @@ CONTAINS
               & xq_trc         = qtrc_phy                  ,&!< in  tracer  mass fraction [kg/kg]
               & xv_ozn         = field%o3(:,:,jb)          ,&!< out ozone volume mixing ratio [mol/mol]
               !
+              & reff_ice       = field%reff_ice(:,:,jb)    ,&!< in   effective radius of cloud ice [m]
+              & tau_ice        = field% tau_ice(:,:,jb)    ,&!< inout cloud ice optical depth integrated over all bands
+              & reff_snow      = field%reff_snow(:,:,jb)   ,&!< in   effective radius of snow [m]
+              & tau_snow       = field% tau_snow(:,:,jb)   ,&!< inout snow optical depth integrated over all bands
               & cdnc           = field% acdnc(:,:,jb)      ,&!< in   cloud droplet number conc
-              & cld_frc        = field% aclc(:,:,jb)       ,&!< in   cloud fraction [m2/m2]
-              & cld_cvr        = field%aclcov(:,jb)        ,&!< out  total cloud cover
               !
               & lw_dnw_clr     = field%rldcs_rt(:,:,jb)    ,&!< out  Clear-sky net longwave  at all levels
               & lw_upw_clr     = field%rlucs_rt(:,:,jb)    ,&!< out  Clear-sky net longwave  at all levels
@@ -174,7 +193,7 @@ CONTAINS
               & aer_aod_9731   = field%aer_aod_9731(:,:,jb)&!< out  aerosol optical density at 9731
               & )
               !
-              !$ACC END DATA
+          !$ACC END DATA
         !
         END IF
 #endif
@@ -182,7 +201,7 @@ CONTAINS
        ELSE
           !
           ! LW
-          !$ACC KERNELS DEFAULT(PRESENT)
+          !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1)
           field%rldcs_rt(:,:,:)  = 0.0_wp !< out  Clear-sky net longwave  at all levels
           field%rlucs_rt(:,:,:)  = 0.0_wp !< out  Clear-sky net longwave  at all levels
           field%rld_rt  (:,:,:)  = 0.0_wp !< out  All-sky net longwave  at all levels
@@ -207,6 +226,9 @@ CONTAINS
           !
           ! total cloud cover diagnostics
           field%aclcov(:,:)      = 0.0_wp !< out  total cloud cover
+          ! cloud ice and snow optical depth integrated over all bands
+          field%tau_ice(:,:,:) = 0.0_wp
+          field%tau_snow(:,:,:) = 0.0_wp
           !$ACC END KERNELS
           !
        !

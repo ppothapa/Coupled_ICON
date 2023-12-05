@@ -1,28 +1,28 @@
-!>
-!! Namelist variables shared by the hydrostatic and nonhydrostatic
-!! dynamical cores
-!!        
-!! @par Revision History
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Namelist variables shared by the hydrostatic and nonhydrostatic
+! dynamical cores
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_dynamics_nml
 
   USE mo_dynamics_config,     ONLY: config_iequations     => iequations,     &
-                                  & config_idiv_method    => idiv_method,    &
                                   & config_divavg_cntrwgt => divavg_cntrwgt, &
                                   & config_lcoriolis      => lcoriolis,      &
+                                  & config_lmoist_thdyn   => lmoist_thdyn,   &
                                   & config_ldeepatmo      => ldeepatmo
 
   USE mo_kind,                ONLY: wp
-  USE mo_exception,           ONLY: finish
+  USE mo_exception,           ONLY: finish, message, message_text
   USE mo_impl_constants,      ONLY: INH_ATMOSPHERE
   USE mo_physical_constants,  ONLY: grav
   USE mo_io_units,            ONLY: nnml, nnml_output
@@ -45,28 +45,17 @@ MODULE mo_dynamics_nml
 
   INTEGER  :: iequations
 
-  ! way of computing the divergence operator in the triangular model -------------
-
-  INTEGER  :: idiv_method    ! 1: Hydrostatic atmospheric model: 
-                             !    Gauss integral with original normal 
-                             !    velocity components
-                             ! 1: Non-Hydrostatic atmospheric model: 
-                             !    Gauss integral with averged normal 
-                             !    velocity components
-                             ! Thus, in a linear equilateral grid, methods 1 and 2 for
-                             ! the non-hydrostatic model are the same.
-                             ! 2: divergence averaging with bilinear averaging
-
   REAL(wp) :: divavg_cntrwgt ! weight of central cell for divergence averaging
 
   LOGICAL  :: lcoriolis      ! if .TRUE.,  the Coriolis force is switched on
 
+  LOGICAL  :: lmoist_thdyn   ! if .TRUE., moisture terms included in first law
+
   LOGICAL  :: ldeepatmo      ! if .TRUE., deep-atmosphere modification is applied 
                              ! to the governing equations, on which the dynamical core is based
 
-  NAMELIST/dynamics_nml/ iequations,                  &
-                         idiv_method, divavg_cntrwgt, &
-                         lcoriolis, ldeepatmo
+  NAMELIST/dynamics_nml/ iequations, divavg_cntrwgt, &
+                         lcoriolis, lmoist_thdyn, ldeepatmo
 
 CONTAINS
   !>
@@ -82,11 +71,11 @@ CONTAINS
     ! Set up the default values
     !------------------------------------------------------------
     iequations     = INH_ATMOSPHERE
-    idiv_method    = 1
     divavg_cntrwgt = 0.5_wp
     lcoriolis      = .TRUE.
+    lmoist_thdyn   = .FALSE.
     ldeepatmo      = .FALSE.
- 
+
     !------------------------------------------------------------------------
     ! If this is a resumed integration, overwrite the defaults above by 
     ! values in the restart file
@@ -116,13 +105,6 @@ CONTAINS
     END SELECT
     CALL close_nml
 
-    !-----------------------------------------------------
-    ! Sanity check
-    !-----------------------------------------------------
-
-    IF (idiv_method > 2 .OR. idiv_method < 1 )THEN
-      CALL finish(TRIM(routine),'Error: idiv_method must be 1 or 2 !')
-    ENDIF
 
     !-----------------------------------------------------
     ! 4. Store the namelist for restart
@@ -132,7 +114,7 @@ CONTAINS
       WRITE(funit,NML=dynamics_nml)
       CALL store_and_close_namelist(funit, 'dynamics_nml')
     ENDIF
-    
+
     ! write the contents of the namelist to an ASCII file
     IF(my_process_is_stdio()) WRITE(nnml_output,nml=dynamics_nml)
 
@@ -141,9 +123,9 @@ CONTAINS
     !-----------------------------------------------------
 
     config_iequations     = iequations
-    config_idiv_method    = idiv_method
     config_divavg_cntrwgt = divavg_cntrwgt
     config_lcoriolis      = lcoriolis
+    config_lmoist_thdyn   = lmoist_thdyn
     config_ldeepatmo      = ldeepatmo
 
   END SUBROUTINE read_dynamics_namelist

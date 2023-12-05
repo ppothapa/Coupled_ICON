@@ -1,22 +1,16 @@
-!>
-!! @brief configuration for NWP physics package
-!!
-!! Setup of config-state for NWP physics package
-!!
-!! @author <name, affiliation>
-!!
-!!
-!! @par Revision History
-!! <Description of activity> by <name, affiliation> (<YYYY-MM-DD>)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Setup of config-state for NWP physics package
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_atm_phy_nwp_config
 
   USE mo_kind,                ONLY: wp, i8
@@ -28,7 +22,7 @@ MODULE mo_atm_phy_nwp_config
   USE mo_impl_constants,      ONLY: max_dom, itconv, itccov,  &
     &                               itrad, itradheat, itsso, itgscp, itsatad,  &
     &                               itturb, itsfc, itgwd, itfastphy,           &
-    &                               iphysproc, iphysproc_short, ismag, iedmf,  &
+    &                               iphysproc, iphysproc_short, ismag,         &
     &                               iprog, SUCCESS, ivdiff
   USE mo_math_constants,      ONLY: dbl_eps, pi_2, deg2rad
   USE mo_exception,           ONLY: message, message_text, finish
@@ -248,12 +242,6 @@ CONTAINS
   !!
   !! Read namelist for NWP physics and setup physics time control.
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2010-10-06)
-  !! revision for restructuring by Kristina Froehlich MPI-M (2011-07-12)
-  !! Modifications by Daniel Reinert, DWD (2017-06-02)
-  !! - revised crosschecks for slow physics time intervals.
-  !!
   SUBROUTINE configure_atm_phy_nwp( n_dom, p_patch, dtime )
 
     TYPE(t_patch), TARGET,INTENT(IN) :: p_patch(:)
@@ -441,8 +429,8 @@ CONTAINS
       !     of the advection/fast-physics timestep.
       !     If not, the slow physics timestep is rounded up to the 
       !     next integer multiple.
-      ! II) Special rules for cloud cover time step are set in combination
-      !     with EDMF turbulence and when using no convection scheme (see below)
+      ! II) Special rules for cloud cover time step are set 
+      !     when using no convection scheme (see below)
       !III) The radiation timestep must be an integer multiple of the 
       !     cloud-cover timestep and the convection. If not, the radiation timestep is 
       !     rounded up to the next integer multiple.
@@ -494,14 +482,6 @@ CONTAINS
 
 
       ! RULE (II)
-      !
-      ! Special rule for EDMF DUALM:
-      ! cloud cover is called every turbulence time step
-      IF ( atm_phy_nwp_config(jg)%inwp_turb == iedmf ) THEN
-        WRITE(message_text,'(a)') 'EDMF DUALM selected => Resetting dt_ccov to dt_fastphy.'
-        CALL message(routine, message_text)
-        atm_phy_nwp_config(jg)%dt_ccov = atm_phy_nwp_config(jg)%dt_fastphy
-      ENDIF
       !
       ! When using no convection scheme, users may not be aware that setting a convection or cloud cover time step
       ! is relevant. We thus prevent the cloud cover time step from being unreasonably large by limiting
@@ -650,7 +630,7 @@ CONTAINS
     ! o3clim_tuned = o3clim*(1.+fac_ozone*shapefunc_ozone)
     DO jg = 1, n_dom
       atm_phy_nwp_config(jg)%ozone_maxinc = tune_ozone_maxinc
-      !$ACC UPDATE DEVICE(atm_phy_nwp_config(jg)%ozone_maxinc)
+      !$ACC UPDATE DEVICE(atm_phy_nwp_config(jg)%ozone_maxinc) ASYNC(1)
       ALLOCATE(atm_phy_nwp_config(jg)%fac_ozone(p_patch(jg)%nlev), &
                atm_phy_nwp_config(jg)%shapefunc_ozone(nproma,p_patch(jg)%nblks_c) )
       ! Vertical profile function
@@ -839,9 +819,6 @@ CONTAINS
   !! 4) Calling the routine atm_phy_nwp:mtime_ctrl_physics will provide you with 
   !!    an array of logicals of the same size as your group. This array tells you 
   !!    whether a specific physics event is due at the current time step, or not.  
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-05-30)
   !!
   SUBROUTINE setupEventsNwp(atm_phy_nwp_config, pid, grpName, eventStartDate, eventEndDate, dt_phy)
 
@@ -1113,9 +1090,6 @@ CONTAINS
   !!
   !! Shifted from nh_stepping in order to improve code structure
   !!
-  !! @par Revision History
-  !! Initial revision by Guenther Zaengl, DWD (2020-02-14)
-  !!
   SUBROUTINE setup_nwp_diag_events(lpi_max_Event, celltracks_Event, dbz_Event, hail_Event)
 
     TYPE(event), POINTER, INTENT(INOUT) :: lpi_max_Event, celltracks_Event, dbz_Event, hail_Event
@@ -1225,9 +1199,6 @@ CONTAINS
   !! as an optional argument. If nothing is specified the threshold 
   !! is set to 10._wp*dbl_eps.
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-06-02)
-  !!
   LOGICAL FUNCTION isModulo (dividend, divisor, optThresh)
 
     REAL(wp)          , INTENT(IN) :: dividend
@@ -1254,9 +1225,6 @@ CONTAINS
   !! The input value is rounded up to the next integer multiple
   !!  of the divisor
   !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-06-02)
-  !!
   REAL(wp) FUNCTION roundToNextMultiple (inval, divisor)
 
     REAL(wp)          , INTENT(IN) :: inval
@@ -1276,9 +1244,6 @@ CONTAINS
   !! Screen print out of physics timesteps.
   !! Printout in any case, if the respective timestep was modified by ICON
   !! Conditional printout (msg_lev>10), if the respective timestep was not modified. 
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-03-30)
   !!
   SUBROUTINE phy_nwp_print_dt (atm_phy_nwp_config, dt_phy_orig, dt_phy, pid)
     !
@@ -1343,13 +1308,7 @@ CONTAINS
   END SUBROUTINE phy_nwp_print_dt
 
 
-  !>
   !! Finalize atm_phy_nwp_config state
-  !!
-  !! Finalize atm_phy_nwp_config state
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2017-06-21)
   !!
   SUBROUTINE atm_phy_nwp_config_finalize (me)
     CLASS(t_atm_phy_nwp_config), INTENT(INOUT) :: me       !< passed-object dummy argument
@@ -1358,6 +1317,7 @@ CONTAINS
     CHARACTER(LEN=*), PARAMETER :: routine = modname//":t_atm_phy_nwp_config_finalize"
   !-----------------------------------------------------------------
 
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(me%lcall_phy) IF(ALLOCATED(me%lcall_phy))
     !$ACC EXIT DATA DELETE(me%fac_ozone) IF(ALLOCATED(me%fac_ozone))
     !$ACC EXIT DATA DELETE(me%shapefunc_ozone) IF(ALLOCATED(me%shapefunc_ozone))

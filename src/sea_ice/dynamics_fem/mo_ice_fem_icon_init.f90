@@ -1,19 +1,18 @@
-!>
-!! Contains allocation, initialization and setup of the FEM mesh
-!! in relation to the ICON grid.
-!!
-!! @par Revision History
-!! Developed  by Einar Olason (2013).
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Contains allocation, initialization and setup of the FEM mesh
+! in relation to the ICON grid.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 !----------------------------
@@ -38,7 +37,7 @@ MODULE mo_ice_fem_icon_init
   USE mo_math_constants,      ONLY: rad2deg, deg2rad
 
   USE mo_sync,                ONLY: sync_v, sync_patch_array
-
+  USE mo_fortran_tools,       ONLY: set_acc_host_or_device
 
   IMPLICIT NONE
 
@@ -78,10 +77,6 @@ CONTAINS
   !> Constructor of weights for FEM sea-ice model
   !! We calculate only c2v_wgt (PRIVATE), which is used by cells2verts_scalar
   !!
-  !! @par Revision History
-  !! Developed by Einar Olason, MPI-M (2013-06-05)
-  !! Modified by Vladimir Lapin, MPI-M (2015-11-04)
-  !<Optimize:inUse>
   SUBROUTINE init_fem_wgts(p_patch_3D)
     TYPE(t_patch_3D), TARGET, INTENT(IN)    :: p_patch_3D
 
@@ -167,9 +162,6 @@ CONTAINS
   !! Identical to verts_aw_cells (see mo_intp_data_strc for description).
   !! Code copied from mo_intp_coeffs_lsq_bln.
   !!
-  !! @par Revision History
-  !! Developed by Vladimir Lapin, MPI-M (2017-05-05)
-  !<Optimize:inUse>
   SUBROUTINE init_fem_wgts_extra(ptr_patch)
 
     TYPE(t_patch), TARGET, INTENT(in) :: ptr_patch
@@ -248,9 +240,6 @@ CONTAINS
   !
   !> Destructor of patch for FEM sea-ice model, deallocates c2v_wgt
   !!
-  !! @par Revision History
-  !! Developed by Einar Olason, MPI-M (2013-06-05)
-  !
   SUBROUTINE destruct_fem_wgts
 
     !Local variables
@@ -290,9 +279,6 @@ CONTAINS
   !! This replaces the routine Sergey used to read the grid from file. We give values to
   !! coord_nod2D, nod2D, index_nod2D, elem2D_nodes and elem2D from the ICON grid.
   !!
-  !! @par Revision History
-  !! Developed by Einar Olason, MPI-M (2013-08-05)
-  !
   SUBROUTINE ice_fem_grid_init(p_patch_3D)
 
   USE mo_math_utilities,      ONLY: rotate_latlon, rotate_latlon_vec!, disp_new_vect
@@ -355,7 +341,7 @@ CONTAINS
     ! Go through all the vertices and assign coordinates and land mask to coord_nod2D and
     ! index_nod2D
     k=0
-    DO jb = 1,p_patch%nblks_v
+    DO jb = p_patch%verts%all%start_block, p_patch%verts%all%end_block
       CALL get_index_range(p_patch%verts%all, jb, i_startidx_v, i_endidx_v) 
       DO jv = i_startidx_v,i_endidx_v
         k=k+1
@@ -476,9 +462,6 @@ CONTAINS
   !! Those arrays are necessary for the OMP-parallelized version of stress2rhs_omp
   !! Where we loop over the nodes to update the rhs value in the momentum equatoins.
   !!
-  !! @par Revision History
-  !! Developed by Vladimir Lapin, MPI-M (2015-11-30)
-  !
   SUBROUTINE basisfunctions_nod
 
     USE mo_ice_fem_mesh,           ONLY: nod2D, elem2D_nodes, nod2D_elems,    &
@@ -542,9 +525,6 @@ CONTAINS
   !> the new pole at (pollon, pollat).
   !-------------------------------------------------------------------------
   !!
-  !! @par Revision History
-  !! Developed by Vladimir Lapin, MPI-M (2015-08-11)
-  !
   function calc_f_rot(lat, lon, pollat, omega)
 
   implicit none
@@ -563,9 +543,6 @@ CONTAINS
   !! around sync_patch_array using the PRIVATE variable fem_patch as patch and reshaping the
   !! variable before and after syncing.
   !!
-  !! @par Revision History
-  !! Developed by Einar Olason, MPI-M (2013-08-05)
-  !
   SUBROUTINE exchange_nod2D(u_ice)
 
     REAL(wp), INTENT(INOUT) :: u_ice(fem_patch%n_patch_verts)
@@ -582,22 +559,18 @@ CONTAINS
 
   !-------------------------------------------------------------------------
   ! copy ice velocities to ICON variables
-  SUBROUTINE copy_fem2icon(u_ice, u_, nlev, lev_idx, use_acc)
+  SUBROUTINE copy_fem2icon(u_ice, u_, nlev, lev_idx, lacc)
     INTEGER, INTENT(in) :: nlev, lev_idx
     REAL(wp), INTENT(IN) :: u_ice(fem_patch%n_patch_verts)
     REAL(wp), INTENT(INOUT) :: u_(nproma, nlev, fem_patch%nblks_v)
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
     INTEGER :: jv, jb, npad, nlast
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lzacc)
     DO jb = 1, fem_patch%nblks_v-1
       DO jv = 1, nproma
         u_(jv, lev_idx, jb) = u_ice((jb-1)*nproma + jv)
@@ -608,12 +581,12 @@ CONTAINS
     npad = nproma*fem_patch%nblks_v - fem_patch%n_patch_verts
     nlast = nproma - npad
     jb = fem_patch%nblks_v
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
     DO jv = 1, nlast
       u_(jv, lev_idx, jb) = u_ice((jb-1)*nproma + jv)
     END DO
     !$ACC END PARALLEL LOOP
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
     DO jv = nlast+1,nproma
       u_(jv, lev_idx, jb) = -9999._wp
     END DO
@@ -622,22 +595,18 @@ CONTAINS
   END SUBROUTINE copy_fem2icon
 
   ! Reshape and copy ice velocity to FEM model variables
-  SUBROUTINE copy_icon2fem(u_, u_ice, nlev, lev_idx, use_acc)
+  SUBROUTINE copy_icon2fem(u_, u_ice, nlev, lev_idx, lacc)
     INTEGER, INTENT(in) :: nlev, lev_idx
     REAL(wp), INTENT(IN) :: u_(nproma, nlev, fem_patch%nblks_v)
     REAL(wp), INTENT(OUT) :: u_ice(fem_patch%n_patch_verts)
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
 
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     INTEGER :: jv, jb, npad, nlast
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR COLLAPSE(2) DEFAULT(PRESENT) IF(lzacc)
     DO jb = 1, fem_patch%nblks_v-1
       DO jv = 1, nproma
         u_ice((jb-1)*nproma + jv) = u_(jv, lev_idx, jb)
@@ -647,37 +616,33 @@ CONTAINS
     npad = nproma*fem_patch%nblks_v - fem_patch%n_patch_verts
     nlast = nproma - npad
     jb = fem_patch%nblks_v
-    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lacc)
+    !$ACC PARALLEL LOOP GANG VECTOR DEFAULT(PRESENT) IF(lzacc)
     DO jv = 1, nlast
       u_ice((jb-1)*nproma + jv) = u_(jv, lev_idx, jb)
     END DO
     !$ACC END PARALLEL LOOP
   END SUBROUTINE copy_icon2fem
 
-  SUBROUTINE exchange_nod2Dx2(u1_ice, u2_ice, use_acc)
+  SUBROUTINE exchange_nod2Dx2(u1_ice, u2_ice, lacc)
     REAL(wp), INTENT(INOUT) :: u1_ice(fem_patch%n_patch_verts), &
          u2_ice(fem_patch%n_patch_verts)
-    LOGICAL, INTENT(IN), OPTIONAL :: use_acc
+    LOGICAL, INTENT(IN), OPTIONAL :: lacc
     
-    LOGICAL :: lacc
+    LOGICAL :: lzacc
     ! Temporary buffer
     REAL(wp) :: u_(nproma, 2, fem_patch%nblks_v)
 
-    IF (PRESENT(use_acc)) THEN
-      lacc = use_acc
-    ELSE
-      lacc = .FALSE.
-    END IF
+    CALL set_acc_host_or_device(lzacc, lacc)
 
-    !$ACC DATA CREATE(u_) IF(lacc)
+    !$ACC DATA CREATE(u_) IF(lzacc)
 
-    CALL copy_fem2icon(u1_ice, u_, 2, 1, use_acc=lacc)
-    CALL copy_fem2icon(u2_ice, u_, 2, 2, use_acc=lacc)
+    CALL copy_fem2icon(u1_ice, u_, 2, 1, lacc=lzacc)
+    CALL copy_fem2icon(u2_ice, u_, 2, 2, lacc=lzacc)
 
     CALL sync_patch_array(SYNC_V, fem_patch, u_)
 
-    CALL copy_icon2fem(u_, u1_ice, 2, 1, use_acc=lacc)
-    CALL copy_icon2fem(u_, u2_ice, 2, 2, use_acc=lacc)
+    CALL copy_icon2fem(u_, u1_ice, 2, 1, lacc=lzacc)
+    CALL copy_icon2fem(u_, u2_ice, 2, 2, lacc=lzacc)
 
     !$ACC END DATA
 
@@ -712,9 +677,6 @@ CONTAINS
   !! does not synchronise across CPUs the way it is calculated here. We also set voltriangle to the
   !! cell area, since the cell area is more accurately calculated by ICON than the FEM code.
   !!
-  !! @par Revision History
-  !! Developed by Einar Olason, MPI-M (2013-08-05)
-  !
   SUBROUTINE ice_fem_grid_post(p_patch)
     USE mo_ice_fem_types,       ONLY: lmass_matrix
     USE mo_ice_fem_mesh,        ONLY: myList_nod2D, myList_elem2D, coriolis_nod2D, voltriangle

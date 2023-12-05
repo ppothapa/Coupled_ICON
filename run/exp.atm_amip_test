@@ -29,7 +29,7 @@ author_list="Marco Giorgetta, MPIM"
 # nproma                        = blocking length for array dimensioning and inner loop lengths
 
 icon_data_poolFolder="${icon_data_rootFolder:-/pool/data/ICON}/grids/private/mpim/icon_preprocessing/source"
-icon_data_aeroFolder="${icon_data_rootFolder:-/pool/data/ICON}/grids/private/rene/mpim"
+icon_data_aeroFolder="${icon_data_rootFolder:-/pool/data/ICON}/grids/public/mpim"
 
 #--------------------------------------------------------------------------------------------------
 
@@ -138,6 +138,9 @@ cat > ${atmo_namelist} << EOF
  decay_scale_2    = 2500.       ! [m]
  decay_exp        = 1.2
  flat_height      = 16000.      ! [m]
+/
+&dynamics_nml
+ lmoist_thdyn   = .TRUE.
 /
 &diffusion_nml
 /
@@ -538,8 +541,8 @@ if [[ "$output_phy_3d" == "yes" ]]; then
                     'tend_ua_vdf'  ,
                     'tend_va_phy'  ,
                     'tend_va_vdf'  ,
-                    'tend_qhus_phy',
-                    'tend_qhus_vdf',
+                    'tend_hus_phy' ,
+                    'tend_hus_vdf' ,
 /
 EOF
 fi

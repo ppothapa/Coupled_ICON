@@ -1,40 +1,24 @@
 !NEC$ options "-finline-max-depth=3 -finline-max-function-size=10000"
-!===============================================================================!
 !
-! Two-moment bulk microphysics by Axel Seifert, Klaus Beheng and Uli Blahak
-!
-! with contributions by Heike Noppel and Vivek Sant
+! Two-moment bulk microphysics after Seifert, Beheng and Blahak
 !
 ! Description:
 ! This module contains the main subroutine for the two-moment microphysics, and
 ! the initialization subroutines that calculated the run-time coefficients
 !
-! Current Code Owner: Axel Seifert, DWD
-!                     axel.seifert@dwd.de
+! ICON
 !
-! Language: Fortran 2003
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
 !
-! Some code standards or recommendations, at least:
-!
-! - All changes that potentially change the results need to
-!   be approved by AS and UB
-! - All new variables/subroutines should be named in English
-! - In the future also comments should be written in English,
-!   but temporary use of some German is OK, too.
-! - Length of names of subroutines should be <= 20
-! - Length of names of variables should be <= 15
-! - Length of lines has to be < 120 including comments,
-!   recommended is <= 100 for code without comments.
-! - Temporary modifications for experiments should be marked by
-!
-!     AS_YYYYMMDD>
-!         ! Change for / Bugfix ....
-!     <AS_YYYYMMDD
-!
-!   until they are validated as improvements and made official
-!   (with AS, or whatever, being the initials of the guy doing the stuff
-!   and YYYYMMDD=year/month/day).
-!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
+MODULE mo_2mom_mcrph_main
+
 !===============================================================================!
 ! Re-write for ICON 04/2014 by AS:
 ! Some general notes:
@@ -85,18 +69,6 @@
 ! - Introduce logicals llqi_crit=(qi>q_crit), and llqi_zero = (qi>0.0), etc.
 !   which are calculated once in the driver
 !===============================================================================!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!===============================================================================!
-
-MODULE mo_2mom_mcrph_main
 
   USE mo_kind,               ONLY: sp, wp
   USE mo_exception,          ONLY: finish, message, txt => message_text
@@ -109,7 +81,6 @@ MODULE mo_2mom_mcrph_main
        & particle_coeffs, collection_coeffs, rain_riming_coeffs, dep_imm_coeffs, &
        & ltabdminwgg, ltab_estick_ice, ltab_estick_snow, ltab_estick_parti
   USE mo_2mom_mcrph_util, ONLY: &
-       & gfct,                       &  ! Gamma function (becomes intrinsic in Fortran2008)
        & gamlookuptable,             &  ! For look-up table of incomplete Gamma function
        & nlookup, nlookuphr_dummy,   &  !   array size of table
        & incgfct_lower_lookupcreate, &  !   create table

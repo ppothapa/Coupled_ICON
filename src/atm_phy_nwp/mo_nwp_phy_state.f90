@@ -1,19 +1,31 @@
 !NEC$ options "-O1"
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 #if (defined (__GNUC__) || defined(__SUNPRO_F95) || defined(__SX__))
 #define HAVE_F95
 #endif
-MODULE mo_nwp_phy_state
-!>
-!!  !MODULE:  mo_nwp_phy_state\\
-!!
-!! Description:  Contains the data structures
-!!  to store the physical model state and other auxiliary variables
-!!  in order to run the ECHAM physics.
-!!  Constructors and destructors for these data structures as well as
-!!  initialization of fields are also defined here.
-!!  This module should be an analogon to 'mo_hydro_state.f90'
 
-!!  TODO/To think about:
+MODULE mo_nwp_phy_state
+
+!
+! Description:  Contains the data structures
+!  to store the physical model state and other auxiliary variables
+!  in order to run the ECHAM physics.
+!  Constructors and destructors for these data structures as well as
+!  initialization of fields are also defined here.
+!  This module should be an analogon to 'mo_hydro_state.f90'
+!
+!  TODO/To think about:
 !     - should physics be called before or after dynamics?
 !     - allocate fluxes at edges instead at the centers?
 !     - horizontal/vertical tracer flux (reconstruct q'v_n' into q'u' and q'v') ?
@@ -24,28 +36,6 @@ MODULE mo_nwp_phy_state
 !     - fill the physics tendency construction/destruction subroutine
 !     - later implement already calculated icon gradients for echam physics
 !     - think about variables for flexible time steps
-!!
-!! @author Kristina Froehlich, DWD
-!! @author Marco Giorgetta, MPI-M
-!!
-!!
-!! @par Revision History
-!! Initial  by Kristina Froehlich (2009-06-10)
-!! Memory allocation method changed from explicit allocation to Luis'
-!! infrastructure by Kristina Froehlich (MPI-M, 2011-04-27)
-!! Added clch, clcm, clcl, hbas_con, htop_con by Helmut Frank (DWD, 2013-01-17)
-!! Added hzerocl, gust10                      by Helmut Frank (DWD, 2013-03-13)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-
-! !USES:
 
 USE mo_kind,                ONLY: wp, i8
 USE mo_nwp_phy_types,       ONLY: t_nwp_phy_diag, t_nwp_phy_tend, t_nwp_phy_stochconv
@@ -68,7 +58,6 @@ USE mo_impl_constants,      ONLY: success, &
   &                               TASK_COMPUTE_LAPSERATE,             &
   &                               TASK_COMPUTE_SRH,                   &
   &                               TASK_COMPUTE_INVERSION,             &
-  &                               iedmf,                              &
   &                               ivdiff,                             &
   &                               LSS_JSBACH,                         &
   &                               HINTP_TYPE_LONLAT_NNB,              &
@@ -87,7 +76,7 @@ USE mo_model_domain,        ONLY: t_patch, p_patch, p_patch_local_parent
 USE mo_grid_config,         ONLY: n_dom, n_dom_start, nexlevs_rrg_vnest
 USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config, icpl_aero_conv, iprog_aero
 USE turb_data,              ONLY: ltkecon
-USE mo_initicon_config,     ONLY: icpl_da_sfcevap, icpl_da_snowalb, icpl_da_skinc
+USE mo_initicon_config,     ONLY: icpl_da_sfcevap, icpl_da_snowalb, icpl_da_skinc, icpl_da_seaice
 USE mo_radiation_config,    ONLY: irad_aero, iRadAeroTegen, iRadAeroART
 USE mo_lnd_nwp_config,      ONLY: ntiles_total, ntiles_water, nlev_soil
 USE mo_nwp_vdiff_interface, ONLY: nwp_vdiff_setup
@@ -127,13 +116,14 @@ USE mo_action,               ONLY: ACTION_RESET, new_action, actions
 USE mo_io_config,            ONLY: lflux_avg, lnetcdf_flt64_output, gust_interval, &
   &                                celltracks_interval, echotop_meta, &
   &                                maxt_interval, precip_interval, t_var_in_output, &
-  &                                totprec_d_interval, &
+  &                                totprec_d_interval, itype_hzerocl, &
   &                                uh_max_zmin, uh_max_zmax, luh_max_out, uh_max_nlayer, &
   &                                sunshine_interval, n_wshear, n_srh
 USE mtime,                   ONLY: max_timedelta_str_len, getPTStringFromMS
 USE mo_name_list_output_config, ONLY: is_variable_in_output
 USE mo_util_string,          ONLY: real2string
 USE mo_sbm_storage,          ONLY: construct_sbm_storage, destruct_sbm_storage
+USE mo_coupling_config,      ONLY: is_coupled_to_waves
 
 #include "add_var_acc_macro.inc"
 
@@ -263,6 +253,7 @@ SUBROUTINE destruct_nwp_phy_state()
     routine = 'mo_nwp_phy_state:destruct_nwp_phy_state'
   CALL message(routine, 'start to destruct 3D state vector')
 
+  !$ACC WAIT(1)
   DO jg = 1,n_dom
     CALL vlr_del(prm_nwp_diag_list(jg))
     CALL vlr_del(prm_nwp_tend_list(jg))
@@ -456,7 +447,6 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
       &     diag%q_sedim, &
       &     diag%qrs_flux, &
       &     diag%qvtend_lhn, &
-      &     diag%rain_edmf_rate_3d, &
       &     diag%reff_qc, &
       &     diag%reff_qg, &
       &     diag%reff_qh, &
@@ -465,7 +455,6 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
       &     diag%reff_qs, &
       &     diag%rh, &
       &     diag%sdi2, &
-      &     diag%snow_edmf_rate_3d, &
       &     diag%snowalb_fac, &
       &     diag%srh, &
       &     diag%swflxsfc_t, &
@@ -488,7 +477,6 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
       &     diag%w_ctmax, &
       &     diag%wshear_u, &
       &     diag%wshear_v, &
-      &     diag%z0m, &
       &     diag%z_pbl)
 
 
@@ -641,32 +629,6 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
                 & ldims=shape3dkp1,                                           &
                 & isteptype=TSTEP_INSTANT, lopenacc=.TRUE.)
     __acc_attach(diag%snow_con_rate_3d)
-
-
-    IF ( atm_phy_nwp_config(k_jg)%inwp_turb == iedmf ) THEN
-
-      ! &      diag%rain_edmf_rate_3d(nproma,nlevp1,nblks_c)
-      cf_desc    = t_cf_var('rain_edmf_rate_3d', 'kg m-2 s-1',                &
-        &          '3d EDMF convective rain rate', datatype_flt)
-      grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( diag_list, 'rain_edmf_rate_3d', diag%rain_edmf_rate_3d,       &
-                  & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE_HALF, cf_desc, grib2_desc,&
-                  & lrestart = .FALSE., & ! .TRUE. may be necessary for ART (to be evaluated)
-                  & ldims=shape3dkp1,                                           &
-                  & isteptype=TSTEP_INSTANT )
-      
-      
-      ! &      diag%snow_edmf_rate_3d(nproma,nlevp1,nblks_c)
-      cf_desc    = t_cf_var('snow_edmf_rate_3d', 'kg m-2 s-1',                   &
-        &          '3d EDMF convective snow rate', datatype_flt)
-      grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( diag_list, 'snow_edmf_rate_3d', diag%snow_edmf_rate_3d,       &
-                  & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE_HALF, cf_desc, grib2_desc,&
-                  & lrestart = .FALSE., & ! .TRUE. may be necessary for ART (to be evaluated)
-                  & ldims=shape3dkp1,                                           &
-                  & isteptype=TSTEP_INSTANT )
-
-    ENDIF
 
 
     ! &      diag%rain_gsp(nproma,nblks_c)
@@ -1236,6 +1198,27 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
     __acc_attach(diag%snowlmt)
 
 
+    ! &      diag%hpbl(nproma,nblks_c)
+    ! height of bdl for use in non-LES simulations
+
+    IF ( var_in_output%hpbl ) THEN
+
+#ifdef _OPENACC
+      CALL finish ('mo_nwp_phy_state:new_nwp_phy_diag_list', &
+        'hpbl calculation not ported to GPU')
+#endif
+
+      cf_desc    = t_cf_var('hpbl', 'm', 'boundary layer height above sea level', &
+           &                datatype_flt)
+      grib2_desc = grib2_var(0, 3, 18, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( diag_list, 'hpbl', diag%hpbl,                             &
+        & GRID_UNSTRUCTURED_CELL, ZA_CLOUD_TOP, cf_desc, grib2_desc,            &
+        & ldims=shape2d, lrestart=.FALSE. )
+
+    ENDIF
+
+
+
     ! &      diag%clc(nproma,nlev,nblks_c)
     cf_desc      = t_cf_var('clc', '',  'cloud cover', datatype_flt)
     new_cf_desc  = t_cf_var('clc', '%', 'cloud cover', datatype_flt)
@@ -1541,10 +1524,10 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
 
     !QV
     CALL add_ref( diag_list, 'tot_cld',                                            &
-                & tot_pfx//'qv_dia', diag%tot_ptr(iqv)%p_3d,            &
-                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                               &
-                & t_cf_var(tot_pfx//'qv_dia', 'kg kg-1',                &
-                &          'total specific humidity (diagnostic)', datatype_flt),&
+                & tot_pfx//'qv_dia', diag%tot_ptr(iqv)%p_3d,                       &
+                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                            &
+                & t_cf_var(tot_pfx//'qv_dia', 'kg kg-1',                           &
+                &          'total specific humidity (diagnostic)', datatype_flt),  &
                 & grib2_var(0, 1, 211, ibits, GRID_UNSTRUCTURED, GRID_CELL),       &
                 & ref_idx=iqv,                                                     &
                 & ldims=shape3d,                                                   &
@@ -1554,12 +1537,13 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
                 &             l_satlimit=.FALSE.,                                  & 
                 &             lower_limit=2.5e-7_wp, l_restore_pbldev=.FALSE. ),   &
                 & in_group=groups("cloud_diag") )
+    __acc_attach(diag%tot_ptr(iqv)%p_3d)
 
     !QC
     CALL add_ref( diag_list, 'tot_cld',                                            &
-                & tot_pfx//'qc_dia', diag%tot_ptr(iqc)%p_3d,            &
-                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                               &
-                & t_cf_var(tot_pfx//'qc_dia', 'kg kg-1',                &
+                & tot_pfx//'qc_dia', diag%tot_ptr(iqc)%p_3d,                       &
+                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                            &
+                & t_cf_var(tot_pfx//'qc_dia', 'kg kg-1',                           &
                 & 'total specific cloud water content (diagnostic)', datatype_flt),&
                 & grib2_var(0, 1, 212, ibits, GRID_UNSTRUCTURED, GRID_CELL),       &
                 & ref_idx=iqc,                                                     &
@@ -1571,13 +1555,14 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
                 &             l_extrapol=.FALSE., l_pd_limit=.FALSE.,              &
                 &             lower_limit=0._wp ),                                 &
                 & in_group=groups("cloud_diag") )
+    __acc_attach(diag%tot_ptr(iqc)%p_3d)
 
     !QI
     CALL add_ref( diag_list, 'tot_cld',                                            &
-                & tot_pfx//'qi_dia', diag%tot_ptr(iqi)%p_3d,            &
-                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                               &
-                & t_cf_var(tot_pfx//'qi_dia', 'kg kg-1',                &
-                & 'total specific cloud ice content (diagnostic)', datatype_flt),&
+                & tot_pfx//'qi_dia', diag%tot_ptr(iqi)%p_3d,                       &
+                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE,                            &
+                & t_cf_var(tot_pfx//'qi_dia', 'kg kg-1',                           &
+                & 'total specific cloud ice content (diagnostic)', datatype_flt),  &
                 & grib2_var(0, 1, 213, ibits, GRID_UNSTRUCTURED, GRID_CELL),       &
                 & ref_idx=iqi,                                                     &
                 & ldims=shape3d,                                                   &
@@ -1588,6 +1573,7 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
                 &             l_extrapol=.FALSE., l_pd_limit=.FALSE.,              &
                 &             lower_limit=0._wp ),                                 &
                 & in_group=groups("cloud_diag") )
+    __acc_attach(diag%tot_ptr(iqi)%p_3d)
 
     !      diag%tot_cld_vi(nproma,nblks_c,3)
     cf_desc     = t_cf_var('tot_cld_vi', 'kg m-2','vertical integr total cloud variables', datatype_flt)
@@ -1737,6 +1723,19 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
         &           grib2_desc, ldims=shape2d, loutput=.TRUE.,    &
         &           initval=1.0_wp, lrestart=.TRUE., lopenacc=.TRUE.)
         __acc_attach(diag%snowalb_fac)
+    ENDIF
+
+    IF (icpl_da_seaice >= 2) THEN
+      ! Factor for adaptive bottom heat flux tuning
+      !
+      ! hflux_si_fac     diag%hflux_si_fac(nproma,nblks_c)
+      cf_desc    = t_cf_var('hflux_si_fac', '-', 'tuning factor for seaice bottom heat flux', datatype_flt)
+      grib2_desc = grib2_var( 255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( diag_list, 'hflux_si_fac', diag%hflux_si_fac, &
+        &           GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc,  &
+        &           grib2_desc, ldims=shape2d, loutput=.TRUE.,    &
+        &           initval=0.0_wp, lrestart=.TRUE., lopenacc=.TRUE.)
+        __acc_attach(diag%hflux_si_fac)
     ENDIF
 
     IF (icpl_da_skinc >= 2) THEN
@@ -3062,6 +3061,18 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
       & initval=0.01_wp, lopenacc=.TRUE. )
     __acc_attach(diag%gz0)
 
+
+    IF (is_coupled_to_waves()) THEN
+      ! &      diag%z0_waves(nproma,nblks_c)
+      cf_desc     = t_cf_var('z0_waves', 'm','wave-dependent roughness length', datatype_flt)
+      grib2_desc = grib2_var(10, 0, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      CALL add_var( diag_list, 'z0_waves', diag%z0_waves,                   &
+        & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,          &
+        & ldims=shape2d, loutput=.TRUE.,                                    &
+        & lopenacc=.FALSE. )
+    END IF
+
+
     ! &      diag%t_2m(nproma,nblks_c)
     IF (icpl_da_sfcevap == 1 .OR. icpl_da_sfcevap == 2) THEN
       in_group = groups("pbl_vars","dwd_fg_atm_vars","mode_iau_ana_in")
@@ -3110,7 +3121,7 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
     ! &      diag%t_2m_land(nproma,nblks_c)
     cf_desc    = t_cf_var('t_2m_land', 'K ','temperature in 2m over land fraction', &
       &          datatype_flt)
-    grib2_desc = grib2_var(0, 0, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL) &
+    grib2_desc = grib2_var(0, 0, 0, ibits, GRID_UNSTRUCTURED, GRID_CELL)  &
       &           + t_grib2_int_key("typeOfSecondFixedSurface", 181)
     CALL add_var( diag_list, 't_2m_land', diag%t_2m_land,                 &
       & GRID_UNSTRUCTURED_CELL, ZA_HEIGHT_2M_LAYER, cf_desc, grib2_desc,  &
@@ -3178,6 +3189,8 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
     CALL add_var( diag_list, 'td_2m', diag%td_2m,                         &
       & GRID_UNSTRUCTURED_CELL, ZA_HEIGHT_2M, cf_desc, grib2_desc,        &
       & ldims=shape2d, lrestart=.FALSE., in_group=groups("pbl_vars","dwd_fg_atm_vars"), &
+      & hor_interp=create_hor_interp_metadata(hor_intp_type=HINTP_TYPE_LONLAT_BCTR, &
+      &                                       fallback_type=HINTP_TYPE_LONLAT_RBF), &
       & lopenacc=.TRUE. )
     __acc_attach(diag%td_2m)
 
@@ -3682,7 +3695,6 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
          & lrestart=.TRUE., loutput=.TRUE.,                           &
          & isteptype=TSTEP_INSTANT )
     ENDDO
-    !EDMF requires lrestart=.TRUE. 
 
 
     ! &      diag%vmfl_s_t(nproma,nblks_c,ntiles_total+ntiles_water)
@@ -3708,7 +3720,6 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
          & lrestart=.TRUE., loutput=.TRUE.,                           &
          & isteptype=TSTEP_INSTANT )
     ENDDO
-    !EDMF requires lrestart=.TRUE. 
 
 
     ! &      diag%umfl_s(nproma,nblks_c)
@@ -3864,22 +3875,6 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
     __acc_attach(diag%adrag_v_grid)
 
 
-    !------------------------------
-    ! EDMF
-    !------------------------------
-
-    IF( atm_phy_nwp_config(k_jg)%inwp_turb == iedmf) THEN
-
-       ! &      diag%z0m(nproma,nblks_c)
-       cf_desc    = t_cf_var('z0m', '', &
-            &                'geopotential of the top of the atmospheric boundary layer', &
-            &                datatype_flt)
-       grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-       CALL add_var( diag_list, 'z0m', diag%z0m,                             &
-         & GRID_UNSTRUCTURED_CELL,ZA_SURFACE, cf_desc, grib2_desc, ldims=shape2d )
-
-    ENDIF  !inwp_turb == EDMF
-
 #ifndef __NO_ICON_LES__
     !------------------------------
     ! LES
@@ -3887,12 +3882,13 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
 
     !Anurag Dipankar, MPI (7 Oct 2013)
     !Diagnostics for LES physics
+
     IF ( atm_phy_nwp_config(k_jg)%is_les_phy ) THEN
 
       ! &      diag%z_pbl(nproma,nblks_c)
       cf_desc    = t_cf_var('z_pbl', 'm', 'boundary layer height above sea level', &
            &                datatype_flt)
-      grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+      grib2_desc = grib2_var(0, 3, 18, ibits, GRID_UNSTRUCTURED, GRID_CELL)
       CALL add_var( diag_list, 'z_pbl', diag%z_pbl,                             &
         & GRID_UNSTRUCTURED_CELL, ZA_CLOUD_TOP, cf_desc, grib2_desc,            &
         & ldims=shape2d, lrestart=.FALSE. )
@@ -4504,7 +4500,9 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
                     & cf_desc, grib2_desc,                                           &
                     & ldims=shape2d,                                                 &
                     & isteptype=TSTEP_INSTANT,                                       &
-                    & l_pp_scheduler_task=TASK_COMPUTE_VIS, lrestart=.FALSE. )
+                    & l_pp_scheduler_task=TASK_COMPUTE_VIS, lrestart=.FALSE.,        &
+                    & lopenacc=.TRUE. )
+      __acc_attach(diag%vis)
     END IF
 
     IF (var_in_output%hbas_sc) THEN
@@ -5135,12 +5133,20 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
     cf_desc    = t_cf_var('hzerocl', '', 'height of 0 deg C level', datatype_flt)
     grib2_desc = grib2_var(0, 3, 6, ibits, GRID_UNSTRUCTURED, GRID_CELL)             &
       &           + t_grib2_int_key("typeOfSecondFixedSurface", 101)
-    CALL add_var( diag_list, 'hzerocl', diag%hzerocl,                                &
-      &           GRID_UNSTRUCTURED_CELL, ZA_ISOTHERM_ZERO, cf_desc, grib2_desc,     &
-      &           ldims=shape2d, lrestart=.FALSE.,                                   &
-!!$      &           lmiss=.TRUE., missval=-999._wp,                                    &
-      &           hor_interp=create_hor_interp_metadata(                             &
-      &                      hor_intp_type=HINTP_TYPE_LONLAT_NNB), lopenacc=.TRUE. )
+    IF (itype_hzerocl == 2) THEN
+      CALL add_var( diag_list, 'hzerocl', diag%hzerocl,                                &
+        &           GRID_UNSTRUCTURED_CELL, ZA_ISOTHERM_ZERO, cf_desc, grib2_desc,     &
+        &           ldims=shape2d, lrestart=.FALSE.,                                   &
+        &           lmiss=.TRUE., missval=-999.0_wp,                                   &
+        &           hor_interp=create_hor_interp_metadata(                             &
+        &                      hor_intp_type=HINTP_TYPE_LONLAT_NNB), lopenacc=.TRUE. )
+    ELSE
+      CALL add_var( diag_list, 'hzerocl', diag%hzerocl,                                &
+        &           GRID_UNSTRUCTURED_CELL, ZA_ISOTHERM_ZERO, cf_desc, grib2_desc,     &
+        &           ldims=shape2d, lrestart=.FALSE.,                                   &
+        &           hor_interp=create_hor_interp_metadata(                             &
+        &                      hor_intp_type=HINTP_TYPE_LONLAT_NNB), lopenacc=.TRUE. )
+    END IF
     __acc_attach(diag%hzerocl)
 
 

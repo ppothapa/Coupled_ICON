@@ -1,3 +1,14 @@
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_nwp_gpu_util
 
   USE mo_ext_data_types,          ONLY: t_external_data
@@ -15,7 +26,6 @@ MODULE mo_nwp_gpu_util
   USE mo_run_config,              ONLY: iqv, iqc, iqi, iqg, iqr, iqs, ldass_lhn
   USE mo_nonhydro_state,          ONLY: p_nh_state
   USE mo_nwp_lnd_state,           ONLY: p_lnd_state
-  USE mo_run_config,              ONLY: ldass_lhn
   USE mo_atm_phy_nwp_config,      ONLY: t_atm_phy_nwp_config
   USE mo_fortran_tools,           ONLY: assert_acc_device_only
 #ifdef _OPENACC
@@ -47,8 +57,6 @@ MODULE mo_nwp_gpu_util
 
     CALL assert_acc_device_only("gpu_d2h_nh_nwp", lacc)
 
-    !$ACC WAIT
-
     !$ACC UPDATE HOST(ext_data%atm%list_seaice%ncount) &
     !$ACC   HOST(ext_data%atm%list_seaice%idx, ext_data%atm%list_lake%ncount, ext_data%atm%list_lake%idx) &
     !$ACC   HOST(ext_data%atm%list_land%ncount, ext_data%atm%list_land%idx) &
@@ -57,7 +65,7 @@ MODULE mo_nwp_gpu_util
     !$ACC   HOST(ext_data%atm%z0_lcc, ext_data%atm%z0_lcc_min, ext_data%atm%plcovmax_lcc) &
     !$ACC   HOST(ext_data%atm%laimax_lcc, ext_data%atm%rootdmax_lcc, ext_data%atm%stomresmin_lcc) &
     !$ACC   HOST(ext_data%atm%snowalb_lcc, ext_data%atm%snowtile_lcc, ext_data%atm%t_cl, ext_data%atm%lc_frac_t) &
-    !$ACC   IF(PRESENT(ext_data))
+    !$ACC   ASYNC(1) IF(PRESENT(ext_data))
 
     !$ACC UPDATE HOST(p_int%lsq_high, p_int%lsq_lin) &
     !$ACC   HOST(p_int%c_bln_avg, p_int%c_lin_e, p_int%cells_aw_verts) &
@@ -79,7 +87,7 @@ MODULE mo_nwp_gpu_util
     !$ACC   HOST(p_int%rbf_vec_blk_e, p_int%rbf_vec_idx_e, p_int%rbf_vec_coeff_e) &
     !$ACC   HOST(p_int%rbf_vec_blk_v, p_int%rbf_vec_idx_v, p_int%rbf_vec_coeff_v) &
     !$ACC   HOST(p_int%verts_aw_cells) &
-    !$ACC   IF(PRESENT(p_int))
+    !$ACC   ASYNC(1) IF(PRESENT(p_int))
 
 #ifdef _OPENACC
     ! Update NWP fields
@@ -117,7 +125,7 @@ MODULE mo_nwp_gpu_util
 
     IF (PRESENT(phy_params)) THEN
       ! This is save as long as all t_phy_params components are scalars.
-      !$ACC UPDATE HOST(phy_params)
+      !$ACC UPDATE HOST(phy_params) ASYNC(1)
     ENDIF
 
     IF (PRESENT(atm_phy_nwp_config)) THEN
@@ -134,8 +142,11 @@ MODULE mo_nwp_gpu_util
       !$ACC   HOST(a%is_les_phy) &
 #endif
       !$ACC   HOST(a%nclass_gscp, a%l_3d_rad_fluxes, a%l_3d_turb_fluxes, a%fac_ozone, a%shapefunc_ozone) &
-      !$ACC   HOST(a%ozone_maxinc)
+      !$ACC   HOST(a%ozone_maxinc) &
+      !$ACC   ASYNC(1)
     ENDIF
+
+    !$ACC WAIT(1)
 
   END SUBROUTINE gpu_d2h_nh_nwp
 
@@ -155,8 +166,6 @@ MODULE mo_nwp_gpu_util
 
     CALL assert_acc_device_only("gpu_d2h_nh_nwp", lacc)
 
-    !$ACC WAIT
-
     !$ACC UPDATE DEVICE(ext_data%atm%list_seaice%ncount) &
     !$ACC   DEVICE(ext_data%atm%list_seaice%idx, ext_data%atm%list_lake%ncount, ext_data%atm%list_lake%idx) &
     !$ACC   DEVICE(ext_data%atm%list_land%ncount, ext_data%atm%list_land%idx) &
@@ -165,7 +174,7 @@ MODULE mo_nwp_gpu_util
     !$ACC   DEVICE(ext_data%atm%z0_lcc, ext_data%atm%z0_lcc_min, ext_data%atm%plcovmax_lcc) &
     !$ACC   DEVICE(ext_data%atm%laimax_lcc, ext_data%atm%rootdmax_lcc, ext_data%atm%stomresmin_lcc) &
     !$ACC   DEVICE(ext_data%atm%snowalb_lcc, ext_data%atm%snowtile_lcc, ext_data%atm%t_cl, ext_data%atm%lc_frac_t) &
-    !$ACC   IF(PRESENT(ext_data))
+    !$ACC   ASYNC(1) IF(PRESENT(ext_data))
 
     !$ACC UPDATE DEVICE(p_int%lsq_high, p_int%lsq_lin) &
     !$ACC   DEVICE(p_int%c_bln_avg, p_int%c_lin_e, p_int%cells_aw_verts) &
@@ -187,7 +196,7 @@ MODULE mo_nwp_gpu_util
     !$ACC   DEVICE(p_int%rbf_vec_blk_e, p_int%rbf_vec_idx_e, p_int%rbf_vec_coeff_e) &
     !$ACC   DEVICE(p_int%rbf_vec_blk_v, p_int%rbf_vec_idx_v, p_int%rbf_vec_coeff_v) &
     !$ACC   DEVICE(p_int%verts_aw_cells) &
-    !$ACC   IF(PRESENT(p_int))
+    !$ACC   ASYNC(1) IF(PRESENT(p_int))
 
 #ifdef _OPENACC
     ! Update NWP fields
@@ -226,7 +235,7 @@ MODULE mo_nwp_gpu_util
 
     IF (PRESENT(phy_params)) THEN
       ! This is save as long as all t_phy_params components are scalars.
-      !$ACC UPDATE DEVICE(phy_params)
+      !$ACC UPDATE DEVICE(phy_params) ASYNC(1)
     END IF
 
     IF (PRESENT(atm_phy_nwp_config)) THEN
@@ -243,7 +252,8 @@ MODULE mo_nwp_gpu_util
       !$ACC   DEVICE(a%is_les_phy) &
 #endif
       !$ACC   DEVICE(a%nclass_gscp, a%l_3d_rad_fluxes, a%l_3d_turb_fluxes, a%fac_ozone, a%shapefunc_ozone) &
-      !$ACC   DEVICE(a%ozone_maxinc)
+      !$ACC   DEVICE(a%ozone_maxinc) &
+      !$ACC   ASYNC(1)
     ENDIF
 
   END SUBROUTINE gpu_h2d_nh_nwp
@@ -260,22 +270,23 @@ MODULE mo_nwp_gpu_util
     CALL assert_acc_device_only("gpu_d2h_art", lacc)
 
     IF (PRESENT(p_art_data)) THEN
-      !$ACC WAIT
-
       !$ACC UPDATE HOST(p_art_data%air_prop%art_dyn_visc, p_art_data%air_prop%art_free_path) &
       !$ACC   HOST(p_art_data%atmo%gz0, p_art_data%atmo%ktrpwmop1_real, p_art_data%atmo%ktrpwmop1) &
       !$ACC   HOST(p_art_data%atmo%ktrpwmo, p_art_data%atmo%lat, p_art_data%atmo%llsm, p_art_data%atmo%lon) &
       !$ACC   HOST(p_art_data%atmo%ptropo, p_art_data%atmo%rh_2m, p_art_data%atmo%swflxsfc) &
       !$ACC   HOST(p_art_data%atmo%swflx_par_sfc, p_art_data%atmo%sza, p_art_data%atmo%sza_deg) &
       !$ACC   HOST(p_art_data%atmo%theta, p_art_data%atmo%t_2m, p_art_data%diag%acc_drydepo) &
-      !$ACC   HOST(p_art_data%turb_fields%sv, p_art_data%turb_fields%vdep)
+      !$ACC   HOST(p_art_data%turb_fields%sv, p_art_data%turb_fields%vdep) &
+      !$ACC   ASYNC(1)
 
       DO ipoll = 1, p_art_data%ext%pollen_prop%npollen_types
         !$ACC UPDATE HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%fr_cov) &
         !$ACC   HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%f_q_alt) &
         !$ACC   HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%rh_sum) &
-        !$ACC   HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%sobs_sum)
+        !$ACC   HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%sobs_sum) &
+        !$ACC   ASYNC(1)
       END DO
+      !$ACC WAIT(1)
     END IF
 
   END SUBROUTINE gpu_d2h_art
@@ -294,23 +305,24 @@ MODULE mo_nwp_gpu_util
     CALL assert_acc_device_only("gpu_h2d_art", lacc)
 
     IF (PRESENT(p_art_data)) THEN
-      !$ACC WAIT
-
       !$ACC UPDATE DEVICE(p_art_data%air_prop%art_dyn_visc, p_art_data%air_prop%art_free_path) &
       !$ACC   DEVICE(p_art_data%atmo%gz0, p_art_data%atmo%ktrpwmop1_real, p_art_data%atmo%ktrpwmop1) &
       !$ACC   DEVICE(p_art_data%atmo%ktrpwmo, p_art_data%atmo%lat, p_art_data%atmo%llsm, p_art_data%atmo%lon) &
       !$ACC   DEVICE(p_art_data%atmo%ptropo, p_art_data%atmo%rh_2m, p_art_data%atmo%swflxsfc) &
       !$ACC   DEVICE(p_art_data%atmo%swflx_par_sfc, p_art_data%atmo%sza, p_art_data%atmo%sza_deg) &
       !$ACC   DEVICE(p_art_data%atmo%theta, p_art_data%atmo%t_2m, p_art_data%diag%acc_drydepo) &
-      !$ACC   DEVICE(p_art_data%turb_fields%sv, p_art_data%turb_fields%vdep)
+      !$ACC   DEVICE(p_art_data%turb_fields%sv, p_art_data%turb_fields%vdep) &
+      !$ACC   ASYNC(1)
 
       DO ipoll = 1, p_art_data%ext%pollen_prop%npollen_types
         !$ACC UPDATE DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%fr_cov) &
         !$ACC   DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%f_q_alt) &
         !$ACC   DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%rh_sum) &
-        !$ACC   DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%sobs_sum)
+        !$ACC   DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%sobs_sum) &
+        !$ACC   ASYNC(1)
       END DO
     END IF
+
   END SUBROUTINE gpu_h2d_art
 #endif
 
@@ -328,6 +340,7 @@ MODULE mo_nwp_gpu_util
 
     CALL assert_acc_device_only("hostcpy_nwp", lacc)
 
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(kstart_moist, kstart_tracer)
 
   END SUBROUTINE hostcpy_nwp
@@ -343,49 +356,56 @@ MODULE mo_nwp_gpu_util
     lqs = iqs > 0
     lqg = iqg > 0
 
-    !$ACC UPDATE HOST(p_nh_state(jg)%diag%pres_sfc)
-    !$ACC UPDATE HOST(p_nh_state(jg)%diag%pres)
-    !$ACC UPDATE HOST(p_nh_state(jg)%diag%temp)
-    !$ACC UPDATE HOST(p_nh_state(jg)%diag%u)
-    !$ACC UPDATE HOST(p_nh_state(jg)%diag%v)
+    !$ACC UPDATE &
+    !$ACC   HOST(p_nh_state(jg)%diag%pres_sfc) &
+    !$ACC   HOST(p_nh_state(jg)%diag%pres) &
+    !$ACC   HOST(p_nh_state(jg)%diag%temp) &
+    !$ACC   HOST(p_nh_state(jg)%diag%u) &
+    !$ACC   HOST(p_nh_state(jg)%diag%v) &
+    !$ACC   ASYNC(1)
     
-    !$ACC UPDATE HOST(p_nh_state(jg)%prog(nnow_rcf(jg))%tracer(:,:,:,iqv:iqv))
-    !$ACC UPDATE HOST(p_nh_state(jg)%prog(nnow_rcf(jg))%tracer(:,:,:,iqc:iqc))
-    !$ACC UPDATE HOST(p_nh_state(jg)%prog(nnow_rcf(jg))%tracer(:,:,:,iqi:iqi))
+    !$ACC UPDATE &
+    !$ACC   HOST(p_nh_state(jg)%prog(nnow_rcf(jg))%tracer(:,:,:,iqv:iqv)) &
+    !$ACC   HOST(p_nh_state(jg)%prog(nnow_rcf(jg))%tracer(:,:,:,iqc:iqc)) &
+    !$ACC   HOST(p_nh_state(jg)%prog(nnow_rcf(jg))%tracer(:,:,:,iqi:iqi)) &
+    !$ACC   ASYNC(1)
     IF (lqr) THEN
-      !$ACC UPDATE HOST(p_nh_state(jg)%prog(nnow_rcf(jg))%tracer(:,:,:,iqr:iqr))
+      !$ACC UPDATE HOST(p_nh_state(jg)%prog(nnow_rcf(jg))%tracer(:,:,:,iqr:iqr)) ASYNC(1)
     ENDIF
     IF (lqs) THEN
-      !$ACC UPDATE HOST(p_nh_state(jg)%prog(nnow_rcf(jg))%tracer(:,:,:,iqs:iqs))
+      !$ACC UPDATE HOST(p_nh_state(jg)%prog(nnow_rcf(jg))%tracer(:,:,:,iqs:iqs)) ASYNC(1)
     ENDIF
     IF (lqg) THEN
-      !$ACC UPDATE HOST(p_nh_state(jg)%prog(nnow_rcf(jg))%tracer(:,:,:,iqg:iqg))
+      !$ACC UPDATE HOST(p_nh_state(jg)%prog(nnow_rcf(jg))%tracer(:,:,:,iqg:iqg)) ASYNC(1)
     ENDIF
 
-    !$ACC UPDATE HOST(prm_diag(jg)%gz0)
-    !$ACC UPDATE HOST(prm_diag(jg)%t_2m)
-    !$ACC UPDATE HOST(prm_diag(jg)%td_2m)
-    !$ACC UPDATE HOST(prm_diag(jg)%rh_2m)
-    !$ACC UPDATE HOST(prm_diag(jg)%u_10m)
-    !$ACC UPDATE HOST(prm_diag(jg)%v_10m)
-    !$ACC UPDATE HOST(prm_diag(jg)%clct)
-    !$ACC UPDATE HOST(prm_diag(jg)%clcl)
-    !$ACC UPDATE HOST(prm_diag(jg)%clcm)
-    !$ACC UPDATE HOST(prm_diag(jg)%clch)
-    
+    !$ACC UPDATE &
+    !$ACC   HOST(prm_diag(jg)%gz0) &
+    !$ACC   HOST(prm_diag(jg)%t_2m) &
+    !$ACC   HOST(prm_diag(jg)%td_2m) &
+    !$ACC   HOST(prm_diag(jg)%rh_2m) &
+    !$ACC   HOST(prm_diag(jg)%u_10m) &
+    !$ACC   HOST(prm_diag(jg)%v_10m) &
+    !$ACC   HOST(prm_diag(jg)%clct) &
+    !$ACC   HOST(prm_diag(jg)%clcl) &
+    !$ACC   HOST(prm_diag(jg)%clcm) &
+    !$ACC   HOST(prm_diag(jg)%clch) &
+    !$ACC   ASYNC(1)
 
-    !$ACC UPDATE HOST(p_lnd_state(jg)% prog_lnd(nnow_rcf(jg))%t_g)
-    !$ACC UPDATE HOST(p_lnd_state(jg)%diag_lnd%h_snow)
-    !$ACC UPDATE HOST(p_lnd_state(jg)%diag_lnd%fr_seaice)
+    !$ACC UPDATE &
+    !$ACC   HOST(p_lnd_state(jg)% prog_lnd(nnow_rcf(jg))%t_g) &
+    !$ACC   HOST(p_lnd_state(jg)%diag_lnd%h_snow) &
+    !$ACC   HOST(p_lnd_state(jg)%diag_lnd%fr_seaice) &
+    !$ACC   ASYNC(1)
 
     IF (atm_phy_nwp_config%luse_clc_rad) THEN
-      !$ACC UPDATE HOST(prm_diag(jg)%clc_rad)
+      !$ACC UPDATE HOST(prm_diag(jg)%clc_rad) ASYNC(1)
     ELSE
-      !$ACC UPDATE HOST(prm_diag(jg)%clc)
+      !$ACC UPDATE HOST(prm_diag(jg)%clc) ASYNC(1)
     END IF
     IF (atm_phy_nwp_config% icalc_reff /= 0) THEN
-      !$ACC UPDATE HOST(prm_diag(jg)%reff_qc)
-      !$ACC UPDATE HOST(prm_diag(jg)%reff_qi)
+      !$ACC UPDATE HOST(prm_diag(jg)%reff_qc) ASYNC(1)
+      !$ACC UPDATE HOST(prm_diag(jg)%reff_qi) ASYNC(1)
     END IF
 
     ! Not sure why this is needed
@@ -393,7 +413,7 @@ MODULE mo_nwp_gpu_util
     CALL gpu_update_var_list('nh_state_prog_of_domain_', .false., domain=jg, substr='_and_timelev_', timelev=nnow(jg), lacc=.TRUE.)
 #endif
 
-    !$ACC WAIT
+    !$ACC WAIT(1)
 
   END SUBROUTINE gpu_d2h_dace
 

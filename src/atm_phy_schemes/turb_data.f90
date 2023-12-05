@@ -1,62 +1,19 @@
-!+ Data module for variables of the turbulence parameterization
-!------------------------------------------------------------------------------
+! Data module for variables of the turbulence parameterization!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE turb_data
 
 !------------------------------------------------------------------------------
-!
-! Description:
-!  This module contains parameters that are used in the turbulence
-!  parameterizations. With some of these parameters a tuning of the schemes
-!  is possible.
-!
-! Current Code Owner: DWD, Matthias Raschendorfer
-!  phone:  +49  69  8062 2708
-!  fax:    +49  69  8062 3721
-!  email:  Matthias.Raschendorfer@dwd.de
-!
-! History:
-! Version    Date       Name
-! ---------- ---------- ----
-! V5_4a        2016-05-10 Matthias Raschendorfer, Ulrich Schaettler
-!  Initial release, based on data_turbulence with modifications for ICON
-!  Note that this module is now also used for the old (not blocked) scheme
-! V5_4b        2016-07-12 Ulrich Schaettler
-!  Activate old defaults for some namelist variables for COSMO 
-!  as long as non-blocked turbulence scheme is running per default
-! V5_4c        2016-10-06 Ulrich Schaettler
-!  Again use local memory if not running on GPUs 
-!     (because on vectorization problem on CRAY)
-! V5_4d        2016-12-12 Matthias Raschendorfer
-!  Adapting some comments and reshuffling variables.
-! V5_4e        2017-03-23 Ulrich Schaettler
-!  Modified several Namelist defaults to the ICON defaults
-! V5_4f        2017-09-01 Matthias Raschendorfer, Ulrich Schaettler
-!  Unified settings for ICON and COSMO:
-!   - imode_rat_sea:    1  (ICON value,  changes in COSMO)
-!   - loutshs        TRUE  (COSMO value, changes in ICON)
-!  To get an old-COSMO-like behaviour of the blocked turbulence scheme some 
-!   hardcoded variables need different values. These are set by compiling 
-!   with the pragma -DCOSMO_OLD
-!  Removed wichfakt, securi from the old version (US)
-! V5_4g        2017-11-13 Ulrich Schaettler
-!  Implemented namelist variable loldtur (Default .FALSE.) and removed 
-!  pragma -DCOSMO_OLD to be able to switch the behaviour during run time.
-! V5_4h        2017-12-15 Xavier Lapillonne
-!  Modifications to port turbulence scheme to GPU
-! V5_5         2018-02-23 Ulrich Schaettler
-!  Updated with ICON Version 7bcba73: 
-!   - new (still internal) switch imode_tkesso (should replace ltkesso)
-!   - modified some default values of namelist variables with ifdef ICON/COSMO
-! V5_6         2019-02-27 Ulrich Schaettler
-!  Updated with ICON Version d7e0252
-!    (Set alpha1 = 0.75; was 1.0 before)
-!
-! Code Description:
-! Language: Fortran 90.
-! Software Standards: "European Standards for Writing and
-! Documenting Exchangeable Fortran 90 Code".
-!==============================================================================
 !
 ! Declarations:
 !
@@ -338,6 +295,7 @@ INTEGER :: &
   imode_tkesso =1, &  ! mode of calculat. the SSO source term for TKE production
                       ! 1: original implementation
                       ! 2: with a Ri-dependent reduction factor for Ri>1
+                      ! 3: as 2, but additional reduction for mesh sizes < 2 km
   imode_tkvmini =2, & ! mode of calculating the minimal turbulent diff. coeffecients
                       ! 1: with a constant value
                       ! 2: with a stability dependent correction
@@ -420,7 +378,9 @@ TYPE modvar !model variable
              sv(:)   => NULL(), & !surface     values (concentration of flux density)
              at(:,:) => NULL()    !atmospheric time tendencies
      LOGICAL                                 ::         &
-             fc                !surface values are flux densities
+             fc                   !surface values are flux densities
+     INTEGER                                 ::         &
+             kstart  = 1          !start level for vertical diffusion
 END TYPE modvar
 
 TYPE turvar !turbulence variables
@@ -501,7 +461,7 @@ SUBROUTINE get_turbdiff_param (jg)
    alpha0       = turbdiff_config(jg)%alpha0
    alpha0_max   = turbdiff_config(jg)%alpha0_max
    alpha0_pert  = turbdiff_config(jg)%alpha0_pert
-   !$ACC UPDATE DEVICE(imode_charpar, alpha0, alpha0_max, alpha0_pert)
+   !$ACC UPDATE DEVICE(imode_charpar, alpha0, alpha0_max, alpha0_pert) ASYNC(1)
 
    c_diff       = turbdiff_config(jg)%c_diff
    rlam_heat    = turbdiff_config(jg)%rlam_heat

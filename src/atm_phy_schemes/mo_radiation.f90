@@ -1,47 +1,41 @@
-!>
-!! @brief Module to provide interface to radiation routines.
-!!
-!! @remarks
-!!   This module contains routines that provide the interface between ECHAM
-!!   and the radiation code.  Mostly it organizes and calculates the
-!!   information necessary to call the radiative transfer solvers.
-!!
-!! @author Bjorn Stevens, MPI-M, Hamburg (2009-09-19):
-!!
-!!         Hauke Schmidt, MPI-M, Hamburg (2009-12-18): Few modifications to
-!!              allow specific solar irradiance for AMIP-type and preindustrial
-!!              simulations.
-!!         Luis Kornblueh, MPI-M, Hamburg (2010-04-06): Never ever use write
-!!              directly
-!!         Martin Schultz, FZJ, Juelich (2010-04-13):
-!!              Extracted public parameters into new module mo_radiation_parameters
-!!              to avoid circular dependencies in submodels
-!!                                      (2010-06-03):
-!!              Added submodel calls, decl_sun_cur
-!!         Roland Wirth, DWD, Offenbach (2021-09-16):
-!!              Add output fluxes for near-IR, visible, and diffuse radiation.
-!!
-!! $ID: n/a$
-!!
-!! @par Origin
-!!   Major segments of this code combines and rewrites (for the ICON standard)
-!!   code previously contained in the ECHAM5 routines rad_int.f90,
-!!   radiation.f90 and prerad.f90.  Modifications were also made to provide
-!!   a cleaner interface to the aerosol and cloud properties. Contributors to
-!!   the code from which the present routines were derived include:  M. Jarraud,
-!!   ECMWF (1983-06); M.A. Giorgetta, MPI-M (2002-05); U. Schulzweida,  MPI-M
-!!   (2002-05); P. Stier MPI-M \& Caltech (2004-04, 2006-07), M. Thomas MPI-M
-!!   (2007-06); U. Schlese, MPI-M (2007-06); M. Esch, MPI-M (2007-06); S.J.
-!!   Lorenz, MPI-M (2007-11); T. Raddatz, MPI-M (2006-05); I. Kirchner.
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
 !
+! Module to provide interface to radiation routines.
+!
+! Remarks
+!   This module contains routines that provide the interface between ECHAM
+!   and the radiation code.  Mostly it organizes and calculates the
+!   information necessary to call the radiative transfer solvers.
+!
+!         Hauke Schmidt, MPI-M, Hamburg (2009-12-18): Few modifications to
+!              allow specific solar irradiance for AMIP-type and preindustrial
+!              simulations.
+!         Luis Kornblueh, MPI-M, Hamburg (2010-04-06): Never ever use write
+!              directly
+!         Martin Schultz, FZJ, Juelich (2010-04-13):
+!              Extracted public parameters into new module mo_radiation_parameters
+!              to avoid circular dependencies in submodels
+!                                      (2010-06-03):
+!              Added submodel calls, decl_sun_cur
+!         Roland Wirth, DWD, Offenbach (2021-09-16):
+!              Add output fluxes for near-IR, visible, and diffuse radiation.
+!
+! Origin
+!   Major segments of this code combines and rewrites (for the ICON standard)
+!   code previously contained in the ECHAM5 routines rad_int.f90,
+!   radiation.f90 and prerad.f90.  Modifications were also made to provide
+!   a cleaner interface to the aerosol and cloud properties. 
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_radiation
 
   USE mo_bc_greenhouse_gases,  ONLY: ghg_co2mmr, ghg_ch4mmr, ghg_n2ommr, ghg_cfcmmr
@@ -56,15 +50,15 @@ MODULE mo_radiation
   USE mo_math_types,           ONLY: t_geographical_coordinates
   USE mo_physical_constants,   ONLY: grav,  rd,    avo,   amd,  amw,  &
     &                                amco2, amch4, amn2o, amo3, amo2, &
-    &                                stbo
+    &                                amc11, amc12, stbo
   USE mo_time_config,          ONLY: time_config
   USE mo_radiation_config,     ONLY: tsi_radt,   ssi_radt,            &
     &                                irad_co2,   mmr_co2,             &
     &                                irad_ch4,   mmr_ch4,   vpp_ch4,  &
     &                                irad_n2o,   mmr_n2o,   vpp_n2o,  &
     &                                irad_o2,    mmr_o2,              &
-    &                                irad_cfc11, vmr_cfc11,           &
-    &                                irad_cfc12, vmr_cfc12,           &
+    &                                irad_cfc11, mmr_cfc11,           &
+    &                                irad_cfc12, mmr_cfc12,           &
     &                                isolrad, izenith,                &
     &                                cos_zenith_fixed, islope_rad,    &
     &                                irad_aero, iRadAeroNone,         &
@@ -190,7 +184,7 @@ CONTAINS
       !$ACC ENTER DATA CREATE(scm_center) IF(lacc)
       DO jb = 1,pt_patch%nblks_c
         ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
-        !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+        !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
         scm_center(1:ie,jb)%lat = lat_scm * pi/180.
         scm_center(1:ie,jb)%lon = lon_scm * pi/180.
         !$ACC END KERNELS
@@ -247,7 +241,7 @@ CONTAINS
 
       !$ACC DATA CREATE(n_cosmu0pos, z_cosmu0) COPYOUT(zsmu0) IF(lacc)
 
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       zsmu0(:,:)=0.0_wp
       n_cosmu0pos(:,:) = 0
       !$ACC END KERNELS
@@ -273,7 +267,7 @@ CONTAINS
         DO jb = 1, pt_patch%nblks_c
           ie = MERGE(kbdim, pt_patch%npromz_c, jb /= pt_patch%nblks_c)
 
-          !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+          !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
           z_cosmu0(1:ie,jb) = -COS( ptr_center(1:ie,jb)%lat ) &
             & *COS( ptr_center(1:ie,jb)%lon                &
             &      +zstunde/24._wp* 2._wp*pi )
@@ -321,7 +315,7 @@ CONTAINS
       !$ACC DATA CREATE(n_cosmu0pos, z_cosmu0, zsinphi, zcosphi, zeitrad) COPYOUT(zsmu0) PRESENT(ptr_center) IF(lacc)
 
       zsct_h = 0.0_wp
-      !$ACC KERNELS DEFAULT(PRESENT) IF(lacc)
+      !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(lacc)
       zsmu0(:,:)=0.0_wp
       n_cosmu0pos(:,:) = 0
       !$ACC END KERNELS
@@ -459,6 +453,7 @@ CONTAINS
 
     IF (l_scm_mode) THEN
       DEALLOCATE(scm_center)
+      !$ACC WAIT(1)
       !$ACC EXIT DATA DELETE(scm_center)
     ENDIF
 
@@ -854,9 +849,9 @@ CONTAINS
 
   !-----------------------------------------------------------------------------
   !>
-  !! @brief Organizes the calls to the radiation solver
+  !! Organizes the calls to the radiation solver
   !!
-  !! @remarks This routine organises the input/output for the radiation
+  !! Remarks This routine organises the input/output for the radiation
   !! computation.  The state of radiatively active constituents is set as the
   !! input. Output are flux transmissivities and emissivities at all the half
   !! levels of the grid (respectively ratio solar flux/solar input and ratio
@@ -1083,17 +1078,17 @@ CONTAINS
       &                              mmr_gas = mmr_o2            )
 #ifdef __SX__
     xm_cfc11 (1:jce,:) = gas_profile(jce, klev, irad_cfc11,        &
-      &                              mmr_gas = REAL(vmr_cfc11,wp), &
+      &                              mmr_gas = REAL(mmr_cfc11,wp), &
       &                              gas_scenario = ghg_cfcmmr(1)  )
     xm_cfc12 (1:jce,:) = gas_profile(jce, klev, irad_cfc12,        &
-      &                              mmr_gas = REAL(vmr_cfc12,wp), &
+      &                              mmr_gas = REAL(mmr_cfc12,wp), &
       &                              gas_scenario = ghg_cfcmmr(2)  )
 #else
     xm_cfc11 (1:jce,:) = gas_profile(jce, klev, irad_cfc11,        &
-      &                              mmr_gas = vmr_cfc11 ,         &
+      &                              mmr_gas = mmr_cfc11 ,         &
       &                              gas_scenario = ghg_cfcmmr(1)  ) 
     xm_cfc12 (1:jce,:) = gas_profile(jce, klev, irad_cfc12,        &
-      &                              mmr_gas = vmr_cfc12,          &
+      &                              mmr_gas = mmr_cfc12,          &
       &                              gas_scenario = ghg_cfcmmr(2)  )
 #endif
     !
@@ -1158,9 +1153,6 @@ CONTAINS
   !---------------------------------------------------------------------------
   !>
   !! GAS_PROFILE:  Determines Gas distributions based on case specification
-  !!
-  !! @par Revsision History
-  !! B. Stevens (2009-08).
   !!
   !! Description: This routine calculates the gas distributions for one of
   !! five cases:  (0) no gas present; (1) prognostic gas; (2) specified
@@ -1237,18 +1229,15 @@ CONTAINS
   END FUNCTION gas_profile
   !-----------------------------------------------------------------------------
   !>
-  !! @brief arranges input and calls rrtm sw and lw routines
+  !! Arranges input and calls rrtm sw and lw routines
   !!
-  !! @par Revision History
-  !! Original Source Rewritten and renamed by B. Stevens (2009-08)
-  !!
-  !! @remarks
+  !! Remarks
   !!   Because the RRTM indexes vertical levels differently than ECHAM a chief
   !!   function of this routine is to reorder the input in the vertical.  In
   !!   addition some cloud physical properties are prescribed, which are
   !!   required to derive cloud optical properties
   !!
-  !! @par The gases are passed into RRTM via two multi-constituent arrays:
+  !! The gases are passed into RRTM via two multi-constituent arrays:
   !!   zwkl and wx_r. zwkl has JPINPX species and  wx_r has JPXSEC species
   !!   The species are identifed as follows.
   !!     ZWKL [#/cm2]          WX_R [#/cm2]
@@ -1326,8 +1315,8 @@ CONTAINS
       &  xm_co2(kbdim,klev),              & !< co2 mass mixing ratio
       &  xm_ch4(kbdim,klev),              & !< ch4 mass mixing ratio
       &  xm_n2o(kbdim,klev),              & !< n2o mass mixing ratio
-      &  xm_cfc11(kbdim,klev),            & !< cfc 11 volume mixing ratio
-      &  xm_cfc12(kbdim,klev),            & !< cfc 12 volume mixing ratio
+      &  xm_cfc11(kbdim,klev),            & !< cfc 11 mass mixing ratio
+      &  xm_cfc12(kbdim,klev),            & !< cfc 12 mass mixing ratio
       &  xm_o2(kbdim,klev),               & !< o2  mass mixing ratio
       &  zaeq1(kbdim,klev),               & !< aerosol continental
       &  zaeq2(kbdim,klev),               & !< aerosol maritime
@@ -1552,8 +1541,8 @@ CONTAINS
         !
         ! --- alternate treatment for cfcs
         !
-        wx_vr(jl,2,jk) = col_dry_vr(jl,jk)*xm_cfc11(jl,jkb)*1.e-20_wp
-        wx_vr(jl,3,jk) = col_dry_vr(jl,jk)*xm_cfc12(jl,jkb)*1.e-20_wp
+        wx_vr(jl,2,jk) = col_dry_vr(jl,jk)*xm_cfc11(jl,jkb)*amd/amc11*1.e-20_wp
+        wx_vr(jl,3,jk) = col_dry_vr(jl,jk)*xm_cfc12(jl,jkb)*amd/amc12*1.e-20_wp
       END DO
         !
         ! --- extra cloud properties for rad coupling
@@ -1811,12 +1800,6 @@ CONTAINS
   !!   - the solar incoming flux at TOA
   !! - Longwave net flux profiles are given as input
   !! - Specific heat depends on the moisture in the air
-  !!
-  !! @author Marco Giorgetta, Max Planck Institute for Meteorology
-  !!
-  !!
-  !! @par Revision History
-  !! <Description of activity> by <name, affiliation> (<YYYY-MM-DD>)
   !!
 
   SUBROUTINE radheat (jcs, jce, jg, kbdim, &

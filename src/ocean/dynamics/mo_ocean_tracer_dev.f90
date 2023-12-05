@@ -1,19 +1,18 @@
-!>
-!! Contains the implementation of the tracer transport routines for the ICON ocean model.
-!! This comprises advection and diffusion in horizontal and vertical direction.
-!!
-!!
-!! @par Revision History
-!!  Developed  by Peter Korn,       MPI-M (2011/01)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Contains the implementation of the tracer transport routines for the ICON ocean model.
+! This comprises advection and diffusion in horizontal and vertical direction.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "omp_definitions.inc"
 #include "icon_definitions.inc"
@@ -36,7 +35,7 @@ MODULE mo_ocean_tracer_dev
     & Cartesian_Mixing, tracer_threshold_min, tracer_threshold_max,       &
     & namelist_tracer_name, tracer_update_mode, use_none,                 &
     & GMREDI_COMBINED_DIAGNOSTIC,GM_INDIVIDUAL_DIAGNOSTIC,REDI_INDIVIDUAL_DIAGNOSTIC, &
-    & vert_mix_type,vmix_kpp
+    & vert_mix_type
   USE mo_util_dbg_prnt,             ONLY: dbg_print
   USE mo_parallel_config,           ONLY: nproma
   USE mo_dynamics_config,           ONLY: nold, nnew
@@ -84,8 +83,6 @@ CONTAINS
   !>
   !! !  SUBROUTINE advects the tracers present in the ocean model.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
 !<Optimize:inUse>
   SUBROUTINE advect_ocean_tracers_dev(old_tracers, new_tracers, p_os, transport_state, p_param, p_op_coeff)
@@ -127,8 +124,6 @@ CONTAINS
   !>
   !! !  SUBROUTINE advects the tracers present in the ocean model.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2010).
   !!
 !<Optimize:inUse>
   SUBROUTINE advect_diffuse_tracer(patch_3d, old_tracer,       &
@@ -417,29 +412,6 @@ CONTAINS
             & * (div_adv_flux_horz(jc,level,jb)  +div_adv_flux_vert(jc,level,jb)&
             &  - div_diff_flux_horz(jc,level,jb)- div_diff_flx_vert(jc,level,jb))
 
-          ! only use with kpp
-          IF (vert_mix_type .EQ. vmix_kpp .and. typeOfTracers == "ocean") THEN
-            !by_Oliver: account for nonlocal transport term for heat and scalar
-            !(salinity) if KPP scheme is used
-
-            IF (tracer_index == 1 ) THEN
-              ! heat
-              new_tracer%concentration(jc,level,jb) =                          &
-                   &  new_tracer%concentration(jc,level,jb)                          &
-                   ! FIXME: check sign
-                   &    + (delta_t /patch_3d%p_patch_1D(1)%prism_thick_c(jc,level,jb)) &
-                   &    * p_param%cvmix_params%nl_trans_tend_heat(jc,level,jb)
-
-            ELSE IF (tracer_index == 2 ) THEN
-              ! salinity
-              new_tracer%concentration(jc,level,jb) =                          &
-                   &  new_tracer%concentration(jc,level,jb)                          &
-                   ! FIXME: check sign
-                   &    + (delta_t /patch_3d%p_patch_1D(1)%prism_thick_c(jc,level,jb)) &
-                   &    * p_param%cvmix_params%nl_trans_tend_salt(jc,level,jb)
-
-            END IF
-          END IF
 
           !   test
           !   IF( delta_z/= delta_z1)THEN
@@ -607,8 +579,6 @@ CONTAINS
   !!    actual velocity. This information is required by MIURA-scheme and is identical
   !!    for all tracers.
   !!
-  !! @par Revision History
-  !! Developed  by  Peter Korn, MPI-M (2012).
 !<Optimize:inUse>
   SUBROUTINE prepare_tracer_transport_GMRedi(patch_3d, p_os, p_param, p_op_coeff)
 
@@ -1085,27 +1055,6 @@ CONTAINS
             & * (div_adv_flux_horz(jc,level,jb)  + div_adv_flux_vert(jc,level,jb) &
             &  - div_diff_flux_horz(jc,level,jb)- div_diff_flx_vert(jc,level,jb) )
 
-          ! only use with kpp
-          IF (vert_mix_type .EQ. vmix_kpp) THEN
-            !by_Oliver: account for nonlocal transport term for heat and scalar
-            !(salinity) if KPP scheme is used
-
-            IF (tracer_index == 1 ) THEN
-              ! heat
-              new_tracer%concentration(jc,level,jb) =                          &
-                   & new_tracer%concentration(jc,level,jb)                          &
-                   &   + (delta_t/(stretch_c_new(jc, jb)*patch_3d%p_patch_1D(1)%prism_thick_c(jc,level,jb))) &
-                   &   * p_param%cvmix_params%nl_trans_tend_heat(jc,level,jb)
-
-            ELSE IF (tracer_index == 2 ) THEN
-              ! salinity
-              new_tracer%concentration(jc,level,jb) =                          &
-                   &  new_tracer%concentration(jc,level,jb)                          &
-                   &   + (delta_t/(stretch_c_new(jc, jb)*patch_3d%p_patch_1D(1)%prism_thick_c(jc,level,jb))) &
-                   &   * p_param%cvmix_params%nl_trans_tend_salt(jc,level,jb)
-
-            END IF
-          END IF
 
         ENDDO
 

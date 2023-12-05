@@ -1,34 +1,29 @@
-!>
-!! Preliminary read and time interpolation of greenhouse gases data
-!!
-!! This is  a clone of the respective ECHAM routine
-!!
-!! Time series of various greenhouse gases are read from
-!! file bc_greenhouse_gases.nc (CO2, CH4, N2O, and CFC's).
-!! Provides interpolation in time and conversion from volume mixing ratio 
-!! to mass mixing ratio of CO2, CH4, and N2O - not for CFC's!
-!!
-!! U. Schlese, DKRZ, June 1995, original source
-!! L. Kornblueh, MPI, November 2001, changed to read netCDF input,
-!!             packed in a module, f90 rewrite, and parallelization        
-!! M. Esch, MPI, May 2004, modified for scenarios
-!! M. Esch, MPI, December 2009, modified for CMIP5
-!! J. S. Rast, MPI, August 2010, modified interpolation to time step of radiation
-!! R. Schnur,  MPI, November 2010, for current time step and CO2 only
-!! L. Kornblueh, MPI, March 2013, adapted as temporary reader in ICON
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+!
+! Preliminary read and time interpolation of greenhouse gases data
+!
+! This is  a clone of the respective ECHAM routine
+!
+! Time series of various greenhouse gases are read from
+! file bc_greenhouse_gases.nc (CO2, CH4, N2O, and CFC's).
+! Provides interpolation in time and conversion from volume mixing ratio
+! to mass mixing ratio of CO2, CH4, and N2O - not for CFC's!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_bc_greenhouse_gases
 
   USE mo_kind,               ONLY: wp, dp, i8
   USE mo_exception,          ONLY: finish, message, message_text, warning
-  USE mo_physical_constants, ONLY: amd, amco2, amch4, amn2o, amc11, amc12
+  USE mo_physical_constants, ONLY: vmr_to_mmr_co2, vmr_to_mmr_ch4, vmr_to_mmr_n2o, vmr_to_mmr_c11, vmr_to_mmr_c12
   USE mo_netcdf_parallel,    ONLY: p_nf_open, p_nf_inq_dimid, p_nf_inq_dimlen, &
        &                           p_nf_inq_varid, p_nf_get_var_double, p_nf_close, &
        &                           nf_read, nf_noerr
@@ -48,6 +43,7 @@ MODULE mo_bc_greenhouse_gases
 
   PUBLIC :: bc_greenhouse_gases_file_read
   PUBLIC :: ghg_co2mmr, ghg_ch4mmr, ghg_n2ommr, ghg_cfcmmr
+  PUBLIC :: ghg_co2vmr, ghg_ch4vmr, ghg_n2ovmr, ghg_cfcvmr
 
   INTEGER, PARAMETER :: ghg_no_cfc = 2
   CHARACTER(len=*), PARAMETER :: ghg_cfc_names(ghg_no_cfc) = (/ "CFC_11", "CFC_12" /)
@@ -62,8 +58,11 @@ MODULE mo_bc_greenhouse_gases
   REAL(wp), ALLOCATABLE :: ghg_n2o(:)
   REAL(wp), ALLOCATABLE :: ghg_cfc(:,:)
 
-  REAL(wp) :: ghg_co2mmr, ghg_ch4mmr, ghg_n2ommr
-  REAL(wp) :: ghg_cfcmmr(ghg_no_cfc)
+  REAL(wp), PROTECTED :: ghg_co2mmr, ghg_ch4mmr, ghg_n2ommr
+  REAL(wp), PROTECTED :: ghg_cfcmmr(ghg_no_cfc)
+
+  REAL(wp), PROTECTED :: ghg_co2vmr, ghg_ch4vmr, ghg_n2ovmr
+  REAL(wp), PROTECTED :: ghg_cfcvmr(ghg_no_cfc)
 
   LOGICAL, SAVE :: bc_greenhouse_gases_file_read = .FALSE.
 
@@ -90,8 +89,8 @@ CONTAINS
     ALLOCATE (ghg_ch4(ghg_no_years))
     ALLOCATE (ghg_n2o(ghg_no_years))
     ALLOCATE (ghg_cfc(ghg_no_years,ghg_no_cfc))
-    !$ACC ENTER DATA PCREATE(ghg_years, ghg_co2, ghg_ch4, ghg_n2o, ghg_cfc, ghg_cfcmmr)
-    
+    !$ACC ENTER DATA PCREATE(ghg_years, ghg_co2, ghg_ch4, ghg_n2o, ghg_cfc, ghg_cfcmmr, ghg_cfcvmr)
+
     CALL nf_check(p_nf_inq_varid(ncid, 'time', nvarid))
     CALL nf_check(p_nf_get_var_double (ncid, nvarid, ghg_years))
       
@@ -115,13 +114,14 @@ CONTAINS
 
     ghg_base_year = ghg_years(1)
 
-    !$ACC UPDATE DEVICE(ghg_years, ghg_co2, ghg_ch4, ghg_n2o, ghg_cfc)
-    
-  END SUBROUTINE read_bc_greenhouse_gases
-  
-  SUBROUTINE bc_greenhouse_gases_time_interpolation(radiation_date)
+    !$ACC UPDATE DEVICE(ghg_years, ghg_co2, ghg_ch4, ghg_n2o, ghg_cfc) ASYNC(1)
 
-    TYPE(datetime), POINTER, INTENT(in) :: radiation_date 
+  END SUBROUTINE read_bc_greenhouse_gases
+
+  SUBROUTINE bc_greenhouse_gases_time_interpolation(radiation_date, print_report)
+
+    TYPE(datetime), POINTER, INTENT(in) :: radiation_date
+    LOGICAL, INTENT(IN), OPTIONAL :: print_report
 
     REAL(dp) :: zsecref, zsecnow
     REAL(dp) :: zw1, zw2
@@ -187,18 +187,39 @@ CONTAINS
       zcfc(:)   = 1.0e-12_wp * ( zw1*ghg_cfc(iyear,:) + zw2*ghg_cfc(iyearp,:) )
     END IF
 
-    ghg_co2mmr    = zco2int
-    ghg_ch4mmr    = zch4int
-    ghg_n2ommr    = zn2oint
+    ghg_co2vmr    = zco2int
+    ghg_ch4vmr    = zch4int
+    ghg_n2ovmr    = zn2oint
 
-    ghg_cfcmmr(1) = zcfc(1)
-    ghg_cfcmmr(2) = zcfc(2)
+    ghg_cfcvmr(1) = zcfc(1)
+    ghg_cfcvmr(2) = zcfc(2)
 
-    !$ACC UPDATE DEVICE(ghg_cfcmmr)
+    ghg_co2mmr = ghg_co2vmr * vmr_to_mmr_co2
+    ghg_ch4mmr = ghg_ch4vmr * vmr_to_mmr_ch4
+    ghg_n2ommr = ghg_n2ovmr * vmr_to_mmr_n2o
+
+    ghg_cfcmmr(1) = ghg_cfcvmr(1) * vmr_to_mmr_c11
+    ghg_cfcmmr(2) = ghg_cfcvmr(2) * vmr_to_mmr_c12
+
+    IF (PRESENT(print_report)) THEN
+      IF (print_report) THEN
+        WRITE (message_text,'(a,5(a,"=",f0.2," ",a,:,", "))') &
+            & 'Interpolated VMRs: ', &
+            & 'CO2', 1e6_wp * ghg_co2vmr, 'ppm', &
+            & 'CH4', 1e9_wp * ghg_ch4vmr, 'ppb', &
+            & 'N2O', 1e9_wp * ghg_n2ovmr, 'ppb', &
+            & 'CFC11', 1e12_wp * ghg_cfcvmr(1), 'ppt', &
+            & 'CFC12', 1e12_wp * ghg_cfcvmr(2), 'ppt'
+        CALL message('mo_bc_greenhouse_gases', message_text)
+      END IF
+    END IF
+
+    !$ACC UPDATE DEVICE(ghg_cfcvmr, ghg_cfcmmr) ASYNC(1)
 
   END SUBROUTINE bc_greenhouse_gases_time_interpolation
 
   SUBROUTINE cleanup_greenhouse_gases
+    !$ACC WAIT(1)
     !$ACC EXIT DATA DELETE(ghg_years) IF(ALLOCATED(ghg_years))
     !$ACC EXIT DATA DELETE(ghg_co2) IF(ALLOCATED(ghg_co2))
     !$ACC EXIT DATA DELETE(ghg_ch4) IF(ALLOCATED(ghg_ch4))

@@ -1,11 +1,22 @@
-! cloud_random_numbers.f90 - copy of Robin Hogan's routine for radiaton:
-! radiation_random_numbers.F90 - Generate random numbers for McICA solver
+!-------------------------------------------------------------------------------
+! cloud_random_numbers.F90 - Generate random numbers for stochastic
+! convection scheme
+! Copied and adapted from the "radiation_random_numbers.F90" random
+! number generator that is part of the ECRad package.
 !
 ! Copyright (C) 2020 ECMWF
 !
+! This software is licensed under the terms of the Apache Licence Version 2.0
+! which can be obtained at http://www.apache.org/licenses/LICENSE-2.0.
+!
+! In applying this licence, ECMWF does not waive the privileges and immunities
+! granted to it by virtue of its status as an intergovernmental organisation
+! nor does it submit to any jurisdiction.
+!
 ! Author:  Robin Hogan
 ! Email:   r.j.hogan@ecmwf.int
-! License: see the COPYING file for details
+!
+!-------------------------------------------------------------------------------
 !
 ! The derived type "rng_type" is a random number generator that uses
 ! either (1) Fortran's built-in random_number function, or (2) a
@@ -30,6 +41,19 @@
 ! W. (1988). "Random Number Generators: Good Ones Are Hard To Find"
 ! (PDF). Communications of the ACM. 31 (10):
 ! 1192-1201. doi:10.1145/63039.63042
+!
+!-------------------------------------------------------------------------------
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 module cloud_random_numbers
   USE mo_kind,  ONLY: jprb=>wp ,jpim=>i4,jpib=>i8
@@ -37,7 +61,7 @@ module cloud_random_numbers
 !  public :: rng_type
   implicit none
   public :: rng_type, IRngMinstdVector, IRngNative
-  enum, bind(c) 
+  enum, bind(c)
     enumerator IRngNative, &      ! Built-in Fortran-90 RNG
          &     IRngMinstdVector ! Vector MINSTD algorithm
   end enum
@@ -107,7 +131,7 @@ contains
     else
       this%itype = IRngNative
     end if
-    
+
     if (present(iseed)) then
       this%iseed = iseed
     else
@@ -119,7 +143,7 @@ contains
     else
       this%nmaxstreams = NMaxStreams0
     end if
-    
+
     if (this%itype == IRngMinstdVector) then
       rseed = REAL(ABS(this%iseed),jprb)
       ! Use a modified (and vectorized) C++ minstd_rand0 algorithm to populate the state
@@ -156,7 +180,7 @@ contains
     integer(kind=jpim) :: imax, i
 
     if (this%itype == IRngMinstdVector) then
-      
+
       imax = min(this%nmaxstreams, size(randnum))
 
       ! C++ minstd_rand algorithm
@@ -186,7 +210,7 @@ contains
     integer(kind=jpim) :: imax, jblock, i
 
     if (this%itype == IRngMinstdVector) then
-      
+
       imax = min(this%nmaxstreams, size(randnum,1))
 
       ! C++ minstd_ran algorithm
@@ -221,7 +245,7 @@ contains
     integer(kind=jpim) :: imax, jblock, i
 
     if (this%itype == IRngMinstdVector) then
-      
+
       imax = min(this%nmaxstreams, size(randnum,1))
 
       ! C++ minstd_ran algorithm

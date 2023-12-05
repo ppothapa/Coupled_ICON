@@ -1,153 +1,150 @@
-!>
-!! Scheduler for internal post-processing.
-!! ===================================================================
-!!
-!! This module manages a "job queue" for internal post-processing
-!! tasks on the compute PEs.
-!!
-!! For example, the interpolation of model variables onto lon-lat
-!! fields constitutes such a task. Allocating and computing only those
-!! fields which are required for output (or as intermediate results)
-!! can save memory and computing time. 
-!!
-!! Jobs are processed according to user-defined priority levels. In
-!! principle, all tasks with the same job priority could be processed
-!! simultaneously (with OpenMP).
-!!
-!! List of post-processing tasks implemented so far:
-!!
-!! Type of task                        Execution priority
-!! -------------------------------------------------------------------
-!!
-!! z/p/i interpolation setup           HIGH_PRIORITY
-!! compute vertical velocity           DEFAULT_PRIORITY0
-!! compute rel. humidity               DEFAULT_PRIORITY0
-!! compute PV                          DEFAULT_PRIORITY0
-!! compute mean sea level pressure     DEFAULT_PRIORITY0
-!! vertical interpolation              DEFAULT_PRIORITY1
-!! horizontal interpolation edge->cell DEFAULT_PRIORITY2
-!! horizontal synchronization          DEFAULT_PRIORITY3
-!! horizontal interpolation            DEFAULT_PRIORITY4
-!! z/p/i interpolation clean-up        LOW_PRIORITY
-!!
-!!
-!! ===================================================================
-!!
-!! DETAILS: Vertical interpolation of output variables
-!! ---------------------------------------------------
-!!
-!! Vertical interpolation is one of the internal post-processing tasks
-!! in ICON (see the table above for other post-processing tasks).
-!! Vertical interpolation of a variable is enabled/disabled simply by
-!! adding the variable's name to the corresponding namelist parameter
-!! ("pl_varlist", "hl_varlist", "il_varlist").
-!!
-!! Vertical interpolation of a field is only possible if the necessary
-!! meta-data, e.g. the interpolation method, has been defined in the
-!! "add_var" call for this variable. A typical example would be
-!!
-!!    CALL add_var( p_prog_list, 'rho', p_prog%rho,  &
-!!      ...
-!!      vert_interp=create_vert_interp_metadata(                     &
-!!                    vert_intp_type=vintp_types("P","Z","I"),       &
-!!                    vert_intp_method=VINTP_METHOD_LIN ) )
-!!
-!! In this example, vertical interpolation is enabled for p-, z- and
-!! i-level interpolation, using a linear interpolation method.
-!!
-!! In general, available settings are
-!!
-!!  vert_intp_type      : vertical interpolation type, one or more of 
-!!                        mo_var_metadata_types::VINTP_TYPE_LIST. 
-!!                        Default: no vertical interpolation
-!!
-!!  vert_intp_method    : vertical interpolation algorithms, listed in mo_impl_constants, and
-!!                        defined in module mo_nh_vert_interp:
-!!
-!!                         VINTP_METHOD_LIN (default) : linear vertical interpolation 
-!!                         VINTP_METHOD_QV            : vertical interpolation of specific humidity,
-!!                                                      performs cubic interpolation where possible, 
-!!                                                      turning to linear interpolation close to the surface
-!!                         VINTP_METHOD_PRES          : vertical interpolation of pressure, piecewise 
-!!                                                      analytical integration of the hydrostatic equation
-!!                         VINTP_METHOD_LIN_NLEVP1    : linear interpolation for half level fields
-!!                         VINTP_METHOD_VN            : vertical interpolation and extrapolation of horizontal 
-!!                                                      wind, performs cubic interpolation where 
-!!                                                      possible, turning to linear interpolation close to the 
-!!                                                      surface with boundary-layer treatment
-!!                                                      - Please note than wind fields are treated in a special way, 
-!!                                                        see below. -
-!!
-!!  Special treatment of wind fields:
-!!
-!!  Wind fields are vertically interpolated as follows: A new
-!!  z/p/i-variable "vn" is created and a post-processing task for
-!!  vertical interpolation of the model's "vn" onto this new
-!!  field. Then, new cell-based variables "u", "v" on the same
-!!  vertical axis are created and a post-processing task for edge2cell
-!!  interpolation "vn" -> "u","v". Thus, when requesting "U", "V", we
-!!  actually get "VN" vertically interpolated.
-!!  The vertical interpolation method for the wind fields is therefore
-!!  specified by the "add_var(...)" for the normal velocity component
-!!  "VN".
+!
+! Scheduler for internal post-processing.
+! ===================================================================
+!
+! This module manages a "job queue" for internal post-processing
+! tasks on the compute PEs.
+!
+! For example, the interpolation of model variables onto lon-lat
+! fields constitutes such a task. Allocating and computing only those
+! fields which are required for output (or as intermediate results)
+! can save memory and computing time.
+!
+! Jobs are processed according to user-defined priority levels. In
+! principle, all tasks with the same job priority could be processed
+! simultaneously (with OpenMP).
+!
+! List of post-processing tasks implemented so far:
+!
+! Type of task                        Execution priority
+! -------------------------------------------------------------------
+!
+! z/p/i interpolation setup           HIGH_PRIORITY
+! compute vertical velocity           DEFAULT_PRIORITY0
+! compute rel. humidity               DEFAULT_PRIORITY0
+! compute PV                          DEFAULT_PRIORITY0
+! compute mean sea level pressure     DEFAULT_PRIORITY0
+! vertical interpolation              DEFAULT_PRIORITY1
+! horizontal interpolation edge->cell DEFAULT_PRIORITY2
+! horizontal synchronization          DEFAULT_PRIORITY3
+! horizontal interpolation            DEFAULT_PRIORITY4
+! z/p/i interpolation clean-up        LOW_PRIORITY
+!
+! ===================================================================
+!
+! DETAILS: Vertical interpolation of output variables
+! ---------------------------------------------------
+!
+! Vertical interpolation is one of the internal post-processing tasks
+! in ICON (see the table above for other post-processing tasks).
+! Vertical interpolation of a variable is enabled/disabled simply by
+! adding the variable's name to the corresponding namelist parameter
+! ("pl_varlist", "hl_varlist", "il_varlist").
+!
+! Vertical interpolation of a field is only possible if the necessary
+! meta-data, e.g. the interpolation method, has been defined in the
+! "add_var" call for this variable. A typical example would be
+!
+!    CALL add_var( p_prog_list, 'rho', p_prog%rho,  &
+!      ...
+!      vert_interp=create_vert_interp_metadata(                     &
+!                    vert_intp_type=vintp_types("P","Z","I"),       &
+!                    vert_intp_method=VINTP_METHOD_LIN ) )
+!
+! In this example, vertical interpolation is enabled for p-, z- and
+! i-level interpolation, using a linear interpolation method.
+!
+! In general, available settings are
+!
+!  vert_intp_type      : vertical interpolation type, one or more of
+!                        mo_var_metadata_types::VINTP_TYPE_LIST.
+!                        Default: no vertical interpolation
+!
+!  vert_intp_method    : vertical interpolation algorithms, listed in mo_impl_constants, and
+!                        defined in module mo_nh_vert_interp:
+!
+!                         VINTP_METHOD_LIN (default) : linear vertical interpolation
+!                         VINTP_METHOD_QV            : vertical interpolation of specific humidity,
+!                                                      performs cubic interpolation where possible,
+!                                                      turning to linear interpolation close to the surface
+!                         VINTP_METHOD_PRES          : vertical interpolation of pressure, piecewise
+!                                                      analytical integration of the hydrostatic equation
+!                         VINTP_METHOD_LIN_NLEVP1    : linear interpolation for half level fields
+!                         VINTP_METHOD_VN            : vertical interpolation and extrapolation of horizontal
+!                                                      wind, performs cubic interpolation where
+!                                                      possible, turning to linear interpolation close to the
+!                                                      surface with boundary-layer treatment
+!                                                      - Please note than wind fields are treated in a special way,
+!                                                        see below. -
+!
+!  Special treatment of wind fields:
+!
+!  Wind fields are vertically interpolated as follows: A new
+!  z/p/i-variable "vn" is created and a post-processing task for
+!  vertical interpolation of the model's "vn" onto this new
+!  field. Then, new cell-based variables "u", "v" on the same
+!  vertical axis are created and a post-processing task for edge2cell
+!  interpolation "vn" -> "u","v". Thus, when requesting "U", "V", we
+!  actually get "VN" vertically interpolated.
+!  The vertical interpolation method for the wind fields is therefore
+!  specified by the "add_var(...)" for the normal velocity component
+!  "VN".
 
-!!
-!!  Tuning parameters for the interpolation algorithms
-!!  (defaults are defined in mo_var_metadata::create_vert_interp_metadata)
-!!
-!!     l_hires_intp             : mode for interpolation to (much) finer grid (VINTP_METHOD_VN)
-!!                                Default: .FALSE.
-!!     l_restore_fricred        : subtract/restore frictional reduction of wind speed (VINTP_METHOD_VN)
-!!                                Default: .FALSE.
-!!     l_loglin                 : setting l_loglin=.TRUE. activates logarithmic interpolation
-!!                                (only for VINTP_METHOD_LIN)
-!!                                Default: .FALSE.
-!!     l_satlimit               : limit input field to water saturation (VINTP_METHOD_QV)
-!!                                Default: .FALSE.
-!!     l_restore_pbldev         : restore PBL deviation of QV from extrapolated profile (VINTP_METHOD_QV)
-!!                                Default: .FALSE.
-!!
-!!     l_pd_limit               : Switch for use of positive definite limiter (VINTP_METHOD_LIN)
-!!                                Default: .FALSE.
-!!     lower_limit              : Limiter value to avoid negative or unreasonably small values 
-!!                                (VINTP_METHOD_LIN, VINTP_METHOD_QV). For the linear interpolation method,
-!!                                the "lower_limit" is used only in combination with "l_pd_limit". Default is 0.
-!!
-!!     l_extrapol               : Switch for use of downward extrapolation (only for VINTP_METHOD_LIN)
-!!                                where the gradient between height "zpbl1" and "zpbl2" is used
-!!                                (see mo_initicon_config). If "l_extrapol==.FALSE.", then for all levels
-!!                                below the lowermost input level we use the values from the lowermost input 
-!!                                level.
-!!                                Default: .TRUE.
-!!                                Note: Logarithmic computation is not used for extrapolation because
-!!                                      it would be numerically unstable.
-!!
-!! ===================================================================
-!!
-!! @author F. Prill, DWD
-!!
-!! @par Revision History
-!! Initial implementation  by  F. Prill, DWD (2012-03-01)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!! TODO[FP] To increase performance, one should allocate/deallocate
-!!          the vertical interpolation coefficient tables "vcoeff"
-!!          only when necessary.
-!!
-!! TODO[FP] Interpolation tasks are performed more often than
-!!          necessary: The activity flag must be adjusted to the output
-!!          intervals!
-!!
-!! TODO[FP] Do not insert post-processing tasks for patches with 0 cells.
-!!
-!! -----------------------------------------------------------------------------------
+!
+!  Tuning parameters for the interpolation algorithms
+!  (defaults are defined in mo_var_metadata::create_vert_interp_metadata)
+!
+!     l_hires_intp             : mode for interpolation to (much) finer grid (VINTP_METHOD_VN)
+!                                Default: .FALSE.
+!     l_restore_fricred        : subtract/restore frictional reduction of wind speed (VINTP_METHOD_VN)
+!                                Default: .FALSE.
+!     l_loglin                 : setting l_loglin=.TRUE. activates logarithmic interpolation
+!                                (only for VINTP_METHOD_LIN)
+!                                Default: .FALSE.
+!     l_satlimit               : limit input field to water saturation (VINTP_METHOD_QV)
+!                                Default: .FALSE.
+!     l_restore_pbldev         : restore PBL deviation of QV from extrapolated profile (VINTP_METHOD_QV)
+!                                Default: .FALSE.
+!
+!     l_pd_limit               : Switch for use of positive definite limiter (VINTP_METHOD_LIN)
+!                                Default: .FALSE.
+!     lower_limit              : Limiter value to avoid negative or unreasonably small values
+!                                (VINTP_METHOD_LIN, VINTP_METHOD_QV). For the linear interpolation method,
+!                                the "lower_limit" is used only in combination with "l_pd_limit". Default is 0.
+!
+!     l_extrapol               : Switch for use of downward extrapolation (only for VINTP_METHOD_LIN)
+!                                where the gradient between height "zpbl1" and "zpbl2" is used
+!                                (see mo_initicon_config). If "l_extrapol==.FALSE.", then for all levels
+!                                below the lowermost input level we use the values from the lowermost input
+!                                level.
+!                                Default: .TRUE.
+!                                Note: Logarithmic computation is not used for extrapolation because
+!                                      it would be numerically unstable.
+!
+! ===================================================================
+!
+! TODO[FP] To increase performance, one should allocate/deallocate
+!          the vertical interpolation coefficient tables "vcoeff"
+!          only when necessary.
+!
+! TODO[FP] Interpolation tasks are performed more often than
+!          necessary: The activity flag must be adjusted to the output
+!          intervals!
+! TODO[FP] Do not insert post-processing tasks for patches with 0 cells.
+!
+! -----------------------------------------------------------------------------------
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_pp_scheduler
 
   USE mo_kind,                    ONLY: wp

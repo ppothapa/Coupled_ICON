@@ -1,27 +1,25 @@
-!>
-!!  Subroutine to initialized several test cases 
-!!   for the NH-Core in limited area mode
-!!
-!!
-!! @par Revision History
-!! - first version by P. Ripodas , DWD, (2012-01)
-!!
-!! @par Literature
-!! -M. L. Weisman and J. B. Klemp, 1982
-!!  The Dependence of Numerically Simulated Convective Storms on 
-!!  Vertical Wind Shear and Buoyancy.
-!!  Monthly Weather Review, 110,504-520
-!! - COSMO documentation
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Subroutine to initialized several test cases
+! for the NH-Core in limited area mode
+!
+! Literature
+! -M. L. Weisman and J. B. Klemp, 1982
+!  The Dependence of Numerically Simulated Convective Storms on
+!  Vertical Wind Shear and Buoyancy.
+!  Monthly Weather Review, 110,504-520
+! - COSMO documentation
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
   MODULE mo_nh_lim_area_testcases
 !-------------------------------------------------------------------------
 !
@@ -141,9 +139,6 @@
   !! by a constant vertical T-gradient (G lapse rate)
   !!
   !! It is assumed  a moist subsaturated atmosphere 
-  !!
-  !! @par Revision History
-  !!
   !!
   SUBROUTINE init_nh_atmo_ana_poly( ptr_patch, ptr_nh_prog, ptr_nh_diag, &
     &                                p_metrics, l_hydro_adjust )
@@ -491,9 +486,6 @@
   !! (N takes water vapor relhum into account).
   !!
   !! It is assumed that N refers to a moist subsaturated atmosphere 
-  !!
-  !! @par Revision History
-  !!
   !!
   SUBROUTINE init_nh_atmo_ana_nconstlayers( ptr_patch, ptr_nh_prog, ptr_nh_diag, &
     &                                p_metrics, l_hydro_adjust )
@@ -893,9 +885,6 @@ jnlayer(:,:,:)=0
   !!  limited area testcases 
   !! 
   !!
-  !! @par Revision History
-  !!
-  !!
   SUBROUTINE init_nh_anaprof_uv( ptr_patch, vn, w,    &
     &                                p_metrics, p_int )
     TYPE(t_patch), TARGET, INTENT(INOUT) :: &  !< patch on which computation is performed
@@ -1040,9 +1029,6 @@ jnlayer(:,:,:)=0
   !>
   !! Initialization of topography 
   !!
-  !! @par Revision History
-  !!
-  !!
 
   SUBROUTINE init_nh_topo_ana( ptr_patch, lplane, topo_c, nblks_c, npromz_c)
 
@@ -1123,9 +1109,6 @@ jnlayer(:,:,:)=0
   !! This is a translation from SUBROUTINE hill_rot_coords in COSMO
   !! 
   !! It uses the spherical law of sines and the spherical law of cosines
-  !!
-  !! @par Revision History
-  !!
   !!
   SUBROUTINE xy_distances(lon, lat, lonc, latc, rotangle, height, dx, dy, &
     & sphere_radius, lplane)

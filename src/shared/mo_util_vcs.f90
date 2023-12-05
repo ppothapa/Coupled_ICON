@@ -1,17 +1,21 @@
-!!> Auxiliary module for status information of the version control system (VCS).
-!!
-!!  Most of the routines which are defined within this module are
-!!  ISO-C bindings to a related C program "build/version.c". This
-!!  program is automatically generated during ICON's make process.
-!!
-!!  @par Copyright and License
-!!
-!!  This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!!  its most recent form.
-!!  Please see the file LICENSE in the root of the source tree for this code.
-!!  Where software is supplied by third parties, it is indicated in the
-!!  headers of the routines.
-!!
+! Auxiliary module for status information of the version control system (VCS).
+!
+! Most of the routines which are defined within this module are
+! ISO-C bindings to a related C program "build/version.c". This
+! program is automatically generated during ICON's make process.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_util_vcs
 
   USE, INTRINSIC :: iso_c_binding,   ONLY: c_int, c_char, c_null_char
@@ -202,10 +206,13 @@ CONTAINS
       ! --- Cray compiler: print compiler version in use:
 #ifdef _CRAYFTN
       WRITE(message_text,'(a,a)') 'Compiler  : ', _RELEASE_STRING
-      CALL message('',message_text)
+      ! --- Nvidia compiler: use predefined macros because compiler_version() not available
+#elif __NVCOMPILER
+      WRITE(message_text,'(a,I2,a,I1)') 'Compiler  : ',__NVCOMPILER_MAJOR__,'.',__NVCOMPILER_MINOR__
 #else
-      CALL message('', compiler_version())
+      WRITE(message_text,'(a)') compiler_version()
 #endif
+      CALL message('', message_text)
       
       CALL message('','')
     END IF

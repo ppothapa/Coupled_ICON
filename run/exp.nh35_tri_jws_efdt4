@@ -75,7 +75,6 @@ l_log_checks       = .false.
  igradp_method = 2  !new default
 /
 &dynamics_ctl
- idiv_method    = 2
  divavg_cntrwgt = 0.50
 /
 &transport_ctl

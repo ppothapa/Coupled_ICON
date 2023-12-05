@@ -1,23 +1,22 @@
+! Interface DACE observation operators from ICON
 !
-!+ Interface DACE observation operators from ICON
+! ICON
 !
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_icon2dace
+
+!-----------------------------------------------------------------------------
 !
 ! Description:
 !   Interface DACE observation operators from ICON
-!
-! Current Code Owner: DWD, Harald Anlauf
-!    phone: +49 69 8062 4941
-!    fax:   +49 69 8062 3721
-!    email: harald.anlauf@dwd.de
-!
-! History:
-! Version      Date       Name
-! ------------ ---------- ----
-!
-! Code Description:
-! Language: Fortran 2003.
-! Software Standards:
 !
 !-----------------------------------------------------------------------------
   !-------------

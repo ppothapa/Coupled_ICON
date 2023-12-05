@@ -1,31 +1,19 @@
-!>
-!! @brief configuration setup for NWP land scheme TERRA
-!!
-!! configuration setup for NWP land scheme TERRA
-!! <Details of procedures are documented below with their definitions.>
-!! <Include any applicable external references inline as module::procedure,>
-!! <external_procedure(), or by using @see.>
-!! <Don't forget references to literature.>
-!!
-!! @author Kristina Froehlich, MPI-M (2011-07-14)
-!! @author <name, affiliation>
-!!
-!!
-!! @par Revision History
-!! <Description of activity> by <name, affiliation> (<YYYY-MM-DD>)
-!!
-!! Modifications by Dmitrii Mironov, DWD (2016-08-04)
-!! - Logical switch is introduced to allow the use of 
-!!   a rate equation for the sea-ice albedo.
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! @brief configuration setup for NWP land scheme TERRA
+!
+! configuration setup for NWP land scheme TERRA
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_lnd_nwp_config
 
   USE mo_kind,               ONLY: wp
@@ -33,7 +21,7 @@ MODULE mo_lnd_nwp_config
   USE mo_io_units,           ONLY: filename_max
   USE mo_nwp_sfc_tiles,      ONLY: t_tile_list, setup_tile_list
   USE mo_exception,          ONLY: message, message_text, finish
-  USE mo_coupling_config,    ONLY: is_coupled_run
+  USE mo_coupling_config,    ONLY: is_coupled_to_ocean
 
 
   IMPLICIT NONE
@@ -48,7 +36,7 @@ MODULE mo_lnd_nwp_config
   ! VARIABLES
   PUBLIC :: dzsoil, zml_soil, nlev_soil, nlev_snow, ibot_w_so, ntiles_total, ntiles_lnd, ntiles_water
   PUBLIC :: frlnd_thrhld, frlndtile_thrhld, frlake_thrhld, frsea_thrhld, frsi_min, hice_min, hice_max
-  PUBLIC :: lseaice, lprog_albsi, llake, lmelt, lmelt_var, lmulti_snow, lsnowtile, max_toplaydepth
+  PUBLIC :: lseaice, lprog_albsi, lbottom_hflux, llake, lmelt, lmelt_var, lmulti_snow, lsnowtile, max_toplaydepth
   PUBLIC :: itype_trvg, itype_evsl, itype_lndtbl, l2lay_rho_snow
   PUBLIC :: itype_root, itype_heatcond, itype_interception, &
             itype_hydbound, idiag_snowfrac, itype_snowevap, cwimax_ml, c_soil, c_soil_urb, cr_bsmin
@@ -79,6 +67,7 @@ MODULE mo_lnd_nwp_config
   REAL(wp)::  frsi_min           !< minimum sea-ice fraction  [-]
   REAL(wp)::  hice_min           !< minimum sea-ice thickness [m]
   REAL(wp)::  hice_max           !< maximum sea-ice thickness [m]
+  LOGICAL ::  lbottom_hflux      !< use simple parameterization for heat flux through sea ice bottom
   INTEGER ::  itype_trvg         !< type of vegetation transpiration parameterization
   INTEGER ::  itype_evsl         !< type of parameterization of bare soil evaporation (see Schulz and Vogel 2020)
   INTEGER ::  itype_lndtbl       !< choice of table for associating surface parameters to land-cover classes
@@ -152,16 +141,12 @@ MODULE mo_lnd_nwp_config
 
 CONTAINS
 
-  !>
   !! setup components of the NWP land scheme
   !!
   !! Setup of additional nwp-land control variables depending on the 
   !! land-NAMELIST and potentially other namelists. This routine is 
   !! called, after all namelists have been read and a synoptic consistency 
   !! check has been done.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2011-08-01)
   !!
   SUBROUTINE configure_lnd_nwp(ljsbach)
   !
@@ -200,7 +185,7 @@ CONTAINS
     CALL message(TRIM(routine),message_text)
 
     ! seaice fraction limit
-    IF ( is_coupled_run() ) THEN
+    IF ( is_coupled_to_ocean() ) THEN
        frsi_min = 1.0E-10_wp  ! ICON coupled with ocean, epsilon because ICON-O determines seaice fraction
     ELSE
        frsi_min = 0.015_wp    ! ICON uncoupled, limit at 1.5% seaice fraction (Dmitrii Mironov)
@@ -281,15 +266,10 @@ CONTAINS
   END SUBROUTINE configure_lnd_nwp
 
 
-
-  !>
   !! Given the internal land use class index, provide the official GRIB2 index.
   !!
   !! Given the ICON-internal land use class index, provide the official GRIB2 
   !! index according to GRIB2 table 4.2.43 (or vice versa).
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2015-01-26)
   !!
   FUNCTION convert_luc_ICON2GRIB(lc_datbase,iluc_in,opt_linverse)  RESULT (iluc_out)
 

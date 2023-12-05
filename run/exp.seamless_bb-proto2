@@ -55,10 +55,9 @@ ocean_refinement="R02B06"
 # ----------------------------------
 #
 # NWP:
-dtime=450                        # NWP atmospheric timestep (s)   (same as in atmTimeStep!!)
+dtime=450                        # NWP atmospheric timestep (s)
 dt_rad=3600.                     # NWP radiation timestep (s) - must match coupling/ocean time step
 oceTimeStep="PT30M"              # ocean time step
-atmTimeStep="PT450S"             # atmos time step (for coupler)  (same as dtime!!)
 couplingTimeStep="PT30M"         # coupling time step
 
 #--------------------------------------------------------------------------------------------------
@@ -160,7 +159,7 @@ oce_output_interval_def="P1Y"  # annual mean output for deep ocean
 #mon_output_interval="P1M"
 
 # more specs:
-# atm_output_interval=$atmTimeStep     #  output every timestep
+# atm_output_interval="PT${dtime}S"    #  output every timestep
 # oce_output_interval=$oceTimeStep     #  output every timestep
 atm_output_interval=$all_output_interval
 oce_output_interval=$all_output_interval
@@ -414,7 +413,7 @@ dynamics_parent_grid_id="${dynamics_parent_grid_id},"
 cat > ${atm_namelist} << EOF
 !
 &coupling_mode_nml
- coupled_mode            = .TRUE.
+ coupled_to_ocean        = .TRUE.
 /
 !
 &parallel_nml
@@ -440,7 +439,6 @@ cat > ${atm_namelist} << EOF
 &run_nml
  num_lev                 = ${nlev},${nlev}      ! number of full levels of vertical grid
  dtime                   = ${dtime}             ! [s] timestep in seconds
- modelTimeStep           = "${atmTimeStep}"
  ldynamics               = .TRUE.               ! dynamics
  ltransport              = .TRUE.               ! transport
  iforcing                = ${iforcing}          !
@@ -456,7 +454,6 @@ cat > ${atm_namelist} << EOF
 &dynamics_nml
  iequations              = ${atmo_model_equations}
  lcoriolis               = .TRUE.
- idiv_method             = 1
  divavg_cntrwgt          = 0.50
 /
 &diffusion_nml
@@ -958,7 +955,7 @@ fi
 cat > ${oce_namelist} << EOF
 !
 &coupling_mode_nml
-  coupled_mode               = .TRUE.
+  coupled_to_atmo            = .TRUE.
 /
 &parallel_nml
  nproma                      = ${nproma_oce}
@@ -1240,7 +1237,7 @@ cat >> ${oce_namelist} << EOF
   !velocity_TopWindMixing                     = 2.31480E-6
 !
 !  Parameters for TKE-type vertical mixing
-  ! cvmix/tke parameters
+  ! vmix/tke parameters
   c_k        = 0.3
   c_eps      = 0.7
   alpha_tke  = 30.0

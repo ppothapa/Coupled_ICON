@@ -1,23 +1,22 @@
-!>
-!! Tasks for internal post-processing.
-!!
-!! The subroutines in this module can be inserted into a dynamic "job queue".
-!! See module "mo_pp_scheduler" for detailed info.
-!!
-!! @author F. Prill, DWD
-!!
-!! @par Revision History
-!! Initial implementation  by  F. Prill, DWD (2012-03-01)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!! -----------------------------------------------------------------------------------
+!
+! Tasks for internal post-processing.
+!
+! The subroutines in this module can be inserted into a dynamic "job queue".
+! See module "mo_pp_scheduler" for detailed info.
+!
+! -----------------------------------------------------------------------------------
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_pp_tasks
 
   USE mo_kind,                    ONLY: wp
@@ -610,7 +609,6 @@ CONTAINS
 
     ! clean up
     IF (ALLOCATED(tmp_var)) THEN
-      !$ACC WAIT IF(i_am_accel_node)
       !$ACC EXIT DATA DELETE(tmp_var) IF(i_am_accel_node)
       DEALLOCATE(tmp_var, STAT=ierrstat)
       IF (ierrstat /= SUCCESS)  CALL finish (routine, 'deallocation of tmp_var failed')
@@ -1414,11 +1412,8 @@ CONTAINS
           &   out_var%r_ptr(:,:,out_var_idx,1,1), lacc=i_am_accel_node)   ! unused dimensions are filled up with 1
 
     CASE (TASK_COMPUTE_VIS)
-#ifdef _OPENACC
-      CALL finish(routine, 'not yet ported postproc TASK_COMPUTE_VIS for variable '//TRIM(p_info%name) )
-#endif
       CALL compute_field_visibility( p_patch, p_prog, p_diag, prm_diag, jg,          &
-          &   out_var%r_ptr(:,:,out_var_idx,1,1))   ! unused dimensions are filled up with 1
+          &   out_var%r_ptr(:,:,out_var_idx,1,1), lacc=i_am_accel_node)   ! unused dimensions are filled up with 1
 
     CASE (TASK_COMPUTE_INVERSION)
       CALL compute_field_inversion_height( p_patch, jg, ptr_task%data_input%p_nh_state%metrics, p_prog, p_diag,prm_diag,   &

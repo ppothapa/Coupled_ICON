@@ -1,111 +1,105 @@
-!>
-!! The main program unit of the sea-ice parameterization scheme for NWP. 
-!! It contains three procedures, viz., 
-!! SUBROUTINE seaice_init_nwp
-!! that initializes the scheme and performs some consistency checks, 
-!! SUBROUTINE seaice_timestep_nwp
-!! that advances prognostic variables of the sea-ice scheme one time step,
-!! and 
-!! SUBROUTINE seaice_coldinit_nwp 
-!! the performs a cold start of the sea-ice parameterization scheme.
-!!
-!! The present sea-ice parameterization scheme is a bulk thermodynamic (no rheology) scheme 
-!! intended for use in NWP and similar applications.  
-!! The scheme is based on a self-similar parametric representation (assumed shape) of the
-!! evolving temperature profile within the ice and on the integral heat budget of the ice slab. 
-!! The scheme carries ordinary differential equations (in time) 
-!! for the ice surface temperature and the ice thickness. 
-!! An explicit Euler scheme is used for time advance.
-!! In the current configuration of the scheme, snow over sea ice is not treated explicitly. 
-!! The effect of snow above the ice is accounted for implicitly (parametrically).
-!! To this end, a rate equation for the sea-ice surface albedo 
-!! with respect to (diffuse) solar radiation is used. 
-!! The rate equation contains 
-!! the relaxation terms that drive sea-ice albedo towards its equilibrium value,
-!! and "albedo source term" due to precipitation that accounts for the increase
-!! of albedo after snowfalls.
-!! The equilibrium albedo is a function of the sea-ice surface temperature.
-!! Optionally, the sea-ice albedo may be treated diagnostically using
-!! a temperature-dependent equilibrium albedo. 
-!! For the "sea water" type ICON grid boxes, the snow thickness is set to zero and
-!! the snow surface temperature is set equal to the ice surface temperature
-!! (both temperatures are set equal to the fresh-water freezing point if the ice is absent).
-!! Prognostic equations for the ice thickness and the ice surface temperature are solved 
-!! for the ICON grid boxes with the ice fraction 
-!! (area fraction of a given model grid box of the type "sea water" that is covered by ice)
-!! that exceeds a threshold value of 0.0015. Otherwise, the grid box is treated as ice-free.
-!! The ice fraction is determined on the basis of observational data
-!! by the data assimilation scheme and is kept constant over the entire model forecast period. 
-!! However, if the ice melts away during the forecast, the ice fraction is reset to zero. 
-!! This is done within SUBROUTINE update_idx_lists_sea. 
-!! If the ICON grid box is set ice-free during the initialization, 
-!! no ice is created over the forecast period. 
-!! If observational data indicate open water conditions for a given ICON grid box,
-!! residual ice from the previous model run is removed, 
-!! i.e. the ice thickness is set to zero and 
-!! the ice surface temperature is set to the fresh-water freezing point. 
-!! The newly formed ice has the surface temperature equal to the salt-water freezing point 
-!! and the thickness from 0.1 m to 0.5 m depending on the ice fraction. 
-!! The new ice is formed instantaneously if the data assimilation scheme 
-!! indicates the presence of ice in a given ICON grid box
-!! but there was no ice in that grid box at the end of the previous model run. 
-!! Prognostic ice thickness is limited by a maximum value of 3 m and a minimum value of 0.05 m. 
-!! Constant values of the ice density, ice molecular heat conductivity, specific heat of ice, 
-!! the latent heat of fusion, and the salt-water freezing point are used.
-!!
-!! A detailed description of the sea-ice scheme is given in
-!! Mironov, D., B. Ritter, J.-P. Schulz, M. Buchhold, M. Lange, and E. Machulskaya, 2012:
-!! Parameterization of sea and lake ice in numerical weather prediction models
-!! of the German Weather Service.
-!! Tellus A, 64, 17330. doi:10.3402/tellusa.v64i0.17330
-!!
-!! The present sea-ice scheme (with minor modifications) 
-!! is also implemented into the NWP models GME and COSMO 
-!! (see Mironov et al. 2012, for details).
-!!
-!!
-!! @author Dmitrii Mironov, DWD. 
-!!
-!! @par Revision History
-!! Initial release by Dmitrii Mironov, DWD (2012-07-24)
-!!
-!! Modification by Daniel Reinert, DWD (2012-11-07)
-!! - moved tf_salt to mo_physical_constant, since it is also needed elsewhere
-!! Modification by Daniel Reinert, DWD (2013-07-09)
-!! - added subroutine for coldstart initialization
-!! Modifications by Dmitrii Mironov, DWD (2016-08-11)
-!! - Changes related to the use of a rate equation 
-!!   for the sea-ice albedo.
-!!
+! The main program unit of the sea-ice parameterization scheme for NWP.
 !
-! History:
-! Version      Date       Name
-! ------------ ---------- ----
-! V5_4e        2017-03-23 Ulrich Schaettler
-!  Initial release for COSMO (taken from ICON version)
-! @VERSION@    @DATE@     Ulrich Schaettler
-!  Re-unification with ICON version
 !
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-
-!234567890023456789002345678900234567890023456789002345678900234567890023456789002345678900234567890
-
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+!
+!
+! The main program unit of the sea-ice parameterization scheme for NWP.
+!
+! It contains a number of procedures.
+! SUBROUTINE seaice_init_nwp
+! initializes the sea-ice scheme and performs some consistency checks.
+! SUBROUTINE seaice_timestep_nwp
+! advances prognostic variables of the sea-ice scheme one time step.
+! SUBROUTINE seaice_coldinit_nwp
+! performs a cold start of the sea-ice scheme.
+! SUBROUTINE seaice_coldinit_albsi_nwp
+! performs a cold start initialization of prognostic sea-ice albedo.
+!
+! The present sea-ice parameterization scheme is a bulk thermodynamic (no rheology) scheme
+! intended for use in NWP and similar applications.
+! The scheme is based on a self-similar parametric representation (assumed shape) of the
+! evolving temperature profile within the ice and on the integral heat budget of the ice slab.
+! The scheme carries ordinary differential equations (in time)
+! for the ice surface temperature and the ice thickness.
+! An explicit Euler scheme is used for time advance.
+! In the current configuration of the scheme, snow over sea ice is not treated explicitly.
+! The effect of snow above the ice is accounted for implicitly (parametrically).
+! To this end, a rate equation for the sea-ice surface albedo
+! with respect to (diffuse) solar radiation is used.
+! The rate equation contains
+! the relaxation terms that drive sea-ice albedo towards its equilibrium value,
+! and "albedo source term" due to precipitation that accounts for the increase
+! of albedo after snowfalls.
+! The equilibrium albedo is a function of the sea-ice surface temperature.
+! Optionally, the sea-ice albedo may be treated diagnostically using
+! a temperature-dependent equilibrium albedo.
+! For the "sea water" type ICON grid boxes, the snow thickness is set to zero and
+! the snow surface temperature is set equal to the ice surface temperature
+! (both temperatures are set equal to the fresh-water freezing point if the ice is absent).
+!
+! Prognostic equations for the ice thickness and the ice surface temperature are solved
+! for the ICON grid boxes with the ice fraction
+! (area fraction of a given model grid box of the type "sea water" that is covered by ice)
+! that exceeds a threshold value of 0.0015. Otherwise, the grid box is treated as ice-free.
+! The ice fraction is determined on the basis of observational data
+! by the data assimilation scheme and is kept constant over the entire model forecast period.
+! However, if the ice melts away during the forecast, the ice fraction is reset to zero.
+! This is done within SUBROUTINE update_idx_lists_sea.
+! If the ICON grid box is set ice-free during the initialization,
+! no ice is created over the forecast period.
+! If observational data indicate open water conditions for a given ICON grid box,
+! residual ice from the previous model run is removed,
+! i.e., the ice thickness is set to zero and
+! the ice surface temperature is set to the fresh-water freezing point.
+! The newly formed ice has the surface temperature equal to the salt-water freezing point
+! and the thickness from 0.1 m to 0.5 m depending on the ice fraction.
+! The new ice is formed instantaneously if the data assimilation scheme
+! indicates the presence of ice in a given ICON grid box
+! but there was no ice in that grid box at the end of the previous model run.
+! Prognostic ice thickness is limited by a maximum value of 3 m and a minimum value of 0.05 m.
+! Constant values of the ice density, ice molecular heat conductivity, specific heat of ice,
+! the latent heat of fusion, and the salt-water freezing point are used.
+!
+! In uncoupled runs (no interaction of the ice slab with the ocean boundary layer beneath the ice),
+! a simple ad hoc formulation of the heat flux from water to ice is used.
+! Optionally, adaptive tuning of the parameter(s) of the temperature profile within the ice
+! and of the heat flux from water to ice can be used that is based on the assimilation increments
+! of the atmopsheric surface layer quantities.
+!
+! A detailed description of the sea-ice scheme is given in
+! Mironov, D., B. Ritter, J.-P. Schulz, M. Buchhold, M. Lange, and E. Machulskaya, 2012:
+! Parameterization of sea and lake ice in numerical weather prediction models
+! of the German Weather Service.
+! Tellus A, 64, 17330. doi:10.3402/tellusa.v64i0.17330
+!
+! The present sea-ice scheme (with minor modifications)
+! is also implemented into the NWP models GME and COSMO
+! (see Mironov et al. 2012, for details).
+!
+! Adaptive parameter tuning in NWP models is described in
+! Zaengl, G., 2023:
+! Adaptive tuning of uncertain parameters in a numerical weather prediction model
+! based upon data assimilation.
+! Q. J. R. Meteorol. Soc., 1-20. doi:https://doi.org/10.1002/qj.4535
+!
+!
+!
 ! Lines embraced with "!_tmp>" and "!_tmp<" contain temporary parts of the code.
 ! Lines embraced/marked with "!_dev>" and "!_dev<" may be replaced
 ! as improved formulations are developed and tested.
 ! Lines embraced/marked with "!_cdm>" and "!_cdm<" are DM's comments that may be helpful to a user.
 ! Lines embraced/marked with "!_dbg>" and "!_dbg<" are used for debugging purposes only.
-! Lines starting with "!_nu" are not used. 
-
-!234567890023456789002345678900234567890023456789002345678900234567890023456789002345678900234567890
+! Lines starting with "!_nu" are not used.
 
 MODULE sfc_seaice
 
@@ -132,6 +126,7 @@ MODULE sfc_seaice
 
   USE mo_lnd_nwp_config,     ONLY:                      &
                                  & lprog_albsi        , &  !< sea-ice albedo is computed prognostically 
+                                 & lbottom_hflux      , &  !< use parameterization for heat flux through sea ice bottom
                                  & frsi_min           , &  !< minimum sea-ice fraction  [-]
                                  & hice_min           , &  !< minimum sea-ice thickness [m]
                                  & hice_max                !< maximum sea-ice thickness [m]
@@ -140,7 +135,7 @@ MODULE sfc_seaice
                                  & csalb              , &  !< solar albedo for different soil types
                                  & ist_seaice              !< ID of soiltype "sea ice"
 
-  USE mo_coupling_config,    ONLY: is_coupled_run
+  USE mo_coupling_config,    ONLY: is_coupled_to_ocean     !< TRUE for coupled ocean-atmosphere runs 
 
   IMPLICIT NONE
 
@@ -179,8 +174,6 @@ MODULE sfc_seaice
                                                          !< an e-folding time scale)
     &  t_albsi_snow_max  = 272.95_wp                     !< upper bound of the temperature range over which relaxation 
                                                          !< towards snow-overice albedo is applied [K]
-
-!_nu  <type>, PARAMETER :: <parameter> !<  <Parameter description>
 
   !>
   !! Optical characteristics of sea ice. 
@@ -222,6 +215,11 @@ MODULE sfc_seaice
          &  seaice_timestep_nwp      , & ! procedure
          &  alb_seaice_equil
 
+#ifdef ICON_USE_CUDA_GRAPH
+  LOGICAL, PARAMETER :: using_cuda_graph = .TRUE.
+#else
+  LOGICAL, PARAMETER :: using_cuda_graph = .FALSE.
+#endif
 
 !234567890023456789002345678900234567890023456789002345678900234567890023456789002345678900234567890
 
@@ -259,15 +257,6 @@ CONTAINS
   !! the snow surface temperature is set equal to the ice surface temperature 
   !! (recall that snow over sea ice is not treated explicitly).
   !! 
-  !! 
-  !! @par Revision History
-  !! Initial release by Dmitrii Mironov, DWD (2012-07-24)
-  !!
-  !! Modifications by Dmitrii Mironov, DWD (2016-08-04)
-  !! - Initialization of prognostic sea-ice albedo is added. 
-  !!
-  !! Modification by <name>, <institution> (<yyyy>-<mm>-<dd>)
-  !!
 
   SUBROUTINE seaice_init_nwp (                                  &
                           &  linit_hice,                        &
@@ -461,45 +450,35 @@ CONTAINS
   !! of the sea-ice albedo with respect to solar radiation.
   !! For the "sea water" type grid boxes, the snow thickness is set to zero and
   !! the snow surface temperature is set equal to the ice surface temperature.
-  !! As the coupling between the sea ice and the sea water beneath is not considered, 
-  !! the heat flux from water to ice is neglected.
   !! Prognostic ice thickness is limited by a maximum value of 3 m and a minimum value of 0.05 m. 
+  !! In "uncoupled" runs, i.e., where the interaction between the sea ice and the sea water 
+  !! beneath is not considered, an ad hoc formulation for the heat flux from water to ice is used
+  !! that serves to quench the ice growth rate as the ice thickness approaches its maximum value.
   !! No ice is created during the forecast period. 
-  !! If the ice melts away during the forecast (i.e. the ice becomes thinner than 0.05 m), 
+  !! If the ice melts away during the forecast (i.e., the ice becomes thinner than 0.05 m), 
   !! the ice tickness is set to zero and 
   !! the ice surface temperatures is set to the fresh-water freezing point.
   !! The procedure arguments are arrays (vectors) 
   !! of the sea-ice scheme prognostic variables,
   !! of the components of the heat balance at the ice upper surface  
-  !! (i.e. the fluxes of sensible and latent heat, the net flux of long-wave radiation,
+  !! (i.e., the fluxes of sensible and latent heat, the net flux of long-wave radiation,
   !! and the net flux of solar radiation with due regard for the ice surface albedo),
   !  of the precipitation rates of snow and rain,
   !! and of the sea-ice surface albedo with respect to solar radiation.
   !! Fluxes are positive when directed downward.
   !! The vector length is equal to the number of model grid boxes 
   !! (within a given block) where sea ice is present  
-  !! (i.e. where the sea-ice fraction exceeds its minimum threshold value).
+  !! (i.e., where the sea-ice fraction exceeds its minimum threshold value).
   !! The time tendecies of the ice thickness, the ice surface temperature, 
   !! the snow thickness and the snow surface temperature are also computed. 
   !! These are optional arguments of the procedure. 
-  !!
-  !!
-  !! @par Revision History
-  !! Initial release by Dmitrii Mironov, DWD (2012-07-24)
-  !!
-  !! Modification by Dmitrii Mironov, DWD (2014-01-20)
-  !! - Terms due to the time-rate-of-change of the temperature profile shape factor 
-  !!   are added to the governing equations of the sea-ice scheme.
-  !! Modifications by Dmitrii Mironov, DWD (2016-08-02)
-  !! - Prognostic calculations of the sea-ice albedo are performed here
-  !!   (diagnostic sea-ice albedo is computed within the "albedo" routines). 
   !!
 
   SUBROUTINE seaice_timestep_nwp (                                      &
                               &  dtime,                                 &
                               &  nsigb,                                 &
                               &  qsen, qlat, qlwrnet, qsolnet,          &
-                              &  snow_rate, rain_rate,                  &
+                              &  snow_rate, rain_rate, fac_bottom_hflx, &
                               &  tice_p, hice_p, tsnow_p, hsnow_p,      &
                               &  albsi_p,                               &
                               &  tice_n, hice_n, tsnow_n, hsnow_n,      &
@@ -527,6 +506,9 @@ CONTAINS
     REAL(wp), DIMENSION(:), INTENT(IN) ::             &
                                        &  snow_rate , &  !< snow rate (convecive + grid-scale) [kg/(m^2 s)]
                                        &  rain_rate      !< rain rate (convecive + grid-scale) [kg/(m^2 s)]
+
+    REAL(wp), DIMENSION(:), OPTIONAL, INTENT(IN) ::   &
+                                       &  fac_bottom_hflx  !< tuning factor for heat flux from water to ice [-]
 
     REAL(wp), DIMENSION(:), INTENT(IN) ::           &
                                        &  tice_p  , &  !< temperature of ice upper surface at previous time level [K] 
@@ -577,7 +559,7 @@ CONTAINS
                                    !< of long-waver radiation at the ice upper surface, 
                                    !< and the difference of solar radiation fluxes 
                                    !< at the upper and lower surfaces of the ice slab)
-              &  qwat         , &  !< heat flux at the ice-water interface (positive downward) [W/m^2]
+              &  qwat         , &  !< heat flux from water to ice (positive downward) [W/m^2]
               &  csice        , &  !< shape factor for the temperature profile within the ice [-]
               &  phiipr0      , &  !< derivative (at zeta=0) of the temperature profile shape function [-]
               &  hice_thrshld , &  !< threshold value of the ice tickness to switch between a quasi-equilibrium
@@ -595,6 +577,7 @@ CONTAINS
               &  albsi_e_wghtd     !< weighted equilibrium albedo (storage variable) [-] 
 
     LOGICAL ::   lis_coupled_run   !< TRUE for coupled ocean-atmosphere runs (copy for vectorisation)
+    LOGICAL ::   lpres_fac_hflux   !< TRUE if fac_bottom_hflx is provided as input (from NWP interface only)
 
     !===============================================================================================
     !  Start calculations
@@ -603,11 +586,16 @@ CONTAINS
     ! Reciprocal of the time step 
     r_dtime = 1._wp/dtime
 
+    ! If fac_bottom_hflx is provided, adaptive tuning of the parameter(s) 
+    ! of the temperature profile within the ice and of the heat flux from water to ice is used
+    lpres_fac_hflux = PRESENT(fac_bottom_hflx)
+
     ! for vectorisation
-    lis_coupled_run = is_coupled_run()
+    lis_coupled_run = is_coupled_to_ocean()
     !$ACC DATA CREATE(dticedt, dhicedt, dtsnowdt, dhsnowdt) &
     !$ACC   PRESENT(qsen, qlat, qlwrnet, qsolnet, snow_rate, rain_rate, tice_p, hice_p, tsnow_p, hsnow_p) &
     !$ACC   PRESENT(albsi_p, tice_n, hice_n, tsnow_n, hsnow_n, condhf, albsi_n)
+    !$ACC DATA PRESENT(fac_bottom_hflx) IF(PRESENT(fac_bottom_hflx))
 
     !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
     !$ACC LOOP GANG(STATIC: 1) VECTOR &
@@ -626,12 +614,33 @@ CONTAINS
       ! Compute total atmospheric heat flux for the ice slab  (positive downward) 
       qatm = qsen(isi) + qlat(isi) + qlwrnet(isi) + qsolnet(isi) - qsoliw 
 
-      ! Provision is made to account for the heat flux from water to ice. (upward flux is negative)
-      ! This is the ocean heat flux just below the ice, not including the latent flux from
-      ! melting and freezing.
-      ! For uncoupled setups the heat flux from water to ice is set to zero.
-      ! In the case of coupled icon-ocean, this flux has to be passed from the ocean if available.
-      qwat = 0._wp
+      ! Provision is made to account for the heat flux from water to ice (upward flux is negative).
+      ! This is the ocean heat flux just below the ice, 
+      ! not including the latent flux from melting and freezing.
+      ! In the case of coupled icon atmosphere-ocean runs, 
+      ! this flux has to be passed from the ocean if available.
+      ! For uncoupled runs, an ad hoc formulation for the heat flux from water to ice is used 
+      ! that basically serves to quench the ice growth rate 
+      ! as the ice thickness approaches its maximum value.
+
+      IF (lbottom_hflux) THEN
+        ! Derivative (at zeta=0) of the temperature profile shape function.
+        IF (lpres_fac_hflux) THEN 
+          ! Adaptive tuning of phiipr0 and of bottom heat flux
+          phiipr0 = phiipr0_lin - fac_bottom_hflx(isi)*hice_p(isi)/hice_max
+        ELSE
+          ! A constant value is used (cf. linear temperature profile).
+          phiipr0 = phiipr0_lin
+        END IF
+        ! Heat flux from water to ice is limited from above (no flux from ice to water is allowed).
+        qwat = (1._wp-hice_p(isi)/hice_max-phiipr0)*ki*(tf_salt-tice_p(isi))/MAX(hice_p(isi),hice_min)
+        qwat = MIN(qwat, 0._wp)
+      ELSE
+        ! Derivative (at zeta=0) of the temperature profile shape function 
+        phiipr0 = 1._wp - hice_p(isi)/hice_max
+        ! Heat flux from water to ice is set to zero.
+        qwat = 0._wp 
+      END IF
 
       ! Compute temperature profile shape factor and temporary storage variables
       ! (to recover linear temperature profile, set csice=csi_lin)
@@ -647,32 +656,24 @@ CONTAINS
         ! Set the ice surface temperature equal to the fresh-water freezing point
         tice_n(isi) = tf_fresh
 
-        ! Condition for coupling to icon-o: compute conductive heat flux using linear function
         IF ( lis_coupled_run ) THEN
-
-          phiipr0 = 1._wp - hice_p(isi)/hice_max
+          ! Coupling to icon-o: 
+          ! Heat flux within the ice just above the ice-water intrface, phiipr0 is computed above 
+          ! Note that for coupled runs, lbottom_hflux=.FALSE. and the heat flux 
+          ! from water to ice qwat is set to zero (qwat should be provided by the ocean model).
           condhf(isi) = ki*phiipr0*(tice_n(isi)-tf_salt)/hice_p(isi)
-
           ! No change of ice thickness
           hice_n(isi) = hice_p(isi)
-
         ELSE
-
           ! Compute the rate of ice melting (note the sign of heat fluxes)
           dhicedt(isi) = -(qatm-qwat)*r_rhoialf/strg_2 
           ! Update the ice thickness
           hice_n(isi) = hice_p(isi) + dtime*dhicedt(isi)
-
         END IF
 
       ELSE FreezingMeltingRegime 
 
         ! Freezing or melting from below
-
-        ! Derivative (at zeta=0) of the temperature profile shape function 
-        ! (to recover linear temperature profile, set phiipr0=1)
-        ! in case of icon-o coupling hice_p is limited to hice_max in mo_nwp_ocean_interface
-        phiipr0 = 1._wp - hice_p(isi)/hice_max
 
         ! Compute threshold value of the ice thickness  
         ! Note that an expression in parentheses should be multiplied with 
@@ -685,13 +686,12 @@ CONTAINS
 
           ! Use a quasi-equilibrium model of heat transfer through the ice 
 
-          ! Condition for coupling to icon-o: compute conductive heat flux using linear function
           IF ( lis_coupled_run ) THEN
-
+            ! Coupling to icon-o: 
+            ! Heat flux (phiipr0 is computed above) 
             condhf(isi) = ki*phiipr0*(tice_p(isi)-tf_salt)/hice_p(isi)
             ! No change of ice thickness
             hice_n(isi) = hice_p(isi)
-
           ELSE
 
             ! Compute the time-rate-of-change of the ice thickness (note the sign of heat fluxes)
@@ -708,12 +708,6 @@ CONTAINS
 
           ! Use a complete model of heat transfer through the ice 
 
-          ! Condition for coupling to icon-o:
-          ! compute conductive heat flux near the ice lower surface using shape function
-          IF ( lis_coupled_run ) THEN
-            condhf(isi) = ki*phiipr0*(tice_p(isi)-tf_salt)/hice_p(isi)
-          END IF
-
           ! Use dhsnowdt as a temporary storage
           dhsnowdt(isi) = phiipr0*(tice_p(isi)-tf_salt)/hice_p(isi)
 
@@ -724,8 +718,11 @@ CONTAINS
           ! Update the ice surface temperature
           tice_n(isi) = tice_p(isi) + dtime*dticedt(isi)
 
-          ! Condition when coupled to icon-o: no change of ice thickness
           IF ( lis_coupled_run ) THEN
+            ! Coupling to icon-o: 
+            ! Heat flux (phiipr0 is computed above) 
+            condhf(isi) = ki*phiipr0*(tice_p(isi)-tf_salt)/hice_p(isi)
+            ! No change of ice thickness
             hice_n(isi) = hice_p(isi)
           ELSE
             ! Compute the time-rate-of-change of the ice thickness (note the sign of heat fluxes)
@@ -849,7 +846,10 @@ CONTAINS
       ENDIF
     ENDIF
  
-    !$ACC WAIT
+    IF (.NOT. using_cuda_graph) THEN
+      !$ACC WAIT(1)
+    END IF
+    !$ACC END DATA
     !$ACC END DATA
     !-----------------------------------------------------------------------------------------------
     !  End calculations
@@ -872,15 +872,6 @@ CONTAINS
   !! Note that only "sea" grid boxes are initialized;
   !! the "lake" grid boxes are left intact. 
   !! 
-  !! 
-  !! @par Revision History
-  !! Initial release by Daniel Reinert, DWD (2013-07-09)
-  !!
-  !! Modifications by Dmitrii Mironov, DWD (2016-08-09)
-  !! - Initialization of prognostic sea-ice albedo is added.
-  !!
-  !! Modification by <name>, <institution> (<yyyy>-<mm>-<dd>)
-  !!
 
   SUBROUTINE seaice_coldinit_nwp (                              & 
                           &  nswgb,                             &
@@ -981,12 +972,6 @@ CONTAINS
   !! that is a function of sea-ice surface temperature.
   !! Note that only "sea" grid boxes are initialized;
   !! the "lake" grid boxes are left intact. 
-  !! 
-  !! @par Revision History
-  !! Initial release by Dmitrii Mironov, DWD (2016-08-11)
-  !!
-  !!
-  !! Modification by <name>, <institution> (<yyyy>-<mm>-<dd>)
   !!
 
   SUBROUTINE seaice_coldinit_albsi_nwp (              &
@@ -1052,12 +1037,6 @@ CONTAINS
   !>
   !! Equilibrium sea-ice albedo is computed 
   !! as function of the sea-ice surface temperature.
-  !! 
-  !! @par Revision History
-  !! Initial release by Dmitrii Mironov, DWD (2016-08-10)
-  !!
-  !!
-  !! Modification by <name>, <institution> (<yyyy>-<mm>-<dd>)
   !!
 
   REAL (wp) FUNCTION alb_seaice_equil ( t_ice )

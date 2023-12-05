@@ -134,7 +134,6 @@ cat > ${atmo_namelist} << EOF
 &dynamics_nml
  iequations  = ${atmo_model_equations}       ! 1: hydrost. atmosphere
  lcoriolis   = .TRUE.
- idiv_method     = 1
  divavg_cntrwgt  = 0.50
 /
 &limarea_nml
@@ -211,7 +210,6 @@ rbf_vec_scale_e   = -1, -1
  grf_scalfbk      = 1
  grf_tracfbk      = 1
  denom_diffu_v    = 150.
- l_mass_consvcorr = .true. 
  l_density_nudging = .true.
 /
 &nonhydrostatic_nml

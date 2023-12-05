@@ -1,22 +1,17 @@
-!>
-!! Provides the master control methods and paramaters
-!! 
-!!        
-!! @par Revision History
-!!   Created by Leonidas Linardakis, MPI-M, 2011-06-16
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Provides the master control methods and paramaters
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
-
-!--------------------------------------------------------------------------------------------------------
 MODULE mo_master_control
  
   USE mo_io_units,      ONLY: filename_max

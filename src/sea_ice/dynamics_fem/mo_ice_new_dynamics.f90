@@ -1,19 +1,16 @@
-!>
-!! Contains the interface needed to call AWI FEM sea ice model
-!! as well as advection and interpolation routines.
-!!
-!! @par Revision History
-!! Developed  by Einar Olason (2013)
-!! Restructured by Vladimir Lapin (2015)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 ! #include "omp_definitions.inc"
 !----------------------------
@@ -43,9 +40,9 @@ MODULE mo_ice_new_dynamics
     &                               ice_free_drift_only,ice_laplace_dynamics, &
     &                               ice_stabilization
   USE mo_ocean_surface_types, ONLY: t_atmos_for_ocean, t_ocean_surface
-  USE mo_physical_constants,  ONLY: grav, rho_ref, sfc_press_pascal, rhoi, rhos, cd_io, cd_ia
+  USE mo_physical_constants,  ONLY: grav, rho_ref, sfc_press_pascal, rhoi, rhos
   USE mo_sea_ice_types,       ONLY: t_sea_ice, t_atmos_fluxes
-  USE mo_sea_ice_nml,         ONLY: i_ice_advec, pstar, n_ice_iter, delta_min
+  USE mo_sea_ice_nml,         ONLY: i_ice_advec, pstar, n_ice_iter, delta_min, Cd_io, Cd_ia
   USE mo_ice_fem_advection,   ONLY: fct_ice_solve, ice_TG_rhs
   USE mo_math_types,          ONLY: t_cartesian_coordinates
   USE mo_math_utilities,      ONLY: gvec2cvec, cvec2gvec
@@ -82,9 +79,6 @@ CONTAINS
 !!  We first remap the neccesary inputs, then call the momentum solver (EVPdynamics)
 !!  and map the resulting velocity onto edges and cell centres.
 !!
-!! @par Revision History
-!! Developed by Einar Olason, MPI-M (2013-06-05)
-!! Modified   by Vladimir Lapin (2015)
 
   SUBROUTINE ice_new_dynamics( p_patch_3D, p_ice, p_os, p_as, atmos_fluxes, p_op_coeff, p_oce_sfc)
 

@@ -1,18 +1,17 @@
-!>
-!! Contains the setup of the variables for meteogram output.
-!!
-!! @par Revision History
-!!  by F. Prill, DWD (2011-09-28)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
+! Contains the setup of the variables for meteogram output.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_meteogram_nml
 
   USE mo_kind,               ONLY: wp
@@ -34,7 +33,7 @@ MODULE mo_meteogram_nml
   PUBLIC :: read_meteogram_namelist
 
 CONTAINS
-  !>
+
   !! Read Namelist for meteogram output.
   !!
   !! This subroutine
@@ -45,9 +44,6 @@ CONTAINS
   !! - reads the user's (new) specifications
   !! - stores the Namelist for restart
   !! - fills the configuration state (partly)
-  !!
-  !! @par Revision History
-  !!  by F. Prill, DWD (2011-09-28)
   !!
   SUBROUTINE read_meteogram_namelist( filename )
 

@@ -1,42 +1,36 @@
-!>
-!! Solar heating due to absorption in Schumann-Runge continuum (SRC) and
-!! Schumann-Runge bands (SRB)
-!!
-!! This module allows to compute solar heating due to absorption in
-!! schumann-runge continuum (src) and schumann-runge bands (srb) by the method
-!! of strobel (jrg, vol 83, p 6225, 1978) with taking into account the heating
-!! efficiency for src from mlynczack&solomon (jgr, vol 98, p 10517, 1993)
-!! (efficiency for srb is unit).
-!!
-!! @par Revision History
-!!  - V. Fomichev, November, 1997: original source
-!!  - M. A. Giorgetta, MPI-M, June 2001: rewrite for echam5
-!!  - H. Schmidt, MPI-M, June 2003: modified in order to enable simulations for
-!!    solar high and solar low conditions. Heating coefficients in this subroutine are 
-!!    are very simply modified by factors. These factors are computed by comparing the
-!!    solar fluxes given in the original Strobel (1978) paper with UARS solstice fluxes
-!!    for days 200 (high) and 1209 (low). Values for SRB are guessed.
-!!
-!! Modified by Guidi Zhou, MPI-M (2016-02-09)
-!! - adapted for ICON
-!! - reorganized code structure for efficiency and readability
-!! Bug fix by Guidi Zhou, MPI-M, 2016-03-16
-!! - pressure depends on horizontal grid, so does the efficiency factor
-!! Modification by Guidi Zhou, MPI-M (2016-04-06)
-!! - enabled using height-dependent specific heat and molecular mass of air
-!! Modification by Guidi Zhou, MPI-M (2016-06-02)
-!! - make use of the new solvar_(low/high/norm) variables in mo_impl_constants
-!! Modification by Guidi Zhou, MPI-M (2017-03-03)
-!! - added the ability to compute SRBC heating only above a certain altitude for performance
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+! Solar heating due to absorption in Schumann-Runge continuum (SRC) and
+! Schumann-Runge bands (SRB)
+!
+! This module allows to compute solar heating due to absorption in
+! schumann-runge continuum (src) and schumann-runge bands (srb) by the method
+! of strobel (jrg, vol 83, p 6225, 1978) with taking into account the heating
+! efficiency for src from mlynczack&solomon (jgr, vol 98, p 10517, 1993)
+! (efficiency for srb is unit).
+!
+! Modified by Guidi Zhou, MPI-M (2016-02-09)
+! - adapted for ICON
+! - reorganized code structure for efficiency and readability
+! Bug fix by Guidi Zhou, MPI-M, 2016-03-16
+! - pressure depends on horizontal grid, so does the efficiency factor
+! Modification by Guidi Zhou, MPI-M (2016-04-06)
+! - enabled using height-dependent specific heat and molecular mass of air
+! Modification by Guidi Zhou, MPI-M (2016-06-02)
+! - make use of the new solvar_(low/high/norm) variables in mo_impl_constants
+! Modification by Guidi Zhou, MPI-M (2017-03-03)
+! - added the ability to compute SRBC heating only above a certain altitude for performance
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_upatmo_phy_srbc
 
   USE mo_kind,                 ONLY: wp
@@ -58,18 +52,6 @@ CONTAINS
   !>
   !! compute SRB and SRC heating
   !! subroutine o2strob in original source of V. Fomichev
-  !!
-  !! @par Revision History
-  !! Modification by Guidi Zhou, MPI-M, 2016-02-09
-  !! - moved the calculation of efficiency factors from a separate subroutine to here,
-  !!   in order to enhance performance
-  !! Modification by Guidi Zhou, MPI-M, 2016-02-26
-  !! - changed coeffcients to those in original Strobel (1978) paper
-  !! - removed (questionable) additional factor of 10 divided from heat rate in original implementation
-  !! Bug fix by Guidi Zhou, MPI-M, 2016-03-16
-  !! - pressure depends on horizontal grid, so does efficiency factor
-  !! Modification by Guidi Zhou, MPI-M, 2016-04-06
-  !! - enable using height-dependent specific heat and molecular mass of air
   !!
   SUBROUTINE srbc_heating(jcs, jce, kbdim, klev, ppf, prmu0, am, cp, zo2, tto2, heato2, &
     &                     solvar_type, solvar_data, opt_sunlit_idx, opt_nsunlit,        &

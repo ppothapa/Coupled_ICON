@@ -1,18 +1,16 @@
-!>
-!!
-!! @author Hui Wan, MPI-M
-!!
-!! @par Revision History
-!! First version by Hui Wan (2011-08)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_surface_diag
 
   USE mo_kind,              ONLY: wp
@@ -341,6 +339,8 @@ CONTAINS
           ! set index
           js=loidx(jls,jsfc)
 
+          ! TODO
+          ! Note: for fractional land-sea mask, this will put the ocean current into the land tile!?????
           pu_stress_tile(js,jsfc) = zconst*pfac_sfc(js) *pcfm_tile(js,jsfc)*(pu_rtpfac1(js) - pocu(js)*tpfac2)
           pv_stress_tile(js,jsfc) = zconst*pfac_sfc(js) *pcfm_tile(js,jsfc)*(pv_rtpfac1(js) - pocv(js)*tpfac2)
        END DO
@@ -449,7 +449,7 @@ CONTAINS
     !$ACC   PRESENT(psfcWind_gbm, psfcWind_tile, ptas_gbm, ptas_tile) &
     !$ACC   PRESENT(pdew2_gbm, pdew2_tile, puas_gbm, puas_tile, pvas_gbm) &
     !$ACC   PRESENT(pvas_tile) &
-    !$ACC   PCREATE(zrh2m, zaph2m, zfrac, ua, is, loidx, icond)
+    !$ACC   CREATE(zrh2m, zaph2m, zfrac, ua, is, loidx, icond)
 
     !CONSTANTS
     zhuv          =  10._wp ! 10m
@@ -485,7 +485,8 @@ CONTAINS
     !$ACC END PARALLEL LOOP
 
     CALL generate_index_list_batched(icond(:,:), loidx(jcs:,:), jcs, kproma, is, 1)
-    !$ACC UPDATE WAIT SELF(is)
+    !$ACC UPDATE HOST(is) ASYNC(1)
+    !$ACC WAIT(1)
     is(:) = is(:) + jcs - 1
 
     !
@@ -528,6 +529,7 @@ CONTAINS
       !$ACC END PARALLEL
 
       !$ACC WAIT
+
       CALL lookup_ua_list_spline('nsurf_diag(2)', jcs, kbdim, is(jsfc), loidx(:,jsfc), ptas_tile(:,jsfc), ua)
 
       !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)

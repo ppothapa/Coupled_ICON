@@ -1,3 +1,19 @@
+! Contains the interpolation routines needed for grid refinement.
+!
+! These had originally been included in mo_grf_interpolation but then were
+! packed into a separate module to clean up the code
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 ! #ifdef __xlC__
 ! @PROCESS HOT
@@ -5,26 +21,6 @@
 #ifdef __PGI
 !pgi$g opt=1
 #endif
-!>
-!! Contains the interpolation routines needed for grid refinement.
-!!
-!! These had originally been included in mo_grf_interpolation but then were
-!! packed into a separate module to clean up the code
-!!
-!! @par Revision History
-!! Created by Guenther Zaengl, DWD (2009-02-09)
-!! Modification by Guenther Zaengl, DWD (2009-06-22)
-!! - preparation for generalized grid refinement (affects all subroutines)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!!
 
 !----------------------------
 #include "omp_definitions.inc"
@@ -84,13 +80,9 @@ CONTAINS
 
 !-------------------------------------------------------------------------
 !
-!>
 !! This routine computes the distances between the parent cell and its children,
 !! which are needed for interpolation to the child cells using gradients at
 !! the parent cell center
-!!
-!! @par Revision History
-!! Developed  by Guenther. Zaengl, DWD, 2009-12-16
 !!
 SUBROUTINE compute_pc2cc_distances(p_patch, p_patch_local_parent, p_grf_state_local_parent)
 
@@ -211,13 +203,9 @@ END SUBROUTINE compute_pc2cc_distances
 
 !-------------------------------------------------------------------------
 !
-!>
 !! This routine computes the distances between the parent edge and its children,
 !! which are needed for interpolation to the child edges using gradients at
 !! the parent edge
-!!
-!! @par Revision History
-!! Developed  by Guenther. Zaengl, DWD, 2010-03-11
 !!
 SUBROUTINE compute_pe2ce_distances(p_patch, p_patch_local_parent, p_grf_state_local_parent)
 
@@ -307,7 +295,6 @@ END SUBROUTINE compute_pe2ce_distances
 !
 !
 !
-!>
 !! This routine computes the feedback weighting coefficients needed for.
 !!
 !! This routine computes the feedback weighting coefficients needed for
@@ -315,11 +302,6 @@ END SUBROUTINE compute_pe2ce_distances
 !! inadequate because it aliases horizontal gradients on the fine mesh into a
 !! checkerboard noise pattern between upward- and downward-directed triangles
 !! on the coarse mesh
-!!
-!! @par Revision History
-!! Developed  by Guenther. Zaengl, DWD, 2008-09-12
-!! Moved from hierarchy_management to grf_interpolation (2009-03-12)
-!! Add feedback weight computation for edge-based variables (2009-03-19)
 !!
 SUBROUTINE init_fbk_wgt(p_patch, p_patch_local_parent, p_grf_state_local_parent)
 
@@ -665,11 +647,6 @@ END SUBROUTINE init_fbk_wgt
 !!   2,3 : edges of parent cell in which inner child edge of 1 is located
 !!   4,5 : calculated via "quad indices".
 !!   
-!!   
-!! @par Revision History
-!! Developed and tested  by G. Zaengl (June 2008)
-!! Rewritten for vectorization by G. Zaengl (May 2010)
-!!
 SUBROUTINE grf_index(p_patch, p_patch_local_parent, p_grf_state_local_parent)
 
 TYPE(t_patch),         TARGET, INTENT(IN)    :: p_patch(n_dom_start:)
@@ -1048,7 +1025,6 @@ END SUBROUTINE grf_index
 !-------------------------------------------------------------------------
 !
 !
-!>
 !! This routine computes the coefficients needed for vector RBF interpolation.
 !!
 !! This routine computes the coefficients needed for vector RBF interpolation to
@@ -1058,9 +1034,6 @@ END SUBROUTINE grf_index
 !! is performed by a Cholesky decomposition.
 !! The Cholesky decomposition is currently implemented by a home made routine
 !! which can be substituted by a call to a numerical library, if available.
-!!
-!! @par Revision History
-!! Developed and tested by Guenther Zaengl (May 2008)
 !!
 SUBROUTINE rbf_compute_coeff_grf_e (p_patch, p_patch_local_parent, p_grf_state_local_parent)
 !

@@ -1,18 +1,14 @@
-!>
-!! @author G. Zaengl
-!!
-!! @par Revision History
-!! Moved configure state from namelists/mo_initicon_nml:
-!! F. Prill, DWD (2012-01-31)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_initicon_config
 
   USE mo_kind,               ONLY: wp, i8
@@ -57,7 +53,7 @@ MODULE mo_initicon_config
   PUBLIC :: ltile_coldstart
   PUBLIC :: ltile_init
   PUBLIC :: icpl_da_sfcevap, icpl_da_skinc, icpl_da_snowalb, icpl_da_sfcfric, icpl_da_tkhmin, dt_ana
-  PUBLIC :: adjust_tso_tsnow
+  PUBLIC :: adjust_tso_tsnow, icpl_da_seaice
   PUBLIC :: lvert_remap_fg
   PUBLIC :: ifs2icon_filename
   PUBLIC :: dwdfg_filename
@@ -76,6 +72,7 @@ MODULE mo_initicon_config
   PUBLIC :: itype_vert_expol
   PUBLIC :: pinit_seed
   PUBLIC :: pinit_amplitude
+  PUBLIC :: fire2d_filename
 
   ! Subroutines
   PUBLIC :: configure_initicon
@@ -139,6 +136,8 @@ MODULE mo_initicon_config
   INTEGER  :: icpl_da_sfcfric  ! Coupling between data assimilation and surface friction (roughness length and SSO blocking)
 
   INTEGER  :: icpl_da_tkhmin   ! Coupling between data assimilation and near-surface profiles of minimum vertical diffusion
+
+  INTEGER  :: icpl_da_seaice   ! Coupling between data assimilation and sea ice
 
   REAL(wp) :: dt_ana           ! Time interval of assimilation cycle [s] (relevant for icpl_da_sfcevap >= 2)
 
@@ -228,18 +227,17 @@ MODULE mo_initicon_config
   INTEGER(i8) :: pinit_seed = 0_i8
   REAL(wp) :: pinit_amplitude = 0._wp
 
+  CHARACTER(LEN=filename_max) :: & !< Filename that contains wildfire precursor emissions (2d-aerosol, iprog_aero=3)
+    &  fire2d_filename             !< Allowed keywords: <species>, <gridfile>, <nroot>, <nroot0>, <jlev>, <idom>, <yyyymmdd>
+
 CONTAINS
 
-  !>
   !! setup additional initicon control variables
   !!
   !! Setup of additional initicon control variables depending on the 
   !! initicon-NAMELIST and potentially other namelists. This routine is 
   !! called, after all namelists have been read and a synoptic consistency 
   !! check has been done.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2013-07-11)
   !!
   SUBROUTINE configure_initicon()
     !

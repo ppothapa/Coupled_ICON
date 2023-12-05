@@ -1,27 +1,20 @@
-!>
-!! Initialization routines for the terminator 'toy' chemistry as used in DCMIP2016
-!!
-!! Initialization routines for the terminator 'toy' chemistry as used in DCMIP2016. 
-!!
-!! @Literature
-!! Dynamical Core Model Intercomparison Project (DCMIP2016) Test Case Document
-!!
-!! @author Daniel Reinert, DWD
-!! @author Marco Giorgetta, MPI-M
-!!
-!!
-!! @par Revision History
-!! Initial revision by Daniel Reinert, DWD (2016-04-04)
-!!
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Initialization routines for the terminator 'toy' chemistry as used in DCMIP2016.
+!
+! Literature
+! Dynamical Core Model Intercomparison Project (DCMIP2016) Test Case Document
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_nh_dcmip_terminator
 
   USE mo_kind,                ONLY: wp, i8
@@ -74,11 +67,6 @@ CONTAINS
 
   !>
   !! Setup initial conditions for DCMIP2016 terminator 'toy' chemistry.
-  !!
-  !! Setup initial conditions for DCMIP2016 terminator 'toy' chemistry. 
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2016-04-04)
   !!
   SUBROUTINE init_nh_dcmip_terminator (p_patch, p_metrics, p_nh_prog, p_nh_diag)
 
@@ -230,14 +218,9 @@ CONTAINS
 
 
   !>
-  !! Interface between transport and terminator 'toy' chemistry forcing
-  !!
   !! Interface between transport and terminator 'toy' chemistry forcing.
   !! New chemistry tendencies are computed every dt_chem.
   !! The chemistry-transport coupling is performed every dt_cpl.
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2016-04-04)
   !!
   SUBROUTINE dcmip_terminator_interface (p_patch, p_metrics, p_nh_prog, p_nh_diag, &
     &                                    cur_datetime, dtime)
@@ -372,15 +355,10 @@ CONTAINS
 
   !>
   !! Diagnose vertical integrals of Cl, Cl2, and Cly = Cl + 2Cl2
-  !!
-  !! Diagnose vertical integrals of Cl, Cl2, and Cly = Cl + 2Cl2
   !! makes use of 3 extra_2d fields
   !! extra_2d(:,:,1) : Cl
   !! extra_2d(:,:,2) : Cl2
   !! extra_2d(:,:,3) : Cl + 2Cl2
-  !!
-  !! @par Revision History
-  !! Initial revision by Daniel Reinert, DWD (2016-04-06)
   !!
   SUBROUTINE dcmip_terminator_diag_vint (p_patch, tracer, rho, dz, p_nh_diag)
 

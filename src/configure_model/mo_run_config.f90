@@ -1,23 +1,19 @@
-!>
-!! Data type containing basic control variables for a model integration. 
-!!
-!! Note that in a coupled simulation, each model component (e.g.,
-!! atmosphere, ocean) will have its own run-configuration.
-!! 
-!! @author Kristina Froehlich, MPI-M (2011-07-12)
-!! @author Hui Wan, MPI-M (2011-07-12)
-!!
-!! @par Revision History
-!! Initial version by Hui Wan (MPI-M, 2011-07-05)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! Data type containing basic control variables for a model integration.
+!
+! Note that in a coupled simulation, each model component (e.g.,
+! atmosphere, ocean) will have its own run-configuration.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_run_config
 
   USE mo_kind,           ONLY: wp
@@ -37,7 +33,7 @@ MODULE mo_run_config
   PUBLIC :: radarnmlfile
   PUBLIC :: lvert_nest, num_lev, nshift, nsteps, dtime
   PUBLIC :: ltimer, timers_level, activate_sync_timers, msg_level
-  PUBLIC :: iqv, iqc, iqi, iqs, iqr, iqtvar, nqtendphy, iqt, ico2, ich4, in2o, io3
+  PUBLIC :: iqv, iqc, iqi, iqs, iqr, nqtendphy, iqt, ico2, ich4, in2o, io3
   PUBLIC :: iqni, iqg, iqm_max
   PUBLIC :: iqh, iqnh, iqnr, iqns, iqng, iqnc, inccn, ininpot, ininact, iqgl, iqhl, iqbin, iqb_i, iqb_e, iqb_s
   PUBLIC :: iqtke
@@ -116,7 +112,6 @@ MODULE mo_run_config
     INTEGER :: iqg       = 0  !< graupel
     INTEGER :: iqr       = 0  !< rain water
     INTEGER :: iqs       = 0  !< snow
-    INTEGER :: iqtvar    = 0  !< total water variance
     INTEGER :: nqtendphy = 0  !< number of water species for which physical tendencies are stored
     INTEGER :: iqm_max   = 0  !< highest tracer index carrying a mass-related moisture variable
   

@@ -1,23 +1,19 @@
-!>
-!!
-!! The module <i>mo_util_dbg_prnt</i> prints out max and min as well as single
-!! cell and neighbouring values of 2- and 3-dim arrays of the icon core for
-!! debug purposes
-!!
-!! @par Revision History
-!! Initial version by Stephan Lorenz,  MPI-M, Hamburg (2010-11)
-!!
-!! @par Revision History
-!! Modified for general purpose by Stephan Lorenz, MPI-M, 2012-06
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
+! The module <i>mo_util_dbg_prnt</i> prints out max and min as well as single
+! cell and neighbouring values of 2- and 3-dim arrays of the icon core for
+! debug purposes
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 !----------------------------
 #include "icon_definitions.inc"
 !----------------------------
@@ -54,7 +50,7 @@ MODULE mo_util_dbg_prnt
   PUBLIC :: debug_print_MaxMinMean, debug_printValue
 
   ! Public variables: should be removed!
-  PUBLIC :: c_i, c_b, nc_i, nc_b
+  PUBLIC :: c_i, c_b, nc_i, nc_b, near_proc_id
   !PUBLIC :: v_subdom_cell !, v_suball_cell, v_subset_edge  !  part of subset to store
   
   ! indices of cells and neighbours for debug output at single cell
@@ -111,12 +107,7 @@ CONTAINS
   !-------------------------------------------------------------------------
   
   !-------------------------------------------------------------------------
-  !>
   !! Initialization of indices for debug output
-  !!
-  !! @par Revision History
-  !! Initial release by Stephan Lorenz, MPI-M (2010-11)
-  !!
   !
   ! TODO: parallelize
   !
@@ -149,66 +140,77 @@ CONTAINS
     !  loc_patch_c =ppatch%n_patch_cells
     !  loc_patch_e =ppatch%n_patch_edges
     !  loc_patch_v =ppatch%n_patch_verts
-    
+
     ! module index/block for one cell output
     IF ((idbg_idx /= 0 ) .OR. (idbg_blk /= 0 )) THEN
       c_i = idbg_idx
       c_b = idbg_blk
+      near_proc_id = p_pe
     ELSE
       ! search for block/index of debug output cell at lat/lon
       ! given by namelist dbg_index_nml - not yet parallelized
       CALL find_latlonindex (ppatch, dbg_lat_in, dbg_lon_in, c_i, c_b, near_proc_id)
     END IF
-    
+
+    IF (p_pe /= near_proc_id) RETURN
+
     zlat = ppatch%cells%center(c_i,c_b)%lat * 180.0_wp / pi
     zlon = ppatch%cells%center(c_i,c_b)%lon * 180.0_wp / pi
-    
+
     !------------------------------------------------------------------
     ! print test cell
     !------------------------------------------------------------------
-    
+
     ! output format
     99 FORMAT(     2(a,i4),2(a,f9.2),a,f13.2)
     97 FORMAT(a,i1,2(a,i4),2(a,f9.2),a,f13.2)
-    
-    zarea = ppatch%cells%area(c_i,c_b)*1.0e-6_wp ! in km2
-    CALL message (TRIM(routine), 'Conditions at test cell (C), and edges/verts/neighbors:')
-    WRITE(message_text,99) ' Cell C: block=',c_b,'  index=',c_i,               &
-      & '  lat=',zlat,'  lon=',zlon,                        &
-      & '  cell-area  =', zarea
-    CALL message (' ', message_text)
-    
+
+    IF (idbg_val > 0) THEN
+      zarea = ppatch%cells%area(c_i,c_b)*1.0e-6_wp ! in km2
+      CALL message (TRIM(routine), 'Conditions at test cell (C), and edges/verts/neighbors:', all_print=.TRUE.)
+      WRITE(message_text,99) ' Cell C: block=',c_b,'  index=',c_i,               &
+        & '  lat=',zlat,'  lon=',zlon,                        &
+        & '  cell-area  =', zarea
+      CALL message (' ', message_text, all_print=.TRUE.)
+    END IF
+
     !------------------------------------------------------------------
     ! find and print corresponding edges/verts/neighbors of test cell
     !------------------------------------------------------------------
-    
+
     DO i = 1, 3 ! 3 edges of cell C at (ne_i,ne_b)
       ne_b(i) = ppatch%cells%edge_blk(c_i,c_b,i)
       ne_i(i) = ppatch%cells%edge_idx(c_i,c_b,i)
-      zlat    = ppatch%edges%center(ne_i(i),ne_b(i))%lat * 180.0_wp / pi
-      zlon    = ppatch%edges%center(ne_i(i),ne_b(i))%lon * 180.0_wp / pi
-      zlength = ppatch%edges%primal_edge_length(ne_i(i),ne_b(i))*0.001_wp  ! in km
-      ! output
-      WRITE(message_text,97) ' Edge E',i,' block=',ne_b(i),'  index=',ne_i(i), &
-        & '  lat=',zlat,'  lon=',zlon,                      &
-        & '  edge-length=',zlength
-      CALL message (' ', message_text)
+
+      IF (idbg_val > 0) THEN
+        zlat    = ppatch%edges%center(ne_i(i),ne_b(i))%lat * 180.0_wp / pi
+        zlon    = ppatch%edges%center(ne_i(i),ne_b(i))%lon * 180.0_wp / pi
+        zlength = ppatch%edges%primal_edge_length(ne_i(i),ne_b(i))*0.001_wp  ! in km
+        ! output
+        WRITE(message_text,97) ' Edge E',i,' block=',ne_b(i),'  index=',ne_i(i), &
+          & '  lat=',zlat,'  lon=',zlon,                      &
+          & '  edge-length=',zlength
+        CALL message (' ', message_text, all_print=.TRUE.)
+      END IF
     END DO
-    
+
     DO i = 1, 3 ! 3 vertices of cell C at (nv_i,nv_b)
       nv_b(i) = ppatch%cells%vertex_blk(c_i,c_b,i)
       nv_i(i) = ppatch%cells%vertex_idx(c_i,c_b,i)
-      zlat    = ppatch%edges%center(nv_i(i),nv_b(i))%lat * 180.0_wp / pi
-      zlon    = ppatch%edges%center(nv_i(i),nv_b(i))%lon * 180.0_wp / pi
-      ! output
-      WRITE(message_text,97) ' Vert V',i,' block=',nv_b(i),'  index=',nv_i(i), &
-        & '  lat=',zlat,'  lon=',zlon
-      CALL message (' ', message_text)
+      IF (idbg_val > 0) THEN
+        zlat    = ppatch%edges%center(nv_i(i),nv_b(i))%lat * 180.0_wp / pi
+        zlon    = ppatch%edges%center(nv_i(i),nv_b(i))%lon * 180.0_wp / pi
+        ! output
+        WRITE(message_text,97) ' Vert V',i,' block=',nv_b(i),'  index=',nv_i(i), &
+          & '  lat=',zlat,'  lon=',zlon
+        CALL message (' ', message_text, all_print=.TRUE.)
+      END IF
     END DO
-    
+
     DO i = 1, 3 ! 3 neighbours of cell C at (nc_i,nc_b)
       nc_b(i)=ppatch%cells%neighbor_blk(c_i,c_b,i)
       nc_i(i)=ppatch%cells%neighbor_idx(c_i,c_b,i)
+
       IF ( nc_i(i) == 0 .OR. nc_b(i) == 0) THEN
         nc_i(i) = c_i
         nc_b(i) = c_b
@@ -221,21 +223,19 @@ CONTAINS
           & '  lat=',zlat,'  lon=',zlon,                       &
           & '  cell-area  =', zarea
       END IF
+
       ! output
-      CALL message (' ', message_text)
+      IF (idbg_val > 0) THEN
+        CALL message (' ', message_text, all_print=.TRUE.)
+      END IF
     END DO
-    
+
   END SUBROUTINE init_dbg_index
   !-------------------------------------------------------------------------
-  
+
   !-------------------------------------------------------------------------
-  !>
   !! Search for a cell center at given longitude and latitude
   !! provided in namelist dbg_index_nml
-  !!
-  !!
-  !! @par Revision History
-  !! Initial release by Stephan Lorenz, MPI-M (2010-12)
   !!
   !! TODO: parallelize
   !
@@ -344,17 +344,12 @@ CONTAINS
   !-------------------------------------------------------------------------
   
   !-------------------------------------------------------------------------
-  !>
   !! Print out min and max or a specific cell value and neighbors of a 3-dim array.
   !!
   !! Reduce writing effort for a simple print.
   !! The amount of prints is controlled by comparison of a fixed level of detail
   !! for output (inDetail_level) with variables idbg_mxmn/idbg_val  that are
   !! given via namelist dbg_index_nml
-  !!
-  !! @par Revision History
-  !! Initial release by Stephan Lorenz, MPI-M (2012-06)
-  !!
   !
   SUBROUTINE dbg_print_3d( description, p_array, place, inDetail_level, in_subset )
     
@@ -370,6 +365,8 @@ CONTAINS
     INTEGER ::  slev, elev, elev_val, elev_mxmn
     INTEGER ::  iout, icheck_str_mod, jstr, i, jk, nlev, ndimblk
     REAL(wp)          :: minmaxmean(3)
+
+    IF ((idbg_val < inDetail_level) .AND. (idbg_mxmn < inDetail_level)) RETURN
 
     start_detail_timer(timer_dbg_prnt,10)    
     
@@ -436,15 +433,15 @@ CONTAINS
         ! it's not safe to use the number of blocks to identify the what is the grid entity
         ! write value at index
         IF (ndimblk == loc_nblks_c) THEN
-          IF (my_process_is_stdio()) &
+          IF (p_pe == near_proc_id) &
             & WRITE(iout,981) '        VALUE ', strmod, strout, jk, p_array(c_i,jk,c_b), &
             & (' C',i,':',p_array(nc_i(i),jk,nc_b(i)),i=1,3)
         ELSE IF (ndimblk == loc_nblks_e) THEN
-          IF (my_process_is_stdio()) &
+          IF (p_pe == near_proc_id) &
             & WRITE(iout,982) '        VALUE ', strmod, strout, jk, &
             & (' E',i,':',p_array(ne_i(i),jk,ne_b(i)),i=1,3)
         ELSE IF (ndimblk == loc_nblks_v) THEN
-          IF (my_process_is_stdio()) &
+          IF (p_pe == near_proc_id) &
             & WRITE(iout,982) '        VALUE ', strmod, strout, jk, &
             & (' V',i,':',p_array(nv_i(i),jk,nv_b(i)),i=1,3)
         END IF
@@ -542,6 +539,8 @@ CONTAINS
     CHARACTER(LEN=12) ::  strmod
     INTEGER ::  iout, icheck_str_mod, jstr, i, jk, ndimblk
     REAL(wp)          ::  minmaxmean(3)
+
+    IF ((idbg_val < inDetail_level) .AND. (idbg_mxmn < inDetail_level)) RETURN
     
     start_detail_timer(timer_dbg_prnt,10)
     
@@ -590,15 +589,15 @@ CONTAINS
       
       ! write value at index
       IF (ndimblk == loc_nblks_c) THEN
-        IF (my_process_is_stdio()) &
+        IF (p_pe == near_proc_id) &
           & WRITE(iout,981) '        VALUE ', strmod, strout, jk, p_array(c_i,c_b), &
           & (' C',i,':',p_array(nc_i(i),nc_b(i)),i=1,3)
       ELSE IF (ndimblk == loc_nblks_e) THEN
-        IF (my_process_is_stdio()) &
+        IF (p_pe == near_proc_id) &
           & WRITE(iout,982) '        VALUE ', strmod, strout, jk, &
           & (' E',i,':',p_array(ne_i(i),ne_b(i)),i=1,3)
       ELSE IF (ndimblk == loc_nblks_v) THEN
-        IF (my_process_is_stdio()) &
+        IF (p_pe == near_proc_id) &
           & WRITE(iout,982) '        VALUE ', strmod, strout, jk, &
           & (' V',i,':',p_array(nv_i(i),nv_b(i)),i=1,3)
       END IF

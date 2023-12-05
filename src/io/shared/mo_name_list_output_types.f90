@@ -1,25 +1,21 @@
-!>
-!! Module containing type definitions and constants for synchronous
-!! and asynchronous output.
-!!
-!! @author R. Johanni
-!!
-!! @par Revision History
-!! Initial implementation  by  R. Johanni  (2011)
-!! Major changes: F. Prill, DWD (2012-2013)
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!!
-!! @note: The spelling "name_list" (with underscore) is intended to make
-!!        clear that this does not pertain to a FORTRAN namelist but rather
-!!        to a list of names of output variables
-!!
+! Module containing type definitions and constants for synchronous
+! and asynchronous output.
+!
+! @note: The spelling "name_list" (with underscore) is intended to make
+!        clear that this does not pertain to a FORTRAN namelist but rather
+!        to a list of names of output variables
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_name_list_output_types
 
   USE mo_kind,                  ONLY: wp, dp, sp

@@ -1,19 +1,17 @@
-!>
-!! Defines the artificial testcases for the nonhydrostatic atmospheric model.
-!! 
-!! 
-!! @par Revision History
-!! Initial release by Almut Gassmann (2008-03-18)
-!! 
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
-!! 
-!! 
+! Defines the artificial testcases for the nonhydrostatic atmospheric model.
+!
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_nh_testcases_nml  
 !-------------------------------------------------------------------------  
 !  
@@ -208,17 +206,9 @@ MODULE mo_nh_testcases_nml
 
   CONTAINS
 !-------------------------------------------------------------------------
-  !>
   !! Defines nonhydrostatic artificial initial conditions.
   !! 
   !! Reads namelist
-  !! 
-  !! @par Revision History
-  !! Initial release by Almut Gassmann, MPI-M (2009-03-19)
-  !! Modification by Daniel Reinert, DWD (2010-07-15)
-  !! - moved initialization of topography into new subroutine 
-  !!   init_nh_testtopo, which is called after the domain-decomposition.
-  !!   (because of possible conflicts with the external-data type)
   !! 
   SUBROUTINE read_nh_testcase_namelist( filename )
 

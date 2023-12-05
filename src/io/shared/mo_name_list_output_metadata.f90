@@ -1,11 +1,16 @@
-!>
-!! Module handling the transfer of variable meta info to asynchronous I/O PEs.
-!!
-!! @author F. Prill
-!!
-!! @par Revision History
-!! Initial implementation  by  F. Prill, DWD (2014-08-04)
-!!
+! Module handling the transfer of variable meta info to asynchronous I/O PEs.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 MODULE mo_name_list_output_metadata
 
   USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_ptr, c_f_pointer
@@ -35,8 +40,6 @@ CONTAINS
   !> Allocates an MPI memory window for the meta info of the variables fields.
   !   - allocation for asynchronous I/O mode only.
   !   - allocation on I/O PEs and PE #0 only.
-  !
-  !  @author F. Prill, DWD
   !
   SUBROUTINE metainfo_allocate_memory_window(memwin, nvars)
 
@@ -91,8 +94,6 @@ CONTAINS
   !  This subroutine does nothing on PEs except compute PE #0 or
   !  if we are not running in asynchronous I/O mode.
   !
-  !  @author F. Prill, DWD
-  !
   SUBROUTINE metainfo_write_to_memwin(memwin, ivar, info)
     TYPE(t_mem_win),      INTENT(INOUT) :: memwin ! MPI memory window
     INTEGER,              INTENT(IN)    :: ivar   ! index of variable (corresponds to data memwin)
@@ -113,8 +114,6 @@ CONTAINS
   !  This subroutine does nothing on compute PEs or
   !  if we are not running in asynchronous I/O mode.
   !
-  !  @author F. Prill, DWD
-  !
   SUBROUTINE metainfo_get_from_buffer(buf, info)
     INTEGER, INTENT(IN) :: buf(:)
     TYPE(t_var_metadata), INTENT(OUT) :: info   ! meta data for variable
@@ -125,8 +124,6 @@ CONTAINS
 
   !-------------------------------------------------------------------------------------------------
   !> Return the output timelevel for given variables info object
-  !
-  !  @author R. Mueller, MPI
   !
   INTEGER FUNCTION metainfo_get_timelevel(info,domain) RESULT(timelevel)
     TYPE(t_var_metadata), INTENT(IN) :: info
