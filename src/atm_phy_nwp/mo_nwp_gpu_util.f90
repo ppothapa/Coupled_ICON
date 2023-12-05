@@ -284,6 +284,9 @@ MODULE mo_nwp_gpu_util
         !$ACC   HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%f_q_alt) &
         !$ACC   HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%rh_sum) &
         !$ACC   HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%sobs_sum) &
+        !$ACC   HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%no_max_day) &
+        !$ACC   HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%no_max_timestep) &
+        !$ACC   HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%tune) &
         !$ACC   ASYNC(1)
       END DO
       !$ACC WAIT(1)
@@ -319,6 +322,9 @@ MODULE mo_nwp_gpu_util
         !$ACC   DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%f_q_alt) &
         !$ACC   DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%rh_sum) &
         !$ACC   DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%sobs_sum) &
+        !$ACC   DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%no_max_day) &
+        !$ACC   DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%no_max_timestep) &
+        !$ACC   DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%tune) &
         !$ACC   ASYNC(1)
       END DO
     END IF
