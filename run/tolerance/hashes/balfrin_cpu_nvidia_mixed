@@ -6,8 +6,9 @@ builder: balfrin_cpu_nvidia_mixed
 # The list below maps each experiment to its current experiment_hash
 "mch_bench_r19b07_dev_sppt": eb8a3dd3a209750576cb194b6af62cb6518fc4dd
 "mch_ch_lowres": 309725c848a02c4b636ecc3b09989d9bdddb6644
+"mch_dev_icon-ch2_small": dfd0698908d1586338449699abffd432903a9ffb
 "mch_icon-ch2_small": cdd430a4751864142f5ea56a52aaa0da75dc2d11
-"mch_kenda-ch1_small": 814e1e6199ebce87de187bf49586c92c7aab4d60
+"mch_kenda-ch1_small": 9179423f62578dc41a772d0e3fe1f198e9b38af2
 "mch_opr_r04b07": 23dd21de991493dee23b77cd44029522a9e30a4b
 "mch_opr_r04b07_lhn_00": 8569f33ea46892b60a6fda774c5569b8cd16126a
 "mch_opr_r04b07_lhn_12_emvorado": 8947ae5bee85e5c9fde19be56c7f6225f9564d01

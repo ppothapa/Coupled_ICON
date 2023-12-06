@@ -530,6 +530,7 @@ CONTAINS
         vlist_id   = streamInqVlist(cdi_extpar_id)
         zaxis_id   = vlistInqVarZaxis(vlist_id, horizon_id)
         nhori = zaxisInqSize(zaxis_id)
+        !$ACC UPDATE DEVICE(nhori) ASYNC(1)
         WRITE(message_text,'(A,I4)')  &
           & 'Number of horizon sectors in external data file = ', nhori
         CALL message(routine, TRIM(message_text))
@@ -668,6 +669,7 @@ CONTAINS
     ENDIF
     ! broadcast nhori from I-Pe to WORK Pes
     CALL p_bcast(nhori, p_io, mpi_comm)
+    !$ACC UPDATE DEVICE(nhori) ASYNC(1)
     ! broadcast nclass_lu from I-Pe to WORK Pes
     CALL p_bcast(nclass_lu(jg), p_io, mpi_comm)
     ! broadcast nmonths from I-Pe to WORK Pes
