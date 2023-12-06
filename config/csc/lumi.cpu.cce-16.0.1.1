@@ -54,6 +54,10 @@ ICON_DIAG_FCFLAGS='-hlist=a'
 
 LDFLAGS="-L${ECCODES_ROOT}/lib64 -L${FYAML_ROOT}/lib -L${XML2_ROOT}/lib"
 
+# Use the GNU linker as a workaround for the problem reported in
+# https://gitlab.dkrz.de/icon/icon/-/merge_requests/254:
+LDFLAGS+=' -fuse-ld=ld'
+
 ICON_LDFLAGS="-Wl,--disable-new-dtags -Wl,--as-needed"
 
 LIBS="${XML2_LIBS} ${FYAML_LIBS} ${ECCODES_LIBS} ${ZLIB_LIBS}"
