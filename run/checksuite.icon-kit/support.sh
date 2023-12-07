@@ -16,10 +16,10 @@ function set_cluster {
    xhk*) :
      echo "...HoreKa at KIT"; CENTER="IMK"
      input_folder="/lsdf/kit/imk/projects/icon/TESTSUITE"
-     FILETYPE="4" 
+     FILETYPE="5" 
      ws=$(ws_list -s)
      if [[ "${ws}" == "" ]]; then
-         echo "No workspaces found!"
+         echo "No workspaces found! Help how to create one: https://www.nhr.kit.edu/userdocs/horeka/filesystems/#create-workspace"
          exit
      else
          ws_id=$(echo $ws | awk '{print $1}')
@@ -242,7 +242,6 @@ cat > job_ICON << ENDFILE
 #SBATCH --time=$2
 #SBATCH --ntasks-per-node=76
 #SBATCH --partition=$4
-#SBATCH --constraint=LSDF
 
 
 $5 

@@ -16,6 +16,7 @@
 
 MODULE mo_art_nml
  
+  USE mo_kind,                ONLY: wp
   USE mo_exception,           ONLY: message, finish, message_text
   USE mo_run_config,          ONLY: lart
   USE mo_io_units,            ONLY: nnml, nnml_output
@@ -126,7 +127,8 @@ MODULE mo_art_nml
   ! Restart-DEBUG: Write DEBUG-Restartfile
   LOGICAL :: lart_debugRestart
 
-
+  ! Time interval over which maximum of air concentration of radionuclides is taken
+  REAL(wp):: radioact_maxtint(1:max_dom)
 
 
   NAMELIST/art_nml/ cart_input_folder, lart_chem, lart_chemtracer, lart_mecca,         &
@@ -143,7 +145,7 @@ MODULE mo_art_nml
    &                cart_chemtracer_xml, cart_mecca_xml, cart_aerosol_xml,             &
    &                cart_modes_xml, cart_pntSrc_xml, cart_diagnostics_xml,             &
    &                lart_psc, cart_coag_xml, cart_aero_emiss_xml, cart_type_sedim,     &
-   &                lart_debugRestart       
+   &                lart_debugRestart, radioact_maxtint
 
 CONTAINS
   !-------------------------------------------------------------------------
@@ -242,6 +244,9 @@ CONTAINS
     ! Write DEBUG-Restartfile
     lart_debugRestart   = .FALSE.
 
+    ! Time interval over which maximum of air concentration of radionuclides is taken
+    radioact_maxtint(:) = 3600._wp
+
     !------------------------------------------------------------------
     ! 2. If this is a resumed integration, overwrite the defaults above
     !    by values used in the previous integration.
@@ -268,6 +273,7 @@ CONTAINS
       iart_init_aero(:)     = -1
       iart_init_gas(:)      = -1
       nart_substeps_sedi(:) = -1
+      radioact_maxtint(:)   = -1._wp
 
       READ (nnml, art_nml)                                        ! overwrite default settings
 
@@ -275,12 +281,14 @@ CONTAINS
       IF (iart_init_aero(1) < 0)     iart_init_aero(1)     = 0
       IF (iart_init_gas(1) < 0)      iart_init_gas(1)      = 0
       IF (nart_substeps_sedi(1) < 0) nart_substeps_sedi(1) = 2    ! number of substeps for sedimentation
+      IF (radioact_maxtint(1) < 0._wp) radioact_maxtint(1) = 3600._wp
 
       ! Copy values of parent domain (in case of linear nesting) to nested domains where nothing has been specified
       DO jg = 2, max_dom
         IF (iart_init_aero(jg) < 0)     iart_init_aero(jg)     = iart_init_aero(jg-1)
         IF (iart_init_gas(jg) < 0)      iart_init_gas(jg)      = iart_init_gas(jg-1)
         IF (nart_substeps_sedi(jg) < 0) nart_substeps_sedi(jg) = nart_substeps_sedi(jg-1)
+        IF (radioact_maxtint(jg) < 0._wp) radioact_maxtint(jg) = radioact_maxtint(jg-1)
       ENDDO
 
       IF (my_process_is_stdio()) THEN
@@ -424,6 +432,9 @@ CONTAINS
 
       ! Write DEBUG-Restartfile
       art_config(jg)%lart_debugRestart   = lart_debugRestart
+
+      ! Time interval over which maximum of air concentration of radionuclides is taken
+      art_config(jg)%radioact_maxtint    = radioact_maxtint(jg)
     ENDDO !jg
 
     !-----------------------------------------------------

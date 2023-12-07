@@ -61,10 +61,8 @@ MODULE mo_name_list_output_zaxes
     &                                             ZA_height_10m, ZA_height_2m, ZA_isotherm_zero, ZA_lake_bottom, &
     &                                             ZA_lake_bottom_half, ZA_meansea, ZA_mix_layer, ZA_pressure_0,  &
     &                                             ZA_pressure_400, ZA_pressure_800, ZA_ATMOSPHERE,               &
-    &                                             ZA_PRES_FL_SFC_200, ZA_PRES_FL_200_350, ZA_PRES_FL_350_550,    &
-    &                                             ZA_PRES_FL_SFC_100, ZA_PRES_FL_100_245, ZA_PRES_FL_245_390,    &
-    &                                             ZA_PRES_FL_390_530, ZA_reference, ZA_reference_half,           &
-    &                                             ZA_reference_half_hhl,                                         &
+    &                                             ZA_PRES_FL_BOT_TOP,                                            &
+    &                                             ZA_reference, ZA_reference_half, ZA_reference_half_hhl,        &
     &                                             ZA_sediment_bottom_tw_half, ZA_snow, ZA_snow_half, ZA_toa,     &
     &                                             ZA_OCEAN_SEDIMENT, ZA_height_2m_layer, ZA_ECHOTOP,             &
     &                                             ZA_TROPOPAUSE, ZA_WSHEAR, ZA_PRESSURE_LAPSERATE, ZA_SRH
@@ -207,16 +205,10 @@ CONTAINS
     ! either the first- or secondFixedSurfaces if necessary)
     CALL verticalAxisList%append(single_layer_axis(ZA_mix_layer, 1._dp, 0._dp, "m"))
 
-    ! Volcanic ash products - Maximum total mass concentration in flight level range
-    !                         defined by pressure layers
-    CALL verticalAxisList%append(single_layer_axis(ZA_PRES_FL_SFC_200, 465.00_dp, 1013.25_dp, "hPa"))
-    CALL verticalAxisList%append(single_layer_axis(ZA_PRES_FL_200_350, 240.00_dp,  465.00_dp, "hPa"))
-    CALL verticalAxisList%append(single_layer_axis(ZA_PRES_FL_350_550,  91.00_dp,  240.00_dp, "hPa"))
-    CALL verticalAxisList%append(single_layer_axis(ZA_PRES_FL_SFC_100, 700.00_dp, 1013.25_dp, "hPa"))
-    CALL verticalAxisList%append(single_layer_axis(ZA_PRES_FL_100_245, 385.00_dp,  700.00_dp, "hPa"))
-    CALL verticalAxisList%append(single_layer_axis(ZA_PRES_FL_245_390, 200.00_dp,  385.00_dp, "hPa"))
-    CALL verticalAxisList%append(single_layer_axis(ZA_PRES_FL_390_530, 100.00_dp,  200.00_dp, "hPa"))
-    ! Volcanic ash products - Colummn integrated total mass concentration (entire atmosphere)
+    ! ICON-ART products - Maximum total mass or air concentration in flight level range
+    !                     defined by pressure layers
+    CALL verticalAxisList%append(single_layer_axis(ZA_PRES_FL_BOT_TOP,  50.00_dp, 1013.25_dp, "hPa"))
+    ! ICON-ART products - Colummn integrated total mass concentration (entire atmosphere)
     CALL verticalAxisList%append(single_level_axis(ZA_ATMOSPHERE))
 
     ! --------------------------------------------------------------------------------------
