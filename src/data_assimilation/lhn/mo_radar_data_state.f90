@@ -937,6 +937,8 @@ CONTAINS
     DO jg = 1, n_dom
       WRITE(listname,'(a,i2.2)') 'lhn_fields_of_domain_',jg
       CALL new_lhn_fields_list( p_patch(jg), listname, lhn_fields_list(jg), lhn_fields(jg))
+      IF (assimilation_config(jg)%lhn_refbias) &
+          lhn_fields(jg)%ref_bias=assimilation_config(jg)%ref_bias0
     ENDDO
 
     CALL message(routine, 'construction of lhn_fields state finished')
@@ -1026,8 +1028,7 @@ CONTAINS
       &     lhn_fields%brightband,  &
       &     lhn_fields%pr_obs_sum,  &
       &     lhn_fields%pr_mod_sum,  &
-      &     lhn_fields%pr_ref_sum,  &
-      &     lhn_fields%ref_bias     )
+      &     lhn_fields%pr_ref_sum ) 
 
     !
     ! Register a field list and apply default settings
@@ -1113,19 +1114,6 @@ CONTAINS
                 & isteptype=TSTEP_ACCUM, lopenacc=.TRUE. )
     __acc_attach(lhn_fields%pr_ref_sum)
 
-    IF (assimilation_config(jg)%lhn_refbias) THEN
-      ! ref_bias      lhn_fields%ref_bias(nproma,nblks_c)
-      cf_desc    = t_cf_var('ref_bias', '-', &
-           &                   'accumulated bias between pr_ref and pr_mod',  &
-           &                   datatype_flt)
-      grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
-      CALL add_var( lhn_fields_list, 'ref_bias', lhn_fields%ref_bias,         &
-           & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,         &
-           & ldims=shape2d_c, loutput=.FALSE.,                                &
-           & isteptype=TSTEP_ACCUM, lopenacc=.TRUE. )
-      __acc_attach(lhn_fields%ref_bias)
-    END IF
-    
   END SUBROUTINE new_lhn_fields_list
 
 END MODULE mo_radar_data_state

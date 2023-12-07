@@ -26,7 +26,7 @@ MODULE mo_assimilation_nml
                             &       open_and_restore_namelist, close_tmpfile
   USE mo_assimilation_config, ONLY: assimilation_config !,n_noobs
   USE mo_nml_annotate,        ONLY: temp_defaults, temp_settings
-  USE mo_run_config,          ONLY: ldass_lhn
+  USE mo_run_config,          ONLY: ldass_lhn, dtime
 
   IMPLICIT NONE
   PRIVATE
@@ -188,7 +188,7 @@ CONTAINS
     rqrsgmax           = 1.0_wp
     rttend             = 1.0_wp
     ref_bias0          = 1.0_wp
-    dtrefbias          = 1800.0_wp
+    dtrefbias          = dtime
     tt_artif_max       = 0.0015
     zlev_artif_max     = 1000.
     std_artif_max      = 4.
