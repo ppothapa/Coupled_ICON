@@ -128,7 +128,7 @@ MODULE mo_ocean_testbed_zstar
   USE mo_swr_absorption, ONLY: subsurface_swr_absorption_zstar
   USE mo_ocean_tracer_dev, ONLY: advect_ocean_tracers_GMRedi_zstar
   USE mo_ocean_nudging,          ONLY: nudge_ocean_tracers
-!  USE mo_ocean_coupling,         ONLY: couple_ocean_toatmo_fluxes  
+!  USE mo_ocean_atmo_coupling,   ONLY: couple_ocean_toatmo_fluxes
   !-------------------------------------------------------------------------
   IMPLICIT NONE
   PRIVATE

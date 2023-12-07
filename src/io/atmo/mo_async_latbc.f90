@@ -227,7 +227,7 @@ MODULE mo_async_latbc
   USE mo_util_cdi,                  ONLY: test_cdi_varID
 #ifdef YAC_coupling
   USE mo_coupling_config,           ONLY: is_coupled_run
-  USE mo_io_coupling,               ONLY: construct_io_coupler, destruct_io_coupler
+  USE mo_io_coupling_frame,         ONLY: construct_io_coupling, destruct_io_coupling
 #endif
 
   IMPLICIT NONE
@@ -291,10 +291,10 @@ CONTAINS
 #ifdef YAC_coupling
     ! The initialisation of YAC needs to be called by all (!) MPI processes
     ! in MPI_COMM_WORLD.
-    ! construct_io_coupler needs to be called before init_name_list_output
+    ! construct_io_coupling needs to be called before init_name_list_output
     ! due to calling sequence in subroutine atmo_model for other atmosphere
     ! processes
-    IF ( is_coupled_run() ) CALL construct_io_coupler ( "dummy" )
+    IF ( is_coupled_run() ) CALL construct_io_coupling ( "dummy" )
 #endif
     ! Enter prefetch loop
     done = .FALSE.
@@ -313,7 +313,7 @@ CONTAINS
     ! clean up
     CALL latbc%finalize()
 #ifdef YAC_coupling
-      IF ( is_coupled_run() ) CALL destruct_io_coupler ( "dummy" )
+      IF ( is_coupled_run() ) CALL destruct_io_coupling ( "dummy" )
 #endif
     CALL stop_mpi
   END SUBROUTINE prefetch_main_proc

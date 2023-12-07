@@ -1,4 +1,4 @@
-! @brief Initialisation of atmosphere-wave coupling
+! Initialisation of wave-atmosphere coupling
 !
 !
 ! ICON
@@ -16,7 +16,7 @@
 #include "omp_definitions.inc"
 !----------------------------
 
-MODULE mo_atmo_wave_coupling_frame
+MODULE mo_wave_coupling_frame
 
   USE mo_kind,            ONLY: wp
   USE mo_impl_constants,  ONLY: MAX_CHAR_LENGTH, SUCCESS 
@@ -26,7 +26,6 @@ MODULE mo_atmo_wave_coupling_frame
   USE mo_run_config,      ONLY: ltimer
   USE mo_master_control,  ONLY: get_my_process_name
   USE mo_mpi,             ONLY: p_pe_work
-  USE mo_coupling_config, ONLY: is_coupled_run
   USE mo_time_config,     ONLY: time_config
   USE mtime,              ONLY: datetimeToString, timedeltaToString, &
     &                           MAX_DATETIME_STR_LEN, MAX_TIMEDELTA_STR_LEN
@@ -42,8 +41,7 @@ MODULE mo_atmo_wave_coupling_frame
 
   PRIVATE
 
-  PUBLIC :: construct_atmo_wave_coupling
-  PUBLIC :: lyac_very_1st_get
+  PUBLIC :: construct_wave_coupling
   PUBLIC :: nbr_inner_cells
   PUBLIC :: field_id
   PUBLIC :: collection_size
@@ -57,9 +55,8 @@ MODULE mo_atmo_wave_coupling_frame
   INTEGER               :: collection_size(no_of_fields)
 
   INTEGER, SAVE         :: nbr_inner_cells
-  LOGICAL, SAVE         :: lyac_very_1st_get
 
-  ! These constants are only valid AFTER calling construct_wave_atmo_coupling !
+  ! These constants are only valid AFTER calling construct_wave_coupling !
   INTEGER, PARAMETER :: CPF_U10M      = 1 !< zonal wind speed at 10m above surface
   INTEGER, PARAMETER :: CPF_V10M      = 2 !< meridional wind speed at 10m above surface
   INTEGER, PARAMETER :: CPF_FR_SEAICE = 3 !< fractional seaice cover
@@ -68,17 +65,17 @@ MODULE mo_atmo_wave_coupling_frame
 CONTAINS
 
   !>
-  !! SUBROUTINE construct_atmo_wave_coupling -- the initialisation for the coupling
-  !! of atmosphere and the wave model, through a coupler
+  !! SUBROUTINE construct_wave_coupling -- the initialisation for the coupling
+  !! of wave model and the atmosphere, through a coupler
   !!
-  !! Note that the corresponding routine for the WAVE model construct_wave_atmo_coupling
-  !! is stored in src/waves/coupling/mo_wave_atmo_coupling_frame.f90
+  !! Note that the corresponding routine for the ATMO model construct_atmo_wave_coupling
+  !! stored in src/atm_coupling/mo_atmo_waves_coupling_frame.f90
   !!
-  SUBROUTINE construct_atmo_wave_coupling (p_patch)
+  SUBROUTINE construct_wave_coupling (p_patch)
 
     TYPE(t_patch), TARGET, INTENT(IN) :: p_patch(:)
 
-    CHARACTER(len=*), PARAMETER :: routine = str_module//':construct_atmo_wave_coupling'
+    CHARACTER(len=*), PARAMETER :: routine = str_module//':construct_wave_coupling'
 
     CHARACTER(LEN=max_char_length) :: field_name(no_of_fields)
 
@@ -119,7 +116,6 @@ CONTAINS
     CHARACTER(LEN=MAX_DATETIME_STR_LEN) :: stopdatestring
     CHARACTER(LEN=MAX_TIMEDELTA_STR_LEN):: tc_dt_model_string
     
-    IF ( .NOT. is_coupled_run() ) RETURN
 
     IF (ltimer) CALL timer_start (timer_coupling_init)
 
@@ -136,14 +132,6 @@ CONTAINS
 
     field_name(CPF_Z0) = "roughness_length"
     collection_size(CPF_Z0) = 1
-
-    ! Skip time measurement of the very first yac_fget
-    ! as this will measure mainly the wait time caused
-    ! by the initialisation of the model components
-    ! and does not tell us much about the load balancing
-    ! in subsequent calls.
-
-    lyac_very_1st_get = .TRUE.
 
     jg = 1
     patch_horz => p_patch(jg)
@@ -166,8 +154,7 @@ CONTAINS
       &                      end_datetime   = TRIM(stopdatestring)   ) !in
 
     ! Announce one grid (patch) to the coupler
-    grid_name = "icon_atmos_grid"
-
+    grid_name = "icon_waves_grid"
 
     ! Extract cell information
     !
@@ -195,7 +182,7 @@ CONTAINS
         nlen = nproma
       ELSE
         nlen = patch_horz%npromz_v
-      END IF       
+      END IF
       DO jv = 1, nlen
         nn = (jb-1)*nproma+jv
         buffer_lon(nn) = patch_horz%verts%vertex(jv,jb)%lon
@@ -224,7 +211,6 @@ CONTAINS
 !ICON_OMP_END_DO
 !ICON_OMP_END_PARALLEL
 
-
     ! Definition of unstructured horizontal grid
     CALL yac_fdef_grid(                                   &
       & grid_name             = TRIM(grid_name),          & !in
@@ -235,7 +221,6 @@ CONTAINS
       & y_vertices            = buffer_lat,               & !in
       & cell_to_vertex        = buffer_c,                 & !in
       & grid_id               = grid_id)                    !out
-
 
     !
     ! Define cell center points (location = 0)
@@ -282,6 +267,9 @@ CONTAINS
     ALLOCATE(is_valid(nproma*patch_horz%nblks_c), STAT=ist)
     IF (ist /= SUCCESS)  CALL finish (routine, 'ALLOCATE failed for is_valid!')
 
+    ! TODO
+    ! I am not fully sure what this scalar npr_inner_cells is good for, anth whether
+    ! we need it for atmo-wave coupling.
     nbr_inner_cells = 0
 !ICON_OMP_PARALLEL_DO PRIVATE(jc) REDUCTION(+:nbr_inner_cells) ICON_OMP_RUNTIME_SCHEDULE
     DO jc = 1, patch_horz%n_patch_cells
@@ -300,8 +288,8 @@ CONTAINS
       & location = YAC_LOCATION_CELL,    & !in
       & grid_id  = grid_id )               !in
 
-
-    ! all cells in ICON-atmo grid are valid
+    ! Note that the wave grid consists of water cells, only.
+    ! Hence, all cells in ICON-waves grid are valid
 !ICON_OMP_PARALLEL_DO PRIVATE(jc) ICON_OMP_RUNTIME_SCHEDULE
     DO jc = 1, patch_horz%nblks_c * nproma
        is_valid(jc) = .TRUE.
@@ -342,6 +330,6 @@ CONTAINS
 
     IF (ltimer) CALL timer_stop(timer_coupling_init)
 
-  END SUBROUTINE construct_atmo_wave_coupling
+  END SUBROUTINE construct_wave_coupling
 
-END MODULE mo_atmo_wave_coupling_frame
+END MODULE mo_wave_coupling_frame

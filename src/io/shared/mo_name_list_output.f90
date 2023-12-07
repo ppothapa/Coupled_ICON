@@ -103,7 +103,7 @@ MODULE mo_name_list_output
     &                                     config_lmask_boundary => lmask_boundary
 #ifdef YAC_coupling
   USE mo_coupling_config,           ONLY: is_coupled_run
-  USE mo_io_coupling,               ONLY: construct_io_coupler, destruct_io_coupler
+  USE mo_io_coupling_frame,         ONLY: construct_io_coupling, destruct_io_coupling
 #endif
   USE mo_gribout_config,            ONLY: gribout_config
   USE mo_parallel_config,           ONLY: p_test_run, use_dp_mpi2io, &
@@ -443,7 +443,7 @@ CONTAINS
 
 #ifdef YAC_coupling
       IF ( is_coupled_run() ) THEN
-        IF (my_process_is_io() ) CALL destruct_io_coupler ( "dummy" )
+        IF (my_process_is_io() ) CALL destruct_io_coupling ( "dummy" )
       ENDIF
 #endif
 #endif
@@ -2669,10 +2669,10 @@ CONTAINS
 #ifdef YAC_coupling
     ! The initialisation of YAC needs to be called by all (!) MPI processes
     ! in MPI_COMM_WORLD.
-    ! construct_io_coupler needs to be called after init_name_list_output
+    ! construct_io_coupling needs to be called after init_name_list_output
     ! due to calling sequence in subroutine atmo_model for other atmosphere
     ! processes
-    IF ( is_coupled_run() ) CALL construct_io_coupler ( "dummy" )
+    IF ( is_coupled_run() ) CALL construct_io_coupling ( "dummy" )
 #endif
 
     ! FIXME: Explain this braindead weirdnes.
@@ -2797,7 +2797,7 @@ CONTAINS
       &                        int2string(p_pe,'(i0)'), p_comm_work)
 
 #ifdef YAC_coupling
-    IF ( is_coupled_run() ) CALL destruct_io_coupler ( "dummy" )
+    IF ( is_coupled_run() ) CALL destruct_io_coupling ( "dummy" )
 #endif
 
     ! Shut down MPI

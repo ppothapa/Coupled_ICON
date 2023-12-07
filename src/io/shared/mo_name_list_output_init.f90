@@ -188,7 +188,7 @@ MODULE mo_name_list_output_init
        xt_idxvec_new, xt_idxlist_delete, xt_idxstripes_from_idxlist_new, &
        xt_int_kind, xt_idxstripes_new, xt_idxempty_new, xt_stripe
 #ifdef YAC_coupling
-  USE mo_io_coupling,     ONLY: construct_io_coupler
+  USE mo_io_coupling_frame,     ONLY: construct_io_coupling
 #endif
 #endif
   IMPLICIT NONE
@@ -1614,7 +1614,7 @@ CONTAINS
     TYPE(t_event_data_local) :: event_list_dummy(1)
     
 #ifdef YAC_coupling
-    CALL construct_io_coupler ( "dummy" )
+    CALL construct_io_coupling ( "dummy" )
 #endif
 
     IF (p_pe_work == 0) THEN

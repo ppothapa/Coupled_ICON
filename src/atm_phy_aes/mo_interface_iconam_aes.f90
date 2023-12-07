@@ -89,7 +89,7 @@ MODULE mo_interface_iconam_aes
 #if defined(YAC_coupling)
   USE mo_timer                 ,ONLY: timer_coupling
   USE mo_coupling_config       ,ONLY: is_coupled_run
-  USE mo_aes_coupling          ,ONLY: interface_aes_ocean
+  USE mo_aes_ocean_coupling    ,ONLY: interface_aes_ocean
 #endif
   
 #if defined(_OPENACC)

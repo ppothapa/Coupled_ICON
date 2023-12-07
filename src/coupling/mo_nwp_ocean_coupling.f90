@@ -22,7 +22,7 @@
 !        - mo_atmo_coupling_frame:
 !            Variable names are associated to a variable number.
 !            field_name(6) = "sea_surface_temperature"
-!        - mo_nwp_ocean_interface:
+!        - mo_nwp_ocean_coupling:
 !            CALL yac_fget ( field_id(6), ... )
 !            The numbers have to be consistent in both fortran files.
 !       Component names in coupling.xml must (!) match with modelname_list[*].
@@ -40,7 +40,7 @@
 ! SPDX-License-Identifier: BSD-3-Clause
 ! ---------------------------------------------------------------
 
-MODULE mo_nwp_ocean_interface
+MODULE mo_nwp_ocean_coupling
 
   USE mo_bc_greenhouse_gases ,ONLY: ghg_co2vmr
   USE mo_ccycle_config       ,ONLY: ccycle_config,                          &
@@ -69,7 +69,8 @@ MODULE mo_nwp_ocean_interface
   USE mo_util_dbg_prnt       ,ONLY: dbg_print
 
 #ifdef YAC_coupling
-  USE mo_atmo_coupling_frame ,ONLY: lyac_very_1st_get, field_id,            &
+  USE mo_coupling            ,ONLY: lyac_very_1st_get
+  USE mo_atmo_coupling_frame ,ONLY: field_id,                               &
     & CPF_CO2_FLX, CPF_CO2_VMR, CPF_FRESHFLX, CPF_HEATFLX, CPF_OCE_U,       &
     & CPF_OCE_V, CPF_PRES_MSL, CPF_SEAICE_ATM, CPF_SEAICE_OCE, CPF_SP10M,   &
     & CPF_SST, CPF_UMFL, CPF_VMFL
@@ -175,7 +176,7 @@ MODULE mo_nwp_ocean_interface
   PUBLIC :: t_nwp_ocean_fields_rx
   PUBLIC :: t_nwp_ocean_fields_tx
 
-  CHARACTER(len=*), PARAMETER :: str_module = 'mo_nwp_ocean_interface' ! Output of module for debug
+  CHARACTER(len=*), PARAMETER :: str_module = 'mo_nwp_ocean_coupling' ! Output of module for debug
 
 CONTAINS
 
@@ -835,4 +836,4 @@ CONTAINS
   END SUBROUTINE couple_ocean
 
 
-END MODULE mo_nwp_ocean_interface
+END MODULE mo_nwp_ocean_coupling

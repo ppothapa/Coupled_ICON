@@ -12,7 +12,7 @@
 #include "omp_definitions.inc"
 !----------------------------
 
-MODULE mo_ocean_coupling
+MODULE mo_ocean_atmo_coupling
 
   USE mo_kind,                ONLY: wp
   USE mo_parallel_config,     ONLY: nproma
@@ -34,8 +34,8 @@ MODULE mo_ocean_coupling
   !-------------------------------------------------------------
   ! For the coupling
   !
-  USE mo_ocean_coupling_frame,ONLY: lyac_very_1st_get, nbr_inner_cells,     &
-    &                               field_id
+  USE mo_coupling,            ONLY: lyac_very_1st_get
+  USE mo_ocean_coupling_frame,ONLY: nbr_inner_cells, field_id
   USE mo_parallel_config,     ONLY: nproma
   USE mo_yac_finterface,      ONLY: yac_fput, yac_fget,                     &
     &                               YAC_ACTION_COUPLING,                    &
@@ -765,5 +765,5 @@ CONTAINS
   END SUBROUTINE couple_ocean_toatmo_fluxes
   !--------------------------------------------------------------------------
 
-END MODULE mo_ocean_coupling
+END MODULE mo_ocean_atmo_coupling
 

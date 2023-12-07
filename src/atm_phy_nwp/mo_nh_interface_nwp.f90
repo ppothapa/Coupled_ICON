@@ -88,8 +88,8 @@ MODULE mo_nh_interface_nwp
     &                                   nwp_vdiff_update_seaice
   USE mo_turb_vdiff_config,       ONLY: vdiff_config
   USE mo_ccycle_config,           ONLY: ccycle_config
-  USE mo_nwp_ocean_interface,     ONLY: nwp_couple_ocean
-  USE mo_nwp_hydrodisc_interface, ONLY: nwp_couple_hydrodisc
+  USE mo_nwp_ocean_coupling,      ONLY: nwp_couple_ocean
+  USE mo_nwp_hydrodisc_coupling,  ONLY: nwp_couple_hydrodisc
   USE mo_sync,                    ONLY: sync_patch_array, sync_patch_array_mult, SYNC_E,      &
                                         SYNC_C, SYNC_C1
 #ifdef YAC_coupling
