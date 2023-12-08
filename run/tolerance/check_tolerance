@@ -6,7 +6,7 @@ set -euo pipefail
 print_help () {
     echo "This is a convenience wrapper to configure probtest with correct paths"
     echo ""
-    echo "Usage: add_tolerance_check \$EXPERIMENT \$builder \$MODEL_DIR1 \$EXP_BASE"
+    echo "Usage: check_tolerance \$EXPERIMENT \$builder \$MODEL_DIR1 \$EXP_BASE \$FACTOR"
     echo ""
     echo "Arguments: "
     echo " 1: experiment name"
@@ -18,9 +18,12 @@ print_help () {
     echo "    The directory that contains 'experiments/'. used for --codebase-install"
     echo "    Default: parent parent of this script."
     echo " 4: executed experiment name"
-    echo "    This name is used used when executing the experiment."
-    echo "    (usually the experiment name, but e.g icon-dev.checksuite appends '_base'.)"
+    echo "    This name is used when executing the experiment."
+    echo "    (usually the experiment name, but e.g. icon-dev.checksuite appends '_base'.)"
     echo "    Default: experiment name (1)"
+    echo " 5: factor"
+    echo "    The reference factor, which is applied to the spread of the tolerances."
+    echo "    Default: 5"
 }
 
 if [[ "${1-}" = "-h" ]] || [[ "${1-}" = "--help" ]]; then
@@ -40,6 +43,7 @@ EXPERIMENT=$1
 builder=$2
 MODEL_DIR1=${3:-"$SCRIPT_DIR/../../"}
 EXP_BASE=${4:-$EXPERIMENT}
+FACTOR=${5:-5}
 
 PROBTEST="${SCRIPT_DIR}/../../externals/probtest/probtest.py"
 
@@ -113,7 +117,7 @@ if ! "${PROBTEST}" --log-file "${LOG}.check" check \
     --input-file-cur "${EXPERIMENT}.csv" \
     --input-file-ref "${CPU_REFERENCE}/${EXPERIMENT}_reference.csv" \
     --tolerance-file-name "${CPU_REFERENCE}/${EXPERIMENT}_tolerance.csv" \
-    --factor 5
+    --factor $FACTOR
 then
     cat "${LOG}.check"
     echo "probtest tolerance test did not complete successfully"

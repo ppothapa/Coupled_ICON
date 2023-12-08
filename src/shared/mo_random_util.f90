@@ -24,7 +24,7 @@ MODULE mo_random_util
   IMPLICIT NONE
   PRIVATE
  
-  PUBLIC :: add_random_noise_global, add_random_noise
+  PUBLIC :: add_random_noise_global, add_random_noise_3d, add_random_noise_2d
 
 CONTAINS
 
@@ -144,7 +144,7 @@ CONTAINS
 
   END SUBROUTINE add_random_noise_global
 
-  SUBROUTINE add_random_noise( subset, amplitude, field, seed_in)
+  SUBROUTINE add_random_noise_3d(subset, amplitude, field, seed_in)
 
     TYPE(t_subset_range), INTENT(IN) :: subset
     REAL(wp), INTENT(IN) :: amplitude
@@ -175,11 +175,45 @@ CONTAINS
       DO jk=1,SIZE(field,2)
         DO jl=start_idx,end_idx
           field(jl,jk,jb) = field(jl,jk,jb) * ((noise(jl,jk,jb) * 2._wp - 1._wp) * amplitude + 1._wp)
-        ENDDO !jk
+        ENDDO !jl
+      ENDDO !jk
+    ENDDO !jb
+
+  END SUBROUTINE add_random_noise_3d
+
+  SUBROUTINE add_random_noise_2d( subset, amplitude, field, seed_in)
+
+    TYPE(t_subset_range), INTENT(IN) :: subset
+    REAL(wp), INTENT(IN) :: amplitude
+    INTEGER(i8), INTENT(IN), OPTIONAL :: seed_in
+    REAL(wp), INTENT(INOUT) :: field(:,:)
+
+    REAL(wp) :: noise(SIZE(field,1), SIZE(field,2))
+    INTEGER :: seed_size, start_idx, end_idx, i, jl, jb
+    INTEGER, ALLOCATABLE :: seed(:)
+
+    IF ( PRESENT(seed_in) ) THEN
+      CALL RANDOM_SEED(SIZE = seed_size)
+      ALLOCATE(seed(seed_size))
+
+      seed(1) = INT(seed_in, i4)
+      IF (seed_size>1) seed(2) = INT(seed_in/2_i8**32_i8, i4)
+
+      DO i=3,seed_size
+          seed(i) = ISHFTC(seed(i-2), 1)
+      ENDDO
+      CALL RANDOM_SEED(PUT = seed)
+    ENDIF
+
+    CALL RANDOM_NUMBER(noise)
+
+    DO jb=subset%start_block,subset%end_block
+      CALL get_index_range( subset, jb, start_idx, end_idx)
+      DO jl=start_idx,end_idx
+        field(jl,jb) = field(jl,jb) * ((noise(jl,jb) * 2._wp - 1._wp) * amplitude + 1._wp)
       ENDDO !jl
     ENDDO !jb
 
-  END SUBROUTINE add_random_noise
-
+  END SUBROUTINE add_random_noise_2d
 
 END MODULE mo_random_util

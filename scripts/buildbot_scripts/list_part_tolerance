@@ -39,30 +39,34 @@ add_tolerance_exp () {
     exp=$1
     builders=$2
 
-    # generating iteratble array of builders
+    # generating iterable array of builders
     IFS=' ' read -ra builders_array <<< "$builders"
 
     for builder in "${builders_array[@]}"
     do
-      echo $builder
-      # define member_ids (must be in sync with add_refgen_routines)
+      # Skip cycle if builder is for different worker
+      if [[ $builder != $BB_NAME ]]; then
+        echo "Skipping builder: $builder"
+        continue
+      fi
+
+      # define member_type (must be in sync with add_refgen_routines)
       if [[ $builder == *"mixed"* ]];
       then
-        member_ids=(mixed_1 mixed_2 mixed_3 mixed_4 mixed_5 mixed_6 mixed_7 mixed_8 mixed_9 mixed_10)
-        member_ids_string="$(IFS=, ; echo "${member_ids[*]}")"
-        perturb_amplitude=1e-7
+        member_type="mixed"
       else
-        member_ids=(double_1 double_2 double_3 double_4 double_5 double_6 double_7 double_8 double_9 double_10)
-        member_ids_string="$(IFS=, ; echo "${member_ids[*]}")"
-        perturb_amplitude=1e-14
+        member_type="double"
       fi
+      source ${basedir}/run/tolerance/set_probtest_perturb_amplitude "${exp}" "${member_type}"
+      source ${basedir}/run/tolerance/set_probtest_ensemble_num "${exp}"
 
       # initialize probtest namelist (most of it is unused, but makes life easier)
       $PROBTEST init \
         --codebase-install "${basedir}" \
         --experiment-name "${exp}" \
-        --member_ids "${member_ids_string}" \
-        --perturb-amplitude "${perturb_amplitude}"
+        --member-type "${member_type}" \
+        --perturb-amplitude $probtest_perturb_amplitude \
+        --member-num $probtest_ensemble_num
 
       # create the runscripts for the ensemble (exp.<EXP>_seed_N)
       # needs to be overwritten from namelist because here we deal with the templates
@@ -79,8 +83,19 @@ add_tolerance_exp () {
       cp "${basedir}/run/tolerance/pp.generate_tolerance" "${basedir}/run/$pp_gentol"
       ./addexp "$pp_gentol" --builders "${builder}" --list $listname
 
-      # create the list of perturbed experiments
-      perturbed_experiments=$(printf "exp.${exp}_member_id_%s " "${member_ids[@]}")
+      # Check if probtest_ensemble_num is a single number or a list of numbers
+      if [[ $probtest_ensemble_num =~ ^[0-9]+$ ]]; then
+        num_array=($(seq 1 $probtest_ensemble_num))
+      else
+        # Split the variable into an array using a comma as the delimiter
+        IFS=',' read -ra num_array <<< "$probtest_ensemble_num"
+      fi
+      perturbed_experiments=""
+
+      for item in "${num_array[@]}"; do
+        # Create the list of perturbed experiments
+        perturbed_experiments+="exp.${exp}_member_id_${member_type}_$item "
+      done
 
       # add all the ensemble experiments and make generate_tolerance depend on all of them
       ./addexp "${perturbed_experiments}" --builders "${builder}" --list $listname --runflags "tolerance_run=true"
@@ -102,7 +117,7 @@ else
   add_tolerance_exp mch_opr_r04b07 "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
   add_tolerance_exp mch_opr_r04b07_lhn_00 "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
   add_tolerance_exp mch_opr_r04b07_lhn_12_emvorado "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed"
-  add_tolerance_exp mch_opr_r04b07_nest "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed  DAINT_CPU_nvidia"
+  add_tolerance_exp mch_opr_r04b07_nest "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed DAINT_CPU_nvidia"
   add_tolerance_exp mch_ch_r04b09_dace "balfrin_cpu_nvidia DAINT_CPU_nvidia"
   add_tolerance_exp mch_ch_r04b09_dace_synsat "DAINT_CPU_nvidia"
   add_tolerance_exp mch_opr_r04b07_sstice_inst "balfrin_cpu_nvidia balfrin_cpu_nvidia_mixed DAINT_CPU_nvidia DAINT_CPU_nvidia_mixed"
