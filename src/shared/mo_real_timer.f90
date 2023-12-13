@@ -42,6 +42,9 @@ MODULE mo_real_timer
   USE mo_mpi,             ONLY: p_recv, p_send, p_barrier, p_real_dp, &
                                 p_pe, get_my_mpi_all_comm_size, p_io, &
                                 p_comm_size, p_n_work, num_work_procs
+# ifndef NO_MPI_CHOICE_ARG
+  USE mpi,                ONLY: MPI_Gather
+# endif
 #endif
   USE mo_parallel_config, ONLY: p_test_run, proc0_shift
 

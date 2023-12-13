@@ -30,6 +30,7 @@ MODULE mo_bc_ozone
   USE mo_grid_config,              ONLY: n_dom
   USE mo_aes_rad_config,           ONLY: aes_rad_config
   USE mo_netcdf_errhandler,        ONLY: nf
+  USE mo_netcdf
   USE mo_time_config,              ONLY: time_config
   USE mo_bcs_time_interpolation,   ONLY: t_time_interpolation_weights, &
        &                                      calculate_time_interpolation_weights
@@ -61,8 +62,6 @@ MODULE mo_bc_ozone
   INTEGER                            :: nyears
   LOGICAL                            :: lend_of_year
 
-  INCLUDE 'netcdf.inc'
-  
 CONTAINS
 
   SUBROUTINE read_bc_ozone(year, p_patch, irad_o3, vmr2mmr_opt, opt_from_yac)

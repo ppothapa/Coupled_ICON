@@ -22,11 +22,8 @@
 ! ---------------------------------------------------------------
 
 MODULE mo_reshuffle
-  ! actual method (MPI-2)
 #ifndef NOMPI
-#if !defined (__SUNPRO_F95)
   USE mpi
-#endif
 #endif
 
   USE mo_exception,          ONLY: finish
@@ -35,12 +32,6 @@ MODULE mo_reshuffle
 USE mo_util_sort,            ONLY: radixsort
 #endif
   IMPLICIT NONE
-
-#ifndef NOMPI
-#if defined (__SUNPRO_F95)
-  INCLUDE "mpif.h"
-#endif
-#endif
 
   PRIVATE 
 

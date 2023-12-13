@@ -25,6 +25,7 @@ MODULE mo_util_debug
   USE mo_kind,           ONLY: wp
   USE mo_util_string,    ONLY: int2string
   USE mo_netcdf_errhandler, ONLY: nf
+  USE mo_netcdf
   USE mo_impl_constants, ONLY: MAX_CHAR_LENGTH
 
   IMPLICIT NONE
@@ -33,8 +34,6 @@ MODULE mo_util_debug
   PUBLIC :: dump_array_to_netcdf
   PUBLIC :: debug_step
   PUBLIC :: ldebug_enable
-
-  INCLUDE 'netcdf.inc'
 
   ! The global variables "debug_step", "ldebug_enable" are useful when debugging output is
   ! desired only for certain steps inside a loop. For example, one may set "debug_step" to 

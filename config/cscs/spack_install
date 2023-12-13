@@ -10,6 +10,7 @@ VARIANT=$2
 set -- 
 
 git clone --depth 1 --recurse-submodules --shallow-submodules -b $SPACK_VERSION https://github.com/C2SM/spack-c2sm.git
+
 . spack-c2sm/setup-env.sh
 # Overwrite default spack user and config cache to avoid long path error with Buildbot
 export SPACK_USER_CONFIG_PATH=$ICON_DIR/spack-config

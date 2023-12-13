@@ -17,9 +17,7 @@
 MODULE mo_delaunay_types
 
 #ifndef NOMPI
-#if !defined (__SUNPRO_F95)
   USE mpi
-#endif
 #endif
 
 #ifdef _OPENMP
@@ -28,6 +26,7 @@ MODULE mo_delaunay_types
 
   USE mo_util_file,         ONLY: util_file_is_writable
   USE mo_netcdf_errhandler, ONLY: nf
+  USE mo_netcdf
   USE mo_exception,         ONLY: finish
   USE mo_impl_constants,    ONLY: SUCCESS
   USE mo_kind,              ONLY: wp
@@ -36,7 +35,6 @@ MODULE mo_delaunay_types
   USE mo_util_sort,         ONLY: radixsort
 #endif
   IMPLICIT NONE
-  INCLUDE 'netcdf.inc'
   
   PRIVATE
   PUBLIC :: t_edge, t_point, t_triangle
@@ -46,12 +44,6 @@ MODULE mo_delaunay_types
   PUBLIC :: point, triangle, point_list, triangulation, triangulation_ptr, spherical_cap
   PUBLIC :: OPERATOR(<), OPERATOR(/), OPERATOR(*), OPERATOR(==), OPERATOR(+)
   PUBLIC :: circum_circle_spherical, ccw_spherical, sagitta_on_unit_sphere
-
-#ifndef NOMPI
-#if defined (__SUNPRO_F95)
-  INCLUDE "mpif.h"
-#endif
-#endif
 
   CHARACTER(LEN=*), PARAMETER :: modname = 'mo_delaunay_types'
 

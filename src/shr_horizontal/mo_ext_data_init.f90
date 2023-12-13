@@ -63,6 +63,7 @@ MODULE mo_ext_data_init
   USE mo_read_interface,     ONLY: openInputFile, closeFile, on_cells, t_stream_id, &
     &                              read_2D, read_2D_int, read_3D_extdim, read_2D_extdim
   USE mo_netcdf_errhandler,  ONLY: nf
+  USE mo_netcdf
   USE turb_data,             ONLY: c_lnd, c_sea
   USE mo_util_cdi,           ONLY: get_cdi_varID, test_cdi_varID, read_cdi_2d,     &
     &                              read_cdi_3d, t_inputParameters,                 &
@@ -91,9 +92,6 @@ MODULE mo_ext_data_init
   USE mo_nh_torus_exp,       ONLY: read_ext_scm_nc
 
   IMPLICIT NONE
-
-  ! required for reading external data
-  INCLUDE 'netcdf.inc'
 
   PRIVATE
 

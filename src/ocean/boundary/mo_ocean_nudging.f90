@@ -41,10 +41,6 @@ MODULE mo_ocean_nudging
 
   IMPLICIT NONE
 
-  ! required for reading netcdf files
-  INCLUDE 'netcdf.inc'
-
-
   TYPE(t_ocean_nudge)  :: ocean_nudge
 
   PRIVATE

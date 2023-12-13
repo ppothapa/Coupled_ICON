@@ -32,6 +32,7 @@ MODULE mo_read_netcdf_distributed
     & t_ptr_3d, t_ptr_3d_int, t_ptr_3d_sp, t_ptr_4d, t_ptr_4d_int, &
     & t_ptr_4d_sp
   USE mo_netcdf_errhandler, ONLY: nf
+  USE mo_netcdf
   USE mo_read_netcdf_types, ONLY: t_distrib_read_data
 #if defined (HAVE_PARALLEL_NETCDF) && !defined (NOMPI)
   USE mpi, ONLY: MPI_INFO_NULL, MPI_UNDEFINED, MPI_Comm_split, MPI_COMM_NULL
@@ -51,8 +52,6 @@ MODULE mo_read_netcdf_distributed
   PUBLIC :: t_distrib_read_data
   PUBLIC :: distrib_inq_var_dims
   PUBLIC :: idx_lvl_blk, idx_blk_time
-
-  INCLUDE 'netcdf.inc'
 
   INTEGER, PARAMETER :: idx_lvl_blk = 2
   INTEGER, PARAMETER :: idx_blk_time = 3

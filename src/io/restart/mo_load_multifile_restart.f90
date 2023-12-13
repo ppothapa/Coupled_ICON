@@ -47,12 +47,11 @@ MODULE mo_load_multifile_restart
     &                                  timer_load_restart_comm_setup, timer_load_restart_communication, &
     &                                  timer_load_restart_get_var_id
   USE mo_netcdf_errhandler,      ONLY: nf
+  USE mo_netcdf
   USE mo_cdi_constants,      ONLY: GRID_UNSTRUCTURED_CELL, GRID_UNSTRUCTURED_VERT, GRID_UNSTRUCTURED_EDGE
 
   IMPLICIT NONE
   PRIVATE
-
-  INCLUDE 'netcdf.inc'
 
   PUBLIC :: multifileCheckRestartFiles, multifileReadPatch
 

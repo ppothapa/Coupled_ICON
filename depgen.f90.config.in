@@ -40,7 +40,7 @@
 #   TIXI:
 --fc-external-mods=tixi
 #   NETCDF:
---fc-external-mods=netcdf,netcdf_nf_data,netcdf_nf_interfaces
+--fc-external-mods=netcdf,netcdf_nf_data,netcdf_nf_interfaces,netcdf4_nf_interfaces
 #   HDF5:
 --fc-external-mods=hdf5,h5lt
 #   ECCODES:

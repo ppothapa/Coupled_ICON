@@ -75,10 +75,12 @@ CPPFLAGS="${ECCODES_INCLUDE} -I${HDF5ROOT}/include -I${NETCDFROOT}/include ${ECC
 
 # Fortran compiler wrapper on cray machine
 FC='mpinfort -vh'
-FCFLAGS="${ECCODES_INCLUDE} -I${HDF5ROOT}/include -I${NETCDFROOT}/include -I${NETCDFFROOT}/include -I${RTTOV_ROOT}/include/rttov13 -std=gnu -fno-range-check -fbacktrace -g -fmodule-private -fimplicit-none -fmax-identifier-length=63 -ffree-line-length-none -Wall -Wcharacter-truncation -Wconversion -Wunderflow -Wunused-parameter -Wno-surprising -fall-intrinsics -mavx2 -O2 -mno-fma -mpc64 -fallow-argument-mismatch -D__COMM_OPT__ -D__BLOCK_GET__ -D__NEC_VH__ -DUSE_XML2"
+FCFLAGS="${ECCODES_INCLUDE} -I${HDF5ROOT}/include -I${NETCDFROOT}/include -I${NETCDFFROOT}/include -I${RTTOV_ROOT}/include/rttov13 -std=gnu -fno-range-check -fbacktrace -g -fmodule-private -fimplicit-none -fmax-identifier-length=63 -ffree-line-length-none -Wall -Wcharacter-truncation -Wconversion -Wunderflow -Wunused-parameter -Wno-surprising -fall-intrinsics -mavx2 -O2 -mno-fma -mpc64 -D__COMM_OPT__ -D__BLOCK_GET__ -D__NEC_VH__ -DUSE_XML2"
 ICON_FCFLAGS=''
 ICON_OCEAN_FCFLAGS='-O2 -D__LVECTOR__'
 ICON_ECRAD_FCFLAGS=""
+ICON_DACE_FCFLAGS="-O2 -fallow-argument-mismatch"
+ICON_DACE_PATH="externals/dace_icon"
 
 LDFLAGS="-L${ZLIBROOT}/lib -L${AEC_DIR}/lib -L${SZIPROOT}/lib -L${HDF5ROOT}/lib -L${NETCDFROOT}/lib -L${NETCDFFROOT}/lib -L${RTTOV_ROOT}/lib -L${ECCODES_LIB_DIR} -L${AMDLIB_ROOT}/libs -L${XML2ROOT}/lib -L${FYAML_ROOT}/lib -shared-mpi"
 LIBS="-Wl,--as-needed ${XML2_LIBS} ${ECCODES__LIBS} ${RTTOV_LIBS} ${AMD_LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS} ${HDF5_LIBS} ${SZIP_LIB} ${AEC_LIB} ${ZLIB_LIB} ${FYAML_LIBS} ${STATICLINK_FLAGS}"
@@ -86,7 +88,7 @@ LIBS="-Wl,--as-needed ${XML2_LIBS} ${ECCODES__LIBS} ${RTTOV_LIBS} ${AMD_LIBS} ${
 MPI_LAUNCH=''  # needed e.g. for yac configuration. What is the correct setting for gnu ?? 
 
 # full operational NWP configuration including ecRad and DACE+EMVORADO coupling
-EXTRA_CONFIG_ARGS='--disable-mpi-checks --disable-rpaths --enable-active-target-sync --enable-mixed-precision --enable-loop-exchange --enable-grib2 --enable-mpi --enable-openmp --enable-rttov --enable-ecrad --enable-dace --enable-emvorado --enable-art --disable-aes --disable-jsbach --disable-ocean --disable-coupling'
+EXTRA_CONFIG_ARGS='--disable-mpi-checks --disable-rpaths --enable-active-target-sync --enable-mixed-precision --enable-loop-exchange --enable-grib2 --enable-mpi --enable-openmp --enable-rttov --enable-ecrad --enable-dace --enable-fcgroup-DACE --enable-emvorado --enable-art --disable-aes --disable-jsbach --disable-ocean --disable-coupling'
 
 ################################################################################
 
@@ -103,6 +105,8 @@ ICON_CFLAGS="${ICON_CFLAGS}" \
 ICON_FCFLAGS="${ICON_FCFLAGS}" \
 ICON_OCEAN_FCFLAGS="${ICON_OCEAN_FCFLAGS}" \
 ICON_ECRAD_FCFLAGS="${ICON_ECRAD_FCFLAGS}" \
+ICON_DACE_FCFLAGS="${ICON_DACE_FCFLAGS}" \
+ICON_DACE_PATH="${ICON_DACE_PATH}" \
 LDFLAGS="${LDFLAGS}" \
 LIBS="${LIBS}" \
 MPI_LAUNCH="${MPI_LAUNCH}" \

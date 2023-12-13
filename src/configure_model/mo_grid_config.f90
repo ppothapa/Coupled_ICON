@@ -33,6 +33,11 @@ USE mo_netcdf_parallel, ONLY:                     &
    nf_close           => p_nf_close,              &
    nf_get_att_int     => p_nf_get_att_int ,       &
    nf_get_att_double  => p_nf_get_att_double
+#else
+  USE mo_netcdf, ONLY: &
+      & nf_nowrite, nf_global, nf_noerr, nf_strerror, nf_open, nf_close, &
+      & nf_get_att_int => nfx_get_att, &
+      & nf_get_att_double => nfx_get_att
 #endif
 
   IMPLICIT NONE
@@ -64,10 +69,6 @@ USE mo_netcdf_parallel, ONLY:                     &
   CHARACTER(*), PARAMETER :: modname = 'mo_grid_config'
 
   REAL(wp), PARAMETER :: DEFAULT_ENDTIME = 1.e30_wp
-
-#ifdef NOMPI
-INCLUDE 'netcdf.inc'
-#endif
 
   ! ------------------------------------------------------------------------
   !Configuration variables

@@ -44,11 +44,13 @@ CONTAINS
   SUBROUTINE metainfo_allocate_memory_window(memwin, nvars)
 
 #ifndef NOMPI
-#ifdef __SUNPRO_F95
-    INCLUDE "mpif.h"
-#else
-    USE mpi, ONLY: MPI_ADDRESS_KIND, MPI_INFO_NULL
-#endif
+    USE mpi, ONLY: MPI_ADDRESS_KIND, MPI_INFO_NULL, MPI_Type_get_extent
+# ifndef NO_MPI_CHOICE_ARG
+    USE mpi, ONLY: MPI_Win_create
+# endif
+# ifndef NO_MPI_CPTR_ARG
+    USE mpi, ONLY: MPI_Alloc_mem
+# endif
 #endif
     TYPE(t_mem_win),      INTENT(INOUT) :: memwin ! MPI memory window
     INTEGER,              INTENT(IN)    :: nvars  ! total no. of variables

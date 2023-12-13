@@ -151,6 +151,15 @@ MODULE mo_name_list_output
     &                                     check_write_readyfile, blocking_wait_for_irecvs
 #ifndef NOMPI
   USE mo_output_event_handler,      ONLY: trigger_output_step_irecv
+  USE mpi,                          ONLY: MPI_Win_lock, MPI_Win_unlock, MPI_Win_free
+# ifndef NO_MPI_CHOICE_ARG
+  ! MPI_Win_{un,}lock_all don't have choice args but OpenMPI doesn't include an interface in its
+  ! use-mpi-tkr variant for compilers that can't ignore argument TKR via directives.
+  ! Cray's MPI doesn't export MPI_Waitall and MPI_Waitany.
+  USE mpi,                          ONLY: MPI_Free_mem, MPI_Isend, MPI_Recv, MPI_Get, MPI_Rget,     &
+    &                                     MPI_Win_lock_all, MPI_Win_unlock_all, MPI_Waitall,        &
+    &                                     MPI_Waitany
+# endif
 #endif
   USE mo_name_list_output_stats,    ONLY: set_reference_time, interval_start, interval_end,         &
     &                                     interval_write_psfile
@@ -858,11 +867,7 @@ CONTAINS
   SUBROUTINE write_name_list(of, is_first_write, file_idx, lacc)
 
 #ifndef NOMPI
-#ifdef  __SUNPRO_F95
-  INCLUDE "mpif.h"
-#else
     USE mpi, ONLY: MPI_LOCK_EXCLUSIVE, MPI_MODE_NOCHECK
-#endif
 #endif
 
     TYPE (t_output_file), INTENT(INOUT), TARGET :: of
@@ -2828,16 +2833,12 @@ CONTAINS
 #ifndef NOMPI
   SUBROUTINE io_proc_write_name_list(of, is_first_write, file_idx)
 
-#ifdef __SUNPRO_F95
-    INCLUDE "mpif.h"
-#else
     USE mpi, ONLY: MPI_ADDRESS_KIND, MPI_LOCK_SHARED, MPI_MODE_NOCHECK
 #ifdef NO_ASYNC_IO_RMA
     USE mpi, ONLY: MPI_STATUS_IGNORE, MPI_STATUS_SIZE
 #else
 #ifndef NO_MPI_RGET
     USE mpi, ONLY: MPI_STATUS_IGNORE, MPI_STATUSES_IGNORE, MPI_REQUEST_NULL
-#endif
 #endif
 #endif
 

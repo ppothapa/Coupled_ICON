@@ -60,7 +60,6 @@ MODULE mo_radar_data_state
 
 
   ! required for reading radar data
-  INCLUDE 'netcdf.inc'
   CHARACTER(LEN=*), PARAMETER :: modname = 'mo_radar_data_state'
 
   PRIVATE

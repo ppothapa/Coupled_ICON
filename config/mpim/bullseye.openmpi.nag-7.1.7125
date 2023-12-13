@@ -49,31 +49,26 @@ non_libtool_FCFLAGS='-Wc,-g -Wc,-pipe -Wc,--param,max-vartrack-size=200000000 -W
 
 # Fortran compiler flags allowing for acceptable argument mismatches when
 # calling MPI and NetCDF-Fortran APIs:
+mismatch_mpi_FCFLAGS='-wmismatch=mpi_allgather,mpi_allgatherv,mpi_allreduce,mpi_alltoall,mpi_alltoallv,mpi_bcast,mpi_free_mem,mpi_gather,mpi_gatherv,mpi_get,mpi_get_address,mpi_ibcast,mpi_irecv,mpi_isend,mpi_pack,mpi_recv,mpi_reduce,mpi_rget,mpi_scatter,mpi_scatterv,mpi_send,mpi_sendrecv,mpi_unpack,mpi_win_create'
+# XXX: Temporary until either NAG provides an option to ignore interface conflicts or NetCDF uses its own functions correctly:
+mismatch_mpi_FCFLAGS="-mismatch ${mismatch_mpi_FCFLAGS}"
 mismatch_FCFLAGS='-wmismatch=mpi_allgather,mpi_allgatherv,mpi_allreduce,mpi_alltoall,mpi_alltoallv,mpi_bcast,mpi_free_mem,mpi_gather,mpi_gatherv,mpi_get,mpi_get_address,mpi_ibcast,mpi_irecv,mpi_isend,mpi_pack,mpi_recv,mpi_reduce,mpi_rget,mpi_scatter,mpi_scatterv,mpi_send,mpi_sendrecv,mpi_unpack,mpi_win_create,nf_def_var,nf_get_att_double,nf_get_att_int,nf_get_att_real,nf_get_vara_double,nf_get_vara_int,nf_get_vars_double,nf_get_vars_int,nf_put_att_double,nf_put_att_int,nf_put_vara_double,nf_put_vara_int,nf_put_vara_real'
 
-ICON_FCFLAGS="${non_libtool_FCFLAGS} ${mismatch_FCFLAGS} -C=all"
+check_all_wo_ccalls_FCFLAGS='-C=alias -C=array -C=bits -C=dangling -C=do -C=intovf -C=present -C=pointer -C=recursion'
+# XXX: Temporary until "-mismatch" can be removed from mismatch_mpi_FCFLAGS
+check_all_FCFLAGS="${check_all_wo_ccalls_FCFLAGS}"
 
-# Prevent the compiler crash, which happens when the MPI support is disabled
-# (--disable-mpi) or the usage of the parallel features of NetCDF is enabled
-# (--enable-parallel-netcdf), i.e. when the Fortran 77 interface of NetCDF is
-# used directly by including 'netcdf.inc':
-#   * NAG 6.2.6252 is not affected;
-#   * NAG 7.1.7101 is affected if '-C=calls' is combined with '-C=dangling'
-#     and/or '-C=pointer';
-#   * NAG 7.1.7125 is affected if '-C=dangling' and/or '-C=pointer' are
-#     specified at all.
-ICON_WORKAROUND1_FCFLAGS="${non_libtool_FCFLAGS} ${mismatch_FCFLAGS} -C=alias -C=array -C=bits -C=calls -C=do -C=intovf -C=present -C=recursion"
-ICON_WORKAROUND1_PATH='src/shr_horizontal/mo_model_domimp_patches.f90'
+ICON_FCFLAGS="${non_libtool_FCFLAGS} ${mismatch_mpi_FCFLAGS} ${check_all_FCFLAGS}"
 
 # Tolerate all argument mismatches in DACE (setting the function-specific
 # -wmismatch=p_bcast_derivedtype flag does not work due to what seems to be a
 # compiler bug):
-ICON_DACE_FCFLAGS="${non_libtool_FCFLAGS} -mismatch -C=all"
+ICON_DACE_FCFLAGS="${non_libtool_FCFLAGS} -mismatch ${check_all_wo_ccalls_FCFLAGS}"
 ICON_DACE_PATH='externals/dace_icon'
 
 # Enable recognition of non-standard double precision complex intrinsic
 # functions (DCMPLX and DCONJG):
-ICON_EMVORADO_FCFLAGS="${non_libtool_FCFLAGS} ${mismatch_FCFLAGS} -C=all -dcfuns"
+ICON_EMVORADO_FCFLAGS="${non_libtool_FCFLAGS} ${mismatch_mpi_FCFLAGS} ${check_all_FCFLAGS} -dcfuns"
 ICON_EMVORADO_PATH='externals/emvorado'
 
 # Compile the bundled libraries with no tolerance to argument mismatches:
@@ -121,8 +116,6 @@ ICON_FCFLAGS="${ICON_FCFLAGS}" \
 ICON_LDFLAGS="${ICON_LDFLAGS}" \
 ICON_MTIME_FCFLAGS="${ICON_MTIME_FCFLAGS}" \
 ICON_SCT_FCFLAGS="${ICON_SCT_FCFLAGS}" \
-ICON_WORKAROUND1_FCFLAGS="${ICON_WORKAROUND1_FCFLAGS}" \
-ICON_WORKAROUND1_PATH="${ICON_WORKAROUND1_PATH}" \
 LDFLAGS="${LDFLAGS}" \
 LIBS="${LIBS}" \
 MPI_LAUNCH="${MPI_LAUNCH}" \

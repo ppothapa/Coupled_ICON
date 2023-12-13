@@ -57,6 +57,7 @@ MODULE mo_name_list_output_gridinfo
   USE mo_name_list_output_zaxes_types,      ONLY: t_verticalAxis
   USE mo_var, ONLY: level_type_ml, level_type_pl, level_type_hl, level_type_il
   USE mo_reorder_info,                      ONLY: t_reorder_info
+  USE mo_netcdf
 #ifdef HAVE_CDI_PIO
   USE mo_reorder_info,                      ONLY: ri_cpy_blk2part
   USE mo_parallel_config,                   ONLY: pio_type
@@ -76,7 +77,6 @@ MODULE mo_name_list_output_gridinfo
   ! include NetCDF headers (direct NetCDF library calls are required
   ! for output of grid information).
   !-----------------------------------------------------------------
-  INCLUDE 'netcdf.inc'
 
   ! constants
   PUBLIC :: GRID_INFO_NONE, GRID_INFO_FILE, GRID_INFO_BCAST

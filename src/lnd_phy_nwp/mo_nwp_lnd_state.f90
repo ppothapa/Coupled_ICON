@@ -29,10 +29,6 @@
 !     - later implement already calculated icon gradients for echam physics
 !     - think about variables for flexible time steps
 
-#if (defined (__GNUC__) || defined(__SUNPRO_F95) || defined(__SX__))
-#define HAVE_F95
-#endif
-
 MODULE mo_nwp_lnd_state
 
   USE mo_kind,                 ONLY: wp

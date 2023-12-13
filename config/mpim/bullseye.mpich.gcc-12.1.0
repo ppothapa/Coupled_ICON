@@ -44,9 +44,9 @@ CPPFLAGS="-I${sw_root}/include -I${sw_root}/include/libxml2"
 FC='mpif90'
 FCFLAGS="-I${sw_root}/include ${RTTOV_FCFLAGS-} -fmodule-private -fimplicit-none -fmax-identifier-length=63 -fall-intrinsics -fbacktrace -fbounds-check -fstack-protector-all -finit-real=nan -finit-integer=-2147483648 -finit-character=127 -Wall -Wcharacter-truncation -Wunderflow -Wunused-parameter -Wno-surprising -g -march=native -mpc64"
 
-ICON_FCFLAGS='-O2 -std=f2008 -fallow-argument-mismatch'
+ICON_FCFLAGS='-O2 -std=f2008'
 
-ICON_OCEAN_FCFLAGS='-O3 -fno-tree-loop-vectorize -std=f2008 -fallow-argument-mismatch'
+ICON_OCEAN_FCFLAGS='-O3 -fno-tree-loop-vectorize -std=f2008'
 ICON_OCEAN_PATH='src/hamocc:src/ocean:src/sea_ice'
 
 ICON_DACE_FCFLAGS='-O2 -fallow-argument-mismatch'

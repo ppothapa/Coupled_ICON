@@ -1153,6 +1153,35 @@ required (--disable-mpi-rget)])
         [enable_mpi_rget=no])])
    AS_VAR_IF([enable_mpi_rget], [no],
      [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}NO_MPI_RGET"])])])
+dnl ######################################################################
+   AC_CACHE_CHECK(
+     [for interfaces for MPI routines with choice arguments],
+     [icon_cv_have_mpi_choice],
+     [AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [[
+       use mpi, only: mpi_send, mpi_integer, mpi_comm_world
+       implicit none
+       integer :: ierror
+       call mpi_send(0, 1, mpi_integer, 1, 0, mpi_comm_world, ierror)]])],
+       [icon_cv_have_mpi_choice=yes],
+       [icon_cv_have_mpi_choice=no])])
+    AS_VAR_IF([icon_cv_have_mpi_choice], [no],
+      [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}NO_MPI_CHOICE_ARG"])])
+dnl ######################################################################
+   AC_CACHE_CHECK(
+     [whether the MPI_Alloc_mem interface accepts a TYPE(C_PTR) argument],
+     [icon_cv_have_mpi_cptr],
+     [AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [[
+       use, intrinsic :: iso_c_binding, only: c_ptr
+       use mpi, only: mpi_alloc_mem, mpi_address_kind
+       implicit none
+       type(c_ptr) :: ptr
+       integer :: ierror
+       call mpi_alloc_mem(4_mpi_address_kind, 0, ptr, ierror)]])],
+       [icon_cv_have_mpi_cptr=yes],
+       [icon_cv_have_mpi_cptr=no])])
+    AS_VAR_IF([icon_cv_have_mpi_cptr], [no],
+      [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}NO_MPI_CPTR_ARG"])])
+dnl ######################################################################
 
 dnl The configure scripts of the most of the bundled libraries expect
 dnl MPI_LAUNCH to be set in the form of an absolute path, which we try to

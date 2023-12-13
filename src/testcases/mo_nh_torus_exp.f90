@@ -60,12 +60,11 @@ MODULE mo_nh_torus_exp
   USE mo_lnd_nwp_config,      ONLY: nlev_soil
   USE mo_ext_data_types,      ONLY: t_external_data
   USE mo_read_interface,      ONLY: nf
+  USE mo_netcdf
   USE mo_mpi,                 ONLY: get_my_global_mpi_id
 
   IMPLICIT NONE
 
-  INCLUDE 'netcdf.inc'
-  
   PRIVATE
 
   PUBLIC :: init_nh_state_cbl, cbl_stevens_fluxes, init_nh_state_rico,  &
@@ -1909,7 +1908,7 @@ MODULE mo_nh_torus_exp
      emis_rad_scm = tmp_nf(1)
     CALL nf (nf_inq_varid(fileid, 'LU_CLASS_FRACTION', varid), routine)
     CALL nf (nf_get_var_double(fileid, varid,lu_class_fr), routine)
-    CALL nf (nf_get_att(fileid, varid,'lctype',lctype_scm), routine)
+    CALL nf (nf_get_att_text(fileid, varid,'lctype',lctype_scm), routine)
   
     IF ( get_my_global_mpi_id() == 0 ) THEN
       print *,TRIM(routine),'  printing external surface parameters for SCM'
@@ -1973,11 +1972,11 @@ MODULE mo_nh_torus_exp
     CALL nf (nf_open('init_SCM.nc', NF_NOWRITE, fileid), &
       & TRIM(routine)//'   File init_SCM.nc cannot be opened (external)') 
 
-    CALL nf (nf_inq_attid     (fileid, varid, 'z0',    attid   ), routine)
-    CALL nf (nf_get_att_double(fileid, varid, 'z0',    z0_scm  ), routine)
+    CALL nf (nf_inq_attid(fileid, varid, 'z0',    attid   ), routine)
+    CALL nf (nfx_get_att (fileid, varid, 'z0',    z0_scm  ), routine)
 
-    CALL nf (nf_inq_attid     (fileid, varid, 'zorog', attid   ), routine)
-    CALL nf (nf_get_att_double(fileid, varid, 'zorog', topo_scm), routine)
+    CALL nf (nf_inq_attid(fileid, varid, 'zorog', attid   ), routine)
+    CALL nf (nfx_get_att (fileid, varid, 'zorog', topo_scm), routine)
 
 
     IF ( get_my_global_mpi_id() == 0 ) THEN

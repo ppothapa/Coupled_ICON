@@ -21,11 +21,10 @@ module mo_write_netcdf
   use mo_kind
   use mo_exception, only: finish
   use mo_io_config,   only: lsync=>lkeep_in_sync
+  USE mo_netcdf
 
   implicit none
   private
-
-  INCLUDE 'netcdf.inc'
 
   real(wp), parameter    :: fillvalue_double = -32678. !< Fill value
   integer(i4), parameter :: fillvalue_int    = -32678  !< Fill value
@@ -399,7 +398,7 @@ contains
         call nchandle_error(ncid, iret)
       end if
 
-      iret = nf_def_var(ncID,trim(validate(dimname)), nf_double, 1, inqdimid_nc,VarID)
+      iret = nf_def_var(ncID,trim(validate(dimname)), nf_double, 1, [inqdimid_nc], VarID)
       if (iret /= nf_noerr) call nchandle_error(ncid, iret)
       iret = putatt_nc(ncID, 'longname', dimlongname, dimname)
       if (iret /= nf_noerr) call nchandle_error(ncid, iret)
@@ -429,7 +428,7 @@ contains
     real(wp),intent(in)              :: var    !< The variables to be written to file
     integer, intent(inout), optional :: nrec   !< Netcdf Record number
 
-    integer :: iret,varid, udimid, loc(1),dimsize(1)
+    integer :: iret,varid, udimid, loc(1)
     character(len=20) :: udimname
 
     iret = nf_inq_varid(ncid, trim(validate(ncname)), VarID)
@@ -448,8 +447,7 @@ contains
       loc = 1
     end if
 
-    dimsize(1) = 1
-    iret = nf_put_vara_double(ncid, VarID, loc, dimsize, var)
+    iret = nf_put_var1_double(ncid, VarID, loc, var)
     if (iret /= nf_noerr .and. iret /= nf_erange) call nchandle_error(ncid, iret)
 
     iret = sync_nc(ncid)
@@ -531,7 +529,7 @@ contains
     else
       varid = nf_global
     end if
-    putatt_single_nc = nf_put_att_real(ncid, varid, validate(attrname), nf_float, 1, [attrval])
+    putatt_single_nc = nfx_put_att(ncid, varid, validate(attrname), nf_float, attrval)
     if (ldef .eqv. .false.) then
       ldef = ensuredata_nc(ncid)
     end if
@@ -552,7 +550,7 @@ contains
     else
       varid = nf_global
     end if
-    putatt_double_nc = nf_put_att_double(ncid, varid, validate(attrname), nf_double, 1, attrval)
+    putatt_double_nc = nfx_put_att(ncid, varid, validate(attrname), nf_double, attrval)
     if (ldef .eqv. .false.) then
       ldef = ensuredata_nc(ncid)
     end if
@@ -573,7 +571,7 @@ contains
     else
       varid = nf_global
     end if
-    putatt_int_nc = nf_put_att_int(ncid, varid, validate(attrname), nf_int, 1, attrval)
+    putatt_int_nc = nfx_put_att(ncid, varid, validate(attrname), nf_int, attrval)
     if (ldef .eqv. .false.) then
       ldef = ensuredata_nc(ncid)
     end if
@@ -594,7 +592,7 @@ contains
     else
       varid = nf_global
     end if
-    putatt_short_nc = nf_put_att_int2(ncid, varid, validate(attrname), nf_short, 1, [attrval])
+    putatt_short_nc = nfx_put_att(ncid, varid, validate(attrname), nf_short, attrval)
     if (ldef .eqv. .false.) then
       ldef = ensuredata_nc(ncid)
     end if
@@ -629,7 +627,7 @@ contains
     else
       varid = nf_global
     end if
-    getatt_single_nc= nf_get_att_real(ncid, varid, validate(attrname), [attrval])
+    getatt_single_nc= nfx_get_att(ncid, varid, validate(attrname), attrval)
   end function getatt_single_nc
 
 !-------------------------------------------------------------------------
@@ -645,7 +643,7 @@ contains
     else
       varid = nf_global
     end if
-    getatt_double_nc= nf_get_att_double(ncid, varid, validate(attrname), attrval)
+    getatt_double_nc= nfx_get_att(ncid, varid, validate(attrname), attrval)
   end function getatt_double_nc
 
 !-------------------------------------------------------------------------
@@ -661,7 +659,7 @@ contains
     else
       varid = nf_global
     end if
-    getatt_int_nc= nf_get_att_int(ncid, varid, validate(attrname), attrval)
+    getatt_int_nc= nfx_get_att(ncid, varid, validate(attrname), attrval)
   end function getatt_int_nc
 
 !-------------------------------------------------------------------------
@@ -677,7 +675,7 @@ contains
     else
       varid = nf_global
     end if
-    getatt_short_nc= nf_get_att_int2(ncid, varid, validate(attrname), [attrval])
+    getatt_short_nc= nfx_get_att(ncid, varid, validate(attrname), attrval)
   end function getatt_short_nc
 
 !-------------------------------------------------------------------------

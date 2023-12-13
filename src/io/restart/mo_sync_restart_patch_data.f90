@@ -68,11 +68,10 @@ MODULE mo_sync_restart_patch_data
   USE mo_var_metadata_types,        ONLY: t_var_metadata
   USE mo_var_list_register_utils,   ONLY: vlr_select_restart_vars
   USE mo_netcdf_errhandler,         ONLY: nf
+  USE mo_netcdf
 
   IMPLICIT NONE
   PRIVATE
-
-  INCLUDE 'netcdf.inc'
 
   PUBLIC :: t_SyncPatchData
 

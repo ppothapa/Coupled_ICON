@@ -12,6 +12,12 @@
 MODULE mo_emvorado_interface
 
 #ifndef NOMPI
+# ifdef HAVE_RADARFWO
+  USE mpi,                ONLY: MPI_Barrier
+# endif
+# ifndef NO_MPI_CHOICE_ARG
+  USE mpi,                ONLY: MPI_Isend, MPI_Recv
+# endif
   USE mo_mpi,             ONLY: stop_mpi, abort_mpi, mpi_success, get_my_global_mpi_id, &
        &                        MPI_STATUS_SIZE, p_real, p_int, p_bcast, &
        &                        my_process_is_mpi_radarioroot, process_mpi_all_workroot_id, &

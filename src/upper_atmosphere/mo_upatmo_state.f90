@@ -16,10 +16,6 @@
 ! * src/atm_phy_echam/mo_echam_phy_memory
 ! for the upper-atmosphere variables.
 
-#if (defined (__GNUC__) || defined(__SUNPRO_F95) || defined(__SX__))
-#define HAVE_F95
-#endif
-
 MODULE mo_upatmo_state
 
   USE mo_kind,                 ONLY: wp

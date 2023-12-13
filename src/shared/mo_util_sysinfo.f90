@@ -36,59 +36,31 @@ MODULE mo_util_sysinfo
 
   INTERFACE
     SUBROUTINE private_util_user_name(name, name_len) BIND(C,NAME='util_user_name') 
-#if defined (__SUNPRO_F95) 
-      USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_INT, C_CHAR
-#else
       IMPORT :: C_INT, C_CHAR
-#endif
-#if defined (__SUNPRO_F95)
-      CHARACTER(kind=C_CHAR,len=*), INTENT(out) :: name
-#else
       CHARACTER(C_CHAR), DIMENSION(*), INTENT(out) :: name
-#endif
       INTEGER(C_INT), INTENT(out) :: name_len
     END SUBROUTINE private_util_user_name
   END INTERFACE
 
   INTERFACE
     SUBROUTINE private_util_os_system(name, name_len) BIND(C,NAME='util_os_system') 
-#if defined (__SUNPRO_F95)
-      USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_INT, C_CHAR
-#else
       IMPORT :: C_INT, C_CHAR
-#endif
-#if defined (__SUNPRO_F95)
-      CHARACTER(kind=C_CHAR,len=*), INTENT(out) :: name
-#else
       CHARACTER(C_CHAR), DIMENSION(*), INTENT(out) :: name
-#endif
       INTEGER(C_INT), INTENT(out) :: name_len
     END SUBROUTINE private_util_os_system
   END INTERFACE
 
   INTERFACE
     SUBROUTINE private_util_node_name(name, name_len) BIND(C,NAME='util_node_name') 
-#if defined (__SUNPRO_F95)
-      USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_INT, C_CHAR
-#else
       IMPORT :: C_INT, C_CHAR
-#endif
-#if defined (__SUNPRO_F95)
-      CHARACTER(kind=C_CHAR,len=*), INTENT(out) :: name
-#else
       CHARACTER(C_CHAR), DIMENSION(*), INTENT(out) :: name
-#endif
       INTEGER(C_INT), INTENT(out) :: name_len
     END SUBROUTINE private_util_node_name
   END INTERFACE
 
   INTERFACE
     SUBROUTINE private_util_get_maxrss(maxrss) BIND(C,NAME='util_get_maxrss') 
-#if defined (__SUNPRO_F95) 
-      USE, INTRINSIC :: ISO_C_BINDING, ONLY: C_INT
-#else
       IMPORT :: C_INT
-#endif
       INTEGER(C_INT), INTENT(out) :: maxrss
     END SUBROUTINE private_util_get_maxrss
   END INTERFACE

@@ -57,6 +57,7 @@ MODULE mo_initicon_io
   USE mo_read_interface,      ONLY: t_stream_id, openInputFile, closeFile, on_cells, on_edges, &
     &                               read_2d_1time, read_2d_1lev_1time, read_3d_1time
   USE mo_netcdf_errhandler,   ONLY: nf
+  USE mo_netcdf
   USE mo_nwp_sfc_tiles,       ONLY: t_tileinfo_icon, trivial_tile_att
   USE mo_lnd_nwp_config,      ONLY: ntiles_total,  l2lay_rho_snow, &
     &                               ntiles_water, lmulti_snow, lsnowtile, &
@@ -149,8 +150,6 @@ MODULE mo_initicon_io
   !     I have only generated the ones that were actually needed to implement the current functionality, so the list of wrappers is incomplete.
 
   IMPLICIT NONE
-
-  INCLUDE 'netcdf.inc'
 
   PRIVATE
 

@@ -33,12 +33,11 @@ MODULE mo_read_netcdf_broadcast_2
   USE mo_communication,      ONLY: t_scatterPattern
   USE mo_fortran_tools,      ONLY: t_ptr_2d, t_ptr_2d_int, t_ptr_3d, t_ptr_3d_int
   USE mo_netcdf_errhandler,  ONLY: nf
+  USE mo_netcdf
   !-------------------------------------------------------------------------
 
   IMPLICIT NONE
   PRIVATE
-
-  INCLUDE 'netcdf.inc'
 
   PUBLIC :: netcdf_open_input, netcdf_close
 
@@ -1711,7 +1710,7 @@ CONTAINS
       CALL nf(nf_inq_varid(file_id, variable_name, varid), variable_name)
       ! write(0,*) TRIM(variable_name), " id=", varid
   
-      return_status = nf_get_att_double(file_id, varid, "missing_value", readMissValue)
+      return_status = nfx_get_att(file_id, varid, "missing_value", readMissValue)
       IF (return_status == nf_noerr) THEN
         has_missValue = .true.
         broadcastValue(1) = 1.0_wp

@@ -49,7 +49,7 @@ CPPFLAGS="-I${HDF5_ROOT}/include -I${NETCDF_ROOT}/include -I${ECCODES_ROOT}/incl
 FC='mpinfort -vh'
 FCFLAGS="-I${HDF5_ROOT}/include -I${NETCDFF_ROOT}/include -I${ECCODES_ROOT}/include -g -fbacktrace -march=native -mpc64 -O2 -fmodule-private -fimplicit-none -fno-range-check -fmax-identifier-length=63 -fall-intrinsics -Wall -Wcharacter-truncation -Wunderflow -Wunused-parameter -Wno-surprising"
 
-ICON_FCFLAGS='-D__COMM_OPT__ -D__BLOCK_GET__ -D__NEC_VH__ -std=f2008 -fallow-argument-mismatch'
+ICON_FCFLAGS='-D__COMM_OPT__ -D__BLOCK_GET__ -D__NEC_VH__ -std=f2008'
 
 ICON_DACE_FCFLAGS='-fallow-argument-mismatch'
 ICON_DACE_PATH='externals/dace_icon'

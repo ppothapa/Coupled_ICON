@@ -29,11 +29,10 @@ MODULE mo_test_netcdf_read
     &                               t_stream_id, read_1D, read_2D_time, &
     &                               read_3D_time, read_netcdf_broadcast_method
   USE mo_netcdf_errhandler,   ONLY: nf
+  USE mo_netcdf
 !-------------------------------------------------------------------------
 IMPLICIT NONE
 PRIVATE
-
-  INCLUDE 'netcdf.inc'
 
   PUBLIC :: test_netcdf_read, netcdf_open_output, netcdf_close_output
   PUBLIC :: netcdf_write_oncells_2D_time, netcdf_write_oncells_3D_time

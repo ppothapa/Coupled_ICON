@@ -28,21 +28,16 @@ MODULE mo_async_restart_patch_data
   USE mo_timer,                     ONLY: timer_start, timer_stop, timer_write_restart_io, timers_level
   USE mo_mpi,                       ONLY: num_work_procs, my_process_is_restart, p_mpi_wtime,  &
     &                                     p_real_sp_byte, p_real_dp_byte, p_int_byte
-#ifdef __SUNPRO_F95
-  INCLUDE "mpif.h"
-#else
   USE mpi,                          ONLY: MPI_ADDRESS_KIND
-#endif
   USE mo_restart_patch_data,        ONLY: t_RestartPatchData
   USE mo_var_list_register_utils,   ONLY: vlr_select_restart_vars
   USE mo_netcdf_errhandler,         ONLY: nf
+  USE mo_netcdf
   USE mo_restart_patch_description, ONLY: t_restart_patch_description
   USE mo_var_metadata_types,        ONLY: t_var_metadata
 
   IMPLICIT NONE
   PRIVATE
-
-  INCLUDE 'netcdf.inc'
 
   PUBLIC :: t_AsyncPatchData
 

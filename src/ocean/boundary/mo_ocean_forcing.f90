@@ -67,12 +67,12 @@ MODULE mo_ocean_forcing
     & varyTracerVerticallyExponentially
   USE mo_io_config,          ONLY: lnetcdf_flt64_output
   USE mo_netcdf_errhandler,  ONLY: nf
+  USE mo_netcdf
 
 #include "add_var_acc_macro.inc"
 
   IMPLICIT NONE
   PRIVATE
-  INCLUDE 'netcdf.inc'
 
   CHARACTER(LEN=12)           :: str_module    = 'oceForcing  '  ! Output of module for 1 line debug
   INTEGER :: idt_src       = 1               ! Level of detail for 1 line debug
