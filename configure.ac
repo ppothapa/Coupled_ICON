@@ -1,3 +1,13 @@
+dnl ICON
+dnl
+dnl ---------------------------------------------------------------
+dnl Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+dnl Contact information: icon-model.org
+dnl See AUTHORS.TXT for a list of authors
+dnl See LICENSES/ for license information
+dnl SPDX-License-Identifier: BSD-3-Clause
+dnl ---------------------------------------------------------------
+
 AC_PREREQ([2.69])
 
 ACX_POLYMORPHIC_OPTION([enable], [fcgroup-*], [icon_fcgroups])

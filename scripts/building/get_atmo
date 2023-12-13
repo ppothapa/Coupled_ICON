@@ -1,5 +1,15 @@
 #!/bin/ksh
 
+# ICON
+#
+# ------------------------------------------
+# Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+# Contact information: icon-model.org
+# See AUTHORS.TXT for a list of authors
+# See LICENSES/ for license information
+# SPDX-License-Identifier: BSD-3-Clause
+# ------------------------------------------
+
 # usage get_atmo <icon-dev full path> <atmo only full path>
 #   links from the <icon-dev full path> the atmosphere only files to <atmo only full path>
 set -x

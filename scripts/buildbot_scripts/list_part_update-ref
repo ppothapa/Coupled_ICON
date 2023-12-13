@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
 
+# ICON
+#
+# ------------------------------------------
+# Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+# Contact information: icon-model.org
+# See AUTHORS.TXT for a list of authors
+# See LICENSES/ for license information
+# SPDX-License-Identifier: BSD-3-Clause
+# ------------------------------------------
+
 # This script adds the update experiments and post-processing scripts
 # needed to generate update references to the list specified by `listname`.
 # Note: This list must always be called as part of a full `create_list_<list>`,

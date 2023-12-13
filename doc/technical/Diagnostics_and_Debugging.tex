@@ -1,3 +1,13 @@
+% ICON
+%
+% ------------------------------------------
+% Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+% Contact information: icon-model.org
+% See AUTHORS.TXT for a list of authors
+% See LICENSES/ for license information
+% SPDX-License-Identifier: CC-BY-4.0
+% ------------------------------------------
+
 \chapter{Diagnostics and Debugging}
 
 
@@ -50,7 +60,7 @@ the transport namelist, so the resulting namelist setting for this case is:
 
 
 \begin{enumerate} 
-\item In the namelist {\bf \texttt{run\_ctl}} set the number of fields with \texttt{inextra\_2d} or
+  \item In the namelist \textbf{\texttt{run\_ctl}} set the number of fields with \texttt{inextra\_2d} or
   \texttt{inextra\_3d}. The logical variable for output
   \texttt{lwrite\_extra} then will be set automatically. Note, the
   number of extra fields is limited by $9$ each for 2D and 3D.

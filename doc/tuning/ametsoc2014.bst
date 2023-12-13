@@ -10,7 +10,8 @@
 %% *** Bibliography style for all AMS Journals and BAMS ***
 %% 
 %% Copyright 1994-2005 Patrick W Daly
-%% Updated 2014 Nicole Rietmann
+%% Updated 2014 Nicole Rietman
+%% SPDX-License-Identifier: LPPL-1.0
  % ===============================================================
  % IMPORTANT NOTICE:
  % This bibliographic style (bst) file has been generated from one or

@@ -1,3 +1,13 @@
+% ICON
+%
+% ------------------------------------------
+% Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+% Contact information: icon-model.org
+% See AUTHORS.TXT for a list of authors
+% See LICENSES/ for license information
+% SPDX-License-Identifier: CC-BY-4.0
+% ------------------------------------------
+
 \chapter{Terrain-following coordinates for ICONAM}
 
 \section{Definition of the terrain following coordinate system}
@@ -8,7 +18,7 @@ The problem we are faced with in our special case of the ICON grid is the lack
 of boxes with quadrilateral faces, which are generally needed when considering
 different coordinate systems, such as the contravariant and covariant systems
 which are contragredient to each other. The proposal to overcome this problem
-is thus to define quadrilateral boxes as base entities {\it additionally} to the
+is thus to define quadrilateral boxes as base entities \textit{additionally} to the
 main triangular, quadrilateral or hexagonale/pentagonal grid boxes. This seems
 unsuitable at first glance, but you will quickly appreciate the advantages of
 this proceeding.
@@ -39,8 +49,8 @@ vertical to match with the actual local position where we need it.
 We should be aware that the box may be inclined because of the varying terrain height.
 The terrain height $z$ in the model turns out to be best defined at the centers of
 the main box vertical interface points, that is where the vertical velocity $w$ is defined on
-a Lorenz grid, {\it and} on the corners of these surfaces. Than, the slope of the
-box may only be felt in two directions: namely that horizontal direction which connects the height points at the centers of the triangles, quadrilaterals or hexagons, which is later needed for the metric terms of the velocity fields, {\it and} that horizontal direction which connects the corner points, so that the metric terms are
+a Lorenz grid, \textit{and} on the corners of these surfaces. Than, the slope of the
+box may only be felt in two directions: namely that horizontal direction which connects the height points at the centers of the triangles, quadrilaterals or hexagons, which is later needed for the metric terms of the velocity fields, \textit{and} that horizontal direction which connects the corner points, so that the metric terms are
 later defined for the vortex vector fields.
 As naming convention we refer to the former sloping direction with index
 $\mathbf{n}$ as this direction is normal to the main box interfaces,
@@ -198,19 +208,19 @@ When computing this on a numerical grid, the RHS and LHS are determined at diffe
 \label{divergence}
 \end{eqnarray}
 \begin{itemize}
- \item {\bf The LHS refers to the main grid box} (either triangular, quadrilateral or hexagonal) with
+  \item \textbf{The LHS refers to the main grid box} (either triangular, quadrilateral or hexagonal) with
  $$d\tau_{i,k} = A_{i,k}\sqrt{g}_{i,k}dq^z=A_{i,k}\sqrt{g}_{i,k}.$$ The horizontal area $A_{i,k}$
  is formed by the summation of the subtriangle areas shown in Figure \ref{tri_cont_vol} at the layer
  height
  $$z_{i,k}=({z_{i,l^+}+z_{i,l^-}})/2,$$ which is by definition the arithmetic mean of the two adjacent
  level heights. This philosophy was already pursued in the COSMO. The thickness of the box is given by
  $$\sqrt{g}_{i,k}=z_{i,l^-}-z_{i,l^+}>0.$$
- \item {\bf The RHS refers to the grid box interfaces.}\\
+ \item \textbf{The RHS refers to the grid box interfaces.}\\
 Here we pose the question on how much air leaves the main grid box through the interfaces.
 As the associated outwards pointing surface vectors $d\mathbf{s}$ are then required with contravariant base vectors (cf.~Figure \ref{cont_volu}) and thus covariant measure numbers, we need according to (\ref{contragredient}) contravariant measure numbers for the representation of the flux $\mathbf{F}$.
 Let us now distinguish lateral interfaces $j$ and bottom/top interfaces $l$
  \begin{itemize}
-   \item {\bf lateral interfaces}, where the normal components $n$ of the velocity (or flux) are defined
+   \item \textbf{lateral interfaces}, where the normal components $n$ of the velocity (or flux) are defined
          \begin{displaymath}
          f^{n,j}ds_{n,j(i)} = f^{n,j}\overline{\sqrt{g}}^jdq^zdq^{t,j}\gamma_{j(i)}=
                               f^{n,j}\overline{\sqrt{g}}^jdq^{t,j}\gamma_{j(i)}
@@ -230,7 +240,7 @@ Let us now distinguish lateral interfaces $j$ and bottom/top interfaces $l$
          locally outwards or inwards with respect to the main box.\\
          The contravariant velocity measure number $\dot{q}^n$ as defined in (\ref{conversions}) is
          to be obtained from the orthogonal components without further additional computations, $\dot{q}^n=\dot{x}_n$.
-   \item {\bf top/bottom interfaces}
+       \item \textbf{top/bottom interfaces}
          \begin{equation}
          f^{z,l}ds_{z,l} = f^{z,l}\overline{\sqrt{g}}^lA_{l}\gamma_{l(k)}
          \label{vertflux}

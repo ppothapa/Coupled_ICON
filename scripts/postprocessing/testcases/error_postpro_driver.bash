@@ -1,4 +1,15 @@
 #!/bin/bash
+
+# ICON
+#
+# ------------------------------------------
+# Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+# Contact information: icon-model.org
+# See AUTHORS.TXT for a list of authors
+# See LICENSES/ for license information
+# SPDX-License-Identifier: BSD-3-Clause
+# ------------------------------------------
+
 #
 #==========================================================================================
 #      Driver script which calls ncl-scripts that calculate the PS l1-,l2- and l_inf- error,

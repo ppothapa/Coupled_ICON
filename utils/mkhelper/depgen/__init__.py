@@ -1,12 +1,42 @@
+# Copyright (c) 2018-2024, MPI-M
+#
+# Author: Sergey Kosukhin <sergey.kosukhin@mpimet.mpg.de>
+#
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+# 3. Neither the name of the copyright holder nor the names of its
+#    contributors may be used to endorse or promote products derived from
+#    this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
 import os
 import sys
 
 
-def open23(name, mode='r'):
+def open23(name, mode="r"):
     if sys.version_info < (3, 0, 0):
         return open(name, mode)
     else:
-        return open(name, mode, encoding='latin-1')
+        return open(name, mode, encoding="latin-1")
 
 
 def map23(foo, iterable):
@@ -23,7 +53,7 @@ def file_in_dir(f, d):
         return True
 
 
-def find_unquoted_string(string, line, quotes='\'"'):
+def find_unquoted_string(string, line, quotes="'\""):
     skip = 0
     quote = None
     while 1:
@@ -40,7 +70,7 @@ def find_unquoted_string(string, line, quotes='\'"'):
                     quote = c
                 elif quote == c:
                     quote = None
-            elif c == '\\' and quote:
+            elif c == "\\" and quote:
                 escaped = True
 
         if quote:
@@ -59,19 +89,21 @@ class IncludeFinder:
             return filename
         elif self.include_order:
             for inc_type in self.include_order:
-                if inc_type == 'cwd' and os.path.isfile(filename):
+                if inc_type == "cwd" and os.path.isfile(filename):
                     return filename
-                elif inc_type == 'src' and root_includer:
-                    candidate = os.path.join(os.path.dirname(root_includer),
-                                             filename)
+                elif inc_type == "src" and root_includer:
+                    candidate = os.path.join(
+                        os.path.dirname(root_includer), filename
+                    )
                     if os.path.isfile(candidate):
                         return candidate
-                elif inc_type == 'inc' and current_includer:
-                    candidate = os.path.join(os.path.dirname(current_includer),
-                                             filename)
+                elif inc_type == "inc" and current_includer:
+                    candidate = os.path.join(
+                        os.path.dirname(current_includer), filename
+                    )
                     if os.path.isfile(candidate):
                         return candidate
-                elif inc_type == 'flg' and self.include_dirs:
+                elif inc_type == "flg" and self.include_dirs:
                     for d in self.include_dirs:
                         candidate = os.path.join(d, filename)
                         if os.path.isfile(candidate):
@@ -120,7 +152,7 @@ class StreamStack:
                 stream = self._stream_stack.pop()
                 if self._close_stack.pop():
                     stream.close()
-        return ''
+        return ""
 
 
 class StdStreamWrapper:

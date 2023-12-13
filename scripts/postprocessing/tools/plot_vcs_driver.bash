@@ -1,4 +1,15 @@
 #!/bin/bash
+
+# ICON
+#
+# ------------------------------------------
+# Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+# Contact information: icon-model.org
+# See AUTHORS.TXT for a list of authors
+# See LICENSES/ for license information
+# SPDX-License-Identifier: BSD-3-Clause
+# ------------------------------------------
+
 #
 #==========================================================================
 #      Driver script for postprocessing and visulization of a  
@@ -8,7 +19,7 @@
 #
 # History: 
 # Initial version by Pilar Ripodas (DWD, 2010-11) (driver based on a driver 
-# from Hui, ncl script based on a script from Günther)
+# from Hui, ncl script based on a script from Guenther)
 # Software needed:
 # - CDO (Climate Data Operators, www.mpimet.mpg.de/cdo) 
 #   for interplation and for the spectral transform;

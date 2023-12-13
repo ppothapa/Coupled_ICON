@@ -1,4 +1,15 @@
 #!/usr/bin/env python
+
+# ICON
+#
+# ------------------------------------------
+# Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+# Contact information: icon-model.org
+# See AUTHORS.TXT for a list of authors
+# See LICENSES/ for license information
+# SPDX-License-Identifier: BSD-3-Clause
+# ------------------------------------------
+
 # prepare SCM/LES input and forcing data for the GABLS1
 # (marine shallow convection) case in netCDF file
 # based on microHH setup of GABLS1 case: https://github.com/microhh/microhh

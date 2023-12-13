@@ -9,6 +9,7 @@
 %% *** wileyqj.bst***
 %% 
 %% Copyright 1994-2005 Patrick W Daly
+%% SPDX-License-Identifier: LPPL-1.0
  % ===============================================================
  % IMPORTANT NOTICE:
  % This bibliographic style (bst) file has been generated from one or

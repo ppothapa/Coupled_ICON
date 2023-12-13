@@ -1,4 +1,4 @@
-SHELL = /bin/ksh
+SHELL = /bin/bash
 
 I_SOURCES=icon_atm_echam_phy_scidoc.tex
 FILES_DYNAMICS=../dynamics/model_equations_ICONAM.tex \

@@ -1,5 +1,15 @@
 #/bin/bash
 
+# ICON
+#
+# ------------------------------------------
+# Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+# Contact information: icon-model.org
+# See AUTHORS.TXT for a list of authors
+# See LICENSES/ for license information
+# SPDX-License-Identifier: BSD-3-Clause
+# ------------------------------------------
+
 # Checks that the configure scipt is generated with the vanilla Autoconf 2.69
 # and matches configure.ac.
 # Must be run on Breeze where we have the vanilla Autoconf 2.69.

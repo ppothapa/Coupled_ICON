@@ -1,3 +1,13 @@
+; ICON
+;
+; ------------------------------------------
+; Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+; Contact information: icon-model.org
+; See AUTHORS.TXT for a list of authors
+; See LICENSES/ for license information
+; SPDX-License-Identifier: BSD-3-Clause
+; ------------------------------------------
+
 ;------------------------------------
 ; Hui Wan (MPI-Met, 2008-07-13)
 ; Hui Wan (MPI-Met, 2009-04-28: Modification for the hex. model)
