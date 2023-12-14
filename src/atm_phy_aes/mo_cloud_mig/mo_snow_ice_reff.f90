@@ -1,3 +1,5 @@
+! ICON
+!
 ! ---------------------------------------------------------------
 ! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
 ! Contact information: icon-model.org

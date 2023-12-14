@@ -47,7 +47,9 @@
 MODULE mo_stoch_sde
 
   USE netcdf
+#ifdef HAVE_ACM_LICENSE  
   USE random_rewrite,        ONLY: random_Poisson
+#endif
   USE mo_kind,               ONLY: wp, i4
   USE mo_physical_constants, ONLY: alv, cpd
   USE mo_cuparameters,       ONLY: k_wei, alpha_mf, beta_mf, m0, C1, kinv, active_fraction, &
@@ -126,6 +128,7 @@ MODULE mo_stoch_sde
   REAL(wp) :: rdxy                                ! inverse of grid cell area
   REAL(wp) :: eps                                 ! equivalent of 0.9 clouds in units of "clouds per grid cell area"
   REAL(wp) :: excess                              ! number of clouds exceeding upper limit (5000)
+  REAL(wp) :: z0                              
 
   INTEGER(i4) :: i, k, kstart,kstop,idx           ! (loop) indices
   INTEGER(i4) :: rn_poisson1, rn_poisson2         ! result (integer) of draw from Poisson distribution
@@ -144,6 +147,8 @@ MODULE mo_stoch_sde
   ! Type for random number generator and stream for producing random
   ! numbers
   TYPE(rng_type) :: random_number_generator
+
+  REAL(wp), PARAMETER :: pi = 3.14159265358
 
 !------------------------------------------------------------
   ! Distribution parameter for passive Weibull distribution is invariant, so calculate just once
@@ -317,6 +322,7 @@ MODULE mo_stoch_sde
       ! Retrieve streammax new random numbers to use in draw from Poisson distributions
       CALL random_number_generator%uniform_distribution(rn_u(1:streammax))
 
+#ifdef HAVE_ACM_LICENSE         
       ! Determine number of newborn active clouds by drawing from Poisson distribution with given birth rate.
       idx=1 ! This index keeps track of which random numbers out of the 200 have already been used
       rn_poisson1 = random_Poisson(birth_rate_a(i)*ptsphy,idx,streammax,rn_u(1:streammax))
@@ -324,7 +330,7 @@ MODULE mo_stoch_sde
       IF (idx > streammax) THEN
          WRITE(6,*) 'idx1 out of range',idx,birth_rate_a(i)*ptsphy,rn_u(1),rn_u(idx),MINVAL(rn_u(1:streammax)),MAXVAL(rn_u(1:streammax))
       ENDIF
-
+      
       ! Determine number of dying active clouds by drawing from Poisson distribution with given death rate.
       idx=50 ! Start at index 50, to make sure to use "fresh" random numbers
       rn_poisson2 = random_Poisson(death_rate_a(i)*ptsphy,idx,streammax,rn_u(1:streammax))
@@ -339,8 +345,8 @@ MODULE mo_stoch_sde
       ! Safety check in case random_Poisson routine does not converge and runs out of random numbers to use
       IF (idx > streammax) THEN
          write(6,*) 'idx3 out of range',idx,birth_rate_p(i)*ptsphy,rn_u(1),rn_u(idx),MINVAL(rn_u(1:streammax)),MAXVAL(rn_u(1:streammax))
-      endif
-
+      ENDIF
+      
       ! Determine number of dying passive clouds by drawing from Poisson distribution with given death rate.
       idx=150 ! Start at index 150, to make sure to use "fresh" random numbers
       rn_poisson4 = random_Poisson(death_rate_p(i)*ptsphy,idx,streammax,rn_u(1:streammax))
@@ -349,6 +355,33 @@ MODULE mo_stoch_sde
          WRITE(6,*) 'idx4 out of range',idx,death_rate_p(i)*ptsphy,rn_u(1),rn_u(idx),MINVAL(rn_u(1:streammax)),MAXVAL(rn_u(1:streammax))
       ENDIF
       idx=200
+#else
+      ! Determine number of newborn active clouds by sampling a normal distribution
+      ! (instead of Poisson) using the Box-Muller method, with given birth rate.
+      idx=1 ! This index keeps track of which random numbers out of the 200 have already been used
+      z0 = SQRT(-2._wp * LOG(rn_u(idx))) * COS(pi * rn_u(idx+25))
+      rn_poisson1 = MAX(0,INT(z0 * SQRT(birth_rate_a(i)*ptsphy) + birth_rate_a(i)*ptsphy))
+      
+      ! Determine number of dying active clouds by sampling a normal distribution
+      ! (instead of Poisson) using the Box-Muller method, with given death rate.
+      idx=50 
+      z0 = SQRT(-2._wp * LOG(rn_u(idx))) * COS(pi * rn_u(idx+25))
+      rn_poisson2 = MAX(0,INT(z0 * SQRT(death_rate_a(i)*ptsphy) + death_rate_a(i)*ptsphy))
+      
+      ! Determine number of newborn passive clouds by sampling a normal distribution
+      ! (instead of Poisson) using the Box-Muller method, with given birth rate.
+      idx=100 ! This index keeps track of which random numbers out of the 200 have already been used
+      z0 = SQRT(-2._wp * LOG(rn_u(idx))) * COS(pi * rn_u(idx+25))
+      rn_poisson3 = MAX(0,INT(z0 * SQRT(birth_rate_p(i)*ptsphy) + birth_rate_p(i)*ptsphy))
+      
+      ! Determine number of dying passive clouds by sampling a normal distribution
+      ! (instead of Poisson) using the Box-Muller method, with given death rate.
+      idx=150 
+      z0 = SQRT(-2._wp * LOG(rn_u(idx))) * COS(pi * rn_u(idx+25))
+      rn_poisson4 = MAX(0, INT(z0 * SQRT(death_rate_p(i)*ptsphy) + death_rate_p(i)*ptsphy))
+      idx=200
+
+#endif
 
       ! Initialise diagnostic fields that keep track of how much mass flux is added by newborn clouds,
       ! and how much is removed by dying clouds
@@ -392,8 +425,16 @@ MODULE mo_stoch_sde
            ! Use the fractional first guess cloud number as expected value for a Poisson draw
            ! to generate a stochastic estimate of the actual active/passive cloud number (integer)
            ! in the grid box
+#ifdef HAVE_ACM_LICENSE           
            rn1 = random_Poisson(pclnum_a(i)*dxy,idx,streammax,rn_u(1:streammax))
            rn2 = random_Poisson(pclnum_p(i)*dxy,idx,streammax,rn_u(1:streammax))
+#else
+           z0 = SQRT(-2._wp * LOG(rn_u(idx))) * COS(pi * rn_u(idx+1))
+           rn1 = MAX(0, INT(z0 * SQRT(pclnum_a(i)*dxy) + pclnum_a(i)*dxy))
+           z0 = SQRT(-2._wp * LOG(rn_u(idx+2))) * COS(pi * rn_u(idx+3))
+           rn2 = MAX(0, INT(z0 * SQRT(pclnum_p(i)*dxy) + pclnum_p(i)*dxy))
+           idx=idx+4
+#endif
            ! To calculate the final estimate of the grid box mass flux, multiply the
            ! number of active/passive clouds again with the average mass flux of the
            ! Weibull distribution (mavg1, mavg2)
@@ -681,7 +722,6 @@ MODULE mo_stoch_sde
   REAL(wp)   ,INTENT(in)    :: cell_area(klon)    ! grid cell area
   LOGICAL    ,INTENT(in)    :: lgrayzone          ! switches on grayzone tuning
 
-
   REAL(wp), DIMENSION(klon) :: mavg2              ! expected mass flux of active cloud distribution
   REAL(wp), DIMENSION(klon) :: lambda2            ! distribution parameter for active Weibull distribution
   REAL(wp), DIMENSION(klon) :: M                  ! total bulk mass flux in each cell (not normalised by grid cell area)
@@ -699,6 +739,7 @@ MODULE mo_stoch_sde
   REAL(wp) :: rdxy                                ! inverse of grid cell area
   REAL(wp) :: tempmf                              ! active+passive grid cell mass flux at previous time step
   REAL(wp) :: excess                              ! number of clouds exceeding upper limit (5000)
+  REAL(wp) :: z0  
 
   INTEGER(i4) :: i, k, kstart,kstop,idx           ! (loop) indices
   INTEGER(i4) :: rn_poisson1, rn_poisson2         ! result (integer) of draw from Poisson distribution
@@ -712,7 +753,8 @@ MODULE mo_stoch_sde
   ! Type for random number generator and stream for producing random
   ! numbers
   TYPE(rng_type) :: random_number_generator
-
+  
+  REAL(wp), PARAMETER :: pi = 3.14159265358
 
   !------------------------------------------------------------
   ! Distribution parameter for passive Weibull distribution is invariant, so calculate just once
@@ -857,10 +899,11 @@ MODULE mo_stoch_sde
         ! Initial total grid cell mass flux is sum of active/passive MF at previous time step
         tempmf=mfp(i)+mfa(i)
 
+#ifdef HAVE_ACM_LICENSE           
         ! Determine number of newborn active clouds by drawing from Poisson distribution with given birth rate.
         idx=1 ! This index keeps track of which random numbers out of the 200 have already been used
         rn_poisson1 = random_Poisson(birth_rate_a(i)*ptsphy,idx,streammax,rn_u(1:streammax))
-
+        
         ! Determine number of dying active clouds by drawing from Poisson distribution with given death rate.
         idx=50 ! Start at index 50, to make sure to use "fresh" random numbers
         rn_poisson2 = random_Poisson(death_rate_a(i)*ptsphy,idx,streammax,rn_u(1:streammax))
@@ -868,11 +911,37 @@ MODULE mo_stoch_sde
         ! Determine number of newborn active clouds by drawing from Poisson distribution with given birth rate.
         idx=100 ! Start at index 100, to make sure to use "fresh" random numbers
         rn_poisson3 = random_Poisson(birth_rate_p(i)*ptsphy,idx,streammax,rn_u(1:streammax))
-
+        
         ! Determine number of dying passive clouds by drawing from Poisson distribution with given death rate.
         idx=150 ! Start at index 150, to make sure to use "fresh" random numbers
         rn_poisson4 = random_Poisson(death_rate_p(i)*ptsphy,idx,streammax,rn_u(1:streammax))
         idx=200
+#else
+        ! Determine number of newborn active clouds by sampling a normal distribution
+        ! (instead of Poisson) using the Box-Muller method, with given birth rate.
+        idx=1 ! This index keeps track of which random numbers out of the 200 have already been used
+        z0 = SQRT(-2._wp * LOG(rn_u(idx))) * COS(pi * rn_u(idx+25))
+        rn_poisson1 = MAX(0, INT(z0 * SQRT(birth_rate_a(i)*ptsphy) + birth_rate_a(i)*ptsphy))
+        
+        ! Determine number of dying active clouds by sampling a normal distribution
+        ! (instead of Poisson) using the Box-Muller method, with given death rate.
+        idx=50 
+        z0 = SQRT(-2._wp * LOG(rn_u(idx))) * COS(pi * rn_u(idx+25))
+        rn_poisson2 = MAX(0, INT(z0 * SQRT(death_rate_a(i)*ptsphy) + death_rate_a(i)*ptsphy))
+        
+        ! Determine number of newborn passive clouds by sampling a normal distribution
+        ! (instead of Poisson) using the Box-Muller method, with given birth rate.
+        idx=100 ! This index keeps track of which random numbers out of the 200 have already been used
+        z0 = SQRT(-2._wp * LOG(rn_u(idx))) * COS(pi * rn_u(idx+25))
+        rn_poisson3 = MAX(0, INT(z0 * SQRT(birth_rate_p(i)*ptsphy) + birth_rate_p(i)*ptsphy))
+        
+        ! Determine number of dying passive clouds by sampling a normal distribution
+        ! (instead of Poisson) using the Box-Muller method, with given death rate.
+        idx=150 
+        z0 = SQRT(-2._wp * LOG(rn_u(idx))) * COS(pi * rn_u(idx+25))
+        rn_poisson4 = MAX(0, INT(z0 * SQRT(death_rate_p(i)*ptsphy) + death_rate_p(i)*ptsphy))
+        idx=200
+#endif        
         
         ! GENERATE RANDOM NUMBERS, AND DRAW EACH NEW CLOUD'S MASS FLUX FROM
         ! WEIBULL DISTRIBUTION
@@ -985,6 +1054,7 @@ MODULE mo_stoch_sde
         ! Initial grid cell mass flux is sum of active/passive MF at previous time step
         tempmf=mfp(i)+mfa(i)
 
+#ifdef HAVE_ACM_LICENSE
         ! Determine number of dying active clouds by drawing from Poisson distribution with given death rate.
         idx=1! This index keeps track of which random numbers out of the 200 have already been used
         rn_poisson2 = random_Poisson(death_rate_a(i)*ptsphy,idx,streammax,rn_u(1:streammax))
@@ -992,6 +1062,20 @@ MODULE mo_stoch_sde
         idx=50! Start at index 50, to make sure to use "fresh" random numbers
         rn_poisson4 = random_Poisson(death_rate_p(i)*ptsphy,idx,streammax,rn_u(1:streammax))
         idx=200
+#else
+        ! Determine number of dying active clouds by sampling a normal distribution
+        ! (instead of Poisson) using the Box-Muller method, with given death rate.
+        idx=0 
+        z0 = SQRT(-2._wp * LOG(rn_u(idx))) * COS(pi * rn_u(idx+25))
+        rn_poisson2 = MAX(0, INT(z0 * SQRT(death_rate_a(i)*ptsphy) + death_rate_a(i)*ptsphy))
+        
+        ! Determine number of dying passive clouds by sampling a normal distribution
+        ! (instead of Poisson) using the Box-Muller method, with given death rate.
+        idx=50 
+        z0 = SQRT(-2._wp * LOG(rn_u(idx))) * COS(pi * rn_u(idx+25))
+        rn_poisson4 = MAX(0, INT(z0 * SQRT(death_rate_p(i)*ptsphy) + death_rate_p(i)*ptsphy))
+        idx=200
+#endif
 
         ! Get a random number for each newly born/dying cloud, plus 200 extra
         ! so we can throw out the first 200 that were already used for the Poisson draws.

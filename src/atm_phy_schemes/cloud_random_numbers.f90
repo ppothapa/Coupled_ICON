@@ -17,6 +17,8 @@
 ! Email:   r.j.hogan@ecmwf.int
 !
 !-------------------------------------------------------------------------------
+! SPDX-License-Identifier: Apache-2.0
+!-------------------------------------------------------------------------------
 !
 ! The derived type "rng_type" is a random number generator that uses
 ! either (1) Fortran's built-in random_number function, or (2) a

@@ -1,4 +1,5 @@
 ! Soil Vegetation Atmosphere Transfer (SVAT) scheme TERRA
+! "Nihil in TERRA sine causa fit." (Cicero)!!
 !
 !
 ! ICON
@@ -11,9 +12,10 @@
 ! See LICENSES/ for license information
 ! SPDX-License-Identifier: BSD-3-Clause
 ! ---------------------------------------------------------------
-!
-! Source Module  "sfc_terra.f90"
-! "Nihil in TERRA sine causa fit." (Cicero)!!
+
+MODULE sfc_terra
+
+!===============================================================================
 !
 ! @par Description:
 !   The module "sfc_terra.f90" performs calculations related to the
@@ -32,51 +34,7 @@
 !  Doms, Foerstner, Heise, Herzog, Raschendorfer, Schrodin, Reinhardt, Vogel
 !    (September 2005): "A Description of the Nonhydrostatic Regional Model LM",
 
-MODULE sfc_terra
-
-!===============================================================================
-!
-! Current Code Owner: DWD, Juergen Helmert
-!  phone:  +49  69  8062 2704
-!  fax:    +49  69  8062 3721
-!  email:  juergen.helmert@dwd.de
-!
-! History:
-! Version    Date       Name
-! ---------- ---------- ----
-! V5_4e        2017-03-23 Ulrich Schaettler
-!  Initial release for COSMO (TERRA_URB not yet activated)
-! V5_4f        2017-09-01 Valentin Clement
-!  Removed index lists for rock and ice
-!  Introduced OpenACC statements
-! V5_4g        2017-11-13 Guenther Zaengl, Juergen Helmert
-!  Updates from latest ICON Version (2017-11-08)
-!     Soil ice parameterization according to K. Schaefer and Jafarov, E.,2016,
-!        (doi:10.5194/bg-13-1991-2016)   (JH)
-!     Modifications for calculations of runoff and infiltration to avoid loosing
-!        too much soil moisture (GZ, JH)
-!     Introduced option itype_trvg==3:                 not usable in COSMO (GZ)
-!     Introduced 3 new arguments (z0, tsnred, plevap): not usable in COSMO (GZ)
-! V5_4h        2017-12-15 Ulrich Schaettler
-!  Moved computation of ln_10 on GPU in an earlier block, where it is needed
-!  Replace zzhls, zdzhs, zdzms with global variables
-!  Rename czmls in interface to zmls (as it is used throughout terra)
-! V5_5         2018-02-23 Ulrich Schaettler
-!  Modifications to run the full block of parameterizations on GPU
-! V5_6         2019-02-27 Erwan Brisson, Ulrich Schaettler, Juergen Helmert
-!  Single precision version: replaced eps_soil where necessary (EB, US)
-!   (included work done by MCH for src_soil_multlay earlier)
-!  Implemented mire parameterization from Alla Yurova et al. (JH)
-! V5_6a        2019-05-21 Jan-Peter Schulz
-!  Introduce skin temperature formulation by Schulz and Vogel (2017)
-!
-! Code Description:
-! Language: Fortran 90.
-! Software Standards: "European Standards for Writing and
-! Documenting Exchangeable Fortran 90 Code".
-!==============================================================================
-!
-! Declarations:
+!------------------------------------------------------------------------------
 !
 ! Modules used:
 #ifdef _OPENMP

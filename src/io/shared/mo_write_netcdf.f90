@@ -1,10 +1,3 @@
-! Background routines to read and write NetCDF output
-! All calls to the netcdf library should be directed through here.
-! The module opens (with open_nc), closes (with close_nc),
-! and writes (with writevar_nc) anything between 0D (e.g. timeseries)
-! and 4D (e.g. z,x,y,t) fields to file.
-!
-!
 ! ICON
 !
 ! ---------------------------------------------------------------
@@ -15,8 +8,14 @@
 ! See LICENSES/ for license information
 ! SPDX-License-Identifier: BSD-3-Clause
 ! ---------------------------------------------------------------
-
-module mo_write_netcdf
+!
+! Background routines to read and write NetCDF output
+! All calls to the netcdf library should be directed through here.
+! The module opens (with open_nc), closes (with close_nc),
+! and writes (with writevar_nc) anything between 0D (e.g. timeseries)
+! and 4D (e.g. z,x,y,t) fields to file.
+!
+MODULE mo_write_netcdf
 
   use mo_kind
   use mo_exception, only: finish
@@ -114,65 +113,6 @@ contains
 
       ncall = nrec
 
-!      if (iret==0) then
-!
-!        if (nrec > 0) then
-!          iret  = nf_inq_varid(ncid,'time',timeID)
-!          if (iret /= nf_noerr) call nchandle_error(ncid, iret)
-!
-!          allocate (xtimes(0:nrec))
-!
-!          iret  = nf_get_var_double(ncid, timeId, xtimes(0:nrec-1))
-!          if (iret /= nf_noerr) call nchandle_error(ncid, iret)
-!
-!          ! Step through the time dimension; stop when one is bigger
-!          do while(ncall < nrec .and. &
-!                   xtimes(ncall) /= fillvalue_double .and. &
-!                   xtimes(ncall) <= rtimee - spacing(1.))
-!
-!              ncall=ncall+1
-!          end do
-!
-!          ldef = ensuredata_nc(ncid)
-!          xtimes = fillvalue_double
-!          iret = nf_inq_nvars(ncid,nvars)
-!          do n = 1, nvars
-!            iret = nf_inq_vartype (ncid, n, xtype)
-!            iret = nf_inq_varndims(ncid, n, ndims)
-!            allocate(dimids(ndims))
-!            iret = nf_inq_vardimid(ncid, n, dimids)
-!            if (any(dimids == recorddimid)) then
-!              allocate(start(ndims))
-!              dimsize = 1
-!              start = 1
-!              do nn = 1, ndims
-!                if (dimids(nn) == recorddimid) then
-!                  start(nn) = ncall + 1
-!                  dimsize(nn) = nrec - ncall
-!                else
-!                  iret = nf_inq_dimlen(ncid, dimids(nn), dimsize(nn))
-!                end if
-!              end do
-!              totdimsize = product(dimsize)
-!              select case (xtype)
-!              case(NF_INT)
-!                iret = nf_put_vara_int(ncid, n, start, totdimsize, &
-!                              reshape((/(fillvalue_int, n = 1, totdimsize)/),dimsize))
-!              case default
-!                iret = nf_put_vara_double(ncid, n, start, totdimsize, &
-!                              reshape((/(fillvalue_double, n = 1, totdimsize)/),dimsize))
-!              end select
-!              deallocate(start)
-!            end if
-!            deallocate(dimids)
-!          end do
-!          if (ldef) ldef = ensuredefine_nc(ncid)
-!
-!          deallocate(xtimes)
-!
-!        end if!nrec>0
-!
-!      end if !iret=0
 
     end if
 

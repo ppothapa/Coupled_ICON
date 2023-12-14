@@ -2,7 +2,9 @@
 
 # Checks that the input files contain the license header (prefixed with the
 # respective language-specific comment character):
-license=' ---------------------------------------------------------------
+license=' ICON
+
+ ---------------------------------------------------------------
  Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
  Contact information: icon-model.org
 
@@ -37,25 +39,57 @@ support
 # ICON ignored patterns (newline-separated list of path patterns relative to the
 # root source directory):
 icon_ignored_patterns='
-src/atm_phy_les/smagorinsky_strain_rate.inc
-src/data_assimilation/interfaces/mo_rtifc_macros.incf
-src/include/add_var_acc_macro.inc
-src/include/consistent_fma.inc
-src/include/crayftn_ptr_fail.inc
-src/include/fsel.inc
-src/include/grplcoeffs.incf
-src/include/hailcoeffs.incf
-src/include/hamocc_omp_definitions.inc
-src/include/handle_mpi_error.inc
-src/include/icon_contiguous_defines.inc
-src/include/icon_definitions.inc
-src/include/iconfor_dsl_definitions.inc
-src/include/mod1.inc
-src/include/omp_definitions.inc
-src/include/phillips_nucleation_2010.incf
-src/shr_horizontal/intp_functions.inc
+src/diagnostics/atmosphere/mo_diag_hailcast.f90
+src/atm_phy_schemes/data_gwd.f90
+src/atm_phy_schemes/mo_adjust.f90
+src/atm_phy_schemes/mo_cuascn.f90
+src/atm_phy_schemes/mo_cudescn.f90
+src/atm_phy_schemes/mo_cuflxtends.f90
+src/atm_phy_schemes/mo_cufunctions.f90
+src/atm_phy_schemes/mo_cuinit.f90
+src/atm_phy_schemes/mo_cumaster.f90
+src/atm_phy_schemes/mo_cuparameters.f90
+src/atm_phy_schemes/mo_gwd_wms.f90
+src/atm_phy_schemes/mo_o3_gems_data.f90
+src/atm_phy_schemes/mo_o3_macc_data.f90
+src/atm_phy_schemes/mo_o3_util.f90
+src/atm_phy_schemes/mo_lrtm_coeffs.f90
+src/atm_phy_schemes/mo_lrtm_driver.f90
+src/atm_phy_schemes/mo_lrtm_kgs.f90
+src/atm_phy_schemes/mo_lrtm_netcdf.f90
+src/atm_phy_schemes/mo_lrtm_par.f90
+src/atm_phy_schemes/mo_lrtm_rtrnmr.f90
+src/atm_phy_schemes/mo_lrtm_setup.f90
+src/atm_phy_schemes/mo_lrtm_taumol.f90
+src/atm_phy_schemes/mo_srtm_config.f90
+src/atm_phy_schemes/mo_srtm.f90
+src/atm_phy_schemes/mo_srtm_kgb16.f90
+src/atm_phy_schemes/mo_srtm_kgb17.f90
+src/atm_phy_schemes/mo_srtm_kgb18.f90
+src/atm_phy_schemes/mo_srtm_kgb19.f90
+src/atm_phy_schemes/mo_srtm_kgb20.f90
+src/atm_phy_schemes/mo_srtm_kgb21.f90
+src/atm_phy_schemes/mo_srtm_kgb22.f90
+src/atm_phy_schemes/mo_srtm_kgb23.f90
+src/atm_phy_schemes/mo_srtm_kgb24.f90
+src/atm_phy_schemes/mo_srtm_kgb25.f90
+src/atm_phy_schemes/mo_srtm_kgb26.f90
+src/atm_phy_schemes/mo_srtm_kgb27.f90
+src/atm_phy_schemes/mo_srtm_kgb28.f90
+src/atm_phy_schemes/mo_srtm_kgb29.f90
+src/atm_phy_schemes/mo_srtm_kgs.f90
+src/atm_phy_schemes/mo_srtm_taumol.f90
+src/atm_phy_schemes/mo_sso_cosmo.f90
+src/atm_phy_schemes/mo_sso_ifs.f90
 support/mo_util_uuid.f90
 support/mo_util_uuid_types.f90
+src/atm_phy_schemes/mo_voskin.f90
+src/atm_phy_schemes/mo_vdftofdc.f90
+src/atm_phy_schemes/random_rewrite.f90
+src/atm_phy_rte_rrtmgp/mo_cloud_optics.f90
+src/atm_phy_rte_rrtmgp/mo_load_cloud_coefficients.f90
+src/atm_phy_rte_rrtmgp/mo_simple_netcdf.f90
+src/atm_phy_rte_rrtmgp/mo_load_coefficients.f90
 '
 
 # Number of parallel jobs:

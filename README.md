@@ -7,19 +7,23 @@ viewer of your choice (https://www.google.com/search?q=markdown+viewer).
 
 # Introduction
 
-The **ICON modelling framework** is a joint project between the
-[German Weather Service](https://www.dwd.de/EN/Home/home_node.html) and the
-[Max Planck Institute for Meteorology](https://www.mpimet.mpg.de/en/home/) for
-developing a unified next-generation global numerical weather prediction and
-climate modelling system. The ICON model has been introduced into DWD's
-operational forecast system in January 2015.
+**ICON** – is a modeling framework for weather, climate, and environmental
+prediction that provides actionable information for society and furthers our
+understanding of Earth’s climate system. The ICON partnership 
+(consisting of the ICON partner institutions:
+- [DWD](https://www.dwd.de/EN/Home/home_node.html)
+- [MPI-M](https://www.mpimet.mpg.de/en/home/)
+- [DKRZ](https://www.dkrz.de/en/dkrz-partner-for-climate-research?set_language=en)
+- [KIT](https://www.kit.edu/english/index.php)
+- [ETH](https://ethz.ch/en.html)
+- [MeteoSwiss](https://www.meteoswiss.admin.ch/))
+coordinates research activities developing, maintaining, and supporting the ICON
+modeling framework. The ICON model has been introduced into DWD's operational
+forecast system in January 2015.
 
 This document provides technical details on how to build the model, as well as
 the description of basic steps required to run it. More information about
-ICON is available in the
-[corresponding section](https://code.mpimet.mpg.de/projects/iconpublic/wiki/Documentation)
-of the
-[project's public web page](https://code.mpimet.mpg.de/projects/iconpublic).
+ICON is available in the [project's public web page](http://icon-model.org).
 
 # Table of contents
 1. [Quick start](#quick-start)
@@ -44,6 +48,7 @@ of the
 4. [Running](#running)
     - [Out-of-build runs](#out-of-build-runs)
 5. [FAQ](#faq)
+6. [License](#license)
 
 # Quick start
 
@@ -1313,3 +1318,13 @@ should be attached to the very first email describing your problem. Please, do
 not forget to specify the **repository** and the **branch** that you experience
 the issue with, preferably in the form of a URL
 (e.g. https://gitlab.dkrz.de/icon/icon/-/tree/icon-2.6.5-rc).
+
+# License
+
+Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss  
+Contact information: icon-model.org  
+
+See [AUTHORS.TXT](./AUTHORS.txt) for a list of authors  
+See [LICENSES/](./license) for license information  
+See header of each file for file specific licenses  
+SPDX-License-Identifier: [BSD-3-Clause](./license/Third_party_license_terms/BSD-3-C-license.pdf)  

@@ -1,31 +1,20 @@
-! Source module for hailcast diagnostic
-!
-! Licence notes
-! The code in this file is a modified version of the Hailcast module
-! of the WRF model which is published under the following license:
-! WRF was developed at the National Center for Atmospheric Research (NCAR) which is operated by
-! the University Corporation for Atmospheric Research (UCAR). NCAR and UCAR make no proprietary
-! claims, either statutory or otherwise, to this version and release of WRF and consider WRF to
-! be in the public domain for use by any person or entity for any purpose without any fee or charge.
-! UCAR requests that any WRF user include this notice on any partial or full copies of WRF.
-! WRF is provided on an "AS IS" basis and any warranties, either express or implied, including but
-! not limited to implied warranties of non-infringement, originality, merchantability and fitness for
-! a particular purpose, are disclaimed. In no event shall UCAR be liable for any damages, whatsoever,
-! whether direct, indirect, consequential or special, that arise out of or in connection with the access,
-! use or performance of WRF, including infringement actions.
-! WRF is a registered trademark of the University Corporation for Atmospheric Research (UCAR).
-!
-!
-! ICON
+! Module for hailcast diagnostic
 !
 ! ---------------------------------------------------------------
-! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
-! Contact information: icon-model.org
+! Copyright: Copyright (C) 2014-2018, AER, Rebecca Adams-Selin 
 !
-! See AUTHORS.TXT for a list of authors
+! Authors: Rebecca Adams-Selin
+! Contact: RSelin@aer.com
 ! See LICENSES/ for license information
 ! SPDX-License-Identifier: BSD-3-Clause
 ! ---------------------------------------------------------------
+! 
+! Code has been modified
+! A full description of HAILCAST is provided in 
+! Adams-Selin R.D. and C.L. Ziegler, 2016:
+! Forecasting hail using a  one-dimensional hail growth model 
+! within WRF. Mon. Wea. Rev., 144, 4919-4939.
+! 
 
 MODULE mo_diag_hailcast
 

@@ -1,3 +1,14 @@
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
+
 ! see mo_sgs_turbmetric for an explanation
 vn_vert1  = u_vert(ividx(je,jb,1),jk,ivblk(je,jb,1)) * &
             p_patch%edges%primal_normal_vert(je,jb,1)%v1 + &

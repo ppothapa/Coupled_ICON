@@ -39,7 +39,9 @@
 MODULE mo_stoch_deep
 
   USE netcdf
+#ifdef HAVE_ACM_LICENSE  
   USE random_rewrite,        ONLY: random_Poisson
+#endif
   USE mo_kind,               ONLY: wp, i4
   USE mo_cuparameters, ONLY :                                    &
        & deep_k_wei, deep_alpha_mf, deep_beta_mf, deep_mean_mf, deep_mean_tau
@@ -87,6 +89,7 @@ MODULE mo_stoch_deep
   REAL(wp) :: death_rate(klon)                    ! death rate
   REAL(wp) :: mean_m(klon)                        ! avg mass flux of current cloud ensemble
   REAL(wp) :: pclmf_now_d(klon),pclnum_now_d(klon)
+  REAL(wp) :: z0   
 
   INTEGER(i4) :: i, k, kstart,kstop,idx,j           ! (loop) indices
   INTEGER(i4) :: rn_poisson1, rn_poisson2, rn1    ! cloud numbers drawn from Poisson distribution
@@ -98,6 +101,8 @@ MODULE mo_stoch_deep
   ! Type for random number generator and stream for producing random
   ! numbers
   TYPE(rng_type) :: random_number_generator
+
+  REAL(wp), PARAMETER :: pi = 3.14159265358
 
   ! Loop over grid points
   DO i = i_startidx, i_endidx
@@ -172,6 +177,7 @@ MODULE mo_stoch_deep
     ! Retrieve streammax new random numbers to use in draw from Poisson distributions
     CALL random_number_generator%uniform_distribution(rn_u(1:streammax))
 
+#ifdef HAVE_ACM_LICENSE
     ! Determine number of newborn clouds by drawing from Poisson distribution with given birth rate,
     ! and add mass flux to grid cell total mass flux
     idx=1
@@ -180,9 +186,9 @@ MODULE mo_stoch_deep
     IF (idx > streammax) THEN
        WRITE(6,*) 'idx for deep cld birth out of range',idx,birth_rate(i)*ptsphy, &
             & rn_u(1),rn_u(idx),MINVAL(rn_u(1:streammax)),MAXVAL(rn_u(1:streammax))
-      idx=2
+       idx=2
     endif
-
+    
     ! Determine number of dying clouds by drawing from Poisson distribution with given death rate,
     ! and subtract mass flux from grid cell total mass flux
     idx=50! Start at index 50, to make sure to use "fresh" random numbers
@@ -190,9 +196,24 @@ MODULE mo_stoch_deep
     IF (idx > streammax) THEN
        write(6,*) 'idx for deep cloud death out of range',idx,death_rate(i)*ptsphy, &
             & rn_u(1),rn_u(idx),MINVAL(rn_u(1:streammax)),MAXVAL(rn_u(1:streammax))
-      idx=3
+       idx=3
     ENDIF
     idx=100
+#else
+    ! Determine number of newborn active clouds by sampling a normal distribution
+    ! (instead of Poisson) using the Box-Muller method, with given birth rate.
+    idx=1 ! This index keeps track of which random numbers out of the 200 have already been used
+    z0 = SQRT(-2._wp * LOG(rn_u(idx))) * COS(pi * rn_u(idx+25))
+    rn_poisson1 = MAX(0, INT(z0 * SQRT(birth_rate(i)*ptsphy) + birth_rate(i)*ptsphy))
+    
+    ! Determine number of dying active clouds by sampling a normal distribution
+    ! (instead of Poisson) using the Box-Muller method, with given death rate.
+    idx=50 
+    z0 = SQRT(-2._wp * LOG(rn_u(idx))) * COS(pi * rn_u(idx+25))
+    rn_poisson2 = MAX(0, INT(z0 * SQRT(death_rate(i)*ptsphy) + death_rate(i)*ptsphy))
+    
+    idx=100
+#endif
 
     ! Initialise diagnostic fields that keep track of how much mass flux is added by newborn clouds,
     ! and how much is removed by dying clouds

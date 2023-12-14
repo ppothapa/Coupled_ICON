@@ -1013,28 +1013,6 @@ END SUBROUTINE get_wsnow
 !!$! Input  files: none
 !!$! Output files: none
 !!$!
-!!$! Current Code Owner: DWD, Michael Buchhold                          
-!!$!  phone:  +49  69  8062 2726
-!!$!  fax:    +49  69  8062 3721
-!!$!  email:  michael.buchhold@dwd.de
-!!$!
-!!$! History:
-!!$! Version    Date       Name
-!!$! ---------- ---------- ----
-!!$! 1.4        2003/07/08 Michael Buchhold
-!!$!  Initial release
-!!$! 1.13       2005/04/18 Michael Buchhold
-!!$!  Replacement of common blocks by data modules
-!!$! 1.17       2005/12/01 Michael Buchhold
-!!$!  Snow density is used for transformation between snow water
-!!$!  and snow depth
-!!$! V1_26        2010/04/27 Michael Gertz
-!!$!  Adaptions to SVN
-!!$!
-!!$! Code Description:
-!!$! Language: Fortran 90.
-!!$! Software Standards: "European Standards for Writing and
-!!$! Documenting Exchangeable Fortran 90 Code".
 !!$!=======================================================================
 !!$!
 !!$! Declarations:

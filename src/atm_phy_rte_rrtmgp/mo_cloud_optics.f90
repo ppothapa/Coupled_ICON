@@ -1,10 +1,16 @@
-! This code is part of Radiative Transfer for Energetics (RTE)
+! The original file has been published under the BSD-3-Clause license with the copyright
 !
-! Copyright 2015-2018,  Atmospheric and Environmental Research and
-! Regents of the University of Colorado.  All right reserved.
+! Copyright (c) 2015-2018, Atmospheric and Environmental Research and Regents of the University of Colorado.
+! All rights reserved.
 !
-! Use and duplication is permitted under the terms of the
-!    BSD 3-clause license, see http://opensource.org/licenses/BSD-3-Clause
+! The file has been modified and released with the following license information:
+!
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
 ! -------------------------------------------------------------------------------------------------
 ! Provides cloud optical properties as a function of effective radius for the RRTMGP bands
 !   Based on Mie calculations for liquid
@@ -14,17 +20,6 @@
 !
 ! The class can be used as-is but is also intended as an example of how to extend the RTE framework
 ! -------------------------------------------------------------------------------------------------
-!
-! ICON
-!
-! ---------------------------------------------------------------
-! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
-! Contact information: icon-model.org
-!
-! See AUTHORS.TXT for a list of authors
-! See LICENSES/ for license information
-! SPDX-License-Identifier: BSD-3-Clause
-! ---------------------------------------------------------------
 
 module mo_cloud_optics
   use mo_rte_kind,      only: wp, wl

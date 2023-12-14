@@ -1,13 +1,17 @@
-! ICON
+! The original file has been published under the BSD-3-Clause license with the copyright
 !
-! ---------------------------------------------------------------
+! Copyright (c) 2015-2018, Atmospheric and Environmental Research and Regents of the University of Colorado.
+! All rights reserved.
+!
+! The file has been modified and released with the following license information:
+!
 ! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
 ! Contact information: icon-model.org
 !
 ! See AUTHORS.TXT for a list of authors
 ! See LICENSES/ for license information
 ! SPDX-License-Identifier: BSD-3-Clause
-! ---------------------------------------------------------------
+
 module mo_load_cloud_coefficients
   use mo_rte_kind,      only: wp
   use mo_optical_props, only: ty_optical_props,      &

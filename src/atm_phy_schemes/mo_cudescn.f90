@@ -1,18 +1,20 @@
+! (C) Copyright 1989- ECMWF.
+!
+! This software is licensed under the terms of the Apache Licence Version 2.0
+! which can be obtained at http://www.apache.org/licenses/LICENSE-2.0.
+!
+! In applying this licence, ECMWF does not waive the privileges and immunities
+! granted to it by virtue of its status as an intergovernmental organisation
+! nor does it submit to any jurisdiction.
+!
+! This file has been modified for the use in ICON
+!-------------------------------------------------------------------------------
+! SPDX-License-Identifier: Apache-2.0
+!-------------------------------------------------------------------------------
 !
 ! *cudlfsn*  THIS ROUTINE CALCULATES LEVEL OF FREE SINKING FOR
 !          CUMULUS DOWNDRAFTS AND SPECIFIES T,Q,U AND V VALUES
 ! *cuddrafn* THIS ROUTINE CALCULATES CUMULUS DOWNDRAFT DESCENT
-!
-! ICON
-!
-! ---------------------------------------------------------------
-! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
-! Contact information: icon-model.org
-!
-! See AUTHORS.TXT for a list of authors
-! See LICENSES/ for license information
-! SPDX-License-Identifier: BSD-3-Clause
-! ---------------------------------------------------------------
 
 #if !defined _OPENMP && !defined _OPENACC
 #include "consistent_fma.inc"

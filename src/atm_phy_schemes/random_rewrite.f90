@@ -1,12 +1,13 @@
-! ICON
-!
 ! ---------------------------------------------------------------
-! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
-! Contact information: icon-model.org
+! Copyright (C) Alan Miller, ACM
 !
-! See AUTHORS.TXT for a list of authors
-! See LICENSES/ for license information
-! SPDX-License-Identifier: BSD-3-Clause
+! Author: Alan Miller
+! Contact: https://jblevins.org/mirror/amiller/
+!          https://www.acm.org/publications
+! This software is not licensed for commercial use.
+! SPDX-License-Identifier: NONE
+! ---------------------------------------------------------------
+! Code has been modified
 ! ---------------------------------------------------------------
 MODULE random_rewrite
 
@@ -99,7 +100,6 @@ MODULE random_rewrite
 ! 3. Made compatible with Lahey's ELF90.
 ! 4. Marsaglia & Tsang algorithm used for random_gamma when shape parameter > 1.
 ! 5. INTENT for array f corrected in random_mvnorm.
-
 !     Author: Alan Miller
 !             CSIRO Division of Mathematical & Information Sciences
 !             Private Bag 10, Clayton South MDC

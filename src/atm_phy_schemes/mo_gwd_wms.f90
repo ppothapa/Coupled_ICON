@@ -1,3 +1,16 @@
+! (C) Copyright 1989- ECMWF.
+!
+! This software is licensed under the terms of the Apache Licence Version 2.0
+! which can be obtained at http://www.apache.org/licenses/LICENSE-2.0.
+!
+! In applying this licence, ECMWF does not waive the privileges and immunities
+! granted to it by virtue of its status as an intergovernmental organisation
+! nor does it submit to any jurisdiction.
+!
+! This file has been modified for the use in ICON
+!-------------------------------------------------------------------------------
+! SPDX-License-Identifier: Apache-2.0
+!-------------------------------------------------------------------------------
 !
 !     THIS ROUTINE COMPUTES NON-OROGRAPHIC GRAVITY WAVE DRAG
 !     AFTER SCINOCCA (2003) AND Mc LANDRESS AND SCINOCCIA (JAS 2005)
@@ -15,16 +28,6 @@
 !     THAN THE PHASE SPEED OF THE WAVES, I.E. WHEN WAVES BREAK THEY DRAG THE MEAN
 !     FLOW TOWARDS THEIR PHASE SPEED - NOT PAST IT.
 !
-! ICON
-!
-! ---------------------------------------------------------------
-! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
-! Contact information: icon-model.org
-!
-! See AUTHORS.TXT for a list of authors
-! See LICENSES/ for license information
-! SPDX-License-Identifier: BSD-3-Clause
-! ---------------------------------------------------------------
 
 MODULE mo_gwd_wms
   

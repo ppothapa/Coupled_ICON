@@ -1,11 +1,16 @@
-! This code is part of RRTM for GCM Applications - Parallel (RRTMGP)
+! The original file has been published under the BSD-3-Clause license with the copyright
 !
+! Copyright (c) 2015-2018, Atmospheric and Environmental Research and Regents of the University of Colorado.
+! All rights reserved.
 !
-! Copyright 2015-2018,  Atmospheric and Environmental Research and
-! Regents of the University of Colorado.  All right reserved.
+! The file has been modified and released with the following license information:
 !
-! Use and duplication is permitted under the terms of the
-!    BSD 3-clause license, see http://opensource.org/licenses/BSD-3-Clause
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
 ! -------------------------------------------------------------------------------------------------
 !
 ! The gas optics class used by RRMTGP needs to be initialized with data stored in a netCDF file.
@@ -14,17 +19,6 @@
 !    and calling gas_optics%load().
 !
 ! -------------------------------------------------------------------------------------------------!
-!
-! ICON
-!
-! ---------------------------------------------------------------
-! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
-! Contact information: icon-model.org
-!
-! See AUTHORS.TXT for a list of authors
-! See LICENSES/ for license information
-! SPDX-License-Identifier: BSD-3-Clause
-! ---------------------------------------------------------------
 
 module mo_load_coefficients
   !
