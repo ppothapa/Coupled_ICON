@@ -19,6 +19,7 @@ MODULE mo_nwp_gpu_util
   USE mo_nwp_parameters,          ONLY: t_phy_params
 #ifdef __ICON_ART
   USE mo_art_data,                ONLY: t_art_data
+  USE mo_art_config,              ONLY: art_config
 #endif
   USE mo_nonhydrostatic_config,   ONLY: kstart_moist, kstart_tracer
   USE mo_grid_config,             ONLY: n_dom
@@ -259,8 +260,9 @@ MODULE mo_nwp_gpu_util
   END SUBROUTINE gpu_h2d_nh_nwp
 
 #ifdef __ICON_ART
-  SUBROUTINE gpu_d2h_art(p_art_data, lacc)
+  SUBROUTINE gpu_d2h_art(jg, p_art_data, lacc)
 
+    INTEGER, INTENT(in) :: jg ! domain index
     TYPE(t_art_data), OPTIONAL, INTENT(inout) :: p_art_data
     LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
@@ -279,23 +281,26 @@ MODULE mo_nwp_gpu_util
       !$ACC   HOST(p_art_data%turb_fields%sv, p_art_data%turb_fields%vdep) &
       !$ACC   ASYNC(1)
 
-      DO ipoll = 1, p_art_data%ext%pollen_prop%npollen_types
-        !$ACC UPDATE HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%fr_cov) &
-        !$ACC   HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%f_q_alt) &
-        !$ACC   HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%rh_sum) &
-        !$ACC   HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%sobs_sum) &
-        !$ACC   HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%no_max_day) &
-        !$ACC   HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%no_max_timestep) &
-        !$ACC   HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%tune) &
-        !$ACC   ASYNC(1)
-      END DO
+      IF (art_config(jg)%iart_pollen > 0) THEN
+        DO ipoll = 1, p_art_data%ext%pollen_prop%npollen_types
+          !$ACC UPDATE HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%fr_cov) &
+          !$ACC   HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%f_q_alt) &
+          !$ACC   HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%rh_sum) &
+          !$ACC   HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%sobs_sum) &
+          !$ACC   HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%no_max_day) &
+          !$ACC   HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%no_max_timestep) &
+          !$ACC   HOST(p_art_data%ext%pollen_prop%pollen_type(ipoll)%tune) &
+          !$ACC   ASYNC(1)
+        END DO
+      ENDIF
       !$ACC WAIT(1)
     END IF
 
   END SUBROUTINE gpu_d2h_art
 
-  SUBROUTINE gpu_h2d_art(p_art_data, lacc)
+  SUBROUTINE gpu_h2d_art(jg, p_art_data, lacc)
 
+    INTEGER, INTENT(in) :: jg ! domain index
     TYPE(t_art_data), OPTIONAL, INTENT(inout) :: p_art_data
     LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
@@ -317,16 +322,18 @@ MODULE mo_nwp_gpu_util
       !$ACC   DEVICE(p_art_data%turb_fields%sv, p_art_data%turb_fields%vdep) &
       !$ACC   ASYNC(1)
 
-      DO ipoll = 1, p_art_data%ext%pollen_prop%npollen_types
-        !$ACC UPDATE DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%fr_cov) &
-        !$ACC   DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%f_q_alt) &
-        !$ACC   DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%rh_sum) &
-        !$ACC   DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%sobs_sum) &
-        !$ACC   DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%no_max_day) &
-        !$ACC   DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%no_max_timestep) &
-        !$ACC   DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%tune) &
-        !$ACC   ASYNC(1)
-      END DO
+      IF (art_config(jg)%iart_pollen > 0) THEN
+        DO ipoll = 1, p_art_data%ext%pollen_prop%npollen_types
+          !$ACC UPDATE DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%fr_cov) &
+          !$ACC   DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%f_q_alt) &
+          !$ACC   DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%rh_sum) &
+          !$ACC   DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%sobs_sum) &
+          !$ACC   DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%no_max_day) &
+          !$ACC   DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%no_max_timestep) &
+          !$ACC   DEVICE(p_art_data%ext%pollen_prop%pollen_type(ipoll)%tune) &
+          !$ACC   ASYNC(1)
+        END DO
+      ENDIF
     END IF
 
   END SUBROUTINE gpu_h2d_art

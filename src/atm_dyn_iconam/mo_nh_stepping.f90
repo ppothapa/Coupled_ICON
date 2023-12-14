@@ -464,7 +464,7 @@ MODULE mo_nh_stepping
             phy_params=phy_params(jg), atm_phy_nwp_config=atm_phy_nwp_config(jg), lacc=.TRUE.)
 #ifdef __ICON_ART
           IF(ALLOCATED(p_art_data)) THEN
-              CALL gpu_h2d_art(p_art_data(jg), lacc=.TRUE.)
+              CALL gpu_h2d_art(jg, p_art_data(jg), lacc=.TRUE.)
           END IF
 #endif
         ENDDO
@@ -714,7 +714,7 @@ MODULE mo_nh_stepping
         CALL gpu_d2h_nh_nwp(jg, ext_data=ext_data(jg), lacc=.TRUE.)
 #ifdef __ICON_ART
         IF(ALLOCATED(p_art_data)) THEN
-            CALL gpu_d2h_art(p_art_data(jg), lacc=.TRUE.)
+            CALL gpu_d2h_art(jg, p_art_data(jg), lacc=.TRUE.)
         END IF
 #endif
       ENDDO
@@ -1995,7 +1995,7 @@ MODULE mo_nh_stepping
             CALL art_update_atmo_phy(jg,                            &
                         &            datetime_local(jg)%ptr,        &
                         &            p_nh_state(jg)%prog(nnew(jg)), &
-                        &            prm_diag(jg))
+                        &            prm_diag(jg), lacc=.TRUE.)
           ELSE IF (iforcing == iaes) THEN
             CALL art_update_atmo_phy(jg,                            &
                          &           datetime_local(jg)%ptr,        &
