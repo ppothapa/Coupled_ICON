@@ -188,7 +188,7 @@ MODULE mo_name_list_output_init
        xt_idxvec_new, xt_idxlist_delete, xt_idxstripes_from_idxlist_new, &
        xt_int_kind, xt_idxstripes_new, xt_idxempty_new, xt_stripe
 #ifdef YAC_coupling
-  USE mo_io_coupling,     ONLY: construct_io_coupler
+  USE mo_io_coupling_frame,     ONLY: construct_io_coupling
 #endif
 #endif
   IMPLICIT NONE
@@ -1614,7 +1614,7 @@ CONTAINS
     TYPE(t_event_data_local) :: event_list_dummy(1)
     
 #ifdef YAC_coupling
-    CALL construct_io_coupler ( "dummy" )
+    CALL construct_io_coupling ( "dummy" )
 #endif
 
     IF (p_pe_work == 0) THEN
@@ -3080,15 +3080,13 @@ CONTAINS
   !
   SUBROUTINE init_memory_window
 
-#ifdef __SUNPRO_F95
-    INCLUDE "mpif.h"
-#else
     USE mpi, ONLY: MPI_ADDRESS_KIND
 #ifdef NO_ASYNC_IO_RMA
     USE mpi, ONLY: MPI_REQUEST_NULL, MPI_MAX
+# ifndef NO_MPI_CHOICE_ARG
+    USE mpi, ONLY: MPI_Allreduce
+# endif
 #endif
-#endif
-! __SUNPRO_F95
 
     ! local variables
     CHARACTER(LEN=*), PARAMETER     :: routine = modname//"::init_memory_window"
@@ -3180,12 +3178,13 @@ CONTAINS
   !  @note Implementation for non-Cray pointers
   !
   SUBROUTINE allocate_mem_noncray(mem_size, of)
-#ifdef __SUNPRO_F95
-    INCLUDE "mpif.h"
-#else
-    USE mpi, ONLY: MPI_ADDRESS_KIND, MPI_INFO_NULL
+    USE mpi, ONLY: MPI_ADDRESS_KIND, MPI_INFO_NULL, MPI_Type_get_extent
+#ifndef NO_MPI_CHOICE_ARG
+    USE mpi, ONLY: MPI_Win_create
 #endif
-! __SUNPRO_F95
+#ifndef NO_MPI_CPTR_ARG
+    USE mpi, ONLY: MPI_Alloc_mem
+#endif
 
     INTEGER (KIND=MPI_ADDRESS_KIND), INTENT(IN)    :: mem_size
     TYPE (t_output_file),            INTENT(INOUT) :: of

@@ -28,6 +28,7 @@ MODULE mo_upatmo_phy_chemheat
     &                                  p_comm_work_test, p_comm_work
   USE mo_util_string,            ONLY: tolower, t_keyword_list, associate_keyword, with_keywords
   USE mo_netcdf_errhandler,      ONLY: nf
+  USE mo_netcdf
   USE mo_master_config,          ONLY: getModelBaseDir
   USE mo_impl_constants,         ONLY: max_char_length, SUCCESS
   USE mo_math_constants,         ONLY: deg2rad
@@ -109,8 +110,6 @@ MODULE mo_upatmo_phy_chemheat
     INTEGER :: prev, next
     REAL(wp) :: factor
   END TYPE t_intp_weight
-
-  INCLUDE 'netcdf.inc'
 
 CONTAINS
 
@@ -257,7 +256,7 @@ CONTAINS
         DO iatt = 1, natts
           CALL nf(nf_inq_attname(ncid, varid_ch, iatt, attname), routine)
           IF (TRIM(attname) == 'units') THEN
-            CALL nf(nf_get_att(ncid, varid_ch, 'units', units), routine)
+            CALL nf(nf_get_att_text(ncid, varid_ch, 'units', units), routine)
           END IF
         END DO
         scl_ch = heating2kps_scl(units)
@@ -278,7 +277,7 @@ CONTAINS
         DO iatt = 1, natts
           CALL nf(nf_inq_attname(ncid, varid_lev, iatt, attname), routine)
           IF (TRIM(attname) == 'units') THEN
-            CALL nf(nf_get_att(ncid, varid_lev, 'units', units), routine)
+            CALL nf(nf_get_att_text(ncid, varid_lev, 'units', units), routine)
           END IF
         END DO
         scl_lev = length2meter_scl(units)      ! try height level (convert to m)

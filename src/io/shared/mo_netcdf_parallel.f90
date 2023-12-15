@@ -32,11 +32,11 @@ MODULE mo_netcdf_parallel
 USE mo_kind, ONLY: dp
 USE mo_mpi,  ONLY: p_pe_work, p_io, p_bcast, p_comm_work
 
+USE mo_netcdf
+
 IMPLICIT NONE
 
 PRIVATE
-
-INCLUDE 'netcdf.inc'
 
 INTEGER, PARAMETER :: nf_read = NF_NOWRITE
 
@@ -61,7 +61,7 @@ PUBLIC :: p_nf_inq_attid
 ! constants
 PUBLIC :: nf_read
 
-! make some names from netcdf.inc also global
+! make some names from mo_netcdf also global
 PUBLIC :: nf_nowrite, nf_global, nf_noerr, nf_strerror
 
 INTERFACE p_nf_get_att_int
@@ -236,7 +236,7 @@ INTEGER FUNCTION p_nf_get_att_double_single(ncid, varid, name, dvalue)
    INTEGER :: res
 
    IF (p_pe_work == p_io) THEN
-      res = nf_get_att_double(ncid, varid, name, dvalue)
+      res = nfx_get_att(ncid, varid, name, dvalue)
    ENDIF
 
    CALL p_bcast(res, p_io, p_comm_work)
@@ -309,7 +309,7 @@ INTEGER FUNCTION p_nf_get_att_int_0(ncid, varid, name, ivals)
 !-----------------------------------------------------------------------
 
    IF (p_pe_work == p_io) THEN
-      res = nf_get_att_int(ncid, varid, name, ivals)
+      res = nfx_get_att(ncid, varid, name, ivals)
    ENDIF
 
    CALL p_bcast(res, p_io, p_comm_work)

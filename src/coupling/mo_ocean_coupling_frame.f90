@@ -50,9 +50,7 @@ MODULE mo_ocean_coupling_frame
   PRIVATE
 
   PUBLIC :: construct_ocean_coupling, destruct_ocean_coupling
-  PUBLIC :: nbr_inner_cells, lyac_very_1st_get, field_id
-
-  LOGICAL, SAVE         :: lyac_very_1st_get
+  PUBLIC :: nbr_inner_cells, field_id
 
   INTEGER, PARAMETER    :: no_of_fields = 14
   INTEGER               :: field_id(no_of_fields)
@@ -103,14 +101,6 @@ CONTAINS
     CHARACTER(LEN=MAX_TIMEDELTA_STR_LEN) :: timestepstring
 
     IF (.NOT. is_coupled_run()) RETURN
-
-    ! Skip time measurement of the very first yac_fget
-    ! as this will measure mainly the wait time caused
-    ! by the initialisation of the model components
-    ! and does not tell us much about the load balancing
-    ! in subsequent calls.
-
-    lyac_very_1st_get = .TRUE.
 
     IF (ltimer) CALL timer_start(timer_coupling_init)
 

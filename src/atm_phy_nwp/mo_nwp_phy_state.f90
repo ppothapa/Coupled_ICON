@@ -11,10 +11,6 @@
 ! SPDX-License-Identifier: BSD-3-Clause
 ! ---------------------------------------------------------------
 
-#if (defined (__GNUC__) || defined(__SUNPRO_F95) || defined(__SX__))
-#define HAVE_F95
-#endif
-
 MODULE mo_nwp_phy_state
 
 !
@@ -124,14 +120,12 @@ USE mo_name_list_output_config, ONLY: is_variable_in_output
 USE mo_util_string,          ONLY: real2string
 USE mo_sbm_storage,          ONLY: construct_sbm_storage, destruct_sbm_storage
 USE mo_coupling_config,      ONLY: is_coupled_to_waves
+USE mo_netcdf,               ONLY: NF_MAX_NAME
 
 #include "add_var_acc_macro.inc"
 
 IMPLICIT NONE
 PRIVATE
-
-INCLUDE 'netcdf.inc'
-
 
 !public interface
 !

@@ -42,22 +42,10 @@ MODULE mo_restart_descriptor
   USE mo_var_metadata_types, ONLY: t_var_metadata
   USE mo_netcdf_errhandler, ONLY: nf
 
-  ! This works around a strange crash in gfortran 9 when nf_create doesn't have an explicit
-  ! interface. Other compilers get the version without interface because NAG errors out when other
-  ! functions are used inconsistently in other modules.
-#if defined(__GFORTRAN__)
-  USE netcdf_nf_interfaces
-  USE netcdf_nf_data
-# define INCLUDE_NETCDF_INC
-#else
-# define INCLUDE_NETCDF_INC INCLUDE 'netcdf.inc'
-#endif
+  USE mo_netcdf
 
   IMPLICIT NONE
   PRIVATE
-
-  INCLUDE_NETCDF_INC
-#undef INCLUDE_NETCDF_INC
 
   PUBLIC :: t_RestartDescriptor
 

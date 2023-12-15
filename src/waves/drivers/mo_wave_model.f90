@@ -70,7 +70,7 @@ MODULE mo_wave_model
   ! coupling
 #ifdef YAC_coupling
   USE mo_coupling_config,         ONLY: is_coupled_to_atmo
-  USE mo_wave_atmo_coupling_frame,ONLY: construct_wave_atmo_coupling
+  USE mo_wave_coupling_frame,     ONLY: construct_wave_coupling
 #endif
 
 
@@ -94,7 +94,7 @@ CONTAINS
     ! construct the coupler
 #ifdef YAC_coupling
     IF (is_coupled_to_atmo()) THEN
-      CALL construct_wave_atmo_coupling(p_patch(1:))
+      CALL construct_wave_coupling(p_patch(1:))
     END IF
 #endif
 

@@ -15,6 +15,10 @@ MODULE mo_divide_cells_by_location_mpi
   USE mo_mpi, ONLY: mpi_op_null, mpi_datatype_null, mpi_success, abort_mpi, &
        mpi_in_place, p_int, p_int_i8, mpi_address_kind, mpi_sum, mpi_2integer, &
        mpi_integer
+  USE mpi, ONLY: MPI_Op_create
+#ifndef NO_MPI_CHOICE_ARG
+  USE mpi, ONLY: MPI_Allreduce, MPI_Get_address
+#endif
 #ifdef SLOW_MPI_USER_REDUCTION
   USE mpi, ONLY: mpi_min, mpi_max
 #endif

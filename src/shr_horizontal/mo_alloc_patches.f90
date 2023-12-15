@@ -39,6 +39,7 @@ MODULE mo_alloc_patches
   USE mo_parallel_config,         ONLY: nproma, num_dist_array_replicas
   USE mo_grid_config,             ONLY: n_dom_start, n_dom
   USE mo_mpi,                     ONLY: p_pe_work, p_comm_work, p_n_work
+  USE mpi
   USE mo_read_netcdf_distributed, ONLY: delete_distrib_read
   USE ppm_distributed_array,      ONLY: global_array_desc,                           &
     &                                   dist_mult_array_new,                         &

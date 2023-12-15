@@ -103,7 +103,7 @@ MODULE mo_name_list_output
     &                                     config_lmask_boundary => lmask_boundary
 #ifdef YAC_coupling
   USE mo_coupling_config,           ONLY: is_coupled_run
-  USE mo_io_coupling,               ONLY: construct_io_coupler, destruct_io_coupler
+  USE mo_io_coupling_frame,         ONLY: construct_io_coupling, destruct_io_coupling
 #endif
   USE mo_gribout_config,            ONLY: gribout_config
   USE mo_parallel_config,           ONLY: p_test_run, use_dp_mpi2io, &
@@ -151,6 +151,15 @@ MODULE mo_name_list_output
     &                                     check_write_readyfile, blocking_wait_for_irecvs
 #ifndef NOMPI
   USE mo_output_event_handler,      ONLY: trigger_output_step_irecv
+  USE mpi,                          ONLY: MPI_Win_lock, MPI_Win_unlock, MPI_Win_free
+# ifndef NO_MPI_CHOICE_ARG
+  ! MPI_Win_{un,}lock_all don't have choice args but OpenMPI doesn't include an interface in its
+  ! use-mpi-tkr variant for compilers that can't ignore argument TKR via directives.
+  ! Cray's MPI doesn't export MPI_Waitall and MPI_Waitany.
+  USE mpi,                          ONLY: MPI_Free_mem, MPI_Isend, MPI_Recv, MPI_Get, MPI_Rget,     &
+    &                                     MPI_Win_lock_all, MPI_Win_unlock_all, MPI_Waitall,        &
+    &                                     MPI_Waitany
+# endif
 #endif
   USE mo_name_list_output_stats,    ONLY: set_reference_time, interval_start, interval_end,         &
     &                                     interval_write_psfile
@@ -443,7 +452,7 @@ CONTAINS
 
 #ifdef YAC_coupling
       IF ( is_coupled_run() ) THEN
-        IF (my_process_is_io() ) CALL destruct_io_coupler ( "dummy" )
+        IF (my_process_is_io() ) CALL destruct_io_coupling ( "dummy" )
       ENDIF
 #endif
 #endif
@@ -858,11 +867,7 @@ CONTAINS
   SUBROUTINE write_name_list(of, is_first_write, file_idx, lacc)
 
 #ifndef NOMPI
-#ifdef  __SUNPRO_F95
-  INCLUDE "mpif.h"
-#else
     USE mpi, ONLY: MPI_LOCK_EXCLUSIVE, MPI_MODE_NOCHECK
-#endif
 #endif
 
     TYPE (t_output_file), INTENT(INOUT), TARGET :: of
@@ -2669,10 +2674,10 @@ CONTAINS
 #ifdef YAC_coupling
     ! The initialisation of YAC needs to be called by all (!) MPI processes
     ! in MPI_COMM_WORLD.
-    ! construct_io_coupler needs to be called after init_name_list_output
+    ! construct_io_coupling needs to be called after init_name_list_output
     ! due to calling sequence in subroutine atmo_model for other atmosphere
     ! processes
-    IF ( is_coupled_run() ) CALL construct_io_coupler ( "dummy" )
+    IF ( is_coupled_run() ) CALL construct_io_coupling ( "dummy" )
 #endif
 
     ! FIXME: Explain this braindead weirdnes.
@@ -2797,7 +2802,7 @@ CONTAINS
       &                        int2string(p_pe,'(i0)'), p_comm_work)
 
 #ifdef YAC_coupling
-    IF ( is_coupled_run() ) CALL destruct_io_coupler ( "dummy" )
+    IF ( is_coupled_run() ) CALL destruct_io_coupling ( "dummy" )
 #endif
 
     ! Shut down MPI
@@ -2828,16 +2833,12 @@ CONTAINS
 #ifndef NOMPI
   SUBROUTINE io_proc_write_name_list(of, is_first_write, file_idx)
 
-#ifdef __SUNPRO_F95
-    INCLUDE "mpif.h"
-#else
     USE mpi, ONLY: MPI_ADDRESS_KIND, MPI_LOCK_SHARED, MPI_MODE_NOCHECK
 #ifdef NO_ASYNC_IO_RMA
     USE mpi, ONLY: MPI_STATUS_IGNORE, MPI_STATUS_SIZE
 #else
 #ifndef NO_MPI_RGET
     USE mpi, ONLY: MPI_STATUS_IGNORE, MPI_STATUSES_IGNORE, MPI_REQUEST_NULL
-#endif
 #endif
 #endif
 

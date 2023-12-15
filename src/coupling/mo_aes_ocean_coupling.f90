@@ -16,7 +16,7 @@
 #include "omp_definitions.inc"
 !----------------------------
 
-MODULE mo_aes_coupling
+MODULE mo_aes_ocean_coupling
 
   USE mo_kind                ,ONLY: wp
   USE mo_model_domain        ,ONLY: t_patch
@@ -41,8 +41,8 @@ MODULE mo_aes_coupling
   USE mo_parallel_config     ,ONLY: nproma
 
   USE mo_coupling_config     ,ONLY: is_coupled_run
-  USE mo_atmo_coupling_frame ,ONLY: lyac_very_1st_get, nbr_inner_cells,     &
-    &                               mask_checksum, field_id
+  USE mo_coupling            ,ONLY: lyac_very_1st_get
+  USE mo_atmo_coupling_frame ,ONLY: nbr_inner_cells, mask_checksum, field_id
   USE mo_exception           ,ONLY: warning, finish, message
 
   USE mo_yac_finterface      ,ONLY: yac_fput, yac_fget,                     &
@@ -966,4 +966,4 @@ CONTAINS
 
   END SUBROUTINE interface_aes_ocean
 
-END MODULE mo_aes_coupling
+END MODULE mo_aes_ocean_coupling

@@ -22,6 +22,7 @@ PROGRAM test_divide_cell_mpi
        p_barrier
   USE mo_divide_cells_by_location_mpi, ONLY: divide_cells_by_location_mpi, &
        init_divide_cells_by_location_mpi
+  USE mpi
 #endif
   USE mo_io_units, ONLY: nerr
 

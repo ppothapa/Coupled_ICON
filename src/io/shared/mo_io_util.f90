@@ -18,11 +18,10 @@ MODULE mo_io_util
   USE mo_impl_constants,        ONLY: MAX_CHAR_LENGTH
   USE mo_util_string,           ONLY: tolower
   USE mo_netcdf_errhandler,     ONLY: nf
+  USE mo_netcdf
 
   IMPLICIT NONE
   PRIVATE
-
-  INCLUDE 'netcdf.inc'
 
   PUBLIC :: get_filetype
   PUBLIC :: get_file_extension
@@ -112,7 +111,7 @@ CONTAINS
     TYPE(t_netcdf_att_int), OPTIONAL, INTENT(INOUT) :: opt_att(:)   ! optional attribute values
     ! local variables
     CHARACTER(LEN=*), PARAMETER :: routine    = "read_netcdf_int_1d"
-    INTEGER :: varid, ndims, dimids(1), dimlen, ncfileID, dim_aux, i, iret
+    INTEGER :: varid, ndims, dimids(1), dimlen, ncfileID, dim_aux, i, iret, optval
     LOGICAL :: l_exist
 
     ! consistency checks
@@ -175,9 +174,13 @@ CONTAINS
         ELSE
           varid = NF_GLOBAL
         END IF
-        iret = nf_get_att_int(ncfileID, varID, TRIM(opt_att(i)%att_name), opt_att(i)%value)
-        ! note: we do not evaluate the return value, since the
-        ! attribute may not exist
+
+        iret = nfx_get_att(ncfileID, varID, TRIM(opt_att(i)%att_name), optval)
+
+        ! Only overwrite previous value if the attribute exists.
+        IF (iret == nf_noerr) THEN
+          opt_att(i)%value = optval
+        END IF
       END DO
 
     END IF

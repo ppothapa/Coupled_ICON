@@ -30,14 +30,13 @@ MODULE mo_multifile_restart_patch_data
   USE mo_parallel_config,             ONLY: restart_chunk_size
   USE mo_var_list_register_utils,     ONLY: vlr_select_restart_vars
   USE mo_netcdf_errhandler,           ONLY: nf
+  USE mo_netcdf
   USE mo_restart_util,                ONLY: t_rfids
   USE mo_util_sort,                   ONLY: quicksort
 
   IMPLICIT NONE
   PRIVATE
   
-  INCLUDE 'netcdf.inc'
-
   TYPE, EXTENDS(t_RestartPatchData), PUBLIC :: t_MultifilePatchData
     INTEGER :: cnkLvs
     LOGICAL :: shortcut

@@ -25,6 +25,7 @@ MODULE mo_restart_util
   USE mtime,                 ONLY: datetime, newDatetime, deallocateDatetime
   USE mo_var_metadata_types, ONLY: t_var_metadata
   USE mo_netcdf_errhandler,  ONLY: nf
+  USE mo_netcdf
   USE mo_mpi,                ONLY: my_process_is_stdio, p_io, p_comm_work, p_bcast
 #ifndef NOMPI
   USE mo_mpi, ONLY: p_pe_work, my_process_is_restart
@@ -33,8 +34,6 @@ MODULE mo_restart_util
 
   IMPLICIT NONE
   PRIVATE
-
-  INCLUDE 'netcdf.inc'
 
   PUBLIC :: t_restart_args, t_rfids
   PUBLIC :: getRestartFilename, restartSymlinkName, create_restart_file_link

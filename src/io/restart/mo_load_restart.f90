@@ -30,11 +30,10 @@ MODULE mo_load_restart
   USE mo_var_list_register_utils, ONLY: vlr_select_restart_vars, vlr_collect_modelTypes
   USE mo_master_control,     ONLY: get_my_process_name
   USE mo_netcdf_errhandler,  ONLY: nf
+  USE mo_netcdf
 
   IMPLICIT NONE
   PRIVATE
-
-  INCLUDE 'netcdf.inc'
 
   PUBLIC :: read_restart_files, read_restart_header
 

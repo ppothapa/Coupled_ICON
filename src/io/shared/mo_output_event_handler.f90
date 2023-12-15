@@ -106,11 +106,9 @@
 !   see SUBROUTINE pass_output_step
 
 MODULE mo_output_event_handler
-  ! actual method (MPI-2)
+
 #ifndef NOMPI
-#if !defined (__SUNPRO_F95)
   USE mpi
-#endif
 #endif
 
   USE mo_kind,                   ONLY: i8, wp
@@ -152,12 +150,6 @@ MODULE mo_output_event_handler
 
   ! public subroutines + functions:
   PRIVATE
-
-#ifndef NOMPI
-#if defined (__SUNPRO_F95)
-  INCLUDE "mpif.h"
-#endif
-#endif
 
   ! initialization + destruction
   PUBLIC :: new_parallel_output_event

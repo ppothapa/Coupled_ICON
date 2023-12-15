@@ -208,7 +208,6 @@ MODULE mo_mpi
 
   USE, INTRINSIC :: iso_c_binding, ONLY: c_char, c_signed_char, c_int
   
-  ! actual method (MPI-2)
 #ifndef NOMPI
   USE mpi
 #endif
@@ -419,12 +418,6 @@ MODULE mo_mpi
   END TYPE t_work_root_process
 
   TYPE (t_work_root_process), ALLOCATABLE :: p_work_root_processes(:)
-
-  ! old fashioned method (MPI-1)
-
-!!$#ifndef NOMPI
-!!$  INCLUDE 'mpif.h'
-!!$#endif
 
   ! general run time information
 

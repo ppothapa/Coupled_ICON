@@ -72,6 +72,7 @@ MODULE mo_extpar_config
   INTEGER  :: pp_sso      ! if >0: postprocess SSO over glaciers to reduce contribution of mean slope
   INTEGER  :: itype_vegetation_cycle
   INTEGER  :: nhori           ! number of sectors for horizon
+  !$ACC DECLARE COPYIN(nhori)
 
   ! ExtPar input filename, may contain keywords, by default
   ! extpar_filename = "<path>extpar_<gridfile>"

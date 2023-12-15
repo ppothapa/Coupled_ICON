@@ -60,21 +60,14 @@ non_libtool_FCFLAGS='-Wc,-g -Wc,-pipe -Wc,--param,max-vartrack-size=200000000 -W
 
 # Fortran compiler flags allowing for acceptable argument mismatches when
 # calling NetCDF-Fortran API:
-mismatch_FCFLAGS='-wmismatch=nf_def_var,nf_get_att_double,nf_get_att_int,nf_put_att_double,nf_put_att_int,nf_put_vara_double,nf_put_vara_int'
+# XXX: Temporary "-mismatch" until either NAG provides an option to ignore interface conflicts or NetCDF uses its own functions correctly:
+mismatch_FCFLAGS='-mismatch'
 
-ICON_FCFLAGS="${non_libtool_FCFLAGS} ${mismatch_FCFLAGS} -C=all"
+check_all_wo_ccalls_FCFLAGS='-C=alias -C=array -C=bits -C=dangling -C=do -C=intovf -C=present -C=pointer -C=recursion'
+# XXX: Temporary until "-mismatch" can be removed from mismatch_mpi_FCFLAGS
+check_all_FCFLAGS="${check_all_wo_ccalls_FCFLAGS}"
 
-# Prevent the compiler crash, which happens when the MPI support is disabled
-# (--disable-mpi) or the usage of the parallel features of NetCDF is enabled
-# (--enable-parallel-netcdf), i.e. when the Fortran 77 interface of NetCDF is
-# used directly by including 'netcdf.inc':
-#   * NAG 6.2.6252 is not affected;
-#   * NAG 7.1.7101 is affected if '-C=calls' is combined with '-C=dangling'
-#     and/or '-C=pointer';
-#   * NAG 7.1.7125 is affected if '-C=dangling' and/or '-C=pointer' are
-#     specified at all.
-ICON_WORKAROUND1_FCFLAGS="${non_libtool_FCFLAGS} ${mismatch_FCFLAGS} -C=alias -C=array -C=bits -C=calls -C=do -C=intovf -C=present -C=recursion"
-ICON_WORKAROUND1_PATH='src/shr_horizontal/mo_model_domimp_patches.f90'
+ICON_FCFLAGS="${non_libtool_FCFLAGS} ${mismatch_FCFLAGS} ${check_all_FCFLAGS}"
 
 # Compile the bundled libraries with no tolerance to argument mismatches:
 ICON_BUNDLED_FCFLAGS="${non_libtool_FCFLAGS} -C=all"
@@ -95,7 +88,7 @@ ICON_LDFLAGS='-Wl,-Wl,,--disable-new-dtags'
 
 LIBS="-lxml2 -lSerialboxFortran -leccodes_f90 -leccodes ${RTTOV_LIBS-} -llapack -lblas -lnetcdff -lnetcdf -lhdf5_hl_fortran -lhdf5_fortran -lhdf5 -lz"
 
-EXTRA_CONFIG_ARGS='--disable-mpi --disable-coupling --enable-grib2 --enable-fcgroup-WORKAROUND1'
+EXTRA_CONFIG_ARGS='--disable-mpi --disable-coupling --enable-grib2'
 
 ################################################################################
 
@@ -115,8 +108,6 @@ ICON_FCFLAGS="${ICON_FCFLAGS}" \
 ICON_LDFLAGS="${ICON_LDFLAGS}" \
 ICON_MTIME_FCFLAGS="${ICON_MTIME_FCFLAGS}" \
 ICON_SCT_FCFLAGS="${ICON_SCT_FCFLAGS}" \
-ICON_WORKAROUND1_FCFLAGS="${ICON_WORKAROUND1_FCFLAGS}" \
-ICON_WORKAROUND1_PATH="${ICON_WORKAROUND1_PATH}" \
 LDFLAGS="${LDFLAGS}" \
 LIBS="${LIBS}" \
 ${EXTRA_CONFIG_ARGS} \

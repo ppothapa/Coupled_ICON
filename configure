@@ -7585,6 +7585,60 @@ fi
   as_fn_append FCFLAGS " ${FC_PP_DEF}NO_MPI_RGET"
 fi
 fi
+   { $as_echo "$as_me:${as_lineno-$LINENO}: checking for interfaces for MPI routines with choice arguments" >&5
+$as_echo_n "checking for interfaces for MPI routines with choice arguments... " >&6; }
+if ${icon_cv_have_mpi_choice+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  cat > conftest.$ac_ext <<_ACEOF
+      program main
+
+       use mpi, only: mpi_send, mpi_integer, mpi_comm_world
+       implicit none
+       integer :: ierror
+       call mpi_send(0, 1, mpi_integer, 1, 0, mpi_comm_world, ierror)
+      end
+_ACEOF
+if ac_fn_fc_try_compile "$LINENO"; then :
+  icon_cv_have_mpi_choice=yes
+else
+  icon_cv_have_mpi_choice=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $icon_cv_have_mpi_choice" >&5
+$as_echo "$icon_cv_have_mpi_choice" >&6; }
+    if test "x$icon_cv_have_mpi_choice" = xno; then :
+  as_fn_append FCFLAGS " ${FC_PP_DEF}NO_MPI_CHOICE_ARG"
+fi
+   { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether the MPI_Alloc_mem interface accepts a TYPE(C_PTR) argument" >&5
+$as_echo_n "checking whether the MPI_Alloc_mem interface accepts a TYPE(C_PTR) argument... " >&6; }
+if ${icon_cv_have_mpi_cptr+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  cat > conftest.$ac_ext <<_ACEOF
+      program main
+
+       use, intrinsic :: iso_c_binding, only: c_ptr
+       use mpi, only: mpi_alloc_mem, mpi_address_kind
+       implicit none
+       type(c_ptr) :: ptr
+       integer :: ierror
+       call mpi_alloc_mem(4_mpi_address_kind, 0, ptr, ierror)
+      end
+_ACEOF
+if ac_fn_fc_try_compile "$LINENO"; then :
+  icon_cv_have_mpi_cptr=yes
+else
+  icon_cv_have_mpi_cptr=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $icon_cv_have_mpi_cptr" >&5
+$as_echo "$icon_cv_have_mpi_cptr" >&6; }
+    if test "x$icon_cv_have_mpi_cptr" = xno; then :
+  as_fn_append FCFLAGS " ${FC_PP_DEF}NO_MPI_CPTR_ARG"
+fi
 
 if test -n "$MPI_LAUNCH"; then :
   case $MPI_LAUNCH in #(

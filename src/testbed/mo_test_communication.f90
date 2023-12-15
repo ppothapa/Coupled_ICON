@@ -19,6 +19,7 @@ MODULE mo_test_communication
   USE mo_mpi,                 ONLY: work_mpi_barrier, p_n_work, p_pe_work, &
     &                               p_comm_work, p_comm_rank, p_comm_size, &
     &                               p_barrier
+  USE mpi
   USE mo_timer,               ONLY: ltimer, new_timer, timer_start, timer_stop, &
     & print_timer, activate_sync_timers, timers_level, timer_barrier, timer_radiaton_recv
   USE mo_parallel_config,     ONLY: nproma, icon_comm_method

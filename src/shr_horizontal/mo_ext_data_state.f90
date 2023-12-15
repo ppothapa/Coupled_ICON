@@ -392,7 +392,8 @@ CONTAINS
         grib2_desc = grib2_var( 0,199, 1, ibits, GRID_UNSTRUCTURED, GRID_CELL)
         CALL add_var( p_ext_atm_list, 'horizon', p_ext_atm%horizon,     &
           &           GRID_UNSTRUCTURED_CELL, ZA_REFERENCE, cf_desc,    &
-          &           grib2_desc, ldims=shape3d_sfc_sec, loutput=.TRUE. )
+          &           grib2_desc, ldims=shape3d_sfc_sec, loutput=.TRUE., lopenacc=.TRUE.)
+        __acc_attach(p_ext_atm%horizon)
         CALL message(routine, 'adding skyview factor')
         ! geometric sky-view factor scaled with sinus(horizon)**2
         !

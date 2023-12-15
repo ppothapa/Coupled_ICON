@@ -66,8 +66,7 @@ MODULE mo_rtifc_base
   use rttov_god,          only: rttov_o2god
 #endif
 
-#if defined(_RTIFC_DISTRIBCOEF) && defined(HAVE_MPI_MOD)
-  ! prefer MPI module over mpif.h
+#if defined(_RTIFC_DISTRIBCOEF)
   use mpi
 #endif
 
@@ -81,12 +80,6 @@ MODULE mo_rtifc_base
 
   ! MPI routines
 #if defined(_RTIFC_DISTRIBCOEF)
-
-#if !defined(HAVE_MPI_MOD)
-  include "mpif.h"
-#endif
-
-
 #if (_RTTOV_VERSION >= 12) || defined(_RTIFC_USE_MPIF)
   interface p_bcast
 #if defined(_RTIFC_USE_MPIF)

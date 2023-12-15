@@ -69,8 +69,6 @@ MODULE mo_sync_restart
 
   PRIVATE
 
-!  INCLUDE 'netcdf.inc'
-
   PUBLIC :: t_SyncRestartDescriptor
 
   TYPE, EXTENDS(t_RestartDescriptor) :: t_SyncRestartDescriptor

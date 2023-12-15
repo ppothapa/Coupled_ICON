@@ -35,14 +35,11 @@ MODULE mo_upatmo_extdat_utils
   USE mo_mpi,                    ONLY: my_process_is_stdio, p_io, p_bcast, &
     &                                  p_comm_work
   USE mo_netcdf_errhandler,      ONLY: nf
+  USE mo_netcdf
   USE mo_upatmo_phy_chemheat,    ONLY: chem_heat_check, chem_heat_init
   USE mo_util_string,            ONLY: int2string, real2string
 
   IMPLICIT NONE
-
-  !-------------------
-  INCLUDE 'netcdf.inc'
-  !-------------------
 
   PRIVATE
 
@@ -253,7 +250,7 @@ CONTAINS
       DEALLOCATE(dimids, STAT=istat)
       IF(istat /= SUCCESS) CALL finish(TRIM(routine), 'Deallocation of dimids failed.')     
       ! Check variable unit
-      CALL nf(nf_get_att(ncid, varid_gas, 'units', varunit), routine)
+      CALL nf(nf_get_att_text(ncid, varid_gas, 'units', varunit), routine)
       IF (TRIM(varunit) /= gasunit) THEN
         message_text = 'Exclusively supportet gas unit: '//gasunit &
           & //' but unit in file is: '//TRIM(varunit)
@@ -696,7 +693,7 @@ CONTAINS
     CALL nf(nf_inq_dimlen(ncid, dimid, ndim), routine)
     ! Get dimension unit
     CALL nf(nf_inq_varid(ncid, dimname, varid), routine)
-    CALL nf(nf_get_att(ncid, varid, 'units', dimunit), routine)
+    CALL nf(nf_get_att_text(ncid, varid, 'units', dimunit), routine)
 
   END SUBROUTINE get_dim
 

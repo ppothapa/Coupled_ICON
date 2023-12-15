@@ -23,11 +23,10 @@ MODULE mo_ifs_coord
   USE mo_fortran_tools,      ONLY: DO_DEALLOCATE
   USE mo_mpi,                ONLY: p_bcast, p_comm_rank
   USE mo_netcdf_errhandler,  ONLY: nf
+  USE mo_netcdf
 
   IMPLICIT NONE
   PRIVATE
-
-  INCLUDE 'netcdf.inc'
 
   ! Data type containing all data specifying a pressure-sigma hybrid
   ! vertical coordinate (the eta coordinate).

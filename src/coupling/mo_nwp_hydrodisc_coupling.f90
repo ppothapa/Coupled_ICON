@@ -16,7 +16,7 @@
 #include "omp_definitions.inc"
 !----------------------------
 
-MODULE mo_nwp_hydrodisc_interface
+MODULE mo_nwp_hydrodisc_coupling
 
   USE mo_kind                ,ONLY: wp
   USE mo_model_domain        ,ONLY: t_patch
@@ -47,7 +47,7 @@ MODULE mo_nwp_hydrodisc_interface
 
   PUBLIC :: nwp_couple_hydrodisc
 
-  CHARACTER(len=*), PARAMETER :: str_module = 'mo_nwp_hydrodisc_interface' ! Output of module for debug
+  CHARACTER(len=*), PARAMETER :: str_module = 'mo_nwp_hydrodisc_coupling' ! Output of module for debug
 
 CONTAINS
 
@@ -239,5 +239,5 @@ CONTAINS
 #endif
 
   END SUBROUTINE nwp_couple_hydrodisc
-  
-END MODULE mo_nwp_hydrodisc_interface
+
+END MODULE mo_nwp_hydrodisc_coupling

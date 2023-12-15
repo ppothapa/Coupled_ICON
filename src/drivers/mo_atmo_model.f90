@@ -129,7 +129,6 @@ MODULE mo_atmo_model
 #ifdef YAC_coupling
   USE mo_coupling_config,           ONLY: is_coupled_to_ocean, is_coupled_to_waves, is_coupled_to_hydrodisc
   USE mo_atmo_coupling_frame,       ONLY: construct_atmo_coupling
-  USE mo_atmo_wave_coupling_frame,  ONLY: construct_atmo_wave_coupling
 #endif
 
   ! I/O
@@ -197,10 +196,8 @@ CONTAINS
     ! construct the coupler
     !
 #ifdef YAC_coupling
-    IF ( ANY( (/is_coupled_to_ocean(), is_coupled_to_hydrodisc()/) ) )   THEN
+    IF ( ANY( (/is_coupled_to_ocean(), is_coupled_to_hydrodisc(), is_coupled_to_waves()/) ) )   THEN
       CALL construct_atmo_coupling(p_patch(1:))
-    ELSEIF ( is_coupled_to_waves() ) THEN
-      CALL construct_atmo_wave_coupling(p_patch(1:)) ! atmo-wave
     ENDIF
 #endif
 

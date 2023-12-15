@@ -1,6 +1,6 @@
 ! @brief Routines for the initialisation of YAC on IO processes
 !
-! The purpose of routines construct_io_coupler and destruct_io_coupler is
+! The purpose of routines construct_io_coupling and destruct_io_coupling is
 ! to initialise YAC on asynchronous IO processes. The YAC component definition
 ! and search are collective operations in the MPI sense. Thus all MPI processes
 ! must call yac_fdef_comp(s) and yac_fenddef.
@@ -18,7 +18,7 @@
 ! SPDX-License-Identifier: BSD-3-Clause
 ! ---------------------------------------------------------------
 
-MODULE mo_io_coupling
+MODULE mo_io_coupling_frame
 
   USE mo_coupling_config,           ONLY: is_coupled_run
   USE mo_impl_constants,            ONLY: MAX_CHAR_LENGTH
@@ -29,15 +29,15 @@ MODULE mo_io_coupling
 
   PRIVATE
 
-  PUBLIC :: construct_io_coupler
-  PUBLIC :: destruct_io_coupler
+  PUBLIC :: construct_io_coupling
+  PUBLIC :: destruct_io_coupling
  
 CONTAINS
 
-  SUBROUTINE construct_io_coupler ( comp_name )
+  SUBROUTINE construct_io_coupling ( comp_name )
 
     CHARACTER(LEN=*), INTENT(IN) :: comp_name
-    CHARACTER(*), PARAMETER :: routine = "mo_io_coupling:construct_io_coupler"
+    CHARACTER(*), PARAMETER :: routine = "mo_io_coupling_frame:construct_io_coupling"
 
     INTEGER :: comp_ids(1)
 
@@ -54,13 +54,13 @@ CONTAINS
       CALL yac_fenddef ( )
     ENDIF
 
-  END SUBROUTINE construct_io_coupler
+  END SUBROUTINE construct_io_coupling
 
-  SUBROUTINE destruct_io_coupler ( comp_name )
+  SUBROUTINE destruct_io_coupling ( comp_name )
 
     CHARACTER(LEN=*), INTENT(IN) :: comp_name
  
-    CHARACTER(*), PARAMETER :: routine = "mo_io_coupling:construct_io_coupler"
+    CHARACTER(*), PARAMETER :: routine = "mo_io_coupling_frame:construct_io_coupling"
 
     IF ( is_coupled_run() ) THEN
 
@@ -70,6 +70,6 @@ CONTAINS
 
     ENDIF
 
-  END SUBROUTINE destruct_io_coupler
+  END SUBROUTINE destruct_io_coupling
 
-END MODULE mo_io_coupling
+END MODULE mo_io_coupling_frame

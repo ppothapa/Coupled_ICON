@@ -53,11 +53,10 @@ MODULE mo_read_interface
        &            my_process_is_mpi_workroot, p_bcast
   USE mo_impl_constants, ONLY: on_cells, on_vertices, on_edges
   USE mo_netcdf_errhandler, ONLY: nf
+  USE mo_netcdf
   !-------------------------------------------------------------------------
   IMPLICIT NONE
   PRIVATE
-
-  INCLUDE 'netcdf.inc'
 
   PUBLIC :: read_netcdf_broadcast_method, read_netcdf_distribute_method
   PUBLIC :: t_stream_id, p_t_patch

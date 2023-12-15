@@ -19,9 +19,29 @@ MODULE mo_multifile_restart_collector
 #ifndef NOMPI
   USE, INTRINSIC :: ISO_C_BINDING, ONLY: c_ptr
   HANDLE_MPI_ERROR_USE
+
   USE mpi, ONLY: addr => MPI_ADDRESS_KIND, MPI_DATATYPE_NULL, MPI_STATUS_IGNORE, &
     & MPI_STATUSES_IGNORE, MPI_TYPECLASS_INTEGER, MPI_COMM_NULL, MPI_INFO_NULL, &
-    & MPI_MODE_NOCHECK, MPI_LOCK_EXCLUSIVE, MPI_WIN_NULL, MPI_Sizeof, MPI_UNDEFINED
+    & MPI_MODE_NOCHECK, MPI_LOCK_EXCLUSIVE, MPI_WIN_NULL, MPI_UNDEFINED, &
+    & MPI_Win_lock, MPI_Win_unlock, MPI_Win_free, &
+    & MPI_Comm_split, MPI_Comm_size, MPI_Comm_free, &
+    & MPI_Type_vector, MPI_Type_create_struct, MPI_Type_match_size, MPI_Type_commit, MPI_Type_free, &
+    & MPI_Sizeof
+# ifndef NO_MPI_CPTR_ARG
+  USE mpi, ONLY: MPI_Alloc_mem
+# endif
+# ifndef NO_MPI_CHOICE_ARG
+  ! MPI_Win_{un,}lock_all don't have choice args but OpenMPI doesn't include an interface in its
+  ! use-mpi-tkr variant for compilers that can't ignore argument TKR via directives.
+  ! Cray's MPI doesn't export MPI_Waitall and MPI_Waitany.
+  USE mpi, ONLY: MPI_Win_create, MPI_Free_mem, MPI_Gather, MPI_Win_lock_all, MPI_Win_unlock_all, &
+    & MPI_Waitall, MPI_Waitany
+#   ifndef NO_MPI_RGET
+  USE mpi, ONLY: MPI_Rget
+#   else
+  USE mpi, ONLY: MPI_Get
+# endif
+# endif /* !defined(NO_MPI_CHOICE_ARG) */
   USE mo_impl_constants, ONLY: SINGLE_T, REAL_T, INT_T
   USE mo_mpi, ONLY: p_int, p_barrier
   USE mo_multifile_restart_util, ONLY: mpiDtype, typeByte, typeMap

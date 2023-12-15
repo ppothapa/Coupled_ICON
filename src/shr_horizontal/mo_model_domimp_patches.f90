@@ -107,21 +107,29 @@ MODULE mo_model_domimp_patches
 #endif
 #endif
 #ifndef NOMPI
-#ifdef __SUNPRO_F95
-    INCLUDE "mpif.h"
-#else
     USE mpi, ONLY: MPI_INFO_NULL
 #endif
-#endif
 
+#if defined(NOMPI) || defined(HAVE_PARALLEL_NETCDF)
+  USE mo_netcdf, ONLY: &
+    & nf_nowrite, nf_global, nf_noerr, nf_mpiio, &
+    & nf_inq_attid, &
+    & nf_open, &
+    & nf_open_par, &
+    & nf_close, &
+    & nf_inq_dimid, &
+    & nf_inq_dimlen, &
+    & nf_inq_varid, &
+    & nf_get_att_text, &
+    & nf_get_att_int => nfx_get_att, &
+    & nf_get_var_int, &
+    & nf_get_vara_int, &
+    & nf_get_vara_double
+#endif
 
   IMPLICIT NONE
 
   PRIVATE
-
-#if defined(NOMPI) || defined(HAVE_PARALLEL_NETCDF)
-  INCLUDE 'netcdf.inc'
-#endif
 
   ! derived type: some grid metadata used for consistency checks
   TYPE t_grid_metadata

@@ -710,7 +710,7 @@ CONTAINS
 
           IF (islope_rad(jg) == 3) THEN ! add orographic shading
             !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
-            !$ACC LOOP GANG VECTOR
+            !$ACC LOOP GANG VECTOR PRIVATE(x1, ii, k)
             DO jc = 1, ie
               ztheta_sun(jc) = ASIN(zsmu0(jc,jb)) ! solar elevation angle
               x1 = MIN(1._wp, MAX(-1._wp, (zsmu0(jc,jb)*zsinphi(jc)-zdeksin)/(COS(ztheta_sun(jc))*zcosphi(jc)) ))
