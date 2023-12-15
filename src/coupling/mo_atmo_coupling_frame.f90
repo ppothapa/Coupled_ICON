@@ -40,11 +40,14 @@ MODULE mo_atmo_coupling_frame
 
   USE mo_mpi                 ,ONLY: p_pe_work, p_comm_work, p_sum
 
-  USE mo_coupling_config     ,ONLY: is_coupled_run, is_coupled_to_ocean, is_coupled_to_hydrodisc
+  USE mo_coupling_config     ,ONLY: is_coupled_run, is_coupled_to_ocean, &
+    &                               is_coupled_to_hydrodisc, is_coupled_to_waves
   USE mo_aes_rad_config      ,ONLY: aes_rad_config
   USE mo_aes_phy_config      ,ONLY: aes_phy_config
   USE mo_time_config         ,ONLY: time_config
   USE mo_util_dbg_prnt       ,ONLY: dbg_print
+
+  USE mo_atmo_wave_coupling  ,ONLY: construct_atmo_wave_coupling
 
   USE mo_exception           ,ONLY: finish, message
 
@@ -87,7 +90,7 @@ MODULE mo_atmo_coupling_frame
   INTEGER            :: CPF_RUNOFFS, CPF_RUNOFFG !< Surface and soil water runoff 
 
   PUBLIC :: construct_atmo_coupling
-  PUBLIC :: lyac_very_1st_get, nbr_inner_cells, mask_checksum, field_id
+  PUBLIC :: nbr_inner_cells, mask_checksum, field_id
 
   PUBLIC :: CPF_UMFL, CPF_VMFL, CPF_FRESHFLX, CPF_HEATFLX, CPF_SEAICE_ATM, CPF_SST, &
       & CPF_OCE_U, CPF_OCE_V, CPF_SEAICE_OCE, CPF_SP10M, CPF_CO2_VMR, CPF_CO2_FLX, &
@@ -97,7 +100,6 @@ MODULE mo_atmo_coupling_frame
 
   INTEGER, SAVE         :: nbr_inner_cells
   INTEGER, SAVE         :: mask_checksum = -1
-  LOGICAL, SAVE         :: lyac_very_1st_get
 
 CONTAINS
 
@@ -156,14 +158,6 @@ CONTAINS
 
     LOGICAL :: needs_o3_coupling   = .FALSE.
     LOGICAL :: needs_areo_coupling = .FALSE.
-
-    ! Skip time measurement of the very first yac_fget
-    ! as this will measure mainly the wait time caused
-    ! by the initialisation of the model components
-    ! and does not tell us much about the load balancing
-    ! in subsequent calls.
-
-    lyac_very_1st_get = .TRUE.
 
     IF ( .NOT. is_coupled_run() ) RETURN
 
@@ -674,6 +668,11 @@ CONTAINS
       ENDDO
 
     ENDIF ! Construct coupling frame for atmosphere-hydrological discharge
+
+    IF ( is_coupled_to_waves() ) THEN
+      CALL construct_atmo_wave_coupling( &
+        comp_id, cell_point_ids(1), timestepstring)
+    END IF
 
     DEALLOCATE (is_valid, STAT = error)
     IF(error /= SUCCESS) CALL finish(str_module, "Deallocation failed for is_valid")

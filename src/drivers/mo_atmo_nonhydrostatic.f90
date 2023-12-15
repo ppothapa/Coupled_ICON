@@ -42,6 +42,7 @@ USE mo_run_config,           ONLY: dtime,                & !    namelist paramet
   &                                iqc, iqt,             &
   &                                ico2, io3,            &
   &                                number_of_grid_used
+USE mo_lnd_nwp_config,       ONLY: lseaice
 USE mo_initicon_config,      ONLY: pinit_seed, pinit_amplitude, init_mode, iterate_iau
 USE mo_nh_testcases,         ONLY: init_nh_testcase, init_nh_testcase_scm
 USE mo_nh_testcases_nml,     ONLY: nh_test_name
@@ -158,7 +159,7 @@ USE mo_mpi,                 ONLY: my_process_is_stdio, p_comm_work_only, my_proc
 USE mo_var_list_register_utils, ONLY: vlr_print_groups
 USE mo_sync,                ONLY: sync_patch_array, sync_c
 USE mo_nudging_config,      ONLY: l_global_nudging
-USE mo_random_util,         ONLY: add_random_noise
+USE mo_random_util,         ONLY: add_random_noise_3d, add_random_noise_2d
 
 USE mo_icon2dace,           ONLY: init_dace, finish_dace
 
@@ -574,26 +575,31 @@ CONTAINS
         CALL RANDOM_SEED(PUT = seed)
 
         DO jg=1,n_dom
-          CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, &
-                                p_nh_state(jg)%prog(nnow(jg))%w)
-          CALL add_random_noise(p_patch(jg)%edges%all, pinit_amplitude, &
-                                p_nh_state(jg)%prog(nnow(jg))%vn)
-          CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, &
-                                p_nh_state(jg)%prog(nnow(jg))%theta_v)
-          CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, &
-                                p_nh_state(jg)%prog(nnow(jg))%exner)
-          CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, &
-                                p_nh_state(jg)%prog(nnow(jg))%rho)
+          CALL add_random_noise_3d(p_patch(jg)%cells%all, pinit_amplitude, &
+                                   p_nh_state(jg)%prog(nnow(jg))%w)
+          CALL add_random_noise_3d(p_patch(jg)%edges%all, pinit_amplitude, &
+                                   p_nh_state(jg)%prog(nnow(jg))%vn)
+          CALL add_random_noise_3d(p_patch(jg)%cells%all, pinit_amplitude, &
+                                   p_nh_state(jg)%prog(nnow(jg))%theta_v)
+          CALL add_random_noise_3d(p_patch(jg)%cells%all, pinit_amplitude, &
+                                   p_nh_state(jg)%prog(nnow(jg))%exner)
+          CALL add_random_noise_3d(p_patch(jg)%cells%all, pinit_amplitude, &
+                                   p_nh_state(jg)%prog(nnow(jg))%rho)
+
+          IF (lseaice) THEN
+            CALL add_random_noise_2d(p_patch(jg)%cells%all, pinit_amplitude, &
+                                     p_lnd_state(jg)%prog_wtr(nnow_rcf(jg))%t_ice)
+          ENDIF
 
           IF (.NOT. ltestcase .OR. nh_test_name == 'dcmip_pa_12') THEN
-             CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, &
-                                   p_nh_state(jg)%prog(nnow_rcf(jg))%tracer(:,:,:,1))
+            CALL add_random_noise_3d(p_patch(jg)%cells%all, pinit_amplitude, &
+                                     p_nh_state(jg)%prog(nnow_rcf(jg))%tracer(:,:,:,1))
           ENDIF
 
           IF (iforcing == inwp ) THEN
             DO jt = 1, SIZE(p_lnd_state(jg)%prog_lnd(nnow_rcf(jg))%t_so_t,4)
-              CALL add_random_noise(p_patch(jg)%cells%all, pinit_amplitude, &
-                                p_lnd_state(jg)%prog_lnd(nnow_rcf(jg))%t_so_t(:,:,:,jt) )
+              CALL add_random_noise_3d(p_patch(jg)%cells%all, pinit_amplitude, &
+                                  p_lnd_state(jg)%prog_lnd(nnow_rcf(jg))%t_so_t(:,:,:,jt) )
             ENDDO
           ENDIF
 

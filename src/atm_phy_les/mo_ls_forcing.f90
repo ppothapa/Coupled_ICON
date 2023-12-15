@@ -40,11 +40,11 @@ MODULE mo_ls_forcing
   USE mo_fortran_tools,       ONLY: init
   USE mo_scm_nml,             ONLY: i_scm_netcdf, lscm_ls_forcing_ini
   USE mo_read_interface,      ONLY: nf
+  USE mo_netcdf
   USE mo_mpi,                 ONLY: get_my_global_mpi_id
 
   IMPLICIT NONE
 
-  INCLUDE 'netcdf.inc'
   PRIVATE
 
   PUBLIC :: init_ls_forcing, apply_ls_forcing
@@ -184,7 +184,7 @@ MODULE mo_ls_forcing
           CALL nf(nf_inq_varid         (fileid, 'time', varid),  TRIM(routine)//' time')
           CALL nf(nf_get_var_double    (fileid, varid, time_nc), routine)
           time_unit = ''               !necessary for formatting
-          CALL nf(nf_get_att           (fileid, varid, 'units', time_unit), TRIM(routine)//' units')
+          CALL nf(nf_get_att_text      (fileid, varid, 'units', time_unit), TRIM(routine)//' units')
 
           time_unit_short = time_unit(1:INDEX(time_unit,"since")-2)  ! e.g. "minutes since 2020-1-1 00:00:00"
           IF ( get_my_global_mpi_id() == 0 ) THEN
@@ -430,7 +430,7 @@ MODULE mo_ls_forcing
           CALL nf(nf_inq_varid         (fileid, 'time', varid),  TRIM(routine)//' time')
           CALL nf(nf_get_var_double    (fileid, varid, time_nc), routine)
           time_unit = ''               !necessary for formatting
-          CALL nf(nf_get_att           (fileid, varid, 'units', time_unit), TRIM(routine)//' units')
+          CALL nf(nf_get_att_text      (fileid, varid, 'units', time_unit), TRIM(routine)//' units')
     
           time_unit_short = time_unit(1:INDEX(time_unit,"since")-2)  ! e.g. "minutes since 2020-1-1 00:00:00"
           IF ( get_my_global_mpi_id() == 0 ) THEN
@@ -694,7 +694,7 @@ MODULE mo_ls_forcing
           CALL nf(nf_inq_varid         (fileid, 'time', varid),  TRIM(routine)//' time')
           CALL nf(nf_get_var_double    (fileid, varid, time_nc), routine)
           time_unit = ''               !necessary for formatting
-          CALL nf(nf_get_att           (fileid, varid, 'units',time_unit), TRIM(routine)//' units')
+          CALL nf(nf_get_att_text      (fileid, varid, 'units',time_unit), TRIM(routine)//' units')
     
           time_unit_short = time_unit(1:INDEX(time_unit,"since")-2)  ! e.g. "minutes since 2020-1-1 00:00:00"
           IF ( get_my_global_mpi_id() == 0 ) THEN
@@ -824,7 +824,7 @@ MODULE mo_ls_forcing
           CALL nf(nf_inq_varid         (fileid, 'time', varid),  TRIM(routine)//' time')
           CALL nf(nf_get_var_double    (fileid, varid, time_nc), routine)
           time_unit = ''               !necessary for formatting
-          CALL nf(nf_get_att           (fileid, varid, 'units',time_unit), TRIM(routine)//' units')
+          CALL nf(nf_get_att_text      (fileid, varid, 'units',time_unit), TRIM(routine)//' units')
     
           time_unit_short = time_unit(1:INDEX(time_unit,"since")-2)  ! e.g. "minutes since 2020-1-1 00:00:00"
           IF ( get_my_global_mpi_id() == 0 ) THEN

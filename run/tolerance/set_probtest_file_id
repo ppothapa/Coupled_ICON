@@ -16,10 +16,10 @@ fi
 if [[ $# == 0 ]]; then
     echo "ERROR: EXPERIMENT not specified."
     echo
-    echo "Useage:"
+    echo "Usage:"
     echo "  source set_probtest_file_id \$EXPERIMENT"
     echo
-    echo "This scripts set probtest_file_id array according to EXPERIMENT"
+    echo "This script sets probtest_file_id array according to EXPERIMENT"
     echo
     echo "Bash is exited in case the EXPERIMENT is not defined."
     exit 22
@@ -27,9 +27,9 @@ fi
 
 EXPERIMENT="$1"
 
-# See default > file_specification in externalsprobtest/templates/ICON.jinja
-# for valid file-id formats (e.g. NetCDF, latlon, ...)
-#
+# Valid file-id formats (e.g. NetCDF, latlon, ...) are defined under file_specification in
+# externals/probtest/templates/ICON.jinja.
+
 # probtest_file_id is a bash array.
 case $EXPERIMENT in
     *atm*qubicc*)
@@ -85,13 +85,20 @@ case $EXPERIMENT in
         --file-id NetCDF "*atm_3d_pl*.nc"
         )
         ;;
+    *mch_dev_icon-ch2_small*)
+        probtest_file_id=(
+        --file-id NetCDF "*atm_3d_ml*.nc"
+        --file-id NetCDF "*iaf*"
+        --file-id NetCDF "*lfff0*"
+        --file-id NetCDF_no_time_dim "*lfff_ml*"
+        )
+        ;;
     *mch_kenda-ch1_small*)
         probtest_file_id=(
         --file-id NetCDF "*atm_3d_ml*.nc"
         --file-id NetCDF "*iaf*"
         --file-id NetCDF "*lfff0*"
         --file-id NetCDF_no_time_dim "*lfff_ml*"
-        --file-id dace "*fofPILOT*.nc"
         --file-id dace "*fofTEMP*.nc"
         )
         ;;

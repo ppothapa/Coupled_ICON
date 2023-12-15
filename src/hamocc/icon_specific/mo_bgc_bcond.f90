@@ -44,12 +44,12 @@ USE mo_master_control,       ONLY: get_my_process_name
   USE mo_run_config,         ONLY: dtime
   USE mo_netcdf_errhandler,  ONLY: nf
   USE mo_fortran_tools,      ONLY: set_acc_host_or_device
+  USE mo_netcdf
 
 #include "add_var_acc_macro.inc"
 
+  
   IMPLICIT NONE
-
-  INCLUDE 'netcdf.inc'
 
   PRIVATE
 

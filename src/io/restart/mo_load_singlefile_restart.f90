@@ -31,13 +31,12 @@ MODULE mo_load_singlefile_restart
   USE mo_read_netcdf_distributed, ONLY: t_distrib_read_data, distrib_nf_open, &
     & distrib_read, distrib_nf_close, idx_lvl_blk
   USE mo_netcdf_errhandler,  ONLY: nf
+  USE mo_netcdf
   USE mo_dynamics_config,    ONLY: nnow, nnow_rcf
   USE mo_fortran_tools,      ONLY: t_ptr_3d, t_ptr_3d_int, t_ptr_3d_sp
 
   IMPLICIT NONE
   PRIVATE
-
-  INCLUDE 'netcdf.inc'
 
   PUBLIC :: singlefileCheckRestartFiles, singlefileReadPatch
 

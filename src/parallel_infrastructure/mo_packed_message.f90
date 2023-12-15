@@ -26,6 +26,9 @@ MODULE mo_packed_message
   HANDLE_MPI_ERROR_USE
   USE mo_mpi, ONLY: p_int, p_get_bcast_role, MPI_SUCCESS
   USE mpi, ONLY: MPI_CHAR, MPI_STATUS_SIZE
+# ifndef NO_MPI_CHOICE_ARG
+  USE mpi, ONLY: MPI_Send, MPI_Recv, MPI_Bcast
+# endif
 #endif
 
   IMPLICIT NONE

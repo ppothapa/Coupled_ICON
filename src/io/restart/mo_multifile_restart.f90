@@ -194,11 +194,10 @@ MODULE mo_multifile_restart
   USE mo_util_string,                  ONLY: int2string, real2string
   USE mo_restart_nml_and_att,          ONLY: restartAttributeList_write_to_ncdf
   USE mo_netcdf_errhandler,            ONLY: nf
+  USE mo_netcdf
 
   IMPLICIT NONE
   PRIVATE
-
-  INCLUDE 'netcdf.inc'
 
   PUBLIC :: t_MultifileRestartDescriptor
   PUBLIC :: multifileRestart_mainLoop

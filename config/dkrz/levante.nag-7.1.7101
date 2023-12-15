@@ -99,33 +99,30 @@ FCFLAGS="-I${MPI_ROOT}/lib -I${HDF5_ROOT}/include -I${NETCDFF_ROOT}/include ${RT
 non_libtool_FCFLAGS='-Wc,-g -Wc,-pipe -Wc,--param,max-vartrack-size=200000000 -Wc,-mno-fma'
 
 # Fortran compiler flags allowing for acceptable argument mismatches when
-# calling MPI and NetCDF-Fortran APIs:
+# calling MPI and NetCDF-Fortran APIs (which are called wrong from inside NetCDF itself):
+mismatch_mpi_FCFLAGS='-wmismatch=mpi_allgather,mpi_allgatherv,mpi_allreduce,mpi_alltoall,mpi_alltoallv,mpi_bcast,mpi_free_mem,mpi_gather,mpi_gatherv,mpi_get,mpi_get_address,mpi_ibcast,mpi_irecv,mpi_isend,mpi_pack,mpi_recv,mpi_reduce,mpi_rget,mpi_scatter,mpi_scatterv,mpi_send,mpi_sendrecv,mpi_unpack,mpi_win_create'
+# XXX: Temporary until either NAG provides an option to ignore interface conflicts or NetCDF uses its own functions correctly:
+mismatch_mpi_FCFLAGS="-mismatch ${mismatch_mpi_FCFLAGS}"
 mismatch_FCFLAGS='-wmismatch=mpi_allgather,mpi_allgatherv,mpi_allreduce,mpi_alltoall,mpi_alltoallv,mpi_bcast,mpi_free_mem,mpi_gather,mpi_gatherv,mpi_get,mpi_get_address,mpi_ibcast,mpi_irecv,mpi_isend,mpi_pack,mpi_recv,mpi_reduce,mpi_rget,mpi_scatter,mpi_scatterv,mpi_send,mpi_sendrecv,mpi_unpack,mpi_win_create,nf_def_var,nf_get_att_double,nf_get_att_int,nf_get_att_real,nf_get_vara_double,nf_get_vara_int,nf_get_vars_double,nf_get_vars_int,nf_put_att_double,nf_put_att_int,nf_put_vara_double,nf_put_vara_int,nf_put_vara_real'
 
 # The compiler either fails to compile or the produced executables crash with
 # the flag '-C=calls' implied by '-C=all'. The following variable is supposed to
 # be the same as -C=all without -C=calls:
 check_all_wo_ccalls_FCFLAGS='-C=alias -C=array -C=bits -C=dangling -C=do -C=intovf -C=present -C=pointer -C=recursion'
+# XXX: Temporary until "-mismatch" can be removed from mismatch_mpi_FCFLAGS
+check_all_FCFLAGS="${check_all_wo_ccalls_FCFLAGS}"
 
-ICON_FCFLAGS="${non_libtool_FCFLAGS} ${mismatch_FCFLAGS} -C=all"
-
-# Prevent the compiler crash by omitting '-C=calls':
-#   * the problem is somehow related to calling 'nf_get_vara_int' when the usage
-#     of the parallel features of NetCDF is enabled, i.e. when configured with
-#     --enable-parallel-netcdf;
-#   * an older version of the compiler, NAG 6.2 Build 6252 is not affected.
-ICON_WORKAROUND1_FCFLAGS="${non_libtool_FCFLAGS} ${mismatch_FCFLAGS} ${check_all_wo_ccalls_FCFLAGS}"
-ICON_WORKAROUND1_PATH='src/shr_horizontal/mo_model_domimp_patches.f90'
+ICON_FCFLAGS="${non_libtool_FCFLAGS} ${mismatch_mpi_FCFLAGS} ${check_all_FCFLAGS}"
 
 # Tolerate all argument mismatches in DACE (setting the function-specific
 # -wmismatch=p_bcast_derivedtype flag does not work due to what seems to be a
 # compiler bug):
-ICON_DACE_FCFLAGS="${non_libtool_FCFLAGS} -mismatch -C=all"
+ICON_DACE_FCFLAGS="${non_libtool_FCFLAGS} -mismatch ${check_all_wo_ccalls_FCFLAGS}"
 ICON_DACE_PATH='externals/dace_icon'
 
 # Enable recognition of non-standard double precision complex intrinsic
 # functions (DCMPLX and DCONJG):
-ICON_EMVORADO_FCFLAGS="${non_libtool_FCFLAGS} ${mismatch_FCFLAGS} -C=all -dcfuns"
+ICON_EMVORADO_FCFLAGS="${non_libtool_FCFLAGS} ${mismatch_mpi_FCFLAGS} ${check_all_FCFLAGS} -dcfuns"
 ICON_EMVORADO_PATH='externals/emvorado'
 
 # Compile the bundled libraries with no tolerance to argument mismatches:
@@ -145,7 +142,7 @@ ICON_SCT_FCFLAGS="-I${MPI_ROOT}/include -C=all"
 #     files can be compiled with the flag but we do not have enough control to
 #     address the issue in a less general way;
 #   * this workaround is not needed once we switch to YAC 2.4.3+.
-ICON_YAC_FCFLAGS="${non_libtool_FCFLAGS} ${check_all_wo_ccalls_FCFLAGS}"
+ICON_YAC_FCFLAGS="${non_libtool_FCFLAGS}"
 
 LDFLAGS="-L${MPI_ROOT}/lib -L${HDF5_ROOT}/lib -L${NETCDF_ROOT}/lib -L${NETCDFF_ROOT}/lib -L${BLAS_LAPACK_ROOT}/lib64 ${RTTOV_LDFLAGS-} -L${ECCODES_ROOT}/lib64 -L${FYAML_ROOT}/lib"
 # We put '-Wl,-Wl,,--as-needed' not to LDFLAGS or LIBS, which are used by both
@@ -166,7 +163,7 @@ LIBS=$(echo "${LIBS}" | sed 's/\([ ]\|^\)-l/\1-Wl,-l/g')
 
 MPI_LAUNCH="${MPI_ROOT}/bin/mpiexec"
 
-EXTRA_CONFIG_ARGS='--enable-parallel-netcdf --enable-ecrad --enable-grib2 --enable-yaxt --enable-fcgroup-DACE --enable-fcgroup-EMVORADO --enable-fcgroup-WORKAROUND1 --enable-art --disable-openmp'
+EXTRA_CONFIG_ARGS='--enable-parallel-netcdf --enable-ecrad --enable-grib2 --enable-yaxt --enable-fcgroup-DACE --enable-fcgroup-EMVORADO --enable-art --disable-openmp'
 
 ################################################################################
 
@@ -190,8 +187,6 @@ ICON_FCFLAGS="${ICON_FCFLAGS}" \
 ICON_LDFLAGS="${ICON_LDFLAGS}" \
 ICON_MTIME_FCFLAGS="${ICON_MTIME_FCFLAGS}" \
 ICON_SCT_FCFLAGS="${ICON_SCT_FCFLAGS}" \
-ICON_WORKAROUND1_FCFLAGS="${ICON_WORKAROUND1_FCFLAGS}" \
-ICON_WORKAROUND1_PATH="${ICON_WORKAROUND1_PATH}" \
 ICON_YAC_FCFLAGS="${ICON_YAC_FCFLAGS}" \
 LDFLAGS="${LDFLAGS}" \
 LIBS="${LIBS}" \

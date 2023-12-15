@@ -882,6 +882,7 @@ MODULE mo_jsb_io_netcdf_iface
   USE mo_read_interface,     ONLY: read_1D, read_2D, read_2D_time, read_2D_1lev_1time, read_2D_extdim, read_2D_int, &
     &                              openInputFile, closeFile, on_cells, t_stream_id, read_netcdf_broadcast_method
   USE mo_netcdf_errhandler,  ONLY: nf
+  USE mo_netcdf
 
   IMPLICIT NONE
   PUBLIC
@@ -921,8 +922,6 @@ MODULE mo_jsb_io_netcdf_iface
   ! INTERFACE netcdf_read_2d_extdim
   !   MODULE PROCEDURE netcdf_read_real_2d_extdim
   ! END INTERFACE netcdf_read_2d_extdim
-
-  INCLUDE 'netcdf.inc'
 
   INTEGER, PARAMETER :: MAX_VAR_DIMS = 16 ! NF_MAX_VAR_DIMS
 

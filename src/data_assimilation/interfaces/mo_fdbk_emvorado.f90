@@ -196,8 +196,8 @@ INTEGER,          INTENT(inout) :: ierror     ! netcdf error
 
   ierror = nf_put_vara_int ( file% nc% ncid,                &
                              file% nc% vars(in)% varid,     &
-                             start,                         &
-                             count,                         &
+                             [start],                       &
+                             [count],                       &
                              ivala(1:count)             )
 
 END SUBROUTINE add_inte_vala
@@ -218,8 +218,8 @@ INTEGER,          INTENT(inout) :: ierror     ! netcdf error
 
   ierror = nf_put_vara_real (file% nc% ncid,              &
                              file% nc% vars(in)% varid,   &
-                             start,                       &
-                             count,                       &
+                             [start],                     &
+                             [count],                     &
                              rvala1(1:count)              )
 
 END SUBROUTINE add_real_vala_1D

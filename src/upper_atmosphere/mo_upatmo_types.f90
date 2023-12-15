@@ -20,10 +20,6 @@
 ! * Gas properties
 ! * Tendencies from the upper-atmosphere physics parameterizations
 
-#if (defined (__GNUC__) || defined(__SUNPRO_F95) || defined(__SX__))
-#define HAVE_F95
-#endif
-
 MODULE mo_upatmo_types
 
   USE mo_kind,                 ONLY: wp

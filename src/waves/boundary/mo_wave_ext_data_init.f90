@@ -45,10 +45,6 @@ MODULE mo_wave_ext_data_init
 
 
   IMPLICIT NONE
-
-  ! required for reading external data
-  INCLUDE 'netcdf.inc'
-
   PRIVATE
 
   CHARACTER(LEN=*), PARAMETER :: modname = 'mo_wave_data_init'

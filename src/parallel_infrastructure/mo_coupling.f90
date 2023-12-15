@@ -33,11 +33,15 @@ MODULE mo_coupling
   PUBLIC :: finalize_coupler
   PUBLIC :: coupler_config_files_exist
 
+  PUBLIC :: lyac_very_1st_get
+
   CHARACTER(LEN=*), PARAMETER :: yaml_filename = "coupling.yaml"
 
   LOGICAL :: config_files_have_been_checked = .FALSE.
   LOGICAL :: config_files_exist = .FALSE.
   LOGICAL :: yac_is_initialised = .FALSE.
+
+  LOGICAL, SAVE :: lyac_very_1st_get
 
   CHARACTER(*), PARAMETER :: modname = "mo_coupling"
 
@@ -79,6 +83,13 @@ CONTAINS
     INTEGER :: group_comms(2)
     CHARACTER(len=YAC_MAX_CHARLEN) :: group_names(2)
 
+    ! Skip time measurement of the very first yac_fget
+    ! as this will measure mainly the wait time caused
+    ! by the initialisation of the model components
+    ! and does not tell us much about the load balancing
+    ! in subsequent calls.
+    lyac_very_1st_get = .TRUE.
+
     IF (coupler_config_files_exist()) THEN
 
       yac_is_initialised = .TRUE.
@@ -105,7 +116,7 @@ CONTAINS
         CALL MPI_COMM_RANK ( world_communicator, global_rank, ierror )
         IF ( global_rank == 0 ) &
            CALL yac_fread_config_yaml( TRIM(yaml_filename) )
-        
+
       END IF
     END IF
 #endif

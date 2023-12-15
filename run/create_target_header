@@ -205,23 +205,28 @@ EOF
 # Limits the time for slurm jobs started with BB
 limit_time_bb()
 {
-    if [[ "x$use_cpu_time" = "x" ]] # time is not set
-    then
-        use_cpu_time=$limit
+    if [[ "x$use_cpu_time" = "x" ]]; then # time is not set
+        use_cpu_time=$default
         return 0
     fi
-    if [[ ${#use_cpu_time} != ${#limit} ]] # hard to cover all cases
-    then
-        echo "Requested time ${use_cpu_time} and the limit ${limit} do not have the same format. Using ${limit}."
-        use_cpu_time=$limit
-        return 0
-    else
-        if [[ ${use_cpu_time} > ${limit} ]] # string comparison
-        then
+    if [[ ${use_cpu_time} =~ ^[0-9][0-9]:[0-5][0-9]:[0-5][0-9]$ ]]; then # check if time format equals xx:xx:xx
+        if [[ ${use_cpu_time} > ${limit} ]]; then # string comparison
             echo "Requested time ${use_cpu_time} is bigger than the limit ${limit}. Using ${limit}."
             use_cpu_time=$limit
             return 0
         fi
+    elif [[ ${use_cpu_time} =~ ^[0-5][0-9]:[0-5][0-9]$ ]]; then # check if time format equals xx:xx
+        if [[ ${limit::2} == "00" ]]; then # only compare for limit < 1h
+            if [[ ${use_cpu_time} > ${limit:3} ]]; then # string comparison
+                echo "Requested time ${use_cpu_time} is bigger than the limit ${limit}. Using ${limit}."
+                use_cpu_time=$limit
+                return 0
+            fi
+        fi
+    else
+        echo "Requested time ${use_cpu_time} format not recognised (expected xx:xx:xx or xx:xx). Using default of ${default}."
+        use_cpu_time=$default
+        return 0
     fi
 }
 
@@ -976,6 +981,7 @@ set_run_target_tsa_cpu()
     then
         # this is buldbot, do not run more than 15 minutes on Tsa (SLURM delays)
         limit="00:15:00"
+        default=${limit}
         limit_time_bb # sets use_cpu_time
         s_cpu_time="SBATCH --time=$use_cpu_time"
     fi
@@ -1078,6 +1084,7 @@ set_run_target_tsa_gpu()
     then
         # this is buldbot, do not run more than 45 minutes
         limit="00:45:00"
+        default=${limit}
         limit_time_bb # sets use_cpu_time
         s_cpu_time="SBATCH --time=$use_cpu_time"
     fi
@@ -1198,6 +1205,7 @@ set_run_target_daint_cpu()
     then
         # this is buldbot, do not run more than 30 minutes on Daint (SLURM delays)
         limit="00:30:00"
+        default=${limit}
         limit_time_bb # sets use_cpu_time
         s_cpu_time="SBATCH --time=$use_cpu_time"
     fi
@@ -1305,6 +1313,7 @@ set_run_target_daint_gpu()
     then
         # this is buldbot, do not run more than 45 minutes
         limit="00:45:00"
+        default=${limit}
         limit_time_bb # sets use_cpu_time
         s_cpu_time="SBATCH --time=$use_cpu_time"
     fi
@@ -1394,6 +1403,7 @@ set_run_target_balfrin_gpu()
     then
         # this is buldbot, do not run more than 80 minutes
         limit="01:20:00"
+        default="00:15:00"
         limit_time_bb # sets use_cpu_time
         s_cpu_time="SBATCH --time=$use_cpu_time"
     fi
@@ -1476,6 +1486,7 @@ set_run_target_balfrin_cpu()
     then
         # this is buldbot, do not run more than 15 minutes on Daint (SLURM delays)
         limit="00:15:00"
+        default=${limit}
         limit_time_bb # sets use_cpu_time
         s_cpu_time="SBATCH --time=$use_cpu_time"
     fi
@@ -1566,6 +1577,7 @@ set_run_target_dom_gpu()
     then
         # this is buldbot, do not run more than 45 minutes
         limit="00:45:00"
+        default=${limit}
         limit_time_bb # sets use_cpu_time
         s_cpu_time="SBATCH --time=$use_cpu_time"
     fi
@@ -1659,6 +1671,7 @@ set_run_target_tave_knl()
     then
 	    # this is buldbot, do not run more than 45 minutes
         limit="00:45:00"
+        default=${limit}
         limit_time_bb # sets use_cpu_time
         s_cpu_time="SBATCH --time=$use_cpu_time"
     fi
@@ -1911,8 +1924,6 @@ EOF
 export PATH=/hkfs/home/dataset/datasets/icon/sw/cdo-2.3.0/bin:\${PATH}
 export ECCODES_DEFINITION_PATH=/hkfs/home/dataset/datasets/icon/sw/definitions/2.31.0/definitions.edzw-2.31.0-2:/hkfs/home/dataset/datasets/icon/sw/definitions/2.31.0/definitions
 export NVCOMPILER_TERM=trace
-
-export NVCOMPILER_ACC_SYNCHRONOUS=1 # 2023-11-06: there is some bug in the code or compiler setup (e.g. dwd IAU test)
 EOF
 }
 
@@ -1942,7 +1953,8 @@ create_target_header()
             use_nproma=4250
             ;;
         *mch_opr_r04b07_lhn_00.run|*mch_opr_r04b07_lhn_00_member_id*.run)
-            use_nodes=4
+            use_nodes=2
+            use_mpi_procs_pernode=3
             ;;
         *mch_opr_r04b07_nest.run|*mch_opr_r04b07_nest_member_id*.run)
             use_nodes=1
@@ -1997,7 +2009,7 @@ create_target_header()
             esac
             ;;
         *mch_ch_r04b09_dace.run|*mch_ch_r04b09_dace_seed_*.run)
-            use_nodes=4
+            use_nodes=2
             case $use_target in
                 daint*)
                     use_mpi_procs_pernode=12 # Use 12 procs pernode for GPU as well until bug is fixed

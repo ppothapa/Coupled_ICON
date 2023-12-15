@@ -71,9 +71,6 @@ MODULE mo_ocean_bulk_forcing
   
   IMPLICIT NONE
   
-  ! required for reading netcdf files
-  INCLUDE 'netcdf.inc'
-
   PRIVATE
 
   ! Public interface

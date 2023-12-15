@@ -118,7 +118,7 @@ MODULE mo_hamocc_model
   USE mo_dynamics_config,        ONLY: nold, nnew
   USE mo_ocean_math_operators,   ONLY: update_height_hamocc
 #ifdef YAC_coupling
-  USE mo_io_coupling,            ONLY: construct_io_coupler, destruct_io_coupler
+  USE mo_io_coupling_frame,      ONLY: construct_io_coupling, destruct_io_coupling
 #endif
   USE mo_icon_output_tools,      ONLY: init_io_processes, prepare_output
  
@@ -352,7 +352,7 @@ MODULE mo_hamocc_model
     IF (output_mode%l_nml) CALL close_name_list_output
    
 #ifdef YAC_coupling
-     CALL destruct_io_coupler ( get_my_process_name() )
+     CALL destruct_io_coupling ( get_my_process_name() )
 #endif
 
     CALL destruct_icon_communication()
@@ -414,10 +414,10 @@ MODULE mo_hamocc_model
 #ifdef YAC_coupling
       ! The initialisation of YAC needs to be called by all (!) MPI processes
       ! in MPI_COMM_WORLD.
-      ! construct_io_coupler needs to be called before init_name_list_output
+      ! construct_io_coupling needs to be called before init_name_list_output
       ! due to calling sequence in subroutine atmo_model for other atmosphere
       ! processes
-      CALL construct_io_coupler ( get_my_process_name()  )
+      CALL construct_io_coupling ( get_my_process_name()  )
 #endif
 
     !-------------------------------------------------------------------

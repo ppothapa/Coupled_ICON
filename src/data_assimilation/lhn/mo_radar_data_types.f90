@@ -73,8 +73,11 @@ TYPE t_lhn_diag
     & qvtend_lhn(:,:,:)    ,& ! moisture increment due to LHN
     & pr_obs_sum(:,:)      ,& ! cumulated precipitation (hourly)
     & pr_mod_sum(:,:)      ,& ! cumulated precipitation (hourly)
-    & pr_ref_sum(:,:)      ,& ! cumulated precipitation (hourly)
-    & ref_bias(:,:)           ! accumulated bias between pr_ref and pr_mod
+    & pr_ref_sum(:,:)         ! cumulated precipitation (hourly)
+
+  REAL(wp)              &
+    & ::                    &
+    & ref_bias                ! value of bias correction for reference precipitation
 
   LOGICAL, POINTER          &
 #ifdef _CRAYFTN

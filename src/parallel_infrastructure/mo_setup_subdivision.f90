@@ -60,6 +60,9 @@ MODULE mo_setup_subdivision
 #ifndef NOMPI
   USE mo_mpi,                ONLY: MPI_COMM_NULL, p_int, &
        mpi_in_place, mpi_success, mpi_sum, mpi_lor, p_bool
+# ifndef NO_MPI_CHOICE_ARG
+  USE mpi,                   ONLY: MPI_Allreduce
+# endif
 #endif
   USE mo_mpi,                ONLY: p_comm_work, p_int, &
     & p_pe_work, p_n_work, my_process_is_mpi_parallel, p_alltoall, p_alltoallv
@@ -117,12 +120,11 @@ MODULE mo_setup_subdivision
     &                                   netcdf_read_att_int
   USE mo_fortran_tools,       ONLY: t_ptr_2d_int
   USE mo_netcdf_errhandler, ONLY: nf
+  USE mo_netcdf
 
   IMPLICIT NONE
 
   PRIVATE
-
-  INCLUDE 'netcdf.inc'
 
   !modules interface-------------------------------------------
   !subroutines

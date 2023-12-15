@@ -59,14 +59,12 @@ MODULE mo_ocean_ext_data
     &                              TSTEP_MAX, TSTEP_AVG, GRID_UNSTRUCTURED
   USE mo_zaxis_type,         ONLY: ZA_SURFACE, ZA_REFERENCE, ZA_PRESSURE, ZA_HEIGHT_2M
   USE mo_netcdf_errhandler,  ONLY: nf
+  USE mo_netcdf
   USE mo_io_config,          ONLY: lnetcdf_flt64_output
 
 #include "add_var_acc_macro.inc"
 
   IMPLICIT NONE
-
-  ! required for reading external data
-  INCLUDE 'netcdf.inc'
 
   PRIVATE
 

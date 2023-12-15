@@ -32,12 +32,30 @@ MODULE mo_async_restart_comm_data
   USE mo_parallel_config,      ONLY: config_restart_chunk_size => restart_chunk_size
   USE mo_restart_util,   ONLY: restartbcastroot
   USE mo_timer,                ONLY: timer_start, timer_stop, timer_write_restart_communication, timers_level
-  USE mpi, ONLY: MPI_ADDRESS_KIND, MPI_INFO_NULL, MPI_WIN_NULL, MPI_LOCK_EXCLUSIVE, MPI_MODE_NOCHECK
-#ifdef NO_MPI_RGET
-  USE mpi,                     ONLY: MPI_LOCK_SHARED
-#else
-  USE mpi,                     ONLY: MPI_REQUEST_NULL, MPI_STATUS_IGNORE
+
+  USE mpi, ONLY: MPI_ADDRESS_KIND, MPI_INFO_NULL, MPI_WIN_NULL, MPI_LOCK_EXCLUSIVE, MPI_MODE_NOCHECK, &
+    & MPI_Win_free, MPI_Win_lock, MPI_Win_unlock
+#ifndef NO_MPI_CHOICE_ARG
+  USE mpi, ONLY: MPI_Win_create, MPI_Free_mem
 #endif
+#ifndef NO_MPI_CPTR_ARG
+  USE mpi, ONLY: MPI_Alloc_mem
+#endif
+#ifdef NO_MPI_RGET
+  USE mpi, ONLY: MPI_LOCK_SHARED
+# ifndef NO_MPI_CHOICE_ARG
+  USE mpi, ONLY: MPI_Get
+# endif
+#else
+  USE mpi, ONLY: MPI_REQUEST_NULL, MPI_STATUS_IGNORE
+# ifndef NO_MPI_CHOICE_ARG
+  ! MPI_Win_{un,}lock_all don't have choice args but OpenMPI doesn't include an interface in its
+  ! use-mpi-tkr variant for compilers that can't ignore argument TKR via directives.
+  ! Cray's MPI doesn't export MPI_Waitany.
+  USE mpi, ONLY: MPI_Rget, MPI_Win_lock_all, MPI_Win_unlock_all, MPI_Waitany
+# endif
+#endif
+
 #ifdef DEBUG
   USE mo_mpi,                  ONLY: p_pe
 #endif

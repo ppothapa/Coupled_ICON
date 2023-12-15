@@ -38,8 +38,6 @@ MODULE mo_ocean_testbed_quads
 IMPLICIT NONE
 PRIVATE
 
-  INCLUDE 'netcdf.inc'
-
   PUBLIC :: ocean_test_quads
 
 CONTAINS

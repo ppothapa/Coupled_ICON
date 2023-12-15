@@ -30,7 +30,7 @@ MODULE mo_nwp_vdiff_sea
   USE mo_master_config, ONLY: isRestart
   USE mo_model_domain, ONLY: t_patch
   USE mo_nwp_lnd_types, ONLY: t_lnd_diag, t_wtr_prog
-  USE mo_nwp_ocean_interface, ONLY: t_nwp_ocean_fields_rx, t_nwp_ocean_fields_tx, couple_ocean
+  USE mo_nwp_ocean_coupling, ONLY: t_nwp_ocean_fields_rx, t_nwp_ocean_fields_tx, couple_ocean
   USE mo_nwp_vdiff_radfluxes, ONLY: t_nwp_vdiff_surface_rad_fluxes
   USE mo_nwp_vdiff_types, ONLY: t_nwp_vdiff_albedos, t_nwp_vdiff_sea_state, SFT_SICE, SFT_SWTR
   USE mo_parallel_config, ONLY: nproma

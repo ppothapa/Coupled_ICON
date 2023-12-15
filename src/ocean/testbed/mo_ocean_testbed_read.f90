@@ -30,6 +30,7 @@ MODULE mo_ocean_testbed_read
   USE mo_grid_config,         ONLY: dynamics_grid_filename
 !   USE mo_test_netcdf_read,    ONLY: netcdf_write_oncells_3D_time
   USE mo_netcdf_errhandler, ONLY: nf
+  USE mo_netcdf
   USE mo_read_interface, ONLY: t_stream_id, read_2D, on_cells, on_vertices, on_edges, &
     & read_2d_int, read_3d, read_2d_time, read_2d_extdim, read_2d_extdim_int, &
     & read_3d_time, read_3d_extdim, read_2d_1time, read_2d_1lev_1time, read_3d_1time, &
@@ -41,8 +42,6 @@ MODULE mo_ocean_testbed_read
 !-------------------------------------------------------------------------
 IMPLICIT NONE
 PRIVATE
-
-  INCLUDE 'netcdf.inc'
 
   PUBLIC :: ocean_test_read
 

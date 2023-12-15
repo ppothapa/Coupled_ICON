@@ -77,6 +77,7 @@ REAL (wp), PARAMETER ::  one_third = 1.0_wp/3.0_wp
 REAL (wp), PARAMETER ::  pi_5      = pi*0.2_wp
 REAL (wp), PARAMETER ::  pi2       = pi*2.0_wp
 REAL (wp), PARAMETER ::  rad2deg   = 180.0_wp/pi
+!$ACC DECLARE COPYIN(rad2deg)
 REAL (wp), PARAMETER ::  deg2rad   = pi/180.0_wp
 REAL (wp), PARAMETER ::  eps       = 1.e-8_wp
 REAL (wp), PARAMETER ::  dbl_eps   = EPSILON(1._wp)

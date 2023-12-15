@@ -47,15 +47,16 @@ if (( ${#probtest_file_id[@]} < 3 )) ; then
     echo "    ${probtest_file_id[*]}"
     exit 2
 fi
+source tolerance/set_probtest_ensemble_num "$probtest_exp"
 
 # set up probtest config file
 export PROBTEST_CONFIG="${probtest_exp}-config.json"
 # set global arguments for reference generation (must be in sync with list_part_tolerance)
 if [[ "$builder" == *"mixed"* ]];
 then
-  member_ids=mixed_1,mixed_2,mixed_3,mixed_4,mixed_5,mixed_6,mixed_7,mixed_8,mixed_9,mixed_10
+  member_type="mixed"
 else
-  member_ids=double_1,double_2,double_3,double_4,double_5,double_6,double_7,double_8,double_9,double_10
+  member_type="double"
 fi
 "$PROBTEST" init \
     --codebase-install "${basedir}" \
@@ -63,7 +64,8 @@ fi
     --experiment-name "${base_exp}" \
     --config "${PROBTEST_CONFIG}" \
     --reference "${model_output_dir}" \
-    --member_ids "${member_ids}"
+    --member-type "${member_type}" \
+    --member-num "${probtest_ensemble_num}"
 
 # create stats file for each seed (layer-wise max/min/mean)
 "$PROBTEST" stats --ensemble --stats-file-name "$stats_file_name" || exit 3

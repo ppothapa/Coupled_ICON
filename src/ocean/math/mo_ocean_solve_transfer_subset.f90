@@ -40,7 +40,12 @@ MODULE mo_ocean_solve_subset_transfer
   USE mo_communication_factory, ONLY: setup_comm_pattern
   USE mo_fortran_tools, ONLY: set_acc_host_or_device
 #ifndef NOMPI
-  USE mpi, ONLY: MPI_STATUS_IGNORE, MPI_STATUSES_IGNORE, MPI_COMM_NULL, MPI_UNDEFINED
+  USE mpi, ONLY: MPI_STATUS_IGNORE, MPI_STATUSES_IGNORE, MPI_COMM_NULL, MPI_UNDEFINED, &
+    & MPI_Wait, MPI_Comm_split, MPI_Comm_rank
+# ifndef NO_MPI_CHOICE_ARG
+  ! Cray's MPI doesn't export MPI_Waitall.
+  USE mpi, ONLY: MPI_Isend, MPI_Recv, MPI_Waitall
+# endif
 #endif
 
   IMPLICIT NONE

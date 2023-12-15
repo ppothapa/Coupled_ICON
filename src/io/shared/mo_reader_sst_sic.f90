@@ -18,6 +18,7 @@ MODULE mo_reader_sst_sic
   USE mo_io_units,                ONLY: FILENAME_MAX
   USE mo_model_domain,            ONLY: t_patch
   USE mo_netcdf_errhandler,       ONLY: nf
+  USE mo_netcdf
   USE mtime,                      ONLY: julianday, juliandelta, getjuliandayfromdatetime, &
        &                                datetime, newdatetime, deallocatedatetime,        &
        &                                OPERATOR(+), ASSIGNMENT(=),                       &
@@ -35,8 +36,6 @@ MODULE mo_reader_sst_sic
   IMPLICIT NONE
 
   PRIVATE
-
-  INCLUDE 'netcdf.inc'
 
   PUBLIC :: t_sst_sic_reader
 

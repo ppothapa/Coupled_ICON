@@ -91,7 +91,7 @@ MODULE mo_hydro_ocean_run
   USE mo_derived_variable_handling, ONLY: update_statistics
   USE mo_ocean_output
 #ifdef YAC_coupling
-  USE mo_ocean_coupling,         ONLY: couple_ocean_toatmo_fluxes
+  USE mo_ocean_atmo_coupling,    ONLY: couple_ocean_toatmo_fluxes
 #endif
   USE mo_hamocc_nml,             ONLY: l_cpl_co2
   USE mo_ocean_time_events,      ONLY: ocean_time_nextStep, isCheckpoint, isEndOfThisRun, newNullDatetime

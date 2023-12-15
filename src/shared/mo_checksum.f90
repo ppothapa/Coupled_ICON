@@ -18,9 +18,7 @@ MODULE mo_checksum
     USE mo_util_string, ONLY: int2string
     USE mo_cdi,         ONLY: DATATYPE_INT, DATATYPE_FLT64
 #ifndef NOMPI
-#ifndef __SUNPRO_F95
     USE mpi !, ONLY: MPI_INT32_T, MPI_GATHER
-#endif
 #endif
 
     IMPLICIT NONE
@@ -28,12 +26,6 @@ MODULE mo_checksum
     PUBLIC printChecksum
 
     PRIVATE
-
-#ifndef NOMPI
-#ifdef __SUNPRO_F95
-    INCLUDE "mpif.h"
-#endif
-#endif
 
     INTERFACE printChecksum
         MODULE PROCEDURE printChecksum_1d_int32

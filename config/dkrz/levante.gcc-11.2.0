@@ -83,17 +83,20 @@ FCFLAGS="-I${HDF5_ROOT}/include -I${NETCDFF_ROOT}/include -I${ECCODES_ROOT}/incl
 
 common_extra_FCFLAGS='-fbacktrace -fbounds-check -fstack-protector-all -finit-real=nan -finit-integer=-2147483648 -finit-character=127 -O2'
 
-ICON_FCFLAGS="${common_extra_FCFLAGS} -std=f2008 -fallow-argument-mismatch -DDO_NOT_COMBINE_PUT_AND_NOCHECK"
-ICON_OCEAN_FCFLAGS='-O3 -fno-tree-loop-vectorize -std=f2008 -fallow-argument-mismatch'
+ICON_FCFLAGS="${common_extra_FCFLAGS} -std=f2008 -DDO_NOT_COMBINE_PUT_AND_NOCHECK"
+ICON_OCEAN_FCFLAGS='-O3 -fno-tree-loop-vectorize -std=f2008'
 ICON_BUNDLED_FCFLAGS="${common_extra_FCFLAGS} -std=f2008"
 ICON_ECRAD_FCFLAGS="${common_extra_FCFLAGS} -fallow-invalid-boz"
+
+ICON_DACE_FCFLAGS="${common_extra_FCFLAGS} -fallow-argument-mismatch"
+ICON_DACE_PATH='externals/dace_icon'
 
 LDFLAGS="-L${HDF5_ROOT}/lib -L${NETCDF_ROOT}/lib -L${NETCDFF_ROOT}/lib ${BLAS_LAPACK_LDFLAGS} -L${ECCODES_ROOT}/lib64 -L${FYAML_ROOT}/lib"
 LIBS="-Wl,--disable-new-dtags -Wl,--as-needed ${XML2_LIBS} ${FYAML_LIBS} ${ECCODES_LIBS} ${BLAS_LAPACK_LIBS} ${NETCDFF_LIBS} ${NETCDF_LIBS} ${HDF5_LIBS} ${ZLIB_LIBS}"
 
 MPI_LAUNCH="${MPI_ROOT}/bin/mpiexec"
 
-EXTRA_CONFIG_ARGS='--enable-parallel-netcdf --enable-yaxt --enable-coupling --enable-ecrad --enable-grib2 --enable-fcgroup-OCEAN=src/hamocc:src/ocean:src/sea_ice --enable-art'
+EXTRA_CONFIG_ARGS='--enable-parallel-netcdf --enable-yaxt --enable-coupling --enable-ecrad --enable-grib2 --enable-fcgroup-OCEAN=src/hamocc:src/ocean:src/sea_ice --enable-art --enable-fcgroup-DACE'
 
 ################################################################################
 
@@ -110,6 +113,8 @@ ICON_CFLAGS="${ICON_CFLAGS}" \
 ICON_ECRAD_FCFLAGS="${ICON_ECRAD_FCFLAGS}" \
 ICON_FCFLAGS="${ICON_FCFLAGS}" \
 ICON_OCEAN_FCFLAGS="${ICON_OCEAN_FCFLAGS}" \
+ICON_DACE_FCFLAGS="${ICON_DACE_FCFLAGS}" \
+ICON_DACE_PATH="${ICON_DACE_PATH}" \
 LDFLAGS="${LDFLAGS}" \
 LIBS="${LIBS}" \
 MPI_LAUNCH="${MPI_LAUNCH}" \

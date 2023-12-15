@@ -83,6 +83,7 @@ MODULE mo_icon2dace
   !-----------------------------
   ! DACE general purpose modules
   !-----------------------------
+  use mpi,            only: MPI_Comm_rank
   use mo_mpi_dace,    only: dace,            &! DACE communicator
                             set_dace_comm,   &! set the DACE MPI communicator
 #ifdef __PGI

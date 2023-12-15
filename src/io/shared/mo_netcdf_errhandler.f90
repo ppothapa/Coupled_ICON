@@ -12,11 +12,10 @@
 MODULE mo_netcdf_errhandler
 
   USE mo_exception,          ONLY: finish, message_text, warning
+  USE mo_netcdf
 
   IMPLICIT NONE
   PRIVATE
-
-  INCLUDE 'netcdf.inc'
 
   PUBLIC :: nf
 

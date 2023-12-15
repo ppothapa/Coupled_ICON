@@ -12,10 +12,9 @@
 MODULE mo_rte_rrtmgp_merge_debug
 
   USE mo_kind, ONLY: wp
+  USE mo_netcdf
 
   IMPLICIT NONE
-
-  INCLUDE 'netcdf.inc'
 
   PRIVATE
 

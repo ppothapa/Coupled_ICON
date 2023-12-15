@@ -22,11 +22,11 @@ MODULE mo_restart_nml_and_att
   USE mo_kind, ONLY: wp
   USE mo_hash_table, ONLY: t_HashIterator
   USE mo_netcdf_errhandler, ONLY: nf
+  USE mo_netcdf
 
   IMPLICIT NONE
   PRIVATE
 
-  INCLUDE 'netcdf.inc'
   ! used throughout the icon code
   PUBLIC :: open_tmpfile, store_and_close_namelist
   PUBLIC :: open_and_restore_namelist, close_tmpfile
@@ -193,12 +193,12 @@ CONTAINS
         CALL nf(nf_put_att_text(ncid, NF_GLOBAL, ccKey, LEN(curVal), curVal), routine)
 #endif
       TYPE IS(REAL(wp))
-        CALL nf(nf_put_att_double(ncid, NF_GLOBAL, ccKey, NF_DOUBLE, 1, curVal), routine)
+        CALL nf(nfx_put_att(ncid, NF_GLOBAL, ccKey, NF_DOUBLE, curVal), routine)
       TYPE IS(INTEGER)
-        CALL nf(nf_put_att_int(ncid, NF_GLOBAL, ccKey, NF_INT, 1, curVal), routine)
+        CALL nf(nfx_put_att(ncid, NF_GLOBAL, ccKey, NF_INT, curVal), routine)
       TYPE IS(LOGICAL)
         ccTmp = 'bool_'//ccKey
-        CALL nf(nf_put_att_int(ncid, NF_GLOBAL, ccTmp, NF_INT, 1, MERGE(1,0,curVal)), routine)
+        CALL nf(nfx_put_att(ncid, NF_GLOBAL, ccTmp, NF_INT, curVal), routine)
       CLASS DEFAULT
         CALL finish(routine, "val: invalid type")
       END SELECT

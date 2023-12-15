@@ -695,13 +695,17 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
      zprmod_s = global_sum_array(zprmod_s, opt_iroot=p_io)
      zprref_s = global_sum_array(zprref_s, opt_iroot=p_io)
 
-     IF ( zprref_s > 0.0_wp) THEN
+     IF ( zprref_s > 0.0_wp .AND. zprmod_s > 0.0_wp ) THEN
        r_pr_ref_bias = zprmod_s / zprref_s 
      ELSE
        r_pr_ref_bias = 1.0_wp
      ENDIF
 !$OMP END MASTER 
 !$OMP BARRIER
+
+      lhn_fields%ref_bias = lhn_fields%ref_bias + zdt/assimilation_config(jg)%dtrefbias * &
+                                                             (r_pr_ref_bias - lhn_fields%ref_bias)
+      !$ACC UPDATE DEVICE(lhn_fields%ref_bias) ASYNC(1)
 
 !$OMP DO PRIVATE(jb,jc,i_startidx,i_endidx) ICON_OMP_GUIDED_SCHEDULE
      DO jb=i_startblk,i_endblk
@@ -711,9 +715,7 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
        !$ACC LOOP GANG VECTOR
        DO jc=i_startidx,i_endidx
-         lhn_fields%ref_bias(jc,jb) = lhn_fields%ref_bias(jc,jb) + zdt/assimilation_config(jg)%dtrefbias * &
-                                                                (r_pr_ref_bias - lhn_fields%ref_bias(jc,jb)) 
-         pr_ref(jc,jb) =  pr_ref(jc,jb) * lhn_fields%ref_bias(jc,jb)
+         pr_ref(jc,jb) =  pr_ref(jc,jb) * lhn_fields%ref_bias
        ENDDO
        !$ACC END PARALLEL
        
@@ -721,6 +723,9 @@ SUBROUTINE organize_lhn ( dt_loc, p_sim_time,             & !>in
      !$ACC WAIT(1)
 !$OMP END DO 
 !$OMP END PARALLEL
+      IF (my_process_is_stdio() .AND. (assimilation_config(jg)%lhn_diag)) THEN
+        WRITE(nulhn(jg), *)              ' bias correction of reference precipitation: ',r_pr_ref_bias, lhn_fields%ref_bias
+      ENDIF
    ENDIF
 
 
