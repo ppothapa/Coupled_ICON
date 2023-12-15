@@ -154,7 +154,6 @@ inwp_surface    = 0
  ltheta_up_hori = .TRUE     ! use upstream biased theta advection
 /
 &dynamics_nml
- iequations  = ${atmo_model_equations}       
  divavg_cntrwgt = 0.50
  lcoriolis      = .TRUE.
 /

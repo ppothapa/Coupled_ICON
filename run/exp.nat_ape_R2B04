@@ -162,7 +162,6 @@ cat > ${atmo_namelist} << EOF
  dt_restart   = ${dt_restart}  ! 1 month
 /
 &dynamics_nml
- iequations      = 3  
  divavg_cntrwgt  = 0.50
  lcoriolis       = .TRUE.
 /

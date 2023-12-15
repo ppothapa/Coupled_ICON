@@ -47,7 +47,7 @@ MODULE mo_atmo_model
   USE mo_util_sysinfo,            ONLY: util_get_maxrss
 #endif
 #endif
-  USE mo_impl_constants,          ONLY: SUCCESS, inh_atmosphere, inwp, LSS_JSBACH, LSS_TERRA
+  USE mo_impl_constants,          ONLY: SUCCESS, inwp, LSS_JSBACH
   USE mo_zaxis_type,              ONLY: zaxisTypeList, t_zaxisTypeList
   USE mo_load_restart,            ONLY: read_restart_header
 
@@ -57,7 +57,7 @@ MODULE mo_atmo_model
   USE mo_initicon_config,         ONLY: configure_initicon
   USE mo_io_config,               ONLY: restartWritingParameters
   USE mo_lnd_nwp_config,          ONLY: configure_lnd_nwp
-  USE mo_dynamics_config,         ONLY: configure_dynamics, iequations, lmoist_thdyn
+  USE mo_dynamics_config,         ONLY: configure_dynamics, lmoist_thdyn
   USE mo_run_config,              ONLY: configure_run,                                        &
     &                                   ltimer, ltestcase,                                    &
     &                                   ldynamics, ltransport,                                &
@@ -84,7 +84,7 @@ MODULE mo_atmo_model
   USE mo_master_control,          ONLY: atmo_process
 
   ! time stepping
-  USE mo_atmo_nonhydrostatic,     ONLY: atmo_nonhydrostatic, construct_atmo_nonhydrostatic
+  USE mo_atmo_nonhydrostatic,     ONLY: atmo_nonhydrostatic
 
   USE mo_nh_testcases,            ONLY: init_nh_testtopo
 
@@ -125,12 +125,6 @@ MODULE mo_atmo_model
   USE mo_grf_intp_data_strc,      ONLY: p_grf_state, p_grf_state_local_parent
   USE mo_intp_lonlat,             ONLY: compute_lonlat_intp_coeffs
 
-  ! coupling
-#ifdef YAC_coupling
-  USE mo_coupling_config,           ONLY: is_coupled_to_ocean, is_coupled_to_waves, is_coupled_to_hydrodisc
-  USE mo_atmo_coupling_frame,       ONLY: construct_atmo_coupling
-#endif
-
   ! I/O
   USE mo_restart,                 ONLY: detachRestartProcs
   USE mo_icon_output_tools,       ONLY: init_io_processes
@@ -139,7 +133,6 @@ MODULE mo_atmo_model
   ! Prefetching
   USE mo_async_latbc,             ONLY: prefetch_main_proc
 #endif
-  USE mo_async_latbc_types,       ONLY: t_latbc_data
   ! ART
   USE mo_art_config,              ONLY: ctracer_art
 #ifdef __ICON_ART
@@ -171,8 +164,6 @@ CONTAINS
 
     CHARACTER(*), PARAMETER :: routine = "mo_atmo_model:atmo_model"
 
-    TYPE(t_latbc_data) :: latbc !< data structure for async latbc prefetching
-
 #ifndef NOMPI
 #if defined(__SX__)
     INTEGER  :: maxrss
@@ -183,36 +174,14 @@ CONTAINS
     ! construct the atmo model
     CALL construct_atmo_model(atm_namelist_filename,shr_namelist_filename)
 
-    SELECT CASE(iequations)
-
-    CASE(inh_atmosphere)
-      CALL construct_atmo_nonhydrostatic(latbc)
-
-    CASE DEFAULT
-      CALL finish(routine, 'unknown choice for iequations.')
-    END SELECT
-
     !---------------------------------------------------------------------
-    ! construct the coupler
-    !
-#ifdef YAC_coupling
-    IF ( ANY( (/is_coupled_to_ocean(), is_coupled_to_hydrodisc(), is_coupled_to_waves()/) ) )   THEN
-      CALL construct_atmo_coupling(p_patch(1:))
-    ENDIF
-#endif
-
-
+    ! constructs the nonhydrostatic atmospheric model
+    ! constructs the coupler
+    ! performs integration
+    ! destructs the nonhydrostatic atmospheric model
     !---------------------------------------------------------------------
-    ! 12. The hydrostatic model has been deleted. Only the non-hydrostatic
-    !     model is available.
-    !---------------------------------------------------------------------
-    SELECT CASE(iequations)
-    CASE(inh_atmosphere)
-      CALL atmo_nonhydrostatic(latbc)
+    CALL atmo_nonhydrostatic ()
 
-    CASE DEFAULT
-      CALL finish(routine, 'unknown choice for iequations.')
-    END SELECT
 
     ! print performance timers:
     IF (ltimer) CALL print_timer
@@ -311,7 +280,7 @@ CONTAINS
     CALL restartWritingParameters(opt_dedicatedProcCount = dedicatedRestartProcs)
 
 #ifdef HAVE_RADARFWO
-    IF (iequations == inh_atmosphere .AND. iforcing == inwp .AND. ANY(luse_radarfwo(1:n_dom))) THEN
+    IF (iforcing == inwp .AND. ANY(luse_radarfwo(1:n_dom))) THEN
       CALL prep_emvorado_domains (n_dom, luse_radarfwo(1:n_dom))
     ENDIF
 #endif
@@ -329,7 +298,7 @@ CONTAINS
 !! Mie- or Tmatrix-scattering from EMVORADO.
 !! Because in case of luse_radarfwo(:) = .FALSE. this initialization does only very few things, we call it
 !! in any case for the NWP ICON:
-    IF (iequations == inh_atmosphere .AND. iforcing == inwp) THEN
+    IF (iforcing == inwp) THEN
       message_text(:) = ' '
 #ifdef NOMPI
       CALL init_emvorado_mpi ( luse_radarfwo(1:n_dom), & ! INPUT
@@ -429,8 +398,7 @@ CONTAINS
 
 #ifdef HAVE_RADARFWO
 #ifndef NOMPI
-    IF ( .NOT. my_process_is_mpi_test() .AND. &
-         iequations == inh_atmosphere .AND. iforcing == inwp .AND. &
+    IF ( .NOT. my_process_is_mpi_test() .AND. iforcing == inwp .AND. &
          ANY(luse_radarfwo(1:n_dom)) .AND. num_io_procs_radar > 0   ) THEN
 
       ! -------------------------------------------------------------------------
@@ -585,7 +553,7 @@ CONTAINS
     !---------------------------------------------------------------------
 
     CALL allocate_vct_atmo(p_patch(1)%nlevp1)
-    IF (iequations == inh_atmosphere .AND. ltestcase .AND. (.NOT. l_scm_mode)) THEN
+    IF (ltestcase .AND. (.NOT. l_scm_mode)) THEN
       CALL init_nh_testtopo(p_patch(1:), ext_data)   ! set analytic topography
       ! for single column model (SCM) the topography is read in ext_data_init from SCM input file
     ENDIF
@@ -611,8 +579,7 @@ CONTAINS
 
 #ifdef HAVE_RADARFWO
 #ifndef NOMPI
-    IF ( .NOT. my_process_is_mpi_test() .AND. &
-         iequations == inh_atmosphere .AND. iforcing == inwp .AND. &
+    IF ( .NOT. my_process_is_mpi_test() .AND. iforcing == inwp .AND. &
          ANY(luse_radarfwo(1:n_dom)) .AND. num_io_procs_radar > 0   ) THEN
 
       ! Only workers reach this point here. Send

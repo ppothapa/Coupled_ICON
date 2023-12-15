@@ -71,11 +71,10 @@ MODULE mo_name_list_output
   ! constants
   USE mo_kind,                      ONLY: wp, i4, i8, dp, sp
   USE mo_impl_constants,            ONLY: max_dom, SUCCESS, MAX_TIME_LEVELS,       &
-    &                                     ihs_ocean, BOUNDARY_MISSVAL, nlat_moc
+    &                                     BOUNDARY_MISSVAL, nlat_moc
   USE mo_cdi_constants,             ONLY: GRID_REGULAR_LONLAT, GRID_UNSTRUCTURED_VERT,              &
     &                                     GRID_UNSTRUCTURED_CELL, GRID_UNSTRUCTURED_EDGE, GRID_ZONAL
   USE mo_impl_constants_grf,        ONLY: grf_bdywidth_c
-  USE mo_dynamics_config,           ONLY: iequations
   USE mo_cdi,                       ONLY: streamOpenWrite, FILETYPE_GRB2, streamDefTimestep, cdiEncodeTime, cdiEncodeDate, &
       &                                   CDI_UNDEFID, TSTEP_CONSTANT, FILETYPE_GRB, taxisDestroy, gridDestroy, &
       &                                   vlistDestroy, streamClose, streamWriteVarSlice, streamWriteVarSliceF, streamDefVlist, &
@@ -96,6 +95,7 @@ MODULE mo_name_list_output
   USE mo_name_list_output_gridinfo, ONLY: write_grid_info_grb2, GRID_INFO_NONE
   USE mo_util_file,                 ONLY: util_rename, get_filename, get_path
   ! config
+  USE mo_master_control,            ONLY: my_process_is_ocean
   USE mo_master_config,             ONLY: getModelBaseDir
   USE mo_grid_config,               ONLY: n_dom, l_limited_area
   USE mo_run_config,                ONLY: msg_level
@@ -2661,7 +2661,7 @@ CONTAINS
     LOGICAL             :: is_ocean
 
     is_io_root = my_process_is_mpi_ioroot()
-    is_ocean   = iequations==ihs_ocean ! FIXME: is that really sensible?
+    is_ocean   = my_process_is_ocean() ! FIXME: is that really sensible?
 
     ! define initial time stamp used as reference for output statistics
     CALL set_reference_time()

@@ -169,7 +169,6 @@ const_z0  = 0.0001
  itopo          = 0 ! 0: analytical topo; 1: topography/ext. data read from file
 /
 &dynamics_nml
- iequations     = ${atmo_model_equations}       ! equation system
 ! divavg_cntrwgt = 0.50
  lcoriolis      = .FALSE.
 /

@@ -147,7 +147,6 @@ cat > ${atmo_namelist} << EOF
  output       = 'none'
 /
 &dynamics_nml
- iequations      = 3  
  divavg_cntrwgt  = 0.50
 /
 &nh_testcase_nml

@@ -373,10 +373,8 @@ MODULE mo_impl_constants
   INTEGER, PARAMETER :: izero_grad  = 1
   INTEGER, PARAMETER :: iparent_flx = 2
 
-
   ! equations to be solved
   INTEGER, PARAMETER :: inh_atmosphere =  3 ! - non-hydrost.atm.
-  INTEGER, PARAMETER :: ihs_ocean      = -1 ! - hydrostatic ocean
 
   ! parameterized forcing (right hand side) of dynamics
   INTEGER, PARAMETER :: inoforcing     =  0 ! - no forcing

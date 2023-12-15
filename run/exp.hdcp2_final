@@ -249,7 +249,6 @@ cat > ${atmo_namelist} << EOF
  output      = 'nml','totint'      
 /
 &dynamics_nml
- iequations  = ${atmo_model_equations}       ! 1: hydrost. atmosphere
  lcoriolis   = .TRUE.
  divavg_cntrwgt  = 0.50
 /
