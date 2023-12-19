@@ -22,8 +22,10 @@ MODULE mo_io_coupling_frame
 
   USE mo_coupling_config,           ONLY: is_coupled_run
   USE mo_impl_constants,            ONLY: MAX_CHAR_LENGTH
-  USE mo_exception,                 ONLY: message, message_text
+  USE mo_exception,                 ONLY: message, message_text, finish
+#ifdef YAC_coupling
   USE mo_yac_finterface,            ONLY: yac_fdef_comp, yac_fenddef
+#endif
 
   IMPLICIT NONE
 
@@ -41,6 +43,10 @@ CONTAINS
 
     INTEGER :: comp_ids(1)
 
+#ifndef YAC_coupling
+    CALL finish(routine, 'built without coupling support.')
+#else
+
     IF ( is_coupled_run() ) THEN
 
       WRITE(message_text,*) "YAC initialisation for asynchronous I/O processes of type ", &
@@ -53,6 +59,9 @@ CONTAINS
       ! IO processes need to participate in the YAC search
       CALL yac_fenddef ( )
     ENDIF
+
+! YAC_coupling
+#endif
 
   END SUBROUTINE construct_io_coupling
 
