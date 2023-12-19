@@ -125,7 +125,7 @@ case "$use_site" in
             use_mpi_startrun='srun -n $mpi_total_procs --ntasks-per-node $mpi_procs_pernode --threads-per-core=1 --distribution=cyclic ${basedir}/run/run_wrapper/'${host_name}'_gpu.sh'
           else
             use_target=${host_name}'_cpu'
-            use_mpi_startrun='srun -n $mpi_total_procs --ntasks-per-node $mpi_procs_pernode --threads-per-core=1 --distribution=cyclic ${basedir}/run/run_wrapper/'${host_name}'_cpu.sh'
+            use_mpi_startrun='srun -n $mpi_total_procs --ntasks-per-node $mpi_procs_pernode --threads-per-core=1'
           fi
         fi
       ;;

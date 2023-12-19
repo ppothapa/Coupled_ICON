@@ -45,7 +45,7 @@ export RESTART_DATE='20210620T150000Z'
 # 
 # 2. Define the checksuite mode
 #
-export MD='tm'
+export MD='t'
 
 #--------------------------------------------------------------------------------
 # 
@@ -53,14 +53,6 @@ export MD='tm'
 
 rundir=`pwd`
 cd checksuite.icon-dev
-
-case $HOST in
-    # balfrin (the current hostname is nid but will be changed to balfrin)
-    *nid*|*balfrin*)
-        # Jan 2023: Note that the MPI tests fail on Balfrin for unknown reasons
-        export MD='t'
-        ;;
-esac
 
 ./icon-dev.checksuite
 STATUS=$?

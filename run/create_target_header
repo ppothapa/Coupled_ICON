@@ -1374,7 +1374,7 @@ set_run_target_balfrin_gpu()
 
     # hardcode number of nodes
     set_default use_nodes 1
-    set_default use_mpi_procs_pernode $((4+use_prefetch_procs))
+    set_default use_mpi_procs_pernode $((5+use_prefetch_procs))
 
     job_type=parallel
     tasks_per_node=$use_mpi_procs_pernode
@@ -1461,7 +1461,7 @@ set_run_target_balfrin_cpu()
         set_default use_mpi_procs_pernode 4
         set_default use_openmp_threads 32
     else
-        set_default use_mpi_procs_pernode 16
+        set_default use_mpi_procs_pernode 64
     fi
 
     job_type=parallel
@@ -1504,6 +1504,9 @@ set_run_target_balfrin_cpu()
 #SBATCH --job-name=$job_name
 #SBATCH --output=$output_folder/$job_log_name.o
 #SBATCH --error=$output_folder/$job_log_name.o
+#SBATCH --partition=pp-short
+#SBATCH --exclusive
+#SBATCH --hint=nomultithread
 #$SBATCH_nodes
 #$SBATCH_ntasks_per_node
 #$s_cpu_time
@@ -1947,6 +1950,30 @@ create_target_header()
 
     use_prefetch_procs=0
  	case $job_name in
+        *dwd_run_ICON_09_R2B4N5_EPS.run*|*dwd_run_ICON_09_R2B4N5_EPS_member_id*)
+            case $use_target in
+                balfrin_gpu*)
+                    use_nodes=1
+                    use_mpi_procs_pernode=4
+                ;;
+            esac
+            ;;
+        *mch_ch_lowres.run|*mch_ch_lowres_member_id*)
+            case $use_target in
+                balfrin_gpu*)
+                    use_nodes=1
+                    use_mpi_procs_pernode=4
+                ;;
+            esac
+            ;;
+        *mch_kenda-ch1_small.run|*mch_kenda-ch1_small_member_id*)
+            case $use_target in
+                balfrin_gpu*)
+                    use_nodes=1
+                    use_mpi_procs_pernode=4
+                ;;
+            esac
+            ;;
         *mch_opr_r04b07.run|*mch_opr_r04b07_member_id*.run)
             use_nodes=1
             use_mpi_procs_pernode=3
