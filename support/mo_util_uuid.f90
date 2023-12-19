@@ -1,21 +1,22 @@
-!! This module contains the routines for the calculation of 128bit
-!! data checksums/fingerprints (which are called "UUID's" in ICON).
-!!
-!! The larger part of this functionality is implemented in C routines
-!! in the "support" subdirectory, while this Fortran module acts
-!! merely as a wrapper. For *parallel* fingerprint calculation,
-!! however, the MPI-parallel communication is invoked on the Fortran
-!! level only.
-!!
-!! 11/2016: F. Prill, DWD
-!!
-!! @par Copyright and License
-!!
-!! This code is subject to the DWD and MPI-M-Software-License-Agreement in
-!! its most recent form.
-!! Please see the file LICENSE in the root of the source tree for this code.
-!! Where software is supplied by third parties, it is indicated in the
-!! headers of the routines.
+! This module contains the routines for the calculation of 128bit
+! data checksums/fingerprints (which are called "UUID's" in ICON).
+!
+! The larger part of this functionality is implemented in C routines
+! in the "support" subdirectory, while this Fortran module acts
+! merely as a wrapper. For *parallel* fingerprint calculation,
+! however, the MPI-parallel communication is invoked on the Fortran
+! level only.
+!
+! ICON
+!
+! ---------------------------------------------------------------
+! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+! Contact information: icon-model.org
+!
+! See AUTHORS.TXT for a list of authors
+! See LICENSES/ for license information
+! SPDX-License-Identifier: BSD-3-Clause
+! ---------------------------------------------------------------
 
 MODULE mo_util_uuid
 

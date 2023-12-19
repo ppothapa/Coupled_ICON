@@ -1,13 +1,22 @@
 /* 128 bit UUID computation / Rabin fingerprinting algorithm                                        */
 /*                                                                                                  */
+/* ICON                                                                                             */
+/*                                                                                                  */
+/* ---------------------------------------------------------------                                  */
+/* Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss                                  */
+/* Contact information: icon-model.org                                                              */
+/*                                                                                                  */
+/* See AUTHORS.TXT for a list of authors                                                            */
+/* See LICENSES/ for license information                                                            */
+/* SPDX-License-Identifier: BSD-3-Clause                                                            */
+/* ---------------------------------------------------------------                                  */
+/*                                                                                                  */
 /* ("A fingerprinting algorithm is a procedure that maps an arbitrarily large data item             */
 /* to a much shorter bit string" [Wikipedia-en]).                                                   */
 /*                                                                                                  */
 /* The fingerprint of string A is computed as                                                       */
 /*   f(A) = A(t) mod P(t)   where P(t) is an irreducible polynomial                                 */
 /*                          in the ring of integers modulus 2 ("Z2").                               */
-/*                                                                                                  */
-/* @author F. Prill, DWD (2015-01-20 / 2016-11-23)                                                  */
 /*                                                                                                  */
 /* Literature:                                                                                      */
 /* [1] Rabin, M. O.:      "Fingerprinting by Random Polynomials."                                   */
@@ -44,14 +53,6 @@
 /* 7. The fingerprinting technique could easily allow for a cascade of accuracy tests, if more      */
 /*    than 128 bits were available for the UUID.                                                    */
 /*                                                                                                  */
-/*                                                                                                  */
-/* @par Copyright and License                                                                       */
-/*                                                                                                  */
-/* This code is subject to the DWD and MPI-M-Software-License-Agreement in                          */
-/* its most recent form.                                                                            */
-/* Please see the file LICENSE in the root of the source tree for this code.                        */
-/* Where software is supplied by third parties, it is indicated in the                              */
-/* headers of the routines.                                                                         */
 
 #include "util_uuid.h"
 
