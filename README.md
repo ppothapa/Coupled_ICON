@@ -1325,6 +1325,6 @@ Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
 Contact information: icon-model.org  
 
 See [AUTHORS.TXT](./AUTHORS.txt) for a list of authors  
-See [LICENSES/](./license) for license information  
+See [LICENSES/](./LICENSES) for license information  
 See header of each file for file specific licenses  
-SPDX-License-Identifier: [BSD-3-Clause](./license/Third_party_license_terms/BSD-3-C-license.pdf)  
+SPDX-License-Identifier: [BSD-3-Clause](./LICENSES/BSD-3-Clause.txt)  
