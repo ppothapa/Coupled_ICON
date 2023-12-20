@@ -746,6 +746,7 @@ enable_dace
 enable_emvorado
 enable_art
 enable_hd
+enable_acm_license
 enable_mpi
 enable_mpi_checks
 enable_active_target_sync
@@ -1526,6 +1527,8 @@ Model Features:
                             05deg|yes  enable for the 0.5-degree global domain
                             5min       enable for the 5min global domain
                             no         disable the HD model
+  --enable-acm-license    enable code parts that require accepting the ACM
+                          Software License Agreement [default=no]
 
 Infrastructural Features:
   --enable-mpi            enable MPI (parallelization) support [default=yes]
@@ -3132,6 +3135,16 @@ if test "${enable_hd+set}" = set; then :
 esac
 else
   enable_hd=no
+fi
+
+
+# Check whether --enable-acm-license was given.
+if test "${enable_acm_license+set}" = set; then :
+  enableval=$enable_acm_license; if test x"$enableval" != xno; then :
+  enable_acm_license=yes
+fi
+else
+  enable_acm_license=no
 fi
 
 
@@ -5348,6 +5361,10 @@ fi
 
 if test "x$enable_art" = xyes; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}__ICON_ART ${FC_PP_DEF}__ART_TMP_IFDEF"
+fi
+
+if test "x$enable_acm_license" = xyes; then :
+  as_fn_append FCFLAGS " ${FC_PP_DEF}HAVE_ACM_LICENSE"
 fi
 
 if test "x$enable_mpi" = xno; then :

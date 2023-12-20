@@ -32,7 +32,7 @@ MODULE mo_sppt_util
   USE mo_loopindices,             ONLY: get_indices_c
   USE mo_impl_constants,          ONLY: min_rlcell_int
   USE mo_gribout_config,          ONLY: gribout_config
-  USE mo_exception,               ONLY: message, message_text
+  USE mo_exception,               ONLY: message, message_text, finish
   USE mo_fortran_tools,           ONLY: set_acc_host_or_device, assert_acc_device_only, copy
 
 
@@ -186,6 +186,8 @@ MODULE mo_sppt_util
   !
   !---------------------------------------------------------------------
 
+#ifdef HAVE_ACM_LICENSE
+
   SUBROUTINE random_normal_values(seed, values_range, values)
 
     ! Subroutine arguments (in/out/inout)
@@ -323,6 +325,7 @@ MODULE mo_sppt_util
 
   END SUBROUTINE random_normal_values
 
+#endif  
 
   !---------------------------------------------------------------------
   ! Bilinear interpolation, c.f.
@@ -397,7 +400,11 @@ MODULE mo_sppt_util
     CALL set_seed_rand_numb(mtime_current, kconseed, seed_rn)
 
     ! Generate random numbers on coarse grid
+#ifdef HAVE_ACM_LICENSE
     CALL random_normal_values(seed_rn, sppt_config%range_rn, rn_1d_coarse)
+#else
+    CALL finish('mo_sppt_util.f90:', "SPPT requires the ACM Software License Agreement when configuring ICON")
+#endif
     rn_2d_coarse(:,:) = reshape(rn_1d_coarse, (/SIZE(rn_2d_coarse,1), SIZE(rn_2d_coarse,2)/))
 
    ! Interpolate form coarse to fine

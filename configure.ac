@@ -213,6 +213,13 @@ AC_ARG_ENABLE([hd],
 as '05deg'), '5min', 'no'])])],
 [enable_hd=no])
 
+AC_ARG_ENABLE([acm-license],
+  [AS_HELP_STRING([--enable-acm-license],
+     [enable code parts that require accepting the ACM Software License ]dnl
+[Agreement @<:@default=no@:>@])],
+  [AS_IF([test x"$enableval" != xno], [enable_acm_license=yes])],
+  [enable_acm_license=no])
+
 m4_divert_once([HELP_ENABLE], [[
 Infrastructural Features:]])
 
@@ -836,6 +843,9 @@ AS_VAR_IF([enable_emvorado], [yes],
 AS_VAR_IF([enable_art], [yes],
   [AS_VAR_APPEND([FCFLAGS],
      [" ${FC_PP_DEF}__ICON_ART ${FC_PP_DEF}__ART_TMP_IFDEF"])])
+
+AS_VAR_IF([enable_acm_license], [yes],
+  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}HAVE_ACM_LICENSE"])])
 
 AS_VAR_IF([enable_mpi], [no],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}NOMPI"])])
