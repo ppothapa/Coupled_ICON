@@ -18,6 +18,7 @@
 !
 !-------------------------------------------------------------------------------
 ! SPDX-License-Identifier: Apache-2.0
+! This file has been modified for the use in ICON
 !-------------------------------------------------------------------------------
 !
 ! The derived type "rng_type" is a random number generator that uses
@@ -45,17 +46,6 @@
 ! 1192-1201. doi:10.1145/63039.63042
 !
 !-------------------------------------------------------------------------------
-!
-! ICON
-!
-! ---------------------------------------------------------------
-! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
-! Contact information: icon-model.org
-!
-! See AUTHORS.TXT for a list of authors
-! See LICENSES/ for license information
-! SPDX-License-Identifier: BSD-3-Clause
-! ---------------------------------------------------------------
 
 module cloud_random_numbers
   USE mo_kind,  ONLY: jprb=>wp ,jpim=>i4,jpib=>i8

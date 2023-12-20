@@ -40,6 +40,7 @@ support
 # root source directory):
 icon_ignored_patterns='
 src/diagnostics/atmosphere/mo_diag_hailcast.f90
+src/atm_phy_schemes/cloud_random_numbers.f90
 src/atm_phy_schemes/data_gwd.f90
 src/atm_phy_schemes/mo_adjust.f90
 src/atm_phy_schemes/mo_cuascn.f90

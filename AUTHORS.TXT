@@ -132,7 +132,6 @@ Nathanael Huebbe
 Nikolas Porz            
 Nils Noll               
 Panagiotis Adamidis     
-Panos Adamidis          
 Pavel Khain             
 Peter Korn              
 Philippe Marti          
