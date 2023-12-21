@@ -28,6 +28,11 @@ MODULE mo_icon_testbed
   USE mo_test_jitter,         ONLY: test_jitter
   USE mo_test_netcdf_read,    ONLY: test_netcdf_read
 #endif
+
+#ifndef __NO_ICON_COMIN__
+  USE mo_mpi,               ONLY: p_comm_comin
+  USE comin_host_interface, ONLY: mpi_handshake_dummy
+#endif
 !-------------------------------------------------------------------------
   IMPLICIT NONE
   PRIVATE
@@ -48,6 +53,11 @@ CONTAINS
     write(0,*) TRIM(get_my_process_name()), ': Start of ', method_name
     
     CALL read_icon_testbed_namelist(testbed_namelist_filename)
+
+#ifndef __NO_ICON_COMIN__
+    ! we dont participate at comin (yet) but we need to be friendly and shake hands
+    CALL mpi_handshake_dummy(p_comm_comin)
+#endif
 
     SELECT CASE(testbed_model)
     

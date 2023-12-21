@@ -153,6 +153,12 @@ $addexp checksuite.icon-dev/check.atm_tracer_Hadley                       --buil
 # tests for nwp
 $addexp "exp.test_nwp_R02B04N06multi"  --without-configureflags "--without-mpi" --runflags "cpu_time=00:30:00 queue=shared,compute memory=64G ntasks=32"  --machines levante --list $listname
 $addexp "exp.test_nwp_R02B04_R02B05_nest"  --without-configureflags "--without-mpi" --runflags "cpu_time=00:30:00 queue=shared,compute memory=32G ntasks=32"  --machines levante --list $listname
+
+$addexp "checksuite.infrastructure/comin/exp.build_comin_plugins_LEVANTE.run" --builders "levante_gcc" --list $listname
+$addexp "exp.test_nwp_R02B04_R02B05_nest_comin"                                  --builders "levante_gcc" --list $listname
+./adddep --from-experiment "exp.test_nwp_R02B04_R02B05_nest_comin" --to-experiment "checksuite.infrastructure/comin/exp.build_comin_plugins_LEVANTE.run" --builders "levante_gcc" --list $listname
+$addexp "exp.test_nwp_R02B04_R02B05_nest_comin_python"  --without-configureflags "--without-mpi" --runflags "cpu_time=00:30:00 queue=shared,compute memory=32G ntasks=32"  --machines levante --list $listname
+./adddep --from-experiment "exp.test_nwp_R02B04_R02B05_nest_comin_python" --to-experiment "checksuite.infrastructure/comin/exp.build_comin_plugins_LEVANTE.run" --builders "levante_gcc" --list $listname
 $addexp "checksuite.nwp/nwpexp.run_ICON_19_R2B4_cmip_forcing"  --without-configureflags "--without-mpi" --runflags "cpu_time=00:30:00 no_of_nodes=1"  --machines levante --builders "levante_intel_hybrid levante_gcc_hybrid" --list $listname
 # this experiment runs only with-mpi and without openmp
 #
@@ -303,6 +309,7 @@ $addexp "checksuite.ocean_internal/gpu/exp.ocean_omip_R2B4_V1_GM0"  --builders '
 # Until there is a fix, these tests are deactivated
 #$addexp  checksuite.infrastructure/checkExternals/exp.check_externals_DWD.run --builders DWD_nec_yac2 --list ${listname}
 $addexp  checksuite.infrastructure/checkExternals/exp.check_externals_LEVANTE.run --machines levante --list ${listname}
+./adddep --from-experiment "checksuite.infrastructure/comin/exp.build_comin_plugins_LEVANTE.run" --to-experiment "checksuite.infrastructure/checkExternals/exp.check_externals_LEVANTE.run" --builders "levante_gcc" --list $listname
 
 # icon-clm tests
 $addexp "checksuite.clm/clmexp.ICON_CLM" --builders "levante_intel_hybrid" --list ${listname} --runflags="ntasks=32 queue=shared"

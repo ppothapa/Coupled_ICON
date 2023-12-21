@@ -620,6 +620,9 @@ icon_bundled_config_subdirs
 ICON_HD_FCFLAGS
 ICON_FORTRAN_SUPPORT_CFLAGS
 ICON_FORTRAN_SUPPORT_FCFLAGS
+ICON_COMIN_CXXFLAGS
+ICON_COMIN_CFLAGS
+ICON_COMIN_FCFLAGS
 ICON_TIXI_CFLAGS
 ICON_TIXI_FCFLAGS
 ICON_YAC_CFLAGS
@@ -745,6 +748,7 @@ enable_rttov
 enable_dace
 enable_emvorado
 enable_art
+enable_comin
 enable_hd
 enable_acm_license
 enable_mpi
@@ -823,6 +827,9 @@ ICON_YAC_FCFLAGS
 ICON_YAC_CFLAGS
 ICON_TIXI_FCFLAGS
 ICON_TIXI_CFLAGS
+ICON_COMIN_FCFLAGS
+ICON_COMIN_CFLAGS
+ICON_COMIN_CXXFLAGS
 ICON_FORTRAN_SUPPORT_FCFLAGS
 ICON_FORTRAN_SUPPORT_CFLAGS
 ICON_HD_FCFLAGS
@@ -1521,6 +1528,7 @@ Model Features:
                           [default=no]
   --enable-art            enable the aerosols and reactive trace component ART
                           [default=no]
+  --enable-comin          enable the ICON community interfaces [default=no]
   --enable-hd             enable the Hydrological Discharge (HD) model. The
                           value of the argument must be one of the following
                           [default=no]:
@@ -1726,6 +1734,17 @@ Some influential environment variables:
   ICON_TIXI_CFLAGS
               C compiler flags to be appended to CFLAGS when configuring the
               bundled version of TIXI library [default=$ICON_BUNDLED_CFLAGS]
+  ICON_COMIN_FCFLAGS
+              Fortran compiler flags to be appended to FCFLAGS when
+              configuring the bundled version of COMIN library
+              [default=$ICON_BUNDLED_FCFLAGS]
+  ICON_COMIN_CFLAGS
+              C compiler flags to be appended to CFLAGS when configuring the
+              bundled version of COMIN library [default=$ICON_BUNDLED_CFLAGS]
+  ICON_COMIN_CXXFLAGS
+              C++ compiler flags to be appended to CXXFLAGS when configuring
+              the bundled version of COMIN library
+              [default=$ICON_BUNDLED_CXXFLAGS]
   ICON_FORTRAN_SUPPORT_FCFLAGS
               Fortran compiler flags to be appended to FCFLAGS when
               configuring the bundled version of FORTRAN-SUPPORT library
@@ -3120,6 +3139,16 @@ if test "${enable_art+set}" = set; then :
 fi
 else
   enable_art=no
+fi
+
+
+# Check whether --enable-comin was given.
+if test "${enable_comin+set}" = set; then :
+  enableval=$enable_comin; if test x"$enableval" != xno; then :
+  enable_comin=yes
+fi
+else
+  enable_comin=no
 fi
 
 
@@ -5361,6 +5390,10 @@ fi
 
 if test "x$enable_art" = xyes; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}__ICON_ART ${FC_PP_DEF}__ART_TMP_IFDEF"
+fi
+
+if test "x$enable_comin" = xno; then :
+  as_fn_append FCFLAGS " ${FC_PP_DEF}__NO_ICON_COMIN__"
 fi
 
 if test "x$enable_acm_license" = xyes; then :
@@ -9948,6 +9981,69 @@ ac_compiler_gnu=$ac_cv_fc_compiler_gnu
   *) :
      ;;
 esac
+
+if test "x$enable_comin" = xyes; then :
+  icon_subdir_srcdir="$srcdir/externals/comin"
+   icon_subdir_unique_file="src/comin_setup.F90"
+   if test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"; then :
+  as_fn_error $? "unable to find sources of the bundled version of COMIN library ($icon_subdir_unique_file) in '$icon_subdir_srcdir'" "$LINENO" 5
+fi
+      ICON_COMIN_FCFLAGS=${ICON_COMIN_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
+         ICON_COMIN_CFLAGS=${ICON_COMIN_CFLAGS-$ICON_BUNDLED_CFLAGS}
+                  acx_subdir_run_cmd_externals_comin="\"\${CMAKE}\""
+   acx_subdir_run_dir_externals_comin="externals/comin/build"
+   acx_subdir_build_type_externals_comin='cmake'
+         acx_subdir_pre_adjust_cmake_args
+      acx_subdir_run_args_externals_comin=$acx_subdir_pre_adjusted_cmake_args
+         acx_subdir_srcdirs_fn "externals/comin/build"
+         case $ac_srcdir in #(
+  .) :
+    acx_tmp='..' ;; #(
+  *) :
+    acx_tmp="$ac_top_srcdir/externals/comin" ;;
+esac
+      case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+      as_fn_append acx_subdir_run_args_externals_comin " '$acx_tmp'"
+      as_fn_append extra_src_subdirs " externals/comin"
+   acx_subdir_run_condition_externals_comin=no
+   eval "set dummy $acx_subdir_run_args_externals_comin"; shift
+   acx_subdir_run_args_externals_comin=
+   while test $# != 0; do
+     acx_tmp=$1
+     case $acx_tmp in #(
+       -DCMAKE_C_FLAGS=*|-DCMAKE_Fortran_FLAGS=*|-DCMAKE_CXX_FLAGS=*) :
+     ;; #(
+       -DCMAKE_*_COMPILER_AR=*|-DCMAKE_*_COMPILER_RANLIB=*) :
+     ;; #(
+  *) :
+           case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+        as_fn_append acx_subdir_run_args_externals_comin " '$acx_tmp'" ;;
+esac
+     shift
+   done
+   set dummy      -DCMAKE_C_FLAGS="$subdir_CFLAGS $ICON_COMIN_CFLAGS $subdir_CPPFLAGS" -DCMAKE_Fortran_FLAGS="$subdir_FCFLAGS $ICON_COMIN_FCFLAGS" -DCMAKE_CXX_FLAGS="$subdir_CXXFLAGS $ICON_COMIN_CXXFLAGS $subdir_CPPFLAGS"      -DBUILD_SHARED_LIBS:BOOL=OFF      -DCOMIN_ENABLE_EXAMPLES:BOOL=OFF      -DCMAKE_BUILD_TYPE:STRING=NOEXTRAFLAGS; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+     as_fn_append acx_subdir_run_args_externals_comin " '$acx_tmp'"
+   done
+   as_fn_append bundled_includes "${FC_MOD_IN}externals/comin/build/mod "
+   BUNDLED_LIBFILES="externals/comin/build/libcomin.a $BUNDLED_LIBFILES"
+fi
 
 if test "x$with_external_fortran_support" = xyes; then :
   { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether Fortran support library is available" >&5

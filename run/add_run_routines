@@ -225,4 +225,14 @@ compare_output_files()
   echo " - file 2: ${FILE2}"
   return 1
 }
+
+add_comin_setup()
+{
+ if [ -n "$builder" ]; then
+        for path in "$@"; do
+            export LD_LIBRARY_PATH="${basedir}/${path}:$LD_LIBRARY_PATH"
+        done
+ fi
+}
+
 #-----------------------------------------------------------------------------

@@ -1456,7 +1456,6 @@ MODULE mo_nonhydro_state
           &                  p_prog%tracer_ptr(:),                                   &
           &                  cf_desc, grib2_desc,                                    &
           &                  advection_config(p_patch%id),                           &
-          &                  jg=p_patch%id,                                          &
           &                  ldims=shape3d_c,                                        &
           &                  loutput=.TRUE.,                                         &
           &                  lrestart=.FALSE.,                                       &

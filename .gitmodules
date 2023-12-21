@@ -43,6 +43,9 @@
 [submodule "externals/ppm"]
 	path = externals/ppm
 	url = ../../jahns/ppm.git
+[submodule "externals/comin"]
+	path = externals/comin
+	url = ../../icon-comin/comin.git
 [submodule "externals/hd"]
 	path = externals/hd
 	url = ../../dwd-sw/hd-couple.git

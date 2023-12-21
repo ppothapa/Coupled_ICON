@@ -108,6 +108,7 @@ USE mo_art_config,           ONLY: nart_tendphy
 #ifdef __ICON_ART
 USE mo_art_tracer_interface, ONLY: art_tracer_interface
 #endif
+USE mo_comin_config,         ONLY: comin_config
 USE mo_action,               ONLY: ACTION_RESET, new_action, actions
 USE mo_io_config,            ONLY: lflux_avg, lnetcdf_flt64_output, gust_interval, &
   &                                celltracks_interval, echotop_meta, &
@@ -5605,6 +5606,10 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
     INTEGER :: ibits, ktracer, ist, ntr_conv
     LOGICAL :: lrestart
     INTEGER :: datatype_flt
+    INTEGER :: ncomin_tendphy_turb, ncomin_tendphy_conv
+
+    ncomin_tendphy_turb = comin_config%comin_icon_domain_config(k_jg)%nturb_tracer
+    ncomin_tendphy_conv = comin_config%comin_icon_domain_config(k_jg)%nconv_tracer
 
     IF ( lnetcdf_flt64_output ) THEN
       datatype_flt = DATATYPE_FLT64
@@ -5618,13 +5623,13 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
     shape3dkp1 = (/nproma, klev+1, kblks            /)
 
     IF (lart) THEN
-     shape4d    = (/nproma, klev  , kblks, nqtendphy+nart_tendphy /)
+     shape4d    = (/nproma, klev  , kblks, nqtendphy+nart_tendphy+ncomin_tendphy_turb /)
     ELSE
-     shape4d    = (/nproma, klev  , kblks, nqtendphy /)
+     shape4d    = (/nproma, klev  , kblks, nqtendphy+ncomin_tendphy_turb /)
     ENDIF 
       
     ! dimension of convective tracer field
-    ntr_conv = nqtendphy
+    ntr_conv = nqtendphy + ncomin_tendphy_conv
     IF (lart)                                        ntr_conv = ntr_conv + nart_tendphy
     IF (atm_phy_nwp_config(k_jg)%ldetrain_conv_prec) ntr_conv = ntr_conv + 2 ! plus qr and qs
 
@@ -5905,9 +5910,9 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
     __acc_attach(phy_tend%ddt_tracer_turb)
 
     IF (lart) THEN
-     ktracer=nqtendphy+nart_tendphy
+     ktracer=nqtendphy+nart_tendphy+ncomin_tendphy_turb
     ELSE
-     ktracer=nqtendphy
+     ktracer=nqtendphy+ncomin_tendphy_turb
     ENDIF
     ALLOCATE( phy_tend%tracer_turb_ptr(ktracer) )
     !$ACC ENTER DATA CREATE(phy_tend%tracer_turb_ptr)
@@ -5971,9 +5976,9 @@ SUBROUTINE new_nwp_phy_tend_list( k_jg, klev,  kblks,   &
     __acc_attach(phy_tend%ddt_tracer_pconv)
 
     IF (lart) THEN
-      ktracer=nqtendphy+nart_tendphy 
+      ktracer=nqtendphy+nart_tendphy+ncomin_tendphy_conv
     ELSE
-      ktracer=nqtendphy 
+      ktracer=nqtendphy+ncomin_tendphy_conv
     ENDIF
     IF (atm_phy_nwp_config(k_jg)%ldetrain_conv_prec) ktracer = ktracer+2
 

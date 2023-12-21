@@ -80,7 +80,8 @@ MODULE mo_nh_stepping
     &                                    MODE_IAU, MODE_IAU_OLD, SSTICE_CLIM,                  &
     &                                    MODE_IFSANA,MODE_COMBINED,MODE_COSMO,MODE_ICONVREMAP, &
     &                                    SSTICE_AVG_MONTHLY, SSTICE_AVG_DAILY, SSTICE_INST,    &
-    &                                    max_dom, min_rlcell, min_rlvert, ismag, iprog, ivdiff
+    &                                    max_dom, min_rlcell, min_rlvert, ismag, iprog,        &
+    &                                    ivdiff, TLEV_NNOW_RCF, TLEV_NNOW
   USE mo_math_divrot,              ONLY: rot_vertex, div_avg !, div
   USE mo_solve_nonhydro,           ONLY: solve_nh
   USE mo_update_dyn_scm,           ONLY: add_slowphys_scm
@@ -231,6 +232,30 @@ MODULE mo_nh_stepping
   USE mo_nudging_config,           ONLY: nudging_config, l_global_nudging, indg_type
   USE mo_nudging,                  ONLY: nudging_interface
   USE mo_initicon_utils,           ONLY: prepare_thermo_src_term
+#ifndef __NO_ICON_COMIN__
+  USE comin_host_interface,        ONLY: comin_callback_context_call, &
+    &                                    COMIN_DOMAIN_OUTSIDE_LOOP,   &
+    &                                    EP_ATM_TIMELOOP_BEFORE,      &
+    &                                    EP_ATM_TIMELOOP_START,       &
+    &                                    EP_ATM_TIMELOOP_END,         &
+    &                                    EP_ATM_TIMELOOP_AFTER,       &
+    &                                    EP_ATM_INTEGRATE_BEFORE,     &
+    &                                    EP_ATM_INTEGRATE_START,      &
+    &                                    EP_ATM_INTEGRATE_END,        &
+    &                                    EP_ATM_INTEGRATE_AFTER,      &
+    &                                    EP_ATM_WRITE_OUTPUT_BEFORE,  &
+    &                                    EP_ATM_WRITE_OUTPUT_AFTER,   &
+    &                                    EP_ATM_CHECKPOINT_BEFORE,    &
+    &                                    EP_ATM_CHECKPOINT_AFTER,     &
+    &                                    EP_ATM_ADVECTION_BEFORE,     &
+    &                                    EP_ATM_ADVECTION_AFTER,      &
+    &                                    EP_ATM_PHYSICS_BEFORE,       &
+    &                                    EP_ATM_PHYSICS_AFTER,        &
+    &                                    EP_ATM_NUDGING_BEFORE,       &
+    &                                    EP_ATM_NUDGING_AFTER
+  USE mo_comin_adapter,            ONLY: icon_update_current_datetime, &
+    &                                    icon_update_expose_variables
+#endif
 
   !$ser verbatim USE mo_ser_all, ONLY: serialize_all
 
@@ -288,7 +313,7 @@ MODULE mo_nh_stepping
       &  routine = modname//':perform_nh_stepping'
     CHARACTER(filename_max) :: sst_td_file !< file name for reading in
     CHARACTER(filename_max) :: ci_td_file
-
+    CHARACTER(LEN=MAX_DATETIME_STR_LEN)  :: dstring
     INTEGER                              :: jg, jgc, jn
     INTEGER                              :: month, year
     LOGICAL                              :: is_mpi_workroot
@@ -310,6 +335,11 @@ MODULE mo_nh_stepping
 
   ! convenience pointer
   mtime_current => time_config%tc_current_date
+   
+#ifndef __NO_ICON_COMIN__
+  CALL datetimeToString(mtime_current, dstring)
+  CALL icon_update_current_datetime(dstring)
+#endif
 
   CALL allocate_nh_stepping (mtime_current)
 
@@ -632,9 +662,17 @@ MODULE mo_nh_stepping
         &                 p_patch(1)%nlev                  )
     END IF
 
+#ifndef __NO_ICON_COMIN__
+    CALL comin_callback_context_call(EP_ATM_WRITE_OUTPUT_BEFORE, COMIN_DOMAIN_OUTSIDE_LOOP)
+#endif
+
     IF (output_mode%l_nml) THEN
       CALL write_name_list_output(jstep=0, lacc=i_am_accel_node)
     END IF
+
+#ifndef __NO_ICON_COMIN__
+    CALL comin_callback_context_call(EP_ATM_WRITE_OUTPUT_AFTER, COMIN_DOMAIN_OUTSIDE_LOOP)
+#endif
 
     !-----------------------------------------------
     ! Pass "initialized analysis" or "analysis" when
@@ -946,6 +984,9 @@ MODULE mo_nh_stepping
     !$ser verbatim   CALL serialize_all(nproma, jg, "initialization", .FALSE., opt_lupdate_cpu=.TRUE.)
   !$ser verbatim ENDDO
   
+#ifndef __NO_ICON_COMIN__
+CALL comin_callback_context_call(EP_ATM_TIMELOOP_BEFORE, COMIN_DOMAIN_OUTSIDE_LOOP)
+#endif
 
   TIME_LOOP: DO
 
@@ -960,6 +1001,10 @@ MODULE mo_nh_stepping
         CALL message('perform_nh_timeloop', message_text)
       ENDIF
     ENDDO
+
+#ifndef __NO_ICON_COMIN__
+CALL comin_callback_context_call(EP_ATM_TIMELOOP_START, COMIN_DOMAIN_OUTSIDE_LOOP)
+#endif
 
 #ifndef __NO_NWP__
     ! Update time-dependent ensemble perturbations if necessary
@@ -1201,12 +1246,19 @@ MODULE mo_nh_stepping
     ENDIF
 
 
+#ifndef __NO_ICON_COMIN__
+CALL comin_callback_context_call(EP_ATM_INTEGRATE_BEFORE, COMIN_DOMAIN_OUTSIDE_LOOP)
+#endif
+
     !--------------------------------------------------------------------------
     !
     ! dynamics stepping
     !
     CALL integrate_nh(time_config, datetime_current, 1, jstep-jstep_shift, iau_iter, dtime, model_time_step, 1, latbc)
 
+#ifndef __NO_ICON_COMIN__
+CALL comin_callback_context_call(EP_ATM_INTEGRATE_AFTER, COMIN_DOMAIN_OUTSIDE_LOOP)
+#endif
 
     ! --------------------------------------------------------------------------------
     !
@@ -1434,11 +1486,19 @@ MODULE mo_nh_stepping
     !$ser verbatim   CALL serialize_all(nproma, jg, "output_opt", .FALSE., opt_lupdate_cpu=.FALSE.)
     !$ser verbatim ENDDO
 
+#ifndef __NO_ICON_COMIN__
+    CALL comin_callback_context_call(EP_ATM_WRITE_OUTPUT_BEFORE, COMIN_DOMAIN_OUTSIDE_LOOP)
+#endif
+
     ! output of results
     ! note: nnew has been replaced by nnow here because the update
     IF (l_nml_output) THEN
       CALL write_name_list_output(jstep, lacc=i_am_accel_node)
     ENDIF
+
+#ifndef __NO_ICON_COMIN__
+    CALL comin_callback_context_call(EP_ATM_WRITE_OUTPUT_AFTER, COMIN_DOMAIN_OUTSIDE_LOOP)
+#endif
 
     ! sample meteogram output
     DO jg = 1, n_dom
@@ -1551,6 +1611,10 @@ MODULE mo_nh_stepping
     END IF
 
     IF (lwrite_checkpoint) THEN
+#ifndef __NO_ICON_COMIN__
+      CALL comin_callback_context_call(EP_ATM_CHECKPOINT_BEFORE, COMIN_DOMAIN_OUTSIDE_LOOP)
+#endif
+
       CALL diag_for_output_dyn ()
 #ifndef __NO_NWP__
       IF (iforcing == inwp) THEN
@@ -1604,6 +1668,9 @@ MODULE mo_nh_stepping
           CALL upatmoRestartAttributesDeallocate(upatmoRestartAttributes)
         ENDIF
 #endif
+#ifndef __NO_ICON_COMIN__
+      CALL comin_callback_context_call(EP_ATM_CHECKPOINT_AFTER, COMIN_DOMAIN_OUTSIDE_LOOP)
+#endif
     END IF  ! lwrite_checkpoint
 
 #ifdef MESSYTIMER
@@ -1631,6 +1698,10 @@ MODULE mo_nh_stepping
     !$ser verbatim   CALL serialize_all(nproma, jg, "time_loop_end", .FALSE., opt_lupdate_cpu=.FALSE., opt_id=iau_iter)
     !$ser verbatim ENDDO
 
+#ifndef __NO_ICON_COMIN__
+    CALL comin_callback_context_call(EP_ATM_TIMELOOP_END, COMIN_DOMAIN_OUTSIDE_LOOP)
+#endif
+
     IF (mtime_current >= time_config%tc_stopdate .OR. lstop_on_demand) THEN
        ! leave time loop
        EXIT TIME_LOOP
@@ -1641,6 +1712,10 @@ MODULE mo_nh_stepping
     sim_time = getElapsedSimTimeInSeconds(mtime_current)
 
   ENDDO TIME_LOOP
+
+#ifndef __NO_ICON_COMIN__
+    CALL comin_callback_context_call(EP_ATM_TIMELOOP_AFTER, COMIN_DOMAIN_OUTSIDE_LOOP)
+#endif
 
   ! clean-up routine for mo_nh_supervise module (eg. closing of files)
   CALL finalize_supervise_nh()
@@ -1760,6 +1835,10 @@ MODULE mo_nh_stepping
       ENDIF
 #endif
 
+#ifndef __NO_ICON_COMIN__
+      CALL comin_callback_context_call(EP_ATM_INTEGRATE_START, jg)
+#endif
+
       IF (ifeedback_type == 1 .AND. (jstep == 1) .AND. jg > 1 ) THEN
 #ifdef _OPENACC
           CALL finish (routine, 'FEEDBACK (nesting): OpenACC version currently not implemented')
@@ -1860,6 +1939,10 @@ MODULE mo_nh_stepping
             p_nh_state(jg)%prog(nnow(jg))%w, lacc=.TRUE.)
         ENDIF
 
+#ifndef __NO_ICON_COMIN__
+        CALL comin_callback_context_call(EP_ATM_ADVECTION_BEFORE, jg)
+#endif
+
 #ifdef MESSY
         CALL main_tracer_beforeadv
 #endif
@@ -1924,6 +2007,10 @@ MODULE mo_nh_stepping
           &       q_int             = prep_adv(jg)%q_int,                    & !out
           &       opt_ddt_tracer_adv= p_nh_state(jg)%diag%ddt_tracer_adv     ) !optout
 
+#ifndef __NO_ICON_COMIN__
+      CALL comin_callback_context_call(EP_ATM_ADVECTION_AFTER, jg)
+#endif
+
 #ifdef MESSY
         CALL main_tracer_afteradv
 #endif
@@ -1983,6 +2070,11 @@ MODULE mo_nh_stepping
             &                   nnow(jg), nnew(jg), dt_loc)
         ENDIF
 
+
+#ifndef __NO_ICON_COMIN__
+        CALL icon_update_expose_variables(TLEV_NNOW, nnew(jg))
+        CALL comin_callback_context_call(EP_ATM_ADVECTION_BEFORE, jg)
+#endif
 
 #ifdef MESSY
         CALL main_tracer_beforeadv
@@ -2049,6 +2141,10 @@ MODULE mo_nh_stepping
             &       opt_ddt_tracer_adv= p_nh_state(jg)%diag%ddt_tracer_adv     ) !out
           !$ser verbatim CALL serialize_all(nproma, jg, "step_advection", .FALSE., opt_lupdate_cpu=.TRUE., opt_dt=datetime_local(jg)%ptr, opt_id=iau_iter)
 
+#ifndef __NO_ICON_COMIN__
+          CALL icon_update_expose_variables(TLEV_NNOW_RCF, nnew_rcf(jg))
+#endif
+          
 #ifndef __NO_NWP__
           IF (iprog_aero >= 1) THEN
 
@@ -2084,6 +2180,10 @@ MODULE mo_nh_stepping
 #endif
         ENDIF !ltransport
 
+#ifndef __NO_ICON_COMIN__
+        CALL comin_callback_context_call(EP_ATM_ADVECTION_AFTER, jg)
+#endif
+
 #ifdef MESSY
         CALL main_tracer_afteradv
 #endif
@@ -2107,6 +2207,10 @@ MODULE mo_nh_stepping
           ENDIF
 
         ENDIF
+
+#ifndef __NO_ICON_COMIN__
+        CALL comin_callback_context_call(EP_ATM_PHYSICS_BEFORE, jg)
+#endif
 
         IF ( ( iforcing==inwp .OR. iforcing==iaes ) ) THEN
 
@@ -2268,12 +2372,20 @@ MODULE mo_nh_stepping
             &                         jstep_adv(jg)%marchuk_order  )  !in
         ENDIF
 
+#ifndef __NO_ICON_COMIN__
+        CALL comin_callback_context_call(EP_ATM_PHYSICS_AFTER, jg)
+#endif
+
 #ifdef MESSY
         CALL messy_physc(jg)
 #endif
 
 
       ENDIF  ! itime_scheme
+
+#ifndef __NO_ICON_COMIN__
+        CALL comin_callback_context_call(EP_ATM_NUDGING_BEFORE, jg)
+#endif
 
       !
       ! lateral nudging and optional upper boundary nudging in limited area mode
@@ -2357,7 +2469,9 @@ MODULE mo_nh_stepping
 
       ENDIF
 
-
+#ifndef __NO_ICON_COMIN__
+        CALL comin_callback_context_call(EP_ATM_NUDGING_AFTER, jg)
+#endif
 
       ! Check if at least one of the nested domains is active
       !
@@ -2629,6 +2743,10 @@ MODULE mo_nh_stepping
           ENDIF
         ENDDO
       ENDIF
+
+#ifndef __NO_ICON_COMIN__
+      CALL comin_callback_context_call(EP_ATM_INTEGRATE_END, jg)
+#endif
 
 #ifdef MESSY
       CALL messy_local_end(jg)

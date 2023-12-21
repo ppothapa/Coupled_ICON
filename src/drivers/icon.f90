@@ -26,7 +26,8 @@ PROGRAM icon
 #endif
   USE mo_exception,           ONLY: message_text, message, finish, enable_logging
   USE mo_io_units,            ONLY: filename_max
-  USE mo_mpi,                 ONLY: start_mpi , stop_mpi, my_process_is_global_root, my_process_is_stdio
+  USE mo_mpi,                 ONLY: start_mpi , stop_mpi, my_process_is_global_root,    &
+    &                               my_process_is_stdio
   USE mo_master_init,         ONLY: init_master_control
   USE mo_master_control,      ONLY: get_my_namelist_filename, get_my_process_type,      &
     &                               atmo_process, ocean_process, ps_radiation_process,  &
@@ -70,6 +71,15 @@ PROGRAM icon
 #  endif
 #endif
 
+#ifndef __NO_ICON_COMIN__
+  USE mo_kind, ONLY: wp
+  USE comin_host_interface,  ONLY: comin_setup_check,      &
+    &                              comin_setup_errhandler, &
+    &                              t_comin_setup_version_info, &
+    &                              comin_setup_get_version,    &
+    &                              comin_setup_init
+#endif /* ifndef __NO_ICON_COMIN__ */
+
   IMPLICIT NONE
 
   INTEGER                     :: master_control_status, my_process_component
@@ -83,6 +93,11 @@ PROGRAM icon
   REAL(wp)                    :: r
 #endif
 #endif
+
+#ifndef __NO_ICON_COMIN__
+  TYPE(t_comin_setup_version_info) :: comin_version
+  INTEGER                      :: ierr
+#endif /* ifndef __NO_ICON_COMIN__ */
 
   ! handling of comand-line arguments:
   TYPE t_cmdarg_option
@@ -188,6 +203,26 @@ PROGRAM icon
   ! Initialize the master control
 
   master_control_status = init_master_control(TRIM(master_namelist_filename))
+
+#ifndef __NO_ICON_COMIN__
+  !-------------------------------------------------------------------
+  ! Initialize ICON community interfaces - UNDER DEVELOPMENT
+  CALL comin_setup_init(my_process_is_stdio() , ierr)
+  IF (ierr /= 0) STOP
+  comin_version = comin_setup_get_version()
+  WRITE(message_text,'(2(a,i0))') &
+    &  "        linked to ICON Community Interface v", &
+    &  comin_version%version_no_major, ".", comin_version%version_no_minor
+  CALL message('', message_text)
+
+  CALL comin_setup_errhandler(finish, ierr)
+  IF (ierr /= 0) STOP
+  CALL comin_setup_check("icon", wp, ierr)
+  IF (ierr /= 0) STOP
+
+  CALL message('', '')
+#endif /* ifndef __NO_ICON_COMIN__ */
+
 
   my_namelist_filename = get_my_namelist_filename()
   my_process_component = get_my_process_type()

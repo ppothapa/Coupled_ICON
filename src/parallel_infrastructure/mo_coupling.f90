@@ -67,19 +67,19 @@ CONTAINS
 
   END FUNCTION
 
-  SUBROUTINE init_coupler(world_communicator, global_name)
+  SUBROUTINE init_coupler(opt_yac_comm, opt_world_comm)
 
-    INTEGER, INTENT(INOUT) :: world_communicator
-    CHARACTER(LEN=*), INTENT(IN), OPTIONAL :: global_name
+    INTEGER, INTENT(IN), OPTIONAL :: opt_yac_comm
+    INTEGER, INTENT(INOUT), OPTIONAL :: opt_world_comm
+
 
 #if !defined NOMPI && defined YAC_coupling
 
     CHARACTER(*), PARAMETER :: routine = modname//":init_coupler"
 
     INTEGER :: ierror
-
+    INTEGER :: yac_comm, world_comm
     INTEGER :: global_rank
-    INTEGER :: yac_comm
     INTEGER :: group_comms(2)
     CHARACTER(len=YAC_MAX_CHARLEN) :: group_names(2)
 
@@ -90,35 +90,33 @@ CONTAINS
     ! in subsequent calls.
     lyac_very_1st_get = .TRUE.
 
-    IF (coupler_config_files_exist()) THEN
+    yac_is_initialised = .TRUE.
 
-      yac_is_initialised = .TRUE.
+    ! if a communicator is given, we assume that the handshake is already done
+    IF (.NOT. PRESENT(opt_yac_comm)) THEN
 
-      IF (PRESENT(global_name)) THEN
+       IF (PRESENT(opt_world_comm)) THEN
+          world_comm = opt_world_comm
+       ELSE
+          world_comm = MPI_COMM_WORLD
+       END IF
 
-         group_names(1) = "yac"
-         group_names(2) = TRIM(global_name)
+       group_names(1) = "yac"
+       group_names(2) = "icon"
 
-         CALL yac_fmpi_handshake( MPI_COMM_WORLD, group_names, group_comms)
-         yac_comm = group_comms(1)
-         world_communicator = group_comms(2)
-         CALL yac_finit_comm(yac_comm)
+       CALL yac_fmpi_handshake( world_comm, group_names, group_comms)
+       yac_comm = group_comms(1)
+       IF (PRESENT(opt_world_comm)) opt_world_comm = group_comms(2)
+    ELSE
+       yac_comm = opt_yac_comm
+    ENDIF
 
-         CALL MPI_COMM_RANK ( world_communicator, global_rank, ierror )
-         IF ( global_rank == 0 ) &
-            CALL yac_fread_config_yaml( TRIM(yaml_filename) )
+    CALL yac_finit_comm ( yac_comm )
+    CALL MPI_COMM_RANK ( yac_comm, global_rank, ierror )
+    IF ( global_rank == 0 .AND. coupler_config_files_exist()) &
+         CALL yac_fread_config_yaml( TRIM(yaml_filename) )
 
-         CALL mpi_comm_free(yac_comm, ierror)
-
-      ELSE
-
-        CALL yac_finit_comm( world_communicator )
-        CALL MPI_COMM_RANK ( world_communicator, global_rank, ierror )
-        IF ( global_rank == 0 ) &
-           CALL yac_fread_config_yaml( TRIM(yaml_filename) )
-
-      END IF
-    END IF
+    CALL mpi_comm_free(yac_comm, ierror)
 #endif
 
   END SUBROUTINE init_coupler

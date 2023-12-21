@@ -80,6 +80,8 @@ USE mo_nh_stepping,          ONLY: perform_nh_stepping
 ! Initialization with real data
 USE mo_initicon,            ONLY: init_icon
 USE mo_ext_data_state,      ONLY: ext_data
+! Community Interface (ComIn)
+USE mo_comin_config,        ONLY: configure_comin
 ! meteogram output
 USE mo_meteogram_output,    ONLY: meteogram_init, meteogram_finalize
 USE mo_meteogram_config,    ONLY: meteogram_output_config
@@ -171,6 +173,21 @@ USE mo_icon2dace,           ONLY: init_dace, finish_dace
   USE mo_cdi_pio_interface,         ONLY: nml_io_cdi_pio_namespace
 #endif
 
+#ifndef __NO_ICON_COMIN__
+  USE comin_host_interface, ONLY: comin_callback_context_call,        &
+    &                             EP_SECONDARY_CONSTRUCTOR,           &
+    &                             EP_ATM_INIT_FINALIZE,               &
+    &                             EP_DESTRUCTOR,                      &
+    &                             comin_var_list_finalize,            &
+    &                             comin_descrdata_finalize,           &
+    &                             comin_setup_finalize,               &
+    &                             COMIN_DOMAIN_OUTSIDE_LOOP
+  USE mo_comin_adapter,     ONLY: icon_append_comin_variables,        &
+    &                             icon_append_comin_tracer_variables, &
+    &                             icon_append_comin_tracer_phys_tend, &
+    &                             icon_expose_variables
+#endif
+
 
 IMPLICIT NONE
 PRIVATE
@@ -192,6 +209,7 @@ CONTAINS
     CLASS(t_RestartDescriptor), POINTER  :: restartDescriptor
 
     CHARACTER(*), PARAMETER :: routine = "atmo_nonhydrostatic"
+    INTEGER :: ierr
 
     !------------------------------------------------------------------
     ! Now start the time stepping:
@@ -244,6 +262,17 @@ CONTAINS
 
 
     CALL deleteRestartDescriptor(restartDescriptor)
+
+#ifndef __NO_ICON_COMIN__
+    CALL comin_callback_context_call(EP_DESTRUCTOR, COMIN_DOMAIN_OUTSIDE_LOOP)
+
+    CALL comin_var_list_finalize(ierr)
+    IF (ierr /= 0) STOP
+    CALL comin_descrdata_finalize(ierr)
+    IF (ierr /= 0) STOP
+    CALL comin_setup_finalize(ierr)
+    IF (ierr /= 0) STOP
+#endif
 
     !---------------------------------------------------------------------
     ! Integration finished. Clean up.
@@ -394,6 +423,28 @@ CONTAINS
 #ifndef __NO_ICON_UPATMO__
 ! Create state only if enabled
     CALL construct_upatmo_state( n_dom, nproma, p_patch(1:), upatmo_config(1:), upatmo_phy_config(1:), vct_a )
+#endif
+
+#ifndef __NO_ICON_COMIN__
+    ! ----------------------------------------------------------
+    ! UNDER DEVELOPMENT (ICON ComIn)
+    !
+    ! loop over the total list of additional requested variables and
+    ! perform `add_var` / `add_ref` operations needed.
+    ! remark: variables are added to a separate variable list.
+    CALL icon_append_comin_tracer_variables(p_patch(1:))
+    CALL icon_append_comin_tracer_phys_tend(p_patch(1:))
+    CALL icon_append_comin_variables(p_patch(1:))
+
+    ! expose ICON's variables to the ComIn infrastructure.
+
+    CALL icon_expose_variables()
+
+    ! call to secondary constructor
+    !   third party modules retrieve pointers to data arrays, telling
+    !   ICON ComIn about the context where these will be accessed.
+    CALL comin_callback_context_call(EP_SECONDARY_CONSTRUCTOR, COMIN_DOMAIN_OUTSIDE_LOOP)
+    ! ----------------------------------------------------------
 #endif
 
 #ifdef MESSY
@@ -688,6 +739,14 @@ CONTAINS
       IF (timers_level > 4) CALL timer_stop(timer_init_latbc)
     ENDIF
 
+
+    !------------------------------------------------------------------
+    ! Status output for the Community Interface (ComIn)
+    !------------------------------------------------------------------
+
+    CALL configure_comin()
+
+
     !------------------------------------------------------------------
     ! Prepare output file
     !------------------------------------------------------------------
@@ -787,6 +846,9 @@ CONTAINS
     CALL messy_init_tracer
 #endif
 
+#ifndef __NO_ICON_COMIN__
+    CALL comin_callback_context_call(EP_ATM_INIT_FINALIZE, COMIN_DOMAIN_OUTSIDE_LOOP)
+#endif
     ! Determine if temporally averaged vertically integrated moisture quantities need to be computed
 
     IF (iforcing == inwp) THEN

@@ -140,6 +140,24 @@ MODULE mo_nh_interface_nwp
   USE mo_sppt_config,             ONLY: sppt_config
   USE mo_sppt_util,               ONLY: construct_rn
   USE mo_sppt_core,               ONLY: calc_tend, pert_tend, apply_tend, save_state
+#ifndef __NO_ICON_COMIN__
+  USE comin_host_interface, ONLY: comin_callback_context_call,     &
+    &                             EP_ATM_SURFACE_BEFORE,           &
+    &                             EP_ATM_SURFACE_AFTER,            &
+    &                             EP_ATM_TURBULENCE_BEFORE,        &
+    &                             EP_ATM_TURBULENCE_AFTER,         &
+    &                             EP_ATM_MICROPHYSICS_BEFORE,      &
+    &                             EP_ATM_MICROPHYSICS_AFTER,       &
+    &                             EP_ATM_CONVECTION_BEFORE,        &
+    &                             EP_ATM_CONVECTION_AFTER,         &
+    &                             EP_ATM_RADIATION_BEFORE,         &
+    &                             EP_ATM_RADIATION_AFTER,          &
+    &                             EP_ATM_RADHEAT_BEFORE,           &
+    &                             EP_ATM_RADHEAT_AFTER,            &
+    &                             EP_ATM_GWDRAG_BEFORE,            &
+    &                             EP_ATM_GWDRAG_AFTER
+#endif
+
 
   USE mo_nwp_tuning_config,       ONLY: tune_sc_eis
   USE mo_sbm_storage,             ONLY: t_sbm_storage, get_sbm_storage
@@ -635,6 +653,10 @@ CONTAINS
     !!  has to be done afterwards
     !!-------------------------------------------------------------------------
 
+#ifndef __NO_ICON_COMIN__
+    CALL comin_callback_context_call(EP_ATM_SURFACE_BEFORE, jg)
+#endif
+
     !For turbulence schemes NOT including the call to the surface scheme.
     !nwp_surface must even be called in inwp_surface = 0 because the
     !the lower boundary conditions for the turbulence scheme
@@ -664,6 +686,12 @@ CONTAINS
        !$ser verbatim IF (.not. linit) CALL serialize_all(nproma, jg, "surface", .FALSE., opt_lupdate_cpu=.TRUE., opt_dt=mtime_datetime)
       IF (timers_level > 2) CALL timer_stop(timer_nwp_surface)
     END IF
+#ifndef __NO_ICON_COMIN__
+    CALL comin_callback_context_call(EP_ATM_SURFACE_AFTER, jg)
+#endif
+#ifndef __NO_ICON_COMIN__
+    CALL comin_callback_context_call(EP_ATM_TURBULENCE_BEFORE, jg)
+#endif
 
     !Call to turbulent parameterization schemes
     IF (  lcall_phy_jg(itturb) ) THEN
@@ -769,6 +797,12 @@ CONTAINS
 
     END IF
 
+#ifndef __NO_ICON_COMIN__
+    CALL comin_callback_context_call(EP_ATM_TURBULENCE_AFTER, jg)
+#endif
+#ifndef __NO_ICON_COMIN__
+    CALL comin_callback_context_call(EP_ATM_MICROPHYSICS_BEFORE, jg)
+#endif
     !-------------------------------------------------------------------------
     !  prognostic microphysic and precipitation scheme
     !-------------------------------------------------------------------------
@@ -803,6 +837,10 @@ CONTAINS
       IF (timers_level > 1) CALL timer_stop(timer_nwp_microphysics)
 
     ENDIF
+
+#ifndef __NO_ICON_COMIN__
+      CALL comin_callback_context_call(EP_ATM_MICROPHYSICS_AFTER, jg)
+#endif
 
 #ifdef __ICON_ART
     IF (lart) THEN
@@ -1243,7 +1281,9 @@ CONTAINS
 
     ENDIF
 
-
+#ifndef __NO_ICON_COMIN__
+    CALL comin_callback_context_call(EP_ATM_CONVECTION_BEFORE, jg)
+#endif
 
     !-------------------------------------------------------------------------
     !> Convection
@@ -1274,6 +1314,9 @@ CONTAINS
 
     ENDIF! convection
 
+#ifndef __NO_ICON_COMIN__
+    CALL comin_callback_context_call(EP_ATM_CONVECTION_AFTER, jg)
+#endif
 
     !-------------------------------------------------------------------------
     !> Cloud cover
@@ -1427,7 +1470,9 @@ CONTAINS
     END IF
 
 
-
+#ifndef __NO_ICON_COMIN__
+    CALL comin_callback_context_call(EP_ATM_RADIATION_BEFORE, jg)
+#endif
 
     !-------------------------------------------------------------------------
     !> Radiation
@@ -1458,6 +1503,12 @@ CONTAINS
 
     ENDIF
 
+#ifndef __NO_ICON_COMIN__
+    CALL comin_callback_context_call(EP_ATM_RADIATION_AFTER, jg)
+#endif
+#ifndef __NO_ICON_COMIN__
+    CALL comin_callback_context_call(EP_ATM_RADHEAT_BEFORE, jg)
+#endif
 
     IF ( lcall_phy_jg(itradheat) ) THEN
       !$ACC DATA CREATE(cosmu0_slope) IF(lzacc)
@@ -1695,7 +1746,12 @@ CONTAINS
 
     ENDIF
 
-
+#ifndef __NO_ICON_COMIN__
+    CALL comin_callback_context_call(EP_ATM_RADHEAT_AFTER, jg)
+#endif
+#ifndef __NO_ICON_COMIN__
+    CALL comin_callback_context_call(EP_ATM_GWDRAG_BEFORE, jg)
+#endif
 
     !-------------------------------------------------------------------------
     !> Gravity waves drag: orographic and non-orographic
@@ -1723,6 +1779,10 @@ CONTAINS
 
       IF (timers_level > 3) CALL timer_stop(timer_sso)
     ENDIF ! inwp_sso
+
+#ifndef __NO_ICON_COMIN__
+    CALL comin_callback_context_call(EP_ATM_GWDRAG_AFTER, jg)
+#endif
 
 
     !-------------------------------------------------------------------------

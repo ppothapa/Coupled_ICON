@@ -119,6 +119,11 @@ MODULE mo_ocean_model
 
   USE mo_ocean_hamocc_interface, ONLY: ocean_to_hamocc_construct, ocean_to_hamocc_init, ocean_to_hamocc_end
 
+#ifndef __NO_ICON_COMIN__
+  USE mo_mpi,               ONLY: p_comm_comin
+  USE comin_host_interface, ONLY: mpi_handshake_dummy
+#endif
+
   IMPLICIT NONE
 
   PRIVATE
@@ -391,6 +396,12 @@ MODULE mo_ocean_model
          &                          get_my_process_type(),num_prefetch_proc, num_test_pe,      &
          &                pio_type, num_io_procs_radar,radar_flag_doms_model, num_dio_procs)
 !pa
+
+#ifndef __NO_ICON_COMIN__
+    ! we dont participate at comin (yet) but we need to be friendly and shake hands
+    CALL mpi_handshake_dummy(p_comm_comin)
+#endif
+
     !-------------------------------------------------------------------
     ! 3.2 Initialize various timers
     !-------------------------------------------------------------------

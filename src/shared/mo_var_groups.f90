@@ -53,7 +53,7 @@ MODULE mo_var_groups
   ! Note that the statically defined group list "var_groups" is
   ! non-public. Its contents are copied to a dynamically growing list
   ! "var_groups_dyn".
-  INTEGER, PARAMETER :: N_VAR_GROUPS_STATIC = 71
+  INTEGER, PARAMETER :: N_VAR_GROUPS_STATIC = 73
 
   CHARACTER(LEN=vname_len), PARAMETER :: VAR_GROUPS_STATIC(N_VAR_GROUPS_STATIC) = &
      [ "ALL                   ",  &
@@ -65,6 +65,8 @@ MODULE mo_var_groups
     &  "RAD_VARS              ",  &
     &  "PRECIP_VARS           ",  &
     &  "CLOUD_DIAG            ",  &
+    &  "COMIN_TENDENCIES      ",  &
+    &  "COMIN_VARS            ",  &
     &  "PBL_VARS              ",  &
     &  "PHYS_TENDENCIES       ",  &
     &  "PROG_TIMEMEAN         ",  &

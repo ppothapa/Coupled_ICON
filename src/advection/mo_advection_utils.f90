@@ -39,7 +39,11 @@ MODULE mo_advection_utils
   USE mo_tracer_metadata_types, ONLY: t_tracer_meta
   USE mo_var_groups,            ONLY: MAX_GROUPS
   USE mo_advection_config,      ONLY: t_advection_config
-
+  USE mo_comin_config,          ONLY: comin_config
+#ifndef __NO_ICON_COMIN__
+  USE comin_host_interface,     ONLY: comin_request_get_list_head,       &
+    &                                 t_var_request_list_item
+#endif
 
   IMPLICIT NONE
 
@@ -141,19 +145,18 @@ CONTAINS
   ! optionally overwrite some default meta data
   !
   SUBROUTINE add_var_list_reference_tracer(this_list, target_name, tracer_name,    &
-    &        tracer_idx, ptr_arr, cf, grib2, advconf,jg, ldims, loutput, lrestart, &
+    &        tracer_idx, ptr_arr, cf, grib2, advconf, ldims, loutput, lrestart,    &
     &        isteptype, tlev_source, vert_interp, hor_interp, in_group, post_op,   &
-    &        tracer_info)
+    &        tracer_info, new_element)
 
     TYPE(t_var_list_ptr)    , INTENT(inout)        :: this_list
     CHARACTER(len=*)    , INTENT(in)           :: target_name
     CHARACTER(len=*)    , INTENT(in)           :: tracer_name
-    INTEGER             , INTENT(inout)        :: tracer_idx       ! index in 4D tracer container
+    INTEGER             , INTENT(out)          :: tracer_idx       ! index in 4D tracer container
     TYPE(t_ptr_2d3d)    , INTENT(inout)        :: ptr_arr(:)
     TYPE(t_cf_var)      , INTENT(in)           :: cf               ! CF related metadata
     TYPE(t_grib2_var)   , INTENT(in)           :: grib2            ! GRIB2 related metadata
     TYPE(t_advection_config), INTENT(inout)    :: advconf          ! adv configure state
-    INTEGER             , INTENT(in), OPTIONAL :: jg               ! patch id
     INTEGER             , INTENT(in), OPTIONAL :: ldims(3)         ! local dimensions, for checking
     LOGICAL             , INTENT(in), OPTIONAL :: loutput          ! output flag
     LOGICAL             , INTENT(in), OPTIONAL :: lrestart         ! restart flag
@@ -164,6 +167,7 @@ CONTAINS
     LOGICAL, INTENT(in), OPTIONAL :: in_group(MAX_GROUPS)          ! groups to which a variable belongs
     TYPE(t_post_op_meta), INTENT(in), OPTIONAL :: post_op          ! post operation (e.g. scale with const. factor or rho)
     CLASS(t_tracer_meta), INTENT(in), OPTIONAL :: tracer_info      ! tracer meta data
+    TYPE(t_var), POINTER, OPTIONAL :: new_element
 
     ! Local variables:
     TYPE(t_var), POINTER :: target_var
@@ -228,7 +232,8 @@ CONTAINS
        &          ldims=ldims, loutput=loutput, lrestart=lrestart,               &
        &          isteptype=isteptype, tlev_source=tlev_source,                  &
        &          vert_interp=vert_interp, hor_interp=hor_interp,                &
-       &          tracer_info=tracer_info, in_group=in_group, post_op=post_op)
+       &          tracer_info=tracer_info, in_group=in_group, post_op=post_op,   &
+       &          new_element=new_element)
 
   END SUBROUTINE add_var_list_reference_tracer
 
@@ -237,7 +242,7 @@ CONTAINS
   !  later assigned automatically in mo_nonhydro_state.
   !
   SUBROUTINE init_tracer_settings(iforcing, n_dom, ltransport,                 &
-    &                             inwp_turb, inwp_gscp,                        &
+    &                             inwp_turb, inwp_gscp, inwp_convection,       &
     &                             lart, iart_ntracer, ctracer_art,             &
     &                             advection_config,                            &
     &                             iqv, iqc, iqi, iqr, iqs, iqt, iqg, iqni,     &
@@ -249,6 +254,7 @@ CONTAINS
     LOGICAL,                  INTENT(IN)    :: ltransport
     INTEGER,                  INTENT(IN)    :: inwp_turb(:)
     INTEGER,                  INTENT(IN)    :: inwp_gscp(:)
+    INTEGER,                  INTENT(IN)    :: inwp_convection(:)
     LOGICAL,                  INTENT(IN)    :: lart
     INTEGER,                  INTENT(IN)    :: iart_ntracer
     CHARACTER(len=MAX_CHAR_LENGTH), ALLOCATABLE, INTENT(IN) :: ctracer_art(:)
@@ -267,6 +273,9 @@ CONTAINS
     CHARACTER(len=*), PARAMETER :: routine =  modname//'::init_tracer_settings'
     INTEGER  :: jg, name_len, itracer
     CHARACTER(len=MAX_CHAR_LENGTH) :: src_name_str
+#ifndef __NO_ICON_COMIN__
+    TYPE(t_var_request_list_item), POINTER :: ptr
+#endif
 
     INTEGER  :: iqb
     CHARACTER(len=7) :: qbinname(SIZE(iqbin))
@@ -577,6 +586,95 @@ CONTAINS
         'ntracer is increased by ', iart_ntracer, ' to ',ntracer
       CALL message(routine,message_text)
     ENDIF
+
+#ifndef __NO_ICON_COMIN__
+    ! loop over the total list of additional requested tracer
+    ! variables and add them to the `advection_config` data structure.
+    !
+    ! Since ICON does not accept a domain-specifc number of tracers, we do this for domain jg=1 only.
+    jg=1
+    ptr => comin_request_get_list_head()
+    VAR_LOOP : DO WHILE (ASSOCIATED(ptr))
+      ASSOCIATE (comin_request_item => ptr%item_value)
+        ! skip if variable was not requested for this domain
+        IF (comin_request_item%descriptor%id /= jg) THEN
+          ptr => ptr%next()
+          CYCLE VAR_LOOP
+        END IF
+
+        IF (.NOT. comin_request_item%metadata%tracer) THEN
+          ptr => ptr%next()
+          CYCLE VAR_LOOP
+        END IF
+
+        ntracer = ntracer + 1
+        advection_config(jg)%tracer_names(ntracer) = comin_request_item%descriptor%name
+
+        WRITE(message_text,*) 'Attention: ComIn active, adding tracer ', &
+          &                   TRIM(comin_request_item%descriptor%name)
+        CALL message(routine,message_text)
+
+      END ASSOCIATE
+      ptr => ptr%next()
+    END DO VAR_LOOP
+
+    WRITE(message_text,'(a,i3)') 'Attention: ComIn active, '//&
+      &   'ntracer is increased to ',ntracer
+    CALL message(routine,message_text)
+
+    ! Seperate loop for adding the tracer to turbulence/convection
+    ! Generally allowing a domain-dependent specification of lturb and/or lconv
+    DOM_LOOP : DO jg = 1, n_dom
+      ptr => comin_request_get_list_head()
+      VAR_LOOP_TURB : DO WHILE (ASSOCIATED(ptr))
+        ASSOCIATE (comin_request_item => ptr%item_value)
+          ! skip if variable was not requested for this domain
+          IF (comin_request_item%descriptor%id /= jg) THEN
+            ptr => ptr%next()
+            CYCLE VAR_LOOP_TURB
+          END IF
+
+          IF (.NOT. comin_request_item%metadata%tracer) THEN
+            ptr => ptr%next()
+            CYCLE VAR_LOOP_TURB
+          END IF
+
+          IF (comin_request_item%metadata%tracer_turb) THEN
+            comin_config%comin_icon_domain_config(jg)%nturb_tracer = &
+              &  comin_config%comin_icon_domain_config(jg)%nturb_tracer + 1
+          END IF
+
+          IF (comin_request_item%metadata%tracer_conv) THEN
+            comin_config%comin_icon_domain_config(jg)%nconv_tracer = &
+              &  comin_config%comin_icon_domain_config(jg)%nconv_tracer + 1
+          END IF
+
+        END ASSOCIATE
+        ptr => ptr%next()
+      END DO VAR_LOOP_TURB
+      WRITE (message_text,'(A,I2,A,I2,A)') "Domain ",jg," contains ",                              &
+        &                                  comin_config%comin_icon_domain_config(jg)%nturb_tracer, &
+        &                                  " comin tracer registered for turbulent transport"
+      CALL message(routine, message_text)
+      WRITE (message_text,'(A,I2,A,I2,A)') "Domain ",jg," contains ",                              &
+        &                                  comin_config%comin_icon_domain_config(jg)%nconv_tracer, &
+        &                                  " comin tracer registered for convective transport"
+      CALL message(routine, message_text)
+
+      IF ( (inwp_turb(jg) /= icosmo) .AND. &
+        & comin_config%comin_icon_domain_config(jg)%nturb_tracer > 0) THEN
+        WRITE (message_text,'(A,A,I2)') "ComIn tracer-turbulence interaction only valid ", &
+          &                           "for inwp_turb = ",icosmo
+        CALL finish(routine, message_text)
+      END IF
+      IF ( (inwp_convection(jg) /= 1) .AND. &
+        & comin_config%comin_icon_domain_config(jg)%nconv_tracer > 0) THEN
+        WRITE (message_text,'(A,A,I2)') "ComIn tracer-convection interaction only valid ", &
+          &                           "for inwp_convection = 1"
+        CALL finish(routine, message_text)
+      END IF
+    END DO DOM_LOOP
+#endif
 
     ! take into account additional passive tracers, if present
     ! no need to update iqt, since passive tracers do not belong to

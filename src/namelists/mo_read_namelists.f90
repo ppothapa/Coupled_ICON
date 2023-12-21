@@ -87,6 +87,7 @@ MODULE mo_read_namelists
   USE mo_ser_nml             ,ONLY: read_ser_namelist
 
   USE mo_sppt_nml            ,ONLY: read_sppt_namelist
+  USE mo_comin_nml           ,ONLY: read_comin_namelist
 
   !OEM
   USE mo_oem_nml             ,ONLY: read_oemctrl_namelist
@@ -240,6 +241,12 @@ CONTAINS
 
     !OEM
     CALL read_oemctrl_namelist        (atm_namelist_filename(1:tlen))
+
+    !COMIN
+    !
+    !remark: every ICON component defines its own ComIn namelist,
+    !        ie. `atmo_model` and `ocean_model`.
+    CALL read_comin_namelist          (atm_namelist_filename(1:tlen))
 
     ! Serialization
     !$ser verbatim CALL read_ser_namelist(atm_namelist_filename(1:tlen))

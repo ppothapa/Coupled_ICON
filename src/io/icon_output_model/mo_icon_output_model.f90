@@ -65,9 +65,14 @@ MODULE mo_icon_output_model
 #endif
   !-------------------------------------------------------------
   USE mo_icon_output_variables, ONLY: construct_icon_output_variables, destruct_icon_output_variables, &
-    & patch_3d
+       & patch_3d
 
- 
+#ifndef __NO_ICON_COMIN__
+  USE mo_mpi,               ONLY: p_comm_comin
+  USE comin_host_interface, ONLY: mpi_handshake_dummy
+#endif
+
+
   IMPLICIT NONE
 
   PRIVATE
@@ -243,7 +248,13 @@ MODULE mo_icon_output_model
          &                          num_io_procs, dedicatedRestartProcs, &
          &                          comp_id,num_prefetch_proc, num_test_pe,      &
          &                          pio_type)
-!pa
+    !pa
+
+#ifndef __NO_ICON_COMIN__
+    ! we dont participate at comin (yet) but we need to be friendly and shake hands
+    CALL mpi_handshake_dummy(p_comm_comin)
+#endif
+
     !-------------------------------------------------------------------
     ! 3.2 Initialize various timers
     !-------------------------------------------------------------------

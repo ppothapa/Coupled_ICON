@@ -121,7 +121,11 @@ MODULE mo_hamocc_model
   USE mo_io_coupling_frame,      ONLY: construct_io_coupling, destruct_io_coupling
 #endif
   USE mo_icon_output_tools,      ONLY: init_io_processes, prepare_output
- 
+#ifndef __NO_ICON_COMIN__
+  USE mo_mpi,               ONLY: p_comm_comin
+  USE comin_host_interface, ONLY: mpi_handshake_dummy
+#endif
+
   IMPLICIT NONE
 
   PRIVATE
@@ -409,7 +413,11 @@ MODULE mo_hamocc_model
     CALL restartWritingParameters(opt_dedicatedProcCount = dedicatedRestartProcs)
     CALL set_mpi_work_communicators(p_test_run, l_test_openmp, num_io_procs, &
       &  dedicatedRestartProcs, my_comp_id=hamocc_process, num_test_pe=num_test_pe, pio_type=pio_type)
- 
+
+#ifndef __NO_ICON_COMIN__
+    ! we dont participate at comin (yet) but we need to be friendly and shake hands
+    CALL mpi_handshake_dummy(p_comm_comin)
+#endif
 
 #ifdef YAC_coupling
       ! The initialisation of YAC needs to be called by all (!) MPI processes

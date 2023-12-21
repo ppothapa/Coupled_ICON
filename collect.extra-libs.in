@@ -17,6 +17,19 @@ for subdir in @icon_bundled_config_subdirs@ @icon_bundled_cmake_subdirs@; do
   extra_libs=''
 
   case $subdir in
+    externals/comin/build)
+      # Extract dl libs from comin cmake variable
+      extra_libs=`cmake -L $subdir | sed -n 's/^COMIN_DL_LIBS\(:[A-Z]\+\)=\(-l\)\?\(.\+\)/-l\3/p'`
+      # We do not need extra_libs if its value is already in the LIBS:
+      if test -n "$extra_libs"; then
+        set dummy @LIBS@; shift
+          case ' '"$@"' ' in
+            *" $extra_libs "*)
+              extra_libs= ;;
+            *) ;;
+          esac
+      fi
+      ;;
     externals/sct)
       # The bundled version of SCT, which we link statically, might require
       # additional linker flags:

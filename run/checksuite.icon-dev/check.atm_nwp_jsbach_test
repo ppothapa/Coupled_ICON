@@ -99,7 +99,7 @@ esac
 module load cdo || true
 
 rundir=`pwd`
-cd checksuite.icon-dev
+cd "${basedir}/run/checksuite.icon-dev"
 
 ./icon-dev.checksuite
 STATUS=$?

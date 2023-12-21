@@ -41,9 +41,10 @@ MODULE mo_nwp_conv_interface
   USE mo_atm_phy_nwp_config,   ONLY: atm_phy_nwp_config
   USE mo_cumaster,             ONLY: cumastrn
   USE mo_ext_data_types,       ONLY: t_external_data
+  USE mo_comin_config,         ONLY: comin_config, t_comin_tracer_info
   USE mo_art_config,           ONLY: art_config
   USE mo_util_phys,            ONLY: nwp_con_gust
-  USE mo_exception,            ONLY: finish
+  USE mo_exception,            ONLY: finish, message_text
 
   ! for stochastic convection
   USE mo_sync,                 ONLY: sync_patch_array,sync_patch_array_mult,SYNC_C
@@ -60,6 +61,8 @@ MODULE mo_nwp_conv_interface
 
 
   PUBLIC  ::  nwp_convection
+
+  CHARACTER(LEN=*), PARAMETER :: modname = 'mo_nwp_conv_interface'
 
 CONTAINS
   !!
@@ -96,6 +99,7 @@ CONTAINS
     LOGICAL                     ,INTENT(in)   :: linit            !< .TRUE. if initialization call
     LOGICAL, OPTIONAL           ,INTENT(in)   :: lacc             !< to run on GPUs
 
+    CHARACTER(*), PARAMETER    :: routine = modname//"::nwp_convection"
     ! Local array bounds:
 
     INTEGER :: nlev, nlevp1            !< number of full and half levels
@@ -140,9 +144,18 @@ CONTAINS
     LOGICAL  :: lcompute_lfd               !< compute lfd_con, lfd_con_max
     LOGICAL  :: lzacc                      !< to check, if lacc is present
 
-    ! ART specific
+    ! Tracer specific variables:
+    INTEGER :: nconv_tracer_tot, nconv
+    ! General pointers to tracers/tendencies for convection
     TYPE(t_ptr_tracer), POINTER :: ptr_conv_tracer_tend(:)
     TYPE(t_ptr_tracer), POINTER :: ptr_conv_tracer(:)
+    ! Pointers to structures in memory allocated within ART
+    TYPE(t_ptr_tracer), POINTER :: ptr_conv_tracer_tend_art(:)
+    TYPE(t_ptr_tracer), POINTER :: ptr_conv_tracer_art(:)
+    ! Extended list of tracers by ComIn (incl. ART if present)
+    TYPE(t_ptr_tracer), ALLOCATABLE, TARGET :: ptr_conv_tracer_tend_comin(:)
+    TYPE(t_ptr_tracer), ALLOCATABLE, TARGET :: ptr_conv_tracer_comin(:)
+    TYPE(t_comin_tracer_info), POINTER :: this_info => NULL()
 
     CALL set_acc_host_or_device(lzacc, lacc)
 
@@ -177,6 +190,12 @@ CONTAINS
     ELSE
       iqrd = nqtendphy
       iqsd = nqtendphy
+    ENDIF
+
+    nconv_tracer_tot = comin_config%comin_icon_domain_config(jg)%nconv_tracer
+    IF (lart) nconv_tracer_tot = nconv_tracer_tot + art_config(jg)%nconv_tracer
+    IF (comin_config%comin_icon_domain_config(jg)%nconv_tracer > 0) THEN
+      ALLOCATE( ptr_conv_tracer_tend_comin(nconv_tracer_tot), ptr_conv_tracer_comin(nconv_tracer_tot) )
     ENDIF
 
     ! switch on stochastic convection scheme with namelist parameter, default is false/off
@@ -346,11 +365,11 @@ CONTAINS
             END DO
             !$ACC END PARALLEL
           ENDDO
-          ptr_conv_tracer_tend => prm_nwp_tend%conv_tracer_tend(jb,1:art_config(jg)%nconv_tracer)
-          ptr_conv_tracer      => p_prog_rcf%conv_tracer(jb,1:art_config(jg)%nconv_tracer) 
+          ptr_conv_tracer_tend_art => prm_nwp_tend%conv_tracer_tend(jb,1:art_config(jg)%nconv_tracer)
+          ptr_conv_tracer_art      => p_prog_rcf%conv_tracer(jb,1:art_config(jg)%nconv_tracer) 
         ELSE
-          ptr_conv_tracer      => NULL()
-          ptr_conv_tracer_tend => NULL()
+          ptr_conv_tracer_art      => NULL()
+          ptr_conv_tracer_tend_art => NULL()
         ENDIF
 
         !-------------------------------------------------------------------------
@@ -467,6 +486,41 @@ CONTAINS
            NULLIFY(p_cloud_ensemble%base_i)
            NULLIFY(p_cloud_ensemble%used_cell)          
         ENDIF
+
+        IF ( comin_config%comin_icon_domain_config(jg)%nconv_tracer > 0 ) THEN
+          ! Check if ART tracers are present, fill the first part of ptr_conv_tracer_comin / ptr_conv_tracer_tend_comin with ART lists
+          IF ( lart .AND. art_config(jg)%nconv_tracer > 0 ) THEN
+            ptr_conv_tracer_comin     (1:art_config(jg)%nconv_tracer) = p_prog_rcf%conv_tracer       (jb,1:art_config(jg)%nconv_tracer)
+            ptr_conv_tracer_tend_comin(1:art_config(jg)%nconv_tracer) = prm_nwp_tend%conv_tracer_tend(jb,1:art_config(jg)%nconv_tracer)
+            nconv = art_config(jg)%nconv_tracer
+          ELSE
+            nconv = 0
+          ENDIF
+
+          ! Append ComIn tracers
+          this_info => comin_config%comin_icon_domain_config(jg)%tracer_info_head
+          DO WHILE (ASSOCIATED(this_info))
+            IF (this_info%idx_conv > 0) THEN
+              nconv = nconv + 1
+              ptr_conv_tracer_comin     (nconv)%ptr => p_prog_rcf%tracer(:,:,jb,this_info%idx_tracer)
+              ptr_conv_tracer_tend_comin(nconv)%ptr => prm_nwp_tend%ddt_tracer_pconv(:,:,jb,this_info%idx_conv)
+            ENDIF !this_info%idx_conv > 0
+            this_info => this_info%next
+          ENDDO
+          IF (nconv /= nconv_tracer_tot) THEN
+            WRITE (message_text,'(A,A,I3,A,I3)') "Number of convective tracer is inconsistent: ",  &
+              &                               "nconv = ",nconv,", nconv_tracer_tot = ",nconv_tracer_tot
+            CALL finish(routine, message_text)
+          ENDIF !nconv /= nconv_tracer_tot
+
+          ! Overwrite pointers
+          ptr_conv_tracer      => ptr_conv_tracer_comin(1:nconv_tracer_tot)
+          ptr_conv_tracer_tend => ptr_conv_tracer_tend_comin(1:nconv_tracer_tot)
+
+        ELSE ! points to NULL() if no ART tracers are present
+          ptr_conv_tracer      => ptr_conv_tracer_art
+          ptr_conv_tracer_tend => ptr_conv_tracer_tend_art
+        ENDIF !comin_config%comin_icon_domain_config(jg)%nconv_tracer > 0
 
         CALL cumastrn &
 &         (kidia  = i_startidx            , kfdia  = i_endidx               ,& !> IN
@@ -633,6 +687,9 @@ CONTAINS
 #ifndef __PGI
 !$OMP END PARALLEL DO
 #endif
+
+    IF ( ALLOCATED( ptr_conv_tracer_tend_comin) ) DEALLOCATE(ptr_conv_tracer_tend_comin)
+    IF ( ALLOCATED( ptr_conv_tracer_comin) )      DEALLOCATE(ptr_conv_tracer_comin)
 
     !$ACC END DATA
 

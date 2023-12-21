@@ -102,6 +102,11 @@ $addexp checksuite.icon-dev/check.atm_tracer_Hadley                             
 # tests for nwp
 $addexp "exp.test_nwp_R02B04N06multi"  --without-configureflags "--without-mpi" --runflags "cpu_time=00:30:00 queue=shared memory=64G ntasks=32"  --machines levante --list $listname
 $addexp "exp.test_nwp_R02B04_R02B05_nest"  --without-configureflags "--without-mpi" --runflags "cpu_time=00:30:00 queue=shared memory=32G ntasks=32"  --machines levante --list $listname
+$addexp "checksuite.infrastructure/comin/exp.build_comin_plugins_LEVANTE.run" --builders "levante_gcc" --list $listname
+$addexp "exp.test_nwp_R02B04_R02B05_nest_comin"                                  --builders "levante_gcc" --list $listname
+./adddep --from-experiment "exp.test_nwp_R02B04_R02B05_nest_comin" --to-experiment "checksuite.infrastructure/comin/exp.build_comin_plugins_LEVANTE.run" --builders "levante_gcc" --list $listname
+$addexp "exp.test_nwp_R02B04_R02B05_nest_comin_python"  --without-configureflags "--without-mpi" --runflags "cpu_time=00:30:00 queue=shared memory=32G ntasks=32"  --machines levante --list $listname
+./adddep --from-experiment "exp.test_nwp_R02B04_R02B05_nest_comin_python" --to-experiment "checksuite.infrastructure/comin/exp.build_comin_plugins_LEVANTE.run" --builders "levante_gcc" --list $listname
 # this experiment runs only with-mpi and without openmp
 #
 # builders at DWD
@@ -157,6 +162,7 @@ done
 # add tests for checking yaxt and yac stand-alone; this needs yaxt/yac to be enabled
 $addexp  checksuite.infrastructure/checkExternals/exp.check_externals_DWD.run --builders DWD_nec_yac2 --list ${listname}
 $addexp  checksuite.infrastructure/checkExternals/exp.check_externals_LEVANTE.run --machines levante --list ${listname}
+./adddep --from-experiment "checksuite.infrastructure/comin/exp.build_comin_plugins_LEVANTE.run" --to-experiment "checksuite.infrastructure/checkExternals/exp.check_externals_LEVANTE.run" --builders "levante_gcc" --list $listname
 
 # icon-clm tests
 $addexp checksuite.clm/clmexp.ICON_CLM --builders levante_intel_hybrid --list ${listname} --runflags="ntasks=32 queue=shared"

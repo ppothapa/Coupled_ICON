@@ -43,7 +43,7 @@ MODULE mo_nwp_turbdiff_interface
     &                                  iqs, iqns, lart, ltestcase
   USE mo_atm_phy_nwp_config,     ONLY: atm_phy_nwp_config
   USE mo_nonhydrostatic_config,  ONLY: kstart_moist, kstart_tracer
-  USE turb_data,                 ONLY: get_turbdiff_param, lsflcnd, modvar, ndim
+  USE turb_data,                 ONLY: get_turbdiff_param, lsflcnd, modvar, ndim, ilow_def_cond
   USE turb_diffusion,            ONLY: turbdiff
   USE turb_vertdiff,             ONLY: vertdiff
   USE mo_gme_turbdiff,           ONLY: partura, progimp_turb
@@ -51,6 +51,7 @@ MODULE mo_nwp_turbdiff_interface
   USE mo_art_config,             ONLY: art_config
   USE mo_advection_config,       ONLY: advection_config
   USE mo_turbdiff_config,        ONLY: turbdiff_config
+  USE mo_comin_config,           ONLY: comin_config, t_comin_tracer_info
 #ifdef __ICON_ART
   USE mo_art_turbdiff_interface, ONLY: art_turbdiff_interface
 #endif
@@ -68,6 +69,8 @@ MODULE mo_nwp_turbdiff_interface
 
 
   PUBLIC  ::  nwp_turbdiff
+
+  CHARACTER(LEN=*), PARAMETER :: modname = 'mo_nwp_turbdiff_interface'
 
 CONTAINS
   !!
@@ -104,6 +107,7 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
                                                                !< turbulence
   LOGICAL, INTENT(IN), OPTIONAL :: lacc ! If true, use openacc
 
+  CHARACTER(*), PARAMETER :: routine = modname//"::nwp_turbdiff"
 
   ! Local array bounds
 
@@ -141,6 +145,7 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
   INTEGER :: ncloud_offset                       !< offset for ptr-indexing in ART
                                                  !< interface due to additionally
                                                  !< diffused cloud fields
+  INTEGER :: nturb_tracer_tot                    !< Total number of turbulent tracers
   INTEGER, ALLOCATABLE :: idx_nturb_tracer(:)    !< indices of the turbulent tracers in the prognostic list
 
   LOGICAL  :: ltwomoment                    !< using 2mom microphysics?
@@ -173,6 +178,8 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
   REAL(wp),DIMENSION(nproma,p_patch%nlev+1) :: tet_flux, vap_flux, liq_flux
  
   INTEGER, SAVE :: nstep_turb = 0
+
+  TYPE(t_comin_tracer_info), POINTER :: this_info => NULL()
 
 !--------------------------------------------------------------
 
@@ -383,7 +390,32 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
          ENDDO
       ENDIF
 #endif
-  
+
+      ! Add ComIn tracers to the ptr structure
+      nturb_tracer_tot = ncloud_offset + art_config(jg)%nturb_tracer &
+        &              + comin_config%comin_icon_domain_config(jg)%nturb_tracer
+      IF ( comin_config%comin_icon_domain_config(jg)%nturb_tracer > 0 ) THEN
+        nturb     =  ncloud_offset+art_config(jg)%nturb_tracer
+        this_info => comin_config%comin_icon_domain_config(jg)%tracer_info_head
+        DO WHILE (ASSOCIATED(this_info))
+          IF (this_info%idx_turb > 0) THEN
+            nturb = nturb + 1
+            ptr(nturb)%av     => p_prog_rcf%tracer(:,:,jb,this_info%idx_tracer)
+            ptr(nturb)%at     => prm_nwp_tend%ddt_tracer_turb(:,:,jb,this_info%idx_turb)
+            ptr(nturb)%sv     => NULL()
+            ptr(nturb)%kstart =  1
+          ENDIF
+          this_info => this_info%next
+        ENDDO
+        IF (ilow_def_cond /= 2) &
+          &  CALL finish (routine, "ComIn tracers require zero-surface-value (ilow_def_cond = 2)")
+        IF (nturb /= nturb_tracer_tot) THEN
+          WRITE (message_text,'(A,A,I3,A,I3)') "Number of turbulent tracer is inconsistent: ",  &
+            &                               "nturb = ",nturb,", nturb_tracer_tot = ",nturb_tracer_tot
+          CALL finish(routine, message_text)
+        ENDIF
+      ENDIF
+
       IF ( ltestcase .AND. l_scm_mode .AND. &
         &  ((scm_sfc_mom .GE. 2) .OR. (scm_sfc_temp .GE. 2) .OR. (scm_sfc_qv .GE. 2)) ) THEN
         CALL set_scm_bnd( nvec=nproma, ivstart=i_startidx, ivend=i_endidx, &
@@ -537,7 +569,7 @@ SUBROUTINE nwp_turbdiff  ( tcall_turb_jg,                     & !>in
         &  epr       = p_prog%exner(:,:,jb),                      & !in
         &  impl_weight=turbdiff_config(jg)%impl_weight,           & !in
         &  ptr       = ptr(:),                                    & !inout
-        &  ndtr      = art_config(jg)%nturb_tracer+ncloud_offset, & !in: diffusion of additional tracer variables!
+        &  ndtr      = nturb_tracer_tot,                          & !in: diffusion of additional tracer variables!
         &  tvm       = prm_diag%tvm(:,jb),                        & !inout
         &  tvh       = prm_diag%tvh(:,jb),                        & !inout
         &  tkvm      = prm_diag%tkvm(:,:,jb),                     & !inout

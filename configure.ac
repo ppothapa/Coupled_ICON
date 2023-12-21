@@ -198,6 +198,12 @@ AC_ARG_ENABLE([art],
   [AS_IF([test x"$enableval" != xno], [enable_art=yes])],
   [enable_art=no])
 
+AC_ARG_ENABLE([comin],
+  [AS_HELP_STRING([--enable-comin],
+     [enable the ICON community interfaces @<:@default=no@:>@])],
+  [AS_IF([test x"$enableval" != xno], [enable_comin=yes])],
+  [enable_comin=no])
+
 AC_ARG_ENABLE([hd],
 [  --enable-hd             enable the Hydrological Discharge (HD) model. The
                           value of the argument must be one of the following
@@ -843,6 +849,9 @@ AS_VAR_IF([enable_emvorado], [yes],
 AS_VAR_IF([enable_art], [yes],
   [AS_VAR_APPEND([FCFLAGS],
      [" ${FC_PP_DEF}__ICON_ART ${FC_PP_DEF}__ART_TMP_IFDEF"])])
+
+AS_VAR_IF([enable_comin], [no],
+  [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_ICON_COMIN__"])])
 
 AS_VAR_IF([enable_acm_license], [yes],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}HAVE_ACM_LICENSE"])])
@@ -2311,6 +2320,46 @@ switch the secondary GPU compiler (e.g. dnl
 (--disable-gpu), or set HIPFLAGS accordingly])],
      [[// override default includes]])
    ACX_LANG_POP_HIP])
+
+AS_VAR_IF([enable_comin], [yes],
+  [icon_subdir_srcdir="$srcdir/externals/comin"
+   icon_subdir_unique_file="src/comin_setup.F90"
+   AS_IF([test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"],
+     [AC_MSG_ERROR([unable to find sources of the bundled version of COMIN dnl
+library ($icon_subdir_unique_file) in '$icon_subdir_srcdir'])])
+   AC_ARG_VAR([ICON_COMIN_FCFLAGS],
+     [Fortran compiler flags to be appended to FCFLAGS when configuring the
+bundled version of COMIN library @<:@default=$ICON_BUNDLED_FCFLAGS@:>@])dnl
+   ICON_COMIN_FCFLAGS=${ICON_COMIN_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
+   AC_ARG_VAR([ICON_COMIN_CFLAGS],
+     [C compiler flags to be appended to CFLAGS when configuring the bundled
+version of COMIN library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
+   AC_ARG_VAR([ICON_COMIN_CXXFLAGS],
+     [C++ compiler flags to be appended to CXXFLAGS when configuring the bundled
+version of COMIN library @<:@default=$ICON_BUNDLED_CXXFLAGS@:>@])dnl
+   ICON_COMIN_CFLAGS=${ICON_COMIN_CFLAGS-$ICON_BUNDLED_CFLAGS}
+   ACX_SUBDIR_INIT_CMAKE([externals/comin], [no-run no-adjust-compilers], [],
+     [AS_ESCAPE(["${CMAKE}"])])
+   ACX_SUBDIR_REMOVE_ARGS([externals/comin],
+dnl The compiler flags are replaced below:
+     [-DCMAKE_C_FLAGS=*|-DCMAKE_Fortran_FLAGS=*|-DCMAKE_CXX_FLAGS=*],
+dnl The interprocedural optimization is not enabled in the project:
+     [-DCMAKE_*_COMPILER_AR=*|-DCMAKE_*_COMPILER_RANLIB=*])
+   ACX_SUBDIR_APPEND_ARGS([externals/comin],
+dnl Extend the compiler flags:
+     [-DCMAKE_C_FLAGS="$subdir_CFLAGS $ICON_COMIN_CFLAGS $subdir_CPPFLAGS"],
+     [-DCMAKE_Fortran_FLAGS="$subdir_FCFLAGS $ICON_COMIN_FCFLAGS"],
+     [-DCMAKE_CXX_FLAGS=dnl
+"$subdir_CXXFLAGS $ICON_COMIN_CXXFLAGS $subdir_CPPFLAGS"],
+dnl Build the static version of the library:
+     [-DBUILD_SHARED_LIBS:BOOL=OFF],
+dnl Turn off the examples (only build the static lib)
+     [-DCOMIN_ENABLE_EXAMPLES:BOOL=OFF],
+dnl Set non-existing build type to avoid extra compiler flags:
+     [-DCMAKE_BUILD_TYPE:STRING=NOEXTRAFLAGS])
+   AS_VAR_APPEND([bundled_includes],
+     ["${FC_MOD_IN}externals/comin/build/mod "])
+   BUNDLED_LIBFILES="externals/comin/build/libcomin.a $BUNDLED_LIBFILES"])
 
 AS_VAR_IF([with_external_fortran_support], [yes],
   [AC_CACHE_CHECK([whether Fortran support library is available],

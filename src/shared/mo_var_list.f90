@@ -997,6 +997,9 @@ CONTAINS
 
     ndims = SIZE(ldims)
     target_element => find_list_element(this_list, target_name)
+    IF (.NOT. ASSOCIATED(target_element)) THEN
+      CALL finish(routine, "target element "//TRIM(target_name)//" not found!")
+    END IF
     target_info => target_element%info
     IF (PRESENT(opt_var_ref_pos)) THEN
       var_ref_pos = opt_var_ref_pos

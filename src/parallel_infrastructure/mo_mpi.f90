@@ -250,6 +250,12 @@ MODULE mo_mpi
 #endif
   USE mo_exception,           ONLY: init_logger
 
+#ifndef __NO_ICON_COMIN__
+  USE comin_host_interface,   ONLY: mpi_handshake,                &
+    &                               comin_callback_context_call,  &
+    &                               EP_FINISH, COMIN_DOMAIN_OUTSIDE_LOOP
+#endif
+
   IMPLICIT NONE
 
   PRIVATE                          ! all declarations are private
@@ -316,6 +322,10 @@ MODULE mo_mpi
   !restart communicators
   PUBLIC :: p_comm_work_2_restart, p_comm_work_restart
   PUBLIC :: p_communicator_a, p_communicator_b, p_communicator_d
+
+#ifndef __NO_ICON_COMIN__
+  PUBLIC :: p_comm_comin
+#endif
 
   PUBLIC :: process_mpi_io_size, process_mpi_restart_size, process_mpi_pref_size
 
@@ -547,6 +557,10 @@ MODULE mo_mpi
 
   INTEGER :: p_pe     = 0     ! this is the PE number of this task
   INTEGER :: p_io     = 0     ! PE number of PE handling IO
+
+#ifndef __NO_ICON_COMIN__
+  INTEGER :: p_comm_comin
+#endif
 
 ! non blocking calls
 
@@ -2396,6 +2410,9 @@ CONTAINS
 
     CHARACTER(len=132) :: yname
 
+    CHARACTER(len=256) :: group_names(3) = ["icon ", "yac  ", "comin"]
+    INTEGER            :: group_comms(3)
+
     ! variables used for determing the OpenMP threads
     ! suitable as well for coupled models
 #if (defined _OPENMP)
@@ -2475,7 +2492,21 @@ CONTAINS
 #endif       
     END IF
 
-    CALL init_coupler(global_mpi_communicator, global_name)
+#ifndef __NO_ICON_COMIN__
+    ! ----------------------------------------------------------
+    ! UNDER DEVELOPMENT (ICON ComIn)
+    !
+    ! MPI handshake: ICON PEs register themselves for groups
+    !                `icon`, `yac`, `comin`
+    ! ----------------------------------------------------------
+    CALL mpi_handshake(MPI_COMM_WORLD, group_names, group_comms)
+    ! COMIN TODO: use yac communicator from handshake
+    global_mpi_communicator = group_comms(1)
+    CALL init_coupler(opt_yac_comm = group_comms(2))
+    p_comm_comin = group_comms(3)
+#else
+    CALL init_coupler(opt_world_comm = global_mpi_communicator)
+#endif
 
     process_mpi_all_comm = MPI_COMM_NULL
     IF (PRESENT(global_name)) THEN
@@ -2721,6 +2752,10 @@ CONTAINS
     ! this routine should be used instead of abort, util_abort() or
     ! STOP or any other exit call in all routines for proper clean up
     ! of all PEs
+
+#ifndef __NO_ICON_COMIN__
+    CALL comin_callback_context_call(EP_FINISH, COMIN_DOMAIN_OUTSIDE_LOOP)
+#endif
 
 #ifndef NOMPI
     CALL MPI_ABORT (MPI_COMM_WORLD, 0, p_error)

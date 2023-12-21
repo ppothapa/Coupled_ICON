@@ -10319,7 +10319,48 @@ Some developments must not change model results. Serialbox allows reading and wr
 Defined and used in: \verb+src/namelists/mo_ser_nml.f90+
 
 \section{External packages}
+\subsection{Community Interface (ComIn)}
 
+More details on the Comminity Interface (ComIn) can befound in \href{../externals/comin/doc/icon_comin_doc.md}{ComIn's documentation}. This namelist is only usable (and needed) if ComIn has been enabled during ICON's configure process.
+Several \texttt{plugin\_list(pg)} definitions can be specified, each holding the following namelist settings. The numbering (pg) of the plugins has to be contiguous without any gaps.
+\begin{longtab}
+  plugin\_list(pg)\%plugin\_library &
+  C & "" & &
+  Path to the plugin
+  library file. If omitted the primary constructor specified by
+  \texttt{primary\_constructor} is loaded from the `icon` executable
+  (static linkage)\\
+  \textbf{}&
+  \texttt{configure --enable-comin}
+  \tabularnewline
+
+  plugin\_list(pg)\%name &
+  C & "" & &
+  Name of the plugin -- currently only used for messages. &
+  \texttt{configure --enable-comin}
+  \tabularnewline
+  
+  plugin\_list(pg)\%primary\_constructor &
+  C & "comin\_main" & &
+  Name of the symbol in the plugin library that
+  holds the primary constructor. &
+  \texttt{configure --enable-comin}
+  \tabularnewline
+
+  plugin\_list(pg)\%options & C & "" & &
+  The options string passed to the plugin. This namelist parameter is necessary
+  for certain plugins only, e.g. the Python adapter. &
+  \texttt{configure --enable-comin}
+  \tabularnewline
+
+  plugin\_list(pg)\%comm & C & "" & &
+  Name of the MPI communicator used in the second MPI Handshake. (At
+  the first MPI Handshake "comin" is used). This namelist parameter is necessary
+  only when using ComIn plugins in combination with external processes.&
+  \texttt{configure --enable-comin}
+  \tabularnewline
+
+\end{longtab}
 
 
 \section{Information on vertical level distribution}

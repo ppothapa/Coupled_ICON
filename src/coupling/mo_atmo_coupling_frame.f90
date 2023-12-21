@@ -57,10 +57,21 @@ MODULE mo_atmo_coupling_frame
     &                               yac_fset_core_mask, yac_fdef_mask,      &
     &                               yac_fdef_field_mask, yac_fenddef,       &
     &                               YAC_LOCATION_CELL, YAC_TIME_UNIT_ISO_FORMAT, &
-    &                               yac_fget_field_collection_size
+    &                               yac_fget_field_collection_size, yac_fsync_def
 
   USE mtime                  ,ONLY: datetimeToString, MAX_DATETIME_STR_LEN, &
-    &                               timedeltaToString, MAX_TIMEDELTA_STR_LEN
+       &                               timedeltaToString, MAX_TIMEDELTA_STR_LEN
+
+#ifndef __NO_ICON_COMIN__
+  USE comin_host_interface, ONLY: comin_callback_context_call,     &
+       &                          EP_ATM_YAC_DEFCOMP_BEFORE,       &
+       &                          EP_ATM_YAC_DEFCOMP_AFTER,        &
+       &                          EP_ATM_YAC_SYNCDEF_BEFORE,       &
+       &                          EP_ATM_YAC_SYNCDEF_AFTER,        &
+       &                          EP_ATM_YAC_ENDDEF_BEFORE,        &
+       &                          EP_ATM_YAC_ENDDEF_AFTER,         &
+       &                          COMIN_DOMAIN_OUTSIDE_LOOP
+#endif
 
   IMPLICIT NONE
 
@@ -180,10 +191,18 @@ CONTAINS
     CALL yac_fdef_datetime ( start_datetime = TRIM(startdatestring), &
          &                   end_datetime   = TRIM(stopdatestring)   )
 
+#ifndef __NO_ICON_COMIN__
+    CALL comin_callback_context_call(EP_ATM_YAC_DEFCOMP_BEFORE, COMIN_DOMAIN_OUTSIDE_LOOP)
+#endif
+
     ! Inform the coupler about what we are
     comp_name = TRIM(get_my_process_name())
     CALL yac_fdef_comp ( TRIM(comp_name), comp_id )
     comp_ids(1) = comp_id
+
+#ifndef __NO_ICON_COMIN__
+    CALL comin_callback_context_call(EP_ATM_YAC_DEFCOMP_AFTER, COMIN_DOMAIN_OUTSIDE_LOOP)
+#endif
 
     ! Announce one grid (patch) to the coupler
     grid_name = "icon_atmos_grid"
@@ -450,7 +469,15 @@ CONTAINS
         & is_valid,                 &
         & cell_mask_ids(1) )
 
-      CALL yac_fsync_def() 
+#ifndef __NO_ICON_COMIN__
+    CALL comin_callback_context_call(EP_ATM_YAC_SYNCDEF_BEFORE, COMIN_DOMAIN_OUTSIDE_LOOP)
+#endif
+
+    CALL yac_fsync_def ( )
+
+#ifndef __NO_ICON_COMIN__
+    CALL comin_callback_context_call(EP_ATM_YAC_SYNCDEF_AFTER, COMIN_DOMAIN_OUTSIDE_LOOP)
+#endif
 
       DO jc = 1, min_no_of_fields
         CALL yac_fdef_field_mask (       &
@@ -682,7 +709,15 @@ CONTAINS
 
     ! End definition of coupling fields and search
 
+#ifndef __NO_ICON_COMIN__
+    CALL comin_callback_context_call(EP_ATM_YAC_ENDDEF_BEFORE, COMIN_DOMAIN_OUTSIDE_LOOP)
+#endif
+
     CALL yac_fenddef ( )
+
+#ifndef __NO_ICON_COMIN__
+    CALL comin_callback_context_call(EP_ATM_YAC_ENDDEF_AFTER, COMIN_DOMAIN_OUTSIDE_LOOP)
+#endif
 
     IF (ltimer) CALL timer_stop(timer_coupling_init)
 
