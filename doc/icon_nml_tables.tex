@@ -1261,7 +1261,7 @@ finer than 500 m if the LES turbulence scheme is not used)& hdiff\_order=5; lhdi
 I& 1 & &
 Reconstruction method used for Smagorinsky diffusion: \\
 1: u/v reconstruction at vertices only \\
-2: u/v reconstruction at cells and vertices& iequations=3, hdiff\_order=5
+2: u/v reconstruction at cells and vertices& hdiff\_order=5
 \tabularnewline
 
 %\hline
@@ -1269,7 +1269,7 @@ Reconstruction method used for Smagorinsky diffusion: \\
 I& 2 & &
 Discretization of temperature diffusion: \\
 1: $K_h \nabla^2 T$ \\
-2: $\nabla \cdot (K_h \nabla T)$  & iequations=3, hdiff\_order=5
+2: $\nabla \cdot (K_h \nabla T)$  & hdiff\_order=5
 \tabularnewline
 
 
@@ -1283,13 +1283,13 @@ a 3 time level time stepping scheme) (values above 30 are recommended when using
 %\hline
 \textbf{hdiff\_w\_efdt\_ratio}&
 R& 15.0  & &
-ratio of e-folding time to time step for diffusion on vertical wind speed & iequations=3
+ratio of e-folding time to time step for diffusion on vertical wind speed & 
 \tabularnewline
 
 %\hline
 \textbf{hdiff\_min\_efdt\_ratio}&
 R& 1.0 & &
-minimum value of hdiff\_efdt\_ratio near model top & iequations=3  .AND. hdiff\_order=4
+minimum value of hdiff\_efdt\_ratio near model top & hdiff\_order=4
 \tabularnewline
 
 %\hline
@@ -1309,56 +1309,48 @@ n\_dom$>$1\tabularnewline
 \textbf{hdiff\_smag\_faci}&
 R& 0.015 & &
 Scaling factor for Smagorinsky diffusion at height \(hdiff\_smag\_z\) and below. \(hdiff\_smag\_fac \geq 0\). &
-iequations=3
 \tabularnewline
 
 %\hline
 \textbf{hdiff\_smag\_fac2}&
 R& \(2\cdot10^{-6}\cdot(1600+25000+\sqrt(1600\cdot(1600+50000))) \approx 0.071\)& &
 Scaling factor for Smagorinsky diffusion at height \(hdiff\_smag\_z2\). \(hdiff\_smag\_fac2 \geq 0\). Between \(hdiff\_smag\_z\) and \(hdiff\_smag\_z2\) the scaling factor changes linearly from \(hdiff\_smag\_fac\) to \(hdiff\_smag\_fac2\). &
-iequations=3
 \tabularnewline
 
 %\hline
 \textbf{hdiff\_smag\_fac3}&
 R& 0. & &
 Scaling factor for Smagorinsky diffusion at height \(hdiff\_smag\_z3\). \(hdiff\_smag\_fac3 \geq 0\). The three points \((hdiff\_smag\_z2, hdiff\_smag\_fac2)\), \((hdiff\_smag\_z3, hdiff\_smag\_fac3)\),  and  \((hdiff\_smag\_z4, hdiff\_smag\_fac4)\) determine the quadratic function for the scaling factor between \(hdiff\_smag\_z2\) and \(hdiff\_smag\_z4\). &
-iequations=3
 \tabularnewline
 
 %\hline
 \textbf{hdiff\_smag\_fac4}&
 R& 1.0 & &
 Scaling factor for Smagorinsky diffusion at height \(hdiff\_smag\_z4\) and higher. \(hdiff\_smag\_fac4 \geq 0\). &
-iequations=3
 \tabularnewline
 
 %\hline
 \textbf{hdiff\_smag\_z}&
 R& 32500. & m&
 Height up to which \(hdiff\_smag\_fac\) is used, and where the linear profile up to height \(hdiff\_smag\_z2\) starts.&
-iequations=3
 \tabularnewline
 
 %\hline
 \textbf{hdiff\_smag\_z2}&
 R& \(1600+50000+\sqrt(1600\cdot(1600+50000)) \approx 60686\) & m&
 Height with scaling factor \(hdiff\_smag\_fac2\) where the linear profile starting at \(hdiff\_smag\_z\) ends, and where the quadratic profile up to \(hdiff\_smag\_z4\) starts. \(hdiff\_smag\_z < hdiff\_smag\_z2 < hdiff\_smag\_z4\).&
-iequations=3
 \tabularnewline
 
 %\hline
 \textbf{hdiff\_smag\_z3} &
 R& 50000.& m&
 Height with scaling factor \(hdiff\_smag\_fac3\). Needed to determine the quadratic function between \(hdiff\_smag\_z2\) and \(hdiff\_smag\_z4\). \(hdiff\_smag\_z3 \neq hdiff\_smag\_z2 \land hdiff\_smag\_z3 \neq hdiff\_smag\_z4\).&
-iequations=3
 \tabularnewline
 
 %\hline
 \textbf{hdiff\_smag\_z4} &
 R& 90000.& m&
 Height from which \(hdiff\_smag\_fac4\) is used.  \(hdiff\_smag\_z4 > hdiff\_smag\_z2\).&
-iequations=3
 \tabularnewline
 
 \end{longtab}
@@ -1373,16 +1365,6 @@ Defined and used in: \verb+src/namelists/mo_diffusion_nml.f90+
 This namelist is relevant if run\_nml:ldynamics=.TRUE.
 
 \begin{longtab}
-
-%\hline
-\textbf{iequations}&
-I& 3& &
-Equations and prognostic variables. Use positive indices for the atmosphere
-and negative indices for the ocean.&\tabularnewline
-&&&&3: non-hydrostatic atmosphere&\tabularnewline
-&&&&-1: hydrostatic ocean&
-\tabularnewline
-
 
 %\hline
 divavg\_cntrwgt&
@@ -1405,7 +1387,6 @@ commonly referred to as ``the dynamical core'') is modified for the deep atmosph
 Irreversible dynamics of any kind (largely coincident with what is commonly referred to as 
 ``the physics'') are not explicitly modified.\\
 Neither are artificial numerical measures for stabilizing, smoothing and the like modified explicitly.] &
-iequations = 3 \\
 iforcing = 0, 2, 3 \\
 is\_plane\_torus = .FALSE.
 \tabularnewline
@@ -2867,14 +2848,12 @@ inextra\_2d&
 I &
 0&&
 Number of extra 2D Fields for diagnostic/debugging output. &
-dynamics\_nml:iequations = 3
 \tabularnewline
 %\hline
 inextra\_3d&
 I &
 0&&
 Number of extra 3D Fields for diagnostic/debugging output. &
-dynamics\_nml:iequations = 3
 \tabularnewline
 
 %\hline
@@ -2885,7 +2864,6 @@ if .FALSE. the output fluxes are accumulated  \\
 if .TRUE. the output fluxes are average values\\
  from the beginning of the run, except of     \\
  TOT\_PREC that would be accumulated &
-iequations=3\\
 iforcing=3
 \tabularnewline
 
@@ -4109,7 +4087,6 @@ means\\
 4: SST and sea ice fraction are updated daily, based on actual monthly means\\
 5: SST and sea ice fraction are updated daily, based on actual daily means (\textcolor{red}{not yet implemented}) \\
 6: SST and sea ice fraction are updated with user-defined interval &
-iequations=3\\
 iforcing=3
 \tabularnewline
 
@@ -4505,7 +4482,7 @@ Defined and used in: \verb+src/namelists/mo_mtgrm_nml.f90+
 %-----------------------------------------------------------------------------
 % nonhydrostatic_nml:
 %-----------------------------------------------------------------------------
-\subsection{nonhydrostatic\_nml (relevant if run\_nml:iequations=3)}
+\subsection{nonhydrostatic\_nml}
 
 \begin{longtab}
 
@@ -4519,7 +4496,6 @@ Options for predictor-corrector time-stepping scheme:& \tabularnewline
 5: Contravariant vertical velocity is computed in both substeps (beneficial for numerical
    stability in very-high resolution setups with extremely steep slops, otherwise no significant impact)\\
 6: As 5, but velocity tendencies are also computed in both substeps (no apparent benefit, but more expensive) &
-iequations=3
 \tabularnewline
 
 %\hline
@@ -7030,7 +7006,7 @@ the COSMO web page (\mbox{www.cosmo-model.org} $\rightarrow$ Documentation $\rig
 emvorado submodule \verb+./externals/emvorado/DOC/TEX/emvorado_userguide.pdf+.\par
 If \texttt{num\_io\_procs\_radar}=0, a subset of the worker processors (=number of radar stations)
 are doing the I/O tasks, which may slow down the model considerably.
-& luse\_radarfwo(<idom>) =.TRUE., iequations=3,  iforcing=3
+& luse\_radarfwo(<idom>) =.TRUE., iforcing=3
 \tabularnewline
 
 % \hline
@@ -7746,7 +7722,7 @@ EMVORADO needs its own namelist(s) for each radar-active model domain in a separ
 namelist input file \verb+RADARSIM_PARAMS+. More details can be found in the \textcolor{red}{EMVORADO User's Guide} available from
 the COSMO web page (\mbox{www.cosmo-model.org} $\rightarrow$ Documentation $\rightarrow$ EMVORADO) or from the
 submodule \verb+./externals/emvorado/DOC/TEX/emvorado_userguide.pdf+.
-& iequations=3,  iforcing=3, \\ICON configure'd with \verb+--enable-emvorado+
+& iforcing=3, \\ICON configure'd with \verb+--enable-emvorado+
 \tabularnewline
 
 \hline
@@ -9230,7 +9206,7 @@ initial conditions and boundary conditions are computed internally.
 %-------------------------------------------------------------------------------
 % nh_testcase_nml:
 %-------------------------------------------------------------------------------
-\subsection{nh\_testcase\_nml (Scope: ltestcase=.TRUE. and iequations=3 in run\_nml)}
+\subsection{nh\_testcase\_nml (Scope: ltestcase=.TRUE. in run\_nml)}
 
 \begin{longtab}
 

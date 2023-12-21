@@ -196,7 +196,6 @@ inwp_satad      = 1
  flat_height    = 16000.
 /
 &dynamics_nml
- iequations     = ${atmo_model_equations}       ! equation system
  divavg_cntrwgt = 0.50
  lcoriolis      = .TRUE.
 /

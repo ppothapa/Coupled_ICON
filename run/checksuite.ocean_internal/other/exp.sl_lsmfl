@@ -148,7 +148,6 @@ cat > ${ocean_namelist} << EOF
  output      = 'vlist'      ! We're still using the old output mechanism
 /
 &dynamics_nml
- iequations  = ${ocean_model_equations}       ! -1: hydrost. ocean model
 /
 &extpar_nml
  itopo       = 0                 ! read external ocean data from gridfile

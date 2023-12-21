@@ -110,7 +110,6 @@ cat > ${atmo_namelist} << EOF
  profiling_output = 3
 /
 &dynamics_nml
- iequations  = ${atmo_model_equations}       ! 1: hydrost. atmosphere
  lcoriolis   = .TRUE.
  divavg_cntrwgt  = 0.50
 /

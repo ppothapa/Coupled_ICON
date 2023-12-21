@@ -115,7 +115,6 @@ cat > ${atmo_namelist} << EOF
  output      = "nml","totint"
 /
 &dynamics_nml
- iequations     = ${atmo_model_equations}       ! 1: hydrost. atmosphere
  divavg_cntrwgt = 0.50
  lcoriolis      = .FALSE.    ! for inertio-gravity waves use .TRUE.
 /

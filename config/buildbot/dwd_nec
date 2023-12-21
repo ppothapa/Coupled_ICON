@@ -19,6 +19,14 @@ export MODULESHOME="/usr/share/Modules"
 MY_DIR=$(cd "$(dirname "$0")"; pwd)
 ICON_DIR=$(cd "${MY_DIR}/../.."; pwd)
 
+# clean up
+exists() { # helper function to check if glob expansions finds a match.
+    [ -e "$1" ]
+}
+if [ "$USER" = buildbot ] && exists /hpc/gtmp/buildbot/.jtmp.rcnl* ; then
+    "$ICON_DIR/scripts/buildbot_scripts/keeplatestn" --verbose 50 /hpc/gtmp/buildbot/.jtmp.rcnl*
+fi
+
 # create vector engine binary
 ${ICON_DIR}/config/dwd/rcl.VE.bb-dwd_nec --prefix=${PWD}/vector
 MAKE_PROCS=14

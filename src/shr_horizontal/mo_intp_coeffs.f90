@@ -2068,11 +2068,9 @@ CONTAINS
 
     CASE (planar_torus_geometry)
       CALL calculate_planar_distance_at_edge( ptr_patch, ptr_int )
-      CALL calculate_dotproduct_at_edge(ptr_patch, ptr_int)
 
     CASE (sphere_geometry)
       CALL calculate_tangent_plane_at_edge( ptr_patch, ptr_int )
-      CALL calculate_dotproduct_at_edge(ptr_patch, ptr_int)
 
     CASE DEFAULT
       CALL finish(method_name, "Undefined geometry type")
@@ -2310,102 +2308,7 @@ CONTAINS
     ENDDO
 
   END SUBROUTINE calculate_tangent_plane_at_edge
-  !----------------------------------------------------------------------------
 
-  !----------------------------------------------------------------------------
-  ! @AD: This part was initially in the init_tplane_e but now separated into two
-  !
-  ! For each of the 4 rhomboidal edges transform normal and tangential
-  ! unit vectors into cartesian system. Then compute dot product
-  ! between these unit vectors and the unit vectors of the inner edge.
-  ! normalization not necessary fo cartesian vectors since these are
-  ! exactly =1.
-  !
-  SUBROUTINE calculate_dotproduct_at_edge (ptr_patch, ptr_int)
-
-    TYPE(t_patch), INTENT(inout) :: ptr_patch  !< patch
-
-    TYPE(t_int_state), INTENT(inout) :: ptr_int  !< interpolation state
-
-    REAL(wp) ::                  &    !< primal/dual normal in cartesian coordinates
-      & z_nx(3), z_ny(3)
-
-    REAL(wp) :: z_nx_quad(3),    &    !< primal/dual normal at quadrilateral
-      & z_ny_quad(3)          !< edges in cartesian coordinates
-
-    !< cell centers
-    INTEGER :: ilq, ibq               !< line and block indices of quadrilateral edges
-    INTEGER :: i_startblk, i_endblk, i_startidx, i_endidx
-    INTEGER :: i_rcstartlev
-    INTEGER :: jb, je                 !< loop indices for block and edges
-    INTEGER :: ne                     !< loop index for quadrilateral edges
-    !-------------------------------------------------------------------------
-
-    CALL message('mo_intp_coeffs:calculate_dotproduct_at_edge', '')
-
-    i_rcstartlev = 2
-
-    ! start and end block
-    i_startblk = ptr_patch%edges%start_blk(i_rcstartlev,1)
-    i_endblk   = ptr_patch%nblks_e
-
-!$OMP PARALLEL
-!$OMP DO PRIVATE(je,jb,ne,ilq,ibq,i_startidx,i_endidx,z_nx,z_ny,&
-!$OMP z_nx_quad,z_ny_quad) ICON_OMP_DEFAULT_SCHEDULE
-    DO jb = i_startblk, i_endblk
-
-      CALL get_indices_e(ptr_patch, jb, i_startblk, i_endblk, &
-        & i_startidx, i_endidx, i_rcstartlev)
-
-      DO je = i_startidx, i_endidx
-
-        IF(.NOT.ptr_patch%edges%decomp_info%owner_mask(je,jb)) CYCLE
-
-        !
-        ! For the current edge transform normal and tangential unit vectors
-        ! into cartesian system
-        !
-
-        ! transform primal normal to cartesian vector z_nx
-        z_nx(:) = ptr_patch%edges%primal_cart_normal(je,jb)%x(:)
-
-        ! transform dual normal to cartesian vector z_ny
-        z_ny(:) = ptr_patch%edges%dual_cart_normal(je,jb)%x(:)
-
-        ! for each of the 4 rhomboidal edges transform normal and tangential
-        ! unit vectors into cartesian system. Then compute dot product
-        ! between these unit vectors and the unit vectors of the inner edge.
-        ! normalization not necessary fo cartesian vectors since these are
-        ! exactly =1.
-        DO ne=1,4
-          ilq = ptr_patch%edges%quad_idx(je,jb,ne)
-          ibq = ptr_patch%edges%quad_blk(je,jb,ne)
-
-          z_nx_quad(:)=ptr_patch%edges%primal_cart_normal(ilq,ibq)%x(:)
-          z_ny_quad(:)=ptr_patch%edges%dual_cart_normal(ilq,ibq)%x(:)
-
-          ! Compute Dot Products
-          ptr_int%tplane_e_dotprod(je,jb,ne,1)= DOT_PRODUCT(z_nx_quad(1:3),z_nx(1:3))
-          ptr_int%tplane_e_dotprod(je,jb,ne,2)= DOT_PRODUCT(z_ny_quad(1:3),z_nx(1:3))
-          ptr_int%tplane_e_dotprod(je,jb,ne,3)= DOT_PRODUCT(z_nx_quad(1:3),z_ny(1:3))
-          ptr_int%tplane_e_dotprod(je,jb,ne,4)= DOT_PRODUCT(z_ny_quad(1:3),z_ny(1:3))
-
-        ENDDO
-      ENDDO
-    ENDDO
-!$OMP END DO NOWAIT
-!$OMP END PARALLEL
-
-    DO ne=1,4
-      CALL sync_patch_array(sync_e, ptr_patch, ptr_int%tplane_e_dotprod(:,:,ne,1))
-      CALL sync_patch_array(sync_e, ptr_patch, ptr_int%tplane_e_dotprod(:,:,ne,2))
-      CALL sync_patch_array(sync_e, ptr_patch, ptr_int%tplane_e_dotprod(:,:,ne,3))
-      CALL sync_patch_array(sync_e, ptr_patch, ptr_int%tplane_e_dotprod(:,:,ne,4))
-    ENDDO
-
-
-  END SUBROUTINE calculate_dotproduct_at_edge
-  !----------------------------------------------------------------------------
 
   !----------------------------------------------------------------------------
   !!

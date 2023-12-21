@@ -1013,9 +1013,6 @@ cat > ${oce_namelist} << EOF
  use_dummy_cell_closure      = .TRUE.
  use_duplicated_connectivity = .FALSE.
 /
-&dynamics_nml
- iequations                  = -1                               ! -1: hydrost. ocean model
-/
 &run_nml
  modelTimeStep               = "${oceTimeStep}"
  output                      = 'nml'                            ! namelist controlled output scheme

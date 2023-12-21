@@ -170,7 +170,13 @@ USE mo_icon2dace,           ONLY: init_dace, finish_dace
   USE mo_impl_constants,      ONLY: pio_type_cdipio
   USE mo_parallel_config,     ONLY: pio_type
   USE mo_cdi,                 ONLY: namespaceGetActive, namespaceSetActive
-  USE mo_cdi_pio_interface,         ONLY: nml_io_cdi_pio_namespace
+  USE mo_cdi_pio_interface,   ONLY: nml_io_cdi_pio_namespace
+#endif
+
+  ! coupling
+#ifdef YAC_coupling
+  USE mo_coupling_config,           ONLY: is_coupled_to_ocean, is_coupled_to_waves, is_coupled_to_hydrodisc
+  USE mo_atmo_coupling_frame,       ONLY: construct_atmo_coupling
 #endif
 
 #ifndef __NO_ICON_COMIN__
@@ -199,9 +205,9 @@ PUBLIC :: construct_atmo_nonhydrostatic, destruct_atmo_nonhydrostatic
 CONTAINS
 
   !---------------------------------------------------------------------
-  SUBROUTINE atmo_nonhydrostatic(latbc)
-    TYPE(t_latbc_data)           :: latbc   !< data structure for async latbc prefetching
+  SUBROUTINE atmo_nonhydrostatic()
 
+    TYPE(t_latbc_data)           :: latbc   !< data structure for async latbc prefetching
     INTEGER                      :: iter
     TYPE(t_time_config), TARGET  :: time_config_iau
     TYPE(t_time_config), POINTER :: ptr_time_config  => NULL()
@@ -210,6 +216,20 @@ CONTAINS
 
     CHARACTER(*), PARAMETER :: routine = "atmo_nonhydrostatic"
     INTEGER :: ierr
+
+
+    ! construct the atmospheric nonhydrostatic model
+    CALL construct_atmo_nonhydrostatic(latbc)
+
+    !---------------------------------------------------------------------
+    ! construct the coupler
+    !
+#ifdef YAC_coupling
+    IF ( ANY( (/is_coupled_to_ocean(), is_coupled_to_hydrodisc(), is_coupled_to_waves()/) ) )   THEN
+      CALL construct_atmo_coupling(p_patch(1:))
+    ENDIF
+#endif
+
 
     !------------------------------------------------------------------
     ! Now start the time stepping:
@@ -293,7 +313,6 @@ CONTAINS
     TYPE(t_sim_step_info) :: sim_step_info  
     REAL(wp) :: sim_time
     TYPE(t_key_value_store), POINTER :: restartAttributes
-    LOGICAL :: lrestart
     CHARACTER(LEN=filename_max) :: model_base_dir
     INTEGER :: seed_size, i
     INTEGER, ALLOCATABLE :: seed(:)
@@ -411,7 +430,6 @@ CONTAINS
 ! Upper atmosphere
 
     model_base_dir = getModelBaseDir()
-    lrestart       = isRestart()
 
     CALL configure_upatmo( n_dom_start, n_dom, p_patch(n_dom_start:), isRestart(), atm_phy_nwp_config(:)%lupatmo_phy,      &
       &                    init_mode, iforcing, time_config%tc_exp_startdate, time_config%tc_exp_stopdate, start_time(:),  & 

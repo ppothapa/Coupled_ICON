@@ -197,7 +197,6 @@ cat >> ${atmo_namelist} << EOF
  irad_cfc12 = 0
 /
 &dynamics_nml
- iequations     = ${atmo_model_equations}       ! equation system
  lcoriolis      = .FALSE.
 /
 &nonhydrostatic_nml

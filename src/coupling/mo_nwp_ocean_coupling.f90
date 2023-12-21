@@ -15,19 +15,6 @@
 !  It might also be necessary to synch the data before each loop passing data to the ocean.
 !      CALL sync_patch_array(sync_c, p_patch, prm_diag%swflxsfc_t (:,:,isub_water) )
 !
-! Note: The variable names and numbers need to be consistent in 3 files:
-!        - XML file: (supplied to model in run script)
-!            <transient id="6" transient_standard_name="sea_surface_temperature"/>
-!            The name will be used find the variable in mo_atmo_coupling_frame, not the number.
-!        - mo_atmo_coupling_frame:
-!            Variable names are associated to a variable number.
-!            field_name(6) = "sea_surface_temperature"
-!        - mo_nwp_ocean_coupling:
-!            CALL yac_fget ( field_id(6), ... )
-!            The numbers have to be consistent in both fortran files.
-!       Component names in coupling.xml must (!) match with modelname_list[*].
-!
-!
 !
 ! ICON
 !
@@ -70,10 +57,11 @@ MODULE mo_nwp_ocean_coupling
 
 #ifdef YAC_coupling
   USE mo_coupling            ,ONLY: lyac_very_1st_get
-  USE mo_atmo_coupling_frame ,ONLY: field_id,                               &
-    & CPF_CO2_FLX, CPF_CO2_VMR, CPF_FRESHFLX, CPF_HEATFLX, CPF_OCE_U,       &
-    & CPF_OCE_V, CPF_PRES_MSL, CPF_SEAICE_ATM, CPF_SEAICE_OCE, CPF_SP10M,   &
-    & CPF_SST, CPF_UMFL, CPF_VMFL
+  USE mo_atmo_ocean_coupling ,ONLY: &
+    & field_id_co2_flx, field_id_co2_vmr, field_id_freshflx, &
+    & field_id_heatflx, field_id_oce_u, field_id_oce_v, field_id_pres_msl, &
+    & field_id_seaice_atm, field_id_seaice_oce, field_id_sp10m, field_id_sst, &
+    & field_id_umfl, field_id_vmfl
   USE mo_yac_finterface      ,ONLY: yac_fput, yac_fget, yac_dble_ptr,         &
     &                               YAC_ACTION_COUPLING, YAC_ACTION_OUT_OF_BOUND
 #endif
@@ -368,21 +356,21 @@ CONTAINS
 
     !-------------------------------------------------------------------------
     ! Send fields to ocean:
-    !  field_id(1)  "surface_downward_eastward_stress" bundle  - zonal wind stress component over ice and water
-    !  field_id(2)  "surface_downward_northward_stress" bundle - meridional wind stress component over ice and water
-    !  field_id(3)  "surface_fresh_water_flux" bundle          - liquid rain, snowfall, evaporation
-    !  field_id(4)  "total heat flux" bundle                   - short wave, long wave, sensible, latent heat flux
-    !  field_id(5)  "atmosphere_sea_ice_bundle"                - sea ice surface and bottom melt potentials
-    !  field_id(10) "10m_wind_speed"                           - atmospheric wind speed
-    !  field_id(11) "qtrc(nlev,co2)"                           - co2 mixing ratio
-    !  field_id(13) "pres_msl"                                 - sea level pressure
+    !  "surface_downward_eastward_stress" bundle  - zonal wind stress component over ice and water
+    !  "surface_downward_northward_stress" bundle - meridional wind stress component over ice and water
+    !  "surface_fresh_water_flux" bundle          - liquid rain, snowfall, evaporation
+    !  "total heat flux" bundle                   - short wave, long wave, sensible, latent heat flux
+    !  "atmosphere_sea_ice_bundle"                - sea ice surface and bottom melt potentials
+    !  "10m_wind_speed"                           - atmospheric wind speed
+    !  "qtrc(nlev,co2)"                           - co2 mixing ratio
+    !  "pres_msl"                                 - sea level pressure
     !
     ! Receive fields from ocean:
-    !  field_id(6)  "sea_surface_temperature"                  - SST
-    !  field_id(7)  "eastward_sea_water_velocity"              - zonal velocity, u component of ocean surface current
-    !  field_id(8)  "northward_sea_water_velocity"             - meridional velocity, v component of ocean surface current
-    !  field_id(9)  "ocean_sea_ice_bundle"                     - ice thickness, snow thickness, ice concentration
-    !  field_id(12) "co2_flux"                                 - ocean co2 flux
+    !  "sea_surface_temperature"                  - SST
+    !  "eastward_sea_water_velocity"              - zonal velocity, u component of ocean surface current
+    !  "northward_sea_water_velocity"             - meridional velocity, v component of ocean surface current
+    !  "ocean_sea_ice_bundle"                     - ice thickness, snow thickness, ice concentration
+    !  "co2_flux"                                 - ocean co2 flux
     !-------------------------------------------------------------------------
 
     IF (.NOT. (SIZE(tx%umfl_s_w, 1) == nproma .AND. SIZE(tx%umfl_s_w, 2) >= p_patch%nblks_c)) THEN
@@ -399,7 +387,7 @@ CONTAINS
 
     !------------------------------------------------
     !  Send zonal wind stress bundle
-    !    field_id(1) represents "surface_downward_eastward_stress" bundle
+    !    "surface_downward_eastward_stress" bundle
     !    - zonal wind stress component over ice and water
     !------------------------------------------------
 
@@ -407,14 +395,14 @@ CONTAINS
     ptrs(1,2)%p(1:p_patch%n_patch_cells) => tx%umfl_s_i
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
-    CALL put_ (CPF_UMFL, ptrs(:,1:2), info=info, ierror=ierror)
+    CALL put_ (field_id_umfl, ptrs(:,1:2), info=info, ierror=ierror)
     IF (ltimer) CALL timer_stop(timer_coupling_put)
 
     CALL check_ ('id=1, u-stress', info, ierror)
 
     !------------------------------------------------
     !  Send meridional wind stress bundle
-    !    field_id(2) represents "surface_downward_northward_stress" bundle
+    !    "surface_downward_northward_stress" bundle
     !    - meridional wind stress component over ice and water
     !------------------------------------------------
 
@@ -422,14 +410,14 @@ CONTAINS
     ptrs(1,2)%p(1:p_patch%n_patch_cells) => tx%vmfl_s_i
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
-    CALL put_ (CPF_VMFL, ptrs(:,1:2), info=info, ierror=ierror)
+    CALL put_ (field_id_vmfl, ptrs(:,1:2), info=info, ierror=ierror)
     IF (ltimer) CALL timer_stop(timer_coupling_put)
 
     CALL check_ ('id=2, v-stress', info, ierror)
 
     !------------------------------------------------
     !  Send surface fresh water flux bundle
-    !    field_id(3) represents "surface_fresh_water_flux" bundle
+    !    "surface_fresh_water_flux" bundle
     !    - liquid rain, snowfall, evaporation
     !
     !    Note: the evap_tile should be properly updated and added;
@@ -466,14 +454,14 @@ CONTAINS
     ptrs(1,3)%p(1:p_patch%n_patch_cells) => buf
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
-    CALL put_ (CPF_FRESHFLX, ptrs(:,1:3), info=info, ierror=ierror)
+    CALL put_ (field_id_freshflx, ptrs(:,1:3), info=info, ierror=ierror)
     IF (ltimer) CALL timer_stop(timer_coupling_put)
 
     CALL check_ ('id=3, fresh water flux', info, ierror)
 
     !------------------------------------------------
     !  Send total heat flux bundle
-    !    field_id(4) represents "total heat flux" bundle
+    !    "total heat flux" bundle
     !    - short wave, long wave, sensible, latent heat flux
     !------------------------------------------------
 
@@ -483,14 +471,14 @@ CONTAINS
     ptrs(1,4)%p(1:p_patch%n_patch_cells) => tx%lhfl_s_w
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
-    CALL put_ (CPF_HEATFLX, ptrs(:,1:4), info=info, ierror=ierror)
+    CALL put_ (field_id_heatflx, ptrs(:,1:4), info=info, ierror=ierror)
     IF (ltimer) CALL timer_stop(timer_coupling_put)
 
     CALL check_ ('id=4, heat flux', info, ierror)
 
     !------------------------------------------------
     !  Send sea ice flux bundle
-    !    field_id(5) represents "atmosphere_sea_ice_bundle"
+    !    "atmosphere_sea_ice_bundle"
     !    - sea ice surface and bottom melt potentials Qtop, Qbot (conductive heat flux)
     !------------------------------------------------
 
@@ -510,28 +498,28 @@ CONTAINS
     ptrs(1,2)%p(1:p_patch%n_patch_cells) => tx%chfl_i
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
-    CALL put_ (CPF_SEAICE_ATM, ptrs(:,1:2), info=info, ierror=ierror)
+    CALL put_ (field_id_seaice_atm, ptrs(:,1:2), info=info, ierror=ierror)
     IF (ltimer) CALL timer_stop(timer_coupling_put)
 
     CALL check_ ('id=5, atmos sea ice', info, ierror)
 
     !------------------------------------------------
     !  Send 10m wind speed
-    !    field_id(10) represents "10m_wind_speed"
+    !    "10m_wind_speed"
     !    - atmospheric wind speed
     !------------------------------------------------
 
     ptrs(1,1)%p(1:p_patch%n_patch_cells) => tx%sp_10m
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
-    CALL put_ (CPF_SP10M, ptrs(:,1:1), info=info, ierror=ierror)
+    CALL put_ (field_id_sp10m, ptrs(:,1:1), info=info, ierror=ierror)
     IF (ltimer) CALL timer_stop(timer_coupling_put)
 
     CALL check_ ('id=10, wind speed', info, ierror)
 
     !------------------------------------------------
     !  Send sea level pressure
-    !    field_id(13) represents "pres_msl"
+    !    "pres_msl"
     !    - atmospheric sea level pressure
     !    - pres_sfc is used insted of pres_msl because
     !      * it is available at each fast physics timestep
@@ -541,14 +529,14 @@ CONTAINS
     ptrs(1,1)%p(1:p_patch%n_patch_cells) => tx%pres_sfc
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
-    CALL put_ (CPF_PRES_MSL, ptrs(:,1:1), info=info, ierror=ierror)
+    CALL put_ (field_id_pres_msl, ptrs(:,1:1), info=info, ierror=ierror)
     IF (ltimer) CALL timer_stop(timer_coupling_put)
 
     CALL check_ ('id=13, sea level pressure', info, ierror)
 
     !------------------------------------------------
     !  Send co2 mixing ratio
-    !    field_id(11) represents "co2_mixing_ratio"
+    !    "co2_mixing_ratio"
     !    - CO2 mixing ratio in ppmv
     !------------------------------------------------
 
@@ -598,7 +586,7 @@ CONTAINS
       ptrs(1,1)%p(1:p_patch%n_patch_cells) => buf
 
       IF (ltimer) CALL timer_start(timer_coupling_put)
-      CALL put_ (CPF_CO2_VMR, ptrs(:,1:1), info=info, ierror=ierror)
+      CALL put_ (field_id_co2_vmr, ptrs(:,1:1), info=info, ierror=ierror)
       IF (ltimer) CALL timer_stop(timer_coupling_put)
 
       CALL check_ ('id=11, co2 vmr', info, ierror)
@@ -621,7 +609,7 @@ CONTAINS
 
     !------------------------------------------------
     !  Receive SST
-    !    field_id(6) represents "sea_surface_temperature"
+    !    "sea_surface_temperature"
     !    - SST
     !------------------------------------------------
 
@@ -631,7 +619,7 @@ CONTAINS
 
     ptrs(1,1)%p(1:p_patch%n_patch_cells) => rx%t_seasfc
 
-    CALL get_ (CPF_SST, ptrs(:,1:1), info=info, ierror=ierror)
+    CALL get_ (field_id_sst, ptrs(:,1:1), info=info, ierror=ierror)
 
     IF (ltimer .AND. .NOT. lyac_very_1st_get) THEN
       CALL timer_stop(timer_coupling_1stget)
@@ -643,7 +631,7 @@ CONTAINS
 
     !------------------------------------------------
     !  Receive zonal velocity
-    !    field_id(7) represents "eastward_sea_water_velocity"
+    !    "eastward_sea_water_velocity"
     !    - zonal velocity, u component of ocean surface current
     !    RR: not used in NWP so far, not activated for exchange in coupling.xml
     !------------------------------------------------
@@ -652,7 +640,7 @@ CONTAINS
       ptrs(1,1)%p(1:p_patch%n_patch_cells) => rx%ocean_u
 
       IF (ltimer) CALL timer_start(timer_coupling_get)
-      CALL get_ (CPF_OCE_U, ptrs(:,1:1), info=info, ierror=ierror)
+      CALL get_ (field_id_oce_u, ptrs(:,1:1), info=info, ierror=ierror)
       IF (ltimer) CALL timer_stop(timer_coupling_get)
 
       CALL check_ ('id=7, u velocity', info, ierror)
@@ -660,16 +648,17 @@ CONTAINS
 
     !------------------------------------------------
     !  Receive meridional velocity
-    !    field_id(8) represents "northward_sea_water_velocity"
+    !    "northward_sea_water_velocity"
     !    - meridional velocity, v component of ocean surface current
-    !    RR: not used in NWP so far, not activated for exchange in coupling.xml
+    !    RR: not used in NWP so far, not activated for exchange in
+    !        YAC configuration file
     !------------------------------------------------
 
     IF (ASSOCIATED(rx%ocean_v)) THEN
       ptrs(1,1)%p(1:p_patch%n_patch_cells) => rx%ocean_v
 
       IF (ltimer) CALL timer_start(timer_coupling_get)
-      CALL get_ (CPF_OCE_V, ptrs(:,1:1), info=info, ierror=ierror)
+      CALL get_ (field_id_oce_v, ptrs(:,1:1), info=info, ierror=ierror)
       IF (ltimer) CALL timer_stop(timer_coupling_get)
 
       CALL check_ ('id=8, u velocity', info, ierror)
@@ -677,7 +666,7 @@ CONTAINS
 
     !------------------------------------------------
     !  Receive sea ice bundle
-    !    field_id(9) represents "ocean_sea_ice_bundle"
+    !    "ocean_sea_ice_bundle"
     !    - ice thickness, snow thickness, ice concentration
     !------------------------------------------------
 
@@ -686,7 +675,7 @@ CONTAINS
     ptrs(1,3)%p(1:p_patch%n_patch_cells) => rx%fr_seaice
 
     IF (ltimer) CALL timer_start(timer_coupling_get)
-    CALL get_ (CPF_SEAICE_OCE, ptrs(:,1:3), info=info, ierror=ierror)
+    CALL get_ (field_id_seaice_oce, ptrs(:,1:3), info=info, ierror=ierror)
     IF (ltimer) CALL timer_stop(timer_coupling_get)
 
     CALL check_ ('id=9, sea ice', info, ierror)
@@ -712,7 +701,7 @@ CONTAINS
 
     !------------------------------------------------
     !  Receive co2 flux
-    !    field_id(12) represents "co2_flux"
+    !    "co2_flux"
     !    - ocean co2 flux
     !------------------------------------------------
 
@@ -721,7 +710,7 @@ CONTAINS
       ptrs(1,1)%p(1:p_patch%n_patch_cells) => rx%flx_co2
 
       IF (ltimer) CALL timer_start(timer_coupling_get)
-      CALL get_ (CPF_CO2_FLX, ptrs(:,1:1), info=info, ierror=ierror)
+      CALL get_ (field_id_co2_flx, ptrs(:,1:1), info=info, ierror=ierror)
       IF (ltimer) CALL timer_stop(timer_coupling_get)
 
       CALL check_ ('id=12, CO2 flux', info, ierror)
@@ -786,14 +775,14 @@ CONTAINS
 
   CONTAINS
 
-    SUBROUTINE put_ (field_key, send_field, info, ierror)
-      INTEGER, INTENT(IN) :: field_key
+    SUBROUTINE put_ (field_id, send_field, info, ierror)
+      INTEGER, INTENT(IN) :: field_id
       TYPE(yac_dble_ptr), INTENT(IN) :: send_field(:,:)
       INTEGER, INTENT(OUT) :: info
       INTEGER, INTENT(OUT) :: ierror
 
       CALL yac_fput ( &
-          & field_id=field_id(field_key), &
+          & field_id=field_id, &
           & nbr_pointsets=SIZE(send_field, 1), &
           & collection_size=SIZE(send_field, 2), &
           & send_field=send_field(:,:), &
@@ -803,14 +792,14 @@ CONTAINS
 
     END SUBROUTINE
 
-    SUBROUTINE get_ (field_key, recv_field, info, ierror)
-      INTEGER, INTENT(IN) :: field_key
+    SUBROUTINE get_ (field_id, recv_field, info, ierror)
+      INTEGER, INTENT(IN) :: field_id
       TYPE(yac_dble_ptr), INTENT(IN) :: recv_field(:,:)
       INTEGER, INTENT(OUT) :: info
       INTEGER, INTENT(OUT) :: ierror
 
       CALL yac_fget ( &
-          & field_id=field_id(field_key), &
+          & field_id=field_id, &
           & collection_size=SIZE(recv_field, 2), &
           & recv_field=recv_field(1,:), &
           & info=info, &

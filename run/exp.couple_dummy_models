@@ -176,9 +176,6 @@ cat > $namelist_filename << EOF
 &testcase_nml
  ctest_name  = 'JWw'        ! test case identifier
 /
-&dynamics_nml
- iequations  = ${model_equations}       ! hydrostatic atmosphere using T as progn. var.
-/
 &diffusion_nml
 /
 &transport_nml

@@ -226,9 +226,6 @@ cat > ${atm_namelist} << EOF
 &initicon_nml
  init_mode        = 2           ! 2: initialize from IFS analysis
 /
-&dynamics_nml
- iequations       = 3           ! 3: ICONAM dynamics
-/
 &nonhydrostatic_nml
  ndyn_substeps    = 5           ! dtime/dt_dyn
  damp_height      = 50000.      ! [m]
@@ -711,9 +708,6 @@ cat > ${oce_namelist} << EOF
  dynamics_grid_filename      = "${ocean_grids}",
  use_dummy_cell_closure      = .true.
  use_duplicated_connectivity = .false.
-/
-&dynamics_nml
- iequations  = -1                             ! -1: hydrost. ocean model
 /
 &run_nml
  modelTimeStep    = "$mts_oce"                ! model time step in ISO-format

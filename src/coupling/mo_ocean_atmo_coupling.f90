@@ -17,6 +17,8 @@ MODULE mo_ocean_atmo_coupling
   USE mo_kind,                ONLY: wp
   USE mo_parallel_config,     ONLY: nproma
   USE mo_exception,           ONLY: warning, message
+  USE mo_impl_constants,      ONLY: max_char_length
+  USE mo_mpi,                 ONLY: p_comm_work, p_sum
   USE mo_physical_constants,  ONLY: tmelt, rhoh2o
   USE mo_run_config,          ONLY: ltimer
   USE mo_dynamics_config,     ONLY: nnew
@@ -35,11 +37,14 @@ MODULE mo_ocean_atmo_coupling
   ! For the coupling
   !
   USE mo_coupling,            ONLY: lyac_very_1st_get
-  USE mo_ocean_coupling_frame,ONLY: nbr_inner_cells, field_id
+  USE mo_coupling_utils,      ONLY: def_field
   USE mo_parallel_config,     ONLY: nproma
-  USE mo_yac_finterface,      ONLY: yac_fput, yac_fget,                     &
+#ifdef YAC_coupling
+  USE mo_yac_finterface,      ONLY: yac_fput, yac_fget, yac_fdef_mask,      &
+    &                               YAC_LOCATION_CELL,                      &
     &                               YAC_ACTION_COUPLING,                    &
     &                               YAC_ACTION_OUT_OF_BOUND
+#endif
   USE mo_coupling_config,     ONLY: is_coupled_run
   USE mo_hamocc_nml,          ONLY: l_cpl_co2
 
@@ -49,13 +54,201 @@ MODULE mo_ocean_atmo_coupling
 
   PRIVATE
 
-  PUBLIC :: couple_ocean_toatmo_fluxes
+  CHARACTER(len=*), PARAMETER :: str_module = 'mo_ocean_atmo_coupling'  ! Output of module for 1 line debug
 
-  CHARACTER(len=12)     :: str_module    = 'oceanCouplng'  ! Output of module for 1 line debug
+  PUBLIC :: construct_ocean_atmo_coupling, couple_ocean_toatmo_fluxes
+
+  INTEGER, TARGET :: field_id_umfl
+  INTEGER, TARGET :: field_id_vmfl
+  INTEGER, TARGET :: field_id_freshflx
+  INTEGER, TARGET :: field_id_heatflx
+  INTEGER, TARGET :: field_id_seaice_atm
+  INTEGER, TARGET :: field_id_sst
+  INTEGER, TARGET :: field_id_oce_u
+  INTEGER, TARGET :: field_id_oce_v
+  INTEGER, TARGET :: field_id_seaice_oce
+  INTEGER, TARGET :: field_id_sp10m
+  INTEGER, TARGET :: field_id_co2_vmr
+  INTEGER, TARGET :: field_id_co2_flx
+  INTEGER, TARGET :: field_id_pres_msl
+  INTEGER :: field_id_freshflx_runoff
+
+  INTEGER, SAVE :: nbr_inner_cells
 
 CONTAINS
 
   !--------------------------------------------------------------------------
+
+  SUBROUTINE construct_ocean_atmo_coupling( &
+    patch_3d, comp_id, grid_id, cell_point_id, timestepstring, &
+    nbr_inner_cells_)
+
+    TYPE(t_patch_3d ), TARGET, INTENT(in) :: patch_3d
+    INTEGER, INTENT(IN) :: comp_id
+    INTEGER, INTENT(IN) :: grid_id
+    INTEGER, INTENT(IN) :: cell_point_id
+    CHARACTER(LEN=*), INTENT(IN) :: timestepstring
+    INTEGER, INTENT(IN) :: nbr_inner_cells_
+
+    INTEGER                :: patch_no
+    TYPE(t_patch), POINTER :: patch_horz
+
+    INTEGER :: cell_mask_id
+
+    INTEGER :: mask_checksum
+    INTEGER :: blockNo, cell_index, i
+
+    LOGICAL, ALLOCATABLE  :: is_valid(:)
+
+    TYPE field_id_ptr
+      INTEGER, POINTER :: p
+    END TYPE field_id_ptr
+
+    INTEGER, PARAMETER :: no_of_fields = 13
+    CHARACTER(LEN=max_char_length) :: field_name(no_of_fields)
+    INTEGER                        :: collection_size(no_of_fields)
+    TYPE(field_id_ptr)             :: field_ids(no_of_fields)
+
+    CHARACTER(LEN=*), PARAMETER   :: &
+      routine = str_module // ':construct_ocean_atmo_coupling'
+
+#ifndef YAC_coupling
+    CALL finish(routine, 'built without coupling support.')
+#else
+
+    patch_no = 1
+    patch_horz => patch_3d%p_patch_2d(patch_no)
+
+    nbr_inner_cells = nbr_inner_cells_
+
+    field_name(1) = "surface_downward_eastward_stress"   ! bundled field containing two components
+    collection_size(1) = 2
+    field_ids(1)%p => field_id_umfl
+    field_name(2) = "surface_downward_northward_stress"  ! bundled field containing two components
+    collection_size(2) = 2
+    field_ids(2)%p => field_id_vmfl
+    field_name(3) = "surface_fresh_water_flux"           ! bundled field containing three components
+    collection_size(3) = 3
+    field_ids(3)%p => field_id_freshflx
+    field_name(4) = "total_heat_flux"                    ! bundled field containing four components
+    collection_size(4) = 4
+    field_ids(4)%p => field_id_heatflx
+    field_name(5) = "atmosphere_sea_ice_bundle"          ! bundled field containing two components
+    collection_size(5) = 2
+    field_ids(5)%p => field_id_seaice_atm
+    field_name(6) = "sea_surface_temperature"
+    collection_size(6) = 1
+    field_ids(6)%p => field_id_sst
+    field_name(7) = "eastward_sea_water_velocity"
+    collection_size(7) = 1
+    field_ids(7)%p => field_id_oce_u
+    field_name(8) = "northward_sea_water_velocity"
+    collection_size(8) = 1
+    field_ids(8)%p => field_id_oce_v
+    field_name(9) = "ocean_sea_ice_bundle"               ! bundled field containing three components
+    collection_size(9) = 3
+    field_ids(9)%p => field_id_seaice_oce
+    field_name(10) = "10m_wind_speed"
+    collection_size(10) = 1
+    field_ids(10)%p => field_id_sp10m
+    field_name(11) = "co2_mixing_ratio"
+    collection_size(11) = 1
+    field_ids(11)%p => field_id_co2_vmr
+    field_name(12) = "co2_flux"
+    collection_size(12) = 1
+    field_ids(12)%p => field_id_co2_flx
+    field_name(13) = "sea_level_pressure"
+    collection_size(13) = 1
+    field_ids(13)%p => field_id_pres_msl
+
+    !
+    ! mask generation : ... not yet defined ...
+    !
+    ! We could use the patch_horz%cells%decomp_info%owner_local information
+    ! e.g. to mask out halo points. We do we get the info about what is local and what
+    ! is remote.
+    !
+    ! The integer land-sea mask:
+    !          -2: inner ocean
+    !          -1: boundary ocean
+    !           1: boundary land
+    !           2: inner land
+    !
+    ! This integer mask for the ocean is available in patch_3D%surface_cell_sea_land_mask(:,:)
+    ! The logical mask for the coupler is set to .FALSE. for land points to exclude them from mapping by yac.
+    ! These points are not touched by yac.
+
+    mask_checksum = 0
+!ICON_OMP_PARALLEL_DO PRIVATE(blockNo,cell_index) REDUCTION(+:mask_checksum) ICON_OMP_DEFAULT_SCHEDULE
+    DO blockNo = 1, patch_horz%nblks_c
+      DO cell_index = 1, nproma
+        mask_checksum = mask_checksum + ABS(patch_3d%surface_cell_sea_land_mask(cell_index, blockNo))
+      ENDDO
+    ENDDO
+!ICON_OMP_END_PARALLEL_DO
+    mask_checksum = p_sum(mask_checksum, comm=p_comm_work)
+
+    IF ( mask_checksum > 0 ) THEN
+
+     ALLOCATE(is_valid(nproma*patch_horz%nblks_c))
+
+!ICON_OMP_PARALLEL_DO PRIVATE(blockNo, cell_index) ICON_OMP_DEFAULT_SCHEDULE
+      DO blockNo = 1, patch_horz%nblks_c
+        DO cell_index = 1, nproma
+          IF ( patch_3d%surface_cell_sea_land_mask(cell_index, blockNo) < 0 ) THEN
+            ! ocean and ocean-coast is valid (-2, -1)
+            is_valid((blockNo-1)*nproma+cell_index) = .TRUE.
+          ELSE
+            ! land is undef (1, 2)
+            is_valid((blockNo-1)*nproma+cell_index) = .FALSE.
+          ENDIF
+        ENDDO
+      ENDDO
+!ICON_OMP_END_PARALLEL_DO
+
+      CALL yac_fdef_mask (          &
+        & grid_id,                  &
+        & patch_horz%n_patch_cells, &
+        & YAC_LOCATION_CELL,        &
+        & is_valid,                 &
+        & cell_mask_id )
+
+      DO i = 1, no_of_fields
+
+        CALL def_field( &
+          comp_id, cell_point_id, cell_mask_id, timestepstring, &
+          field_name(i), collection_size(i), field_ids(i)%p)
+
+      END DO
+
+      ! Define mask for runoff: all ocean points are valid.
+      ! Define field for river runoff using same mask as for other fields
+      !   (all ocean points are valid)
+      !!slo! Define mask for runoff: ocean coastal points only are valid.
+      CALL def_field( &
+        comp_id, cell_point_id, cell_mask_id, timestepstring, &
+        "river_runoff", 1, field_id_freshflx_runoff)
+
+    ELSE ! no mask
+
+      DO i = 1, no_of_fields
+
+        CALL def_field( &
+          comp_id, cell_point_id, timestepstring, &
+          TRIM(field_name(i)), collection_size(i), field_ids(i)%p)
+
+      END DO
+
+      CALL def_field( &
+        comp_id, cell_point_id, timestepstring, &
+        "river_runoff", 1, field_id_freshflx_runoff)
+
+    ENDIF
+
+! YAC_coupling
+#endif
+
+  END SUBROUTINE construct_ocean_atmo_coupling
 
   SUBROUTINE couple_ocean_toatmo_fluxes(patch_3d, ocean_state, ice, atmos_fluxes, atmos_forcing)
 
@@ -81,6 +274,12 @@ CONTAINS
 
     REAL(wp), ALLOCATABLE :: buffer(:,:)
 
+    CHARACTER(LEN=*), PARAMETER   :: routine = str_module // ':couple_ocean_toatmo_fluxes'
+
+#ifndef YAC_coupling
+    CALL finish(routine, 'built without coupling support.')
+#else
+
     IF (.NOT. is_coupled_run() ) RETURN
 
     IF (ltimer) CALL timer_start(timer_coupling)
@@ -100,22 +299,22 @@ CONTAINS
     buffer(:,:) = 0.0_wp
     !
     !  Receive fields from atmosphere
-    !   field_id(1) represents "surface_downward_eastward_stress" bundle  - zonal wind stress component over ice and water
-    !   field_id(2) represents "surface_downward_northward_stress" bundle - meridional wind stress component over ice and water
-    !   field_id(3) represents "surface_fresh_water_flux" bundle          - liquid rain, snowfall, evaporation
-    !   field_id(4) represents "total heat flux" bundle                   - short wave, long wave, sensible, latent heat flux
-    !   field_id(5) represents "atmosphere_sea_ice_bundle"                - sea ice surface and bottom melt potentials
-    !   field_id(10) represents "10m_wind_speed"                          - atmospheric wind speed
-    !   field_id(12) represents "co2_mixing_ratio"                        - co2 mixing ratio
+    !   "surface_downward_eastward_stress" bundle  - zonal wind stress component over ice and water
+    !   "surface_downward_northward_stress" bundle - meridional wind stress component over ice and water
+    !   "surface_fresh_water_flux" bundle          - liquid rain, snowfall, evaporation
+    !   "total heat flux" bundle                   - short wave, long wave, sensible, latent heat flux
+    !   "atmosphere_sea_ice_bundle"                - sea ice surface and bottom melt potentials
+    !   "10m_wind_speed"                           - atmospheric wind speed
+    !   "co2_mixing_ratio"                         - co2 mixing ratio
     !
     !  Receive field from HD-model:
-    !   field_id(11) represents "river_runoff"                            - river discharge into the ocean
+    !   "river_runoff"                             - river discharge into the ocean
     !
     !  Send fields to atmosphere:
-    !   field_id(6) represents "sea_surface_temperature"                  - SST
-    !   field_id(7) represents "eastward_sea_water_velocity"              - zonal velocity, u component of ocean surface current
-    !   field_id(8) represents "northward_sea_water_velocity"             - meridional velocity, v component of ocean surface current
-    !   field_id(9) represents "ocean_sea_ice_bundle"                     - ice thickness, snow thickness, ice concentration
+    !   "sea_surface_temperature"                  - SST
+    !   "eastward_sea_water_velocity"              - zonal velocity, u component of ocean surface current
+    !   "northward_sea_water_velocity"             - meridional velocity, v component of ocean surface current
+    !   "ocean_sea_ice_bundle"                     - ice thickness, snow thickness, ice concentration
     !
     !  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****
     !  Send fields from ocean to atmosphere
@@ -125,7 +324,7 @@ CONTAINS
     !
     ! ------------------------------
     !  Send SST
-    !   field_id(6) represents "sea_surface_temperature" - SST
+    !   "sea_surface_temperature" - SST
     !
 !ICON_OMP_PARALLEL_DO PRIVATE(blockNo, cell_index, nn, nlen) ICON_OMP_DEFAULT_SCHEDULE
     DO blockNo = 1, patch_horz%nblks_c
@@ -144,7 +343,7 @@ CONTAINS
     !    
     IF (ltimer) CALL timer_start(timer_coupling_put)
 
-    CALL yac_fput ( field_id(6), nbr_hor_cells, 1, buffer(1:nbr_hor_cells,1:1), info, ierror )
+    CALL yac_fput ( field_id_sst, nbr_hor_cells, 1, buffer(1:nbr_hor_cells,1:1), info, ierror )
     IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) write_coupler_restart = .TRUE.
     IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
          CALL warning('couple_ocean_toatmo_fluxes', &
@@ -155,7 +354,7 @@ CONTAINS
     !
     ! ------------------------------
     !  Send zonal velocity
-    !   field_id(7) represents "eastward_sea_water_velocity" - zonal velocity, u component of ocean surface current
+    !   "eastward_sea_water_velocity" - zonal velocity, u component of ocean surface current
     !
 !ICON_OMP_PARALLEL_DO PRIVATE(blockNo, cell_index, nn, nlen) ICON_OMP_DEFAULT_SCHEDULE
     DO blockNo = 1, patch_horz%nblks_c
@@ -174,7 +373,7 @@ CONTAINS
     !
     IF (ltimer) CALL timer_start(timer_coupling_put)
 
-    CALL yac_fput ( field_id(7), nbr_hor_cells, 1, buffer(1:nbr_hor_cells,1:1), info, ierror )
+    CALL yac_fput ( field_id_oce_u, nbr_hor_cells, 1, buffer(1:nbr_hor_cells,1:1), info, ierror )
     IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) write_coupler_restart = .TRUE.
     IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
          CALL warning('couple_ocean_toatmo_fluxes', &
@@ -185,7 +384,7 @@ CONTAINS
     !
     ! ------------------------------
     !  Send meridional velocity
-    !   field_id(8) represents "northward_sea_water_velocity" - meridional velocity, v component of ocean surface current
+    !   "northward_sea_water_velocity" - meridional velocity, v component of ocean surface current
     !
 !ICON_OMP_PARALLEL_DO PRIVATE(blockNo, cell_index, nn, nlen) ICON_OMP_DEFAULT_SCHEDULE
     DO blockNo = 1, patch_horz%nblks_c
@@ -204,7 +403,7 @@ CONTAINS
     !
     IF (ltimer) CALL timer_start(timer_coupling_put)
 
-    CALL yac_fput ( field_id(8), nbr_hor_cells, 1, buffer(1:nbr_hor_cells,1:1), info, ierror )
+    CALL yac_fput ( field_id_oce_v, nbr_hor_cells, 1, buffer(1:nbr_hor_cells,1:1), info, ierror )
     IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) write_coupler_restart = .TRUE.
     IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
          CALL warning('couple_ocean_toatmo_fluxes', &
@@ -215,7 +414,7 @@ CONTAINS
     !
     ! ------------------------------
     !  Send sea ice bundle
-    !   field_id(9) represents "ocean_sea_ice_bundle" - ice thickness, snow thickness, ice concentration
+    !   "ocean_sea_ice_bundle" - ice thickness, snow thickness, ice concentration
     !
 !ICON_OMP_PARALLEL_DO PRIVATE(blockNo, cell_index, nn, nlen) ICON_OMP_DEFAULT_SCHEDULE
     DO blockNo = 1, patch_horz%nblks_c
@@ -236,7 +435,7 @@ CONTAINS
     IF (ltimer) CALL timer_start(timer_coupling_put)
 
     no_arr = 3
-    CALL yac_fput ( field_id(9), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
+    CALL yac_fput ( field_id_seaice_oce, nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
     IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) write_coupler_restart = .TRUE.
     IF ( info == YAC_ACTION_OUT_OF_BOUND ) &
          CALL warning('couple_ocean_toatmo_fluxes', &
@@ -253,7 +452,7 @@ CONTAINS
       !
       ! ------------------------------
       !  Send CO2 flux
-      !   field_id(13) represents "co2_flux" - co2flux
+      !   "co2_flux" - co2flux
       !
       !ICON_OMP_PARALLEL_DO PRIVATE(blockNo, cell_index, nn, nlen) ICON_OMP_DEFAULT_SCHEDULE
       DO blockNo = 1, patch_horz%nblks_c
@@ -271,7 +470,7 @@ CONTAINS
       !    
       IF (ltimer) CALL timer_start(timer_coupling_put)
 
-      CALL yac_fput ( field_id(13), nbr_hor_cells, 1, buffer(1:nbr_hor_cells,1:1), info, ierror )
+      CALL yac_fput ( field_id_co2_flx, nbr_hor_cells, 1, buffer(1:nbr_hor_cells,1:1), info, ierror )
       IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) THEN
         CALL message('couple_ocean_toatmo_fluxes', &
                      'YAC says it is put for restart - id=13, CO2 flux')
@@ -293,14 +492,14 @@ CONTAINS
     !
     ! ------------------------------
     !  Receive zonal wind stress bundle
-    !   field_id(1) represents "surface_downward_eastward_stress" bundle - zonal wind stress component over ice and water
+    !   "surface_downward_eastward_stress" bundle - zonal wind stress component over ice and water
     !
     IF ( .NOT. lyac_very_1st_get ) THEN
       IF (ltimer) CALL timer_start(timer_coupling_1stget)
     ENDIF
 
     no_arr = 2
-    CALL yac_fget ( field_id(1), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
+    CALL yac_fget ( field_id_umfl, nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
     IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) &
          CALL message('couple_ocean_toatmo_fluxes', &
                       'YAC says it is get for restart - id=1, u-stress')
@@ -344,12 +543,12 @@ CONTAINS
     !
     ! ------------------------------
     !  Receive meridional wind stress bundle
-    !   field_id(2) represents "surface_downward_northward_stress" bundle - meridional wind stress component over ice and water
+    !   "surface_downward_northward_stress" bundle - meridional wind stress component over ice and water
     !
     IF (ltimer) CALL timer_start(timer_coupling_get)
 
     no_arr = 2
-    CALL yac_fget ( field_id(2), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
+    CALL yac_fget ( field_id_vmfl, nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
     IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) &
          CALL message('couple_ocean_toatmo_fluxes', &
                       'YAC says it is get for restart - id=2, v-stress')
@@ -388,7 +587,7 @@ CONTAINS
     !
     ! ------------------------------
     !  Receive surface fresh water flux bundle
-    !   field_id(3) represents "surface_fresh_water_flux" bundle - liquid rain, snowfall, evaporation
+    !   "surface_fresh_water_flux" bundle - liquid rain, snowfall, evaporation
 
     ! Note: freshwater fluxes are received in kg/m^2/s and are converted to m/s by division by rhoh2o below.
     ! Note: precipitation is the sum of rain and snowfall
@@ -396,7 +595,7 @@ CONTAINS
     IF (ltimer) CALL timer_start(timer_coupling_get)
 
     no_arr = 3
-    CALL yac_fget ( field_id(3), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
+    CALL yac_fget ( field_id_freshflx, nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
     IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) &
          CALL message('couple_ocean_toatmo_fluxes', &
                       'YAC says it is get for restart - id=3, surface fresh water flux')
@@ -441,7 +640,7 @@ CONTAINS
     !
     ! ------------------------------
     !  Receive total heat flux bundle
-    !   field_id(4) represents "total heat flux" bundle - short wave, long wave, sensible, latent heat flux
+    !   "total heat flux" bundle - short wave, long wave, sensible, latent heat flux
     !
     ! atmos_fluxes%swflx(:,:)  ocean short wave heat flux                              [W/m2]
     ! atmos_fluxes%lwflx(:,:)  ocean long  wave heat fluxe                             [W/m2]
@@ -451,7 +650,7 @@ CONTAINS
     IF (ltimer) CALL timer_start(timer_coupling_get)
 
     no_arr = 4
-    CALL yac_fget ( field_id(4), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
+    CALL yac_fget ( field_id_heatflx, nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
     IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) &
          CALL message('couple_ocean_toatmo_fluxes', &
                       'YAC says it is get for restart - id=4, heat flux')
@@ -513,7 +712,7 @@ CONTAINS
     !
     ! ------------------------------
     !  Receive sea ice flux bundle
-    !   field_id(5) represents "atmosphere_sea_ice_bundle" - sea ice surface and bottom melt potentials
+    !   "atmosphere_sea_ice_bundle" - sea ice surface and bottom melt potentials
     !
     ! ice%Qtop(:,:)         Surface melt potential of ice                           [W/m2]
     ! ice%Qbot(:,:)         Bottom melt potential of ice                            [W/m2]
@@ -521,7 +720,7 @@ CONTAINS
     IF (ltimer) CALL timer_start(timer_coupling_get)
 
     no_arr = 2
-    CALL yac_fget ( field_id(5), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
+    CALL yac_fget ( field_id_seaice_atm, nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
     IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) &
          CALL message('couple_ocean_toatmo_fluxes', &
                       'YAC says it is get for restart - id=5, sea ice')
@@ -560,12 +759,12 @@ CONTAINS
     !
     ! ------------------------------
     !  Receive 10m wind speed
-    !   field_id(10) represents "10m_wind_speed" - atmospheric wind speed
+    !   "10m_wind_speed" - atmospheric wind speed
     !
     IF (ltimer) CALL timer_start(timer_coupling_get)
 
     no_arr = 1
-    CALL yac_fget ( field_id(10), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
+    CALL yac_fget ( field_id_sp10m, nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
     IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) &
          CALL message('couple_ocean_toatmo_fluxes', &
                       'YAC says it is get for restart - id=10, wind speed')
@@ -600,12 +799,12 @@ CONTAINS
     END IF
 
     !  Receive slp
-    !   field_id(14) represents atmospheric sea level pressure
+    !   atmospheric sea level pressure
     !
     IF (ltimer) CALL timer_start(timer_coupling_get)
 
     no_arr = 1
-    CALL yac_fget ( field_id(14), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
+    CALL yac_fget ( field_id_pres_msl, nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
     IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) &
          CALL message('couple_ocean_toatmo_fluxes', &
                       'YAC says it is get for restart - id=14, sea level pressure')
@@ -641,13 +840,12 @@ CONTAINS
     !
     ! ------------------------------
     !  Receive co2 mixing ratio
-    !   field_id(12) represents "co2 mixing ratio" - atmospheric co2 mixing
-    !   ratio
+    !   "co2 mixing ratio" - atmospheric co2 mixing ratio
     !
     IF (ltimer) CALL timer_start(timer_coupling_get)
 
     no_arr = 1
-    CALL yac_fget ( field_id(12), nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
+    CALL yac_fget ( field_id_co2_vmr, nbr_hor_cells, no_arr, buffer(1:nbr_hor_cells,1:no_arr), info, ierror )
     IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) &
          CALL message('couple_ocean_toatmo_fluxes', &
                       'YAC says it is get for restart - id=12, co2 mr')
@@ -685,7 +883,7 @@ CONTAINS
     !
     ! ------------------------------
     !  Receive river runoff
-    !   field_id(11) represents "river_runoff" - river discharge into the ocean
+    !   "river_runoff" - river discharge into the ocean
     !
     ! Note: river runoff fluxes are received in m^3/s and are converted to m/s by division by whole grid area
     !
@@ -693,7 +891,7 @@ CONTAINS
 
     buffer(:,:) = 0.0_wp  ! mandatory as river ruoff comes with a different mask!
 
-    CALL yac_fget ( field_id(11), nbr_hor_cells, 1, buffer(1:nbr_hor_cells,1:1), info, ierror )
+    CALL yac_fget ( field_id_freshflx_runoff, nbr_hor_cells, 1, buffer(1:nbr_hor_cells,1:1), info, ierror )
     IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND )&
          CALL message('couple_ocean_toatmo_fluxes', &
                       'YAC says it is get for restart - id=11, runoff')
@@ -761,6 +959,9 @@ CONTAINS
     DEALLOCATE(buffer)
 
     IF (ltimer) CALL timer_stop(timer_coupling)
+
+! YAC_coupling
+#endif
 
   END SUBROUTINE couple_ocean_toatmo_fluxes
   !--------------------------------------------------------------------------

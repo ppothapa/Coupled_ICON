@@ -72,7 +72,6 @@ l_log_checks       = .false.
  ntracer     = 0            ! number of tracers
  run_day     = 20           ! run length in days
  dtime       = ${DTIME}     ! timestep in seconds
- iequations  = ${IEQ}       ! equation system
  i_! cell_type is not used = 3            ! triangular cells
  ldynamics   = .TRUE.       ! dynamics
  ltransport  = .FALSE.      ! transport 

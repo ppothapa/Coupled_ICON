@@ -14,7 +14,7 @@
 MODULE mo_atmo_wave_coupling
 
   USE mo_kind,             ONLY: wp
-  USE mo_exception,        ONLY: warning, message_text, message
+  USE mo_exception,        ONLY: warning, message_text, message, finish
   USE mo_model_domain,     ONLY: t_patch
   USE mo_fortran_tools,    ONLY: assert_acc_host_only
   USE mo_run_config,       ONLY: ltimer
@@ -22,11 +22,12 @@ MODULE mo_atmo_wave_coupling
     &                            timer_coupling_put, timer_coupling_get, &
     &                            timer_coupling_1stget
   USE mo_sync,             ONLY: SYNC_C, sync_patch_array
+#ifdef YAC_coupling
   USE mo_yac_finterface,   ONLY: yac_fput, yac_fget, yac_dble_ptr, &
-    &                            yac_fdef_field, &
-    &                            YAC_ACTION_COUPLING, YAC_ACTION_OUT_OF_BOUND, &
-    &                            YAC_TIME_UNIT_ISO_FORMAT
+    &                            YAC_ACTION_COUPLING, YAC_ACTION_OUT_OF_BOUND
+#endif
   USE mo_coupling,         ONLY: lyac_very_1st_get
+  USE mo_coupling_utils,   ONLY: def_field
 
   IMPLICIT NONE
 
@@ -42,29 +43,6 @@ MODULE mo_atmo_wave_coupling
   INTEGER :: field_id_z0
 
 CONTAINS
-
-  SUBROUTINE def_field( &
-    comp_id, cell_point_id, timestepstring, &
-    field_name, collection_size, field_id)
-
-    INTEGER, INTENT(IN) :: comp_id
-    INTEGER, INTENT(IN) :: cell_point_id
-    CHARACTER(LEN=*), INTENT(IN) :: timestepstring
-    CHARACTER(LEN=*), INTENT(IN) :: field_name
-    INTEGER, INTENT(IN) :: collection_size
-    INTEGER, INTENT(OUT) :: field_id
-
-    CALL yac_fdef_field (                           &
-      & field_name      = TRIM(field_name),         & !in
-      & component_id    = comp_id,                  & !in
-      & point_ids       = (/cell_point_id/),        & !in
-      & num_pointsets   = 1,                        & !in
-      & collection_size = collection_size,          & !in
-      & timestep        = timestepstring,           & !in
-      & time_unit       = YAC_TIME_UNIT_ISO_FORMAT, & !in
-      & field_id        = field_id )              !out
-
-  END SUBROUTINE def_field
 
   !>
   !! Registers fields required for the coupling between atmosphere and wave
@@ -120,8 +98,12 @@ CONTAINS
 
     LOGICAL :: write_coupler_restart
     INTEGER :: info, ierror
-    TYPE(yac_dble_ptr) :: yac_ptr(1,1)
 
+#ifndef YAC_coupling
+    CALL finish(routine, 'built without coupling support.')
+#else
+
+    TYPE(yac_dble_ptr) :: yac_ptr(1,1)
 
     CALL assert_acc_host_only('couple_atmo_to_wave', lacc)
 
@@ -256,6 +238,9 @@ CONTAINS
     ! halo synchronization for fields recieved from the atmosphere
     !
     CALL sync_patch_array(SYNC_C, p_patch, z0_waves(:,:), opt_varname="z0")
+
+! YAC_coupling
+#endif
 
   END SUBROUTINE couple_atmo_to_wave
 
