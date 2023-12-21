@@ -594,6 +594,7 @@ GPU_ENABLED
 OPENMP_ENABLED
 MPI_ENABLED
 HD_ENABLED
+ART_GPL_ENABLED
 ART_ENABLED
 EMVORADO_ENABLED
 DACE_ENABLED
@@ -748,6 +749,7 @@ enable_rttov
 enable_dace
 enable_emvorado
 enable_art
+enable_art_gpl
 enable_comin
 enable_hd
 enable_acm_license
@@ -850,6 +852,7 @@ externals/ppm
 externals/cdi
 externals/mtime
 externals/yac
+externals/tixi
 externals/tixi
 externals/hd'
 
@@ -1527,6 +1530,8 @@ Model Features:
   --enable-emvorado       enable the radar forward operator EMVORADO
                           [default=no]
   --enable-art            enable the aerosols and reactive trace component ART
+                          [default=no]
+  --enable-art-gpl        enable code parts under GPL licence for ART
                           [default=no]
   --enable-comin          enable the ICON community interfaces [default=no]
   --enable-hd             enable the Hydrological Discharge (HD) model. The
@@ -3142,6 +3147,16 @@ else
 fi
 
 
+# Check whether --enable-art-gpl was given.
+if test "${enable_art_gpl+set}" = set; then :
+  enableval=$enable_art_gpl; if test x"$enableval" != xno; then :
+  enable_art_gpl=yes
+fi
+else
+  enable_art_gpl=no
+fi
+
+
 # Check whether --enable-comin was given.
 if test "${enable_comin+set}" = set; then :
   enableval=$enable_comin; if test x"$enableval" != xno; then :
@@ -3767,6 +3782,14 @@ if test "x$enable_art" = xyes; then :
    icon_subdir_unique_file="chem_init/mo_art_chem_init_utils.f90"
    if test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"; then :
   as_fn_error $? "unable to find sources of the aerosols and reactive trace component ART ($icon_subdir_unique_file) in '$icon_subdir_srcdir': disable the component (--disable-art)" "$LINENO" 5
+fi
+fi
+
+if test "x$enable_art_gpl" = xyes; then :
+  icon_subdir_srcdir="$srcdir/externals/art"
+   icon_subdir_unique_file="chem_init/mo_art_chem_init_utils.f90"
+   if test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"; then :
+  as_fn_error $? "unable to find sources of the aerosols and reactive trace component ART ($icon_subdir_unique_file) in '$icon_subdir_srcdir': disable the component (--disable-art-gpl)" "$LINENO" 5
 fi
 fi
 
@@ -5390,6 +5413,10 @@ fi
 
 if test "x$enable_art" = xyes; then :
   as_fn_append FCFLAGS " ${FC_PP_DEF}__ICON_ART ${FC_PP_DEF}__ART_TMP_IFDEF"
+fi
+
+if test "x$enable_art_gpl" = xyes; then :
+  as_fn_append FCFLAGS " ${FC_PP_DEF}__ART_GPL ${FC_PP_DEF}__ICON_ART ${FC_PP_DEF}__ART_TMP_IFDEF"
 fi
 
 if test "x$enable_comin" = xno; then :
@@ -9928,6 +9955,115 @@ esac
 fi
 fi
 
+if test "x$enable_art_gpl" = xyes; then :
+  if test "x$with_external_tixi" = xyes; then :
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether the Fortran interface of TIXI library is available" >&5
+$as_echo_n "checking whether the Fortran interface of TIXI library is available... " >&6; }
+if ${icon_cv_have_tixi+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  icon_cv_have_tixi=no
+         cat > conftest.$ac_ext <<_ACEOF
+      program main
+
+      use tixi, only: tixiOpenDocument
+      implicit none
+      character(len=200) :: a
+      integer :: b
+      b = tixiOpenDocument(a, b)
+      end
+_ACEOF
+if ac_fn_fc_try_link "$LINENO"; then :
+  icon_cv_have_tixi=yes
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $icon_cv_have_tixi" >&5
+$as_echo "$icon_cv_have_tixi" >&6; }
+      if test "x$icon_cv_have_tixi" = xno; then :
+  { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+as_fn_error $? "unable to link a test program using the Fortran interface of TIXI library: either disable the aerosols and reactive trace component (--disable-art-gpl) or use the bundled version of TIXI library (--without-external-tixi), or set FCFLAGS, LDFLAGS and LIBS accordingly
+See \`config.log' for more details
+${icon_usr_note}" "$LINENO" 5; }
+fi
+else
+       icon_subdir_srcdir="$srcdir/externals/tixi"
+      icon_subdir_unique_file="src/tixi.f90"
+      if test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"; then :
+  as_fn_error $? "unable to find sources of the bundled version of TIXI library ($icon_subdir_unique_file) in '$icon_subdir_srcdir': either disable the aerosols and reactive trace component (--disable-art-gpl) or provide an external version of TIXI library (--with-external-tixi) by setting FCFLAGS, LDFLAGS and LIBS accordingly" "$LINENO" 5
+fi
+            ICON_TIXI_FCFLAGS=${ICON_TIXI_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
+            ICON_TIXI_CFLAGS=${ICON_TIXI_CFLAGS-$ICON_BUNDLED_CFLAGS}
+                           acx_subdir_srcdirs_fn "externals/tixi"
+   acx_subdir_run_cmd_externals_tixi="'$ac_srcdir/configure'"
+   acx_subdir_run_dir_externals_tixi="externals/tixi"
+   acx_subdir_build_type_externals_tixi='config'
+         acx_subdir_pre_adjust_config_args
+      acx_subdir_run_args_externals_tixi=$acx_subdir_pre_adjusted_config_args
+      if test "x$cache_file" = x'/dev/null'; then :
+  acx_tmp=$cache_file
+else
+  case $cache_file in #(
+  [\\/]* | ?:[\\/]*) :
+    acx_tmp=$cache_file ;; #(
+  *) :
+    acx_tmp="$ac_top_build_prefix$cache_file" ;;
+esac
+         acx_tmp="$acx_tmp.externals.tixi"
+fi
+      set dummy "--cache-file=$acx_tmp" "--srcdir=$ac_srcdir"; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+     as_fn_append acx_subdir_run_args_externals_tixi " '$acx_tmp'"
+   done
+      as_fn_append extra_src_subdirs " externals/tixi"
+   acx_subdir_run_condition_externals_tixi=no
+      eval "set dummy $acx_subdir_run_args_externals_tixi"; shift
+   acx_subdir_run_args_externals_tixi=
+   while test $# != 0; do
+     acx_tmp=$1
+     case $acx_tmp in #(
+  BUILD_ENV=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*) :
+     ;; #(
+  XML2_CFLAGS=*|XML2_CLIBS=*) :
+     ;; #(
+  -enable-maintainer-mode|-enable-maintainer-mode=*|--enable-maintainer-mode|--enable-maintainer-mode=*|-disable-maintainer-mode|--disable-maintainer-mode) :
+     ;; #(
+  -enable-silent-rules|-enable-silent-rules=*|--enable-silent-rules|--enable-silent-rules=*|-disable-silent-rules|--disable-silent-rules) :
+     ;; #(
+  *) :
+           case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+        as_fn_append acx_subdir_run_args_externals_tixi " '$acx_tmp'" ;;
+esac
+     shift
+   done
+      set dummy CFLAGS="$subdir_CFLAGS $ICON_TIXI_CFLAGS" FCFLAGS="$subdir_FCFLAGS $ICON_TIXI_FCFLAGS" XML2_CFLAGS= XML2_CLIBS= --disable-maintainer-mode --enable-silent-rules="$enable_silent_rules"; shift
+   for acx_tmp; do
+     case $acx_tmp in #(
+  *\'*) :
+    acx_tmp=`$as_echo "$acx_tmp" | sed "s/'/'\\\\\\\\''/g"` ;; #(
+  *) :
+     ;;
+esac
+     as_fn_append acx_subdir_run_args_externals_tixi " '$acx_tmp'"
+   done
+      as_fn_append bundled_includes "${FC_MOD_IN}externals/tixi/src "
+      BUNDLED_LIBFILES="externals/tixi/src/libicon_tixi.a $BUNDLED_LIBFILES"
+fi
+fi
+
 case $icon_gpu_secondary in #(
   cuda) :
     ac_ext=cu
@@ -10939,6 +11075,14 @@ if test "x$enable_art" = xyes; then :
 
 else
   ART_ENABLED='#'
+
+fi
+
+if test "x$enable_art_gpl" = xyes; then :
+  ART_GPL_ENABLED=''
+
+else
+  ART_GPL_ENABLED='#'
 
 fi
 

@@ -401,8 +401,8 @@ CONTAINS
               &  CALL finish(routine,'For inwp_radiation = 4, irad_ch4 has to be 0, 2, 3 or 4')
             IF (.NOT. ANY( irad_n2o     == (/0,2,3,4/)     ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, irad_n2o has to be 0, 2, 3 or 4')
-            IF (.NOT. ANY( irad_o3      == (/0,5,7,9,11,79,97/) ) ) &
-              &  CALL finish(routine,'For inwp_radiation = 4, irad_o3 has to be 0, 5, 7, 9, 11, 79 or 97')
+            IF (.NOT. ANY( irad_o3      == (/0,5,7,9,10,11,79,97/) ) ) &
+              &  CALL finish(routine,'For inwp_radiation = 4, irad_o3 has to be 0, 5, 7, 9, 10, 11, 79 or 97')
             IF (.NOT. ANY( irad_o2      == (/0,2/)         ) ) &
               &  CALL finish(routine,'For inwp_radiation = 4, irad_o2 has to be 0 or 2')
             IF (.NOT. ANY( irad_cfc11   == (/0,2,4/)       ) ) &

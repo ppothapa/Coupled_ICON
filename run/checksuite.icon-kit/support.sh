@@ -76,6 +76,13 @@ function set_cluster {
 	 icon_data_poolFolder=/pool/data/ICON/grids/private/mpim/icon_preprocessing/source/
      aer_opt="/pool/data/ICON/grids/public/mpim/independent"
 	 ;;
+   xl40053*)
+     echo "...LEVANTE at DKRZ"; CENTER="DKRZ"
+     input_folder="${WORK}/../testcases/"
+   FILETYPE="4"
+     output_folder="${SCRATCH}/TESTSUITE_OUTPUT"
+     aer_opt="/pool/data/ICON/grids/public/mpim/independent"
+   ;;
    *) :
      echo "...unknown HPC" ; exit 202 ;; #(
  esac
@@ -174,7 +181,7 @@ INDIR=$input_folder
 EXP=$EXPERIMENT
 lart=$lart
 
-FILETYPE=4
+FILETYPE=$FILETYPE
 COMPILER=intel
 restart=.False.
 read_restart_namelists=.False.
@@ -291,6 +298,51 @@ ENDFILEDWD
       qsub icon.job
 
       ##       
+EOF
+;;
+   xl40053*)
+account_id=$(id -gn)
+cat >> $output_script << EOF
+
+cat > job_ICON << ENDFILE
+#!/bin/bash -x
+#SBATCH --account=$account_id
+
+#SBATCH --partition=$4
+#SBATCH --$3
+#SBATCH --exclusive
+#SBATCH --ntasks-per-node=128
+#SBATCH --time=$2
+
+ulimit -s 102400
+ulimit -c 0
+
+$5
+export OMPI_MCA_pml="ucx"
+export OMPI_MCA_btl=self
+export OMPI_MCA_osc="pt2pt"
+export UCX_IB_ADDR_TYPE=ib_global
+
+export OMPI_MCA_coll="^ml,hcoll"
+export OMPI_MCA_coll_hcoll_enable="0"
+export HCOLL_ENABLE_MCAST_ALL="0"
+export HCOLL_MAIN_IB=mlx5_0:1
+export UCX_NET_DEVICES=mlx5_0:1
+export UCX_TLS=mm,knem,cma,dc_mlx5,dc_x,self
+export UCX_UNIFIED_MODE=y
+export HDF5_USE_FILE_LOCKING=FALSE
+export OMPI_MCA_io="romio321"
+export UCX_HANDLE_ERRORS=bt
+module load eccodes/2.21.0-intel-2021.5.0
+
+srun -l --cpu_bind=cores --distribution=plane=64 \
+        --propagate=STACK,CORE ./icon.exe
+
+ENDFILE
+                 
+chmod +x job_ICON
+sbatch job_ICON  
+
 EOF
 ;;
    xmlogin*)

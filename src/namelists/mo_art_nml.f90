@@ -45,6 +45,7 @@ MODULE mo_art_nml
   INTEGER :: iart_init_aero(1:max_dom)          !< Initialization of aerosol species
   INTEGER :: iart_init_gas(1:max_dom)           !< Initialization of gaseous species
   INTEGER :: iart_fplume             !< run FPlume model (Volcanic Plumes)
+  INTEGER :: iart_volc_numb          !< number of volcanoes
   CHARACTER(LEN=IART_PATH_LEN)  :: cart_fplume_inp          
                                      !< path to FPlume input files (use without file extension)
   LOGICAL :: lart_diag_out           !< Enable output of diagnostic fields
@@ -134,7 +135,7 @@ MODULE mo_art_nml
   NAMELIST/art_nml/ cart_input_folder, lart_chem, lart_chemtracer, lart_mecca,         &
    &                cart_io_suffix, lart_pntSrc, lart_aerosol, iart_seasalt, iart_dust,&
    &                iart_anthro, iart_fire, iart_volcano, cart_volcano_file,           &
-   &                iart_fplume, cart_fplume_inp, iart_radioact,                       &
+   &                iart_fplume, iart_volc_numb,cart_fplume_inp, iart_radioact,        &
    &                cart_radioact_file, iart_pollen, iart_nonsph, iart_isorropia,      &
    &                iart_modeshift, iart_aci_warm, iart_aci_cold, iart_ari,            &
    &                iart_aero_washout, lart_conv, lart_turb, iart_init_aero,           &
@@ -185,6 +186,7 @@ CONTAINS
     lart_emiss_turbdiff        = .FALSE.
     cart_io_suffix(1:max_dom)  = 'grid-number'
     iart_fplume                = 0
+    iart_volc_numb             = 0
     cart_fplume_inp            = ''
  
     ! Atmospheric Chemistry (Details: cf. Tab. 2.2 ICON-ART User Guide)
@@ -343,18 +345,8 @@ CONTAINS
         IF(TRIM(cart_fplume_inp) == '') THEN
           CALL finish('mo_art_nml:read_art_namelist','namelist parameter cart_fplume_inp' &       
                     //' has to be given for iart_fplume>=1')
-        ELSE
-          INQUIRE(file = TRIM(cart_fplume_inp)//'.inp', EXIST = l_exist)
-          IF (.NOT. l_exist) THEN 
-            CALL finish('mo_art_nml:read_art_namelist', TRIM(cart_fplume_inp)//  &
-                      & '.inp could not be found.')                        
-          END IF
-          INQUIRE(file = TRIM(cart_fplume_inp)//'.tgsd', EXIST = l_exist)
-          IF (.NOT. l_exist) THEN
-            CALL finish('mo_art_nml:read_art_namelist', TRIM(cart_fplume_inp)//  &
-                      & '.tgsd could not be found.')
-          ENDIF
         END IF
+        IF (iart_volc_numb==0) iart_volc_numb = 1
       END IF
 
     END IF  ! lart
@@ -374,6 +366,7 @@ CONTAINS
       art_config(jg)%lart_emiss_turbdiff = lart_emiss_turbdiff
       art_config(jg)%cart_io_suffix      = TRIM(cart_io_suffix(jg))
       art_config(jg)%iart_fplume         = iart_fplume
+      art_config(jg)%iart_volc_numb      = iart_volc_numb
       art_config(jg)%cart_fplume_inp     = TRIM(cart_fplume_inp)
       
       ! Atmospheric Chemistry (Details: cf. Tab. 2.2 ICON-ART User Guide)

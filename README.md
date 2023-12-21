@@ -47,8 +47,9 @@ ICON is available in the [project's public web page](http://icon-model.org).
     - [Source provenance collection](#source-provenance-collection)
 4. [Running](#running)
     - [Out-of-build runs](#out-of-build-runs)
-5. [FAQ](#faq)
-6. [License](#license)
+5. [ICON-ART](#icon-art)
+6. [FAQ](#faq)
+7. [License](#license)
 
 # Quick start
 
@@ -1248,6 +1249,11 @@ cloning the git repository:
     ```console
     $ cd ./run && sbatch ./exp.atm_tracer_Hadley.run
     ```
+# ICON-ART
+ART stands for Aerosols and Reactive Trace gases which is a component of the ICON modeling framework to enable treatment of aerosols and chemical tracers and their interactions with the atmosphere. To enable this model component one has to use ```--enable-art``` during the configure phase. To use the features dependent on MECCA/KPP use instead ```--enable-art-gpl```.
+Additional information can be found on the [ICON-ART webpage](https://www.icon-art.kit.edu/).
+There is also a [user guide](https://www.icon-art.kit.edu/userguide/index.php?title=Main_Page) with further information on how to do model runs including ART.
+Currently we cannot guarantee that every configuration of ICON-ART beyond the standard configurations in ./externals/art/runctrl_examples/run_scripts/ will work without errors. Please direct any ART-related queries to kit-icon-gatekeepers@kit.edu
 
 # FAQ
 <a name="faq-1" href="#faq-1">1. **I run the configure script without any

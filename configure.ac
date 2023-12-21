@@ -198,6 +198,13 @@ AC_ARG_ENABLE([art],
   [AS_IF([test x"$enableval" != xno], [enable_art=yes])],
   [enable_art=no])
 
+AC_ARG_ENABLE([art-gpl],
+  [AS_HELP_STRING([--enable-art-gpl],
+     [enable code parts under GPL licence for ART
+@<:@default=no@:>@])],
+  [AS_IF([test x"$enableval" != xno], [enable_art_gpl=yes])],
+  [enable_art_gpl=no])
+
 AC_ARG_ENABLE([comin],
   [AS_HELP_STRING([--enable-comin],
      [enable the ICON community interfaces @<:@default=no@:>@])],
@@ -661,6 +668,14 @@ AS_VAR_IF([enable_art], [yes],
 trace component ART ($icon_subdir_unique_file) in '$icon_subdir_srcdir': dnl
 disable the component (--disable-art)])])])
 
+AS_VAR_IF([enable_art_gpl], [yes],
+  [icon_subdir_srcdir="$srcdir/externals/art"
+   icon_subdir_unique_file="chem_init/mo_art_chem_init_utils.f90"
+   AS_IF([test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"],
+     [AC_MSG_ERROR([unable to find sources of the aerosols and reactive dnl
+trace component ART ($icon_subdir_unique_file) in '$icon_subdir_srcdir': dnl
+disable the component (--disable-art-gpl)])])])
+
 ############################## ENVIRONMENT CHECKS ##############################
 
 ACX_BUILD_ENVIRONMENT
@@ -849,6 +864,10 @@ AS_VAR_IF([enable_emvorado], [yes],
 AS_VAR_IF([enable_art], [yes],
   [AS_VAR_APPEND([FCFLAGS],
      [" ${FC_PP_DEF}__ICON_ART ${FC_PP_DEF}__ART_TMP_IFDEF"])])
+
+AS_VAR_IF([enable_art_gpl], [yes],
+  [AS_VAR_APPEND([FCFLAGS],
+     [" ${FC_PP_DEF}__ART_GPL ${FC_PP_DEF}__ICON_ART ${FC_PP_DEF}__ART_TMP_IFDEF"])])
 
 AS_VAR_IF([enable_comin], [no],
   [AS_VAR_APPEND([FCFLAGS], [" ${FC_PP_DEF}__NO_ICON_COMIN__"])])
@@ -2301,6 +2320,55 @@ version of TIXI library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
       BUNDLED_LIBFILES="externals/tixi/src/libicon_tixi.a dnl
 $BUNDLED_LIBFILES"])])
 
+AS_VAR_IF([enable_art_gpl], [yes],
+  [AS_VAR_IF([with_external_tixi], [yes],
+     [AC_CACHE_CHECK([whether the Fortran interface of TIXI library is dnl
+available], [icon_cv_have_tixi],
+        [icon_cv_have_tixi=no
+         AC_LINK_IFELSE([AC_LANG_PROGRAM([], [[
+      use tixi, only: tixiOpenDocument
+      implicit none
+      character(len=200) :: a
+      integer :: b
+      b = tixiOpenDocument(a, b)]])],
+           [icon_cv_have_tixi=yes])])
+      AS_VAR_IF([icon_cv_have_tixi], [no],
+        [AC_MSG_FAILURE([unable to link a test program using the Fortran dnl
+interface of TIXI library: either disable the aerosols and reactive trace dnl
+component (--disable-art-gpl) or use the bundled version of TIXI library dnl
+(--without-external-tixi), or set FCFLAGS, LDFLAGS and LIBS accordingly])])],
+dnl
+     [icon_subdir_srcdir="$srcdir/externals/tixi"
+      icon_subdir_unique_file="src/tixi.f90"
+      AS_IF([test ! -r "$icon_subdir_srcdir/$icon_subdir_unique_file"],
+        [AC_MSG_ERROR([unable to find sources of the bundled version of dnl
+TIXI library ($icon_subdir_unique_file) in '$icon_subdir_srcdir': either dnl
+disable the aerosols and reactive trace component (--disable-art-gpl) or provide dnl
+an external version of TIXI library (--with-external-tixi) by setting dnl
+FCFLAGS, LDFLAGS and LIBS accordingly])])
+      AC_ARG_VAR([ICON_TIXI_FCFLAGS],
+        [Fortran compiler flags to be appended to FCFLAGS when configuring the
+bundled version of TIXI library @<:@default=$ICON_BUNDLED_FCFLAGS@:>@])dnl
+      ICON_TIXI_FCFLAGS=${ICON_TIXI_FCFLAGS-$ICON_BUNDLED_FCFLAGS}
+      AC_ARG_VAR([ICON_TIXI_CFLAGS],
+        [C compiler flags to be appended to CFLAGS when configuring the bundled
+version of TIXI library @<:@default=$ICON_BUNDLED_CFLAGS@:>@])dnl
+      ICON_TIXI_CFLAGS=${ICON_TIXI_CFLAGS-$ICON_BUNDLED_CFLAGS}
+      ACX_SUBDIR_INIT_CONFIG([externals/tixi], [no-run])
+      ACX_SUBDIR_REMOVE_ARGS([externals/tixi],
+        [BUILD_ENV=*|ICON_*FLAGS=*|CFLAGS=*|FCFLAGS=*],
+        [XML2_CFLAGS=*|XML2_CLIBS=*],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([maintainer-mode])],
+        [ACX_SUBDIR_CONFIG_PATTERN_ENABLE([silent-rules])])
+      ACX_SUBDIR_APPEND_ARGS([externals/tixi],
+        [CFLAGS="$subdir_CFLAGS $ICON_TIXI_CFLAGS"],
+        [FCFLAGS="$subdir_FCFLAGS $ICON_TIXI_FCFLAGS"],
+        [XML2_CFLAGS=], [XML2_CLIBS=], [--disable-maintainer-mode],
+        [--enable-silent-rules="$enable_silent_rules"])
+      AS_VAR_APPEND([bundled_includes], ["${FC_MOD_IN}externals/tixi/src "])
+      BUNDLED_LIBFILES="externals/tixi/src/libicon_tixi.a dnl
+$BUNDLED_LIBFILES"])])
+
 AS_CASE([$icon_gpu_secondary],
   [cuda],
   [ACX_LANG_PUSH_CUDA
@@ -2637,6 +2705,10 @@ AS_VAR_IF([enable_emvorado], [yes],
 AS_VAR_IF([enable_art], [yes],
   [AC_SUBST([ART_ENABLED], [''])],
   [AC_SUBST([ART_ENABLED], ['#'])])
+
+AS_VAR_IF([enable_art_gpl], [yes],
+  [AC_SUBST([ART_GPL_ENABLED], [''])],
+  [AC_SUBST([ART_GPL_ENABLED], ['#'])])
 
 AS_VAR_IF([enable_hd], [no],
   [AC_SUBST([HD_ENABLED], ['#'])],

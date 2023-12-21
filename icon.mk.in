@@ -99,6 +99,18 @@ find_files= $(sort $(patsubst $(srcdir)/%,%, \
                     -name '.' -o -name '..' -o -name '.*' -prune \
                     -o \! \( -type d -o -name '*$(pp_infix)*' \) \
                     -a \( $(foreach p,$(2),-name $(p) -o) -false \) -print)))
+find_files_nogpl = $(sort $(patsubst $(srcdir)/%,%, \
+    $(shell find $(addprefix $(srcdir)/,$(1)) \
+        -name '.' -o -name '..' -o -name '.*' -prune \
+        -o -path '*externals/mecicon*' -prune \
+	-o -path '*shared/mo_art_mecicon_data.f90' -prune \
+	-o -path '*chemistry/mo_art_psc_*.f90' -prune \
+	-o -path '*chemistry/mo_art_full_chemistry.f90' -prune \
+	-o -path '*shared/mo_art_init_full_chemistry.f90' -prune \
+	-o -path '*emissions/mo_art_emission_full_chemistry.f90' -prune \
+        -o \! \( -type d -o -name '*$(pp_infix)*' \) \
+        -a \( $(foreach p,$(2),-name $(p) -o) -false \) -print)))
+
 
 # All source files:
 all_files:= $(call find_files,$(subdirs),'*.f90' '*.inc' '*.incf' '*.c' '*.cu')
@@ -115,9 +127,13 @@ all_files:= $(call find_files,$(subdirs),'*.f90' '*.inc' '*.incf' '*.c' '*.cu')
 @EMVORADO_ENABLED@EMVORADO_subdir:= externals/emvorado
 @EMVORADO_ENABLED@all_files+= $(call find_files,$(EMVORADO_subdir),'*.f90' '*.incf')
 
-# ART sources:
+# ART sources without GPL:
 @ART_ENABLED@ART_subdir:= externals/art
-@ART_ENABLED@all_files+= $(call find_files,$(ART_subdir),'*.f90' '*.inc' '*.incf')
+@ART_ENABLED@all_files+= $(call find_files_nogpl,$(ART_subdir),'*.f90' '*.inc' '*.incf')
+
+# ART sources with GPL:
+@ART_GPL_ENABLED@ART_subdir:= externals/art
+@ART_GPL_ENABLED@all_files+= $(call find_files,$(ART_subdir),'*.f90' '*.inc' '*.incf')
 
 # Fortran '.f90' source files:
 f90_files:= $(filter %.f90,$(all_files))

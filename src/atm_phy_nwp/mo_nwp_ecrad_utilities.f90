@@ -568,6 +568,8 @@ CONTAINS
     SELECT CASE(irad_o3)
       CASE(0) ! No Ozone
         CALL ecrad_gas%put_well_mixed(ecRad_IO3,IVolumeMixingRatio, 0._wp,  istartcol=i_startidx,iendcol=i_endidx)
+      CASE(10) ! Use values from interactive ozone
+        CALL ecrad_gas%put(ecRad_IO3, IMassMixingRatio, o3(i_startidx:i_endidx,:), istartcol=i_startidx)
       CASE(5,7,9,79,97) ! Use values from GEMS/MACC (different profiles)
                         ! or time dependent concentration from external file
         CALL ecrad_gas%put(ecRad_IO3,  IMassMixingRatio, o3(i_startidx:i_endidx,:), istartcol=i_startidx)
@@ -575,7 +577,7 @@ CONTAINS
         CALL message('mo_nwp_ecrad_utilities: irad_o3=11', &
           &          'Ozone used for radiation is read from SCM input file')
       CASE DEFAULT
-        CALL finish(routine, 'Current implementation only supports irad_o3 = 0, 5, 7, 9, 79, 97, 11')
+        CALL finish(routine, 'Current implementation only supports irad_o3 = 0, 5, 7, 9, 10, 79, 97, 11')
     END SELECT
 
     !CO2
