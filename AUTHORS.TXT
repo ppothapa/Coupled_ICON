@@ -21,6 +21,7 @@ Bastian Kern
 Bjorn Stevens           
 Burkhardt Rockel        
 Carmen Köhler           
+Carolin Mehlmann
 Carolin Walter          
 Christine Sgoff         
 Christoph Gebhardt      
@@ -92,6 +93,7 @@ Jürgen Helmert
 Julia Bruckert          
 Julia Duras             
 Jussi Enkovaara         
+Kai Logemann
 Karl-Hermann Wieners    
 Katherine Osterried     
 Khompat Satitkovitchai  
@@ -126,11 +128,14 @@ Mikhail Dobrynin
 Mirjana Sakradzija      
 Monika Esch             
 Moritz Hanke            
+Moritz Mathis
 Mukund Pondkule         
 Nadja Samtleben         
 Nathanael Huebbe        
 Nikolas Porz            
+Nils Brüggemann
 Nils Noll               
+Oliver Gutjahr
 Panagiotis Adamidis     
 Pavel Khain             
 Peter Korn              
@@ -175,10 +180,12 @@ Ulrich Blahak
 Ulrich Schaettler       
 Ulrike Niemeier         
 Uwe Schulzweida         
+Veit Lüchow
 Vera Maurer             
 Veronika Gayler         
 Victor Fomichev         
 Victoria Cherkas        
+Vikram Singh
 Vladimir Lapin          
 Walter Sauf             
 William Sawyer          

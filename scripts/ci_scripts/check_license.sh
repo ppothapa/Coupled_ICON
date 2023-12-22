@@ -39,6 +39,10 @@ support
 # ICON ignored patterns (newline-separated list of path patterns relative to the
 # root source directory):
 icon_ignored_patterns='
+src/sea_ice/dynamics_fem/mo_ice_fem_advection.f90
+src/sea_ice/dynamics_fem/mo_ice_fem_evp.f90
+src/sea_ice/dynamics_fem/mo_ice_fem_init.f90
+src/sea_ice/dynamics_fem/mo_ice_fem_mesh.f90
 src/diagnostics/atmosphere/mo_diag_hailcast.f90
 src/atm_phy_schemes/cloud_random_numbers.f90
 src/atm_phy_schemes/data_gwd.f90

@@ -3,12 +3,13 @@
 ! ICON
 !
 ! ---------------------------------------------------------------
-! Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
-! Contact information: icon-model.org
+! Copyright (C) 2004-2024, AWI
 !
-! See AUTHORS.TXT for a list of authors
-! See LICENSES/ for license information
+! Authors: Sergey Danilov, Qiang Wang
+! See LICENSES/Third_party_license_terms/BSD-3-Clause.fesom_seaice.txt for license information
 ! SPDX-License-Identifier: BSD-3-Clause
+!
+! This file has been modified for the use in ICON
 ! ---------------------------------------------------------------
 
 module mo_ice_fem_mesh
