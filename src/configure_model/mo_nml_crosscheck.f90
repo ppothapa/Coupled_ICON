@@ -19,10 +19,10 @@ MODULE mo_nml_crosscheck
   USE mo_kind,                     ONLY: wp
   USE mo_exception,                ONLY: message, message_text, finish
   USE mo_impl_constants,           ONLY: inwp, tracer_only,                                &
-    &                                    iaes, RAYLEIGH_CLASSIC, inoforcing,               &
+    &                                    iaes, RAYLEIGH_CLASSIC, INOFORCING,               &
     &                                    icosmo, MODE_IAU, MODE_IAU_OLD,                   &
     &                                    max_echotop, max_wshear, max_srh,                 &
-    &                                    LSS_JSBACH, ivdiff
+    &                                    LSS_JSBACH, ivdiff, IHELDSUAREZ, ILDF_DRY
   USE mo_time_config,              ONLY: time_config, dt_restart
   USE mo_extpar_config,            ONLY: itopo
   USE mo_io_config,                ONLY: dt_checkpoint, lnetcdf_flt64_output, echotop_meta,&
@@ -229,9 +229,13 @@ CONTAINS
         & 'surface scheme must be switched off, when running the APE test')
     ENDIF
 
-    IF ( nh_test_name=='HS_nh'.AND. lmoist_thdyn ) THEN
-      CALL finish(routine, &
-        & 'lmoist_thdyn must be .FALSE. when running the Held-Suarez test')
+    IF ( lmoist_thdyn ) THEN
+      SELECT CASE (iforcing)
+      CASE(IHELDSUAREZ,INOFORCING,ILDF_DRY)     
+        CALL message(routine, &
+           'lmoist_thdyn is reset to false .FALSE. because a dry model configuration is used')
+        lmoist_thdyn = .FALSE.
+      END SELECT
     ENDIF
 
     !--------------------------------------------------------------------

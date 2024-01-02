@@ -72,7 +72,7 @@ CONTAINS
     iequations     = -999
     divavg_cntrwgt = 0.5_wp
     lcoriolis      = .TRUE.
-    lmoist_thdyn   = .FALSE.
+    lmoist_thdyn   = .TRUE.
     ldeepatmo      = .FALSE.
 
     !------------------------------------------------------------------------

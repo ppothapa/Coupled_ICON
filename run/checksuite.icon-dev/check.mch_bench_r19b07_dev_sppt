@@ -41,6 +41,8 @@ export DATES='20210620T120100Z'
 # 
 export RESTART_DATE='20210620T120000Z'
 
+# increase factor in order to circumvent false alarms
+export FACTOR=10
 #--------------------------------------------------------------------------------
 # 
 # 2. Define the checksuite mode

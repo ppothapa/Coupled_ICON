@@ -231,7 +231,7 @@ MODULE mo_nh_stepping
   USE mo_extpar_config,            ONLY: generate_td_filename
   USE mo_nudging_config,           ONLY: nudging_config, l_global_nudging, indg_type
   USE mo_nudging,                  ONLY: nudging_interface
-  USE mo_initicon_utils,           ONLY: prepare_thermo_src_term
+  USE mo_nh_moist_thdyn,           ONLY: thermo_src_term
 #ifndef __NO_ICON_COMIN__
   USE comin_host_interface,        ONLY: comin_callback_context_call, &
     &                                    COMIN_DOMAIN_OUTSIDE_LOOP,   &
@@ -2064,6 +2064,10 @@ CALL comin_callback_context_call(EP_ATM_INTEGRATE_AFTER, COMIN_DOMAIN_OUTSIDE_LO
             !$ser verbatim CALL serialize_all(nproma, jg, "diffusion", .FALSE., opt_lupdate_cpu=.TRUE., opt_dt=datetime_local(jg)%ptr, opt_id=iau_iter)
           ENDIF
 
+          ! apply moisture term for thermodynamic equation
+          IF (lmoist_thdyn) CALL thermo_src_term(p_patch(jg), p_int_state(jg), p_nh_state(jg), prep_adv(jg), &
+            dt_loc, nnow_rcf(jg), nnew(jg))
+
         ELSE IF (iforcing == inwp) THEN
           ! dynamics for ldynamics off, option of coriolis force, typically used for SCM and similar test cases
           CALL add_slowphys_scm(p_nh_state(jg), p_patch(jg), p_int_state(jg), &
@@ -2822,9 +2826,6 @@ CALL comin_callback_context_call(EP_ATM_INTEGRATE_AFTER, COMIN_DOMAIN_OUTSIDE_LO
       &                  p_metrics = p_nh_state%metrics,            & !in
       &                  rho       = p_nh_state%prog(nnow(jg))%rho, & !in
       &                  airmass   = p_nh_state%diag%airmass_now    ) !inout
-
-    ! get moisture term for thermodynamic equation 
-    IF (lmoist_thdyn) CALL prepare_thermo_src_term(p_patch)
 
     ! perform dynamics substepping
     !

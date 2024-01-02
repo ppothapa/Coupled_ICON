@@ -472,6 +472,7 @@ dt_gwd                        = 1440.,
 &dynamics_nml
  divavg_cntrwgt = 0.50
  lcoriolis      = .TRUE.
+ lmoist_thdyn   = .FALSE.
 /
 !-------------------
 ! ICON transport_nml

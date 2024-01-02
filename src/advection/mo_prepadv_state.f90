@@ -175,6 +175,7 @@ CONTAINS
     !------------------------------
     NULLIFY(prep_adv%mass_flx_me, &
       &     prep_adv%mass_flx_ic, &
+      &     prep_adv%vol_flx_ic,  &
       &     prep_adv%vn_traj,     &
       &     prep_adv%q_int,       &
       &     prep_adv%q_ubc        )
@@ -207,6 +208,17 @@ CONTAINS
                 & ldims=shape3d_chalf, loutput=.FALSE.,                            &
                 & isteptype=TSTEP_INSTANT, lopenacc=.TRUE. )
     __acc_attach(prep_adv%mass_flx_ic)
+
+    ! vol_flx_ic      prep_adv%vol_flx_ic(nproma,nlevp1,nblks_c)
+    cf_desc    = t_cf_var('vol_flx_ic', 'm s-1', &
+      &                   'vertical volume flux (averaged over dynamics substeps)',  &
+      &                   datatype_flt)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( prep_adv_list, 'vol_flx_ic', prep_adv%vol_flx_ic,               &
+                & GRID_UNSTRUCTURED_CELL, ZA_REFERENCE_HALF, cf_desc, grib2_desc,  &
+                & ldims=shape3d_chalf, loutput=.FALSE.,                            &
+                & isteptype=TSTEP_INSTANT, lopenacc=.TRUE. )
+    __acc_attach(prep_adv%vol_flx_ic)
 
 
     ! vn_traj          prep_adv%vn_traj(nproma,nlev,nblks_e)
