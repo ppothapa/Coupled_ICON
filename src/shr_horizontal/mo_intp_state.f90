@@ -64,7 +64,7 @@ USE mo_update_dyn_scm ,     ONLY: rbf_coeff_scm
 USE mo_grid_config,         ONLY: l_scm_mode
 USE mo_name_list_output_config, ONLY: is_variable_in_output
 USE mo_atm_phy_nwp_config,  ONLY: atm_phy_nwp_config
-USE mo_master_control,      ONLY: get_my_process_type, wave_process
+USE mo_master_control,      ONLY: my_process_is_waves
 #ifdef SERIALIZE
 USE mo_ser_rbf_coefficients, ONLY: ser_rbf_coefficients
 USE mo_ser_nml,             ONLY: ser_rbf
@@ -819,9 +819,9 @@ DO jg = n_dom_start, n_dom
   CALL init_geo_factors(ptr_patch(jg), ptr_int_state(jg))
   IF (ptr_patch(jg)%geometry_info%cell_type==3)THEN
 
-    ! !!! TEMPORAL HACK !!!
     ! CALL of init_cellavg_wgt is skipped for the wave model
-    IF (get_my_process_type() /= wave_process) THEN
+    !
+    IF (.NOT.my_process_is_waves()) THEN
       !
       ! not needed for the wave model.
       ! Running this routine for the wave model with the NAG compiler
@@ -874,28 +874,27 @@ DO jg = n_dom_start, n_dom
   ENDIF
 
   !
-  ! - Initialization of tangential plane at edge midpoints for calculation
+  ! - Initialization of a tangential plane at edge midpoints for the calculation
   !   of backward trajectories.
-  ! - Initialization of tangential plane at cell centers
+  ! - Initialization of a tangential plane at cell centers
   ! - stencil generation
-  ! - initialization of coefficients for least squares gradient
-  ! reconstruction at cell centers
+  ! - initialization of coefficients for least squares polynomial
+  !   reconstruction at cell centers
   !
   IF (.NOT. lplane) THEN
 
     CALL init_tplane_e(ptr_patch(jg), ptr_int_state(jg))
 
-    IF (ptr_patch(jg)%geometry_info%cell_type==3) THEN
-      !
-      CALL init_tplane_c(ptr_patch(jg), ptr_int_state(jg))
+    CALL init_tplane_c(ptr_patch(jg), ptr_int_state(jg))
 
-      CALL lsq_stencil_create( ptr_patch(jg), ptr_int_state(jg)%lsq_lin,      &
-        &                      lsq_lin_set%dim_c )
-      CALL lsq_compute_coeff_cell( ptr_patch(jg), ptr_int_state(jg)%lsq_lin,  &
-        &                      lsq_lin_set%l_consv, lsq_lin_set%dim_c,        &
-        &                      lsq_lin_set%dim_unk, lsq_lin_set%wgt_exp )
-    ENDIF
+    ! 3-point stencil
+    CALL lsq_stencil_create( ptr_patch(jg), ptr_int_state(jg)%lsq_lin,      &
+      &                      lsq_lin_set%dim_c )
+    CALL lsq_compute_coeff_cell( ptr_patch(jg), ptr_int_state(jg)%lsq_lin,  &
+      &                      lsq_lin_set%l_consv, lsq_lin_set%dim_c,        &
+      &                      lsq_lin_set%dim_unk, lsq_lin_set%wgt_exp )
 
+    ! 9 or 12-point stencil for higher order reconstruction
     CALL lsq_stencil_create( ptr_patch(jg), ptr_int_state(jg)%lsq_high,     &
       &                   lsq_high_set%dim_c )
     CALL lsq_compute_coeff_cell( ptr_patch(jg), ptr_int_state(jg)%lsq_high, &

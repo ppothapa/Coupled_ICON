@@ -113,7 +113,7 @@ CONTAINS
 
       DO jg = 1, n_dom
         ! Initialisation of 10 meter wind and sea ice
-        CALL init_wind_adv_test(p_patch(jg), wave_forcing_state(jg))
+        CALL init_wind_adv_test(p_patch(jg), wave_config(jg), wave_forcing_state(jg))
         CALL init_ice_adv_test(p_patch(jg), wave_forcing_state(jg))
       END DO
     ENDIF
