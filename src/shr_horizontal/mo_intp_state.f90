@@ -50,8 +50,8 @@ USE mo_intp_rbf_coeffs,     ONLY: rbf_vec_index_cell, rbf_vec_index_edge,       
   &                               rbf_compute_coeff_c2grad, gen_index_list_radius
 USE mo_intp_coeffs,         ONLY: init_cellavg_wgt,                                    &
   &                               init_geo_factors, complete_patchinfo, init_tplane_e, &
-  &                               init_tplane_c,   tri_quadrature_pts,                 &
-  &                               init_nudgecoeffs, tri_quadrature_pts
+  &                               init_tplane_c, tri_quadrature_pts,                   &
+  &                               init_nudgecoeffs
 USE mo_intp_coeffs_lsq_bln, ONLY: lsq_stencil_create, lsq_compute_coeff_cell,          &
   &                               scalar_int_coeff, bln_int_coeff_e2c
 USE mo_sync,                ONLY: SYNC_C, SYNC_E, SYNC_V
@@ -385,7 +385,7 @@ SUBROUTINE allocate_int_state( ptr_patch, ptr_int)
   !
   ! pos_on_tplane_e
   !
-  ALLOCATE (ptr_int%pos_on_tplane_e(nproma, nblks_e, 8, 2), STAT=ist )
+  ALLOCATE (ptr_int%pos_on_tplane_e(nproma, 4, 2, nblks_e), STAT=ist )
   IF (ist /= SUCCESS) THEN
     CALL finish ('mo_interpolation:construct_int_state',&
     &            'allocation for pos_on_tplane_e failed')
@@ -719,7 +719,7 @@ SUBROUTINE allocate_int_state( ptr_patch, ptr_int)
     ptr_int%rbf_vec_coeff_e   = 0._wp
   ENDIF
 
-  ptr_int%pos_on_tplane_e           = 0._wp
+  ptr_int%pos_on_tplane_e     = 0._wp
 
   IF (ptr_patch%geometry_info%cell_type == 3) THEN
     ptr_int%pos_on_tplane_c_edge(:,:,:,:)%lon = 0._wp
@@ -874,10 +874,9 @@ DO jg = n_dom_start, n_dom
   ENDIF
 
   !
-  ! - Initialization of tangential plane (at edge midpoints) for calculation
+  ! - Initialization of tangential plane at edge midpoints for calculation
   !   of backward trajectories.
-  ! - Initialization of tangential plane (at cell centers) - for triangular
-  !   grid only
+  ! - Initialization of tangential plane at cell centers
   ! - stencil generation
   ! - initialization of coefficients for least squares gradient
   ! reconstruction at cell centers

@@ -947,11 +947,11 @@ MODULE mo_solve_nonhydro
                 ! in edge-normal and tangential directions
                 ! (purpose of factor deepatmo_gradh_mc is to modify z_grad_rth below)
                 z_ntdistv_bary_1 =  - ( p_nh%prog(nnow)%vn(je,jk,jb) * dthalf +                        &
-                  MERGE(p_int%pos_on_tplane_e(je,jb,1,1), p_int%pos_on_tplane_e(je,jb,2,1),lvn_pos)) * &
+                  MERGE(p_int%pos_on_tplane_e(je,1,1,jb), p_int%pos_on_tplane_e(je,2,1,jb),lvn_pos)) * &
                   p_nh%metrics%deepatmo_gradh_mc(jk)
 
                 z_ntdistv_bary_2 =  - ( p_nh%diag%vt(je,jk,jb) * dthalf +                              &
-                  MERGE(p_int%pos_on_tplane_e(je,jb,1,2), p_int%pos_on_tplane_e(je,jb,2,2),lvn_pos)) * &
+                  MERGE(p_int%pos_on_tplane_e(je,1,2,jb), p_int%pos_on_tplane_e(je,2,2,jb),lvn_pos)) * &
                   p_nh%metrics%deepatmo_gradh_mc(jk)
 
                 ! rotate distance vectors into local lat-lon coordinates:

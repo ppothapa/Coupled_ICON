@@ -279,7 +279,7 @@ MODULE mo_intp_data_strc
     !------------------------------------------------------------------------------
     REAL(wp), ALLOCATABLE :: pos_on_tplane_e(:,:,:,:)  ! positions of various points on local plane
                                                        ! tangential to the edge midpoint.
-                                                       ! currently: (nproma,nblks_e,8,2)
+                                                       ! (nproma,4,2,nblks_e)
 
     TYPE(t_geographical_coordinates), ALLOCATABLE ::  &! positions of vertices and butterfly
       &  pos_on_tplane_c_edge(:,:,:,:)                 ! neighbors on local plane tangential to the
