@@ -4,6 +4,7 @@
 icon_data_rootFolder: /scratch/mch/jenkins/icon/pool/data/ICON
 builder: balfrin_cpu_nvidia_mixed
 # The list below maps each experiment to its current experiment_hash
+"c2sm_clm_r13b03_seaice": 41311cffe535ef09bc1d50b9c60264c69e544b43
 "mch_bench_r19b07_dev_sppt": f3932d640c1c459d7eae1e3781585ea61b1ee791
 "mch_ch_lowres": 061b70464cf8a202ef944446a37ee3b52c0c3b69
 "mch_dev_icon-ch2_small": 4f084fc27eeb92f38f555f51d022d5ad218c7283

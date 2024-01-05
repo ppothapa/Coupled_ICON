@@ -18,6 +18,9 @@ fi
 EXPERIMENT="$1"
 
 case $EXPERIMENT in
+    *c2sm*)
+        probtest_ensemble_num=1,2,3,4,5,6,7,8,9,10,12,13,18,32,40
+        ;;
     mch_opr_r19b07_2m)
         probtest_ensemble_num=1,2,3,4,5,6,7,8,9,10,39
         ;;

@@ -110,9 +110,6 @@ MODULE sfc_seaice
                         &  finish , &  !< external procedure, finishes model run and reports the reason  
                         &  message     !< external procedure, sends a message (error, warning, etc.)
 
-  USE mo_impl_constants, ONLY :     &
-                              &  ALB_SI_MISSVAL             !< missing value for prognostic seaice albedo
-
 !_cdm>
 ! Note that ki is equal to 2.1656 in ICON, but is 2.29 in COSMO and GME. 
 !_cdm<
@@ -136,6 +133,8 @@ MODULE sfc_seaice
                                  & ist_seaice              !< ID of soiltype "sea ice"
 
   USE mo_coupling_config,    ONLY: is_coupled_to_ocean     !< TRUE for coupled ocean-atmosphere runs 
+
+  USE mo_fortran_tools,      ONLY: set_acc_host_or_device  !< Routine can be run on CPU and on GPU
 
   IMPLICIT NONE
 
@@ -265,8 +264,8 @@ CONTAINS
                           &  tice_p, hice_p, tsnow_p, hsnow_p,  &
                           &  albsi_p,                           &
                           &  tice_n, hice_n, tsnow_n, hsnow_n,  &
-                          &  albsi_n                            &
-                          &  )
+                          &  albsi_n,                           &
+                          &  lacc)
 
     IMPLICIT NONE
 
@@ -277,6 +276,8 @@ CONTAINS
                                           !< for new seaice points.
                                           !< FALSE if updated information on hice is provided 
                                           !< (e.g. in coupled atmosphere-ocean runs) 
+
+    LOGICAL, OPTIONAL, INTENT(IN) :: lacc !< if true, use OpenACC
 
     INTEGER, INTENT(IN) ::        &
                         &  nsigb  !< Array (vector) dimension
@@ -300,36 +301,55 @@ CONTAINS
 
     ! Local variables 
 
-    INTEGER ::      &
-            &  isi  !< DO loop index
+    LOGICAL :: lzacc !< non-optional version of lacc
 
     CHARACTER(len=256) ::           &
                        &  nameerr , &  !< name of procedure where an error occurs
                        &  texterr      !< error/warning message text
 
-    LOGICAL ::             &
-            &  lcallabort  !< logical switch, set .TRUE. if errors are encountered 
-                           !< (used to call modell abort outside a DO loop)
+    INTEGER ::      &
+            &  isi  !< DO loop index
+
+    REAL(wp) :: frsi_err !< used for check if lowest sea-ice fraction is lower than allowed value frsi_min
 
 
     !===============================================================================================
     !  Start calculations
     !-----------------------------------------------------------------------------------------------
 
-    ! Logical switch, default value is .FALSE. 
-    lcallabort = .FALSE.
+    CALL set_acc_host_or_device(lzacc, lacc)
+
+    frsi_err = frsi_min
+    !$ACC PARALLEL ASYNC(1) DEFAULT(PRESENT) REDUCTION(MIN: frsi_err) IF(lzacc)
+    !$ACC LOOP GANG VECTOR REDUCTION(MIN: frsi_err)
+    DO isi=1, nsigb
+      ! Find minimum sea-ice fraction
+      IF (frsi(isi) < frsi_err) THEN
+        frsi_err = frsi(isi)
+      END IF
+    END DO
+    !$ACC END PARALLEL
+    !$ACC WAIT
+
+    ! Call model abort if errors are encountered
+    IF (frsi_err < frsi_min) THEN
+      ! Send an error message
+      WRITE(nameerr,*) "MODULE sfc_seaice, SUBROUTINE seaice_init_nwp"
+      WRITE(texterr,*) "Sea-ice fraction ", frsi_err,                        &
+                    &  " is less than a minimum threshold value ", frsi_min, &
+                    &  " Call model abort."
+      CALL message(TRIM(nameerr), TRIM(texterr), all_print=.TRUE.)
+
+      ! Call model abort
+      WRITE(nameerr,*) "sfc_seaice:seaice_init_nwp"
+      WRITE(texterr,*) "error in sea-ice fraction"
+      CALL finish(TRIM(nameerr), TRIM(texterr))
+    END IF
 
     ! Loop over grid boxes where sea ice is present
+    !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(lzacc)
+    !$ACC LOOP GANG VECTOR
     GridBoxesWithSeaIce: DO isi=1, nsigb
-
-      ! Check sea-ice fraction
-      IF( frsi(isi) < frsi_min ) THEN 
-        ! Sea-ice fraction less than a minimum threshold value is found
-        ! Set logical switch 
-        lcallabort = .TRUE.  
-        ! Exit DO loop to call model abort
-        EXIT GridBoxesWithSeaIce 
-      END IF 
 
       IF ( linit_hice ) THEN
         ! Here we assume that new seaice points are characterized by (fr_seaice>0, hice_p<hice_min)
@@ -399,22 +419,8 @@ CONTAINS
         albsi_n(isi) = albsi_p(isi)
       ENDIF
 
-    END DO GridBoxesWithSeaIce  
-
-    ! Call model abort if errors are encountered
-    IF( lcallabort ) THEN 
-      ! Send an error message 
-      WRITE(nameerr,*) "MODULE sfc_seaice, SUBROUTINE seaice_init_nwp" 
-      WRITE(texterr,*) "Sea-ice fraction ", frsi(isi),                        & 
-                    &  " is less than a minimum threshold value ", frsi_min,  & 
-                    &  " Call model abort."
-      CALL message(TRIM(nameerr), TRIM(texterr))
-
-      ! Call model abort
-      WRITE(nameerr,*) "sfc_seaice:seaice_init_nwp" 
-      WRITE(texterr,*) "error in sea-ice fraction"
-      CALL finish(TRIM(nameerr), TRIM(texterr))
-    END IF 
+    END DO GridBoxesWithSeaIce
+    !$ACC END PARALLEL
 
     !-----------------------------------------------------------------------------------------------
     !  End calculations

@@ -181,6 +181,11 @@ case $EXPERIMENT in
         --file-id latlon "iga_fg_latlon_DOM01_PL_0000000.nc"
         )
         ;;
+    *c2sm*)
+        probtest_file_id=(
+        --file-id NetCDF "*atm_3d*.nc"
+        )
+        ;;
     *)
         echo "no file ids specified for '${EXPERIMENT}'"
         echo "you most likely did not change the entries in"

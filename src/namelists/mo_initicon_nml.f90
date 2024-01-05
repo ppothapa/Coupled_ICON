@@ -321,7 +321,7 @@ CONTAINS
 
   dt_ana  = 10800._wp   ! Time interval of assimilation cycle (relevant for icpl_da_sfcevap >= 2; set 3600 s for ICON-D2
 
-  pinit_seed        = 0_i8        ! <0: do not perturb initial data. >0: perturb initial data with this as seed
+  pinit_seed        = 0_i8        ! =0: do not perturb initial data. >0: perturb initial data with this as seed
   pinit_amplitude   = 0._wp       ! amplitude of the initial perturbation for numerical tolerance test
 
   fire2d_filename = 'gfas2d_emi_<species>_<gridfile>_<yyyymmdd>.nc'

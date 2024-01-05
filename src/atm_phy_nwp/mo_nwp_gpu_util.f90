@@ -12,8 +12,6 @@
 MODULE mo_nwp_gpu_util
 
   USE mo_ext_data_types,          ONLY: t_external_data
-  USE mo_nwp_phy_types,           ONLY: t_nwp_phy_diag
-  USE mo_model_domain,            ONLY: t_patch
   USE mo_dynamics_config,         ONLY: nnow, nnew, nnow_rcf, nnew_rcf
   USE mo_intp_data_strc,          ONLY: t_int_state
   USE mo_nwp_parameters,          ONLY: t_phy_params
@@ -22,7 +20,6 @@ MODULE mo_nwp_gpu_util
   USE mo_art_config,              ONLY: art_config
 #endif
   USE mo_nonhydrostatic_config,   ONLY: kstart_moist, kstart_tracer
-  USE mo_grid_config,             ONLY: n_dom
   USE mo_nwp_phy_state,           ONLY: phy_params, prm_diag
   USE mo_run_config,              ONLY: iqv, iqc, iqi, iqg, iqr, iqs, ldass_lhn
   USE mo_nonhydro_state,          ONLY: p_nh_state
@@ -66,6 +63,7 @@ MODULE mo_nwp_gpu_util
     !$ACC   HOST(ext_data%atm%z0_lcc, ext_data%atm%z0_lcc_min, ext_data%atm%plcovmax_lcc) &
     !$ACC   HOST(ext_data%atm%laimax_lcc, ext_data%atm%rootdmax_lcc, ext_data%atm%stomresmin_lcc) &
     !$ACC   HOST(ext_data%atm%snowalb_lcc, ext_data%atm%snowtile_lcc, ext_data%atm%t_cl, ext_data%atm%lc_frac_t) &
+    !$ACC   HOST(ext_data%atm%frac_t, ext_data%atm%sai_t) &
     !$ACC   ASYNC(1) IF(PRESENT(ext_data))
 
     !$ACC UPDATE HOST(p_int%lsq_high, p_int%lsq_lin) &
@@ -175,6 +173,7 @@ MODULE mo_nwp_gpu_util
     !$ACC   DEVICE(ext_data%atm%z0_lcc, ext_data%atm%z0_lcc_min, ext_data%atm%plcovmax_lcc) &
     !$ACC   DEVICE(ext_data%atm%laimax_lcc, ext_data%atm%rootdmax_lcc, ext_data%atm%stomresmin_lcc) &
     !$ACC   DEVICE(ext_data%atm%snowalb_lcc, ext_data%atm%snowtile_lcc, ext_data%atm%t_cl, ext_data%atm%lc_frac_t) &
+    !$ACC   DEVICE(ext_data%atm%frac_t, ext_data%atm%sai_t) &
     !$ACC   ASYNC(1) IF(PRESENT(ext_data))
 
     !$ACC UPDATE DEVICE(p_int%lsq_high, p_int%lsq_lin) &
