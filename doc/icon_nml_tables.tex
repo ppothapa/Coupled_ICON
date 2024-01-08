@@ -4587,6 +4587,14 @@ Threshold for vertical advection CFL number at which the adaptive time step redu
  &
 \tabularnewline
 
+nlev\_hcfl&
+I(max\_dom)& 0& &
+Number of model levels (counted from the top) for which the horizontal CFL number is evaluated in addition and
+used for an adaptive dynamics time step reduction. In practice, doing this for the upper 10--15 levels is sufficient
+with a model top of 75 km.
+ &
+\tabularnewline
+
 %\hline
 lextra\_diffu&
 L& .TRUE. & &

@@ -35,7 +35,7 @@ MODULE mo_nh_supervise
     &                               min_rlcell_int, min_rledge_int, iheldsuarez
   USE mo_physical_constants,  ONLY: cvd
   USE mo_mpi,                 ONLY: my_process_is_stdio, get_my_mpi_all_id, &
-    &                               process_mpi_stdio_id
+    &                               process_mpi_stdio_id, i_am_accel_node
   USE mo_io_units,            ONLY: find_next_free_unit
   USE mo_sync,                ONLY: global_sum_array, global_max
   USE mo_loopindices,         ONLY: get_indices_c, get_indices_e
@@ -64,6 +64,7 @@ MODULE mo_nh_supervise
   PUBLIC :: supervise_total_integrals_nh
   PUBLIC :: print_maxwinds
   PUBLIC :: compute_dpsdt
+  PUBLIC :: compute_hcfl
 
 
 CONTAINS
@@ -827,6 +828,55 @@ CONTAINS
 
   END SUBROUTINE calculate_maxwinds
 
+
+  !-------------------------------------------------------------------------
+  !>
+  !! Computes the maximum horizontal CFL number for the number of model levels (counted from the model top)
+  !! selected by namelist. This is used for an adaptive adjustment of the physics-dynamics time step ratio
+  !!
+  SUBROUTINE compute_hcfl(p_patch, vn, dtime, nlev_hcfl, max_hcfl)
+
+    TYPE(t_patch), INTENT(IN)  :: p_patch
+    REAL(wp),      INTENT(IN)  :: vn(:,:,:), dtime
+    INTEGER,       INTENT(IN)  :: nlev_hcfl
+    REAL(wp),      INTENT(OUT) :: max_hcfl
+
+    INTEGER  :: istartblk, iendblk, i_startidx, i_endidx
+    INTEGER  :: jb, jk, je
+    REAL(wp) :: max_hcfl_blk(p_patch%nblks_e), max_hcfl_tmp ! workaround for old NVIDIA compilers
+
+    !-----------------------------------------------------------------------
+
+    istartblk = p_patch%edges%start_block(grf_bdywidth_e+1)
+    iendblk   = p_patch%edges%end_block(min_rledge_int)
+
+!$OMP PARALLEL
+!$OMP DO PRIVATE(jb, jk, je, i_startidx, i_endidx, max_hcfl_tmp) ICON_OMP_DEFAULT_SCHEDULE
+    DO jb = istartblk, iendblk
+
+      CALL get_indices_e(p_patch, jb, istartblk, iendblk, i_startidx, i_endidx, &
+                         grf_bdywidth_e+1, min_rledge_int)
+
+      max_hcfl_tmp = 0._wp
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
+      !$ACC LOOP GANG VECTOR COLLAPSE(2) REDUCTION(MAX: max_hcfl_tmp)
+      DO jk = 1, nlev_hcfl
+        DO je = i_startidx, i_endidx
+          max_hcfl_tmp = MAX(max_hcfl_tmp,dtime*ABS(vn(je,jk,jb))*p_patch%edges%inv_dual_edge_length(je,jb))
+        ENDDO
+      ENDDO
+      !$ACC END PARALLEL
+
+      max_hcfl_blk(jb) = max_hcfl_tmp
+
+    END DO
+!$OMP END DO
+!$OMP END PARALLEL
+
+
+    max_hcfl = MAXVAL(max_hcfl_blk(istartblk:iendblk))
+
+  END SUBROUTINE compute_hcfl
 
   !>
   !! Compute surface pressure time tendency abs(dpsdt)

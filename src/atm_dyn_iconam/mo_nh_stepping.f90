@@ -35,7 +35,8 @@ MODULE mo_nh_stepping
   USE mo_nonhydro_state,           ONLY: p_nh_state, p_nh_state_lists
   USE mo_nonhydrostatic_config,    ONLY: itime_scheme, divdamp_order,                                 &
     &                                    divdamp_fac, divdamp_fac_o2, ih_clch, ih_clcm, kstart_moist, &
-    &                                    ndyn_substeps, ndyn_substeps_var, ndyn_substeps_max, vcfl_threshold
+    &                                    ndyn_substeps, ndyn_substeps_var, ndyn_substeps_max, vcfl_threshold, &
+    &                                    nlev_hcfl
   USE mo_diffusion_config,         ONLY: diffusion_config
   USE mo_dynamics_config,          ONLY: nnow, nnew, nnow_rcf, nnew_rcf, nsav1, nsav2, lmoist_thdyn, ldeepatmo
   USE mo_io_config,                ONLY: is_totint_time, n_diag, var_in_output, checkpoint_on_demand
@@ -60,8 +61,8 @@ MODULE mo_nh_stepping
   USE mo_gribout_config,           ONLY: gribout_config
   USE mo_nh_testcases_nml,         ONLY: is_toy_chem, ltestcase_update
   USE mo_nh_dcmip_terminator,      ONLY: dcmip_terminator_interface
-  USE mo_nh_supervise,             ONLY: supervise_total_integrals_nh, print_maxwinds,  &
-    &                                    init_supervise_nh, finalize_supervise_nh
+  USE mo_nh_supervise,             ONLY: supervise_total_integrals_nh, print_maxwinds,        &
+    &                                    init_supervise_nh, finalize_supervise_nh, compute_hcfl
   USE mo_intp_data_strc,           ONLY: p_int_state, t_int_state, p_int_state_local_parent
   USE mo_intp_rbf,                 ONLY: rbf_vec_interpol_cell
   USE mo_intp,                     ONLY: verts2cells_scalar
@@ -2903,6 +2904,9 @@ CALL comin_callback_context_call(EP_ATM_INTEGRATE_AFTER, COMIN_DOMAIN_OUTSIDE_LO
       &                  rho       = p_nh_state%prog(nnew(jg))%rho, & !in
       &                  airmass   = p_nh_state%diag%airmass_new    ) !inout
 
+    IF (nlev_hcfl(jg) > 0) THEN
+      CALL compute_hcfl(p_patch, p_nh_state%prog(nnew(jg))%vn, dt_dyn, nlev_hcfl(jg), p_nh_state%diag%max_hcfl_dyn)
+    ENDIF
 
   END SUBROUTINE perform_dyn_substepping
 
@@ -3350,42 +3354,60 @@ CALL comin_callback_context_call(EP_ATM_INTEGRATE_AFTER, COMIN_DOMAIN_OUTSIDE_LO
     LOGICAL, INTENT(IN) :: lspinup
 
     INTEGER :: jg, ndyn_substeps_enh
-    REAL(wp) :: mvcfl(n_dom), thresh1_cfl, thresh2_cfl
+    REAL(wp) :: mvcfl(n_dom), thresh1_vcfl, thresh2_vcfl, mhcfl(n_dom), thresh1_hcfl, thresh2_hcfl, subsfac
+    REAL(wp), PARAMETER :: hcfl_threshold=0.7_wp ! empirical value
     LOGICAL :: lskip
 
     lskip = .FALSE.
 
-    thresh1_cfl = MERGE(0.9_wp*vcfl_threshold,vcfl_threshold,lspinup)
-    thresh2_cfl = MERGE(0.85_wp*vcfl_threshold,0.9_wp*vcfl_threshold,lspinup)
+    thresh1_vcfl = MERGE(0.9_wp*vcfl_threshold,vcfl_threshold,lspinup)
+    thresh2_vcfl = MERGE(0.85_wp*vcfl_threshold,0.9_wp*vcfl_threshold,lspinup)
+    thresh1_hcfl = hcfl_threshold
+    thresh2_hcfl = 0.9_wp*hcfl_threshold
+    
     ndyn_substeps_enh = MERGE(1,0,lspinup)
 
     mvcfl(1:n_dom) = p_nh_state(1:n_dom)%diag%max_vcfl_dyn
+    mhcfl(1:n_dom) = p_nh_state(1:n_dom)%diag%max_hcfl_dyn
 
     p_nh_state(1:n_dom)%diag%max_vcfl_dyn = 0._vp
 
     mvcfl = global_max(mvcfl)
-    IF (ANY(mvcfl(1:n_dom) > 0.81_wp*vcfl_threshold) .AND. .NOT. lcfl_watch_mode) THEN
-      WRITE(message_text,'(a)') 'High CFL number for vertical advection in dynamical core, entering watch mode'
+    mhcfl = global_max(mhcfl)
+
+    IF ((ANY(mvcfl(1:n_dom) > 0.81_wp*vcfl_threshold) .OR.                            &
+         ANY(mhcfl(1:n_dom) > 0.9_wp*hcfl_threshold)) .AND. .NOT. lcfl_watch_mode) THEN
+      WRITE(message_text,'(a)') 'High CFL number for horizontal or vertical advection in dynamical core, entering watch mode'
       CALL message('',message_text)
       lcfl_watch_mode = .TRUE.
     ENDIF
 
     IF (lcfl_watch_mode) THEN
       DO jg = 1, n_dom
-        IF (mvcfl(jg) > 0.9_wp*vcfl_threshold .OR. ndyn_substeps_var(jg) > ndyn_substeps) THEN
+        ! Write monitoring output for the CFL number that is close to or above the critical value for increasing the substep ratio; 
+        ! to check this, we convert the CFL numbers to what they would be with the default timestep
+        subsfac = REAL(ndyn_substeps_var(jg),wp)/REAL(ndyn_substeps,wp)
+        IF (mvcfl(jg)*subsfac > 0.9_wp*vcfl_threshold) THEN
           WRITE(message_text,'(a,i3,a,f7.4)') 'Maximum vertical CFL number in domain ', &
             jg,':', mvcfl(jg)
           CALL message('',message_text)
         ENDIF
-        IF (mvcfl(jg) > thresh1_cfl) THEN
+        IF (mhcfl(jg)*subsfac > 0.9_wp*hcfl_threshold) THEN
+          WRITE(message_text,'(a,i3,a,f7.4)') 'Maximum horizontal CFL number in domain ', &
+            jg,':', mhcfl(jg)
+          CALL message('',message_text)
+        ENDIF
+
+        IF (mvcfl(jg) > thresh1_vcfl .OR. mhcfl(jg) > thresh1_hcfl) THEN
           ndyn_substeps_var(jg) = MIN(ndyn_substeps_var(jg)+1,ndyn_substeps_max+ndyn_substeps_enh)
           advection_config(jg)%ivcfl_max = MIN(ndyn_substeps_var(jg),ndyn_substeps_max)
           WRITE(message_text,'(a,i3,a,i3)') 'Number of dynamics substeps in domain ', &
             jg,' increased to ', ndyn_substeps_var(jg)
           CALL message('',message_text)
         ENDIF
-        IF (ndyn_substeps_var(jg) > ndyn_substeps .AND.                                            &
-            mvcfl(jg)*REAL(ndyn_substeps_var(jg),wp)/REAL(ndyn_substeps_var(jg)-1,wp) < thresh2_cfl) THEN
+        IF (ndyn_substeps_var(jg) > ndyn_substeps .AND.                                                    &
+            mhcfl(jg)*REAL(ndyn_substeps_var(jg),wp)/REAL(ndyn_substeps_var(jg)-1,wp) < thresh2_hcfl .AND. &
+            mvcfl(jg)*REAL(ndyn_substeps_var(jg),wp)/REAL(ndyn_substeps_var(jg)-1,wp) < thresh2_vcfl) THEN
           ndyn_substeps_var(jg) = ndyn_substeps_var(jg)-1
           advection_config(jg)%ivcfl_max = ndyn_substeps_var(jg)
           WRITE(message_text,'(a,i3,a,i3)') 'Number of dynamics substeps in domain ', &
@@ -3397,7 +3419,7 @@ CALL comin_callback_context_call(EP_ATM_INTEGRATE_AFTER, COMIN_DOMAIN_OUTSIDE_LO
     ENDIF
 
     IF (ALL(ndyn_substeps_var(1:n_dom) == ndyn_substeps) .AND. ALL(mvcfl(1:n_dom) < 0.76_wp*vcfl_threshold) .AND. &
-        lcfl_watch_mode .AND. .NOT. lskip) THEN
+        ALL(mhcfl(1:n_dom) < 0.85_wp*hcfl_threshold) .AND. lcfl_watch_mode .AND. .NOT. lskip) THEN
       WRITE(message_text,'(a)') 'CFL number for vertical advection has decreased, leaving watch mode'
       CALL message('',message_text)
       lcfl_watch_mode = .FALSE.

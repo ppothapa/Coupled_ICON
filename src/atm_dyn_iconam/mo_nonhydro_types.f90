@@ -249,6 +249,7 @@ MODULE mo_nonhydro_types
      &  => NULL()
 
     REAL(vp) :: max_vcfl_dyn=0._vp  ! maximum vertical CFL number in dynamical core
+    REAL(wp) :: max_hcfl_dyn=0._wp  ! maximum horizontal CFL number in dynamical core
 
     TYPE(t_ptr_2d3d),ALLOCATABLE ::   &
       &  ddt_grf_trc_ptr(:),   &  !< pointer array: one pointer for each tracer
