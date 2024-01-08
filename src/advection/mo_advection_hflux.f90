@@ -2791,6 +2791,7 @@ CONTAINS
       falist%npoints = npoints ! ACC: caution this is not updated to GPU as it is not used on GPU
 
       ! allocate temporary arrays for quadrature and upwind cells
+#ifndef _OPENACC
       ALLOCATE( z_quad_vector_sum0(nproma,dim_unk,nlev,p_patch%nblks_e), &
         &       z_quad_vector_sum1(npoints,dim_unk,p_patch%nblks_e),     &
         &       z_quad_vector_sum2(npoints,dim_unk,p_patch%nblks_e),     &
@@ -2802,6 +2803,19 @@ CONTAINS
         &       dreg_patch1(npoints,4,2,p_patch%nblks_e),                &
         &       dreg_patch2(npoints,4,2,p_patch%nblks_e),                &
         &       STAT=ist )
+#else
+      ALLOCATE( z_quad_vector_sum0(nproma,dim_unk,nlev,p_patch%nblks_e), &
+        &       z_quad_vector_sum1(nproma*nlev,dim_unk,p_patch%nblks_e),     &
+        &       z_quad_vector_sum2(nproma*nlev,dim_unk,p_patch%nblks_e),     &
+        &       z_dreg_area(nproma,nlev,p_patch%nblks_e),                &
+        &       patch1_cell_idx(nproma*nlev,p_patch%nblks_e),                &
+        &       patch2_cell_idx(nproma*nlev,p_patch%nblks_e),                &
+        &       patch1_cell_blk(nproma*nlev,p_patch%nblks_e),                &
+        &       patch2_cell_blk(nproma*nlev,p_patch%nblks_e),                &
+        &       dreg_patch1(nproma*nlev,4,2,p_patch%nblks_e),                &
+        &       dreg_patch2(nproma*nlev,4,2,p_patch%nblks_e),                &
+        &       STAT=ist )
+#endif
       IF (ist /= SUCCESS) THEN
         CALL finish(routine,                                      &
           &  'allocation for z_quad_vector_sum0/1/2, z_dreg_area, ' //    &
