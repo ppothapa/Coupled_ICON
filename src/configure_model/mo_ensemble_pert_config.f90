@@ -64,7 +64,7 @@ MODULE mo_ensemble_pert_config
             range_rprcon, range_qexc, range_turlen, range_a_hshr, range_rain_n0fac, range_box_liq_asy,  &
             itype_pert_gen, timedep_pert, range_a_stab, range_c_diff, range_q_crit, range_thicklayfac,  &
             box_liq_sv, thicklayfac_sv, box_liq_asy_sv, range_lhn_coef, range_lhn_artif_fac,            &
-            range_fac_lhn_down, range_fac_lhn_up, range_fac_ccqc
+            range_fac_lhn_down, range_fac_lhn_up, range_fac_ccqc, range_rmfdeps, range_entrorg_mult
 
   !!--------------------------------------------------------------------------
   !! Basic configuration setup for ensemble perturbations
@@ -93,8 +93,14 @@ MODULE mo_ensemble_pert_config
   REAL(wp) :: &                    !< Entrainment parameter for deep convection valid at dx=20 km 
     &  range_entrorg, rnd_entrorg
 
+  REAL(wp) :: &                    !< Multiplicative perturbation of Entrainment parameter for deep convection valid at dx=20 km 
+    &  range_entrorg_mult, rnd_entrorg_mult
+
   REAL(wp) :: &                    !< Maximum shallow convection depth 
     &  range_rdepths, rnd_rdepths
+
+  REAL(wp) :: &                    !< Factor for fraction of initial downdraft mass flux 
+    &  range_rmfdeps, rnd_rmfdeps
 
   REAL(wp) :: &                    !< Entrainment parameter for deep convection valid at dx=20 km 
     &  range_rprcon, rnd_rprcon
@@ -348,12 +354,20 @@ MODULE mo_ensemble_pert_config
 
       ENDDO
 
-      !$ACC ENTER DATA COPYIN(rnd_tkred_sfc, rnd_fac_ccqc)
+      CALL RANDOM_NUMBER(rnd_num)
+      rnd_entrorg_mult = rnd_num
+
+      CALL RANDOM_NUMBER(rnd_num)
+      rnd_rmfdeps = rnd_num
+
+      !$ACC ENTER DATA COPYIN(rnd_tkred_sfc, rnd_fac_ccqc, rnd_entrorg_mult, rnd_rmfdeps)
 
       ! Ensure that perturbations on VH and VE cores are the same
 #if defined (__SX__) || defined (__NEC_VH__)
       CALL p_bcast(rnd_tkred_sfc, p_io, p_comm_work)
       CALL p_bcast(rnd_fac_ccqc, p_io, p_comm_work)
+      CALL p_bcast(rnd_entrorg_mult, p_io, p_comm_work)
+      CALL p_bcast(rnd_rmfdeps, p_io, p_comm_work)
 #endif
 
       DEALLOCATE(rnd_seed)
@@ -805,12 +819,15 @@ MODULE mo_ensemble_pert_config
     INTEGER  :: jg, jb, jc, jt, ilu, iyr
     INTEGER  :: rl_start, rl_end, i_startblk, i_endblk, i_startidx, i_endidx
     REAL(wp) :: wrnd_num(nproma), wrnd_num2(nproma), log_range_tkred, log_range_ccqc, phaseshift, phaseshift2
+    REAL(wp) :: log_range_entrorg, log_range_rmfdeps, phaseshift_entrorg, phaseshift_rmfdeps
 
     rl_start = grf_bdywidth_c+1
     rl_end   = min_rlcell_int
 
-    log_range_tkred = LOG(range_tkred_sfc)
-    log_range_ccqc  = LOG(range_fac_ccqc)
+    log_range_tkred   = LOG(range_tkred_sfc)
+    log_range_ccqc    = LOG(range_fac_ccqc)
+    log_range_entrorg = LOG(range_entrorg_mult)
+    log_range_rmfdeps = LOG(range_rmfdeps)
 
     ! ssny = seconds since New Year
     ssny = (getDayOfYearFromDateTime(mtime_date)-1)*86400._wp + mtime_date%time%hour*3600._wp + &
@@ -826,6 +843,10 @@ MODULE mo_ensemble_pert_config
     phaseshift = phaseshift - INT(phaseshift)
     phaseshift2 = 250._wp*ssny/secyr
     phaseshift2 = phaseshift2 - INT(phaseshift2)
+    phaseshift_entrorg = 125._wp*ssny/secyr
+    phaseshift_entrorg = phaseshift_entrorg - INT(phaseshift_entrorg)
+    phaseshift_rmfdeps = 175._wp*ssny/secyr
+    phaseshift_rmfdeps = phaseshift_rmfdeps - INT(phaseshift_rmfdeps)
 
 
 !$OMP PARALLEL PRIVATE(jg,i_startblk,i_endblk)
@@ -866,9 +887,16 @@ MODULE mo_ensemble_pert_config
             prm_diag(jg)%tkred_sfc(jc,jb) = EXP(log_range_tkred*SIN(pi2*(wrnd_num(jc)+phaseshift)))
             prm_diag(jg)%fac_ccqc(jc,jb)  = EXP(log_range_ccqc*SIN(pi2*(wrnd_num2(jc)+phaseshift2)+&
               4._wp*p_patch(jg)%cells%center(jc,jb)%lon+8._wp*p_patch(jg)%cells%center(jc,jb)%lat))
+            prm_diag(jg)%fac_entrorg(jc,jb)  = EXP(log_range_entrorg*SIN(pi2*(rnd_entrorg_mult+phaseshift_entrorg)+&
+              4._wp*p_patch(jg)%cells%center(jc,jb)%lon+8._wp*p_patch(jg)%cells%center(jc,jb)%lat))
+            prm_diag(jg)%fac_entrorg(jc,jb)  = MAX(prm_diag(jg)%fac_entrorg(jc,jb),(prm_diag(jg)%fac_entrorg(jc,jb))**0.25_wp)
+            prm_diag(jg)%fac_rmfdeps(jc,jb)  = EXP(log_range_rmfdeps*SIN(pi2*(rnd_rmfdeps+phaseshift_rmfdeps)+&
+              4._wp*p_patch(jg)%cells%center(jc,jb)%lon+8._wp*p_patch(jg)%cells%center(jc,jb)%lat))
           ELSE
             prm_diag(jg)%tkred_sfc(jc,jb) = 1._wp
             prm_diag(jg)%fac_ccqc(jc,jb)  = 1._wp
+            prm_diag(jg)%fac_entrorg(jc,jb) = 1._wp
+            prm_diag(jg)%fac_rmfdeps(jc,jb) = 1._wp
           ENDIF
         ENDDO
         !$ACC END PARALLEL

@@ -1500,7 +1500,19 @@ range\_entrorg&
 R&
 0.2e-3&
 1/m&
-Variability range for entrainment parameter in convection scheme &
+Variability range (additive) for entrainment parameter in convection scheme &
+inwp\_convection = 1
+\tabularnewline
+
+\hline
+range\_entrorg\_mult&
+R&
+1&
+&
+Asymmetric-multiplicative variation for entrainment parameter in convection scheme, combined with a
+quadratic reduction of the convective adjustment time scale for positive perturbations. Should be used
+alternatively to the additive perturbation described above, i.e. setting a factor
+above 1 shall be combined with range\_entrorg = 0.&
 inwp\_convection = 1
 \tabularnewline
 
@@ -1510,6 +1522,16 @@ R&
 5.e3&
 Pa&
 Variability range for maximum allowed shallow convection depth &
+inwp\_convection = 1
+\tabularnewline
+
+\hline
+range\_rmfdeps&
+R&
+1&
+&
+Multiplicative variation of the rmfdeps parameter, i.e. the fraction of the updraft mass flux
+that is used as a start value for the downdraft calculation at the level of free sinking&
 inwp\_convection = 1
 \tabularnewline
 
