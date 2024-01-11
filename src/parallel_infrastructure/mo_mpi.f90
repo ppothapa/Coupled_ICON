@@ -13,8 +13,25 @@
 ! SPDX-License-Identifier: BSD-3-Clause
 ! ---------------------------------------------------------------
 !
+!  MPI-Handshake
+!  -------------
 !
-!  Processors are divided into
+!  To allow the co-existence of external processes ICON proceeds the
+!  MPI-Handshake (see https://gitlab.dkrz.de/dkrz-sw/mpi-handshake)
+!  with the group name "icon" directly after initializing MPI.  This
+!  yields a MPI_Comm where all processes are contained in that also
+!  have provided this group name.
+
+!  Furthermore ICON participates in the groups "yac" and/or "comin" if
+!  these modules are enabled. The resulting communicators are then
+!  used to initialize the respective software component.
+!
+!  In the following the further split-up of the icon communicator is described.
+!
+!  ICON communicator split
+!  -----------------------
+!
+!  ICON processors are divided into
 !    1.    worker PEs    : majority of MPI tasks, doing the actual work
 !    2.    I/O PEs       : dedicated I/O server tasks          (only for parallel_nml::num_io_procs > 0)
 !    3.    one test PE   : for verification runs               (only for parallel_nml::p_test_run == .TRUE.)
