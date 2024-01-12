@@ -41,7 +41,8 @@ MODULE mo_atmo_coupling_frame
   USE mo_mpi                 ,ONLY: p_pe_work, p_comm_work, p_sum
 
   USE mo_coupling_config     ,ONLY: is_coupled_run, is_coupled_to_ocean, &
-    &                               is_coupled_to_hydrodisc, is_coupled_to_waves
+    &                               is_coupled_to_hydrodisc, &
+    &                               is_coupled_to_waves, is_coupled_to_output
   USE mo_aes_rad_config      ,ONLY: aes_rad_config
   USE mo_aes_phy_config      ,ONLY: aes_phy_config
   USE mo_time_config         ,ONLY: time_config
@@ -51,16 +52,18 @@ MODULE mo_atmo_coupling_frame
 
   USE mo_exception           ,ONLY: finish, message
 
-  USE mo_yac_finterface      ,ONLY: yac_fget_version, yac_fdef_comp,        &
-    &                               yac_fdef_datetime, yac_fdef_grid,       &
-    &                               yac_fdef_points, yac_fset_global_index, &
-    &                               yac_fset_core_mask, yac_fdef_mask,      &
-    &                               yac_fdef_field_mask, yac_fenddef,       &
-    &                               YAC_LOCATION_CELL, YAC_TIME_UNIT_ISO_FORMAT, &
-    &                               yac_fget_field_collection_size, yac_fsync_def
+  USE mo_yac_finterface      ,ONLY: yac_fget_version, yac_fdef_comp,               &
+    &                               yac_fdef_datetime, yac_fdef_grid,              &
+    &                               yac_fdef_points, yac_fset_global_index,        &
+    &                               yac_fset_core_mask, yac_fdef_mask,             &
+    &                               yac_fdef_field_mask, yac_fenddef,              &
+    &                               YAC_LOCATION_CELL, YAC_TIME_UNIT_ISO_FORMAT,   &
+    &                               yac_fget_field_collection_size, yac_fsync_def, &
+    &                               YAC_LOCATION_CORNER,                           &
+    &                               yac_fget_field_collection_size
 
   USE mtime                  ,ONLY: datetimeToString, MAX_DATETIME_STR_LEN, &
-       &                               timedeltaToString, MAX_TIMEDELTA_STR_LEN
+    &                               timedeltaToString, MAX_TIMEDELTA_STR_LEN
 
 #ifndef __NO_ICON_COMIN__
   USE comin_host_interface, ONLY: comin_callback_context_call,     &
@@ -72,6 +75,8 @@ MODULE mo_atmo_coupling_frame
        &                          EP_ATM_YAC_ENDDEF_AFTER,         &
        &                          COMIN_DOMAIN_OUTSIDE_LOOP
 #endif
+
+  USE mo_output_coupling     ,ONLY: construct_output_coupling, winnow_field_list
 
   IMPLICIT NONE
 
@@ -137,9 +142,9 @@ CONTAINS
     CHARACTER(LEN=max_char_length) :: grid_name
     CHARACTER(LEN=max_char_length) :: comp_name
 
-    INTEGER :: comp_id
-    INTEGER :: comp_ids(1)
+    INTEGER :: comp_ids(2)
     INTEGER :: cell_point_ids(1)
+    INTEGER :: vertex_point_ids(1)
     INTEGER :: cell_mask_ids(2)
     INTEGER :: grid_id
 
@@ -197,8 +202,11 @@ CONTAINS
 
     ! Inform the coupler about what we are
     comp_name = TRIM(get_my_process_name())
-    CALL yac_fdef_comp ( TRIM(comp_name), comp_id )
-    comp_ids(1) = comp_id
+    IF( is_coupled_to_output() ) THEN
+       CALL yac_fdef_comps ( [TRIM(comp_name)//"       ", TRIM(comp_name)//"_output"], 2, comp_ids )
+    ELSE
+       CALL yac_fdef_comp ( TRIM(comp_name), comp_ids(1) )
+    ENDIF
 
 #ifndef __NO_ICON_COMIN__
     CALL comin_callback_context_call(EP_ATM_YAC_DEFCOMP_AFTER, COMIN_DOMAIN_OUTSIDE_LOOP)
@@ -263,6 +271,15 @@ CONTAINS
       & buffer_c,                 &
       & grid_id)
 
+    ! vertex points (needed for output_coupling)
+    CALL yac_fdef_points (        &
+      & grid_id,                  &
+      & patch_horz%n_patch_verts, &
+      & YAC_LOCATION_CORNER,      &
+      & buffer_lon(1:patch_horz%n_patch_verts), &
+      & buffer_lat(1:patch_horz%n_patch_verts), &
+      & vertex_point_ids(1) )
+
     !
     ! Define cell center points (location = 0)
     !
@@ -316,6 +333,15 @@ CONTAINS
       & is_valid,             &
       & YAC_LOCATION_CELL,    &
       & grid_id )
+
+    IF( is_coupled_to_output() ) THEN
+
+      CALL message(str_module, 'Constructing the coupling frame atmosphere-output.')
+
+      CALL construct_output_coupling ( &
+        p_patch, comp_ids(2), cell_point_ids, vertex_point_ids, timestepstring)
+
+    END IF
 
     IF ( is_coupled_to_ocean() ) THEN
 
@@ -482,9 +508,9 @@ CONTAINS
       DO jc = 1, min_no_of_fields
         CALL yac_fdef_field_mask (       &
           & TRIM(field_name(jc)),        &
-          & comp_id,                     &
+          & comp_ids(1),                 &
           & cell_point_ids,              &
-          & cell_mask_ids(1),            & 
+          & cell_mask_ids(1),            &
           & 1,                           &
           & collection_size(jc),         &
           & timestepstring,              &
@@ -514,7 +540,7 @@ CONTAINS
            & yac_fget_field_collection_size("o3_provider", "o3_grid", field_name(intermediate_no_of_fields) )
          CALL yac_fdef_field(                             &
            & TRIM(field_name(intermediate_no_of_fields)), &
-           & comp_id,                                     &
+           & comp_ids(1),                                 &
            & cell_point_ids,                              &
            & 1,                                           &
            & collection_size(intermediate_no_of_fields),  &
@@ -554,7 +580,7 @@ CONTAINS
           collection_size(jc) = yac_fget_field_collection_size("aero_provider", "aero_grid", TRIM(field_name(jc)))
           CALL yac_fdef_field(                 &
             & TRIM(field_name(jc)),            &
-            & comp_id,                         &
+            & comp_ids(1),                     &
             & cell_point_ids,                  &
             & 1,                               &
             & collection_size(jc),             &
@@ -624,7 +650,7 @@ CONTAINS
       ! change of call to be checked - no second mask used for this call
       !CALL jsb_fdef_hd_fields(comp_id, cell_point_ids, cell_mask_ids(2:2) )
 
-        CALL jsb_fdef_hd_fields(comp_id, cell_point_ids, grid_id, patch_horz%n_patch_cells)
+        CALL jsb_fdef_hd_fields(comp_ids(1), cell_point_ids, grid_id, patch_horz%n_patch_cells)
 
       ENDIF
 
@@ -634,7 +660,7 @@ CONTAINS
     IF ( is_coupled_to_hydrodisc() ) THEN
       ! Construct coupling frame for atmosphere-hydrological discharge
       CALL message(str_module, 'Constructing the coupling frame atmosphere-hydrological discharge.')
-      
+
       CPF_RUNOFFS = intermediate_no_of_fields+1
       CPF_RUNOFFG = intermediate_no_of_fields+2
 
@@ -684,7 +710,7 @@ CONTAINS
       DO jc = CPF_RUNOFFS, CPF_RUNOFFG
         CALL yac_fdef_field_mask (    &
           & TRIM(field_name(jc)),     &
-          & comp_id,                  &
+          & comp_ids(1),              &
           & cell_point_ids,           &
           & cell_mask_ids(2),         &
           & 1,                        &
@@ -698,7 +724,7 @@ CONTAINS
 
     IF ( is_coupled_to_waves() ) THEN
       CALL construct_atmo_wave_coupling( &
-        comp_id, cell_point_ids(1), timestepstring)
+        comp_ids(1), cell_point_ids(1), timestepstring)
     END IF
 
     DEALLOCATE (is_valid, STAT = error)
@@ -718,6 +744,9 @@ CONTAINS
 #ifndef __NO_ICON_COMIN__
     CALL comin_callback_context_call(EP_ATM_YAC_ENDDEF_AFTER, COMIN_DOMAIN_OUTSIDE_LOOP)
 #endif
+
+    IF( is_coupled_to_output() ) &
+         CALL winnow_field_list()
 
     IF (ltimer) CALL timer_stop(timer_coupling_init)
 

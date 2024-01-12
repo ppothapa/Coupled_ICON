@@ -25,7 +25,7 @@ MODULE mo_hydro_ocean_run
   USE mo_impl_constants,         ONLY: max_char_length, success
   USE mo_model_domain,           ONLY: t_patch, t_patch_3d
   USE mo_grid_config,            ONLY: n_dom
-  USE mo_coupling_config,        ONLY: is_coupled_run
+  USE mo_coupling_config,        ONLY: is_coupled_run, is_coupled_to_output
   USE mo_memory_log,             ONLY: memory_log_add
   USE mo_ocean_nml,              ONLY: iswm_oce, n_zlev, no_tracer, &
     &  i_sea_ice, cfl_check, cfl_threshold, cfl_stop_on_violation,   &
@@ -110,6 +110,9 @@ MODULE mo_hydro_ocean_run
   USE mo_ocean_state,            ONLY: v_base
   USE mo_ocean_nudging,          ONLY: ocean_nudge
   USE mo_fortran_tools,          ONLY: set_acc_host_or_device
+#ifdef YAC_coupling
+  USE mo_output_coupling,        ONLY: output_coupling
+#endif
 
   IMPLICIT NONE
 
@@ -706,6 +709,12 @@ CONTAINS
           &                p_oce_sfc,             &
           &                sea_ice,                 &
           &                jstep, jstep0)
+
+#ifdef YAC_coupling
+        IF ( is_coupled_to_output() ) &
+             CALL output_coupling(patch_3d%wet_c)
+#endif
+
 #ifdef _OPENACC
         lzacc = .FALSE.
         i_am_accel_node = .FALSE.                 ! Deactivate GPUs
@@ -1367,6 +1376,12 @@ CONTAINS
           &                p_oce_sfc,             &
           &                sea_ice,                 &
           &                jstep, jstep0)
+
+#ifdef YAC_coupling
+        IF ( is_coupled_to_output() ) &
+             CALL output_coupling(patch_3d%wet_c)
+#endif
+
 #ifdef _OPENACC
         lzacc = .FALSE.
         i_am_accel_node = .FALSE.                 ! Deactivate GPUs

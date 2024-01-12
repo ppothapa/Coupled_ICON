@@ -39,9 +39,11 @@ MODULE mo_ocean_coupling_frame
     &                               yac_fdef_points, yac_fset_global_index, &
     &                               yac_fset_core_mask, yac_fdef_mask,      &
     &                               yac_fdef_field_mask, yac_fenddef,       &
-    &                               YAC_LOCATION_CELL, YAC_TIME_UNIT_ISO_FORMAT
-  USE mo_coupling_config,     ONLY: is_coupled_run
-  USE mo_time_config,         ONLY: time_config 
+    &                               YAC_LOCATION_CELL, YAC_TIME_UNIT_ISO_FORMAT, &
+    &                               YAC_LOCATION_CORNER
+  USE mo_coupling_config,     ONLY: is_coupled_run, is_coupled_to_output
+  USE mo_time_config,         ONLY: time_config
+  USE mo_output_coupling,     ONLY: construct_output_coupling, winnow_field_list
 
   !-------------------------------------------------------------
 
@@ -80,9 +82,8 @@ CONTAINS
     CHARACTER(LEN=max_char_length) :: grid_name
     CHARACTER(LEN=max_char_length) :: comp_name
 
-    INTEGER :: comp_id
-    INTEGER :: comp_ids(1)
-    INTEGER :: cell_point_ids(1)
+    INTEGER :: comp_ids(2)
+    INTEGER :: cell_point_ids(1), vertex_point_ids(1)
     INTEGER :: cell_mask_ids(2)
     INTEGER :: grid_id
     INTEGER :: nbr_vertices_per_cell
@@ -110,8 +111,11 @@ CONTAINS
     patch_horz => patch_3d%p_patch_2d(patch_no)
 
     ! Inform the coupler about what we are
-    CALL yac_fdef_comp ( TRIM(comp_name), comp_id )
-    comp_ids(1) = comp_id
+    IF( is_coupled_to_output() ) THEN
+       CALL yac_fdef_comps ( [TRIM(comp_name)//"       ", TRIM(comp_name)//"_output"], 2, comp_ids )
+    ELSE
+       CALL yac_fdef_comp ( TRIM(comp_name), comp_ids(1) )
+    ENDIF
 
     ! Print the YAC version
     CALL message('Running ICON ocean in coupled mode with YAC version ', TRIM(yac_fget_version()) )
@@ -178,6 +182,15 @@ CONTAINS
       & buffer_c,                 &
       & grid_id )
 
+        ! vertex points (needed for output_coupling)
+    CALL yac_fdef_points (        &
+         & grid_id,                  &
+         & patch_horz%n_patch_verts, &
+         & YAC_LOCATION_CORNER,      &
+         & buffer_lon(1:patch_horz%n_patch_verts),               &
+         & buffer_lat(1:patch_horz%n_patch_verts),               &
+         & vertex_point_ids(1) )
+
     ! Can we have two fdef_point calls for the same subdomain, i.e.
     ! one single set of cells?
     !
@@ -231,6 +244,15 @@ CONTAINS
       & is_valid,             &
       & YAC_LOCATION_CELL,    &
       & grid_id )
+
+    IF( is_coupled_to_output() ) THEN
+
+      CALL construct_output_coupling ( &
+        patch_3d%p_patch_2d(1:), comp_ids(2), cell_point_ids, vertex_point_ids, &
+        timestepstring)
+
+    END IF
+
 
     !
     ! mask generation : ... not yet defined ...
@@ -327,7 +349,7 @@ CONTAINS
       if(field_name(cell_index).ne. "river_runoff")then
       CALL yac_fdef_field_mask (        &
         & TRIM(field_name(cell_index)), &
-        & comp_id,                      &
+        & comp_ids(1),                   &
         & cell_point_ids,               &
         & cell_mask_ids(1),             &
         & 1,                            &
@@ -383,7 +405,7 @@ CONTAINS
 
     CALL yac_fdef_field_mask (          &
       & TRIM("river_runoff"),           &
-      & comp_id,                        &
+      & comp_ids(1),                     &
       & cell_point_ids,                 &
       & cell_mask_ids(1),               &
       & 1,                              &
@@ -393,6 +415,8 @@ CONTAINS
       & field_id(11) )
 
     CALL yac_fenddef ( )
+    IF( is_coupled_to_output() ) &
+         CALL winnow_field_list()
 
     IF (ltimer) CALL timer_stop(timer_coupling_init)
 

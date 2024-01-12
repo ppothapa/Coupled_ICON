@@ -22,6 +22,7 @@ MODULE mo_coupling_config
   LOGICAL :: config_coupled_to_waves     = .FALSE.
   LOGICAL :: config_coupled_to_atmo      = .FALSE.
   LOGICAL :: config_coupled_to_hydrodisc = .FALSE.
+  LOGICAL :: config_coupled_to_output    = .FALSE.
 
 
   ! variables
@@ -29,6 +30,7 @@ MODULE mo_coupling_config
   PUBLIC :: config_coupled_to_waves
   PUBLIC :: config_coupled_to_atmo
   PUBLIC :: config_coupled_to_hydrodisc
+  PUBLIC :: config_coupled_to_output
 
   ! functions
   PUBLIC :: is_coupled_run
@@ -36,16 +38,18 @@ MODULE mo_coupling_config
   PUBLIC :: is_coupled_to_waves
   PUBLIC :: is_coupled_to_atmo
   PUBLIC :: is_coupled_to_hydrodisc
+  PUBLIC :: is_coupled_to_output
 
 CONTAINS
 
   !------------------------------------------------------------------------
   LOGICAL FUNCTION is_coupled_run()
 
-    is_coupled_run = config_coupled_to_ocean .OR.  &
-      &              config_coupled_to_waves .OR.  &
-      &              config_coupled_to_atmo  .OR.  &
-      &              config_coupled_to_hydrodisc
+    is_coupled_run = config_coupled_to_ocean .OR.     &
+      &              config_coupled_to_waves .OR.     &
+      &              config_coupled_to_atmo  .OR.     &
+      &              config_coupled_to_hydrodisc .OR. &
+      &              config_coupled_to_output
 
   END FUNCTION is_coupled_run
 
@@ -77,6 +81,12 @@ CONTAINS
     is_coupled_to_hydrodisc = config_coupled_to_hydrodisc
 
   END FUNCTION is_coupled_to_hydrodisc
+
+  LOGICAL FUNCTION is_coupled_to_output()
+
+    is_coupled_to_output = config_coupled_to_output
+
+  END FUNCTION is_coupled_to_output
 
   !------------------------------------------------------------------------
 

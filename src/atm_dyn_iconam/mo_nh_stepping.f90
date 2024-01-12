@@ -48,7 +48,8 @@ MODULE mo_nh_stepping
     &                                    timer_total, timer_model_init, timer_nudging,         &
     &                                    timer_bdy_interp, timer_feedback, timer_nesting,      &
     &                                    timer_integrate_nh, timer_nh_diagnostics,             &
-    &                                    timer_iconam_aes, timer_dace_coupling, timer_rrg_interp
+    &                                    timer_iconam_aes, timer_dace_coupling, timer_rrg_interp, &
+    &                                    timer_coupling
   USE mo_ext_data_state,           ONLY: ext_data
   USE mo_radiation_config,         ONLY: irad_aero, iRadAeroCAMSclim
   USE mo_limarea_config,           ONLY: latbc_config
@@ -255,6 +256,11 @@ MODULE mo_nh_stepping
     &                                    EP_ATM_NUDGING_AFTER
   USE mo_comin_adapter,            ONLY: icon_update_current_datetime, &
     &                                    icon_update_expose_variables
+#endif
+
+#ifdef YAC_coupling
+  USE mo_coupling_config       ,ONLY: is_coupled_to_output
+  USE mo_output_coupling       ,ONLY: output_coupling
 #endif
 
   !$ser verbatim USE mo_ser_all, ONLY: serialize_all
@@ -1507,7 +1513,15 @@ CALL comin_callback_context_call(EP_ATM_INTEGRATE_AFTER, COMIN_DOMAIN_OUTSIDE_LO
         & meteogram_is_sample_step(meteogram_output_config(jg), jstep)) THEN
         CALL meteogram_sample_vars(jg, jstep, mtime_current, lacc=i_am_accel_node)
       END IF
-    END DO
+   END DO
+
+#ifdef YAC_coupling
+   IF( is_coupled_to_output() ) THEN
+      IF (ltimer) CALL timer_start(timer_coupling)
+      CALL output_coupling()
+      IF (ltimer) CALL timer_stop(timer_coupling)
+   END IF
+#endif
 
 
 

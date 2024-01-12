@@ -389,6 +389,7 @@ cat > ${atm_namelist} << EOF
 !
 &coupling_mode_nml
   coupled_to_ocean = .TRUE.
+  coupled_to_output = .TRUE.
 /
 &parallel_nml
  nproma            = ${nproma_atm}
@@ -999,6 +1000,7 @@ cat > ${oce_namelist} << EOF
 !
 &coupling_mode_nml
   coupled_to_atmo            = .TRUE.
+  coupled_to_output          = .TRUE.
 /
 &parallel_nml
  nproma                      = ${nproma_oce}
@@ -1396,6 +1398,20 @@ fi
 add_link_file ${ocean_grid_folder}/${ocean_grid} $ocean_grid
 #
 #-----------------------------------------------------------------------------
+
+if [[ "$START" == *"srun"* ]]; then
+    eval "$(echo '@BUILD_ENV@' | ${basedir}/config.status -q --file=-)"
+    make -C ${basedir}/externals/yac/examples toy_output/toy_output.x
+    # we cannot uses EXPDIR here -.-
+    mkdir ${experiments_dir}/${EXPNAME}
+    cat > ${experiments_dir}/${EXPNAME}/mpmd.conf << EOF
+0 ${basedir}/externals/yac/examples/toy_output/toy_output.x atmo_output icon_atmos_grid tas
+1 ${basedir}/externals/yac/examples/toy_output/toy_output.x ocean_output icon_ocean_grid to
+* ${MODEL}
+EOF
+
+    START_MODEL="${START} --multi-prog mpmd.conf"
+fi
 
 #-----------------------------------------------------------------------------
 
