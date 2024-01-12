@@ -71,8 +71,10 @@
 #   OP argument in the final configure script.
 #
 # LICENSE
+#   SPDX-License-Identifier: FSFAP
 #
 #   Copyright (c) 2008 Tim Toolan <toolan@ele.uri.edu>
+#   Copyright (c) 2024 MPI-M, Sergey Kosukhin <sergey.kosukhin@mpimet.mpg.de>
 #
 #   Copying and distribution of this file, with or without modification, are
 #   permitted in any medium without royalty provided the copyright notice
@@ -83,7 +85,6 @@
 
 dnl #########################################################################
 AC_DEFUN([AX_COMPARE_VERSION], [
-  AC_REQUIRE([AC_PROG_AWK])
 
   # Used to indicate true or false condition
   ax_compare_version=false
@@ -130,6 +131,8 @@ x$B" | sed 's/^ *//' | sort -r | sed "s/x${A}/true/;s/x${B}/false/;1q"`
     dnl Split the operator from the subversion count if present.
     m4_bmatch(m4_substr($2,2),
     [0],[
+      AC_REQUIRE([AC_PROG_AWK])
+
       # A count of zero means use the length of the shorter version.
       # Determine the number of characters in A and B.
       ax_compare_version_len_A=`echo "$A" | $AWK '{print(length)}'`

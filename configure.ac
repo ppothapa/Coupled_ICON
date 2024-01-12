@@ -1,13 +1,13 @@
-dnl ICON
-dnl
-dnl ---------------------------------------------------------------
-dnl Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
-dnl Contact information: icon-model.org
-dnl See AUTHORS.TXT for a list of authors
-dnl See LICENSES/ for license information
-dnl SPDX-License-Identifier: BSD-3-Clause
-dnl ---------------------------------------------------------------
-
+# ICON
+#
+# ---------------------------------------------------------------
+# Copyright (C) 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+# Contact information: icon-model.org
+#
+# See AUTHORS.TXT for a list of authors
+# See LICENSES/ for license information
+# SPDX-License-Identifier: BSD-3-Clause
+# ---------------------------------------------------------------
 AC_PREREQ([2.69])
 
 ACX_POLYMORPHIC_OPTION([enable], [fcgroup-*], [icon_fcgroups])
@@ -15,6 +15,7 @@ ACX_POLYMORPHIC_OPTION([enable], [fcgroup-*], [icon_fcgroups])
 AC_INIT([icon], [2.6.6], [], [icon-2.6.6])
 
 AC_CONFIG_MACRO_DIR([m4])
+m4_pattern_forbid([^A[SC]?X_])dnl
 AC_CONFIG_AUX_DIR([utils])
 AC_CONFIG_SRCDIR([src/drivers/icon.f90])
 
@@ -942,7 +943,7 @@ AS_VAR_IF([enable_cuda_graphs], [yes],
   [icon_warn=yes
    AS_CASE(["$FC_VENDOR,$FC_VERSION"],
      [portland,nv:*],
-     [ACX_COMPARE_VERSION([$FC_VERSION" | cut -d: -f2"], [ge], [23.3],
+     [AX_COMPARE_VERSION([$FC_VERSION" | cut -d: -f2"], [ge], [23.3],
         [icon_warn=no])])
    AS_VAR_IF([icon_warn], [yes],
      [AC_MSG_WARN([Fortran compiler is not recognized as NVIDIA HPC Fortran dnl

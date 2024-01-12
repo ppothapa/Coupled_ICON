@@ -1,3 +1,33 @@
+# Copyright (c) 2018-2024, MPI-M
+#
+# Author: Sergey Kosukhin <sergey.kosukhin@mpimet.mpg.de>
+#
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions are met:
+#
+# 1. Redistributions of source code must retain the above copyright notice,
+#    this list of conditions and the following disclaimer.
+# 2. Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+# 3. Neither the name of the copyright holder nor the names of its
+#    contributors may be used to endorse or promote products derived from
+#    this software without specific prior written permission.
+#
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+# ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+# LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+# POSSIBILITY OF SUCH DAMAGE.
+
 # ACX_SHLIB_FC_RPATH_FLAG()
 # -----------------------------------------------------------------------------
 # Sets the result to the Fortran compiler flag needed to add a directory to the
@@ -113,8 +143,6 @@ the automatically generated PIC flags[]m4_ifnblank([$1],[ '$1'])])])])])
 
 # ACX_SHLIB_PATH_VAR()
 # -----------------------------------------------------------------------------
-# Originally taken from Libtools where it is part of libtool.m4.
-# -----------------------------------------------------------------------------
 # Sets the result to the name of the environment variable specifying the search
 # paths for shared libraries.
 #
@@ -125,26 +153,7 @@ AC_DEFUN([ACX_SHLIB_PATH_VAR],
    AC_CACHE_CHECK([for the name of the environment variable specifying the dnl
 search paths for shared libraries], [acx_cv_shlib_path_var],
      [AS_CASE([$host_os],
-        [aix3*], [acx_cv_shlib_path_var=LIBPATH],
-        [aix[[4-9]]*],
-           [AS_VAR_IF([host_cpu],
-              [ia64], [acx_cv_shlib_path_var=LD_LIBRARY_PATH],
-              [acx_cv_shlib_path_var=LIBPATH])],
-        [beos* | haiku*], [acx_cv_shlib_path_var=LIBRARY_PATH],
-        [cygwin* | mingw* | pw32* | cegcc*], [acx_cv_shlib_path_var=PATH],
-        [darwin* | rhapsody*], [acx_cv_shlib_path_var=DYLD_LIBRARY_PATH],
-        [hpux9* | hpux10* | hpux11*],
-           [AS_CASE([$host_cpu],
-              [ia64* | hppa*64*], [acx_cv_shlib_path_var=LD_LIBRARY_PATH],
-              [acx_cv_shlib_path_var=SHLIB_PATH])],
-        [irix6*],
-           [AS_CASE([$LD],
-              [*-n32|*"-n32 "|*-melf32bmipn32|*"-melf32bmipn32 "],
-                 [acx_cv_shlib_path_var=LD_LIBRARYN32_PATH],
-              [*-64|*"-64 "|*-melf64bmip|*"-melf64bmip "],
-                 [acx_cv_shlib_path_var=LD_LIBRARY64_PATH],
-                 [acx_cv_shlib_path_var=LD_LIBRARY_PATH])],
-        [os2*], [acx_cv_shlib_path_var=BEGINLIBPATH],
+        [darwin*], [acx_cv_shlib_path_var=DYLD_LIBRARY_PATH],
         [acx_cv_shlib_path_var=LD_LIBRARY_PATH])])])
 
 # _ACX_SHLIB_RPATH_FLAG()
