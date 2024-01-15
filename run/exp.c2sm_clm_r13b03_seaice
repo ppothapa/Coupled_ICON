@@ -466,7 +466,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
 /
 
 &nudging_nml
- nudge_type = 0
+ nudge_type = 1
  max_nudge_coeff_thermdyn = 0.075
  max_nudge_coeff_vn = 0.04
  nudge_start_height=10500
