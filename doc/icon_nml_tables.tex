@@ -7576,7 +7576,7 @@ calculating time steps.&
 %\hline
 \textbf{dtime} &
 R & 600.0& s&
-time step.\\
+model time step\\
 For real case runs the maximum allowable time step can be estimated as\\
  $1.8 \cdot \mathrm{ndyn\_substeps} \cdot \overline{\Delta x}\,\mathrm{s\, km^{-1}}$,\\
 where $\overline{\Delta x}$ is the average resolution in $\mathrm{km}$ and
@@ -7585,6 +7585,17 @@ nonhydrostatic\_nml.  ndyn\_substeps should not be increased beyond the
 default value $5$.&
 \tabularnewline
 
+%\hline
+\textbf{modelTimeStep} &
+C & ''& ISO8601 formatted string&
+model time step (\textbf{should be preferred over the concurrent namelist parameter dtime})\\
+For real case runs the maximum allowable time step can be estimated as\\
+ $1.8 \cdot \mathrm{ndyn\_substeps} \cdot \overline{\Delta x}\,\mathrm{s\, km^{-1}}$,\\
+where $\overline{\Delta x}$ is the average resolution in $\mathrm{km}$ and
+$\mathrm{ndyn\_substeps}$ is the number of dynamics substeps set in
+nonhydrostatic\_nml.  ndyn\_substeps should not be increased beyond the
+default value $5$.&
+\tabularnewline
 
 %\hline
 \textbf{ltestcase} &

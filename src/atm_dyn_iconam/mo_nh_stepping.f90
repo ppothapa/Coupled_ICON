@@ -965,7 +965,7 @@ MODULE mo_nh_stepping
   CALL printEventGroup(checkpointEvents)
 
   ! Create mtime events for optional NWP diagnostics
-  CALL setup_nwp_diag_events(lpi_max_Event, celltracks_Event, dbz_Event,hail_max_Event)
+  CALL setup_nwp_diag_events(time_config, lpi_max_Event, celltracks_Event, dbz_Event, hail_max_Event)
 
   ! set time loop properties
   model_time_step => time_config%tc_dt_model

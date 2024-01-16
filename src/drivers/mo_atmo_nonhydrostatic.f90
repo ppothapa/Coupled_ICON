@@ -346,7 +346,7 @@ CONTAINS
       CALL init_index_lists (p_patch(1:), ext_data)
 #endif
 
-      CALL configure_atm_phy_nwp(n_dom, p_patch(1:), dtime)
+      CALL configure_atm_phy_nwp(n_dom, p_patch(1:), time_config)
 
       CALL configure_synsat()
 
@@ -812,7 +812,7 @@ CONTAINS
       sim_step_info%run_start = time_config%tc_startdate
       sim_step_info%restart_time = time_config%tc_stopdate
 
-      sim_step_info%dtime      = dtime
+      sim_step_info%dtime  = time_config%get_model_timestep_sec(p_patch(1)%nest_level)
       sim_step_info%jstep0 = 0
 
       CALL getAttributesForRestarting(restartAttributes)

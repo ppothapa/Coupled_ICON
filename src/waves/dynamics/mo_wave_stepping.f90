@@ -21,7 +21,7 @@ MODULE mo_wave_stepping
   USE mo_parallel_config,          ONLY: proc0_offloading
   USE mo_time_config,              ONLY: t_time_config
   USE mtime,                       ONLY: datetime, timedelta, &
-       &                                 OPERATOR(+), OPERATOR(>=), getTotalSecondsTimedelta
+       &                                 OPERATOR(+), OPERATOR(>=)
   USE mo_util_mtime,               ONLY: mtime_utils, FMT_DDHHMMSS_DAYSEP, is_event_active
   USE mo_model_domain,             ONLY: p_patch
   USE mo_grid_config,              ONLY: n_dom, nroot
@@ -366,14 +366,7 @@ CONTAINS
         !
         IF (ltransport) THEN
           ! get model time step in seconds
-
-          ! dtime = time_config%get_model_timestep_sec(p_patch(jg)%nest_level)
-          ! TEMPORARY HACK
-          IF (jg == 1) THEN
-            dtime = getTotalSecondsTimedelta(time_config%tc_dt_model, time_config%tc_startdate)
-          ELSE
-            CALL finish(routine, 'automatic calculation of dtime for jg>1 not available yet.')
-          ENDIF
+          dtime = time_config%get_model_timestep_sec(p_patch(jg)%nest_level)
           !
           CALL wave_step_advection(p_patch                   = p_patch(jg),                          & !in
             &                      p_int_state               = p_int_state(jg),                      & !in
