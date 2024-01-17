@@ -21,7 +21,7 @@ digraph ICON {
 			       "NetCDF-Fortran"; "RTE+RRTMGP"; "ECRAD"; "BLAS";
 			       "LAPACK"; "RTTOV"; "SCT"; "YAXT"; "ECCODES";
 			       "CDI"; "SERIALBOX"; "MTIME"; "YAC"; "ICON-TIXI";
-			       "FORTRAN-SUPPORT"};
+			       "FORTRAN-SUPPORT"; "ComIn"};
 
 		"STDC++";
 
@@ -65,6 +65,8 @@ digraph ICON {
 
 		"CDI" [shape=box; fillcolor="#47A1F1"];
 		"CDI" -> {"MPI"; "YAXT"; "ECCODES"; "AEC / SZIP"; "NetCDF-C"; "PPM"};
+
+		"ComIn" [shape=box];
 
 		"SERIALBOX";
 		"SERIALBOX" -> {"STDC++"; "NetCDF-C"};
