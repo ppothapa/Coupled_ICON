@@ -17,16 +17,7 @@ use them either inside the [docker containers](#docker-containers) or
 
 The easiest way to build and run ICON on your personal machine is to use Docker
 images from the
-[Gitlab container registry](https://gitlab.dkrz.de/icon/icon/container_registry)
-associated with the [icon project](https://gitlab.dkrz.de/icon/icon).
-
-First, you will need to [install Docker](https://docs.docker.com/get-docker/) on
-your machine. Once that is done, you need to log in to the registry with the
-same credentials you are using to access ICON source code repository at
-[gitlab.dkrz.de](https://gitlab.dkrz.de/):
-```bash
-docker login registry.gitlab.dkrz.de
-```
+[`iconmodel` repository on Docker Hub](https://hub.docker.com/repositories/iconmodel).
 
 The recommended workflow is to build and run ICON inside the container and
 manage and edit the source code in a separate terminal, using the tools
@@ -38,7 +29,7 @@ the experiment you want to run and are not covered in this document.
 
 Run the container in the interactive mode as follows:
 ```bash
-docker run -it -v /path/to/icon-src:/home/icon/icon -v /path/to/pool:/home/icon/pool registry.gitlab.dkrz.de/icon/icon/icon-dev
+docker run -it -v /path/to/icon-src:/home/icon/icon -v /path/to/pool:/home/icon/pool iconmodel/icon-dev
 ```
 where `/path/to/icon-src` and `/path/to/pool` are paths to ICON source and
 `pool` directories on your machine, and `/home/icon/icon` and `/home/icon/pool`
