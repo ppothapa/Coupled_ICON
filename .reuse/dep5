@@ -51,3 +51,7 @@ Comment: see run/tolerance/hashes/LICENSE.md
 Files: scripts/postprocessing/Teleconnections/echam6cmip5
 Copyright: 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
 License: BSD-3-Clause
+
+Files: doc/contrib/*.jpg
+Copyright: 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
+License: CC-BY-4.0
