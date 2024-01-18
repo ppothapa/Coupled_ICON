@@ -19,18 +19,13 @@ License: CC-BY-4.0
 Comment: see data/LICENSE.md
 
 Files: configure
-Copyright: 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
-License: CC0-1.0
+Copyright: 1992-1996, 1998-2012 Free Software Foundation, Inc.
+License: FSFUL
 Comment: Generated file from autotools
 
-Files: utils/config.guess
-Copyright: 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
-License: CC0-1.0
-Comment: Generated file from autotools
-
-Files: utils/config.sub
-Copyright: 2004-2024, DWD, MPI-M, DKRZ, KIT, ETH, MeteoSwiss
-License: CC0-1.0
+Files: utils/config.*
+Copyright: 1992-2019 Free Software Foundation, Inc.
+License: GPL-3.0-or-later WITH Autoconf-exception-3.0
 Comment: Generated file from autotools
 
 Files: config.h.in
@@ -39,8 +34,8 @@ License: CC0-1.0
 Comment: Generated file from autotools
 
 Files: utils/install-sh
-Copyright: 0
-License: CC0-1.0
+Copyright: 1994 X Consortium
+License: X11
 Comment: Generated file from autotools
 
 Files: run/performance_reference/*
