@@ -83,7 +83,9 @@ MODULE mo_icon2dace
   !-----------------------------
   ! DACE general purpose modules
   !-----------------------------
+#ifndef NOMPI
   use mpi,            only: MPI_Comm_rank
+#endif
   use mo_mpi_dace,    only: dace,            &! DACE communicator
                             set_dace_comm,   &! set the DACE MPI communicator
 #ifdef __PGI
@@ -833,7 +835,11 @@ contains
     ou = dace_output_unit
 
     ! This is needed for consistency with set_dace_comm
+#ifndef NOMPI
     call MPI_COMM_RANK (comm, p_pe, ierr)
+#else
+    p_pe = 0
+#endif
 
     !-----------------------------------------------------
     ! Reconstruct owner information for cells and vertices

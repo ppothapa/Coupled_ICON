@@ -140,8 +140,10 @@ dependencies are provided together with the source code of ICON as git
 submodules and referred to as *bundled* later in the text.
 
 > **_NOTE:_** The term *bundled library* does not apply to all packages listed
-in [.gitmodules](/.gitmodules): some of them, e.g. JSBACH and ART, have circular
-dependencies with the ICON source code and therefore are treated as part of it.
+in [.gitmodules](/.gitmodules): some of them, e.g.
+[JSBACH](https://gitlab.dkrz.de/jsbach/jsbach) and
+[ICON-ART](https://www.icon-art.kit.edu), have circular dependencies with the
+ICON source code and therefore are treated as part of it.
 
 <a name="icon-depgraph"/>![ICON dependency graph](./config/icon-config-doc-depgraph.svg)
 
@@ -457,13 +459,13 @@ e.g. in `ICON_CDI_FCFLAGS` (or `ICON_CDI_CFLAGS`).
 ### Fortran compile groups
 
 Certain Fortran source files of ICON, including its components that do not have
-their own build system (currently, `JSBACH`, `ART`, `DACE` and `EMVORADO`) might
-require special compiler flags. Either due to a decision made by the developers
-(e.g. the ocean component) or due to compiler bugs (e.g. several source files of
-the `EMVORADO` component cannot be compiled with `PGI/NVHPC` compilers and
-optimization level `-O2`). Such cases can be covered with Fortran compile
-groups. For example, a separate set of flags for the ocean component can be
-specified at the configure time as follows:
+their own build system (currently, `JSBACH`, `ICON-ART`, `DACE` and `EMVORADO`)
+might require special compiler flags. Either due to a decision made by the
+developers (e.g. the ocean component) or due to compiler bugs (e.g. several
+source files of the `EMVORADO` component cannot be compiled with `PGI/NVHPC`
+compilers and optimization level `-O2`). Such cases can be covered with Fortran
+compile groups. For example, a separate set of flags for the ocean component can
+be specified at the configure time as follows:
 
 ```console
 $ ./configure \
@@ -1229,12 +1231,6 @@ cloning the git repository:
     ```console
     $ cd ./run && sbatch ./exp.atm_tracer_Hadley.run
     ```
-
-# ICON-ART
-ART stands for Aerosols and Reactive Trace gases which is a component of the ICON modeling framework to enable treatment of aerosols and chemical tracers and their interactions with the atmosphere. To enable this model component one has to use ```--enable-art``` during the configure phase. To use the features dependent on MECCA/KPP use instead ```--enable-art-gpl```.
-Additional information can be found on the [ICON-ART webpage](https://www.icon-art.kit.edu/).
-There is also a [user guide](https://www.icon-art.kit.edu/userguide/index.php?title=Main_Page) with further information on how to do model runs including ART.
-Currently we cannot guarantee that every configuration of ICON-ART beyond the standard configurations in ./externals/art/runctrl_examples/run_scripts/ will work without errors. Please direct any ART-related queries to kit-icon-gatekeepers@kit.edu
 
 # FAQ
 <a name="faq-1" href="#faq-1">1. **I run the configure script without any
