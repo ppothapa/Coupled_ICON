@@ -35,7 +35,7 @@ Comment: Generated file from autotools
 
 Files: utils/install-sh
 Copyright: 1994 X Consortium
-License: X11
+License: X11-distribute-modifications-variant
 Comment: Generated file from autotools
 
 Files: run/performance_reference/*
