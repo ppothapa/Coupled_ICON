@@ -234,8 +234,7 @@ MODULE mo_nh_stepping
   USE mo_nudging,                  ONLY: nudging_interface
   USE mo_nh_moist_thdyn,           ONLY: thermo_src_term
 #ifndef __NO_ICON_COMIN__
-  USE comin_host_interface,        ONLY: comin_callback_context_call, &
-    &                                    COMIN_DOMAIN_OUTSIDE_LOOP,   &
+  USE comin_host_interface,        ONLY: COMIN_DOMAIN_OUTSIDE_LOOP,   &
     &                                    EP_ATM_TIMELOOP_BEFORE,      &
     &                                    EP_ATM_TIMELOOP_START,       &
     &                                    EP_ATM_TIMELOOP_END,         &
@@ -255,7 +254,8 @@ MODULE mo_nh_stepping
     &                                    EP_ATM_NUDGING_BEFORE,       &
     &                                    EP_ATM_NUDGING_AFTER
   USE mo_comin_adapter,            ONLY: icon_update_current_datetime, &
-    &                                    icon_update_expose_variables
+    &                                    icon_update_expose_variables, &
+    &                                    icon_call_callback
 #endif
 
   !$ser verbatim USE mo_ser_all, ONLY: serialize_all
@@ -664,7 +664,7 @@ MODULE mo_nh_stepping
     END IF
 
 #ifndef __NO_ICON_COMIN__
-    CALL comin_callback_context_call(EP_ATM_WRITE_OUTPUT_BEFORE, COMIN_DOMAIN_OUTSIDE_LOOP)
+    CALL icon_call_callback(EP_ATM_WRITE_OUTPUT_BEFORE, COMIN_DOMAIN_OUTSIDE_LOOP)
 #endif
 
     IF (output_mode%l_nml) THEN
@@ -672,7 +672,7 @@ MODULE mo_nh_stepping
     END IF
 
 #ifndef __NO_ICON_COMIN__
-    CALL comin_callback_context_call(EP_ATM_WRITE_OUTPUT_AFTER, COMIN_DOMAIN_OUTSIDE_LOOP)
+    CALL icon_call_callback(EP_ATM_WRITE_OUTPUT_AFTER, COMIN_DOMAIN_OUTSIDE_LOOP)
 #endif
 
     !-----------------------------------------------
@@ -986,7 +986,7 @@ MODULE mo_nh_stepping
   !$ser verbatim ENDDO
   
 #ifndef __NO_ICON_COMIN__
-CALL comin_callback_context_call(EP_ATM_TIMELOOP_BEFORE, COMIN_DOMAIN_OUTSIDE_LOOP)
+  CALL icon_call_callback(EP_ATM_TIMELOOP_BEFORE, COMIN_DOMAIN_OUTSIDE_LOOP)
 #endif
 
   TIME_LOOP: DO
@@ -1004,7 +1004,7 @@ CALL comin_callback_context_call(EP_ATM_TIMELOOP_BEFORE, COMIN_DOMAIN_OUTSIDE_LO
     ENDDO
 
 #ifndef __NO_ICON_COMIN__
-CALL comin_callback_context_call(EP_ATM_TIMELOOP_START, COMIN_DOMAIN_OUTSIDE_LOOP)
+    CALL icon_call_callback(EP_ATM_TIMELOOP_START, COMIN_DOMAIN_OUTSIDE_LOOP)
 #endif
 
 #ifndef __NO_NWP__
@@ -1248,7 +1248,7 @@ CALL comin_callback_context_call(EP_ATM_TIMELOOP_START, COMIN_DOMAIN_OUTSIDE_LOO
 
 
 #ifndef __NO_ICON_COMIN__
-CALL comin_callback_context_call(EP_ATM_INTEGRATE_BEFORE, COMIN_DOMAIN_OUTSIDE_LOOP)
+    CALL icon_call_callback(EP_ATM_INTEGRATE_BEFORE, COMIN_DOMAIN_OUTSIDE_LOOP)
 #endif
 
     !--------------------------------------------------------------------------
@@ -1258,7 +1258,7 @@ CALL comin_callback_context_call(EP_ATM_INTEGRATE_BEFORE, COMIN_DOMAIN_OUTSIDE_L
     CALL integrate_nh(time_config, datetime_current, 1, jstep-jstep_shift, iau_iter, dtime, model_time_step, 1, latbc)
 
 #ifndef __NO_ICON_COMIN__
-CALL comin_callback_context_call(EP_ATM_INTEGRATE_AFTER, COMIN_DOMAIN_OUTSIDE_LOOP)
+    CALL icon_call_callback(EP_ATM_INTEGRATE_AFTER, COMIN_DOMAIN_OUTSIDE_LOOP)
 #endif
 
     ! --------------------------------------------------------------------------------
@@ -1488,7 +1488,7 @@ CALL comin_callback_context_call(EP_ATM_INTEGRATE_AFTER, COMIN_DOMAIN_OUTSIDE_LO
     !$ser verbatim ENDDO
 
 #ifndef __NO_ICON_COMIN__
-    CALL comin_callback_context_call(EP_ATM_WRITE_OUTPUT_BEFORE, COMIN_DOMAIN_OUTSIDE_LOOP)
+    CALL icon_call_callback(EP_ATM_WRITE_OUTPUT_BEFORE, COMIN_DOMAIN_OUTSIDE_LOOP)
 #endif
 
     ! output of results
@@ -1498,7 +1498,7 @@ CALL comin_callback_context_call(EP_ATM_INTEGRATE_AFTER, COMIN_DOMAIN_OUTSIDE_LO
     ENDIF
 
 #ifndef __NO_ICON_COMIN__
-    CALL comin_callback_context_call(EP_ATM_WRITE_OUTPUT_AFTER, COMIN_DOMAIN_OUTSIDE_LOOP)
+    CALL icon_call_callback(EP_ATM_WRITE_OUTPUT_AFTER, COMIN_DOMAIN_OUTSIDE_LOOP)
 #endif
 
     ! sample meteogram output
@@ -1613,7 +1613,7 @@ CALL comin_callback_context_call(EP_ATM_INTEGRATE_AFTER, COMIN_DOMAIN_OUTSIDE_LO
 
     IF (lwrite_checkpoint) THEN
 #ifndef __NO_ICON_COMIN__
-      CALL comin_callback_context_call(EP_ATM_CHECKPOINT_BEFORE, COMIN_DOMAIN_OUTSIDE_LOOP)
+      CALL icon_call_callback(EP_ATM_CHECKPOINT_BEFORE, COMIN_DOMAIN_OUTSIDE_LOOP)
 #endif
 
       CALL diag_for_output_dyn ()
@@ -1670,7 +1670,7 @@ CALL comin_callback_context_call(EP_ATM_INTEGRATE_AFTER, COMIN_DOMAIN_OUTSIDE_LO
         ENDIF
 #endif
 #ifndef __NO_ICON_COMIN__
-      CALL comin_callback_context_call(EP_ATM_CHECKPOINT_AFTER, COMIN_DOMAIN_OUTSIDE_LOOP)
+        CALL icon_call_callback(EP_ATM_CHECKPOINT_AFTER, COMIN_DOMAIN_OUTSIDE_LOOP)
 #endif
     END IF  ! lwrite_checkpoint
 
@@ -1700,7 +1700,7 @@ CALL comin_callback_context_call(EP_ATM_INTEGRATE_AFTER, COMIN_DOMAIN_OUTSIDE_LO
     !$ser verbatim ENDDO
 
 #ifndef __NO_ICON_COMIN__
-    CALL comin_callback_context_call(EP_ATM_TIMELOOP_END, COMIN_DOMAIN_OUTSIDE_LOOP)
+    CALL icon_call_callback(EP_ATM_TIMELOOP_END, COMIN_DOMAIN_OUTSIDE_LOOP)
 #endif
 
     IF (mtime_current >= time_config%tc_stopdate .OR. lstop_on_demand) THEN
@@ -1715,7 +1715,7 @@ CALL comin_callback_context_call(EP_ATM_INTEGRATE_AFTER, COMIN_DOMAIN_OUTSIDE_LO
   ENDDO TIME_LOOP
 
 #ifndef __NO_ICON_COMIN__
-    CALL comin_callback_context_call(EP_ATM_TIMELOOP_AFTER, COMIN_DOMAIN_OUTSIDE_LOOP)
+  CALL icon_call_callback(EP_ATM_TIMELOOP_AFTER, COMIN_DOMAIN_OUTSIDE_LOOP)
 #endif
 
   ! clean-up routine for mo_nh_supervise module (eg. closing of files)
@@ -1837,7 +1837,7 @@ CALL comin_callback_context_call(EP_ATM_INTEGRATE_AFTER, COMIN_DOMAIN_OUTSIDE_LO
 #endif
 
 #ifndef __NO_ICON_COMIN__
-      CALL comin_callback_context_call(EP_ATM_INTEGRATE_START, jg)
+      CALL icon_call_callback(EP_ATM_INTEGRATE_START, jg)
 #endif
 
       IF (ifeedback_type == 1 .AND. (jstep == 1) .AND. jg > 1 ) THEN
@@ -1941,7 +1941,7 @@ CALL comin_callback_context_call(EP_ATM_INTEGRATE_AFTER, COMIN_DOMAIN_OUTSIDE_LO
         ENDIF
 
 #ifndef __NO_ICON_COMIN__
-        CALL comin_callback_context_call(EP_ATM_ADVECTION_BEFORE, jg)
+        CALL icon_call_callback(EP_ATM_ADVECTION_BEFORE, jg)
 #endif
 
 #ifdef MESSY
@@ -2009,7 +2009,7 @@ CALL comin_callback_context_call(EP_ATM_INTEGRATE_AFTER, COMIN_DOMAIN_OUTSIDE_LO
           &       opt_ddt_tracer_adv= p_nh_state(jg)%diag%ddt_tracer_adv     ) !optout
 
 #ifndef __NO_ICON_COMIN__
-      CALL comin_callback_context_call(EP_ATM_ADVECTION_AFTER, jg)
+        CALL icon_call_callback(EP_ATM_ADVECTION_AFTER, jg)
 #endif
 
 #ifdef MESSY
@@ -2078,7 +2078,7 @@ CALL comin_callback_context_call(EP_ATM_INTEGRATE_AFTER, COMIN_DOMAIN_OUTSIDE_LO
 
 #ifndef __NO_ICON_COMIN__
         CALL icon_update_expose_variables(TLEV_NNOW, nnew(jg))
-        CALL comin_callback_context_call(EP_ATM_ADVECTION_BEFORE, jg)
+        CALL icon_call_callback(EP_ATM_ADVECTION_BEFORE, jg)
 #endif
 
 #ifdef MESSY
@@ -2186,7 +2186,7 @@ CALL comin_callback_context_call(EP_ATM_INTEGRATE_AFTER, COMIN_DOMAIN_OUTSIDE_LO
         ENDIF !ltransport
 
 #ifndef __NO_ICON_COMIN__
-        CALL comin_callback_context_call(EP_ATM_ADVECTION_AFTER, jg)
+        CALL icon_call_callback(EP_ATM_ADVECTION_AFTER, jg)
 #endif
 
 #ifdef MESSY
@@ -2214,7 +2214,7 @@ CALL comin_callback_context_call(EP_ATM_INTEGRATE_AFTER, COMIN_DOMAIN_OUTSIDE_LO
         ENDIF
 
 #ifndef __NO_ICON_COMIN__
-        CALL comin_callback_context_call(EP_ATM_PHYSICS_BEFORE, jg)
+        CALL icon_call_callback(EP_ATM_PHYSICS_BEFORE, jg)
 #endif
 
         IF ( ( iforcing==inwp .OR. iforcing==iaes ) ) THEN
@@ -2378,7 +2378,7 @@ CALL comin_callback_context_call(EP_ATM_INTEGRATE_AFTER, COMIN_DOMAIN_OUTSIDE_LO
         ENDIF
 
 #ifndef __NO_ICON_COMIN__
-        CALL comin_callback_context_call(EP_ATM_PHYSICS_AFTER, jg)
+        CALL icon_call_callback(EP_ATM_PHYSICS_AFTER, jg)
 #endif
 
 #ifdef MESSY
@@ -2389,7 +2389,7 @@ CALL comin_callback_context_call(EP_ATM_INTEGRATE_AFTER, COMIN_DOMAIN_OUTSIDE_LO
       ENDIF  ! itime_scheme
 
 #ifndef __NO_ICON_COMIN__
-        CALL comin_callback_context_call(EP_ATM_NUDGING_BEFORE, jg)
+      CALL icon_call_callback(EP_ATM_NUDGING_BEFORE, jg)
 #endif
 
       !
@@ -2475,7 +2475,7 @@ CALL comin_callback_context_call(EP_ATM_INTEGRATE_AFTER, COMIN_DOMAIN_OUTSIDE_LO
       ENDIF
 
 #ifndef __NO_ICON_COMIN__
-        CALL comin_callback_context_call(EP_ATM_NUDGING_AFTER, jg)
+      CALL icon_call_callback(EP_ATM_NUDGING_AFTER, jg)
 #endif
 
       ! Check if at least one of the nested domains is active
@@ -2750,7 +2750,7 @@ CALL comin_callback_context_call(EP_ATM_INTEGRATE_AFTER, COMIN_DOMAIN_OUTSIDE_LO
       ENDIF
 
 #ifndef __NO_ICON_COMIN__
-      CALL comin_callback_context_call(EP_ATM_INTEGRATE_END, jg)
+      CALL icon_call_callback(EP_ATM_INTEGRATE_END, jg)
 #endif
 
 #ifdef MESSY

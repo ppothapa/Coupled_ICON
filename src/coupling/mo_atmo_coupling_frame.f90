@@ -64,14 +64,14 @@ MODULE mo_atmo_coupling_frame
        &                               timedeltaToString, MAX_TIMEDELTA_STR_LEN
 
 #ifndef __NO_ICON_COMIN__
-  USE comin_host_interface, ONLY: comin_callback_context_call,     &
-       &                          EP_ATM_YAC_DEFCOMP_BEFORE,       &
+  USE comin_host_interface, ONLY: EP_ATM_YAC_DEFCOMP_BEFORE,       &
        &                          EP_ATM_YAC_DEFCOMP_AFTER,        &
        &                          EP_ATM_YAC_SYNCDEF_BEFORE,       &
        &                          EP_ATM_YAC_SYNCDEF_AFTER,        &
        &                          EP_ATM_YAC_ENDDEF_BEFORE,        &
        &                          EP_ATM_YAC_ENDDEF_AFTER,         &
        &                          COMIN_DOMAIN_OUTSIDE_LOOP
+  USE mo_comin_adapter,     ONLY: icon_call_callback
 #endif
 
   IMPLICIT NONE
@@ -152,14 +152,14 @@ CONTAINS
          &                   end_datetime   = TRIM(stopdatestring)   )
 
 #ifndef __NO_ICON_COMIN__
-    CALL comin_callback_context_call(EP_ATM_YAC_DEFCOMP_BEFORE, COMIN_DOMAIN_OUTSIDE_LOOP)
+    CALL icon_call_callback(EP_ATM_YAC_DEFCOMP_BEFORE, COMIN_DOMAIN_OUTSIDE_LOOP)
 #endif
 
     ! Inform the coupler about what we are
     CALL yac_fdef_comp ( TRIM(get_my_process_name()), comp_id )
 
 #ifndef __NO_ICON_COMIN__
-    CALL comin_callback_context_call(EP_ATM_YAC_DEFCOMP_AFTER, COMIN_DOMAIN_OUTSIDE_LOOP)
+    CALL icon_call_callback(EP_ATM_YAC_DEFCOMP_AFTER, COMIN_DOMAIN_OUTSIDE_LOOP)
 #endif
 
     ! Announce one grid (patch) to the coupler
@@ -283,7 +283,6 @@ CONTAINS
       CALL construct_atmo_ocean_coupling( &
         p_patch, comp_id, grid_id, cell_point_id, timestepstring)
 
-
 #if !defined(__NO_JSBACH__) && !defined(__NO_JSBACH_HD__)
 
       ! Define coupling of runoff if HD model is present and interface is coded
@@ -320,14 +319,14 @@ CONTAINS
     END IF
 
 #ifndef __NO_ICON_COMIN__
-    CALL comin_callback_context_call(EP_ATM_YAC_SYNCDEF_BEFORE, COMIN_DOMAIN_OUTSIDE_LOOP)
+    CALL icon_call_callback(EP_ATM_YAC_SYNCDEF_BEFORE, COMIN_DOMAIN_OUTSIDE_LOOP)
 #endif
 
     ! Synchronize all definitions until this point with other components
     CALL yac_fsync_def()
 
 #ifndef __NO_ICON_COMIN__
-    CALL comin_callback_context_call(EP_ATM_YAC_SYNCDEF_AFTER, COMIN_DOMAIN_OUTSIDE_LOOP)
+    CALL icon_call_callback(EP_ATM_YAC_SYNCDEF_AFTER, COMIN_DOMAIN_OUTSIDE_LOOP)
 #endif
 
     ! add Ozone data field if needed
@@ -361,13 +360,13 @@ CONTAINS
     ! End definition of coupling fields and search
 
 #ifndef __NO_ICON_COMIN__
-    CALL comin_callback_context_call(EP_ATM_YAC_ENDDEF_BEFORE, COMIN_DOMAIN_OUTSIDE_LOOP)
+    CALL icon_call_callback(EP_ATM_YAC_ENDDEF_BEFORE, COMIN_DOMAIN_OUTSIDE_LOOP)
 #endif
 
     CALL yac_fenddef ( )
 
 #ifndef __NO_ICON_COMIN__
-    CALL comin_callback_context_call(EP_ATM_YAC_ENDDEF_AFTER, COMIN_DOMAIN_OUTSIDE_LOOP)
+    CALL icon_call_callback(EP_ATM_YAC_ENDDEF_AFTER, COMIN_DOMAIN_OUTSIDE_LOOP)
 #endif
 
     IF (ltimer) CALL timer_stop(timer_coupling_init)

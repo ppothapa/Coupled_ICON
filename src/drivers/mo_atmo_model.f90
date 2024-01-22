@@ -163,6 +163,7 @@ MODULE mo_atmo_model
   USE mo_mpi,                     ONLY: p_comm_comin
   USE mo_master_control,          ONLY: get_my_process_name
   USE mo_impl_constants,          ONLY: max_dom
+  USE mo_timer,                   ONLY: timer_comin_primary_constructors
 #endif
 
   !-------------------------------------------------------------------------
@@ -673,7 +674,9 @@ CONTAINS
     CALL icon_expose_descrdata_state(sim_start, sim_end, sim_current, run_start, run_stop)
     CALL icon_expose_timesteplength_domain(1, dtime)
     ! - call primary constructors
+    IF (timers_level > 2) CALL timer_start(timer_comin_primary_constructors)
     CALL comin_plugin_primaryconstructor(comin_config%plugin_list(1:comin_config%nplugins), ierr)
+    IF (timers_level > 2) CALL timer_stop(timer_comin_primary_constructors)
     IF (ierr /= SUCCESS) THEN
       CALL finish(routine, "ICON ComIn: Call of primary constructors failed!")
     ENDIF
