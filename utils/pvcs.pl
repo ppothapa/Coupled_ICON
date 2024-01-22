@@ -150,7 +150,7 @@ if ( $version == 1 ){
     open $version_v, ">", "$version_fn" or die "$0: open $version_fn: $!";
     print $version_v "ICON remote URL:     $remote_url\n";
     print $version_v "ICON branch:         $branch\n";
-    print $version_v "ICON revision:       $revision\n"; 
+    print $version_v "ICON revision:       retrieved from VERSION file\n"; 
     print $version_v "ICON tag:            $git_tag\n"; 
     print $version_v "ICON ART remote URL: $art_remote_url\n";
     print $version_v "ICON ART branch:     $art_branch\n";
