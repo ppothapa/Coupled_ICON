@@ -101,8 +101,8 @@ SUBROUTINE recon_lsq_cell_l( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
   &                          opt_slev, opt_elev, opt_rlstart,       &
   &                          opt_rlend, opt_lconsv, opt_acc_async )
 
-  TYPE(t_patch), TARGET, INTENT(IN) :: &  !< patch on which computation 
-    &  ptr_patch                          !<is performed
+  TYPE(t_patch), INTENT(IN)     :: &    !< patch on which computation
+    &  ptr_patch                        !<is performed
 
   TYPE(t_lsq), TARGET, INTENT(IN) :: &  !< data structure for interpolation
     &  ptr_int_lsq
@@ -180,9 +180,8 @@ SUBROUTINE recon_lsq_cell_l( p_cc, ptr_patch, ptr_int_lsq, p_coeff, &
   i_endblk   = ptr_patch%cells%end_block(rl_end)
 
   ! pointers to line and block indices of stencil
-  iidx => ptr_patch%cells%neighbor_idx
-  iblk => ptr_patch%cells%neighbor_blk
-
+  iidx => ptr_int_lsq%lsq_idx_c
+  iblk => ptr_int_lsq%lsq_blk_c
 
 
   !
@@ -355,8 +354,8 @@ SUBROUTINE recon_lsq_cell_l_svd( p_cc, ptr_patch, ptr_int_lsq, p_coeff,      &
   &                              opt_slev, opt_elev, opt_rlstart, opt_rlend, &
   &                              opt_lconsv, opt_acc_async )
 
-  TYPE(t_patch), TARGET, INTENT(IN) :: &  !< patch on which computation 
-    &  ptr_patch                          !< is performed
+  TYPE(t_patch), INTENT(IN)     :: &    !< patch on which computation
+    &  ptr_patch                        !< is performed
 
   TYPE(t_lsq), TARGET, INTENT(IN) :: &  !< data structure for interpolation
     &  ptr_int_lsq
@@ -431,8 +430,8 @@ SUBROUTINE recon_lsq_cell_l_svd( p_cc, ptr_patch, ptr_int_lsq, p_coeff,      &
   i_endblk   = ptr_patch%cells%end_block(rl_end)
 
   ! pointers to line and block indices of stencil
-  iidx => ptr_patch%cells%neighbor_idx
-  iblk => ptr_patch%cells%neighbor_blk
+  iidx => ptr_int_lsq%lsq_idx_c
+  iblk => ptr_int_lsq%lsq_blk_c
 
 
 !$OMP PARALLEL

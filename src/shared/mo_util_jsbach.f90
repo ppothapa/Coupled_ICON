@@ -381,7 +381,6 @@ MODULE mo_jsb_time_iface
     &                                  divideDatetimeDifferenceInSeconds !, isCurrentEventActive,      &
   USE mo_time_config,            ONLY: time_config !configure_time
   USE mo_time_nml,               ONLY: read_time_namelist
-  USE mo_dynamics_config,        ONLY: iequations
   USE mo_bcs_time_interpolation, ONLY: t_time_interpolation_weights,              &
     &                                  calculate_time_interpolation_weights
   USE mo_aes_phy_config,         ONLY: aes_phy_tc, dt_zero
@@ -758,11 +757,7 @@ CONTAINS
   REAL(wp) FUNCTION get_asselin_coef()
     CHARACTER(len=*), PARAMETER :: routine = modname//':get_asselin_coef'
 
-    SELECT CASE(iequations)
-    !
-    CASE DEFAULT
-      get_asselin_coef = 0._wp
-    END SELECT
+    get_asselin_coef = 0._wp
 
   END FUNCTION get_asselin_coef
 

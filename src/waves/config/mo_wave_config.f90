@@ -92,6 +92,8 @@ MODULE mo_wave_config
     LOGICAL :: lwave_stress1   ! if .TRUE., calculate wave stress, first call
     LOGICAL :: lwave_stress2   ! if .TRUE., calculate wave stress, second call
 
+    REAL(wp) :: peak_u10, peak_v10 ! peak value (m/s) of 10 m U and V wind speed for test case
+    REAL(wp) :: peak_lat, peak_lon ! geographical location (deg) of wind peak value
 
     ! derived variables and fields
     !

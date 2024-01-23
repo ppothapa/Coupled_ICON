@@ -36,8 +36,8 @@ MODULE mo_bc_ozone
        &                                      calculate_time_interpolation_weights
 
 #ifdef YAC_coupling
-  USE mo_atmo_coupling_frame,      ONLY: field_id
-  USE mo_yac_finterface
+  USE mo_atmo_o3_provider_coupling, ONLY: field_id_o3, nplev_o3_provider
+  USE mo_yac_finterface,            ONLY: yac_fget
 #endif
   USE mo_sync,                     ONLY: sync_c, sync_patch_array
 
@@ -126,7 +126,7 @@ CONTAINS
 #ifdef YAC_coupling
     IF (from_yac) THEN
 
-       nplev_o3 =  yac_fget_field_collection_size(field_id(14))
+       nplev_o3 =  nplev_o3_provider
        ext_ozone(jg)%nplev_o3 = nplev_o3
 
        IF ( .NOT. ALLOCATED(yac_recv_buf) ) &
@@ -136,7 +136,7 @@ CONTAINS
           ext_ozone(jg)% o3_plev = 0
        END IF
 
-       CALL yac_fget(field_id(14), p_patch%n_patch_cells, nplev_o3, &
+       CALL yac_fget(field_id_o3, p_patch%n_patch_cells, nplev_o3, &
             yac_recv_buf, info, ierr)
 
        IF ( info > 0 .AND. info < 7 ) THEN

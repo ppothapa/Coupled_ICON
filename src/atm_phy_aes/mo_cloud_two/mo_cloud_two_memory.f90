@@ -20,7 +20,7 @@ MODULE mo_cloud_two_memory
 
   USE mo_model_domain            ,ONLY: t_patch
   USE mo_parallel_config         ,ONLY: nproma
-  USE mo_time_config             ,ONLY: get_dynamics_timestep
+  USE mo_time_config             ,ONLY: time_config
   USE mo_aes_phy_config          ,ONLY: aes_phy_tc, dt_zero
   USE mo_io_config               ,ONLY: lnetcdf_flt64_output
   USE mo_name_list_output_config ,ONLY: is_variable_in_output
@@ -100,7 +100,7 @@ CONTAINS
           !
           nlev   = patch_array(jg)%nlev
           nblks  = patch_array(jg)%nblks_c
-          dt_dyn = get_dynamics_timestep(patch_array(jg))
+          dt_dyn = time_config%get_model_timestep_td(patch_array(jg)%nest_level)
           !
           CALL construct_cloud_two_list( jg,                  &
                &                         nproma, nlev, nblks, &

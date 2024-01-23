@@ -98,6 +98,10 @@ CONTAINS
     LOGICAL :: lwave_stress1   ! if .TRUE., calculate wave stress, first call
     LOGICAL :: lwave_stress2   ! if .TRUE., calculate wave stress, second call
 
+    ! for test case
+    REAL(wp) :: peak_u10, peak_v10 ! peak values (m/s) of 10 m U and V wind speed for test case
+    REAL(wp) :: peak_lat, peak_lon ! geographical location (deg) of wind peak value
+
 
     NAMELIST /wave_nml/ &
          forc_file_prefix,          &
@@ -106,7 +110,7 @@ CONTAINS
          roair, RNUAIR, RNUAIRM, ROWATER, XEPS, XINVEPS, &
          XKAPPA, XNLEV, BETAMAX, ZALP, jtot_tauhf, ALPHA_CH, depth, niter_smooth, &
          linput_sf1, linput_sf2, ldissip_sf, lnon_linear_sf, lbottom_fric_sf, &
-         lwave_stress1, lwave_stress2
+         lwave_stress1, lwave_stress2, peak_u10, peak_v10, peak_lat, peak_lon
 
     !-----------------------------------------------------------
     ! 1. default settings
@@ -154,6 +158,11 @@ CONTAINS
     lbottom_fric_sf =  .TRUE. !< if .TRUE., calculate bottom_friction source function term
     lwave_stress1  =   .TRUE. !< if .TRUE., calculate wave stress, first call
     lwave_stress2  =   .TRUE. !< if .TRUE., calculate wave stress, second call
+
+    peak_u10   = 9.0_wp     !! peak value (m/s) of 10 m U wind component for test case
+    peak_v10   = 9.0_wp     !! peak value (m/s) of 10 m V wind component for test case
+    peak_lat   = -60.0_wp   !! latitude (deg) of wind peak value
+    peak_lon   = -140.0_wp  !! longitude (deg) of wind peak value
 
 
     !------------------------------------------------------------------
@@ -237,6 +246,10 @@ CONTAINS
       wave_config(jg)%lbottom_fric_sf   = lbottom_fric_sf
       wave_config(jg)%lwave_stress1     = lwave_stress1
       wave_config(jg)%lwave_stress2     = lwave_stress2
+      wave_config(jg)%peak_u10          = peak_u10
+      wave_config(jg)%peak_v10          = peak_v10
+      wave_config(jg)%peak_lat          = peak_lat
+      wave_config(jg)%peak_lon          = peak_lon
 
     ENDDO
 

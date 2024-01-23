@@ -29,6 +29,10 @@ MODULE mo_coupling_nml
     &                           config_coupled_to_hydrodisc, config_coupled_to_atmo,    &
     &                           config_coupled_to_output
   USE mo_coupling,        ONLY: coupler_config_files_exist
+  USE mo_master_control,  ONLY: get_my_process_type, get_my_process_name,           &
+    &                           atmo_process, ocean_process, ps_radiation_process,  &
+    &                           hamocc_process, jsbach_process, icon_output_process,&
+    &                           wave_process, testbed_process
 
   IMPLICIT NONE
 
@@ -52,9 +56,16 @@ CONTAINS
     !
     ! Local variables
     !
-    LOGICAL :: coupled_to_ocean, coupled_to_waves, coupled_to_atmo, coupled_to_hydrodisc, coupled_to_output
+    LOGICAL :: coupled_to_ocean, can_couple_to_ocean, &
+               coupled_to_waves, can_couple_to_waves, &
+               coupled_to_atmo, can_couple_to_atmo, &
+               coupled_to_hydrodisc, can_couple_to_hydrodisc, &
+               coupled_to_output, can_couple_to_output
+
     LOGICAL :: coupled_mode
     INTEGER :: istat
+
+    INTEGER :: my_process_component
 
     CHARACTER(len=max_char_length), PARAMETER :: &
          &   routine = 'mo_coupling_nml:read_coupling_namelist'
@@ -71,6 +82,12 @@ CONTAINS
     coupled_to_atmo      = .FALSE.
     coupled_to_hydrodisc = .FALSE.
     coupled_to_output    = .FALSE.
+
+    can_couple_to_ocean     = .FALSE.
+    can_couple_to_waves     = .FALSE.
+    can_couple_to_atmo      = .FALSE.
+    can_couple_to_hydrodisc = .FALSE.
+    can_couple_to_output    = .FALSE.
 
     !--------------------------------------------------------------------
     ! 2. Read user's (new) specifications (done so far by all MPI processes)
@@ -95,12 +112,71 @@ CONTAINS
     config_coupled_to_hydrodisc = coupled_to_hydrodisc
     config_coupled_to_output    = coupled_to_output
 
+    coupled_mode = ANY((/coupled_to_ocean, &
+                         coupled_to_waves, &
+                         coupled_to_atmo,  &
+                         coupled_to_hydrodisc, &
+                         coupled_to_output/))
+
     !----------------------------------------------------
     ! 3. Sanity checks
     !----------------------------------------------------
 
-    coupled_mode = ANY((/coupled_to_ocean,coupled_to_waves,coupled_to_atmo, &
-         & coupled_to_hydrodisc, coupled_to_output/))
+    my_process_component = get_my_process_type()
+
+    ! set supported coupling types
+
+    SELECT CASE (my_process_component)
+      CASE (atmo_process)
+        can_couple_to_ocean = .TRUE.
+        can_couple_to_waves = .TRUE.
+        can_couple_to_hydrodisc = .TRUE.
+        can_couple_to_output = .TRUE.
+      CASE (ocean_process)
+        can_couple_to_atmo = .TRUE.
+        can_couple_to_output = .TRUE.
+      CASE (hamocc_process)
+        can_couple_to_atmo = .TRUE.
+      CASE (wave_process)
+        can_couple_to_atmo = .TRUE.
+      CASE (jsbach_process)
+        can_couple_to_ocean = .TRUE.
+      CASE (testbed_process)
+      CASE (icon_output_process)
+      CASE default
+        CALL finish(routine, "my_process_component is unsupported")
+    END SELECT
+
+    ! checks for unsupported values in coupling_nml
+    IF (coupled_to_ocean .AND. .NOT. can_couple_to_ocean) THEN
+      CALL finish( &
+        routine, 'Component ' // TRIM(get_my_process_name()) // &
+        ' does not support coupling to ocean')
+    ENDIF
+
+    IF (coupled_to_waves .AND. .NOT. can_couple_to_waves) THEN
+      CALL finish( &
+        routine, 'Component ' // TRIM(get_my_process_name()) // &
+        ' does not support coupling to waves')
+    ENDIF
+
+    IF (coupled_to_atmo .AND. .NOT. can_couple_to_atmo) THEN
+      CALL finish( &
+        routine, 'Component ' // TRIM(get_my_process_name()) // &
+        ' does not support coupling to atmo')
+    ENDIF
+
+    IF (coupled_to_hydrodisc .AND. .NOT. can_couple_to_hydrodisc) THEN
+      CALL finish( &
+        routine, 'Component ' // TRIM(get_my_process_name()) // &
+        ' does not support coupling to hydrodisc')
+    ENDIF
+
+    IF (coupled_to_output .AND. .NOT. can_couple_to_output) THEN
+      CALL finish( &
+        routine, 'Component ' // TRIM(get_my_process_name()) // &
+        ' does not support coupling to output')
+    ENDIF
 
     IF (coupled_mode .AND. .NOT. coupler_config_files_exist()) THEN
       CALL message( &

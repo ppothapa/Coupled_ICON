@@ -418,6 +418,8 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
       &     diag%dursun_r, &
       &     diag%echotop, &
       &     diag%echotopinm, &
+      &     diag%fac_entrorg, &
+      &     diag%fac_rmfdeps, &
       &     diag%graupel_gsp, &
       &     diag%graupel_gsp_rate, &
       &     diag%hail_gsp, &
@@ -1359,6 +1361,24 @@ SUBROUTINE new_nwp_phy_diag_list( k_jg, klev, klevp1, kblks,    &
       & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,          &
       & ldims=shape2d, lrestart=.FALSE., initval=1._wp, lopenacc=.TRUE. )
     __acc_attach(diag%fac_ccqc)
+
+    ! &      diag%fac_entrorg(nproma,nblks_c)
+    cf_desc    = t_cf_var('fac_entrorg', ' ','perturbation factor for entrainment parameter', &
+         &                DATATYPE_FLT32)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( diag_list, 'fac_entrorg', diag%fac_entrorg,                   &
+      & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,          &
+      & ldims=shape2d, lrestart=.FALSE., initval=1._wp, lopenacc=.TRUE. )
+    __acc_attach(diag%fac_entrorg)
+
+    ! &      diag%fac_rmfdeps(nproma,nblks_c)
+    cf_desc    = t_cf_var('fac_rmfdeps', ' ','perturbation factor for downdraft mass flux', &
+         &                DATATYPE_FLT32)
+    grib2_desc = grib2_var(255, 255, 255, ibits, GRID_UNSTRUCTURED, GRID_CELL)
+    CALL add_var( diag_list, 'fac_rmfdeps', diag%fac_rmfdeps,                   &
+      & GRID_UNSTRUCTURED_CELL, ZA_SURFACE, cf_desc, grib2_desc,          &
+      & ldims=shape2d, lrestart=.FALSE., initval=1._wp, lopenacc=.TRUE. )
+    __acc_attach(diag%fac_rmfdeps)
 
     ! &      diag%hbas_con(nproma,nblks_c)
     cf_desc    = t_cf_var('hbas_con', 'm', 'height of convective cloud base', datatype_flt)

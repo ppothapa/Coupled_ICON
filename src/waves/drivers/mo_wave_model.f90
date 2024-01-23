@@ -190,7 +190,7 @@ CONTAINS
 
     IF (timers_level > 4) CALL timer_start(timer_domain_decomp)
 
-    CALL build_decomposition(num_lev, nshift, is_ocean_decomposition = .true.)
+    CALL build_decomposition(num_lev, nshift, is_ocean_decomposition = .FALSE.)
 
     IF (timers_level > 4) CALL timer_stop(timer_domain_decomp)
 

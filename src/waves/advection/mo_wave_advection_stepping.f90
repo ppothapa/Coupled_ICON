@@ -181,13 +181,13 @@ CONTAINS
 
 
     ! start and end cells for flux divergence calculation
-    i_rlstart_c  = 3
+    i_rlstart_c  = 1
     i_rlend_c    = min_rlcell_int
     i_startblk_c = p_patch%cells%start_block(i_rlstart_c)
     i_endblk_c   = p_patch%cells%end_block(i_rlend_c)
 
     ! start and end egdes for flux computation and backward trajectories
-    i_rlstart_e  = 5
+    i_rlstart_e  = 1
     i_rlend_e    = min_rledge_int - 1
 
     ! start and end cells for lateral boundary updates
@@ -241,8 +241,8 @@ CONTAINS
         &         opt_rhodz_now   = z_rhodz(:,:,:),           & !in
         &         opt_rhodz_new   = z_rhodz(:,:,:),           & !in
         &         opt_lconsv      = llsq_lin_consv,           & !in
-        &         opt_rlstart     = i_rlstart_e,              & !in
-        &         opt_rlend       = i_rlend_e,                & !in
+        &         opt_rlstart_e   = i_rlstart_e,              & !in
+        &         opt_rlend_e     = i_rlend_e,                & !in
         &         opt_slev        = 1,                        & !in
         &         opt_elev        = 1                         ) !in
 

@@ -23,7 +23,7 @@ MODULE mo_initicon_utils
   USE mo_kind,                ONLY: wp
   USE mo_parallel_config,     ONLY: nproma
   USE mo_run_config,          ONLY: msg_level, ntracer, iqv, iqc, iqi, iqr, iqs, iqg, iforcing, &
-                                    iqh, iqnc, iqni, iqnr, iqns, iqng, iqnh, iqgl, iqhl
+                                    iqh, iqnc, iqni, iqnr, iqns, iqng, iqnh
   USE mo_dynamics_config,     ONLY: nnow, nnow_rcf, nnew, nnew_rcf
   USE mo_model_domain,        ONLY: t_patch
   USE mo_nonhydro_state,      ONLY: p_nh_state
@@ -59,7 +59,7 @@ MODULE mo_initicon_utils
   USE mo_nwp_phy_types,       ONLY: t_nwp_phy_diag
   USE sfc_terra_data,         ONLY: csalb_snow_min, csalb_snow_max, csalb_snow, crhosmin_ml, crhosmax_ml, &
     &                               cpwp, cfcap
-  USE mo_physical_constants,  ONLY: tf_salt, tmelt, cpd, rd, cvd_o_rd, p0ref, vtmpc1, ci, clw, cpv, cvd, cvv
+  USE mo_physical_constants,  ONLY: tf_salt, tmelt, cpd, rd, cvd_o_rd, p0ref, vtmpc1, ci, clw, cpv, cvd
   USE mo_hydro_adjust,        ONLY: hydro_adjust
   USE sfc_seaice,             ONLY: seaice_coldinit_nwp
   USE mo_post_op,             ONLY: perform_post_op
@@ -114,7 +114,6 @@ MODULE mo_initicon_utils
   PUBLIC :: init_qnxinc_from_qxinc_twomom
   PUBLIC :: get_diag_stat_comm_work
   PUBLIC :: new_land_from_ocean
-  PUBLIC :: prepare_thermo_src_term
 
   CONTAINS
 
@@ -3308,107 +3307,6 @@ MODULE mo_initicon_utils
 
   END SUBROUTINE new_land_from_ocean
 
-  !>
-  !! Interface for calling diagnose condensate
-  !!
-  SUBROUTINE prepare_thermo_src_term(p_patch)
-
-    TYPE(t_patch), TARGET, INTENT(INOUT) :: p_patch
-
-    INTEGER :: i_startidx, i_endidx, jc, jk, jt, jb, nlev
-    INTEGER :: i_rlstart , i_rlend , i_startblk, i_endblk
-    INTEGER :: nn, jg
-
-    REAL(wp), POINTER :: p_csum(:,:)
-
-    REAL(wp), TARGET :: qsum_liq(nproma,p_patch%nlev), qsum_ice(nproma,p_patch%nlev)
-    REAL(wp) :: z_a, z_b
-
-
-    jg = p_patch%id
-    nn = nnow_rcf(jg)
-
-    ! number of vertical levels
-    nlev = p_patch%nlev
-
-    ! boundary zone and halo points are not needed
-    i_rlstart  = grf_bdywidth_c + 1
-    i_rlend    = min_rlcell_int
-    i_startblk = p_patch%cells%start_block(i_rlstart)
-    i_endblk   = p_patch%cells%end_block(i_rlend)
-
-    !$ACC DATA CREATE(qsum_liq, qsum_ice) &
-    !$ACC   COPYIN(kstart_moist) &
-    !$ACC   IF(i_am_accel_node)
-
-!$OMP PARALLEL
-!$OMP DO PRIVATE(jc,jk,jt,jb,i_startidx,i_endidx,p_csum,z_a,z_b,qsum_liq,qsum_ice) ICON_OMP_DEFAULT_SCHEDULE
-    DO jb = i_startblk, i_endblk
-
-      CALL get_indices_c( p_patch, jb, i_startblk, i_endblk,       &
-      &                   i_startidx, i_endidx, i_rlstart, i_rlend )
-
-      !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2)
-      DO jk = 1, nlev
-        DO jc = i_startidx, i_endidx
-
-          qsum_liq(jc,jk) = 0.0_wp
-          qsum_ice(jc,jk) = 0.0_wp
-
-        END DO ! jc
-      END DO ! jk
-      !$ACC END PARALLEL
-
-      DO jt = 1, ntracer
-
-        IF (ANY((/iqc,iqr,iqhl,iqgl/)==jt)) THEN
-          p_csum => qsum_liq
-        ELSE IF (ANY((/iqi,iqs,iqg,iqh/)==jt)) THEN
-          p_csum => qsum_ice
-        ELSE
-          CYCLE
-        END IF
-
-        !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
-        !$ACC LOOP GANG VECTOR COLLAPSE(2)
-         DO jk = kstart_moist(jg),nlev
-           DO jc = i_startidx, i_endidx
-
-             p_csum(jc,jk) = p_csum(jc,jk) + p_nh_state(jg)%prog(nn)%tracer(jc,jk,jb,jt)
-
-           END DO ! jc
-         END DO ! jk
-        !$ACC END PARALLEL
-
-      END DO ! jt
-
-      !$ACC PARALLEL IF(i_am_accel_node) DEFAULT(PRESENT) ASYNC(1)
-      !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(z_a, z_b)
-      DO jk = kstart_moist(jg),nlev
-        DO jc = i_startidx, i_endidx
-
-          z_a = 1._wp - ( p_nh_state(jg)%prog(nn)%tracer(jc,jk,jb,iqv) &
-                          + qsum_liq(jc,jk) + qsum_ice(jc,jk) )
-
-          z_b = clw * qsum_liq(jc,jk) + ci * qsum_ice(jc,jk)
-
-          p_nh_state(jg)%diag%chi_q(jc,jk,jb) = 1._wp - (                                   &
-              ( z_a + ( z_b  + cpv * p_nh_state(jg)%prog(nn)%tracer(jc,jk,jb,iqv) ) / cpd ) &
-            / ( z_a + ( z_b  + cvv * p_nh_state(jg)%prog(nn)%tracer(jc,jk,jb,iqv) ) / cvd ) )
-
-        END DO ! jc
-      END DO ! jk
-      !$ACC END PARALLEL
-
-    END DO ! jb
-!$OMP ENDDO NOWAIT
-!$OMP END PARALLEL
-
-    !$ACC WAIT(1)
-    !$ACC END DATA
-
-  END SUBROUTINE prepare_thermo_src_term
 
 END MODULE mo_initicon_utils
 !

@@ -470,9 +470,9 @@ dt_gwd                        = 1440.,
 ! ICON dynamics_nml
 !------------------
 &dynamics_nml
- iequations     = 3
  divavg_cntrwgt = 0.50
  lcoriolis      = .TRUE.
+ lmoist_thdyn   = .FALSE.
 /
 !-------------------
 ! ICON transport_nml

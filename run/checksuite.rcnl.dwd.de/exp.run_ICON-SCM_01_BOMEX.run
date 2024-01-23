@@ -299,7 +299,6 @@ cat > NAMELIST_${EXPNAME} << EOF
 /
 
 &dynamics_nml
- iequations     = 3       ! equation system
  divavg_cntrwgt = 0.50
  lcoriolis      = .TRUE.
 /

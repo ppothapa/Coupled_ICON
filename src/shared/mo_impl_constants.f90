@@ -250,10 +250,10 @@ MODULE mo_impl_constants
   ! Maximum allowed number of physical model domains
   INTEGER, PARAMETER :: max_phys_dom = 30
 
-  ! maximum allowed number of tracers (20 should be enough for the time being)
+  ! maximum allowed number of tracers
   ! DRIEG: For ART, more than 20 tracers are needed
   ! For ICON-waves the minimum value is 900
-  INTEGER, PARAMETER :: max_ntracer = 900
+  INTEGER, PARAMETER :: max_ntracer = 1600
 
   ! maximum allowed number of echotop levels:
   INTEGER, PARAMETER :: max_echotop = 10
@@ -373,10 +373,8 @@ MODULE mo_impl_constants
   INTEGER, PARAMETER :: izero_grad  = 1
   INTEGER, PARAMETER :: iparent_flx = 2
 
-
   ! equations to be solved
   INTEGER, PARAMETER :: inh_atmosphere =  3 ! - non-hydrost.atm.
-  INTEGER, PARAMETER :: ihs_ocean      = -1 ! - hydrostatic ocean
 
   ! parameterized forcing (right hand side) of dynamics
   INTEGER, PARAMETER :: inoforcing     =  0 ! - no forcing

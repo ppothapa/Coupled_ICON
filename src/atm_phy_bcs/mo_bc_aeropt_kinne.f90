@@ -30,7 +30,12 @@ MODULE mo_bc_aeropt_kinne
   USE mo_bcs_time_interpolation, ONLY: t_time_interpolation_weights, &
        &                               calculate_time_interpolation_weights
 #ifdef YAC_coupling
-  USE mo_atmo_coupling_frame,   ONLY: field_id
+  USE mo_atmo_aero_provider_coupling, ONLY: &
+    & field_id_aod_c_f, field_id_ssa_c_f, field_id_z_km_aer_c_mo, &
+    & field_id_aod_c_s, field_id_ssa_c_s, field_id_asy_c_s, &
+    & field_id_aod_f_s, field_id_ssa_f_s, field_id_asy_f_s, &
+    & field_id_z_km_aer_f_mo, &
+    & nblw_aero_provider, nbsw_aero_provider, nlev_aero_provider
   USE mo_yac_finterface
 #endif
 
@@ -261,10 +266,10 @@ SUBROUTINE read_bc_aeropt_kinne(mtime_current, p_patch, l_filename_year, nbndlw,
       pre_year(jg)  =  mtime_current%date%year
     ENDIF
 
-    ! Savety check of vertical dimension (bands or level)
-    nblw_aero =  yac_fget_field_collection_size(field_id(15))
-    nbsw_aero =  yac_fget_field_collection_size(field_id(18))
-    nlev_aero =  yac_fget_field_collection_size(field_id(17))
+    ! Safety check of vertical dimension (bands or level)
+    nblw_aero =  nblw_aero_provider
+    nbsw_aero =  nbsw_aero_provider
+    nlev_aero =  nlev_aero_provider
 
     IF ( nblw_aero /= nb_lw ) &
        CALL finish('set_bc_aeropt_kinne in mo_bc_aeropt_kinne', &
@@ -286,14 +291,14 @@ SUBROUTINE read_bc_aeropt_kinne(mtime_current, p_patch, l_filename_year, nbndlw,
           yac_recv_buf = 0.0
     END IF
 
-    ! aod_c_f       = aod_lw_b16_coa -> paer_tau_lw_vr ( lw band )  (15)
-    ! ssa_c_f       = ssa_lw_b16_coa -> zs_i           ( lw band )  (16)
+    ! aod_c_f       = aod_lw_b16_coa -> paer_tau_lw_vr ( lw band )
+    ! ssa_c_f       = ssa_lw_b16_coa -> zs_i           ( lw band )
     ! asy_c_f       = asy_lw_b16_coa -> not used
-    ! z_km_aer_c_mo = aer_lw_b16_coa -> zq_aod_c       ( level ) (17)
+    ! z_km_aer_c_mo = aer_lw_b16_coa -> zq_aod_c       ( level )
 
     ! aod_lw_b16_coa -> aod_c_f ( band )
 
-    CALL yac_fget(field_id(15), p_patch%n_patch_cells, nb_lw, &
+    CALL yac_fget(field_id_aod_c_f, p_patch%n_patch_cells, nb_lw, &
      &            yac_recv_buf, info, ierr)
 
     IF ( info > 0 .AND. info < 7 ) THEN
@@ -307,7 +312,7 @@ SUBROUTINE read_bc_aeropt_kinne(mtime_current, p_patch, l_filename_year, nbndlw,
 
     !ssa_lw_b16_coa -> ssa_c_f ( band )
  
-    CALL yac_fget(field_id(16), p_patch%n_patch_cells, nb_lw, &
+    CALL yac_fget(field_id_ssa_c_f, p_patch%n_patch_cells, nb_lw, &
      &            yac_recv_buf, info, ierr)
 
     IF ( info > 0 .AND. info < 7 ) THEN
@@ -321,7 +326,7 @@ SUBROUTINE read_bc_aeropt_kinne(mtime_current, p_patch, l_filename_year, nbndlw,
 
     ! aer_lw_b16_coa -> z_km_aer_c_mo ( level )
 
-    CALL yac_fget(field_id(17), p_patch%n_patch_cells, lev_clim, &
+    CALL yac_fget(field_id_z_km_aer_c_mo, p_patch%n_patch_cells, lev_clim, &
      &            yac_recv_buf, info, ierr)
 
     IF ( info > 0 .AND. info < 7 ) THEN
@@ -333,14 +338,14 @@ SUBROUTINE read_bc_aeropt_kinne(mtime_current, p_patch, l_filename_year, nbndlw,
        END DO
     END IF
 
-    ! aod_c_s       = aod_sw_b14_coa -> zt_c  ( sw band )           (18)
-    ! ssa_c_s       = ssa_sw_b14_coa -> zs_c  ( sw band )           (19)
-    ! asy_c_s       = asy_sw_b14_coa -> zg_c   (sw band )           (20)
+    ! aod_c_s       = aod_sw_b14_coa -> zt_c  ( sw band )
+    ! ssa_c_s       = ssa_sw_b14_coa -> zs_c  ( sw band )
+    ! asy_c_s       = asy_sw_b14_coa -> zg_c   (sw band )
     ! z_km_aer_c_mo = aer_sw_b14_coa -> duplicated, take from aer_lw_b16_coa
 
     ! aod_lw_b16_coa -> aod_c_f ( band )
 
-    CALL yac_fget(field_id(18), p_patch%n_patch_cells, nb_sw, &
+    CALL yac_fget(field_id_aod_c_s, p_patch%n_patch_cells, nb_sw, &
      &            yac_recv_buf, info, ierr)
 
     IF ( info > 0 .AND. info < 7 ) THEN
@@ -354,7 +359,7 @@ SUBROUTINE read_bc_aeropt_kinne(mtime_current, p_patch, l_filename_year, nbndlw,
 
     !ssa_sw_b14_coa -> ssa_c_s ( band )
 
-    CALL yac_fget(field_id(19), p_patch%n_patch_cells, nb_sw, &
+    CALL yac_fget(field_id_ssa_c_s, p_patch%n_patch_cells, nb_sw, &
      &            yac_recv_buf, info, ierr)
 
     IF ( info > 0 .AND. info < 7 ) THEN
@@ -368,7 +373,7 @@ SUBROUTINE read_bc_aeropt_kinne(mtime_current, p_patch, l_filename_year, nbndlw,
 
     !asy_sw_b14_coa -> asy_c_s ( band )
  
-    CALL yac_fget(field_id(20), p_patch%n_patch_cells, nb_sw, &
+    CALL yac_fget(field_id_asy_c_s, p_patch%n_patch_cells, nb_sw, &
      &            yac_recv_buf, info, ierr)
 
     IF ( info > 0 .AND. info < 7 ) THEN
@@ -380,14 +385,14 @@ SUBROUTINE read_bc_aeropt_kinne(mtime_current, p_patch, l_filename_year, nbndlw,
        END DO
     END IF
 
-    ! aod_f_s       = aod_sw_b14_fin -> zt_f     ( band )        (21)
-    ! ssa_f_s       = ssa_sw_b14_fin -> zs_f     ( band )        (22)
-    ! asy_f_s       = asy_sw_b14_fin -> zg_f     ( band )        (23)
-    ! z_km_aer_f_mo = aer_sw_b14_fin -> zq_aod_f ( level )       (24)
+    ! aod_f_s       = aod_sw_b14_fin -> zt_f     ( band )
+    ! ssa_f_s       = ssa_sw_b14_fin -> zs_f     ( band )
+    ! asy_f_s       = asy_sw_b14_fin -> zg_f     ( band )
+    ! z_km_aer_f_mo = aer_sw_b14_fin -> zq_aod_f ( level )
 
     ! aod_sw_b14_fin -> aod_f_s ( band )
 
-    CALL yac_fget(field_id(21), p_patch%n_patch_cells, nb_sw, &
+    CALL yac_fget(field_id_aod_f_s, p_patch%n_patch_cells, nb_sw, &
       &           yac_recv_buf, info, ierr)
 
     IF ( info > 0 .AND. info < 7 ) THEN
@@ -401,7 +406,7 @@ SUBROUTINE read_bc_aeropt_kinne(mtime_current, p_patch, l_filename_year, nbndlw,
 
     !ssa_sw_b14_fin -> ssa_f_s ( band )
  
-    CALL yac_fget(field_id(22), p_patch%n_patch_cells, nb_sw, &
+    CALL yac_fget(field_id_ssa_f_s, p_patch%n_patch_cells, nb_sw, &
       &           yac_recv_buf, info, ierr)
 
     IF ( info > 0 .AND. info < 7 ) THEN
@@ -415,7 +420,7 @@ SUBROUTINE read_bc_aeropt_kinne(mtime_current, p_patch, l_filename_year, nbndlw,
 
     !asy_sw_b14_fin -> asy_f_s ( band )
  
-    CALL yac_fget(field_id(23), p_patch%n_patch_cells, nb_sw, &
+    CALL yac_fget(field_id_asy_f_s, p_patch%n_patch_cells, nb_sw, &
      &            yac_recv_buf, info, ierr)
 
     IF ( info > 0 .AND. info < 7 ) THEN
@@ -429,7 +434,7 @@ SUBROUTINE read_bc_aeropt_kinne(mtime_current, p_patch, l_filename_year, nbndlw,
 
     ! aer_sw_b14_fin -> z_km_aer_f_mo ( level )
  
-    CALL yac_fget(field_id(24), p_patch%n_patch_cells, lev_clim, &
+    CALL yac_fget(field_id_z_km_aer_f_mo, p_patch%n_patch_cells, lev_clim, &
       &           yac_recv_buf, info, ierr)
 
     IF ( info > 0 .AND. info < 7 ) THEN

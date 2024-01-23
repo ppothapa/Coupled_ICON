@@ -141,8 +141,7 @@ MODULE mo_nh_interface_nwp
   USE mo_sppt_util,               ONLY: construct_rn
   USE mo_sppt_core,               ONLY: calc_tend, pert_tend, apply_tend, save_state
 #ifndef __NO_ICON_COMIN__
-  USE comin_host_interface, ONLY: comin_callback_context_call,     &
-    &                             EP_ATM_SURFACE_BEFORE,           &
+  USE comin_host_interface, ONLY: EP_ATM_SURFACE_BEFORE,           &
     &                             EP_ATM_SURFACE_AFTER,            &
     &                             EP_ATM_TURBULENCE_BEFORE,        &
     &                             EP_ATM_TURBULENCE_AFTER,         &
@@ -156,6 +155,7 @@ MODULE mo_nh_interface_nwp
     &                             EP_ATM_RADHEAT_AFTER,            &
     &                             EP_ATM_GWDRAG_BEFORE,            &
     &                             EP_ATM_GWDRAG_AFTER
+  USE mo_comin_adapter,     ONLY: icon_call_callback
 #endif
 
 
@@ -654,7 +654,7 @@ CONTAINS
     !!-------------------------------------------------------------------------
 
 #ifndef __NO_ICON_COMIN__
-    CALL comin_callback_context_call(EP_ATM_SURFACE_BEFORE, jg)
+    CALL icon_call_callback(EP_ATM_SURFACE_BEFORE, jg)
 #endif
 
     !For turbulence schemes NOT including the call to the surface scheme.
@@ -687,10 +687,10 @@ CONTAINS
       IF (timers_level > 2) CALL timer_stop(timer_nwp_surface)
     END IF
 #ifndef __NO_ICON_COMIN__
-    CALL comin_callback_context_call(EP_ATM_SURFACE_AFTER, jg)
+    CALL icon_call_callback(EP_ATM_SURFACE_AFTER, jg)
 #endif
 #ifndef __NO_ICON_COMIN__
-    CALL comin_callback_context_call(EP_ATM_TURBULENCE_BEFORE, jg)
+    CALL icon_call_callback(EP_ATM_TURBULENCE_BEFORE, jg)
 #endif
 
     !Call to turbulent parameterization schemes
@@ -798,10 +798,10 @@ CONTAINS
     END IF
 
 #ifndef __NO_ICON_COMIN__
-    CALL comin_callback_context_call(EP_ATM_TURBULENCE_AFTER, jg)
+    CALL icon_call_callback(EP_ATM_TURBULENCE_AFTER, jg)
 #endif
 #ifndef __NO_ICON_COMIN__
-    CALL comin_callback_context_call(EP_ATM_MICROPHYSICS_BEFORE, jg)
+    CALL icon_call_callback(EP_ATM_MICROPHYSICS_BEFORE, jg)
 #endif
     !-------------------------------------------------------------------------
     !  prognostic microphysic and precipitation scheme
@@ -839,7 +839,7 @@ CONTAINS
     ENDIF
 
 #ifndef __NO_ICON_COMIN__
-      CALL comin_callback_context_call(EP_ATM_MICROPHYSICS_AFTER, jg)
+    CALL icon_call_callback(EP_ATM_MICROPHYSICS_AFTER, jg)
 #endif
 
 #ifdef __ICON_ART
@@ -1282,7 +1282,7 @@ CONTAINS
     ENDIF
 
 #ifndef __NO_ICON_COMIN__
-    CALL comin_callback_context_call(EP_ATM_CONVECTION_BEFORE, jg)
+    CALL icon_call_callback(EP_ATM_CONVECTION_BEFORE, jg)
 #endif
 
     !-------------------------------------------------------------------------
@@ -1315,7 +1315,7 @@ CONTAINS
     ENDIF! convection
 
 #ifndef __NO_ICON_COMIN__
-    CALL comin_callback_context_call(EP_ATM_CONVECTION_AFTER, jg)
+    CALL icon_call_callback(EP_ATM_CONVECTION_AFTER, jg)
 #endif
 
     !-------------------------------------------------------------------------
@@ -1471,7 +1471,7 @@ CONTAINS
 
 
 #ifndef __NO_ICON_COMIN__
-    CALL comin_callback_context_call(EP_ATM_RADIATION_BEFORE, jg)
+    CALL icon_call_callback(EP_ATM_RADIATION_BEFORE, jg)
 #endif
 
     !-------------------------------------------------------------------------
@@ -1504,10 +1504,10 @@ CONTAINS
     ENDIF
 
 #ifndef __NO_ICON_COMIN__
-    CALL comin_callback_context_call(EP_ATM_RADIATION_AFTER, jg)
+    CALL icon_call_callback(EP_ATM_RADIATION_AFTER, jg)
 #endif
 #ifndef __NO_ICON_COMIN__
-    CALL comin_callback_context_call(EP_ATM_RADHEAT_BEFORE, jg)
+    CALL icon_call_callback(EP_ATM_RADHEAT_BEFORE, jg)
 #endif
 
     IF ( lcall_phy_jg(itradheat) ) THEN
@@ -1747,10 +1747,10 @@ CONTAINS
     ENDIF
 
 #ifndef __NO_ICON_COMIN__
-    CALL comin_callback_context_call(EP_ATM_RADHEAT_AFTER, jg)
+    CALL icon_call_callback(EP_ATM_RADHEAT_AFTER, jg)
 #endif
 #ifndef __NO_ICON_COMIN__
-    CALL comin_callback_context_call(EP_ATM_GWDRAG_BEFORE, jg)
+    CALL icon_call_callback(EP_ATM_GWDRAG_BEFORE, jg)
 #endif
 
     !-------------------------------------------------------------------------
@@ -1781,7 +1781,7 @@ CONTAINS
     ENDIF ! inwp_sso
 
 #ifndef __NO_ICON_COMIN__
-    CALL comin_callback_context_call(EP_ATM_GWDRAG_AFTER, jg)
+    CALL icon_call_callback(EP_ATM_GWDRAG_AFTER, jg)
 #endif
 
 

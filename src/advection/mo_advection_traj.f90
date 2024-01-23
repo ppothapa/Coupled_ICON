@@ -284,12 +284,12 @@ CONTAINS
           ! in which the barycenter is located. The distance vector points
           ! from the cell center to the barycenter.
           z_ntdistv_bary_1 =  - ( p_vn(je,jk,jb) * p_dthalf     &
-               & + MERGE(ptr_int%pos_on_tplane_e(je,jb,1,1),        &
-               &         ptr_int%pos_on_tplane_e(je,jb,2,1),lvn_pos))
+               & + MERGE(ptr_int%pos_on_tplane_e(je,1,1,jb),        &
+               &         ptr_int%pos_on_tplane_e(je,2,1,jb),lvn_pos))
 
           z_ntdistv_bary_2 =  - ( p_vt(je,jk,jb) * p_dthalf     &
-               & + MERGE(ptr_int%pos_on_tplane_e(je,jb,1,2),        &
-               &         ptr_int%pos_on_tplane_e(je,jb,2,2),lvn_pos))
+               & + MERGE(ptr_int%pos_on_tplane_e(je,1,2,jb),        &
+               &         ptr_int%pos_on_tplane_e(je,2,2,jb),lvn_pos))
 
           ! In a last step, transform this distance vector into a rotated
           ! geographical coordinate system with its origin at the circumcenter
@@ -525,7 +525,7 @@ CONTAINS
       !$ACC LOOP GANG VECTOR
 !NEC$ ivdep
       DO je = i_startidx, i_endidx
-        edge_verts(je,1:2,1:2) = ptr_int%pos_on_tplane_e(je,jb,7:8,1:2)
+        edge_verts(je,1:2,1:2) = ptr_int%pos_on_tplane_e(je,3:4,1:2,jb)
       ENDDO
       !$ACC END PARALLEL
 
@@ -714,11 +714,11 @@ CONTAINS
 
 
           ! determine correct position on tangential plane
-          pos_on_tplane_e(1) = MERGE(ptr_int%pos_on_tplane_e(je,jb,1,1), &
-               &                     ptr_int%pos_on_tplane_e(je,jb,2,1),lvn_pos)
+          pos_on_tplane_e(1) = MERGE(ptr_int%pos_on_tplane_e(je,1,1,jb), &
+               &                     ptr_int%pos_on_tplane_e(je,2,1,jb),lvn_pos)
 
-          pos_on_tplane_e(2) = MERGE(ptr_int%pos_on_tplane_e(je,jb,1,2), &
-               &                     ptr_int%pos_on_tplane_e(je,jb,2,2),lvn_pos)
+          pos_on_tplane_e(2) = MERGE(ptr_int%pos_on_tplane_e(je,1,2,jb), &
+               &                     ptr_int%pos_on_tplane_e(je,2,2,jb),lvn_pos)
 
           ! Calculate position of departure region vertices in a translated
           ! coordinate system. The origin is located at the circumcenter

@@ -20,6 +20,7 @@ MODULE mo_nwp_hydrodisc_coupling
 
   USE mo_kind                ,ONLY: wp
   USE mo_model_domain        ,ONLY: t_patch
+  USE mo_ext_data_state      ,ONLY: ext_data
   USE mo_nwp_lnd_types       ,ONLY: t_lnd_diag
   USE mo_nwp_phy_types       ,ONLY: t_nwp_phy_diag
   USE mo_lnd_nwp_config      ,ONLY: ntiles_total, isub_lake
@@ -34,9 +35,11 @@ MODULE mo_nwp_hydrodisc_coupling
   USE mo_timer               ,ONLY: timer_start, timer_stop, timer_coupling_put
 
   USE mo_coupling_config     ,ONLY: is_coupled_to_hydrodisc
+  USE mo_coupling_utils      ,ONLY: def_field
 #ifdef YAC_coupling
-  USE mo_atmo_coupling_frame ,ONLY: field_id, CPF_RUNOFFS, CPF_RUNOFFG
-  USE mo_yac_finterface      ,ONLY: yac_fput, yac_dble_ptr, YAC_ACTION_COUPLING, YAC_ACTION_OUT_OF_BOUND
+  USE mo_yac_finterface      ,ONLY: yac_fdef_mask, yac_fput, yac_dble_ptr, &
+                                    YAC_ACTION_COUPLING, YAC_ACTION_OUT_OF_BOUND, &
+                                    YAC_LOCATION_CELL
 #endif
 
   USE mo_exception           ,ONLY: warning, message, finish
@@ -45,12 +48,80 @@ MODULE mo_nwp_hydrodisc_coupling
 
   PRIVATE
 
-  PUBLIC :: nwp_couple_hydrodisc
+  PUBLIC :: construct_nwp_hydrodisc_coupling, nwp_couple_hydrodisc
 
   CHARACTER(len=*), PARAMETER :: str_module = 'mo_nwp_hydrodisc_coupling' ! Output of module for debug
 
+  INTEGER :: field_id_runoffs, field_id_runoffg
+
 CONTAINS
 
+  SUBROUTINE construct_nwp_hydrodisc_coupling( &
+    p_patch, comp_id, grid_id, cell_point_id, timestepstring)
+
+    TYPE(t_patch), TARGET, INTENT(IN) :: p_patch(:)
+    INTEGER, INTENT(IN) :: comp_id
+    INTEGER, INTENT(IN) :: grid_id
+    INTEGER, INTENT(IN) :: cell_point_id
+    CHARACTER(LEN=*), INTENT(IN) :: timestepstring
+
+    TYPE(t_patch), POINTER :: patch_horz
+
+    INTEGER :: cell_mask_id
+
+    INTEGER :: jg, jb, jc, error
+
+    LOGICAL,  ALLOCATABLE :: is_valid(:)
+
+    CHARACTER(LEN=*), PARAMETER   :: routine = str_module // ':construct_nwp_hydrodisc_coupling'
+
+#ifndef YAC_coupling
+    CALL finish(routine, 'built without coupling support.')
+#else
+
+    jg = 1
+    patch_horz => p_patch(jg)
+
+    ALLOCATE(is_valid(nproma*patch_horz%nblks_c), STAT = error)
+    IF(error /= SUCCESS) CALL finish(str_module, "memory allocation failure for is_valid")
+
+    !ICON_OMP_PARALLEL PRIVATE(jb,jc)
+      !ICON_OMP_WORKSHARE
+      is_valid(:) = .FALSE.
+      !ICON_OMP_END_WORKSHARE
+
+      !ICON_OMP_DO ICON_OMP_DEFAULT_SCHEDULE
+      DO jb = 1, patch_horz%nblks_c
+        DO jc = 1, nproma
+          IF ( ext_data(jg)%atm%fr_land(jc,jb)+ext_data(jg)%atm%fr_lake(jc,jb) .GE. 0.05_wp ) THEN
+            is_valid((jb-1)*nproma+jc) = .TRUE.
+          END IF
+        END DO
+      END DO
+      !ICON_OMP_END_DO
+    !ICON_OMP_END_PARALLEL
+
+    CALL yac_fdef_mask (          &
+      & grid_id,                  &
+      & patch_horz%n_patch_cells, &
+      & YAC_LOCATION_CELL,        &
+      & is_valid,                 &
+      & cell_mask_id )
+
+    DEALLOCATE (is_valid, STAT = error)
+    IF(error /= SUCCESS) CALL finish(str_module, "Deallocation failed for is_valid")
+
+    CALL def_field( &
+      comp_id, cell_point_id, cell_mask_id, timestepstring, &
+      "surface_water_runoff", 1, field_id_runoffs)
+
+    CALL def_field( &
+      comp_id, cell_point_id, cell_mask_id, timestepstring, &
+      "soil_water_runoff", 1, field_id_runoffg)
+! YAC_coupling
+#endif
+
+  END SUBROUTINE construct_nwp_hydrodisc_coupling
 
   !>
   !! SUBROUTINE nwp_couple_hydrodisc -- the interface between
@@ -74,22 +145,20 @@ CONTAINS
     INTEGER               :: jg                    ! patch ID
     INTEGER               :: jb                    ! block loop count
     INTEGER               :: jc                    ! nproma loop count
-    INTEGER               :: error                 
+    INTEGER               :: error
     INTEGER               :: info, ierror          ! return values from cpl_put/get calls
     INTEGER               :: rl_start, rl_end
     INTEGER               :: i_startblk, i_endblk  ! blocks
     INTEGER               :: i_startidx, i_endidx  ! slices
     INTEGER               :: isubs                 ! tile index
     REAL(wp), TARGET, ALLOCATABLE :: buffer(:,:)   ! buffer transferred to YAC coupler
-    CHARACTER(LEN=*), PARAMETER   :: routine = 'nwp_couple_hydrodisc'
-
-#ifdef YAC_coupling
-    TYPE(yac_dble_ptr)    :: ptr(1,1)
-#endif
+    CHARACTER(LEN=*), PARAMETER   :: routine = str_module // ':nwp_couple_hydrodisc'
 
 #ifndef YAC_coupling
-    CALL finish('nwp_couple_hydrodisc: unintentionally called. Check your source code and configure.')
+    CALL finish(routine, 'built without coupling support.')
 #else
+
+    TYPE(yac_dble_ptr)    :: ptr(1,1)
 
     ALLOCATE(buffer(nproma, p_patch%nblks_c), STAT = error)
     IF(error /= SUCCESS) CALL finish(routine, "memory allocation failure")
@@ -119,7 +188,7 @@ CONTAINS
 
     !------------------------------------------------
     !  Send surface water runoff
-    !    field_id(CPF_RUNOFFS) represents "surface water runoff"
+    !    "surface water runoff"
     !------------------------------------------------
 
     !$OMP PARALLEL
@@ -163,7 +232,7 @@ CONTAINS
     ptr(1,1)%p(1:nbr_hor_cells) => buffer
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
-    CALL yac_fput ( field_id(CPF_RUNOFFS), SIZE(ptr(:,1:1),1), 1, ptr(:,1:1), info, ierror )
+    CALL yac_fput ( field_id_runoffs, SIZE(ptr(:,1:1),1), 1, ptr(:,1:1), info, ierror )
     IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) THEN
       write_coupler_restart = .TRUE.
     ELSE
@@ -181,7 +250,7 @@ CONTAINS
 
     !------------------------------------------------
     !  Send soil water runoff
-    !    field_id(CPF_RUNOFFG) represents "soil water runoff"
+    !    "soil water runoff"
     !------------------------------------------------
 
     !$OMP PARALLEL
@@ -216,7 +285,7 @@ CONTAINS
     ptr(1,1)%p(1:nbr_hor_cells) => buffer
 
     IF (ltimer) CALL timer_start(timer_coupling_put)
-    CALL yac_fput ( field_id(CPF_RUNOFFG), SIZE(ptr(:,1:1),1), 1, ptr(:,1:1), info, ierror )
+    CALL yac_fput ( field_id_runoffg, SIZE(ptr(:,1:1),1), 1, ptr(:,1:1), info, ierror )
     IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) THEN
       write_coupler_restart = .TRUE.
     ELSE

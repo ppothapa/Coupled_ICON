@@ -2046,7 +2046,7 @@ create_target_header()
                     ;;
             esac
             ;;
-        *mch_*)
+        *mch_*|*c2sm*)
             case $use_target in
                 daint*)
                     use_nodes=4

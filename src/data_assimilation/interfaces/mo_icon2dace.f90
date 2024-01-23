@@ -1611,6 +1611,8 @@ contains
     type(t_lnd_prog),     pointer :: lnd_p    ! land model, prognostic vars.
     type(t_lnd_diag),     pointer :: lnd_d    ! land model, diagnostic vars.
     logical                       :: l_rad_cld
+    logical                       :: lceil
+    logical                       :: lvis
     ! character(*), parameter :: fields = &
     !      "ps pf ph t u v den q qcl qci qv_s z0 qv_dia qc_dia qi_dia& 
     !      & t2m td2m rh2m u_10m v_10m clct clcl clcm clch clc&
@@ -1678,8 +1680,17 @@ contains
     if (lqs) call allocate (state, "qs")
     if (lqg) call allocate (state, "qg")
 
+    !----------------------------------------
+    ! Handle optional variables ceiling, vis:
+    !----------------------------------------
+    lceil = associated (phy_d% ceiling_height)
+    lvis  = associated (phy_d% vis)
+    if (lceil) call allocate (state, "ceiling")
+    if (lvis)  call allocate (state, "vis")
+
     if (dbg_level > 1) then
        if (dace% lpio) write(0,*) "iqv,iqc,iqi,iqr,iqs,iqg=",iqv,iqc,iqi,iqr,iqs,iqg
+       if (dace% lpio) write(0,*) "atm_from_icon::lceil,lvis=",lceil, lvis
     end if
 
     j1 = icon_dc% ilim1(dace% pe)
@@ -1739,6 +1750,10 @@ contains
        state% fr_ice (j,1,1,1) = lnd_d% fr_seaice(idx,blk)
        state% qv_s   (j,1,1,1) = lnd_d% qv_s     (idx,blk)
 !      state% t_so   (j,1,:,1) = lnd_p% t_so   (idx,:,blk) ! needs checking
+
+       ! Optional variables:
+       if (lceil) state% ceiling(j,1,1,1) = phy_d% ceiling_height(idx,blk)
+       if (lvis)  state% vis    (j,1,1,1) = phy_d% vis           (idx,blk)
     end do
 
     call set_geo (state, geof=.true.)
