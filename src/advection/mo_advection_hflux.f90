@@ -45,7 +45,7 @@ MODULE mo_advection_hflux
     &                               MIURA, MIURA3, FFSL, FFSL_HYB, MCYCL,       &
     &                               MIURA_MCYCL, MIURA3_MCYCL, FFSL_MCYCL,      &
     &                               FFSL_HYB_MCYCL, ifluxl_m, ifluxl_sm
-  USE mo_model_domain,        ONLY: t_patch
+  USE mo_model_domain,        ONLY: t_patch, get_startrow_c
   USE mo_grid_config,         ONLY: l_limited_area
   USE mo_math_gradients,      ONLY: grad_green_gauss_cell, grad_fe_cell
   USE mo_math_divrot,         ONLY: recon_lsq_cell_l, recon_lsq_cell_l_svd,     &
@@ -316,7 +316,7 @@ CONTAINS
           &         opt_rhodz_now   = p_rhodz_now,              & !in
           &         opt_rhodz_new   = p_rhodz_new,              & !in
           &         opt_lconsv      = llsq_lin_consv,           & !in
-          &         opt_rlend       = i_rlend,                  & !in
+          &         opt_rlend_e     = i_rlend,                  & !in
           &         opt_slev        = advconf%iadv_slev(jt) )     !in
 
 
@@ -430,7 +430,7 @@ CONTAINS
           &         opt_rhodz_now   = p_rhodz_now,              & !in
           &         opt_rhodz_new   = p_rhodz_new,              & !in
           &         opt_lconsv      = llsq_lin_consv,           & !in
-          &         opt_rlend       = i_rlend,                  & !in
+          &         opt_rlend_e     = i_rlend,                  & !in
           &         opt_slev        = qvsubstep_elev+1,         & !in
           &         opt_elev        = p_patch%nlev )              !in
 
@@ -642,7 +642,7 @@ CONTAINS
   SUBROUTINE upwind_hflux_miura( p_patch, p_cc, p_mass_flx_e, p_dtime,      &
     &                      p_int, btraj, p_igrad_c_miura, p_itype_hlimit,   &
     &                      p_out_e, opt_rhodz_now, opt_rhodz_new,           &
-    &                      opt_lconsv, opt_rlstart, opt_rlend,              &
+    &                      opt_lconsv, opt_rlstart_e, opt_rlend_e,          &
     &                      opt_lout_edge, opt_slev, opt_elev )
 
     CHARACTER(len=*), PARAMETER ::  &
@@ -685,11 +685,11 @@ CONTAINS
     LOGICAL, INTENT(IN), OPTIONAL :: & !< optional: if true, conservative reconstruction
       &  opt_lconsv                    !< is used
 
-    INTEGER, INTENT(IN), OPTIONAL :: & !< optional: refinement control start level
-      &  opt_rlstart                   !< only valid for calculation of 'edge value'
+    INTEGER, INTENT(IN), OPTIONAL :: & !< optional: refinement control start level for edge values
+      &  opt_rlstart_e
 
-    INTEGER, INTENT(IN), OPTIONAL :: & !< optional: refinement control end level
-      &  opt_rlend                     !< (to avoid calculation of halo points)
+    INTEGER, INTENT(IN), OPTIONAL :: & !< optional: refinement control end level for edge values
+      &  opt_rlend_e                   !< (to avoid calculation of halo points)
 
     LOGICAL, INTENT(IN), OPTIONAL :: & !< optional: output edge value (.TRUE.),
       &  opt_lout_edge                 !< or the flux across the edge (.FALSE./not specified)
@@ -714,12 +714,11 @@ CONTAINS
                                                     !< zonal and meridional direction
 
     INTEGER  :: pid
-    INTEGER  :: nlev               !< number of full levels
     INTEGER  :: slev, elev         !< vertical start and end level
     INTEGER  :: je, jk, jb         !< index of edge, vert level, block
     INTEGER  :: ilc0, ibc0         !< line and block index for local cell center
     INTEGER  :: i_startblk, i_endblk, i_startidx, i_endidx
-    INTEGER  :: i_rlstart, i_rlend, i_nchdom, i_rlend_c
+    INTEGER  :: i_rlstart_e, i_rlend_e, i_rlstart_c, i_rlend_c
     INTEGER  :: i
     LOGICAL  :: l_consv            !< true if conservative lsq reconstruction is used
     LOGICAL  :: use_zlsq           !< true if z_lsq_coeff is used to store the gradients
@@ -736,10 +735,6 @@ CONTAINS
 !DIR$ ATTRIBUTES ALIGN : 64 :: z_grad,z_lsq_coeff
 #endif
 
-
-    ! number of vertical levels
-    nlev = p_patch%nlev
-
     ! get patch ID
     pid = p_patch%id
 
@@ -752,7 +747,7 @@ CONTAINS
     IF ( PRESENT(opt_elev) ) THEN
       elev = opt_elev
     ELSE
-      elev = nlev
+      elev = p_patch%nlev
     END IF
 
     IF ( PRESENT(opt_lconsv) ) THEN
@@ -768,24 +763,22 @@ CONTAINS
     ENDIF
 
 
-    IF ( PRESENT(opt_rlstart) ) THEN
-      i_rlstart = opt_rlstart
+    IF ( PRESENT(opt_rlstart_e) ) THEN
+      i_rlstart_e = opt_rlstart_e
     ELSE
-      i_rlstart = 5
+      i_rlstart_e = 5
     ENDIF
 
-    IF ( PRESENT(opt_rlend) ) THEN
-      i_rlend = opt_rlend
+    IF ( PRESENT(opt_rlend_e) ) THEN
+      i_rlend_e = opt_rlend_e
     ELSE
-      i_rlend = min_rledge_int - 1
+      i_rlend_e = min_rledge_int - 1
     ENDIF
 
+    ! determine the start row for cells from the start row for edges
+    i_rlstart_c = get_startrow_c(startrow_e=i_rlstart_e)
+    i_rlend_c   = min_rlcell_int - 1
 
-    i_rlend_c = min_rlcell_int - 1
-
-
-    ! number of child domains
-    i_nchdom = MAX(1,p_patch%n_childdom)
 
     IF (p_test_run) THEN
       !$ACC KERNELS DEFAULT(PRESENT) ASYNC(1) IF(i_am_accel_node)
@@ -822,26 +815,48 @@ CONTAINS
       ! least squares method
       use_zlsq = .TRUE.
 
+      ! Initialize halo cells at halo_level=2 in order to avoid access of
+      ! uninitialized array elements during the subsequent flux calculation.
+      ! Some background:
+      ! The flux computation for edges with refin_ctrl_e=(3,4) accesses halo cells with
+      ! refin_ctrl_c=2 and halo_level=2 as these halo cells have not been sorted to the
+      ! end of the index vector in mo_setup_subdivision.
+      ! The following initialization of z_lsq_coeff avoids the access of uninitialized
+      ! elements. It is only necessary, if this flux routine is called with i_rlstart_e <=4,
+      ! i.e. when called by the wave model.
+      IF (i_rlstart_e <= 4) THEN   ! e.g. if called by the wave model
+        i_startblk = p_patch%cells%start_block(min_rlcell_int - 2)
+        i_endblk   = p_patch%cells%end_block(min_rlcell_int - 2)
+!$OMP PARALLEL
+        CALL init(z_lsq_coeff(:,:,:,i_startblk:i_endblk), opt_acc_async=.TRUE.)
+!$OMP END PARALLEL
+      ENDIF
+
+
       IF (advection_config(pid)%llsq_svd) THEN
-        CALL recon_lsq_cell_l_svd( p_cc, p_patch, lsq_lin, z_lsq_coeff,               &
-             &                   opt_slev=slev, opt_elev=elev, opt_rlend=i_rlend_c,   &
+        CALL recon_lsq_cell_l_svd( p_cc, p_patch, lsq_lin, z_lsq_coeff,         &
+             &                   opt_slev=slev, opt_elev=elev,                  &
+             &                   opt_rlstart=i_rlstart_c, opt_rlend=i_rlend_c,  &
              &                   opt_lconsv=l_consv, opt_acc_async = .TRUE. )
       ELSE
         CALL recon_lsq_cell_l( p_cc, p_patch, lsq_lin, z_lsq_coeff,             &
-        &                    opt_slev=slev, opt_elev=elev, opt_rlend=i_rlend_c, &
+        &                    opt_slev=slev, opt_elev=elev,                      &
+        &                    opt_rlstart=i_rlstart_c, opt_rlend=i_rlend_c,      &
         &                    opt_lconsv=l_consv, opt_acc_async = .TRUE. )
       ENDIF
 
     ELSE IF (p_igrad_c_miura == 2) THEN
       ! Green-Gauss method
       CALL grad_green_gauss_cell( p_cc, p_patch, p_int, z_grad, opt_slev=slev, &
-        &                         opt_elev=elev, opt_rlend=i_rlend_c )
+        &                         opt_elev=elev, opt_rlstart=i_rlstart_c,      &
+        &                         opt_rlend=i_rlend_c )
 
 
     ELSE IF (p_igrad_c_miura == 3) THEN
       ! gradient based on three-node triangular element
       CALL grad_fe_cell( p_cc, p_patch, p_int, z_grad, opt_slev=slev, &
-        &                opt_elev=elev, opt_rlend=i_rlend_c )
+        &                opt_elev=elev, opt_rlstart=i_rlstart_c,      &
+        &                opt_rlend=i_rlend_c )
 
     ENDIF
 
@@ -864,15 +879,15 @@ CONTAINS
     ! Necessary when called within dycore
 
     IF ( l_out_edgeval ) THEN
-      i_startblk = p_patch%edges%start_blk(i_rlend-1,i_nchdom)
-      i_endblk   = p_patch%edges%end_blk(min_rledge_int-3,i_nchdom)
+      i_startblk = p_patch%edges%start_block(i_rlend_e-1)
+      i_endblk   = p_patch%edges%end_block(min_rledge_int-3)
 
       CALL init(p_out_e(:,:,i_startblk:i_endblk), opt_acc_async=.TRUE.)
 !$OMP BARRIER
     ENDIF
 
-    i_startblk = p_patch%edges%start_blk(i_rlstart,1)
-    i_endblk   = p_patch%edges%end_blk(i_rlend,i_nchdom)
+    i_startblk = p_patch%edges%start_block(i_rlstart_e)
+    i_endblk   = p_patch%edges%end_block(i_rlend_e)
 
     ! initialize also nest boundary points with zero
     IF ( l_out_edgeval .AND. (p_patch%id > 1 .OR. l_limited_area)) THEN
@@ -884,7 +899,7 @@ CONTAINS
     DO jb = i_startblk, i_endblk
 
       CALL get_indices_e(p_patch, jb, i_startblk, i_endblk, &
-                         i_startidx, i_endidx, i_rlstart, i_rlend)
+                         i_startidx, i_endidx, i_rlstart_e, i_rlend_e)
 
       IF ( l_out_edgeval ) THEN   ! Calculate 'edge value' of advected quantity
 
@@ -962,7 +977,7 @@ CONTAINS
 !$OMP END PARALLEL
 
     !
-    ! 4. If desired, apply a monotonic or positive definite flux limiter 
+    ! 4. If desired, apply a monotonic or positive definite flux limiter
     !    to limit computed fluxes.
     !    The flux limiter is based on work by Zalesak (1979)
     IF (.NOT. l_out_edgeval .AND. p_itype_hlimit == ifluxl_m) THEN
@@ -971,7 +986,7 @@ CONTAINS
       ENDIF
       CALL hflx_limiter_mo( p_patch, p_int, p_dtime, p_cc,               & !in
         &                   opt_rhodz_now, opt_rhodz_new, p_mass_flx_e,  & !in
-        &                   p_out_e, slev, elev, opt_rlend=i_rlend )       !inout,in
+        &                   p_out_e, slev, elev, opt_rlend=i_rlend_e )     !inout,in
 
     ELSE IF (.NOT. l_out_edgeval .AND. p_itype_hlimit == ifluxl_sm) THEN
       IF (.NOT. (PRESENT(opt_rhodz_now))) THEN
@@ -980,7 +995,8 @@ CONTAINS
       ! MPI-sync necessary
       CALL hflx_limiter_pd( p_patch, p_int, p_dtime,                 & !in
         &                   p_cc, opt_rhodz_now, p_out_e,            & !in,inout
-        &                   slev, elev, opt_rlend=i_rlend )            !in
+        &                   slev, elev, opt_rlstart=i_rlstart_e,     & !in
+        &                   opt_rlend=i_rlend_e )                      !in
     ENDIF
 
     !$ACC WAIT
@@ -2775,6 +2791,7 @@ CONTAINS
       falist%npoints = npoints ! ACC: caution this is not updated to GPU as it is not used on GPU
 
       ! allocate temporary arrays for quadrature and upwind cells
+#ifndef _OPENACC
       ALLOCATE( z_quad_vector_sum0(nproma,dim_unk,nlev,p_patch%nblks_e), &
         &       z_quad_vector_sum1(npoints,dim_unk,p_patch%nblks_e),     &
         &       z_quad_vector_sum2(npoints,dim_unk,p_patch%nblks_e),     &
@@ -2786,6 +2803,19 @@ CONTAINS
         &       dreg_patch1(npoints,4,2,p_patch%nblks_e),                &
         &       dreg_patch2(npoints,4,2,p_patch%nblks_e),                &
         &       STAT=ist )
+#else
+      ALLOCATE( z_quad_vector_sum0(nproma,dim_unk,nlev,p_patch%nblks_e), &
+        &       z_quad_vector_sum1(nproma*nlev,dim_unk,p_patch%nblks_e),     &
+        &       z_quad_vector_sum2(nproma*nlev,dim_unk,p_patch%nblks_e),     &
+        &       z_dreg_area(nproma,nlev,p_patch%nblks_e),                &
+        &       patch1_cell_idx(nproma*nlev,p_patch%nblks_e),                &
+        &       patch2_cell_idx(nproma*nlev,p_patch%nblks_e),                &
+        &       patch1_cell_blk(nproma*nlev,p_patch%nblks_e),                &
+        &       patch2_cell_blk(nproma*nlev,p_patch%nblks_e),                &
+        &       dreg_patch1(nproma*nlev,4,2,p_patch%nblks_e),                &
+        &       dreg_patch2(nproma*nlev,4,2,p_patch%nblks_e),                &
+        &       STAT=ist )
+#endif
       IF (ist /= SUCCESS) THEN
         CALL finish(routine,                                      &
           &  'allocation for z_quad_vector_sum0/1/2, z_dreg_area, ' //    &
@@ -3101,7 +3131,6 @@ CONTAINS
     !$ACC END DATA
 
   END SUBROUTINE hflux_ffsl_hybrid
-
 
 END MODULE mo_advection_hflux
 

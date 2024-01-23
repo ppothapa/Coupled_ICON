@@ -140,6 +140,8 @@ MODULE mo_nwp_phy_types
       &  cldepth(:,:),         & !! modified cloud depth for media
       &  clct_mod(:,:),        & !! modified total cloud cover for media
       &  fac_ccqc(:,:),        & !! tuning factor (for ensemble perturbations) for CLC-QC relationship in cloud cover scheme
+      &  fac_entrorg(:,:),     & !! tuning factor (for ensemble perturbations) for entrainment parameter
+      &  fac_rmfdeps(:,:),     & !! tuning factor (for ensemble perturbations) for downdraft mass flux
       &  hbas_con(:,:),        & !! height of base of convection [m]
       &  htop_con(:,:),        & !! height of top of convection [m]
       &  htop_dc(:,:),         & !! height above msl of the top of dry convection [m]

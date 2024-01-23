@@ -15,7 +15,7 @@
 MODULE mo_wave_atmo_coupling
 
   USE mo_kind,                     ONLY: wp
-  USE mo_exception,                ONLY: warning, message_text, message
+  USE mo_exception,                ONLY: warning, message_text, message, finish
   USE mo_model_domain,             ONLY: t_patch
   USE mo_run_config,               ONLY: ltimer
   USE mo_timer,                    ONLY: timer_start, timer_stop, &
@@ -23,22 +23,54 @@ MODULE mo_wave_atmo_coupling
     &                                    timer_coupling_1stget
   USE mo_sync,                     ONLY: SYNC_C, sync_patch_array
   USE mo_coupling,                 ONLY: lyac_very_1st_get
-  USE mo_wave_coupling_frame,      ONLY: field_id, &
-    &                                    collection_size, CPF_U10M, CPF_V10M, CPF_FR_SEAICE, &
-    &                                    CPF_Z0
+#ifdef YAC_coupling
   USE mo_yac_finterface,           ONLY: yac_fput, yac_fget, yac_dble_ptr,       &
     &                                    YAC_ACTION_COUPLING,                    &
     &                                    YAC_ACTION_OUT_OF_BOUND
+#endif
+  USE mo_coupling_utils,           ONLY: def_field
 
   IMPLICIT NONE
 
   PRIVATE
 
-  PUBLIC :: couple_wave_to_atmo
+  PUBLIC :: construct_wave_atmo_coupling, couple_wave_to_atmo
 
   CHARACTER(LEN=*), PARAMETER :: modname = 'mo_wave_atmo_coupling'
 
+  INTEGER :: field_id_u10m
+  INTEGER :: field_id_v10m
+  INTEGER :: field_id_fr_seaice
+  INTEGER :: field_id_z0
+
 CONTAINS
+
+  !>
+  !! Registers fields required for the coupling between wave and atmosphere
+  !!
+  !! This subroutine is called from constrcut_wave_coupling.
+  !!
+  SUBROUTINE construct_wave_atmo_coupling( &
+    comp_id, cell_point_id, timestepstring)
+
+    INTEGER, INTENT(IN) :: comp_id
+    INTEGER, INTENT(IN) :: cell_point_id
+    CHARACTER(LEN=*), INTENT(IN) :: timestepstring
+
+    CALL def_field( &
+      comp_id, cell_point_id, timestepstring, &
+      "zonal_wind_in_10m", 1, field_id_u10m)
+    CALL def_field( &
+      comp_id, cell_point_id, timestepstring, &
+      "meridional_wind_in_10m", 1, field_id_v10m)
+    CALL def_field( &
+      comp_id, cell_point_id, timestepstring, &
+      "fraction_of_ocean_covered_by_sea_ice", 1, field_id_fr_seaice)
+    CALL def_field( &
+      comp_id, cell_point_id, timestepstring, &
+      "roughness_length", 1, field_id_z0)
+
+  END SUBROUTINE construct_wave_atmo_coupling
 
   !>
   !! Exchange fields between the wave model and the atmosphere model
@@ -66,7 +98,11 @@ CONTAINS
 
     INTEGER :: info, ierror
 
-    TYPE(yac_dble_ptr):: yac_ptr(1,SIZE(field_id))
+#ifndef YAC_coupling
+    CALL finish(routine, 'built without coupling support.')
+#else
+
+    TYPE(yac_dble_ptr):: yac_ptr(1,1)
 
 
     !  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****  *****
@@ -75,29 +111,29 @@ CONTAINS
 
     ! --------------------------------------------
     !  Send roughness length z0 to the atmosphere
-    !  field_name(CPF_Z0) = 'roughness_length'
+    !  'roughness_length'
     ! --------------------------------------------
     !
     IF (ltimer) CALL timer_start(timer_coupling_put)
     !
-    yac_ptr(1,CPF_Z0)%p(1:p_patch%n_patch_cells) => z0(:,:)
+    yac_ptr(1,1)%p(1:p_patch%n_patch_cells) => z0(:,:)
     !
-    CALL yac_fput (                                              &
-      & field_id        = field_id(CPF_Z0),                      &
-      & nbr_pointsets   = SIZE(yac_ptr,1),                       &
-      & collection_size = collection_size(CPF_Z0),               &
-      & send_field      = yac_ptr(:,CPF_Z0:CPF_Z0),              &
-      & info            = info,                                  &
+    CALL yac_fput (                        &
+      & field_id        = field_id_z0,     &
+      & nbr_pointsets   = SIZE(yac_ptr,1), &
+      & collection_size = 1,               &
+      & send_field      = yac_ptr,         &
+      & info            = info,            &
       & ierror          = ierror )
     !
     IF (ltimer) CALL timer_stop(timer_coupling_put)
     !
     IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) THEN
-      WRITE(message_text, '(a,i3,a)') 'YAC says it is put for restart - id=',CPF_Z0,', Z0'
+      WRITE(message_text, '(a,i3,a)') 'YAC says it is put for restart - Z0'
       CALL message(routine, message_text)
     ENDIF
     IF ( info == YAC_ACTION_OUT_OF_BOUND ) THEN
-      WRITE(message_text, '(a,i3,a)') 'YAC says fput called after end of run - id=',CPF_Z0,', Z0'
+      WRITE(message_text, '(a,i3,a)') 'YAC says fput called after end of run - Z0'
       CALL warning(routine, message_text)
     END IF
 
@@ -108,7 +144,7 @@ CONTAINS
     !
     ! -----------------------------------------
     !  Receive 10m zonal wind u10m
-    !  field_id(CPF_U10M) = 'zonal_wind_in_10m'
+    !  'zonal_wind_in_10m'
     ! -----------------------------------------
     !
     IF (lyac_very_1st_get) THEN
@@ -117,13 +153,13 @@ CONTAINS
       IF (ltimer) CALL timer_start(timer_coupling_get)
     ENDIF
     !
-    yac_ptr(1,CPF_U10M)%p(1:p_patch%n_patch_cells) => u10m(:,:)
+    yac_ptr(1,1)%p(1:p_patch%n_patch_cells) => u10m(:,:)
     !
-    CALL yac_fget(                                   &
-      & field_id        = field_id(CPF_U10M),        &
-      & collection_size = collection_size(CPF_U10M), &
-      & recv_field      = yac_ptr(:,CPF_U10M),       &
-      & info            = info,                      &
+    CALL yac_fget(                       &
+      & field_id        = field_id_u10m, &
+      & collection_size = 1,             &
+      & recv_field      = yac_ptr(:,1),  &
+      & info            = info,          &
       & ierror          = ierror )
     !
     IF (lyac_very_1st_get) THEN
@@ -134,66 +170,66 @@ CONTAINS
     ENDIF
     !
     IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) THEN
-      WRITE(message_text, '(a,i3,a)') 'YAC says it is get for restart - id=',CPF_U10M,', U10'
+      WRITE(message_text, '(a,i3,a)') 'YAC says it is get for restart - U10'
       CALL message(routine, message_text)
     ENDIF
     IF ( info == YAC_ACTION_OUT_OF_BOUND ) THEN
-      WRITE(message_text, '(a,i3,a)') 'YAC says fput called after end of run - id=',CPF_U10M,', U10'
+      WRITE(message_text, '(a,i3,a)') 'YAC says fput called after end of run - U10'
       CALL warning(routine, message_text)
     ENDIF
 
 
     ! ----------------------------------------------
     !  Receive 10m meridional wind v10m
-    !  field_id(CPF_V10M) = 'meridional_wind_in_10m'
+    !  'meridional_wind_in_10m'
     ! ----------------------------------------------
     !
     IF (ltimer) CALL timer_start(timer_coupling_get)
     !
-    yac_ptr(1,CPF_V10M)%p(1:p_patch%n_patch_cells) => v10m(:,:)
+    yac_ptr(1,1)%p(1:p_patch%n_patch_cells) => v10m(:,:)
     !
-    CALL yac_fget(                                   &
-      & field_id        = field_id(CPF_V10M),        &
-      & collection_size = collection_size(CPF_V10M), &
-      & recv_field      = yac_ptr(:,CPF_V10M),       &
-      & info            = info,                      &
+    CALL yac_fget(                       &
+      & field_id        = field_id_v10m, &
+      & collection_size = 1,             &
+      & recv_field      = yac_ptr(:,1),  &
+      & info            = info,          &
       & ierror          = ierror )
     !
     IF (ltimer) CALL timer_stop(timer_coupling_get)
     !
     IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) THEN
-      WRITE(message_text, '(a,i3,a)') 'YAC says it is get for restart - id=',CPF_V10M,', V10'
+      WRITE(message_text, '(a,i3,a)') 'YAC says it is get for restart - V10'
       CALL message(routine, message_text)
     ENDIF
     IF ( info == YAC_ACTION_OUT_OF_BOUND ) THEN
-      WRITE(message_text, '(a,i3,a)') 'YAC says fput called after end of run - id=',CPF_V10M,', V10'
+      WRITE(message_text, '(a,i3,a)') 'YAC says fput called after end of run - V10'
       CALL warning(routine, message_text)
     ENDIF
 
     ! ------------------------------------------------------------------
     !  Receive fraction of sea ice
-    !  field_id(CPF_FR_SEAICE) = 'fraction_of_ocean_covered_by_sea_ice'
+    !  'fraction_of_ocean_covered_by_sea_ice'
     ! ------------------------------------------------------------------
     !
     IF (ltimer) CALL timer_start(timer_coupling_get)
     !
-    yac_ptr(1,CPF_FR_SEAICE)%p(1:p_patch%n_patch_cells) => sea_ice_c(:,:)
+    yac_ptr(1,1)%p(1:p_patch%n_patch_cells) => sea_ice_c(:,:)
     !
-    CALL yac_fget(                                        &
-      & field_id        = field_id(CPF_FR_SEAICE),        &
-      & collection_size = collection_size(CPF_FR_SEAICE), &
-      & recv_field      = yac_ptr(:,CPF_FR_SEAICE),       &
-      & info            = info,                           &
+    CALL yac_fget(                            &
+      & field_id        = field_id_fr_seaice, &
+      & collection_size = 1,                  &
+      & recv_field      = yac_ptr(:,1),       &
+      & info            = info,               &
       & ierror          = ierror )
     !
     IF (ltimer) CALL timer_stop(timer_coupling_get)
     !
     IF ( info > YAC_ACTION_COUPLING .AND. info < YAC_ACTION_OUT_OF_BOUND ) THEN
-      WRITE(message_text, '(a,i3,a)') 'YAC says it is get for restart - id=',CPF_FR_SEAICE,', fr_seaice'
+      WRITE(message_text, '(a,i3,a)') 'YAC says it is get for restart - fr_seaice'
       CALL message(routine, message_text)
     ENDIF
     IF ( info == YAC_ACTION_OUT_OF_BOUND ) THEN
-      WRITE(message_text, '(a,i3,a)') 'YAC says fput called after end of run - id=',CPF_FR_SEAICE,', fr_seaice'
+      WRITE(message_text, '(a,i3,a)') 'YAC says fput called after end of run - fr_seaice'
       CALL warning(routine, message_text)
     ENDIF
 
@@ -203,6 +239,9 @@ CONTAINS
     CALL sync_patch_array(SYNC_C, p_patch, u10m(:,:), opt_varname="u10m")
     CALL sync_patch_array(SYNC_C, p_patch, v10m(:,:), opt_varname="v10m")
     CALL sync_patch_array(SYNC_C, p_patch, sea_ice_c(:,:), opt_varname="sea_ice_c")
+
+! YAC_coupling
+#endif
 
   END SUBROUTINE couple_wave_to_atmo
 

@@ -38,11 +38,12 @@ MODULE mo_reff_main
                                    & one_mom_calculate_ncn,                       &
                                    & cloud_num
   USE mo_parallel_config,      ONLY: nproma
+  USE mo_index_list,           ONLY: generate_index_list_batched
 
   IMPLICIT NONE
   PRIVATE
   
-  PUBLIC:: init_reff_calc, mapping_indices,calculate_ncn,calculate_reff,set_max_reff,combine_reff 
+  PUBLIC:: init_reff_calc, mapping_indices, calculate_ncn, calculate_reff, set_max_reff, combine_reff
 
 
   CONTAINS
@@ -330,8 +331,8 @@ MODULE mo_reff_main
       REAL(wp), PARAMETER                ::     qmin = 1E-6  ! Difference between cloud/nocloud in kg/kg
       REAL(wp), PARAMETER                ::     qsub = 1E-6  ! Difference between grid/subgrid in kg/kg
 
-      INTEGER                            ::     k,jc         ! Counters
-      LOGICAL                            ::     llq          ! logical conditions for cloud/no cloud and grid/subgrid
+      INTEGER                            ::     k, jc        ! Counters
+      INTEGER, DIMENSION(ie,k_end)       ::     llq          ! logical conditions for cloud/no cloud and grid/subgrid
 
 
     ! Check input return_fct
@@ -341,25 +342,18 @@ MODULE mo_reff_main
         RETURN
       END IF
 
+      !$ACC ENTER DATA CREATE(llq)
 
       ! Initialize inidices
-      !$ACC DATA PRESENT(indices, n_ind)
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) PRESENT(nproma) FIRSTPRIVATE(k_end)
+      !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) FIRSTPRIVATE(k_end, ie)
       !$ACC LOOP GANG VECTOR COLLAPSE(2)
       DO k = 1,k_end
-        DO jc = 1,nproma
+        DO jc = 1,ie
           indices(jc,k) = 0
+          llq(jc,k) = 0
         END DO
       END DO
       !$ACC END PARALLEL
-
-      !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) FIRSTPRIVATE(k_end)
-      !$ACC LOOP GANG VECTOR
-      DO jc = 1,k_end
-        n_ind(jc) = 0
-      END DO
-      !$ACC END PARALLEL
-      !$ACC END DATA
 
       SELECT CASE ( reff_calc%grid_scope )
 
@@ -372,21 +366,18 @@ MODULE mo_reff_main
           q=>reff_calc%p_q(:,:,jb)
         END IF
 
-        !$ACC DATA PRESENT(n_ind, indices, q)
-        !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) FIRSTPRIVATE(k_start, k_end, is, ie, llq)
-        !$ACC LOOP SEQ
+        !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) FIRSTPRIVATE(k_start, k_end, is, ie)
+        !$ACC LOOP GANG VECTOR COLLAPSE(2)
         DO k = k_start,k_end
-          !$ACC LOOP SEQ
           DO jc = is, ie
-            llq =  q(jc,k) > qmin
-            IF (llq) THEN
-              n_ind(k)            =  n_ind(k) + 1
-              indices(n_ind(k),k) = jc
-            END IF
+            IF (q(jc,k) > qmin) THEN
+              llq(jc,k) = 1
+            ENDIF
           END DO
         END DO
         !$ACC END PARALLEL
-        !$ACC END DATA
+
+        CALL generate_index_list_batched(llq, indices, 1, ie, n_ind, 1)
 
       CASE (1) ! Only grid scale (with same subgrid/grid criteria as subgrid)
         
@@ -394,21 +385,18 @@ MODULE mo_reff_main
           q_tot=>reff_calc%p_qtot(:,:,jb)
           q=>reff_calc%p_q(:,:,jb)
 
-          !$ACC DATA PRESENT(n_ind, indices, q, q_tot)
-          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) FIRSTPRIVATE(k_start, k_end, is, ie, llq)
-          !$ACC LOOP SEQ
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) FIRSTPRIVATE(k_start, k_end, is, ie)
+          !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO k = k_start,k_end
-            !$ACC LOOP SEQ
-            DO jc = is, ie            
-              llq =  (q(jc,k) > qsub) .AND. (q_tot(jc,k) > qmin) 
-              IF (llq) THEN
-                n_ind(k)            =  n_ind(k) + 1  
-                indices(n_ind(k),k) = jc                
-              END IF
+            DO jc = is, ie
+              IF ((q(jc,k) > qsub) .AND. (q_tot(jc,k) > qmin)) THEN
+                llq(jc,k) = 1
+              ENDIF
             END DO
           END DO
           !$ACC END PARALLEL
-          !$ACC END DATA
+
+          CALL generate_index_list_batched(llq, indices, 1, ie, n_ind, 1)
 
         ELSE
           WRITE (message_text,*) 'Warning: Reff does not have information for generate inidices for subgrid ncn'
@@ -423,21 +411,18 @@ MODULE mo_reff_main
           q_tot=>reff_calc%p_qtot(:,:,jb)
           q=>reff_calc%p_q(:,:,jb)
 
-          !$ACC DATA PRESENT(n_ind, indices, q, q_tot)
-          !$ACC PARALLEL DEFAULT(NONE) ASYNC(1) FIRSTPRIVATE(k_start, k_end, is, ie, llq)
-          !$ACC LOOP SEQ
+          !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1) FIRSTPRIVATE(k_start, k_end, is, ie)
+          !$ACC LOOP GANG VECTOR COLLAPSE(2)
           DO k = k_start,k_end
-            !$ACC LOOP SEQ
             DO jc = is, ie
-              llq =   (q_tot(jc,k) > qmin) .AND. (q(jc,k) < qsub)
-              IF (llq) THEN
-                n_ind(k)            =  n_ind(k) + 1
-                indices(n_ind(k),k) = jc
-              END IF
+              IF ((q_tot(jc,k) > qmin) .AND. (q(jc,k) < qsub)) THEN
+                llq(jc,k) = 1
+              ENDIF
             END DO
           END DO
           !$ACC END PARALLEL
-          !$ACC END DATA
+
+          CALL generate_index_list_batched(llq, indices, 1, ie, n_ind, 1)
 
         ELSE
           WRITE (message_text,*) 'Warning: Reff does not have information for generate inidices for subgrid ncn'
@@ -447,7 +432,9 @@ MODULE mo_reff_main
         END IF
 
     END SELECT
-    
+
+    !$ACC WAIT
+    !$ACC EXIT DATA DELETE(llq)
 
   END SUBROUTINE mapping_indices
 

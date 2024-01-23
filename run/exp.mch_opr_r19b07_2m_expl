@@ -159,9 +159,9 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
 
 ! dynamics_nml: dynamical core -----------------------------------------------
 &dynamics_nml
- iequations                  =                          3         ! type of equations and prognostic variables
  divavg_cntrwgt              =                          0.50      ! weight of central cell for divergence averaging
  lcoriolis                   =                      .TRUE.        ! Coriolis force
+ lmoist_thdyn                =                      .FALSE.
 /
 
 ! extpar_nml: external data --------------------------------------------------
@@ -293,7 +293,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
 ! nwp_phy_nml: switches for the physics schemes ------------------------------
 &nwp_phy_nml
  inwp_gscp                   =                          4         ! cloud microphysics and precipitation
- icalc_reff                  =                          0         ! don't use effective radius calculation (slow on GPU)
+ icalc_reff                  =                        100         ! use effective radius calculation consistent between micro and cloud, use same as inwp_gscp
  inwp_convection             =                          1         ! convection
  lshallowconv_only           =                      .TRUE.        ! only shallow convection
  lgrayzone_deepconv          =                      .FALSE.       !
@@ -311,6 +311,7 @@ cat > ${basedir}/run/${atmo_namelist} << EOF
  icapdcycl                   =                          3         ! apply CAPE modification to improve diurnalcycle over tropical land
  icpl_aero_conv              =                          1         ! coupling between autoconversion and Tegen aerosol climatology
  icpl_aero_gscp              =                          0         ! coupling between autoconversion and Tegen aerosol climatology
+ icpl_rad_reff               =                          1
  lrtm_filename               =                'rrtmg_lw.nc'       ! longwave absorption coefficients for RRTM_LW
  cldopt_filename             =             'rrtm_cldopt.nc'       ! RRTM cloud optical properties
  mu_rain                     =                         0.5        ! shap parameter in gamma distribution for rain

@@ -348,12 +348,17 @@ SUBROUTINE nwp_turbtrans  ( tcall_turb_jg,                     & !>in
           ! Modify roughness length depending on snow cover
           prm_diag%gz0_t(jc,jb,jt) = grav *( (1._wp-lnd_diag%snowfrac_t(jc,jb,jt)**2)*z0_mod + &
             lnd_diag%snowfrac_t(jc,jb,jt)**2*ext_data%atm%z0_lcc_min(lc_class) )
-          ! Set gz0 on empty snow-free tiles because this is used in the snow-cover fraction diagnosis
-          IF (jt > ntiles_lnd .AND. lnd_diag%snowfrac_lc_t(jc,jb,jt) > 0.999_wp) THEN
-            prm_diag%gz0_t(jc,jb,jt-ntiles_lnd) = grav*z0_mod
-          ENDIF
+          ! apply adaptive parameter tuning to roughness length
           IF (icpl_da_sfcfric >= 1) THEN
             prm_diag%gz0_t(jc,jb,jt) = MIN(1.5_wp*grav,prm_diag%sfcfric_fac(jc,jb)*prm_diag%gz0_t(jc,jb,jt))
+          ENDIF
+          ! Set gz0 on empty snow-free tiles because this is used in the snow-cover fraction diagnosis
+          IF (jt > ntiles_lnd .AND. lnd_diag%snowfrac_lc_t(jc,jb,jt) > 0.999_wp) THEN
+            IF (icpl_da_sfcfric >= 1) THEN
+              prm_diag%gz0_t(jc,jb,jt-ntiles_lnd) = MIN(1.5_wp*grav,prm_diag%sfcfric_fac(jc,jb)*grav*z0_mod)
+            ELSE
+              prm_diag%gz0_t(jc,jb,jt-ntiles_lnd) = grav*z0_mod
+            ENDIF
           ENDIF
         ENDDO
         !$ACC END PARALLEL

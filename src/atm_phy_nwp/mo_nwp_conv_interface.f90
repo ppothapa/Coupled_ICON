@@ -557,6 +557,8 @@ CONTAINS
 &          kcbot  = prm_diag%mbas_con(:,jb)                                 ,& !! OUT
 &          kctop  = prm_diag%mtop_con(:,jb)                                 ,& !! OUT
 &          LDSHCV = prm_diag%ldshcv  (:,jb)                                 ,& !! IN
+&          fac_entrorg = prm_diag%fac_entrorg(:,jb)                         ,& !! IN
+&          fac_rmfdeps = prm_diag%fac_rmfdeps(:,jb)                         ,& !! IN
 &          pmfu   =      prm_diag%con_udd(:,:,jb,1)                         ,& !! OUT
 &          pmfd   =      prm_diag%con_udd(:,:,jb,2)                         ,& !! OUT
 &          pmfude_rate = prm_diag%con_udd(:,:,jb,3)                         ,& !! OUT

@@ -29,12 +29,14 @@ MODULE mo_wave_coupling_frame
   USE mo_time_config,     ONLY: time_config
   USE mtime,              ONLY: datetimeToString, timedeltaToString, &
     &                           MAX_DATETIME_STR_LEN, MAX_TIMEDELTA_STR_LEN
+  USE mo_coupling_config, ONLY: is_coupled_run, is_coupled_to_atmo
+  USE mo_wave_atmo_coupling, ONLY: construct_wave_atmo_coupling
+#ifdef YAC_coupling
   USE mo_yac_finterface,  ONLY: yac_fget_version, yac_fdef_comp,        &
     &                           yac_fdef_datetime, yac_fdef_grid,       &
     &                           yac_fdef_points, yac_fset_global_index, &
-    &                           yac_fset_core_mask, yac_fdef_mask,      &
-    &                           yac_fdef_field_mask,                    &
-    &                           YAC_TIME_UNIT_ISO_FORMAT, YAC_LOCATION_CELL
+    &                           yac_fset_core_mask, YAC_LOCATION_CELL
+#endif
   USE mo_timer,           ONLY: timer_start, timer_stop, timer_coupling_init
 
   IMPLICIT NONE
@@ -43,24 +45,11 @@ MODULE mo_wave_coupling_frame
 
   PUBLIC :: construct_wave_coupling
   PUBLIC :: nbr_inner_cells
-  PUBLIC :: field_id
-  PUBLIC :: collection_size
-  PUBLIC :: CPF_U10M, CPF_V10M, CPF_FR_SEAICE, CPF_Z0
 
   ! Output of module for debug
   CHARACTER(len=*), PARAMETER :: str_module = 'mo_wave_coupling_frame'
 
-  INTEGER, PARAMETER    :: no_of_fields = 4
-  INTEGER               :: field_id(no_of_fields)
-  INTEGER               :: collection_size(no_of_fields)
-
   INTEGER, SAVE         :: nbr_inner_cells
-
-  ! These constants are only valid AFTER calling construct_wave_coupling !
-  INTEGER, PARAMETER :: CPF_U10M      = 1 !< zonal wind speed at 10m above surface
-  INTEGER, PARAMETER :: CPF_V10M      = 2 !< meridional wind speed at 10m above surface
-  INTEGER, PARAMETER :: CPF_FR_SEAICE = 3 !< fractional seaice cover
-  INTEGER, PARAMETER :: CPF_Z0        = 4 !< surface roughness length
 
 CONTAINS
 
@@ -76,8 +65,6 @@ CONTAINS
     TYPE(t_patch), TARGET, INTENT(IN) :: p_patch(:)
 
     CHARACTER(len=*), PARAMETER :: routine = str_module//':construct_wave_coupling'
-
-    CHARACTER(LEN=max_char_length) :: field_name(no_of_fields)
 
     TYPE(t_patch), POINTER :: patch_horz
 
@@ -96,7 +83,6 @@ CONTAINS
     INTEGER :: grid_id              ! grid identifier
     INTEGER :: comp_ids(1)
     INTEGER :: cell_point_ids(1)
-    INTEGER :: cell_mask_ids(1)
 
     INTEGER :: jg
     INTEGER :: nblks
@@ -115,23 +101,14 @@ CONTAINS
     CHARACTER(LEN=MAX_DATETIME_STR_LEN) :: startdatestring
     CHARACTER(LEN=MAX_DATETIME_STR_LEN) :: stopdatestring
     CHARACTER(LEN=MAX_TIMEDELTA_STR_LEN):: tc_dt_model_string
-    
+
+#ifndef YAC_coupling
+    CALL finish(routine, 'built without coupling support.')
+#else
+
+    IF ( .NOT. is_coupled_run() ) RETURN
 
     IF (ltimer) CALL timer_start (timer_coupling_init)
-
-    ! define name of fields which are going to be exchanged
-    !
-    field_name(CPF_U10M) = "zonal_wind_in_10m"
-    collection_size(CPF_U10M) = 1
-
-    field_name(CPF_V10M) = "meridional_wind_in_10m"
-    collection_size(CPF_V10M) = 1
-
-    field_name(CPF_FR_SEAICE) = "fraction_of_ocean_covered_by_sea_ice"
-    collection_size(CPF_FR_SEAICE) = 1
-
-    field_name(CPF_Z0) = "roughness_length"
-    collection_size(CPF_Z0) = 1
 
     jg = 1
     patch_horz => p_patch(jg)
@@ -149,6 +126,9 @@ CONTAINS
     ! Overwrite job start and end date with component data
     CALL datetimeToString(time_config%tc_startdate, startdatestring)
     CALL datetimeToString(time_config%tc_stopdate, stopdatestring)
+
+    ! convert model timestep into ISO string
+    CALL timedeltaToString(time_config%tc_dt_model, tc_dt_model_string)
 
     CALL yac_fdef_datetime ( start_datetime = TRIM(startdatestring), & !in
       &                      end_datetime   = TRIM(stopdatestring)   ) !in
@@ -268,7 +248,7 @@ CONTAINS
     IF (ist /= SUCCESS)  CALL finish (routine, 'ALLOCATE failed for is_valid!')
 
     ! TODO
-    ! I am not fully sure what this scalar npr_inner_cells is good for, anth whether
+    ! I am not fully sure what this scalar nbr_inner_cells is good for, and whether
     ! we need it for atmo-wave coupling.
     nbr_inner_cells = 0
 !ICON_OMP_PARALLEL_DO PRIVATE(jc) REDUCTION(+:nbr_inner_cells) ICON_OMP_RUNTIME_SCHEDULE
@@ -288,47 +268,22 @@ CONTAINS
       & location = YAC_LOCATION_CELL,    & !in
       & grid_id  = grid_id )               !in
 
-    ! Note that the wave grid consists of water cells, only.
-    ! Hence, all cells in ICON-waves grid are valid
-!ICON_OMP_PARALLEL_DO PRIVATE(jc) ICON_OMP_RUNTIME_SCHEDULE
-    DO jc = 1, patch_horz%nblks_c * nproma
-       is_valid(jc) = .TRUE.
-    END DO
-!ICON_OMP_END_PARALLEL_DO
-
-    ! define cell mask.
-    ! Points with is_valid=.FALSE. are masked out
-    CALL yac_fdef_mask (                       &
-      & grid_id    = grid_id,                  & !in
-      & nbr_points = patch_horz%n_patch_cells, & !in
-      & location   = YAC_LOCATION_CELL,        & !in
-      & is_valid   = is_valid,                 & !in
-      & mask_id    = cell_mask_ids(1) )          !out
-
-
-    ! convert model timestep into ISO string
-    CALL timedeltaToString(time_config%tc_dt_model, tc_dt_model_string)
-    
-    DO jn = 1, no_of_fields
-      CALL yac_fdef_field_mask (                      &
-        & field_name      = TRIM(field_name(jn)),     & !in
-        & component_id    = comp_id,                  & !in
-        & point_ids       = cell_point_ids(1),        & !in
-        & mask_ids        = cell_mask_ids(1),         & !in
-        & num_pointsets   = 1,                        & !in
-        & collection_size = collection_size(jn),      & !in
-        & timestep        = tc_dt_model_string,       & !in
-        & time_unit       = YAC_TIME_UNIT_ISO_FORMAT, & !in
-        & field_id        = field_id(jn) )              !out
-    ENDDO
-
     DEALLOCATE (is_valid, STAT=ist)
     IF (ist /= SUCCESS)  CALL finish (routine, 'DEALLOCATE failed for is_valid!')
+
+    IF ( is_coupled_to_atmo() ) THEN
+      CALL message(str_module, 'Constructing the coupling frame wave-atmosphere.')
+      CALL construct_wave_atmo_coupling( &
+        comp_id, cell_point_ids(1), tc_dt_model_string)
+    END IF
 
     ! End definition of coupling fields and search
     CALL yac_fenddef ( )
 
     IF (ltimer) CALL timer_stop(timer_coupling_init)
+
+! YAC_coupling
+#endif
 
   END SUBROUTINE construct_wave_coupling
 

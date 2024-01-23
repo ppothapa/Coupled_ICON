@@ -251,6 +251,13 @@ MODULE mo_timer
   ! Model atmosphere
   PUBLIC :: timer_opt_diag_atmo
 
+#ifndef __NO_ICON_COMIN__
+  ! Timers for ComIn
+  PUBLIC :: timer_comin_init
+  PUBLIC :: timer_comin_primary_constructors
+  PUBLIC :: timer_comin_callbacks
+#endif
+
   ! low level timing routine
   PUBLIC :: tic, toc
   PUBLIC :: timer_ls_forcing 
@@ -475,6 +482,10 @@ MODULE mo_timer
   ! Model atmosphere
   INTEGER :: timer_opt_diag_atmo
 
+#ifndef __NO_ICON_COMIN__
+  ! Timers for ComIn
+  INTEGER :: timer_comin_init, timer_comin_primary_constructors, timer_comin_callbacks
+#endif
 
 CONTAINS
 
@@ -937,6 +948,13 @@ CONTAINS
       timer_radar_barrier   = new_timer("EMVORADO_barrier_waiting")
       timer_radar_acc_data_copies = new_timer("EMVORADO_acc_data_copies")
     END IF
+
+#ifndef __NO_ICON_COMIN__
+    ! Timers for ComIn
+    timer_comin_init                 = new_timer("comin_init")
+    timer_comin_primary_constructors = new_timer("comin_primary_constructors")
+    timer_comin_callbacks            = new_timer("comin_callbacks")
+#endif
 
     ! Timers for optional diagnostics
     ! Model atmosphere

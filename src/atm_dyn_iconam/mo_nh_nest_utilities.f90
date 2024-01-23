@@ -21,6 +21,12 @@
 
 MODULE mo_nh_nest_utilities
   !
+!===============================================================================!
+! OpenACC compiler error workaround (Found and solved by Xavier Lapillone):
+! LV: The local variables zrho, ztheta_v and zexner are used to circumvent a nvhpc 23.3 OpenACC compiler bug.
+! The sections should be revisited once bug is resolved.
+! The affected sections are marked by "ACCWA (nvhpc 23.3, LV, see above)"
+!===============================================================================!
   !
   USE mo_kind,                ONLY: wp, vp
   USE mo_exception,           ONLY: message_text, message, finish
@@ -1619,19 +1625,17 @@ CONTAINS
           rho_tend = p_latbc_const%rho    (jc,jk,jb) - p_prog%rho    (jc,jk,jb)
 
 #ifdef _OPENACC
-            ! local variables zrho, ztheta_v and zexner are used because of GPU pgi compiler bug
-            ! this section should be revisited once bug is resolved.
-            ! BUG-FIX for nvfort 21.3.0 (Daint) fond and solved by Xavier Lapillonne
-            zrho     = p_prog%rho(jc,jk,jb)     + p_int%nudgecoeff_c(jc,jb)*rho_tend
-            ztheta_v = p_prog%theta_v(jc,jk,jb) + p_int%nudgecoeff_c(jc,jb)*thv_tend
-            zexner   = EXP(rd_o_cvd*LOG(rd_o_p0ref*zrho*ztheta_v))
-            p_prog%rho(jc,jk,jb)     = zrho
-            p_prog%theta_v(jc,jk,jb) = ztheta_v
-            p_prog%exner(jc,jk,jb)   = zexner
+          ! ACCWA (nvhpc 23.3, LV, see above)
+          zrho     = p_prog%rho(jc,jk,jb)     + p_int%nudgecoeff_c(jc,jb)*rho_tend
+          ztheta_v = p_prog%theta_v(jc,jk,jb) + p_int%nudgecoeff_c(jc,jb)*thv_tend
+          zexner   = EXP(rd_o_cvd*LOG(rd_o_p0ref*zrho*ztheta_v))
+          p_prog%rho(jc,jk,jb)     = zrho
+          p_prog%theta_v(jc,jk,jb) = ztheta_v
+          p_prog%exner(jc,jk,jb)   = zexner
 #else
-            p_prog%rho(jc,jk,jb)     = p_prog%rho(jc,jk,jb)     + p_int%nudgecoeff_c(jc,jb)*rho_tend
-            p_prog%theta_v(jc,jk,jb) = p_prog%theta_v(jc,jk,jb) + p_int%nudgecoeff_c(jc,jb)*thv_tend
-            p_prog%exner(jc,jk,jb)   = EXP(rd_o_cvd*LOG(rd_o_p0ref*p_prog%rho(jc,jk,jb)*p_prog%theta_v(jc,jk,jb)))
+          p_prog%rho(jc,jk,jb)     = p_prog%rho(jc,jk,jb)     + p_int%nudgecoeff_c(jc,jb)*rho_tend
+          p_prog%theta_v(jc,jk,jb) = p_prog%theta_v(jc,jk,jb) + p_int%nudgecoeff_c(jc,jb)*thv_tend
+          p_prog%exner(jc,jk,jb)   = EXP(rd_o_cvd*LOG(rd_o_p0ref*p_prog%rho(jc,jk,jb)*p_prog%theta_v(jc,jk,jb)))
 #endif
 
         ENDDO
@@ -1724,8 +1728,7 @@ CONTAINS
               tempv_inc*p_diag%pres(jc,jk,jb)/p_diag%tempv(jc,jk,jb)**2 )/rd
 
 #ifdef _OPENACC
-            ! local variables zrho, ztheta_v and zexner are used because of GPU pgi compiler bug
-            ! this section should be revisited once bug is resolved.
+            ! ACCWA (nvhpc 23.3, LV, see above)
             zrho     = p_prog%rho(jc,jk,jb)     + p_int%nudgecoeff_c(jc,jb)*rho_tend
             ztheta_v = p_prog%theta_v(jc,jk,jb) + p_int%nudgecoeff_c(jc,jb)*thv_tend
             zexner   = EXP(rd_o_cvd*LOG(rd_o_p0ref*zrho*ztheta_v))
@@ -1871,6 +1874,7 @@ CONTAINS
     REAL(wp) :: rho_tend, thv_tend, vn_tend
     REAL(wp) :: rd_o_cvd, rd_o_p0ref, nudgecoeff
     REAL(wp) :: max_nudge_coeff_vn, max_nudge_coeff_thermdyn
+    REAL(wp) :: zrho, ztheta_v, zexner
     LOGICAL  :: bdymask(nproma)
     LOGICAL  :: lnudge_hydro_pres_ubn
     !
@@ -1902,9 +1906,6 @@ CONTAINS
     max_nudge_coeff_vn       = nudging_config(jg)%max_nudge_coeff_vn
     max_nudge_coeff_thermdyn = nudging_config(jg)%max_nudge_coeff_thermdyn
 
-#ifdef _OPENACC
-    CALL finish(TRIM(routine), 'UPPER boundary nudging for the limited-area mode is not tested on GPU')
-#endif
 
     IF (PRESENT(p_latbc_const) .AND. (PRESENT(p_latbc_old) .OR. PRESENT(p_latbc_new))) THEN
 
@@ -1919,18 +1920,7 @@ CONTAINS
     ELSE IF (PRESENT(p_latbc_old) .AND. PRESENT(p_latbc_new)) THEN ! Mode for time-dependent lateral boundary data
 
 
-      !$ACC DATA PRESENT(p_diag%temp, p_diag%pres, p_diag%tempv, p_prog%rho) &
-      !$ACC   PRESENT(ptr_tracer, p_prog%theta_v, p_prog%exner, p_prog%vn) &
-      !$ACC   PRESENT(p_patch%cells%refin_ctrl, p_patch%edges%refin_ctrl) &
-      !$ACC   CREATE(bdymask) &
-      !$ACC   PRESENT(p_latbc_old, p_latbc_new) &
-      !$ACC   PRESENT(p_metrics%nudgecoeff_vert) &
-      !$ACC   PRESENT(p_int, p_int%nudgecoeff_c) &
-      !$ACC   PRESENT(p_latbc_old%pres, p_latbc_old%temp, p_latbc_old%qv) &
-      !$ACC   PRESENT(p_latbc_new%pres, p_latbc_new%temp, p_latbc_new%qv) &
-      !$ACC   PRESENT(p_latbc_old%theta_v, p_latbc_old%rho, p_latbc_old%vn) &
-      !$ACC   PRESENT(p_latbc_new%theta_v, p_latbc_new%rho, p_latbc_new%vn) &
-      !$ACC   PRESENT(p_prog, p_diag, p_metrics, p_patch)
+      !$ACC DATA CREATE(bdymask)
 
       IF (.NOT. PRESENT(lc1) .OR. .NOT. PRESENT(lc2)) THEN
         CALL finish(routine,'missing interpolation weights wfac_old, wfac_new')
@@ -1957,8 +1947,10 @@ CONTAINS
         !$ACC END PARALLEL
 
         IF (lnudge_hydro_pres_ubn) THEN
+
           !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-          !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(nudgecoeff, pres, temp, qv, tempv_inc, pres_inc, thv_tend, rho_tend)
+          !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(nudgecoeff, pres, temp, qv, tempv_inc, pres_inc) &
+          !$ACC   PRIVATE(thv_tend, rho_tend, zrho, ztheta_v, zexner)
           DO jk = 1, ke_nudge
 !DIR$ IVDEP
             DO jc = i_startidx, i_endidx
@@ -1978,17 +1970,33 @@ CONTAINS
               rho_tend = ( pres_inc/p_diag%tempv(jc,jk,jb) -                 &
                 tempv_inc*p_diag%pres(jc,jk,jb)/p_diag%tempv(jc,jk,jb)**2 )/rd
 
+#ifdef _OPENACC
+              ! ACCWA (nvhpc 23.3, LV, see above)
+              zrho     = p_prog%rho(jc,jk,jb)     + nudgecoeff*rho_tend
+              ztheta_v = p_prog%theta_v(jc,jk,jb) + nudgecoeff*thv_tend
+              zexner   = MERGE(p_prog%exner(jc,jk,jb), EXP(rd_o_cvd*LOG(rd_o_p0ref*zrho*ztheta_v)), bdymask(jc))
+              p_prog%rho(jc,jk,jb)     = zrho
+              p_prog%theta_v(jc,jk,jb) = ztheta_v
+              p_prog%exner(jc,jk,jb)   = zexner
+#else
               p_prog%rho(jc,jk,jb)     = p_prog%rho(jc,jk,jb)     + nudgecoeff*rho_tend
               p_prog%theta_v(jc,jk,jb) = p_prog%theta_v(jc,jk,jb) + nudgecoeff*thv_tend
               p_prog%exner(jc,jk,jb)   = MERGE(p_prog%exner(jc,jk,jb), &
                 EXP(rd_o_cvd*LOG(rd_o_p0ref*p_prog%rho(jc,jk,jb)*p_prog%theta_v(jc,jk,jb))),bdymask(jc))
-
+#endif
             ENDDO
           ENDDO
           !$ACC END PARALLEL
         ELSE
+
+#ifdef _OPENACC
+          WRITE(message_text,'(a)') 'The option .NOT. lnudge_hydro_pres_ubn is not part of any OpenACC testcase ' // &
+                                    'and code changes are therefore not tested.'
+          CALL message(routine, message_text)
+#endif
+
           !$ACC PARALLEL DEFAULT(PRESENT) ASYNC(1)
-          !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(nudgecoeff, thv_tend, rho_tend)
+          !$ACC LOOP GANG VECTOR COLLAPSE(2) PRIVATE(nudgecoeff, thv_tend, rho_tend, zrho, ztheta_v, zexner)
           DO jk = 1, ke_nudge
 !DIR$ IVDEP
             DO jc = i_startidx, i_endidx
@@ -1999,10 +2007,20 @@ CONTAINS
               thv_tend = wfac_old*p_latbc_old%theta_v(jc,jk,jb) + wfac_new*p_latbc_new%theta_v(jc,jk,jb) - p_prog%theta_v(jc,jk,jb)
               rho_tend = wfac_old*p_latbc_old%rho(jc,jk,jb) + wfac_new*p_latbc_new%rho(jc,jk,jb)- p_prog%rho(jc,jk,jb)
 
+#ifdef _OPENACC
+              ! ACCWA (nvhpc 23.3, LV, see above)
+              zrho     = p_prog%rho(jc,jk,jb)     + nudgecoeff*rho_tend
+              ztheta_v = p_prog%theta_v(jc,jk,jb) + nudgecoeff*thv_tend
+              zexner   = MERGE(p_prog%exner(jc,jk,jb), EXP(rd_o_cvd*LOG(rd_o_p0ref*zrho*ztheta_v)), bdymask(jc))
+              p_prog%rho(jc,jk,jb)     = zrho
+              p_prog%theta_v(jc,jk,jb) = ztheta_v
+              p_prog%exner(jc,jk,jb)   = zexner
+#else
               p_prog%rho(jc,jk,jb)     = p_prog%rho(jc,jk,jb)     + nudgecoeff*rho_tend
               p_prog%theta_v(jc,jk,jb) = p_prog%theta_v(jc,jk,jb) + nudgecoeff*thv_tend
               p_prog%exner(jc,jk,jb)   = MERGE(p_prog%exner(jc,jk,jb), &
                 EXP(rd_o_cvd*LOG(rd_o_p0ref*p_prog%rho(jc,jk,jb)*p_prog%theta_v(jc,jk,jb))),bdymask(jc))
+#endif
             ENDDO
           ENDDO
           !$ACC END PARALLEL
@@ -2045,8 +2063,10 @@ CONTAINS
         !$ACC END PARALLEL
 
       ENDDO
+
       !$ACC WAIT(1)
       !$ACC END DATA
+
 !$OMP END DO NOWAIT
 
 !$OMP END PARALLEL

@@ -38,7 +38,7 @@ MODULE mo_aes_phy_memory
   USE mo_io_config,           ONLY: lnetcdf_flt64_output
   USE mo_name_list_output_config,   ONLY: is_variable_in_output
   USE mtime,                  ONLY: timedelta, OPERATOR(>)
-  USE mo_time_config,         ONLY: get_dynamics_timestep
+  USE mo_time_config,         ONLY: time_config
   USE mo_aes_phy_config,      ONLY: aes_phy_tc, dt_zero
   USE mo_aes_vdf_config,      ONLY: aes_vdf_config
   USE mo_aes_sfc_indices,     ONLY: nsfc_type, csfc
@@ -610,7 +610,7 @@ CONTAINS
 
       nblks = patch_array(jg)%nblks_c
       nlev  = patch_array(jg)%nlev
-      dt_dyn = get_dynamics_timestep(patch_array(jg))
+      dt_dyn = time_config%get_model_timestep_td(patch_array(jg)%nest_level)
 
       WRITE(listname_f,'(a,i2.2)') 'prm_field_D',jg
       CALL new_aes_phy_field_list( jg, nproma, nlev, nblks, ntracer, nsfc_type,   &

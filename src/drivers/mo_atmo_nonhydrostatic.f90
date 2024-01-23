@@ -170,12 +170,18 @@ USE mo_icon2dace,           ONLY: init_dace, finish_dace
   USE mo_impl_constants,      ONLY: pio_type_cdipio
   USE mo_parallel_config,     ONLY: pio_type
   USE mo_cdi,                 ONLY: namespaceGetActive, namespaceSetActive
-  USE mo_cdi_pio_interface,         ONLY: nml_io_cdi_pio_namespace
+  USE mo_cdi_pio_interface,   ONLY: nml_io_cdi_pio_namespace
+#endif
+
+  ! coupling
+#ifdef YAC_coupling
+  USE mo_coupling_config,           ONLY: is_coupled_to_ocean, is_coupled_to_waves, &
+    &                                     is_coupled_to_hydrodisc, is_coupled_to_output
+  USE mo_atmo_coupling_frame,       ONLY: construct_atmo_coupling
 #endif
 
 #ifndef __NO_ICON_COMIN__
-  USE comin_host_interface, ONLY: comin_callback_context_call,        &
-    &                             EP_SECONDARY_CONSTRUCTOR,           &
+  USE comin_host_interface, ONLY: EP_SECONDARY_CONSTRUCTOR,           &
     &                             EP_ATM_INIT_FINALIZE,               &
     &                             EP_DESTRUCTOR,                      &
     &                             comin_var_list_finalize,            &
@@ -185,7 +191,8 @@ USE mo_icon2dace,           ONLY: init_dace, finish_dace
   USE mo_comin_adapter,     ONLY: icon_append_comin_variables,        &
     &                             icon_append_comin_tracer_variables, &
     &                             icon_append_comin_tracer_phys_tend, &
-    &                             icon_expose_variables
+    &                             icon_expose_variables,              &
+    &                             icon_call_callback
 #endif
 
 
@@ -199,9 +206,9 @@ PUBLIC :: construct_atmo_nonhydrostatic, destruct_atmo_nonhydrostatic
 CONTAINS
 
   !---------------------------------------------------------------------
-  SUBROUTINE atmo_nonhydrostatic(latbc)
-    TYPE(t_latbc_data)           :: latbc   !< data structure for async latbc prefetching
+  SUBROUTINE atmo_nonhydrostatic()
 
+    TYPE(t_latbc_data)           :: latbc   !< data structure for async latbc prefetching
     INTEGER                      :: iter
     TYPE(t_time_config), TARGET  :: time_config_iau
     TYPE(t_time_config), POINTER :: ptr_time_config  => NULL()
@@ -210,6 +217,23 @@ CONTAINS
 
     CHARACTER(*), PARAMETER :: routine = "atmo_nonhydrostatic"
     INTEGER :: ierr
+
+
+    ! construct the atmospheric nonhydrostatic model
+    CALL construct_atmo_nonhydrostatic(latbc)
+
+    !---------------------------------------------------------------------
+    ! construct the coupler
+    !
+#ifdef YAC_coupling
+    IF ( ANY( (/is_coupled_to_ocean(),     &
+                is_coupled_to_hydrodisc(), &
+                is_coupled_to_waves(),     &
+                is_coupled_to_output()/) ) )   THEN
+      CALL construct_atmo_coupling(p_patch(1:))
+    ENDIF
+#endif
+
 
     !------------------------------------------------------------------
     ! Now start the time stepping:
@@ -264,7 +288,7 @@ CONTAINS
     CALL deleteRestartDescriptor(restartDescriptor)
 
 #ifndef __NO_ICON_COMIN__
-    CALL comin_callback_context_call(EP_DESTRUCTOR, COMIN_DOMAIN_OUTSIDE_LOOP)
+    CALL icon_call_callback(EP_DESTRUCTOR, COMIN_DOMAIN_OUTSIDE_LOOP)
 
     CALL comin_var_list_finalize(ierr)
     IF (ierr /= 0) STOP
@@ -293,7 +317,6 @@ CONTAINS
     TYPE(t_sim_step_info) :: sim_step_info  
     REAL(wp) :: sim_time
     TYPE(t_key_value_store), POINTER :: restartAttributes
-    LOGICAL :: lrestart
     CHARACTER(LEN=filename_max) :: model_base_dir
     INTEGER :: seed_size, i
     INTEGER, ALLOCATABLE :: seed(:)
@@ -327,7 +350,7 @@ CONTAINS
       CALL init_index_lists (p_patch(1:), ext_data)
 #endif
 
-      CALL configure_atm_phy_nwp(n_dom, p_patch(1:), dtime)
+      CALL configure_atm_phy_nwp(n_dom, p_patch(1:), time_config)
 
       CALL configure_synsat()
 
@@ -411,7 +434,6 @@ CONTAINS
 ! Upper atmosphere
 
     model_base_dir = getModelBaseDir()
-    lrestart       = isRestart()
 
     CALL configure_upatmo( n_dom_start, n_dom, p_patch(n_dom_start:), isRestart(), atm_phy_nwp_config(:)%lupatmo_phy,      &
       &                    init_mode, iforcing, time_config%tc_exp_startdate, time_config%tc_exp_stopdate, start_time(:),  & 
@@ -432,7 +454,7 @@ CONTAINS
     ! loop over the total list of additional requested variables and
     ! perform `add_var` / `add_ref` operations needed.
     ! remark: variables are added to a separate variable list.
-    CALL icon_append_comin_tracer_variables(p_patch(1:))
+    CALL icon_append_comin_tracer_variables(p_patch(1:), p_nh_state, p_nh_state_lists)
     CALL icon_append_comin_tracer_phys_tend(p_patch(1:))
     CALL icon_append_comin_variables(p_patch(1:))
 
@@ -443,7 +465,7 @@ CONTAINS
     ! call to secondary constructor
     !   third party modules retrieve pointers to data arrays, telling
     !   ICON ComIn about the context where these will be accessed.
-    CALL comin_callback_context_call(EP_SECONDARY_CONSTRUCTOR, COMIN_DOMAIN_OUTSIDE_LOOP)
+    CALL icon_call_callback(EP_SECONDARY_CONSTRUCTOR, COMIN_DOMAIN_OUTSIDE_LOOP)
     ! ----------------------------------------------------------
 #endif
 
@@ -794,7 +816,7 @@ CONTAINS
       sim_step_info%run_start = time_config%tc_startdate
       sim_step_info%restart_time = time_config%tc_stopdate
 
-      sim_step_info%dtime      = dtime
+      sim_step_info%dtime  = time_config%get_model_timestep_sec(p_patch(1)%nest_level)
       sim_step_info%jstep0 = 0
 
       CALL getAttributesForRestarting(restartAttributes)
@@ -847,7 +869,7 @@ CONTAINS
 #endif
 
 #ifndef __NO_ICON_COMIN__
-    CALL comin_callback_context_call(EP_ATM_INIT_FINALIZE, COMIN_DOMAIN_OUTSIDE_LOOP)
+    CALL icon_call_callback(EP_ATM_INIT_FINALIZE, COMIN_DOMAIN_OUTSIDE_LOOP)
 #endif
     ! Determine if temporally averaged vertically integrated moisture quantities need to be computed
 

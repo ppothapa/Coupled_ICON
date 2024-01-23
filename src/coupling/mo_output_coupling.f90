@@ -59,7 +59,7 @@ CONTAINS
   !! variables as a fields in the coupler.
 
   SUBROUTINE construct_output_coupling ( &
-    p_patch, comp_id, cell_point_ids, vertex_point_ids, timestepstring)
+    p_patch, comp_id, cell_point_id, vertex_point_id, timestepstring)
 
     USE mo_var_list_register,   ONLY: t_vl_register_iter
     USE mo_var_metadata,        ONLY: get_var_timelevel, get_var_name
@@ -69,14 +69,14 @@ CONTAINS
 
     TYPE(t_patch), TARGET, INTENT(IN) :: p_patch(:)
     INTEGER, INTENT(IN) :: comp_id
-    INTEGER, INTENT(IN) :: cell_point_ids(1), vertex_point_ids(1)
+    INTEGER, INTENT(IN) :: cell_point_id, vertex_point_id
     CHARACTER(LEN=*), INTENT(IN) :: timestepstring
 
     TYPE(t_vl_register_iter), ALLOCATABLE :: vl_iter
     TYPE(t_exposed_var), POINTER :: exposed_var
     CHARACTER(len=:), ALLOCATABLE :: var_name, metadata, comp_name, grid_name
     INTEGER :: iv, tl, collection_size, key_notl, count = 0, var_size, grpi, nblks, pos(3)
-    INTEGER :: point_ids(1), var_ref_pos
+    INTEGER :: point_id, var_ref_pos
 
     TYPE t_tmp_timelevel_var
        INTEGER :: key_notl
@@ -110,11 +110,11 @@ CONTAINS
 
             ! expose only vars on the icon grid (cells or vertices)
             IF (vl_iter%cur%p%hgrid(iv) .EQ. GRID_UNSTRUCTURED_CELL) THEN
-               point_ids = cell_point_ids
+               point_id = cell_point_id
                var_size = p_patch(1)%n_patch_cells
                nblks = p_patch(1)%nblks_c
             ELSEIF (vl_iter%cur%p%hgrid(iv) .EQ. GRID_UNSTRUCTURED_VERT) THEN
-               point_ids = vertex_point_ids
+               point_id = vertex_point_id
                var_size = p_patch(1)%n_patch_verts
                nblks = p_patch(1)%nblks_v
             ELSE
@@ -175,7 +175,7 @@ CONTAINS
                CALL yac_fdef_field(             &
                     & TRIM(var_name),           &
                     & comp_id,                  &
-                    & point_ids,                &
+                    & (/point_id/),             &
                     & 1,                        &
                     & collection_size,          &
                     & timestepstring,           &
