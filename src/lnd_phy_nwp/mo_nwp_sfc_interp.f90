@@ -93,13 +93,13 @@ CONTAINS
     ! Vertical interpolation indices and weights
 !PREVENT_INCONSISTENT_IFORT_FMA
     DO jk = 1, nlev_soil-1
-      IF (zml_soil(jk) < zsoil_ifs(1)) THEN
+      IF (zml_soil(jk) <= zsoil_ifs(1)) THEN
         idx0(jk)       = 0
         wfac_vintp(jk) = 1._wp - zml_soil(jk)/zsoil_ifs(1)
       ELSE IF (zml_soil(jk) > zsoil_ifs(nlevsoil_in)) THEN
         idx0(jk)       = nlevsoil_in
         wfac_vintp(jk) = 1._wp - (zml_soil(jk)-zsoil_ifs(nlevsoil_in))/&
-                                 (zml_soil(8) -zsoil_ifs(nlevsoil_in))
+                                 (zml_soil(nlev_soil) -zsoil_ifs(nlevsoil_in))
       ELSE
         DO jk1 = 1, nlevsoil_in-1
           IF (zml_soil(jk) > zsoil_ifs(jk1) .AND. zml_soil(jk) <= zsoil_ifs(jk1+1)) THEN
