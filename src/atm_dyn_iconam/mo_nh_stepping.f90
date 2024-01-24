@@ -1436,7 +1436,7 @@ MODULE mo_nh_stepping
 
     ! Adapt number of dynamics substeps if necessary
     !
-    IF (lcfl_watch_mode .OR. MOD(jstep-jstep_shift,5) == 0) THEN
+    IF (lcfl_watch_mode .OR. MOD(jstep-jstep_shift,5) == 0 .OR. jstep-jstep_shift <= 2) THEN
       IF (ANY((/MODE_IFSANA,MODE_COMBINED,MODE_COSMO,MODE_ICONVREMAP/) == init_mode)) THEN
         ! For interpolated initial conditions, apply more restrictive criteria for timestep reduction during the spinup phase
         CALL set_ndyn_substeps(lcfl_watch_mode,jstep <= 100)
@@ -3367,7 +3367,7 @@ MODULE mo_nh_stepping
     LOGICAL, INTENT(INOUT) :: lcfl_watch_mode
     LOGICAL, INTENT(IN) :: lspinup
 
-    INTEGER :: jg, ndyn_substeps_enh
+    INTEGER :: jg, ndyn_substeps_enh, nsubs_add
     REAL(wp) :: mvcfl(n_dom), thresh1_vcfl, thresh2_vcfl, mhcfl(n_dom), thresh1_hcfl, thresh2_hcfl, subsfac
     REAL(wp), PARAMETER :: hcfl_threshold=0.7_wp ! empirical value
     LOGICAL :: lskip
@@ -3413,7 +3413,8 @@ MODULE mo_nh_stepping
         ENDIF
 
         IF (mvcfl(jg) > thresh1_vcfl .OR. mhcfl(jg) > thresh1_hcfl) THEN
-          ndyn_substeps_var(jg) = MIN(ndyn_substeps_var(jg)+1,ndyn_substeps_max+ndyn_substeps_enh)
+          nsubs_add = MAX(1,NINT(REAL(ndyn_substeps_var(jg),wp)*(mvcfl(jg)-thresh1_vcfl)/thresh1_vcfl))
+          ndyn_substeps_var(jg) = MIN(ndyn_substeps_var(jg)+nsubs_add,ndyn_substeps_max+ndyn_substeps_enh)
           advection_config(jg)%ivcfl_max = MIN(ndyn_substeps_var(jg),ndyn_substeps_max)
           WRITE(message_text,'(a,i3,a,i3)') 'Number of dynamics substeps in domain ', &
             jg,' increased to ', ndyn_substeps_var(jg)
