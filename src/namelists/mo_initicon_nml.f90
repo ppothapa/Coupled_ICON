@@ -52,6 +52,7 @@ MODULE mo_initicon_nml
     & config_icpl_da_skinc       => icpl_da_skinc,       &
     & config_icpl_da_snowalb     => icpl_da_snowalb,     &
     & config_icpl_da_sfcfric     => icpl_da_sfcfric,     &
+    & config_scalfac_da_sfcfric  => scalfac_da_sfcfric,  &
     & config_icpl_da_tkhmin      => icpl_da_tkhmin,      &
     & config_icpl_da_seaice      => icpl_da_seaice,      &
     & config_dt_ana              => dt_ana,              &
@@ -140,6 +141,8 @@ CONTAINS
   INTEGER  :: icpl_da_snowalb  ! Coupling between data assimilation and snow albedo
 
   INTEGER  :: icpl_da_sfcfric  ! Coupling between data assimilation and surface friction (roughness length and SSO blocking)
+
+  REAL(wp) :: scalfac_da_sfcfric ! Scaling factor for adaptive surface friction
 
   INTEGER  :: icpl_da_tkhmin   ! Coupling between data assimilation and near-surface profiles of minimum vertical diffusion
 
@@ -236,7 +239,8 @@ CONTAINS
                           pinit_amplitude, icpl_da_sfcevap, dt_ana,         &
                           icpl_da_skinc, icpl_da_snowalb, adjust_tso_tsnow, &
                           icpl_da_sfcfric, lcouple_ocean_coldstart,         &
-                          icpl_da_tkhmin, icpl_da_seaice, fire2d_filename
+                          icpl_da_tkhmin, icpl_da_seaice, fire2d_filename,  &
+                          scalfac_da_sfcfric
 
   !------------------------------------------------------------
   ! 2.0 set up the default values for initicon
@@ -310,6 +314,8 @@ CONTAINS
 
   icpl_da_sfcfric = 0   ! Coupling between data assimilation and surface friction (roughness length and SSO blocking)
                         ! 0: off, 1:on
+
+  scalfac_da_sfcfric = 2.5_wp  ! scaling factor for adaptive surface friction
 
   icpl_da_tkhmin   = 0  ! Coupling between data assimilation and near-surface profile of minimum vertical diffusion for heat
                         ! 0: off, 1:on
@@ -450,6 +456,7 @@ CONTAINS
   config_icpl_da_skinc       = icpl_da_skinc
   config_icpl_da_snowalb     = icpl_da_snowalb
   config_icpl_da_sfcfric     = icpl_da_sfcfric
+  config_scalfac_da_sfcfric  = scalfac_da_sfcfric
   config_icpl_da_tkhmin      = icpl_da_tkhmin
   config_icpl_da_seaice      = icpl_da_seaice
   config_dt_ana              = dt_ana

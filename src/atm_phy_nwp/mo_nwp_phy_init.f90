@@ -112,7 +112,7 @@ MODULE mo_nwp_phy_init
   USE mo_nwp_parameters,      ONLY: t_phy_params
 
   USE mo_initicon_config,     ONLY: init_mode, lread_tke, icpl_da_sfcevap, dt_ana, icpl_da_snowalb, icpl_da_skinc, &
-                                    icpl_da_sfcfric, icpl_da_tkhmin, icpl_da_seaice
+                                    icpl_da_sfcfric, icpl_da_tkhmin, icpl_da_seaice, scalfac_da_sfcfric
 
   USE mo_nwp_tuning_config,   ONLY: tune_zceff_min, tune_v0snow, tune_zvz0i, tune_icesedi_exp, tune_box_liq_sfc_fac, &
                                     itune_slopecorr
@@ -497,9 +497,9 @@ SUBROUTINE init_nwp_phy ( p_patch, p_metrics,             &
       ! Tuning factor for surface friction (roughness length and SSO blocking)
       DO jc = i_startidx,i_endidx
         IF (p_diag%vabs_avginc(jc,jb) > 0._wp) THEN
-          prm_diag%sfcfric_fac(jc,jb) = MAX(0.25_wp, 1._wp-2.5_wp*10800._wp/dt_ana*p_diag%vabs_avginc(jc,jb))
+          prm_diag%sfcfric_fac(jc,jb) = MAX(0.25_wp, 1._wp-scalfac_da_sfcfric*10800._wp/dt_ana*p_diag%vabs_avginc(jc,jb))
         ELSE
-          prm_diag%sfcfric_fac(jc,jb) = 1._wp/MAX(0.25_wp, 1._wp+2.5_wp*10800._wp/dt_ana*p_diag%vabs_avginc(jc,jb))
+          prm_diag%sfcfric_fac(jc,jb) = 1._wp/MAX(0.25_wp, 1._wp+scalfac_da_sfcfric*10800._wp/dt_ana*p_diag%vabs_avginc(jc,jb))
         ENDIF
 
         zlat = p_patch%cells%center(jc,jb)%lat*rad2deg
