@@ -594,7 +594,7 @@ LOGICAL :: l_limit_nneg(nfields)
 REAL(wp):: r_limval(nfields)
 
 ! Auxiliary fields
-REAL(wp) :: h_aux(nproma,MAX(32,ptr_pp%nlevp1), 4,                    &
+REAL(wp) :: h_aux(nproma,MAX(35,ptr_pp%nlevp1), 4,                    &
                   ptr_pp%cells%start_block(grf_nudgintp_start_c):     &
                   MAX(ptr_pp%cells%start_block(grf_nudgintp_start_c), &
                       ptr_pp%cells%end_block(min_rlcell_int)),        &
